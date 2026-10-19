@@ -63,7 +63,14 @@ pub(super) fn validate(
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
 ) -> Result<(), LoweringError> {
-    let mut descriptors = typed.map_iterations().iter().collect::<Vec<_>>();
+    // The sealed ownership view has checked acquisition templates and plans.
+    // Preflight only actual acquisitions; ordinary lowering skips dead tails
+    // and still rejects any reached provider without its source-qualified plan.
+    let mut descriptors = owned
+        .map_iterations()
+        .iter()
+        .map(|plan| plan.descriptor())
+        .collect::<Vec<_>>();
     descriptors.sort_by_key(|descriptor| descriptor.statement());
     for descriptor in descriptors {
         let parsed = parsed
@@ -116,8 +123,7 @@ fn qualify_one(
     {
         return Err(missing());
     }
-    // Validated source-return/dead-tail rows legitimately have no AcquireProvider plan.
-    let plan = owned.map_iteration(statement).ok_or_else(unsupported)?;
+    let plan = owned.map_iteration(statement).ok_or_else(missing)?;
     if plan.descriptor() != descriptor {
         return Err(missing());
     }
@@ -302,7 +308,7 @@ fn qualify_one(
     )? {
         return Ok(qualified);
     }
-    let body_exit = qualify_body(parsed, names, typed, descriptor, *body, span)?;
+    let body_exit = qualify_body(parsed, names, plan, descriptor, *body, span)?;
     let body_span = parsed
         .ast()
         .statements()
@@ -512,11 +518,20 @@ fn validate_cleanup(
 fn qualify_body(
     parsed: &ParsedFile,
     _names: &ValidatedCompilationUnitNames,
-    _typed: &CompilationUnitTypes,
+    plan: &UnitMapIterationOwnershipPlan,
     descriptor: &UnitMapIterationDescriptor,
     body: StatementId,
     span: Span,
 ) -> Result<UnitIterationExitKind, LoweringError> {
+    // The published exit graph proves normal completion. Generic statement
+    // lowering owns local arithmetic, projections and calls; cleanup below still
+    // verifies the complete component/source/drop sequence at the actual points.
+    if matches!(plan.exits(), [body_exit, exhaustion]
+        if body_exit.kind() == UnitIterationExitKind::Fallthrough
+            && exhaustion.kind() == UnitIterationExitKind::Exhaustion)
+    {
+        return Ok(UnitIterationExitKind::Fallthrough);
+    }
     let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
     let node = parsed.ast().statements().get(body).map_err(|_| missing())?;
     let Statement::Block { elements } = node.payload() else {
@@ -561,29 +576,15 @@ pub(super) fn contains(outer: Span, inner: Span) -> bool {
 
 fn reject_nested(
     parsed: &ParsedFile,
-    statement: StatementId,
+    _statement: StatementId,
     span: Span,
 ) -> Result<(), LoweringError> {
-    for (id, node) in parsed.ast().statements().iter() {
-        if id != statement
-            && contains(node.span(), span)
-            && matches!(
-                node.payload(),
-                Statement::While { .. } | Statement::Loop { .. }
-            )
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-    }
-    for (_, node) in parsed.ast().expressions().iter() {
-        if contains(node.span(), span)
-            && matches!(
-                node.payload(),
-                Expression::When { .. } | Expression::Lambda { .. }
-            )
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
+    // Lambda callable scope remains a separate boundary. Enclosing ordinary
+    // control flow is lowered with its existing source/owner transport.
+    if parsed.ast().expressions().iter().any(|(_, node)| {
+        contains(node.span(), span) && matches!(node.payload(), Expression::Lambda { .. })
+    }) {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
     }
     Ok(())
 }

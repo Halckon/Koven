@@ -1,8 +1,8 @@
 //! Complete plan exits and owner incoming provenance; no fixed arm or payload syntax.
 use super::*;
 use lang_frontend::ownership_checking::{
-    CleanupConditionId, CleanupSelectorSource, DropFact, DropTarget, IterationPhiBoundary,
-    IterationPhiIncomingKind, IterationPhiPresenceSource,
+    CleanupConditionId, CleanupSelection, CleanupSelectorSource, DropFact, DropTarget,
+    IterationPhiBoundary, IterationPhiIncomingKind, IterationPhiPresenceSource,
 };
 use std::collections::BTreeSet;
 
@@ -171,13 +171,15 @@ pub(in super::super) fn qualify(
         if incoming.point() != point
             || incoming.boundary() != boundary
             || expected_condition.is_some_and(|condition| incoming.condition() != condition)
-            || (kind == IterationPhiIncomingKind::Entry
-                && owned.cleanup_conditions().get(incoming.condition())
-                    != Some(&CleanupCondition::Always))
         {
             return Err(missing());
         }
         condition(parsed, owned, incoming.condition(), span)?;
+        if kind == IterationPhiIncomingKind::Entry
+            && !entry_active(parsed, owned, incoming.condition(), span)?
+        {
+            return Err(missing());
+        }
         if incoming.bindings().len() != symbols.len() {
             return Err(missing());
         }
@@ -433,6 +435,96 @@ pub(in super::super) fn qualify(
         transfer: None,
         conditional_return: None,
     }))
+}
+
+/// At provider entry the ordinary CFG has already selected these lexical arms.
+/// The selector keeps its published identity: no source condition is evaluated
+/// again, and no choice from an earlier control/owner instance is consulted.
+/// `condition` has checked every child, including the unselected arms.
+fn entry_active(
+    parsed: &ParsedFile,
+    owned: &OwnershipCheckedFile,
+    condition: CleanupConditionId,
+    span: Span,
+) -> Result<bool, LoweringError> {
+    let missing = || error(LoweringErrorKind::MissingFact, span);
+    let inside = |statement| -> Result<bool, LoweringError> {
+        let branch = parsed
+            .ast()
+            .statements()
+            .get(statement)
+            .map_err(|_| missing())?
+            .span();
+        Ok(branch.source_id() == span.source_id()
+            && branch.start() <= span.start()
+            && span.end() <= branch.end())
+    };
+    let (selector, branches) = match owned.cleanup_conditions().get(condition) {
+        Some(CleanupCondition::Always) => return Ok(true),
+        Some(CleanupCondition::Never) => return Ok(false),
+        Some(CleanupCondition::Choice { selector, branches }) => (selector, branches),
+        None => return Err(missing()),
+    };
+    let selector = owned
+        .cleanup_conditions()
+        .selector(*selector)
+        .ok_or_else(missing)?;
+    let CleanupSelectorSource::Control(control) = selector.source() else {
+        return Ok(false);
+    };
+    let node = parsed
+        .ast()
+        .expressions()
+        .get(control)
+        .map_err(|_| missing())?;
+    if selector.origin() != node.span() || selector.branch_count() != 2 || branches.len() != 2 {
+        return Err(missing());
+    }
+    let branch = match (node.payload(), selector.selection()) {
+        (
+            Expression::If {
+                then_branch,
+                else_branch,
+                ..
+            },
+            CleanupSelection::Branch,
+        ) => {
+            if inside(*then_branch)? {
+                0
+            } else if let Some(else_branch) = else_branch {
+                if !inside(*else_branch)? {
+                    return Ok(false);
+                }
+                1
+            } else {
+                return Ok(false);
+            }
+        }
+        (
+            Expression::When { entries, .. },
+            CleanupSelection::WhenAlternative { entry, alternative },
+        ) => {
+            let selected = entries.get(entry).ok_or_else(missing)?;
+            if selected.else_span.is_some() || alternative >= selected.conditions.len() {
+                return Err(missing());
+            }
+            let mut containing = None;
+            for (index, candidate) in entries.iter().enumerate() {
+                if inside(candidate.body)? && containing.replace(index).is_some() {
+                    return Err(missing());
+                }
+            }
+            match containing {
+                // A single-alternative body is entered only over its match edge.
+                Some(index) if index == entry && selected.conditions.len() == 1 => 0,
+                // A later entry is reached only over this alternative's next edge.
+                Some(index) if index > entry => 1,
+                _ => return Ok(false),
+            }
+        }
+        _ => return Ok(false),
+    };
+    entry_active(parsed, owned, branches[branch], span)
 }
 
 fn validate_source_fact(

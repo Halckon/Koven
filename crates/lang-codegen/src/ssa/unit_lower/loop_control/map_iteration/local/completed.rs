@@ -11,7 +11,12 @@ impl UnitExpressionLowerer<'_> {
         self.finish_local_map_continuation(function_span)?;
         self.finish_map_transfers(function_span)?;
         let mut previous_success = None;
-        let mut descriptors = self.typed.map_iterations().iter().collect::<Vec<_>>();
+        let mut descriptors = self
+            .owned
+            .map_iterations()
+            .iter()
+            .map(|plan| plan.descriptor())
+            .collect::<Vec<_>>();
         descriptors.sort_by_key(|descriptor| descriptor.statement());
         for descriptor in descriptors {
             if descriptor.statement().source_unit() != self.source_unit {

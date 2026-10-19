@@ -298,9 +298,9 @@ fn qualify_transfer(
             }
         }
     }
-    let body_exit = qualify_body(parsed, names, typed, descriptor, body, span)?;
-    let body_point = body_point(statement, body, body_exit);
     let plan = owned.map_iteration(statement).ok_or_else(bad)?;
+    let body_exit = qualify_body(parsed, names, plan, descriptor, body, span)?;
+    let body_point = body_point(statement, body, body_exit);
     let IterationSource::BorrowedSource(UnitLoanTarget::Temporary(source)) = plan.source_kind()
     else {
         return Err(bad());

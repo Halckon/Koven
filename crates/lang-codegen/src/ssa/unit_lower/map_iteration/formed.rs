@@ -253,7 +253,7 @@ pub(super) fn qualify(
     {
         return Ok(qualified);
     }
-    let body_exit = qualify_body(parsed, names, typed, descriptor, body, span)?;
+    let body_exit = qualify_body(parsed, names, plan, descriptor, body, span)?;
     let (source_drop, transfer_drop, late_drop) = if resource {
         let proof = resource::qualify(
             parsed,

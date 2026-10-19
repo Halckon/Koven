@@ -29,34 +29,37 @@ pub(super) fn nesting(
     };
     let mut ancestors = Vec::new();
     for (id, candidate) in parsed.ast().statements().iter() {
-        match candidate.payload() {
-            Statement::For { body, .. } => {
-                let body = parsed
-                    .ast()
-                    .statements()
-                    .get(*body)
-                    .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
-                if id == statement || !inside(body.span()) {
-                    continue;
-                }
-                if crosses_callable(parsed, candidate.span(), span) {
-                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
-                }
-                let descriptor = typed
-                    .map_iteration(id)
-                    .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-                let plan = owned
-                    .map_iteration(id)
-                    .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-                if plan.descriptor() != descriptor {
-                    return Err(error(LoweringErrorKind::MissingFact, span));
-                }
-                ancestors.push((body.span().end() - body.span().start(), id));
+        if let Statement::For { body, .. } = candidate.payload() {
+            let body = parsed
+                .ast()
+                .statements()
+                .get(*body)
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+            if id == statement || !inside(body.span()) {
+                continue;
             }
-            Statement::While { .. } | Statement::Loop { .. } if inside(candidate.span()) => {
+            if crosses_callable(parsed, candidate.span(), span) {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             }
-            _ => {}
+            let Some(descriptor) = typed.map_iteration(id) else {
+                let ordinary = typed
+                    .sequential_iteration(id)
+                    .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+                let plan = owned
+                    .iteration(id)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                if plan.descriptor() != ordinary {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                continue;
+            };
+            let plan = owned
+                .map_iteration(id)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if plan.descriptor() != descriptor {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            ancestors.push((body.span().end() - body.span().start(), id));
         }
     }
     ancestors.sort_by_key(|(length, _)| *length);
@@ -91,10 +94,10 @@ impl ExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         let mut previous = None;
         for context in &self.loops {
-            let state = context
-                .map_loop
-                .as_ref()
-                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+            let Some(state) = context.map_loop.as_ref() else {
+                // An ordinary outer loop owns its own control/transport frame.
+                continue;
+            };
             if state.nesting.parent != previous
                 || state.cleaned
                 || state.frame.finished

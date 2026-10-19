@@ -36,7 +36,10 @@ impl ExpressionLowerer<'_> {
         let mut frames = Vec::new();
         let mut indices = Vec::new();
         for (index, context) in self.loops.iter().enumerate() {
-            let state = context.map_loop.as_ref().ok_or_else(missing)?;
+            let Some(state) = context.map_loop.as_ref() else {
+                // Ordinary loop cleanup remains with its own control frame.
+                continue;
+            };
             let included = actions.iter().any(|action| matches!(action,
                 IterationCleanupAction::EndBinding { statement, .. } if *statement == state.frame.statement));
             if !included {

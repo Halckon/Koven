@@ -151,7 +151,8 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         let bad = || error(LoweringErrorKind::MissingFact, span);
-        for descriptor in self.typed.map_iterations() {
+        for plan in self.owned.map_iterations() {
+            let descriptor = plan.descriptor();
             let qualified =
                 qualify::qualify(self.parsed, self.names, self.typed, self.owned, *descriptor)?;
             let Some(Proof {

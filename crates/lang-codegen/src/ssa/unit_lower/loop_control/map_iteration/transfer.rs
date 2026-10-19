@@ -3,7 +3,8 @@ use super::*;
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn finish_map_transfers(&self, function_span: Span) -> Result<(), LoweringError> {
-        for descriptor in self.typed.map_iterations() {
+        for plan in self.owned.map_iterations() {
+            let descriptor = plan.descriptor();
             if descriptor.statement().source_unit() != self.source_unit {
                 continue;
             }

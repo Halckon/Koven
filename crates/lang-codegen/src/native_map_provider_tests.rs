@@ -225,3 +225,6 @@ mod local_arguments;
 
 #[path = "native_map_provider_births_tests.rs"]
 mod births;
+
+#[path = "native_map_provider_scope_lowering_tests.rs"]
+mod scope_lowering;

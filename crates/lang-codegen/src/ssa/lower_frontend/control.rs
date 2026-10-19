@@ -550,8 +550,8 @@ impl ExpressionLowerer<'_> {
             self.pending_call_loans.clone_from(&unmatched_loans);
             self.non_null_bindings.clone_from(&unmatched_views);
             self.capture_loans.clone_from(&unmatched_captures);
+            self.borrow_bindings.clone_from(&unmatched_borrows);
             if !unmatched_maps.is_empty() {
-                self.borrow_bindings.clone_from(&unmatched_borrows);
                 self.restore_map_paths(
                     &unmatched_maps,
                     &unmatched_bindings,
@@ -643,11 +643,7 @@ impl ExpressionLowerer<'_> {
                     loans: unmatched_loans,
                     capture_loans: unmatched_captures,
                     views: unmatched_views,
-                    borrow_bindings: if unmatched_maps.is_empty() {
-                        self.borrow_bindings.clone()
-                    } else {
-                        unmatched_borrows
-                    },
+                    borrow_bindings: unmatched_borrows,
                     map_paths: unmatched_maps,
                     result_source_loans: self.result_source_loans.clone(),
                     for_sources: self

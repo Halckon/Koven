@@ -25,7 +25,14 @@ pub(in super::super) fn validate(
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
 ) -> Result<(), LoweringError> {
-    let mut descriptors = typed.map_iterations().iter().collect::<Vec<_>>();
+    // validate_inputs has checked the complete acquisition templates and plans.
+    // Capability preflight concerns actual acquisitions; a dead tail is never
+    // visited by ordinary lowering, and a reached For still requires its plan.
+    let mut descriptors = owned
+        .map_iterations()
+        .iter()
+        .map(|plan| plan.descriptor())
+        .collect::<Vec<_>>();
     descriptors.sort_by_key(|descriptor| descriptor.statement().index());
     for descriptor in descriptors {
         qualify(parsed, names, typed, owned, *descriptor)?;
@@ -70,10 +77,10 @@ fn qualify_one<'a>(
     if *source != descriptor.source() {
         return Err(missing());
     }
-    // Complete FE validation permits unacquired/dead-tail descriptors without a plan.
+    // A reached provider cannot use absence of an acquisition plan as capability.
     let plan = owned
         .map_iteration(descriptor.statement())
-        .ok_or_else(unsupported)?;
+        .ok_or_else(missing)?;
     if plan.descriptor() != &descriptor
         || typed.map_iteration(descriptor.statement()) != Some(plan.descriptor())
     {
@@ -251,30 +258,10 @@ pub(super) fn has_enclosing_control(parsed: &ParsedFile, span: Span) -> bool {
             && outer.start() <= span.start()
             && outer.end() >= span.end()
     };
-    parsed.ast().statements().iter().any(|(_, node)| {
-        contains(node.span())
-            && matches!(
-                node.payload(),
-                Statement::While { .. } | Statement::Loop { .. }
-            )
-    }) || parsed.ast().expressions().iter().any(|(_, node)| {
-        contains(node.span())
-            && match node.payload() {
-                Expression::Lambda { .. } => true,
-                Expression::If { .. } | Expression::When { .. } => {
-                    !parsed.ast().statements().iter().any(|(_, parent)| {
-                        let Statement::For { body, .. } = parent.payload() else {
-                            return false;
-                        };
-                        parsed.ast().statements().get(*body).is_ok_and(|body| {
-                            contains(body.span())
-                                && body.span().start() <= node.span().start()
-                                && node.span().end() <= body.span().end()
-                        })
-                    })
-                }
-                _ => false,
-            }
+    // Lambda execution has a separate callable/storage boundary. Ordinary
+    // If/When/loop transport owns the enclosing CFG and the current source view.
+    parsed.ast().expressions().iter().any(|(_, node)| {
+        contains(node.span()) && matches!(node.payload(), Expression::Lambda { .. })
     })
 }
 

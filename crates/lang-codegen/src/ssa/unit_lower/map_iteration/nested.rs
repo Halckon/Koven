@@ -52,6 +52,18 @@ pub(super) fn relationship(
             continue;
         }
         let id = UnitStatementId::new(statement.source_unit(), id);
+        if ancestor && !matches!(candidate.payload(), Statement::For { .. }) {
+            // Ordinary while/loop frames are not Map provider ancestors.
+            continue;
+        }
+        if ancestor && typed.map_iteration(id).is_none() {
+            let ordinary = typed.sequential_iteration(id).ok_or_else(unsupported)?;
+            let plan = owned.iteration(id).ok_or_else(bad)?;
+            if plan.descriptor() != ordinary {
+                return Err(bad());
+            }
+            continue;
+        }
         if !matches!(candidate.payload(), Statement::For { .. })
             || typed.map_iteration(id).is_none()
         {

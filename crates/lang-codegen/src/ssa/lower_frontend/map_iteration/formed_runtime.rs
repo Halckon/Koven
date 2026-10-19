@@ -13,7 +13,8 @@ impl ExpressionLowerer<'_> {
         let DropTarget::Named(root) = fact.target() else {
             return Ok(false);
         };
-        for descriptor in self.typed.map_iterations() {
+        for plan in self.owned.map_iterations() {
+            let descriptor = plan.descriptor();
             let qualified =
                 qualify::qualify(self.parsed, self.names, self.typed, self.owned, *descriptor)?;
             let SourceIdentity::Formed { symbol, birth } = qualified.source else {

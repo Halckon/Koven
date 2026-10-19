@@ -256,3 +256,6 @@ pub(crate) use local_exits::alternate_sources as alternate_local_sources;
 
 mod births;
 pub(crate) use births::{Kind as MapBirthKind, sources as map_birth_sources};
+
+mod scope_lowering;
+pub(crate) use scope_lowering::sources as scope_a1_sources;
