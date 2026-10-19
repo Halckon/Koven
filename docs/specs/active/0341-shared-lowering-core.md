@@ -176,3 +176,45 @@ append/cleanup 顺序，新增实际生产依赖边界。没有新增接受能�
 本轮15项经完整测试体/helper复核，不包含A0误纳项或其他合成损坏/故障注入/校准；A0历史不删除。
 普通native输出不证明动态释放次数或无泄漏。新依赖门禁的合成禁边负控仅CI，当前尚无本PR CI结果。
 本docs后继不冒称重新运行生产测试；B首片已验，A全域责任冻结及C/D/E仍开放，不归档D10。
+
+## 10. C/D 整数表达式核心小片（待验）
+
+本片接续已验B，收敛整数intrinsic事实校验与完整表达式流程；不代表C/D整体完成。
+实现输入为本地 `365dc53697306e248911b9ff5d043808c43055c1`、tree
+`f69193a139525edf59844f749b5c371ca4a8bcb3`。本节是后继小片合同，不改变§9验收输入。
+
+### 唯一责任与适配
+
+- `ssa::expression_core` 为SSA同层私有模块，共享原 `Unit/Value(ValueId)/Diverged` 三态，
+  保留原derive；两入口私有导入原名。整数窄接口以原生 `ExpressionId/TypeId` 或
+  `UnitExpressionId/UnitTypeId` 查询descriptor、表达式类型、builtin类型与AST receiver，
+  另提供原receiver lowering、结果SSA type和scalar/checked提交端口；不引入宽可选context。
+- 核心唯一执行：descriptor身份 → unit receiver同source → receiver/result类型身份 →
+  既有AST receiver校验 → 八整数准入 → Invert同型 → receiver恰求值一次 → 三态分流 →
+  结果SSA type → IntegerNot或CheckedIntegerConvert构造与提交。缺facts不按成员拼写补猜。
+- single `lower_frontend/integer.rs` 先取原span；unit `unit_lower/integer.rs` 保留当前source
+  与传入span。两边原dispatch和外层temporary/drop时点不动；receiver必须走原 `lower`。
+  Diverged原样返回；Unit报operation span的MissingFact，不以通用require-value替代。
+  结果type仅在receiver成功后查询；single缺映射仍UnsupportedNode，unit仍MissingFact。
+- `checked.rs` 两份及其CFG不改：single linear/Map carry与unit pending/loan/Place重绑继续
+  走原提交方法。该状态差异不由本片统一，也不能据此永久排除D后续CFG/cleanup收敛。
+- 依赖门禁显式扫描新核心及子树，禁止core反向引用driver/planner/LLVM、IR/support引用
+  core及core的SSA根glob/alias；既有禁边继续保持。既有integer纯helper不另复制。
+
+### 待验标准
+
+- [ ] 两个消费者均调用唯一核心；adapter只桥接事实和提交，没有重复kind分支或整段验证。
+- [ ] 八型Invert、两入口128种转换、一次receiver求值、live/pending String owner和既有
+  非intrinsic源码成员拒绝边界保持；复用已全文审阅的ordinary exact，不用宽过滤器。
+- [ ] 新真实源码配对核逻辑source名、精确span、整数宽度/符号及definition→use；反转source
+  建立/inputs顺序且加入同名其它source；unit-basic与unit-const正常wrapper保留能力门。
+- [ ] 原真实控制流native覆盖receiver条件return与正常求值路径，核完整stdout/exit/stderr；
+  SSA/LLVM/native结果分账，不据普通native宣称动态资源计数或所有pending/Place组合已验。
+- [ ] MissingFact人工删除、foreign-analysis错配、非法SSA及新合成依赖禁边负控只在CI。
+  `namespace_constants_need_no_storage_initializer_or_closure_capture`末尾人工None使完整exact
+  继续排除普通选择；新增测试及helper先全文审阅，不把部分正常前缀当作完整ordinary资格。
+- [ ] fmt、受影响crate clippy、docs、尺寸/diff、独立审查与精确头双宿主CI完成后另记实际账本。
+
+本小片后仍按表达式→语句/控制转移→driver推进：优先审共同block顺序与非Diverged的
+AfterStatement cleanup，保留unit ControlBody等能力差；再对CFG/owner/loan/pending/receiver/
+iteration角色逐项建立状态合同，最后收敛driver骨架。此节不勾选§6的C/D/E完成项。
