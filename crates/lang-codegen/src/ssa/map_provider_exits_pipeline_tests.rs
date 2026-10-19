@@ -6,6 +6,7 @@ mod ci_baseline;
 mod ci_contracts;
 mod conditional;
 mod control_flow;
+mod d10_temporary_carry;
 mod facts;
 mod fixture;
 mod formation_runtime;

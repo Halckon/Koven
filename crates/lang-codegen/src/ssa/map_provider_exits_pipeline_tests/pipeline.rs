@@ -49,13 +49,24 @@ pub(super) fn single_observed(
     report: &mut Report,
     observe: impl FnOnce(&NameResolution, &TypedFile, &OwnershipCheckedFile, &mut Report),
 ) -> Result<Lowered, Failure> {
+    single_observed_with_entry(sources, parsed, "entry", report, observe)
+}
+
+// Preserve original-source entry identity without renaming a fixture or adding a wrapper.
+pub(super) fn single_observed_with_entry(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    entry_name: &str,
+    report: &mut Report,
+    observe: impl FnOnce(&NameResolution, &TypedFile, &OwnershipCheckedFile, &mut Report),
+) -> Result<Lowered, Failure> {
     report.check("single lex/parse clean", true, parsed.source_id());
     let (name_environment, environment) = standard_environments();
     let names = resolve_names(sources, parsed, &name_environment)
         .map_err(|error| failure("single names infrastructure", error))?;
     clean(sources, "single names diagnostics", names.diagnostics())?;
     let entries = names.symbols().iter().filter(|symbol| {
-        symbol.name() == "entry" && !symbol.is_synthetic() && symbol.kind() == SymbolKind::Function
+        symbol.name() == entry_name && !symbol.is_synthetic() && symbol.kind() == SymbolKind::Function
             && symbol.span().source_id() == parsed.source_id()
             && parsed.roots().iter().any(|root| {
                 parsed.ast().items().get(*root).is_ok_and(|node| {
@@ -179,6 +190,22 @@ pub(super) fn unit_observed(
         &mut Report,
     ),
 ) -> Result<Lowered, Failure> {
+    unit_observed_with_entry(sources, parsed, path, "entry", report, observe)
+}
+
+pub(super) fn unit_observed_with_entry(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    path: &str,
+    entry_name: &str,
+    report: &mut Report,
+    observe: impl FnOnce(
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &CompilationUnitOwnership,
+        &mut Report,
+    ),
+) -> Result<Lowered, Failure> {
     // 不加 package、wrapper、标准库文件或第二 source；与 single 完全相同字节和逻辑路径。
     let inputs = [SourceUnitInput::new(
         "root",
@@ -214,7 +241,7 @@ pub(super) fn unit_observed(
         ));
     }
     let entries = names.names().index().declarations().iter().filter(|declaration| {
-        declaration.name() == "entry" && declaration.kind() == SymbolKind::Function
+        declaration.name() == entry_name && declaration.kind() == SymbolKind::Function
             && declaration.source_unit() == source_unit.id()
             && declaration.name_span().source_id() == parsed.source_id()
             && names.names().index().packages().get(declaration.package().index())
