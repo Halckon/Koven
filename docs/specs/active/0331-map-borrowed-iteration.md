@@ -1599,3 +1599,37 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - 原四条既有For成功已随A1及本片保完整回归；最终原74个case/entry目标集合不变。C=8、
   D=6共14条原失败仍必修；最终固定头联合门、新头完整CI/三产物独审、文档收尾与最小归档
   尚待，不继承旧头工程或CI结论到未来代码。0331保持active，PR保持draft，D10未启动。
+
+## 72. C 既有 epoch、条件更新与未来 Move owner（2026-10-19）
+
+- 原P07/08 Unit、P09/10/11双入口的十份For/control源码与golden逐字保全，16个目标不增减。
+  首个observer编译失败六处E0277、零观察；修正helper后原16观察为For八条原For Unsupported、
+  control八条完整同次FE/SSA/LLVM与实际路径证明成功，Rust真实0/1/0、native零，未用收集器
+  退出码替代用例成功。原始源码、失败与后继查询误断均留仓外收据。
+- P07/08 Unit按实际同root赋值的原If两条路径运输当前binding；If结果仍为Unit，不伪造Map结果
+  join。真分支fresh Call、假分支旧owner、命名Drop的实际replacement与最后observe结束点均强核。
+  P09共用的仅为SSA模型上真实MapPut/MapRemove结果与完整incoming运输，typed descriptor
+  及Single/Unit资格证明各自保留；独立String.clone临时Drop不冒充source Map Drop。
+- P10/P11 Move出生按原Name引用时点解析，区分provider前旧声明、当前source与循环后next。
+  P10旧Drop必须早于第二实际make；P11末source Drop必须使用实际next Exit phi及其公开条件，
+  origin保持原assignment，不能改成source Exit或工厂首值。非当前epoch仅在完整qualification、
+  原Named fact、全部public Drop/incoming/condition证明后取得预检资格，runtime另核实际Name/Call
+  与当前SSA owner；当前epoch仍精确匹配，不以该能力豁免缺事实。
+- 完整查询v1真实13/16；v2修正历史epoch分区与Single flag实际只在前If读取的独立图查询后15/16；
+  v3改用已存在的精确next phi全部incoming证明后仍15/16。末次Unsupported的assignment span
+  是Drop.value_origin，实际阻断是全局Drop预检，不能据span声称赋值emitter已运行。临时lower错误日志
+  包装未触发Call错误，未取得该处SSA；包装已逐字恢复，原KO输入未变。全部失败/静审漏点与阶段纠正保留。
+- v4原16完整同次FE/SSA/LLVM及16严格native全部成功，Rust1+2无失败/忽略；selector.slot按
+  同boundary实际有序phi位置独立核，P11独立next/source列、所有incoming与最终owner用途完整核验。
+  native逐次核exit0、完整golden、空stderr，不证明动态free次数/无泄漏。
+- 共享邻控16个选择全部通过，31个Rust无失败/忽略，涵盖114条深查询与132个严格native；
+  其中原formation为28条深查询/46native，未把native数量误作查询数量。v4全部3239输入前后
+  指纹66c70bad一致。工程首轮fmt/check成功，严格Clippy发现Proof枚举尺寸和测试nested-if两项；
+  后四门未运行。v5仅压缩同一不可变ownership产物中两份原Drop为实际索引，checked取回
+  完整fact比较，保Copy且不加lint豁免；测试if-let链原谓词/顺序不变。v5原16查询/16native及上述完整邻控
+  再次成功，3239输入9bfe4755前后一致，七工程门全部exit0；实际结果与暂存34文件逐字独审
+  通过。未通过的工程/观察结果未被收集器返回值覆盖。受验工作区含五个未注册D helper，
+  不参与编译且不纳C提交；C代码小提交`3632d8f5`保存21生产和13测试/helper/registry文件，
+  后继本段文档不冒称重跑行为。最终干净固定头联合回归和新CI仍须另验。
+  D原六条provider失败仍须逐项验收，F保持active/PR draft，D10未开始；本机未执行故障、
+  校准、合成损坏、mock/reduction或sanitizer测试。
