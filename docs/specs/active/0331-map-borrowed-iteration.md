@@ -1555,3 +1555,29 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - P05原两For失败关闭；B剩P03/04 Unit共2，C=8、D=6，共16条原For失败仍必修。
   最终固定头联合回归、新头完整CI三产物独审、文档收尾与最小归档/正常合并仍待。F保持
   active、PR保持draft，D10未启动；本机无故障/校准/合成损坏/sanitizer执行，普通native不证无泄漏。
+
+## 70. B / P03、P04 Unit 的原 If 结果出生（2026-10-19）
+
+- 固定P03/P04的For/control四份原source/golden逐字保全，仅验Unit四个原目标；Single普通
+  条件Map owner仍归0337前置。If拥有自己的表达式结果，不把If伪装为某条Call出生；shared
+  formation保留declaration/history/current epoch，Single回调仍只接Call并显式拒绝新出生标签。
+- Unit按实际qualified Boolean condition与两原arm的独立selected工厂Call、Owned结果及原
+  Conditional证明If出生；true/false各唯一incoming、各Branch交付同一join第0列，完整join
+  两条incoming均核，拒绝提前Drop。当前owner继续沿原formed/temporary全incoming运输；
+  P03保留真实末observe的CallReturn Drop，P04保留原If temporary与原For LoopExit清理。
+- 原observer v1编译E0277、v2错用零参AST helper、v3误把裸arm当ControlBody，均在FE前
+  失败，不能计生产红。v4才确认两条原For Unsupported、两条control同分析FE/SSA/LLVM及
+  If-owner图成功。完整查询首版另因read有两String参数却用单参helper而四项AST失败；仅改
+  原read的精确两参数定位。独审发现P04-for不调用observe，mandatory函数查找已移入实际
+  observe循环；For真实reader仍必需。所有失败和静审遗漏保留，不改原输入或golden。
+- 最终v2四次同分析深查询/SSA/LLVM及四个唯一严格native全绿，Rust1+2无失败/忽略，3213
+  输入指纹前后相同。查询核If两arm完整交付、provider当前source/cursor/owner及全部循环
+  incoming、K/V真实reader与逆序End、false-edge当前owner、EndSource及精确唯一Drop；
+  controls按原最后observe身份核清理，不借Single cleanup DAG。native逐例exit0/原完整
+  golden/空stderr，不证明无泄漏。
+- 共享formation原28深查询及46严格native、P05/P06/A2各原四深查询及四native复验全绿；
+  八条邻控命令共16 Rust、58唯一native，无失败/忽略，输入与v2相同。七项工程门含strict
+  Clippy、712份文档和尺寸护栏全部成功；独审已核生产、完整查询、原日志身份与测试误断修正。
+- B原六条For失败至此关闭；C=8、D=6共14条仍必修，P24 Unit既有成功另需原双目标完整回归。
+  最终固定头联合回归、新头完整CI三产物独审、README/Tour/Architecture、最小归档与正常合并
+  仍待；F保持active，PR保持draft，D10未启动，本机无故障/校准/合成损坏/sanitizer执行。
