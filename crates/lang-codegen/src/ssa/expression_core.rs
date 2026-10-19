@@ -1,4 +1,6 @@
 //! Shared expression algorithms; entry adapters retain identity and stateful submission.
+pub(super) mod checked;
+
 use lang_frontend::{
     source::Span,
     type_checking::{BuiltinType, IntegerOperationKind},

@@ -902,6 +902,26 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
+/// Preserve the existing Value-prefix/access-suffix order without new validation.
+pub(super) fn checked_carry_columns(
+    bindings: &[CarriedBinding],
+    loans: &[CarriedAccess],
+) -> Vec<crate::ssa::expression_core::checked::CarryColumn> {
+    use crate::ssa::expression_core::checked::CarryColumn;
+
+    bindings
+        .iter()
+        .map(|slot| CarryColumn {
+            source: EntityId::Value(slot.source),
+            ty: slot.ty,
+        })
+        .chain(loans.iter().map(|slot| CarryColumn {
+            source: slot.source,
+            ty: slot.ty,
+        }))
+        .collect()
+}
+
 pub(super) fn carried_control_edge(
     target: BlockId,
     bindings: &[CarriedBinding],

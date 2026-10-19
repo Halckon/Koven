@@ -433,6 +433,7 @@ fn production_lowering_dependencies_remain_directional() {
         "unit_plan.rs",
         "constant_materialization.rs",
         "expression_core.rs",
+        "expression_core/checked.rs",
         "statement_core.rs",
         "model.rs",
         "types.rs",
