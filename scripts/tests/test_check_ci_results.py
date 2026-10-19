@@ -61,6 +61,69 @@ def stage_command_is_unfiltered(command):
 
 
 class CheckCiResultsTests(unittest.TestCase):
+    def test_unit_migration_routes_and_exact_regressions_run_on_both_hosts(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        job = re.split(r"^  [a-z][a-z-]+:\s*$",
+                       workflow.split("  test:\n", 1)[1], maxsplit=1, flags=re.M)[0]
+        self.assertIn("os: [macos-14, ubuntu-24.04]", job)
+        self.assertEqual(1, job.count("run: bash scripts/check_integration.sh\n"))
+        composition = (root / "scripts/check_integration.sh").read_text()
+        self.assertEqual(1, composition.count("bash scripts/check_core.sh\n"))
+        self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
+        core = (root / "scripts/check_core.sh").read_text()
+        self.assertEqual([
+            "cargo test --locked -p lang-frontend --lib",
+            "cargo test --locked -p lang-codegen",
+            "cargo test --locked -p lang-cli",
+            "cargo test --locked -p lang-lsp",
+            "cargo test --locked -p lang-std",
+        ], [line for line in core.splitlines() if line.startswith("cargo ")])
+        for package in ("lang-frontend", "lang-codegen", "lang-cli"):
+            manifest = (root / "crates" / package / "Cargo.toml").read_text()
+            self.assertNotRegex(manifest, r"(?m)^\s*(?:autotests|autobins|test)\s*=\s*false")
+            self.assertNotIn("required-features", manifest)
+        for path in ("lang-frontend/src/lib.rs", "lang-codegen/src/lib.rs",
+                     "lang-cli/src/main.rs", "lang-cli/tests/project_cli.rs",
+                     "lang-cli/tests/project_basic_ownership_cli.rs"):
+            self.assertTrue((root / "crates" / path).is_file())
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        for target in ("parser_file", "unit_name_snapshot"):
+            selected = stage_target_occurrences(stage, target)
+            self.assertEqual(1, len(selected))
+            self.assertTrue(selected[0].startswith(
+                "run cargo test --locked -p lang-frontend --no-fail-fast "))
+            self.assertTrue(stage_command_is_unfiltered(selected[0]))
+        groups = (
+            ("compilation_unit_index", (
+                "poisoned_initial_package_does_not_create_path_mismatch",
+                "missing_initial_header_separator_does_not_create_path_mismatch",
+                "later_bad_package_does_not_hide_initial_path_mismatch",
+                "malformed_package_recovery_does_not_create_a_second_package_diagnostic",
+                "package_mismatch_reports_l0146_with_source_anchored_primary_spans",
+            )),
+            ("multifile_name_resolution", (
+                "unloaded_exact_alias_and_wildcard_imports_explain_the_source_set",
+                "loaded_missing_member_tail_and_unclassified_imports_keep_original_diagnostics",
+                "default_package_and_real_long_package_imports_keep_declaration_targets",
+                "exact_alias_same_package_and_input_permutation_publish_stable_declarations",
+                "private_exact_is_l0149_and_blocks_validated_view",
+                "exact_alias_conflict_is_per_namespace_and_repeated_target_is_idempotent",
+                "wildcard_conflict_is_lazy_and_exact_import_wins",
+                "exact_member_is_l0148_while_longest_package_prefix_resolves_top_level",
+            )),
+        )
+        expected, actual = [], []
+        for target, names in groups:
+            source = (root / f"crates/lang-frontend/tests/{target}.rs").read_text()
+            for name in names:
+                self.assertEqual(1, len(re.findall(r"(?m)^fn " + re.escape(name) + r"\(\)", source)))
+                expected.append(["run", "cargo", "test", "--locked", "-p", "lang-frontend",
+                                 "--no-fail-fast", "--test", target, name, "--", "--exact"])
+            actual.extend(shlex.split(command) for command in stage_target_occurrences(stage, target))
+        self.maxDiff = None
+        self.assertEqual(expected, actual)
+
     def test_initial_package_header_index_exacts_run_once_on_both_hosts(self):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/ci.yml").read_text()
