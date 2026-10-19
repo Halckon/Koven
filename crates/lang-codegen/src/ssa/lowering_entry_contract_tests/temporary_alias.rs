@@ -9,11 +9,41 @@ fn paired_borrowed_group_temporaries_keep_distinct_current_columns() {
     // Borrow preserves the outer temporary origin. Production lower(Group) registers
     // each temporary Group on return; this observer checks the resulting SSA, not a
     // private lowerer map or a key count inferred only from the parentheses.
-    let first = paired_in_order_observed(text, false, false, assert_borrowed_temporary_columns);
+    let observations = std::cell::RefCell::new(Vec::new());
+    let observe = |sources: &SourceMap, program: &Program, entry| {
+        // Only this read-only query is caught. The existing bridge still runs all
+        // real analysis/lowering/SSA/LLVM gates directly, with its original hook.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            assert_borrowed_temporary_columns(sources, program, entry);
+        }));
+        observations.borrow_mut().push(result);
+    };
+    let first = paired_in_order_observed(text, false, false, observe);
+    let second = paired_in_order_observed(text, false, true, observe);
+    let observations = observations.into_inner();
     assert_eq!(
-        first,
-        paired_in_order_observed(text, false, true, assert_borrowed_temporary_columns)
+        observations.len(),
+        6,
+        "two single and four unit observations"
     );
+    let mut failures = Vec::new();
+    for (index, result) in observations.into_iter().enumerate() {
+        match result {
+            Ok(()) => println!("temporary alias observation {}: ok", index + 1),
+            Err(payload) => {
+                let message = payload
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+                    .or_else(|| payload.downcast_ref::<&str>().copied())
+                    .unwrap_or("non-string query panic payload");
+                let failure = format!("temporary alias observation {}: {message}", index + 1);
+                println!("{failure}");
+                failures.push(failure);
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+    assert_eq!(first, second);
 }
 
 fn assert_borrowed_temporary_columns(sources: &SourceMap, program: &Program, entry: FunctionId) {
@@ -228,10 +258,20 @@ fn assert_borrowed_temporary_columns(sources: &SourceMap, program: &Program, ent
     else {
         unreachable!()
     };
+    let crate::ssa::model::Origin::Source(callee_span) = &module.function(*callee).unwrap().origin
+    else {
+        panic!("observe must be the real source declaration");
+    };
+    let declaration = "fun observe(first: Node, second: Node, own value: Int): Int = value";
+    let source = sources.source_text(callee_span.source_id()).unwrap();
+    let start = source
+        .find(declaration)
+        .expect("the exact observe declaration exists");
     assert_eq!(
-        module.function(*callee).unwrap().name.rsplit('.').next(),
-        Some("observe")
+        source_key(sources, *callee_span),
+        SourceKey("pair/entry.ko".to_owned(), start, start + declaration.len())
     );
+    assert_eq!(sources.slice(*callee_span).unwrap(), declaration);
     assert!(receiver.is_none());
     assert_eq!(
         arguments,
