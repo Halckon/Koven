@@ -30,3 +30,21 @@ pub(super) fn lower_sequence<H: StatementLowering>(
     }
     Ok(LoweredValue::Unit)
 }
+
+pub(super) fn lower_tail_sequence<H: StatementLowering>(
+    host: &mut H,
+    body: StatementId,
+    statements: &[StatementId],
+) -> Result<LoweredValue, LoweringError> {
+    let Some((&last, prefix)) = statements.split_last() else {
+        return Ok(LoweredValue::Unit);
+    };
+    if lower_sequence(host, prefix.iter().copied())? == LoweredValue::Diverged {
+        return Ok(LoweredValue::Diverged);
+    }
+    let result = lower_statement(host, last)?;
+    if result != LoweredValue::Diverged {
+        host.emit_after_statement(body)?;
+    }
+    Ok(result)
+}

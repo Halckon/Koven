@@ -863,21 +863,7 @@ impl ExpressionLowerer<'_> {
         let Statement::ControlBody { elements } = node.payload() else {
             return self.lower_statement(statement);
         };
-        let Some((&last, prefix)) = elements.split_last() else {
-            return Ok(LoweredValue::Unit);
-        };
-        for &element in prefix {
-            if matches!(self.lower_statement(element)?, LoweredValue::Diverged) {
-                return Ok(LoweredValue::Diverged);
-            }
-        }
-        let result = self.lower_statement(last)?;
-        if !matches!(result, LoweredValue::Diverged) {
-            self.emit_drops(
-                lang_frontend::ownership_checking::DropPoint::AfterStatement(statement),
-            )?;
-        }
-        Ok(result)
+        crate::ssa::statement_core::lower_tail_sequence(self, statement, elements)
     }
 
     pub(super) fn merge_exits(

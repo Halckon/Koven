@@ -78,6 +78,15 @@ fn paired(text: &str, constants: bool) -> Vec<Event> {
 }
 
 fn paired_in_order(text: &str, constants: bool, entry_first: bool) -> Vec<Event> {
+    paired_in_order_observed(text, constants, entry_first, |_, _, _| {})
+}
+
+fn paired_in_order_observed(
+    text: &str,
+    constants: bool,
+    entry_first: bool,
+    observe: impl Fn(&SourceMap, &Program, FunctionId),
+) -> Vec<Event> {
     let mut sources = SourceMap::new();
     // Identical names in an unrelated logical source must not affect entry facts. Reversed
     // inputs exercise source-qualified lookup without comparing raw source or type IDs.
@@ -108,6 +117,7 @@ fn paired_in_order(text: &str, constants: bool, entry_first: bool) -> Vec<Event>
         lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry).unwrap();
     let expected = events(&sources, &single, entry);
     let expected_relations = string_relations(&sources, &single, entry);
+    observe(&sources, &single, entry);
     let inputs = [
         SourceUnitInput::new("root", "other/entry.ko", other_source, &other),
         SourceUnitInput::new("root", "pair/entry.ko", source, &file),
@@ -166,6 +176,7 @@ fn paired_in_order(text: &str, constants: bool, entry_first: bool) -> Vec<Event>
             expected_relations,
             "{text}"
         );
+        observe(&sources, &unit, entry);
     }
     expected
 }
@@ -266,6 +277,148 @@ fn paired_statement_return_stops_inner_and_outer_sequences() {
         );
         assert_statement_events(&paired(&text, constants), &[b"before"]);
     }
+}
+
+#[test]
+fn paired_control_tail_value_reaches_return_without_early_drop() {
+    for constants in [false, true] {
+        let declaration = if constants {
+            "const val UNUSED = 17\n"
+        } else {
+            ""
+        };
+        let text = format!(
+            "package pair\n{declaration}fun entry(own flag: Boolean): String = if (flag) {{\n\
+             val unused = \"unused\"\nprintln(\"prefix\")\n\
+             \"tail-value\"\n}} else {{ return \"early-value\" }}"
+        );
+        let observe = |sources: &SourceMap, program: &Program, entry| {
+            assert_direct_string_returns(sources, program, entry, &["tail-value", "early-value"]);
+        };
+        let events = paired_in_order_observed(&text, constants, false, observe);
+        assert_eq!(
+            events,
+            paired_in_order_observed(&text, constants, true, observe)
+        );
+        let [Event::Literal(_, unused), Event::Drop(_), remaining @ ..] = events.as_slice() else {
+            panic!("tail prefix must finish the unused owner: {events:?}");
+        };
+        assert_eq!(unused.as_slice(), b"unused");
+        let (prefix, tails) = remaining.split_at(5);
+        assert_statement_events(prefix, &[b"prefix"]);
+        let [Event::Literal(_, tail), Event::Literal(_, early)] = tails else {
+            panic!("both branches must evaluate only their delivered literal: {tails:?}");
+        };
+        assert_eq!(tail.as_slice(), b"tail-value");
+        assert_eq!(early.as_slice(), b"early-value");
+    }
+}
+
+#[test]
+fn paired_control_tail_prefix_and_last_return_stop_evaluation() {
+    for constants in [false, true] {
+        let declaration = if constants {
+            "const val UNUSED = 17\n"
+        } else {
+            ""
+        };
+        for (body, has_prefix) in [
+            ("return \"early-value\"\n\"unreachable-tail\"", false),
+            ("println(\"prefix\")\nreturn \"early-value\"", true),
+        ] {
+            let text = format!(
+                "package pair\n{declaration}fun entry(own flag: Boolean): String = if (flag) {{\n\
+                 {body}\n}} else {{ \"tail-value\" }}"
+            );
+            let observe = |sources: &SourceMap, program: &Program, entry| {
+                assert_direct_string_returns(
+                    sources,
+                    program,
+                    entry,
+                    &["tail-value", "early-value"],
+                );
+                assert!(
+                    program.modules[0]
+                        .function(entry)
+                        .unwrap()
+                        .instructions
+                        .iter()
+                        .all(|instruction| !matches!(&instruction.operation,
+                            Operation::StringLiteral { bytes, .. }
+                                if bytes.as_slice() == b"unreachable-tail"))
+                );
+            };
+            let events = paired_in_order_observed(&text, constants, false, observe);
+            assert_eq!(
+                events,
+                paired_in_order_observed(&text, constants, true, observe)
+            );
+            let (prefix, tails) = events.split_at(if has_prefix { 5 } else { 0 });
+            assert_statement_events(prefix, if has_prefix { &[b"prefix"] } else { &[] });
+            let [Event::Literal(_, early), Event::Literal(_, tail)] = tails else {
+                panic!("return must stop before an unreachable tail: {tails:?}");
+            };
+            assert_eq!(early.as_slice(), b"early-value");
+            assert_eq!(tail.as_slice(), b"tail-value");
+        }
+    }
+}
+
+fn assert_direct_string_returns(
+    sources: &SourceMap,
+    program: &Program,
+    entry: FunctionId,
+    expected: &[&str],
+) {
+    let function = program.modules[0].function(entry).unwrap();
+    let mut expected_owners = Vec::new();
+    for text in expected {
+        let literals = function
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                matches!(&instruction.operation,
+                    Operation::StringLiteral { bytes, .. } if bytes.as_slice() == text.as_bytes())
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(literals.len(), 1, "one definition for {text}");
+        let literal = literals[0];
+        let [EntityId::Value(owner)] = literal.results.as_slice() else {
+            panic!("String literal has one owner");
+        };
+        assert_eq!(
+            sources.slice(literal.origin.span()).unwrap(),
+            format!("\"{text}\"")
+        );
+        assert_eq!(
+            definition_key(sources, function, EntityId::Value(*owner)),
+            DefinitionKey::Instruction(
+                source_key(sources, literal.origin.span()),
+                std::mem::discriminant(&literal.operation),
+                0,
+            )
+        );
+        expected_owners.push(*owner);
+    }
+    let mut returned = Vec::new();
+    for block in &function.blocks {
+        if let TerminatorKind::Return { values } = &block.terminator.as_ref().unwrap().kind {
+            assert_eq!(values.len(), 1, "each path returns its String owner");
+            returned.push(values[0]);
+        }
+    }
+    expected_owners.sort_by_key(|owner| owner.index());
+    returned.sort_by_key(|owner| owner.index());
+    // Each fixture has one normal branch and one direct-return branch, so the
+    // original one-exit merge forwards the literal owner without a phi.
+    assert_eq!(
+        returned, expected_owners,
+        "every exact owner reaches Return once"
+    );
+    assert!(function.instructions.iter().all(|instruction| {
+        !matches!(instruction.operation,
+            Operation::Drop { owner } if expected_owners.contains(&owner))
+    }));
 }
 
 fn assert_statement_events(events: &[Event], bytes: &[&[u8]]) {

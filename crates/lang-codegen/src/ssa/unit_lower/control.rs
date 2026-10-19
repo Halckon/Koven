@@ -12,7 +12,7 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
     parser::{Expression, LiteralKind, TypeRef, WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitStatementId},
+    type_checking::{BuiltinType, Copyability, UnitExpressionId},
 };
 
 use super::{
