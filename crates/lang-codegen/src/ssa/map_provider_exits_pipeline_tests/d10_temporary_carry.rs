@@ -566,7 +566,8 @@ fn w09_temporary_map_carry_reaches_verified_llvm() {
     );
 }
 
-// Separate source-level observation of the newly rerouted straight Nothing body.
+// Unit-only success contract for the newly reachable straight Nothing body.
+// Legacy single baseline observations remain historical evidence, not this contract.
 // This only builds/verifies IR. It never executes the resulting Abort or native code.
 const NOTHING_PATH: &str = "w09_map_temp_body_nothing.ko";
 const NOTHING_SOURCE: &str =
@@ -697,10 +698,10 @@ fn nothing_ssa(
     )
 }
 
-fn observe_body_nothing(unit: bool) -> Observation {
+fn observe_unit_body_nothing() -> Observation {
     let mut report = Report::default();
     println!(
-        "D10 NOTHING INPUT unit={unit} path={NOTHING_PATH} bytes={} frozen_sha256={NOTHING_SHA256}",
+        "D10 NOTHING INPUT unit=true path={NOTHING_PATH} bytes={} frozen_sha256={NOTHING_SHA256}",
         NOTHING_SOURCE.len()
     );
     let outcome = (|| {
@@ -714,108 +715,58 @@ fn observe_body_nothing(unit: bool) -> Observation {
         clean(&sources, "Nothing parse diagnostics", parsed.diagnostics())?;
         let sites = nothing_sites(&sources, &parsed);
         report.query("Nothing real source/body sites", &sites);
-        let (program, entry) = if unit {
-            pipeline::unit_observed_with_entry(
-                &sources,
-                &parsed,
-                NOTHING_PATH,
-                "main",
-                &mut report,
-                |names, typed, owned, r| {
-                    let facts = sites
-                        .as_ref()
-                        .map_err(|e| failure("Nothing Unit sites", e))
-                        .and_then(|s| {
-                            let unit = one(
-                                names.names().source_units().iter(),
-                                "Nothing one Unit source",
-                            )?
-                            .source_unit();
-                            let statement = types::UnitStatementId::new(unit, s.statement);
-                            let source = types::UnitExpressionId::new(unit, s.source);
-                            let error = types::UnitExpressionId::new(unit, s.error);
-                            let d = typed
-                                .map_iteration(statement)
-                                .ok_or_else(|| failure("Nothing Unit descriptor", statement))?;
-                            let p = owned
-                                .map_iteration(statement)
-                                .ok_or_else(|| failure("Nothing Unit acquired plan", statement))?;
-                            let call = typed
-                                .call(error)
-                                .ok_or_else(|| failure("Nothing Unit typed Call", error))?;
-                            println!(
-                                "D10 NOTHING UNIT descriptor={d:#?} plan={p:#?} call={call:#?}"
-                            );
-                            need(
-                                d.source() == source
-                                    && p.descriptor() == d
-                                    && p.source_access()
-                                        == ownership::UnitIterationSourceAccess::Temporary
-                                    && call.aborts()
-                                    && typed.expression_type(error) == Some(call.return_type())
-                                    && typed.types().get(call.return_type())
-                                        == Some(&types::UnitTypeKind::Builtin(
-                                            types::BuiltinType::Nothing,
-                                        ))
-                                    && p.exits().len() == 1
-                                    && p.exits()[0].kind()
-                                        == ownership::UnitIterationExitKind::Exhaustion
-                                    && p.exits()[0].point()
-                                        == ownership::UnitDropPoint::LoopExit(statement),
-                                "Nothing Unit real abort Call/acquired exhaustive exit set",
-                                (d, p, call),
-                            )
-                        });
-                    r.query("Nothing Unit typed Call/Acquire/exits", &facts);
-                },
-            )
-        } else {
-            pipeline::single_observed_with_entry(
-                &sources,
-                &parsed,
-                "main",
-                &mut report,
-                |_, typed, owned, r| {
-                    let facts = sites
-                        .as_ref()
-                        .map_err(|e| failure("Nothing single sites", e))
-                        .and_then(|s| {
-                            let d = typed
-                                .map_iteration(s.statement)
-                                .ok_or_else(|| failure("Nothing single descriptor", s.statement))?;
-                            let p = owned.map_iteration(s.statement).ok_or_else(|| {
-                                failure("Nothing single acquired plan", s.statement)
-                            })?;
-                            let call = typed
-                                .call(s.error)
-                                .ok_or_else(|| failure("Nothing single typed Call", s.error))?;
-                            println!(
-                                "D10 NOTHING SINGLE descriptor={d:#?} plan={p:#?} call={call:#?}"
-                            );
-                            need(
-                                d.source() == s.source
-                                    && p.descriptor() == d
-                                    && p.source_access()
-                                        == ownership::MapIterationSourceAccess::Temporary
-                                    && call.aborts()
-                                    && typed.expression_type(s.error) == Some(call.return_type())
-                                    && typed.types().get(call.return_type())
-                                        == Some(&types::TypeKind::Builtin(
-                                            types::BuiltinType::Nothing,
-                                        ))
-                                    && p.exits().len() == 1
-                                    && p.exits()[0].kind()
-                                        == ownership::IterationExitKind::Exhaustion
-                                    && p.exits()[0].point()
-                                        == ownership::DropPoint::LoopExit(s.statement),
-                                "Nothing single real abort Call/acquired exhaustive exit set",
-                                (d, p, call),
-                            )
-                        });
-                    r.query("Nothing single typed Call/Acquire/exits", &facts);
-                },
-            )
-        }?;
+        let (program, entry) = pipeline::unit_observed_with_entry(
+            &sources,
+            &parsed,
+            NOTHING_PATH,
+            "main",
+            &mut report,
+            |names, typed, owned, r| {
+                let facts = sites
+                    .as_ref()
+                    .map_err(|e| failure("Nothing Unit sites", e))
+                    .and_then(|s| {
+                        let unit = one(
+                            names.names().source_units().iter(),
+                            "Nothing one Unit source",
+                        )?
+                        .source_unit();
+                        let statement = types::UnitStatementId::new(unit, s.statement);
+                        let source = types::UnitExpressionId::new(unit, s.source);
+                        let error = types::UnitExpressionId::new(unit, s.error);
+                        let d = typed
+                            .map_iteration(statement)
+                            .ok_or_else(|| failure("Nothing Unit descriptor", statement))?;
+                        let p = owned
+                            .map_iteration(statement)
+                            .ok_or_else(|| failure("Nothing Unit acquired plan", statement))?;
+                        let call = typed
+                            .call(error)
+                            .ok_or_else(|| failure("Nothing Unit typed Call", error))?;
+                        println!("D10 NOTHING UNIT descriptor={d:#?} plan={p:#?} call={call:#?}");
+                        need(
+                            d.source() == source
+                                && p.descriptor() == d
+                                && p.source_access()
+                                    == ownership::UnitIterationSourceAccess::Temporary
+                                && call.aborts()
+                                && typed.expression_type(error) == Some(call.return_type())
+                                && typed.types().get(call.return_type())
+                                    == Some(&types::UnitTypeKind::Builtin(
+                                        types::BuiltinType::Nothing,
+                                    ))
+                                && p.exits().len() == 1
+                                && p.exits()[0].kind()
+                                    == ownership::UnitIterationExitKind::Exhaustion
+                                && p.exits()[0].point()
+                                    == ownership::UnitDropPoint::LoopExit(statement),
+                            "Nothing Unit real abort Call/acquired exhaustive exit set",
+                            (d, p, call),
+                        )
+                    });
+                r.query("Nothing Unit typed Call/Acquire/exits", &facts);
+            },
+        )?;
         let shape = sites
             .as_ref()
             .map_err(|e| failure("Nothing SSA sites", e))
@@ -832,25 +783,21 @@ fn observe_body_nothing(unit: bool) -> Observation {
         Ok(())
     })();
     Observation {
-        unit,
+        unit: true,
         report,
         outcome,
     }
 }
 
 #[test]
-fn temporary_body_nothing_reaches_verified_llvm_without_execution() {
-    let observations = [observe_body_nothing(false), observe_body_nothing(true)];
-    for observation in &observations {
-        println!(
-            "D10 NOTHING OUTCOME unit={} report={:#?} outcome={:?}",
-            observation.unit, observation.report, observation.outcome
-        );
-    }
+fn unit_temporary_body_nothing_reaches_verified_llvm_without_execution() {
+    let observation = observe_unit_body_nothing();
+    println!(
+        "D10 NOTHING OUTCOME unit={} report={:#?} outcome={:?}",
+        observation.unit, observation.report, observation.outcome
+    );
     assert!(
-        observations
-            .iter()
-            .all(|o| o.report.passed() && o.outcome.is_ok()),
-        "真实Nothing body两fresh必须完成FE/sealed/SSA/LLVM；只构建IR，不执行Abort/native。\n{observations:#?}"
+        observation.report.passed() && observation.outcome.is_ok(),
+        "真实Unit Nothing body必须完成FE/sealed/SSA/LLVM；只构建IR，不执行Abort/native。\n{observation:#?}"
     );
 }
