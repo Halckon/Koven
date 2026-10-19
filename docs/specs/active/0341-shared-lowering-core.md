@@ -229,3 +229,25 @@ iteration角色逐项建立状态合同，最后收敛driver骨架。此节不�
 - 同头另复验B首片15项中除已重复生产guard外的14个ordinary，均各1/exit0；完整函数/helper与原受验版本逐字核同。合计27个唯一ordinary exact，其中4个native测试覆盖9个正常产物，完整stdout/exit/stderr原硬断通过，不外推计数或泄漏。
 - `cargo check --locked --offline -p lang-codegen --tests`：实现47.91s、测试修正39.11s均0；`cargo fmt --all -- --check`与`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`均0，后者57.37s；尺寸门1834手写Rust/历史38超限通过，无新增例外。测试均沿§9同工具链和逐exact串行命令，原日志仅仓外 `d10-readonly/logs/integer-*`，README保精简命令与分类。
 - 本片没有执行合成缺事实/非法SSA/故障注入/校准；§7既有误纳历史不删除。精确新远端头双宿主CI仍待验；§6的A/C/D/E均继续开放。下一责任是共同block/statement执行顺序及cleanup端口设计，不将checked/CFG长期差异视为D10完成。
+
+## 12. C/D 普通 statement 顺序核心小片（待验）
+
+本片设计输入为 `fbb50f06f393d17d4a427aa66d612c78f703b21b`；只收敛普通statement的
+执行后cleanup与Unit序列两项责任，不代表共同CFG/cleanup执行器或D10整体完成。
+
+- 新私有 `statement_core` 沿用 `LoweredValue` 与本地 `StatementId`，两个端口只调用原
+  inner及原AfterStatement；不加source校验、不预取facts或Span、不扩宽整数接口。
+- 核心统一inner成功后仅非Diverged发cleanup；序列按原顺序调用，遇Diverged或错误即停，
+  全正常返回Unit。Value仍由statement wrapper原样返回；空容器由外层wrapper正常cleanup。
+- single仍只接受Block/LambdaBody普通序列，unit另保ControlBody；Map专用inner绕行、
+  control-tail/lambda尾值、原emit_drops/loop/branch/return/Abort时点与状态原样保留。
+  Diverged不替换成terminator检查，不触及0321、0291或0333–0340的独立边界。
+- 依赖门禁扫描新核心及子树，保原禁边；statement→expression仅复用结果类型，显式禁止
+  expression→statement反向边，IR/support仍不读取核心；新合成坏依赖负控仅CI。
+- [ ] 两生产消费者经过唯一wrapper/Unit序列算法；真实差异仍在原适配，没有复制旧循环。
+- [ ] 复用已全文核读的12个ordinary exact，新增小型真实源码pair核空/嵌套/正常顺序及
+  提前return，沿用既有events/来源与定义使用查询；人工MissingFact/foreign facts整项仅CI。
+- [ ] 定向SSA/LLVM及普通native输出、fmt/clippy、docs/尺寸/diff与独审记录实际结果；
+  exact-head双宿主CI另账，未运行不写通过。普通native成功不替代动态资源证据。
+
+后续CFG、owner/loan/pending/receiver/iteration与driver共同责任继续开放，不以本片归档。
