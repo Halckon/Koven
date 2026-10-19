@@ -1,18 +1,33 @@
 //! Construct and restore explicit linear CFG storage slots.
 use super::*;
-use crate::ssa::carry::{self, TemporarySlot};
+use crate::ssa::carry::{self, AliasSlot, CaptureLoan, Temporary};
+use crate::ssa::model::LoanId;
 
-impl TemporarySlot<usize> for LinearBindingSlot {
+impl AliasSlot<Temporary, usize> for LinearBindingSlot {
     fn source(&self) -> EntityId {
         self.source
     }
 
-    fn temporary_keys_mut(&mut self) -> &mut Vec<usize> {
+    fn keys_mut(&mut self) -> &mut Vec<usize> {
         &mut self.temporaries
     }
 
-    fn from_temporary(source: ValueId, ty: EntityType) -> Self {
+    fn from_alias(source: ValueId, ty: EntityType) -> Self {
         Self::new(None, EntityId::Value(source), ty)
+    }
+}
+
+impl AliasSlot<CaptureLoan, (usize, usize)> for LinearBindingSlot {
+    fn source(&self) -> EntityId {
+        self.source
+    }
+
+    fn keys_mut(&mut self) -> &mut Vec<(usize, usize)> {
+        &mut self.captures
+    }
+
+    fn from_alias(source: LoanId, ty: EntityType) -> Self {
+        Self::new(None, EntityId::Loan(source), ty)
     }
 }
 
@@ -51,7 +66,12 @@ impl ExpressionLowerer<'_> {
                 ty,
             ));
         }
-        carry::collect_temporaries(self.function, &self.temporaries, &mut carried, span)?;
+        carry::collect_aliases::<Temporary, _, _>(
+            self.function,
+            &self.temporaries,
+            &mut carried,
+            span,
+        )?;
         for (&key, &loan) in self.pending_call_loans.iter() {
             let Some(loan) = loan else {
                 continue;
@@ -70,21 +90,12 @@ impl ExpressionLowerer<'_> {
                 carried.push(slot);
             }
         }
-        for (&key, &loan) in &self.capture_loans {
-            let source = EntityId::Loan(loan);
-            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                slot.captures.push(key);
-            } else {
-                let ty = self
-                    .function
-                    .entity(source)
-                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
-                    .ty;
-                let mut slot = LinearBindingSlot::new(None, source, ty);
-                slot.captures.push(key);
-                carried.push(slot);
-            }
-        }
+        carry::collect_aliases::<CaptureLoan, _, _>(
+            self.function,
+            &self.capture_loans,
+            &mut carried,
+            span,
+        )?;
         for (&symbol, &proof) in &self.non_null_bindings {
             self.validate_non_null_proof(symbol, proof, bindings, span)?;
             let source = EntityId::Loan(proof.loan);
@@ -246,17 +257,17 @@ impl ExpressionLowerer<'_> {
         }
         for (slot, &parameter) in carried.slots.iter().zip(parameters) {
             if !slot.temporaries.is_empty() {
-                carry::apply_temporary_column(
+                carry::apply_alias_column(
                     &slot.temporaries,
                     value(parameter),
                     &mut self.temporaries,
                 );
             }
-            for key in &slot.captures {
+            if !slot.captures.is_empty() {
                 let EntityId::Loan(loan) = parameter else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
-                self.capture_loans.insert(*key, loan);
+                carry::apply_alias_column(&slot.captures, loan, &mut self.capture_loans);
             }
             for &(symbol, source_proof) in &slot.views {
                 self.validate_non_null_proof(symbol, source_proof, baseline, span)?;
