@@ -902,5 +902,91 @@ fn pending_call_prefix_survives_inner_loops() {
 #[test]
 fn pending_copyable_argument_keeps_its_pre_loop_snapshot() {
     let source = "fun consume(own before: Boolean, own after: Boolean): Boolean = before\nfun entry(own flag: Boolean): Unit { var once = true\nval result = consume(once, if (flag) { while (once) { once = false }\ntrue } else { false }) }";
-    crate::llvm::render_verified_program(&lower_short_circuit_fixture(source)).unwrap();
+    let program = lower_short_circuit_fixture(source);
+    let llvm = crate::llvm::render_verified_program(&program).unwrap();
+    for (kind, text) in [
+        ("ssa", render_program(&program)),
+        ("model", format!("{:#?}", program.modules)),
+        ("llvm", llvm),
+    ] {
+        println!(
+            "\nBEGIN copyable-snapshot case=0 entry=unit kind={kind} bytes={}",
+            text.len()
+        );
+        print!("{text}");
+        println!("\nEND copyable-snapshot case=0 entry=unit kind={kind}");
+    }
+
+    use super::{
+        map_provider_exits_pipeline_tests::{OrdinaryGraph as Graph, one_query as one},
+        model::{EntityId, Origin, ScalarConstant::Boolean, TerminatorKind},
+    };
+
+    let module = &program.modules[0];
+    let function = |name| {
+        let matches = module.functions.iter().filter(|f| f.name.contains(name));
+        one(matches, name).unwrap()
+    };
+    let entry = function("q.entry");
+    let graph = Graph::new(entry).unwrap();
+    let root = entry.entry_block().unwrap();
+    let constants = graph.ops(root).unwrap().into_iter();
+    let seeds = constants.filter(|i| matches!(i.operation, Operation::Constant(Boolean(true))));
+    let seed = one(seeds, "initial once = true").unwrap().results[0];
+    let instructions = graph.instructions.iter().copied();
+    let calls = instructions.filter(|i| matches!(i.operation, Operation::DirectCall { .. }));
+    let call = one(calls, "actual consume call").unwrap();
+    let Operation::DirectCall {
+        callee,
+        receiver,
+        arguments,
+    } = &call.operation
+    else {
+        unreachable!();
+    };
+    let consume = function("q.consume");
+    assert_eq!(*callee, consume.id);
+    assert!(receiver.is_none());
+    assert_eq!(arguments.len(), 2);
+    let Origin::Source(span) = &call.origin else {
+        panic!("actual source Call")
+    };
+    assert_eq!(span.source_id(), consume.origin.span().source_id());
+    let text = format!("package q\n{source}");
+    let tail = source.split_once("val result = ").unwrap().1;
+    let expected_call = tail.strip_suffix(" }").unwrap();
+    assert_eq!(&text[span.start()..span.end()], expected_call);
+    let conditional = |block| match &graph.term(block).unwrap().kind {
+        TerminatorKind::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => (EntityId::Value(*condition), when_true, when_false),
+        _ => panic!("actual source conditional"),
+    };
+    let (_, then, otherwise) = conditional(root);
+    let enter = graph.branch(then.target).unwrap();
+    let (named, body, exit) = conditional(enter.target);
+    let predecessors = [then.target, body.target];
+    graph.incoming_from(enter.target, &predecessors).unwrap();
+    let initial_named = graph.argument(enter, named).unwrap();
+    graph.anchored(initial_named, &[seed]).unwrap();
+    let back = graph.branch(body.target).unwrap();
+    let updated_named = graph.argument(back, named).unwrap();
+    let updated = graph.definition(updated_named).unwrap();
+    assert_eq!(updated.block, body.target);
+    assert!(matches!(
+        updated.operation,
+        Operation::Constant(Boolean(false))
+    ));
+    let predecessors = [exit.target, otherwise.target];
+    graph.incoming_from(call.block, &predecessors).unwrap();
+    let exit_edge = graph.branch(exit.target).unwrap();
+    let after_loop = graph.argument(exit_edge, arguments[0]).unwrap();
+    let snapshot = graph.argument(exit, after_loop).unwrap();
+    assert_ne!(snapshot, named);
+    assert_eq!(graph.argument(enter, snapshot).unwrap(), initial_named);
+    let snapshot_back = graph.argument(back, snapshot).unwrap();
+    graph.anchored(snapshot_back, &[snapshot]).unwrap();
+    graph.anchored(arguments[0], &[seed]).unwrap();
 }
