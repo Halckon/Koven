@@ -266,7 +266,15 @@ impl UnitExpressionLowerer<'_> {
                 | Expression::Break { .. }
                 | Expression::Continue { .. }
         ) {
-            self.reject_live_if_proof(span)?;
+            let root_borrow_call = match node.payload() {
+                Expression::Call { arguments, .. } => {
+                    self.can_call_with_nullable_root_proof(unit_expression, arguments, span)?
+                }
+                _ => false,
+            };
+            if !root_borrow_call {
+                self.reject_live_if_proof(span)?;
+            }
         }
         if self.typed.range_size(unit_expression).is_some() {
             return self.lower_range_size(expression, span);

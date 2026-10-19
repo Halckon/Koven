@@ -5,6 +5,7 @@ use super::*;
 use crate::ssa::model::PlaceId;
 use crate::ssa::model::SsaTypeKind;
 use lang_frontend::ownership_checking::{LoanKind as FrontendLoanKind, UnitLoanTarget};
+use lang_frontend::type_checking::{CallableResultSource, UnitCallTarget};
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn lower_borrow_argument(
@@ -204,6 +205,132 @@ impl UnitExpressionLowerer<'_> {
             ));
         };
         Ok((loan, vec![loan], fact.end_span()))
+    }
+
+    /// Qualify the existing synchronous call path without emitting or carrying loans.
+    pub(super) fn can_call_with_nullable_root_proof(
+        &self,
+        call: UnitExpressionId,
+        arguments: &[lang_frontend::parser::CallArgument],
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        if !self
+            .nullable_proofs
+            .values()
+            .any(|proof| proof.if_scope().is_some())
+            || self.thunk_expression.is_some()
+            || !self.pending_call_frames.is_empty()
+            || !self.pending_operands.is_empty()
+            || !self.temporaries.is_empty()
+            || self.ensure_while_proof_non_call_carriers(span).is_err()
+            || self.typed.construction(call).is_some()
+            || self.typed.ownership_primitive(call).is_some()
+        {
+            return Ok(false);
+        }
+        let Some(descriptor) = self.typed.call(call) else {
+            return Ok(false);
+        };
+        if descriptor.receiver().is_some()
+            || descriptor.aborts()
+            || descriptor.prints_line()
+            || descriptor.result_source() != CallableResultSource::Owned
+            || !matches!(
+                descriptor.target(),
+                UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+            )
+            || arguments.is_empty()
+            || descriptor
+                .arguments()
+                .iter()
+                .any(|mapping| mapping.mode() != ParameterMode::Borrow)
+        {
+            return Ok(false);
+        }
+        let return_type = resolve_concrete_type(
+            self.typed,
+            descriptor.return_type(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        if self.typed.copyability(return_type) != Copyability::Copyable
+            || builtin_type(self.typed, return_type) == Some(BuiltinType::Nothing)
+        {
+            return Ok(false);
+        }
+        let key = self
+            .source_plan
+            .source(self.source_token)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let route = self
+            .source_plan
+            .call_site(self.source_token, call)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if call.source_unit() != self.source_unit
+            || descriptor.expression() != call
+            || arguments.len() != descriptor.arguments().len()
+            || self.function_ids.get(key) != Some(&self.function.id())
+            || !self.function_ids.contains_key(route.key())
+            || super::map_iteration::enclosing_lambda(self.parsed, span).is_some()
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let mut uses_if_proof = false;
+        for (index, argument) in arguments.iter().enumerate() {
+            let mapping = descriptor
+                .arguments()
+                .iter()
+                .find(|mapping| mapping.argument_index() == index)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
+            let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
+            let mut facts = self
+                .owned
+                .loans()
+                .iter()
+                .filter(|fact| fact.call() == call && fact.argument() == argument_id);
+            let Some(fact) = facts.next() else {
+                return Ok(false);
+            };
+            if facts.next().is_some()
+                || fact.kind() != FrontendLoanKind::Shared
+                || fact.end_span() != span
+            {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
+            }
+            let UnitLoanTarget::Place(path) = fact.target() else {
+                return Ok(false);
+            };
+            if !path.is_root() {
+                return Ok(false);
+            }
+            let Some(proof) = self.nullable_proofs.get(&path.root()) else {
+                return Ok(false);
+            };
+            let parameter_type = resolve_concrete_type(
+                self.typed,
+                mapping.parameter_type(),
+                self.substitutions,
+                self.static_self,
+                argument.span,
+            )?;
+            let target = self
+                .type_ids
+                .get(&parameter_type)
+                .copied()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
+            if self
+                .lower_nullable_root_borrow(argument.value, fact.target(), target, argument.span)?
+                .is_none()
+            {
+                return Ok(false);
+            }
+            uses_if_proof |= proof.if_scope().is_some();
+        }
+        Ok(uses_if_proof)
     }
 
     /// The current proof owns this loan; the call must not end it as a child.
