@@ -336,6 +336,11 @@ end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0334["S0334<br/>String nullable 表示与 Map 组合 ABI 前置"]
   S0335["S0335<br/>Map Borrow 结果的 caller continuation 证明"]
+  S0336["S0336<br/>Single 函数值的 owned Map 结果交付"]
+  S0337["S0337<br/>Single Map 条件结果与重绑 owner 运输"]
+  S0338["S0338<br/>Never 条件的普通求值与 provider 不获取"]
+  S0339["S0339<br/>Unit 值实参与待决调用求值"]
+  S0340["S0340<br/>名义类型 nullable retest view 的普通读取"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1382,6 +1387,11 @@ S0330 --> S0332
 S0331 --> S0333
 S0331 --> S0334
 S0331 --> S0335
+S0331 --> S0336
+S0331 --> S0337
+S0331 --> S0338
+S0331 --> S0339
+S0331 --> S0340
 ```
 
 ## 节点链接
@@ -1709,3 +1719,8 @@ S0331 --> S0335
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
+| SPEC-0336 | drafts/v0.44 | [0336-single-map-callable-results.md](../../specs/drafts/v0.44/0336-single-map-callable-results.md) |
+| SPEC-0337 | drafts/v0.44 | [0337-single-map-conditional-owner.md](../../specs/drafts/v0.44/0337-single-map-conditional-owner.md) |
+| SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](../../specs/drafts/v0.44/0338-never-condition-evaluation.md) |
+| SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](../../specs/drafts/v0.44/0339-unit-call-argument-values.md) |
+| SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](../../specs/drafts/v0.44/0340-nullable-nominal-retest-view.md) |

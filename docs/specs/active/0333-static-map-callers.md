@@ -44,3 +44,14 @@ previous companion的complete Internal也在基线存在。本有界集合未见
 
 不扩动态interface value、一般Inout/Field native、nullable String ABI、条件借用、Guide或D10。
 这是合法源码的既有实现债，不是Guide staging；本登记不表示修复或自动解除0331的其他阻断。
+
+
+## 4. 相同静态 receiver 前置的有界成员邻控
+
+固定scope P24将Borrow Map scanner放入普通class实际成员，原两份源码与golden见
+[For](../../../crates/lang-codegen/tests/fixtures/map-provider-scope-0331/P24-for.ko)及
+[无For](../../../crates/lang-codegen/tests/fixtures/map-provider-scope-0331/P24-control.ko)。
+两入口四观察：Unit两项完整SSA/LLVM成功；Single两项均在实际 `reader.scan(source)` Call
+lower Unsupported，保留原位置，不能改称provider已拒绝即通过。这是本片同类具体class receiver
+调用前置邻控，不是新动态interface支持；原12源24项成功目标保持，另将此四项完整正验纳入后继，
+合计28项而非替换原目标。当前未修复、未native，Unit For既有绿仍需后继回归。

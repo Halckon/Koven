@@ -1,0 +1,2 @@
+fun scan(): Unit { val unused=if (return) mapOf<Int, Int>() else mapOf<Int, Int>() }
+fun entry():Unit{scan()}

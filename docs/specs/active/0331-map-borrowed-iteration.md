@@ -1395,3 +1395,53 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   未覆盖、LLDB1 ignored；reducer deadline边界使用mock时钟，不冒称真实120秒编译器超时。
 - 本节有限42行为及出生证明已由fresh独审关闭；最终固定新头工程/全普通回归、新CI/artifact
   与最终范围账仍待。0331继续active；未归档/合并，未启动D10。本机未执行任何故障或sanitizer测试。
+
+## 65. 出生闭合与一次性固定资格门对账（2026-10-19）
+
+- `4064de77695f84e3464aab27adb9094eff6fe578`已正常推送PR119，带参local修复再次稳定42查询/SSA/LLVM、
+  42严格native全成功，6 Rust无失败/忽略；七工程门含严格Clippy通过。该头PR CI `39186928057/a1`
+  终态16/16 success、reuse=false；synthetic `86f8e5a10db98e48eae7121237629d4eadc34aea`，
+  tree `c1cb8419`，双父main `a2a7e4b`与4064。三ZIP及raw logs独审2512静态断言通过，无未决finding。
+  Mac仍partial/requirements_met=false、LLDB1 ignored、UBSan未覆盖；本次旧deadline未过期，
+  不继承91e8的旧deadline状态，也不把该CI覆盖后续生产候选。
+- 另一固定普通对照保全15源30观察：FunctionValue两kind×三形态×双入口为12条，intrinsic三类
+  （MapNew/MutableMapNew/非空consume）×三形态×双入口为18条。普通Unit函数值noFor2成功、For4拒绝；
+  Single函数值noFor2在Call先拒绝；intrinsic六noFor全成功、十二For拒绝。16个For出生阻断属于F。
+  候选沿真实typed construction/consume与Unit sealed callable ABI锚定实际单Value结果，保全部
+  origin/current epoch/incoming/alias/Drop校验；不扩Single函数值ABI或外层CFG。
+- 原正验输入24条另加非空MutableMap put后的双入口current owner邻控2条，共26深查询/SSA/LLVM
+  与26唯一严格native全部成功，Rust1+2无失败/忽略。3113输入前后锁相同；原15 source/golden
+  逐字保全。前两轮query对跨块顺序及callable Drop的误断保留；v3精确用同次FE
+  CallReturn(actual birth Call)桥接原FunctionAddress唯一Drop，复制与Invoke lineage不放宽。
+  fresh独审已确认原16出生失败全部关闭；新头工程/CI仍须另验，不能据此归档。
+- 为停止逐组合扩探，fresh独审一次性盘点14门类、72文件，冻结P01–P24最小代表。
+  [48份For/control原源码与golden](../../../crates/lang-codegen/tests/fixtures/map-provider-scope-0331/)保持；
+  96双入口阶段观察全部收齐，输入前后稳定：37条noFor完整SSA/LLVM、11条普通lower失败；
+  For为4条既有成功、33条与成功noFor配对的provider独有失败、11条普通前置受阻。
+  Rust实际0通过/1失败/0忽略、exit101，无native；不是96全绿或33项互相独立的新功能。
+
+以下是固定资格门的剩余必需组，全部属于0331；不再增加任意kind/source/CFG笛卡尔积，
+也不以普通前置登记豁免任何已证provider独有失败。每组须原字节红→同分析身份/SSA/LLVM→
+严格native、工程、独审闭合后再进入最终固定头回归/CI。
+
+| 组 | 固定代表与原For失败入口数 | 当前状态 |
+|---|---|---|
+| A1 已有普通控制流/body与合法dead-tail | P02双端、P12 Single、P13/14/16双端、P17/18 Unit，共11 | 待修；实际Acquire事实完整性、普通loop context及cleanup不得削弱 |
+| A2 真正Lambda callable scope | P15双端，共2 | 待修；无捕获Unit结果lambda的noFor已双端成功，不能吸入0336 Map结果前置 |
+| B value birth、稳定Borrow local、已有Int存储 | P03/04 Unit、P05/06双端，共6 | 待修；If当前结果、精确alias来源与K/V不得凭同type猜测 |
+| C 已有epoch形成/条件更新 | P07/08 Unit、P09/10/11双端，共8 | 待修；保old/new实际写入路径、Move及完整incoming |
+| D provider后的owner交付/更新 | P19/20/21双端，共6 | 待修；直接Return、Move alias和后put均须恢复当前owner/唯一清理 |
+
+- 4条既有For成功为P12 Unit、P17/18 Single、P24 Unit，随相应门保完整回归。P02原前端
+  unacquired源码保持；Field/Inout继续按Guide明示延后，损坏事实仍严格拒绝，不作为本表能力失败。
+- 11条普通无For失败各有具体成功目标：P03/04/07/08 Single的条件Map owner归
+  [0337](../drafts/v0.44/0337-single-map-conditional-owner.md)；P01双端return条件归
+  [0338](../drafts/v0.44/0338-never-condition-evaluation.md)；P22双端Unit值实参/参数ABI归
+  [0339](../drafts/v0.44/0339-unit-call-argument-values.md)；P23双端实际node view读取归
+  [0340](../drafts/v0.44/0340-nullable-nominal-retest-view.md)；P24 Single成员Call归0333具体receiver邻控。
+  它们的全部原For/control及双入口目标保持；Unit B/C中的四For仍须先在0331修，不能转交0337。
+- Single函数值Map结果前置另归[0336](../drafts/v0.44/0336-single-map-callable-results.md)，
+  普通泛型consume归0291§19；原共享调用/nullable String ABI/borrow-result证明仍分别归0333/0334/0335。
+  各draft未实施或取得Guide语义权限，不能统一把Unsupported/MissingFact称为staging。
+- 完整固定头普通回归、工程门、新双宿主CI三artifact独审、§45最终逐组对账与README/Tour/Architecture、
+  最小归档及正常合并仍待。F保持active，PR保持draft，D10未启动，本机无故障/校准/sanitizer执行。

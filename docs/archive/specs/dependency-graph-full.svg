@@ -1,18 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="11184" height="9538" viewBox="0 0 11184 9538" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="12504" height="9538" viewBox="0 0 12504 9538" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="11184" height="9538" fill="#ffffff"/>
+  <rect width="12504" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="9784" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="4932" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，315 份）</text>
   <rect x="9888" y="30" width="280" height="436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10028" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="10232" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10372" y="8012" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
-  <rect x="10576" y="342" width="544" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="10848" y="362" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
+  <rect x="10576" y="342" width="1864" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="11508" y="362" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 500, 180 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1058,6 +1058,11 @@
   <path d="M 10028 294 C 10028 326, 10028 344, 10028 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 10148 257 C 10372 257, 10372 422, 10596 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 10148 257 C 10504 257, 10504 422, 10860 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 10148 257 C 10636 257, 10636 413, 11124 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 10148 257 C 10768 257, 10768 413, 11388 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 10148 257 C 10900 257, 10900 413, 11652 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 10148 257 C 11032 257, 11032 413, 11916 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 10148 257 C 11164 257, 11164 422, 12180 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2403,4 +2408,25 @@
   <text x="10980" y="417" text-anchor="middle" font-size="13">Map Borrow 结果的</text>
   <text x="10980" y="435" text-anchor="middle" font-size="13"> caller contin</text>
   <text x="10980" y="453" text-anchor="middle" font-size="13">uation 证明</text>
+  <rect x="11124" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="11244" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0336</text>
+  <text x="11244" y="417" text-anchor="middle" font-size="13">Single 函数值的 ow</text>
+  <text x="11244" y="435" text-anchor="middle" font-size="13">ned Map 结果交付</text>
+  <rect x="11388" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="11508" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0337</text>
+  <text x="11508" y="417" text-anchor="middle" font-size="13">Single Map 条件结</text>
+  <text x="11508" y="435" text-anchor="middle" font-size="13">果与重绑 owner 运输</text>
+  <rect x="11652" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="11772" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0338</text>
+  <text x="11772" y="417" text-anchor="middle" font-size="13">Never 条件的普通求值与</text>
+  <text x="11772" y="435" text-anchor="middle" font-size="13"> provider 不获取</text>
+  <rect x="11916" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="12036" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0339</text>
+  <text x="12036" y="417" text-anchor="middle" font-size="13">Unit 值实参与待决调用求</text>
+  <text x="12036" y="435" text-anchor="middle" font-size="13">值</text>
+  <rect x="12180" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="12300" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0340</text>
+  <text x="12300" y="417" text-anchor="middle" font-size="13">名义类型 nullable </text>
+  <text x="12300" y="435" text-anchor="middle" font-size="13">retest view 的普</text>
+  <text x="12300" y="453" text-anchor="middle" font-size="13">通读取</text>
 </svg>
