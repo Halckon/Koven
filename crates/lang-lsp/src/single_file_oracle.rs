@@ -40,7 +40,6 @@ pub(crate) struct ManualAnalysis {
     pub(crate) sources: SourceMap,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) definitions: DefinitionIndex,
-    stage_diagnostics: Vec<(&'static str, Vec<Diagnostic>)>,
 }
 
 /// 不调用生产 analyze 或新 façade；每个旧入口与诊断聚合点显式冻结。
@@ -56,13 +55,6 @@ pub(crate) fn manual(source_name: &str, text: &str) -> ManualAnalysis {
     let typed = check_types(&sources, &parsed, &names, &type_environment).expect("manual types");
     let definitions = DefinitionIndex::build(&parsed, &names, &typed).expect("manual definitions");
     let owned = check_ownership(&sources, &parsed, &names, &typed).expect("manual ownership");
-    let stage_diagnostics = vec![
-        ("lexer", lexed.diagnostics().to_vec()),
-        ("parsed_including_lexer", parsed.diagnostics().to_vec()),
-        ("names", names.diagnostics().to_vec()),
-        ("types", typed.diagnostics().to_vec()),
-        ("ownership", owned.diagnostics().to_vec()),
-    ];
     let mut diagnostics = parsed.diagnostics().to_vec();
     diagnostics.extend_from_slice(names.diagnostics());
     diagnostics.extend_from_slice(typed.diagnostics());
@@ -76,7 +68,6 @@ pub(crate) fn manual(source_name: &str, text: &str) -> ManualAnalysis {
         sources,
         diagnostics,
         definitions,
-        stage_diagnostics,
     }
 }
 

@@ -1,4 +1,4 @@
-//! Ordinary source observations only; this module contains no expected golden or update mode.
+//! Frozen Legacy behavior from independently reviewed ordinary source observations.
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
@@ -7,7 +7,7 @@ use lang_frontend::{
 use lsp_types::{Range, Uri};
 use serde_json::{Value, json};
 
-use super::{ManualAnalysis, assert_diagnostics, fixtures, manual, position};
+use super::{fixtures, position};
 use crate::{
     analysis,
     definition::DefinitionIndex,
@@ -16,26 +16,21 @@ use crate::{
 };
 
 #[test]
-fn observes_complete_legacy_recovery_before_oracle_freeze() {
-    let mut observations = Vec::new();
-    for (label, source) in fixtures() {
+fn matches_frozen_legacy_recovery_diagnostics_and_every_definition_offset() {
+    let frozen: Value = serde_json::from_str(include_str!("fixtures/legacy_recovery_v1.json"))
+        .expect("reviewed frozen Legacy observations");
+    assert_eq!(frozen["schema_version"], json!(1));
+    let expected = frozen["fixtures"].as_array().expect("eleven frozen fixtures");
+    let inputs = fixtures();
+    assert_eq!(inputs.len(), 11);
+    assert_eq!(expected.len(), inputs.len());
+    for ((label, source), expected) in inputs.into_iter().zip(expected) {
         let uri: Uri = format!("file:///{label}.ko").parse().expect("fixture URI");
-        let expected = manual(uri.as_str(), source);
+        assert_eq!(expected["label"], json!(label));
+        assert_eq!(expected["uri"], json!(uri.as_str()));
+        assert_eq!(expected["source_utf8"], json!(source));
+        assert_eq!(expected["source_byte_length"], json!(source.len()));
         let actual = analysis::analyze(uri.as_str(), source).expect("production analysis");
-        assert_diagnostics(
-            &actual.sources,
-            &actual.diagnostics,
-            &expected.sources,
-            &expected.diagnostics,
-            uri.as_str(),
-        );
-        let expected_snapshot = snapshot(
-            &expected.sources,
-            &expected.diagnostics,
-            &expected.definitions,
-            &uri,
-            source,
-        );
         let actual_snapshot = snapshot(
             &actual.sources,
             &actual.diagnostics,
@@ -43,23 +38,14 @@ fn observes_complete_legacy_recovery_before_oracle_freeze() {
             &uri,
             source,
         );
-        assert_eq!(actual_snapshot, expected_snapshot, "{label}: full snapshot");
-        observations.push(json!({
-            "label": label,
-            "uri": uri.as_str(),
-            "source_utf8": source,
-            "source_byte_length": source.len(),
-            "manual_stage_diagnostics_only": stage_diagnostics(&expected, &uri),
-            "manual_and_production_equal_snapshot": expected_snapshot,
-        }));
+        assert_eq!(
+            actual_snapshot,
+            expected["manual_and_production_equal_snapshot"],
+            "{label}: complete frozen raw/LSP diagnostics and ordered navigation"
+        );
+        // manual_stage_diagnostics_only is historical metadata, not an assertion
+        // about future Unit stages or executable qualification.
     }
-    assert_eq!(observations.len(), 11);
-    // Emit only after every independent/manual comparison succeeds. Never write expectations.
-    println!(
-        "LSP_LEGACY_ORACLE_OBSERVATION_V1={}",
-        serde_json::to_string(&json!({"schema_version": 1, "fixtures": observations}))
-            .expect("complete observation JSON")
-    );
 }
 
 fn snapshot(
@@ -106,19 +92,6 @@ fn snapshot(
         "lsp_diagnostics": convert_diagnostics(sources, uri, diagnostics).expect("mapped diagnostics"),
         "definitions_by_utf8_boundary": navigation,
     })
-}
-
-fn stage_diagnostics(analysis: &ManualAnalysis, uri: &Uri) -> Vec<Value> {
-    analysis
-        .stage_diagnostics
-        .iter()
-        .map(|(stage, diagnostics)| {
-            json!({
-                "stage": stage,
-                "diagnostics": diagnostic_values(&analysis.sources, diagnostics, uri),
-            })
-        })
-        .collect()
 }
 
 fn diagnostic_values(sources: &SourceMap, diagnostics: &[Diagnostic], uri: &Uri) -> Vec<Value> {
