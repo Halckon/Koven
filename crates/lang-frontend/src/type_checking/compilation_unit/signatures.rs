@@ -1,16 +1,13 @@
 mod callable;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::{ItemId, TypeRefId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        CompilationUnitNames, DeclarationId, DeclarationVisibility, Namespace, SourceUnitId,
-        SourceUnitInput, SymbolId, SymbolKind, UnitReferenceTarget, UnitSymbolId,
-        ValidatedCompilationUnitNames, index_compilation_unit, ordered_unit_diagnostics,
+        DeclarationId, DeclarationVisibility, Namespace, SourceUnitId, SourceUnitInput, SymbolId,
+        SymbolKind, UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
+        ordered_unit_diagnostics,
     },
     parser::{
         ClassifierBody, ClassifierDeclaration, ClassifierKind, DeclarationModifiers, FunctionForm,
@@ -37,6 +34,10 @@ use super::{
 mod constants;
 mod graph;
 mod range_carrier;
+mod recovery;
+
+pub(crate) use recovery::collect_compilation_unit_signatures_recovering;
+pub(super) use recovery::diagnosed_missing_name;
 
 /// 收集 canonical compilation unit 的全部顶层、nominal 与 callable signatures。
 ///
@@ -49,42 +50,6 @@ pub fn collect_compilation_unit_signatures(
     environment: &TypeEnvironment,
 ) -> Result<CompilationUnitSignatures, CompilationUnitTypeError> {
     collect_compilation_unit_signatures_recovering(sources, inputs, names.names(), environment)
-}
-
-/// 实际 recovery 门复用同一 collector；仍完整核验 source/name/environment 身份。
-pub(crate) fn collect_compilation_unit_signatures_recovering(
-    sources: &SourceMap,
-    inputs: &[SourceUnitInput<'_>],
-    unit_names: &CompilationUnitNames,
-    environment: &TypeEnvironment,
-) -> Result<CompilationUnitSignatures, CompilationUnitTypeError> {
-    let rebuilt = index_compilation_unit(sources, inputs)
-        .map_err(|_| CompilationUnitTypeError::MismatchedInputs)?;
-    if &rebuilt != unit_names.index() {
-        return Err(CompilationUnitTypeError::MismatchedInputs);
-    }
-    let parsed = unit_names
-        .index()
-        .source_units()
-        .iter()
-        .map(|source| {
-            inputs
-                .iter()
-                .find(|input| input.source_id() == source.source_id())
-                .map(|input| input.parsed())
-                .ok_or(CompilationUnitTypeError::MismatchedInputs)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if unit_names.source_units().len() != parsed.len()
-        || unit_names.source_units().iter().any(|source| {
-            source.resolution().source_id()
-                != unit_names.index().source_units()[source.source_unit().index()].source_id()
-                || !Arc::ptr_eq(source.resolution().environment_owner(), environment.owner())
-        })
-    {
-        return Err(CompilationUnitTypeError::MismatchedNameEnvironment);
-    }
-    SignatureCollector::new(sources, parsed, unit_names, environment)?.run()
 }
 
 struct SignatureCollector<'a> {
@@ -957,21 +922,6 @@ impl<'a> SignatureCollector<'a> {
         self.diagnostics.push(diagnostic);
         Ok(())
     }
-}
-
-/// Only the parser's actual rejected name permits a declaration without an identity.
-/// A missing symbol for a Present name remains an internal consistency failure.
-pub(super) fn diagnosed_missing_name(file: &ParsedFile, name: NameMarker) -> bool {
-    let (NameMarker::Missing(span) | NameMarker::Error(span)) = name else {
-        return false;
-    };
-    file.diagnostics().iter().any(|diagnostic| {
-        let primary = diagnostic.primary_span();
-        diagnostic.severity() == Severity::Error
-            && primary.source_id() == span.source_id()
-            && span.start() <= primary.start()
-            && primary.end() <= span.end()
-    })
 }
 
 fn unwrapped_item(ast: &SyntaxAst, id: ItemId) -> Result<&Item, CompilationUnitTypeError> {
