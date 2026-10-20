@@ -78,7 +78,7 @@ typed diagnostics 先由宿主收集，再调用同一 `analyze_basic_unit_owner
 
 `position_adapter` 集中处理 Span 与 UTF-16 的双向映射，拒绝 surrogate pair 中间位置和越界 cursor。
 实现入口位于 `crates/lang-lsp/src/analysis.rs`、`source_set.rs`、`unit_session.rs`、`definition.rs` 和
-`diagnostic_adapter.rs`；`single_file_oracle` 以固定 JSON 比较十一源的完整诊断与逐 UTF-8 边界导航，另保留独立 manual 邻控。
+`diagnostic_adapter.rs`；`single_file_oracle` 以固定 JSON 保存十一源完整诊断与逐 UTF-8 边界导航的迁移基线，独立 manual 邻控仅作过渡。
 
 ## Formatter
 
