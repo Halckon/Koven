@@ -94,8 +94,8 @@ fn assert_old_outputs(
         publications(actual.publications(config, overlays).unwrap()),
         publications(expected.publications(config, overlays).unwrap())
     );
-    assert_eq!(actual._typed.is_some(), expected._typed.is_some());
-    assert_eq!(actual._owned.is_some(), expected._owned.is_some());
+    assert_eq!(actual.analysis.typed().is_some(), expected._typed.is_some());
+    assert_eq!(actual.analysis.owned().is_some(), expected._owned.is_some());
     for source in config.sources() {
         let text = overlays
             .get(source.uri().as_str())
@@ -144,8 +144,8 @@ fn unit_snapshot_matches_old_pipeline_outputs_for_every_recovery_gate() {
             let overlays = BTreeMap::new();
             let actual = UnitSnapshot::analyze(&config, &overlays).unwrap();
             assert_old_outputs(&config, &overlays, &actual);
-            assert_eq!(actual._typed.is_some(), typed);
-            assert_eq!(actual._owned.is_some(), owned);
+            assert_eq!(actual.analysis.typed().is_some(), typed);
+            assert_eq!(actual.analysis.owned().is_some(), owned);
             let published = publications(actual.publications(&config, &overlays).unwrap());
             assert_eq!(codes(&published), expected_codes, "{consumer}");
             assert_eq!(
@@ -208,8 +208,8 @@ fn typed_recovery_session_keeps_narrowed_calls_members_and_failed_candidates() {
             location(PROVIDER_URI, PROVIDER, "pick", 1)
         ]
     );
-    assert!(session.snapshot._typed.is_some());
-    assert!(session.snapshot._owned.is_none());
+    assert!(session.snapshot.analysis.typed().is_some());
+    assert!(session.snapshot.analysis.owned().is_none());
 }
 
 #[test]
@@ -253,8 +253,8 @@ fn name_recovery_commits_complete_diagnostics_and_valid_navigation() {
             location(PROVIDER_URI, PROVIDER, "pick", 1)
         ]
     );
-    assert!(session.snapshot._typed.is_none());
-    assert!(session.snapshot._owned.is_none());
+    assert!(session.snapshot.analysis.typed().is_none());
+    assert!(session.snapshot.analysis.owned().is_none());
 }
 
 #[test]

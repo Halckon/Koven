@@ -14,7 +14,7 @@ use super::*;
 fn session_name_owner_matches_complete_same_source_manual_prefix_and_ast_pairing() {
     for consumer in [VALID, NAME_RECOVERY, TYPED_RECOVERY, OWNERSHIP, CONSTANT] {
         let session = UnitSession::new(config(consumer, true)).unwrap();
-        let owner = &session.snapshot.name_snapshot;
+        let owner = session.snapshot.analysis.name_snapshot();
         let parsed = owner
             .descriptors()
             .iter()

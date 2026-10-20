@@ -24,7 +24,7 @@ const DEFERRED: &str = "package app\r\n\
 // without stringifying or discarding SourceId provenance. Never route this oracle through the
 // new analysis facade; independent standard-environment pairs stay within their own chain.
 pub(super) fn assert_raw_products_match_old_pipeline(actual: &UnitSnapshot) {
-    let owner = &actual.name_snapshot;
+    let owner = actual.analysis.name_snapshot();
     let sources = owner.sources();
     let parsed = owner
         .descriptors()
@@ -68,10 +68,10 @@ pub(super) fn assert_raw_products_match_old_pipeline(actual: &UnitSnapshot) {
     } else {
         (None, None)
     };
-    assert_eq!(actual._typed, typed);
-    assert_eq!(actual._owned, owned);
-    if let Some(owned) = &actual._owned {
-        let typed = actual._typed.as_ref().unwrap();
+    assert_eq!(actual.analysis.typed(), typed.as_ref());
+    assert_eq!(actual.analysis.owned(), owned.as_ref());
+    if let Some(owned) = actual.analysis.owned() {
+        let typed = actual.analysis.typed().unwrap();
         let validated = typed.clone().validate().unwrap();
         assert!(validated.types().is_same_analysis(typed));
         assert!(owned.is_compatible_with(&validated));
@@ -89,19 +89,19 @@ fn unused_constant_in_other_source_blocks_whole_unit_ownership_without_l0131() {
                 codes(&publications(baseline.publications().unwrap())),
                 baseline_codes
             );
-            assert!(baseline.snapshot._owned.is_some());
+            assert!(baseline.snapshot.analysis.owned().is_some());
 
             let session =
                 UnitSession::new(config_with_provider(&provider, consumer, reverse)).unwrap();
             assert_old_outputs(&session.config, &session.overlays, &session.snapshot);
-            let typed = session.snapshot._typed.as_ref().unwrap();
+            let typed = session.snapshot.analysis.typed().unwrap();
             assert!(typed.diagnostics().is_empty());
             let constants = typed.constants().unwrap();
             assert_eq!(constants.declarations().len(), 1);
             assert!(constants.uses().is_empty());
             assert!(typed.clone().validate().is_err());
             assert!(typed.clone().validate_constants().is_ok());
-            assert!(session.snapshot._owned.is_none());
+            assert!(session.snapshot.analysis.owned().is_none());
             assert_eq!(
                 publications(session.publications().unwrap()),
                 [
@@ -129,10 +129,10 @@ fn diagnostic_free_deferred_ownership_keeps_raw_product_and_typed_navigation() {
     for reverse in [false, true] {
         let session = UnitSession::new(config(DEFERRED, reverse)).unwrap();
         assert_old_outputs(&session.config, &session.overlays, &session.snapshot);
-        let typed = session.snapshot._typed.as_ref().unwrap();
+        let typed = session.snapshot.analysis.typed().unwrap();
         assert!(typed.diagnostics().is_empty());
         assert!(typed.clone().validate().is_ok());
-        let owned = session.snapshot._owned.as_ref().unwrap();
+        let owned = session.snapshot.analysis.owned().unwrap();
         assert!(owned.diagnostics().is_empty());
         assert_eq!(owned.deferred().len(), 1);
         assert_eq!(
@@ -172,21 +172,21 @@ fn dropping_basic_recovery_candidates_preserves_complete_last_good_and_version()
         assert_old_outputs(&session.config, &opened.overlays, &opened.snapshot);
         session.commit(opened);
         let previous = publications(session.publications().unwrap());
-        let previous_typed = session.snapshot._typed.clone();
-        let previous_owned = session.snapshot._owned.clone();
+        let previous_typed = session.snapshot.analysis.typed().cloned();
+        let previous_owned = session.snapshot.analysis.owned().cloned();
         let assert_unchanged = |session: &UnitSession| {
             assert_eq!(publications(session.publications().unwrap()), previous);
-            assert_eq!(session.snapshot._typed, previous_typed);
-            assert_eq!(session.snapshot._owned, previous_owned);
+            assert_eq!(session.snapshot.analysis.typed(), previous_typed.as_ref());
+            assert_eq!(session.snapshot.analysis.owned(), previous_owned.as_ref());
             assert!(
                 session
                     .snapshot
-                    ._typed
-                    .as_ref()
+                    .analysis
+                    .typed()
                     .unwrap()
                     .is_same_analysis(previous_typed.as_ref().unwrap())
             );
-            if let Some(owned) = &session.snapshot._owned {
+            if let Some(owned) = session.snapshot.analysis.owned() {
                 assert!(owned.is_same_analysis(previous_owned.as_ref().unwrap()));
             }
             assert_eq!(session.overlays.len(), 1);
@@ -221,8 +221,8 @@ fn dropping_basic_recovery_candidates_preserves_complete_last_good_and_version()
         assert!(
             !session
                 .snapshot
-                ._owned
-                .as_ref()
+                .analysis
+                .owned()
                 .unwrap()
                 .deferred()
                 .is_empty()
