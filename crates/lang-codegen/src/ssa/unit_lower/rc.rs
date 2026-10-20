@@ -72,10 +72,8 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let descriptor = self.validated_rc_operation(
-            UnitExpressionId::new(self.source_unit, expression),
-            span,
-        )?;
+        let descriptor =
+            self.validated_rc_operation(UnitExpressionId::new(self.source_unit, expression), span)?;
         let owner = match self.nullable_rc_operand(descriptor.receiver(), span)? {
             Some(loan) => EntityId::Loan(loan),
             None => match self.lower(descriptor.receiver().expression())? {
