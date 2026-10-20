@@ -32,14 +32,18 @@ def sanitizer_failure(stderr, detector):
     primary_stack = re.split(rb"\n(?:freed by|previously allocated by|allocated by|SUMMARY:)",
                              stderr[match.end():], maxsplit=1)[0]
     top = re.search(rb"^\s*#0[^\n]*", primary_stack, re.M)
-    frame = re.search(rb"\bin ([A-Za-z_][A-Za-z_0-9.]*)", top[0]) if top else None
+    frame = re.search(rb"\bin (\S+)", top[0]) if top else None
     first = frame[1].decode() if frame else "unresolved-function"
-    role = re.sub(r"^f\d+\.", "", first)
+    # The finite renderer declares one non-generic, default-package inspect.
+    # Unit SSA/debug names are koven.inspect.dN; LLVM linkage prepends fN.
+    # Accept only those complete forms, not a caller/member/other-package suffix.
+    stable = re.fullmatch(r"(?:f[0-9]+\.)?koven\.inspect\.d[0-9]+", first) is not None
+    role = "inspect" if stable else first
     kind = "asan_error" if detector == "AddressSanitizer" else "lsan_error"
     # inspect has one generated Leaf field-read role. A caller frame or numbered
     # drop glue does not identify which allocation failed; retain, do not reduce.
     return Failure("native", kind, f"{category}:{role}",
-                   stderr.decode(errors="replace"), stable_witness=role == "inspect")
+                   stderr.decode(errors="replace"), stable_witness=stable)
 
 
 def check_diagnostics(directory, expected):

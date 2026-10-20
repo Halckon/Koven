@@ -26,12 +26,22 @@ class GeneratedOwnerCheckTests(unittest.TestCase):
         self.assertEqual(failure.record(), result["original_failure"])
 
     def test_sanitizer_addresses_do_not_change_stable_function_witness(self):
-        first = b"ERROR: AddressSanitizer: heap-use-after-free on address 0x111 at pc 0x112\n#0 0x113 in f2.inspect (program+0x11)\n"
-        second = first.replace(b"0x11", b"0x22").replace(b"f2.inspect", b"f8.inspect")
+        first = b"ERROR: AddressSanitizer: heap-use-after-free on address 0x111 at pc 0x112\n#0 0x113 in f2.koven.inspect.d3 (program+0x11)\n"
+        second = first.replace(b"0x11", b"0x22").replace(b"f2.koven.inspect.d3", b"f8.koven.inspect.d9")
         a = checks.sanitizer_failure(first, "AddressSanitizer")
         b = checks.sanitizer_failure(second, "AddressSanitizer")
         self.assertEqual(a.fingerprint, b.fingerprint)
         self.assertTrue(a.stable_witness)
+        debug_name = checks.sanitizer_failure(first.replace(b"f2.koven.inspect.d3", b"koven.inspect.d3"),
+                                              "AddressSanitizer")
+        self.assertEqual(a.fingerprint, debug_name.fingerprint)
+        self.assertTrue(debug_name.stable_witness)
+        for unbound in (b"f2.inspect", b"inspect", b"f2.other.inspect.d3", b"f2.koven.Holder.inspect.d3",
+                        b"f2.koven.inspect.d3.t7", b"f2.koven.inspect.d3.r7", b"f2.koven.inspect.d3extra",
+                        b"f2.koven.inspect.d3$other", b"f2.koven.inspect.d3@other"):
+            observed = checks.sanitizer_failure(first.replace(b"f2.koven.inspect.d3", unbound),
+                                                "AddressSanitizer")
+            self.assertFalse(observed.stable_witness)
         other = checks.sanitizer_failure(second.replace(b"inspect", b"work"), "AddressSanitizer")
         self.assertNotEqual(a.fingerprint, other.fingerprint)
         unknown = checks.sanitizer_failure(first.split(b"\n")[0], "AddressSanitizer")
@@ -42,22 +52,22 @@ class GeneratedOwnerCheckTests(unittest.TestCase):
 
     def test_sanitizer_caller_and_allocation_frames_do_not_identify_fault(self):
         header = b"ERROR: AddressSanitizer: heap-use-after-free on address 0x111\n"
-        direct = checks.sanitizer_failure(header + b"#0 0x12 in f2.inspect (program+0x11)\n", "AddressSanitizer")
-        for stack in (b"#0 0x12 in __interceptor_write\n#1 0x13 in f8.inspect\n",
-                      b"#0 0x12 (program+0x11)\nfreed by thread T0 here:\n#0 0x13 in f8.inspect\n",
-                      b"freed by thread T0 here:\n#0 0x13 in f8.inspect\n"):
+        direct = checks.sanitizer_failure(header + b"#0 0x12 in f2.koven.inspect.d3 (program+0x11)\n", "AddressSanitizer")
+        for stack in (b"#0 0x12 in __interceptor_write\n#1 0x13 in f8.koven.inspect.d9\n",
+                      b"#0 0x12 (program+0x11)\nfreed by thread T0 here:\n#0 0x13 in f8.koven.inspect.d9\n",
+                      b"freed by thread T0 here:\n#0 0x13 in f8.koven.inspect.d9\n"):
             observed = checks.sanitizer_failure(header + stack, "AddressSanitizer")
             self.assertFalse(observed.stable_witness)
             self.assertNotEqual(direct.fingerprint, observed.fingerprint)
 
     def test_exact_diagnostic_includes_primary_and_associated_byte_spans(self):
-        expected = [{"code": "L0131", "primary": [20, 24], "labels": [[10, 14]]}]
+        expected = [{"code": "L0131", "primary": [20, 24], "labels": [[10, 14], [1, 6]]}]
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             (directory / "stages.tsv").write_text("parse\t0\nnames\t0\ntypes\t0\nownership\t1\n")
-            good = "ownership\tL0131\t20\t24\t10:14\n"
+            good = "ownership\tL0131\t20\t24\t10:14,1:6\n"
             for actual in (good, "", good.replace("L0131", "L0133"), good.replace("20", "21"),
-                           good.replace("10:14", "11:14")):
+                           good.replace("10:14", "11:14"), good.replace("1:6", "1:7")):
                 (directory / "diagnostics.tsv").write_text(actual)
                 if actual == good:
                     checks.check_diagnostics(directory, expected)
@@ -307,14 +317,18 @@ class GeneratedOwnerCheckTests(unittest.TestCase):
                 self.assertEqual(len(rendered["expected_diagnostics"]), 1)
                 diagnostic = rendered["expected_diagnostics"][0]
                 self.assertEqual(diagnostic["code"], failure.witness)
-                self.assertEqual(len(diagnostic["labels"]), 1)
-                primary, label = diagnostic["primary"], diagnostic["labels"][0]
+                self.assertEqual(len(diagnostic["labels"]), 2)
+                primary = diagnostic["primary"]
+                label, parameter = diagnostic["labels"]
                 token = b"source" if case["shape"] == "I1" else b"item"
                 self.assertEqual(raw[slice(*primary)], token)
-                self.assertEqual(raw[slice(*label)], token)
-                self.assertGreater(primary[0], len(raw[:primary[0]].decode()))
-                self.assertGreater(label[0], len(raw[:label[0]].decode()))
+                self.assertEqual(raw[slice(*label)], b"source" if case["shape"] == "I1" else b"item: Leaf")
+                self.assertEqual(parameter, [114, 124] if case["shape"] == "I1" else [186, 200])
+                self.assertEqual(raw[slice(*parameter)], b"item: Leaf" if case["shape"] == "I1" else b"own item: Leaf")
+                for span in (primary, label, parameter):
+                    self.assertGreater(span[0], len(raw[:span[0]].decode()))
                 self.assertNotEqual(primary, label)
+                self.assertNotEqual(label, parameter)
                 self.assertEqual(raw[primary[0] - 8:primary[0]], b"inspect(" if case["shape"] == "I1" else b"consume(")
                 if case["shape"] == "I1":
                     line = raw[raw.rfind(b"\n", 0, label[0]) + 1:label[0]]

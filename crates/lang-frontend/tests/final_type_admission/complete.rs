@@ -1,12 +1,65 @@
 //! Explicit final qualification, separate from the still-valid raw/base controls.
 use super::*;
 use lang_frontend::{
-    analysis::{SingleFileAnalysisError, analyze_single_file},
+    analysis::analyze_basic_unit_ownership,
     diagnostic::Diagnostic,
+    ownership_checking::check_compilation_unit_constant_ownership,
     type_checking::{
         FinalTypeAdmissionError, complete_compilation_unit_types, complete_file_types,
     },
 };
+
+// A real strict consumer: final qualification precedes either actual ownership producer.
+// The boolean records entry to that operation, not a callback that supplies the result.
+fn strict_unit_ownership(
+    text: &str,
+) -> (SourceMap, Result<(), FinalTypeAdmissionError>, bool) {
+    let mut sources = SourceMap::new();
+    sources.add_source("unselected.ko", FROZEN[3].0).unwrap();
+    let (source, file) = parsed(&mut sources, "strict.ko", text);
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let (environment, types) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .expect("the frozen roots have valid names");
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    let before = raw.clone();
+    let mut ownership_started = false;
+    let result = (|| {
+        let admission =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw);
+        assert_eq!(raw, before, "final admission must not alter raw facts");
+        assert!(raw.is_same_analysis(&before));
+        let complete = admission?;
+        assert!(complete.is_same_analysis(&raw));
+        assert!(std::ptr::eq(complete.types(), &raw));
+        ownership_started = true;
+        match analyze_basic_unit_ownership(&sources, &inputs, &names, &types, raw)
+            .expect("ownership internal failure is not a successful source rejection")
+            .into_result()
+        {
+            Ok((typed, owned)) => {
+                assert!(owned.is_compatible_with(&typed));
+                owned.validate().expect("healthy basic ownership");
+            }
+            Err(raw) => {
+                let typed = raw
+                    .validate_constants()
+                    .expect("NotBasic must retain the real const capability");
+                let owned = check_compilation_unit_constant_ownership(
+                    &sources, &inputs, &names, &types, &typed,
+                )
+                .expect("constant ownership internal failure");
+                assert!(owned.is_compatible_with(&typed));
+                owned.validate().expect("healthy constant ownership");
+            }
+        }
+        Ok(())
+    })();
+    (sources, result, ownership_started)
+}
 
 fn diagnostics(result: Result<(), FinalTypeAdmissionError>) -> Vec<Diagnostic> {
     match result {
@@ -104,6 +157,10 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
                 let (_, single, unit) = complete_both(&format!("{prefix}{text}"), false);
                 single.expect("original p34 single numeric for qualifies");
                 unit.expect("original p34 unit numeric for qualifies");
+                let (_, result, ownership_started) =
+                    strict_unit_ownership(&format!("{prefix}{text}"));
+                result.expect("original p34 reaches actual strict Unit ownership");
+                assert!(ownership_started, "the downstream control is reachable");
             }
             continue;
         };
@@ -113,39 +170,9 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
             let expected = [(code, start + prefix.len(), end + prefix.len(), token)];
             assert_exact(&sources, "main.ko", single, &expected);
             assert_exact(&sources, "main.ko", unit, &expected);
-        }
-        // A real completion failure in the normal observer seam must precede ownership.
-        // Neither callback forces an artificial failure or rewrites a phase product.
-        let mut sources = SourceMap::new();
-        let source = sources.add_source("strict.ko", *text).unwrap();
-        let (environment, types) = standard_environments();
-        let result = analyze_single_file(
-            &sources,
-            source,
-            &environment,
-            &types,
-            |_, diagnostics| {
-                if diagnostics.is_empty() {
-                    Ok(())
-                } else {
-                    Err(FinalTypeAdmissionError::Diagnostics(diagnostics.to_vec()))
-                }
-            },
-            |view| {
-                complete_file_types(&sources, view.parsed(), view.names(), &types, view.typed())
-                    .map(|_| ())
-            },
-        );
-        match result {
-            Err(SingleFileAnalysisError::Host(error)) => {
-                assert_exact(
-                    &sources,
-                    "strict.ko",
-                    Err(error),
-                    &[(code, start, end, token)],
-                );
-            }
-            other => panic!("source root must stop before ownership: {other:?}"),
+            let (sources, result, ownership_started) = strict_unit_ownership(&text);
+            assert_exact(&sources, "strict.ko", result, &expected);
+            assert!(!ownership_started, "final admission must precede ownership");
         }
     }
     let invalid = include_str!("../fixtures/final-type-admission-0319/invalid_integer_for.ko");
@@ -154,6 +181,10 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
         let expected = [("L0159", 29 + prefix.len(), 30 + prefix.len(), "1")];
         assert_exact(&sources, "main.ko", single, &expected);
         assert_exact(&sources, "main.ko", unit, &expected);
+        let (sources, result, ownership_started) =
+            strict_unit_ownership(&format!("{prefix}{invalid}"));
+        assert_exact(&sources, "strict.ko", result, &expected);
+        assert!(!ownership_started);
     }
     // Nothing is bottom, so this slice does not invent a new illegal-operand rule for it.
     let text = "fun stop(): Nothing = error(\"stop\")\nfun inspect(): Int? = stop()?";
@@ -162,6 +193,9 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
     let expected = [("L0165", start, start + "stop()?".len(), "stop()?")];
     assert_exact(&sources, "main.ko", single, &expected);
     assert_exact(&sources, "main.ko", unit, &expected);
+    let (sources, result, ownership_started) = strict_unit_ownership(text);
+    assert_exact(&sources, "strict.ko", result, &expected);
+    assert!(!ownership_started);
 }
 
 #[test]

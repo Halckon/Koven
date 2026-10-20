@@ -12,8 +12,10 @@ from scripts import generated_owner_checks as checks
 class CheckerMutantTests(unittest.TestCase):
     def test_mutate_checker_replaces_exact_push_statement(self):
         original = (
-            'fn ensure_place_available(&mut self) {\n'
+            'fn ensure_available(&mut self) {\n'
+            '    let mut diagnostic = Diagnostic::new(self.sources, Severity::Error, self.codes.use_after_move, "use of moved value", primary)?;\n'
             '    diagnostic.add_label(self.sources, origin, "value was moved here")?;\n'
+            '    add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;\n'
             '    self.diagnostics.push(diagnostic);\n'
             '    return Ok(());\n'
             '}'
@@ -23,6 +25,10 @@ class CheckerMutantTests(unittest.TestCase):
         self.assertNotIn("    self.diagnostics.push(diagnostic);", mutated)
         with self.assertRaises(checks.Failure):
             checker_gate.mutate_checker("unrelated text without target")
+        with self.assertRaises(checks.Failure):
+            checker_gate.mutate_checker(original + "\n" + original)
+        with self.assertRaises(checks.Failure):
+            checker_gate.mutate_checker(original.replace("ensure_available", "ensure_place_available"))
 
     def test_verify_cleans_up_worktree_on_exception(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -38,8 +44,10 @@ class CheckerMutantTests(unittest.TestCase):
                     checker = worktree_dir / checker_gate.CHECKER_FILE
                     checker.parent.mkdir(parents=True, exist_ok=True)
                     checker.write_text(
-                        'fn ensure_place_available(&mut self) {\n'
+                        'fn ensure_available(&mut self) {\n'
+                        '    let mut diagnostic = Diagnostic::new(self.sources, Severity::Error, self.codes.use_after_move, "use of moved value", primary)?;\n'
                         '    diagnostic.add_label(self.sources, origin, "value was moved here")?;\n'
+                        '    add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;\n'
                         '    self.diagnostics.push(diagnostic);\n'
                         '}\n', encoding="utf-8"
                     )

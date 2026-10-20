@@ -1,5 +1,8 @@
 //! SPEC-0230: enum payloads behind unique Box handles reach native execution.
-use super::{Command, Output, SymbolKind, TestDirectory, analyze, emit_link_and_run, fs, symbol};
+use super::{Command, Output, TestDirectory, emit_link_and_run, fs};
+
+#[path = "native_unit_source_test_support.rs"]
+pub(crate) mod unit_source;
 
 pub(crate) const SIMPLE_DECLARATIONS: &str = r#"
 enum class Token { Number(item: Int), Empty }
@@ -115,55 +118,9 @@ fn recursive_boxed_enum_drop_frees_all_descendants_once() {
 }
 
 pub(crate) fn lower_to_llvm(name: &str, source: &str) -> String {
-    let analysis = analyze(name, source);
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let lower = || {
-        crate::ssa::lower_scalar_file_with_entry(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-            symbol(&analysis, "entry", SymbolKind::Function),
-        )
-        .expect("boxed enum source must lower to verified SSA")
-    };
-    let (program, entry) = lower();
-    let (repeated, repeated_entry) = lower();
-    assert_eq!(entry.index(), repeated_entry.index());
-    assert_eq!(entry.module().index(), repeated_entry.module().index());
-    assert_eq!(
-        crate::ssa::render_program(&program),
-        crate::ssa::render_program(&repeated),
-        "recursive type registration must be deterministic"
-    );
-    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
-        .expect("boxed enum LLVM must verify");
-    assert_eq!(
-        llvm,
-        crate::llvm::render_verified_program_with_entry(&repeated, repeated_entry)
-            .expect("repeated boxed enum LLVM must verify")
-    );
-    llvm
+    unit_source::UnitSource::analyze(name, source)
+        .expect("source must pass complete Unit frontend qualification")
+        .lower_to_llvm()
 }
 
 pub(crate) fn assert_success(run: &Output, stdout: &[u8]) {

@@ -69,3 +69,6 @@ impl Error for UnitRecoveryAnalysisError {
         })
     }
 }
+
+#[cfg(test)]
+mod single_source_tests;

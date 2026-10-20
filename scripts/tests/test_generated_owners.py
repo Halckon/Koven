@@ -155,11 +155,15 @@ fun entry(): Unit {
             self.assertEqual(len(rendered["expected_diagnostics"]), 1)
             diagnostic = rendered["expected_diagnostics"][0]
             self.assertEqual(diagnostic["code"], "L0131" if case["shape"] == "I1" else "L0133")
-            self.assertEqual(len(diagnostic["labels"]), 1)
+            self.assertEqual(len(diagnostic["labels"]), 2)
             raw = rendered["source"].encode()
             for start, end in [diagnostic["primary"], *diagnostic["labels"]]:
-                self.assertIn(raw[start:end].decode(), ("source", "item"))
                 self.assertGreater(start, len(raw[:start].decode()))
+            primary = raw[slice(*diagnostic["primary"])].decode()
+            labels = [raw[slice(*span)].decode() for span in diagnostic["labels"]]
+            self.assertEqual(primary, "source" if case["shape"] == "I1" else "item")
+            self.assertEqual(labels, ["source", "item: Leaf"] if case["shape"] == "I1"
+                             else ["item: Leaf", "own item: Leaf"])
             self.assertNotEqual(diagnostic["primary"], diagnostic["labels"][0])
             with self.assertRaises(ValueError):
                 OWNERS.evaluate(case)
@@ -169,12 +173,12 @@ fun entry(): Unit {
         case["shape"] = "I1"
         case["operations"].insert(-1, {"op": "inspect", "source": "source"})
         self.assertEqual(OWNERS.render(case)["expected_diagnostics"],
-                         [{"code": "L0131", "primary": [387, 393], "labels": [[330, 336]]}])
+                         [{"code": "L0131", "primary": [387, 393], "labels": [[330, 336], [114, 124]]}])
         case = fixture("I2", [{"op": "create", "target": "source", "resource": "a"},
                               {"op": "borrow_consume", "source": "source"},
                               {"op": "marker", "text": "done"}])
         self.assertEqual(OWNERS.render(case)["expected_diagnostics"],
-                         [{"code": "L0133", "primary": [271, 275], "labels": [[243, 247]]}])
+                         [{"code": "L0133", "primary": [271, 275], "labels": [[243, 253], [186, 200]]}])
 
     def test_fixed_hash_encoding_and_choice_golden(self):
         self.assertEqual(OWNERS.cases()[0]["choices"], [

@@ -24,7 +24,7 @@ else:
 
 Failure = checks.Failure
 ROOT = Path(__file__).resolve().parents[1]
-CHECKER_FILE = "crates/lang-frontend/src/ownership_checking/checker.rs"
+CHECKER_FILE = "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs"
 FRONTEND_EXPORT_TEST = "native_generated_owner_tests::export_generated_owner_frontend_case"
 
 
@@ -87,10 +87,17 @@ def assert_frontend_hit(text):
 
 
 def mutate_checker(source):
-    pattern = r'(fn ensure_place_available[\s\S]*?diagnostic\.add_label\(self\.sources,\s*origin,\s*"value was moved here"\)\?;\s*\n\s*)self\.diagnostics\.push\(diagnostic\);'
-    if not re.search(pattern, source):
-        raise Failure("checker-mutation", "tool_or_harness_failure", "target-pattern-not-found")
-    return re.sub(pattern, r'\1// MUTANT_CHECKER_DISABLED: self.diagnostics.push(diagnostic);', source, count=1)
+    # Bind the Unit L0131 reporter, including its real parameter provenance.
+    # Never cross the next method or silently select one of multiple matches.
+    pattern = (r'(fn ensure_available\b(?:(?!\n    fn ).)*?self\.codes\.use_after_move,'
+               r'(?:(?!\n    fn ).)*?diagnostic\.add_label\(self\.sources,\s*origin,\s*'
+               r'"value was moved here"\)\?;\s*'
+               r'add_parameter_label\(self\.sources,\s*&mut diagnostic,\s*parameter_span\)\?;\s*'
+               r')self\.diagnostics\.push\(diagnostic\);')
+    if len(re.findall(pattern, source, flags=re.S)) != 1:
+        raise Failure("checker-mutation", "tool_or_harness_failure", "target-pattern-not-unique")
+    return re.sub(pattern, r'\1// MUTANT_CHECKER_DISABLED: self.diagnostics.push(diagnostic);',
+                  source, count=1, flags=re.S)
 
 
 def run_frontend_case(binary, case_dir, cwd=ROOT):
