@@ -1,7 +1,7 @@
 //! Evaluated call/interpolation operands remain owned until completion or control transfer.
 use super::{
-    DropExpressionUse, DropPlanner, OwnedThis, OwnershipCheckingError, PlannerDropFact, PlannerDropPoint,
-    PlannerDropTarget, ValueState,
+    DropExpressionUse, DropPlanner, OwnedThis, OwnershipCheckingError, PlannerDropFact,
+    PlannerDropPoint, PlannerDropTarget, ValueState,
 };
 use crate::{
     ast::ExpressionId, name_resolution::UnitSymbolId, source::Span, type_checking::Copyability,
