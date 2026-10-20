@@ -210,7 +210,10 @@ fn comma_when_real_facts_and_ssa_preserve_common_owner_and_clean_first_match() {
     assert_eq!(entries.len(), 2);
     assert_eq!(entries[0].conditions.len(), 2);
     let match_span = entries[0].span;
-    assert_eq!(source.sources.slice(match_span), Ok("flag, probe(node) -> 7"));
+    assert_eq!(
+        source.sources.slice(match_span),
+        Ok("flag, probe(node) -> 7")
+    );
 
     let (program, entry) = source
         .lower_entry(source.declaration("choose", SymbolKind::Function))
@@ -298,7 +301,11 @@ fn comma_when_real_facts_and_ssa_preserve_common_owner_and_clean_first_match() {
     let first_to_body = branch(function, first_match.target);
     let second_to_body = branch(function, second_match.target);
     assert_eq!(first_to_body.target, second_to_body.target);
-    assert!(!first_to_body.arguments.contains(&EntityId::Value(matched_node)));
+    assert!(
+        !first_to_body
+            .arguments
+            .contains(&EntityId::Value(matched_node))
+    );
     let body_common = forwarded(function, first_to_body, matched_common);
     assert_eq!(
         body_common,
