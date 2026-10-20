@@ -92,15 +92,7 @@ fun letter(): Char = Tokens.LETTER"#;
     assert_eq!(typed.constants().uses().len(), 2);
     assert_eq!(owned.materializations().len(), 2);
 
-    for (
-        owner,
-        member,
-        function_name,
-        builtin,
-        expected_value,
-        expected_ssa,
-        expected_type,
-    ) in [
+    for (owner, member, function_name, builtin, expected_value, expected_ssa, expected_type) in [
         (
             "Labels",
             "Labels.COUNT",
@@ -273,7 +265,9 @@ fun inspect(Labels: Holder): Boolean = Labels.COUNT"#;
     assert!(owned.ownership().diagnostics().is_empty());
     assert!(owned.ownership().deferred().is_empty());
     let typed = typed.types();
-    let constants = typed.constants().expect("clean source publishes empty constant facts");
+    let constants = typed
+        .constants()
+        .expect("clean source publishes empty constant facts");
     assert!(constants.declarations().is_empty());
     assert!(constants.uses().is_empty());
     let (receiver, receiver_span) = expression(&source, "Labels");
@@ -300,7 +294,10 @@ fun inspect(Labels: Holder): Boolean = Labels.COUNT"#;
         panic!("one actual inspect parameter")
     };
     assert_eq!(parameter_signature.symbol(), Some(*parameter_symbol));
-    assert_eq!(typed.expression_type(receiver), Some(parameter_signature.ty()));
+    assert_eq!(
+        typed.expression_type(receiver),
+        Some(parameter_signature.ty())
+    );
     let holder = source.declaration("Holder", SymbolKind::Classifier);
     assert!(matches!(
         typed.types().get(parameter_signature.ty()),
