@@ -263,18 +263,31 @@ impl UnitSource {
         entry: impl Into<crate::NativeUnitEntry>,
         output: &std::path::Path,
     ) -> Result<(), crate::NativeObjectError> {
-        let inputs = [SourceUnitInput::memory_document(self.parsed.source_id(), &self.parsed)];
+        let inputs = [SourceUnitInput::memory_document(
+            self.parsed.source_id(),
+            &self.parsed,
+        )];
         let entry = entry.into();
         match &self.products {
             OwnedProducts::Basic(typed, owned) => {
                 let view = owned_compilation_unit_view(
-                    &self.sources, &inputs, &self.names, &self.environment, typed, owned,
+                    &self.sources,
+                    &inputs,
+                    &self.names,
+                    &self.environment,
+                    typed,
+                    owned,
                 )?;
                 crate::emit_native_owned_unit_object(&view, entry, output)
             }
             OwnedProducts::Constant(typed, owned) => {
                 let view = const_owned_compilation_unit_view(
-                    &self.sources, &inputs, &self.names, &self.environment, typed, owned,
+                    &self.sources,
+                    &inputs,
+                    &self.names,
+                    &self.environment,
+                    typed,
+                    owned,
                 )?;
                 crate::emit_native_const_owned_unit_object(&view, entry, output)
             }
@@ -289,17 +302,30 @@ impl UnitSource {
         entry: DeclarationId,
         output: &std::path::Path,
     ) -> Result<(), crate::NativeObjectError> {
-        let inputs = [SourceUnitInput::memory_document(self.parsed.source_id(), &self.parsed)];
+        let inputs = [SourceUnitInput::memory_document(
+            self.parsed.source_id(),
+            &self.parsed,
+        )];
         match (&typed_source.products, &owned_source.products) {
             (OwnedProducts::Basic(typed, _), OwnedProducts::Basic(_, owned)) => {
                 let view = owned_compilation_unit_view(
-                    &self.sources, &inputs, &self.names, &self.environment, typed, owned,
+                    &self.sources,
+                    &inputs,
+                    &self.names,
+                    &self.environment,
+                    typed,
+                    owned,
                 )?;
                 crate::emit_native_owned_unit_object(&view, entry, output)
             }
             (OwnedProducts::Constant(typed, _), OwnedProducts::Constant(_, owned)) => {
                 let view = const_owned_compilation_unit_view(
-                    &self.sources, &inputs, &self.names, &self.environment, typed, owned,
+                    &self.sources,
+                    &inputs,
+                    &self.names,
+                    &self.environment,
+                    typed,
+                    owned,
                 )?;
                 crate::emit_native_const_owned_unit_object(&view, entry, output)
             }
@@ -314,12 +340,20 @@ impl UnitSource {
         entry: DeclarationId,
         output: &std::path::Path,
     ) -> Result<(), crate::NativeObjectError> {
-        let inputs = [SourceUnitInput::memory_document(self.parsed.source_id(), &self.parsed)];
+        let inputs = [SourceUnitInput::memory_document(
+            self.parsed.source_id(),
+            &self.parsed,
+        )];
         let OwnedProducts::Basic(typed, owned) = &self.products else {
             panic!("the original SourceMap identity fixture has basic capability");
         };
         let view = owned_compilation_unit_view(
-            &source_owner.sources, &inputs, &self.names, &self.environment, typed, owned,
+            &source_owner.sources,
+            &inputs,
+            &self.names,
+            &self.environment,
+            typed,
+            owned,
         )?;
         crate::emit_native_owned_unit_object(&view, entry, output)
     }

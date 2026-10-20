@@ -13,9 +13,7 @@ use std::{
 
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity, codes},
-    name_resolution::{
-        DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames,
-    },
+    name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{
         ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, OwnedCompilationUnitView,
         OwnedCompilationUnitViewError, ValidatedCompilationUnitOwnership,
@@ -24,18 +22,15 @@ use lang_frontend::{
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitTypes, ConstEnabledTypedUnit, IntrinsicTypeConstructor,
-        ParameterMode, TypeEnvironment,
-        UnitCallableTarget, UnitTypeKind, ValidatedCompilationUnitTypes,
+        ParameterMode, TypeEnvironment, UnitCallableTarget, UnitTypeKind,
+        ValidatedCompilationUnitTypes,
     },
 };
 
 use crate::{
     llvm,
     llvm::entry::NativeEntryPlan,
-    ssa::{
-        LoweringError, LoweringErrorKind,
-        unit_lower::lower_owned_unit_with_entry,
-    },
+    ssa::{LoweringError, LoweringErrorKind, unit_lower::lower_owned_unit_with_entry},
 };
 
 static NEXT_UNIT_OBJECT_TEMPORARY: AtomicU64 = AtomicU64::new(0);

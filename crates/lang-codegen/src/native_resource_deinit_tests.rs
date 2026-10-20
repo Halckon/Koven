@@ -118,10 +118,12 @@ fun entry(): Unit {
     println("held")
 }
 "#;
-    let analysis = UnitSource::analyze("resource-counts.ko", source).expect("original source must pass strict Unit admission");
+    let analysis = UnitSource::analyze("resource-counts.ko", source)
+        .expect("original source must pass strict Unit admission");
     analysis.assert_frontend_clean();
-    let (program, entry) = analysis.lower_entry(analysis.declaration("entry", SymbolKind::Function))
-    .unwrap();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .unwrap();
     let ir = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     let output = super::boxed_enum_tests::run_counted_allocations(&ir, 6);
     assert!(output.status.success(), "{output:?}");
@@ -163,13 +165,15 @@ fun run(flag: Boolean): Unit {{
 fun main(): Unit {{ run(true); run(false) }}
 "#
     );
-    let analysis = UnitSource::analyze("resource-conditional.ko", &source).expect("original source must pass strict Unit admission");
+    let analysis = UnitSource::analyze("resource-conditional.ko", &source)
+        .expect("original source must pass strict Unit admission");
     analysis.assert_frontend_clean();
     let directory = TestDirectory::create();
     let path = directory.join("preserved.o");
     std::fs::write(&path, b"previous object").unwrap();
-    let error = analysis.emit(analysis.declaration("main", SymbolKind::Function), &path)
-    .expect_err("conditional owner transport remains outside this bounded native slice");
+    let error = analysis
+        .emit(analysis.declaration("main", SymbolKind::Function), &path)
+        .expect_err("conditional owner transport remains outside this bounded native slice");
     assert_eq!(
         error.kind(),
         super::NativeObjectErrorKind::UnsupportedSource

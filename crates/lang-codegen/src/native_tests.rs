@@ -93,7 +93,10 @@ impl TestDirectory {
             .unwrap()
             .map(|entry| {
                 let entry = entry.unwrap();
-                (entry.file_name().into_string().unwrap(), fs::read(entry.path()).unwrap())
+                (
+                    entry.file_name().into_string().unwrap(),
+                    fs::read(entry.path()).unwrap(),
+                )
             })
             .collect()
     }
@@ -148,14 +151,19 @@ fn symbol(analysis: &Analysis, name: &str, kind: SymbolKind) -> SymbolId {
 }
 
 pub(crate) fn emit_link_and_run(source_name: &str, text: &str, entry_name: &str) -> Output {
-    let analysis = UnitSource::analyze(source_name, text).expect("original source must pass strict Unit admission");
+    let analysis = UnitSource::analyze(source_name, text)
+        .expect("original source must pass strict Unit admission");
     analysis.assert_frontend_clean();
 
     let directory = TestDirectory::create();
     let object = directory.join("program.o");
     let executable = directory.join("program");
-    analysis.emit(analysis.declaration(entry_name, SymbolKind::Function), &object)
-    .expect("accepted source must emit a native object");
+    analysis
+        .emit(
+            analysis.declaration(entry_name, SymbolKind::Function),
+            &object,
+        )
+        .expect("accepted source must emit a native object");
     let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
@@ -170,12 +178,17 @@ pub(crate) fn emit_link_and_run(source_name: &str, text: &str, entry_name: &str)
 
 #[test]
 fn resolved_unit_entry_emits_the_existing_native_wrapper_object() {
-    let analysis = UnitSource::analyze("facade.ko", "fun bootstrap(): Unit {}\n").expect("original source must pass strict Unit admission");
+    let analysis = UnitSource::analyze("facade.ko", "fun bootstrap(): Unit {}\n")
+        .expect("original source must pass strict Unit admission");
     let directory = TestDirectory::create();
     let object = directory.join("bootstrap.o");
 
-    analysis.emit(analysis.declaration("bootstrap", SymbolKind::Function), &object)
-    .expect("resolved entry must emit object");
+    analysis
+        .emit(
+            analysis.declaration("bootstrap", SymbolKind::Function),
+            &object,
+        )
+        .expect("resolved entry must emit object");
 
     crate::test_support::assert_native_object(&fs::read(&object).expect("object bytes"));
     let symbols = Command::new("/usr/bin/nm")
@@ -200,13 +213,18 @@ fn borrowed_argv_entry_accepts_utf8_boundaries_and_rejects_invalid_sequences_bef
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
 
-    let analysis = UnitSource::analyze("argv.ko", "fun main(args: Array<String>): Unit {}\n").expect("original source must pass strict Unit admission");
+    let analysis = UnitSource::analyze("argv.ko", "fun main(args: Array<String>): Unit {}\n")
+        .expect("original source must pass strict Unit admission");
     analysis.assert_frontend_clean();
     let directory = TestDirectory::create();
     let object = directory.join("argv.o");
     let executable = directory.join("argv");
-    analysis.emit(NativeUnitEntry::BorrowedArguments(analysis.declaration("main", SymbolKind::Function)), &object)
-    .expect("borrowed argv entry object");
+    analysis
+        .emit(
+            NativeUnitEntry::BorrowedArguments(analysis.declaration("main", SymbolKind::Function)),
+            &object,
+        )
+        .expect("borrowed argv entry object");
     let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
@@ -267,12 +285,17 @@ fn borrowed_argv_entry_accepts_utf8_boundaries_and_rejects_invalid_sequences_bef
              if (true) { println(args[two]) }\n\
              println(args[three])\n\
          }\n",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     observing.assert_frontend_clean();
     let observing_object = directory.join("argv-observe.o");
     let observing_executable = directory.join("argv-observe");
-    observing.emit(NativeUnitEntry::BorrowedArguments(observing.declaration("main", SymbolKind::Function)), &observing_object)
-    .expect("observing borrowed argv entry object");
+    observing
+        .emit(
+            NativeUnitEntry::BorrowedArguments(observing.declaration("main", SymbolKind::Function)),
+            &observing_object,
+        )
+        .expect("observing borrowed argv entry object");
     let linked = Command::new(crate::test_support::clang())
         .arg(&observing_object)
         .arg("-o")
@@ -309,32 +332,43 @@ fn entry_shape_and_analysis_identity_fail_before_object_emission() {
     .into_iter()
     .enumerate()
     {
-        let analysis = UnitSource::analyze("invalid-entry.ko", source).expect("original source must pass strict Unit admission");
+        let analysis = UnitSource::analyze("invalid-entry.ko", source)
+            .expect("original source must pass strict Unit admission");
         let output = directory.join(&format!("invalid-{index}.o"));
-        let error = analysis.emit(analysis.declaration(entry_name, kind), &output)
-        .expect_err("invalid entry must fail");
+        let error = analysis
+            .emit(analysis.declaration(entry_name, kind), &output)
+            .expect_err("invalid entry must fail");
         assert_eq!(error.kind(), NativeObjectErrorKind::InvalidEntry);
         assert!(!output.exists());
     }
 
-    let one_symbol = UnitSource::analyze("one.ko", "fun only(): Unit {}").expect("original source must pass strict Unit admission");
-    let two_symbols = UnitSource::analyze("two.ko", "fun first(): Unit {}\nfun foreign(): Unit {}").expect("original source must pass strict Unit admission");
+    let one_symbol = UnitSource::analyze("one.ko", "fun only(): Unit {}")
+        .expect("original source must pass strict Unit admission");
+    let two_symbols = UnitSource::analyze("two.ko", "fun first(): Unit {}\nfun foreign(): Unit {}")
+        .expect("original source must pass strict Unit admission");
     let unknown_output = directory.join("unknown.o");
-    let error = one_symbol.emit(
-        two_symbols.declaration("foreign", SymbolKind::Function),
-        &unknown_output,
-    )
-    .expect_err("unknown symbol id must fail");
+    let error = one_symbol
+        .emit(
+            two_symbols.declaration("foreign", SymbolKind::Function),
+            &unknown_output,
+        )
+        .expect_err("unknown symbol id must fail");
     assert_eq!(error.kind(), NativeObjectErrorKind::InvalidEntry);
     assert!(!unknown_output.exists());
 
-    let first = UnitSource::analyze("first.ko", "fun bootstrap(): Unit {}").expect("original source must pass strict Unit admission");
-    let second = UnitSource::analyze("second.ko", "fun bootstrap(): Unit {}").expect("original source must pass strict Unit admission");
+    let first = UnitSource::analyze("first.ko", "fun bootstrap(): Unit {}")
+        .expect("original source must pass strict Unit admission");
+    let second = UnitSource::analyze("second.ko", "fun bootstrap(): Unit {}")
+        .expect("original source must pass strict Unit admission");
     let output = directory.join("foreign.o");
-    let error = first.emit_with_products_from(
-        &second, &second, first.declaration("bootstrap", SymbolKind::Function), &output,
-    )
-    .expect_err("mixed analysis must fail");
+    let error = first
+        .emit_with_products_from(
+            &second,
+            &second,
+            first.declaration("bootstrap", SymbolKind::Function),
+            &output,
+        )
+        .expect_err("mixed analysis must fail");
     assert_eq!(error.kind(), NativeObjectErrorKind::MismatchedAnalysis);
     assert!(!output.exists());
 }
@@ -345,10 +379,17 @@ fn frontend_diagnostics_and_unsupported_source_do_not_write_objects() {
     let diagnostic_output = directory.join("diagnostic.o");
     fs::write(directory.join("keep"), b"unchanged sibling").unwrap();
     let before = directory.snapshot();
-    let Err(diagnostic) = UnitSource::analyze("diagnostic.ko", "fun broken(): Unit { missing }") else {
+    let Err(diagnostic) = UnitSource::analyze("diagnostic.ko", "fun broken(): Unit { missing }")
+    else {
         panic!("name diagnostics must reject before an owned Unit source exists");
     };
-    assert!(diagnostic.report.diagnostics.iter().any(|(stage, _)| *stage == "names"));
+    assert!(
+        diagnostic
+            .report
+            .diagnostics
+            .iter()
+            .any(|(stage, _)| *stage == "names")
+    );
     assert_eq!(directory.snapshot(), before);
     assert!(!diagnostic_output.exists());
 
@@ -358,8 +399,12 @@ fn frontend_diagnostics_and_unsupported_source_do_not_write_objects() {
     ).expect("original source must pass strict Unit admission");
     unsupported.assert_frontend_clean();
     let unsupported_output = directory.join("unsupported.o");
-    let error = unsupported.emit(unsupported.declaration("closure", SymbolKind::Function), &unsupported_output)
-    .expect_err("unsupported source must fail");
+    let error = unsupported
+        .emit(
+            unsupported.declaration("closure", SymbolKind::Function),
+            &unsupported_output,
+        )
+        .expect_err("unsupported source must fail");
     assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
     assert!(!unsupported_output.exists());
 }
@@ -370,21 +415,31 @@ fn standard_error_emits_object_while_interpolated_message_fails_before_writing()
     let canonical = UnitSource::analyze(
         "error-entry.ko",
         "fun abortEntry(): Unit { error(\"fatal\") }",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     canonical.assert_frontend_clean();
     let object = directory.join("error.o");
-    canonical.emit(canonical.declaration("abortEntry", SymbolKind::Function), &object)
-    .expect("canonical standard error must emit an object");
+    canonical
+        .emit(
+            canonical.declaration("abortEntry", SymbolKind::Function),
+            &object,
+        )
+        .expect("canonical standard error must emit an object");
     assert!(object.is_file());
 
     let unsupported = UnitSource::analyze(
         "interpolated-error.ko",
         "fun abortEntry(): Unit { error(\"${1}\") }",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     unsupported.assert_frontend_clean();
     let rejected = directory.join("interpolated.o");
-    let error = unsupported.emit(unsupported.declaration("abortEntry", SymbolKind::Function), &rejected)
-    .expect_err("interpolated String remains unsupported");
+    let error = unsupported
+        .emit(
+            unsupported.declaration("abortEntry", SymbolKind::Function),
+            &rejected,
+        )
+        .expect_err("interpolated String remains unsupported");
     assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
     assert!(!rejected.exists());
 }
@@ -399,8 +454,12 @@ fn standard_println_links_and_writes_exact_utf8_stdout() {
     let directory = TestDirectory::create();
     let object = directory.join("println.o");
     let executable = directory.join("println");
-    analysis.emit(analysis.declaration("output", SymbolKind::Function), &object)
-    .expect("standard println must emit an object");
+    analysis
+        .emit(
+            analysis.declaration("output", SymbolKind::Function),
+            &object,
+        )
+        .expect("standard println must emit an object");
     let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
@@ -418,10 +477,15 @@ fn standard_println_links_and_writes_exact_utf8_stdout() {
     let unsupported = UnitSource::analyze(
         "interpolated-println.ko",
         "fun output(): Unit { println(\"${1}\") }",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     let rejected = directory.join("interpolated-println.o");
-    let error = unsupported.emit(unsupported.declaration("output", SymbolKind::Function), &rejected)
-    .expect_err("interpolated println must fail before writing an object");
+    let error = unsupported
+        .emit(
+            unsupported.declaration("output", SymbolKind::Function),
+            &rejected,
+        )
+        .expect_err("interpolated println must fail before writing an object");
     assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
     assert!(!rejected.exists());
 }
@@ -651,13 +715,18 @@ fn move_only_rc_payload_borrow_call_links_runs_and_releases_once() {
              val inspected = inspect(owner.value)\n\
              val retained = owner.share()\n\
          }",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     analysis.assert_frontend_clean();
     let directory = TestDirectory::create();
     let object = directory.join("borrow-call.o");
     let executable = directory.join("borrow-call");
-    analysis.emit(analysis.declaration("borrowEntry", SymbolKind::Function), &object)
-    .expect("MoveOnly Rc payload Borrow must emit an object");
+    analysis
+        .emit(
+            analysis.declaration("borrowEntry", SymbolKind::Function),
+            &object,
+        )
+        .expect("MoveOnly Rc payload Borrow must emit an object");
     let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
@@ -704,13 +773,18 @@ fn nullable_class_box_and_rc_sources_link_run_and_release() {
              val absent: Rc<Int>? = null\n\
              val observedAbsent = inspectRc(absent)\n\
          }",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     analysis.assert_frontend_clean();
     let directory = TestDirectory::create();
     let object = directory.join("nullable-owners.o");
     let executable = directory.join("nullable-owners");
-    analysis.emit(analysis.declaration("nullableEntry", SymbolKind::Function), &object)
-    .expect("nullable class, Box, and Rc source must emit an object");
+    analysis
+        .emit(
+            analysis.declaration("nullableEntry", SymbolKind::Function),
+            &object,
+        )
+        .expect("nullable class, Box, and Rc source must emit an object");
     let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
@@ -788,13 +862,18 @@ fun nullableEntry(): Unit {{
 }}
 "#
         );
-        let analysis = UnitSource::analyze("nullable-when.ko", &source).expect("original source must pass strict Unit admission");
+        let analysis = UnitSource::analyze("nullable-when.ko", &source)
+            .expect("original source must pass strict Unit admission");
         analysis.assert_frontend_clean();
         let directory = TestDirectory::create();
         let object = directory.join("nullable-when.o");
         let executable = directory.join("nullable-when");
-        analysis.emit(analysis.declaration("nullableEntry", SymbolKind::Function), &object)
-        .unwrap_or_else(|error| panic!("{inner}: {error:?}"));
+        analysis
+            .emit(
+                analysis.declaration("nullableEntry", SymbolKind::Function),
+                &object,
+            )
+            .unwrap_or_else(|error| panic!("{inner}: {error:?}"));
         let linked = Command::new(crate::test_support::clang())
             .arg(&object)
             .arg("-o")
@@ -813,8 +892,9 @@ fun nullableEntry(): Unit {{
         assert!(run.stderr.is_empty(), "{inner}: {run:?}");
 
         // 只改测试模块的 allocator 符号，记录 Koven 自身的分配与释放，隔离 libc I/O。
-        let (program, entry) = analysis.lower_entry(analysis.declaration("nullableEntry", SymbolKind::Function))
-        .expect("counted nullable program must verify");
+        let (program, entry) = analysis
+            .lower_entry(analysis.declaration("nullableEntry", SymbolKind::Function))
+            .expect("counted nullable program must verify");
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
             .expect("counted nullable LLVM must verify")
             .replace("@malloc(", "@counted_malloc(")
@@ -909,18 +989,29 @@ fn declarative_roots_emit_with_scalar_entry_while_runtime_globals_stay_unsupport
          interface Marker\n\
          enum class Outcome<T, E> { Ok(item: T), Err(failure: E) }\n\
          fun bootstrap(): Unit {}",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     declarative.assert_frontend_clean();
     let object = directory.join("declarative.o");
-    declarative.emit(declarative.declaration("bootstrap", SymbolKind::Function), &object)
-    .expect("pure type declarations must not block the scalar entry object");
+    declarative
+        .emit(
+            declarative.declaration("bootstrap", SymbolKind::Function),
+            &object,
+        )
+        .expect("pure type declarations must not block the scalar entry object");
     assert!(object.is_file());
 
-    let runtime_value = UnitSource::analyze("global-root.ko", "val state = 1\nfun bootstrap(): Unit {}").expect("original source must pass strict Unit admission");
+    let runtime_value =
+        UnitSource::analyze("global-root.ko", "val state = 1\nfun bootstrap(): Unit {}")
+            .expect("original source must pass strict Unit admission");
     runtime_value.assert_frontend_clean();
     let rejected = directory.join("global-root.o");
-    let error = runtime_value.emit(runtime_value.declaration("bootstrap", SymbolKind::Function), &rejected)
-    .expect_err("runtime globals still require an explicit runtime contract");
+    let error = runtime_value
+        .emit(
+            runtime_value.declaration("bootstrap", SymbolKind::Function),
+            &rejected,
+        )
+        .expect_err("runtime globals still require an explicit runtime contract");
     assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
     assert!(!rejected.exists());
 }
@@ -1015,13 +1106,18 @@ fn nominal_enum_box_source_emits_links_and_runs() {
              val boxed = Box(Wrapped(14))\n\
              val owned: Owned<Resource> = Owned.Some(Resource())\n\
          }",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     analysis.assert_frontend_clean();
     let directory = TestDirectory::create();
     let object = directory.join("nominal.o");
     let executable = directory.join("nominal");
-    analysis.emit(analysis.declaration("bootstrap", SymbolKind::Function), &object)
-    .expect("nominal source must emit an object");
+    analysis
+        .emit(
+            analysis.declaration("bootstrap", SymbolKind::Function),
+            &object,
+        )
+        .expect("nominal source must emit an object");
     let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")

@@ -71,14 +71,21 @@ fun main(args: Array<String>): Unit {
     val argument = println(args[INDEX])
 }
 "#,
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     analysis.assert_frontend_clean();
     let directory = TestDirectory::create();
     let mut objects = Vec::new();
     for index in 0..2 {
         let object = directory.join(&format!("entry-{index}.o"));
-        analysis.emit(NativeUnitEntry::BorrowedArguments(analysis.declaration("main", SymbolKind::Function)), &object)
-        .expect("constant declarations must coexist with borrowed argv");
+        analysis
+            .emit(
+                NativeUnitEntry::BorrowedArguments(
+                    analysis.declaration("main", SymbolKind::Function),
+                ),
+                &object,
+            )
+            .expect("constant declarations must coexist with borrowed argv");
         objects.push(fs::read(&object).unwrap());
         let executable = directory.join(&format!("entry-{index}"));
         let linked = Command::new(crate::test_support::clang())
@@ -104,21 +111,24 @@ fn constant_analysis_mismatch_and_invalid_values_never_write_objects() {
     let first = UnitSource::analyze(
         "constant.ko",
         "const val VALUE = 1\nfun entry(): Unit { val result = VALUE }",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     let second = UnitSource::analyze(
         "constant.ko",
         "const val VALUE = 2\nfun entry(): Unit { val result = VALUE }",
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     let directory = TestDirectory::create();
-    for (typed, owned) in [
-        (&first, &second),
-        (&second, &second),
-    ] {
+    for (typed, owned) in [(&first, &second), (&second, &second)] {
         let output = directory.join("foreign.o");
-        let error = first.emit_with_products_from(
-            typed, owned, first.declaration("entry", SymbolKind::Function), &output,
-        )
-        .expect_err("same IDs cannot authorize values from another analysis");
+        let error = first
+            .emit_with_products_from(
+                typed,
+                owned,
+                first.declaration("entry", SymbolKind::Function),
+                &output,
+            )
+            .expect_err("same IDs cannot authorize values from another analysis");
         assert_eq!(error.kind(), NativeObjectErrorKind::MismatchedAnalysis);
         assert!(!output.exists());
     }
@@ -131,8 +141,20 @@ fn constant_analysis_mismatch_and_invalid_values_never_write_objects() {
     ) else {
         panic!("invalid constant facts must not acquire an owned Unit capability");
     };
-    assert!(invalid.report.diagnostics.iter().any(|(stage, _)| *stage == "types"));
-    assert!(!invalid.report.stages.iter().any(|(stage, _)| *stage == "ownership"));
+    assert!(
+        invalid
+            .report
+            .diagnostics
+            .iter()
+            .any(|(stage, _)| *stage == "types")
+    );
+    assert!(
+        !invalid
+            .report
+            .stages
+            .iter()
+            .any(|(stage, _)| *stage == "ownership")
+    );
     assert_eq!(directory.snapshot(), before);
     assert!(!output.exists());
 }
@@ -157,10 +179,12 @@ fun entry(): Unit {
     val fourth = view(dynamic)
 }
 "#,
-    ).expect("original source must pass strict Unit admission");
+    )
+    .expect("original source must pass strict Unit admission");
     analysis.assert_frontend_clean();
-    let (program, entry) = analysis.lower_entry(analysis.declaration("entry", SymbolKind::Function))
-    .expect("constant owner source must verify");
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("constant owner source must verify");
     let string = program.modules[0]
         .types
         .iter()

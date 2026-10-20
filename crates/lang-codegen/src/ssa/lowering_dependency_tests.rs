@@ -486,8 +486,8 @@ fn production_lowering_dependencies_remain_directional() {
         ("ssa/mod.rs", &["validate_frontend_inputs"]),
     ];
     for &(relative, identifiers) in retired {
-        let source = fs::read_to_string(source_root.join(relative))
-            .expect("real native facade root source");
+        let source =
+            fs::read_to_string(source_root.join(relative)).expect("real native facade root source");
         for token in tokens(&source) {
             assert!(
                 !identifiers.contains(&token.text),
