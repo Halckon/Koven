@@ -258,7 +258,7 @@ fn unresolved_memory_headers_do_not_publish_default_or_partial_import_targets() 
             header.len(),
             header.len(),
         );
-        assert_eq!(parsed.diagnostics(), [header_error.clone()]);
+        assert_eq!(parsed.diagnostics(), std::slice::from_ref(&header_error));
         let inputs = [SourceUnitInput::memory_document(source, &parsed)];
         let index = index_compilation_unit(&sources, &inputs).expect("memory index");
         let (environment, _) = standard_environments();
