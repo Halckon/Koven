@@ -167,7 +167,11 @@ fn constant_capability_rejects_runtime_globals_and_preserves_declarations() {
             .validate_constants()
             .expect("actual constant capability");
         let owned = check_compilation_unit_constant_ownership(
-            &sources, &inputs, &names, &environment, &typed,
+            &sources,
+            &inputs,
+            &names,
+            &environment,
+            &typed,
         )
         .expect("real constant ownership")
         .validate()
@@ -243,7 +247,11 @@ fn constant_capability_rejects_runtime_globals_and_preserves_declarations() {
                 )
                 .expect("constant and declarative roots remain supported");
                 crate::test_support::assert_native_object(&fs::read(&object).unwrap());
-                assert_eq!(directory.snapshot().len(), 1, "no sibling temporary remains");
+                assert_eq!(
+                    directory.snapshot().len(),
+                    1,
+                    "no sibling temporary remains"
+                );
             }
         }
     }
