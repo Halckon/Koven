@@ -1,5 +1,5 @@
-//! Test-only, real single MemoryDocument products shared by generated export and LLVM consumers.
-//! Native execution is limited to the two explicit positive controls below.
+//! Test-only, real single MemoryDocument products shared by native, generated export, and LLVM consumers.
+//! Foreign-fact, fault, counter, calibration, and sanitizer consumers remain CI-only.
 //! No synthetic facts, observer callback, or single-file compatibility path.
 
 use lang_frontend::{
@@ -25,6 +25,7 @@ use lang_frontend::{
 };
 
 use crate::ssa::{
+    LoweringError,
     model::{FunctionId, Program},
     unit_lower::{constant::lower_const_owned_unit_with_entry, lower_owned_unit_with_entry},
 };
@@ -179,6 +180,10 @@ impl UnitSource {
     }
 
     fn entry(&self) -> DeclarationId {
+        self.declaration("entry", SymbolKind::Function)
+    }
+
+    pub(crate) fn declaration(&self, name: &str, kind: SymbolKind) -> DeclarationId {
         let index = self.names.names().index();
         let [source] = index.source_units() else {
             panic!("expected exactly one original memory document");
@@ -189,8 +194,8 @@ impl UnitSource {
             .declarations()
             .iter()
             .filter(|declaration| {
-                declaration.name() == "entry"
-                    && declaration.kind() == SymbolKind::Function
+                declaration.name() == name
+                    && declaration.kind() == kind
                     && declaration.source_unit() == source.id()
                     && declaration.package() == source.package()
                     && declaration.name_span().source_id() == self.parsed.source_id()
@@ -198,17 +203,24 @@ impl UnitSource {
             })
             .collect::<Vec<_>>();
         let [entry] = entries.as_slice() else {
-            panic!("expected one real top-level entry declaration: {entries:?}");
+            panic!("expected one real top-level declaration {name} {kind:?}: {entries:?}");
         };
         entry.id()
     }
 
     fn lower(&self) -> (Program, FunctionId) {
+        self.lower_entry(self.entry())
+            .expect("source must lower through its actual Unit capability to verified SSA")
+    }
+
+    pub(crate) fn lower_entry(
+        &self,
+        entry: DeclarationId,
+    ) -> Result<(Program, FunctionId), LoweringError> {
         let inputs = [SourceUnitInput::memory_document(
             self.parsed.source_id(),
             &self.parsed,
         )];
-        let entry = self.entry();
         match &self.products {
             OwnedProducts::Basic(typed, owned) => {
                 let unit = owned_compilation_unit_view(
@@ -221,7 +233,6 @@ impl UnitSource {
                 )
                 .expect("original basic products construct the sealed view");
                 lower_owned_unit_with_entry(&unit, entry)
-                    .expect("source must lower through basic Unit to verified SSA")
             }
             OwnedProducts::Constant(typed, owned) => {
                 let unit = const_owned_compilation_unit_view(
@@ -234,9 +245,83 @@ impl UnitSource {
                 )
                 .expect("original constant products construct the sealed view");
                 lower_const_owned_unit_with_entry(&unit, entry)
-                    .expect("source must lower through constant Unit to verified SSA")
             }
         }
+    }
+
+    /// Preserve all four original clean-phase assertions at the stricter Unit boundary.
+    pub(crate) fn assert_frontend_clean(&self) {
+        assert_eq!(
+            self.report.stages,
+            [("parse", 0), ("names", 0), ("types", 0), ("ownership", 0)]
+        );
+        assert!(self.report.diagnostics.is_empty(), "{:?}", self.report);
+    }
+
+    pub(crate) fn emit(
+        &self,
+        entry: impl Into<crate::NativeUnitEntry>,
+        output: &std::path::Path,
+    ) -> Result<(), crate::NativeObjectError> {
+        let inputs = [SourceUnitInput::memory_document(self.parsed.source_id(), &self.parsed)];
+        let entry = entry.into();
+        match &self.products {
+            OwnedProducts::Basic(typed, owned) => {
+                let view = owned_compilation_unit_view(
+                    &self.sources, &inputs, &self.names, &self.environment, typed, owned,
+                )?;
+                crate::emit_native_owned_unit_object(&view, entry, output)
+            }
+            OwnedProducts::Constant(typed, owned) => {
+                let view = const_owned_compilation_unit_view(
+                    &self.sources, &inputs, &self.names, &self.environment, typed, owned,
+                )?;
+                crate::emit_native_const_owned_unit_object(&view, entry, output)
+            }
+        }
+    }
+
+    /// CI-only identity consumers borrow real products from independent analyses.
+    pub(crate) fn emit_with_products_from(
+        &self,
+        typed_source: &Self,
+        owned_source: &Self,
+        entry: DeclarationId,
+        output: &std::path::Path,
+    ) -> Result<(), crate::NativeObjectError> {
+        let inputs = [SourceUnitInput::memory_document(self.parsed.source_id(), &self.parsed)];
+        match (&typed_source.products, &owned_source.products) {
+            (OwnedProducts::Basic(typed, _), OwnedProducts::Basic(_, owned)) => {
+                let view = owned_compilation_unit_view(
+                    &self.sources, &inputs, &self.names, &self.environment, typed, owned,
+                )?;
+                crate::emit_native_owned_unit_object(&view, entry, output)
+            }
+            (OwnedProducts::Constant(typed, _), OwnedProducts::Constant(_, owned)) => {
+                let view = const_owned_compilation_unit_view(
+                    &self.sources, &inputs, &self.names, &self.environment, typed, owned,
+                )?;
+                crate::emit_native_const_owned_unit_object(&view, entry, output)
+            }
+            _ => panic!("identity fixture must retain the original capability on both sides"),
+        }
+    }
+
+    /// CI-only SourceMap identity case; inputs and all phase products remain the first chain.
+    pub(crate) fn emit_with_sources_from(
+        &self,
+        source_owner: &Self,
+        entry: DeclarationId,
+        output: &std::path::Path,
+    ) -> Result<(), crate::NativeObjectError> {
+        let inputs = [SourceUnitInput::memory_document(self.parsed.source_id(), &self.parsed)];
+        let OwnedProducts::Basic(typed, owned) = &self.products else {
+            panic!("the original SourceMap identity fixture has basic capability");
+        };
+        let view = owned_compilation_unit_view(
+            &source_owner.sources, &inputs, &self.names, &self.environment, typed, owned,
+        )?;
+        crate::emit_native_owned_unit_object(&view, entry, output)
     }
 
     pub(crate) fn lower_to_llvm(&self) -> String {
@@ -389,46 +474,15 @@ fn memory_document_constant_source_reaches_verified_ssa_llvm_and_native() {
     assert_native_output(&unit, b"constant-memory\n");
 }
 
-/// Only the two ordinary positive controls call this real Unit native chain.
+/// The two ordinary positive controls retain the real object, link, and output checks.
 fn assert_native_output(unit: &UnitSource, expected: &[u8]) {
     use std::{fs, process::Command};
 
     let directory = crate::native_tests::TestDirectory::create();
     let object = directory.join("memory-document.o");
     let executable = directory.join("memory-document");
-    let inputs = [SourceUnitInput::memory_document(
-        unit.parsed.source_id(),
-        &unit.parsed,
-    )];
-    let entry = unit.entry();
-    match &unit.products {
-        OwnedProducts::Basic(typed, owned) => {
-            let view = owned_compilation_unit_view(
-                &unit.sources,
-                &inputs,
-                &unit.names,
-                &unit.environment,
-                typed,
-                owned,
-            )
-            .expect("original basic products construct the native view");
-            crate::emit_native_owned_unit_object(&view, entry, &object)
-                .expect("basic MemoryDocument must emit a native object");
-        }
-        OwnedProducts::Constant(typed, owned) => {
-            let view = const_owned_compilation_unit_view(
-                &unit.sources,
-                &inputs,
-                &unit.names,
-                &unit.environment,
-                typed,
-                owned,
-            )
-            .expect("original constant products construct the native view");
-            crate::emit_native_const_owned_unit_object(&view, entry, &object)
-                .expect("constant MemoryDocument must emit a native object");
-        }
-    }
+    unit.emit(unit.entry(), &object)
+        .expect("original MemoryDocument must emit a native object");
     let bytes = fs::read(&object).expect("real native object");
     assert!(bytes.len() >= 20, "native object contains its full header");
     crate::test_support::assert_native_object(&bytes);

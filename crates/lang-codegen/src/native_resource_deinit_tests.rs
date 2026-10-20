@@ -107,7 +107,8 @@ fun main(): Unit { val resource = Aborting(Leaf()); println("scope") }
 
 #[test]
 fn resource_deinit_native_nested_resource_allocations_have_unique_frees() {
-    use super::{SymbolKind, analyze, symbol};
+    use super::SymbolKind;
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
     let source = r#"
 class Leaf(val name: String) { deinit() { println(this.name) } }
 class Bundle(val first: Leaf, val second: Leaf) { deinit() { println("bundle") } }
@@ -117,20 +118,9 @@ fun entry(): Unit {
     println("held")
 }
 "#;
-    let analysis = analyze("resource-counts.ko", source);
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
-    )
+    let analysis = UnitSource::analyze("resource-counts.ko", source).expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis.lower_entry(analysis.declaration("entry", SymbolKind::Function))
     .unwrap();
     let ir = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     let output = super::boxed_enum_tests::run_counted_allocations(&ir, 6);
@@ -161,7 +151,8 @@ fun main(): Unit {{
 
 #[test]
 fn resource_deinit_native_conditional_owner_is_rejected_without_overwriting_output() {
-    use super::{SymbolKind, TestDirectory, analyze, emit_native_object, symbol};
+    use super::{SymbolKind, TestDirectory};
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
     let source = format!(
         r#"{LEAF}
 fun run(flag: Boolean): Unit {{
@@ -172,24 +163,12 @@ fun run(flag: Boolean): Unit {{
 fun main(): Unit {{ run(true); run(false) }}
 "#
     );
-    let analysis = analyze("resource-conditional.ko", &source);
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
+    let analysis = UnitSource::analyze("resource-conditional.ko", &source).expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
     let directory = TestDirectory::create();
     let path = directory.join("preserved.o");
     std::fs::write(&path, b"previous object").unwrap();
-    let error = emit_native_object(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "main", SymbolKind::Function),
-        &path,
-    )
+    let error = analysis.emit(analysis.declaration("main", SymbolKind::Function), &path)
     .expect_err("conditional owner transport remains outside this bounded native slice");
     assert_eq!(
         error.kind(),

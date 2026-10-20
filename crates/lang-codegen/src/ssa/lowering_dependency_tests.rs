@@ -477,6 +477,25 @@ fn production_lowering_dependencies_remain_directional() {
             .any(|path| path.starts_with("lowering_support")),
         "neutral support was not scanned"
     );
+    // Real public roots must not restore the retired single-file native facade.
+    // Exact identifiers do not reject the shared LLVM NativeEntryPlan.
+    let source_root = root.parent().expect("SSA directory has a source parent");
+    let retired: &[(&str, &[&str])] = &[
+        ("lib.rs", &["NativeEntry", "emit_native_object"]),
+        ("native.rs", &["NativeEntry", "emit_native_object"]),
+        ("ssa/mod.rs", &["validate_frontend_inputs"]),
+    ];
+    for &(relative, identifiers) in retired {
+        let source = fs::read_to_string(source_root.join(relative))
+            .expect("real native facade root source");
+        for token in tokens(&source) {
+            assert!(
+                !identifiers.contains(&token.text),
+                "retired native facade identifier {} in {relative}",
+                token.text
+            );
+        }
+    }
 }
 
 fn check(path: &str, source: &str) -> Vec<String> {

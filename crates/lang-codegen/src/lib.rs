@@ -23,8 +23,8 @@ mod native_tests;
 mod test_support;
 
 pub use native::{
-    NativeEntry, NativeObjectError, NativeObjectErrorKind, NativeUnitEntry,
-    emit_native_const_owned_unit_object, emit_native_constant_unit_object, emit_native_object,
+    NativeObjectError, NativeObjectErrorKind, NativeUnitEntry,
+    emit_native_const_owned_unit_object, emit_native_constant_unit_object,
     emit_native_owned_unit_object, emit_native_unit_object,
 };
 
