@@ -223,7 +223,10 @@ fun main(): Unit {{ run(true); run(false) }}
         rejection.sources.source_name(span.source_id()),
         Ok("resource-conditional.ko")
     );
-    assert_eq!(rejection.sources.source_text(span.source_id()), Ok(source.as_str()));
+    assert_eq!(
+        rejection.sources.source_text(span.source_id()),
+        Ok(source.as_str())
+    );
     let expected = "if (flag) { consume(resource) }";
     assert_eq!(rejection.sources.slice(span), Ok(expected));
     let start = source.find(expected).unwrap();
