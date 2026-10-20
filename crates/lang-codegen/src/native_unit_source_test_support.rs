@@ -2,6 +2,9 @@
 //! Foreign-fact, fault, counter, calibration, and sanitizer consumers remain CI-only.
 //! No synthetic facts, observer callback, or single-file compatibility path.
 
+#[path = "native_pending_construction_tests.rs"]
+mod pending_construction_tests;
+
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,
     diagnostic::Diagnostic,
