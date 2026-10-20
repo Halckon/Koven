@@ -1,6 +1,7 @@
 //! Bounded nullable entries: root Borrow, While retests and direct Map Ifs.
 #[cfg(test)]
 mod guard_tests;
+mod rc;
 
 use super::super::unwrap_modified;
 use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key};
@@ -33,6 +34,9 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<NullableIfEntry>, LoweringError> {
         if result_required || !self.nullable_proofs.is_empty() {
             return Ok(None);
+        }
+        if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
+            return Ok(Some(entry));
         }
         let node = self
             .parsed

@@ -272,7 +272,9 @@ impl UnitExpressionLowerer<'_> {
                 }
                 _ => false,
             };
-            if !root_borrow_call {
+            let rc_share = matches!(node.payload(), Expression::Call { .. })
+                && self.can_share_with_nullable_rc_proof(unit_expression, span)?;
+            if !root_borrow_call && !rc_share {
                 self.reject_live_if_proof(span)?;
             }
         }

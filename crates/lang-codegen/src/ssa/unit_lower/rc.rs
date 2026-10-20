@@ -6,7 +6,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         Copyability, ExpressionCategory, IntrinsicTypeConstructor, RcOperationKind,
-        UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
+        UnitConstructionTarget, UnitExpressionId, UnitRcOperationDescriptor, UnitTypeKind,
     },
 };
 
@@ -72,35 +72,16 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let descriptor = self
-            .typed
-            .rc_operation(id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let mut effects = self
-            .owned
-            .rc_effects()
-            .iter()
-            .copied()
-            .filter(|effect| effect.expression() == id);
-        let effect = effects
-            .next()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let expected = match descriptor.kind() {
-            RcOperationKind::Share => RcOwnershipEffectKind::Retain,
-            RcOperationKind::Value => RcOwnershipEffectKind::BorrowPayload,
-        };
-        if effects.next().is_some()
-            || effect.receiver() != descriptor.receiver()
-            || effect.payload_type() != descriptor.payload_type()
-            || effect.kind() != expected
-            || self.typed.expression_category(descriptor.receiver())
-                != Some(ExpressionCategory::Place)
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let LoweredValue::Value(owner) = self.lower(descriptor.receiver().expression())? else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        let descriptor = self.validated_rc_operation(
+            UnitExpressionId::new(self.source_unit, expression),
+            span,
+        )?;
+        let owner = match self.nullable_rc_operand(descriptor.receiver(), span)? {
+            Some(loan) => EntityId::Loan(loan),
+            None => match self.lower(descriptor.receiver().expression())? {
+                LoweredValue::Value(owner) => EntityId::Value(owner),
+                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            },
         };
         match descriptor.kind() {
             RcOperationKind::Share => {
@@ -109,9 +90,7 @@ impl UnitExpressionLowerer<'_> {
                     .function
                     .append_instruction(
                         self.block,
-                        Operation::SharedRetain {
-                            owner: EntityId::Value(owner),
-                        },
+                        Operation::SharedRetain { owner },
                         vec![EntityType::Value(result_type)],
                         Origin::Source(span),
                     )
@@ -127,9 +106,7 @@ impl UnitExpressionLowerer<'_> {
                     .function
                     .append_instruction(
                         self.block,
-                        Operation::SharedPayloadPlace {
-                            owner: EntityId::Value(owner),
-                        },
+                        Operation::SharedPayloadPlace { owner },
                         vec![EntityType::Place(payload)],
                         Origin::Source(span),
                     )
@@ -151,5 +128,42 @@ impl UnitExpressionLowerer<'_> {
                 Ok(LoweredValue::Value(require_value(results[0], span)?))
             }
         }
+    }
+
+    pub(super) fn validated_rc_operation(
+        &self,
+        id: UnitExpressionId,
+        span: Span,
+    ) -> Result<UnitRcOperationDescriptor, LoweringError> {
+        let descriptor = self
+            .typed
+            .rc_operation(id)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let mut effects = self
+            .owned
+            .rc_effects()
+            .iter()
+            .copied()
+            .filter(|effect| effect.expression() == id);
+        let effect = effects
+            .next()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let expected = match descriptor.kind() {
+            RcOperationKind::Share => RcOwnershipEffectKind::Retain,
+            RcOperationKind::Value => RcOwnershipEffectKind::BorrowPayload,
+        };
+        if id.source_unit() != self.source_unit
+            || descriptor.expression() != id
+            || descriptor.receiver().source_unit() != self.source_unit
+            || effects.next().is_some()
+            || effect.receiver() != descriptor.receiver()
+            || effect.payload_type() != descriptor.payload_type()
+            || effect.kind() != expected
+            || self.typed.expression_category(descriptor.receiver())
+                != Some(ExpressionCategory::Place)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok(descriptor)
     }
 }
