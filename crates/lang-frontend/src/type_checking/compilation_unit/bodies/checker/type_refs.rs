@@ -135,9 +135,7 @@ impl BodyChecker<'_> {
             else {
                 return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
             };
-            let root_span = self
-                .names
-                .names()
+            let root_span = self.names
                 .index()
                 .declarations()
                 .get(declaration.index())
@@ -241,7 +239,7 @@ impl BodyChecker<'_> {
             return Ok(self.error_type());
         };
         let declaration_span =
-            self.names.names().index().declarations()[declaration.index()].name_span();
+            self.names.index().declarations()[declaration.index()].name_span();
         if arguments.len() != nominal.type_parameters().len() {
             self.emit_maybe_label(
                 codes::TYPE_ARGUMENT_ARITY,
@@ -353,7 +351,7 @@ impl BodyChecker<'_> {
             .cloned()
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
         let declaration_span =
-            self.names.names().index().declarations()[declaration.index()].name_span();
+            self.names.index().declarations()[declaration.index()].name_span();
         if usage == BodyTypeUse::Runtime {
             let primary = self
                 .file(source)
@@ -804,7 +802,7 @@ impl BodyChecker<'_> {
         &self,
         symbol: crate::name_resolution::UnitSymbolId,
     ) -> Result<Span, CompilationUnitTypeError> {
-        self.names.names().source_units()[symbol.source_unit().index()]
+        self.names.source_units()[symbol.source_unit().index()]
             .resolution()
             .symbols()
             .get(symbol.symbol().index())

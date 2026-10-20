@@ -178,8 +178,8 @@ fn observe(case: Case, native: bool, stages: &mut Vec<&'static str>) -> Result<(
     };
     require(
         source_unit.source_id() == source
-            && source_unit.key().root().as_str() == "root"
-            && source_unit.key().logical_path().as_str() == case.path,
+            && source_unit.key().root().expect("rooted source").as_str() == "root"
+            && source_unit.key().logical_path().expect("rooted source").as_str() == case.path,
         "source-unit identity",
         source_unit,
     )?;
@@ -195,7 +195,7 @@ fn observe(case: Case, native: bool, stages: &mut Vec<&'static str>) -> Result<(
             && declaration.name_span().source_id() == source
             && (declaration.name_span().start(), declaration.name_span().end()) == case.entry_span
             && names.names().index().packages().get(declaration.package().index())
-                .is_some_and(|package| package.name().segments().iter().map(String::as_str)
+                .is_some_and(|package| package.name().expect("named package").segments().iter().map(String::as_str)
                     .eq(case.package.iter().copied()))
             && parsed.roots().contains(&declaration.root())
             && parsed.ast().items().get(declaration.root()).is_ok_and(|node| {

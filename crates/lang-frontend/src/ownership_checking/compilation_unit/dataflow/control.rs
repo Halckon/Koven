@@ -113,11 +113,17 @@ impl Checker<'_> {
                 expression: expression.expression().index(),
             },
         )?;
+        if self.typed.is_diagnostic_error_type(ty) {
+            return Ok(ExpressionUse::Read);
+        }
         match self.typed.copyability(ty) {
             Copyability::MoveOnly => Ok(ExpressionUse::Consume {
                 parameter_span: None,
             }),
             Copyability::Copyable => Ok(ExpressionUse::Read),
+            Copyability::Error if self.typed.copyability_error_is_diagnostic(ty) => {
+                Ok(ExpressionUse::Read)
+            }
             Copyability::Unknown | Copyability::Error => {
                 Err(OwnershipCheckingError::InvalidUnitArgumentType {
                     source_unit: expression.source_unit().index(),

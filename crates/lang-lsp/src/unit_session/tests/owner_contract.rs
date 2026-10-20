@@ -29,8 +29,8 @@ fn session_name_owner_matches_complete_same_source_manual_prefix_and_ast_pairing
             .zip(&parsed)
             .map(|(unit, parsed)| {
                 SourceUnitInput::new(
-                    unit.root_identity(),
-                    unit.logical_path(),
+                    unit.root_identity().expect("rooted source"),
+                    unit.logical_path().expect("rooted source"),
                     unit.source_id(),
                     parsed,
                 )
@@ -58,11 +58,11 @@ fn session_name_owner_matches_complete_same_source_manual_prefix_and_ast_pairing
             let source = &session.config.sources()[i];
             let indexed = &owner.names().index().source_units()[i];
             assert_eq!(session.snapshot.source_ids[i], descriptor.source_id());
-            assert_eq!(descriptor.root_identity(), source.root());
-            assert_eq!(descriptor.logical_path(), source.logical_path());
+            assert_eq!(descriptor.root_identity().expect("rooted source"), source.root());
+            assert_eq!(descriptor.logical_path().expect("rooted source"), source.logical_path());
             assert_eq!(descriptor.source_id(), indexed.source_id());
-            assert_eq!(indexed.key().root().as_str(), source.root());
-            assert_eq!(indexed.key().logical_path().as_str(), source.logical_path());
+            assert_eq!(indexed.key().root().expect("rooted source").as_str(), source.root());
+            assert_eq!(indexed.key().logical_path().expect("rooted source").as_str(), source.logical_path());
             assert_eq!(actual.source_id(), descriptor.source_id());
             assert_eq!(
                 owner.sources().source_text(actual.source_id()).unwrap(),

@@ -112,7 +112,7 @@ impl BodyChecker<'_> {
                 .span(left_paren_span.source_id(), left_paren_span.start(), end)
                 .map_err(crate::type_checking::TypeCheckingError::from)?;
             let declaration_span =
-                self.names.names().index().declarations()[declaration.index()].name_span();
+                self.names.index().declarations()[declaration.index()].name_span();
             self.emit_maybe_label(
                 codes::DESTRUCTURING_ARITY,
                 "value class destructuring must bind every component exactly once",

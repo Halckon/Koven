@@ -820,7 +820,7 @@ fn builtin_type(typed: &CompilationUnitTypes, ty: UnitTypeId) -> Option<BuiltinT
 fn instance_function_name(
     names: &ValidatedCompilationUnitNames,
     instance: &UnitPlannedInstance,
-) -> String {
+) -> Result<String, LoweringError> {
     let (declaration, callable_name, target_index) = match instance.key().target() {
         UnitCallableTarget::Declaration(declaration) => {
             let declaration = &names.names().index().declarations()[declaration.index()];
@@ -839,8 +839,11 @@ fn instance_function_name(
         }
     };
     let package = &names.names().index().packages()[declaration.package().index()];
+    let package_name = package.name().ok_or_else(|| {
+        lowering_error(LoweringErrorKind::InvalidModel, instance.span())
+    })?;
     let mut name = String::from("koven");
-    for segment in package.name().segments() {
+    for segment in package_name.segments() {
         name.push('.');
         name.push_str(segment);
     }
@@ -864,7 +867,7 @@ fn instance_function_name(
         name.push_str(".r");
         name.push_str(&static_self.index().to_string());
     }
-    name
+    Ok(name)
 }
 
 fn unit_callable_signature(

@@ -245,7 +245,7 @@ fn const_view_reports_source_errors_before_analysis_mismatches() {
             let changed = [
                 SourceUnitInput::new(
                     "other",
-                    inputs[0].logical_path(),
+                    inputs[0].logical_path().expect("rooted source"),
                     inputs[0].source_id(),
                     inputs[0].parsed(),
                 ),

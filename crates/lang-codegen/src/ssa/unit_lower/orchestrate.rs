@@ -238,7 +238,7 @@ pub(super) fn lower_unit_from_facts(
                 types.intern(module, typed, return_type, instance.span())?
             }]
         };
-        let mut name = instance_function_name(names, &instance);
+        let mut name = instance_function_name(names, &instance)?;
         if !instance.key().callable_arguments().is_empty() {
             name.push_str(&format!(".callable{source_ordinal}"));
         }

@@ -3,7 +3,8 @@ use super::*;
 use crate::{
     ast::StatementId,
     name_resolution::{
-        NameResolution, Namespace, SourceUnitInput, SymbolKind, ValidatedCompilationUnitNames,
+        CompilationUnitNames, NameResolution, Namespace, SourceUnitInput, SymbolKind,
+        ValidatedCompilationUnitNames,
     },
     parser::{ForBinding, NameMarker, ParsedFile, Statement},
     source::Span,
@@ -188,8 +189,26 @@ pub(crate) fn validate_unit_map_iteration(
     typed: &CompilationUnitTypes,
     statement: UnitStatementId,
 ) -> bool {
+    validate_unit_map_iteration_facts(
+        parsed,
+        names.names(),
+        typed,
+        statement,
+        typed.map_iteration(statement),
+        typed.sequential_iteration(statement),
+    )
+}
+
+/// 两个入口仅选择同 owner 的实际表，AST/name/type 核验始终只有此实现。
+pub(crate) fn validate_unit_map_iteration_facts(
+    parsed: &ParsedFile,
+    names: &CompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    statement: UnitStatementId,
+    plan: Option<&UnitMapIterationDescriptor>,
+    sequential: Option<&UnitSequentialIterationDescriptor>,
+) -> bool {
     let Some(source_names) = names
-        .names()
         .source_units()
         .iter()
         .find(|source| source.source_unit() == statement.source_unit())
@@ -222,13 +241,14 @@ pub(crate) fn validate_unit_map_iteration(
                 }
             )
         });
-    let Some(plan) = typed.map_iteration(statement) else {
+    let Some(plan) = plan else {
         return !is_map;
     };
     if !is_map
+        || plan.statement() != statement
         || plan.source() != source
         || Some(plan.source_type()) != source_type
-        || !unit_map_iteration_row_valid(typed, plan)
+        || !unit_map_iteration_row_valid_with_sequential(typed, plan, sequential)
     {
         return false;
     }
@@ -258,6 +278,18 @@ fn unit_map_iteration_row_valid(
     typed: &CompilationUnitTypes,
     plan: &UnitMapIterationDescriptor,
 ) -> bool {
+    unit_map_iteration_row_valid_with_sequential(
+        typed,
+        plan,
+        typed.sequential_iteration(plan.statement()),
+    )
+}
+
+fn unit_map_iteration_row_valid_with_sequential(
+    typed: &CompilationUnitTypes,
+    plan: &UnitMapIterationDescriptor,
+    sequential: Option<&UnitSequentialIterationDescriptor>,
+) -> bool {
     let source = plan.statement().source_unit();
     plan.source().source_unit() == source
         && plan
@@ -265,7 +297,7 @@ fn unit_map_iteration_row_valid(
             .into_iter()
             .all(|symbol| symbol.source_unit() == source)
         && plan.key_binding() != plan.value_binding()
-        && typed.sequential_iteration(plan.statement()).is_none()
+        && sequential.is_none()
         && typed.expression_type(plan.source()) == Some(plan.source_type())
         && typed.symbol_type(plan.key_binding()) == Some(plan.key_type())
         && typed.symbol_type(plan.value_binding()) == Some(plan.value_type())

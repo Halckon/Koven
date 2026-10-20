@@ -87,38 +87,64 @@ impl LogicalSourcePath {
     }
 }
 
-/// compilation-unit 输入中的稳定源码键。
+/// compilation-unit 输入中的稳定源码键；内存文档不声称 root-relative 路径。
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SourceUnitKey {
-    root: SourceRootIdentity,
-    logical_path: LogicalSourcePath,
+pub enum SourceUnitKey {
+    /// 调用方显式提供并已验证的 root 与逻辑路径。
+    Rooted {
+        /// 不透明 root identity。
+        root: SourceRootIdentity,
+        /// root 内规范逻辑路径。
+        logical_path: LogicalSourcePath,
+    },
+    /// 独立单文档 unit 内唯一的不透明源码键；真实来源另由 SourceId 保留。
+    MemoryDocument,
 }
 impl SourceUnitKey {
     pub(super) const fn new(root: SourceRootIdentity, logical_path: LogicalSourcePath) -> Self {
-        Self { root, logical_path }
+        Self::Rooted { root, logical_path }
     }
-    /// 返回 source root identity。
+    /// 仅 rooted 输入有 source root identity。
     #[must_use]
-    pub const fn root(&self) -> &SourceRootIdentity {
-        &self.root
+    pub const fn root(&self) -> Option<&SourceRootIdentity> {
+        match self {
+            Self::Rooted { root, .. } => Some(root),
+            Self::MemoryDocument => None,
+        }
     }
-    /// 返回 root 内逻辑路径。
+    /// 仅 rooted 输入有 root 内逻辑路径。
     #[must_use]
-    pub const fn logical_path(&self) -> &LogicalSourcePath {
-        &self.logical_path
+    pub const fn logical_path(&self) -> Option<&LogicalSourcePath> {
+        match self {
+            Self::Rooted { logical_path, .. } => Some(logical_path),
+            Self::MemoryDocument => None,
+        }
     }
+}
+
+/// 尚未验证的 source key 借用；排序保留 rooted 输入原 root/path 顺序。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SourceUnitInputKey<'input> {
+    /// 显式 root-relative 输入，不在此构造器预先校验路径。
+    Rooted {
+        /// 调用方的不透明 root identity。
+        root_identity: &'input str,
+        /// 调用方的原逻辑路径。
+        logical_path: &'input str,
+    },
+    /// 只可用于恰含一份 selected source 的独立内存文档 unit。
+    MemoryDocument,
 }
 
 /// 一份尚未规范排序的源码单元输入。
 #[derive(Clone, Copy, Debug)]
 pub struct SourceUnitInput<'parsed> {
-    root_identity: &'parsed str,
-    logical_path: &'parsed str,
+    key: SourceUnitInputKey<'parsed>,
     source_id: SourceId,
     parsed: &'parsed ParsedFile,
 }
 impl<'parsed> SourceUnitInput<'parsed> {
-    /// 构造一项显式 source-unit 输入；全部不变量由索引入口统一校验。
+    /// 构造显式 rooted 输入；全部不变量由索引入口统一校验。
     #[must_use]
     pub const fn new(
         root_identity: &'parsed str,
@@ -127,21 +153,36 @@ impl<'parsed> SourceUnitInput<'parsed> {
         parsed: &'parsed ParsedFile,
     ) -> Self {
         Self {
-            root_identity,
-            logical_path,
+            key: SourceUnitInputKey::Rooted { root_identity, logical_path },
             source_id,
             parsed,
         }
     }
-    /// 返回调用方提供的 root identity。
+    /// 构造独立内存文档输入；不从 URI 或 package 推导路径。
     #[must_use]
-    pub const fn root_identity(self) -> &'parsed str {
-        self.root_identity
+    pub const fn memory_document(source_id: SourceId, parsed: &'parsed ParsedFile) -> Self {
+        Self { key: SourceUnitInputKey::MemoryDocument, source_id, parsed }
     }
-    /// 返回调用方提供的 root 内逻辑路径。
+    /// 返回未经路径验证、保留输入种类的只读 key。
     #[must_use]
-    pub const fn logical_path(self) -> &'parsed str {
-        self.logical_path
+    pub const fn key(self) -> SourceUnitInputKey<'parsed> {
+        self.key
+    }
+    /// 仅 rooted 输入有调用方提供的 root identity。
+    #[must_use]
+    pub const fn root_identity(self) -> Option<&'parsed str> {
+        match self.key {
+            SourceUnitInputKey::Rooted { root_identity, .. } => Some(root_identity),
+            SourceUnitInputKey::MemoryDocument => None,
+        }
+    }
+    /// 仅 rooted 输入有调用方提供的 root 内逻辑路径。
+    #[must_use]
+    pub const fn logical_path(self) -> Option<&'parsed str> {
+        match self.key {
+            SourceUnitInputKey::Rooted { logical_path, .. } => Some(logical_path),
+            SourceUnitInputKey::MemoryDocument => None,
+        }
     }
     /// 返回输入源码在共同 SourceMap 中的身份。
     #[must_use]
@@ -174,25 +215,43 @@ impl PackageName {
     }
 }
 
-/// 一个按 package name 规范排序的 package 记录。
+/// 完整 package 名称，或只属于原 source key 的未完成文件头恢复身份。
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackageIdentity {
+    /// Rooted 使用逻辑路径名称；MemoryDocument 使用完整初始 header 或真正省略时的默认包。
+    /// Named 本身不替代 package/path 或完整名称诊断资格。
+    Named(PackageName),
+    /// 初始 package 头未完成；不是默认包，也不是可导入的部分名称。
+    UnresolvedHeader(SourceUnitKey),
+}
+
+/// 一个按完整 package identity 规范排序的 package 记录。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Package {
     id: PackageId,
-    name: PackageName,
+    identity: PackageIdentity,
 }
 impl Package {
-    pub(super) const fn new(id: PackageId, name: PackageName) -> Self {
-        Self { id, name }
+    pub(super) const fn new(id: PackageId, identity: PackageIdentity) -> Self {
+        Self { id, identity }
     }
     /// 返回本次索引内的 package identity。
     #[must_use]
     pub const fn id(&self) -> PackageId {
         self.id
     }
-    /// 返回结构化 package name。
+    /// 返回完整身份，不把未完成头部伪装为默认包。
     #[must_use]
-    pub const fn name(&self) -> &PackageName {
-        &self.name
+    pub const fn identity(&self) -> &PackageIdentity {
+        &self.identity
+    }
+    /// 只返回真实完整的 package name。
+    #[must_use]
+    pub const fn name(&self) -> Option<&PackageName> {
+        match &self.identity {
+            PackageIdentity::Named(name) => Some(name),
+            PackageIdentity::UnresolvedHeader(_) => None,
+        }
     }
 }
 
@@ -437,7 +496,7 @@ impl CompilationUnitIndex {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity() == Severity::Error);
-        if has_errors {
+        if has_errors || self.packages.iter().any(|package| package.name().is_none()) {
             Err(Box::new(self))
         } else {
             Ok(ValidatedCompilationUnitIndex(self))

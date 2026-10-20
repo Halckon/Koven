@@ -39,7 +39,7 @@ impl UnitAnalysis {
             .find(|declaration| {
                 declaration.name() == name
                     && self.names.names().index().packages()[declaration.package().index()]
-                        .name()
+                        .name().expect("named package")
                         .segments()
                         .iter()
                         .map(String::as_str)

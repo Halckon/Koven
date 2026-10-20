@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::{
     name_resolution::{
-        CompilationUnitIndex, SourceUnitInput, ValidatedCompilationUnitNames,
+        CompilationUnitIndex, CompilationUnitNames, SourceUnitInput, ValidatedCompilationUnitNames,
         index_compilation_unit,
     },
     source::SourceMap,
@@ -23,8 +23,18 @@ impl CompilationUnitSignatures {
         names: &ValidatedCompilationUnitNames,
         environment: &TypeEnvironment,
     ) -> bool {
+        self.is_compatible_with_raw(sources, inputs, names.names(), environment)
+    }
+
+    pub(crate) fn is_compatible_with_raw(
+        &self,
+        sources: &SourceMap,
+        inputs: &[SourceUnitInput<'_>],
+        names: &CompilationUnitNames,
+        environment: &TypeEnvironment,
+    ) -> bool {
         index_compilation_unit(sources, inputs)
-            .is_ok_and(|index| self.is_compatible_with_index(&index, names, environment))
+            .is_ok_and(|index| self.is_compatible_with_raw_index(&index, names, environment))
     }
 
     /// 复用调用方已核验的 index，保留完整签名来源身份比较。
@@ -34,7 +44,15 @@ impl CompilationUnitSignatures {
         names: &ValidatedCompilationUnitNames,
         environment: &TypeEnvironment,
     ) -> bool {
-        let unit_names = names.names();
+        self.is_compatible_with_raw_index(index, names.names(), environment)
+    }
+
+    fn is_compatible_with_raw_index(
+        &self,
+        index: &CompilationUnitIndex,
+        unit_names: &CompilationUnitNames,
+        environment: &TypeEnvironment,
+    ) -> bool {
         index == &self.provenance.input_index
             && unit_names.index() == &self.provenance.input_index
             && Arc::ptr_eq(&self.provenance.environment_owner, environment.owner())

@@ -75,8 +75,8 @@ fn run_unit_with_entry(case: &str, path: &str, source_text: &str, entry_name: &s
         panic!("{case}: expected exactly one original source unit");
     };
     assert_eq!(source_unit.source_id(), source);
-    assert_eq!(source_unit.key().root().as_str(), "root");
-    assert_eq!(source_unit.key().logical_path().as_str(), path);
+    assert_eq!(source_unit.key().root().expect("rooted source").as_str(), "root");
+    assert_eq!(source_unit.key().logical_path().expect("rooted source").as_str(), path);
     let entries = names
         .names()
         .index()
@@ -89,7 +89,7 @@ fn run_unit_with_entry(case: &str, path: &str, source_text: &str, entry_name: &s
                 && declaration.package() == source_unit.package()
                 && declaration.name_span().source_id() == source
                 && names.names().index().packages().get(declaration.package().index())
-                    .is_some_and(|package| package.name().is_default())
+                    .is_some_and(|package| package.name().expect("named package").is_default())
                 && file.roots().contains(&declaration.root())
                 && file.ast().items().get(declaration.root()).is_ok_and(|node| {
                     matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. } if *name == declaration.name_span())

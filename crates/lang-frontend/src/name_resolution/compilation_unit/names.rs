@@ -94,7 +94,9 @@ impl<'a> UnitResolver<'a> {
         let package_ids = index
             .packages()
             .iter()
-            .map(|package| (package.name().segments().to_vec(), package.id()))
+            .filter_map(|package| {
+                package.name().map(|name| (name.segments().to_vec(), package.id()))
+            })
             .collect();
         let mut declarations: BTreeMap<_, DeclarationBinding> = BTreeMap::new();
         for declaration in index.declarations() {

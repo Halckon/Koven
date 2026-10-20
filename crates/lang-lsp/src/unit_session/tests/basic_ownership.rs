@@ -40,8 +40,8 @@ pub(super) fn assert_raw_products_match_old_pipeline(actual: &UnitSnapshot) {
         .zip(&parsed)
         .map(|(unit, parsed)| {
             SourceUnitInput::new(
-                unit.root_identity(),
-                unit.logical_path(),
+                unit.root_identity().expect("rooted source"),
+                unit.logical_path().expect("rooted source"),
                 unit.source_id(),
                 parsed,
             )

@@ -6,7 +6,7 @@ use crate::{
     type_checking::{CompilationUnitTypeError, DeferredReason, UnitTypeKind},
 };
 
-use super::{SignatureCollector, item_visibility, unwrapped_item};
+use super::{SignatureCollector, diagnosed_missing_name, item_visibility, unwrapped_item};
 
 impl SignatureCollector<'_> {
     pub(super) fn collect_member_constant_types(
@@ -19,7 +19,10 @@ impl SignatureCollector<'_> {
             match unwrapped_item(self.inputs[source.index()].ast(), *item)? {
                 Item::Constant { name, type_ref, .. } => {
                     let Some(symbol) = self.marker_symbol(source, *name) else {
-                        continue;
+                        if diagnosed_missing_name(self.inputs[source.index()], *name) {
+                            continue;
+                        }
+                        return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
                     };
                     let ty = match type_ref {
                         Some(type_ref) => self.resolve_type_ref(source, *type_ref)?,

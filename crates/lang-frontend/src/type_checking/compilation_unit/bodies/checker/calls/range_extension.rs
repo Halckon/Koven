@@ -22,9 +22,7 @@ impl BodyChecker<'_> {
             }) if arguments.len() == 1 => (RangeSourceKind::View, arguments[0]),
             _ => return Ok(Vec::new()),
         };
-        let declarations = match self
-            .names
-            .names()
+        let declarations = match self.names
             .value_lookup_hints()
             .iter()
             .find(|hint| hint.source_unit() == source && hint.span() == name)

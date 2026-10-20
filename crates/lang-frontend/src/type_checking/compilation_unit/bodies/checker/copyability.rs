@@ -24,9 +24,16 @@ struct CapabilityQuery<'a> {
     signatures: &'a CompilationUnitSignatures,
 }
 
+/// Evidence only: this never changes the public capability classification.
+#[derive(Default)]
+struct CopyabilityFailureTrace {
+    source_error: bool,
+    unexplained: bool,
+}
+
 impl CapabilityQuery<'_> {
     pub(super) fn copyability_of(&self, ty: UnitTypeId) -> Copyability {
-        self.copyability_with(ty, &BTreeMap::new(), &mut BTreeSet::new())
+        self.copyability_with(ty, &BTreeMap::new(), &mut BTreeSet::new(), None)
     }
 
     fn copyability_with(
@@ -34,7 +41,12 @@ impl CapabilityQuery<'_> {
         ty: UnitTypeId,
         substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
         active: &mut BTreeSet<DeclarationId>,
+        mut trace: Option<&mut CopyabilityFailureTrace>,
     ) -> Copyability {
+        if let Some(trace) = trace.as_deref_mut() {
+            trace.unexplained |=
+                !self.complete_type_inputs(ty, substitutions, &mut BTreeSet::new());
+        }
         match self.signatures.types().get(ty) {
             Some(
                 UnitTypeKind::Builtin(
@@ -63,20 +75,20 @@ impl CapabilityQuery<'_> {
                 | UnitTypeKind::Intrinsic { .. },
             ) => Copyability::MoveOnly,
             Some(UnitTypeKind::Nullable(inner)) => {
-                self.copyability_with(*inner, substitutions, active)
+                self.copyability_with(*inner, substitutions, active, trace)
             }
             Some(UnitTypeKind::Nominal {
                 declaration,
                 arguments,
-            }) => self.nominal_copyability(*declaration, arguments, substitutions, active),
+            }) => self.nominal_copyability(*declaration, arguments, substitutions, active, trace),
             Some(UnitTypeKind::EnumCase { root, .. }) => {
-                self.copyability_with(*root, substitutions, active)
+                self.copyability_with(*root, substitutions, active, trace)
             }
             Some(UnitTypeKind::TypeParameter(symbol)) => {
                 if let Some(actual) = substitutions.get(symbol).copied()
                     && actual != ty
                 {
-                    return self.copyability_with(actual, substitutions, active);
+                    return self.copyability_with(actual, substitutions, active, trace);
                 }
                 match self
                     .signatures
@@ -86,7 +98,12 @@ impl CapabilityQuery<'_> {
                     Some(UnitTypeParameterBound::Capability(Capability::Copyable)) => {
                         Copyability::Copyable
                     }
-                    Some(UnitTypeParameterBound::Error) => Copyability::Error,
+                    Some(UnitTypeParameterBound::Error) => {
+                        if let Some(trace) = trace {
+                            trace.unexplained = true;
+                        }
+                        Copyability::Error
+                    }
                     _ => Copyability::MoveOnly,
                 }
             }
@@ -94,10 +111,18 @@ impl CapabilityQuery<'_> {
                 Copyability::MoveOnly
             }
             Some(UnitTypeKind::Deferred(_)) => Copyability::Unknown,
-            Some(
-                UnitTypeKind::Error | UnitTypeKind::StaticSelf(_) | UnitTypeKind::Capability(_),
-            )
-            | None => Copyability::Error,
+            Some(UnitTypeKind::Error) => {
+                if let Some(trace) = trace {
+                    trace.source_error = true;
+                }
+                Copyability::Error
+            }
+            Some(UnitTypeKind::StaticSelf(_) | UnitTypeKind::Capability(_)) | None => {
+                if let Some(trace) = trace {
+                    trace.unexplained = true;
+                }
+                Copyability::Error
+            }
         }
     }
 
@@ -107,6 +132,7 @@ impl CapabilityQuery<'_> {
         arguments: &[UnitTypeId],
         outer: &BTreeMap<UnitSymbolId, UnitTypeId>,
         active: &mut BTreeSet<DeclarationId>,
+        mut trace: Option<&mut CopyabilityFailureTrace>,
     ) -> Copyability {
         if self
             .signatures
@@ -114,6 +140,9 @@ impl CapabilityQuery<'_> {
             .contains(&declaration)
             || !active.insert(declaration)
         {
+            if let Some(trace) = trace {
+                trace.unexplained = true;
+            }
             return Copyability::Error;
         }
         let Some(nominal) = self
@@ -122,12 +151,32 @@ impl CapabilityQuery<'_> {
             .and_then(|signature| signature.nominal())
         else {
             active.remove(&declaration);
+            if let Some(trace) = trace {
+                trace.unexplained = true;
+            }
             return Copyability::Error;
         };
         let result = match nominal.kind() {
             NominalKind::Class | NominalKind::Object => Copyability::MoveOnly,
-            NominalKind::Interface => Copyability::Error,
+            NominalKind::Interface => {
+                if let Some(trace) = trace.as_deref_mut() {
+                    trace.unexplained = true;
+                }
+                Copyability::Error
+            }
             NominalKind::ValueClass | NominalKind::EnumClass => {
+                if let Some(trace) = trace.as_deref_mut() {
+                    // Never let zip silently certify missing/extra arguments or replace an
+                    // unrelated outer mapping. These checks affect evidence, not the result.
+                    trace.unexplained |= nominal.type_parameters().len() != arguments.len()
+                        || nominal.type_parameters().iter().any(|p| outer.contains_key(p));
+                    let fields = nominal.fields().iter().chain(
+                        nominal.enum_cases().iter().flat_map(|case| case.payloads()),
+                    );
+                    trace.unexplained |= fields.into_iter().any(|field| {
+                        self.signatures.symbol_type(field.symbol()) != Some(field.ty())
+                    });
+                }
                 let mut substitutions = outer.clone();
                 substitutions.extend(
                     nominal
@@ -154,13 +203,121 @@ impl CapabilityQuery<'_> {
                     .fold(Copyability::Copyable, |state, component| {
                         combine(
                             state,
-                            self.copyability_with(component, &substitutions, active),
+                            self.copyability_with(
+                                component,
+                                &substitutions,
+                                active,
+                                trace.as_deref_mut(),
+                            ),
                         )
                     })
             }
         };
         active.remove(&declaration);
         result
+    }
+
+    /// Structural completeness is a veto only, never evidence of a source Error.
+    /// Do not substitute/intern: missing IDs must not turn into fallback Error nodes.
+    /// Nominal layouts are visited by the capability query above, not a second algorithm.
+    fn complete_type_inputs(
+        &self,
+        ty: UnitTypeId,
+        substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+        active: &mut BTreeSet<UnitTypeId>,
+    ) -> bool {
+        if !active.insert(ty) {
+            return false;
+        }
+        let complete = match self.signatures.types().get(ty) {
+            Some(UnitTypeKind::Builtin(_) | UnitTypeKind::IntegerLiteral(_) | UnitTypeKind::Error) => {
+                true
+            }
+            Some(UnitTypeKind::Nullable(inner)) => {
+                self.complete_type_inputs(*inner, substitutions, active)
+            }
+            Some(UnitTypeKind::Function { parameters, return_type, .. }) => {
+                parameters.iter().all(|p| self.complete_type_inputs(p.ty(), substitutions, active))
+                    && self.complete_type_inputs(*return_type, substitutions, active)
+            }
+            Some(UnitTypeKind::Intrinsic { arguments, .. }) => arguments
+                .iter()
+                .all(|argument| self.complete_type_inputs(*argument, substitutions, active)),
+            Some(UnitTypeKind::Nominal { declaration, arguments }) => {
+                self.complete_nominal_identity(*declaration, arguments.len())
+                    && arguments.iter().all(|argument| {
+                        self.complete_type_inputs(*argument, substitutions, active)
+                    })
+            }
+            Some(UnitTypeKind::TypeParameter(symbol)) => {
+                let identity = self.signatures.type_parameter(*symbol).is_some_and(|parameter| {
+                    parameter.symbol() == *symbol
+                        && !matches!(
+                            parameter.bound(),
+                            UnitTypeParameterBound::Error | UnitTypeParameterBound::Interface(_)
+                        )
+                }) && self.signatures.symbol_type(*symbol) == Some(ty);
+                identity && match substitutions.get(symbol).copied() {
+                    Some(actual) if actual != ty => {
+                        self.complete_type_inputs(actual, substitutions, active)
+                    }
+                    _ => true,
+                }
+            }
+            // Refinement identity and static/interface capabilities are not part of
+            // this finite nominal-field/payload source-error proof.
+            Some(
+                UnitTypeKind::EnumCase { .. }
+                | UnitTypeKind::StaticSelf(_)
+                | UnitTypeKind::Capability(_)
+                | UnitTypeKind::Deferred(_),
+            )
+            | None => false,
+        };
+        active.remove(&ty);
+        complete
+    }
+
+    fn complete_nominal_identity(&self, declaration: DeclarationId, arity: usize) -> bool {
+        let Some(signature) = self.signatures.declaration(declaration) else {
+            return false;
+        };
+        let Some(nominal) = signature.nominal() else {
+            return false;
+        };
+        if signature.declaration() != declaration
+            || nominal.declaration() != declaration
+            || self.signatures.invalid_inline_nominals().contains(&declaration)
+            || signature.symbol() != nominal.symbol()
+            || signature.ty() != nominal.ty()
+            || self.signatures.symbol_type(nominal.symbol()) != Some(nominal.ty())
+            || nominal.type_parameters().len() != arity
+        {
+            return false;
+        }
+        let Some(UnitTypeKind::Nominal { declaration: own, arguments }) =
+            self.signatures.types().get(nominal.ty())
+        else {
+            return false;
+        };
+        let mut parameters = BTreeSet::new();
+        *own == declaration
+            && arguments.len() == arity
+            && nominal.type_parameters().iter().zip(arguments).all(|(symbol, ty)| {
+                parameters.insert(*symbol)
+                    && self.signatures.symbol_type(*symbol) == Some(*ty)
+                    && matches!(
+                        self.signatures.types().get(*ty),
+                        Some(UnitTypeKind::TypeParameter(actual)) if actual == symbol
+                    )
+                    && self.signatures.type_parameter(*symbol).is_some_and(|parameter| {
+                        parameter.symbol() == *symbol
+                            && !matches!(
+                                parameter.bound(),
+                                UnitTypeParameterBound::Error | UnitTypeParameterBound::Interface(_)
+                            )
+                    })
+            })
     }
 
     pub(super) fn transferability_of(&self, ty: UnitTypeId) -> UnitTransferability {
@@ -325,6 +482,20 @@ pub(in crate::type_checking::compilation_unit) fn unit_copyability(
     ty: UnitTypeId,
 ) -> Copyability {
     CapabilityQuery { signatures }.copyability_of(ty)
+}
+
+pub(in crate::type_checking::compilation_unit) fn unit_copyability_error_is_diagnostic(
+    signatures: &CompilationUnitSignatures,
+    ty: UnitTypeId,
+) -> bool {
+    let mut trace = CopyabilityFailureTrace::default();
+    let result = CapabilityQuery { signatures }.copyability_with(
+        ty,
+        &BTreeMap::new(),
+        &mut BTreeSet::new(),
+        Some(&mut trace),
+    );
+    result == Copyability::Error && trace.source_error && !trace.unexplained
 }
 
 pub(in crate::type_checking) fn unit_transferability(

@@ -4,22 +4,22 @@ use super::{
     UnitOwnershipBindingDescriptor, capture, contracts, dataflow,
 };
 use crate::{
-    name_resolution::{SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames},
+    name_resolution::{CompilationUnitNames, SourceUnitInput, UnitSymbolId},
     source::{SourceMap, Span},
     type_checking::{CompilationUnitTypes, ParameterMode, TypeEnvironment, UnitCallableSignature},
 };
 use std::collections::BTreeMap;
 
-/// Callers provide their validated capability's view; identity is rechecked before any analysis.
+/// Strict 与 recovery 共用算法；任何调用均先复核真实身份，不借宿主授予资格。
 pub(super) fn analyze(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     environment: &TypeEnvironment,
     typed: &CompilationUnitTypes,
     constant_control: bool,
 ) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
-    if !typed.is_compatible_with(sources, inputs, names, environment) {
+    if !typed.is_compatible_with_raw(sources, inputs, names, environment) {
         return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes);
     }
 
@@ -42,7 +42,7 @@ pub(super) fn analyze(
             UnitOwnershipBindingDescriptor::new(*symbol, binding_kind(*mode), span),
         )?;
     }
-    for plan in typed.sequential_iterations() {
+    for plan in typed.diagnostic_sequential_iterations() {
         for symbol in plan.binding().symbols() {
             insert_binding(
                 names,
@@ -56,9 +56,8 @@ pub(super) fn analyze(
         }
     }
     // 全表逐项复核真实 For；不从未选择 AST 创建 required roots。
-    for plan in typed.map_iterations() {
+    for plan in typed.diagnostic_map_iterations() {
         let source = names
-            .names()
             .index()
             .source_units()
             .iter()
@@ -71,11 +70,13 @@ pub(super) fn analyze(
             })
             .map(|input| input.parsed());
         if parsed.is_none_or(|parsed| {
-            !crate::type_checking::map_iteration_validation::validate_unit_map_iteration(
+            !crate::type_checking::map_iteration_validation::validate_unit_map_iteration_facts(
                 parsed,
                 names,
                 typed,
                 plan.statement(),
+                Some(plan),
+                typed.diagnostic_sequential_iteration(plan.statement()),
             )
         }) {
             return Err(OwnershipCheckingError::InvalidMapIteration {
@@ -112,7 +113,7 @@ pub(super) fn analyze(
             &capture.transferabilities,
         ),
     )?;
-    if !dataflow.diagnostics.is_empty() {
+    if !dataflow.diagnostics.is_empty() || !typed.has_valid_type_facts() {
         dataflow.formed_owned_locals.clear();
         dataflow.receiver_facts.clear();
         dataflow.conditional_receiver_deliveries.clear();
@@ -140,7 +141,7 @@ pub(super) fn analyze(
 
 fn collect_callable_bindings(
     callable: &UnitCallableSignature,
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     bindings: &mut BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
 ) -> Result<(), OwnershipCheckingError> {
     if let Some(symbol) = callable.extension_receiver_symbol() {
@@ -172,7 +173,7 @@ fn collect_callable_bindings(
 }
 
 fn insert_binding(
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     bindings: &mut BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
     descriptor: UnitOwnershipBindingDescriptor,
 ) -> Result<(), OwnershipCheckingError> {
@@ -188,11 +189,10 @@ fn insert_binding(
 }
 
 fn unit_symbol_span(
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     symbol: UnitSymbolId,
 ) -> Result<Span, OwnershipCheckingError> {
     names
-        .names()
         .source_units()
         .get(symbol.source_unit().index())
         .and_then(|source| source.resolution().symbols().get(symbol.symbol().index()))

@@ -66,7 +66,8 @@ impl CompilationUnitConstantOwnership {
 
     /// 仅在主分析已原子发布完整物化与短路事实时验证；不会取得基础 native capability。
     pub fn validate(self) -> Result<ConstEnabledOwnedUnit, Box<Self>> {
-        if self.0.constant_materializations.is_some()
+        if self.0.provenance.typed_const_is_valid
+            && self.0.constant_materializations.is_some()
             && self.0.short_circuits.is_some()
             && self.0.ownership_primitives_are_valid()
             && self.0.field_replacements_are_valid()
@@ -167,7 +168,7 @@ pub fn check_compilation_unit_constant_ownership(
     environment: &TypeEnvironment,
     typed: &ConstEnabledTypedUnit,
 ) -> Result<CompilationUnitConstantOwnership, OwnershipCheckingError> {
-    let mut owned = analysis::analyze(sources, inputs, names, environment, typed.types(), true)?;
+    let mut owned = analysis::analyze(sources, inputs, names.names(), environment, typed.types(), true)?;
     owned.provenance.requires_constant_capability = true;
     Ok(CompilationUnitConstantOwnership(owned))
 }

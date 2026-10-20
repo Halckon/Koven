@@ -142,7 +142,7 @@ impl Fixture {
         analysis::analyze(
             &self.sources,
             &self.inputs(),
-            &self.names,
+            self.names.names(),
             &self.environment,
             self.typed.types(),
             false,
@@ -153,15 +153,21 @@ impl Fixture {
     pub(super) fn parts(&self, shared: &CompilationUnitOwnership) -> Parts {
         assert!(shared.is_compatible_with(&self.typed));
         let inputs = self.inputs();
-        let arguments =
-            contracts::collect_call_argument_contracts(&inputs, &self.names, self.typed.types())
-                .unwrap();
-        let receivers =
-            contracts::collect_call_receiver_contracts(&inputs, &self.names, self.typed.types())
-                .unwrap();
+        let arguments = contracts::collect_call_argument_contracts(
+            &inputs,
+            self.names.names(),
+            self.typed.types(),
+        )
+        .unwrap();
+        let receivers = contracts::collect_call_receiver_contracts(
+            &inputs,
+            self.names.names(),
+            self.typed.types(),
+        )
+        .unwrap();
         assert_eq!(arguments, shared.call_argument_contracts());
         assert_eq!(receivers, shared.call_receiver_contracts());
-        let capture = capture::analyze(&inputs, &self.names, self.typed.types()).unwrap();
+        let capture = capture::analyze(&inputs, self.names.names(), self.typed.types()).unwrap();
         assert_eq!(capture.captures, shared.captures());
         assert_eq!(capture.closures, shared.closures());
         Parts {
@@ -180,7 +186,7 @@ impl Fixture {
         dataflow::analyze(
             &self.sources,
             &self.inputs(),
-            &self.names,
+            self.names.names(),
             self.typed.types(),
             false,
             &parts.bindings,

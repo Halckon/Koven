@@ -39,7 +39,7 @@ impl Checker<'_> {
     }
     fn named_callable(&self, expression: ExpressionId) -> Option<UnitCallableTarget> {
         let span = self.parsed.ast().expressions().get(expression).ok()?.span();
-        let reference = self.names.names().references().iter().find(|reference| {
+        let reference = self.names.references().iter().find(|reference| {
             reference.source_unit() == self.source_unit && reference.span() == span
         })?;
         let UnitReferenceTarget::Declaration(declaration) = reference.target() else {
@@ -116,7 +116,7 @@ impl Checker<'_> {
             .filter_map(|signature| signature.callable())
             .find(|callable| match callable.target() {
                 UnitCallableTarget::Declaration(declaration) => {
-                    self.names.names().declaration_symbol(declaration) == symbol
+                    self.names.declaration_symbol(declaration) == symbol
                 }
                 UnitCallableTarget::Symbol(local) => Some(local) == symbol,
             });

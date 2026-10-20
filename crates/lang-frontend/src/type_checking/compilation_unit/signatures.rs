@@ -9,7 +9,7 @@ use crate::{
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
         DeclarationId, DeclarationVisibility, Namespace, SourceUnitId, SourceUnitInput, SymbolId,
-        SymbolKind, UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
+        SymbolKind, UnitReferenceTarget, UnitSymbolId, CompilationUnitNames, ValidatedCompilationUnitNames,
         index_compilation_unit, ordered_unit_diagnostics,
     },
     parser::{
@@ -48,7 +48,16 @@ pub fn collect_compilation_unit_signatures(
     names: &ValidatedCompilationUnitNames,
     environment: &TypeEnvironment,
 ) -> Result<CompilationUnitSignatures, CompilationUnitTypeError> {
-    let unit_names = names.names();
+    collect_compilation_unit_signatures_recovering(sources, inputs, names.names(), environment)
+}
+
+/// 实际 recovery 门复用同一 collector；仍完整核验 source/name/environment 身份。
+pub(crate) fn collect_compilation_unit_signatures_recovering(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    unit_names: &CompilationUnitNames,
+    environment: &TypeEnvironment,
+) -> Result<CompilationUnitSignatures, CompilationUnitTypeError> {
     let rebuilt = index_compilation_unit(sources, inputs)
         .map_err(|_| CompilationUnitTypeError::MismatchedInputs)?;
     if &rebuilt != unit_names.index() {
@@ -185,7 +194,7 @@ impl<'a> SignatureCollector<'a> {
             .map(|source| source.resolution().analysis_owner().clone())
             .collect();
         let provenance =
-            SignatureProvenance::new(input_index, environment_owner, name_analysis_owners);
+            SignatureProvenance::new(input_index, environment_owner, name_analysis_owners, self.names.is_valid());
         Ok(CompilationUnitSignatures::new(
             provenance,
             self.types,
@@ -447,6 +456,8 @@ impl<'a> SignatureCollector<'a> {
     ) -> Result<(), CompilationUnitTypeError> {
         for item in &body.members {
             match unwrapped_item(self.inputs[source.index()].ast(), *item)? {
+                Item::Function { name, .. }
+                    if diagnosed_missing_name(self.inputs[source.index()], *name) => {}
                 Item::Function { .. } => members.push(
                     self.callable_signature(
                         source,
@@ -460,10 +471,12 @@ impl<'a> SignatureCollector<'a> {
                 ),
                 Item::Companion(companion) => {
                     for companion_item in &companion.body.members {
-                        if !matches!(
-                            unwrapped_item(self.inputs[source.index()].ast(), *companion_item)?,
-                            Item::Function { .. }
-                        ) {
+                        let Item::Function { name, .. } =
+                            unwrapped_item(self.inputs[source.index()].ast(), *companion_item)?
+                        else {
+                            continue;
+                        };
+                        if diagnosed_missing_name(self.inputs[source.index()], *name) {
                             continue;
                         }
                         companion_members.push(
@@ -940,6 +953,21 @@ impl<'a> SignatureCollector<'a> {
         self.diagnostics.push(diagnostic);
         Ok(())
     }
+}
+
+/// Only the parser's actual rejected name permits a declaration without an identity.
+/// A missing symbol for a Present name remains an internal consistency failure.
+pub(super) fn diagnosed_missing_name(file: &ParsedFile, name: NameMarker) -> bool {
+    let (NameMarker::Missing(span) | NameMarker::Error(span)) = name else {
+        return false;
+    };
+    file.diagnostics().iter().any(|diagnostic| {
+        let primary = diagnostic.primary_span();
+        diagnostic.severity() == Severity::Error
+            && primary.source_id() == span.source_id()
+            && span.start() <= primary.start()
+            && primary.end() <= span.end()
+    })
 }
 
 fn unwrapped_item(ast: &SyntaxAst, id: ItemId) -> Result<&Item, CompilationUnitTypeError> {

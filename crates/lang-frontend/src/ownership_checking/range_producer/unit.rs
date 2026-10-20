@@ -1,18 +1,18 @@
 //! 将 unit 已选择 target 和 source-qualified 名称投影到同一返回依赖证明。
 use super::*;
 use crate::{
-    name_resolution::{SourceUnitInput, UnitReferenceTarget, ValidatedCompilationUnitNames},
+    name_resolution::{CompilationUnitNames, SourceUnitInput, UnitReferenceTarget},
     type_checking::{CompilationUnitTypes, UnitExpressionId},
 };
 
 pub(in crate::ownership_checking) fn collect_unit(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     typed: &CompilationUnitTypes,
 ) -> Result<Vec<Span>, OwnershipCheckingError> {
     let mut collected = Vec::new();
-    for source in names.names().index().source_units() {
+    for source in names.index().source_units() {
         let Some(input) = inputs
             .iter()
             .find(|input| input.source_id() == source.source_id())
@@ -31,7 +31,6 @@ pub(in crate::ownership_checking) fn collect_unit(
                     return None;
                 }
                 let reference = names
-                    .names()
                     .references()
                     .iter()
                     .find(|r| r.span() == node.span())?;
@@ -39,7 +38,6 @@ pub(in crate::ownership_checking) fn collect_unit(
                     return None;
                 };
                 let local = names
-                    .names()
                     .source_units()
                     .iter()
                     .find(|unit| unit.source_unit() == symbol.source_unit())?;
@@ -58,7 +56,7 @@ pub(in crate::ownership_checking) fn collect_unit(
                     .find(|c| c.name_span() == name)?;
                 callable.range_extension()?;
                 let symbol = callable.extension_receiver_symbol()?;
-                names.names().source_units()[symbol.source_unit().index()]
+                names.source_units()[symbol.source_unit().index()]
                     .resolution()
                     .symbols()
                     .get(symbol.symbol().index())
@@ -68,7 +66,7 @@ pub(in crate::ownership_checking) fn collect_unit(
                 let call = typed.calls().iter().find(|call| {
                     call.expression() == UnitExpressionId::new(source.id(), expression)
                 })?;
-                if let Some(range) = call.range_construction() {
+                if let Some(range) = typed.diagnostic_range_construction(call.expression()) {
                     return Some((range.source().expression(), None));
                 }
                 let CallableResultSource::Carrier(contract) = call.result_source() else {

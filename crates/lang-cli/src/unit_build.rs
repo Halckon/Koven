@@ -55,6 +55,7 @@ pub(crate) enum UnitBuildError {
     ProjectEntry(ProjectEntryError),
     SingleEntry(SingleEntryError),
     MissingSingleSource,
+    UnresolvedPackageIdentity,
     Codegen(NativeObjectError),
 }
 
@@ -161,6 +162,9 @@ impl fmt::Display for UnitBuildError {
             Self::InvalidAst(error) => write!(formatter, "entry AST is invalid: {error}"),
             Self::ProjectEntry(error) => error.fmt(formatter),
             Self::SingleEntry(error) => error.fmt(formatter),
+            Self::UnresolvedPackageIdentity => {
+                formatter.write_str("validated unit contains an unresolved package identity")
+            }
             Self::MissingSingleSource => {
                 formatter.write_str("single-file entry source is absent from compilation unit")
             }
@@ -421,14 +425,16 @@ fn select_project_entry(
         .split_last()
         .expect("validated project selector has at least one segment");
     let index = names.names().index();
-    let Some(package) = index.packages().iter().find(|package| {
-        package
-            .name()
-            .segments()
-            .iter()
-            .map(String::as_str)
+    let mut selected_package = None;
+    for package in index.packages() {
+        let package_name = package.name().ok_or(UnitBuildError::UnresolvedPackageIdentity)?;
+        if package_name.segments().iter().map(String::as_str)
             .eq(package_segments.iter().map(String::as_str))
-    }) else {
+        {
+            selected_package = Some(package);
+        }
+    }
+    let Some(package) = selected_package else {
         return Err(UnitBuildError::ProjectEntry(ProjectEntryError::Missing(
             selector_text,
         )));

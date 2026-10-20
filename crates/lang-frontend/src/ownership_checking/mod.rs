@@ -26,6 +26,7 @@ mod non_null_assertion;
 mod nullable_when;
 mod ownership_primitive;
 mod range_producer;
+pub(crate) use compilation_unit::check_compilation_unit_ownership_recovering;
 mod rc;
 mod string;
 

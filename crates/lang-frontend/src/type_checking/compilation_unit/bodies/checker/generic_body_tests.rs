@@ -5,7 +5,7 @@ use crate::{
     lexer::lex,
     name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
     parser::parse_file,
-    type_checking::{IntrinsicTypeConstructor, UnitTypeTable, standard_environments},
+    type_checking::{IntrinsicTypeConstructor, UnitTypeTable, collect_compilation_unit_signatures, standard_environments},
 };
 
 fn checked_with_limit(text: &str, limit: usize) -> CompilationUnitTypes {
@@ -27,7 +27,7 @@ fn checked_with_limit(text: &str, limit: usize) -> CompilationUnitTypes {
         .unwrap();
     let signatures =
         collect_compilation_unit_signatures(&sources, &inputs, &names, &type_environment).unwrap();
-    let typed = BodyChecker::new(&sources, &inputs, &names, &type_environment, signatures)
+    let typed = BodyChecker::new(&sources, &inputs, names.names(), &type_environment, signatures)
         .unwrap()
         .run_with_generic_limit(limit)
         .unwrap();

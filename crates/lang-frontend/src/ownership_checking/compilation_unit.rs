@@ -52,7 +52,8 @@ use std::sync::Arc;
 use crate::{
     diagnostic::{Diagnostic, Severity},
     name_resolution::{
-        DeclarationId, SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames,
+        CompilationUnitNames, DeclarationId, SourceUnitInput, UnitSymbolId,
+        ValidatedCompilationUnitNames,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -582,6 +583,8 @@ struct UnitOwnershipProvenance {
     typed_analysis_owner: Arc<()>,
     analysis_owner: Arc<()>,
     requires_constant_capability: bool,
+    typed_basic_is_valid: bool,
+    typed_const_is_valid: bool,
 }
 
 /// SPEC-0198 的 recovery compilation-unit ownership product。
@@ -699,7 +702,7 @@ impl CompilationUnitOwnership {
         capture: capture::Analysis,
         dataflow: dataflow::Analysis,
     ) -> Self {
-        let successful = dataflow.diagnostics.is_empty();
+        let successful = dataflow.diagnostics.is_empty() && typed.has_valid_type_facts();
         let mut capture = capture;
         if dataflow.short_circuits.is_some() {
             capture
@@ -773,6 +776,8 @@ impl CompilationUnitOwnership {
             callable_provenance: dataflow.callable_provenance,
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
+                typed_basic_is_valid: typed.has_valid_basic_types(),
+                typed_const_is_valid: typed.has_valid_constant_types(),
                 analysis_owner: Arc::new(()),
                 requires_constant_capability: typed
                     .constants()
@@ -1054,7 +1059,8 @@ impl CompilationUnitOwnership {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity() == Severity::Error);
-        if has_error
+        if !self.provenance.typed_basic_is_valid
+            || has_error
             || !self.deferred.is_empty()
             || self.provenance.requires_constant_capability
             || !self.ownership_primitives_are_valid()
@@ -1101,5 +1107,23 @@ pub fn check_compilation_unit_ownership(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
-    analysis::analyze(sources, inputs, names, environment, typed.types(), false)
+    analysis::analyze(
+        sources,
+        inputs,
+        names.names(),
+        environment,
+        typed.types(),
+        false,
+    )
+}
+
+/// 同一 producer 的诊断入口；上游资格在产物中继承，constant control 仍为普通保守遍历。
+pub(crate) fn check_compilation_unit_ownership_recovering(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &CompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &CompilationUnitTypes,
+) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
+    analysis::analyze(sources, inputs, names, environment, typed, false)
 }

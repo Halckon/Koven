@@ -1,4 +1,4 @@
-//! SPEC-0253 旧 legacy 协议合同，不套用 source-set 的版本/事务策略。
+//! 单文档 Unit 协议保留既有 lifecycle 合同；期望仅来自已审阅的固定观测。
 
 use std::collections::BTreeMap;
 
@@ -6,18 +6,17 @@ use lsp_types::{Location, Range, Uri};
 
 use super::*;
 use crate::{
-    diagnostic_adapter::convert_diagnostics,
-    server::{NotificationError, OpenDocument, ServerError, handle_legacy_notification},
-    single_file_oracle::{RECOVERY, assert_diagnostics, manual, position, target_snapshot},
+    server::{NotificationError, OpenDocument, ServerError, handle_single_document_notification},
+    single_file_oracle::{RECOVERY, assert_recovery_snapshot, position, recovery_publication},
 };
 
 #[test]
-fn legacy_protocol_recovery_equal_older_and_duplicate_open_match_manual_publications() {
+fn single_document_protocol_recovery_equal_older_and_duplicate_open_match_frozen_publications() {
     let (server, client) = Connection::memory();
     let server_thread = thread::spawn(|| run(server));
     initialize(&client);
     let uri: Uri = "file:///legacy-recovery.ko".parse().expect("URI");
-    // 与 unit session 不同：同版本、旧版本 change 和重复 open 均被旧 legacy 接受。
+    // 与 unit session 不同：同版本、旧版本 change 和重复 open 仍被独立单文档会话接受。
     for (index, method, version, prefix) in [
         (0, DidOpenTextDocument::METHOD, 5, ""),
         (1, DidChangeTextDocument::METHOD, 5, "\r\n"),
@@ -33,7 +32,7 @@ fn legacy_protocol_recovery_equal_older_and_duplicate_open_match_manual_publicat
         send_notification(&client, method, notification.params);
         assert_eq!(
             receive_diagnostics(&client),
-            publication(&uri, version, &source)
+            recovery_publication(&uri, version, &source)
         );
         let declaration = source.find("target").expect("declaration");
         let reference = source.rfind("target").expect("reference");
@@ -91,9 +90,12 @@ fn legacy_invalid_changes_preserve_version_diagnostics_and_navigation_without_pu
     let (server, client) = Connection::memory();
     let uri: Uri = "file:///legacy-atomic.ko".parse().expect("URI");
     let mut documents = BTreeMap::new();
-    handle_legacy_notification(&server, open(&uri, 7, RECOVERY), &mut documents)
+    handle_single_document_notification(&server, open(&uri, 7, RECOVERY), &mut documents)
         .expect("initial open");
-    assert_eq!(receive_diagnostics(&client), publication(&uri, 7, RECOVERY));
+    assert_eq!(
+        receive_diagnostics(&client),
+        recovery_publication(&uri, 7, RECOVERY)
+    );
     for changes in [
         serde_json::json!([]),
         serde_json::json!([{"text": ""}, {"text": ""}]),
@@ -105,7 +107,7 @@ fn legacy_invalid_changes_preserve_version_diagnostics_and_navigation_without_pu
             serde_json::json!({"textDocument":{"uri":uri,"version":8}, "contentChanges":changes}),
         );
         assert!(matches!(
-            handle_legacy_notification(&server, notification, &mut documents),
+            handle_single_document_notification(&server, notification, &mut documents),
             Err(NotificationError::ExpectedSingleFullChange)
         ));
         assert_document(&documents, &uri, 7, RECOVERY);
@@ -114,17 +116,19 @@ fn legacy_invalid_changes_preserve_version_diagnostics_and_navigation_without_pu
             "invalid change published"
         );
     }
-    // 旧链先判 unopened，再检查 full-change shape；空 changes 在 unopened URI 上被忽略。
+    // 单文档先判 unopened，再检查 full-change shape；空 changes 在 unopened URI 上被忽略。
     let unopened: Uri = "file:///never-opened.ko".parse().expect("URI");
     let ignored = Notification::new(
         DidChangeTextDocument::METHOD.to_owned(),
         serde_json::json!({"textDocument":{"uri":unopened,"version":1}, "contentChanges":[]}),
     );
-    handle_legacy_notification(&server, ignored, &mut documents).expect("unopened change ignored");
+    handle_single_document_notification(&server, ignored, &mut documents)
+        .expect("unopened change ignored");
     assert_document(&documents, &uri, 7, RECOVERY);
     assert!(client.receiver.try_recv().is_err());
 }
 
+// CI-only: 故意断开 transport；保留断言，禁止本地执行或扩入普通精确选集。
 #[test]
 fn legacy_open_and_change_publish_before_commit_but_close_removes_before_publish() {
     let uri: Uri = "file:///legacy-disconnected.ko".parse().expect("URI");
@@ -132,9 +136,12 @@ fn legacy_open_and_change_publish_before_commit_but_close_removes_before_publish
         let (server, client) = Connection::memory();
         let mut documents = BTreeMap::new();
         if action != "open" {
-            handle_legacy_notification(&server, open(&uri, 7, RECOVERY), &mut documents)
+            handle_single_document_notification(&server, open(&uri, 7, RECOVERY), &mut documents)
                 .expect("initial commit");
-            assert_eq!(receive_diagnostics(&client), publication(&uri, 7, RECOVERY));
+            assert_eq!(
+                receive_diagnostics(&client),
+                recovery_publication(&uri, 7, RECOVERY)
+            );
         }
         drop(client.receiver);
         let replacement = "fun replacement(): Unit {}";
@@ -146,7 +153,7 @@ fn legacy_open_and_change_publish_before_commit_but_close_removes_before_publish
         };
         assert!(
             matches!(
-                handle_legacy_notification(&server, notification, &mut documents),
+                handle_single_document_notification(&server, notification, &mut documents),
                 Err(NotificationError::Server(ServerError::Disconnected))
             ),
             "{action}"
@@ -154,7 +161,7 @@ fn legacy_open_and_change_publish_before_commit_but_close_removes_before_publish
         if matches!(action, "open" | "close") {
             assert!(
                 documents.is_empty(),
-                "{action}: old legacy transaction boundary"
+                "{action}: single-document transaction boundary"
             );
         } else {
             assert_document(&documents, &uri, 7, RECOVERY);
@@ -170,42 +177,7 @@ fn assert_document(
 ) {
     let document = documents.get(uri.as_str()).expect("committed document");
     assert_eq!(document.version, version);
-    let expected = manual(uri.as_str(), source);
-    assert_diagnostics(
-        &document.analysis.sources,
-        &document.analysis.diagnostics,
-        &expected.sources,
-        &expected.diagnostics,
-        uri.as_str(),
-    );
-    assert_eq!(
-        document
-            .analysis
-            .sources
-            .source_text(document.analysis.definitions.source_id())
-            .expect("source"),
-        source
-    );
-    for offset in (0..=source.len()).filter(|offset| source.is_char_boundary(*offset)) {
-        assert_eq!(
-            target_snapshot(
-                &document.analysis.sources,
-                document.analysis.definitions.targets_at(offset)
-            ),
-            target_snapshot(&expected.sources, expected.definitions.targets_at(offset)),
-            "navigation retained at {offset}"
-        );
-    }
-}
-
-fn publication(uri: &Uri, version: i32, source: &str) -> PublishDiagnosticsParams {
-    let expected = manual(uri.as_str(), source);
-    PublishDiagnosticsParams::new(
-        uri.clone(),
-        convert_diagnostics(&expected.sources, uri, &expected.diagnostics)
-            .expect("manual publication"),
-        Some(version),
-    )
+    assert_recovery_snapshot(&document.analysis, document.source_id, uri, source);
 }
 
 fn open(uri: &Uri, version: i32, text: &str) -> Notification {

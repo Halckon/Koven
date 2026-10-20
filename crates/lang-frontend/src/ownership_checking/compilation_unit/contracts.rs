@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+    name_resolution::{CompilationUnitNames, SourceUnitInput},
     parser::{Expression, ParameterModeMarker, ParsedFile},
     source::Span,
     type_checking::{
@@ -23,7 +23,7 @@ mod map;
 
 pub(super) fn collect_call_receiver_contracts(
     inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     typed: &CompilationUnitTypes,
 ) -> Result<Vec<UnitCallReceiverOwnershipContract>, OwnershipCheckingError> {
     let mut contracts = Vec::new();
@@ -223,7 +223,7 @@ pub(super) fn collect_call_receiver_contracts(
 
 pub(super) fn collect_call_argument_contracts(
     inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     typed: &CompilationUnitTypes,
 ) -> Result<Vec<UnitCallArgumentOwnershipContract>, OwnershipCheckingError> {
     let mut contracts = Vec::new();
@@ -449,7 +449,7 @@ fn validate_unique_container_calls(
 
 fn collect_container_contracts(
     inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     typed: &CompilationUnitTypes,
     descriptor: &UnitContainerConstructionDescriptor,
     contracts: &mut Vec<UnitCallArgumentOwnershipContract>,
@@ -642,12 +642,11 @@ const fn ownership_kind(mode: ParameterMode) -> UnitCallArgumentOwnershipKind {
 
 fn parsed_for_call<'parsed>(
     inputs: &[SourceUnitInput<'parsed>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     call: UnitExpressionId,
 ) -> Result<&'parsed ParsedFile, OwnershipCheckingError> {
     let source_unit = call.source_unit();
     let source_id = names
-        .names()
         .index()
         .source_units()
         .get(source_unit.index())

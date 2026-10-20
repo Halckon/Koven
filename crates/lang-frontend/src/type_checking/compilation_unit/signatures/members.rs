@@ -761,6 +761,12 @@ impl SignatureCollector<'_> {
             let Some(facts) = self.function_facts(source, item)? else {
                 continue;
             };
+            if let Item::Function { name, .. } =
+                unwrapped_item(self.inputs[source.index()].ast(), item)?
+                && super::super::diagnosed_missing_name(self.inputs[source.index()], *name)
+            {
+                continue;
+            }
             let symbol = self
                 .item_symbol(source, item)?
                 .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;

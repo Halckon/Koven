@@ -2,6 +2,8 @@
 
 use std::{collections::BTreeMap, error::Error, fmt};
 
+use lang_frontend::source::SourceId;
+
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
@@ -17,8 +19,9 @@ use lsp_types::{
 };
 
 use crate::{
-    analysis::{Analysis, AnalysisError, analyze},
-    diagnostic_adapter::{DiagnosticMappingError, convert_diagnostics},
+    analysis::{AnalysisError, analyze},
+    diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics},
+    unit_analysis_snapshot::UnitAnalysisSnapshot,
     position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
     unit_session::{UnitDefinitionQueryError, UnitPublication, UnitSession, UnitSessionError},
@@ -85,7 +88,7 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
                 return Ok(());
             }
         },
-        None => (SessionState::Legacy(BTreeMap::new()), None),
+        None => (SessionState::SingleDocument(BTreeMap::new()), None),
     };
     let initialize_result = InitializeResult {
         capabilities: capabilities(),
@@ -149,20 +152,19 @@ fn capabilities() -> ServerCapabilities {
 
 struct OpenDocument {
     version: i32,
-    analysis: Analysis,
+    source_id: SourceId,
+    analysis: UnitAnalysisSnapshot,
 }
 
 enum SessionState {
-    Legacy(BTreeMap<String, OpenDocument>),
+    SingleDocument(BTreeMap<String, OpenDocument>),
     Unit(Box<UnitSession>),
 }
 
 impl OpenDocument {
     fn analyze(uri: &Uri, version: i32, text: &str) -> Result<Self, AnalysisError> {
-        Ok(Self {
-            version,
-            analysis: analyze(uri.as_str(), text)?,
-        })
+        let (source_id, analysis) = analyze(uri.as_str(), text)?;
+        Ok(Self { version, source_id, analysis })
     }
 }
 
@@ -172,14 +174,14 @@ fn handle_notification(
     state: &mut SessionState,
 ) -> Result<(), NotificationError> {
     match state {
-        SessionState::Legacy(documents) => {
-            handle_legacy_notification(connection, notification, documents)
+        SessionState::SingleDocument(documents) => {
+            handle_single_document_notification(connection, notification, documents)
         }
         SessionState::Unit(session) => handle_unit_notification(connection, notification, session),
     }
 }
 
-fn handle_legacy_notification(
+fn handle_single_document_notification(
     connection: &Connection,
     notification: Notification,
     documents: &mut BTreeMap<String, OpenDocument>,
@@ -284,11 +286,11 @@ fn publish_document(
     uri: &Uri,
     document: &OpenDocument,
 ) -> Result<(), NotificationError> {
-    let diagnostics = convert_diagnostics(
-        &document.analysis.sources,
-        uri,
-        &document.analysis.diagnostics,
-    )?;
+    let diagnostics = convert_unit_diagnostics(
+        document.analysis.name_snapshot().sources(),
+        &[(document.source_id, uri.clone())],
+        document.analysis.diagnostics(),
+    )?.into_iter().next().ok_or(DiagnosticMappingError::UnknownSource(document.source_id))?;
     publish(connection, uri.clone(), Some(document.version), diagnostics)
 }
 
@@ -330,12 +332,16 @@ fn definition_response(
                 Err(error) => return Err(RequestError::Internal(error.to_string())),
             }
         }
-        SessionState::Legacy(documents) => {
+        SessionState::SingleDocument(documents) => {
             let Some(document) = documents.get(position.text_document.uri.as_str()) else {
                 return Ok(None);
             };
-            let source_id = document.analysis.definitions.source_id();
-            let offset = match byte_offset(&document.analysis.sources, source_id, position.position)
+            let source_id = document.source_id;
+            let sources = document.analysis.name_snapshot().sources();
+            let units = document.analysis.name_snapshot().names().index().source_units();
+            let source_unit = units.iter().find(|source| source.source_id() == source_id)
+                .ok_or_else(|| RequestError::Internal("document source is absent from unit".to_owned()))?.id();
+            let offset = match byte_offset(sources, source_id, position.position)
             {
                 Ok(offset) => offset,
                 Err(PositionMappingError::InsideSurrogatePair) => {
@@ -350,11 +356,16 @@ fn definition_response(
             };
             document
                 .analysis
-                .definitions
-                .targets_at(offset)
+                .definitions()
+                .targets_at(source_unit, offset)
                 .iter()
                 .map(|target| {
-                    span_range(&document.analysis.sources, *target)
+                    let target_source = units.iter().find(|source| source.id() == target.source_unit)
+                        .ok_or_else(|| RequestError::Internal("definition target source is absent from unit".to_owned()))?;
+                    if target_source.source_id() != source_id || target.span.source_id() != source_id {
+                        return Err(RequestError::Internal("single document definition target source mismatch".to_owned()));
+                    }
+                    span_range(sources, target.span)
                         .map(|range| Location::new(position.text_document.uri.clone(), range))
                         .map_err(|error| RequestError::Internal(error.to_string()))
                 })

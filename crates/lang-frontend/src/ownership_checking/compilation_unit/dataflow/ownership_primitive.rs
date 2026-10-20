@@ -18,7 +18,7 @@ impl Checker<'_> {
         state: &State,
     ) -> Result<(), OwnershipCheckingError> {
         let call = self.unit_expression(id);
-        let Some(descriptor) = self.typed.ownership_primitive(call) else {
+        let Some(descriptor) = self.typed.diagnostic_ownership_primitive(call) else {
             return Ok(());
         };
         if arguments.len() != 2
@@ -145,7 +145,6 @@ impl Checker<'_> {
             || !self.variable_kinds.contains_key(&place.root())
             || !self
                 .names
-                .names()
                 .source_units()
                 .get(place.root().source_unit().index())
                 .is_some_and(|source| {

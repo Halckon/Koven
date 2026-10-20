@@ -20,7 +20,8 @@ impl BodyChecker<'_> {
         value_type: UnitTypeId,
         diagnostic_start: usize,
     ) -> Result<(), CompilationUnitTypeError> {
-        let symbols = if self.iteration_type_poisoned(source_type) {
+        let type_status = self.iteration_type_status([source_type]);
+        let symbols = if type_status != IterationTypeStatus::Ready {
             None
         } else {
             self.map_iteration_symbols(source_unit, binding)?
@@ -39,8 +40,14 @@ impl BodyChecker<'_> {
                 }
             }
         }
+        let header_is_valid = self.diagnostics.len() == diagnostic_start;
+        if self.iteration_header_rejected(binding, type_status, diagnostic_start) {
+            self.parts
+                .rejected_iteration_headers
+                .push(UnitStatementId::new(source_unit, statement));
+        }
         self.check_loop_body(source_unit, body, return_type, return_span)?;
-        if self.diagnostics.len() == diagnostic_start
+        if header_is_valid
             && let Some([key_binding, value_binding]) = symbols
             && let Some(kind) = MapIterationKind::from_constructor(constructor)
         {

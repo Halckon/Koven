@@ -14,7 +14,14 @@ use crate::{
         UnitSequentialIterationDescriptor, UnitStatementId, UnitTypeId, UnitTypeKind,
     },
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum IterationTypeStatus {
+    Ready,
+    DiagnosticError,
+    Incomplete,
+}
 
 impl BodyChecker<'_> {
     #[allow(clippy::too_many_arguments)]
@@ -74,9 +81,10 @@ impl BodyChecker<'_> {
             }),
         };
         let mut resolved = None;
-        if !self.iteration_type_poisoned(checked.ty) {
+        let mut header_type_status = self.iteration_type_status([checked.ty]);
+        if header_type_status == IterationTypeStatus::Ready {
             if let Some((_, element)) = provider {
-                resolved = self.iteration_binding(source, binding, element)?;
+                (resolved, header_type_status) = self.iteration_binding(source, binding, element)?;
             } else {
                 let span = self
                     .file(source)
@@ -104,8 +112,14 @@ impl BodyChecker<'_> {
                 }
             }
         }
+        let header_is_valid = self.diagnostics.len() == errors;
+        if self.iteration_header_rejected(binding, header_type_status, errors) {
+            self.parts
+                .rejected_iteration_headers
+                .push(UnitStatementId::new(source, statement));
+        }
         self.check_loop_body(source, body, return_type, return_span)?;
-        if self.diagnostics.len() == errors
+        if header_is_valid
             && let (Some((provider, element_type)), Some(binding)) = (provider, resolved)
         {
             self.parts
@@ -125,16 +139,40 @@ impl BodyChecker<'_> {
         })
     }
 
+    /// 只记录当前 header 的真实诊断来源，不把无 descriptor 或未完成类型视作错误。
+    fn iteration_header_rejected(
+        &self,
+        binding: &ForBinding,
+        type_status: IterationTypeStatus,
+        diagnostic_start: usize,
+    ) -> bool {
+        if type_status == IterationTypeStatus::Incomplete {
+            return false;
+        }
+        self.diagnostics[diagnostic_start..]
+            .iter()
+            .any(|diagnostic| diagnostic.severity() == crate::diagnostic::Severity::Error)
+            || type_status == IterationTypeStatus::DiagnosticError
+            || match binding {
+                ForBinding::Name(marker) => !matches!(marker, NameMarker::Present(_)),
+                ForBinding::Destructuring { names, .. } => {
+                    names.iter().any(|marker| !matches!(marker, NameMarker::Present(_)))
+                }
+            }
+    }
+
     fn iteration_binding(
         &mut self,
         source: SourceUnitId,
         binding: &ForBinding,
         element: UnitTypeId,
-    ) -> Result<Option<Binding>, CompilationUnitTypeError> {
+    ) -> Result<(Option<Binding>, IterationTypeStatus), CompilationUnitTypeError> {
         match binding {
-            ForBinding::Name(marker) => Ok(self
-                .iteration_symbol(source, *marker, element)?
-                .map(|symbol| symbol.map_or(Binding::Discard, Binding::Name))),
+            ForBinding::Name(marker) => Ok((
+                self.iteration_symbol(source, *marker, element)?
+                    .map(|symbol| symbol.map_or(Binding::Discard, Binding::Name)),
+                IterationTypeStatus::Ready,
+            )),
             ForBinding::Destructuring {
                 names,
                 left_paren_span,
@@ -152,12 +190,15 @@ impl BodyChecker<'_> {
                     Some(UnitTypeKind::Nominal {
                         declaration,
                         arguments,
-                    }) => self
-                        .signatures
-                        .declaration(declaration)
-                        .and_then(|signature| signature.nominal())
-                        .cloned()
-                        .map(|nominal| (declaration, nominal, arguments)),
+                    }) => {
+                        let nominal = self.signatures.declaration(declaration)
+                            .and_then(|signature| signature.nominal())
+                            .filter(|nominal| nominal.declaration() == declaration
+                                && nominal.type_parameters().len() == arguments.len())
+                            .cloned()
+                            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                        Some((declaration, nominal, arguments))
+                    }
                     _ => None,
                 };
                 let Some((declaration, nominal, arguments)) =
@@ -169,11 +210,11 @@ impl BodyChecker<'_> {
                         pattern,
                         element,
                     )?;
-                    return Ok(None);
+                    return Ok((None, IterationTypeStatus::Ready));
                 };
                 if names.len() != nominal.fields().len() {
                     let declaration_span =
-                        self.names.names().index().declarations()[declaration.index()].name_span();
+                        self.names.index().declarations()[declaration.index()].name_span();
                     self.emit_maybe_label(
                         codes::DESTRUCTURING_ARITY,
                         "value class destructuring must bind every component exactly once",
@@ -181,7 +222,14 @@ impl BodyChecker<'_> {
                         Some(declaration_span),
                         format!("expected {} bindings", nominal.fields().len()),
                     )?;
-                    return Ok(None);
+                    return Ok((None, IterationTypeStatus::Ready));
+                }
+                // substitute 对缺失 ID 的旧 fallback 不能成为恢复证明。
+                // 先核查真实字段图，且所有字段中的 None/Deferred 优先保留为未完成。
+                let field_status =
+                    self.iteration_type_status(nominal.fields().iter().map(|field| field.ty()));
+                if field_status != IterationTypeStatus::Ready {
+                    return Ok((None, field_status));
                 }
                 let substitutions = nominal
                     .type_parameters()
@@ -189,14 +237,19 @@ impl BodyChecker<'_> {
                     .copied()
                     .zip(arguments)
                     .collect::<BTreeMap<_, _>>();
+                let field_types = nominal
+                    .fields()
+                    .iter()
+                    .map(|field| self.substitute_type(field.ty(), &substitutions))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let field_status = self.iteration_type_status(field_types.iter().copied());
+                if field_status != IterationTypeStatus::Ready {
+                    return Ok((None, field_status));
+                }
                 let mut components = Vec::new();
-                for (&marker, field) in names.iter().zip(nominal.fields()) {
-                    let ty = self.substitute_type(field.ty(), &substitutions)?;
-                    if self.iteration_type_poisoned(ty) {
-                        return Ok(None);
-                    }
+                for ((&marker, field), ty) in names.iter().zip(nominal.fields()).zip(field_types) {
                     let Some(symbol) = self.iteration_symbol(source, marker, ty)? else {
-                        return Ok(None);
+                        return Ok((None, IterationTypeStatus::Ready));
                     };
                     components.push(Component {
                         field: field.symbol(),
@@ -204,7 +257,10 @@ impl BodyChecker<'_> {
                         ty,
                     });
                 }
-                Ok(Some(Binding::Destructure(components)))
+                Ok((
+                    Some(Binding::Destructure(components)),
+                    IterationTypeStatus::Ready,
+                ))
             }
         }
     }
@@ -245,7 +301,7 @@ impl BodyChecker<'_> {
                 ) => ty = *inner,
                 Some(UnitTypeKind::Nominal { declaration, .. }) => {
                     let declaration_span =
-                        self.names.names().index().declarations()[declaration.index()].name_span();
+                        self.names.index().declarations()[declaration.index()].name_span();
                     return self.emit_maybe_label(
                         code,
                         message,
@@ -259,20 +315,37 @@ impl BodyChecker<'_> {
         }
     }
 
-    fn iteration_type_poisoned(&self, ty: UnitTypeId) -> bool {
-        let mut pending = vec![ty];
+    /// 沿真实类型边读取 Error；绝不由缺失 ID、Deferred 或 copyability 推断已诊断。
+    fn iteration_type_status(
+        &self,
+        roots: impl IntoIterator<Item = UnitTypeId>,
+    ) -> IterationTypeStatus {
+        let mut pending = roots.into_iter().collect::<Vec<_>>();
+        let mut seen = BTreeSet::new();
+        let mut status = IterationTypeStatus::Ready;
         while let Some(ty) = pending.pop() {
+            if !seen.insert(ty) {
+                continue;
+            }
             match self.signatures.types().get(ty) {
-                None | Some(UnitTypeKind::Error | UnitTypeKind::Deferred(_)) => return true,
+                None | Some(UnitTypeKind::Deferred(_)) => return IterationTypeStatus::Incomplete,
+                Some(UnitTypeKind::Error) => status = IterationTypeStatus::DiagnosticError,
                 Some(
                     UnitTypeKind::Nullable(inner)
                     | UnitTypeKind::StaticSelf(inner)
                     | UnitTypeKind::EnumCase { root: inner, .. },
                 ) => pending.push(*inner),
-                Some(
-                    UnitTypeKind::Nominal { arguments, .. }
-                    | UnitTypeKind::Intrinsic { arguments, .. },
-                ) => pending.extend(arguments),
+                Some(UnitTypeKind::Nominal { declaration, arguments }) => {
+                    let nominal = self.signatures.declaration(*declaration)
+                        .and_then(|signature| signature.nominal());
+                    if nominal.is_none_or(|nominal| nominal.declaration() != *declaration
+                        || nominal.type_parameters().len() != arguments.len())
+                    {
+                        return IterationTypeStatus::Incomplete;
+                    }
+                    pending.extend(arguments);
+                }
+                Some(UnitTypeKind::Intrinsic { arguments, .. }) => pending.extend(arguments),
                 Some(UnitTypeKind::Function {
                     parameters,
                     return_type,
@@ -284,6 +357,6 @@ impl BodyChecker<'_> {
                 _ => {}
             }
         }
-        false
+        status
     }
 }

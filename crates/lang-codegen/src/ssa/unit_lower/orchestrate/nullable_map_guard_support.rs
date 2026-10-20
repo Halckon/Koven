@@ -97,7 +97,7 @@ impl Fixture {
             .iter()
             .filter(|unit| {
                 unit.source_id() == files[0].source_id()
-                    && unit.key().logical_path().as_str() == "p/provider.ko"
+                    && unit.key().logical_path().expect("rooted source").as_str() == "p/provider.ko"
             })
             .collect::<Vec<_>>();
         let [provider_unit] = provider_units.as_slice() else {
@@ -321,7 +321,7 @@ impl Fixture {
                 .functions
                 .iter()
                 .filter(|emitted| {
-                    emitted.name == instance_function_name(&self.names, instance)
+                    emitted.name == instance_function_name(&self.names, instance).expect("named package")
                         && emitted.origin == Origin::Source(instance.span())
                 })
                 .collect::<Vec<_>>();

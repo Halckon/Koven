@@ -142,7 +142,7 @@ fn observe_with_inspector(unit: bool, inspect_identity: bool) -> (Observation, R
                     declaration.name() == "inspect"
                         && declaration.kind() == SymbolKind::Function
                         && names.names().index().packages()[declaration.package().index()]
-                            .name()
+                            .name().expect("named package")
                             .segments()
                             .iter()
                             .map(String::as_str)

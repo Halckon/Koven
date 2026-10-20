@@ -7,9 +7,7 @@ use crate::type_checking::{
 
 impl BodyChecker<'_> {
     pub(super) fn check_range_types(&mut self) -> Result<(), CompilationUnitTypeError> {
-        let sources: Vec<_> = self
-            .names
-            .names()
+        let sources: Vec<_> = self.names
             .index()
             .source_units()
             .iter()

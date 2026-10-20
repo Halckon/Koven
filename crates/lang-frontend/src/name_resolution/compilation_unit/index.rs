@@ -11,14 +11,16 @@ use crate::{
 
 use super::model::{
     CompilationUnitIndex, DeclarationId, DeclarationVisibility, LogicalSourcePath, Package,
-    PackageId, PackageName, PackagePathMismatch, SourceRootIdentity, SourceUnit, SourceUnitId,
-    SourceUnitInput, SourceUnitKey, UnitDeclaration,
+    PackageId, PackageIdentity, PackageName, PackagePathMismatch, SourceRootIdentity, SourceUnit,
+    SourceUnitId, SourceUnitInput, SourceUnitInputKey, SourceUnitKey, UnitDeclaration,
 };
 use super::{UnitDiagnosticOrderError, ordered_unit_diagnostics};
 
 /// compilation-unit 输入契约失败；这些错误不能归因于 Koven 源码，不使用 L-code。
 #[derive(Debug)]
 pub enum CompilationUnitInputError {
+    /// 内存文档 key 只允许独立的单 source unit，不定义 mixed source set。
+    MemoryDocumentRequiresSingleSource,
     /// 逻辑路径不满足规范相对路径约束。
     InvalidLogicalPath {
         /// 被拒绝的原始路径。
@@ -82,6 +84,9 @@ pub enum LogicalPathError {
 impl fmt::Display for CompilationUnitInputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MemoryDocumentRequiresSingleSource => {
+                formatter.write_str("memory document requires exactly one selected source")
+            }
             Self::InvalidLogicalPath { path, reason } => {
                 write!(formatter, "invalid logical source path {path:?}: {reason}")
             }
@@ -160,7 +165,7 @@ struct CanonicalInput<'parsed> {
     key: SourceUnitKey,
     source_id: SourceId,
     parsed: &'parsed ParsedFile,
-    expected_package: PackageName,
+    package: PackageIdentity,
 }
 
 /// 校验并规范化 compilation-unit 输入，建立 package/source/declaration identity。
@@ -172,15 +177,19 @@ pub fn index_compilation_unit(
 ) -> Result<CompilationUnitIndex, CompilationUnitInputError> {
     // fail-fast 错误不能继承调用方枚举顺序：先排序原始借用输入，再按既定优先级校验
     // path/source/owner，这样正序与反序调用会选择同一个输入错误。
+    if inputs.len() != 1
+        && inputs.iter().any(|input| input.key() == SourceUnitInputKey::MemoryDocument)
+    {
+        return Err(CompilationUnitInputError::MemoryDocumentRequiresSingleSource);
+    }
     let mut ordered_inputs = inputs.to_vec();
-    ordered_inputs.sort_by(|left, right| {
-        (left.root_identity(), left.logical_path())
-            .cmp(&(right.root_identity(), right.logical_path()))
-    });
+    ordered_inputs.sort_by_key(|input| input.key());
     let mut canonical = Vec::with_capacity(inputs.len());
     let mut source_ids = Vec::with_capacity(inputs.len());
     for input in ordered_inputs {
-        validate_logical_path(input.logical_path())?;
+        if let SourceUnitInputKey::Rooted { logical_path, .. } = input.key() {
+            validate_logical_path(logical_path)?;
+        }
         sources.source_text(input.source_id())?;
         if input.source_id() != input.parsed().source_id() {
             return Err(CompilationUnitInputError::MismatchedParsedSource {
@@ -195,27 +204,53 @@ pub fn index_compilation_unit(
         }
         source_ids.push(input.source_id());
 
-        let logical_path = LogicalSourcePath::from_validated(input.logical_path().to_owned());
-        let expected_package =
-            PackageName::new(logical_path.package_segments().map(str::to_owned).collect());
+        let (key, package) = match input.key() {
+            SourceUnitInputKey::Rooted { root_identity, logical_path } => {
+                let logical_path = LogicalSourcePath::from_validated(logical_path.to_owned());
+                let package = PackageName::new(
+                    logical_path.package_segments().map(str::to_owned).collect(),
+                );
+                (
+                    SourceUnitKey::new(SourceRootIdentity::new(root_identity), logical_path),
+                    PackageIdentity::Named(package),
+                )
+            }
+            SourceUnitInputKey::MemoryDocument => {
+                let key = SourceUnitKey::MemoryDocument;
+                let package = if input.parsed().initial_package_header_is_complete() {
+                    PackageIdentity::Named(declared_package(sources, input.parsed())?
+                        .unwrap_or_else(|| PackageName::new(Vec::new())))
+                } else {
+                    PackageIdentity::UnresolvedHeader(key.clone())
+                };
+                (key, package)
+            }
+        };
         canonical.push(CanonicalInput {
-            key: SourceUnitKey::new(SourceRootIdentity::new(input.root_identity()), logical_path),
+            key,
             source_id: input.source_id(),
             parsed: input.parsed(),
-            expected_package,
+            package,
         });
     }
     canonical.sort_by(|left, right| left.key.cmp(&right.key));
     if let Some(pair) = canonical.windows(2).find(|pair| pair[0].key == pair[1].key) {
-        return Err(CompilationUnitInputError::DuplicateSourceKey {
-            root: pair[0].key.root().as_str().to_owned(),
-            logical_path: pair[0].key.logical_path().as_str().to_owned(),
+        return Err(match &pair[0].key {
+            SourceUnitKey::Rooted { root, logical_path } => {
+                CompilationUnitInputError::DuplicateSourceKey {
+                    root: root.as_str().to_owned(),
+                    logical_path: logical_path.as_str().to_owned(),
+                }
+            }
+            SourceUnitKey::MemoryDocument => {
+                CompilationUnitInputError::MemoryDocumentRequiresSingleSource
+            }
         });
     }
 
     let mut package_names: Vec<_> = canonical
         .iter()
-        .map(|input| input.expected_package.clone())
+        .map(|input| input.package.clone())
         .collect();
     package_names.sort();
     package_names.dedup();
@@ -227,7 +262,7 @@ pub fn index_compilation_unit(
         .collect();
     let package_ids: BTreeMap<_, _> = packages
         .iter()
-        .map(|package| (package.name().clone(), package.id()))
+        .map(|package| (package.identity().clone(), package.id()))
         .collect();
 
     let mut source_units = Vec::with_capacity(canonical.len());
@@ -235,7 +270,7 @@ pub fn index_compilation_unit(
     let mut declarations = Vec::new();
     for (index, input) in canonical.iter().enumerate() {
         let source_unit_id = SourceUnitId(index);
-        let package_id = package_ids[&input.expected_package];
+        let package_id = package_ids[&input.package];
         source_units.push(SourceUnit::new(
             source_unit_id,
             input.key.clone(),
@@ -322,31 +357,36 @@ fn is_koven_identifier(segment: &str) -> Result<bool, LexerInternalError> {
         ))
 }
 
+fn declared_package(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+) -> Result<Option<PackageName>, CompilationUnitInputError> {
+    parsed.package().map(|directive| {
+        directive.segments.iter()
+            .map(|segment| sources.slice(segment.span).map(str::to_owned))
+            .collect::<Result<Vec<_>, _>>()
+            .map(PackageName::new)
+    }).transpose().map_err(CompilationUnitInputError::from)
+}
+
 fn package_mismatch(
     sources: &SourceMap,
     input: &CanonicalInput<'_>,
     source_unit: SourceUnitId,
 ) -> Result<Option<PackagePathMismatch>, CompilationUnitInputError> {
+    let SourceUnitKey::Rooted { logical_path, .. } = &input.key else {
+        return Ok(None);
+    };
     if !input.parsed.initial_package_header_is_complete() {
         return Ok(None);
     }
-    let declared = input
-        .parsed
-        .package()
-        .map(|directive| {
-            directive
-                .segments
-                .iter()
-                .map(|segment| sources.slice(segment.span).map(str::to_owned))
-                .collect::<Result<Vec<_>, _>>()
-                .map(PackageName::new)
-        })
-        .transpose()?;
+    let expected_package = PackageName::new(
+        logical_path.package_segments().map(str::to_owned).collect(),
+    );
+    let declared = declared_package(sources, input.parsed)?;
     let matches = declared
         .as_ref()
-        .map_or(input.expected_package.is_default(), |name| {
-            name == &input.expected_package
-        });
+        .map_or(expected_package.is_default(), |name| name == &expected_package);
     if matches {
         return Ok(None);
     }
@@ -356,7 +396,7 @@ fn package_mismatch(
     )?;
     Ok(Some(PackagePathMismatch::new(
         source_unit,
-        input.expected_package.clone(),
+        expected_package.clone(),
         declared,
         primary_span,
     )))

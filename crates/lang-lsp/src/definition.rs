@@ -5,26 +5,14 @@ use std::{collections::BTreeMap, error::Error, fmt};
 use lang_frontend::{
     ast::{AstError, ExpressionId},
     name_resolution::{
-        CompilationUnitNames, DeclarationId, NameReference, NameResolution, ReferenceTarget,
-        SourceUnitId, SymbolId, UnitNameReference, UnitReferenceTarget, UnitSymbolId,
+        CompilationUnitNames, DeclarationId, SourceUnitId, UnitNameReference, UnitReferenceTarget, UnitSymbolId,
     },
     parser::{Expression, ParsedFile, SyntaxAst},
-    source::{SourceId, Span},
+    source::Span,
     type_checking::{
-        AggregateProjectionKind, CallableTarget, CompilationUnitTypes, TypedFile,
-        UnitAggregateProjectionKind, UnitCallTarget,
+        CompilationUnitTypes, UnitAggregateProjectionKind, UnitCallTarget,
     },
 };
-
-pub(crate) struct DefinitionIndex {
-    source_id: SourceId,
-    entries: Vec<DefinitionEntry>,
-}
-
-struct DefinitionEntry {
-    reference: Span,
-    targets: Vec<Span>,
-}
 
 /// compilation-unit reference facts 到跨 source definition target 的确定性索引。
 pub(crate) struct UnitDefinitionIndex {
@@ -42,83 +30,6 @@ struct UnitDefinitionEntry {
 pub(crate) struct UnitDefinitionTarget {
     pub(crate) source_unit: SourceUnitId,
     pub(crate) span: Span,
-}
-
-impl DefinitionIndex {
-    pub(crate) fn build(
-        parsed: &ParsedFile,
-        names: &NameResolution,
-        typed: &TypedFile,
-    ) -> Result<Self, DefinitionIndexError> {
-        let mut entries = BTreeMap::<(usize, usize), (Span, Vec<Span>)>::new();
-
-        for symbol in names.symbols() {
-            merge_targets(&mut entries, symbol.span(), [symbol.span()]);
-        }
-        for reference in names.references() {
-            merge_targets(
-                &mut entries,
-                reference.span(),
-                reference_targets(names, reference)?,
-            );
-        }
-
-        for call in typed.calls() {
-            let Some(target) = callable_target_symbol(call.target()) else {
-                continue;
-            };
-            let Some(reference) = call_reference_span(parsed.ast(), call.expression())? else {
-                continue;
-            };
-            replace_targets(&mut entries, reference, [symbol_span(names, target)?]);
-        }
-        for projection in typed.aggregate_projections() {
-            let reference = match projection.kind() {
-                AggregateProjectionKind::Field => {
-                    member_name_span(parsed.ast(), projection.expression())?
-                }
-                AggregateProjectionKind::StructuralComponent => {
-                    call_reference_span(parsed.ast(), projection.expression())?
-                }
-            };
-            if let Some(reference) = reference {
-                replace_targets(
-                    &mut entries,
-                    reference,
-                    [symbol_span(names, projection.field())?],
-                );
-            }
-        }
-
-        let entries = entries
-            .into_values()
-            .filter_map(|(reference, mut targets)| {
-                targets.sort_by_key(|span| (span.start(), span.end()));
-                targets.dedup_by_key(|span| (span.start(), span.end()));
-                (!targets.is_empty()).then_some(DefinitionEntry { reference, targets })
-            })
-            .collect();
-        Ok(Self {
-            source_id: parsed.source_id(),
-            entries,
-        })
-    }
-
-    pub(crate) const fn source_id(&self) -> SourceId {
-        self.source_id
-    }
-
-    pub(crate) fn targets_at(&self, offset: usize) -> &[Span] {
-        self.entries
-            .iter()
-            .filter(|entry| {
-                entry.reference.start() <= offset
-                    && offset < entry.reference.end()
-                    && !entry.reference.is_empty()
-            })
-            .min_by_key(|entry| entry.reference.len())
-            .map_or(&[], |entry| entry.targets.as_slice())
-    }
 }
 
 impl UnitDefinitionIndex {
@@ -235,25 +146,6 @@ impl UnitDefinitionIndex {
     }
 }
 
-fn reference_targets(
-    names: &NameResolution,
-    reference: &NameReference,
-) -> Result<Vec<Span>, DefinitionIndexError> {
-    let symbols: &[SymbolId] = match reference.target() {
-        ReferenceTarget::Symbol(symbol) => std::slice::from_ref(symbol),
-        ReferenceTarget::OverloadSet(symbols)
-        | ReferenceTarget::EnumCasePayloadCandidates(symbols) => symbols,
-        ReferenceTarget::LaterLocal(span) => return Ok(vec![*span]),
-        ReferenceTarget::External(_)
-        | ReferenceTarget::ExternalOverloadSet(_)
-        | ReferenceTarget::Unresolved => return Ok(Vec::new()),
-    };
-    symbols
-        .iter()
-        .map(|symbol| symbol_span(names, *symbol))
-        .collect()
-}
-
 fn unit_reference_targets(
     names: &CompilationUnitNames,
     reference: &UnitNameReference,
@@ -351,24 +243,6 @@ fn parsed_for_source<'a>(
         .ok_or(DefinitionIndexError::InvalidSourceUnit(source_unit))
 }
 
-fn callable_target_symbol(target: CallableTarget) -> Option<SymbolId> {
-    match target {
-        CallableTarget::Source(symbol) | CallableTarget::StructuralComponent(symbol) => {
-            Some(symbol)
-        }
-        CallableTarget::External(_) | CallableTarget::FunctionValue => None,
-    }
-}
-
-fn symbol_span(names: &NameResolution, symbol: SymbolId) -> Result<Span, DefinitionIndexError> {
-    names
-        .symbols()
-        .get(symbol.index())
-        .filter(|candidate| candidate.id() == symbol)
-        .map(|candidate| candidate.span())
-        .ok_or(DefinitionIndexError::InvalidSymbol(symbol))
-}
-
 fn call_reference_span(
     ast: &SyntaxAst,
     expression: ExpressionId,
@@ -404,29 +278,6 @@ fn member_name_span(ast: &SyntaxAst, expression: ExpressionId) -> Result<Option<
     })
 }
 
-fn merge_targets(
-    entries: &mut BTreeMap<(usize, usize), (Span, Vec<Span>)>,
-    reference: Span,
-    targets: impl IntoIterator<Item = Span>,
-) {
-    entries
-        .entry((reference.start(), reference.end()))
-        .or_insert_with(|| (reference, Vec::new()))
-        .1
-        .extend(targets);
-}
-
-fn replace_targets(
-    entries: &mut BTreeMap<(usize, usize), (Span, Vec<Span>)>,
-    reference: Span,
-    targets: impl IntoIterator<Item = Span>,
-) {
-    entries.insert(
-        (reference.start(), reference.end()),
-        (reference, targets.into_iter().collect()),
-    );
-}
-
 fn merge_unit_targets(
     entries: &mut BTreeMap<(SourceUnitId, usize, usize), (Span, Vec<UnitDefinitionTarget>)>,
     source_unit: SourceUnitId,
@@ -455,7 +306,6 @@ fn replace_unit_targets(
 #[derive(Debug)]
 pub(crate) enum DefinitionIndexError {
     Ast(AstError),
-    InvalidSymbol(SymbolId),
     InvalidDeclaration(DeclarationId),
     InvalidSourceUnit(SourceUnitId),
     InvalidUnitSymbol(UnitSymbolId),
@@ -465,12 +315,6 @@ impl fmt::Display for DefinitionIndexError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Ast(error) => write!(formatter, "definition index AST mismatch: {error}"),
-            Self::InvalidSymbol(symbol) => {
-                write!(
-                    formatter,
-                    "definition index references unknown symbol {symbol:?}"
-                )
-            }
             Self::InvalidDeclaration(declaration) => {
                 write!(
                     formatter,
@@ -553,10 +397,10 @@ mod tests {
         assert_target(source, &analysis, "pick", 3, "pick", 0);
 
         let failed = occurrence(source, "pick", 2);
-        let targets = analysis.definitions.targets_at(failed);
+        let targets = analysis.1.definitions().targets_at(source_unit(analysis.1.name_snapshot().names(), analysis.0), failed);
         assert_eq!(targets.len(), 2);
-        assert_eq!(targets[0].start(), occurrence(source, "pick", 0));
-        assert_eq!(targets[1].start(), occurrence(source, "pick", 1));
+        assert_eq!(targets[0].span.start(), occurrence(source, "pick", 0));
+        assert_eq!(targets[1].span.start(), occurrence(source, "pick", 1));
     }
 
     #[test]
@@ -637,7 +481,7 @@ mod tests {
 
     fn assert_target(
         source: &str,
-        analysis: &crate::analysis::Analysis,
+        analysis: &(SourceId, crate::unit_analysis_snapshot::UnitAnalysisSnapshot),
         reference_name: &str,
         reference_index: usize,
         target_name: &str,
@@ -645,31 +489,32 @@ mod tests {
     ) {
         let reference = occurrence(source, reference_name, reference_index);
         let target = occurrence(source, target_name, target_index);
-        let targets = analysis.definitions.targets_at(reference);
+        let unit = source_unit(analysis.1.name_snapshot().names(), analysis.0);
+        let targets = analysis.1.definitions().targets_at(unit, reference);
         assert_eq!(
             targets.len(),
             1,
             "targets for {reference_name}[{reference_index}]"
         );
-        assert_eq!(targets[0].start(), target);
+        assert_eq!(targets[0].span.start(), target);
         assert!(
-            analysis
-                .definitions
-                .targets_at(reference + reference_name.len())
+            analysis.1
+                .definitions()
+                .targets_at(unit, reference + reference_name.len())
                 .is_empty()
         );
     }
 
     fn assert_no_target(
         source: &str,
-        analysis: &crate::analysis::Analysis,
+        analysis: &(SourceId, crate::unit_analysis_snapshot::UnitAnalysisSnapshot),
         name: &str,
         index: usize,
     ) {
         assert!(
-            analysis
-                .definitions
-                .targets_at(occurrence(source, name, index))
+            analysis.1
+                .definitions()
+                .targets_at(source_unit(analysis.1.name_snapshot().names(), analysis.0), occurrence(source, name, index))
                 .is_empty()
         );
     }

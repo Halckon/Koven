@@ -4,23 +4,28 @@ use crate::{
     lexer::{LexerInternalError, lex},
     name_resolution::{
         CompilationUnitInputError, CompilationUnitNameError, CompilationUnitNames, NameEnvironment,
-        SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit,
+        SourceUnitInput, SourceUnitInputKey, ValidatedCompilationUnitNames, index_compilation_unit,
         resolve_compilation_unit_names,
     },
     parser::{ParsedFile, ParserInternalError, parse_file},
     source::{SourceId, SourceMap},
 };
 
-/// 一份显式内存源码的稳定 key 与原 SourceMap 身份；不含宿主 IO 信息。
+/// 一份显式源码的稳定 key 与原 SourceMap 身份；不含宿主 IO 信息。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitSourceDescriptor {
-    root_identity: String,
-    logical_path: String,
+    key: UnitSourceDescriptorKey,
     source_id: SourceId,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum UnitSourceDescriptorKey {
+    Rooted { root_identity: String, logical_path: String },
+    MemoryDocument,
+}
+
 impl UnitSourceDescriptor {
-    /// 保存调用方的输入；路径和重复项由名称前缀中的既有 index 入口校验。
+    /// 保存 rooted 输入；路径和重复项由既有 index 入口校验。
     #[must_use]
     pub fn new(
         root_identity: impl Into<String>,
@@ -28,22 +33,60 @@ impl UnitSourceDescriptor {
         source_id: SourceId,
     ) -> Self {
         Self {
-            root_identity: root_identity.into(),
-            logical_path: logical_path.into(),
+            key: UnitSourceDescriptorKey::Rooted {
+                root_identity: root_identity.into(),
+                logical_path: logical_path.into(),
+            },
             source_id,
         }
     }
 
-    /// 返回稳定 root identity。
+    /// 保存独立内存文档的实际来源，不从 locator 或 package 生成路径。
     #[must_use]
-    pub fn root_identity(&self) -> &str {
-        &self.root_identity
+    pub const fn memory_document(source_id: SourceId) -> Self {
+        Self { key: UnitSourceDescriptorKey::MemoryDocument, source_id }
     }
 
-    /// 返回调用方提供的 root-relative 逻辑路径。
+    /// 返回保留输入种类的只读原始 key。
     #[must_use]
-    pub fn logical_path(&self) -> &str {
-        &self.logical_path
+    pub fn input_key(&self) -> SourceUnitInputKey<'_> {
+        match &self.key {
+            UnitSourceDescriptorKey::Rooted { root_identity, logical_path } => {
+                SourceUnitInputKey::Rooted { root_identity, logical_path }
+            }
+            UnitSourceDescriptorKey::MemoryDocument => SourceUnitInputKey::MemoryDocument,
+        }
+    }
+
+    /// 投影同一 descriptor 与真实 ParsedFile，不重建或登记 source identity。
+    #[must_use]
+    pub fn as_input<'a>(&'a self, parsed: &'a ParsedFile) -> SourceUnitInput<'a> {
+        match self.input_key() {
+            SourceUnitInputKey::Rooted { root_identity, logical_path } => {
+                SourceUnitInput::new(root_identity, logical_path, self.source_id, parsed)
+            }
+            SourceUnitInputKey::MemoryDocument => {
+                SourceUnitInput::memory_document(self.source_id, parsed)
+            }
+        }
+    }
+
+    /// 仅 rooted 输入有稳定 root identity。
+    #[must_use]
+    pub fn root_identity(&self) -> Option<&str> {
+        match &self.key {
+            UnitSourceDescriptorKey::Rooted { root_identity, .. } => Some(root_identity),
+            UnitSourceDescriptorKey::MemoryDocument => None,
+        }
+    }
+
+    /// 仅 rooted 输入有调用方提供的 root-relative 逻辑路径。
+    #[must_use]
+    pub fn logical_path(&self) -> Option<&str> {
+        match &self.key {
+            UnitSourceDescriptorKey::Rooted { logical_path, .. } => Some(logical_path),
+            UnitSourceDescriptorKey::MemoryDocument => None,
+        }
     }
 
     /// 返回原 SourceMap 中的源码身份。
@@ -156,14 +199,7 @@ fn inputs<'a>(
     descriptors
         .iter()
         .zip(parsed_files)
-        .map(|(unit, parsed)| {
-            SourceUnitInput::new(
-                unit.root_identity(),
-                unit.logical_path(),
-                unit.source_id(),
-                parsed,
-            )
-        })
+        .map(|(unit, parsed)| unit.as_input(parsed))
         .collect()
 }
 
@@ -199,14 +235,7 @@ pub fn analyze_parsed_unit_names(
 ) -> Result<UnitNameSnapshot, UnitNameAnalysisError> {
     let source_inputs = parsed_sources
         .iter()
-        .map(|(unit, parsed)| {
-            SourceUnitInput::new(
-                unit.root_identity(),
-                unit.logical_path(),
-                unit.source_id(),
-                parsed,
-            )
-        })
+        .map(|(unit, parsed)| unit.as_input(parsed))
         .collect::<Vec<_>>();
     let index =
         index_compilation_unit(&sources, &source_inputs).map_err(UnitNameAnalysisError::Input)?;
@@ -214,8 +243,7 @@ pub fn analyze_parsed_unit_names(
         .map_err(UnitNameAnalysisError::Name)?;
     // 移动完整配对而非 AST clone，公开连续 ParsedFile 切片与 index 共用规范顺序。
     parsed_sources.sort_by(|(left, _), (right, _)| {
-        (left.root_identity(), left.logical_path())
-            .cmp(&(right.root_identity(), right.logical_path()))
+        left.input_key().cmp(&right.input_key())
     });
     let (descriptors, parsed_files) = parsed_sources.into_iter().unzip();
     let names = names.validate();
@@ -264,8 +292,8 @@ mod tests {
             .zip(&expected_parsed)
             .map(|(unit, parsed)| {
                 SourceUnitInput::new(
-                    unit.root_identity(),
-                    unit.logical_path(),
+                    unit.root_identity().expect("rooted source"),
+                    unit.logical_path().expect("rooted source"),
                     unit.source_id(),
                     parsed,
                 )
@@ -326,14 +354,14 @@ mod tests {
             let unit = &snapshot.names().index().source_units()[position];
             let actual = &snapshot.parsed_files()[position];
             assert_eq!(descriptor.source_id(), unit.source_id());
-            assert_eq!(descriptor.root_identity(), unit.key().root().as_str());
+            assert_eq!(descriptor.root_identity().expect("rooted source"), unit.key().root().expect("rooted source").as_str());
             assert_eq!(
-                descriptor.logical_path(),
-                unit.key().logical_path().as_str()
+                descriptor.logical_path().expect("rooted source"),
+                unit.key().logical_path().expect("rooted source").as_str()
             );
             assert_eq!(input.source_id(), descriptor.source_id());
-            assert_eq!(input.root_identity(), descriptor.root_identity());
-            assert_eq!(input.logical_path(), descriptor.logical_path());
+            assert_eq!(input.root_identity().expect("rooted source"), descriptor.root_identity().expect("rooted source"));
+            assert_eq!(input.logical_path().expect("rooted source"), descriptor.logical_path().expect("rooted source"));
             assert_eq!(actual.source_id(), unit.source_id());
             assert!(std::ptr::eq(input.parsed(), actual));
             let old = expected_parsed

@@ -3,6 +3,8 @@
 mod single_file;
 mod unit_basic_ownership;
 mod unit_names;
+mod unit_recovery;
+pub use unit_recovery::{UnitRecoveryAnalysisError, analyze_unit_recovery};
 
 pub use unit_names::{
     UnitNameAnalysisError, UnitNameSnapshot, UnitSourceDescriptor, analyze_parsed_unit_names,

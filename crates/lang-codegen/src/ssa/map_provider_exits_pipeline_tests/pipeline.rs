@@ -245,7 +245,7 @@ pub(super) fn unit_observed_with_entry(
             && declaration.source_unit() == source_unit.id()
             && declaration.name_span().source_id() == parsed.source_id()
             && names.names().index().packages().get(declaration.package().index())
-                .is_some_and(|package| package.name().segments().is_empty())
+                .is_some_and(|package| package.name().expect("named package").segments().is_empty())
             && parsed.roots().contains(&declaration.root())
             && parsed.ast().items().get(declaration.root()).is_ok_and(|node| {
                 matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. } if *name == declaration.name_span())
