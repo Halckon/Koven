@@ -20,7 +20,9 @@ fn matches_frozen_legacy_recovery_diagnostics_and_every_definition_offset() {
     let frozen: Value = serde_json::from_str(include_str!("fixtures/legacy_recovery_v1.json"))
         .expect("reviewed frozen Legacy observations");
     assert_eq!(frozen["schema_version"], json!(1));
-    let expected = frozen["fixtures"].as_array().expect("eleven frozen fixtures");
+    let expected = frozen["fixtures"]
+        .as_array()
+        .expect("eleven frozen fixtures");
     let inputs = fixtures();
     assert_eq!(inputs.len(), 11);
     assert_eq!(expected.len(), inputs.len());
@@ -39,8 +41,7 @@ fn matches_frozen_legacy_recovery_diagnostics_and_every_definition_offset() {
             source,
         );
         assert_eq!(
-            actual_snapshot,
-            expected["manual_and_production_equal_snapshot"],
+            actual_snapshot, expected["manual_and_production_equal_snapshot"],
             "{label}: complete frozen raw/LSP diagnostics and ordered navigation"
         );
         // manual_stage_diagnostics_only is historical metadata, not an assertion
