@@ -33,10 +33,8 @@ use crate::{
 use crate::definition::UnitDefinitionIndex;
 #[cfg(test)]
 use lang_frontend::{
-    diagnostic::Diagnostic,
-    name_resolution::ordered_unit_diagnostics,
-    ownership_checking::CompilationUnitOwnership,
-    type_checking::CompilationUnitTypes,
+    diagnostic::Diagnostic, name_resolution::ordered_unit_diagnostics,
+    ownership_checking::CompilationUnitOwnership, type_checking::CompilationUnitTypes,
 };
 
 #[derive(Clone)]
@@ -309,7 +307,8 @@ impl UnitSnapshot {
             .find(|source| source.source_id() == source_id)
             .ok_or(UnitDefinitionQueryError::UnknownSource(source_id))?
             .id();
-        let Some(offset) = byte_offset(self.analysis.name_snapshot().sources(), source_id, position)?
+        let Some(offset) =
+            byte_offset(self.analysis.name_snapshot().sources(), source_id, position)?
         else {
             return Ok(Vec::new());
         };
