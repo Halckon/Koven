@@ -713,7 +713,8 @@ fn generic_value_current_receiver_fields_keep_the_existing_lowering_boundary() {
             &parsed,
         )];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let error = match lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -727,7 +728,9 @@ fn generic_value_current_receiver_fields_keep_the_existing_lowering_boundary() {
             Err(error) => error,
         };
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{text}");
-        let span = error.span.expect("the actual field use remains the source origin");
+        let span = error
+            .span
+            .expect("the actual field use remains the source origin");
         let prefix = format!("fun read(): {field_type} = ");
         let expected_start = text.find(&prefix).unwrap() + prefix.len();
         assert_eq!(span.source_id(), source);
