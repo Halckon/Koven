@@ -3,6 +3,8 @@
 //! 顺序来自迁移前 e6dfea4：lex/parse/name/type、DefinitionIndex、ownership；
 //! parsed 已携带 lexer diagnostics，故 aggregate 不再次收集 lexer。
 
+mod observation;
+
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, ordered_diagnostics},
     lexer::lex,
@@ -38,6 +40,7 @@ pub(crate) struct ManualAnalysis {
     pub(crate) sources: SourceMap,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) definitions: DefinitionIndex,
+    stage_diagnostics: Vec<(&'static str, Vec<Diagnostic>)>,
 }
 
 /// 不调用生产 analyze 或新 façade；每个旧入口与诊断聚合点显式冻结。
@@ -53,6 +56,13 @@ pub(crate) fn manual(source_name: &str, text: &str) -> ManualAnalysis {
     let typed = check_types(&sources, &parsed, &names, &type_environment).expect("manual types");
     let definitions = DefinitionIndex::build(&parsed, &names, &typed).expect("manual definitions");
     let owned = check_ownership(&sources, &parsed, &names, &typed).expect("manual ownership");
+    let stage_diagnostics = vec![
+        ("lexer", lexed.diagnostics().to_vec()),
+        ("parsed_including_lexer", parsed.diagnostics().to_vec()),
+        ("names", names.diagnostics().to_vec()),
+        ("types", typed.diagnostics().to_vec()),
+        ("ownership", owned.diagnostics().to_vec()),
+    ];
     let mut diagnostics = parsed.diagnostics().to_vec();
     diagnostics.extend_from_slice(names.diagnostics());
     diagnostics.extend_from_slice(typed.diagnostics());
@@ -66,12 +76,12 @@ pub(crate) fn manual(source_name: &str, text: &str) -> ManualAnalysis {
         sources,
         diagnostics,
         definitions,
+        stage_diagnostics,
     }
 }
 
-#[test]
-fn recovering_single_file_matches_frozen_manual_diagnostics_and_every_definition_offset() {
-    for (label, source) in [
+fn fixtures() -> [(&'static str, &'static str); 11] {
+    [
         ("recovery", RECOVERY),
         (
             "lexer",
@@ -113,7 +123,12 @@ fn recovering_single_file_matches_frozen_manual_diagnostics_and_every_definition
             "typed_definitions",
             "value class Pair(val field: Int)\nfun pick(value: Int): Int = value\nfun pick(value: String): String = value\nfun use(pair: Pair): Int = pick(pair.field)\n",
         ),
-    ] {
+    ]
+}
+
+#[test]
+fn recovering_single_file_matches_frozen_manual_diagnostics_and_every_definition_offset() {
+    for (label, source) in fixtures() {
         let uri: Uri = format!("file:///{label}.ko").parse().expect("URI");
         let expected = manual(uri.as_str(), source);
         let actual = analysis::analyze(uri.as_str(), source).expect("production analysis");
