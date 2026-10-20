@@ -21,6 +21,23 @@ pub(super) fn lower_unit_from_facts(
     // This whole-set capability check must precede instance planning and Module creation.
     super::map_iteration::validate(&parsed_by_source, names, typed, owned)?;
     super::borrow_result::validate(&parsed_by_source, names, typed, owned)?;
+    // Runtime global initialization is not lowered yet. Check every source root,
+    // including unused declarations, before reachability can discard its initializer.
+    for parsed in &parsed_by_source {
+        for root in parsed.roots() {
+            let node = parsed.ast().items().get(*root).map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+            let (_, item, _) = unwrap_modified(parsed, *root)?;
+            if matches!(item, Item::Variable { .. }) {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    node.span(),
+                ));
+            }
+        }
+    }
     let instance_plan = plan_unit_instances_from_facts(
         &parsed_by_source,
         names,
