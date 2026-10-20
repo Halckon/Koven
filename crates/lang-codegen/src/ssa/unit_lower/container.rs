@@ -2,9 +2,7 @@
 
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{
-        UnitDropPoint, UnitDropTarget, UnitLoanTarget, UnitValueDeliveryKind,
-    },
+    ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget, UnitValueDeliveryKind},
     parser::{AssignmentOperator, Expression, ParameterModeMarker},
     source::Span,
     type_checking::{
