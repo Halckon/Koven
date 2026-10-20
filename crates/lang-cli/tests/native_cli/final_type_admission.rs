@@ -149,7 +149,8 @@ fn single_deferred_user_message_build_preserves_source_root() {
 #[test]
 fn single_static_recovery_build_preserves_source_roots() {
     let mut cases = Vec::new();
-    for probe in &support::static_recovery_probes() {
+    let mut companion_cases = Vec::new();
+    for (index, probe) in support::static_recovery_probes().iter().enumerate() {
         for format in ["human", "json"] {
             let directory = TestDirectory::create();
             let source = directory.join(probe.name);
@@ -164,6 +165,16 @@ fn single_static_recovery_build_preserves_source_roots() {
                 OsStr::new("-o"),
                 executable.as_os_str(),
             ]);
+            eprintln!("SPEC-0341 {} build {format}: {output:?}", probe.name);
+            if index == 0 {
+                companion_cases.push((
+                    output,
+                    before,
+                    directory_snapshot(&directory.0),
+                    executable.exists(),
+                ));
+                continue;
+            }
             cases.push(RejectionCase {
                 context: format!("SPEC-0323 {} build {format}", probe.name),
                 output,
@@ -175,7 +186,14 @@ fn single_static_recovery_build_preserves_source_roots() {
             });
         }
     }
-    support::assert_rejections_count(&cases, 2, 4);
+    assert_eq!(companion_cases.len(), 2, "original p28 renderer slots");
+    assert_eq!(cases.len(), 2, "original p16 renderer slots");
+    for (output, before, after, executable_exists) in companion_cases {
+        assert!(!executable_exists, "unexpected companion executable");
+        assert_eq!(after, before, "original source and directory bytes");
+        support::assert_companion_capability_rejection(&output, 2, "native");
+    }
+    support::assert_rejections_count(&cases, 2, 2);
 }
 
 #[test]

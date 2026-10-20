@@ -2,6 +2,8 @@
 mod borrow_result_tests;
 #[path = "unit_borrow_string_tests.rs"]
 mod borrow_string_tests;
+#[path = "unit_companion_boundary_tests.rs"]
+mod companion_boundary;
 #[path = "unit_container_append_tests.rs"]
 mod container_append_tests;
 #[path = "unit_container_clear_tests.rs"]

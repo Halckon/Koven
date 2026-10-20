@@ -298,3 +298,32 @@ fn project_local_assignment_unit_value_executes() {
     assert!(launched.stderr.is_empty(), "{launched:?}");
     super::assert_no_build_temporaries(project.path());
 }
+
+// Additional project companion controls; the original p16 recovery slots stay unchanged.
+#[test]
+fn project_companion_capability_build_preserves_source() {
+    let probes = support::static_recovery_probes();
+    let probe = &probes[0];
+    let mut cases = Vec::new();
+    for format in ["human", "json"] {
+        let project = TestProject::create("companion-capability");
+        let manifest = project.manifest(&["src"]);
+        project.write(&format!("src/{}", probe.name), probe.text);
+        let executable = project.join("rejected-program");
+        let before = directory_snapshot(project.path());
+        let output = project_build(&manifest, "main", &executable, Some(format));
+        eprintln!("SPEC-0341 project companion build {format}: {output:?}");
+        cases.push((
+            output,
+            before,
+            directory_snapshot(project.path()),
+            executable.exists(),
+        ));
+    }
+    assert_eq!(cases.len(), 2, "additional project renderer slots");
+    for (output, before, after, executable_exists) in cases {
+        assert!(!executable_exists, "unexpected companion executable");
+        assert_eq!(after, before, "original source and directory bytes");
+        support::assert_companion_capability_rejection(&output, 1, "project");
+    }
+}
