@@ -179,11 +179,7 @@ fn generated_owner_export_records_rejection_without_executing() {
             "types",
             None,
         ),
-        (
-            STRICT_REJECTION.to_owned(),
-            "types",
-            Some("L0080"),
-        ),
+        (STRICT_REJECTION.to_owned(), "types", Some("L0080")),
         (
             format!(
                 "{prefix}fun entry(): Unit {{ val source = Leaf(); consume(source); consume(source) }}"
@@ -694,15 +690,15 @@ fn holder_deinit<'ctx>(module: &Module<'ctx>, unit: &UnitSource) -> FunctionValu
         "Holder deinit fault requires exactly one Unit Holder.deinit referencing Holder constant, found {}",
         holder_deinit_fns.len()
     );
-    assert_eq!(holder_deinit_fns[0], expected, "the unique witness belongs to Holder");
+    assert_eq!(
+        holder_deinit_fns[0], expected,
+        "the unique witness belongs to Holder"
+    );
     holder_deinit_fns[0]
 }
 
 #[allow(clippy::collapsible_if)]
-fn inject_missing_holder_deinit_fault(
-    module: &Module<'_>,
-    unit: &UnitSource,
-) -> (String, String) {
+fn inject_missing_holder_deinit_fault(module: &Module<'_>, unit: &UnitSource) -> (String, String) {
     let holder_deinit = holder_deinit(module, unit);
     let holder_deinit_name = holder_deinit.get_name().to_str().unwrap().to_owned();
 

@@ -121,9 +121,7 @@ fn raw_checker_products_are_not_validated_unit_or_const_capabilities() {
     for capability in ["ValidatedCompilationUnitTypes", "ConstEnabledTypedUnit"] {
         rejects(
             "raw typed is not unit capability",
-            &format!(
-                "fn check(typed: TypedFile) {{ let _: {capability} = typed; }}"
-            ),
+            &format!("fn check(typed: TypedFile) {{ let _: {capability} = typed; }}"),
             "E0308",
             &[capability, "TypedFile"],
         );

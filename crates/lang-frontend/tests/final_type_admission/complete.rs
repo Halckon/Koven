@@ -11,9 +11,7 @@ use lang_frontend::{
 
 // A real strict consumer: final qualification precedes either actual ownership producer.
 // The boolean records entry to that operation, not a callback that supplies the result.
-fn strict_unit_ownership(
-    text: &str,
-) -> (SourceMap, Result<(), FinalTypeAdmissionError>, bool) {
+fn strict_unit_ownership(text: &str) -> (SourceMap, Result<(), FinalTypeAdmissionError>, bool) {
     let mut sources = SourceMap::new();
     sources.add_source("unselected.ko", FROZEN[3].0).unwrap();
     let (source, file) = parsed(&mut sources, "strict.ko", text);
@@ -28,8 +26,7 @@ fn strict_unit_ownership(
     let before = raw.clone();
     let mut ownership_started = false;
     let result = (|| {
-        let admission =
-            complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw);
+        let admission = complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw);
         assert_eq!(raw, before, "final admission must not alter raw facts");
         assert!(raw.is_same_analysis(&before));
         let complete = admission?;

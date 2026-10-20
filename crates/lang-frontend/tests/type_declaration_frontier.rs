@@ -88,21 +88,18 @@ fn unit_frontier_rejects_at_the_marker_without_publishing_borrow_return_or_owner
         let result = (|| {
             complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)?;
             ownership_started = true;
-            let _ = analyze_basic_unit_ownership(
-                &sources,
-                &inputs,
-                &names,
-                &types,
-                typed.clone(),
-            )
-            .expect("ownership internal failures are not source rejection");
+            let _ = analyze_basic_unit_ownership(&sources, &inputs, &names, &types, typed.clone())
+                .expect("ownership internal failures are not source rejection");
             Ok::<(), FinalTypeAdmissionError>(())
         })();
         let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
             panic!("frontier must fail with real final type diagnostics")
         };
         assert_eq!(diagnostics, before.diagnostics());
-        assert!(!ownership_started, "final admission precedes actual ownership");
+        assert!(
+            !ownership_started,
+            "final admission precedes actual ownership"
+        );
         assert_eq!(typed, before, "strict failure cannot rewrite raw facts");
         let rejected = typed
             .validate()

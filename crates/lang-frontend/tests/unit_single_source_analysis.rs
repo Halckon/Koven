@@ -27,7 +27,9 @@ fn empty_and_unicode_crlf_sources_keep_full_strict_facts_and_owned_identity() {
     for text in ["", "fun main(): Unit { val greeting = \"你好🌍\" }\r\n"] {
         let (typed, owned) = {
             let mut sources = SourceMap::new();
-            let excluded = sources.add_source("excluded.ko", "# ignored subset").unwrap();
+            let excluded = sources
+                .add_source("excluded.ko", "# ignored subset")
+                .unwrap();
             let source = sources.add_source("memory/原始.ko", text).unwrap();
             let (environment, types) = standard_environments();
             let snapshot = analyze_unit_names(
@@ -38,14 +40,19 @@ fn empty_and_unicode_crlf_sources_keep_full_strict_facts_and_owned_identity() {
             .unwrap();
             assert_ne!(source, excluded);
             assert_eq!(snapshot.sources().source_text(source), Ok(text));
-            let names = snapshot.validated_names().expect("healthy single source names");
+            let names = snapshot
+                .validated_names()
+                .expect("healthy single source names");
             let inputs = snapshot.inputs();
             assert_eq!(inputs.len(), 1);
             assert_eq!(inputs[0].source_id(), source);
             assert_eq!(inputs[0].key(), SourceUnitInputKey::MemoryDocument);
-            assert!(std::ptr::eq(inputs[0].parsed(), &snapshot.parsed_files()[0]));
-            let raw = check_compilation_unit_types(snapshot.sources(), &inputs, names, &types)
-                .unwrap();
+            assert!(std::ptr::eq(
+                inputs[0].parsed(),
+                &snapshot.parsed_files()[0]
+            ));
+            let raw =
+                check_compilation_unit_types(snapshot.sources(), &inputs, names, &types).unwrap();
             let complete =
                 complete_compilation_unit_types(snapshot.sources(), &inputs, names, &types, &raw)
                     .expect("healthy final qualification");
@@ -56,7 +63,11 @@ fn empty_and_unicode_crlf_sources_keep_full_strict_facts_and_owned_identity() {
                     .into_result()
                     .expect("healthy basic path");
             let rechecked = check_compilation_unit_ownership(
-                snapshot.sources(), &inputs, names, &types, &typed,
+                snapshot.sources(),
+                &inputs,
+                names,
+                &types,
+                &typed,
             )
             .unwrap();
             assert_eq!(owned, rechecked, "complete actual strict ownership facts");
@@ -68,11 +79,19 @@ fn empty_and_unicode_crlf_sources_keep_full_strict_facts_and_owned_identity() {
             assert!(owned.is_compatible_with(&typed.clone()));
             assert!(!owned.is_compatible_with(&fresh.validate().unwrap()));
             assert!(typed.types().is_compatible_with(
-                snapshot.sources(), &inputs, &names.clone(), &types,
+                snapshot.sources(),
+                &inputs,
+                &names.clone(),
+                &types,
             ));
             let qualified = owned.clone().validate().expect("healthy ownership");
             let view = owned_compilation_unit_view(
-                snapshot.sources(), &inputs, names, &types, &typed, &qualified,
+                snapshot.sources(),
+                &inputs,
+                names,
+                &types,
+                &typed,
+                &qualified,
             )
             .unwrap();
             assert_eq!(view.inputs()[0].source_id(), source);
@@ -89,7 +108,9 @@ fn empty_and_unicode_crlf_sources_keep_full_strict_facts_and_owned_identity() {
 #[test]
 fn a_real_single_source_const_uses_only_the_distinct_const_ownership_chain() {
     let mut sources = SourceMap::new();
-    sources.add_source("excluded.ko", "# ignored subset").unwrap();
+    sources
+        .add_source("excluded.ko", "# ignored subset")
+        .unwrap();
     let text = "const val value: Int = 7\nfun main(): Int = value";
     let source = sources.add_source("memory/constant.ko", text).unwrap();
     let (environment, types) = standard_environments();
@@ -115,7 +136,11 @@ fn a_real_single_source_const_uses_only_the_distinct_const_ownership_chain() {
     assert_eq!(typed.constants().declarations().len(), 1);
     assert_eq!(typed.constants().uses().len(), 1);
     let owned = check_compilation_unit_constant_ownership(
-        snapshot.sources(), &inputs, names, &types, &typed,
+        snapshot.sources(),
+        &inputs,
+        names,
+        &types,
+        &typed,
     )
     .unwrap();
     assert!(owned.is_compatible_with(&typed));
@@ -124,7 +149,12 @@ fn a_real_single_source_const_uses_only_the_distinct_const_ownership_chain() {
     assert!(owned.ownership().clone().validate().is_err());
     let owned = owned.validate().expect("real const ownership");
     let view = const_owned_compilation_unit_view(
-        snapshot.sources(), &inputs, names, &types, &typed, &owned,
+        snapshot.sources(),
+        &inputs,
+        names,
+        &types,
+        &typed,
+        &owned,
     )
     .unwrap();
     assert_eq!(view.inputs()[0].source_id(), source);

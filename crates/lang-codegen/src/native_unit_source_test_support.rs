@@ -64,7 +64,10 @@ impl std::fmt::Debug for SourceRejection {
 }
 
 enum OwnedProducts {
-    Basic(ValidatedCompilationUnitTypes, ValidatedCompilationUnitOwnership),
+    Basic(
+        ValidatedCompilationUnitTypes,
+        ValidatedCompilationUnitOwnership,
+    ),
     Constant(ConstEnabledTypedUnit, ConstEnabledOwnedUnit),
 }
 
@@ -93,9 +96,8 @@ impl UnitSource {
         let inputs = [SourceUnitInput::memory_document(source, &parsed)];
         let (name_environment, environment) = standard_environments();
         let index = index_compilation_unit(&sources, &inputs).expect("internal index failure");
-        let names =
-            resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
-                .expect("internal unit name resolution failure");
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+            .expect("internal unit name resolution failure");
         // Unit names include index diagnostics; do not truncate to local resolution diagnostics.
         report.record("names", names.diagnostics());
         if !names.diagnostics().is_empty() {
@@ -160,7 +162,9 @@ impl UnitSource {
                     "{:?}",
                     owned.ownership().deferred()
                 );
-                let owned = owned.validate().expect("incomplete constant ownership facts");
+                let owned = owned
+                    .validate()
+                    .expect("incomplete constant ownership facts");
                 OwnedProducts::Constant(typed, owned)
             }
         };
@@ -349,7 +353,11 @@ pub(crate) fn llvm_definition<'ctx>(
             function.count_basic_blocks() > 0 && function.get_name().to_str().unwrap() == expected
         })
         .collect::<Vec<_>>();
-    assert_eq!(functions.len(), 1, "unique actual Unit definition {expected}");
+    assert_eq!(
+        functions.len(),
+        1,
+        "unique actual Unit definition {expected}"
+    );
     functions[0]
 }
 
@@ -500,7 +508,11 @@ fn strict_type_qualification_rejects_before_ownership_or_llvm() {
         "complete must not rewrite raw recovery"
     );
     assert_eq!(*stage, "types");
-    assert_eq!(expected.len(), 1, "complete retains the single original error");
+    assert_eq!(
+        expected.len(),
+        1,
+        "complete retains the single original error"
+    );
     assert_eq!(diagnostic, &expected[0], "preserve the full diagnostic");
     assert_eq!(diagnostic.code().to_string(), "L0080");
     let span = diagnostic.primary_span();

@@ -7,8 +7,7 @@ use crate::{
     lexer::lex,
     name_resolution::{
         CompilationUnitNames, NameEnvironment, SourceUnitInput, SourceUnitInputKey, SourceUnitKey,
-        index_compilation_unit,
-        resolve_compilation_unit_names, resolve_names,
+        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
         CompilationUnitOwnership, OwnershipDeferredReason,
@@ -44,15 +43,13 @@ fn manual(
     let local = resolve_names(sources, &parsed, environment).unwrap();
     let inputs = [SourceUnitInput::memory_document(source, &parsed)];
     let index = index_compilation_unit(sources, &inputs).unwrap();
-    let names =
-        resolve_compilation_unit_names(sources, &inputs, &index, environment).unwrap();
+    let names = resolve_compilation_unit_names(sources, &inputs, &index, environment).unwrap();
     assert_eq!(
         names.source_units()[0].resolution(),
         &local,
         "the original import-free fixtures retain all original local name facts"
     );
-    let typed =
-        check_compilation_unit_types_recovering(sources, &inputs, &names, types).unwrap();
+    let typed = check_compilation_unit_types_recovering(sources, &inputs, &names, types).unwrap();
     let owned =
         check_compilation_unit_ownership_recovering(sources, &inputs, &names, types, &typed)
             .unwrap();
@@ -253,11 +250,17 @@ fn original_gate_sources_keep_their_first_real_diagnostic_stage() {
         );
         if expected_stage == "ownership" {
             assert_moved_diagnostic(snapshot.sources(), source, &owned);
-            typed.clone().validate().expect("the real error is ownership, not types");
+            typed
+                .clone()
+                .validate()
+                .expect("the real error is ownership, not types");
         } else {
             assert!(typed.clone().validate().is_err());
             assert!(typed.clone().validate_constants().is_err());
         }
-        assert!(owned.validate().is_err(), "no raw rejection becomes owned capability");
+        assert!(
+            owned.validate().is_err(),
+            "no raw rejection becomes owned capability"
+        );
     }
 }
