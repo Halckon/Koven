@@ -19,7 +19,6 @@ use crate::{
     name_resolution::UnitSymbolId,
     parser::{
         BinaryOperator, Expression, FunctionBody, FunctionForm, Item, Statement, StringPart,
-        WhenCondition,
     },
     type_checking::{
         BuiltinType, Copyability, DestructuringMode, ExpressionCategory, NominalKind,
@@ -705,41 +704,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             }
             Expression::When {
                 subject, entries, ..
-            } => {
-                let branch_usage = self.control_result_usage(id);
-                if let Some(subject) = subject
-                    && !self.expression(subject, DropExpressionUse::Read, state)?
-                {
-                    return Ok(false);
-                }
-                for entry in &entries {
-                    for condition in &entry.conditions {
-                        if let WhenCondition::Expression(expression)
-                        | WhenCondition::Contains { expression, .. } = condition
-                            && !self.expression(*expression, DropExpressionUse::Read, state)?
-                        {
-                            return Ok(false);
-                        }
-                    }
-                }
-                let base = state.clone();
-                let mut branch_states = Vec::new();
-                for (index, entry) in entries.iter().enumerate() {
-                    let mut branch = base.clone();
-                    if self.control_body(entry.body, branch_usage, &mut branch)? {
-                        self.drop_branch_exit(id, index, &mut branch);
-                        branch_states.push(branch);
-                    }
-                }
-                if entries.iter().all(|entry| entry.else_span.is_none()) {
-                    let mut implicit = base;
-                    self.drop_branch_exit(id, entries.len(), &mut implicit);
-                    branch_states.push(implicit);
-                }
-                let continues = !branch_states.is_empty();
-                *state = self.merge_resource_states(id, branch_states);
-                Ok(continues)
-            }
+            } => self.when_expression(id, subject, &entries, state),
             Expression::Return { value, .. } => {
                 if let Some(value) = value
                     && !self.expression(value, DropExpressionUse::Consume, state)?
@@ -1280,7 +1245,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             value.origin,
         ));
         for source in shared_sources {
-            if !self.has_live_shared_capture(state, source)
+            // Match-edge liveness excludes reads in the selected entry body.
+            if !matches!(point, PlannerDropPoint::WhenAlternativeMatch { .. })
+                && !self.has_live_shared_capture(state, source)
                 && !self.live_after(point).contains(&source)
             {
                 self.drop_named_asap(point, source, state);
@@ -1465,6 +1432,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             | PlannerDropPoint::BeforeReplacement(expression)
             | PlannerDropPoint::AfterReplacement(expression)
             | PlannerDropPoint::BranchExit {
+                control: expression,
+                ..
+            }
+            | PlannerDropPoint::WhenAlternativeMatch {
                 control: expression,
                 ..
             } => &self.liveness.expression_after[expression.index()],

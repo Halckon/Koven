@@ -32,6 +32,11 @@ pub(super) enum PlannerDropPoint {
         control: ExpressionId,
         branch: usize,
     },
+    WhenAlternativeMatch {
+        control: ExpressionId,
+        entry: usize,
+        alternative: usize,
+    },
     LoopExit(StatementId),
     FunctionEntry(ItemId),
     LambdaEntry(ExpressionId),
@@ -53,6 +58,13 @@ impl PlannerDropPoint {
                 control: expression(control),
                 branch,
             },
+            Self::WhenAlternativeMatch { control, entry, alternative } => {
+                UnitDropPoint::WhenAlternativeMatch {
+                    control: expression(control),
+                    entry,
+                    alternative,
+                }
+            }
             Self::LoopExit(id) => UnitDropPoint::LoopExit(statement(id)),
             Self::FunctionEntry(id) => {
                 UnitDropPoint::FunctionEntry(UnitItemId::new(source_unit, id))

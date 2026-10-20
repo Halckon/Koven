@@ -411,6 +411,15 @@ pub enum UnitDropPoint {
         /// 源码顺序的 branch 下标。
         branch: usize,
     },
+    /// when 某个 alternative 成功、进入共享 entry body 之前的边。
+    WhenAlternativeMatch {
+        /// 控制表达式。
+        control: UnitExpressionId,
+        /// 源码顺序的 entry 下标。
+        entry: usize,
+        /// 当前 entry 内的 alternative 下标。
+        alternative: usize,
+    },
     /// while / for 的零次或正常退出边。
     LoopExit(UnitStatementId),
     /// callable body 开始、参数 binding 建立之后。
