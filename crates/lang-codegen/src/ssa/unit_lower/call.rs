@@ -2,7 +2,7 @@
 
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{UnitDropPoint, UnitValueDeliveryKind, UnitValueDeliverySource},
+    ownership_checking::{UnitDropPoint, UnitValueDeliveryKind},
     parser::{Expression, Statement},
     source::Span,
     type_checking::{
@@ -804,12 +804,7 @@ impl UnitExpressionLowerer<'_> {
                 }
             }
             UnitValueDeliveryKind::Temporary => {
-                let origin = self
-                    .constant_materialization_origin(argument, span)?
-                    .unwrap_or(argument);
-                if delivery.source() != &UnitValueDeliverySource::Temporary(origin) {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                }
+                self.validate_temporary_delivery_origin(argument, delivery.source(), span)?;
             }
         }
         let (value, transferred) =

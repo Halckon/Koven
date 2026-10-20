@@ -4,7 +4,6 @@ use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::{
         UnitDropPoint, UnitDropTarget, UnitLoanTarget, UnitValueDeliveryKind,
-        UnitValueDeliverySource,
     },
     parser::{AssignmentOperator, Expression, ParameterModeMarker},
     source::Span,
@@ -975,9 +974,7 @@ impl UnitExpressionLowerer<'_> {
                 self.take_owned_binding(place.root(), value, span)
             }
             UnitValueDeliveryKind::Temporary => {
-                if delivery.source() != &UnitValueDeliverySource::Temporary(argument) {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                }
+                self.validate_temporary_delivery_origin(argument, delivery.source(), span)?;
                 if self.typed.copyability(ty) == Copyability::MoveOnly {
                     self.take_owned_temporary(value, span)?;
                 }

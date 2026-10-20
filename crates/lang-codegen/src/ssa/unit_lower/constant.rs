@@ -4,7 +4,8 @@ use crate::ssa::constant_materialization;
 use lang_frontend::{
     name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{
-        ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, const_owned_compilation_unit_view,
+        ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, UnitValueDeliverySource,
+        const_owned_compilation_unit_view,
     },
     source::{SourceMap, Span},
     type_checking::{ConstEnabledTypedUnit, TypeEnvironment, UnitExpressionId},
@@ -42,6 +43,22 @@ pub(crate) fn lower_const_owned_unit_with_entry(
 }
 
 impl UnitExpressionLowerer<'_> {
+    /// Validate the real constant materialization owner without changing the argument identity.
+    pub(super) fn validate_temporary_delivery_origin(
+        &self,
+        argument: UnitExpressionId,
+        source: &UnitValueDeliverySource,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let origin = self
+            .constant_materialization_origin(argument, span)?
+            .unwrap_or(argument);
+        if source != &UnitValueDeliverySource::Temporary(origin) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok(())
+    }
+
     /// 与 frontend 一致，只有实际常量物化 use 才穿透透明 Group；不改普通实参来源。
     pub(super) fn constant_materialization_origin(
         &self,
