@@ -13,6 +13,7 @@ pub(crate) enum LoweringErrorKind {
     BlockingDeferred,
     InstanceLimitExceeded,
     UnsupportedNode,
+    UnsupportedCompanionCall,
     MissingFact,
     InvalidLiteral,
     InvalidModel,

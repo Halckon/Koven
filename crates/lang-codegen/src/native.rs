@@ -487,9 +487,9 @@ fn map_lowering_error(error: LoweringError) -> NativeObjectError {
         }
         LoweringErrorKind::FrontendDiagnostics => NativeObjectErrorKind::FrontendDiagnostics,
         LoweringErrorKind::BlockingDeferred => NativeObjectErrorKind::BlockingDeferred,
-        LoweringErrorKind::UnsupportedNode | LoweringErrorKind::InstanceLimitExceeded => {
-            NativeObjectErrorKind::UnsupportedSource
-        }
+        LoweringErrorKind::UnsupportedNode
+        | LoweringErrorKind::UnsupportedCompanionCall
+        | LoweringErrorKind::InstanceLimitExceeded => NativeObjectErrorKind::UnsupportedSource,
         LoweringErrorKind::MissingFact
         | LoweringErrorKind::InvalidLiteral
         | LoweringErrorKind::InvalidModel
@@ -498,7 +498,11 @@ fn map_lowering_error(error: LoweringError) -> NativeObjectError {
     NativeObjectError {
         kind,
         span: error.span,
-        detail: format!("frontend lowering failed with {:?}", error.kind),
+        detail: if error.kind == LoweringErrorKind::UnsupportedCompanionCall {
+            "companion function calls are not supported by native code generation".to_owned()
+        } else {
+            format!("frontend lowering failed with {:?}", error.kind)
+        },
         diagnostic: None,
     }
 }
