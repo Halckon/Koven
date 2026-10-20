@@ -74,7 +74,10 @@ fn snapshot(
         sources.source_name(source_id).expect("source owner"),
         uri.as_str()
     );
-    assert_eq!(sources.source_text(source_id).expect("source bytes"), source);
+    assert_eq!(
+        sources.source_text(source_id).expect("source bytes"),
+        source
+    );
     let mut navigation = Vec::new();
     for offset in (0..=source.len()).filter(|offset| source.is_char_boundary(*offset)) {
         let targets = definitions.targets_at(offset);
