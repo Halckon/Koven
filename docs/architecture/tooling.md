@@ -70,8 +70,8 @@ source-set 模式不读取磁盘。`unit_session` 组合唯一名称 owner，后
 validated_names；同次 standard_environments 的 type 半边留宿主。names recovery 保留有效导航，
 typed diagnostics 先由宿主收集，再调用同一 `analyze_basic_unit_ownership`；成功以
 `into_types()` 保存原 typed 而不克隆，NotBasic 取回原 boxed recovery。const（包括仅声明未读）
-不进入基础 ownership；raw ownership 即使有诊断或 deferred 仍保留。typed recovery
-继续向 definition 提供有效事实，不接入严格CLI的最终类型资格门。
+不进入基础 ownership；raw ownership 即使有诊断或 deferred 仍保留，typed recovery 继续导航。
+同轮产物交内部 `UnitAnalysisSnapshot`：先排序完整诊断再建 definition，不增加 CLI 最终类型准入门。
 完整 snapshot 与全部诊断 payload 准备成功、逐项发布成功后才替换内存状态；分析、映射或发送
 失败保留 last-good。已发消息不能撤回，此边界不是 wire 事务。诊断按 target URI 分组并稳定
 发布，definition 直接消费已保存的 name/type target，不重新解析 package/import 或 overload。
