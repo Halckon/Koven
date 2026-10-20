@@ -28,6 +28,9 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test multifile_constant_ownership \
   --test owned_compilation_unit_view --test owned_unit_view_compile_contracts \
   --test unit_name_snapshot --test unit_name_snapshot_compile_contracts \
+  --test compilation_unit_memory_document --test unit_recovery \
+  --test unit_recovery_missing_names --test unit_recovery_rejected_headers \
+  --test unit_recovery_this --test unit_recovery_this_context --test unit_recovery_nominal_error \
   --test basic_unit_ownership --test basic_unit_ownership_compile_contracts \
   --test single_file_analysis --test single_file_analysis_compile_contracts \
   --test type_constants --test multifile_constant_facts \
