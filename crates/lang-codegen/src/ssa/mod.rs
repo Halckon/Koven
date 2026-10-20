@@ -11,6 +11,7 @@ mod integer_range_type;
 mod lower_frontend;
 mod map_result;
 mod map_source;
+#[cfg(test)]
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};

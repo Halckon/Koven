@@ -234,8 +234,7 @@ fun main(): Unit {{ run(true); run(false) }}
     let expected_deferred = recovery.owned.deferred().to_vec();
     let rejected = (*recovery.owned)
         .validate()
-        .err()
-        .expect("the original recovery still cannot grant validated ownership");
+        .expect_err("the original recovery still cannot grant validated ownership");
     assert_eq!(rejected.deferred(), expected_deferred);
     // No entry, sealed view, emit, LLVM, linker, or program run occurs on this Err path.
     assert_eq!(std::fs::read(&path).unwrap(), b"previous object");
