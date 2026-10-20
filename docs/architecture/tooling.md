@@ -60,9 +60,9 @@ raw API、基础/常量validate及LSP recovery保持原合同；此资格不证�
 
 它有两种明确模式：
 
-- legacy 单文档：每个打开 URI 独立调用同一 `analyze_single_file`，五阶段gate不拒绝用户
-  诊断；typed observer在ownership之前从封闭只读view构建DefinitionIndex，随后按原
-  parsed/names/typed/owned聚合诊断（parser已含lexer，不重复添加）；
+- 默认单文档：每个 URI 以原 SourceId 与 `MemoryDocument` 进入共同 Unit names/raw types/ownership，
+  URI 只作展示，不充当 root/path；同轮完整诊断与导航交 `UnitAnalysisSnapshot`，无旧 checker fallback；
+  raw 错误不伪造执行资格，健康输入仍保真实上游资格，宿主只用既有 builtin 环境；
 - `koven.sourceSet` version 1：初始化 payload 提供 immutable base sources，open/change 形成 overlay，
   每次候选更新重建共同 compilation-unit snapshot，其名称前缀由 frontend `UnitNameSnapshot` 拥有。
 
@@ -78,7 +78,7 @@ typed diagnostics 先由宿主收集，再调用同一 `analyze_basic_unit_owner
 
 `position_adapter` 集中处理 Span 与 UTF-16 的双向映射，拒绝 surrogate pair 中间位置和越界 cursor。
 实现入口位于 `crates/lang-lsp/src/analysis.rs`、`source_set.rs`、`unit_session.rs`、`definition.rs` 和
-`diagnostic_adapter.rs`；`single_file_oracle` 以固定 JSON 保存十一源完整诊断与逐 UTF-8 边界导航的迁移基线，独立 manual 邻控仅作过渡。
+`diagnostic_adapter.rs`；`single_file_oracle` 以已审 Unit JSON 硬比十一原源完整诊断与逐 UTF-8 边界有序导航，旧基线只留历史，坐标变换独立核验。
 
 ## Formatter
 
@@ -113,7 +113,7 @@ in/is/as 与 identifier 使用同一整词扫描，避免 input 等名称在运�
 
 当前 workflow 定义 macOS 14 / Ubuntu 24.04 双宿主 check、严格 clippy和组合测试，单次fmt。
 组合入口依次执行core（含lang-std）、ownership_iteration、stage、剩余guide_litmus及教程；
-保留独立入口，没有skip开关；frontend integration由stage及组合脚本显式列出，组合共10次Cargo调用。
+保留独立入口，没有skip开关；frontend integration由stage及组合脚本显式列出，组合共23次Cargo调用。
 外部Rust编译合同通过当前integration executable的Cargo 1.96 fingerprint选择实际依赖rlib；
 同目录旧flags产物可以保留，未知或歧义身份失败，不按时间戳推断。
 `editors/**`与教程修改触发Rust路径；内部直接依赖检查为无条件required job。
