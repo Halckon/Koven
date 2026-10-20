@@ -94,6 +94,10 @@ class CompositionContracts(unittest.TestCase):
                          if target not in ("compilation_unit_index", "multifile_name_resolution")]
         self.assertEqual(len(other_targets), len(set(other_targets)))
         self.assertEqual(125, len(other_targets))
+        for target in ("unit_single_source_analysis", "single_file_fact_compile_contracts"):
+            self.assertEqual(1, targets.count(target))
+        for target in ("single_file_analysis", "single_file_analysis_compile_contracts"):
+            self.assertNotIn(target, targets)
         self.assertEqual(5, targets.count("compilation_unit_index"))
         self.assertEqual(8, targets.count("multifile_name_resolution"))
         self.assertEqual(1, targets.count("unit_closure_assignment_recovery"))

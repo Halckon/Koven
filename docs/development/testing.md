@@ -68,12 +68,12 @@ policy要求各恰一次且不带过滤器：前者与旧手工名称前缀比�
 policy要求各恰一次、无过滤器：前者与手工 basic validation/checker 比较完整事实和 provenance，
 后者验证封闭字段、能力错配以及按值 Outcome 跨输入借用期的合法持有；不为其虚构借用限制。
 CLI完整测试自动包含 `project_basic_ownership_cli` 的旧主干 human/JSON 全输出 oracle；
-LSP完整测试保留冻结 manual 链与 publications/UTF-16/raw事实差分，不用新门面循环自证。
+LSP 完整测试将真实 Unit 的 raw/LSP 诊断与逐 UTF-8 边界导航硬比固定观测，不由当前分析生成期望。
 
-同一stage完整选择 `single_file_analysis` 与 `single_file_analysis_compile_contracts` 各恰一次、
-无过滤器，分别锁固定五gate/typed observer顺序、原事实与身份，以及封闭字段/只读/HRTB
-借用逃逸和raw能力边界。CLI完整测试包含旧生产捕获的单文件全输出golden，LSP完整测试
-保留旧手工链、完整publication、UTF-16 definition及legacy特有版本/发送事务边界。
+同一 stage 完整选择 `unit_single_source_analysis` 与 `single_file_fact_compile_contracts` 各恰一次、
+无过滤器：前者保单内存来源的严格资格与恢复能力边界，后者保仍活跃的 raw facts 能力隔离及 iteration validator 合同。
+旧 SingleFile 门面及 observer/HRTB 专属协议退役；封闭、能力及借用期由既有 Unit compile-contract targets 保留。
+CLI 全输出 golden 与 LSP 完整 publication/UTF-16 definition/版本发送合同继续约束真实 Unit 消费者。
 
 stage还完整选择 `const_owned_compilation_unit_view`、`const_owned_unit_view_compile_contracts`
 及 `multifile_constant_ownership` 各恰一次，无filter。codegen完整测试含

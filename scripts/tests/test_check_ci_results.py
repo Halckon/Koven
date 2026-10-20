@@ -91,7 +91,8 @@ class CheckCiResultsTests(unittest.TestCase):
         for target in (
                 "parser_file", "unit_name_snapshot", "compilation_unit_memory_document",
                 "unit_recovery", "unit_recovery_missing_names", "unit_recovery_rejected_headers",
-                "unit_recovery_this", "unit_recovery_this_context", "unit_recovery_nominal_error"):
+                "unit_recovery_this", "unit_recovery_this_context", "unit_recovery_nominal_error",
+                "unit_single_source_analysis", "single_file_fact_compile_contracts"):
             self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
             selected = stage_target_occurrences(stage, target)
             self.assertEqual(1, len(selected))
@@ -519,18 +520,25 @@ class CheckCiResultsTests(unittest.TestCase):
             self.assertNotIn(" -- ", selected[0], "contract targets must not be filtered")
             self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
 
-    def test_single_file_analysis_contracts_run_in_stage_integration(self):
+    def test_unit_single_source_contracts_replace_retired_analysis_facade(self):
         root = Path(__file__).resolve().parents[2]
         stage = (root / "scripts/check_stage_integration.sh").read_text()
-        commands = stage.replace("\\\n", " ").splitlines()
-        for target in ("single_file_analysis", "single_file_analysis_compile_contracts"):
-            selected = [line for line in commands
-                        if re.search(rf"--test {target}(?:\s|$)", line)]
+        for target in ("unit_single_source_analysis", "single_file_fact_compile_contracts"):
+            selected = stage_target_occurrences(stage, target)
             self.assertEqual(1, len(selected), f"{target} must execute exactly once")
             self.assertTrue(selected[0].startswith(
                 "run cargo test --locked -p lang-frontend --no-fail-fast "))
-            self.assertNotIn(" -- ", selected[0], "contract targets must not be filtered")
+            self.assertTrue(stage_command_is_unfiltered(selected[0]))
             self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+        for target in ("single_file_analysis", "single_file_analysis_compile_contracts"):
+            self.assertEqual([], stage_target_occurrences(stage, target))
+            self.assertFalse((root / f"crates/lang-frontend/tests/{target}.rs").exists())
+        analysis = root / "crates/lang-frontend/src/analysis"
+        self.assertFalse((analysis / "single_file.rs").exists())
+        module = (analysis / "mod.rs").read_text()
+        for retired in ("mod single_file;", "analyze_single_file", "SingleFileAnalysis",
+                        "SingleFileAnalysisError", "SingleFileStage", "SingleFileTypedView"):
+            self.assertNotIn(retired, module)
 
     def test_rust_size_guard_is_always_required(self):
         for event, ref in (("pull_request", "refs/pull/1/merge"),

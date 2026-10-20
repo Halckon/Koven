@@ -32,7 +32,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test unit_recovery_missing_names --test unit_recovery_rejected_headers \
   --test unit_recovery_this --test unit_recovery_this_context --test unit_recovery_nominal_error \
   --test basic_unit_ownership --test basic_unit_ownership_compile_contracts \
-  --test single_file_analysis --test single_file_analysis_compile_contracts \
+  --test unit_single_source_analysis --test single_file_fact_compile_contracts \
   --test type_constants --test multifile_constant_facts \
   --test multifile_constant_qualification --test multifile_constant_dependencies \
   --test multifile_constant_selection --test lexer \
