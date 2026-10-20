@@ -187,9 +187,9 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 ## Native object 与发布
 
-`emit_native_object` 处理单文件；`emit_native_constant_unit_object` 消费专用常量 capability。
-普通 `emit_native_owned_unit_object` 消费封闭 view；旧八参入口先执行用户 Into，再 factory 并转接。
-普通 unit 的校验、reserve 与 emission 顺序见[交接流水线](pipeline-and-workspace.md#普通-owned-unit-交接)；不据此改写单文件或 const 入口。
+`NativeUnitEntry` 的普通出口为 `emit_native_unit_object` / `emit_native_owned_unit_object`，常量出口为 `emit_native_constant_unit_object` / `emit_native_const_owned_unit_object`；两种 capability 不互换。
+旧 `NativeEntry`、`emit_native_object` 及专属私有转接已删除；私有 `lower_frontend` 和旧 checker 仍有真实测试消费者，未随门面机械删除。
+普通与常量八参入口先执行用户 Into，再各经 factory 进入对应封闭 view；校验、reserve 与 emission 顺序见[交接流水线](pipeline-and-workspace.md#普通-owned-unit-交接)。
 
 普通 unit 的 sibling reserve/commit/Drop 算法不变，失败由 RAII 清理 object 临时文件并保留旧目标。
 CLI 的 linker/runner 与链接产物清理留宿主层；标准库源码仍作为普通 frontend input 进入同一 validated 链。
