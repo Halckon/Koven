@@ -35,7 +35,9 @@ impl DropPlanner<'_, '_> {
                 matched.extend(remaining.take());
             }
             for (alternative, condition) in entry.conditions.iter().enumerate() {
-                let Some(mut input) = remaining.take() else { break };
+                let Some(mut input) = remaining.take() else {
+                    break;
+                };
                 if let WhenCondition::Expression(expression)
                 | WhenCondition::Contains { expression, .. } = condition
                     && !self.expression(*expression, DropExpressionUse::Read, &mut input)?
@@ -54,7 +56,11 @@ impl DropPlanner<'_, '_> {
             let common = matched[0]
                 .values
                 .iter()
-                .filter(|value| matched.iter().all(|edge| edge.position(value.symbol).is_some()))
+                .filter(|value| {
+                    matched
+                        .iter()
+                        .all(|edge| edge.position(value.symbol).is_some())
+                })
                 .map(|value| value.symbol)
                 .collect::<std::collections::BTreeSet<_>>();
             for (alternative, incoming) in alternatives.into_iter().zip(&mut matched) {

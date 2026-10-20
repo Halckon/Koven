@@ -58,13 +58,15 @@ impl PlannerDropPoint {
                 control: expression(control),
                 branch,
             },
-            Self::WhenAlternativeMatch { control, entry, alternative } => {
-                UnitDropPoint::WhenAlternativeMatch {
-                    control: expression(control),
-                    entry,
-                    alternative,
-                }
-            }
+            Self::WhenAlternativeMatch {
+                control,
+                entry,
+                alternative,
+            } => UnitDropPoint::WhenAlternativeMatch {
+                control: expression(control),
+                entry,
+                alternative,
+            },
             Self::LoopExit(id) => UnitDropPoint::LoopExit(statement(id)),
             Self::FunctionEntry(id) => {
                 UnitDropPoint::FunctionEntry(UnitItemId::new(source_unit, id))

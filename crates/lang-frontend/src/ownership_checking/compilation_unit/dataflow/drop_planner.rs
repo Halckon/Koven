@@ -17,9 +17,7 @@ use std::collections::BTreeMap;
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::UnitSymbolId,
-    parser::{
-        BinaryOperator, Expression, FunctionBody, FunctionForm, Item, Statement, StringPart,
-    },
+    parser::{BinaryOperator, Expression, FunctionBody, FunctionForm, Item, Statement, StringPart},
     type_checking::{
         BuiltinType, Copyability, DestructuringMode, ExpressionCategory, NominalKind,
         ParameterMode, UnitCallReceiverOrigin, UnitExpressionId, UnitStatementId, UnitTypeKind,
