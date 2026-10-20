@@ -84,7 +84,8 @@ fn reject_basic_global(provider_text: &str, expected_root: &str, expected_end: u
             &owned,
             entry,
         )
-        .expect_err("unused runtime global must not disappear during instance planning");
+        .err()
+        .expect("unused runtime global must not disappear during instance planning");
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
         let span = error.span.expect("whole source root span");
         assert_eq!(span.source_id(), provider_source);
@@ -195,7 +196,8 @@ fn constant_capability_rejects_runtime_globals_and_preserves_declarations() {
                     &owned,
                     entry,
                 )
-                .expect_err("constant ownership cannot hide a runtime global");
+                .err()
+                .expect("constant ownership cannot hide a runtime global");
                 assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
                 let span = error.span.expect("complete modified source root span");
                 assert_eq!(span.source_id(), provider_source);
