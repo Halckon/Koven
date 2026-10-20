@@ -131,19 +131,45 @@ class CheckCiResultsTests(unittest.TestCase):
         manifest = (root / "crates/lang-cli/Cargo.toml").read_text()
         self.assertNotRegex(manifest, r"(?m)^\s*(?:autotests|test)\s*=\s*false")
         self.assertNotIn("required-features", manifest)
-        source = (root / "crates/lang-cli/tests/single_unit_cli.rs").read_text()
-        for name in (
-            "single_source_roots_follow_logical_components_and_explicit_identity",
-            "single_source_symlinks_keep_logical_package_and_physical_root_identity",
-            "single_header_failures_preserve_complete_diagnostics_before_root_setup",
-            "single_missing_explicit_root_is_an_operational_error_after_logical_validation",
-            "single_source_root_options_keep_usage_and_program_argument_boundaries",
-            "single_imports_use_only_the_selected_file_and_authorized_standard_sources",
-        ):
-            self.assertEqual(1, len(re.findall(r"(?m)^fn " + re.escape(name) + r"\(\)", source)))
-        unit = (root / "crates/lang-cli/src/unit_build.rs").read_text()
-        self.assertEqual(1, len(re.findall(
-            r"(?m)^    fn unit_single_entry_uses_original_user_source_after_standard_sorting\(\)", unit)))
+        groups = (
+            ("tests/single_unit_cli.rs", "", (
+                "single_source_roots_follow_logical_components_and_explicit_identity",
+                "single_source_symlinks_keep_logical_package_and_physical_root_identity",
+                "single_header_failures_preserve_complete_diagnostics_before_root_setup",
+                "single_missing_explicit_root_is_an_operational_error_after_logical_validation",
+                "single_source_root_options_keep_usage_and_program_argument_boundaries",
+                "single_imports_use_only_the_selected_file_and_authorized_standard_sources",
+            )),
+            ("tests/single_file_analysis_cli.rs", "", (
+                "single_file_unit_diagnostics_preserve_complete_output_and_precede_entry_and_codegen",
+                "bodyless_build_preserves_complete_single_and_project_failures",
+            )),
+            ("src/unit_build.rs", "    ", (
+                "unit_single_entry_uses_original_user_source_after_standard_sorting",
+            )),
+        )
+        for path, indent, names in groups:
+            source = (root / "crates/lang-cli" / path).read_text()
+            for name in names:
+                with self.subTest(path=path, name=name):
+                    definitions = list(re.finditer(
+                        r"(?m)^" + indent + "fn " + re.escape(name) + r"\(\)", source))
+                    self.assertEqual(1, len(definitions), name)
+                    # Lock the complete preamble after the preceding item, not just
+                    # the nearest attribute: ignore may precede test or a blank line.
+                    attributes = []
+                    for line in reversed(source[:definitions[0].start()].splitlines()):
+                        stripped = line.strip()
+                        if not stripped or stripped.startswith("//"):
+                            continue
+                        if (line == indent + "}" or
+                                (line.startswith(indent + "const ") and line.endswith(";"))):
+                            break
+                        attributes.insert(0, stripped)
+                    expected = ["#[test]"]
+                    if name == "single_source_symlinks_keep_logical_package_and_physical_root_identity":
+                        expected.insert(0, "#[cfg(unix)]")
+                    self.assertEqual(expected, attributes, name)
         stage = (root / "scripts/check_stage_integration.sh").read_text()
         self.assertEqual([], stage_target_occurrences(stage, "single_unit_cli"))
 
