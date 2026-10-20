@@ -569,19 +569,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             .get(&self.checker.unit_expression(id))
             .cloned()
         {
-            let mut arguments = descriptor.arguments().to_vec();
-            arguments.sort_by_key(|argument| argument.evaluation_index());
-            for argument in arguments {
-                if !self.expression(
-                    argument.argument().expression(),
-                    DropExpressionUse::Consume,
-                    state,
-                )? || self.checker.is_nothing_expression(argument.argument())
-                {
-                    return Ok(false);
-                }
-            }
-            return Ok(true);
+            return self.construction_operands(id, &descriptor, state);
         }
         if let Some(plan) = self.checker.short_circuit_plan(id)? {
             use super::super::constant::UnitShortCircuitRhs;

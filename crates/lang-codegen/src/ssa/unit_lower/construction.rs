@@ -124,6 +124,7 @@ impl UnitExpressionLowerer<'_> {
                     }
                 }
             }
+            self.retain_pending_construction_operand(argument.argument(), field, span)?;
             let pending_index = self.pending_operands.len();
             self.pending_operands.push(EntityId::Value(field));
             let slot = fields
@@ -137,12 +138,59 @@ impl UnitExpressionLowerer<'_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let fields = fields
+        self.commit_construction_operands(fields, pending_start, span)
+    }
+
+    /// The source owner has already been transferred; retain its cleanup identity until commit.
+    pub(super) fn retain_pending_construction_operand(
+        &mut self,
+        argument: UnitExpressionId,
+        value: ValueId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let template = self
+            .typed
+            .expression_type(argument)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let concrete = super::resolve_concrete_type(
+            self.typed,
+            template,
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        if self.typed.copyability(concrete) == Copyability::MoveOnly {
+            let origin = self
+                .constant_materialization_origin(argument, span)?
+                .unwrap_or(argument);
+            if self.temporaries.insert(origin, value).is_some() {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+        }
+        Ok(())
+    }
+
+    /// Commit the current CFG owners, not the values from before later-operand branches.
+    pub(super) fn commit_construction_operands(
+        &mut self,
+        slots: impl IntoIterator<Item = usize>,
+        pending_start: usize,
+        span: Span,
+    ) -> Result<Vec<ValueId>, LoweringError> {
+        let values = slots
             .into_iter()
-            .map(|index| require_value(self.pending_operands[index], span))
+            .map(|index| {
+                let entity = self
+                    .pending_operands
+                    .get(index)
+                    .copied()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                require_value(entity, span)
+            })
             .collect::<Result<Vec<_>, _>>()?;
+        self.temporaries.retain(|_, value| !values.contains(value));
         self.pending_operands.truncate(pending_start);
-        Ok(fields)
+        Ok(values)
     }
 
     fn validate_construction_root(
