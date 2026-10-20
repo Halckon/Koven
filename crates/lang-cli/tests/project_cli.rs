@@ -836,3 +836,78 @@ fn project_standard_key_collision_preserves_the_complete_operational_error() {
         assert_no_build_temporaries(project.path());
     }
 }
+
+#[test]
+fn single_and_project_entries_preserve_private_and_mixed_overload_rules() {
+    let project = TestProject::create("entry-driver-differences");
+    let manifest = project.manifest(&["src"]);
+    let text = "private fun selected(): Unit { println(\"selected\") }\n\
+                fun main(): Unit { println(\"main\") }\n\
+                fun main(number: Int): Unit {}\n";
+    project.write("src/Entry.ko", text);
+    let source = project.join("src/Entry.ko");
+
+    let conventional = run([OsStr::new("run"), source.as_os_str()]);
+    assert_eq!(conventional.status.code(), Some(0), "{conventional:?}");
+    assert_eq!(conventional.stdout, b"main\n", "{conventional:?}");
+    assert!(conventional.stderr.is_empty(), "{conventional:?}");
+
+    let private = run([
+        OsStr::new("run"),
+        source.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("selected"),
+    ]);
+    assert_eq!(private.status.code(), Some(0), "{private:?}");
+    assert_eq!(private.stdout, b"selected\n", "{private:?}");
+    assert!(private.stderr.is_empty(), "{private:?}");
+
+    let explicit_main = run([
+        OsStr::new("run"),
+        source.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("main"),
+    ]);
+    assert_eq!(explicit_main.status.code(), Some(2), "{explicit_main:?}");
+    assert!(explicit_main.stdout.is_empty(), "{explicit_main:?}");
+    assert_eq!(
+        explicit_main.stderr,
+        b"error: native build failed: entry `main` is ambiguous (2 candidates)\n",
+        "{explicit_main:?}"
+    );
+
+    let project_main = run([
+        OsStr::new("run"),
+        OsStr::new("--project"),
+        manifest.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("main"),
+    ]);
+    assert_eq!(project_main.status.code(), Some(0), "{project_main:?}");
+    assert_eq!(project_main.stdout, b"main\n", "{project_main:?}");
+    assert!(project_main.stderr.is_empty(), "{project_main:?}");
+
+    let project_private = run([
+        OsStr::new("run"),
+        OsStr::new("--project"),
+        manifest.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("selected"),
+    ]);
+    assert_eq!(
+        project_private.status.code(),
+        Some(1),
+        "{project_private:?}"
+    );
+    assert!(project_private.stdout.is_empty(), "{project_private:?}");
+    assert_eq!(
+        project_private.stderr,
+        b"error: project build failed: project entry `selected` is private\n",
+        "{project_private:?}"
+    );
+    assert_eq!(
+        fs::read_to_string(&source).expect("preserved entry source"),
+        text
+    );
+    assert_no_build_temporaries(project.path());
+}

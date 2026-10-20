@@ -206,9 +206,19 @@ fn conventional_main_reports_selection_failures_and_explicit_entry_still_wins() 
 
     let missing_source = directory.join("missing.ko");
     fs::write(&missing_source, "fun helper(): Unit {}\n").expect("missing source write");
-    let missing = run([OsStr::new("run"), missing_source.as_os_str()]);
-    assert_eq!(missing.status.code(), Some(2), "{missing:?}");
-    assert!(String::from_utf8_lossy(&missing.stderr).contains("entry `main` was not found"));
+    for format in ["--message-format=human", "--message-format=json"] {
+        let missing = run([
+            OsStr::new(format),
+            OsStr::new("run"),
+            missing_source.as_os_str(),
+        ]);
+        assert_eq!(missing.status.code(), Some(2), "{missing:?}");
+        assert!(missing.stdout.is_empty(), "{missing:?}");
+        assert_eq!(
+            missing.stderr, b"error: native build failed: entry `main` was not found\n",
+            "{missing:?}"
+        );
+    }
 
     let invalid_source = directory.join("invalid-shape.ko");
     fs::write(
@@ -216,12 +226,24 @@ fn conventional_main_reports_selection_failures_and_explicit_entry_still_wins() 
         "fun main(): Int { return 1 }\nfun selected(): Unit {}\n",
     )
     .expect("explicit override source write");
-    let invalid = run([OsStr::new("run"), invalid_source.as_os_str()]);
-    assert_eq!(invalid.status.code(), Some(2), "{invalid:?}");
-    assert!(
-        String::from_utf8_lossy(&invalid.stderr)
-            .contains("entry `main` has no supported conventional shape")
-    );
+    for format in ["--message-format=human", "--message-format=json"] {
+        let invalid = run([
+            OsStr::new(format),
+            OsStr::new("run"),
+            invalid_source.as_os_str(),
+        ]);
+        assert_eq!(invalid.status.code(), Some(2), "{invalid:?}");
+        assert!(invalid.stdout.is_empty(), "{invalid:?}");
+        assert_eq!(
+            invalid.stderr,
+            concat!(
+                "error: native build failed: entry `main` has no supported conventional shape; ",
+                "expected `fun main(): Unit` or `fun main(args: Array<String>): Unit`\n",
+            )
+            .as_bytes(),
+            "{invalid:?}"
+        );
+    }
     let explicit = run([
         OsStr::new("run"),
         invalid_source.as_os_str(),
@@ -238,23 +260,35 @@ fn conventional_main_reports_selection_failures_and_explicit_entry_still_wins() 
         "fun main(args: Array<String>): Unit {}\n",
     )
     .expect("explicit parameterized source write");
-    let explicit_parameterized = run([
-        OsStr::new("run"),
-        parameterized_source.as_os_str(),
-        OsStr::new("--entry"),
-        OsStr::new("main"),
-        OsStr::new("--"),
-        OsStr::new("ignored"),
-    ]);
-    assert_eq!(
-        explicit_parameterized.status.code(),
-        Some(2),
-        "{explicit_parameterized:?}"
-    );
-    assert!(
-        String::from_utf8_lossy(&explicit_parameterized.stderr).contains("InvalidEntry"),
-        "{explicit_parameterized:?}"
-    );
+    for format in ["--message-format=human", "--message-format=json"] {
+        let explicit_parameterized = run([
+            OsStr::new(format),
+            OsStr::new("run"),
+            parameterized_source.as_os_str(),
+            OsStr::new("--entry"),
+            OsStr::new("main"),
+            OsStr::new("--"),
+            OsStr::new("ignored"),
+        ]);
+        assert_eq!(
+            explicit_parameterized.status.code(),
+            Some(2),
+            "{explicit_parameterized:?}"
+        );
+        assert!(
+            explicit_parameterized.stdout.is_empty(),
+            "{explicit_parameterized:?}"
+        );
+        assert_eq!(
+            explicit_parameterized.stderr,
+            concat!(
+                "error: native build failed: native object InvalidEntry: ",
+                "entry must match its declared native process shape and return Unit\n",
+            )
+            .as_bytes(),
+            "{explicit_parameterized:?}"
+        );
+    }
 
     let ambiguous_source = directory.join("ambiguous.ko");
     fs::write(
@@ -262,13 +296,20 @@ fn conventional_main_reports_selection_failures_and_explicit_entry_still_wins() 
         "fun main(): Unit {}\nfun main(args: Array<String>): Unit {}\n",
     )
     .expect("ambiguous source write");
-    let ambiguous = run([OsStr::new("run"), ambiguous_source.as_os_str()]);
-    assert_eq!(ambiguous.status.code(), Some(2), "{ambiguous:?}");
-    assert!(
-        String::from_utf8_lossy(&ambiguous.stderr)
-            .contains("entry `main` is ambiguous (2 candidates)"),
-        "{ambiguous:?}"
-    );
+    for format in ["--message-format=human", "--message-format=json"] {
+        let ambiguous = run([
+            OsStr::new(format),
+            OsStr::new("run"),
+            ambiguous_source.as_os_str(),
+        ]);
+        assert_eq!(ambiguous.status.code(), Some(2), "{ambiguous:?}");
+        assert!(ambiguous.stdout.is_empty(), "{ambiguous:?}");
+        assert_eq!(
+            ambiguous.stderr,
+            b"error: native build failed: entry `main` is ambiguous (2 candidates)\n",
+            "{ambiguous:?}"
+        );
+    }
 }
 
 #[test]
