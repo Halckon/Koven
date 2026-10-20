@@ -416,3 +416,26 @@ fn assert_rebased_span(original: &Value, actual: &Value, uri: &Uri, source: &str
     expected["utf16_range"] = json!(Range::new(position(source, start), position(source, end)));
     assert_eq!(*actual, expected);
 }
+
+// Temporary migration observation only: no fixture update and no comparison relaxation.
+#[test]
+fn observes_complete_unit_recovery_before_oracle_migration() {
+    let observations = fixtures().into_iter().map(|(label, source)| {
+        let uri: Uri = format!("file:///{label}.ko").parse().expect("fixture URI");
+        let (source_id, actual) =
+            analysis::analyze(uri.as_str(), source).expect("production Unit analysis");
+        json!({
+            "label": label,
+            "uri": uri.as_str(),
+            "source_utf8": source,
+            "source_byte_length": source.len(),
+            "snapshot": snapshot(&actual, source_id, &uri, source),
+        })
+    }).collect::<Vec<_>>();
+    assert_eq!(observations.len(), 11);
+    println!("KOVEN_UNIT_RECOVERY_OBSERVATION_V1={}", json!({
+        "schema_version": 1,
+        "pipeline": "production_compilation_unit_recovery",
+        "fixtures": observations,
+    }));
+}
