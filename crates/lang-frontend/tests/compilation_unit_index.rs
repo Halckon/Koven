@@ -59,15 +59,34 @@ fn canonical_identity_is_input_order_independent_and_merges_roots_by_package() {
 
     assert_eq!(forward, reverse);
     assert_eq!(forward.packages().len(), 2);
-    assert!(forward.packages()[0].name().expect("named package").is_default());
-    assert_eq!(forward.packages()[1].name().expect("named package").segments(), ["models"]);
+    assert!(
+        forward.packages()[0]
+            .name()
+            .expect("named package")
+            .is_default()
+    );
+    assert_eq!(
+        forward.packages()[1]
+            .name()
+            .expect("named package")
+            .segments(),
+        ["models"]
+    );
     assert_eq!(forward.source_units().len(), 3);
     assert_eq!(
-        forward.source_units()[0].key().logical_path().expect("rooted source").as_str(),
+        forward.source_units()[0]
+            .key()
+            .logical_path()
+            .expect("rooted source")
+            .as_str(),
         "models/alpha.ko"
     );
     assert_eq!(
-        forward.source_units()[1].key().logical_path().expect("rooted source").as_str(),
+        forward.source_units()[1]
+            .key()
+            .logical_path()
+            .expect("rooted source")
+            .as_str(),
         "models/shared.ko"
     );
     assert_eq!(
@@ -523,7 +542,10 @@ fn assert_incomplete_header_index(text: &str, code: &str, message: &str, start: 
     let unit = &index.source_units()[0];
     assert_eq!(unit.source_id(), source_id);
     assert_eq!(unit.key().root().expect("rooted source").as_str(), "root");
-    assert_eq!(unit.key().logical_path().expect("rooted source").as_str(), "wrong/F.ko");
+    assert_eq!(
+        unit.key().logical_path().expect("rooted source").as_str(),
+        "wrong/F.ko"
+    );
     assert_eq!(index.declarations().len(), 1);
     let declaration = &index.declarations()[0];
     assert_eq!(declaration.source_unit(), unit.id());
@@ -621,7 +643,10 @@ fn later_bad_package_does_not_hide_initial_path_mismatch() {
         let unit = &index.source_units()[0];
         assert_eq!(unit.source_id(), source_id);
         assert_eq!(unit.key().root().expect("rooted source").as_str(), "root");
-        assert_eq!(unit.key().logical_path().expect("rooted source").as_str(), logical_path);
+        assert_eq!(
+            unit.key().logical_path().expect("rooted source").as_str(),
+            logical_path
+        );
         if mismatched {
             let mismatch = &index.package_path_mismatches()[0];
             assert_eq!(mismatch.source_unit(), unit.id());

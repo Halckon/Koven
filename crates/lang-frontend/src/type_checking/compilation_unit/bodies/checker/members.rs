@@ -30,7 +30,10 @@ impl BodyChecker<'_> {
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
         if !symbols.is_empty()
             && symbols.iter().all(|symbol| {
-                self.parts.symbol_types.get(symbol).is_some_and(|ty| self.is_error(*ty))
+                self.parts
+                    .symbol_types
+                    .get(symbol)
+                    .is_some_and(|ty| self.is_error(*ty))
             })
         {
             return Ok(self.error_type());
@@ -137,7 +140,9 @@ impl BodyChecker<'_> {
             match unwrapped_item(self.file(source), *item)?.clone() {
                 Item::Function { name, .. } if self.diagnosed_missing_name(source, name) => {
                     self.check_function_without_identity(
-                        source, *item, receiver.map(|ty| (ty, nominal.kind())),
+                        source,
+                        *item,
+                        receiver.map(|ty| (ty, nominal.kind())),
                     )?;
                 }
                 Item::Function { name, form, .. } => {

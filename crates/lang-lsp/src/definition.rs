@@ -5,13 +5,12 @@ use std::{collections::BTreeMap, error::Error, fmt};
 use lang_frontend::{
     ast::{AstError, ExpressionId},
     name_resolution::{
-        CompilationUnitNames, DeclarationId, SourceUnitId, UnitNameReference, UnitReferenceTarget, UnitSymbolId,
+        CompilationUnitNames, DeclarationId, SourceUnitId, UnitNameReference, UnitReferenceTarget,
+        UnitSymbolId,
     },
     parser::{Expression, ParsedFile, SyntaxAst},
     source::Span,
-    type_checking::{
-        CompilationUnitTypes, UnitAggregateProjectionKind, UnitCallTarget,
-    },
+    type_checking::{CompilationUnitTypes, UnitAggregateProjectionKind, UnitCallTarget},
 };
 
 /// compilation-unit reference facts 到跨 source definition target 的确定性索引。
@@ -397,7 +396,10 @@ mod tests {
         assert_target(source, &analysis, "pick", 3, "pick", 0);
 
         let failed = occurrence(source, "pick", 2);
-        let targets = analysis.1.definitions().targets_at(source_unit(analysis.1.name_snapshot().names(), analysis.0), failed);
+        let targets = analysis.1.definitions().targets_at(
+            source_unit(analysis.1.name_snapshot().names(), analysis.0),
+            failed,
+        );
         assert_eq!(targets.len(), 2);
         assert_eq!(targets[0].span.start(), occurrence(source, "pick", 0));
         assert_eq!(targets[1].span.start(), occurrence(source, "pick", 1));
@@ -481,7 +483,10 @@ mod tests {
 
     fn assert_target(
         source: &str,
-        analysis: &(SourceId, crate::unit_analysis_snapshot::UnitAnalysisSnapshot),
+        analysis: &(
+            SourceId,
+            crate::unit_analysis_snapshot::UnitAnalysisSnapshot,
+        ),
         reference_name: &str,
         reference_index: usize,
         target_name: &str,
@@ -498,7 +503,8 @@ mod tests {
         );
         assert_eq!(targets[0].span.start(), target);
         assert!(
-            analysis.1
+            analysis
+                .1
                 .definitions()
                 .targets_at(unit, reference + reference_name.len())
                 .is_empty()
@@ -507,14 +513,21 @@ mod tests {
 
     fn assert_no_target(
         source: &str,
-        analysis: &(SourceId, crate::unit_analysis_snapshot::UnitAnalysisSnapshot),
+        analysis: &(
+            SourceId,
+            crate::unit_analysis_snapshot::UnitAnalysisSnapshot,
+        ),
         name: &str,
         index: usize,
     ) {
         assert!(
-            analysis.1
+            analysis
+                .1
                 .definitions()
-                .targets_at(source_unit(analysis.1.name_snapshot().names(), analysis.0), occurrence(source, name, index))
+                .targets_at(
+                    source_unit(analysis.1.name_snapshot().names(), analysis.0),
+                    occurrence(source, name, index)
+                )
                 .is_empty()
         );
     }

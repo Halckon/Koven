@@ -3,10 +3,14 @@
 use std::{error::Error, fmt};
 
 use crate::{
-    ownership_checking::{CompilationUnitOwnership, OwnershipCheckingError,
-        check_compilation_unit_ownership_recovering},
-    type_checking::{CompilationUnitTypeError, CompilationUnitTypes, TypeEnvironment,
-        check_compilation_unit_types_recovering},
+    ownership_checking::{
+        CompilationUnitOwnership, OwnershipCheckingError,
+        check_compilation_unit_ownership_recovering,
+    },
+    type_checking::{
+        CompilationUnitTypeError, CompilationUnitTypes, TypeEnvironment,
+        check_compilation_unit_types_recovering,
+    },
 };
 
 use super::UnitNameSnapshot;
@@ -19,11 +23,20 @@ pub fn analyze_unit_recovery(
 ) -> Result<(CompilationUnitTypes, CompilationUnitOwnership), UnitRecoveryAnalysisError> {
     let inputs = names.inputs();
     let typed = check_compilation_unit_types_recovering(
-        names.sources(), &inputs, names.names(), environment,
-    ).map_err(UnitRecoveryAnalysisError::Type)?;
+        names.sources(),
+        &inputs,
+        names.names(),
+        environment,
+    )
+    .map_err(UnitRecoveryAnalysisError::Type)?;
     let owned = check_compilation_unit_ownership_recovering(
-        names.sources(), &inputs, names.names(), environment, &typed,
-    ).map_err(UnitRecoveryAnalysisError::Ownership)?;
+        names.sources(),
+        &inputs,
+        names.names(),
+        environment,
+        &typed,
+    )
+    .map_err(UnitRecoveryAnalysisError::Ownership)?;
     Ok((typed, owned))
 }
 
@@ -40,7 +53,10 @@ impl fmt::Display for UnitRecoveryAnalysisError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Type(error) => write!(formatter, "unit type analysis failed internally: {error}"),
-            Self::Ownership(error) => write!(formatter, "unit ownership analysis failed internally: {error}"),
+            Self::Ownership(error) => write!(
+                formatter,
+                "unit ownership analysis failed internally: {error}"
+            ),
         }
     }
 }

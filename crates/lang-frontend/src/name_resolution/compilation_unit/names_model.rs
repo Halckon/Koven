@@ -228,8 +228,14 @@ impl CompilationUnitNames {
     }
     /// 共享真实 parser/index/name/import 资格；不以产物 owner 身份替代此判据。
     pub(crate) fn is_valid(&self) -> bool {
-        self.index.packages().iter().all(|package| package.name().is_some())
-            && !self.diagnostics.iter().any(|diagnostic| diagnostic.severity() == Severity::Error)
+        self.index
+            .packages()
+            .iter()
+            .all(|package| package.name().is_some())
+            && !self
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity() == Severity::Error)
     }
 
     /// 只在全部 parser/index/name/import 诊断无 error 时发布 validated view。

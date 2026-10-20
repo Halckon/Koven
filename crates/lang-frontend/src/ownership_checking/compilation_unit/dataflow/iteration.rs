@@ -25,7 +25,10 @@ impl Checker<'_> {
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         let statement_id = UnitStatementId::new(self.source_unit, statement);
-        if self.typed.diagnostic_iteration_header_rejected(statement_id) {
+        if self
+            .typed
+            .diagnostic_iteration_header_rejected(statement_id)
+        {
             let errors = self.diagnostics.len();
             let mut prefix = self.check_expression(source, state, ExpressionUse::Read)?;
             let Some(base) = prefix.next.as_mut() else {
@@ -92,7 +95,10 @@ impl Checker<'_> {
             return self.check_maybe_loop(prefix, body, errors, &headers);
         }
         let statement = UnitStatementId::new(self.source_unit, statement);
-        let descriptor = self.typed.diagnostic_sequential_iteration(statement).cloned();
+        let descriptor = self
+            .typed
+            .diagnostic_sequential_iteration(statement)
+            .cloned();
         if descriptor.is_none() && map_descriptor.is_none() {
             return Err(OwnershipCheckingError::InvalidUnitArgumentType {
                 source_unit: self.source_unit.index(),

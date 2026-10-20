@@ -16,12 +16,18 @@ use lang_frontend::{
 
 fn memory(text: &str) -> (UnitNameSnapshot, TypeEnvironment) {
     let mut sources = SourceMap::new();
-    let prior = sources.add_source("unselected", "# absent").expect("real prior registration");
-    let source = sources.add_source("untitled:ThisRecovery", text).expect("real selected source");
+    let prior = sources
+        .add_source("unselected", "# absent")
+        .expect("real prior registration");
+    let source = sources
+        .add_source("untitled:ThisRecovery", text)
+        .expect("real selected source");
     assert_ne!(source, prior);
     let (names, environment) = standard_environments();
     let snapshot = analyze_unit_names(
-        sources, vec![UnitSourceDescriptor::memory_document(source)], names,
+        sources,
+        vec![UnitSourceDescriptor::memory_document(source)],
+        names,
     )
     .expect("ordinary parsed memory input");
     assert_eq!(snapshot.descriptors().len(), 1);
@@ -42,7 +48,10 @@ fn unique_span(snapshot: &UnitNameSnapshot, token: &str) -> Span {
     let positions = text.match_indices(token).collect::<Vec<_>>();
     assert_eq!(positions.len(), 1, "unique expected source token {token}");
     let start = positions[0].0;
-    snapshot.sources().span(source, start, start + token.len()).unwrap()
+    snapshot
+        .sources()
+        .span(source, start, start + token.len())
+        .unwrap()
 }
 
 fn assert_diagnostics(diagnostics: &[Diagnostic], expected: &[(&str, Span)]) {
@@ -56,17 +65,27 @@ fn assert_diagnostics(diagnostics: &[Diagnostic], expected: &[(&str, Span)]) {
 
 fn this_expression(snapshot: &UnitNameSnapshot) -> UnitExpressionId {
     let file = &snapshot.parsed_files()[0];
-    let ids = file.ast().expressions().iter()
+    let ids = file
+        .ast()
+        .expressions()
+        .iter()
         .filter_map(|(id, node)| matches!(node.payload(), Expression::This).then_some(id))
         .collect::<Vec<_>>();
     assert_eq!(ids.len(), 1, "one actual parser-produced this expression");
-    let unit = snapshot.names().index().source_units().iter()
-        .find(|unit| unit.source_id() == file.source_id()).expect("original selected source");
+    let unit = snapshot
+        .names()
+        .index()
+        .source_units()
+        .iter()
+        .find(|unit| unit.source_id() == file.source_id())
+        .expect("original selected source");
     UnitExpressionId::new(unit.id(), ids[0])
 }
 
 fn assert_error_this(snapshot: &UnitNameSnapshot, typed: &CompilationUnitTypes) {
-    let ty = typed.expression_type(this_expression(snapshot)).expect("real this type fact");
+    let ty = typed
+        .expression_type(this_expression(snapshot))
+        .expect("real this type fact");
     assert_eq!(typed.types().get(ty), Some(&UnitTypeKind::Error));
 }
 
@@ -86,7 +105,10 @@ fn assert_without_receiver(text: &str) {
     let (typed, owned) = analyze_unit_recovery(&snapshot, &environment)
         .expect("ordinary receiver error is not an internal failure");
     assert!(typed.signatures().diagnostics().is_empty());
-    assert_diagnostics(typed.diagnostics(), &[("L0166", unique_span(&snapshot, "this"))]);
+    assert_diagnostics(
+        typed.diagnostics(),
+        &[("L0166", unique_span(&snapshot, "this"))],
+    );
     assert_eq!(typed.body_diagnostics(), typed.diagnostics());
     assert_error_this(&snapshot, &typed);
     assert!(owned.diagnostics().is_empty());
@@ -119,20 +141,28 @@ fn instance_this_retains_real_basic_types_ownership_and_sealed_view() {
     let names = snapshot.validated_names().expect("healthy instance names");
     let inputs = snapshot.inputs();
     let strict = check_compilation_unit_types(snapshot.sources(), &inputs, names, &environment)
-        .expect("strict instance types").validate().expect("strict basic types");
-    let strict_owned = check_compilation_unit_ownership(
-        snapshot.sources(), &inputs, names, &environment, &strict,
-    )
-    .expect("strict instance ownership");
+        .expect("strict instance types")
+        .validate()
+        .expect("strict basic types");
+    let strict_owned =
+        check_compilation_unit_ownership(snapshot.sources(), &inputs, names, &environment, &strict)
+            .expect("strict instance ownership");
     let (typed, owned) = analyze_unit_recovery(&snapshot, &environment).expect("healthy instance");
     assert_eq!(&typed, strict.types());
     assert_eq!(owned, strict_owned);
     assert!(typed.diagnostics().is_empty());
     assert!(owned.diagnostics().is_empty());
     assert!(owned.deferred().is_empty());
-    let this_ty = typed.expression_type(this_expression(&snapshot)).expect("typed actual this");
-    let holder = snapshot.names().index().declarations().iter()
-        .find(|declaration| declaration.name() == "Holder").expect("real Holder declaration");
+    let this_ty = typed
+        .expression_type(this_expression(&snapshot))
+        .expect("typed actual this");
+    let holder = snapshot
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|declaration| declaration.name() == "Holder")
+        .expect("real Holder declaration");
     assert!(matches!(
         typed.types().get(this_ty),
         Some(UnitTypeKind::Nominal { declaration, arguments })
@@ -142,7 +172,12 @@ fn instance_this_retains_real_basic_types_ownership_and_sealed_view() {
     assert!(owned.is_compatible_with(&typed));
     let owned = owned.validate().expect("healthy instance owned capability");
     let view = owned_compilation_unit_view(
-        snapshot.sources(), &inputs, names, &environment, &typed, &owned,
+        snapshot.sources(),
+        &inputs,
+        names,
+        &environment,
+        &typed,
+        &owned,
     )
     .expect("genuine basic sealed view");
     assert!(std::ptr::eq(view.types(), typed.types()));
@@ -164,9 +199,12 @@ fn companion_constant_same_token_l0153_does_not_gain_l0166() {
             .expect("existing constant-context rejection remains ordinary recovery");
         assert_error_this(&snapshot, &typed);
         // 这里只锁新码不重复；显式 Int 的既有 L0156 常量边界不在本片改写或抹除。
-        assert!(typed.diagnostics().iter().all(|diagnostic| {
-            diagnostic.code().to_string() != "L0166"
-        }));
+        assert!(
+            typed
+                .diagnostics()
+                .iter()
+                .all(|diagnostic| { diagnostic.code().to_string() != "L0166" })
+        );
         assert!(typed.constants().is_none());
         assert!(owned.diagnostics().is_empty());
         assert_unqualified(&typed, &owned);
@@ -180,14 +218,27 @@ fn rejected_real_extension_receiver_keeps_l0164_without_false_l0166() {
     assert!(snapshot.validated_names().is_some());
     let (typed, owned) = analyze_unit_recovery(&snapshot, &environment)
         .expect("already diagnosed real extension is ordinary Error recovery");
-    assert_diagnostics(typed.diagnostics(), &[("L0164", unique_span(&snapshot, "."))]);
+    assert_diagnostics(
+        typed.diagnostics(),
+        &[("L0164", unique_span(&snapshot, "."))],
+    );
     assert_eq!(typed.signatures().diagnostics(), typed.diagnostics());
     assert!(typed.body_diagnostics().is_empty());
-    let callables = typed.signatures().declarations().iter()
-        .filter_map(|declaration| declaration.callable()).collect::<Vec<_>>();
+    let callables = typed
+        .signatures()
+        .declarations()
+        .iter()
+        .filter_map(|declaration| declaration.callable())
+        .collect::<Vec<_>>();
     assert_eq!(callables.len(), 1);
-    assert!(callables[0].receiver().is_some(), "actual declared receiver, not absence");
-    assert!(callables[0].range_extension().is_none(), "no forged trusted authority");
+    assert!(
+        callables[0].receiver().is_some(),
+        "actual declared receiver, not absence"
+    );
+    assert!(
+        callables[0].range_extension().is_none(),
+        "no forged trusted authority"
+    );
     assert_error_this(&snapshot, &typed);
     assert!(owned.diagnostics().is_empty());
     assert!(owned.deferred().is_empty());

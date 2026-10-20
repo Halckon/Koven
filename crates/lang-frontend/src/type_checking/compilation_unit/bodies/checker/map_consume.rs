@@ -93,8 +93,7 @@ impl BodyChecker<'_> {
                     let symbol = match self.reference(source, node.span(), Namespace::Value) {
                         Some(UnitReferenceTarget::Symbol(symbol)) => *symbol,
                         Some(UnitReferenceTarget::Declaration(declaration)) => {
-                            let Some(symbol) = self.names.declaration_symbol(*declaration)
-                            else {
+                            let Some(symbol) = self.names.declaration_symbol(*declaration) else {
                                 return Ok(None);
                             };
                             symbol

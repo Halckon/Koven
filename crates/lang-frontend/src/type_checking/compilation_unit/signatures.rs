@@ -8,9 +8,9 @@ use crate::{
     ast::{ItemId, TypeRefId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        DeclarationId, DeclarationVisibility, Namespace, SourceUnitId, SourceUnitInput, SymbolId,
-        SymbolKind, UnitReferenceTarget, UnitSymbolId, CompilationUnitNames, ValidatedCompilationUnitNames,
-        index_compilation_unit, ordered_unit_diagnostics,
+        CompilationUnitNames, DeclarationId, DeclarationVisibility, Namespace, SourceUnitId,
+        SourceUnitInput, SymbolId, SymbolKind, UnitReferenceTarget, UnitSymbolId,
+        ValidatedCompilationUnitNames, index_compilation_unit, ordered_unit_diagnostics,
     },
     parser::{
         ClassifierBody, ClassifierDeclaration, ClassifierKind, DeclarationModifiers, FunctionForm,
@@ -193,8 +193,12 @@ impl<'a> SignatureCollector<'a> {
             .iter()
             .map(|source| source.resolution().analysis_owner().clone())
             .collect();
-        let provenance =
-            SignatureProvenance::new(input_index, environment_owner, name_analysis_owners, self.names.is_valid());
+        let provenance = SignatureProvenance::new(
+            input_index,
+            environment_owner,
+            name_analysis_owners,
+            self.names.is_valid(),
+        );
         Ok(CompilationUnitSignatures::new(
             provenance,
             self.types,

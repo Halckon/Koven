@@ -38,10 +38,21 @@ impl BodyChecker<'_> {
                     Item::Function { .. } => {
                         self.check_function_without_identity(source.id(), root, None)?;
                     }
-                    Item::Variable { type_ref, initializer, .. }
-                    | Item::Constant { type_ref, initializer, .. } =>
-                    {
-                        self.check_initializer_without_identity(source.id(), type_ref, initializer)?;
+                    Item::Variable {
+                        type_ref,
+                        initializer,
+                        ..
+                    }
+                    | Item::Constant {
+                        type_ref,
+                        initializer,
+                        ..
+                    } => {
+                        self.check_initializer_without_identity(
+                            source.id(),
+                            type_ref,
+                            initializer,
+                        )?;
                     }
                     Item::Classifier(classifier) => {
                         self.check_classifier_without_identity(source.id(), &classifier)?;
@@ -59,16 +70,25 @@ impl BodyChecker<'_> {
         type_ref: Option<TypeRefId>,
         initializer: ExpressionId,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
-        let expected = type_ref.map(|id| self.resolve_body_type_ref(source, id)).transpose()?;
+        let expected = type_ref
+            .map(|id| self.resolve_body_type_ref(source, id))
+            .transpose()?;
         let expected_span = type_ref
-            .map(|id| self.file(source).ast().type_refs().get(id).map(|node| node.span()))
+            .map(|id| {
+                self.file(source)
+                    .ast()
+                    .type_refs()
+                    .get(id)
+                    .map(|node| node.span())
+            })
             .transpose()
             .map_err(TypeCheckingError::from)?;
         self.flow_facts.clear();
         self.flow_versions.clear();
         let previous_return_span = self.current_return_span.take();
         let return_type = self.error_type();
-        let result = self.check_expression(source, initializer, expected, expected_span, return_type);
+        let result =
+            self.check_expression(source, initializer, expected, expected_span, return_type);
         self.current_return_span = previous_return_span;
         result.map(|result| expected.unwrap_or(result.ty))
     }
@@ -79,20 +99,33 @@ impl BodyChecker<'_> {
         root: ItemId,
         receiver_owner: Option<(UnitTypeId, NominalKind)>,
     ) -> Result<(), CompilationUnitTypeError> {
-        let modifiers = match self.file(source).ast().items().get(root)
-            .map_err(TypeCheckingError::from)?.payload()
+        let modifiers = match self
+            .file(source)
+            .ast()
+            .items()
+            .get(root)
+            .map_err(TypeCheckingError::from)?
+            .payload()
         {
             Item::Modified { modifiers, .. } => *modifiers,
             _ => DeclarationModifiers::default(),
         };
         let item = unwrapped_item(self.file(source), root)?.clone();
-        let Item::Function { parameters, form, extension_receiver, .. } = &item else {
+        let Item::Function {
+            parameters,
+            form,
+            extension_receiver,
+            ..
+        } = &item
+        else {
             return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
         };
         if extension_receiver.is_none()
             && let Some((span, message)) =
                 crate::type_checking::declaration_frontier::unsupported_declaration(
-                    &item, self.environment.is_authorized_range_source(self.file(source).source_id()),
+                    &item,
+                    self.environment
+                        .is_authorized_range_source(self.file(source).source_id()),
                 )
         {
             self.emit(codes::UNSUPPORTED_BORROW_FLOW, message, span)?;
@@ -135,14 +168,23 @@ impl BodyChecker<'_> {
             parameter_types.push(ty);
         }
         let return_type = match form {
-            FunctionForm::ImplicitUnitAbsent | FunctionForm::ImplicitUnitBlock(_) =>
-                self.builtin(BuiltinType::Unit),
-            FunctionForm::Explicit { type_ref, .. } => self.resolve_body_type_ref(source, *type_ref)?,
+            FunctionForm::ImplicitUnitAbsent | FunctionForm::ImplicitUnitBlock(_) => {
+                self.builtin(BuiltinType::Unit)
+            }
+            FunctionForm::Explicit { type_ref, .. } => {
+                self.resolve_body_type_ref(source, *type_ref)?
+            }
         };
         let contract = match crate::type_checking::result_source::resolve_result_source(
-            self.sources, *form, parameters,
-            extension_receiver.map(|_| parameter_mode(modifiers.receiver_mode)).or(receiver_mode),
-        ).map_err(TypeCheckingError::from)? {
+            self.sources,
+            *form,
+            parameters,
+            extension_receiver
+                .map(|_| parameter_mode(modifiers.receiver_mode))
+                .or(receiver_mode),
+        )
+        .map_err(TypeCheckingError::from)?
+        {
             Ok(contract) => contract,
             Err(issue) => {
                 self.emit(codes::INVALID_BORROW_CONTRACT, issue.message, issue.span)?;
@@ -163,14 +205,17 @@ impl BodyChecker<'_> {
             };
             let result_element = match self.signatures.types().get(return_type) {
                 Some(UnitTypeKind::Intrinsic {
-                    constructor: IntrinsicTypeConstructor::View, arguments,
+                    constructor: IntrinsicTypeConstructor::View,
+                    arguments,
                 }) => arguments.first().copied(),
                 _ => None,
             };
             if !self.is_error(return_type)
                 && !source_type.is_some_and(|ty| self.is_error(ty))
                 && let Some(issue) = crate::type_checking::result_source::carrier_shape_issue(
-                    contract, result_element, source_type.and_then(element),
+                    contract,
+                    result_element,
+                    source_type.and_then(element),
                 )
             {
                 self.emit(codes::INVALID_BORROW_CONTRACT, issue.message, issue.span)?;
@@ -178,7 +223,8 @@ impl BodyChecker<'_> {
         }
         let previous_receiver = std::mem::replace(&mut self.current_receiver, receiver);
         let previous_mode = std::mem::replace(&mut self.current_receiver_mode, receiver_mode);
-        let previous_rejected = std::mem::replace(&mut self.current_rejected_extension_receiver, false);
+        let previous_rejected =
+            std::mem::replace(&mut self.current_rejected_extension_receiver, false);
         let previous_return_span = self.current_return_span;
         self.callable_loop_bases.push(self.loop_depth);
         let result = self.check_function_body(source, *form, return_type);

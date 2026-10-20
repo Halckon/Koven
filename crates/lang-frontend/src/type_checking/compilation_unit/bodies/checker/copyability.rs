@@ -169,10 +169,14 @@ impl CapabilityQuery<'_> {
                     // Never let zip silently certify missing/extra arguments or replace an
                     // unrelated outer mapping. These checks affect evidence, not the result.
                     trace.unexplained |= nominal.type_parameters().len() != arguments.len()
-                        || nominal.type_parameters().iter().any(|p| outer.contains_key(p));
-                    let fields = nominal.fields().iter().chain(
-                        nominal.enum_cases().iter().flat_map(|case| case.payloads()),
-                    );
+                        || nominal
+                            .type_parameters()
+                            .iter()
+                            .any(|p| outer.contains_key(p));
+                    let fields = nominal
+                        .fields()
+                        .iter()
+                        .chain(nominal.enum_cases().iter().flat_map(|case| case.payloads()));
                     trace.unexplained |= fields.into_iter().any(|field| {
                         self.signatures.symbol_type(field.symbol()) != Some(field.ty())
                     });
@@ -230,39 +234,54 @@ impl CapabilityQuery<'_> {
             return false;
         }
         let complete = match self.signatures.types().get(ty) {
-            Some(UnitTypeKind::Builtin(_) | UnitTypeKind::IntegerLiteral(_) | UnitTypeKind::Error) => {
-                true
-            }
+            Some(
+                UnitTypeKind::Builtin(_) | UnitTypeKind::IntegerLiteral(_) | UnitTypeKind::Error,
+            ) => true,
             Some(UnitTypeKind::Nullable(inner)) => {
                 self.complete_type_inputs(*inner, substitutions, active)
             }
-            Some(UnitTypeKind::Function { parameters, return_type, .. }) => {
-                parameters.iter().all(|p| self.complete_type_inputs(p.ty(), substitutions, active))
+            Some(UnitTypeKind::Function {
+                parameters,
+                return_type,
+                ..
+            }) => {
+                parameters
+                    .iter()
+                    .all(|p| self.complete_type_inputs(p.ty(), substitutions, active))
                     && self.complete_type_inputs(*return_type, substitutions, active)
             }
             Some(UnitTypeKind::Intrinsic { arguments, .. }) => arguments
                 .iter()
                 .all(|argument| self.complete_type_inputs(*argument, substitutions, active)),
-            Some(UnitTypeKind::Nominal { declaration, arguments }) => {
+            Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) => {
                 self.complete_nominal_identity(*declaration, arguments.len())
-                    && arguments.iter().all(|argument| {
-                        self.complete_type_inputs(*argument, substitutions, active)
-                    })
+                    && arguments
+                        .iter()
+                        .all(|argument| self.complete_type_inputs(*argument, substitutions, active))
             }
             Some(UnitTypeKind::TypeParameter(symbol)) => {
-                let identity = self.signatures.type_parameter(*symbol).is_some_and(|parameter| {
-                    parameter.symbol() == *symbol
-                        && !matches!(
-                            parameter.bound(),
-                            UnitTypeParameterBound::Error | UnitTypeParameterBound::Interface(_)
-                        )
-                }) && self.signatures.symbol_type(*symbol) == Some(ty);
-                identity && match substitutions.get(symbol).copied() {
-                    Some(actual) if actual != ty => {
-                        self.complete_type_inputs(actual, substitutions, active)
+                let identity = self
+                    .signatures
+                    .type_parameter(*symbol)
+                    .is_some_and(|parameter| {
+                        parameter.symbol() == *symbol
+                            && !matches!(
+                                parameter.bound(),
+                                UnitTypeParameterBound::Error
+                                    | UnitTypeParameterBound::Interface(_)
+                            )
+                    })
+                    && self.signatures.symbol_type(*symbol) == Some(ty);
+                identity
+                    && match substitutions.get(symbol).copied() {
+                        Some(actual) if actual != ty => {
+                            self.complete_type_inputs(actual, substitutions, active)
+                        }
+                        _ => true,
                     }
-                    _ => true,
-                }
             }
             // Refinement identity and static/interface capabilities are not part of
             // this finite nominal-field/payload source-error proof.
@@ -287,7 +306,10 @@ impl CapabilityQuery<'_> {
         };
         if signature.declaration() != declaration
             || nominal.declaration() != declaration
-            || self.signatures.invalid_inline_nominals().contains(&declaration)
+            || self
+                .signatures
+                .invalid_inline_nominals()
+                .contains(&declaration)
             || signature.symbol() != nominal.symbol()
             || signature.ty() != nominal.ty()
             || self.signatures.symbol_type(nominal.symbol()) != Some(nominal.ty())
@@ -295,29 +317,39 @@ impl CapabilityQuery<'_> {
         {
             return false;
         }
-        let Some(UnitTypeKind::Nominal { declaration: own, arguments }) =
-            self.signatures.types().get(nominal.ty())
+        let Some(UnitTypeKind::Nominal {
+            declaration: own,
+            arguments,
+        }) = self.signatures.types().get(nominal.ty())
         else {
             return false;
         };
         let mut parameters = BTreeSet::new();
         *own == declaration
             && arguments.len() == arity
-            && nominal.type_parameters().iter().zip(arguments).all(|(symbol, ty)| {
-                parameters.insert(*symbol)
-                    && self.signatures.symbol_type(*symbol) == Some(*ty)
-                    && matches!(
-                        self.signatures.types().get(*ty),
-                        Some(UnitTypeKind::TypeParameter(actual)) if actual == symbol
-                    )
-                    && self.signatures.type_parameter(*symbol).is_some_and(|parameter| {
-                        parameter.symbol() == *symbol
-                            && !matches!(
-                                parameter.bound(),
-                                UnitTypeParameterBound::Error | UnitTypeParameterBound::Interface(_)
-                            )
-                    })
-            })
+            && nominal
+                .type_parameters()
+                .iter()
+                .zip(arguments)
+                .all(|(symbol, ty)| {
+                    parameters.insert(*symbol)
+                        && self.signatures.symbol_type(*symbol) == Some(*ty)
+                        && matches!(
+                            self.signatures.types().get(*ty),
+                            Some(UnitTypeKind::TypeParameter(actual)) if actual == symbol
+                        )
+                        && self
+                            .signatures
+                            .type_parameter(*symbol)
+                            .is_some_and(|parameter| {
+                                parameter.symbol() == *symbol
+                                    && !matches!(
+                                        parameter.bound(),
+                                        UnitTypeParameterBound::Error
+                                            | UnitTypeParameterBound::Interface(_)
+                                    )
+                            })
+                })
     }
 
     pub(super) fn transferability_of(&self, ty: UnitTypeId) -> UnitTransferability {

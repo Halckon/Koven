@@ -18,13 +18,20 @@ use lang_frontend::{
 
 fn memory(text: &str) -> (UnitNameSnapshot, TypeEnvironment) {
     let mut sources = SourceMap::new();
-    let unrelated = sources.add_source("not-selected", "#").expect("real unrelated source");
-    let source = sources.add_source("untitled:MissingNames", text).expect("real source");
+    let unrelated = sources
+        .add_source("not-selected", "#")
+        .expect("real unrelated source");
+    let source = sources
+        .add_source("untitled:MissingNames", text)
+        .expect("real source");
     assert_ne!(source, unrelated);
     let (names, types) = standard_environments();
     let snapshot = analyze_unit_names(
-        sources, vec![UnitSourceDescriptor::memory_document(source)], names,
-    ).expect("ordinary malformed source has a real name snapshot");
+        sources,
+        vec![UnitSourceDescriptor::memory_document(source)],
+        names,
+    )
+    .expect("ordinary malformed source has a real name snapshot");
     assert_eq!(snapshot.parsed_files().len(), 1);
     assert_eq!(snapshot.parsed_files()[0].source_id(), source);
     assert_eq!(snapshot.sources().source_text(source).unwrap(), text);
@@ -40,12 +47,18 @@ fn span(snapshot: &UnitNameSnapshot, context: &str, token: &str) -> Span {
     let tokens = context.match_indices(token).collect::<Vec<_>>();
     assert_eq!(tokens.len(), 1, "unique token: {token}");
     let start = contexts[0].0 + tokens[0].0;
-    snapshot.sources().span(source, start, start + token.len()).unwrap()
+    snapshot
+        .sources()
+        .span(source, start, start + token.len())
+        .unwrap()
 }
 
 fn empty_before(snapshot: &UnitNameSnapshot, context: &str, token: &str) -> Span {
     let token = span(snapshot, context, token);
-    snapshot.sources().span(token.source_id(), token.start(), token.start()).unwrap()
+    snapshot
+        .sources()
+        .span(token.source_id(), token.start(), token.start())
+        .unwrap()
 }
 
 fn diagnostics(actual: &[Diagnostic], expected: &[(&str, Span)]) {
@@ -57,12 +70,19 @@ fn diagnostics(actual: &[Diagnostic], expected: &[(&str, Span)]) {
     }
 }
 
-fn rejected(snapshot: &UnitNameSnapshot, typed: &CompilationUnitTypes, owned: &CompilationUnitOwnership) {
+fn rejected(
+    snapshot: &UnitNameSnapshot,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+) {
     assert!(snapshot.validated_names().is_none());
     assert!(typed.signatures().clone().validate().is_err());
     assert!(typed.clone().validate().is_err());
     assert!(typed.clone().validate_constants().is_err());
-    assert!(owned.clone().validate().is_err(), "quiet ownership cannot erase the parser error");
+    assert!(
+        owned.clone().validate().is_err(),
+        "quiet ownership cannot erase the parser error"
+    );
     assert!(typed.ownership_primitives().is_empty());
     assert!(owned.formed_owned_locals().is_empty());
     assert!(owned.receiver_facts().is_empty());
@@ -72,15 +92,21 @@ fn rejected(snapshot: &UnitNameSnapshot, typed: &CompilationUnitTypes, owned: &C
 }
 
 fn missing_markers(snapshot: &UnitNameSnapshot) -> Vec<NameMarker> {
-    snapshot.parsed_files()[0].ast().items().iter().filter_map(|(_, item)| {
-        let name = match item.payload() {
-            Item::Function { name, .. } | Item::Variable { name, .. }
-            | Item::Constant { name, .. } => *name,
-            Item::Classifier(classifier) => classifier.name,
-            _ => return None,
-        };
-        (!matches!(name, NameMarker::Present(_))).then_some(name)
-    }).collect()
+    snapshot.parsed_files()[0]
+        .ast()
+        .items()
+        .iter()
+        .filter_map(|(_, item)| {
+            let name = match item.payload() {
+                Item::Function { name, .. }
+                | Item::Variable { name, .. }
+                | Item::Constant { name, .. } => *name,
+                Item::Classifier(classifier) => classifier.name,
+                _ => return None,
+            };
+            (!matches!(name, NameMarker::Present(_))).then_some(name)
+        })
+        .collect()
 }
 
 #[test]
@@ -91,9 +117,27 @@ fn four_top_level_declarations_keep_missing_and_error_markers_and_body_mismatch(
         ("val : Int = true", "val :", ":", "L0018", true),
         ("val 1: Int = true", "val 1:", "1", "L0018", false),
         ("const val : Int = true", "const val :", ":", "L0018", true),
-        ("const val 1: Int = true", "const val 1:", "1", "L0018", false),
-        ("class { fun f(): Int = true }", "class {", "{", "L0067", true),
-        ("class 1 { fun f(): Int = true }", "class 1", "1", "L0067", false),
+        (
+            "const val 1: Int = true",
+            "const val 1:",
+            "1",
+            "L0018",
+            false,
+        ),
+        (
+            "class { fun f(): Int = true }",
+            "class {",
+            "{",
+            "L0067",
+            true,
+        ),
+        (
+            "class 1 { fun f(): Int = true }",
+            "class 1",
+            "1",
+            "L0067",
+            false,
+        ),
     ] {
         let (snapshot, environment) = memory(text);
         let primary = if is_missing {
@@ -101,13 +145,20 @@ fn four_top_level_declarations_keep_missing_and_error_markers_and_body_mismatch(
         } else {
             span(&snapshot, context, token)
         };
-        let marker = if is_missing { NameMarker::Missing(primary) } else { NameMarker::Error(primary) };
+        let marker = if is_missing {
+            NameMarker::Missing(primary)
+        } else {
+            NameMarker::Error(primary)
+        };
         assert_eq!(missing_markers(&snapshot), [marker], "{text}");
         diagnostics(snapshot.parsed_files()[0].diagnostics(), &[(code, primary)]);
         diagnostics(snapshot.names().diagnostics(), &[(code, primary)]);
         let (typed, owned) = analyze_unit_recovery(&snapshot, &environment)
             .expect("a real missing-name parser error must not become an internal failure");
-        diagnostics(typed.diagnostics(), &[("L0084", span(&snapshot, "true", "true"))]);
+        diagnostics(
+            typed.diagnostics(),
+            &[("L0084", span(&snapshot, "true", "true"))],
+        );
         diagnostics(owned.diagnostics(), &[]);
         assert!(owned.deferred().is_empty());
         rejected(&snapshot, &typed, &owned);
@@ -125,34 +176,64 @@ fn unnamed_members_and_companion_constants_keep_real_parameter_types() {
         let (snapshot, environment) = memory(&text);
         let function = format!("fun {name}(");
         let constant = format!("const val {name}:");
-        let marker = |context: &str, boundary: &str| if name.is_empty() {
-            empty_before(&snapshot, context, boundary)
-        } else {
-            span(&snapshot, context, name)
+        let marker = |context: &str, boundary: &str| {
+            if name.is_empty() {
+                empty_before(&snapshot, context, boundary)
+            } else {
+                span(&snapshot, context, name)
+            }
         };
-        let expected = [("L0018", marker(&function, "(")), ("L0018", marker(&constant, ":"))];
+        let expected = [
+            ("L0018", marker(&function, "(")),
+            ("L0018", marker(&constant, ":")),
+        ];
         diagnostics(snapshot.parsed_files()[0].diagnostics(), &expected);
         diagnostics(snapshot.names().diagnostics(), &expected);
-        let (typed, owned) = analyze_unit_recovery(&snapshot, &environment).expect("member recovery");
-        diagnostics(typed.diagnostics(), &[
-            ("L0084", span(&snapshot, "false", "false")),
-            ("L0084", span(&snapshot, "true", "true")),
-        ]);
+        let (typed, owned) =
+            analyze_unit_recovery(&snapshot, &environment).expect("member recovery");
+        diagnostics(
+            typed.diagnostics(),
+            &[
+                ("L0084", span(&snapshot, "false", "false")),
+                ("L0084", span(&snapshot, "true", "true")),
+            ],
+        );
         diagnostics(owned.diagnostics(), &[]);
         let reference_span = span(&snapshot, "return x", "x");
-        let reference = snapshot.names().references().iter()
-            .find(|reference| reference.span() == reference_span).expect("actual parameter reference");
+        let reference = snapshot
+            .names()
+            .references()
+            .iter()
+            .find(|reference| reference.span() == reference_span)
+            .expect("actual parameter reference");
         let UnitReferenceTarget::Symbol(symbol) = reference.target() else {
             panic!("parameter must retain its real local identity");
         };
-        let ty = typed.symbol_type(*symbol).expect("actual unnamed-function parameter type");
-        assert_eq!(typed.types().get(ty), Some(&UnitTypeKind::Builtin(BuiltinType::Int)));
-        assert_eq!(typed.body_parameter_mode(*symbol), Some(ParameterMode::Borrow));
+        let ty = typed
+            .symbol_type(*symbol)
+            .expect("actual unnamed-function parameter type");
+        assert_eq!(
+            typed.types().get(ty),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+        assert_eq!(
+            typed.body_parameter_mode(*symbol),
+            Some(ParameterMode::Borrow)
+        );
         let field_span = span(&snapshot, "this.field", "this.field");
-        let field_types = typed.expression_types().iter().filter(|(expression, _)| {
-            snapshot.parsed_files()[0].ast().expressions().get(expression.expression())
-                .expect("real field access identity").span() == field_span
-        }).collect::<Vec<_>>();
+        let field_types = typed
+            .expression_types()
+            .iter()
+            .filter(|(expression, _)| {
+                snapshot.parsed_files()[0]
+                    .ast()
+                    .expressions()
+                    .get(expression.expression())
+                    .expect("real field access identity")
+                    .span()
+                    == field_span
+            })
+            .collect::<Vec<_>>();
         assert_eq!(field_types.len(), 1);
         assert_eq!(
             typed.types().get(*field_types[0].1),
@@ -176,9 +257,13 @@ fn bodyless_unnamed_concrete_member_keeps_l0098_but_interface_does_not_cascade()
                 span(&snapshot, &context, name)
             };
             diagnostics(snapshot.names().diagnostics(), &[("L0018", primary)]);
-            let (typed, owned) = analyze_unit_recovery(&snapshot, &environment)
-                .expect("bodyless member recovery");
-            let expected = if classifier == "class" { vec![("L0098", primary)] } else { vec![] };
+            let (typed, owned) =
+                analyze_unit_recovery(&snapshot, &environment).expect("bodyless member recovery");
+            let expected = if classifier == "class" {
+                vec![("L0098", primary)]
+            } else {
+                vec![]
+            };
             diagnostics(typed.diagnostics(), &expected);
             diagnostics(owned.diagnostics(), &[]);
             assert!(owned.deferred().is_empty());
@@ -205,22 +290,43 @@ fn unnamed_function_real_borrowed_parameter_keeps_independent_ownership_error() 
         let (typed, owned) = analyze_unit_recovery(&snapshot, &environment)
             .expect("ordinary borrowed consumption still reaches ownership");
         diagnostics(typed.diagnostics(), &[]);
-        diagnostics(owned.diagnostics(), &[("L0133", span(&snapshot, "take(value)", "value"))]);
+        diagnostics(
+            owned.diagnostics(),
+            &[("L0133", span(&snapshot, "take(value)", "value"))],
+        );
         let use_span = span(&snapshot, "take(value)", "value");
-        let reference = snapshot.names().references().iter()
-            .find(|reference| reference.span() == use_span).expect("actual parameter use");
+        let reference = snapshot
+            .names()
+            .references()
+            .iter()
+            .find(|reference| reference.span() == use_span)
+            .expect("actual parameter use");
         let UnitReferenceTarget::Symbol(symbol) = reference.target() else {
             panic!("borrowed parameter remains a real symbol");
         };
-        assert_eq!(typed.body_parameter_mode(*symbol), Some(ParameterMode::Borrow));
-        let resource = snapshot.names().index().declarations().iter()
-            .find(|declaration| declaration.name() == "Resource").expect("real Resource declaration");
+        assert_eq!(
+            typed.body_parameter_mode(*symbol),
+            Some(ParameterMode::Borrow)
+        );
+        let resource = snapshot
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|declaration| declaration.name() == "Resource")
+            .expect("real Resource declaration");
         assert_eq!(
             typed.types().get(typed.symbol_type(*symbol).unwrap()),
-            Some(&UnitTypeKind::Nominal { declaration: resource.id(), arguments: Vec::new() }),
+            Some(&UnitTypeKind::Nominal {
+                declaration: resource.id(),
+                arguments: Vec::new()
+            }),
         );
-        let bindings = owned.bindings().iter()
-            .filter(|binding| binding.symbol() == *symbol).collect::<Vec<_>>();
+        let bindings = owned
+            .bindings()
+            .iter()
+            .filter(|binding| binding.symbol() == *symbol)
+            .collect::<Vec<_>>();
         assert_eq!(bindings.len(), 1);
         assert_eq!(bindings[0].kind(), OwnershipBindingKind::Shared);
         assert_eq!(
@@ -249,35 +355,71 @@ fn unnamed_classifier_error_receiver_does_not_leak_into_companion_or_following_m
         } else {
             span(&snapshot, &context, name)
         };
-        diagnostics(snapshot.parsed_files()[0].diagnostics(), &[("L0067", primary)]);
-        diagnostics(snapshot.names().diagnostics(), &[
-            ("L0067", primary),
-            ("L0153", span(&snapshot, "const val BAD: Int = this", "this")),
-        ]);
+        diagnostics(
+            snapshot.parsed_files()[0].diagnostics(),
+            &[("L0067", primary)],
+        );
+        diagnostics(
+            snapshot.names().diagnostics(),
+            &[
+                ("L0067", primary),
+                (
+                    "L0153",
+                    span(&snapshot, "const val BAD: Int = this", "this"),
+                ),
+            ],
+        );
         let (typed, owned) = analyze_unit_recovery(&snapshot, &environment)
             .expect("actual unnamed classifier recovery");
-        diagnostics(typed.diagnostics(), &[
-            ("L0166", span(&snapshot, "fun invalid(): Int = this", "this")),
-            ("L0084", span(&snapshot, "true", "true")),
-        ]);
+        diagnostics(
+            typed.diagnostics(),
+            &[
+                (
+                    "L0166",
+                    span(&snapshot, "fun invalid(): Int = this", "this"),
+                ),
+                ("L0084", span(&snapshot, "true", "true")),
+            ],
+        );
         diagnostics(owned.diagnostics(), &[]);
         let this = span(&snapshot, "this.field", "this");
         let member = span(&snapshot, "this.field", "this.field");
         for expected_span in [this, member] {
-            let facts = typed.expression_types().iter().filter(|(expression, _)| {
-                snapshot.parsed_files()[0].ast().expressions().get(expression.expression())
-                    .expect("real expression identity").span() == expected_span
-            }).collect::<Vec<_>>();
+            let facts = typed
+                .expression_types()
+                .iter()
+                .filter(|(expression, _)| {
+                    snapshot.parsed_files()[0]
+                        .ast()
+                        .expressions()
+                        .get(expression.expression())
+                        .expect("real expression identity")
+                        .span()
+                        == expected_span
+                })
+                .collect::<Vec<_>>();
             assert_eq!(facts.len(), 1, "receiver and member remain checked");
             assert_eq!(typed.types().get(*facts[0].1), Some(&UnitTypeKind::Error));
         }
         let target_span = span(&snapshot, "fun target()", "target");
-        let target = snapshot.names().index().declarations().iter()
-            .find(|declaration| declaration.name_span() == target_span).expect("healthy target declaration");
+        let target = snapshot
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|declaration| declaration.name_span() == target_span)
+            .expect("healthy target declaration");
         let use_span = span(&snapshot, "= target()", "target");
-        let reference = snapshot.names().references().iter()
-            .find(|reference| reference.span() == use_span).expect("healthy reference after classifier");
-        assert_eq!(reference.target(), &UnitReferenceTarget::Declaration(target.id()));
+        let reference = snapshot
+            .names()
+            .references()
+            .iter()
+            .find(|reference| reference.span() == use_span)
+            .expect("healthy reference after classifier");
+        assert_eq!(
+            reference.target(),
+            &UnitReferenceTarget::Declaration(target.id())
+        );
         assert_eq!(typed.calls().len(), 1, "healthy following call survives");
         rejected(&snapshot, &typed, &owned);
     }
@@ -296,24 +438,46 @@ fn repaired_names_regain_the_real_basic_or_constant_qualification() {
         diagnostics(snapshot.names().diagnostics(), &[]);
         let names = snapshot.validated_names().expect("repaired names");
         let inputs = snapshot.inputs();
-        let (typed, owned) = analyze_unit_recovery(&snapshot, &environment).expect("repaired recovery");
+        let (typed, owned) =
+            analyze_unit_recovery(&snapshot, &environment).expect("repaired recovery");
         diagnostics(typed.diagnostics(), &[]);
         diagnostics(owned.diagnostics(), &[]);
         if constant {
-            let typed = typed.validate_constants().expect("real constant qualification");
+            let typed = typed
+                .validate_constants()
+                .expect("real constant qualification");
             let owned = check_compilation_unit_constant_ownership(
-                snapshot.sources(), &inputs, names, &environment, &typed,
-            ).expect("strict constant ownership").validate().expect("constant ownership qualification");
+                snapshot.sources(),
+                &inputs,
+                names,
+                &environment,
+                &typed,
+            )
+            .expect("strict constant ownership")
+            .validate()
+            .expect("constant ownership qualification");
             const_owned_compilation_unit_view(
-                snapshot.sources(), &inputs, names, &environment, &typed, &owned,
-            ).expect("sealed constant view");
+                snapshot.sources(),
+                &inputs,
+                names,
+                &environment,
+                &typed,
+                &owned,
+            )
+            .expect("sealed constant view");
         } else {
             let typed = typed.validate().expect("real basic qualification");
             assert!(owned.is_compatible_with(&typed));
             let owned = owned.validate().expect("real owned qualification");
             owned_compilation_unit_view(
-                snapshot.sources(), &inputs, names, &environment, &typed, &owned,
-            ).expect("sealed basic view");
+                snapshot.sources(),
+                &inputs,
+                names,
+                &environment,
+                &typed,
+                &owned,
+            )
+            .expect("sealed basic view");
         }
     }
 }

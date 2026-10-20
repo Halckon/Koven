@@ -216,7 +216,9 @@ pub(super) fn inspect_unit(
     let consumers: Vec<_> = index
         .source_units()
         .iter()
-        .filter(|unit| unit.key().logical_path().expect("rooted source").as_str() == "q/consumer.ko")
+        .filter(|unit| {
+            unit.key().logical_path().expect("rooted source").as_str() == "q/consumer.ko"
+        })
         .collect();
     let ([main], [consumer]) = (mains.as_slice(), consumers.as_slice()) else {
         return Err(failure(

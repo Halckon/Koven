@@ -302,8 +302,14 @@ fn assert_standard_registration(
     expected_display: &str,
 ) {
     let standard = descriptor.source_id();
-    assert_eq!(descriptor.root_identity().expect("rooted source"), "koven-std");
-    assert_eq!(descriptor.logical_path().expect("rooted source"), "koven/algorithms/ranges.ko");
+    assert_eq!(
+        descriptor.root_identity().expect("rooted source"),
+        "koven-std"
+    );
+    assert_eq!(
+        descriptor.logical_path().expect("rooted source"),
+        "koven/algorithms/ranges.ko"
+    );
     assert_eq!(sources.source_name(standard).unwrap(), expected_display);
     assert_eq!(sources.source_text(standard).unwrap(), RANGE_TEXT);
     assert!(types.is_authorized_range_source(standard));
@@ -651,9 +657,16 @@ fn standard_display_collision_preserves_range_call_source_identities() {
             .find(|unit| unit.id() == declaration.source_unit())
             .unwrap();
         assert_eq!(source_unit.source_id(), standard);
-        assert_eq!(source_unit.key().root().expect("rooted source").as_str(), "koven-std");
         assert_eq!(
-            source_unit.key().logical_path().expect("rooted source").as_str(),
+            source_unit.key().root().expect("rooted source").as_str(),
+            "koven-std"
+        );
+        assert_eq!(
+            source_unit
+                .key()
+                .logical_path()
+                .expect("rooted source")
+                .as_str(),
             "koven/algorithms/ranges.ko"
         );
         let signature = typed

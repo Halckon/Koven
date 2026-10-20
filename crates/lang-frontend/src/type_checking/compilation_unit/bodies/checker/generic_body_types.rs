@@ -181,8 +181,8 @@ impl BodyChecker<'_> {
             }
             for (symbol, &ty) in &self.parts.symbol_types {
                 if symbol.source_unit() == declaration.source_unit() {
-                    let table = self.names.source_units()[symbol.source_unit().index()]
-                        .resolution();
+                    let table =
+                        self.names.source_units()[symbol.source_unit().index()].resolution();
                     if contains(
                         table
                             .symbols()

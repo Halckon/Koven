@@ -3,8 +3,10 @@
 use std::{error::Error, fmt};
 
 use lang_frontend::{
-    analysis::{UnitNameAnalysisError, UnitRecoveryAnalysisError, UnitSourceDescriptor,
-        analyze_unit_names, analyze_unit_recovery},
+    analysis::{
+        UnitNameAnalysisError, UnitRecoveryAnalysisError, UnitSourceDescriptor, analyze_unit_names,
+        analyze_unit_recovery,
+    },
     name_resolution::UnitDiagnosticOrderError,
     source::{SourceError, SourceId, SourceMap},
     type_checking::standard_environments,
@@ -21,13 +23,18 @@ pub(crate) fn analyze(
     text: &str,
 ) -> Result<(SourceId, UnitAnalysisSnapshot), AnalysisError> {
     let mut sources = SourceMap::new();
-    let source = sources.add_source(source_name, text).map_err(AnalysisError::Source)?;
+    let source = sources
+        .add_source(source_name, text)
+        .map_err(AnalysisError::Source)?;
     let (name_environment, type_environment) = standard_environments();
     let names = analyze_unit_names(
-        sources, vec![UnitSourceDescriptor::memory_document(source)], name_environment,
-    ).map_err(AnalysisError::Names)?;
-    let (typed, owned) = analyze_unit_recovery(&names, &type_environment)
-        .map_err(AnalysisError::Recovery)?;
+        sources,
+        vec![UnitSourceDescriptor::memory_document(source)],
+        name_environment,
+    )
+    .map_err(AnalysisError::Names)?;
+    let (typed, owned) =
+        analyze_unit_recovery(&names, &type_environment).map_err(AnalysisError::Recovery)?;
     // names 已聚合 lexer/parser/index/import/name；每个阶段仅加入一次。
     let mut diagnostics = names.names().diagnostics().to_vec();
     diagnostics.extend_from_slice(typed.diagnostics());
@@ -54,9 +61,13 @@ impl fmt::Display for AnalysisError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Source(error) => write!(formatter, "could not register LSP source: {error}"),
-            Self::Names(error) => write!(formatter, "unit name analysis failed internally: {error}"),
+            Self::Names(error) => {
+                write!(formatter, "unit name analysis failed internally: {error}")
+            }
             Self::Recovery(error) => error.fmt(formatter),
-            Self::Diagnostic(error) => write!(formatter, "diagnostic ordering failed internally: {error}"),
+            Self::Diagnostic(error) => {
+                write!(formatter, "diagnostic ordering failed internally: {error}")
+            }
             Self::Definition(error) => write!(formatter, "definition indexing failed: {error}"),
         }
     }

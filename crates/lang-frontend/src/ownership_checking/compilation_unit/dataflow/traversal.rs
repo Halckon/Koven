@@ -473,7 +473,10 @@ impl Checker<'_> {
         {
             return self.check_construction(descriptor, state, usage);
         }
-        if let Some(descriptor) = self.typed.diagnostic_integer_operation(self.unit_expression(id)) {
+        if let Some(descriptor) = self
+            .typed
+            .diagnostic_integer_operation(self.unit_expression(id))
+        {
             return self.check_expression(
                 descriptor.receiver().expression(),
                 state,

@@ -168,7 +168,14 @@ pub fn check_compilation_unit_constant_ownership(
     environment: &TypeEnvironment,
     typed: &ConstEnabledTypedUnit,
 ) -> Result<CompilationUnitConstantOwnership, OwnershipCheckingError> {
-    let mut owned = analysis::analyze(sources, inputs, names.names(), environment, typed.types(), true)?;
+    let mut owned = analysis::analyze(
+        sources,
+        inputs,
+        names.names(),
+        environment,
+        typed.types(),
+        true,
+    )?;
     owned.provenance.requires_constant_capability = true;
     Ok(CompilationUnitConstantOwnership(owned))
 }

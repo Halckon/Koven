@@ -46,7 +46,10 @@ impl Checker<'_> {
             return Ok(flows);
         }
 
-        if self.typed.is_diagnostic_error_type(descriptor.element_type()) {
+        if self
+            .typed
+            .is_diagnostic_error_type(descriptor.element_type())
+        {
             return Ok(flows);
         }
         let move_only = match self.typed.copyability(descriptor.element_type()) {

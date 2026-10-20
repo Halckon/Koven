@@ -131,8 +131,7 @@ impl BodyChecker<'_> {
                                     .get(&signature.symbol())
                                     .copied()
                                     .unwrap_or(signature.ty()),
-                                self.names.index().declarations()[declaration.index()]
-                                    .name_span(),
+                                self.names.index().declarations()[declaration.index()].name_span(),
                             )
                         })
                     }

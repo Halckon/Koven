@@ -32,7 +32,8 @@ pub(super) fn analyze_with_sources(text: &str) -> (SourceMap, CompilationUnitOwn
         .unwrap()
         .validate_constants()
         .unwrap();
-    let owned = analysis::analyze(&sources, &inputs, names.names(), &te, typed.types(), true).unwrap();
+    let owned =
+        analysis::analyze(&sources, &inputs, names.names(), &te, typed.types(), true).unwrap();
     (sources, owned)
 }
 

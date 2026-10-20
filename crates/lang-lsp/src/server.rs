@@ -21,9 +21,9 @@ use lsp_types::{
 use crate::{
     analysis::{AnalysisError, analyze},
     diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics},
-    unit_analysis_snapshot::UnitAnalysisSnapshot,
     position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
+    unit_analysis_snapshot::UnitAnalysisSnapshot,
     unit_session::{UnitDefinitionQueryError, UnitPublication, UnitSession, UnitSessionError},
 };
 
@@ -164,7 +164,11 @@ enum SessionState {
 impl OpenDocument {
     fn analyze(uri: &Uri, version: i32, text: &str) -> Result<Self, AnalysisError> {
         let (source_id, analysis) = analyze(uri.as_str(), text)?;
-        Ok(Self { version, source_id, analysis })
+        Ok(Self {
+            version,
+            source_id,
+            analysis,
+        })
     }
 }
 
@@ -290,7 +294,10 @@ fn publish_document(
         document.analysis.name_snapshot().sources(),
         &[(document.source_id, uri.clone())],
         document.analysis.diagnostics(),
-    )?.into_iter().next().ok_or(DiagnosticMappingError::UnknownSource(document.source_id))?;
+    )?
+    .into_iter()
+    .next()
+    .ok_or(DiagnosticMappingError::UnknownSource(document.source_id))?;
     publish(connection, uri.clone(), Some(document.version), diagnostics)
 }
 
@@ -338,11 +345,20 @@ fn definition_response(
             };
             let source_id = document.source_id;
             let sources = document.analysis.name_snapshot().sources();
-            let units = document.analysis.name_snapshot().names().index().source_units();
-            let source_unit = units.iter().find(|source| source.source_id() == source_id)
-                .ok_or_else(|| RequestError::Internal("document source is absent from unit".to_owned()))?.id();
-            let offset = match byte_offset(sources, source_id, position.position)
-            {
+            let units = document
+                .analysis
+                .name_snapshot()
+                .names()
+                .index()
+                .source_units();
+            let source_unit = units
+                .iter()
+                .find(|source| source.source_id() == source_id)
+                .ok_or_else(|| {
+                    RequestError::Internal("document source is absent from unit".to_owned())
+                })?
+                .id();
+            let offset = match byte_offset(sources, source_id, position.position) {
                 Ok(offset) => offset,
                 Err(PositionMappingError::InsideSurrogatePair) => {
                     return Err(RequestError::InvalidParams(
@@ -360,10 +376,20 @@ fn definition_response(
                 .targets_at(source_unit, offset)
                 .iter()
                 .map(|target| {
-                    let target_source = units.iter().find(|source| source.id() == target.source_unit)
-                        .ok_or_else(|| RequestError::Internal("definition target source is absent from unit".to_owned()))?;
-                    if target_source.source_id() != source_id || target.span.source_id() != source_id {
-                        return Err(RequestError::Internal("single document definition target source mismatch".to_owned()));
+                    let target_source = units
+                        .iter()
+                        .find(|source| source.id() == target.source_unit)
+                        .ok_or_else(|| {
+                            RequestError::Internal(
+                                "definition target source is absent from unit".to_owned(),
+                            )
+                        })?;
+                    if target_source.source_id() != source_id
+                        || target.span.source_id() != source_id
+                    {
+                        return Err(RequestError::Internal(
+                            "single document definition target source mismatch".to_owned(),
+                        ));
                     }
                     span_range(sources, target.span)
                         .map(|range| Location::new(position.text_document.uri.clone(), range))

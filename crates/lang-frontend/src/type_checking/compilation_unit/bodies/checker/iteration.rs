@@ -84,7 +84,8 @@ impl BodyChecker<'_> {
         let mut header_type_status = self.iteration_type_status([checked.ty]);
         if header_type_status == IterationTypeStatus::Ready {
             if let Some((_, element)) = provider {
-                (resolved, header_type_status) = self.iteration_binding(source, binding, element)?;
+                (resolved, header_type_status) =
+                    self.iteration_binding(source, binding, element)?;
             } else {
                 let span = self
                     .file(source)
@@ -155,9 +156,9 @@ impl BodyChecker<'_> {
             || type_status == IterationTypeStatus::DiagnosticError
             || match binding {
                 ForBinding::Name(marker) => !matches!(marker, NameMarker::Present(_)),
-                ForBinding::Destructuring { names, .. } => {
-                    names.iter().any(|marker| !matches!(marker, NameMarker::Present(_)))
-                }
+                ForBinding::Destructuring { names, .. } => names
+                    .iter()
+                    .any(|marker| !matches!(marker, NameMarker::Present(_))),
             }
     }
 
@@ -191,10 +192,14 @@ impl BodyChecker<'_> {
                         declaration,
                         arguments,
                     }) => {
-                        let nominal = self.signatures.declaration(declaration)
+                        let nominal = self
+                            .signatures
+                            .declaration(declaration)
                             .and_then(|signature| signature.nominal())
-                            .filter(|nominal| nominal.declaration() == declaration
-                                && nominal.type_parameters().len() == arguments.len())
+                            .filter(|nominal| {
+                                nominal.declaration() == declaration
+                                    && nominal.type_parameters().len() == arguments.len()
+                            })
                             .cloned()
                             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
                         Some((declaration, nominal, arguments))
@@ -335,12 +340,18 @@ impl BodyChecker<'_> {
                     | UnitTypeKind::StaticSelf(inner)
                     | UnitTypeKind::EnumCase { root: inner, .. },
                 ) => pending.push(*inner),
-                Some(UnitTypeKind::Nominal { declaration, arguments }) => {
-                    let nominal = self.signatures.declaration(*declaration)
+                Some(UnitTypeKind::Nominal {
+                    declaration,
+                    arguments,
+                }) => {
+                    let nominal = self
+                        .signatures
+                        .declaration(*declaration)
                         .and_then(|signature| signature.nominal());
-                    if nominal.is_none_or(|nominal| nominal.declaration() != *declaration
-                        || nominal.type_parameters().len() != arguments.len())
-                    {
+                    if nominal.is_none_or(|nominal| {
+                        nominal.declaration() != *declaration
+                            || nominal.type_parameters().len() != arguments.len()
+                    }) {
                         return IterationTypeStatus::Incomplete;
                     }
                     pending.extend(arguments);

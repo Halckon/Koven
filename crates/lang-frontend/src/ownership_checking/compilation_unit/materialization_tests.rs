@@ -56,7 +56,8 @@ fn all_constant_types_keep_exact_values_and_source_qualified_runtime_identity() 
             .unwrap()
             .validate_constants()
             .unwrap();
-        let owned = analysis::analyze(&sources, &inputs, names.names(), &te, typed.types(), true).unwrap();
+        let owned =
+            analysis::analyze(&sources, &inputs, names.names(), &te, typed.types(), true).unwrap();
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
         let plans = owned

@@ -22,27 +22,46 @@ impl Checker<'_> {
             let primary = diagnostic.primary_span();
             diagnostic.severity() == Severity::Error
                 && primary.source_id() == span.source_id()
-                && span.start() <= primary.start() && primary.end() <= span.end()
+                && span.start() <= primary.start()
+                && primary.end() <= span.end()
         }) {
             return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes);
         }
         for signature in self.typed.signatures().declarations() {
-            let Some(nominal) = signature.nominal() else { continue; };
-            let declaration = self.names.index().declarations()
+            let Some(nominal) = signature.nominal() else {
+                continue;
+            };
+            let declaration = self
+                .names
+                .index()
+                .declarations()
                 .get(signature.declaration().index())
                 .filter(|declaration| declaration.id() == nominal.declaration())
                 .ok_or(OwnershipCheckingError::MismatchedCompilationUnitTypes)?;
-            if declaration.source_unit() != self.source_unit { continue; }
+            if declaration.source_unit() != self.source_unit {
+                continue;
+            }
             let (root, _) = self.unwrapped_receiver_item(declaration.root())?;
             let Item::Classifier(classifier) = self.parsed.ast().items().get(root)?.payload()
-            else { return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes); };
-            let Some(body) = &classifier.body else { continue; };
+            else {
+                return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes);
+            };
+            let Some(body) = &classifier.body else {
+                continue;
+            };
             for &member in &body.members {
                 let (member, modifiers) = self.unwrapped_receiver_item(member)?;
-                if member != item { continue; }
-                let Item::Function { name, extension_receiver, .. } =
-                    self.parsed.ast().items().get(member)?.payload()
-                else { return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes); };
+                if member != item {
+                    continue;
+                }
+                let Item::Function {
+                    name,
+                    extension_receiver,
+                    ..
+                } = self.parsed.ast().items().get(member)?.payload()
+                else {
+                    return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes);
+                };
                 if *name != marker {
                     return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes);
                 }
@@ -65,11 +84,18 @@ impl Checker<'_> {
                     return Ok(None);
                 }
                 let ty = if nominal.kind() == NominalKind::Interface {
-                    self.typed.types().find(&UnitTypeKind::StaticSelf(nominal.ty()))
+                    self.typed
+                        .types()
+                        .find(&UnitTypeKind::StaticSelf(nominal.ty()))
                         .ok_or(OwnershipCheckingError::MismatchedCompilationUnitTypes)?
-                } else { nominal.ty() };
+                } else {
+                    nominal.ty()
+                };
                 return Ok(Some(ReceiverContext {
-                    owner: nominal.declaration(), mode, ty, declaration_span: span,
+                    owner: nominal.declaration(),
+                    mode,
+                    ty,
+                    declaration_span: span,
                 }));
             }
         }
@@ -84,7 +110,10 @@ impl Checker<'_> {
         let mut modifiers = DeclarationModifiers::default();
         loop {
             match self.parsed.ast().items().get(item)?.payload() {
-                Item::Modified { modifiers: actual, declaration } => {
+                Item::Modified {
+                    modifiers: actual,
+                    declaration,
+                } => {
                     modifiers = *actual;
                     item = *declaration;
                 }

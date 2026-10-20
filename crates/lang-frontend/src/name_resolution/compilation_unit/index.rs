@@ -178,7 +178,9 @@ pub fn index_compilation_unit(
     // fail-fast 错误不能继承调用方枚举顺序：先排序原始借用输入，再按既定优先级校验
     // path/source/owner，这样正序与反序调用会选择同一个输入错误。
     if inputs.len() != 1
-        && inputs.iter().any(|input| input.key() == SourceUnitInputKey::MemoryDocument)
+        && inputs
+            .iter()
+            .any(|input| input.key() == SourceUnitInputKey::MemoryDocument)
     {
         return Err(CompilationUnitInputError::MemoryDocumentRequiresSingleSource);
     }
@@ -205,11 +207,13 @@ pub fn index_compilation_unit(
         source_ids.push(input.source_id());
 
         let (key, package) = match input.key() {
-            SourceUnitInputKey::Rooted { root_identity, logical_path } => {
+            SourceUnitInputKey::Rooted {
+                root_identity,
+                logical_path,
+            } => {
                 let logical_path = LogicalSourcePath::from_validated(logical_path.to_owned());
-                let package = PackageName::new(
-                    logical_path.package_segments().map(str::to_owned).collect(),
-                );
+                let package =
+                    PackageName::new(logical_path.package_segments().map(str::to_owned).collect());
                 (
                     SourceUnitKey::new(SourceRootIdentity::new(root_identity), logical_path),
                     PackageIdentity::Named(package),
@@ -218,8 +222,10 @@ pub fn index_compilation_unit(
             SourceUnitInputKey::MemoryDocument => {
                 let key = SourceUnitKey::MemoryDocument;
                 let package = if input.parsed().initial_package_header_is_complete() {
-                    PackageIdentity::Named(declared_package(sources, input.parsed())?
-                        .unwrap_or_else(|| PackageName::new(Vec::new())))
+                    PackageIdentity::Named(
+                        declared_package(sources, input.parsed())?
+                            .unwrap_or_else(|| PackageName::new(Vec::new())),
+                    )
                 } else {
                     PackageIdentity::UnresolvedHeader(key.clone())
                 };
@@ -361,12 +367,18 @@ fn declared_package(
     sources: &SourceMap,
     parsed: &ParsedFile,
 ) -> Result<Option<PackageName>, CompilationUnitInputError> {
-    parsed.package().map(|directive| {
-        directive.segments.iter()
-            .map(|segment| sources.slice(segment.span).map(str::to_owned))
-            .collect::<Result<Vec<_>, _>>()
-            .map(PackageName::new)
-    }).transpose().map_err(CompilationUnitInputError::from)
+    parsed
+        .package()
+        .map(|directive| {
+            directive
+                .segments
+                .iter()
+                .map(|segment| sources.slice(segment.span).map(str::to_owned))
+                .collect::<Result<Vec<_>, _>>()
+                .map(PackageName::new)
+        })
+        .transpose()
+        .map_err(CompilationUnitInputError::from)
 }
 
 fn package_mismatch(
@@ -380,13 +392,14 @@ fn package_mismatch(
     if !input.parsed.initial_package_header_is_complete() {
         return Ok(None);
     }
-    let expected_package = PackageName::new(
-        logical_path.package_segments().map(str::to_owned).collect(),
-    );
+    let expected_package =
+        PackageName::new(logical_path.package_segments().map(str::to_owned).collect());
     let declared = declared_package(sources, input.parsed)?;
     let matches = declared
         .as_ref()
-        .map_or(expected_package.is_default(), |name| name == &expected_package);
+        .map_or(expected_package.is_default(), |name| {
+            name == &expected_package
+        });
     if matches {
         return Ok(None);
     }

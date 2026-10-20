@@ -427,8 +427,13 @@ fn select_project_entry(
     let index = names.names().index();
     let mut selected_package = None;
     for package in index.packages() {
-        let package_name = package.name().ok_or(UnitBuildError::UnresolvedPackageIdentity)?;
-        if package_name.segments().iter().map(String::as_str)
+        let package_name = package
+            .name()
+            .ok_or(UnitBuildError::UnresolvedPackageIdentity)?;
+        if package_name
+            .segments()
+            .iter()
+            .map(String::as_str)
             .eq(package_segments.iter().map(String::as_str))
         {
             selected_package = Some(package);

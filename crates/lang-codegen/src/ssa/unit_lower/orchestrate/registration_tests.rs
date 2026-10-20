@@ -215,7 +215,8 @@ fn observe(
                 unit.source_id() == parsed.source_id()
                     && unit.key().logical_path().expect("rooted source").as_str() == path
                     && index.packages().iter().any(|item| {
-                        item.id() == unit.package() && item.name().expect("named package").segments() == [package]
+                        item.id() == unit.package()
+                            && item.name().expect("named package").segments() == [package]
                     })
             })
             .collect::<Vec<_>>();

@@ -11,12 +11,18 @@ use lang_frontend::{
 
 fn memory(text: &str) -> (UnitNameSnapshot, TypeEnvironment) {
     let mut sources = SourceMap::new();
-    let excluded = sources.add_source("excluded", "# absent").expect("real excluded registration");
-    let source = sources.add_source("untitled:RejectedHeader", text).expect("ordinary source");
+    let excluded = sources
+        .add_source("excluded", "# absent")
+        .expect("real excluded registration");
+    let source = sources
+        .add_source("untitled:RejectedHeader", text)
+        .expect("ordinary source");
     assert_ne!(source, excluded);
     let (names, environment) = standard_environments();
     let snapshot = analyze_unit_names(
-        sources, vec![UnitSourceDescriptor::memory_document(source)], names,
+        sources,
+        vec![UnitSourceDescriptor::memory_document(source)],
+        names,
     )
     .expect("real name prefix");
     assert_eq!(snapshot.descriptors().len(), 1);
@@ -27,7 +33,10 @@ fn memory(text: &str) -> (UnitNameSnapshot, TypeEnvironment) {
     assert_eq!(snapshot.parsed_files()[0].source_id(), source);
     assert!(snapshot.parsed_files()[0].diagnostics().is_empty());
     assert_eq!(snapshot.sources().source_text(source).unwrap(), text);
-    assert_eq!(snapshot.sources().source_text(excluded).unwrap(), "# absent");
+    assert_eq!(
+        snapshot.sources().source_text(excluded).unwrap(),
+        "# absent"
+    );
     (snapshot, environment)
 }
 
@@ -39,7 +48,10 @@ fn span_in(snapshot: &UnitNameSnapshot, context: &str, token: &str) -> Span {
     assert_eq!(contexts.len(), 1, "unique source context {context}");
     assert_eq!(tokens.len(), 1, "unique expected token {token}");
     let start = contexts[0].0 + tokens[0].0;
-    snapshot.sources().span(source, start, start + token.len()).unwrap()
+    snapshot
+        .sources()
+        .span(source, start, start + token.len())
+        .unwrap()
 }
 
 fn assert_diagnostics(diagnostics: &[Diagnostic], expected: &[(&str, Span)]) {
@@ -72,32 +84,40 @@ fn assert_execution_facts_absent(typed: &CompilationUnitTypes, owned: &Compilati
     assert!(owned.clone().validate().is_err());
 }
 
-fn observe(
-    text: &str,
-    name_error: Option<(&str, &str)>,
-    type_error: Option<(&str, &str)>,
-) {
+fn observe(text: &str, name_error: Option<(&str, &str)>, type_error: Option<(&str, &str)>) {
     let (snapshot, environment) = memory(text);
-    let expected_names = name_error.map(|(code, token)| {
-        (code, span_in(&snapshot, token, token))
-    }).into_iter().collect::<Vec<_>>();
+    let expected_names = name_error
+        .map(|(code, token)| (code, span_in(&snapshot, token, token)))
+        .into_iter()
+        .collect::<Vec<_>>();
     assert_diagnostics(snapshot.names().diagnostics(), &expected_names);
     assert_eq!(snapshot.validated_names().is_some(), name_error.is_none());
     let (typed, owned) = analyze_unit_recovery(&snapshot, &environment)
         .expect("source/header errors must not become missing-provider internal failures");
-    let expected_types = type_error.map(|(code, token)| {
-        (code, span_in(&snapshot, token, token))
-    }).into_iter().collect::<Vec<_>>();
+    let expected_types = type_error
+        .map(|(code, token)| (code, span_in(&snapshot, token, token)))
+        .into_iter()
+        .collect::<Vec<_>>();
     assert_diagnostics(typed.diagnostics(), &expected_types);
     assert!(typed.signatures().diagnostics().is_empty());
-    assert_eq!(typed.signatures().clone().validate().is_ok(), name_error.is_none());
+    assert_eq!(
+        typed.signatures().clone().validate().is_ok(),
+        name_error.is_none()
+    );
     assert_diagnostics(
         owned.diagnostics(),
         &[("L0133", span_in(&snapshot, "take(text)", "text"))],
     );
-    assert_eq!(typed.calls().len(), 1, "actual independent consuming body call");
+    assert_eq!(
+        typed.calls().len(),
+        1,
+        "actual independent consuming body call"
+    );
     assert_eq!(owned.call_argument_contracts().len(), 1);
-    assert!(owned.deferred().is_empty(), "keep the real error, not a deferred substitute");
+    assert!(
+        owned.deferred().is_empty(),
+        "keep the real error, not a deferred substitute"
+    );
     assert_execution_facts_absent(&typed, &owned);
 }
 

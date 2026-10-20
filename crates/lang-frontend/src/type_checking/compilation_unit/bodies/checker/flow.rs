@@ -6,8 +6,8 @@ use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::codes,
     name_resolution::{
-        Namespace, ReferenceTarget, ScopeKind, SourceUnitId, SymbolKind, UnitReferenceTarget,
-        UnitSymbolId, CompilationUnitNames,
+        CompilationUnitNames, Namespace, ReferenceTarget, ScopeKind, SourceUnitId, SymbolKind,
+        UnitReferenceTarget, UnitSymbolId,
     },
     parser::{
         BinaryOperator, Expression, Item, NameMarker, ParsedFile, PrefixOperator, VariableKind,

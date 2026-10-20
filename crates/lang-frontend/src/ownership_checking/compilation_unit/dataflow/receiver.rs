@@ -336,7 +336,10 @@ impl Checker<'_> {
             };
             return self.implicit_receiver_effect(contract, receiver.owner, state);
         }
-        if self.typed.is_diagnostic_error_type(contract.receiver_type()) {
+        if self
+            .typed
+            .is_diagnostic_error_type(contract.receiver_type())
+        {
             return Ok(None);
         }
         if contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
@@ -481,7 +484,10 @@ impl Checker<'_> {
                 expression: contract.call().expression().index(),
             });
         };
-        if self.typed.is_diagnostic_error_type(contract.receiver_type()) {
+        if self
+            .typed
+            .is_diagnostic_error_type(contract.receiver_type())
+        {
             return Ok(None);
         }
         if contract.kind() == UnitCallArgumentOwnershipKind::Value

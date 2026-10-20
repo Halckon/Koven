@@ -218,7 +218,9 @@ impl Checker<'_> {
         if flows.next.is_some()
             && deliveries_complete
             && self.diagnostics.len() == diagnostic_count
-            && !self.typed.is_diagnostic_error_type(descriptor.result_type())
+            && !self
+                .typed
+                .is_diagnostic_error_type(descriptor.result_type())
         {
             let root_obligation = match self.typed.copyability(descriptor.result_type()) {
                 Copyability::Copyable => None,

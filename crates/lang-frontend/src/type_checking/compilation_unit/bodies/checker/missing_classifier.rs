@@ -45,7 +45,10 @@ impl BodyChecker<'_> {
         let receiver = self.error_type();
         let previous_owner = self.current_owner.take();
         let result = self.check_missing_owner_body(
-            source, body, Some((receiver, kind)), marker_span(classifier.name),
+            source,
+            body,
+            Some((receiver, kind)),
+            marker_span(classifier.name),
         );
         self.current_owner = previous_owner;
         result
@@ -94,7 +97,10 @@ impl BodyChecker<'_> {
                         && matches!(
                             form,
                             FunctionForm::ImplicitUnitAbsent
-                                | FunctionForm::Explicit { body: FunctionBody::Absent, .. }
+                                | FunctionForm::Explicit {
+                                    body: FunctionBody::Absent,
+                                    ..
+                                }
                         )
                     {
                         self.emit_maybe_label(
@@ -107,7 +113,12 @@ impl BodyChecker<'_> {
                     }
                     self.check_function_without_identity(source, root, receiver)?;
                 }
-                Item::Constant { name, type_ref, initializer, .. } => {
+                Item::Constant {
+                    name,
+                    type_ref,
+                    initializer,
+                    ..
+                } => {
                     let previous_receiver = self.current_receiver;
                     let previous_mode = self.current_receiver_mode;
                     let previous_rejected = self.current_rejected_extension_receiver;
@@ -127,8 +138,13 @@ impl BodyChecker<'_> {
                 Item::Deinit { body, .. } => {
                     deinit_count += 1;
                     if deinit_count > 1 {
-                        let span = self.file(source).ast().items().get(root)
-                            .map_err(TypeCheckingError::from)?.span();
+                        let span = self
+                            .file(source)
+                            .ast()
+                            .items()
+                            .get(root)
+                            .map_err(TypeCheckingError::from)?
+                            .span();
                         self.emit(
                             codes::DUPLICATE_CALLABLE_SHAPE,
                             "class can declare at most one 'deinit' member",
@@ -157,8 +173,13 @@ impl BodyChecker<'_> {
                 Item::Error => {}
                 Item::Modified { .. } => unreachable!("unwrapped_item removes modifiers"),
                 Item::Variable { .. } | Item::Classifier(_) | Item::Companion(_) => {
-                    let span = self.file(source).ast().items().get(root)
-                        .map_err(TypeCheckingError::from)?.span();
+                    let span = self
+                        .file(source)
+                        .ast()
+                        .items()
+                        .get(root)
+                        .map_err(TypeCheckingError::from)?
+                        .span();
                     return Err(CompilationUnitTypeError::UnsupportedBody(span));
                 }
             }
@@ -173,7 +194,8 @@ impl BodyChecker<'_> {
         ty: UnitTypeId,
     ) -> Result<(), CompilationUnitTypeError> {
         if let NameMarker::Present(span) = marker {
-            let symbol = self.symbol_at(source, span, Namespace::Value)
+            let symbol = self
+                .symbol_at(source, span, Namespace::Value)
                 .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
             self.parts.symbol_types.insert(symbol, ty);
         } else if !self.diagnosed_missing_name(source, marker) {

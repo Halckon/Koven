@@ -70,7 +70,8 @@ fn original_nullable_class_borrow_nested_if_reaches_verified_native() {
                     && item.kind() == SymbolKind::Function
                     && item.name_span().source_id() == source
                     && names.names().index().packages()[item.package().index()]
-                        .name().expect("named package")
+                        .name()
+                        .expect("named package")
                         .is_default()
             })
             .collect::<Vec<_>>();

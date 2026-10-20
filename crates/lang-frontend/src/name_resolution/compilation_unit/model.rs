@@ -153,7 +153,10 @@ impl<'parsed> SourceUnitInput<'parsed> {
         parsed: &'parsed ParsedFile,
     ) -> Self {
         Self {
-            key: SourceUnitInputKey::Rooted { root_identity, logical_path },
+            key: SourceUnitInputKey::Rooted {
+                root_identity,
+                logical_path,
+            },
             source_id,
             parsed,
         }
@@ -161,7 +164,11 @@ impl<'parsed> SourceUnitInput<'parsed> {
     /// 构造独立内存文档输入；不从 URI 或 package 推导路径。
     #[must_use]
     pub const fn memory_document(source_id: SourceId, parsed: &'parsed ParsedFile) -> Self {
-        Self { key: SourceUnitInputKey::MemoryDocument, source_id, parsed }
+        Self {
+            key: SourceUnitInputKey::MemoryDocument,
+            source_id,
+            parsed,
+        }
     }
     /// 返回未经路径验证、保留输入种类的只读 key。
     #[must_use]

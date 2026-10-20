@@ -80,7 +80,8 @@ fn run_unit(case: &str, source_text: &str) -> Output {
             declaration.name() == "entry"
                 && declaration.kind() == SymbolKind::Function
                 && names.names().index().packages()[declaration.package().index()]
-                    .name().expect("named package")
+                    .name()
+                    .expect("named package")
                     .segments()
                     .iter()
                     .map(String::as_str)

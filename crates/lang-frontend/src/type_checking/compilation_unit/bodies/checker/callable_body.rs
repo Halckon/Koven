@@ -67,8 +67,7 @@ impl BodyChecker<'_> {
                     Ok(())
                 }
                 FunctionBody::Block(body) => {
-                    let result =
-                        self.check_statement(source, body, return_type, expected_span)?;
+                    let result = self.check_statement(source, body, return_type, expected_span)?;
                     if result.falls_through
                         && !self.is_builtin(return_type, BuiltinType::Unit)
                         && !self.is_error(return_type)

@@ -20,7 +20,10 @@ pub struct UnitSourceDescriptor {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum UnitSourceDescriptorKey {
-    Rooted { root_identity: String, logical_path: String },
+    Rooted {
+        root_identity: String,
+        logical_path: String,
+    },
     MemoryDocument,
 }
 
@@ -44,16 +47,23 @@ impl UnitSourceDescriptor {
     /// 保存独立内存文档的实际来源，不从 locator 或 package 生成路径。
     #[must_use]
     pub const fn memory_document(source_id: SourceId) -> Self {
-        Self { key: UnitSourceDescriptorKey::MemoryDocument, source_id }
+        Self {
+            key: UnitSourceDescriptorKey::MemoryDocument,
+            source_id,
+        }
     }
 
     /// 返回保留输入种类的只读原始 key。
     #[must_use]
     pub fn input_key(&self) -> SourceUnitInputKey<'_> {
         match &self.key {
-            UnitSourceDescriptorKey::Rooted { root_identity, logical_path } => {
-                SourceUnitInputKey::Rooted { root_identity, logical_path }
-            }
+            UnitSourceDescriptorKey::Rooted {
+                root_identity,
+                logical_path,
+            } => SourceUnitInputKey::Rooted {
+                root_identity,
+                logical_path,
+            },
             UnitSourceDescriptorKey::MemoryDocument => SourceUnitInputKey::MemoryDocument,
         }
     }
@@ -62,9 +72,10 @@ impl UnitSourceDescriptor {
     #[must_use]
     pub fn as_input<'a>(&'a self, parsed: &'a ParsedFile) -> SourceUnitInput<'a> {
         match self.input_key() {
-            SourceUnitInputKey::Rooted { root_identity, logical_path } => {
-                SourceUnitInput::new(root_identity, logical_path, self.source_id, parsed)
-            }
+            SourceUnitInputKey::Rooted {
+                root_identity,
+                logical_path,
+            } => SourceUnitInput::new(root_identity, logical_path, self.source_id, parsed),
             SourceUnitInputKey::MemoryDocument => {
                 SourceUnitInput::memory_document(self.source_id, parsed)
             }
@@ -242,9 +253,7 @@ pub fn analyze_parsed_unit_names(
     let names = resolve_compilation_unit_names(&sources, &source_inputs, &index, &environment)
         .map_err(UnitNameAnalysisError::Name)?;
     // 移动完整配对而非 AST clone，公开连续 ParsedFile 切片与 index 共用规范顺序。
-    parsed_sources.sort_by(|(left, _), (right, _)| {
-        left.input_key().cmp(&right.input_key())
-    });
+    parsed_sources.sort_by(|(left, _), (right, _)| left.input_key().cmp(&right.input_key()));
     let (descriptors, parsed_files) = parsed_sources.into_iter().unzip();
     let names = names.validate();
     Ok(UnitNameSnapshot {
@@ -354,14 +363,23 @@ mod tests {
             let unit = &snapshot.names().index().source_units()[position];
             let actual = &snapshot.parsed_files()[position];
             assert_eq!(descriptor.source_id(), unit.source_id());
-            assert_eq!(descriptor.root_identity().expect("rooted source"), unit.key().root().expect("rooted source").as_str());
+            assert_eq!(
+                descriptor.root_identity().expect("rooted source"),
+                unit.key().root().expect("rooted source").as_str()
+            );
             assert_eq!(
                 descriptor.logical_path().expect("rooted source"),
                 unit.key().logical_path().expect("rooted source").as_str()
             );
             assert_eq!(input.source_id(), descriptor.source_id());
-            assert_eq!(input.root_identity().expect("rooted source"), descriptor.root_identity().expect("rooted source"));
-            assert_eq!(input.logical_path().expect("rooted source"), descriptor.logical_path().expect("rooted source"));
+            assert_eq!(
+                input.root_identity().expect("rooted source"),
+                descriptor.root_identity().expect("rooted source")
+            );
+            assert_eq!(
+                input.logical_path().expect("rooted source"),
+                descriptor.logical_path().expect("rooted source")
+            );
             assert_eq!(actual.source_id(), unit.source_id());
             assert!(std::ptr::eq(input.parsed(), actual));
             let old = expected_parsed

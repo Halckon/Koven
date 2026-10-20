@@ -2,9 +2,7 @@
 //! 仅调用公开阶段入口；不构造阶段产物，不访问私有 recovery facts。
 
 use lang_frontend::{
-    analysis::{
-        UnitNameSnapshot, UnitSourceDescriptor, analyze_unit_names, analyze_unit_recovery,
-    },
+    analysis::{UnitNameSnapshot, UnitSourceDescriptor, analyze_unit_names, analyze_unit_recovery},
     diagnostic::{Diagnostic, Severity},
     name_resolution::{SourceUnitInputKey, SourceUnitKey},
     ownership_checking::{
@@ -28,8 +26,12 @@ const BASIC: &str = "package p\n\
 fn memory(text: &str, locator: &str) -> (UnitNameSnapshot, TypeEnvironment, SourceId) {
     let mut sources = SourceMap::new();
     // 第二次真实登记得到非零 source；未选择源码故意不合法，不能被自动纳入 unit。
-    let unselected = sources.add_source("unselected", "# absent").expect("prior real source");
-    let source = sources.add_source(locator, text).expect("selected real source");
+    let unselected = sources
+        .add_source("unselected", "# absent")
+        .expect("prior real source");
+    let source = sources
+        .add_source(locator, text)
+        .expect("selected real source");
     assert_ne!(source, unselected);
     let (name_environment, environment) = standard_environments();
     let snapshot = analyze_unit_names(
@@ -40,7 +42,10 @@ fn memory(text: &str, locator: &str) -> (UnitNameSnapshot, TypeEnvironment, Sour
     .expect("ordinary memory name prefix");
     assert_eq!(snapshot.sources().source_name(source).unwrap(), locator);
     assert_eq!(snapshot.sources().source_text(source).unwrap(), text);
-    assert_eq!(snapshot.sources().source_text(unselected).unwrap(), "# absent");
+    assert_eq!(
+        snapshot.sources().source_text(unselected).unwrap(),
+        "# absent"
+    );
     assert_eq!(snapshot.descriptors().len(), 1);
     assert_eq!(snapshot.descriptors()[0].source_id(), source);
     assert_eq!(snapshot.descriptors()[0].root_identity(), None);
@@ -52,7 +57,10 @@ fn memory(text: &str, locator: &str) -> (UnitNameSnapshot, TypeEnvironment, Sour
     assert_eq!(inputs.len(), 1);
     assert_eq!(inputs[0].source_id(), source);
     assert_eq!(inputs[0].key(), SourceUnitInputKey::MemoryDocument);
-    assert!(std::ptr::eq(inputs[0].parsed(), &snapshot.parsed_files()[0]));
+    assert!(std::ptr::eq(
+        inputs[0].parsed(),
+        &snapshot.parsed_files()[0]
+    ));
     let units = snapshot.names().index().source_units();
     assert_eq!(units.len(), 1);
     assert_eq!(units[0].source_id(), source);
@@ -69,7 +77,10 @@ fn span_in(snapshot: &UnitNameSnapshot, context: &str, token: &str) -> Span {
     let tokens = context.match_indices(token).collect::<Vec<_>>();
     assert_eq!(tokens.len(), 1, "unique token in context: {token}");
     let start = contexts[0].0 + tokens[0].0;
-    snapshot.sources().span(source, start, start + token.len()).unwrap()
+    snapshot
+        .sources()
+        .span(source, start, start + token.len())
+        .unwrap()
 }
 
 fn assert_diagnostics(diagnostics: &[Diagnostic], expected: &[(&str, Span)]) {
@@ -82,9 +93,18 @@ fn assert_diagnostics(diagnostics: &[Diagnostic], expected: &[(&str, Span)]) {
 }
 
 fn assert_no_capability(typed: &CompilationUnitTypes, owned: &CompilationUnitOwnership) {
-    assert!(typed.clone().validate().is_err(), "no basic typed capability");
-    assert!(typed.clone().validate_constants().is_err(), "no const typed capability");
-    assert!(owned.clone().validate().is_err(), "quiet ownership cannot erase upstream failure");
+    assert!(
+        typed.clone().validate().is_err(),
+        "no basic typed capability"
+    );
+    assert!(
+        typed.clone().validate_constants().is_err(),
+        "no const typed capability"
+    );
+    assert!(
+        owned.clone().validate().is_err(),
+        "quiet ownership cannot erase upstream failure"
+    );
 }
 
 fn assert_no_execution_facts(typed: &CompilationUnitTypes, owned: &CompilationUnitOwnership) {
@@ -117,19 +137,24 @@ fn healthy_memory_matches_full_strict_facts_and_enters_the_sealed_basic_view() {
         let names = snapshot.validated_names().expect("healthy names");
         let inputs = snapshot.inputs();
         // 独立调用既有严格入口，不以 recovery 门面再次运行作自证。
-        let strict = check_compilation_unit_types(
-            snapshot.sources(), &inputs, names, &environment,
-        )
-        .expect("strict types")
-        .validate()
-        .expect("strict basic capability");
+        let strict = check_compilation_unit_types(snapshot.sources(), &inputs, names, &environment)
+            .expect("strict types")
+            .validate()
+            .expect("strict basic capability");
         let strict_owned = check_compilation_unit_ownership(
-            snapshot.sources(), &inputs, names, &environment, &strict,
+            snapshot.sources(),
+            &inputs,
+            names,
+            &environment,
+            &strict,
         )
         .expect("strict ownership");
         let (raw, owned) = analyze_unit_recovery(&snapshot, &environment).expect("recovery");
         assert_eq!(&raw, strict.types(), "all typed facts and diagnostics");
-        assert_eq!(owned, strict_owned, "all ownership facts, diagnostics and deferred entries");
+        assert_eq!(
+            owned, strict_owned,
+            "all ownership facts, diagnostics and deferred entries"
+        );
         assert!(!raw.is_same_analysis(strict.types()));
         assert!(!owned.is_same_analysis(&strict_owned));
         assert!(!owned.is_compatible_with(&strict));
@@ -142,11 +167,20 @@ fn healthy_memory_matches_full_strict_facts_and_enters_the_sealed_basic_view() {
         assert!(owned.diagnostics().is_empty());
         assert!(owned.deferred().is_empty());
 
-        let typed = raw.validate().expect("recovery retains genuine basic qualification");
+        let typed = raw
+            .validate()
+            .expect("recovery retains genuine basic qualification");
         assert!(owned.is_compatible_with(&typed));
-        let owned = owned.validate().expect("recovery retains genuine owned qualification");
+        let owned = owned
+            .validate()
+            .expect("recovery retains genuine owned qualification");
         let view = owned_compilation_unit_view(
-            snapshot.sources(), &inputs, names, &environment, &typed, &owned,
+            snapshot.sources(),
+            &inputs,
+            names,
+            &environment,
+            &typed,
+            &owned,
         )
         .expect("sealed basic view");
         assert!(std::ptr::eq(view.sources(), snapshot.sources()));
@@ -165,7 +199,8 @@ fn name_error_with_quiet_downstream_cannot_validate_but_healthy_neighbor_can() {
         ("import absent.VALUE\nfun run(): Unit {}", true),
     ] {
         let (snapshot, environment, _) = memory(text, "untitled:NameQualification");
-        let (typed, owned) = analyze_unit_recovery(&snapshot, &environment).expect("ordinary recovery");
+        let (typed, owned) =
+            analyze_unit_recovery(&snapshot, &environment).expect("ordinary recovery");
         let expected = if invalid {
             vec![("L0148", span_in(&snapshot, "absent.VALUE", "VALUE"))]
         } else {
@@ -196,7 +231,8 @@ fn type_error_with_quiet_ownership_cannot_validate() {
     );
     assert!(snapshot.names().diagnostics().is_empty());
     assert!(snapshot.validated_names().is_some());
-    let (typed, owned) = analyze_unit_recovery(&snapshot, &environment).expect("ordinary type error");
+    let (typed, owned) =
+        analyze_unit_recovery(&snapshot, &environment).expect("ordinary type error");
     assert!(typed.signatures().clone().validate().is_ok());
     assert_diagnostics(
         typed.diagnostics(),
@@ -220,35 +256,62 @@ fn healthy_memory_const_keeps_distinct_strict_capabilities_not_basic_ownership()
     let inputs = snapshot.inputs();
     let strict = check_compilation_unit_types(snapshot.sources(), &inputs, names, &environment)
         .expect("strict constant types");
-    let (typed, conservative) = analyze_unit_recovery(&snapshot, &environment).expect("const recovery");
-    assert_eq!(typed, strict, "same real typed producer and complete constant facts");
+    let (typed, conservative) =
+        analyze_unit_recovery(&snapshot, &environment).expect("const recovery");
+    assert_eq!(
+        typed, strict,
+        "same real typed producer and complete constant facts"
+    );
     assert!(typed.diagnostics().is_empty());
-    assert!(typed.clone().validate().is_err(), "constant declarations do not become basic types");
+    assert!(
+        typed.clone().validate().is_err(),
+        "constant declarations do not become basic types"
+    );
     assert!(conservative.diagnostics().is_empty());
-    assert!(conservative.clone().validate().is_err(), "conservative raw is not basic ownership");
+    assert!(
+        conservative.clone().validate().is_err(),
+        "conservative raw is not basic ownership"
+    );
 
-    let typed = typed.validate_constants().expect("real const capability, not blanket recovery-only");
+    let typed = typed
+        .validate_constants()
+        .expect("real const capability, not blanket recovery-only");
     assert_eq!(typed.constants().declarations().len(), 1);
     assert_eq!(typed.constants().uses().len(), 1);
     let owned = check_compilation_unit_constant_ownership(
-        snapshot.sources(), &inputs, names, &environment, &typed,
+        snapshot.sources(),
+        &inputs,
+        names,
+        &environment,
+        &typed,
     )
     .expect("existing strict constant ownership")
     .validate()
     .expect("distinct const owned capability");
     assert!(owned.is_compatible_with(&typed));
     assert_eq!(owned.materializations().len(), 1);
-    assert_eq!(owned.materializations()[0].kind(), ConstantMaterializationKind::StringTemporary);
+    assert_eq!(
+        owned.materializations()[0].kind(),
+        ConstantMaterializationKind::StringTemporary
+    );
     assert!(owned.short_circuits().is_empty());
     assert!(owned.ownership().clone().validate().is_err());
     let view = const_owned_compilation_unit_view(
-        snapshot.sources(), &inputs, names, &environment, &typed, &owned,
+        snapshot.sources(),
+        &inputs,
+        names,
+        &environment,
+        &typed,
+        &owned,
     )
     .expect("sealed constant view");
     assert!(std::ptr::eq(view.types(), typed.types()));
     assert!(std::ptr::eq(view.constant_ownership(), &owned));
     assert_eq!(view.inputs()[0].source_id(), source);
-    assert_eq!(view.constant_ownership().materializations(), owned.materializations());
+    assert_eq!(
+        view.constant_ownership().materializations(),
+        owned.materializations()
+    );
 }
 
 fn assert_loop_body_diagnostic(text: &str, consumption: &str, binding: &str) {
@@ -269,9 +332,15 @@ fn assert_loop_body_diagnostic(text: &str, consumption: &str, binding: &str) {
         owned.diagnostics(),
         &[("L0133", span_in(&snapshot, consumption, binding))],
     );
-    assert!(!typed.calls().is_empty(), "the actual ordinary consuming call survives type recovery");
+    assert!(
+        !typed.calls().is_empty(),
+        "the actual ordinary consuming call survives type recovery"
+    );
     assert!(!owned.call_argument_contracts().is_empty());
-    assert!(owned.deferred().is_empty(), "not a deferred substitution for the real error");
+    assert!(
+        owned.deferred().is_empty(),
+        "not a deferred substitution for the real error"
+    );
     assert_no_capability(&typed, &owned);
     assert_no_execution_facts(&typed, &owned);
 }

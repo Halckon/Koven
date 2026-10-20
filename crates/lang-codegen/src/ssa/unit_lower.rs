@@ -839,9 +839,9 @@ fn instance_function_name(
         }
     };
     let package = &names.names().index().packages()[declaration.package().index()];
-    let package_name = package.name().ok_or_else(|| {
-        lowering_error(LoweringErrorKind::InvalidModel, instance.span())
-    })?;
+    let package_name = package
+        .name()
+        .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
     let mut name = String::from("koven");
     for segment in package_name.segments() {
         name.push('.');

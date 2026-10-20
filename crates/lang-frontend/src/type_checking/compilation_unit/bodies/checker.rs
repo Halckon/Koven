@@ -6,8 +6,8 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
-        UnitSymbolId, CompilationUnitNames, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
+        CompilationUnitNames, DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind,
+        UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
     parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement, StringPart},
     source::{SourceMap, Span},
@@ -54,8 +54,8 @@ mod ownership_primitives;
 mod postfix;
 mod range_carrier;
 mod range_construction;
-mod receiver_recovery;
 mod rc;
+mod receiver_recovery;
 mod string;
 mod top_level;
 mod trial;
@@ -96,7 +96,8 @@ pub(crate) fn check_compilation_unit_types_recovering(
     names: &CompilationUnitNames,
     environment: &TypeEnvironment,
 ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
-    let signatures = collect_compilation_unit_signatures_recovering(sources, inputs, names, environment)?;
+    let signatures =
+        collect_compilation_unit_signatures_recovering(sources, inputs, names, environment)?;
     BodyChecker::new(sources, inputs, names, environment, signatures)?.run()
 }
 
@@ -222,7 +223,8 @@ impl<'a> BodyChecker<'a> {
         mut self,
         generic_limit: usize,
     ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
-        self.parts.constant_declaration_count = self.names
+        self.parts.constant_declaration_count = self
+            .names
             .index()
             .source_units()
             .iter()

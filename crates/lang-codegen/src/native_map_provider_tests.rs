@@ -75,8 +75,18 @@ fn run_unit_with_entry(case: &str, path: &str, source_text: &str, entry_name: &s
         panic!("{case}: expected exactly one original source unit");
     };
     assert_eq!(source_unit.source_id(), source);
-    assert_eq!(source_unit.key().root().expect("rooted source").as_str(), "root");
-    assert_eq!(source_unit.key().logical_path().expect("rooted source").as_str(), path);
+    assert_eq!(
+        source_unit.key().root().expect("rooted source").as_str(),
+        "root"
+    );
+    assert_eq!(
+        source_unit
+            .key()
+            .logical_path()
+            .expect("rooted source")
+            .as_str(),
+        path
+    );
     let entries = names
         .names()
         .index()

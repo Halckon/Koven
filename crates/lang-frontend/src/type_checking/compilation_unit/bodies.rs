@@ -673,7 +673,8 @@ impl CompilationUnitTypes {
         names: &CompilationUnitNames,
         environment: &TypeEnvironment,
     ) -> bool {
-        self.signatures.is_compatible_with_raw(sources, inputs, names, environment)
+        self.signatures
+            .is_compatible_with_raw(sources, inputs, names, environment)
     }
 
     /// 判断两个 body typed product 是否来自同一次分析；克隆保留身份。
@@ -975,7 +976,10 @@ impl CompilationUnitTypes {
     /// 同一完整判据供能力验证与后续 producer 继承；原 required-fact 校验不缩减。
     pub(crate) fn has_valid_type_facts(&self) -> bool {
         self.signatures.is_valid()
-            && !self.diagnostics.iter().any(|d| d.severity() == Severity::Error)
+            && !self
+                .diagnostics
+                .iter()
+                .any(|d| d.severity() == Severity::Error)
             && self.ownership_primitives_are_valid()
             && self.integer_operations_are_valid()
             && self.integer_range_operations_are_valid()
@@ -1011,7 +1015,6 @@ impl CompilationUnitTypes {
             Err(Box::new(self))
         }
     }
-
 }
 
 /// 不可伪造的无错误 compilation-unit body typed product。

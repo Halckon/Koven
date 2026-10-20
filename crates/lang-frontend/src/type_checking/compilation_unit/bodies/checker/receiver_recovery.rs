@@ -25,16 +25,27 @@ impl BodyChecker<'_> {
         let UnitCallableTarget::Declaration(id) = callable.target() else {
             return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
         };
-        let declaration = self.names.index().declarations().get(id.index())
+        let declaration = self
+            .names
+            .index()
+            .declarations()
+            .get(id.index())
             .filter(|declaration| declaration.id() == id && declaration.source_unit() == source)
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-        let Item::Function { extension_receiver: Some(extension), .. } =
-            unwrapped_item(self.file(source), declaration.root())?
+        let Item::Function {
+            extension_receiver: Some(extension),
+            ..
+        } = unwrapped_item(self.file(source), declaration.root())?
         else {
             return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
         };
-        let receiver_span = self.file(source).ast().type_refs().get(extension.type_ref)
-            .map_err(TypeCheckingError::from)?.span();
+        let receiver_span = self
+            .file(source)
+            .ast()
+            .type_refs()
+            .get(extension.type_ref)
+            .map_err(TypeCheckingError::from)?
+            .span();
         if receiver.declaration_span() != receiver_span
             || !self.signatures.diagnostics().iter().any(|diagnostic| {
                 diagnostic.severity() == Severity::Error
@@ -48,7 +59,12 @@ impl BodyChecker<'_> {
     }
 
     pub(super) fn this_type(&mut self, span: Span) -> Result<UnitTypeId, CompilationUnitTypeError> {
-        if let Some(ty) = self.flow_facts.get(&FlowKey::This).copied().or(self.current_receiver) {
+        if let Some(ty) = self
+            .flow_facts
+            .get(&FlowKey::This)
+            .copied()
+            .or(self.current_receiver)
+        {
             return Ok(ty);
         }
         if self.current_rejected_extension_receiver {
@@ -60,7 +76,11 @@ impl BodyChecker<'_> {
                 && diagnostic.code().to_string() == codes::INVALID_CONSTANT_CONTEXT
         });
         if !diagnosed_constant_context {
-            self.emit(codes::THIS_WITHOUT_RECEIVER, "this is not available without a receiver", span)?;
+            self.emit(
+                codes::THIS_WITHOUT_RECEIVER,
+                "this is not available without a receiver",
+                span,
+            )?;
         }
         Ok(self.error_type())
     }

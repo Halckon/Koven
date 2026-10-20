@@ -83,7 +83,11 @@ impl Checker<'_> {
         &self,
         call: &crate::type_checking::UnitCallDescriptor,
     ) -> bool {
-        if self.typed.diagnostic_range_construction(call.expression()).is_some() {
+        if self
+            .typed
+            .diagnostic_range_construction(call.expression())
+            .is_some()
+        {
             return true;
         }
         if !matches!(call.result_source(), CallableResultSource::Carrier(_)) {

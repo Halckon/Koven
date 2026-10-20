@@ -146,7 +146,9 @@ mod tests {
         diagnostic.add_help("replace it").expect("help");
         let uri: Uri = "file:///unicode.ko".parse().expect("uri");
 
-        let mapped = convert_unit_diagnostics(&sources, &[(source, uri.clone())], &[diagnostic]).expect("mapping").remove(0);
+        let mapped = convert_unit_diagnostics(&sources, &[(source, uri.clone())], &[diagnostic])
+            .expect("mapping")
+            .remove(0);
         let actual = &mapped[0];
         assert_eq!(
             actual.range,
@@ -177,7 +179,10 @@ mod tests {
             primary,
         )
         .expect("warning diagnostic");
-        let mapped_warning = convert_unit_diagnostics(&sources, &[(source, uri.clone())], &[warning]).expect("mapping").remove(0);
+        let mapped_warning =
+            convert_unit_diagnostics(&sources, &[(source, uri.clone())], &[warning])
+                .expect("mapping")
+                .remove(0);
         assert_eq!(
             mapped_warning[0].severity,
             Some(DiagnosticSeverity::WARNING)

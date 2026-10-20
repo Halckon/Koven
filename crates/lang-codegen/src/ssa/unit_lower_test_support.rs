@@ -61,7 +61,8 @@ pub(super) fn declaration(
         .find(|declaration| {
             declaration.name() == name
                 && names.names().index().packages()[declaration.package().index()]
-                    .name().expect("named package")
+                    .name()
+                    .expect("named package")
                     .segments()
                     .iter()
                     .map(String::as_str)

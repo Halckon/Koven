@@ -13,7 +13,9 @@ use lang_frontend::{
 
 fn memory(text: &str) -> (UnitNameSnapshot, TypeEnvironment) {
     let mut sources = SourceMap::new();
-    let excluded = sources.add_source("excluded", "# absent").expect("real excluded source");
+    let excluded = sources
+        .add_source("excluded", "# absent")
+        .expect("real excluded source");
     let source = sources
         .add_source("untitled:NominalError", text)
         .expect("ordinary selected source");
@@ -33,7 +35,10 @@ fn memory(text: &str) -> (UnitNameSnapshot, TypeEnvironment) {
     assert_eq!(snapshot.parsed_files()[0].source_id(), source);
     assert!(snapshot.parsed_files()[0].diagnostics().is_empty());
     assert_eq!(snapshot.sources().source_text(source).unwrap(), text);
-    assert_eq!(snapshot.sources().source_text(excluded).unwrap(), "# absent");
+    assert_eq!(
+        snapshot.sources().source_text(excluded).unwrap(),
+        "# absent"
+    );
     (snapshot, environment)
 }
 
@@ -45,7 +50,10 @@ fn span_in(snapshot: &UnitNameSnapshot, context: &str, token: &str) -> Span {
     assert_eq!(contexts.len(), 1, "unique source context {context}");
     assert_eq!(tokens.len(), 1, "unique token within context {token}");
     let start = contexts[0].0 + tokens[0].0;
-    snapshot.sources().span(source, start, start + token.len()).unwrap()
+    snapshot
+        .sources()
+        .span(source, start, start + token.len())
+        .unwrap()
 }
 
 fn assert_diagnostics(diagnostics: &[Diagnostic], expected: &[(&str, Span)]) {
@@ -63,7 +71,12 @@ fn assert_execution_facts_absent(typed: &CompilationUnitTypes, owned: &Compilati
     assert!(typed.ownership_primitives().is_empty());
     assert!(typed.integer_operations().is_empty());
     assert!(typed.range_sizes().is_empty());
-    assert!(typed.calls().iter().all(|call| call.range_construction().is_none()));
+    assert!(
+        typed
+            .calls()
+            .iter()
+            .all(|call| call.range_construction().is_none())
+    );
     assert!(owned.iterations().is_empty());
     assert!(owned.map_iterations().is_empty());
     assert!(owned.formed_owned_locals().is_empty());
@@ -95,15 +108,28 @@ fn observe(text: &str, independent_move: bool, calls: usize) {
     assert!(typed.signatures().diagnostics().is_empty());
     assert!(typed.body_diagnostics().is_empty());
     assert!(typed.diagnostics().is_empty());
-    let nominals = typed.signatures().declarations().iter()
-        .filter_map(|signature| signature.nominal()).collect::<Vec<_>>();
+    let nominals = typed
+        .signatures()
+        .declarations()
+        .iter()
+        .filter_map(|signature| signature.nominal())
+        .collect::<Vec<_>>();
     assert_eq!(nominals.len(), 1);
     let nominal = nominals[0];
-    assert!(matches!(typed.types().get(nominal.ty()), Some(UnitTypeKind::Nominal { .. })));
+    assert!(matches!(
+        typed.types().get(nominal.ty()),
+        Some(UnitTypeKind::Nominal { .. })
+    ));
     assert_eq!(nominal.fields().len(), 1);
-    assert_eq!(typed.types().get(nominal.fields()[0].ty()), Some(&UnitTypeKind::Error));
-    assert_eq!(typed.copyability(nominal.ty()), Copyability::Error,
-        "recovery must not reclassify the public capability");
+    assert_eq!(
+        typed.types().get(nominal.fields()[0].ty()),
+        Some(&UnitTypeKind::Error)
+    );
+    assert_eq!(
+        typed.copyability(nominal.ty()),
+        Copyability::Error,
+        "recovery must not reclassify the public capability"
+    );
     let expected = if independent_move {
         vec![("L0133", span_in(&snapshot, "takeText(text)", "text"))]
     } else {

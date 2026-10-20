@@ -321,7 +321,8 @@ impl Fixture {
                 .functions
                 .iter()
                 .filter(|emitted| {
-                    emitted.name == instance_function_name(&self.names, instance).expect("named package")
+                    emitted.name
+                        == instance_function_name(&self.names, instance).expect("named package")
                         && emitted.origin == Origin::Source(instance.span())
                 })
                 .collect::<Vec<_>>();

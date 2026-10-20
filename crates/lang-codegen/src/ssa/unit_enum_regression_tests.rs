@@ -179,7 +179,12 @@ fn observe(case: Case, native: bool, stages: &mut Vec<&'static str>) -> Result<(
     require(
         source_unit.source_id() == source
             && source_unit.key().root().expect("rooted source").as_str() == "root"
-            && source_unit.key().logical_path().expect("rooted source").as_str() == case.path,
+            && source_unit
+                .key()
+                .logical_path()
+                .expect("rooted source")
+                .as_str()
+                == case.path,
         "source-unit identity",
         source_unit,
     )?;

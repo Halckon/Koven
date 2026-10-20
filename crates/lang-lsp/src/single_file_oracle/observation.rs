@@ -74,13 +74,20 @@ fn snapshot(
         sources.source_name(source_id).expect("source owner"),
         uri.as_str()
     );
-    assert_eq!(sources.source_text(source_id).expect("source bytes"), source);
+    assert_eq!(
+        sources.source_text(source_id).expect("source bytes"),
+        source
+    );
     let mut navigation = Vec::new();
     for offset in (0..=source.len()).filter(|offset| source.is_char_boundary(*offset)) {
         let targets = analysis.definitions().targets_at(source_unit, offset);
         for target in targets {
             assert_eq!(target.source_unit, source_unit, "same document Unit owner");
-            assert_eq!(target.span.source_id(), source_id, "registered source owner");
+            assert_eq!(
+                target.span.source_id(),
+                source_id,
+                "registered source owner"
+            );
             let range = span_range(sources, target.span).expect("target range");
             assert_eq!(
                 range,
@@ -150,7 +157,11 @@ fn diagnostic_values(
 }
 
 fn span_value(sources: &SourceMap, source_id: SourceId, span: Span, uri: &Uri) -> Value {
-    assert_eq!(span.source_id(), source_id, "registered span source identity");
+    assert_eq!(
+        span.source_id(),
+        source_id,
+        "registered span source identity"
+    );
     let source_name = sources
         .source_name(span.source_id())
         .expect("span source owner");
@@ -214,7 +225,10 @@ fn expected_recovery_snapshot(uri: &Uri, source: &str) -> Value {
         .expect("raw diagnostics")
     {
         rebase_span(&mut diagnostic["primary_span"], uri, bytes, lines);
-        for detail in diagnostic["details"].as_array_mut().expect("ordered details") {
+        for detail in diagnostic["details"]
+            .as_array_mut()
+            .expect("ordered details")
+        {
             if detail["kind"] == "label" {
                 rebase_span(&mut detail["span"], uri, bytes, lines);
             }
@@ -269,7 +283,10 @@ pub(super) fn assert_recovery_rebasing() {
     let frozen = frozen();
     let original = &frozen["fixtures"][0]["manual_and_production_equal_snapshot"];
     let original_uri: Uri = "file:///recovery.ko".parse().expect("frozen URI");
-    assert_eq!(expected_recovery_snapshot(&original_uri, RECOVERY), *original);
+    assert_eq!(
+        expected_recovery_snapshot(&original_uri, RECOVERY),
+        *original
+    );
     for prefix in ["", "\r\n", "\r\n\r\n", "\r\n\r\n\r\n"] {
         let uri: Uri = "file:///rebased-recovery.ko".parse().expect("protocol URI");
         let source = format!("{prefix}{RECOVERY}");
@@ -326,7 +343,10 @@ pub(super) fn assert_recovery_rebasing() {
         );
         assert_eq!(lsp.len(), raw.len());
         for (index, diagnostic) in lsp.iter().enumerate() {
-            assert_eq!(diagnostic["range"], raw[index]["primary_span"]["utf16_range"]);
+            assert_eq!(
+                diagnostic["range"],
+                raw[index]["primary_span"]["utf16_range"]
+            );
             restored["lsp_diagnostics"][index]["range"] =
                 original["lsp_diagnostics"][index]["range"].clone();
             let labels = raw[index]["details"]
@@ -379,9 +399,7 @@ pub(super) fn assert_recovery_rebasing() {
             .enumerate()
         {
             let targets = actual["targets"].as_array().expect("targets");
-            let original_targets = original["targets"]
-                .as_array()
-                .expect("original targets");
+            let original_targets = original["targets"].as_array().expect("original targets");
             assert_eq!(targets.len(), original_targets.len());
             for (target_index, (target, original_target)) in
                 targets.iter().zip(original_targets).enumerate()
@@ -404,7 +422,8 @@ pub(super) fn assert_recovery_rebasing() {
 }
 
 fn assert_rebased_span(original: &Value, actual: &Value, uri: &Uri, source: &str, prefix: usize) {
-    let start = usize::try_from(original["start"].as_u64().expect("original start")).expect("start")
+    let start = usize::try_from(original["start"].as_u64().expect("original start"))
+        .expect("start")
         + prefix;
     let end =
         usize::try_from(original["end"].as_u64().expect("original end")).expect("end") + prefix;
@@ -420,22 +439,28 @@ fn assert_rebased_span(original: &Value, actual: &Value, uri: &Uri, source: &str
 // Temporary migration observation only: no fixture update and no comparison relaxation.
 #[test]
 fn observes_complete_unit_recovery_before_oracle_migration() {
-    let observations = fixtures().into_iter().map(|(label, source)| {
-        let uri: Uri = format!("file:///{label}.ko").parse().expect("fixture URI");
-        let (source_id, actual) =
-            analysis::analyze(uri.as_str(), source).expect("production Unit analysis");
-        json!({
-            "label": label,
-            "uri": uri.as_str(),
-            "source_utf8": source,
-            "source_byte_length": source.len(),
-            "snapshot": snapshot(&actual, source_id, &uri, source),
+    let observations = fixtures()
+        .into_iter()
+        .map(|(label, source)| {
+            let uri: Uri = format!("file:///{label}.ko").parse().expect("fixture URI");
+            let (source_id, actual) =
+                analysis::analyze(uri.as_str(), source).expect("production Unit analysis");
+            json!({
+                "label": label,
+                "uri": uri.as_str(),
+                "source_utf8": source,
+                "source_byte_length": source.len(),
+                "snapshot": snapshot(&actual, source_id, &uri, source),
+            })
         })
-    }).collect::<Vec<_>>();
+        .collect::<Vec<_>>();
     assert_eq!(observations.len(), 11);
-    println!("KOVEN_UNIT_RECOVERY_OBSERVATION_V1={}", json!({
-        "schema_version": 1,
-        "pipeline": "production_compilation_unit_recovery",
-        "fixtures": observations,
-    }));
+    println!(
+        "KOVEN_UNIT_RECOVERY_OBSERVATION_V1={}",
+        json!({
+            "schema_version": 1,
+            "pipeline": "production_compilation_unit_recovery",
+            "fixtures": observations,
+        })
+    );
 }

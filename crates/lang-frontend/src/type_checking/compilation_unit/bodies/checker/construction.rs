@@ -303,7 +303,8 @@ impl BodyChecker<'_> {
                     result_template: nominal.ty(),
                 })
             }
-            Target::EnumCase(symbol) => self.names
+            Target::EnumCase(symbol) => self
+                .names
                 .index()
                 .declarations()
                 .iter()

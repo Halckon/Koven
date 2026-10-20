@@ -1277,7 +1277,10 @@ impl CompilationUnitSignatures {
     /// 同轮 names 资格与本阶段诊断共同决定签名资格。
     pub(crate) fn is_valid(&self) -> bool {
         self.provenance.names_are_valid
-            && !self.diagnostics.iter().any(|diagnostic| diagnostic.severity() == Severity::Error)
+            && !self
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity() == Severity::Error)
     }
 
     /// 仅上游 names 与 signature 都无 error 时取得下一类型子阶段可消费的 view。

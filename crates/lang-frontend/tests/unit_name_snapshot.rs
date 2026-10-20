@@ -65,8 +65,14 @@ fn paired(
         .zip(snapshot.parsed_files())
     {
         assert_eq!(input.source_id(), unit.source_id());
-        assert_eq!(input.root_identity().expect("rooted source"), unit.key().root().expect("rooted source").as_str());
-        assert_eq!(input.logical_path().expect("rooted source"), unit.key().logical_path().expect("rooted source").as_str());
+        assert_eq!(
+            input.root_identity().expect("rooted source"),
+            unit.key().root().expect("rooted source").as_str()
+        );
+        assert_eq!(
+            input.logical_path().expect("rooted source"),
+            unit.key().logical_path().expect("rooted source").as_str()
+        );
         assert_eq!(actual.source_id(), unit.source_id());
         let old = parsed
             .iter()

@@ -101,10 +101,12 @@ pub(super) fn observe_sources(
         index.source_units().len() == 2
             && provider_unit.id() != consumer_unit.id()
             && index.packages().iter().any(|package| {
-                package.id() == provider_unit.package() && package.name().expect("named package").segments() == ["p"]
+                package.id() == provider_unit.package()
+                    && package.name().expect("named package").segments() == ["p"]
             })
             && index.packages().iter().any(|package| {
-                package.id() == consumer_unit.package() && package.name().expect("named package").segments() == ["q"]
+                package.id() == consumer_unit.package()
+                    && package.name().expect("named package").segments() == ["q"]
             }),
         (index.source_units(), index.packages()),
     )?;
