@@ -188,8 +188,11 @@ pub fn analyze_unit_names(
     analyze_parsed_unit_names(sources, parsed_sources, environment)
 }
 
-// 续接既有解析产物；配对与原 SourceMap 一起移动，不重新 lex/parse 或登记 SourceId。
-fn analyze_parsed_unit_names(
+/// 续接既有解析产物；配对与原 SourceMap 一起移动，不重新 lex/parse 或登记 SourceId。
+///
+/// 原 index 继续验证 descriptor、ParsedFile 和 SourceMap 身份；普通诊断保留在 recovery
+/// snapshot，不授权 validated 名称能力。调用方负责为每份显式 source 提供真实解析产物。
+pub fn analyze_parsed_unit_names(
     sources: SourceMap,
     mut parsed_sources: Vec<(UnitSourceDescriptor, ParsedFile)>,
     environment: NameEnvironment,

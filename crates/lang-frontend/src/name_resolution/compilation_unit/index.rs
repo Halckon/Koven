@@ -6,7 +6,7 @@ use crate::{
     lexer::{LexemeKind, LexerInternalError, TokenKind, lex},
     name_resolution::{Namespace, SymbolKind},
     parser::{Item, NameMarker, ParsedFile, VisibilityModifier},
-    source::{SourceError, SourceId, SourceMap},
+    source::{SourceError, SourceId, SourceMap, Span},
 };
 
 use super::model::{
@@ -495,22 +495,35 @@ fn push_declaration(
     Ok(())
 }
 
+/// 构造 package 与逻辑路径不匹配的共同诊断，不推导路径或访问文件系统。
+///
+/// `primary_span` 必须来自原 SourceMap；有 package 时为真实 directive，省略时为文件起点。
+pub fn package_path_mismatch_diagnostic(
+    sources: &SourceMap,
+    primary_span: Span,
+) -> Result<Diagnostic, CompilationUnitInputError> {
+    let code = codes::catalog()?.resolve(codes::PACKAGE_PATH_MISMATCH)?;
+    Ok(Diagnostic::new(
+        sources,
+        Severity::Error,
+        code,
+        "package declaration does not match logical source path",
+        primary_span,
+    )?)
+}
+
 fn build_index_diagnostics(
     sources: &SourceMap,
     mismatches: &[PackagePathMismatch],
     declarations: &[UnitDeclaration],
 ) -> Result<Vec<Diagnostic>, CompilationUnitInputError> {
     let catalog = codes::catalog()?;
-    let package_path_code = catalog.resolve(codes::PACKAGE_PATH_MISMATCH)?;
     let declaration_conflict_code = catalog.resolve(codes::PACKAGE_DECLARATION_CONFLICT)?;
     let mut diagnostics = Vec::new();
 
     for mismatch in mismatches {
-        diagnostics.push(Diagnostic::new(
+        diagnostics.push(package_path_mismatch_diagnostic(
             sources,
-            Severity::Error,
-            package_path_code,
-            "package declaration does not match logical source path",
             mismatch.primary_span(),
         )?);
     }

@@ -12,10 +12,13 @@ use crate::{
     MessageFormat,
     bootstrap::{BootstrapEntry, BootstrapError, BootstrapTarget, bootstrap_build},
     format::CommandOutput,
+    unit_build::UnitBuildError,
 };
 
-const BUILD_USAGE: &str = "usage: kovenc build <source.ko> [--entry <name>] -o <executable>\n";
-const RUN_USAGE: &str = "usage: kovenc run <source.ko> [--entry <name>] [-- <program-arg>...]\n";
+const BUILD_USAGE: &str =
+    "usage: kovenc build <source.ko> [--source-root <dir>] [--entry <name>] -o <executable>\n";
+const RUN_USAGE: &str =
+    "usage: kovenc run <source.ko> [--source-root <dir>] [--entry <name>] [-- <program-arg>...]\n";
 static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
 
 pub(super) fn execute_build(
@@ -28,7 +31,45 @@ pub(super) fn execute_build(
     {
         return crate::project_command::execute_build(arguments, message_format);
     }
-    let (source, entry, executable) = match arguments {
+    let (source, source_root, entry, executable) = match arguments {
+        [
+            source,
+            root_flag,
+            root,
+            entry_flag,
+            entry,
+            output_flag,
+            executable,
+        ] if root_flag == "--source-root"
+            && entry_flag == "--entry"
+            && output_flag == "-o"
+            && !is_option(source)
+            && !is_option(root)
+            && !is_option(entry)
+            && !is_option(executable) =>
+        {
+            (
+                PathBuf::from(source),
+                Some(PathBuf::from(root)),
+                Some(entry.to_string_lossy()),
+                PathBuf::from(executable),
+            )
+        }
+        [source, root_flag, root, output_flag, executable]
+            if root_flag == "--source-root"
+                && output_flag == "-o"
+                && !is_option(source)
+                && !is_option(root)
+                && !is_option(executable) =>
+        {
+            (
+                PathBuf::from(source),
+                Some(PathBuf::from(root)),
+                None,
+                PathBuf::from(executable),
+            )
+        }
+
         [source, entry_flag, entry, output_flag, executable]
             if entry_flag == "--entry"
                 && output_flag == "-o"
@@ -38,6 +79,7 @@ pub(super) fn execute_build(
         {
             (
                 PathBuf::from(source),
+                None,
                 Some(entry.to_string_lossy()),
                 PathBuf::from(executable),
             )
@@ -45,9 +87,9 @@ pub(super) fn execute_build(
         [source, output_flag, executable]
             if output_flag == "-o" && !is_option(source) && !is_option(executable) =>
         {
-            (PathBuf::from(source), None, PathBuf::from(executable))
+            (PathBuf::from(source), None, None, PathBuf::from(executable))
         }
-        [argument, ..] if is_unknown_option(argument, &["--entry", "-o"]) => {
+        [argument, ..] if is_unknown_option(argument, &["--source-root", "--entry", "-o"]) => {
             return usage(
                 BUILD_USAGE,
                 format!("unknown build option {}", argument.to_string_lossy()),
@@ -56,13 +98,18 @@ pub(super) fn execute_build(
         _ => {
             return usage(
                 BUILD_USAGE,
-                "expected source, optional `--entry <name>` and `-o <executable>`",
+                if arguments.iter().any(|argument| argument == "--source-root") {
+                    "expected source, optional `--source-root <dir>`, optional `--entry <name>` and `-o <executable>`"
+                } else {
+                    "expected source, optional `--entry <name>` and `-o <executable>`"
+                },
             );
         }
     };
     let object = temporary_object_path(&executable);
     let result = bootstrap_build(BootstrapTarget {
         source: &source,
+        source_root: source_root.as_deref(),
         entry: entry
             .as_deref()
             .map(BootstrapEntry::Explicit)
@@ -96,20 +143,51 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
         Some(separator) => (&arguments[..separator], &arguments[separator + 1..]),
         None => (arguments, &[][..]),
     };
-    let (source, entry) = match compiler_arguments {
+    let (source, source_root, entry) = match compiler_arguments {
+        [source, root_flag, root, entry_flag, entry]
+            if root_flag == "--source-root"
+                && entry_flag == "--entry"
+                && !is_option(source)
+                && !is_option(root)
+                && !is_option(entry) =>
+        {
+            (
+                PathBuf::from(source),
+                Some(PathBuf::from(root)),
+                Some(entry.to_string_lossy()),
+            )
+        }
+        [source, root_flag, root]
+            if root_flag == "--source-root" && !is_option(source) && !is_option(root) =>
+        {
+            (PathBuf::from(source), Some(PathBuf::from(root)), None)
+        }
+
         [source, entry_flag, entry]
             if entry_flag == "--entry" && !is_option(source) && !is_option(entry) =>
         {
-            (PathBuf::from(source), Some(entry.to_string_lossy()))
+            (PathBuf::from(source), None, Some(entry.to_string_lossy()))
         }
-        [source] if !is_option(source) => (PathBuf::from(source), None),
-        [argument, ..] if is_unknown_option(argument, &["--entry"]) => {
+        [source] if !is_option(source) => (PathBuf::from(source), None, None),
+        [argument, ..] if is_unknown_option(argument, &["--source-root", "--entry"]) => {
             return usage(
                 RUN_USAGE,
                 format!("unknown run option {}", argument.to_string_lossy()),
             );
         }
-        _ => return usage(RUN_USAGE, "expected source and optional `--entry <name>`"),
+        _ => {
+            return usage(
+                RUN_USAGE,
+                if compiler_arguments
+                    .iter()
+                    .any(|argument| argument == "--source-root")
+                {
+                    "expected source, optional `--source-root <dir>` and optional `--entry <name>`"
+                } else {
+                    "expected source and optional `--entry <name>`"
+                },
+            );
+        }
     };
     let directory = match TemporaryDirectory::create() {
         Ok(directory) => directory,
@@ -123,6 +201,7 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
     let executable = directory.path().join("program");
     if let Err(error) = bootstrap_build(BootstrapTarget {
         source: &source,
+        source_root: source_root.as_deref(),
         entry: entry
             .as_deref()
             .map(BootstrapEntry::Explicit)
@@ -157,7 +236,7 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
 
 fn render_error(error: BootstrapError, message_format: MessageFormat) -> CommandOutput {
     match error {
-        BootstrapError::FrontendDiagnostics { human, json, .. } => {
+        BootstrapError::Unit(UnitBuildError::FrontendDiagnostics { human, json }) => {
             let rendered = match message_format {
                 MessageFormat::Human => human,
                 MessageFormat::Json => json,

@@ -14,7 +14,7 @@ use lang_frontend::{
 
 use crate::{
     project::{ProjectLoadError, ProjectSourceSet, load_project_source_set},
-    unit_build::{UnitBuildError, emit_unit_object},
+    unit_build::{UnitBuildError, UnitEntrySelection, emit_unit_object},
 };
 
 /// Project 专有的宿主失败；共同阶段只包装唯一 Unit 错误。
@@ -89,8 +89,13 @@ pub(crate) fn emit_project_object(
     )?;
     let snapshot =
         analyze_unit_names(sources, descriptors, name_environment).map_err(UnitBuildError::from)?;
-    emit_unit_object(&snapshot, &type_environment, selector, object)
-        .map_err(ProjectBuildError::Unit)
+    emit_unit_object(
+        &snapshot,
+        &type_environment,
+        UnitEntrySelection::Project(selector),
+        object,
+    )
+    .map_err(ProjectBuildError::Unit)
 }
 
 fn validate_project_paths(

@@ -39,7 +39,7 @@ impl ParsedFile {
 
     /// 初始 package 名称和紧随它的分隔符是否完整；无初始 package 时为 true。
     #[must_use]
-    pub(crate) const fn initial_package_header_is_complete(&self) -> bool {
+    pub const fn initial_package_header_is_complete(&self) -> bool {
         self.initial_package_header_complete
     }
 

@@ -1,54 +1,44 @@
-//! 仓库拥有的单文件标准库 bootstrap 编排。
+//! 单文件宿主的输入、source-root、链接与共同 Unit driver 适配。
 
 use std::{
+    ffi::OsStr,
     fmt, fs, io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 #[cfg(test)]
 use std::process::Command;
 
-use lang_codegen::{NativeEntry, NativeObjectError, emit_native_object};
 use lang_frontend::{
-    analysis::{SingleFileAnalysisError, analyze_single_file},
+    analysis::{UnitSourceDescriptor, analyze_parsed_unit_names},
     diagnostic::Diagnostic,
-    lexer::LexerInternalError,
-    name_resolution::{NameResolution, NameResolutionError, ScopeKind, SymbolId, SymbolKind},
-    ownership_checking::OwnershipCheckingError,
-    parser::ParserInternalError,
-    source::{SourceError, SourceMap},
-    type_checking::{
-        BuiltinType, FinalTypeAdmissionError, FinalTypeAdmissionInternalError,
-        IntrinsicTypeConstructor, ParameterMode, TypeCheckingError, TypeKind, TypedFile,
-        complete_file_types, standard_environments,
-    },
+    lexer::lex,
+    name_resolution::package_path_mismatch_diagnostic,
+    parser::{ParsedFile, parse_file},
+    source::SourceMap,
+    type_checking::standard_environments,
 };
 
-use crate::linker::{LinkerError, link_native_object};
 use crate::{
     diagnostic_renderer::render_diagnostics,
+    linker::{LinkerError, link_native_object},
     machine_diagnostic_renderer::render_machine_diagnostics,
+    unit_build::{UnitBuildError, UnitEntrySelection, emit_unit_object},
 };
 
-pub(crate) use lang_frontend::analysis::SingleFileStage as FrontendStage;
-
-/// 单文件 bootstrap 的源码 entry 选择方式。
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum BootstrapEntry<'a> {
-    Explicit(&'a str),
-    ConventionalMain,
-}
+pub(crate) use crate::unit_build::SingleEntrySelection as BootstrapEntry;
 
 /// 一次单文件 bootstrap 的调用方拥有配置。
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BootstrapTarget<'a> {
     pub(crate) source: &'a Path,
+    pub(crate) source_root: Option<&'a Path>,
     pub(crate) entry: BootstrapEntry<'a>,
     pub(crate) object: &'a Path,
     pub(crate) executable: &'a Path,
 }
 
-/// 标准库 bootstrap 各阶段的结构化失败。
+/// 单文件宿主失败；语言阶段只包装唯一 Unit 错误。
 #[derive(Debug)]
 pub(crate) enum BootstrapError {
     InvalidPaths,
@@ -58,29 +48,11 @@ pub(crate) enum BootstrapError {
         kind: io::ErrorKind,
     },
     NonUtf8SourcePath(PathBuf),
-    Source(SourceError),
-    Lexer(LexerInternalError),
-    Parser(ParserInternalError),
-    NameResolution(NameResolutionError),
-    TypeChecking(TypeCheckingError),
-    TypeAdmission(FinalTypeAdmissionInternalError),
-    OwnershipChecking(OwnershipCheckingError),
-    FrontendDiagnostics {
-        stage: FrontendStage,
-        diagnostics: Vec<Diagnostic>,
-        human: String,
-        json: String,
+    InspectSourceRoot {
+        path: PathBuf,
+        kind: io::ErrorKind,
     },
-    DiagnosticRendering(String),
-    MissingEntry(String),
-    AmbiguousEntry {
-        name: String,
-        count: usize,
-    },
-    InvalidEntryShape {
-        name: String,
-    },
-    Codegen(NativeObjectError),
+    Unit(UnitBuildError),
     Linker(LinkerError),
     #[cfg(test)]
     LaunchExecutable {
@@ -105,47 +77,17 @@ impl fmt::Display for BootstrapError {
             Self::ReadSource { path, kind } => {
                 write!(formatter, "cannot read {}: {kind}", path.display())
             }
-            Self::NonUtf8SourcePath(path) => {
-                write!(
-                    formatter,
-                    "source path is not valid UTF-8: {}",
-                    path.display()
-                )
-            }
-            Self::Source(error) => write!(formatter, "source setup failed: {error}"),
-            Self::Lexer(error) => write!(formatter, "lexer failed: {error}"),
-            Self::Parser(error) => write!(formatter, "parser failed: {error}"),
-            Self::NameResolution(error) => write!(formatter, "name resolution failed: {error}"),
-            Self::TypeChecking(error) => write!(formatter, "type checking failed: {error}"),
-            Self::TypeAdmission(error) => {
-                write!(formatter, "final type admission failed: {error}")
-            }
-            Self::OwnershipChecking(error) => {
-                write!(formatter, "ownership checking failed: {error}")
-            }
-            Self::FrontendDiagnostics {
-                stage, diagnostics, ..
-            } => write!(
+            Self::NonUtf8SourcePath(path) => write!(
                 formatter,
-                "{stage:?} produced {} diagnostic(s)",
-                diagnostics.len()
+                "source path is not valid UTF-8: {}",
+                path.display()
             ),
-            Self::DiagnosticRendering(error) => {
-                write!(formatter, "diagnostic rendering failed: {error}")
-            }
-            Self::MissingEntry(name) => write!(formatter, "entry `{name}` was not found"),
-            Self::AmbiguousEntry { name, count } => {
-                write!(
-                    formatter,
-                    "entry `{name}` is ambiguous ({count} candidates)"
-                )
-            }
-            Self::InvalidEntryShape { name } => write!(
+            Self::InspectSourceRoot { path, kind } => write!(
                 formatter,
-                "entry `{name}` has no supported conventional shape; expected `fun {name}(): Unit` \
-                 or `fun {name}(args: Array<String>): Unit`"
+                "cannot inspect single-file source root {}: {kind}",
+                path.display()
             ),
-            Self::Codegen(error) => write!(formatter, "{error}"),
+            Self::Unit(error) => error.fmt(formatter),
             Self::Linker(error) => write!(formatter, "linker failed: {error:?}"),
             #[cfg(test)]
             Self::LaunchExecutable { path, kind } => {
@@ -161,7 +103,13 @@ impl fmt::Display for BootstrapError {
 
 impl std::error::Error for BootstrapError {}
 
-/// 从一份显式 Koven source 构建并链接一个 native target。
+impl From<UnitBuildError> for BootstrapError {
+    fn from(error: UnitBuildError) -> Self {
+        Self::Unit(error)
+    }
+}
+
+/// 从一份显式用户 source 和有限受信标准源构建并链接一个 native target。
 pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
     validate_paths(target)?;
     let text = fs::read_to_string(target.source).map_err(|error| BootstrapError::ReadSource {
@@ -175,162 +123,132 @@ pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), Bootstr
     let mut sources = SourceMap::new();
     let source = sources
         .add_source(source_name, text)
-        .map_err(BootstrapError::Source)?;
-
-    let (name_environment, type_environment) = standard_environments();
-    let analysis = analyze_single_file(
-        &sources,
-        source,
-        &name_environment,
+        .map_err(UnitBuildError::Source)?;
+    let lexed = lex(&sources, source).map_err(UnitBuildError::Lexer)?;
+    let parsed = parse_file(&sources, &lexed).map_err(UnitBuildError::Parser)?;
+    if !parsed.initial_package_header_is_complete() {
+        return Err(source_diagnostics(&sources, parsed.diagnostics()));
+    }
+    let logical_path = single_logical_path(&sources, &parsed, target.source, target.source_root)?;
+    let mut descriptors = vec![UnitSourceDescriptor::new("single", logical_path, source)];
+    let (name_environment, mut type_environment) = standard_environments();
+    crate::standard_sources::append_standard_sources(
+        &mut sources,
+        &mut descriptors,
+        &mut type_environment,
+    )?;
+    // Loader 只追加标准 descriptor；用户原解析产物移动一次，标准源各解析一次。
+    let mut descriptors = descriptors.into_iter();
+    let user = descriptors
+        .next()
+        .ok_or(UnitBuildError::MissingSingleSource)?;
+    let mut parsed_sources = vec![(user, parsed)];
+    for descriptor in descriptors {
+        let lexed = lex(&sources, descriptor.source_id()).map_err(UnitBuildError::Lexer)?;
+        let parsed = parse_file(&sources, &lexed).map_err(UnitBuildError::Parser)?;
+        parsed_sources.push((descriptor, parsed));
+    }
+    let snapshot = analyze_parsed_unit_names(sources, parsed_sources, name_environment)
+        .map_err(UnitBuildError::from)?;
+    emit_unit_object(
+        &snapshot,
         &type_environment,
-        |stage, diagnostics| reject_diagnostics(stage, &sources, diagnostics),
-        |view| match complete_file_types(
-            &sources,
-            view.parsed(),
-            view.names(),
-            &type_environment,
-            view.typed(),
-        ) {
-            Ok(_) => Ok(()),
-            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
-                reject_diagnostics(FrontendStage::TypeChecking, &sources, &diagnostics)
-            }
-            Err(FinalTypeAdmissionError::Internal(error)) => {
-                Err(BootstrapError::TypeAdmission(error))
-            }
+        UnitEntrySelection::Single {
+            source,
+            selection: target.entry,
         },
-    )
-    .map_err(|error| match error {
-        SingleFileAnalysisError::Lexer(error) => BootstrapError::Lexer(error),
-        SingleFileAnalysisError::Parser(error) => BootstrapError::Parser(error),
-        SingleFileAnalysisError::Name(error) => BootstrapError::NameResolution(error),
-        SingleFileAnalysisError::Type(error) => BootstrapError::TypeChecking(error),
-        SingleFileAnalysisError::Ownership(error) => BootstrapError::OwnershipChecking(error),
-        SingleFileAnalysisError::Host(error) => error,
-    })?;
-    let (parsed, names, typed, owned, ()) = analysis.into_parts();
-
-    let entry = select_entry(&names, &typed, target.entry)?;
-
-    emit_native_object(
-        &sources,
-        &parsed,
-        &names,
-        &typed,
-        &owned,
-        entry,
         target.object,
-    )
-    .map_err(BootstrapError::Codegen)?;
+    )?;
     link_native_object(target.object, target.executable).map_err(BootstrapError::Linker)?;
     Ok(())
 }
 
-fn select_entry(
-    names: &NameResolution,
-    typed: &TypedFile,
-    selection: BootstrapEntry<'_>,
-) -> Result<NativeEntry, BootstrapError> {
-    let name = match selection {
-        BootstrapEntry::Explicit(name) => name,
-        BootstrapEntry::ConventionalMain => "main",
+fn single_logical_path(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    source: &Path,
+    explicit_root: Option<&Path>,
+) -> Result<String, BootstrapError> {
+    // 只消费原指定路径的尾部组件；剩余 root 保留 ParentDir 和宿主 prefix 语义。
+    let mut components = source.components();
+    let Some(Component::Normal(file_name)) = components.next_back() else {
+        return Err(package_path_error(sources, parsed)?);
     };
-    let candidates = names
-        .symbols()
-        .iter()
-        .filter(|symbol| {
-            symbol.name() == name
-                && symbol.kind() == SymbolKind::Function
-                && names
-                    .scopes()
-                    .get(symbol.scope().index())
-                    .is_some_and(|scope| {
-                        scope.kind() == ScopeKind::File && scope.parent().is_none()
-                    })
-        })
-        .collect::<Vec<_>>();
-
-    if matches!(selection, BootstrapEntry::Explicit(_)) {
-        return unique_entry(name, candidates.into_iter().map(|symbol| symbol.id()))
-            .map(NativeEntry::NoArguments);
-    }
-    if candidates.is_empty() {
-        return Err(BootstrapError::MissingEntry(name.to_owned()));
-    }
-
-    let conventional_shapes = candidates
-        .into_iter()
-        .filter_map(|symbol| {
-            let callable = typed
-                .callables()
-                .iter()
-                .find(|callable| callable.symbol() == symbol.id() && callable.owner().is_none())?;
-            if !callable.type_parameters().is_empty()
-                || !matches!(
-                    typed.types().get(callable.return_type()),
-                    Some(TypeKind::Builtin(BuiltinType::Unit))
-                )
-            {
-                return None;
+    let mut logical_components = vec![file_name];
+    if let Some(package) = parsed.package() {
+        for segment in package.segments.iter().rev() {
+            let name = sources
+                .slice(segment.span)
+                .map_err(UnitBuildError::Source)?;
+            match components.next_back() {
+                Some(Component::Normal(component)) if component == OsStr::new(name) => {
+                    logical_components.push(component);
+                }
+                _ => return Err(package_path_error(sources, parsed)?),
             }
-            let zero_argument = callable.parameters().is_empty();
-            let argument_array = matches!(
-                callable.parameters(),
-                [parameter]
-                    if parameter.mode == ParameterMode::Borrow
-                        && matches!(
-                            typed.types().get(parameter.ty),
-                            Some(TypeKind::Intrinsic {
-                                constructor: IntrinsicTypeConstructor::Array,
-                                arguments,
-                            }) if matches!(
-                                arguments.as_slice(),
-                                [argument]
-                                    if matches!(
-                                        typed.types().get(*argument),
-                                        Some(TypeKind::Builtin(BuiltinType::String))
-                                    )
-                            )
-                        )
-            );
-            (zero_argument || argument_array).then_some((symbol.id(), zero_argument))
+        }
+    }
+    if let Some(explicit_root) = explicit_root {
+        let inferred_root = components.as_path();
+        let inferred_root = if inferred_root.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            inferred_root
+        };
+        if inspect_source_root(inferred_root)? != inspect_source_root(explicit_root)? {
+            return Err(package_path_error(sources, parsed)?);
+        }
+    }
+    logical_components.reverse();
+    logical_components
+        .into_iter()
+        .map(|component| {
+            component
+                .to_str()
+                .ok_or_else(|| BootstrapError::NonUtf8SourcePath(source.to_path_buf()))
         })
-        .collect::<Vec<_>>();
-    if conventional_shapes.len() > 1 {
-        return Err(BootstrapError::AmbiguousEntry {
-            name: name.to_owned(),
-            count: conventional_shapes.len(),
-        });
-    }
-    match conventional_shapes.first() {
-        Some((entry, true)) => Ok(NativeEntry::NoArguments(*entry)),
-        Some((entry, false)) => Ok(NativeEntry::BorrowedArguments(*entry)),
-        None => Err(BootstrapError::InvalidEntryShape {
-            name: name.to_owned(),
-        }),
-    }
+        .collect::<Result<Vec<_>, _>>()
+        .map(|components| components.join("/"))
 }
 
-fn unique_entry(
-    name: &str,
-    entries: impl IntoIterator<Item = SymbolId>,
-) -> Result<SymbolId, BootstrapError> {
-    let mut entries = entries.into_iter();
-    let entry = entries
-        .next()
-        .ok_or_else(|| BootstrapError::MissingEntry(name.to_owned()))?;
-    let count = 1 + entries.count();
-    if count == 1 {
-        Ok(entry)
-    } else {
-        Err(BootstrapError::AmbiguousEntry {
-            name: name.to_owned(),
-            count,
-        })
-    }
+fn inspect_source_root(path: &Path) -> Result<PathBuf, BootstrapError> {
+    fs::canonicalize(path).map_err(|error| BootstrapError::InspectSourceRoot {
+        path: path.to_path_buf(),
+        kind: error.kind(),
+    })
 }
 
-/// 从一份显式 Koven source 构建、链接并运行仓库 bootstrap target。
+fn package_path_error(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+) -> Result<BootstrapError, BootstrapError> {
+    let span = parsed
+        .package()
+        .map_or_else(
+            || sources.span(parsed.source_id(), 0, 0),
+            |package| Ok(package.span),
+        )
+        .map_err(UnitBuildError::Source)?;
+    let mismatch =
+        package_path_mismatch_diagnostic(sources, span).map_err(UnitBuildError::Input)?;
+    let mut diagnostics = parsed.diagnostics().to_vec();
+    diagnostics.push(mismatch);
+    Ok(source_diagnostics(sources, &diagnostics))
+}
+
+fn source_diagnostics(sources: &SourceMap, diagnostics: &[Diagnostic]) -> BootstrapError {
+    let human = match render_diagnostics(sources, diagnostics) {
+        Ok(human) => human,
+        Err(error) => return UnitBuildError::DiagnosticRendering(error.to_string()).into(),
+    };
+    let json = match render_machine_diagnostics(sources, diagnostics) {
+        Ok(json) => json,
+        Err(error) => return UnitBuildError::DiagnosticRendering(error.to_string()).into(),
+    };
+    UnitBuildError::FrontendDiagnostics { human, json }.into()
+}
+
+/// 构建、链接并运行仓库 bootstrap target；测试外壳不增加另一条语义链。
 #[cfg(test)]
 pub(crate) fn bootstrap_and_run(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
     bootstrap_build(target)?;
@@ -361,25 +279,4 @@ fn validate_paths(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
         }
     }
     Ok(())
-}
-
-fn reject_diagnostics(
-    stage: FrontendStage,
-    sources: &SourceMap,
-    diagnostics: &[Diagnostic],
-) -> Result<(), BootstrapError> {
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        let human = render_diagnostics(sources, diagnostics)
-            .map_err(|error| BootstrapError::DiagnosticRendering(error.to_string()))?;
-        let json = render_machine_diagnostics(sources, diagnostics)
-            .map_err(|error| BootstrapError::DiagnosticRendering(error.to_string()))?;
-        Err(BootstrapError::FrontendDiagnostics {
-            stage,
-            diagnostics: diagnostics.to_vec(),
-            human,
-            json,
-        })
-    }
 }

@@ -124,6 +124,29 @@ class CheckCiResultsTests(unittest.TestCase):
         self.maxDiff = None
         self.assertEqual(expected, actual)
 
+    def test_single_unit_cli_contracts_are_present_in_unfiltered_cli_matrix(self):
+        root = Path(__file__).resolve().parents[2]
+        # The main unit-migration route test above verifies both hosts and the
+        # unique unfiltered core lang-cli invocation. Do not duplicate it in stage.
+        manifest = (root / "crates/lang-cli/Cargo.toml").read_text()
+        self.assertNotRegex(manifest, r"(?m)^\s*(?:autotests|test)\s*=\s*false")
+        self.assertNotIn("required-features", manifest)
+        source = (root / "crates/lang-cli/tests/single_unit_cli.rs").read_text()
+        for name in (
+            "single_source_roots_follow_logical_components_and_explicit_identity",
+            "single_source_symlinks_keep_logical_package_and_physical_root_identity",
+            "single_header_failures_preserve_complete_diagnostics_before_root_setup",
+            "single_missing_explicit_root_is_an_operational_error_after_logical_validation",
+            "single_source_root_options_keep_usage_and_program_argument_boundaries",
+            "single_imports_use_only_the_selected_file_and_authorized_standard_sources",
+        ):
+            self.assertEqual(1, len(re.findall(r"(?m)^fn " + re.escape(name) + r"\(\)", source)))
+        unit = (root / "crates/lang-cli/src/unit_build.rs").read_text()
+        self.assertEqual(1, len(re.findall(
+            r"(?m)^    fn unit_single_entry_uses_original_user_source_after_standard_sorting\(\)", unit)))
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        self.assertEqual([], stage_target_occurrences(stage, "single_unit_cli"))
+
     def test_initial_package_header_index_exacts_run_once_on_both_hosts(self):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/ci.yml").read_text()

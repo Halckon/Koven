@@ -5,7 +5,8 @@ mod unit_basic_ownership;
 mod unit_names;
 
 pub use unit_names::{
-    UnitNameAnalysisError, UnitNameSnapshot, UnitSourceDescriptor, analyze_unit_names,
+    UnitNameAnalysisError, UnitNameSnapshot, UnitSourceDescriptor, analyze_parsed_unit_names,
+    analyze_unit_names,
 };
 
 pub use unit_basic_ownership::{BasicOwnershipOutcome, analyze_basic_unit_ownership};
