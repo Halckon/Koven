@@ -20,7 +20,10 @@ fn frozen() -> Value {
     let frozen: Value = serde_json::from_str(include_str!("fixtures/unit_recovery_v1.json"))
         .expect("reviewed frozen Unit observations");
     assert_eq!(frozen["schema_version"], json!(1));
-    assert_eq!(frozen["pipeline"], json!("production_compilation_unit_recovery"));
+    assert_eq!(
+        frozen["pipeline"],
+        json!("production_compilation_unit_recovery")
+    );
     assert_eq!(frozen["fixtures"].as_array().expect("fixtures").len(), 11);
     frozen
 }
