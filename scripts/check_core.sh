@@ -4,6 +4,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 cargo test --locked -p lang-frontend --lib
 cargo test --locked -p lang-codegen
-cargo test --locked -p lang-cli
+cargo test --locked -p lang-cli --no-fail-fast
 cargo test --locked -p lang-lsp
 cargo test --locked -p lang-std

@@ -75,7 +75,7 @@ class CheckCiResultsTests(unittest.TestCase):
         self.assertEqual([
             "cargo test --locked -p lang-frontend --lib",
             "cargo test --locked -p lang-codegen",
-            "cargo test --locked -p lang-cli",
+            "cargo test --locked -p lang-cli --no-fail-fast",
             "cargo test --locked -p lang-lsp",
             "cargo test --locked -p lang-std",
         ], [line for line in core.splitlines() if line.startswith("cargo ")])
