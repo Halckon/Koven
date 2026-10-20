@@ -153,8 +153,13 @@ fun main(): Unit {{
 
 #[test]
 fn resource_deinit_native_conditional_owner_is_rejected_without_overwriting_output() {
-    use super::{SymbolKind, TestDirectory};
-    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use super::TestDirectory;
+    use crate::native_tests::boxed_enum_tests::unit_source::{SourceRejectionKind, UnitSource};
+    use lang_frontend::{
+        name_resolution::{SourceUnitInput, SourceUnitKey},
+        ownership_checking::OwnershipDeferredReason,
+        parser::Expression,
+    };
     let source = format!(
         r#"{LEAF}
 fun run(flag: Boolean): Unit {{
@@ -165,27 +170,73 @@ fun run(flag: Boolean): Unit {{
 fun main(): Unit {{ run(true); run(false) }}
 "#
     );
-    let analysis = UnitSource::analyze("resource-conditional.ko", &source)
-        .expect("original source must pass strict Unit admission");
-    analysis.assert_frontend_clean();
+    // Unit rejects incomplete resource transport before entry selection or native emission.
+    // This replaces the retired single-file UnsupportedSource/resource-origin wrapper contract.
     let directory = TestDirectory::create();
     let path = directory.join("preserved.o");
     std::fs::write(&path, b"previous object").unwrap();
-    let error = analysis
-        .emit(analysis.declaration("main", SymbolKind::Function), &path)
-        .expect_err("conditional owner transport remains outside this bounded native slice");
+    std::fs::write(directory.join("neighbor.txt"), b"untouched neighbor").unwrap();
+    let before = directory.snapshot();
+    let Err(rejection) = UnitSource::analyze("resource-conditional.ko", &source) else {
+        panic!("conditional resource transport must not publish an executable UnitSource");
+    };
     assert_eq!(
-        error.kind(),
-        super::NativeObjectErrorKind::UnsupportedSource
+        rejection.report.stages,
+        [("parse", 0), ("names", 0), ("types", 0), ("ownership", 0)]
     );
-    let span = error
-        .span()
-        .expect("rejection keeps the conditional owner origin");
+    assert!(rejection.report.diagnostics.is_empty());
+    let SourceRejectionKind::IncompleteBasicOwnership(recovery) = rejection.kind else {
+        panic!("the real ownership admission, not a source diagnostic, must reject");
+    };
+    let inputs = [SourceUnitInput::memory_document(
+        recovery.parsed.source_id(),
+        &recovery.parsed,
+    )];
+    assert!(recovery.typed.types().is_compatible_with(
+        &rejection.sources,
+        &inputs,
+        &recovery.names,
+        &recovery.environment,
+    ));
+    assert!(recovery.owned.is_compatible_with(&recovery.typed));
+    assert!(recovery.owned.diagnostics().is_empty());
+    let [deferred] = recovery.owned.deferred() else {
+        panic!("one exact resource lifetime recovery fact is required");
+    };
+    assert_eq!(deferred.reason(), OwnershipDeferredReason::ResourceLifetime);
+    let [unit] = recovery.names.names().index().source_units() else {
+        panic!("one original memory document is required");
+    };
+    assert_eq!(unit.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(unit.source_id(), recovery.parsed.source_id());
+    assert_eq!(deferred.expression().source_unit(), unit.id());
+    let node = recovery
+        .parsed
+        .ast()
+        .expressions()
+        .get(deferred.expression().expression())
+        .unwrap();
+    assert!(matches!(node.payload(), Expression::If { .. }));
+    let span = node.span();
+    assert_eq!(span.source_id(), unit.source_id());
     assert_eq!(
-        &source[span.start() as usize..span.end() as usize],
-        "resource"
+        rejection.sources.source_name(span.source_id()),
+        Ok("resource-conditional.ko")
     );
+    assert_eq!(rejection.sources.source_text(span.source_id()), Ok(source.as_str()));
+    let expected = "if (flag) { consume(resource) }";
+    assert_eq!(rejection.sources.slice(span), Ok(expected));
+    let start = source.find(expected).unwrap();
+    assert_eq!((span.start(), span.end()), (start, start + expected.len()));
+    let expected_deferred = recovery.owned.deferred().to_vec();
+    let rejected = (*recovery.owned)
+        .validate()
+        .err()
+        .expect("the original recovery still cannot grant validated ownership");
+    assert_eq!(rejected.deferred(), expected_deferred);
+    // No entry, sealed view, emit, LLVM, linker, or program run occurs on this Err path.
     assert_eq!(std::fs::read(&path).unwrap(), b"previous object");
+    assert_eq!(directory.snapshot(), before);
 }
 
 #[test]

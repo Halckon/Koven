@@ -21,7 +21,7 @@ use lang_frontend::{
         index_compilation_unit, resolve_compilation_unit_names,
     },
     ownership_checking::{
-        ConstEnabledOwnedUnit, ValidatedCompilationUnitOwnership,
+        CompilationUnitOwnership, ConstEnabledOwnedUnit, ValidatedCompilationUnitOwnership,
         check_compilation_unit_constant_ownership, const_owned_compilation_unit_view,
         owned_compilation_unit_view,
     },
@@ -66,6 +66,21 @@ impl FrontendReport {
 pub(crate) struct SourceRejection {
     pub(crate) sources: SourceMap,
     pub(crate) report: FrontendReport,
+    pub(crate) kind: SourceRejectionKind,
+}
+
+pub(crate) enum SourceRejectionKind {
+    Diagnostics,
+    IncompleteBasicOwnership(Box<BasicOwnershipRejection>),
+}
+
+/// Original failed admission products, never an executable ownership capability.
+pub(crate) struct BasicOwnershipRejection {
+    pub(crate) parsed: ParsedFile,
+    pub(crate) names: ValidatedCompilationUnitNames,
+    pub(crate) environment: TypeEnvironment,
+    pub(crate) typed: ValidatedCompilationUnitTypes,
+    pub(crate) owned: Box<CompilationUnitOwnership>,
 }
 
 impl std::fmt::Debug for SourceRejection {
@@ -102,7 +117,11 @@ impl UnitSource {
         // ParsedFile already includes the original lexical diagnostics.
         report.record("parse", parsed.diagnostics());
         if !parsed.diagnostics().is_empty() {
-            return Err(SourceRejection { sources, report });
+            return Err(SourceRejection {
+                sources,
+                report,
+                kind: SourceRejectionKind::Diagnostics,
+            });
         }
         let inputs = [SourceUnitInput::memory_document(source, &parsed)];
         let (name_environment, environment) = standard_environments();
@@ -112,7 +131,11 @@ impl UnitSource {
         // Unit names include index diagnostics; do not truncate to local resolution diagnostics.
         report.record("names", names.diagnostics());
         if !names.diagnostics().is_empty() {
-            return Err(SourceRejection { sources, report });
+            return Err(SourceRejection {
+                sources,
+                report,
+                kind: SourceRejectionKind::Diagnostics,
+            });
         }
         let names = names
             .validate()
@@ -121,7 +144,11 @@ impl UnitSource {
             .expect("internal unit type checking failure");
         if !raw.diagnostics().is_empty() {
             report.record("types", raw.diagnostics());
-            return Err(SourceRejection { sources, report });
+            return Err(SourceRejection {
+                sources,
+                report,
+                kind: SourceRejectionKind::Diagnostics,
+            });
         }
         // This is the strict gate, not basic validate(). It runs before either ownership path.
         match complete_compilation_unit_types(&sources, &inputs, &names, &environment, &raw) {
@@ -131,7 +158,11 @@ impl UnitSource {
             }
             Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
                 report.record("types", &diagnostics);
-                return Err(SourceRejection { sources, report });
+                return Err(SourceRejection {
+                    sources,
+                    report,
+                    kind: SourceRejectionKind::Diagnostics,
+                });
             }
             Err(FinalTypeAdmissionError::Internal(error)) => {
                 panic!("internal final type admission failure, not source rejection: {error:?}");
@@ -144,10 +175,31 @@ impl UnitSource {
             Ok((typed, owned)) => {
                 report.record("ownership", owned.diagnostics());
                 if !owned.diagnostics().is_empty() {
-                    return Err(SourceRejection { sources, report });
+                    return Err(SourceRejection {
+                        sources,
+                        report,
+                        kind: SourceRejectionKind::Diagnostics,
+                    });
                 }
-                assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
-                let owned = owned.validate().expect("incomplete basic ownership facts");
+                let owned = match owned.validate() {
+                    Ok(owned) => owned,
+                    Err(owned) if !owned.deferred().is_empty() => {
+                        return Err(SourceRejection {
+                            sources,
+                            report,
+                            kind: SourceRejectionKind::IncompleteBasicOwnership(Box::new(
+                                BasicOwnershipRejection {
+                                    parsed,
+                                    names,
+                                    environment,
+                                    typed,
+                                    owned,
+                                },
+                            )),
+                        });
+                    }
+                    Err(_) => panic!("incomplete basic ownership facts without deferred"),
+                };
                 OwnedProducts::Basic(typed, owned)
             }
             Err(raw) => {
@@ -166,7 +218,11 @@ impl UnitSource {
                 .expect("internal constant unit ownership failure");
                 report.record("ownership", owned.ownership().diagnostics());
                 if !owned.ownership().diagnostics().is_empty() {
-                    return Err(SourceRejection { sources, report });
+                    return Err(SourceRejection {
+                        sources,
+                        report,
+                        kind: SourceRejectionKind::Diagnostics,
+                    });
                 }
                 assert!(
                     owned.ownership().deferred().is_empty(),
@@ -577,6 +633,7 @@ fn strict_type_qualification_rejects_before_ownership_or_llvm() {
     let Err(rejection) = UnitSource::analyze("strict.ko", text) else {
         panic!("rejected source must not produce an owned UnitSource that can lower");
     };
+    assert!(matches!(rejection.kind, SourceRejectionKind::Diagnostics));
     assert_eq!(
         rejection.report.stages,
         [("parse", 0), ("names", 0), ("types", 1)]
