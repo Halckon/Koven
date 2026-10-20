@@ -8,28 +8,36 @@
 
 当前公开路径包括：
 
-- 单文件 `build` / `run`，接收显式 source、entry 和输出选择；
+- 单文件 `build` / `run`，接收显式 source、可选 source-root、entry 和输出选择；
 - `format` / `format --check`，结果写 stdout，不原地改文件；
 - `--message-format=json` 的版本化 JSON Lines 语言诊断；
 - 显式 `project.toml` 的本地 project build/run。
 
 project loader 严格解析 version 1 manifest，验证 source root、logical path、symlink/overlap 和 physical
 file identity，再发布稳定只读 source set；原 SourceMap 经 std 注册后移入 `analyze_unit_names`，由 `UnitNameSnapshot` 拥有源码/语法/环境/名称事实。
-`project_build` 保留加载与产物外壳，`unit_build` 借 snapshot/同轮类型环境推进唯一 project Unit 核心；标准 loader 与 core 共用中立错误。
-首个非空诊断 gate 仍在完整 names 前缀后。typed 非空 gate 留宿主，随后先通过
+`project_build` 保留加载与产物外壳，单文件 bootstrap 与它共用 `unit_build`：借 snapshot/同轮类型环境推进唯一 Unit 核心；标准 loader 与 core 共用中立错误。
+进入 `unit_build` 共同链后的首个非空诊断 gate 在完整 names 前缀后；single 初始 header 与
+逻辑路径错误可在此前返回。typed 非空 gate 留宿主，随后先通过
 frontend `complete_compilation_unit_types`，再调用 `analyze_basic_unit_ownership` 共享 basic validation→普通 ownership 推进；宿主继续
 验证 raw ownership，成功后进入单 object、link 和原子 executable 发布。CLI 不从 cwd 或
 祖先目录猜 manifest。typed diagnostics 统一先于 entry 选择；基础 capability 验证成功时沿用
 基础 ownership/native，含常量时由 frontend 专用 gate 发布 typed/owned capability，再调用
-`emit_native_constant_unit_object`。同一只读 entry shape helper 服务两条已验证路径。
+`emit_native_const_owned_unit_object`。同一只读 entry shape helper 服务两条已验证路径。
 
-单文件 bootstrap 使用 frontend `analyze_single_file` 固定推进五阶段，宿主在每个阶段的
-原始 diagnostics gate 上拒绝任意非空集合；不会先跑完后继再挑首错。纯门面接收原
-SourceMap/SourceId与一次创建的name/type环境，返回同轮raw产物，不负责IO、诊断渲染、
-entry或native能力。`SingleFileTypedView`字段封闭，只借出本轮parsed/names/typed；
-observer的临时借用不能作为返回值逃逸，`SingleFileAnalysis<T>`消费式拆出原raw产物。
-CLI typed observer调用 `complete_file_types`，失败在ownership前返回；源诊断沿原TypeChecking渲染，
-内部身份/缺事实使用独立TypeAdmission错误。single/project原exit2/exit1及JSON schema不变。
+单文件 bootstrap 先对用户原源 lex/parse 一次；初始 package header 不完整时在 root IO 前返回
+完整原语法诊断。完整 header 后按指定路径的逻辑目录组件匹配完整 package 后缀；省略 package 时
+逻辑路径是 source-root 下的文件名。显式 `--source-root` 仅以物理 canonical identity 比较推导根
+是否同目录，不跟随 symlink 目标重新推导 package，也不新增单文件 symlink 禁令。
+随后复用标准 loader，把用户原 ParsedFile 与标准源解析产物按值交付
+`analyze_parsed_unit_names`，保原 SourceMap/SourceId；不复制 AST，不再调用旧 single 检查链。
+完整名称前缀聚合 lex/parse/name 诊断后才进入共同 typed/final-admission/ownership/native gate。
+
+两宿主各自保 source-set/路径、IO、entry 选择及呈现协议：single explicit 按原用户文件
+顶层同名 Function 计数，conventional 按同文件 main 的 process shape 筛选；project 按
+selector、可见性、body 和 process shape 过滤。两入口选中 entry 后均交共同 Unit owned/native
+阶段，不另走旧 single lowering；bodyless single 保原 lowering UnsupportedNode 操作错误，project 保原
+入口 unsupported process shape 错误。single/project 原 exit2/exit1、JSON schema及完整操作
+错误文本保持各自协议；这些入口差异不冒充类型、ownership 或程序行为不一致。
 
 CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`，通过 `Command`
 参数数组链接已有 native object，不调用 shell 或让外部 driver 重新编译 LLVM IR。
