@@ -49,7 +49,10 @@ pub(crate) fn collect_compilation_unit_signatures_recovering(
 
 /// Only the parser's actual rejected name permits a declaration without an identity.
 /// A missing symbol for a Present name remains an internal consistency failure.
-pub(in crate::type_checking::compilation_unit) fn diagnosed_missing_name(file: &ParsedFile, name: NameMarker) -> bool {
+pub(in crate::type_checking::compilation_unit) fn diagnosed_missing_name(
+    file: &ParsedFile,
+    name: NameMarker,
+) -> bool {
     let (NameMarker::Missing(span) | NameMarker::Error(span)) = name else {
         return false;
     };
