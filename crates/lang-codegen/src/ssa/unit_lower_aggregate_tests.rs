@@ -576,7 +576,7 @@ fn rejects_recursive_nullable_owner_until_ssa_declaration_cycles_are_supported()
 }
 
 #[test]
-fn rejects_generic_nominal_and_move_only_field_read_without_partial_ssa() {
+fn lowers_concrete_generic_nominal_but_rejects_move_only_field_reads() {
     let (name_environment, type_environment) = standard_environments();
     let mut sources = SourceMap::new();
     let (generic_source, generic) = parsed(
@@ -598,7 +598,7 @@ fn rejects_generic_nominal_and_move_only_field_read_without_partial_ssa() {
         &name_environment,
         &type_environment,
     );
-    let error = match lower_scalar_unit_with_entry(
+    let (program, entry) = lower_scalar_unit_with_entry(
         &sources,
         &generic_inputs,
         &names,
@@ -606,11 +606,31 @@ fn rejects_generic_nominal_and_move_only_field_read_without_partial_ssa() {
         &typed,
         &owned,
         declaration(&names, "test", "entry"),
-    ) {
-        Ok(_) => panic!("generic nominal layout remains an explicit boundary"),
-        Err(error) => error,
+    )
+    .expect("concrete generic value class lowers without changing its source");
+    let module = &program.modules[0];
+    let entry = &module.functions[entry.index()];
+    let [result_type] = entry.return_types.as_slice() else {
+        panic!("Wrapper<Int> entry has exactly one return type");
     };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    let Some(SsaTypeKind::Aggregate { fields, .. }) = module.type_kind(*result_type) else {
+        panic!("Wrapper<Int> retains inline aggregate storage");
+    };
+    let [field_type] = fields.as_slice() else {
+        panic!("Wrapper<Int> has exactly one concrete field");
+    };
+    assert_eq!(
+        module.type_kind(*field_type),
+        Some(&SsaTypeKind::Integer {
+            bits: 32,
+            signed: true,
+        })
+    );
+    assert!(entry.instructions.iter().any(|instruction| matches!(
+        &instruction.operation,
+        Operation::AggregateConstruct { aggregate, fields }
+            if aggregate == result_type && fields.len() == 1
+    )));
 
     let mut sources = SourceMap::new();
     let (field_source, field) = parsed(
@@ -663,6 +683,58 @@ fn rejects_generic_nominal_and_move_only_field_read_without_partial_ssa() {
         Err(error) => error,
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+}
+
+#[test]
+fn generic_value_current_receiver_fields_keep_the_existing_lowering_boundary() {
+    for (parameter, field_type, expression) in [
+        ("T", "Int", "stamp"),
+        ("T", "Int", "this.stamp"),
+        ("T", "Int", "(this).stamp"),
+        ("T", "Int", "((this)).stamp"),
+        ("T : Copyable", "T", "item"),
+    ] {
+        let text = format!(
+            "package test\n\
+             value class Holder<{parameter}>(val item: T, val stamp: Int) {{\n\
+                 fun read(): {field_type} = {expression}\n\
+             }}\n\
+             fun entry(): Int {{\n\
+                 val holder = Holder(1, 7)\n\
+                 return holder.read()\n\
+             }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, parsed) = parsed(&mut sources, "test/receiver.ko", &text);
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "test/receiver.ko",
+            source,
+            &parsed,
+        )];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let error = match lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "test", "entry"),
+        ) {
+            Ok(_) => panic!("generic current-receiver field support is not part of this repair"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{text}");
+        let span = error.span.expect("the actual field use remains the source origin");
+        let prefix = format!("fun read(): {field_type} = ");
+        let expected_start = text.find(&prefix).unwrap() + prefix.len();
+        assert_eq!(span.source_id(), source);
+        assert_eq!(span.start(), expected_start, "{text}");
+        assert_eq!(span.end(), expected_start + expression.len(), "{text}");
+        assert_eq!(sources.slice(span).unwrap(), expression, "{text}");
+    }
 }
 
 #[test]

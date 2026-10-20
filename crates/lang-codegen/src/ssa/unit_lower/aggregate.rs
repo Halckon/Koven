@@ -140,10 +140,7 @@ impl UnitExpressionLowerer<'_> {
                 else {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 };
-                if !matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass)
-                    || (!nominal.type_parameters().is_empty()
-                        && nominal.kind() != NominalKind::Class)
-                {
+                if !matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass) {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
                 let concrete_fields = resolve_nominal_runtime_field_types(
@@ -293,7 +290,12 @@ impl UnitExpressionLowerer<'_> {
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if arguments.len() != nominal.type_parameters().len()
-            || (!nominal.type_parameters().is_empty() && nominal.kind() != NominalKind::Class)
+            || (nominal.kind() == NominalKind::ValueClass
+                && !arguments.is_empty()
+                && match explicit_receiver {
+                    None => true,
+                    Some(receiver) => self.is_this_expression(receiver.expression(), span)?,
+                })
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }

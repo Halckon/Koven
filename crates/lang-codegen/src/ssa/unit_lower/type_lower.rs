@@ -482,7 +482,10 @@ impl UnitTypeLowering {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         if !nominal.type_parameters().is_empty()
-            && !matches!(nominal.kind(), NominalKind::Class | NominalKind::EnumClass)
+            && !matches!(
+                nominal.kind(),
+                NominalKind::Class | NominalKind::ValueClass | NominalKind::EnumClass
+            )
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -528,7 +531,10 @@ impl UnitTypeLowering {
             NominalKind::ValueClass => {
                 let result = fields
                     .iter()
-                    .map(|field| self.intern_inner(module, typed, field.ty(), field.span()))
+                    .zip(concrete_fields)
+                    .map(|(field, concrete)| {
+                        self.intern_inner(module, typed, concrete, field.span())
+                    })
                     .collect::<Result<Vec<_>, _>>()
                     .and_then(|fields| {
                         module
@@ -680,7 +686,7 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
                         )
                     } else {
                         match nominal.kind() {
-                            NominalKind::Class => {
+                            NominalKind::Class | NominalKind::ValueClass => {
                                 resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)
                                     .is_ok()
                             }
