@@ -1,0 +1,18 @@
+package regression
+
+value class Packet<T>(val item: T, val stamp: Int)
+class Token(val id: Int)
+
+fun make(): Packet<String> = Packet("owned" + "-text", 9)
+
+fun main(): Unit {
+    val original = make()
+    val moved = original
+    val (text, stamp) = moved
+    println(text)
+    if (stamp == 9) println("move-and-destructure") else println("bad-stamp")
+    val resource = Packet(Token(4), 3)
+    val (token, index) = resource
+    if (index == 3 && token.id == 4) println("resource-destructure") else println("bad-index")
+    println("scope-end")
+}
