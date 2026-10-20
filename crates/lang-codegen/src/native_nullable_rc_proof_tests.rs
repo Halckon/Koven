@@ -278,7 +278,11 @@ fn nullable_rc_if_uses_one_shared_proof_and_returns_the_original_owner() {
         })
         .map(|block| block.id)
         .collect::<Vec<_>>();
-    assert_eq!(predecessors, [*header], "no ordinary edge can mint this proof");
+    assert_eq!(
+        predecessors,
+        [*header],
+        "no ordinary edge can mint this proof"
+    );
     let retained = assert_operations(&source, function, EntityId::Loan(*view));
     assert_eq!(
         function.entity(EntityId::Value(retained)).unwrap().ty,
@@ -310,19 +314,17 @@ fn nullable_rc_if_uses_one_shared_proof_and_returns_the_original_owner() {
     assert!(position(payload.id) < position(end.id));
     let null_owner = forwarded(function, null, *owner);
     let present_owner = forwarded(function, present, *owner);
-    let TerminatorKind::Branch(null_join) =
-        &function
-            .block(null.target)
-            .unwrap()
-            .terminator
-            .as_ref()
-            .unwrap()
-            .kind
+    let TerminatorKind::Branch(null_join) = &function
+        .block(null.target)
+        .unwrap()
+        .terminator
+        .as_ref()
+        .unwrap()
+        .kind
     else {
         panic!("null branch joins normally")
     };
-    let TerminatorKind::Branch(present_join) =
-        &present_block.terminator.as_ref().unwrap().kind
+    let TerminatorKind::Branch(present_join) = &present_block.terminator.as_ref().unwrap().kind
     else {
         panic!("non-null branch retires its proof and joins normally")
     };
@@ -342,9 +344,12 @@ fn nullable_rc_if_uses_one_shared_proof_and_returns_the_original_owner() {
         [&[joined][..]],
         "the original owner remains live after the join"
     );
-    assert!(!function.instructions.iter().any(|instruction| {
-        matches!(instruction.operation, Operation::NullableTake { .. })
-    }));
+    assert!(
+        !function
+            .instructions
+            .iter()
+            .any(|instruction| { matches!(instruction.operation, Operation::NullableTake { .. }) })
+    );
 }
 
 #[test]
@@ -370,10 +375,12 @@ fn non_nullable_rc_keeps_value_operands_without_a_nullable_proof() {
         block.terminator.as_ref().unwrap().kind,
         TerminatorKind::NullableBranch { .. }
     )));
-    assert!(!function.instructions.iter().any(|instruction| matches!(
-        instruction.operation,
-        Operation::BorrowEnd { .. }
-    )));
+    assert!(
+        !function
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.operation, Operation::BorrowEnd { .. }))
+    );
     let returns = function
         .blocks
         .iter()
