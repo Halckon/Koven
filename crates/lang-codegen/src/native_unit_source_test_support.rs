@@ -2,6 +2,8 @@
 //! Foreign-fact, fault, counter, calibration, and sanitizer consumers remain CI-only.
 //! No synthetic facts, observer callback, or single-file compatibility path.
 
+#[path = "native_comma_when_cleanup_tests.rs"]
+mod comma_when_cleanup_tests;
 #[path = "native_nullable_rc_proof_tests.rs"]
 mod nullable_rc_proof_tests;
 #[path = "native_pending_construction_tests.rs"]
