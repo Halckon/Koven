@@ -1,8 +1,8 @@
-//! 冻结迁移前完整观测；实际分析只消费共同 Unit 恢复链，不再调用旧 checker。
+//! 固定共同 Unit 恢复观测；原迁移前观测保留在提交历史和独立证据中。
 
 mod observation;
 
-use lsp_types::{Position, Range, Uri};
+use lsp_types::{DiagnosticRelatedInformation, Location, Position, Range, Uri};
 
 use crate::{analysis, diagnostic_adapter::convert_unit_diagnostics};
 
@@ -98,7 +98,7 @@ fn recovery_keeps_all_stage_diagnostics_once_and_still_navigates_after_errors() 
     assert_eq!(targets[0].source_unit, source_unit);
     assert_eq!(targets[0].span.source_id(), source_id);
     let mut publications =
-        convert_unit_diagnostics(sources, &[(source_id, uri)], analysis.diagnostics())
+        convert_unit_diagnostics(sources, &[(source_id, uri.clone())], analysis.diagnostics())
             .expect("diagnostics");
     assert_eq!(publications.len(), 1);
     let mapped = publications.pop().expect("document diagnostics");
@@ -107,13 +107,34 @@ fn recovery_keeps_all_stage_diagnostics_once_and_still_navigates_after_errors() 
         mapped.last().expect("name diagnostic").range,
         Range::new(position(RECOVERY, missing), position(RECOVERY, missing + 7))
     );
+    let moved = RECOVERY.find("take(resource)").expect("first consume") + "take(".len();
+    let parameter = RECOVERY
+        .find("own resource: Resource")
+        .expect("selected parameter");
     assert_eq!(
-        mapped[3]
-            .related_information
-            .as_ref()
-            .expect("move label")
-            .len(),
-        1
+        mapped[3].related_information.as_ref().expect("move labels"),
+        &vec![
+            DiagnosticRelatedInformation {
+                location: Location::new(
+                    uri.clone(),
+                    Range::new(
+                        position(RECOVERY, moved),
+                        position(RECOVERY, moved + "resource".len()),
+                    ),
+                ),
+                message: "value was moved here".to_owned(),
+            },
+            DiagnosticRelatedInformation {
+                location: Location::new(
+                    uri,
+                    Range::new(
+                        position(RECOVERY, parameter),
+                        position(RECOVERY, parameter + "own resource: Resource".len()),
+                    ),
+                ),
+                message: "selected parameter declared here".to_owned(),
+            },
+        ]
     );
 }
 

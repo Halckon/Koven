@@ -1,4 +1,4 @@
-//! 固定 Legacy 观测是独立迁移证据，不是旧 checker 兼容路径或永久旧行为规范。
+//! 固定 Unit 完整观测；按独立 producer 审查迁移，不兼容旧 checker 遗漏。
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
@@ -17,15 +17,16 @@ use crate::{
 };
 
 fn frozen() -> Value {
-    let frozen: Value = serde_json::from_str(include_str!("fixtures/legacy_recovery_v1.json"))
-        .expect("reviewed frozen Legacy observations");
+    let frozen: Value = serde_json::from_str(include_str!("fixtures/unit_recovery_v1.json"))
+        .expect("reviewed frozen Unit observations");
     assert_eq!(frozen["schema_version"], json!(1));
+    assert_eq!(frozen["pipeline"], json!("production_compilation_unit_recovery"));
     assert_eq!(frozen["fixtures"].as_array().expect("fixtures").len(), 11);
     frozen
 }
 
 #[test]
-fn matches_frozen_legacy_recovery_diagnostics_and_every_definition_offset() {
+fn matches_frozen_unit_recovery_diagnostics_and_every_definition_offset() {
     let frozen = frozen();
     let expected = frozen["fixtures"]
         .as_array()
@@ -43,12 +44,11 @@ fn matches_frozen_legacy_recovery_diagnostics_and_every_definition_offset() {
             analysis::analyze(uri.as_str(), source).expect("production Unit analysis");
         assert_eq!(
             snapshot(&actual, source_id, &uri, source),
-            expected["manual_and_production_equal_snapshot"],
+            expected["snapshot"],
             "{label}: complete frozen raw/LSP diagnostics and ordered navigation"
         );
-        // manual_stage_diagnostics_only is historical metadata, not an assertion
-        // about future Unit stages or executable qualification. A migration red
-        // requires independent producer review; never regenerate or accept both.
+        // 固定期望只承载已审真实 Unit 输出，不由当前分析生成或接受旧新两种结果。
+        // 旧 manual-stage metadata 留历史证据，不作为 Unit 阶段或执行资格。
     }
 }
 
@@ -217,7 +217,7 @@ fn expected_recovery_snapshot(uri: &Uri, source: &str) -> Value {
     assert_eq!(fixture["uri"], json!("file:///recovery.ko"));
     assert_eq!(fixture["source_utf8"], json!(RECOVERY));
     assert_eq!(fixture["source_byte_length"], json!(RECOVERY.len()));
-    let mut expected = fixture["manual_and_production_equal_snapshot"].clone();
+    let mut expected = fixture["snapshot"].clone();
     let bytes = u64::try_from(prefix.len()).expect("prefix bytes");
     let lines = bytes / 2;
     for diagnostic in expected["raw_diagnostics"]
@@ -281,7 +281,7 @@ fn rebase_range(range: &mut Value, lines: u64) {
 /// 独立用源码字节与 position 核对重基，再还原坐标比较全部未变字段、计数与顺序。
 pub(super) fn assert_recovery_rebasing() {
     let frozen = frozen();
-    let original = &frozen["fixtures"][0]["manual_and_production_equal_snapshot"];
+    let original = &frozen["fixtures"][0]["snapshot"];
     let original_uri: Uri = "file:///recovery.ko".parse().expect("frozen URI");
     assert_eq!(
         expected_recovery_snapshot(&original_uri, RECOVERY),
@@ -434,33 +434,4 @@ fn assert_rebased_span(original: &Value, actual: &Value, uri: &Uri, source: &str
     expected["end"] = json!(end);
     expected["utf16_range"] = json!(Range::new(position(source, start), position(source, end)));
     assert_eq!(*actual, expected);
-}
-
-// Temporary migration observation only: no fixture update and no comparison relaxation.
-#[test]
-fn observes_complete_unit_recovery_before_oracle_migration() {
-    let observations = fixtures()
-        .into_iter()
-        .map(|(label, source)| {
-            let uri: Uri = format!("file:///{label}.ko").parse().expect("fixture URI");
-            let (source_id, actual) =
-                analysis::analyze(uri.as_str(), source).expect("production Unit analysis");
-            json!({
-                "label": label,
-                "uri": uri.as_str(),
-                "source_utf8": source,
-                "source_byte_length": source.len(),
-                "snapshot": snapshot(&actual, source_id, &uri, source),
-            })
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(observations.len(), 11);
-    println!(
-        "KOVEN_UNIT_RECOVERY_OBSERVATION_V1={}",
-        json!({
-            "schema_version": 1,
-            "pipeline": "production_compilation_unit_recovery",
-            "fixtures": observations,
-        })
-    );
 }
