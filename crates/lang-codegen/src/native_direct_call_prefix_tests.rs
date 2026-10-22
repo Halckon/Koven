@@ -351,6 +351,62 @@ fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
     }
 }
 
+// Break edges join the real while-false exit and use the while origin, not the jump span.
+fn break_destination(
+    source: &UnitSource,
+    function: &Function,
+    scope: Span,
+    exit: Span,
+) -> (Span, BlockId) {
+    let loops = source
+        .parsed
+        .ast()
+        .statements()
+        .iter()
+        .filter(|(_, node)| {
+            let span = node.span();
+            matches!(node.payload(), lang_frontend::parser::Statement::While { .. })
+                && span.source_id() == exit.source_id()
+                && scope.start() <= span.start()
+                && span.end() <= scope.end()
+                && span.start() <= exit.start()
+                && exit.end() <= span.end()
+        })
+        .collect::<Vec<_>>();
+    let [(_, statement)] = loops.as_slice() else {
+        panic!("one real enclosing while for the source break")
+    };
+    let span = statement.span();
+    let headers = function
+        .blocks
+        .iter()
+        .filter(|block| {
+            block.terminator.as_ref().is_some_and(|terminator| {
+                terminator.origin == Origin::Source(span)
+                    && matches!(terminator.kind, TerminatorKind::Conditional { .. })
+            })
+        })
+        .collect::<Vec<_>>();
+    let [header] = headers.as_slice() else {
+        panic!("one actual while header")
+    };
+    let TerminatorKind::Conditional { when_false, .. } =
+        &header.terminator.as_ref().unwrap().kind
+    else {
+        unreachable!("the header was selected by its actual terminator")
+    };
+    let false_exit = function.block(when_false.target).unwrap();
+    assert_eq!(false_exit.origin, Origin::Source(span));
+    let terminator = false_exit.terminator.as_ref().unwrap();
+    assert_eq!(terminator.origin, Origin::Source(span));
+    let TerminatorKind::Branch(edge) = &terminator.kind else {
+        panic!("the actual while-false exit branches to the shared break join")
+    };
+    assert_ne!(edge.target, header.id);
+    assert_eq!(function.block(edge.target).unwrap().origin, Origin::Source(span));
+    (span, edge.target)
+}
+
 /// Only follow actual edge parameters; never fabricate an ID or equate same-typed entities.
 fn transported_aliases(function: &Function, seed: EntityId) -> BTreeSet<EntityId> {
     let mut aliases = BTreeSet::from([seed]);
@@ -414,6 +470,7 @@ struct Transaction<'a> {
     outer_call: Span,
     checkpoint: Span,
     exit: Option<Span>,
+    break_exit: Option<(Span, BlockId)>,
     owners: BTreeSet<EntityId>,
     outer_owners: BTreeSet<EntityId>,
     outer_loans: BTreeSet<EntityId>,
@@ -511,10 +568,30 @@ impl Transaction<'_> {
             }
         }
         let terminator = block.terminator.as_ref().unwrap();
-        if self
-            .exit
-            .is_some_and(|span| terminator.origin == Origin::Source(span))
-        {
+        let cancelled = if self.fixture.exit == Exit::Break {
+            self.break_exit.is_some_and(|(span, target)| {
+                terminator.origin == Origin::Source(span)
+                    && matches!(&terminator.kind, TerminatorKind::Branch(edge) if edge.target == target)
+            })
+        } else {
+            self.exit
+                .is_some_and(|span| terminator.origin == Origin::Source(span))
+        };
+        if cancelled {
+            if self.fixture.exit == Exit::Break {
+                let ends = block
+                    .instructions
+                    .iter()
+                    .map(|id| self.function.instruction(*id).unwrap())
+                    .filter(|instruction| matches!(instruction.operation,
+                        Operation::BorrowEnd { loan }
+                            if self.outer_loans.contains(&EntityId::Loan(loan))))
+                    .collect::<Vec<_>>();
+                let [end] = ends.as_slice() else {
+                    panic!("the break edge ends its exact enclosing transaction loan once")
+                };
+                assert_eq!(end.origin, Origin::Source(self.exit.unwrap()));
+            }
             assert_eq!(
                 events,
                 self.expected(false),
@@ -618,6 +695,8 @@ fn assert_paths(source: &UnitSource, fixture: &Fixture, program: &Program) {
     let (_, checkpoint) = expression(source, scope, "checkpoint()");
     let exit = (fixture.exit != Exit::Commit)
         .then(|| expression(source, control, fixture.exit.expression()).1);
+    let break_exit = (fixture.exit == Exit::Break)
+        .then(|| break_destination(source, function, scope, exit.unwrap()));
     let (_, outer_call) = expression(source, scope, &fixture.outer_call);
     let (outer_owners, outer_loans) =
         owner_and_loan_aliases(source, function, scope, "Outer()", true);
@@ -660,6 +739,7 @@ fn assert_paths(source: &UnitSource, fixture: &Fixture, program: &Program) {
         outer_call,
         checkpoint,
         exit,
+        break_exit,
         owners,
         loans,
         outer_owners,
