@@ -627,7 +627,8 @@ fn resource_remove_loop_unqualified_loop_and_payload_remain_precise_boundaries()
         let source = analyzed(&text);
         let error = source
             .lower_entry(source.entry())
-            .expect_err("outside the bounded Resource for slice");
+            .err()
+            .expect("outside the bounded Resource for slice");
         assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
         assert_eq!(
             source
