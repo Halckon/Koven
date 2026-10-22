@@ -47,10 +47,7 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Ok(None);
         };
-        if control.source_unit() != self.source_unit
-            || actual != condition
-            || node.span() != span
-        {
+        if control.source_unit() != self.source_unit || actual != condition || node.span() != span {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         // Shape is a capability boundary, not a substitute for typed null facts.
@@ -75,8 +72,7 @@ impl UnitExpressionLowerer<'_> {
         if !matches!(
             self.ssa_types.get(inner.index()),
             Some(SsaTypeKind::HeapOwner { .. })
-        )
-            || self.borrow_bindings.contains_key(&root)
+        ) || self.borrow_bindings.contains_key(&root)
             || super::super::super::map_borrow::owned_remove_origin(self.function, owner)
         {
             return Ok(None);
@@ -305,9 +301,10 @@ impl UnitExpressionLowerer<'_> {
             || self.typed.construction(call).is_some()
             || self.typed.ownership_primitive(call).is_some()
             || arguments.is_empty()
-            || descriptor.arguments().iter().any(|mapping| {
-                mapping.mode() != ParameterMode::Borrow || mapping.crosses_thread()
-            })
+            || descriptor
+                .arguments()
+                .iter()
+                .any(|mapping| mapping.mode() != ParameterMode::Borrow || mapping.crosses_thread())
             || self.typed.copyability(descriptor.return_type()) != Copyability::Copyable
             || builtin_type(self.typed, descriptor.return_type()) == Some(BuiltinType::Nothing)
         {
@@ -338,13 +335,19 @@ impl UnitExpressionLowerer<'_> {
                 .iter()
                 .filter(|mapping| mapping.argument_index() == index);
             let Some(mapping) = mappings.next() else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
             };
             if mappings.next().is_some()
                 || mapping.category() != ExpressionCategory::Place
                 || mapping.parameter_type() != root.narrowed
             {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
             }
             let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
             let argument_span = nodes
@@ -356,7 +359,10 @@ impl UnitExpressionLowerer<'_> {
                 .call_argument_contracts_for(call)
                 .filter(|contract| contract.argument() == argument_id);
             let Some(contract) = contracts.next() else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
             };
             let mut loans = self
                 .owned
@@ -364,7 +370,10 @@ impl UnitExpressionLowerer<'_> {
                 .iter()
                 .filter(|loan| loan.call() == call && loan.argument() == argument_id);
             let Some(loan) = loans.next() else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
             };
             if contracts.next().is_some()
                 || loans.next().is_some()
@@ -384,7 +393,10 @@ impl UnitExpressionLowerer<'_> {
                 || !matches!(loan.target(), UnitLoanTarget::Place(place)
                     if place.is_root() && place.root() == root.symbol)
             {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
             }
         }
         Ok(true)
@@ -408,7 +420,11 @@ impl UnitExpressionLowerer<'_> {
             if !matches!(node.payload(), Expression::Name | Expression::Group { .. }) {
                 return Ok(false);
             }
-            let expected = if narrowed { root.narrowed } else { root.declared };
+            let expected = if narrowed {
+                root.narrowed
+            } else {
+                root.declared
+            };
             if self.typed.expression_type(id) != Some(expected)
                 || self.typed.expression_category(id) != Some(ExpressionCategory::Place)
             {
