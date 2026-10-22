@@ -1,0 +1,2 @@
+val text = "中文😀 ${ { 1 } + 2 } 尾部"
+fun afterUnicode(): Unit {}
