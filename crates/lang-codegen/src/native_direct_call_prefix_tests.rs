@@ -666,16 +666,15 @@ fn owner_and_loan_aliases(
     let loans = function
         .instructions
         .iter()
-        .filter_map(|instruction| {
+        .filter(|instruction| {
             let Operation::BorrowBegin { place, .. } = instruction.operation else {
-                return None;
+                return false;
             };
-            let root = function.instructions.iter().any(|root| {
+            function.instructions.iter().any(|root| {
                 root.results.contains(&EntityId::Place(place))
                     && matches!(root.operation,
                     Operation::RootPlace { owner } if owners.contains(&EntityId::Value(owner)))
-            });
-            root.then_some(instruction)
+            })
         })
         .collect::<Vec<_>>();
     if !borrowed {
