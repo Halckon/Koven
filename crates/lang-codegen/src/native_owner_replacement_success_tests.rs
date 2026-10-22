@@ -201,7 +201,10 @@ fn assert_facts(source: &UnitSource, constant: bool) {
         );
         let replacement = UnitDropPoint::AfterExpression(descriptor.value());
         assert_eq!(
-            drops.iter().filter(|fact| fact.point() == replacement).count(),
+            drops
+                .iter()
+                .filter(|fact| fact.point() == replacement)
+                .count(),
             1
         );
         let final_point = if resource {
@@ -210,7 +213,10 @@ fn assert_facts(source: &UnitSource, constant: bool) {
             UnitDropPoint::CallReturn(expression(source, "println(result)").0)
         };
         assert_eq!(
-            drops.iter().filter(|fact| fact.point() == final_point).count(),
+            drops
+                .iter()
+                .filter(|fact| fact.point() == final_point)
+                .count(),
             1
         );
     }
@@ -258,17 +264,29 @@ fn assert_facts(source: &UnitSource, constant: bool) {
         .iter()
         .find(|exit| exit.kind() == UnitIterationExitKind::Exhaustion)
         .unwrap();
-    assert_eq!(exhausted.point(), UnitDropPoint::LoopExit(descriptor.statement()));
-    let [UnitIterationCleanupAction::FinishProvider(finish), UnitIterationCleanupAction::EndSource(end), UnitIterationCleanupAction::Drop(hidden)] =
-        exhausted.actions()
+    assert_eq!(
+        exhausted.point(),
+        UnitDropPoint::LoopExit(descriptor.statement())
+    );
+    let [
+        UnitIterationCleanupAction::FinishProvider(finish),
+        UnitIterationCleanupAction::EndSource(end),
+        UnitIterationCleanupAction::Drop(hidden),
+    ] = exhausted.actions()
     else {
         panic!("complete ordered exhaustion cleanup, without an outer-owner drop")
     };
     assert_eq!(*finish, descriptor.statement());
     assert_eq!(*end, descriptor.statement());
     assert_eq!(hidden.point(), exhausted.point());
-    assert_eq!(hidden.target(), UnitDropTarget::Temporary(descriptor.source()));
-    assert_eq!(hidden.value_origin(), expression(source, "listOf(4, 7, 9)").1);
+    assert_eq!(
+        hidden.target(),
+        UnitDropTarget::Temporary(descriptor.source())
+    );
+    assert_eq!(
+        hidden.value_origin(),
+        expression(source, "listOf(4, 7, 9)").1
+    );
 }
 
 fn value(entity: EntityId) -> ValueId {
@@ -440,7 +458,11 @@ fn assert_owner_transport(source: &UnitSource, function: &Function, constant: bo
         } else {
             "println(result)"
         };
-        before(function, print_at(function, expression(source, print).1), final_drop);
+        before(
+            function,
+            print_at(function, expression(source, print).1),
+            final_drop,
+        );
         assert!(
             !function.instructions.iter().any(|instruction| {
                 instruction.operation
