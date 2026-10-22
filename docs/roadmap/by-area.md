@@ -137,7 +137,7 @@
 | ✅ 已交付 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | P0 止血 | v1 必做 | 已定义 | 5,6 | [0349](../archive/specs/0349-builtin-result-and-check.md) |
 | ☐ 未开始 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | — |
 | ☐ 未开始 | L8 | Box 访问面措辞修正：box.value 为只读 projection place、unbox(): T | P3 语言增量 | v1 必做 | 需新增 | 2 | — |
-| ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | P4 文本与 IO | v1 建议 | 需新增 | 2,3,4,5 | [thread-transfer](../proposals/thread-transfer.md) |
+| ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | P4 文本与 IO | v1 必做 | 需新增 | 2,3,4,5 | [thread-transfer](../proposals/thread-transfer.md) |
 | ☐ 未开始 | L6b | time/sleep/math 基础 API | P4 文本与 IO | v1 必做 | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) |
 | ⏸ 延后 | X05 | Weak<T> 与 Rc 环处理；Copyable 显式 opt-in/opt-out | X v1 之外 | v1.x | 需新增 | 2,5 | — |
 | ⏸ 延后 | X09 | Shareable、Arc/Mutex/原子、scoped threads；Lazy 与共享可变全局（G3/G4） | X v1 之外 | v2 | 需新增 | 2,3,4,5 | [global-and-static-state](../proposals/global-and-static-state.md) |

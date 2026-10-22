@@ -71,6 +71,21 @@
 - [x] 单文件 build/run 的 frontend 诊断退出 1；受影响测试与教程合同同步。
 - [x] conformance `p16_result_q`、`p16b_result_string`、`p37_is_generic_case` 删除自声明 `Result`。
 
-## 5. 实际验收
+## 5. 实际验收（2026-10-23）
 
-见提交说明。
+工具链：云端 Linux x86_64，Rust stable，LLVM 21.1.8，`CARGO_PROFILE_DEV_DEBUG=0`。按用户要求只运行受影响目标，未跑全量 workspace。
+
+| 检查 | 结果 |
+|---|---|
+| `cargo fmt --all -- --check` | 通过 |
+| `lang-frontend`：`builtin_result`、`multifile_name_resolution`、`multifile_type_checking`、`name_resolution`、`final_type_admission` | 7、13、153、15、40 项通过 |
+| `lang-cli`：`check_cli`、`single_unit_cli`、`single_file_analysis_cli`、`native_cli`（`builtin_result`、`final_type_admission`）、`project_cli` `final_type_admission` | 通过 |
+| `lang-cli --bins` | 61 项中仅 `unreadable_directory_and_source_report_io_operations` 失败；云端以 root 运行，属环境原因 |
+| `lang-codegen --lib -- enum` | 75 项通过 |
+| `lang-std`、`lang-lsp`（构建与测试） | 1、47 项通过 |
+| `scripts/check_docs.py`、`gen_spec_dag.py`、`gen_roadmap.py`；`test_tutorial_contracts`、`test_preview_host` | 通过 |
+
+受影响测试的处理：`final_type_admission` 的 p16 探针原本自声明 `Result`，现会命中 L0150；新增
+`p16_result_q_builtin.ko`（去掉自声明）作为该探针的输入，原 fixture 仍供不加载标准源的 frontend `final_type_admission` 测试使用。
+
+未运行：全量 workspace、clippy、远端 CI、macOS、sanitizer。

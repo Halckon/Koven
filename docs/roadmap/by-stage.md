@@ -21,7 +21,7 @@
 | P5 验收与发布 | 0 | 4 | 0 | 2 | 0 | 0 | 6 |
 | X v1 之外 | 0 | 0 | 0 | 0 | 0 | 11 | 11 |
 
-v1 范围内 80 项（必做 70，其中已交付 37）；X 阶段只列边界，不计入 v1。
+v1 范围内 80 项（必做 71，其中已交付 37）；X 阶段只列边界，不计入 v1。
 
 ## 最近一次实测
 
@@ -47,7 +47,7 @@ v1 范围内 80 项（必做 70，其中已交付 37）；X 阶段只列边界�
 | D2 | 字符串插值是否在 v1 落地（[依据](../proposals/v0.46-language-decisions.md)） | 是，基于 Display | ✅ 2026-10-22：v1 落地，`"${x}"` 要求 x : Display | L2 |
 | D3 | when 异类分支 | 报错，与 if 一致 | ✅ Guide v0.44 A：封闭 if/when join | L9a |
 | D4 | 顶层 val/var（[依据](../proposals/global-and-static-state.md)） | v1 只允许 const val | ✅ 2026-10-22：v1 只允许 const val；顶层运行时 val/var 改为 Phase 2 语言诊断（G1） | L10 |
-| D5 | 线程是否在 v1.0（[依据](../proposals/v0.46-language-decisions.md)） | 受限版本进 v1 | ✅ 2026-10-22：受限版本进 v1（建议级）：spawn/join/channel，只转移所有权；drop 隐式 join；可落 v1.1 | T1 |
+| D5 | 线程是否在 v1.0（[依据](../proposals/v0.46-language-decisions.md)） | 受限版本进 v1 | ✅ 2026-10-22：受限版本进 v1：spawn/join/channel，只转移所有权；drop 隐式 join。2026-10-22 用户确认 v1 必须实现最基础的线程能力，与生态 M4 一致，不再允许推迟到 v1.1 | T1 |
 | D6 | Guide 13 的 unsafe/FFI 草图（[依据](../proposals/v0.46-language-decisions.md)） | 移到 proposals，v2 再议 | ✅ 2026-10-22：unsafe/extern/RawPtr 移出 Guide 正文到 proposals（v2） | L14 |
 | D7 | 闭包可变捕获（[依据](../proposals/v0.46-language-decisions.md)） | v1.0 做非逃逸版本 | ✅ 2026-10-22：非逃逸闭包以独占借用捕获 var；move/逃逸闭包不允许 | S1 |
 | D8 | Map 迭代顺序 | 插入顺序 | ✅ Guide v0.44 F：插入序 | L13 |
@@ -165,14 +165,14 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 
 ## P4 文本与 IO
 
-文本 API、同步 IO、main 返回 Result 与进程接口；之后是受限线程（建议级，可落 v1.1）。门槛：六个验收程序 ≥ 3 个可运行。
+文本 API、同步 IO、main 返回 Result 与进程接口；之后是受限线程（v1 必做）。门槛：六个验收程序 ≥ 3 个可运行。
 
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
 | ☐ 未开始 | L5 | 文本 API：size、Char 迭代、byteAt、substring、indexOf、split、trim、lines、startsWith、toInt(): Int?、StringBuilder | v1 必做 | 文本与 IO | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) | — |
 | ☐ 未开始 | L6 | IO 与进程：readLine(): String?、File.readText/writeText: Result、eprintln、exitProcess(code): Nothing（D9） | v1 必做 | 文本与 IO | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) | 依赖 L5、N08、E4。D9 已决：exitProcess(code): Nothing 在本项定义。 |
 | ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | v1 必做 | 文本与 IO | 需新增 | 2,4,5 | — | 依赖 E4 与 L1。 |
-| ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | v1 建议 | 标准库与运行时 | 需新增 | 2,3,4,5 | [thread-transfer](../proposals/thread-transfer.md) | 依赖 N04（move 闭包）与 L6 runtime；用第七个验收程序验收，可落 v1.1，不阻塞 v1.0。 |
+| ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | v1 必做 | 标准库与运行时 | 需新增 | 2,3,4,5 | [thread-transfer](../proposals/thread-transfer.md) | 依赖 N04（move 闭包）与 L6 runtime；用第七个验收程序验收。2026-10-22 用户确认 v1 必须提供最基础的线程能力（spawn/join，以及 channel），与生态 M4 一致。 |
 | ☐ 未开始 | L6b | time/sleep/math 基础 API | v1 必做 | 标准库与运行时 | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) | — |
 
 ## P5 验收与发布
