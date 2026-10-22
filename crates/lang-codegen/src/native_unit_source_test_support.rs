@@ -9,6 +9,8 @@ mod comma_when_cleanup_tests;
 mod local_object_constant_qualifier_tests;
 #[path = "native_nullable_rc_proof_tests.rs"]
 mod nullable_rc_proof_tests;
+#[path = "native_owner_replacement_success_tests.rs"]
+mod owner_replacement_success_tests;
 #[path = "native_pending_construction_tests.rs"]
 mod pending_construction_tests;
 #[path = "native_resource_map_loop_tests.rs"]

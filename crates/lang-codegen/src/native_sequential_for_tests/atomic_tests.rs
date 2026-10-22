@@ -84,7 +84,9 @@ fn independent_analysis_chains_render_identical_for_ssa_and_verified_llvm() {
 }
 
 #[test]
-fn dynamic_resource_and_non_source_owner_choices_reject_before_llvm_and_output() {
+fn resource_and_non_source_owner_replacement_emission_failure_preserves_output() {
+    // CI-only whole: both original legal sources and all four output states stay together.
+    // Reaching the injected emission failure proves atomic failure, not native success.
     for source in [
         "class Leaf(val name: String) { deinit() { println(this.name) } }\nfun scan(flag: Boolean): Unit { var guard = Leaf(\"initial\"); for (item in arrayOf(1, 2)) { if (flag) { guard = Leaf(\"replacement\") } } }\nfun entry(): Unit { scan(true) }",
         "fun scan(flag: Boolean): Unit { var text = \"initial\"; for (item in arrayOf(1, 2)) { if (flag) { text = \"replacement\" } }; println(text) }\nfun entry(): Unit { scan(true) }",
@@ -103,9 +105,10 @@ fn dynamic_resource_and_non_source_owner_choices_reject_before_llvm_and_output()
             let error = analysis
                 .emit(analysis.declaration("entry", SymbolKind::Function), &output)
                 .unwrap_err();
-            assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
-            assert!(error.span().is_some());
-            assert_eq!(guard.calls(), 0);
+            assert_eq!(error.kind(), NativeObjectErrorKind::Backend, "{error}");
+            assert_eq!(error.span(), None, "{error}");
+            assert!(error.diagnostic().is_none(), "{error}");
+            assert_eq!(guard.calls(), 1, "the real emission hook must be reached");
             assert_eq!(snapshot(&directory.0), before);
         }
     }
