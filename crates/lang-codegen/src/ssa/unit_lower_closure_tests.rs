@@ -902,6 +902,8 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
                 &program,
                 entry,
                 path.ends_with("return.ko"),
+                &sources,
+                &parsed,
             );
         } else {
             let error = match result {
