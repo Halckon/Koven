@@ -87,7 +87,7 @@ fn fixtures() -> Vec<Fixture> {
                 ),
             };
             let control = format!(
-                "when (flag) {{ true -> {{ {} }} else -> {{ 8 }} }}",
+                "when (flag) {{ true -> {{ {} }}; else -> {{ 8 }} }}",
                 exit.expression()
             );
             let call = format!("accept({argument}, {control})");
@@ -808,7 +808,7 @@ fn ordinary_direct_prefix_cancellations_and_commits_link_run_with_exact_stdout()
 
 #[test]
 fn ordinary_direct_prefix_scope_negatives_keep_exact_call_rejections() {
-    let control = "when (flag) { true -> { return } else -> { 7 } }";
+    let control = "when (flag) { true -> { return }; else -> { 7 } }";
     for (name, definitions, setup, call) in [
         (
             "field",
