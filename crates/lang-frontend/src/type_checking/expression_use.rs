@@ -68,6 +68,10 @@ fn mark_control_tail(parsed: &ParsedFile, statement: StatementId, uses: &mut [Ex
     let Ok(node) = parsed.ast().statements().get(statement) else {
         return;
     };
+    if let Statement::Expression { expression } = node.payload() {
+        mark_statement_expression(parsed, *expression, uses);
+        return;
+    }
     let Statement::ControlBody { elements } = node.payload() else {
         return;
     };
