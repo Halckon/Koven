@@ -10,6 +10,8 @@ fn assignment_expressions(file: &ParsedFile) -> Vec<ExpressionId> {
         .collect()
 }
 
+// Keep the historical filter identity; integer root statements now publish facts.
+// Value-context and non-root compound boundaries remain covered by final_type_admission.
 #[test]
 fn assignment_publishes_plain_storage_facts_and_keeps_compounds_deferred() {
     let mut sources = SourceMap::new();
@@ -119,24 +121,122 @@ fn assignment_publishes_plain_storage_facts_and_keeps_compounds_deferred() {
         ),
         Ok("current")
     );
-    assert_eq!(forward.assignments(), [descriptor]);
+    assert_eq!(forward.assignments()[0], descriptor);
     assert!(matches!(
         forward
             .expression_type(replacement_id)
             .and_then(|ty| forward.types().get(ty)),
         Some(UnitTypeKind::Builtin(BuiltinType::Unit))
     ));
-    assert!(
-        assignments
-            .into_iter()
-            .filter(|&expression| expression != replacement)
-            .all(|expression| matches!(
-                forward
-                    .expression_type(UnitExpressionId::new(uses_unit, expression))
-                    .and_then(|ty| forward.types().get(ty)),
-                Some(UnitTypeKind::Deferred(DeferredReason::Assignment))
-            ))
-    );
+    let int = forward.types().builtin(BuiltinType::Int).expect("Int seed");
+    let expected = [
+        (
+            "current = current",
+            AssignmentOperator::Assign,
+            "current",
+            "current",
+            root,
+        ),
+        (
+            "number += 2",
+            AssignmentOperator::AddAssign,
+            "number",
+            "2",
+            int,
+        ),
+        (
+            "number -= 2",
+            AssignmentOperator::SubtractAssign,
+            "number",
+            "2",
+            int,
+        ),
+        (
+            "number *= 2",
+            AssignmentOperator::MultiplyAssign,
+            "number",
+            "2",
+            int,
+        ),
+        (
+            "number /= 2",
+            AssignmentOperator::DivideAssign,
+            "number",
+            "2",
+            int,
+        ),
+        (
+            "number %= 2",
+            AssignmentOperator::RemainderAssign,
+            "number",
+            "2",
+            int,
+        ),
+    ];
+    assert_eq!(forward.assignments().len(), expected.len());
+    let source_text = sources
+        .source_text(uses_source)
+        .expect("original uses source");
+    for (descriptor, (text, operator, target_text, value_text, target_type)) in
+        forward.assignments().iter().copied().zip(expected)
+    {
+        let expression = expression_with_text(&sources, &uses, text);
+        let node = uses
+            .ast()
+            .expressions()
+            .get(expression)
+            .expect("assignment AST");
+        let Expression::Assignment {
+            target,
+            operator: ast_operator,
+            value,
+            ..
+        } = node.payload()
+        else {
+            panic!("expected original assignment AST");
+        };
+        let expression_id = UnitExpressionId::new(uses_unit, expression);
+        let target_id = UnitExpressionId::new(uses_unit, *target);
+        let value_id = UnitExpressionId::new(uses_unit, *value);
+        assert_eq!(forward.assignment(expression_id), Some(descriptor));
+        assert_eq!(descriptor.expression(), expression_id);
+        assert_eq!(descriptor.target(), target_id);
+        assert_eq!(descriptor.value(), value_id);
+        assert_eq!(descriptor.operator(), operator);
+        assert_eq!(*ast_operator, operator);
+        assert_eq!(descriptor.target_type(), target_type);
+        assert!(descriptor.falls_through());
+
+        assert_eq!(source_text.matches(text).count(), 1);
+        let start = source_text.find(text).expect("unique original assignment");
+        let end = start + text.len();
+        assert_eq!(node.span().source_id(), uses_source);
+        assert_eq!((node.span().start(), node.span().end()), (start, end));
+        for (operand, spelling, expected_span) in [
+            (*target, target_text, (start, start + target_text.len())),
+            (*value, value_text, (end - value_text.len(), end)),
+        ] {
+            let span = uses
+                .ast()
+                .expressions()
+                .get(operand)
+                .expect("assignment operand")
+                .span();
+            assert_eq!(span.source_id(), uses_source);
+            assert_eq!((span.start(), span.end()), expected_span);
+            assert_eq!(sources.slice(span), Ok(spelling));
+        }
+        assert!(matches!(
+            forward
+                .expression_type(expression_id)
+                .and_then(|ty| forward.types().get(ty)),
+            Some(UnitTypeKind::Builtin(BuiltinType::Unit))
+        ));
+        if operator != AssignmentOperator::Assign {
+            assert_eq!(forward.expression_type(target_id), Some(int));
+            assert_eq!(forward.expression_type(value_id), Some(int));
+        }
+    }
 }
 
 #[test]
