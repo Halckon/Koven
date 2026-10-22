@@ -11,6 +11,8 @@ mod direct_call_prefix_tests;
 mod local_object_constant_qualifier_tests;
 #[path = "native_nullable_rc_proof_tests.rs"]
 mod nullable_rc_proof_tests;
+#[path = "native_nullable_when_tests.rs"]
+mod nullable_when_tests;
 #[path = "native_owner_replacement_success_tests.rs"]
 mod owner_replacement_success_tests;
 #[path = "native_pending_construction_tests.rs"]
