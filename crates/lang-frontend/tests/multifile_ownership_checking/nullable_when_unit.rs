@@ -1,9 +1,10 @@
-//! Complete ordinary sources. This old-API version is a behavioral-red candidate, not a run log.
+//! Complete ordinary sources with post-production product assertions; never a baseline compile oracle.
 use super::*;
 use lang_frontend::{
     diagnostic::Diagnostic,
     ownership_checking::{
-        UnitCallArgumentOwnershipContract, UnitOwnershipPlace, owned_compilation_unit_view,
+        UnitCallArgumentOwnershipContract, UnitNullableWhenUseKind, UnitOwnershipPlace,
+        owned_compilation_unit_view,
     },
     parser::Expression,
     source::Span,
@@ -233,7 +234,84 @@ fun noUse(own value: $T?): Int = when (value) { null -> 0; else -> return 1 }
                 unit.owned.rc_effects().is_empty(),
                 "observations never retain"
             );
-            // GREEN_CALL_PRODUCTS
+            let plans = unit.owned.nullable_whens();
+            assert_eq!(plans.len(), 4);
+            assert_eq!(plans.iter().map(|plan| plan.uses().len()).sum::<usize>(), 3);
+            for plan in plans {
+                let descriptor = plan.descriptor();
+                assert_eq!(
+                    unit.typed.types().nullable_when(descriptor.expression()),
+                    Some(descriptor)
+                );
+                assert_eq!(unit.owned.nullable_when(descriptor.expression()), Some(plan));
+                assert_eq!(plan.entries().len(), descriptor.entries().len());
+                for (entry, typed_entry) in plan.entries().iter().zip(descriptor.entries()) {
+                    assert_eq!(entry.index(), typed_entry.index());
+                    assert_eq!(entry.body(), typed_entry.body());
+                    assert_eq!(entry.falls_through(), typed_entry.falls_through());
+                    assert!(!entry.breaks() && !entry.continues());
+                }
+                if unit.text(descriptor.subject()) == "make()" {
+                    assert!(plan.source_place().is_none());
+                    assert!(descriptor.stable_symbol().is_none());
+                    assert!(descriptor.subject_reference().is_none());
+                    assert!(descriptor.source_generation().is_none());
+                    assert!(plan.uses().is_empty());
+                }
+            }
+            for (call, kind) in [
+                ("read(value)", UnitNullableWhenUseKind::Observe),
+                ("read((value))", UnitNullableWhenUseKind::Observe),
+                ("take((value))", UnitNullableWhenUseKind::Consume),
+            ] {
+                let contract = unit.contract(call, 0);
+                let usage = unit.owned.nullable_when_use(contract.argument()).unwrap();
+                assert_eq!(usage.call(), contract.call());
+                assert_eq!(usage.argument(), contract.argument());
+                assert_eq!(usage.kind(), kind);
+                let witness = usage.witness();
+                let descriptor = unit.typed.types().nullable_when(witness.control()).unwrap();
+                assert_eq!(witness.subject(), descriptor.subject());
+                assert_eq!(Some(witness.symbol()), descriptor.stable_symbol());
+                assert_eq!(
+                    Some(witness.source_generation()), descriptor.source_generation()
+                );
+                assert_eq!(
+                    witness.body(), descriptor.entries()[witness.entry_index()].body()
+                );
+                let mut current = contract.argument();
+                loop {
+                    let chain = unit.typed.types().nullable_when_use(current).unwrap();
+                    assert_eq!(chain.expression(), current);
+                    assert_eq!(chain.reference(), usage.reference());
+                    assert_eq!(chain.control(), witness.control());
+                    assert_eq!(chain.source_generation(), witness.source_generation());
+                    assert_eq!(chain.body(), witness.body());
+                    match unit.file.ast().expressions()
+                        .get(current.expression()).unwrap().payload()
+                    {
+                        Expression::Group { expression } => {
+                            current = UnitExpressionId::new(unit.unit, *expression);
+                        }
+                        Expression::Name => {
+                            assert_eq!(current, usage.reference());
+                            break;
+                        }
+                        _ => panic!("only a real transparent Name chain"),
+                    }
+                }
+                if kind == UnitNullableWhenUseKind::Observe {
+                    assert!(usage.delivery().is_none() && usage.moved_span().is_none());
+                    assert!(unit.owned.loans().contains(usage.loan().unwrap()));
+                } else {
+                    assert!(usage.loan().is_none());
+                    assert!(
+                        unit.owned.value_deliveries().contains(usage.delivery().unwrap())
+                    );
+                    assert_eq!(usage.moved_span(), Some(unit.span(usage.reference())));
+                    assert_eq!(unit.text(usage.reference()), "value");
+                }
+            }
         });
     }
 }
@@ -324,7 +402,16 @@ fn unit_when_temporary_cleanup_follows_completion_and_exits() {
                         .iter()
                         .all(|fact| fact.value_origin() == unit.span(subject))
                 );
-                // GREEN_TEMP_PRODUCTS
+                let plan = unit.owned.nullable_when(control).unwrap();
+                assert_eq!(plan.descriptor().subject(), subject);
+                assert!(plan.source_place().is_none() && plan.uses().is_empty());
+                assert!(plan.descriptor().stable_symbol().is_none());
+                assert!(plan.descriptor().source_generation().is_none());
+                assert_eq!(plan.entries().len(), 2);
+                assert_eq!(plan.entries()[0].falls_through(), normal);
+                assert_eq!(plan.entries()[1].falls_through(), transfer.is_none());
+                assert_eq!(plan.entries()[1].breaks(), transfer == Some("break"));
+                assert_eq!(plan.entries()[1].continues(), transfer == Some("continue"));
             });
         }
         checked(
@@ -443,7 +530,16 @@ fn unit_when_named_asap_preserves_later_live_owners() {
                         .any(|delivery| delivery.kind() == UnitValueDeliveryKind::Move
                             && delivery.place().is_some_and(|place| place.root() == root))
                 );
-                // GREEN_NAMED_PRODUCTS
+                let plan = unit.owned.nullable_when(control).unwrap();
+                assert_eq!(plan.descriptor().subject(), subject);
+                assert_eq!(plan.source_place().unwrap().root(), root);
+                assert!(plan.source_place().unwrap().is_root());
+                assert_eq!(plan.descriptor().stable_symbol(), Some(root));
+                assert!(plan.descriptor().source_generation().is_some());
+                assert!(plan.uses().iter().all(|usage| {
+                    usage.kind() == UnitNullableWhenUseKind::Observe
+                }));
+                assert_eq!(plan.uses().len(), usize::from(source.contains("read(value)")));
             });
         }
     }
@@ -578,7 +674,14 @@ fn unit_when_ownership_failure_and_assignment_rollback_clear_plans() {
             assert!(unit.owned.value_deliveries().is_empty());
             assert!(unit.owned.drops().is_empty());
             assert!(unit.owned.clone().validate().is_err());
-            // GREEN_FAILURE_PRODUCTS
+            assert!(
+                !unit.typed.types().nullable_whens().is_empty(),
+                "the independently valid prior When reached the typed product"
+            );
+            assert!(
+                unit.owned.nullable_whens().is_empty(),
+                "no executable partial plans survive a real ownership diagnostic"
+            );
         });
     }
 }

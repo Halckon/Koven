@@ -12,20 +12,17 @@ use crate::ssa::{
 };
 use lang_frontend::{
     name_resolution::{SymbolKind, UnitReferenceTarget, UnitSymbolId},
-    ownership_checking::{
-        LoanKind as FrontendLoanKind, UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget,
-        UnitLoanTarget, UnitValueDeliveryKind,
-    },
+    ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::{Expression, Statement},
     source::Span,
-    type_checking::{
-        ParameterMode, UnitCallTarget, UnitExpressionId, UnitStatementId, UnitTypeKind,
-    },
+    type_checking::{UnitCallTarget, UnitExpressionId, UnitStatementId, UnitTypeKind},
 };
 use std::collections::BTreeSet;
 
 #[path = "native_nullable_when_tests/generation.rs"]
 mod generation;
+#[path = "native_nullable_when_tests/products.rs"]
+mod products;
 #[path = "native_nullable_when_tests/sources.rs"]
 mod sources;
 #[path = "native_nullable_when_tests/support.rs"]
@@ -53,115 +50,6 @@ fn positive_functions(family: Family) -> Vec<&'static str> {
         ]);
     }
     names
-}
-
-fn assert_existing_call_facts(source: &UnitSource, control: &Control) {
-    let OwnedProducts::Basic(typed, owned) = &source.products else {
-        panic!("real Basic capability")
-    };
-    let typed = typed.types();
-    let owned = owned.ownership();
-    for call in typed
-        .calls()
-        .iter()
-        .filter(|call| contains(control.entries[1].1, span(source, call.expression())))
-    {
-        let UnitCallTarget::Declaration(target) = call.target() else {
-            continue;
-        };
-        let target_name = source.names.names().index().declarations()[target.index()].name();
-        if !["observe", "consume", "delayed"].contains(&target_name) {
-            continue;
-        }
-        assert!(call.receiver().is_none());
-        let node = source
-            .parsed
-            .ast()
-            .expressions()
-            .get(call.expression().expression())
-            .unwrap();
-        let Expression::Call { arguments, .. } = node.payload() else {
-            panic!("actual source call")
-        };
-        let argument = UnitExpressionId::new(control.id.source_unit(), arguments[0].value);
-        let expected_root = root(source, argument);
-        let proof = typed
-            .non_null_use(argument)
-            .expect("actual narrowed argument including transparent Group");
-        assert_eq!(proof.expression(), argument);
-        assert_eq!(proof.symbol(), expected_root);
-        assert_eq!(
-            proof.declared_type(),
-            typed.expression_type(control.subject).unwrap()
-        );
-        let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(proof.declared_type()) else {
-            panic!("nullable declaration")
-        };
-        assert_eq!(proof.narrowed_type(), *inner);
-        let contract = owned
-            .call_argument_contracts_for(call.expression())
-            .find(|fact| fact.argument() == argument)
-            .unwrap();
-        let mapping = call.arguments()[0];
-        assert_eq!(contract.call_span(), node.span());
-        assert_eq!(contract.argument_span(), arguments[0].span);
-        assert_eq!(contract.parameter_index(), mapping.parameter_index());
-        assert_eq!(contract.parameter_type(), mapping.parameter_type());
-        assert_eq!(mapping.argument_index(), 0);
-        assert!(!contract.crosses_thread());
-        let consume = target_name != "observe";
-        assert_eq!(
-            mapping.mode(),
-            if consume {
-                ParameterMode::Value
-            } else {
-                ParameterMode::Borrow
-            }
-        );
-        assert_eq!(
-            contract.kind(),
-            if consume {
-                UnitCallArgumentOwnershipKind::Value
-            } else {
-                UnitCallArgumentOwnershipKind::SharedLoan
-            }
-        );
-        let deliveries = owned
-            .value_deliveries()
-            .iter()
-            .filter(|fact| fact.call() == call.expression() && fact.argument() == argument)
-            .collect::<Vec<_>>();
-        let loans = owned
-            .loans()
-            .iter()
-            .filter(|fact| fact.call() == call.expression() && fact.argument() == argument)
-            .collect::<Vec<_>>();
-        if consume {
-            let [delivery] = deliveries.as_slice() else {
-                panic!("one actual Value delivery")
-            };
-            assert!(loans.is_empty());
-            assert_eq!(delivery.kind(), UnitValueDeliveryKind::Move);
-            assert_eq!(delivery.span(), arguments[0].span);
-            let place = delivery.place().unwrap();
-            assert!(place.is_root());
-            assert_eq!(place.root(), expected_root);
-            assert!(delivery.parameter_span().is_some());
-        } else {
-            assert!(deliveries.is_empty());
-            let [loan] = loans.as_slice() else {
-                panic!("one actual shared argument loan")
-            };
-            assert_eq!(loan.kind(), FrontendLoanKind::Shared);
-            assert_eq!(loan.begin_span(), arguments[0].span);
-            assert_eq!(loan.end_span(), node.span());
-            let UnitLoanTarget::Place(place) = loan.target() else {
-                panic!("observe actual whole root")
-            };
-            assert!(place.is_root());
-            assert_eq!(place.root(), expected_root);
-        }
-    }
 }
 
 fn assert_repeated(source: &UnitSource, program: &Program, family: Family) {
@@ -316,7 +204,8 @@ fn nullable_when_views_and_direct_consume_use_real_owner_proofs() {
     for prepared in prepared() {
         for name in positive_functions(prepared.fixture.family) {
             for control in controls(&prepared.source, name) {
-                assert_existing_call_facts(&prepared.source, &control);
+                products::assert_existing_call_facts(&prepared.source, &control);
+                products::assert_new_products(&prepared.source, &control);
             }
         }
         assert_repeated(&prepared.source, &prepared.program, prepared.fixture.family);
@@ -932,7 +821,7 @@ fn nullable_when_class_box_rc_ordinary_sources_link_run() {
 #[test]
 fn nullable_when_out_of_slice_sources_keep_exact_boundaries() {
     for fixture in NEGATIVES {
-        let expected = fixture.red_span; // Old production boundary, before new product consumers.
+        let expected = fixture.green_span; // RED VERSION selects red_span instead.
         match UnitSource::analyze(fixture.name, fixture.text) {
             Err(rejection) => {
                 assert_ne!(
