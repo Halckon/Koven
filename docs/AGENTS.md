@@ -15,11 +15,14 @@
 | `specs/` | 一次变更做什么、依赖与验收是什么 | 变更合同 |
 | `adr/` | guide 留白处为什么选择某项长期方案 | 决策记录 |
 | `proposals/` | 尚未启用的候选设计 | 非规范 |
+| `roadmap/` | v1 包含哪些工作、优先级与当前状态 | 计划总账；只链接语义与证据，不复制 |
 | `archive/` | 旧规范、完成证据和冻结材料 | 只读历史 |
 
 同一规则只保留一个真源。Guide 不写实现历史，Architecture 不写计划，Spec 不复制完整语义，
 ADR 不替代 guide，AGENTS 不保存版本实施清单。Compiler Contracts 不以 current 状态声称
 实现完成，不吸纳未启用语义；当前实现事实继续由代码、测试和 Architecture 证明。
+Roadmap 只改 `roadmap/v1.json` 并用 `scripts/gen_roadmap.py` 重新生成视图；Spec 归档、新开或
+用户决策时同批更新对应条目状态，状态只作摘要，精确范围仍以 Spec 为准。
 
 ## 2. Guide
 

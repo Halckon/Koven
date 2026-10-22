@@ -6,6 +6,7 @@ Proposal 本身不修改现行 v0.45、不批准 Spec，也不代表实现优先
 已移入 guide，剩余候选仍未启用；普通开发任务不要读取本目录。
 
 - [v0.44 类型、控制流与基础集合补全](v0.44-language-completion.md)：选定规则已启用，后继候选与实施验收分开
+- [v0.46 v1 待决规则定稿](v0.46-language-decisions.md)：2026-10-22 决策的待启用规则文本，PR #120 合并后启用
 - [文本输入与 IO（M1B-b）](text-input-and-io.md)
 - [集合剩余 API 与迭代](collection-api-followups.md)
 - [检测扩展与定向外审（M4）](native-safety-validation.md)
@@ -15,6 +16,7 @@ Proposal 本身不修改现行 v0.45、不批准 Spec，也不代表实现优先
 - [借用结果声明与类型合同比较](borrow-access-contract-comparison.md)
 - [Map / MutableMap 所有权候选](map-ownership.md)
 - [v2 interface 值与动态分发](v2-interface-values-and-dynamic-dispatch.md)
+- [顶层状态、静态存储与全局生命周期](global-and-static-state.md)：G1 接纳面收窄已决（v0.46 C），G2–G5 分层候选
 - [String Copyable 候选取舍](string-copyability.md)
 - [显式 clone() 候选设计](explicit-clone.md)
 - [受限扩展函数候选设计](restricted-extension-functions.md)
@@ -47,6 +49,7 @@ String Copyable、Map 转换与 v2 interface 值不由此获得启用
 | 通用借用访问结果（M2B） | 实际缺口与正式 Spec | v0.42 已启用受限普通结果与 scoped Map；其余候选及实现欠项保持独立 |
 | Map / MutableMap 所有权 | 新增借用结果依赖 M2B；其它查询按所选合同 | 历史候选；新决定须先重基 |
 | v2 interface 值与动态分发 | 无 | 独立候选 |
+| 顶层状态与静态存储 | G1 需用户决定接纳面；G2 需 const 扩展与 Phase 3 静态 root；G3/G4 需 v2 Shareable | 独立候选；S1 建议进入下一 Guide 小版本 |
 
 建议先闭合当前已批准欠项，再分别评审 consume 基础与复制能力，冻结 N1a carrier 合同、
 对齐受限扩展声明，形成最小范围视图/消费矩阵；N1b/filter 后续验收。各独立设计可以先评审；

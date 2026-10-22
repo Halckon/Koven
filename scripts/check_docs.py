@@ -336,6 +336,7 @@ class DocsChecker:
         self.check_line_budgets()
         self.check_evidence_retention()
         self.check_generated_graph()
+        self.check_generated_roadmap()
         return sorted(set(self.errors))
 
     def check_generated_graph(self) -> None:
@@ -343,6 +344,13 @@ class DocsChecker:
         from gen_spec_dag import drift_errors
 
         for message in drift_errors(self.root):
+            self.error(message)
+
+    def check_generated_roadmap(self) -> None:
+        """Verify the v1 roadmap data is valid and its views are byte-fresh."""
+        from gen_roadmap import drift_errors as roadmap_drift_errors
+
+        for message in roadmap_drift_errors(self.root):
             self.error(message)
 
     def check_links(self) -> None:
@@ -575,6 +583,7 @@ class DocsChecker:
                     "docs/architecture/",
                     "docs/development/",
                     "docs/proposals/",
+                    "docs/roadmap/",
                     "docs/specs/",
                     "docs/adr/",
                 )

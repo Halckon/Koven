@@ -14,6 +14,7 @@
 | 编译器当前实际如何实现 | [Architecture](architecture/README.md) | 当前事实快照 |
 | 如何开发、测试和交付 | [Development](development/README.md) | 工程流程 |
 | 一次变更做什么、如何验收 | [Specs](specs/README.md) | 变更合同 |
+| v1 做到哪了、下一步做什么 | [v1 Roadmap](roadmap/README.md) | 范围、优先级与状态总账 |
 | 为什么采用某项长期方案 | [ADR](adr/README.md) | 架构决策 |
 
 ## 按需候选
