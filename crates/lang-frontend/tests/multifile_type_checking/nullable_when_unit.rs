@@ -418,9 +418,200 @@ fun captured(value: Node?): Int = when (value) {
             .source_category(),
         NullableWhenSubjectCategory::BorrowRoot
     );
+    let assignment = expression_with_text(&fixture.sources, &fixture.file, "x = replacement");
+    let assignment_node = fixture
+        .file
+        .ast()
+        .expressions()
+        .get(assignment)
+        .expect("real assignment");
+    let Expression::Assignment {
+        target,
+        operator: AssignmentOperator::Assign,
+        ..
+    } = assignment_node.payload()
+    else {
+        panic!("ordinary assignment target");
+    };
+    assert_eq!(canonical_name(&fixture.file, *target), *target);
+    let target = UnitExpressionId::new(fixture.unit, *target);
+    let resumed_leaf = UnitExpressionId::new(
+        fixture.unit,
+        canonical_name(&fixture.file, resumed.expression()),
+    );
+    assert_ne!(resumed, resumed_leaf);
+    let resumed_call = expression_with_text(&fixture.sources, &fixture.file, "read((value))");
+    let resumed_call_node = fixture
+        .file
+        .ast()
+        .expressions()
+        .get(resumed_call)
+        .expect("real resumed call");
+    let Expression::Call { arguments, .. } = resumed_call_node.payload() else {
+        panic!("real resumed call");
+    };
+    assert_eq!(arguments.len(), 1);
+    assert_eq!(arguments[0].value, resumed.expression());
+    let resolve = |expression: ExpressionId| {
+        let span = fixture
+            .file
+            .ast()
+            .expressions()
+            .get(expression)
+            .expect("real reference")
+            .span();
+        let symbols = fixture
+            .names
+            .names()
+            .references()
+            .iter()
+            .filter_map(|reference| {
+                if reference.source_unit() != fixture.unit
+                    || reference.span() != span
+                    || reference.namespace() != Some(Namespace::Value)
+                {
+                    return None;
+                }
+                match reference.target() {
+                    UnitReferenceTarget::Symbol(symbol) => Some(*symbol),
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 1, "one same-source resolved symbol");
+        symbols[0]
+    };
+    let mut expected_uses = std::collections::BTreeSet::new();
+    for control in when_expressions(&fixture.file) {
+        let control_node = fixture
+            .file
+            .ast()
+            .expressions()
+            .get(control)
+            .expect("real When");
+        let Expression::When {
+            subject: Some(subject),
+            entries,
+            ..
+        } = control_node.payload()
+        else {
+            panic!("subject When");
+        };
+        assert_eq!(entries.len(), 2);
+        let subject_node = fixture
+            .file
+            .ast()
+            .expressions()
+            .get(*subject)
+            .expect("real subject");
+        let body = fixture
+            .file
+            .ast()
+            .statements()
+            .get(entries[1].body)
+            .expect("real else body");
+        let Statement::ControlBody { elements } = body.payload() else {
+            panic!("fixture has an actual control body");
+        };
+        let (category, reference, uses, boundary_statement, boundary_expression) =
+            match fixture.sources.slice(subject_node.span()).expect("subject source") {
+                "x" => (
+                    NullableWhenSubjectCategory::OwnedRoot,
+                    target,
+                    vec![target],
+                    elements.first().expect("assignment precedes replacement read"),
+                    assignment,
+                ),
+                "value" => (
+                    NullableWhenSubjectCategory::BorrowRoot,
+                    resumed_leaf,
+                    vec![resumed_leaf, resumed],
+                    elements.last().expect("read resumes after lambda declaration"),
+                    resumed_call,
+                ),
+                other => panic!("unexpected complete fixture subject: {other}"),
+            };
+        let statement = fixture
+            .file
+            .ast()
+            .statements()
+            .get(*boundary_statement)
+            .expect("real boundary statement");
+        assert!(matches!(
+            statement.payload(),
+            Statement::Expression { expression } if *expression == boundary_expression
+        ));
+        let symbol = resolve(canonical_name(&fixture.file, *subject));
+        assert_eq!(symbol.source_unit(), fixture.unit);
+        assert_eq!(resolve(reference.expression()), symbol);
+        let control = UnitExpressionId::new(fixture.unit, control);
+        let descriptor = fixture
+            .typed
+            .nullable_when(control)
+            .expect("actual descriptor");
+        assert_entries(&fixture, descriptor);
+        assert_eq!(descriptor.source_category(), category);
+        assert_eq!(
+            descriptor.subject_reference(),
+            Some(UnitExpressionId::new(
+                fixture.unit,
+                canonical_name(&fixture.file, *subject),
+            ))
+        );
+        assert_eq!(descriptor.stable_symbol(), Some(symbol));
+        assert_eq!(descriptor.source_generation(), Some(0));
+        for expression in uses {
+            assert!(expected_uses.insert(expression));
+            let witness = fixture
+                .typed
+                .nullable_when_use(expression)
+                .expect("exact expected typed-source witness");
+            assert_eq!(witness.expression(), expression);
+            assert_eq!(witness.reference(), reference);
+            assert_eq!(witness.control(), control);
+            assert_eq!(
+                witness.subject(),
+                UnitExpressionId::new(fixture.unit, *subject)
+            );
+            assert_eq!(
+                witness.body(),
+                UnitStatementId::new(fixture.unit, entries[1].body)
+            );
+            assert_eq!(witness.entry_index(), 1);
+            assert_eq!(witness.symbol(), symbol);
+            assert_eq!(witness.source_generation(), 0);
+            assert_eq!(
+                fixture.typed.expression_category(expression),
+                Some(ExpressionCategory::Place)
+            );
+            let expression_node = fixture
+                .file
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .expect("expected expression belongs to current source");
+            assert_eq!(
+                expression_node.span().source_id(),
+                control_node.span().source_id()
+            );
+        }
+    }
+    assert_eq!(
+        expected_uses,
+        [target, resumed_leaf, resumed].into_iter().collect()
+    );
+    assert_eq!(
+        fixture
+            .typed
+            .nullable_when_uses()
+            .iter()
+            .map(|witness| witness.expression())
+            .collect::<std::collections::BTreeSet<_>>(),
+        expected_uses
+    );
     assert_eq!(
         fixture.typed.nullable_when_uses().len(),
-        2,
+        3,
         "actual nullable When uses: {:?}",
         fixture
             .typed
