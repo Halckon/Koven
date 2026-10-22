@@ -827,7 +827,7 @@ fn nullable_when_out_of_slice_sources_keep_exact_boundaries() {
             replacement_if::assert_original_replacement(fixture);
             continue;
         }
-        let expected = fixture.green_span; // RED VERSION selects red_span instead.
+        let expected = fixture.green_span; // Historical red spans remain in the original evidence bundle.
         match UnitSource::analyze(fixture.name, fixture.text) {
             Err(rejection) => {
                 assert_ne!(

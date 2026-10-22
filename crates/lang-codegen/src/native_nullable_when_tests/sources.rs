@@ -494,7 +494,6 @@ pub(super) struct Negative {
     pub(super) text: &'static str,
     pub(super) stage: &'static str,
     pub(super) code: &'static str,
-    pub(super) red_span: (usize, usize),
     pub(super) green_span: (usize, usize),
 }
 
@@ -506,7 +505,6 @@ fun entry(subject: Node?): Unit { when (subject) { null -> {}; else -> {} } }
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (48, 89),
         green_span: (48, 89),
     },
     Negative {
@@ -516,7 +514,6 @@ fun entry(inout subject: Node?): Unit { when (subject) { null -> {}; else -> {} 
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (24, 44),
         green_span: (24, 44),
     },
     Negative {
@@ -528,7 +525,6 @@ fun entry(holder: Holder): Unit { when (holder.value) { null -> {}; else -> {} }
         stage: "lower",
         code: "UnsupportedNode",
         // Existing layout rejects the field name before When; not When-field coverage.
-        red_span: (31, 36),
         green_span: (31, 36),
     },
     Negative {
@@ -538,7 +534,6 @@ fun entry(items: List<Node?>): Unit { when (items[0]) { null -> {}; else -> {} }
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (52, 94),
         green_span: (52, 94),
     },
     Negative {
@@ -548,7 +543,6 @@ fun entry(own subject: Cell?): Unit { when (subject) { null -> {}; else -> {} } 
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (43, 61),
         green_span: (43, 61),
     },
     Negative {
@@ -558,7 +552,6 @@ fun entry(own subject: Node?): Unit { when (subject) { null, Node() -> {}; else 
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (52, 101),
         green_span: (52, 101),
     },
     Negative {
@@ -568,7 +561,6 @@ fun entry(own subject: Node?): Node { when (subject) { null -> { return Node() }
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (52, 124),
         green_span: (106, 120),
     },
     Negative {
@@ -579,7 +571,6 @@ fun entry(own subject: Node?): Unit { when (subject) { null -> {}; else -> { val
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (84, 166),
         green_span: (141, 148),
     },
     Negative {
@@ -589,7 +580,6 @@ fun entry(own subject: Node?): Node = when (subject) { null -> Node(); else -> s
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (52, 102),
         green_span: (52, 102),
     },
     Negative {
@@ -599,7 +589,6 @@ fun entry(own subject: Node?): Unit { when (subject) { null -> {}; else -> { sub
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (73, 130),
         green_span: (112, 126),
     },
     Negative {
@@ -610,7 +599,6 @@ fun entry(own subject: Node?): Unit { when (subject) { null -> {}; else -> { whi
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (86, 163),
         green_span: (125, 141),
     },
     Negative {
@@ -621,7 +609,6 @@ fun entry(own input: Node?, own replacement: Node?): Unit { var x = input; when 
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (123, 214),
         green_span: (156, 171),
     },
     Negative {
@@ -632,7 +619,6 @@ fun entry(subject: Node?): Unit { when (subject) { null -> {}; else -> { take(su
 "#,
         stage: "ownership",
         code: "L0133",
-        red_span: (127, 134),
         green_span: (127, 134),
     },
     Negative {
@@ -643,7 +629,6 @@ fun entry(inout subject: Node?): Unit { when (subject) { null -> {}; else -> { t
 "#,
         stage: "ownership",
         code: "L0133",
-        red_span: (133, 140),
         green_span: (133, 140),
     },
     Negative {
@@ -655,7 +640,6 @@ fun entry(own subject: Node?): Unit { when (subject) { null -> {}; else -> { tak
 "#,
         stage: "ownership",
         code: "L0131",
-        red_span: (184, 191),
         green_span: (184, 191),
     },
     Negative {
@@ -666,7 +650,6 @@ fun entry(own subject: Node?): Unit { pair(subject, when (subject) { null -> Nod
 "#,
         stage: "ownership",
         code: "L0135",
-        red_span: (157, 164),
         green_span: (157, 164),
     },
     // Direct owner-parameter T? has an existing layout; this isolates the When-field gate.
@@ -678,7 +661,6 @@ fun entry(holder: Holder<Node>): Unit { when (holder.value) { null -> {}; else -
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (85, 131),
         green_span: (85, 131),
     },
 ];
