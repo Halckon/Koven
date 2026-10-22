@@ -3,6 +3,8 @@
 #[cfg(test)]
 pub(super) mod nullable_map_guard_support;
 #[cfg(test)]
+mod pr120_range_source_contract_tests;
+#[cfg(test)]
 mod pr120_verifier_diagnostics;
 #[cfg(test)]
 mod registration_tests;

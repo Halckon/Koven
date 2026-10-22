@@ -1,5 +1,7 @@
 //! 同步 shared 实参的 frontend loan 验证与 place 准备。
 mod nullable_field;
+#[cfg(test)]
+mod nullable_temporary_tests;
 
 use super::*;
 use crate::ssa::model::PlaceId;
@@ -488,7 +490,9 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 }
                 match self.lower(temporary.expression())? {
-                    LoweredValue::Value(value) => value,
+                    LoweredValue::Value(value) => {
+                        self.adapt_temporary_borrow_owner(*temporary, value, target, span)?
+                    }
                     LoweredValue::Unit => {
                         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                     }
@@ -548,6 +552,15 @@ impl UnitExpressionLowerer<'_> {
                 _ => return Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
             };
         }
+        // Borrow cannot consume a named owner to manufacture another representation.
+        if self
+            .function
+            .entity(EntityId::Value(owner))
+            .map(|data| data.ty)
+            != Some(EntityType::Value(target))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let (_, results) = self
             .function
             .append_instruction(
@@ -561,6 +574,54 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
         Ok(place)
+    }
+
+    /// A nullable Borrow temporary keeps the frontend lifetime, but transfers its
+    /// unique owner obligation to the wrapper before creating the shared place.
+    fn adapt_temporary_borrow_owner(
+        &mut self,
+        temporary: UnitExpressionId,
+        owner: ValueId,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let actual = self.expression_ssa_type(temporary.expression(), span)?;
+        if self
+            .function
+            .entity(EntityId::Value(owner))
+            .map(|data| data.ty)
+            != Some(EntityType::Value(actual))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if actual == target {
+            return Ok(owner);
+        }
+        if !matches!(
+            self.ssa_types.get(target.index()),
+            Some(SsaTypeKind::NullableHandle { inner }) if *inner == actual
+        ) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        // Only the admitted Temporary origin may transfer. This also removes any
+        // transparent aliases, so the consumed inner can never be dropped later.
+        self.take_owned_temporary_origin(temporary, owner, span)?;
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::NullableWrap {
+                    nullable: target,
+                    owner,
+                },
+                vec![EntityType::Value(target)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let owner = require_value(results[0], span)?;
+        // The existing source-qualified CallReturn drop now owns the wrapper.
+        self.temporaries.insert(temporary, owner);
+        Ok(owner)
     }
 
     pub(super) fn direct_name_symbol(

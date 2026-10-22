@@ -1,5 +1,7 @@
 //! A fresh owned HeapOwner If proof, independent of any retired When generation.
 //! Only one direct root-Borrow call and an empty opposite arm are admitted here.
+mod field;
+
 use super::*;
 use lang_frontend::{
     ownership_checking::UnitCallArgumentOwnershipKind,
