@@ -62,7 +62,7 @@ Python 协议测试覆盖校验、成员拒绝、缺项、字节差异、宿主�
 本片不交付最低系统通用兼容承诺、签名/公证、浏览器下载隔离、缺失依赖负向安装、
 包管理器上架、自动更新或性能排名；这些保留在 M5 后续合同。实际进度和所有未执行项只在 Spec 记录。
 
-## 4. 本地版本管理（SPEC-0345 实施中）
+## 4. 本地版本管理
 
 候选包附带 `tools/preview_manager.py`，CI artifact 也提供与 bootstrap 同目录的副本。
 使用来自可信发布输入的管理器、归档和 checksum；checksum 仅核完整性，不认证发布者。
@@ -85,5 +85,5 @@ python3 preview_manager.py --root "$HOME/.local/share/koven-preview" uninstall S
 输出 JSON 记录 ID／当前版本，验证摘要走 stderr；失败退出非零。发布成功后的临时清理失败
 以成功结果中的 `cleanup_warning` 报告并保留路径，不把已发布版本误报为未安装。安装证据位于根目录的
 `evidence-*`，失败材料保留供排查；不是自动更新、签名／公证或对同用户恶意写入的隔离。
-此片实现与双宿主验收见 [SPEC-0345](../specs/active/0345-preview-version-manager.md)，
+此片实现与双宿主验收见 [SPEC-0345](../archive/specs/0345-preview-version-manager.md)，
 不代表 M1-S8 三个示范程序的最终联合验收已完成。

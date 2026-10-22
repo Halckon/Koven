@@ -68,7 +68,7 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 ### 生态安装切片
 
-- [0345 本地 preview 版本管理](active/0345-preview-version-manager.md)：M1-S8 首片，不依赖 v0.46；实施中。
+- [0345 本地 preview 版本管理](../archive/specs/0345-preview-version-manager.md)：M1-S8 本地包首片已验收归档，不依赖 v0.46；三个示范程序联合验收仍待后继。
 
 ### 近期交付
 

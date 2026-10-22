@@ -1,10 +1,10 @@
 # SPEC-0345: 本地 preview 版本管理
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实现或验收本地版本管理时 · **唯一真源**：本次交付范围与验收
+> **性质**：交付合同 · **状态**：done · **读取时机**：实现或验收本地版本管理时 · **唯一真源**：本次交付范围与验收
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-0345` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | [当前 Guide](../../guide/README.md)；不依赖 v0.46 |
@@ -39,7 +39,7 @@
 - [x] 损坏包、宿主／真实示例失败、同 ID、未知根、符号链接、非法 ID、锁冲突拒绝；当前版本和同级哨兵保全。
 - [x] 发布或切换失败保持旧 current；已安装文件损坏时拒绝切换。
 - [x] Python 合同测试、文档门禁与 diff 检查；独立上下文审查具体边界。
-- [ ] 双宿主真实 preview 包管理流程与现有消费验收；PR CI 无未决状态后归档。
+- [x] 双宿主真实 preview 包管理流程与现有消费验收；PR CI 无未决状态后归档。
 
 ## 5. 验证记录
 
@@ -61,5 +61,17 @@ current 消失且版本列表为空。原始产物与结果保留在仓库外，
 共享Ubuntu准备脚本现显式选择已存在的LLVM传递运行库liblzma5，避免仅满足传递依赖而沿用runner预装构建；
 不新增二进制/Cargo依赖、不变更发行源或安装信任规则，继续原严格实际哈希比较，不建立新ABI例外。
 准备策略失败测试已复现未选择该运行库；修复后63项相关测试、shell语法与文档检查通过，独立审查无阻断项。
-该运行macOS独立消费被取消，不能记为通过；修复后的双宿主真实验收与最终PR CI尚待。
+该运行macOS独立消费被取消，不能记为通过；修复后的验收见下。
 M1-S8三个示范程序最终联合验收仍在后继切片。
+
+## 6. 双宿主交付验收
+
+源码输入 `de1babd12279fa47f554b99be0edebd2c8865614`，
+[PR CI 39804644182](https://github.com/Halckon/Koven/actions/runs/39804644182) 于 2026-10-23（Asia/Singapore）全部通过。
+macOS arm64 与 Ubuntu x86_64 的 Check/Clippy、定向测试、preview 生产及独立消费均实际执行成功。
+独立消费与管理器 install 各自运行十二条真实命令；use/list 身份匹配，损坏 checksum 拒绝且
+current 保持不变，通过 current/bin/kovenc 构建并运行参数示例并核对输出，最后停用及卸载成功。
+Linux 严格加载闭包核验通过，未引入 liblzma 哈希或 ABI 豁免。
+原始消费证据：[Linux](https://github.com/Halckon/Koven/actions/runs/39804644182/artifacts/12440200658)、
+[macOS](https://github.com/Halckon/Koven/actions/runs/39804644182/artifacts/12439386839)。
+归档提交仅修改文档和生成索引；合并仍须该提交的最终 PR 门禁无未决状态。
