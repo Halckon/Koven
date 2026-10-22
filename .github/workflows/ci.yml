@@ -402,6 +402,30 @@ jobs:
           python3 "$manager" --root "$root" use "$version"
           python3 "$manager" --root "$root" list
           test -x "$root/current/bin/kovenc"
+          before=$(readlink "$root/current")
+          printf 'corrupt\n' > "$RUNNER_TEMP/invalid.sha256"
+          if python3 "$manager" --root "$root" install \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/invalid.sha256"; then
+            echo 'corrupt package unexpectedly installed' >&2
+            exit 1
+          fi
+          test "$(readlink "$root/current")" = "$before"
+          (
+            cd "$root/current/examples/parameter-report"
+            "$root/current/bin/kovenc" build --project project.toml --entry app.main -o "$RUNNER_TEMP/managed-program"
+          )
+          "$RUNNER_TEMP/managed-program" alpha 你好 tail > "$RUNNER_TEMP/preview-consumer-evidence/managed.stdout" \
+            2> "$RUNNER_TEMP/preview-consumer-evidence/managed.stderr"
+          python3 - "$root/current/examples/parameter-report/contract.json" "$RUNNER_TEMP/preview-consumer-evidence" <<'PYCODE'
+          import json, pathlib, sys
+          row = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          expected = next(case['artifact'] for case in row['cases'] if case['args'] == ['alpha', '你好', 'tail'])
+          evidence = pathlib.Path(sys.argv[2])
+          assert expected['exit'] == 0
+          for stream in ('stdout', 'stderr'):
+              assert (evidence / ('managed.' + stream)).read_bytes() == expected[stream].encode('utf-8')
+          PYCODE
           python3 "$manager" --root "$root" deactivate
           python3 "$manager" --root "$root" uninstall "$version"
           test ! -e "$root/versions/$version"
@@ -505,6 +529,30 @@ jobs:
           /usr/bin/python3 "$manager" --root "$root" use "$version"
           /usr/bin/python3 "$manager" --root "$root" list
           test -x "$root/current/bin/kovenc"
+          before=$(readlink "$root/current")
+          printf 'corrupt\n' > "$RUNNER_TEMP/invalid.sha256"
+          if /usr/bin/python3 "$manager" --root "$root" install \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/invalid.sha256"; then
+            echo 'corrupt package unexpectedly installed' >&2
+            exit 1
+          fi
+          test "$(readlink "$root/current")" = "$before"
+          (
+            cd "$root/current/examples/parameter-report"
+            "$root/current/bin/kovenc" build --project project.toml --entry app.main -o "$RUNNER_TEMP/managed-program"
+          )
+          "$RUNNER_TEMP/managed-program" alpha 你好 tail > "$RUNNER_TEMP/preview-consumer-evidence/managed.stdout" \
+            2> "$RUNNER_TEMP/preview-consumer-evidence/managed.stderr"
+          /usr/bin/python3 - "$root/current/examples/parameter-report/contract.json" "$RUNNER_TEMP/preview-consumer-evidence" <<'PYCODE'
+          import json, pathlib, sys
+          row = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          expected = next(case['artifact'] for case in row['cases'] if case['args'] == ['alpha', '你好', 'tail'])
+          evidence = pathlib.Path(sys.argv[2])
+          assert expected['exit'] == 0
+          for stream in ('stdout', 'stderr'):
+              assert (evidence / ('managed.' + stream)).read_bytes() == expected[stream].encode('utf-8')
+          PYCODE
           /usr/bin/python3 "$manager" --root "$root" deactivate
           /usr/bin/python3 "$manager" --root "$root" uninstall "$version"
           test ! -e "$root/versions/$version"
