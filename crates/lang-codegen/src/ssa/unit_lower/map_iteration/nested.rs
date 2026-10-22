@@ -1,7 +1,5 @@
 //! Structural Map nesting: every provider retains its own source-qualified plan.
-mod guard;
 use super::*;
-pub(super) use guard::guard as qualify_guard;
 
 pub(super) fn relationship(
     parsed: &ParsedFile,

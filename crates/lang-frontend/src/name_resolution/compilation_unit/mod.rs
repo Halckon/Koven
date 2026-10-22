@@ -7,7 +7,10 @@ mod names;
 mod names_model;
 
 pub use diagnostic_order::{UnitDiagnosticOrderError, ordered_unit_diagnostics};
-pub use index::{CompilationUnitInputError, LogicalPathError, index_compilation_unit};
+pub use index::{
+    CompilationUnitInputError, LogicalPathError, index_compilation_unit,
+    package_path_mismatch_diagnostic,
+};
 pub use model::*;
 pub use names::*;
 pub use names_model::*;

@@ -36,12 +36,14 @@ mod map_with;
 mod non_null_assertion;
 mod nullable_comparison;
 mod nullable_proof;
+mod nullable_when;
 mod ownership;
 mod ownership_primitive;
 mod range;
 mod rc;
 mod receiver;
 mod scalar;
+mod statement;
 mod string_clone;
 mod type_lower;
 mod type_plan;
@@ -93,12 +95,7 @@ use super::{
     verify::verify_program,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LoweredValue {
-    Unit,
-    Value(ValueId),
-    Diverged,
-}
+use super::expression_core::LoweredValue;
 
 enum FunctionPlanBody {
     Expression(ExpressionId),
@@ -245,6 +242,7 @@ impl UnitExpressionLowerer<'_> {
             })?;
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
+        self.guard_nullable_when_expression(unit_expression, span)?;
         // Only a fully witnessed consume may atomically retire an ordinary If view.
         if matches!(node.payload(), Expression::Call { .. })
             && self
@@ -270,7 +268,17 @@ impl UnitExpressionLowerer<'_> {
                 | Expression::Break { .. }
                 | Expression::Continue { .. }
         ) {
-            self.reject_live_if_proof(span)?;
+            let root_borrow_call = match node.payload() {
+                Expression::Call { arguments, .. } => {
+                    self.can_call_with_nullable_root_proof(unit_expression, arguments, span)?
+                }
+                _ => false,
+            };
+            let rc_share = matches!(node.payload(), Expression::Call { .. })
+                && self.can_share_with_nullable_rc_proof(unit_expression, span)?;
+            if !root_borrow_call && !rc_share {
+                self.reject_live_if_proof(span)?;
+            }
         }
         if self.typed.range_size(unit_expression).is_some() {
             return self.lower_range_size(expression, span);
@@ -484,6 +492,7 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.end_thunk_capture_views(span)?;
+        self.retire_nullable_when_transfers(0, span)?;
         self.retire_while_proofs(true, span)?;
         let values = self.return_values(result, span)?;
         self.function
@@ -519,14 +528,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
-        let result = self.lower_statement_inner(statement)?;
-        if result != LoweredValue::Diverged {
-            self.emit_drops(UnitDropPoint::AfterStatement(UnitStatementId::new(
-                self.source_unit,
-                statement,
-            )))?;
-        }
-        Ok(result)
+        super::statement_core::lower_statement(self, statement)
     }
 
     fn lower_statement_inner(
@@ -547,12 +549,7 @@ impl UnitExpressionLowerer<'_> {
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
             | Statement::ControlBody { elements } => {
-                for element in elements {
-                    if self.lower_statement(*element)? == LoweredValue::Diverged {
-                        return Ok(LoweredValue::Diverged);
-                    }
-                }
-                Ok(LoweredValue::Unit)
+                super::statement_core::lower_sequence(self, elements.iter().copied())
             }
             Statement::LocalVariable { declaration } => {
                 self.lower_local_variable(*declaration, span)
@@ -828,7 +825,7 @@ fn builtin_type(typed: &CompilationUnitTypes, ty: UnitTypeId) -> Option<BuiltinT
 fn instance_function_name(
     names: &ValidatedCompilationUnitNames,
     instance: &UnitPlannedInstance,
-) -> String {
+) -> Result<String, LoweringError> {
     let (declaration, callable_name, target_index) = match instance.key().target() {
         UnitCallableTarget::Declaration(declaration) => {
             let declaration = &names.names().index().declarations()[declaration.index()];
@@ -847,8 +844,11 @@ fn instance_function_name(
         }
     };
     let package = &names.names().index().packages()[declaration.package().index()];
+    let package_name = package
+        .name()
+        .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
     let mut name = String::from("koven");
-    for segment in package.name().segments() {
+    for segment in package_name.segments() {
         name.push('.');
         name.push_str(segment);
     }
@@ -872,7 +872,7 @@ fn instance_function_name(
         name.push_str(".r");
         name.push_str(&static_self.index().to_string());
     }
-    name
+    Ok(name)
 }
 
 fn unit_callable_signature(

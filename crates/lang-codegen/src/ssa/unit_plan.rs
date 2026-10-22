@@ -44,7 +44,7 @@ pub(super) use call_routes::{
 use callable_instances::CallablePlanner;
 pub(crate) use callable_instances::UnitCallablePlan;
 use concrete_types::contains_type_parameter;
-pub(crate) use concrete_types::resolve_concrete_type;
+pub(crate) use concrete_types::{resolve_concrete_type, resolve_enum_runtime_payload_types};
 use recipe_preflight::{
     collect_frontier_unit_recipe_failures, pending_recipe_frontier, preflight_unit_call_recipes,
     stable_recipe_failure,
@@ -515,7 +515,31 @@ pub(super) fn plan_unit_instances_from_facts(
             let target_template_index = template_by_target
                 .get(&target_key.key().target())
                 .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, *span))?;
+                .ok_or_else(|| {
+                    let resolved = target_key.key();
+                    let companion = matches!(resolved.target(), UnitCallableTarget::Symbol(_))
+                        && resolved.target() == target
+                        && call.receiver().is_none()
+                        && typed
+                            .signatures()
+                            .declarations()
+                            .iter()
+                            .filter_map(|signature| signature.nominal())
+                            .flat_map(|nominal| nominal.companion_members())
+                            .any(|callable| {
+                                callable.target() == resolved.target()
+                                    && callable.has_body()
+                                    && callable.receiver().is_none()
+                                    && callable.type_parameters().len()
+                                        == resolved.type_arguments().len()
+                            });
+                    let kind = if companion {
+                        LoweringErrorKind::UnsupportedCompanionCall
+                    } else {
+                        LoweringErrorKind::MissingFact
+                    };
+                    lowering_error(kind, *span)
+                })?;
             if target_key.key().type_arguments().len()
                 != templates[target_template_index].type_parameters.len()
             {

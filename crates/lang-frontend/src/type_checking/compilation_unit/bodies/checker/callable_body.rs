@@ -8,6 +8,11 @@ impl BodyChecker<'_> {
         form: FunctionForm,
         callable: &UnitCallableSignature,
     ) -> Result<(), CompilationUnitTypeError> {
+        let rejected_extension_receiver = self.rejected_extension_receiver(source, callable)?;
+        let previous_rejected_receiver = std::mem::replace(
+            &mut self.current_rejected_extension_receiver,
+            rejected_extension_receiver,
+        );
         let previous_receiver = self.current_receiver;
         let previous_mode = self.current_receiver_mode;
         if callable.range_extension().is_some() {
@@ -15,18 +20,19 @@ impl BodyChecker<'_> {
             self.current_receiver_mode = Some(ParameterMode::Borrow);
         }
         self.callable_loop_bases.push(self.loop_depth);
-        let result = self.check_function_body(source, form, callable);
+        let result = self.check_function_body(source, form, callable.return_type());
         self.callable_loop_bases.pop();
         self.current_receiver = previous_receiver;
         self.current_receiver_mode = previous_mode;
+        self.current_rejected_extension_receiver = previous_rejected_receiver;
         result
     }
 
-    fn check_function_body(
+    pub(super) fn check_function_body(
         &mut self,
         source: SourceUnitId,
         form: FunctionForm,
-        callable: &UnitCallableSignature,
+        return_type: UnitTypeId,
     ) -> Result<(), CompilationUnitTypeError> {
         self.flow_facts.clear();
         self.flow_versions.clear();
@@ -45,7 +51,7 @@ impl BodyChecker<'_> {
         match form {
             FunctionForm::ImplicitUnitAbsent => Ok(()),
             FunctionForm::ImplicitUnitBlock(body) => {
-                self.check_statement(source, body, callable.return_type(), expected_span)?;
+                self.check_statement(source, body, return_type, expected_span)?;
                 Ok(())
             }
             FunctionForm::Explicit { body, .. } => match body {
@@ -54,18 +60,17 @@ impl BodyChecker<'_> {
                     self.check_expression(
                         source,
                         expression,
-                        Some(callable.return_type()),
+                        Some(return_type),
                         expected_span,
-                        callable.return_type(),
+                        return_type,
                     )?;
                     Ok(())
                 }
                 FunctionBody::Block(body) => {
-                    let result =
-                        self.check_statement(source, body, callable.return_type(), expected_span)?;
+                    let result = self.check_statement(source, body, return_type, expected_span)?;
                     if result.falls_through
-                        && !self.is_builtin(callable.return_type(), BuiltinType::Unit)
-                        && !self.is_error(callable.return_type())
+                        && !self.is_builtin(return_type, BuiltinType::Unit)
+                        && !self.is_error(return_type)
                     {
                         let primary = self
                             .file(source)

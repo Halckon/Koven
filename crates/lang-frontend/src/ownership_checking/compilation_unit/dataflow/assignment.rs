@@ -39,6 +39,7 @@ impl Checker<'_> {
             self.field_replacements.len(),
             self.formed_owned_locals.len(),
         );
+        let nullable_when_checkpoint = self.nullable_whens.clone();
         let mut flows = self.check_expression(
             value,
             state,
@@ -56,6 +57,7 @@ impl Checker<'_> {
         }
         if self.diagnostics.len() != diagnostic_count {
             self.rollback_facts(fact_lengths);
+            self.nullable_whens = nullable_when_checkpoint;
             return Ok(Self::restore_flow_states(flows, &entry_state));
         }
         let target_span = self.parsed.ast().expressions().get(target)?.span();
@@ -78,6 +80,7 @@ impl Checker<'_> {
             )?;
             self.diagnostics.push(diagnostic);
             self.rollback_facts(fact_lengths);
+            self.nullable_whens = nullable_when_checkpoint;
             return Ok(Self::restore_flow_states(flows, &entry_state));
         }
         let Some(state) = flows.next.as_mut() else {
@@ -121,12 +124,14 @@ impl Checker<'_> {
             }
             if self.diagnostics.len() != diagnostic_count {
                 self.rollback_facts(fact_lengths);
+                self.nullable_whens = nullable_when_checkpoint;
                 return Ok(Self::restore_flow_states(flows, &entry_state));
             }
         } else {
             flows = self.chain_expression(flows, target, ExpressionUse::Read)?;
             if self.diagnostics.len() != diagnostic_count {
                 self.rollback_facts(fact_lengths);
+                self.nullable_whens = nullable_when_checkpoint;
                 return Ok(Self::restore_flow_states(flows, &entry_state));
             }
         }

@@ -50,7 +50,7 @@ pub(super) fn declare(
     let origin = Origin::Source(instance.span());
     let id = module
         .add_instance_function(
-            instance_function_name(names, &instance),
+            instance_function_name(names, &instance)?,
             entity_type,
             Vec::new(),
             origin.clone(),

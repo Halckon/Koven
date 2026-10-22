@@ -1,13 +1,17 @@
 //! Target-independent typed SSA model、验证与确定性调试表示。
 
+mod carry;
 mod closure;
+mod constant_materialization;
 mod deinit;
+mod expression_core;
 mod integer;
 mod integer_range;
 mod integer_range_type;
 mod lower_frontend;
 mod map_result;
 mod map_source;
+#[cfg(test)]
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
@@ -16,6 +20,7 @@ pub(crate) mod model;
 #[allow(dead_code)]
 pub(crate) mod provider;
 mod render;
+mod statement_core;
 #[cfg(test)]
 pub(crate) fn render_program(program: &model::Program) -> String {
     render::render_program(program)
@@ -160,6 +165,8 @@ mod checked_integer_conversion_backend_tests;
 mod checked_integer_conversion_contract_tests;
 #[cfg(test)]
 mod checked_integer_conversion_tests;
+#[cfg(test)]
+mod integer_core_contract_tests;
 
 #[cfg(test)]
 mod deinit_tests;
@@ -180,8 +187,6 @@ mod lowering_entry_contract_tests;
 
 #[cfg(test)]
 mod lowering_dependency_tests;
-
-pub(crate) use lower_frontend::orchestrate::validate_inputs as validate_frontend_inputs;
 
 #[cfg(test)]
 mod range_lowering_tests;
@@ -246,3 +251,12 @@ pub(crate) mod map_provider_pipeline_tests;
 
 #[cfg(test)]
 pub(crate) mod map_provider_exits_pipeline_tests;
+
+#[cfg(test)]
+mod unit_lower_nullable_tests;
+
+#[cfg(test)]
+mod unit_lower_nullable_neighbor_tests;
+
+#[cfg(test)]
+mod unit_enum_regression_tests;

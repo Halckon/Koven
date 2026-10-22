@@ -8,14 +8,15 @@ impl Parser<'_> {
 
     pub(super) fn parse_file_header(
         &mut self,
-    ) -> Result<(Option<PackageDirective>, Vec<ImportDirective>), ParserInternalError> {
-        let package = if self.current_is_keyword(Keyword::Package) {
-            let directive = self.parse_package_directive()?;
-            self.consume_file_header_separator()?;
-            Some(directive)
-        } else {
-            None
-        };
+    ) -> Result<(Option<PackageDirective>, Vec<ImportDirective>, bool), ParserInternalError> {
+        let (package, initial_package_header_complete) =
+            if self.current_is_keyword(Keyword::Package) {
+                let (directive, name_complete) = self.parse_package_directive()?;
+                let separator_complete = self.consume_file_header_separator()?;
+                (Some(directive), name_complete && separator_complete)
+            } else {
+                (None, true)
+            };
 
         let mut imports = Vec::new();
         while self.current_is_keyword(Keyword::Import) {
@@ -23,42 +24,46 @@ impl Parser<'_> {
             self.consume_file_header_separator()?;
         }
 
-        Ok((package, imports))
+        Ok((package, imports, initial_package_header_complete))
     }
 
-    pub(super) fn consume_file_header_separator(&mut self) -> Result<(), ParserInternalError> {
+    pub(super) fn consume_file_header_separator(&mut self) -> Result<bool, ParserInternalError> {
         if matches!(self.current()?.kind(), LexemeKind::Eof) {
-            return Ok(());
+            return Ok(true);
         }
         if self.file_separator_region_has_line_break()? {
-            return Ok(());
+            return Ok(true);
         }
         if self.current_is_symbol(Symbol::Semicolon) {
             self.bump()?;
-            return Ok(());
+            return Ok(true);
         }
         self.emit(
             codes::EXPECTED_FILE_HEADER_SEPARATOR,
             "expected file header separator",
             self.current()?.span(),
-        )
+        )?;
+        Ok(false)
     }
 
     pub(super) fn parse_package_directive(
         &mut self,
-    ) -> Result<PackageDirective, ParserInternalError> {
+    ) -> Result<(PackageDirective, bool), ParserInternalError> {
         let keyword_span = self.bump()?.span();
-        let (segments, _) = self.parse_qualified_name(
+        let (segments, _, name_complete) = self.parse_qualified_name(
             codes::EXPECTED_PACKAGE_NAME,
             "expected package name",
             false,
         )?;
         let end = self.previous_significant_end().max(keyword_span.end());
-        Ok(PackageDirective {
-            span: self.span(keyword_span.start(), end)?,
-            keyword_span,
-            segments,
-        })
+        Ok((
+            PackageDirective {
+                span: self.span(keyword_span.start(), end)?,
+                keyword_span,
+                segments,
+            },
+            name_complete,
+        ))
     }
 
     pub(super) fn parse_import_directive(
@@ -116,7 +121,7 @@ impl Parser<'_> {
     pub(super) fn parse_import_target(
         &mut self,
     ) -> Result<(Vec<QualifiedNameSegment>, Option<Span>), ParserInternalError> {
-        let (segments, wildcard_prefix) = self.parse_qualified_name(
+        let (segments, wildcard_prefix, _) = self.parse_qualified_name(
             codes::EXPECTED_IMPORT_TARGET,
             "expected import target",
             true,
@@ -134,7 +139,7 @@ impl Parser<'_> {
         code: &str,
         message: &'static str,
         allow_wildcard: bool,
-    ) -> Result<(Vec<QualifiedNameSegment>, bool), ParserInternalError> {
+    ) -> Result<(Vec<QualifiedNameSegment>, bool, bool), ParserInternalError> {
         let mut segments = Vec::new();
         if !self.current_is_identifier() {
             let current = self.current()?;
@@ -151,16 +156,17 @@ impl Parser<'_> {
             if !boundary {
                 self.recover_declaration_region(DeclarationStops::FILE)?;
             }
-            return Ok((segments, false));
+            return Ok((segments, false, false));
         }
 
         segments.push(QualifiedNameSegment {
             span: self.bump()?.span(),
         });
+        let mut name_complete = true;
         while self.current_is_symbol(Symbol::Dot) {
             self.bump()?;
             if allow_wildcard && self.current_is_symbol(Symbol::Star) {
-                return Ok((segments, true));
+                return Ok((segments, true, true));
             }
             if self.current_is_identifier() {
                 segments.push(QualifiedNameSegment {
@@ -182,9 +188,10 @@ impl Parser<'_> {
             if !boundary {
                 self.recover_declaration_region(DeclarationStops::FILE)?;
             }
+            name_complete = false;
             break;
         }
-        Ok((segments, false))
+        Ok((segments, false, name_complete))
     }
 
     pub(super) fn parse_file_roots(&mut self) -> Result<Vec<ItemId>, ParserInternalError> {
@@ -202,7 +209,7 @@ impl Parser<'_> {
                 let is_package = self.current_is_keyword(Keyword::Package);
                 let start = self.current()?.span().start();
                 let (directive_end, primary) = if is_package {
-                    let directive = self.parse_package_directive()?;
+                    let (directive, _) = self.parse_package_directive()?;
                     (directive.span.end(), directive.keyword_span)
                 } else {
                     let directive = self.parse_import_directive()?;

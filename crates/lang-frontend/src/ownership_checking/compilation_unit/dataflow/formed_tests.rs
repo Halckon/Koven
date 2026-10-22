@@ -80,7 +80,7 @@ fn with_checker<T>(
     inspect: impl FnOnce(&mut Checker<'_>) -> T,
 ) -> T {
     let inputs = fixture.inputs();
-    let mut fields = traversal::collect_field_mutability(&inputs, &fixture.names).unwrap();
+    let mut fields = traversal::collect_field_mutability(&inputs, fixture.names.names()).unwrap();
     let target = fixture.symbol(0, "target");
     assert_eq!(fields.get(&target), Some(&VariableKind::Var));
     if immutable {
@@ -126,7 +126,7 @@ fn with_checker<T>(
         &fixture.sources,
         &fixture.parsed[0],
         fixture.source(0),
-        &fixture.names,
+        fixture.names.names(),
         fixture.typed.types(),
         &parts.bindings,
         &fields,
@@ -151,7 +151,7 @@ fn with_checker<T>(
     checker.range_producers = crate::ownership_checking::range_producer::collect_unit(
         &fixture.sources,
         &inputs,
-        &fixture.names,
+        fixture.names.names(),
         fixture.typed.types(),
     )
     .unwrap();

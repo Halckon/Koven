@@ -25,20 +25,20 @@ impl DropPlanner<'_, '_> {
 
     pub(super) fn continue_range_source(&self, id: ExpressionId, state: &mut ValueState) {
         if let Some(fact) = self.checker.range_use(id) {
+            let consumer = match fact.site() {
+                crate::ownership_checking::RangeUseSite::Call(outer) => outer.expression(),
+                crate::ownership_checking::RangeUseSite::Iteration => id,
+            };
+            // Call consumers keep the root until their return. Iteration consumers
+            // hand this pending protection to the provider after source evaluation.
+            if let crate::ownership_checking::UnitLoanTarget::Place(place) = fact.origin()
+                && state.position(place.root()).is_some()
+                && !state.pending_borrows.contains(&(consumer, place.root()))
+            {
+                state.pending_borrows.push((consumer, place.root()));
+            }
             match fact.site() {
                 crate::ownership_checking::RangeUseSite::Call(outer) => {
-                    // The short descriptor keeps its verified named owner borrowed until
-                    // its outer consumer returns, just as a continued temporary does.
-                    if let crate::ownership_checking::UnitLoanTarget::Place(place) = fact.origin()
-                        && state.position(place.root()).is_some()
-                        && !state
-                            .pending_borrows
-                            .contains(&(outer.expression(), place.root()))
-                    {
-                        state
-                            .pending_borrows
-                            .push((outer.expression(), place.root()));
-                    }
                     for temporary in &mut state.pending_temporaries {
                         if temporary.control == id {
                             temporary.control = outer.expression();

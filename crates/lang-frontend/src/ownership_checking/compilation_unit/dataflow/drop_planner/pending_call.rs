@@ -1,7 +1,7 @@
 //! Evaluated call/interpolation operands remain owned until completion or control transfer.
 use super::{
-    DropPlanner, OwnedThis, OwnershipCheckingError, PlannerDropFact, PlannerDropPoint,
-    PlannerDropTarget, ValueState,
+    DropExpressionUse, DropPlanner, OwnedThis, OwnershipCheckingError, PlannerDropFact,
+    PlannerDropPoint, PlannerDropTarget, ValueState,
 };
 use crate::{
     ast::ExpressionId, name_resolution::UnitSymbolId, source::Span, type_checking::Copyability,
@@ -26,6 +26,34 @@ enum PendingOwner {
 }
 
 impl DropPlanner<'_, '_> {
+    /// Constructor operands use the same pending-owner lifetime as Value call arguments.
+    pub(super) fn construction_operands(
+        &mut self,
+        construction: ExpressionId,
+        descriptor: &crate::type_checking::UnitConstructionDescriptor,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        let mut arguments = descriptor.arguments().to_vec();
+        arguments.sort_by_key(|argument| argument.evaluation_index());
+        for argument in arguments {
+            if !self.expression(
+                argument.argument().expression(),
+                DropExpressionUse::Consume,
+                state,
+            )? || self.checker.is_nothing_expression(argument.argument())
+            {
+                return Ok(false);
+            }
+            self.register_value_argument(construction, argument.argument().expression(), state)?;
+        }
+        self.finish_pending_temporaries(
+            construction,
+            PlannerDropPoint::AfterExpression(construction),
+            state,
+        );
+        Ok(true)
+    }
+
     pub(super) fn register_value_argument(
         &mut self,
         call: ExpressionId,

@@ -127,7 +127,7 @@ impl BodyChecker<'_> {
         &self,
     ) -> Result<BTreeMap<DeclarationId, Template>, CompilationUnitTypeError> {
         let mut templates = BTreeMap::new();
-        for declaration in self.names.names().index().declarations() {
+        for declaration in self.names.index().declarations() {
             let Some(signature) = self
                 .signatures
                 .declaration(declaration.id())
@@ -181,8 +181,8 @@ impl BodyChecker<'_> {
             }
             for (symbol, &ty) in &self.parts.symbol_types {
                 if symbol.source_unit() == declaration.source_unit() {
-                    let table = self.names.names().source_units()[symbol.source_unit().index()]
-                        .resolution();
+                    let table =
+                        self.names.source_units()[symbol.source_unit().index()].resolution();
                     if contains(
                         table
                             .symbols()

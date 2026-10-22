@@ -43,6 +43,9 @@ impl BodyChecker<'_> {
         name_span: Span,
     ) -> Result<Vec<CallCandidate>, CompilationUnitTypeError> {
         let interface = self.resolve_static_body_type_ref(source, interface)?;
+        if self.current_receiver.is_some_and(|ty| self.is_error(ty)) {
+            return Ok(Vec::new());
+        }
         let Some((declaration, arguments)) = self.nominal_type_parts(interface) else {
             return Ok(Vec::new());
         };

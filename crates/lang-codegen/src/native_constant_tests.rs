@@ -61,7 +61,7 @@ fn constant_types_run_in_every_supported_namespace() {
 
 #[test]
 fn constants_coexist_with_argument_entry_and_repeatable_objects() {
-    let analysis = analyze(
+    let analysis = UnitSource::analyze(
         "constant-argv.ko",
         r#"
 const val INDEX: Int = 0
@@ -71,41 +71,21 @@ fun main(args: Array<String>): Unit {
     val argument = println(args[INDEX])
 }
 "#,
-    );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
+    )
+    .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
     let directory = TestDirectory::create();
     let mut objects = Vec::new();
     for index in 0..2 {
         let object = directory.join(&format!("entry-{index}.o"));
-        emit_native_object(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-            NativeEntry::BorrowedArguments(symbol(&analysis, "main", SymbolKind::Function)),
-            &object,
-        )
-        .expect("constant declarations must coexist with borrowed argv");
+        analysis
+            .emit(
+                NativeUnitEntry::BorrowedArguments(
+                    analysis.declaration("main", SymbolKind::Function),
+                ),
+                &object,
+            )
+            .expect("constant declarations must coexist with borrowed argv");
         objects.push(fs::read(&object).unwrap());
         let executable = directory.join(&format!("entry-{index}"));
         let linked = Command::new(crate::test_support::clang())
@@ -128,57 +108,60 @@ fun main(args: Array<String>): Unit {
 
 #[test]
 fn constant_analysis_mismatch_and_invalid_values_never_write_objects() {
-    let first = analyze(
+    let first = UnitSource::analyze(
         "constant.ko",
         "const val VALUE = 1\nfun entry(): Unit { val result = VALUE }",
-    );
-    let second = analyze(
+    )
+    .expect("original source must pass strict Unit admission");
+    let second = UnitSource::analyze(
         "constant.ko",
         "const val VALUE = 2\nfun entry(): Unit { val result = VALUE }",
-    );
+    )
+    .expect("original source must pass strict Unit admission");
     let directory = TestDirectory::create();
-    for (typed, owned) in [
-        (&first.typed, &second.owned),
-        (&second.typed, &second.owned),
-    ] {
+    for (typed, owned) in [(&first, &second), (&second, &second)] {
         let output = directory.join("foreign.o");
-        let error = emit_native_object(
-            &first.sources,
-            &first.parsed,
-            &first.names,
-            typed,
-            owned,
-            symbol(&first, "entry", SymbolKind::Function),
-            &output,
-        )
-        .expect_err("same IDs cannot authorize values from another analysis");
+        let error = first
+            .emit_with_products_from(
+                typed,
+                owned,
+                first.declaration("entry", SymbolKind::Function),
+                &output,
+            )
+            .expect_err("same IDs cannot authorize values from another analysis");
         assert_eq!(error.kind(), NativeObjectErrorKind::MismatchedAnalysis);
         assert!(!output.exists());
     }
-    let invalid = analyze(
+    let output = directory.join("invalid.o");
+    fs::write(directory.join("keep"), b"unchanged sibling").unwrap();
+    let before = directory.snapshot();
+    let Err(invalid) = UnitSource::analyze(
         "overflow.ko",
         "const val VALUE: Byte = 128\nfun entry(): Unit {}",
+    ) else {
+        panic!("invalid constant facts must not acquire an owned Unit capability");
+    };
+    assert!(
+        invalid
+            .report
+            .diagnostics
+            .iter()
+            .any(|(stage, _)| *stage == "types")
     );
-    assert!(invalid.typed.constants().is_none());
-    assert!(invalid.owned.constant_materializations().is_none());
-    let output = directory.join("invalid.o");
-    let error = emit_native_object(
-        &invalid.sources,
-        &invalid.parsed,
-        &invalid.names,
-        &invalid.typed,
-        &invalid.owned,
-        symbol(&invalid, "entry", SymbolKind::Function),
-        &output,
-    )
-    .expect_err("invalid constant facts cannot reach object emission");
-    assert_eq!(error.kind(), NativeObjectErrorKind::FrontendDiagnostics);
+    assert!(
+        !invalid
+            .report
+            .stages
+            .iter()
+            .any(|(stage, _)| *stage == "ownership")
+    );
+    assert_eq!(directory.snapshot(), before);
     assert!(!output.exists());
 }
 
 #[test]
 fn string_constant_owners_drop_once_without_allocating_literal_buffers() {
-    let analysis = analyze(
+    let analysis = UnitSource::analyze(
         "constant-owners.ko",
         r#"
 const val TEXT = "中" + "文"
@@ -196,36 +179,12 @@ fun entry(): Unit {
     val fourth = view(dynamic)
 }
 "#,
-    );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
     )
-    .expect("constant owner source must verify");
+    .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("constant owner source must verify");
     let string = program.modules[0]
         .types
         .iter()

@@ -78,7 +78,7 @@ pub(super) fn observe_sources(
         .iter()
         .filter(|unit| {
             unit.source_id() == provider.source_id()
-                && unit.key().logical_path().as_str() == "p/provider.ko"
+                && unit.key().logical_path().expect("rooted source").as_str() == "p/provider.ko"
         })
         .collect();
     let consumer_units: Vec<_> = index
@@ -86,7 +86,7 @@ pub(super) fn observe_sources(
         .iter()
         .filter(|unit| {
             unit.source_id() == consumer.source_id()
-                && unit.key().logical_path().as_str() == "q/consumer.ko"
+                && unit.key().logical_path().expect("rooted source").as_str() == "q/consumer.ko"
         })
         .collect();
     let ([provider_unit], [consumer_unit]) = (provider_units.as_slice(), consumer_units.as_slice())
@@ -101,10 +101,12 @@ pub(super) fn observe_sources(
         index.source_units().len() == 2
             && provider_unit.id() != consumer_unit.id()
             && index.packages().iter().any(|package| {
-                package.id() == provider_unit.package() && package.name().segments() == ["p"]
+                package.id() == provider_unit.package()
+                    && package.name().expect("named package").segments() == ["p"]
             })
             && index.packages().iter().any(|package| {
-                package.id() == consumer_unit.package() && package.name().segments() == ["q"]
+                package.id() == consumer_unit.package()
+                    && package.name().expect("named package").segments() == ["q"]
             }),
         (index.source_units(), index.packages()),
     )?;

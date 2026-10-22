@@ -4,30 +4,37 @@ use std::{collections::BTreeMap, error::Error, fmt};
 
 use lang_frontend::{
     analysis::{
-        UnitNameAnalysisError, UnitNameSnapshot, UnitSourceDescriptor,
-        analyze_basic_unit_ownership, analyze_unit_names,
+        UnitNameAnalysisError, UnitSourceDescriptor, analyze_basic_unit_ownership,
+        analyze_unit_names,
     },
-    diagnostic::Diagnostic,
     lexer::LexerInternalError,
     name_resolution::{
         CompilationUnitInputError, CompilationUnitNameError, UnitDiagnosticOrderError,
-        ordered_unit_diagnostics,
     },
-    ownership_checking::{CompilationUnitOwnership, OwnershipCheckingError},
+    ownership_checking::OwnershipCheckingError,
     parser::ParserInternalError,
     source::{SourceError, SourceId, SourceMap},
     type_checking::{
-        CompilationUnitTypeError, CompilationUnitTypes, check_compilation_unit_types,
-        standard_environments,
+        CompilationUnitTypeError, check_compilation_unit_types, standard_environments,
     },
 };
 use lsp_types::{Location, Position, Uri};
 
 use crate::{
-    definition::{DefinitionIndexError, UnitDefinitionIndex},
+    definition::DefinitionIndexError,
     diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics},
     position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
+    unit_analysis_snapshot::{UnitAnalysisSnapshot, UnitAnalysisSnapshotError},
+};
+
+// The independent cfg(test) manual chain keeps its original direct producer imports.
+#[cfg(test)]
+use crate::definition::UnitDefinitionIndex;
+#[cfg(test)]
+use lang_frontend::{
+    diagnostic::Diagnostic, name_resolution::ordered_unit_diagnostics,
+    ownership_checking::CompilationUnitOwnership, type_checking::CompilationUnitTypes,
 };
 
 #[derive(Clone)]
@@ -185,14 +192,8 @@ impl UnitUpdate {
 }
 
 struct UnitSnapshot {
-    // Prefix, recovery products and definition facts are replaced together. All spans remain
-    // bound to the SourceMap owned by this single immutable name snapshot.
-    name_snapshot: UnitNameSnapshot,
+    analysis: UnitAnalysisSnapshot,
     source_ids: Vec<SourceId>,
-    diagnostics: Vec<Diagnostic>,
-    _typed: Option<CompilationUnitTypes>,
-    _owned: Option<CompilationUnitOwnership>,
-    definitions: UnitDefinitionIndex,
 }
 
 impl UnitSnapshot {
@@ -244,36 +245,10 @@ impl UnitSnapshot {
         } else {
             (None, None)
         };
-        Self::finish(name_snapshot, source_ids, typed, owned, diagnostics)
-    }
-
-    fn finish(
-        name_snapshot: UnitNameSnapshot,
-        source_ids: Vec<SourceId>,
-        typed: Option<CompilationUnitTypes>,
-        owned: Option<CompilationUnitOwnership>,
-        diagnostics: Vec<Diagnostic>,
-    ) -> Result<Self, UnitSessionError> {
-        let diagnostics = ordered_unit_diagnostics(
-            name_snapshot.sources(),
-            name_snapshot.names().index().source_units(),
-            &diagnostics,
-        )?
-        .into_iter()
-        .cloned()
-        .collect();
-        let definitions = UnitDefinitionIndex::build(
-            name_snapshot.parsed_files(),
-            name_snapshot.names(),
-            typed.as_ref(),
-        )?;
+        let analysis = UnitAnalysisSnapshot::finish(name_snapshot, typed, owned, diagnostics)?;
         Ok(Self {
-            name_snapshot,
+            analysis,
             source_ids,
-            diagnostics,
-            _typed: typed,
-            _owned: owned,
-            definitions,
         })
     }
 
@@ -288,8 +263,11 @@ impl UnitSnapshot {
             .copied()
             .zip(config.sources().iter().map(|source| source.uri().clone()))
             .collect::<Vec<_>>();
-        let diagnostics =
-            convert_unit_diagnostics(self.name_snapshot.sources(), &uris, &self.diagnostics)?;
+        let diagnostics = convert_unit_diagnostics(
+            self.analysis.name_snapshot().sources(),
+            &uris,
+            self.analysis.diagnostics(),
+        )?;
         Ok(config
             .sources()
             .iter()
@@ -320,7 +298,8 @@ impl UnitSnapshot {
         };
         let source_id = self.source_ids[source_index];
         let source_unit = self
-            .name_snapshot
+            .analysis
+            .name_snapshot()
             .names()
             .index()
             .source_units()
@@ -328,15 +307,19 @@ impl UnitSnapshot {
             .find(|source| source.source_id() == source_id)
             .ok_or(UnitDefinitionQueryError::UnknownSource(source_id))?
             .id();
-        let Some(offset) = byte_offset(self.name_snapshot.sources(), source_id, position)? else {
+        let Some(offset) =
+            byte_offset(self.analysis.name_snapshot().sources(), source_id, position)?
+        else {
             return Ok(Vec::new());
         };
-        self.definitions
+        self.analysis
+            .definitions()
             .targets_at(source_unit, offset)
             .iter()
             .map(|target| {
                 let target_source = self
-                    .name_snapshot
+                    .analysis
+                    .name_snapshot()
                     .names()
                     .index()
                     .source_units()
@@ -358,7 +341,7 @@ impl UnitSnapshot {
                     .ok_or(UnitDefinitionQueryError::UnknownSource(
                         target_source.source_id(),
                     ))?;
-                let range = span_range(self.name_snapshot.sources(), target.span)?;
+                let range = span_range(self.analysis.name_snapshot().sources(), target.span)?;
                 Ok(Location::new(
                     config.sources()[target_index].uri().clone(),
                     range,
@@ -412,6 +395,15 @@ impl fmt::Display for UnitSessionError {
 }
 
 impl Error for UnitSessionError {}
+
+impl From<UnitAnalysisSnapshotError> for UnitSessionError {
+    fn from(error: UnitAnalysisSnapshotError) -> Self {
+        match error {
+            UnitAnalysisSnapshotError::Diagnostic(error) => Self::Diagnostic(error),
+            UnitAnalysisSnapshotError::Definition(error) => Self::Definition(error),
+        }
+    }
+}
 
 impl From<UnitNameAnalysisError> for UnitSessionError {
     fn from(error: UnitNameAnalysisError) -> Self {

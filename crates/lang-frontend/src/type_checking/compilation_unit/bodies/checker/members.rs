@@ -28,6 +28,16 @@ impl BodyChecker<'_> {
         span: Span,
         symbols: &[UnitSymbolId],
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+        if !symbols.is_empty()
+            && symbols.iter().all(|symbol| {
+                self.parts
+                    .symbol_types
+                    .get(symbol)
+                    .is_some_and(|ty| self.is_error(*ty))
+            })
+        {
+            return Ok(self.error_type());
+        }
         let active = self.flow_facts.get(&super::FlowKey::This).and_then(|ty| {
             match self.signatures.types().get(*ty) {
                 Some(UnitTypeKind::EnumCase { case, root }) => Some((*case, *root)),
@@ -128,6 +138,13 @@ impl BodyChecker<'_> {
                 .map_err(TypeCheckingError::from)?;
             let span = node.span();
             match unwrapped_item(self.file(source), *item)?.clone() {
+                Item::Function { name, .. } if self.diagnosed_missing_name(source, name) => {
+                    self.check_function_without_identity(
+                        source,
+                        *item,
+                        receiver.map(|ty| (ty, nominal.kind())),
+                    )?;
+                }
                 Item::Function { name, form, .. } => {
                     let signature =
                         self.member_signature(source, name, nominal, receiver.is_none())?;
@@ -147,6 +164,21 @@ impl BodyChecker<'_> {
                     initializer,
                     ..
                 } => {
+                    if self.diagnosed_missing_name(source, name) {
+                        let previous = self.current_receiver;
+                        let previous_mode = self.current_receiver_mode;
+                        let previous_rejected = self.current_rejected_extension_receiver;
+                        self.current_receiver = receiver;
+                        self.current_receiver_mode = None;
+                        self.current_rejected_extension_receiver = false;
+                        let result =
+                            self.check_initializer_without_identity(source, type_ref, initializer);
+                        self.current_receiver = previous;
+                        self.current_receiver_mode = previous_mode;
+                        self.current_rejected_extension_receiver = previous_rejected;
+                        result?;
+                        continue;
+                    }
                     let NameMarker::Present(name_span) = name else {
                         return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
                     };
@@ -265,6 +297,9 @@ impl BodyChecker<'_> {
             });
         }
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
+        if self.is_error(receiver_result.ty) {
+            return Ok(receiver_result);
+        }
         if let Some(ty) = self.rc_member_type(
             source,
             expression,
@@ -584,7 +619,7 @@ mod deinit_context_tests {
             let signatures =
                 collect_compilation_unit_signatures(&sources, &inputs, &names, &types).unwrap();
             let mut checker =
-                BodyChecker::new(&sources, &inputs, &names, &types, signatures).unwrap();
+                BodyChecker::new(&sources, &inputs, names.names(), &types, signatures).unwrap();
             // Exercise the callable boundary independently of currently unsupported local classifiers.
             checker.loop_depth = 1;
             checker.callable_loop_bases.push(0);

@@ -7,9 +7,9 @@ use std::{
 
 use lang_codegen::NativeObjectErrorKind;
 
-use crate::bootstrap::{
-    BootstrapEntry, BootstrapError, BootstrapTarget, FrontendStage, bootstrap_and_run,
-};
+use crate::bootstrap::{BootstrapEntry, BootstrapError, BootstrapTarget, bootstrap_and_run};
+
+use crate::unit_build::{SingleEntryError, UnitBuildError};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -42,6 +42,7 @@ fn run_fixture(source_text: &str, entry: &str) -> (TestDirectory, Result<(), Boo
     let source = directory.join("fixture.ko");
     fs::write(&source, source_text).expect("fixture write");
     let result = bootstrap_and_run(BootstrapTarget {
+        source_root: None,
         source: &source,
         entry: BootstrapEntry::Explicit(entry),
         object: &directory.join("fixture.o"),
@@ -105,6 +106,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     let object = directory.join("prelude.o");
     let executable = directory.join("prelude");
     bootstrap_and_run(BootstrapTarget {
+        source_root: None,
         source: &prelude,
         entry: BootstrapEntry::Explicit("bootstrapSmoke"),
         object: &object,
@@ -118,6 +120,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     let hello_object = directory.join("prelude-hello.o");
     let hello_executable = directory.join("prelude-hello");
     bootstrap_and_run(BootstrapTarget {
+        source_root: None,
         source: &prelude,
         entry: BootstrapEntry::Explicit("bootstrapHello"),
         object: &hello_object,
@@ -134,6 +137,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     let pair_result_object = directory.join("prelude-pair-result.o");
     let pair_result_executable = directory.join("prelude-pair-result");
     bootstrap_and_run(BootstrapTarget {
+        source_root: None,
         source: &prelude,
         entry: BootstrapEntry::Explicit("bootstrapPairResult"),
         object: &pair_result_object,
@@ -146,6 +150,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     let abort_object = directory.join("prelude-abort.o");
     let abort_executable = directory.join("prelude-abort");
     let abort = bootstrap_and_run(BootstrapTarget {
+        source_root: None,
         source: &prelude,
         entry: BootstrapEntry::Explicit("bootstrapAbort"),
         object: &abort_object,
@@ -163,6 +168,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     );
     assert!(matches!(
         bootstrap_and_run(BootstrapTarget {
+        source_root: None,
             source: &prelude,
             entry: BootstrapEntry::Explicit("bootstrapSmoke"),
             object: &object,
@@ -194,6 +200,7 @@ fn standard_pair_and_result_are_move_only_when_an_argument_is_move_only() {
         let object = directory.join("invalid.o");
         let executable = directory.join("invalid");
         let result = bootstrap_and_run(BootstrapTarget {
+            source_root: None,
             source: &source,
             entry: BootstrapEntry::Explicit(if index == 0 {
                 "invalidPair"
@@ -203,17 +210,13 @@ fn standard_pair_and_result_are_move_only_when_an_argument_is_move_only() {
             object: &object,
             executable: &executable,
         });
-        assert!(
-            matches!(
-                result,
-                Err(BootstrapError::FrontendDiagnostics {
-                    stage: FrontendStage::OwnershipChecking,
-                    diagnostics,
-                    ..
-                }) if diagnostics.len() == 1 && diagnostics[0].code().to_string() == "L0131"
-            ),
-            "derived standard ownership case {index} must fail with one L0131"
+        let diagnostics = frontend_diagnostics(&result);
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "derived standard ownership case {index}"
         );
+        assert_eq!(diagnostics[0]["code"], "L0131");
         assert!(!object.exists());
         assert!(!executable.exists());
     }
@@ -223,21 +226,16 @@ fn standard_pair_and_result_are_move_only_when_an_argument_is_move_only() {
 fn source_diagnostics_and_entry_selection_fail_before_link_or_run() {
     let (diagnostic_directory, diagnostic) =
         run_fixture("fun broken(): Unit { missing }", "broken");
-    assert!(matches!(
-        diagnostic,
-        Err(BootstrapError::FrontendDiagnostics {
-            stage: FrontendStage::NameResolution,
-            diagnostics,
-            ..
-        }) if !diagnostics.is_empty()
-    ));
+    let diagnostics = frontend_diagnostics(&diagnostic);
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0]["code"], "L0080");
     assert!(!diagnostic_directory.join("fixture.o").exists());
     assert!(!diagnostic_directory.join("fixture").exists());
 
     let (missing_directory, missing) = run_fixture("fun other(): Unit {}", "entry");
     assert!(matches!(
         missing,
-        Err(BootstrapError::MissingEntry(name)) if name == "entry"
+        Err(BootstrapError::Unit(UnitBuildError::SingleEntry(SingleEntryError::Missing(name)))) if name == "entry"
     ));
     assert!(!missing_directory.join("fixture.o").exists());
 
@@ -248,7 +246,7 @@ fn source_diagnostics_and_entry_selection_fail_before_link_or_run() {
     assert!(
         matches!(
             &ambiguous,
-            Err(BootstrapError::AmbiguousEntry { name, count: 2 }) if name == "entry"
+            Err(BootstrapError::Unit(UnitBuildError::SingleEntry(SingleEntryError::Ambiguous { name, count: 2 }))) if name == "entry"
         ),
         "{ambiguous:?}"
     );
@@ -258,7 +256,7 @@ fn source_diagnostics_and_entry_selection_fail_before_link_or_run() {
     assert!(
         matches!(
             &signature,
-            Err(BootstrapError::Codegen(error))
+            Err(BootstrapError::Unit(UnitBuildError::Codegen(error)))
                 if error.kind() == NativeObjectErrorKind::InvalidEntry
         ),
         "{signature:?}"
@@ -272,6 +270,7 @@ fn path_link_and_process_failures_are_distinct() {
     let missing = directory.join("missing.ko");
     assert!(matches!(
         bootstrap_and_run(BootstrapTarget {
+        source_root: None,
             source: &missing,
             entry: BootstrapEntry::Explicit("entry"),
             object: &directory.join("missing.o"),
@@ -286,6 +285,7 @@ fn path_link_and_process_failures_are_distinct() {
     let missing_parent = directory.join("missing-parent").join("executable");
     assert!(matches!(
         bootstrap_and_run(BootstrapTarget {
+            source_root: None,
             source: &source,
             entry: BootstrapEntry::Explicit("entry"),
             object: &object,
@@ -306,4 +306,38 @@ fn path_link_and_process_failures_are_distinct() {
     );
     assert!(abort_directory.join("fixture.o").is_file());
     assert!(abort_directory.join("fixture").is_file());
+}
+
+fn frontend_diagnostics(result: &Result<(), BootstrapError>) -> Vec<serde_json::Value> {
+    let Err(BootstrapError::Unit(UnitBuildError::FrontendDiagnostics { human, json })) = result
+    else {
+        panic!("expected structured frontend diagnostics: {result:?}");
+    };
+    assert!(!human.is_empty());
+    let diagnostics = json
+        .lines()
+        .map(|line| {
+            let record: serde_json::Value =
+                serde_json::from_str(line).expect("complete diagnostic record");
+            assert_eq!(record["schema"], "koven.diagnostic");
+            assert_eq!(record["version"], 1);
+            assert_eq!(record["severity"], "error");
+            assert!(record["code"].is_string());
+            assert!(
+                record["message"]
+                    .as_str()
+                    .is_some_and(|message| !message.is_empty())
+            );
+            assert!(record["details"].is_array());
+            let primary = &record["primary"];
+            assert!(primary["source"].is_string());
+            assert!(primary["byte_start"].is_u64() && primary["byte_end"].is_u64());
+            for point in ["start", "end"] {
+                assert!(primary[point]["line"].is_u64() && primary[point]["column"].is_u64());
+            }
+            record
+        })
+        .collect::<Vec<_>>();
+    assert!(!diagnostics.is_empty());
+    diagnostics
 }

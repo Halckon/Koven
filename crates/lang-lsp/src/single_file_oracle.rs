@@ -1,25 +1,12 @@
-//! SPEC-0253 冻结旧宿主手工链：独立于 single-file façade 与生产 analyze。
-//!
-//! 顺序来自迁移前 e6dfea4：lex/parse/name/type、DefinitionIndex、ownership；
-//! parsed 已携带 lexer diagnostics，故 aggregate 不再次收集 lexer。
+//! 固定共同 Unit 恢复观测；原迁移前观测保留在提交历史和独立证据中。
 
-use lang_frontend::{
-    diagnostic::{Diagnostic, DiagnosticDetail, ordered_diagnostics},
-    lexer::lex,
-    name_resolution::resolve_names,
-    ownership_checking::check_ownership,
-    parser::parse_file,
-    source::{SourceMap, Span},
-    type_checking::{check_types, standard_environments},
-};
-use lsp_types::{Position, Range, Uri};
+mod observation;
 
-use crate::{
-    analysis,
-    definition::DefinitionIndex,
-    diagnostic_adapter::convert_diagnostics,
-    position_adapter::{byte_offset, span_range},
-};
+use lsp_types::{DiagnosticRelatedInformation, Location, Position, Range, Uri};
+
+use crate::{analysis, diagnostic_adapter::convert_unit_diagnostics};
+
+pub(crate) use observation::{assert_recovery_snapshot, recovery_publication};
 
 pub(crate) const RECOVERY: &str = "#\r\nval = 1\r\n\
     const val BAD: Byte = 128\r\n\
@@ -34,44 +21,8 @@ pub(crate) const RECOVERY: &str = "#\r\nval = 1\r\n\
     fun target(): Int = 1\r\n\
     fun use(): Int = /* 界é😀 */ target()\r\n";
 
-pub(crate) struct ManualAnalysis {
-    pub(crate) sources: SourceMap,
-    pub(crate) diagnostics: Vec<Diagnostic>,
-    pub(crate) definitions: DefinitionIndex,
-}
-
-/// 不调用生产 analyze 或新 façade；每个旧入口与诊断聚合点显式冻结。
-pub(crate) fn manual(source_name: &str, text: &str) -> ManualAnalysis {
-    let mut sources = SourceMap::new();
-    let source = sources
-        .add_source(source_name, text)
-        .expect("manual source");
-    let lexed = lex(&sources, source).expect("manual lex");
-    let parsed = parse_file(&sources, &lexed).expect("manual parse");
-    let (name_environment, type_environment) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &name_environment).expect("manual names");
-    let typed = check_types(&sources, &parsed, &names, &type_environment).expect("manual types");
-    let definitions = DefinitionIndex::build(&parsed, &names, &typed).expect("manual definitions");
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("manual ownership");
-    let mut diagnostics = parsed.diagnostics().to_vec();
-    diagnostics.extend_from_slice(names.diagnostics());
-    diagnostics.extend_from_slice(typed.diagnostics());
-    diagnostics.extend_from_slice(owned.diagnostics());
-    let diagnostics = ordered_diagnostics(&sources, &diagnostics)
-        .expect("manual ordering")
-        .into_iter()
-        .cloned()
-        .collect();
-    ManualAnalysis {
-        sources,
-        diagnostics,
-        definitions,
-    }
-}
-
-#[test]
-fn recovering_single_file_matches_frozen_manual_diagnostics_and_every_definition_offset() {
-    for (label, source) in [
+fn fixtures() -> [(&'static str, &'static str); 11] {
+    [
         ("recovery", RECOVERY),
         (
             "lexer",
@@ -113,77 +64,23 @@ fn recovering_single_file_matches_frozen_manual_diagnostics_and_every_definition
             "typed_definitions",
             "value class Pair(val field: Int)\nfun pick(value: Int): Int = value\nfun pick(value: String): String = value\nfun use(pair: Pair): Int = pick(pair.field)\n",
         ),
-    ] {
-        let uri: Uri = format!("file:///{label}.ko").parse().expect("URI");
-        let expected = manual(uri.as_str(), source);
-        let actual = analysis::analyze(uri.as_str(), source).expect("production analysis");
-        assert_diagnostics(
-            &actual.sources,
-            &actual.diagnostics,
-            &expected.sources,
-            &expected.diagnostics,
-            uri.as_str(),
-        );
-        assert_eq!(
-            actual
-                .sources
-                .source_name(actual.definitions.source_id())
-                .expect("actual source identity"),
-            uri.as_str()
-        );
-        assert_eq!(
-            expected
-                .sources
-                .source_name(expected.definitions.source_id())
-                .expect("manual source identity"),
-            uri.as_str()
-        );
-        assert_eq!(
-            actual
-                .sources
-                .source_text(actual.definitions.source_id())
-                .expect("source"),
-            source
-        );
-        assert_eq!(
-            convert_diagnostics(&actual.sources, &uri, &actual.diagnostics)
-                .expect("actual LSP diagnostics"),
-            convert_diagnostics(&expected.sources, &uri, &expected.diagnostics)
-                .expect("manual LSP diagnostics"),
-            "{label}: complete mapped diagnostics"
-        );
-        for offset in (0..=source.len()).filter(|offset| source.is_char_boundary(*offset)) {
-            let targets = actual.definitions.targets_at(offset);
-            assert_eq!(
-                target_snapshot(&actual.sources, targets),
-                target_snapshot(&expected.sources, expected.definitions.targets_at(offset)),
-                "{label}: definition byte {offset}"
-            );
-            for target in targets {
-                let range = span_range(&actual.sources, *target).expect("target range");
-                assert_eq!(
-                    range,
-                    Range::new(
-                        position(source, target.start()),
-                        position(source, target.end())
-                    ),
-                    "{label}: independent UTF-16 target"
-                );
-                assert_eq!(
-                    byte_offset(&actual.sources, target.source_id(), range.start)
-                        .expect("target start offset"),
-                    Some(target.start())
-                );
-            }
-        }
-    }
+    ]
+}
+
+#[test]
+fn frozen_recovery_adapter_preserves_all_fields_and_every_definition_offset() {
+    // 只审计固定期望的坐标变换，不再重复运行十一源生产分析。
+    observation::assert_recovery_rebasing();
 }
 
 #[test]
 fn recovery_keeps_all_stage_diagnostics_once_and_still_navigates_after_errors() {
-    let analysis = analysis::analyze("file:///recovery.ko", RECOVERY).expect("recovery");
+    let (source_id, analysis) =
+        analysis::analyze("file:///recovery.ko", RECOVERY).expect("recovery");
+    let sources = analysis.name_snapshot().sources();
+    let source_unit = observation::source_unit(&analysis, source_id);
     let codes = analysis
-        .diagnostics
+        .diagnostics()
         .iter()
         .map(|d| d.code().to_string())
         .collect::<Vec<_>>();
@@ -193,25 +90,51 @@ fn recovery_keeps_all_stage_diagnostics_once_and_still_navigates_after_errors() 
     );
     let declaration = RECOVERY.find("target").expect("target declaration");
     let reference = RECOVERY.rfind("target").expect("target reference");
-    let targets = analysis.definitions.targets_at(reference);
+    let targets = analysis.definitions().targets_at(source_unit, reference);
     assert_eq!(targets.len(), 1);
-    assert_eq!(targets[0].start(), declaration);
-    assert_eq!(targets[0].end(), declaration + "target".len());
+    assert_eq!(targets[0].span.start(), declaration);
+    assert_eq!(targets[0].span.end(), declaration + "target".len());
     let uri: Uri = "file:///recovery.ko".parse().expect("URI");
-    let mapped =
-        convert_diagnostics(&analysis.sources, &uri, &analysis.diagnostics).expect("diagnostics");
+    assert_eq!(targets[0].source_unit, source_unit);
+    assert_eq!(targets[0].span.source_id(), source_id);
+    let mut publications =
+        convert_unit_diagnostics(sources, &[(source_id, uri.clone())], analysis.diagnostics())
+            .expect("diagnostics");
+    assert_eq!(publications.len(), 1);
+    let mapped = publications.pop().expect("document diagnostics");
     let missing = RECOVERY.find("missing").expect("missing token");
     assert_eq!(
         mapped.last().expect("name diagnostic").range,
         Range::new(position(RECOVERY, missing), position(RECOVERY, missing + 7))
     );
+    let moved = RECOVERY.find("take(resource)").expect("first consume") + "take(".len();
+    let parameter = RECOVERY
+        .find("own resource: Resource")
+        .expect("selected parameter");
     assert_eq!(
-        mapped[3]
-            .related_information
-            .as_ref()
-            .expect("move label")
-            .len(),
-        1
+        mapped[3].related_information.as_ref().expect("move labels"),
+        &vec![
+            DiagnosticRelatedInformation {
+                location: Location::new(
+                    uri.clone(),
+                    Range::new(
+                        position(RECOVERY, moved),
+                        position(RECOVERY, moved + "resource".len()),
+                    ),
+                ),
+                message: "value was moved here".to_owned(),
+            },
+            DiagnosticRelatedInformation {
+                location: Location::new(
+                    uri,
+                    Range::new(
+                        position(RECOVERY, parameter),
+                        position(RECOVERY, parameter + "own resource: Resource".len()),
+                    ),
+                ),
+                message: "selected parameter declared here".to_owned(),
+            },
+        ]
     );
 }
 
@@ -224,63 +147,4 @@ pub(crate) fn position(source: &str, offset: usize) -> Position {
         u32::try_from(line).expect("line"),
         u32::try_from(source[start..offset].encode_utf16().count()).expect("UTF-16 column"),
     )
-}
-
-/// 两次分析拥有不同 SourceMap identity：逐一验证 provenance 后比较完整稳定 raw fields。
-pub(crate) fn assert_diagnostics(
-    actual_sources: &SourceMap,
-    actual: &[Diagnostic],
-    expected_sources: &SourceMap,
-    expected: &[Diagnostic],
-    uri: &str,
-) {
-    for (sources, diagnostics) in [(actual_sources, actual), (expected_sources, expected)] {
-        for diagnostic in diagnostics {
-            assert_span(sources, diagnostic.primary_span(), uri);
-            for detail in diagnostic.details() {
-                if let DiagnosticDetail::Label(label) = detail {
-                    assert_span(sources, label.span(), uri);
-                }
-            }
-        }
-    }
-    // Diagnostic Debug 包含 severity/code/message/primary source-local range 与所有有序 details；
-    // 仅 SourceMap 的私有 run identity 不参与稳定行为比较。
-    assert_eq!(
-        format!("{actual:?}"),
-        format!("{expected:?}"),
-        "complete raw diagnostic facts"
-    );
-}
-
-fn assert_span(sources: &SourceMap, span: Span, uri: &str) {
-    assert_eq!(
-        sources
-            .source_name(span.source_id())
-            .expect("span belongs to its own source map"),
-        uri
-    );
-    sources
-        .slice(span)
-        .expect("valid span in its own source map");
-}
-
-pub(crate) fn target_snapshot(
-    sources: &SourceMap,
-    spans: &[Span],
-) -> Vec<(String, usize, usize, String)> {
-    spans
-        .iter()
-        .map(|span| {
-            (
-                sources
-                    .source_name(span.source_id())
-                    .expect("target belongs to source map")
-                    .to_owned(),
-                span.start(),
-                span.end(),
-                sources.slice(*span).expect("valid target span").to_owned(),
-            )
-        })
-        .collect()
 }

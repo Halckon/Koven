@@ -1,8 +1,5 @@
 mod callable;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::{ItemId, TypeRefId},
@@ -10,7 +7,7 @@ use crate::{
     name_resolution::{
         DeclarationId, DeclarationVisibility, Namespace, SourceUnitId, SourceUnitInput, SymbolId,
         SymbolKind, UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
-        index_compilation_unit, ordered_unit_diagnostics,
+        ordered_unit_diagnostics,
     },
     parser::{
         ClassifierBody, ClassifierDeclaration, ClassifierKind, DeclarationModifiers, FunctionForm,
@@ -37,6 +34,10 @@ use super::{
 mod constants;
 mod graph;
 mod range_carrier;
+mod recovery;
+
+pub(crate) use recovery::collect_compilation_unit_signatures_recovering;
+pub(super) use recovery::diagnosed_missing_name;
 
 /// 收集 canonical compilation unit 的全部顶层、nominal 与 callable signatures。
 ///
@@ -48,34 +49,7 @@ pub fn collect_compilation_unit_signatures(
     names: &ValidatedCompilationUnitNames,
     environment: &TypeEnvironment,
 ) -> Result<CompilationUnitSignatures, CompilationUnitTypeError> {
-    let unit_names = names.names();
-    let rebuilt = index_compilation_unit(sources, inputs)
-        .map_err(|_| CompilationUnitTypeError::MismatchedInputs)?;
-    if &rebuilt != unit_names.index() {
-        return Err(CompilationUnitTypeError::MismatchedInputs);
-    }
-    let parsed = unit_names
-        .index()
-        .source_units()
-        .iter()
-        .map(|source| {
-            inputs
-                .iter()
-                .find(|input| input.source_id() == source.source_id())
-                .map(|input| input.parsed())
-                .ok_or(CompilationUnitTypeError::MismatchedInputs)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if unit_names.source_units().len() != parsed.len()
-        || unit_names.source_units().iter().any(|source| {
-            source.resolution().source_id()
-                != unit_names.index().source_units()[source.source_unit().index()].source_id()
-                || !Arc::ptr_eq(source.resolution().environment_owner(), environment.owner())
-        })
-    {
-        return Err(CompilationUnitTypeError::MismatchedNameEnvironment);
-    }
-    SignatureCollector::new(sources, parsed, unit_names, environment)?.run()
+    collect_compilation_unit_signatures_recovering(sources, inputs, names.names(), environment)
 }
 
 struct SignatureCollector<'a> {
@@ -184,8 +158,12 @@ impl<'a> SignatureCollector<'a> {
             .iter()
             .map(|source| source.resolution().analysis_owner().clone())
             .collect();
-        let provenance =
-            SignatureProvenance::new(input_index, environment_owner, name_analysis_owners);
+        let provenance = SignatureProvenance::new(
+            input_index,
+            environment_owner,
+            name_analysis_owners,
+            self.names.is_valid(),
+        );
         Ok(CompilationUnitSignatures::new(
             provenance,
             self.types,
@@ -447,6 +425,8 @@ impl<'a> SignatureCollector<'a> {
     ) -> Result<(), CompilationUnitTypeError> {
         for item in &body.members {
             match unwrapped_item(self.inputs[source.index()].ast(), *item)? {
+                Item::Function { name, .. }
+                    if diagnosed_missing_name(self.inputs[source.index()], *name) => {}
                 Item::Function { .. } => members.push(
                     self.callable_signature(
                         source,
@@ -460,10 +440,12 @@ impl<'a> SignatureCollector<'a> {
                 ),
                 Item::Companion(companion) => {
                     for companion_item in &companion.body.members {
-                        if !matches!(
-                            unwrapped_item(self.inputs[source.index()].ast(), *companion_item)?,
-                            Item::Function { .. }
-                        ) {
+                        let Item::Function { name, .. } =
+                            unwrapped_item(self.inputs[source.index()].ast(), *companion_item)?
+                        else {
+                            continue;
+                        };
+                        if diagnosed_missing_name(self.inputs[source.index()], *name) {
                             continue;
                         }
                         companion_members.push(

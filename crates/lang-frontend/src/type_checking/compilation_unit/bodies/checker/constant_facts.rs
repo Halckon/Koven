@@ -5,7 +5,8 @@ use crate::type_checking::{
 };
 impl BodyChecker<'_> {
     pub(super) fn build_constant_facts(&self) -> Option<UnitConstantFacts> {
-        if !self.diagnostics.is_empty()
+        if !self.names.is_valid()
+            || !self.diagnostics.is_empty()
             || !self.signatures.diagnostics().is_empty()
             || self.parts.constant_declaration_count != self.constant_inputs.len()
             || self.constant_inputs.len() != self.constant_values.len()

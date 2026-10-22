@@ -2,7 +2,7 @@ use crate::{parser::AssignmentOperator, type_checking::UnitTypeId};
 
 use super::UnitExpressionId;
 
-/// compilation unit 中一个已完成类型验证的普通替换赋值。
+/// compilation unit 中已完成类型验证的普通替换或整数根变量 statement compound。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnitAssignmentDescriptor {
     expression: UnitExpressionId,
@@ -50,7 +50,7 @@ impl UnitAssignmentDescriptor {
         self.value
     }
 
-    /// 返回源码赋值运算符；本 Spec 只发布普通 `=`。
+    /// 返回源码运算符；compound 仅发布已检查的整数根变量 statement 形式。
     #[must_use]
     pub const fn operator(self) -> AssignmentOperator {
         self.operator

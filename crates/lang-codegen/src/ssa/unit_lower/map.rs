@@ -551,16 +551,26 @@ impl UnitExpressionLowerer<'_> {
         }
         match node.payload() {
             Expression::Name => {
-                let symbol = self
-                    .references
-                    .get(&span_key(node.span()))
-                    .copied()
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                if let Some(LoweredValue::Value(v)) = self.bindings.get(&symbol).copied() {
-                    return Ok(Some((EntityId::Value(v), Some(symbol))));
-                }
-                if let Some(&loan) = self.borrow_bindings.get(&symbol) {
-                    return Ok(Some((EntityId::Loan(loan), Some(symbol))));
+                // A real constant materialization has no local storage symbol.
+                // Keep the original outer expression for its use and cleanup identity.
+                if self
+                    .constant_materialization_origin(
+                        UnitExpressionId::new(self.source_unit, expression),
+                        span,
+                    )?
+                    .is_none()
+                {
+                    let symbol = self
+                        .references
+                        .get(&span_key(node.span()))
+                        .copied()
+                        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                    if let Some(LoweredValue::Value(v)) = self.bindings.get(&symbol).copied() {
+                        return Ok(Some((EntityId::Value(v), Some(symbol))));
+                    }
+                    if let Some(&loan) = self.borrow_bindings.get(&symbol) {
+                        return Ok(Some((EntityId::Loan(loan), Some(symbol))));
+                    }
                 }
                 let lowered = self.lower(expression)?;
                 match lowered {

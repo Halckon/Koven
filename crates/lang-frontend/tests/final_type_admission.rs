@@ -382,3 +382,6 @@ mod simple_assignment;
 
 #[path = "final_type_admission/failed_overload_trials.rs"]
 mod failed_overload_trials;
+
+#[path = "final_type_admission/unit_statement_map_write.rs"]
+mod unit_statement_map_write;

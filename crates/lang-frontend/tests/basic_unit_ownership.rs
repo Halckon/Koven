@@ -227,7 +227,7 @@ fn basic_provenance_rejections_keep_the_original_checker_error() {
     let changed = [
         SourceUnitInput::new(
             "different-root",
-            inputs[0].logical_path(),
+            inputs[0].logical_path().expect("rooted source"),
             inputs[0].source_id(),
             inputs[0].parsed(),
         ),

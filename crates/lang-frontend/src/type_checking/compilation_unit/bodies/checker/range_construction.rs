@@ -9,13 +9,6 @@ use crate::type_checking::{
 };
 
 impl BodyChecker<'_> {
-    pub(super) fn clear_range_facts(&mut self) {
-        self.parts.range_sizes.clear();
-        for call in &mut self.parts.calls {
-            call.range_construction = None;
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_range_construction_call(
         &mut self,

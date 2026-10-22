@@ -99,7 +99,7 @@ impl UnitResolver<'_> {
         Ok(())
     }
 
-    /// Local classifier roots already have lexical identity; only complete their constant tail.
+    /// Complete local constant paths with their proven declaration qualifier and constant tail.
     fn resolve_local_constant_path(
         &mut self,
         source: SourceUnitId,
@@ -156,6 +156,16 @@ impl UnitResolver<'_> {
             && self.local[target.source_unit().index()].symbols()[target.symbol().index()].kind()
                 == crate::name_resolution::SymbolKind::Constant
         {
+            // A selected object constant uses its declaration namespace, not a runtime receiver.
+            // Keep the lexical value role; publish the already-proven type identity only here.
+            if symbol.kind() == crate::name_resolution::SymbolKind::ObjectValue {
+                self.references.push(UnitNameReference::new(
+                    source,
+                    spans[0],
+                    Some(Namespace::Type),
+                    UnitReferenceTarget::Declaration(declaration.id()),
+                ));
+            }
             self.references.push(UnitNameReference::new(
                 source,
                 spans[1],

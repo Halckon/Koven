@@ -1,12 +1,15 @@
-//! Bounded nullable entries: While retests and direct Map-size or consume-first Ifs.
+//! Bounded nullable entries: root Borrow, While retests and direct Map Ifs.
 #[cfg(test)]
 mod guard_tests;
+mod heap;
+mod rc;
 
 use super::super::unwrap_modified;
 use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key};
 use super::*;
 use crate::ssa::model::{LoanId, SsaTypeKind};
 use lang_frontend::{
+    ownership_checking::{LoanKind as FrontendLoanKind, UnitLoanTarget},
     parser::{BinaryOperator, FunctionBody, FunctionForm, Item},
     type_checking::{IntrinsicTypeConstructor, UnitCallableTarget, UnitTypeKind},
 };
@@ -22,7 +25,7 @@ pub(super) struct NullableIfEntry {
 }
 
 impl UnitExpressionLowerer<'_> {
-    /// Existing standalone ifs and existing live while views keep their old path.
+    /// Reuse the proof entry only for While retests or a required root Borrow.
     pub(super) fn prepare_nullable_if_entry(
         &self,
         control: UnitExpressionId,
@@ -33,47 +36,69 @@ impl UnitExpressionLowerer<'_> {
         if result_required || !self.nullable_proofs.is_empty() {
             return Ok(None);
         }
+        if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
+            return Ok(Some(entry));
+        }
+        if let Some(entry) = self.prepare_heap_field_nullable_if_entry(control, condition, span)? {
+            return Ok(Some(entry));
+        }
+        if let Some(entry) = self.prepare_heap_nullable_if_entry(control, condition, span)? {
+            return Ok(Some(entry));
+        }
         let node = self
             .parsed
             .ast()
             .expressions()
             .get(control.expression())
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if !matches!(node.payload(), Expression::If { condition: source, else_branch: None, .. }
-            if *source == condition)
-        {
-            return Ok(None);
-        }
-        let Some(while_scope) = self.current_while_proof_scope() else {
-            return Ok(None);
-        };
-        if control.source_unit() != self.source_unit
-            || while_scope.source_unit() != self.source_unit
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let while_node = self
-            .parsed
-            .ast()
-            .statements()
-            .get(while_scope.statement())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Statement::While {
-            condition: while_condition,
+        let Expression::If {
+            condition: source,
+            then_branch,
+            else_branch: None,
             ..
-        } = while_node.payload()
+        } = node.payload()
         else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            return Ok(None);
         };
-        let Some((outer, _)) = self.direct_nullable_while_condition(*while_condition, span)? else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        if *source != condition {
+            return Ok(None);
+        }
+        let outer = if let Some(while_scope) = self.current_while_proof_scope() {
+            if control.source_unit() != self.source_unit
+                || while_scope.source_unit() != self.source_unit
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            let while_node = self
+                .parsed
+                .ast()
+                .statements()
+                .get(while_scope.statement())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let Statement::While {
+                condition: while_condition,
+                ..
+            } = while_node.payload()
+            else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            let Some((outer, _)) = self.direct_nullable_while_condition(*while_condition, span)?
+            else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            Some(outer.symbol())
+        } else {
+            if !self.standalone_if_needs_root_borrow(control, condition, *then_branch) {
+                return Ok(None);
+            }
+            None
         };
         let Some((descriptor, mut operand)) =
             self.direct_nullable_while_condition(condition, span)?
         else {
             return Ok(None);
         };
-        if descriptor.symbol() != outer.symbol() {
+        if outer.is_some_and(|root| descriptor.symbol() != root) {
             return Ok(None);
         }
         // Even the empty source-call-frame exception belongs only to While.
@@ -136,6 +161,93 @@ impl UnitExpressionLowerer<'_> {
             non_null_when_true: true,
             consume: None,
         }))
+    }
+
+    /// Storage and published current-callable facts select this capability.
+    /// Missing eligibility leaves the ordinary If/Map path unchanged.
+    fn standalone_if_needs_root_borrow(
+        &self,
+        control: UnitExpressionId,
+        mut condition: ExpressionId,
+        then_branch: StatementId,
+    ) -> bool {
+        if self.thunk_expression.is_some() || control.source_unit() != self.source_unit {
+            return false;
+        }
+        let Some(key) = self.source_plan.source(self.source_token) else {
+            return false;
+        };
+        if self.function_ids.get(key) != Some(&self.function.id()) {
+            return false;
+        }
+        loop {
+            let Ok(node) = self.parsed.ast().expressions().get(condition) else {
+                return false;
+            };
+            match node.payload() {
+                Expression::Group { expression } => condition = *expression,
+                _ => break,
+            }
+        }
+        let id = UnitExpressionId::new(self.source_unit, condition);
+        let Some(descriptor) = self.typed.null_comparison(id) else {
+            return false;
+        };
+        let root = descriptor.symbol();
+        let Some(LoweredValue::Value(owner)) = self.bindings.get(&root) else {
+            return false;
+        };
+        let Some(EntityType::Value(storage)) = self
+            .function
+            .entity(EntityId::Value(*owner))
+            .map(|data| data.ty)
+        else {
+            return false;
+        };
+        let Some(SsaTypeKind::NullableHandle { inner }) = self.ssa_types.get(storage.index())
+        else {
+            return false;
+        };
+        if !descriptor.non_null_when_true()
+            || !matches!(
+                self.ssa_types.get(inner.index()),
+                Some(SsaTypeKind::HeapOwner { .. })
+            )
+            || super::super::map_borrow::owned_remove_origin(self.function, *owner)
+        {
+            return false;
+        }
+        let Ok(body) = self.parsed.ast().statements().get(then_branch) else {
+            return false;
+        };
+        self.owned.loans().iter().any(|fact| {
+            fact.kind() == FrontendLoanKind::Shared
+                && fact.call().source_unit() == self.source_unit
+                && fact.argument().source_unit() == self.source_unit
+                && matches!(fact.target(), UnitLoanTarget::Place(path)
+                    if path.is_root() && path.root() == root)
+                && self
+                    .typed
+                    .non_null_use(fact.argument())
+                    .is_some_and(|use_fact| use_fact.symbol() == root)
+                && self
+                    .source_plan
+                    .call_site(self.source_token, fact.call())
+                    .is_some()
+                && self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(fact.call().expression())
+                    .is_ok_and(|call| {
+                        super::super::map_iteration::contains(body.span(), call.span())
+                            && super::super::map_iteration::enclosing_lambda(
+                                self.parsed,
+                                call.span(),
+                            )
+                            .is_none()
+                    })
+        })
     }
 
     /// This Map-only ordinary If entry is separate from the existing While retest.

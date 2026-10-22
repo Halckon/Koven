@@ -448,10 +448,16 @@ fn parameter_source(fe: &Fe<'_>, source: &SourceInput) -> Outcome<Source> {
         gate(
             "unit C3 caller owns and transfers its distinct source once",
             caller_unit.source_id() == caller_file.source_id()
-                && caller_unit.key().logical_path().as_str() == "q/consumer.ko"
+                && caller_unit
+                    .key()
+                    .logical_path()
+                    .expect("rooted source")
+                    .as_str()
+                    == "q/consumer.ko"
                 && caller_unit.package() == caller_declaration.package()
                 && names.names().index().packages().iter().any(|package| {
-                    package.id() == caller_unit.package() && package.name().segments() == ["q"]
+                    package.id() == caller_unit.package()
+                        && package.name().expect("named package").segments() == ["q"]
                 })
                 && caller != callable_span
                 && contains(caller, declaration_span)
@@ -535,10 +541,11 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn facts(
     gate(
         "unit consume belongs to actual p/provider source and package",
         unit.source_id() == parsed.source_id()
-            && unit.key().logical_path().as_str() == "p/provider.ko"
+            && unit.key().logical_path().expect("rooted source").as_str() == "p/provider.ko"
             && descriptor.receiver().source_unit() == source
             && names.names().index().packages().iter().any(|package| {
-                package.id() == unit.package() && package.name().segments() == ["p"]
+                package.id() == unit.package()
+                    && package.name().expect("named package").segments() == ["p"]
             }),
         unit,
     )?;

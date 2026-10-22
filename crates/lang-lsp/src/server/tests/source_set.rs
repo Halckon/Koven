@@ -343,7 +343,8 @@ fn source_set_internal_analysis_failure_preserves_last_good_snapshot() {
             content_changes: vec![TextDocumentContentChangeEvent {
                 range: None,
                 range_length: None,
-                text: "package app\nfun broken(): Unit { this }".to_owned(),
+                // 普通 builtin 函数值尚不能保留 stdout effect；真实 Unit capability 边界。
+                text: "package app\nfun broken(): Unit { val emit = println }".to_owned(),
             }],
         })
         .expect("internally unsupported change"),

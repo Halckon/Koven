@@ -1,16 +1,12 @@
 //! Explicit CFG slots for the loans retained by a descriptor binding.
 use super::*;
+use crate::ssa::carry::ResultSourceLoan;
 
 pub(super) fn keys(sources: &BTreeMap<UnitSymbolId, Vec<LoanId>>) -> Vec<(UnitSymbolId, usize)> {
     sources
         .iter()
         .flat_map(|(symbol, loans)| (0..loans.len()).map(|index| (*symbol, index)))
         .collect()
-}
-pub(super) fn arguments(
-    sources: &BTreeMap<UnitSymbolId, Vec<LoanId>>,
-) -> impl Iterator<Item = EntityId> + '_ {
-    sources.values().flatten().copied().map(EntityId::Loan)
 }
 pub(super) fn rebind(
     sources: &BTreeMap<UnitSymbolId, Vec<LoanId>>,
@@ -37,30 +33,12 @@ impl UnitExpressionLowerer<'_> {
         carried: &mut Vec<CarriedAccess>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        for (symbol, index) in keys(&self.result_source_loans) {
-            let source = EntityId::Loan(self.result_source_loans[&symbol][index]);
-            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                slot.range_sources.push((symbol, index));
-            } else {
-                let ty = self
-                    .function
-                    .entity(source)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
-                    .ty;
-                carried.push(CarriedAccess {
-                    nullable_proofs: Vec::new(),
-                    nullable_children: Vec::new(),
-                    range_sources: vec![(symbol, index)],
-                    captures: Vec::new(),
-                    symbol: None,
-                    receiver: None,
-                    source,
-                    ty,
-                    pending: Vec::new(),
-                });
-            }
-        }
-        Ok(())
+        carry::collect_aliases::<ResultSourceLoan, _, _>(
+            self.function,
+            carry::indexed_aliases(&self.result_source_loans),
+            carried,
+            lowering_error(LoweringErrorKind::MissingFact, span),
+        )
     }
     pub(super) fn rebind_range_sources(
         &mut self,
@@ -74,15 +52,11 @@ impl UnitExpressionLowerer<'_> {
             .map(|symbol| (*symbol, Vec::new()))
             .collect();
         for (slot, parameter) in carried.iter().zip(parameters) {
-            for (symbol, index) in &slot.range_sources {
+            if !slot.range_sources.is_empty() {
                 let EntityId::Loan(loan) = parameter else {
                     return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
                 };
-                let loans = rebound.entry(*symbol).or_default();
-                if loans.len() <= *index {
-                    loans.resize(*index + 1, *loan);
-                }
-                loans[*index] = *loan;
+                carry::apply_indexed_alias_column(&slot.range_sources, *loan, &mut rebound);
             }
         }
         self.result_source_loans = rebound;

@@ -247,16 +247,19 @@ def render(case):
     writer = _Writer()
     writer.write('// 资源程序：UTF-8 span witness\n'
                  'class Leaf(val name: String) { deinit() { println(this.name) } }\n'
-                 'fun inspect(item: Leaf): Unit { println("borrow"); println(item.name) }\n'
-                 'fun consume(own item: Leaf): Unit { println("consume") }\n')
+                 'fun inspect(')
+    inspect_parameter = writer.write('item: Leaf')
+    writer.write('): Unit { println("borrow"); println(item.name) }\nfun consume(')
+    consume_parameter = writer.write('own item: Leaf')
+    writer.write('): Unit { println("consume") }\n')
     diagnostics, retired = [], {}
     if case["shape"] == "I2":
         writer.write("fun invalid(")
-        declaration = writer.write("item")
-        writer.write(": Leaf): Unit { consume(")
+        declaration = writer.write("item: Leaf")
+        writer.write("): Unit { consume(")
         primary = writer.write("item")
         writer.write(") }\n")
-        diagnostics.append({"code": "L0133", "primary": primary, "labels": [declaration]})
+        diagnostics.append({"code": "L0133", "primary": primary, "labels": [declaration, consume_parameter]})
     if case["shape"] == "V2":
         writer.write('class Holder(var state: Leaf) { deinit() { println("drop:holder") } }\n'
                      'fun work(own stop: Boolean): Unit {\n')
@@ -280,7 +283,7 @@ def render(case):
             span = writer.write(operation["source"])
             if op == "inspect" and operation["source"] in retired:
                 diagnostics.append({"code": "L0131", "primary": span,
-                                    "labels": [retired[operation["source"]]]})
+                                    "labels": [retired[operation["source"]], inspect_parameter]})
             elif op == "consume":
                 retired[operation["source"]] = span
             writer.write(")")

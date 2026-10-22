@@ -8,7 +8,7 @@ type MapContracts = (
 
 pub(super) fn collect(
     inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     typed: &CompilationUnitTypes,
 ) -> Result<MapContracts, OwnershipCheckingError> {
     let mut calls = Vec::new();

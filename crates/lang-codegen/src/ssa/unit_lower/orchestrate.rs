@@ -3,6 +3,10 @@
 #[cfg(test)]
 pub(super) mod nullable_map_guard_support;
 #[cfg(test)]
+mod pr120_range_source_contract_tests;
+#[cfg(test)]
+mod pr120_verifier_diagnostics;
+#[cfg(test)]
 mod registration_tests;
 use super::*;
 
@@ -16,11 +20,50 @@ pub(super) fn lower_unit_from_facts(
     constant_owned: Option<&ConstEnabledOwnedUnit>,
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
+    lower_unit_impl(
+        (sources, inputs),
+        names,
+        typed,
+        owned,
+        constant_owned,
+        entry,
+        #[cfg(test)]
+        None,
+    )
+}
+
+fn lower_unit_impl(
+    source_inputs: (&SourceMap, &[SourceUnitInput<'_>]),
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    constant_owned: Option<&ConstEnabledOwnedUnit>,
+    entry: DeclarationId,
+    #[cfg(test)] capture: Option<&mut pr120_verifier_diagnostics::Capture>,
+) -> Result<(Program, FunctionId), LoweringError> {
+    let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
     // Both sealed views have already checked the complete frontend identity chain.
     // This whole-set capability check must precede instance planning and Module creation.
     super::map_iteration::validate(&parsed_by_source, names, typed, owned)?;
     super::borrow_result::validate(&parsed_by_source, names, typed, owned)?;
+    // Runtime global initialization is not lowered yet. Check every source root,
+    // including unused declarations, before reachability can discard its initializer.
+    for parsed in &parsed_by_source {
+        for root in parsed.roots() {
+            let node = parsed.ast().items().get(*root).map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+            let (_, item, _) = unwrap_modified(parsed, *root)?;
+            if matches!(item, Item::Variable { .. }) {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    node.span(),
+                ));
+            }
+        }
+    }
     let instance_plan = plan_unit_instances_from_facts(
         &parsed_by_source,
         names,
@@ -238,7 +281,7 @@ pub(super) fn lower_unit_from_facts(
                 types.intern(module, typed, return_type, instance.span())?
             }]
         };
-        let mut name = instance_function_name(names, &instance);
+        let mut name = instance_function_name(names, &instance)?;
         if !instance.key().callable_arguments().is_empty() {
             name.push_str(&format!(".callable{source_ordinal}"));
         }
@@ -619,7 +662,19 @@ pub(super) fn lower_unit_from_facts(
         closure::finish_thunk(&mut lowerer, plan)?;
     }
 
-    verify_program(&program).map_err(|_| LoweringError {
+    let verification = verify_program(&program);
+    #[cfg(test)]
+    if let Some(capture) = capture {
+        capture.observe(
+            &program,
+            &verification,
+            (sources, names, typed, owned),
+            &function_ids,
+            &types,
+            &source_plan,
+        );
+    }
+    verification.map_err(|_| LoweringError {
         kind: LoweringErrorKind::InvalidSsa,
         span: None,
     })?;

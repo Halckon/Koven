@@ -487,8 +487,12 @@ fn duplicate_receiver_shapes_still_reject_alpha_equivalent_declarations() {
 }
 
 #[test]
-fn trusted_receiver_analysis_observes_types_and_publishes_ownership_facts() {
-    use lang_frontend::analysis::analyze_single_file;
+fn trusted_unit_receiver_publishes_qualified_ownership_facts() {
+    use lang_frontend::{
+        analysis::{UnitSourceDescriptor, analyze_unit_names},
+        ownership_checking::{UnitLoanTarget, check_compilation_unit_ownership},
+        type_checking::complete_compilation_unit_types,
+    };
     let mut sources = SourceMap::new();
     let source = sources
         .add_source(
@@ -501,34 +505,40 @@ fn trusted_receiver_analysis_observes_types_and_publishes_ownership_facts() {
     types
         .authorize_range_extension_source(&sources, source)
         .unwrap();
-    let mut typed_observed = false;
-    let result = analyze_single_file(
-        &sources,
-        source,
-        &environment,
-        &types,
-        |stage, diagnostics| {
-            if diagnostics.is_empty() {
-                Ok(())
-            } else {
-                Err(stage)
-            }
-        },
-        |_| {
-            typed_observed = true;
-            Ok(())
-        },
-    );
-    let analysis = result.unwrap();
-    assert!(typed_observed);
-    assert!(analysis.owned().diagnostics().is_empty());
-    assert!(analysis.owned().deferred().is_empty());
-    assert_eq!(
-        analysis
-            .owned()
-            .borrow_results()
-            .range_return_origins()
-            .len(),
-        1
-    );
+    let snapshot = analyze_unit_names(
+        sources,
+        vec![UnitSourceDescriptor::memory_document(source)],
+        environment,
+    )
+    .unwrap();
+    let inputs = snapshot.inputs();
+    let names = snapshot.validated_names().expect("trusted receiver names");
+    let raw = check_compilation_unit_types(snapshot.sources(), &inputs, names, &types).unwrap();
+    assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
+    let complete =
+        complete_compilation_unit_types(snapshot.sources(), &inputs, names, &types, &raw)
+            .expect("trusted receiver final qualification");
+    assert!(complete.is_same_analysis(&raw));
+    let typed = raw.validate().expect("trusted receiver basic capability");
+    let owned =
+        check_compilation_unit_ownership(snapshot.sources(), &inputs, names, &types, &typed)
+            .unwrap();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    let [returned] = owned.borrow_results().range_return_origins() else {
+        panic!("exactly one actual receiver return")
+    };
+    let UnitLoanTarget::Place(root) = returned.origin() else {
+        panic!("the return must retain the actual receiver place")
+    };
+    let root = root.root();
+    let receiver = &names.names().source_units()[root.source_unit().index()]
+        .resolution()
+        .symbols()[root.symbol().index()];
+    assert!(receiver.is_synthetic());
+    assert_eq!(receiver.name(), "this");
+    assert_eq!(receiver.span().source_id(), source);
+    assert_eq!(returned.declaration_span().source_id(), source);
+    assert!(owned.is_compatible_with(&typed));
+    owned.validate().expect("trusted receiver owned capability");
 }

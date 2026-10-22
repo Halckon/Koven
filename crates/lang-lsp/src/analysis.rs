@@ -1,76 +1,59 @@
-//! 打开文档到现有 frontend 诊断的单文件适配。
+//! 独立内存文档直接进入共同 Unit 恢复链；URI 仅作展示和协议映射。
 
 use std::{error::Error, fmt};
 
 use lang_frontend::{
-    analysis::{SingleFileAnalysisError, analyze_single_file},
-    diagnostic::{Diagnostic, DiagnosticError, ordered_diagnostics},
-    lexer::LexerInternalError,
-    name_resolution::NameResolutionError,
-    ownership_checking::OwnershipCheckingError,
-    parser::ParserInternalError,
-    source::{SourceError, SourceMap},
-    type_checking::{TypeCheckingError, standard_environments},
+    analysis::{
+        UnitNameAnalysisError, UnitRecoveryAnalysisError, UnitSourceDescriptor, analyze_unit_names,
+        analyze_unit_recovery,
+    },
+    name_resolution::UnitDiagnosticOrderError,
+    source::{SourceError, SourceId, SourceMap},
+    type_checking::standard_environments,
 };
 
-use crate::definition::{DefinitionIndex, DefinitionIndexError};
+use crate::{
+    definition::DefinitionIndexError,
+    unit_analysis_snapshot::{UnitAnalysisSnapshot, UnitAnalysisSnapshotError},
+};
 
-/// 对一份内存文档运行全部已实现的单文件 frontend 阶段。
-pub(crate) fn analyze(source_name: &str, text: &str) -> Result<Analysis, AnalysisError> {
+/// 保留原 SourceId 与共同 snapshot；无旧 checker fallback 或成功文档专用分支。
+pub(crate) fn analyze(
+    source_name: &str,
+    text: &str,
+) -> Result<(SourceId, UnitAnalysisSnapshot), AnalysisError> {
     let mut sources = SourceMap::new();
-    let source = sources.add_source(source_name, text)?;
+    let source = sources
+        .add_source(source_name, text)
+        .map_err(AnalysisError::Source)?;
     let (name_environment, type_environment) = standard_environments();
-    let analysis = analyze_single_file(
-        &sources,
-        source,
-        &name_environment,
-        &type_environment,
-        |_, _| Ok(()),
-        |view| DefinitionIndex::build(view.parsed(), view.names(), view.typed()),
+    let names = analyze_unit_names(
+        sources,
+        vec![UnitSourceDescriptor::memory_document(source)],
+        name_environment,
     )
-    .map_err(|error| match error {
-        SingleFileAnalysisError::Lexer(error) => AnalysisError::Lexer(error),
-        SingleFileAnalysisError::Parser(error) => AnalysisError::Parser(error),
-        SingleFileAnalysisError::Name(error) => AnalysisError::Name(error),
-        SingleFileAnalysisError::Type(error) => AnalysisError::Type(error),
-        SingleFileAnalysisError::Ownership(error) => AnalysisError::Ownership(error),
-        SingleFileAnalysisError::Host(error) => AnalysisError::Definition(error),
-    })?;
-    let (parsed, names, typed, owned, definitions) = analysis.into_parts();
-
-    let mut diagnostics = parsed.diagnostics().to_vec();
-    diagnostics.extend_from_slice(names.diagnostics());
+    .map_err(AnalysisError::Names)?;
+    let (typed, owned) =
+        analyze_unit_recovery(&names, &type_environment).map_err(AnalysisError::Recovery)?;
+    // names 已聚合 lexer/parser/index/import/name；每个阶段仅加入一次。
+    let mut diagnostics = names.names().diagnostics().to_vec();
     diagnostics.extend_from_slice(typed.diagnostics());
     diagnostics.extend_from_slice(owned.diagnostics());
-    let diagnostics = ordered_diagnostics(&sources, &diagnostics)?
-        .into_iter()
-        .cloned()
-        .collect();
-
-    Ok(Analysis {
-        sources,
-        diagnostics,
-        definitions,
-    })
+    let snapshot = UnitAnalysisSnapshot::finish(names, Some(typed), Some(owned), diagnostics)
+        .map_err(|error| match error {
+            UnitAnalysisSnapshotError::Diagnostic(error) => AnalysisError::Diagnostic(error),
+            UnitAnalysisSnapshotError::Definition(error) => AnalysisError::Definition(error),
+        })?;
+    Ok((source, snapshot))
 }
 
-/// 一次分析拥有的 source 与确定性诊断集合。
-pub(crate) struct Analysis {
-    pub(crate) sources: SourceMap,
-    pub(crate) diagnostics: Vec<Diagnostic>,
-    pub(crate) definitions: DefinitionIndex,
-}
-
-/// 单文档 frontend 编排的内部失败。
+/// 单文档 Unit 编排的内部失败。
 #[derive(Debug)]
 pub(crate) enum AnalysisError {
     Source(SourceError),
-    Lexer(LexerInternalError),
-    Parser(ParserInternalError),
-    Name(NameResolutionError),
-    Type(TypeCheckingError),
-    Ownership(OwnershipCheckingError),
-    Diagnostic(DiagnosticError),
+    Names(UnitNameAnalysisError),
+    Recovery(UnitRecoveryAnalysisError),
+    Diagnostic(UnitDiagnosticOrderError),
     Definition(DefinitionIndexError),
 }
 
@@ -78,13 +61,10 @@ impl fmt::Display for AnalysisError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Source(error) => write!(formatter, "could not register LSP source: {error}"),
-            Self::Lexer(error) => write!(formatter, "lexer failed internally: {error}"),
-            Self::Parser(error) => write!(formatter, "parser failed internally: {error}"),
-            Self::Name(error) => write!(formatter, "name resolution failed internally: {error}"),
-            Self::Type(error) => write!(formatter, "type checking failed internally: {error}"),
-            Self::Ownership(error) => {
-                write!(formatter, "ownership checking failed internally: {error}")
+            Self::Names(error) => {
+                write!(formatter, "unit name analysis failed internally: {error}")
             }
+            Self::Recovery(error) => error.fmt(formatter),
             Self::Diagnostic(error) => {
                 write!(formatter, "diagnostic ordering failed internally: {error}")
             }
@@ -95,32 +75,13 @@ impl fmt::Display for AnalysisError {
 
 impl Error for AnalysisError {}
 
-macro_rules! analysis_error_from {
-    ($source:ty, $variant:ident) => {
-        impl From<$source> for AnalysisError {
-            fn from(error: $source) -> Self {
-                Self::$variant(error)
-            }
-        }
-    };
-}
-
-analysis_error_from!(SourceError, Source);
-analysis_error_from!(LexerInternalError, Lexer);
-analysis_error_from!(ParserInternalError, Parser);
-analysis_error_from!(NameResolutionError, Name);
-analysis_error_from!(TypeCheckingError, Type);
-analysis_error_from!(OwnershipCheckingError, Ownership);
-analysis_error_from!(DiagnosticError, Diagnostic);
-analysis_error_from!(DefinitionIndexError, Definition);
-
 #[cfg(test)]
 mod tests {
     use super::analyze;
 
     #[test]
     fn aggregates_diagnostics_from_every_frontend_stage_in_source_order() {
-        let analysis = analyze(
+        let (_, analysis) = analyze(
             "file:///diagnostics.ko",
             "#\nfun names(): Unit { missing }\nfun types(): Unit { val item: String = 1 }\n\
              class Resource()\nfun take(own resource: Resource): Unit {}\n\
@@ -128,7 +89,7 @@ mod tests {
         )
         .expect("analysis must succeed internally");
         let codes = analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>();
@@ -139,7 +100,7 @@ mod tests {
         assert!(codes.iter().any(|code| code == "L0131"), "{codes:?}");
         assert!(
             analysis
-                .diagnostics
+                .diagnostics()
                 .windows(2)
                 .all(|pair| pair[0].primary_span().start() <= pair[1].primary_span().start())
         );
@@ -147,7 +108,7 @@ mod tests {
 
     #[test]
     fn standard_analysis_environment_accepts_core_containers_and_capabilities() {
-        let analysis = analyze(
+        let (_, analysis) = analyze(
             "file:///containers.ko",
             "fun values(): Unit { val items: List<Int> = listOf(1, 2) }\n\
              fun <T: Copyable> copy(own item: T): Unit {}",
@@ -155,9 +116,9 @@ mod tests {
         .expect("analysis must succeed internally");
 
         assert!(
-            analysis.diagnostics.is_empty(),
+            analysis.diagnostics().is_empty(),
             "{:?}",
-            analysis.diagnostics
+            analysis.diagnostics()
         );
     }
 }

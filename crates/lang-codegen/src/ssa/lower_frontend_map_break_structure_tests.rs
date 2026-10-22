@@ -48,9 +48,10 @@ fn forwards(function: &Function, value: EntityId, expected: EntityId, depth: usi
 
 pub(super) fn assert_exit_structure(
     program: &Program,
-    break_span: Span,
+    cleanup_span: Span,
     source_span: Span,
     live: bool,
+    unit_cleanup: bool,
 ) {
     let function = &program.modules[0].functions[0];
     let seed = function
@@ -88,17 +89,23 @@ pub(super) fn assert_exit_structure(
     let exhausted = function.block(when_false.target).unwrap();
     let body_owner = body.parameters[map_slot];
     let exhausted_owner = exhausted.parameters[map_slot];
-    let puts = function
+    let updates = function
         .instructions
         .iter()
-        .filter(|i| matches!(i.operation, Operation::MapPut { .. }))
+        .filter(|i| {
+            matches!(
+                i.operation,
+                Operation::MapPut { .. } | Operation::MapRemove { .. }
+            )
+        })
         .collect::<Vec<_>>();
-    assert_eq!(puts.len(), 1);
-    let Operation::MapPut { owner, .. } = puts[0].operation else {
-        unreachable!()
+    assert_eq!(updates.len(), 1);
+    let owner = match updates[0].operation {
+        Operation::MapPut { owner, .. } | Operation::MapRemove { owner, .. } => owner,
+        _ => unreachable!(),
     };
     assert!(forwards(function, EntityId::Value(owner), body_owner, 0));
-    let updated = puts[0].results[0];
+    let updated = updates[0].results[0];
     let back = all_edges
         .iter()
         .filter(|(block, edge)| edge.target == header.id && *block != preheader)
@@ -111,17 +118,38 @@ pub(super) fn assert_exit_structure(
         0
     ));
 
+    let source_drops = function
+        .instructions
+        .iter()
+        .filter(|i| {
+            i.origin == Origin::Source(source_span) && matches!(i.operation, Operation::Drop { .. })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        source_drops.len(),
+        2,
+        "temporary source is consumed on each actual exit"
+    );
+    // Single and Unit cleanup use different source origins. Select the actual
+    // break block by its source-owner drop, distinct from the provider false edge.
+    let break_source_drops = source_drops
+        .iter()
+        .filter(|drop| drop.block != exhausted.id)
+        .collect::<Vec<_>>();
+    assert_eq!(break_source_drops.len(), 1);
+    let break_block = function.block(break_source_drops[0].block).unwrap();
     let ends = function
         .instructions
         .iter()
         .filter(|i| {
-            i.origin == Origin::Source(break_span)
+            (!unit_cleanup || i.block == break_block.id)
+                && i.origin == Origin::Source(cleanup_span)
                 && matches!(i.operation, Operation::BorrowEnd { .. })
         })
         .collect::<Vec<_>>();
     assert_eq!(ends.len(), 2, "break ends element then provider source");
     assert_eq!(ends[0].block, ends[1].block);
-    let break_block = function.block(ends[0].block).unwrap();
+    assert_eq!(ends[0].block, break_block.id);
     let element_place = function
         .instructions
         .iter()
@@ -151,18 +179,6 @@ pub(super) fn assert_exit_structure(
     };
     assert!(position(break_block.id, ends[0].id) < position(break_block.id, ends[1].id));
 
-    let source_drops = function
-        .instructions
-        .iter()
-        .filter(|i| {
-            i.origin == Origin::Source(source_span) && matches!(i.operation, Operation::Drop { .. })
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        source_drops.len(),
-        2,
-        "temporary source is consumed on each actual exit"
-    );
     for block in [break_block, exhausted] {
         let source_drop = source_drops
             .iter()

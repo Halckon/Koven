@@ -222,6 +222,9 @@ impl UnitExpressionLowerer<'_> {
             .nullable_proofs
             .get(&root)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if proof.when_scope().is_some() {
+            return self.validate_nullable_when_retirement(root, span);
+        }
         // All checks precede both BorrowEnd and state removal, in particular an owner Drop.
         self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
         self.ensure_no_while_proof_carriers(span)?;
@@ -284,6 +287,9 @@ impl UnitExpressionLowerer<'_> {
         let Some(proof) = self.nullable_proofs.get(&use_fact.symbol()).copied() else {
             return Ok(None);
         };
+        if proof.when_scope().is_some() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
         if receiver.source_unit() != self.source_unit {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));

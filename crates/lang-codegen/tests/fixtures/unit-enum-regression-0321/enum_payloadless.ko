@@ -1,0 +1,15 @@
+
+enum class First { On, Off }
+enum class Second { Off, On }
+fun first(value: First): Int { return when (value) { First.On -> 11; First.Off -> 12 } }
+fun second(value: Second): Int { return when (value) { Second.On -> 21; Second.Off -> 22 } }
+fun entry(): Unit {
+    val a: First = First.On
+    val b: First = First.Off
+    val c: Second = Second.On
+    val d: Second = Second.Off
+    if (first(a) == 11) println("11") else println("bad-a")
+    if (first(b) == 12) println("12") else println("bad-b")
+    if (second(c) == 21) println("21") else println("bad-c")
+    if (second(d) == 22) println("22") else println("bad-d")
+}

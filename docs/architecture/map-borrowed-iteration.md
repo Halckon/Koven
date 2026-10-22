@@ -5,7 +5,7 @@
 [SPEC-0331](../archive/specs/0331-map-borrowed-iteration.md)记录有限验收与独立前置；首表保留历史快照
 `60512fda0677b07abb77f10d88242f7a16edd1fb` 的有限支持，后续补片分节列出；不改写 Guide 的来源资格。
 `for ((key, value) in source)`沿插入链取得两个独立 Shared loan，不构造 Pair 或 entry owner。
-source 求值、分量与 source 清理由已验证事实交付，SSA verifier 后再生成 LLVM。
+source 求值、分量与 source 清理由已验证事实交付，SSA verifier 后再生成 LLVM。Unit Temporary复用完整plan并删除旧专链；其Nothing补证仅SSA/LLVM，见后文矩阵§31。
 
 | 已验来源与类型 | 控制流范围 | 普通证据 |
 |---|---|---|
@@ -124,7 +124,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 |---|---|---|---|
 | own Map/MutableMap参数 | String/String | N/C/B/R、普通单If C/B/R及两live arm；同根双层N/条件R | N/C/B后size、多次Borrow调用、CFG后再Borrow及同根重复For已验；其他CFG组合不外推 |
 | Borrow Map/MutableMap参数 | String/String | N/C/B/R、普通单If C/B/R、两live arm；同/不同root双层、同根三层N/内层B/全层R | caller恢复及有限sequential已验；不是任意层数/CFG的完整覆盖 |
-| 直接factory temporary | String/String；字段/结构Resource、Resource?、Int键Resource/String | 零参固定尾N/C/B/R与五表示N；普通实参N及空Map实参if；String/String单If C/B/R与两live arm；内层Resource temporary N/B/R | 实参复用原求值/形参ABI；Resource另验Return内if/checked；其他payload/CFG组合不外推 |
+| 直接factory temporary | String/String；字段/结构Resource、Resource?、Int键Resource/String；w09 String/Int | 零参固定尾N/C/B/R与五表示N；普通实参N及空Map实参if；String/String单If C/B/R与两live arm；内层Resource temporary N/B/R；w09正常累加 | 实参复用原求值/形参ABI；Resource另验Return内if/checked；w09双入口native见[0341 §31](../specs/active/0341-shared-lowering-core.md#31-单源-unit-兼容回退w09-temporary-map-累加2026-10-19)；其他payload/CFG组合不外推 |
 | factory-formed owned local val/var及moved alias | String/String、owned String字段Resource及混合Resource? | N/C/B/R；后用/复用/替换按末节实测组合 | 按真实Call、Move、Unit If/callable出生及epoch运输当前owner；仅限实测组合 |
 | own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；更多既有Resource表示见后续G5片 |
 | Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；同根Resource双层N/条件R、Resource?双层N/内层B/全层R | caller size/readBack/Mutable put已验；Some/None native输出不单独证明两个Some payload身份 |

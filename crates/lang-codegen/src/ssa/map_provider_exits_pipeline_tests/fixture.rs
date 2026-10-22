@@ -31,7 +31,7 @@ impl Exit {
 }
 
 #[derive(Debug)]
-pub(super) struct Failure {
+pub(in crate::ssa) struct Failure {
     pub stage: &'static str,
     pub original: String,
 }

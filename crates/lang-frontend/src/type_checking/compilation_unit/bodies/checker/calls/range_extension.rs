@@ -24,7 +24,6 @@ impl BodyChecker<'_> {
         };
         let declarations = match self
             .names
-            .names()
             .value_lookup_hints()
             .iter()
             .find(|hint| hint.source_unit() == source && hint.span() == name)

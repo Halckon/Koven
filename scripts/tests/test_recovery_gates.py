@@ -90,8 +90,16 @@ class CompositionContracts(unittest.TestCase):
         self.assertEqual(0, status)
         cargo = [line for line in calls if line.startswith("cargo ")]
         targets = [target for line in cargo for target in re.findall(r"--test ([a-z0-9_]+)", line)]
-        self.assertEqual(len(targets), len(set(targets)))
-        self.assertEqual(118, len(targets))
+        other_targets = [target for target in targets
+                         if target not in ("compilation_unit_index", "multifile_name_resolution")]
+        self.assertEqual(len(other_targets), len(set(other_targets)))
+        self.assertEqual(125, len(other_targets))
+        for target in ("unit_single_source_analysis", "single_file_fact_compile_contracts"):
+            self.assertEqual(1, targets.count(target))
+        for target in ("single_file_analysis", "single_file_analysis_compile_contracts"):
+            self.assertNotIn(target, targets)
+        self.assertEqual(5, targets.count("compilation_unit_index"))
+        self.assertEqual(8, targets.count("multifile_name_resolution"))
         self.assertEqual(1, targets.count("unit_closure_assignment_recovery"))
         self.assertEqual(1, targets.count("closure_assignment_safety_rebuild"))
         for target in ("ownership_constants", "ownership_structural", "ownership_nullable_when", "map_closure_lifetime_matrix"):
@@ -105,14 +113,25 @@ class CompositionContracts(unittest.TestCase):
         self.assertEqual(1, targets.count("integer_range_iteration_ownership"))
         self.assertEqual(1, targets.count("canonical_type_tables"))
         self.assertEqual(1, targets.count("enum_case_borrow_categories"))
-        self.assertEqual(10, len(cargo))
+        for target in ("compilation_unit_memory_document", "unit_recovery",
+                       "unit_recovery_missing_names", "unit_recovery_rejected_headers",
+                       "unit_recovery_this", "unit_recovery_this_context", "unit_recovery_nominal_error"):
+            self.assertEqual(1, targets.count(target))
+        self.assertEqual(23, len(cargo))
         self.assertTrue(calls[-1].endswith("scripts/check_tutorial.py"))
 
     def test_each_phase_propagates_failure_and_stops_following_phases(self):
-        for fail in ("--lib", "lang-codegen", "ownership_iteration", "numeric_literals", "parser_class_family", "parser_prefix_truncation_matrix", "parser_long_invalid_number_boundaries", "parser_token_inventory", "guide_litmus", "check_tutorial"):
+        # Failure stubs are CI-only; local authoring inspects this contract as text.
+        for fail in ("--lib", "lang-codegen", "lang-cli", "ownership_iteration", "numeric_literals", "parser_class_family", "parser_prefix_truncation_matrix", "parser_long_invalid_number_boundaries", "parser_token_inventory", "guide_litmus", "check_tutorial"):
             with self.subTest(fail=fail):
                 status, calls = self.invoke(fail)
                 self.assertEqual(37, status)
+                if fail == "lang-cli":
+                    self.assertEqual([
+                        "cargo test --locked -p lang-frontend --lib",
+                        "cargo test --locked -p lang-codegen",
+                        "cargo test --locked -p lang-cli --no-fail-fast",
+                    ], calls)
                 if fail != "check_tutorial":
                     self.assertFalse(any("check_tutorial.py" in line for line in calls))
 

@@ -273,7 +273,6 @@ impl BodyChecker<'_> {
             return None;
         };
         self.names
-            .names()
             .index()
             .declarations()
             .iter()
@@ -306,7 +305,6 @@ impl BodyChecker<'_> {
             }
             Target::EnumCase(symbol) => self
                 .names
-                .names()
                 .index()
                 .declarations()
                 .iter()

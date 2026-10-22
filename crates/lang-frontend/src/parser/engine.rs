@@ -99,7 +99,7 @@ pub(super) fn parse_file(
         #[cfg(test)]
         significant_raw_visits: Cell::new(0),
     };
-    let (package, imports) = parser.parse_file_header()?;
+    let (package, imports, initial_package_header_complete) = parser.parse_file_header()?;
     let roots = parser.parse_file_roots()?;
     for root in roots.iter().copied() {
         parser.validate_item_context(root)?;
@@ -113,6 +113,7 @@ pub(super) fn parse_file(
     Ok(ParsedFile {
         ast: parser.ast,
         package,
+        initial_package_header_complete,
         imports,
         roots,
         diagnostics,

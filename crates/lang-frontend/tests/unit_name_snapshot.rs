@@ -32,8 +32,8 @@ fn manual_prefix(
         .zip(&parsed)
         .map(|(unit, parsed)| {
             SourceUnitInput::new(
-                unit.root_identity(),
-                unit.logical_path(),
+                unit.root_identity().expect("rooted source"),
+                unit.logical_path().expect("rooted source"),
                 unit.source_id(),
                 parsed,
             )
@@ -65,8 +65,14 @@ fn paired(
         .zip(snapshot.parsed_files())
     {
         assert_eq!(input.source_id(), unit.source_id());
-        assert_eq!(input.root_identity(), unit.key().root().as_str());
-        assert_eq!(input.logical_path(), unit.key().logical_path().as_str());
+        assert_eq!(
+            input.root_identity().expect("rooted source"),
+            unit.key().root().expect("rooted source").as_str()
+        );
+        assert_eq!(
+            input.logical_path().expect("rooted source"),
+            unit.key().logical_path().expect("rooted source").as_str()
+        );
         assert_eq!(actual.source_id(), unit.source_id());
         let old = parsed
             .iter()
@@ -95,8 +101,8 @@ fn normalized_names(snapshot: &UnitNameSnapshot) -> String {
             &format!("{:?}", unit.source_id()),
             &format!(
                 "SourceKey({:?},{:?})",
-                unit.key().root().as_str(),
-                unit.key().logical_path().as_str()
+                unit.key().root().expect("rooted source").as_str(),
+                unit.key().logical_path().expect("rooted source").as_str()
             ),
         );
     }

@@ -6,8 +6,8 @@ use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::codes,
     name_resolution::{
-        Namespace, ReferenceTarget, ScopeKind, SourceUnitId, SymbolKind, UnitReferenceTarget,
-        UnitSymbolId, ValidatedCompilationUnitNames,
+        CompilationUnitNames, Namespace, ReferenceTarget, ScopeKind, SourceUnitId, SymbolKind,
+        UnitReferenceTarget, UnitSymbolId,
     },
     parser::{
         BinaryOperator, Expression, Item, NameMarker, ParsedFile, PrefixOperator, VariableKind,
@@ -31,10 +31,10 @@ pub(super) type ConditionFacts = (BTreeMap<FlowKey, UnitTypeId>, BTreeMap<FlowKe
 
 pub(super) fn collect_stable_flow_symbols(
     files: &[&ParsedFile],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
 ) -> BTreeSet<UnitSymbolId> {
     let mut stable = BTreeSet::new();
-    for unit in names.names().source_units() {
+    for unit in names.source_units() {
         let source = unit.source_unit();
         let resolution = unit.resolution();
         let mutable = files[source.index()]

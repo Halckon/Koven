@@ -94,6 +94,17 @@ impl DropPlanner<'_, '_> {
             scope_depth: self.scope_depth,
             loop_depth: self.loop_boundaries.len() + 1,
         });
+        // Only a completed range source can transfer this exact pending root.
+        // The frame now protects it; keeping the call token would hide its exit Drop.
+        if self
+            .checker
+            .range_use(source)
+            .is_some_and(|fact| fact.site() == crate::ownership_checking::RangeUseSite::Iteration)
+        {
+            state
+                .pending_borrows
+                .retain(|(call, root)| *call != source || Some(*root) != source_root);
+        }
         let mut body_state = state.clone();
         if let Some(frame) = body_state.iterations.last_mut() {
             frame.element_active = true;

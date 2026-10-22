@@ -45,6 +45,7 @@ mod range;
 mod readonly_receiver;
 mod resource_deinit;
 mod source_closure;
+mod statement;
 mod string_clone;
 mod while_proof;
 
@@ -80,12 +81,7 @@ use pending_call::PendingCallLoans;
 pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
 use super::lowering_support::{error, string_literal};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LoweredValue {
-    Unit,
-    Value(ValueId),
-    Diverged,
-}
+use super::expression_core::LoweredValue;
 
 fn builtin_type(typed: &TypedFile, ty: TypeId) -> Option<BuiltinType> {
     match typed.types().get(ty) {
@@ -591,11 +587,7 @@ impl ExpressionLowerer<'_> {
     }
 
     fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
-        let result = self.lower_statement_inner(statement)?;
-        if !matches!(result, LoweredValue::Diverged) {
-            self.emit_drops(DropPoint::AfterStatement(statement))?;
-        }
-        Ok(result)
+        super::statement_core::lower_statement(self, statement)
     }
 
     fn lower_statement_inner(
@@ -614,12 +606,7 @@ impl ExpressionLowerer<'_> {
         let span = node.span();
         match node.payload().clone() {
             Statement::Block { elements } | Statement::LambdaBody { elements } => {
-                for element in elements {
-                    if matches!(self.lower_statement(element)?, LoweredValue::Diverged) {
-                        return Ok(LoweredValue::Diverged);
-                    }
-                }
-                Ok(LoweredValue::Unit)
+                super::statement_core::lower_sequence(self, elements)
             }
             Statement::LocalVariable { declaration } => {
                 self.lower_local_variable(declaration, span)

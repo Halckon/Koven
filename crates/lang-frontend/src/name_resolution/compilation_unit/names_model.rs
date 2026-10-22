@@ -226,16 +226,24 @@ impl CompilationUnitNames {
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }
+    /// 共享真实 parser/index/name/import 资格；不以产物 owner 身份替代此判据。
+    pub(crate) fn is_valid(&self) -> bool {
+        self.index
+            .packages()
+            .iter()
+            .all(|package| package.name().is_some())
+            && !self
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity() == Severity::Error)
+    }
+
     /// 只在全部 parser/index/name/import 诊断无 error 时发布 validated view。
     pub fn validate(self) -> Result<ValidatedCompilationUnitNames, Box<Self>> {
-        if self
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity() == Severity::Error)
-        {
-            Err(Box::new(self))
-        } else {
+        if self.is_valid() {
             Ok(ValidatedCompilationUnitNames(self))
+        } else {
+            Err(Box::new(self))
         }
     }
 }

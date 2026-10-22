@@ -1151,6 +1151,7 @@ pub(crate) struct CompilationUnitSignatureFacts {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SignatureProvenance {
+    names_are_valid: bool,
     input_index: CompilationUnitIndex,
     environment_owner: Arc<()>,
     name_analysis_owners: Vec<Arc<()>>,
@@ -1162,11 +1163,13 @@ impl SignatureProvenance {
         input_index: CompilationUnitIndex,
         environment_owner: Arc<()>,
         name_analysis_owners: Vec<Arc<()>>,
+        names_are_valid: bool,
     ) -> Self {
         Self {
             input_index,
             environment_owner,
             name_analysis_owners,
+            names_are_valid,
             analysis_owner: Arc::new(()),
         }
     }
@@ -1271,16 +1274,21 @@ impl CompilationUnitSignatures {
         &self.diagnostics
     }
 
-    /// 仅无 signature error 时取得下一类型子阶段可消费的 view。
+    /// 同轮 names 资格与本阶段诊断共同决定签名资格。
+    pub(crate) fn is_valid(&self) -> bool {
+        self.provenance.names_are_valid
+            && !self
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity() == Severity::Error)
+    }
+
+    /// 仅上游 names 与 signature 都无 error 时取得下一类型子阶段可消费的 view。
     pub fn validate(self) -> Result<ValidatedCompilationUnitSignatures, Box<Self>> {
-        if self
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity() == Severity::Error)
-        {
-            Err(Box::new(self))
-        } else {
+        if self.is_valid() {
             Ok(ValidatedCompilationUnitSignatures(self))
+        } else {
+            Err(Box::new(self))
         }
     }
 }

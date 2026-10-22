@@ -2,7 +2,7 @@
 
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{UnitDropPoint, UnitValueDeliveryKind, UnitValueDeliverySource},
+    ownership_checking::{UnitDropPoint, UnitValueDeliveryKind},
     parser::{Expression, Statement},
     source::Span,
     type_checking::{
@@ -105,16 +105,17 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .call(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if self.typed.ownership_primitive(call).is_some() {
+            return self.lower_ownership_primitive(expression, arguments, descriptor, span);
+        }
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
         if !self.supports_control_prefix(span)
+            && !self.supports_direct_control_prefix(call, arguments, descriptor, span)?
             && arguments.iter().any(|argument| {
                 self.argument_contains_control_transfer(argument.value, function_value)
             })
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        if self.typed.ownership_primitive(call).is_some() {
-            return self.lower_ownership_primitive(expression, arguments, descriptor, span);
         }
         if descriptor.aborts() {
             let Some(lowered) = self.lower_call_arguments(call, arguments, descriptor, span)?
@@ -461,6 +462,9 @@ impl UnitExpressionLowerer<'_> {
             .map(|loan| loan.argument())
             .collect::<Vec<_>>();
         for argument in arguments {
+            if self.emit_nullable_when_borrow_drops(call, argument)? {
+                continue;
+            }
             self.emit_drops(UnitDropPoint::AfterExpression(argument))?;
         }
         Ok(())
@@ -503,6 +507,8 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let pending_start = self.pending_operands.len();
+        let control_prefix = self.supports_control_prefix(span)
+            || self.supports_direct_control_prefix(call, arguments, descriptor, span)?;
         let range_receiver = matches!(descriptor.result_source(),
             lang_frontend::type_checking::CallableResultSource::Carrier(contract)
                 if contract.origin() == lang_frontend::type_checking::BorrowReturnOrigin::Receiver);
@@ -560,7 +566,7 @@ impl UnitExpressionLowerer<'_> {
                         LoweredValue::Value(value) => {
                             let argument_id =
                                 UnitExpressionId::new(self.source_unit, argument.value);
-                            if self.supports_control_prefix(span)
+                            if control_prefix
                                 && self.typed.expression_type(argument_id).is_some_and(|ty| {
                                     self.typed.copyability(ty) == Copyability::MoveOnly
                                 })
@@ -695,7 +701,7 @@ impl UnitExpressionLowerer<'_> {
             .into_iter()
             .map(|index| self.pending_operands[index])
             .collect::<Vec<_>>();
-        if self.supports_control_prefix(span) {
+        if control_prefix {
             // 正常提交的 Value 实参由 callee 接管；Borrow owner 留到 CallReturn 清理。
             self.temporaries
                 .retain(|_, value| !arguments.contains(&EntityId::Value(*value)));
@@ -759,6 +765,9 @@ impl UnitExpressionLowerer<'_> {
         parameter_type: lang_frontend::type_checking::UnitTypeId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(value) = self.lower_nullable_when_value(call, argument, parameter_type, span)? {
+            return Ok(value);
+        }
         let value = match self.lower(argument)? {
             LoweredValue::Value(value) => value,
             LoweredValue::Unit => self.materialize_unit_value(argument, span)?,
@@ -804,12 +813,7 @@ impl UnitExpressionLowerer<'_> {
                 }
             }
             UnitValueDeliveryKind::Temporary => {
-                let origin = self
-                    .constant_materialization_origin(argument, span)?
-                    .unwrap_or(argument);
-                if delivery.source() != &UnitValueDeliverySource::Temporary(origin) {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                }
+                self.validate_temporary_delivery_origin(argument, delivery.source(), span)?;
             }
         }
         let (value, transferred) =

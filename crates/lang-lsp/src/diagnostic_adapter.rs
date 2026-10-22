@@ -41,18 +41,6 @@ impl From<PositionMappingError> for DiagnosticMappingError {
     }
 }
 
-/// 把确定性 frontend 诊断转换为同序的 LSP 诊断。
-pub(crate) fn convert_diagnostics(
-    sources: &SourceMap,
-    uri: &Uri,
-    diagnostics: &[Diagnostic],
-) -> Result<Vec<lsp_types::Diagnostic>, DiagnosticMappingError> {
-    diagnostics
-        .iter()
-        .map(|diagnostic| convert_diagnostic(sources, diagnostic, |_| Some(uri)))
-        .collect()
-}
-
 /// 按 primary source 分组转换 unit diagnostics；related label 使用自身 source URI。
 pub(crate) fn convert_unit_diagnostics(
     sources: &SourceMap,
@@ -130,7 +118,7 @@ mod tests {
     };
     use lsp_types::{DiagnosticSeverity, NumberOrString, Position, Range, Uri};
 
-    use super::{convert_diagnostics, convert_unit_diagnostics};
+    use super::convert_unit_diagnostics;
 
     #[test]
     fn maps_utf16_crlf_empty_ranges_and_details_without_losing_order() {
@@ -158,7 +146,9 @@ mod tests {
         diagnostic.add_help("replace it").expect("help");
         let uri: Uri = "file:///unicode.ko".parse().expect("uri");
 
-        let mapped = convert_diagnostics(&sources, &uri, &[diagnostic]).expect("mapping");
+        let mapped = convert_unit_diagnostics(&sources, &[(source, uri.clone())], &[diagnostic])
+            .expect("mapping")
+            .remove(0);
         let actual = &mapped[0];
         assert_eq!(
             actual.range,
@@ -189,7 +179,10 @@ mod tests {
             primary,
         )
         .expect("warning diagnostic");
-        let mapped_warning = convert_diagnostics(&sources, &uri, &[warning]).expect("mapping");
+        let mapped_warning =
+            convert_unit_diagnostics(&sources, &[(source, uri.clone())], &[warning])
+                .expect("mapping")
+                .remove(0);
         assert_eq!(
             mapped_warning[0].severity,
             Some(DiagnosticSeverity::WARNING)

@@ -1,11 +1,13 @@
-//! Integer intrinsics consume frontend identity and type facts, never member spelling.
-use super::{
-    EntityType, ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, Operation,
-    error, value,
+//! Local facts and submission adapt into the shared integer expression algorithm.
+use super::{EntityType, ExpressionLowerer, LoweredValue, LoweringError, Operation, value};
+use crate::ssa::{
+    expression_core::{IntegerFact, IntegerLowering, lower_integer},
+    model::SsaTypeId,
 };
 use lang_frontend::{
     ast::ExpressionId,
-    type_checking::{BuiltinType, IntegerOperationKind, TypeKind},
+    source::Span,
+    type_checking::{BuiltinType, TypeId, TypeKind},
 };
 
 impl ExpressionLowerer<'_> {
@@ -14,64 +16,73 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
         let span = self.expression_span(expression)?;
-        let descriptor = self
-            .typed
+        lower_integer(self, expression, span)
+    }
+}
+
+impl IntegerLowering for ExpressionLowerer<'_> {
+    type Expr = ExpressionId;
+    type Type = TypeId;
+
+    fn fact(&self, expression: ExpressionId) -> Option<IntegerFact<ExpressionId, TypeId>> {
+        self.typed
             .integer_operation(expression)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        if descriptor.expression() != expression
-            || self.typed.expression_type(descriptor.receiver()) != Some(descriptor.receiver_type())
-            || self.typed.expression_type(expression) != Some(descriptor.result_type())
-            || !crate::ssa::integer::intrinsic_receiver_matches(
-                self.parsed,
-                expression,
-                descriptor.receiver(),
-            )
-        {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+            .map(|descriptor| IntegerFact {
+                expression: descriptor.expression(),
+                receiver: descriptor.receiver(),
+                receiver_type: descriptor.receiver_type(),
+                result_type: descriptor.result_type(),
+                kind: descriptor.kind(),
+            })
+    }
+
+    fn receiver_belongs_here(&self, _receiver: ExpressionId) -> bool {
+        true
+    }
+
+    fn expression_type(&self, expression: ExpressionId) -> Option<TypeId> {
+        self.typed.expression_type(expression)
+    }
+
+    fn builtin_type(&self, ty: TypeId) -> Option<BuiltinType> {
+        match self.typed.types().get(ty) {
+            Some(TypeKind::Builtin(builtin)) => Some(*builtin),
+            _ => None,
         }
-        let integer_types = [descriptor.receiver_type(), descriptor.result_type()]
-            .into_iter()
-            .all(|ty| {
-                matches!(
-                    self.typed.types().get(ty),
-                    Some(TypeKind::Builtin(
-                        BuiltinType::Byte
-                            | BuiltinType::Short
-                            | BuiltinType::Int
-                            | BuiltinType::Long
-                            | BuiltinType::UByte
-                            | BuiltinType::UShort
-                            | BuiltinType::UInt
-                            | BuiltinType::ULong
-                    ))
-                )
-            });
-        if !integer_types {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        }
-        match descriptor.kind() {
-            IntegerOperationKind::Invert
-                if descriptor.receiver_type() != descriptor.result_type() =>
-            {
-                return Err(error(LoweringErrorKind::MissingFact, span));
-            }
-            IntegerOperationKind::Invert | IntegerOperationKind::CheckedConvert => {}
-        }
-        let kind = descriptor.kind();
-        let operand = match self.lower(descriptor.receiver())? {
-            LoweredValue::Value(value) => value,
-            LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
-            LoweredValue::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
-        };
-        let ty = self.expression_ssa_type(expression, span)?;
-        if kind == IntegerOperationKind::CheckedConvert {
-            return self.checked_operation(Operation::CheckedIntegerConvert { operand }, ty, span);
-        }
-        let (_, results) = self.append(
-            Operation::IntegerNot { operand },
-            vec![EntityType::Value(ty)],
-            span,
-        )?;
+    }
+
+    fn receiver_matches_ast(&self, expression: ExpressionId, receiver: ExpressionId) -> bool {
+        crate::ssa::integer::intrinsic_receiver_matches(self.parsed, expression, receiver)
+    }
+
+    fn lower_operand(&mut self, receiver: ExpressionId) -> Result<LoweredValue, LoweringError> {
+        self.lower(receiver)
+    }
+
+    fn result_ssa_type(
+        &self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        self.expression_ssa_type(expression, span)
+    }
+
+    fn append_scalar(
+        &mut self,
+        operation: Operation,
+        ty: SsaTypeId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let (_, results) = self.append(operation, vec![EntityType::Value(ty)], span)?;
         Ok(LoweredValue::Value(value(results[0])))
+    }
+
+    fn append_checked(
+        &mut self,
+        operation: Operation,
+        ty: SsaTypeId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        self.checked_operation(operation, ty, span)
     }
 }

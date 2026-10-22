@@ -86,7 +86,13 @@ pub(super) fn qualify(
     });
     let future_transfer = transfer::qualify(parsed, names, typed, owned, plan, source)?;
     let nesting = nested::relationship(parsed, typed, owned, plan.descriptor().statement())?;
-    if !has_if && nesting.is_none() && future_transfer.is_none() {
+    // Temporary source identity and component loans are already qualified.
+    // Reuse the complete exit plan even when the ordinary body has no branch.
+    if !has_if
+        && nesting.is_none()
+        && future_transfer.is_none()
+        && !matches!(source, SourceIdentity::Temporary(_))
+    {
         return Ok(None);
     }
     // Mixed non-Map loops and non-ordinary control families retain their existing gate.

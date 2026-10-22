@@ -1,0 +1,1 @@
+error: project build failed: project entry `main` has no supported process shape; expected `fun main(): Unit` or `fun main(args: Array<String>): Unit`

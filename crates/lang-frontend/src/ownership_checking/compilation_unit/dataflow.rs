@@ -18,7 +18,9 @@ mod iteration;
 mod liveness;
 mod map;
 mod map_iteration_source;
+mod missing_name_receiver;
 mod non_null_assertion;
+mod nullable_when;
 mod ownership_primitive;
 mod places;
 mod range_construction;
@@ -35,8 +37,8 @@ use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes},
     name_resolution::{
-        DeclarationId, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
-        UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
+        CompilationUnitNames, DeclarationId, SourceUnitId, SourceUnitInput, SymbolKind,
+        UnitReferenceTarget, UnitSymbolId, ordered_unit_diagnostics,
     },
     parser::{NameMarker, ParsedFile, VariableKind},
     source::{SourceMap, Span},
@@ -102,6 +104,7 @@ pub(super) struct Analysis {
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
     pub(super) non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
+    pub(super) nullable_whens: Vec<super::UnitNullableWhenOwnershipPlan>,
     pub(super) field_replacements: Vec<crate::ownership_checking::UnitFieldReplaceOwnershipPlan>,
     pub(super) ownership_primitives:
         Vec<crate::ownership_checking::UnitOwnershipPrimitiveOwnershipPlan>,
@@ -154,7 +157,7 @@ type ConstructionDescriptors =
 pub(super) fn analyze(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     typed: &CompilationUnitTypes,
     constant_control: bool,
     bindings: &BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
@@ -163,9 +166,9 @@ pub(super) fn analyze(
 ) -> Result<Analysis, OwnershipCheckingError> {
     let construction_descriptors = collect_construction_descriptors(
         typed.constructions(),
-        names.names().index().source_units().len(),
+        names.index().source_units().len(),
     )?;
-    for source in names.names().index().source_units() {
+    for source in names.index().source_units() {
         let input = inputs
             .iter()
             .copied()
@@ -206,6 +209,7 @@ pub(super) fn analyze(
     let mut rc_effects = Vec::new();
     let mut construction_plans = Vec::new();
     let mut non_null_assertions = Vec::new();
+    let mut nullable_whens = Vec::new();
     let mut ownership_primitives = Vec::new();
     let mut field_replacements = Vec::new();
     let mut borrow_return_origins = Vec::new();
@@ -226,7 +230,7 @@ pub(super) fn analyze(
     let range_producers =
         crate::ownership_checking::range_producer::collect_unit(sources, inputs, names, typed)?;
 
-    for source in names.names().index().source_units() {
+    for source in names.index().source_units() {
         let input = inputs
             .iter()
             .copied()
@@ -274,6 +278,7 @@ pub(super) fn analyze(
         checker.constant_control = constant_control;
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
+        nullable_whens.extend(checker.nullable_whens.finish()?);
         formed_owned_locals.extend(checker.formed_owned_locals);
         map_iteration_templates.extend(checker.map_iterations.into_values());
         map_iterations.extend(drop_analysis.map_iterations);
@@ -312,7 +317,7 @@ pub(super) fn analyze(
     }
 
     let diagnostics: Vec<Diagnostic> =
-        ordered_unit_diagnostics(sources, names.names().index().source_units(), &diagnostics)?
+        ordered_unit_diagnostics(sources, names.index().source_units(), &diagnostics)?
             .into_iter()
             .cloned()
             .collect();
@@ -327,19 +332,21 @@ pub(super) fn analyze(
     non_null_assertions.dedup_by_key(|plan| plan.descriptor().expression());
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
-    let callable_provenance = if diagnostics.is_empty() && typed.diagnostics().is_empty() {
+    let callable_provenance = if diagnostics.is_empty() && typed.has_valid_type_facts() {
         callable_provenance::finish(&callable_sources, typed, closure_inputs.captures)
     } else {
         Default::default()
     };
-    if !diagnostics.is_empty() || !deferred.is_empty() {
+    if !diagnostics.is_empty() || !deferred.is_empty() || !typed.has_valid_type_facts() {
         formed_owned_locals.clear();
+        nullable_whens.clear();
         borrow_return_origins.clear();
         borrow_results = Default::default();
     } else {
         formed_owned_locals.sort();
         formed_owned_locals.dedup();
     }
+    nullable_whens.sort_by_key(|plan| plan.descriptor().expression());
     borrow_return_origins.sort_by_key(|fact| fact.expression());
     borrow_results.bindings.sort_by_key(|fact| fact.binding);
     borrow_results
@@ -361,6 +368,7 @@ pub(super) fn analyze(
         short_circuits: constant_control.then_some(short_circuits),
         constant_materializations,
         non_null_assertions,
+        nullable_whens,
         ownership_primitives,
         field_replacements,
         diagnostics,
@@ -437,7 +445,7 @@ struct Checker<'a> {
     sources: &'a SourceMap,
     parsed: &'a ParsedFile,
     source_unit: SourceUnitId,
-    names: &'a ValidatedCompilationUnitNames,
+    names: &'a CompilationUnitNames,
     typed: &'a CompilationUnitTypes,
     bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
     captures: &'a [UnitClosureCaptureDescriptor],
@@ -474,6 +482,7 @@ struct Checker<'a> {
     ownership_primitives: Vec<crate::ownership_checking::UnitOwnershipPrimitiveOwnershipPlan>,
     field_replacements: Vec<crate::ownership_checking::UnitFieldReplaceOwnershipPlan>,
     primitive_deferred: Vec<UnitOwnershipDeferredFact>,
+    nullable_whens: nullable_when::Collection,
 }
 
 impl<'a> Checker<'a> {
@@ -499,7 +508,7 @@ impl<'a> Checker<'a> {
         sources: &'a SourceMap,
         parsed: &'a ParsedFile,
         source_unit: SourceUnitId,
-        names: &'a ValidatedCompilationUnitNames,
+        names: &'a CompilationUnitNames,
         typed: &'a CompilationUnitTypes,
         bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
         field_kinds: &'a BTreeMap<UnitSymbolId, VariableKind>,
@@ -522,7 +531,6 @@ impl<'a> Checker<'a> {
     ) -> Result<Self, OwnershipCheckingError> {
         sources.source_text(parsed.source_id())?;
         let resolution = names
-            .names()
             .source_units()
             .get(source_unit.index())
             .filter(|source| source.source_unit() == source_unit)
@@ -539,7 +547,6 @@ impl<'a> Checker<'a> {
         }
         let mut references_by_span = BTreeMap::new();
         for reference in names
-            .names()
             .references()
             .iter()
             .filter(|reference| reference.source_unit() == source_unit)
@@ -547,7 +554,7 @@ impl<'a> Checker<'a> {
             let symbol = match reference.target() {
                 UnitReferenceTarget::Symbol(symbol) => Some(*symbol),
                 UnitReferenceTarget::Declaration(declaration) => {
-                    names.names().declaration_symbol(*declaration)
+                    names.declaration_symbol(*declaration)
                 }
                 _ => None,
             };
@@ -628,6 +635,7 @@ impl<'a> Checker<'a> {
             ownership_primitives: Vec::new(),
             field_replacements: Vec::new(),
             primitive_deferred: Vec::new(),
+            nullable_whens: Default::default(),
         })
     }
 
@@ -663,7 +671,7 @@ impl<'a> Checker<'a> {
         for &root in self.parsed.roots() {
             self.check_item(root, State::default())?;
         }
-        if self.diagnostics.is_empty() {
+        if self.diagnostics.is_empty() && self.typed.has_valid_type_facts() {
             drop_planner::plan(self)
         } else {
             Ok(drop_planner::Analysis::default())
@@ -728,9 +736,16 @@ impl<'a> Checker<'a> {
                 expression: expression.index(),
             });
         };
+        if self.typed.is_diagnostic_error_type(ty) {
+            // An error-typed expression has no proven move/copy effect.
+            return Ok(());
+        }
         let move_only = match self.typed.copyability(ty) {
             Copyability::Copyable => false,
             Copyability::MoveOnly => true,
+            Copyability::Error if self.typed.copyability_error_is_diagnostic(ty) => {
+                return Ok(());
+            }
             Copyability::Unknown | Copyability::Error => {
                 return Err(OwnershipCheckingError::InvalidUnitArgumentType {
                     source_unit: self.source_unit.index(),
@@ -974,7 +989,6 @@ impl<'a> Checker<'a> {
 
     fn symbol_kind(&self, symbol: UnitSymbolId) -> Option<SymbolKind> {
         self.names
-            .names()
             .source_units()
             .get(symbol.source_unit().index())
             .and_then(|source| source.resolution().symbols().get(symbol.symbol().index()))
@@ -983,7 +997,6 @@ impl<'a> Checker<'a> {
 
     fn symbol_span(&self, symbol: UnitSymbolId) -> Result<Span, OwnershipCheckingError> {
         self.names
-            .names()
             .source_units()
             .get(symbol.source_unit().index())
             .and_then(|source| source.resolution().symbols().get(symbol.symbol().index()))

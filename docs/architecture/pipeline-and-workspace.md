@@ -37,9 +37,9 @@ SourceMap
   → linked executable
 ```
 
-单文件分析保留对应的 `NameResolution`、`TypedFile` 和 `OwnershipCheckedFile` 入口；project、LSP
-source-set 与多文件 native 路径使用 compilation-unit 产物。每一阶段显式接收前一阶段结果和共享
-身份，不通过全局可变状态交换事实。
+单文件和 project CLI、LSP 单文档与 source-set 使用 compilation-unit 产物；仍有真实消费者的
+`TypedFile` / `OwnershipCheckedFile` 底层入口暂未退役，Unit 共享的 `resolve_names` /
+`NameResolution` 算法保留。每一阶段显式接收前一阶段结果和共享身份，不通过全局可变状态交换事实。
 
 可执行后端只消费 validated compilation-unit gate。普通源码错误留在 recovery 产物中；来源、分析
 环境或阶段身份不匹配属于内部错误，不会伪造成语言诊断。
@@ -56,13 +56,15 @@ names.validate() 的原 Result（validated 或 boxed recovery），没有自引�
 字段封闭，只读 getter 与 inputs() 的临时借用投影保留 SourceId/Span 身份；调用方拥有
 inputs Vec，使其 slice 的生命周期覆盖 0249 view。map 中未显式列出的源码不进入 unit。
 
-CLI project 首先完成已有 discovery/path 校验与 source 注册，再调用此前缀；同次
-standard_environments 的 type 半边留宿主。names及typed非空诊断 gate 后先通过
-[最终类型消费准入](tooling.md#最终类型消费准入)，再进入basic/const及ownership/entry/native。LSP unit组合该owner，仍保留validated_names gate、typed
-recovery、const 无 owned 与 prepare/publish/commit 生命周期。bootstrap 和 legacy LSP 已迁移到
-独立的 `analyze_single_file` 纯阶段门面，保留CLI逐阶段早停与LSP完整recovery/typed观察。
-不提供总模式开关。对应合同为 `unit_name_snapshot`、`unit_name_snapshot_compile_contracts`、
-CLI `project_cli` 与 LSP 私有 `unit_session::tests` / `server::tests::snapshot_lifecycle`。
+CLI project 完成 discovery/path 校验后调用此前缀；单文件 bootstrap 将原用户 ParsedFile 与
+受信标准源交给 `analyze_parsed_unit_names`，二者共用 unit_build。names及typed诊断 gate 后先通过
+[最终类型消费准入](tooling.md#最终类型消费准入)，再进入basic/const及ownership/entry/native。
+LSP 单文档直接用 MemoryDocument→Unit names/raw recovery→共同 snapshot，无旧 checker fallback；
+source-set 仍保留 validated_names gate、typed recovery、NotBasic 无 owned 及 prepare/publish/commit。
+原 202 行 `analyze_single_file` 门面和导出已删除，不保旧内部 API 兼容层。generated-owner exporter
+及 boxed-enum LLVM helper 消费同次 Unit 产品，严格 final 准入先于真实 basic/const ownership；
+资源/故障/校准验收仍在原 CI 合同，不以普通 native 正控替代。对应合同为 `unit_single_source_analysis`、
+`single_file_fact_compile_contracts`、Unit 私有 recovery 测试和既有 Unit capability/lifetime contracts。
 
 ## 普通 owned-unit 交接
 
@@ -106,7 +108,7 @@ unit driver一次构建vector，同时借给planner和lower。standalone planner
 materialization和short-circuit不丢失，没有basic/const转换。零常量的专用ownership仍独立。
 旧`emit_native_constant_unit_object`与私有const lower各经一次工厂转接；新
 `emit_native_const_owned_unit_object`及私有view lower不再重建index。CLI project const分支
-在原entry选择之后创建view，错误仍走codegen映射；LSP const无owned保持。
+在原entry选择之后创建view，错误仍走codegen映射；LSP source-set 的 NotBasic 无 owned，单文档保留 raw ownership。
 普通路径上述发布顺序、错误类型及原子提交合同同样适用；完整能力、双路身份和动态计数
 的实际验收见[本片账本](../archive/specs/0254-const-owned-unit-borrowed-handoff.md)。
 
@@ -127,9 +129,9 @@ LLVM 21.1.x / Inkwell 0.10.0 启用 AArch64 与 X86 backend feature。LLVM adapt
 object 和 executable 使用同目录临时文件并在成功后原子发布；失败不覆盖旧目标。
 支持范围的长期决定见 [ADR-0026](../adr/accepted/0026-linux-x86-64-native-host.md)。
 
-标准库公共源码位于 `crates/lang-std/koven/`。当前 project CLI 通过
+标准库公共源码位于 `crates/lang-std/koven/`。当前单文件和 project CLI 均通过
 [`standard_sources.rs`](../../crates/lang-cli/src/standard_sources.rs)显式追加并授权
-`koven/algorithms/ranges.ko`；单文件 CLI 不加载该标准源码。普通 CLI 入口尚不自动注入
+`koven/algorithms/ranges.ko`。普通 CLI 入口尚不自动注入
 `prelude.ko` 中的 `Pair`/`Result`；该文件的声明及 bootstrap 验证入口不等于普通 CLI 默认导入或完整传播已接通。
 frontend 只消费宿主明确提供的输入，不隐式读取文件系统。
 

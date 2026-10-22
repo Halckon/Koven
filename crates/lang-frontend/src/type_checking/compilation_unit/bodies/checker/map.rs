@@ -284,7 +284,7 @@ impl BodyChecker<'_> {
         };
         // A resolved package path is a namespace, never a runtime Map receiver.
         if receiver_name_span.is_some_and(|span| {
-            self.names.names().references().iter().any(|reference| {
+            self.names.references().iter().any(|reference| {
                 reference.source_unit() == source
                     && reference.span() == span
                     && reference.namespace().is_none()

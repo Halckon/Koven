@@ -40,6 +40,16 @@ impl Checker<'_> {
         state: &mut State,
     ) -> Result<Option<(UnitValueDeliveryKind, UnitValueDeliverySource)>, OwnershipCheckingError>
     {
+        let expression = contract.argument().expression();
+        let Some(ty) = self.typed.expression_type(contract.argument()) else {
+            return Err(OwnershipCheckingError::InvalidUnitArgumentType {
+                source_unit: self.source_unit.index(),
+                expression: expression.index(),
+            });
+        };
+        if self.typed.is_diagnostic_error_type(ty) {
+            return Ok(None);
+        }
         if contract.category() == ExpressionCategory::Temporary {
             return Ok(Some((
                 UnitValueDeliveryKind::Temporary,
@@ -49,16 +59,12 @@ impl Checker<'_> {
                 ),
             )));
         }
-        let expression = contract.argument().expression();
-        let Some(ty) = self.typed.expression_type(contract.argument()) else {
-            return Err(OwnershipCheckingError::InvalidUnitArgumentType {
-                source_unit: self.source_unit.index(),
-                expression: expression.index(),
-            });
-        };
         let kind = match self.typed.copyability(ty) {
             Copyability::Copyable => UnitValueDeliveryKind::Copy,
             Copyability::MoveOnly => UnitValueDeliveryKind::Move,
+            Copyability::Error if self.typed.copyability_error_is_diagnostic(ty) => {
+                return Ok(None);
+            }
             Copyability::Unknown | Copyability::Error => {
                 return Err(OwnershipCheckingError::InvalidUnitArgumentType {
                     source_unit: self.source_unit.index(),

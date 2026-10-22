@@ -1,13 +1,14 @@
 //! 专用常量入口只消费同一轮物化事实；不重访声明 initializer。
 use super::*;
+use crate::ssa::constant_materialization;
 use lang_frontend::{
     name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{
-        ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, ConstantMaterializationKind,
+        ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, UnitValueDeliverySource,
         const_owned_compilation_unit_view,
     },
     source::{SourceMap, Span},
-    type_checking::{ConstEnabledTypedUnit, ConstValue, TypeEnvironment, UnitExpressionId},
+    type_checking::{ConstEnabledTypedUnit, TypeEnvironment, UnitExpressionId},
 };
 
 /// 私有交付切片：先验证完整来源，再进入共享 driver；不提供基础 capability 转换。
@@ -42,6 +43,22 @@ pub(crate) fn lower_const_owned_unit_with_entry(
 }
 
 impl UnitExpressionLowerer<'_> {
+    /// Validate the real constant materialization owner without changing the argument identity.
+    pub(super) fn validate_temporary_delivery_origin(
+        &self,
+        argument: UnitExpressionId,
+        source: &UnitValueDeliverySource,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let origin = self
+            .constant_materialization_origin(argument, span)?
+            .unwrap_or(argument);
+        if source != &UnitValueDeliverySource::Temporary(origin) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok(())
+    }
+
     /// 与 frontend 一致，只有实际常量物化 use 才穿透透明 Group；不改普通实参来源。
     pub(super) fn constant_materialization_origin(
         &self,
@@ -92,24 +109,8 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MismatchedAnalysis, span));
         }
         let ty = self.expression_ssa_type(expression.expression(), span)?;
-        let operation = match (plan.kind(), descriptor.value()) {
-            (ConstantMaterializationKind::InlineCopy, ConstValue::Boolean(value)) => {
-                Operation::Constant(ScalarConstant::Boolean(*value))
-            }
-            (ConstantMaterializationKind::InlineCopy, ConstValue::Integer { value, .. }) => {
-                Operation::Constant(ScalarConstant::Integer(*value))
-            }
-            (ConstantMaterializationKind::InlineCopy, ConstValue::Char(value)) => {
-                Operation::Constant(ScalarConstant::Char(u32::from(*value)))
-            }
-            (ConstantMaterializationKind::StringTemporary, ConstValue::String(bytes)) => {
-                Operation::StringLiteral {
-                    string: ty,
-                    bytes: bytes.to_vec(),
-                }
-            }
-            _ => return Err(lowering_error(LoweringErrorKind::MismatchedAnalysis, span)),
-        };
+        let operation = constant_materialization::operation(plan.kind(), descriptor.value(), ty)
+            .map_err(|kind| lowering_error(kind, span))?;
         self.append_scalar(operation, ty, span).map(Some)
     }
 }

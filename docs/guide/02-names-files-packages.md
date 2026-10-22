@@ -1,15 +1,58 @@
-# Koven v0.44：名称、文件、Package 与 Import
+# Koven v0.45：名称、文件、Package 与 Import
 
-> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：实现或评审文件组合、名称解析、可见性与跨文件绑定时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审文件组合、名称解析、可见性与跨文件绑定时 · **唯一真源**：本页
 
-本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
-## 单文件名称解析
+## 单文件输入与共同名称解析
 
-名称解析只处理一份已经成功解析的
-`ParsedFile`，建立稳定符号身份、词法作用域和名称引用；不从文件路径猜测 package，也不
-展开 `import`。名称解析与类型检查是两个阶段：前者回答“这个拼写指向哪个声明或候选组”，
-后者才回答“该声明是否适用于这里”。
+单文件与 project 使用同一 compilation-unit 名称、类型与所有权分析管线。单文件模式的
+用户 source set 只含明确指定的那一个文件，不扫描同目录、同 package 或其他用户文件。
+允许 `import`，exact、alias、wildcard、可见性与诊断均遵守本页 compilation-unit 规则。
+文件自己所在 package 的自动可见声明只来自本次实际加载的 source set；package 声明本身
+不授权加载其他文件。标准库源的有限加载范围见下表。
+
+### 单文件 source root
+
+单文件 driver 根据调用者指定的文件路径与已解析 package 建立显式 unit descriptor：
+
+- 无 package 时，source root 是文件所在目录，逻辑路径是文件名。
+- 声明 `package a.b` 时，文件所在目录必须以完整目录组件 `a/b` 结尾，按 Koven Identifier
+  大小写精确匹配；去掉这些组件后得到 source root。例如 `x/a/b/F.ko` 的根是 `x`，逻辑
+  路径是 `a/b/F.ko`。字符串后缀相似不等于目录组件匹配，目录不匹配使用 L0146。
+- 可选 `--source-root <dir>` 只显式确认上述根；若与反推根不同，同样使用 L0146，不能借该
+  选项改写 package、伪造逻辑路径或加载额外源码。无 package 时也必须等于文件所在目录。
+- package 匹配使用指定路径的逻辑目录组件；物理路径处理只在 driver 的显式 root 身份
+  等价与 IO 层进行，不反写 package 或逻辑路径。交给 frontend 的仍是稳定 root identity、
+  root 内相对逻辑路径与源码，不把机器绝对路径变成语言身份。本规则不新增 symlink 拒绝、
+  目录扫描或文件系统访问能力；project 保持 manifest 显式 roots 与既有发现政策。
+
+这是 [ADR-0031](../adr/accepted/0031-single-file-compilation-unit-adapter.md) 对
+[ADR-0005](../adr/accepted/0005-package-source-root-mapping.md) 的单文件 driver 特例；
+frontend 仍不得自行推根或读取文件系统。
+
+### 标准环境与允许加载的标准库源
+
+单文件和 project 注入相同的内建环境，并使用相同的标准库 source loader。当前 Guide
+允许该 loader 加载、供显式 import 或限定名解析的标准 package 仅有：
+
+| Package | 标准源码 | 名称可见性 |
+|---|---|---|
+| `koven.algorithms` | `crates/lang-std/koven/algorithms/ranges.ko` | 按本页 import/可见性规则使用 List/View `take`、`drop`、`dropLast` |
+
+标准源码是用户单文件之外的受信任标准输入，不改变“只加载一个用户文件”的约束。
+加载 package 不等于自动导入名称；内建环境也不等于隐式 wildcard import。不得额外自动
+加载或导入 `Pair`、`Result` 或其他 prelude 名称，未绑定的普通名称仍为 L0080。
+单文件 import 只能解析实际加载的上述标准 package 与该文件自己所在的 package。
+导入其他用户 package 时使用 L0148，诊断说明“该 package 未加载”并提示使用 `--project`；
+不得把失败 directive 忽略，或延后冒充普通名称未知。已加载 package 中不存在的目标、
+不可见目标、绑定冲突与歧义继续分别遵守本页既有 L0148–L0151 规则。
+
+### 文件内词法名称解析
+
+每份 `ParsedFile` 建立稳定符号身份、词法作用域和名称引用；unit 负责 package index、
+import 与文件环境。名称解析与类型检查是两个阶段：前者回答“这个拼写指向哪个声明或
+候选组”，后者才回答“该声明是否适用于这里”。
 
 ### 双命名空间与声明身份
 
@@ -58,7 +101,7 @@ Kotlin 风格的 `UpperCamelCase` / `lowerCamelCase` / 常量大写只是源码�
 
 - 名称解析规则 的入口必须显式接收一个不可变 `NameEnvironment`。它提供预声明类型、值与函数
   overload，但不读取文件系统、不隐式加载标准库，也不按名称硬编码“可能来自 import”。
-  后续 prelude / package 阶段可以构造环境；测试可构造最小环境。环境中不存在且词法作用域
+  compilation-unit driver 与 package 分析显式构造环境；测试可构造最小环境。环境中不存在且词法作用域
   也找不到的名称使用 L0080。
 - 非限定名称从当前作用域向父作用域查询对应命名空间，再查询外部环境。`type_ref` 的首个
   segment 必须解析为类型或外部类型；后续 segment 的名义类型或 package 解释由类型检查与
@@ -74,8 +117,9 @@ Kotlin 风格的 `UpperCamelCase` / `lowerCamelCase` / 常量大写只是源码�
   指向同一顺序作用域稍后的 local 声明。诊断与 symbol/reference 表均按源码位置和既有
   `ordered_diagnostics` 规则确定性排序。
 
-名称解析规则 不推导表达式类型，不选择 overload / constructor / member，不检查泛型 arity、
-visibility 跨文件规则、override、调用实参映射、捕获所有权或 package/import 冲突。它的
+文件内词法名称解析不推导表达式类型，不选择 overload / constructor / member，不检查泛型 arity、
+override、调用实参映射或捕获所有权；跨文件 visibility 与 package/import 冲突由同一 unit 的
+package 名称阶段负责。文件内查询的
 输出必须允许类型检查在不重新遍历源码字符串的前提下读取 scope、symbol、overload set
 与每个已解析名称引用。
 
@@ -88,7 +132,8 @@ visibility 跨文件规则、override、调用实参映射、捕获所有权或 
 - 编译 driver 向 frontend 显式交付一个 compilation unit：有限、显式且枚举顺序无语义的
   source root/source unit 集合，以及每个 source unit 的稳定 root identity、root 内逻辑路径和
   源码。frontend 不读取文件系统，也不从
-  进程当前目录、绝对路径或输入枚举顺序猜测 package；路径映射继续遵守 ADR-0005。
+  进程当前目录、绝对路径或输入枚举顺序猜测 package；路径映射遵守 ADR-0005 及本页单文件
+  driver 的显式特例。
 - 有 `package a.b` 的文件，其 package 必须精确等于逻辑父目录 `a/b`；省略 package 只允许
   位于 source root 根目录。多个 source root 可以向同一 package 贡献文件，输入顺序不改变
   package 内容、声明身份或诊断顺序。

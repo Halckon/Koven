@@ -143,8 +143,8 @@ pub(super) fn collect_unit(
         inputs
             .iter()
             .map(|input| (
-                input.root_identity(),
-                input.logical_path(),
+                input.root_identity().expect("rooted source"),
+                input.logical_path().expect("rooted source"),
                 input.source_id(),
                 sources.source_text(input.source_id()).map(str::len)
             ))

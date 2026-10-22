@@ -20,7 +20,7 @@ impl BodyChecker<'_> {
             UnitReferenceTarget::Symbol(symbol) => *symbol,
             _ => return None,
         };
-        (self.names.names().source_units()[symbol.source_unit().index()]
+        (self.names.source_units()[symbol.source_unit().index()]
             .resolution()
             .symbols()[symbol.symbol().index()]
         .kind()

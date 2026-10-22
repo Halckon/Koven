@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use crate::{
     diagnostic::{Diagnostic, Severity},
     name_resolution::{
-        DeclarationId, ExternalSymbolId, SourceUnitInput, UnitSymbolId,
+        CompilationUnitNames, DeclarationId, ExternalSymbolId, SourceUnitInput, UnitSymbolId,
         ValidatedCompilationUnitNames,
     },
     source::{SourceMap, Span},
@@ -29,18 +29,22 @@ mod integer_range;
 mod map;
 mod non_null_assertion;
 mod nullable;
+mod nullable_when;
 #[cfg(test)]
 #[path = "bodies/numeric_iteration_validation_tests.rs"]
 mod numeric_iteration_validation_tests;
 mod ownership_primitive;
 mod projection;
 mod rc;
+mod recovery;
 mod string;
 
 pub use checker::check_compilation_unit_types;
+pub(crate) use checker::check_compilation_unit_types_recovering;
 pub(crate) use checker::copyability::UnitTransferability;
 pub use integer::*;
 pub use integer_range::*;
+pub use nullable_when::*;
 pub use ownership_primitive::*;
 pub use {
     assignment::*, container::*, map::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
@@ -488,6 +492,8 @@ impl UnitDestructuringDescriptor {
 /// body checker 交给 recovery product 的最小、source-qualified facts。
 #[derive(Clone, Default)]
 pub(crate) struct CompilationUnitTypeParts {
+    recovery_ownership: Option<recovery::OwnershipRecoveryFacts>,
+    rejected_iteration_headers: Vec<super::UnitStatementId>,
     pub(crate) iterations: Vec<super::UnitSequentialIterationDescriptor>,
     pub(crate) constant_declaration_count: usize,
     pub(crate) constants: Option<UnitConstantFacts>,
@@ -535,6 +541,7 @@ struct BodyTypeProvenance {
 /// [`UnitTypeId`] 并且所有源码 identity 都带 [`SourceUnitId`] 限定。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitTypes {
+    recovery_ownership: Option<recovery::OwnershipRecoveryFacts>,
     iterations: Vec<super::UnitSequentialIterationDescriptor>,
     pub(in crate::type_checking) resource_classifications:
         crate::type_checking::resource::ResourceCache<
@@ -607,6 +614,7 @@ impl CompilationUnitTypes {
             analysis_owner: Arc::new(()),
         };
         Self {
+            recovery_ownership: parts.recovery_ownership,
             resource_classifications: crate::type_checking::resource::ResourceCache::new(),
             iterations: parts.iterations,
             provenance,
@@ -658,6 +666,17 @@ impl CompilationUnitTypes {
     ) -> bool {
         self.signatures
             .is_compatible_with(sources, inputs, names, environment)
+    }
+
+    pub(crate) fn is_compatible_with_raw(
+        &self,
+        sources: &SourceMap,
+        inputs: &[SourceUnitInput<'_>],
+        names: &CompilationUnitNames,
+        environment: &TypeEnvironment,
+    ) -> bool {
+        self.signatures
+            .is_compatible_with_raw(sources, inputs, names, environment)
     }
 
     /// 判断两个 body typed product 是否来自同一次分析；克隆保留身份。
@@ -956,45 +975,46 @@ impl CompilationUnitTypes {
         self.constants.as_ref()
     }
 
-    /// 发布独立常量能力；不转换成基础 ownership/native 输入。
-    pub fn validate_constants(self) -> Result<ConstEnabledTypedUnit, Box<Self>> {
-        if self.ownership_primitives_are_valid()
-            && self.integer_operations_are_valid()
-            && self.integer_range_operations_are_valid()
-            && self.numeric_range_iterations_are_valid()
-            && self.map_iterations_are_valid()
-            && self.constants.is_some()
+    /// 同一完整判据供能力验证与后续 producer 继承；原 required-fact 校验不缩减。
+    pub(crate) fn has_valid_type_facts(&self) -> bool {
+        self.signatures.is_valid()
             && !self
                 .diagnostics
                 .iter()
                 .any(|d| d.severity() == Severity::Error)
-        {
+            && self.ownership_primitives_are_valid()
+            && self.integer_operations_are_valid()
+            && self.integer_range_operations_are_valid()
+            && self.numeric_range_iterations_are_valid()
+            && self.map_iterations_are_valid()
+    }
+
+    pub(crate) fn has_valid_basic_types(&self) -> bool {
+        self.has_valid_type_facts()
+            && self.constant_declaration_count == 0
+            && self.constant_selections.is_empty()
+    }
+
+    pub(crate) fn has_valid_constant_types(&self) -> bool {
+        self.has_valid_type_facts() && self.constants.is_some()
+    }
+
+    /// 发布独立常量能力；不转换成基础 ownership/native 输入。
+    pub fn validate_constants(self) -> Result<ConstEnabledTypedUnit, Box<Self>> {
+        if self.has_valid_constant_types() {
             Ok(ConstEnabledTypedUnit(self))
         } else {
             Err(Box::new(self))
         }
     }
 
-    /// signature/body 无 error 且不含常量声明或读取时才发布基础 ownership view。
-    /// 常量读取需要 SPEC-0210 的独立 const-enabled capability，不能借此绕过其验证。
+    /// 上游 names、signature/body 无 error 且不含常量声明或读取时发布基础 ownership view。
+    /// 常量读取仍需独立 const-enabled capability，不能借此绕过其验证。
     pub fn validate(self) -> Result<ValidatedCompilationUnitTypes, Box<Self>> {
-        let has_error = self
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity() == Severity::Error);
-        // Selection is a recovery fact, not the const-enabled capability required by SPEC-0210.
-        if has_error
-            || self.constant_declaration_count > 0
-            || !self.constant_selections.is_empty()
-            || !self.ownership_primitives_are_valid()
-            || !self.integer_operations_are_valid()
-            || !self.integer_range_operations_are_valid()
-            || !self.numeric_range_iterations_are_valid()
-            || !self.map_iterations_are_valid()
-        {
-            Err(Box::new(self))
-        } else {
+        if self.has_valid_basic_types() {
             Ok(ValidatedCompilationUnitTypes(self))
+        } else {
+            Err(Box::new(self))
         }
     }
 }

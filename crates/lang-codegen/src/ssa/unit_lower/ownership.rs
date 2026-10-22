@@ -72,6 +72,7 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         let expression = UnitExpressionId::new(self.source_unit, expression);
+        self.reject_nullable_when_value(expression, span)?;
         let ty = self
             .typed
             .expression_type(expression)

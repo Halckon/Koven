@@ -165,6 +165,7 @@ impl Checker<'_> {
         let mut arguments = descriptor.arguments().to_vec();
         arguments.sort_by_key(|argument| argument.evaluation_index());
         let mut deliveries = Vec::with_capacity(arguments.len());
+        let mut deliveries_complete = true;
 
         for argument in arguments {
             let parameter_span = argument
@@ -183,7 +184,7 @@ impl Checker<'_> {
 
             if self.is_nothing_expression(argument.argument()) {
                 flows.next = None;
-                if self.diagnostics.len() == diagnostic_count {
+                if deliveries_complete && self.diagnostics.len() == diagnostic_count {
                     self.construction_plans
                         .push(UnitConstructionOwnershipPlan::new(
                             descriptor.expression(),
@@ -198,17 +199,29 @@ impl Checker<'_> {
             if self.diagnostics.len() != argument_diagnostics || flows.next.is_none() {
                 continue;
             }
+            let Some(kind) =
+                self.construction_delivery_kind(argument.argument(), argument.category())?
+            else {
+                deliveries_complete = false;
+                continue;
+            };
             deliveries.push(UnitConstructionDeliveryEffect::new(
                 descriptor.expression(),
                 argument.argument(),
                 argument.parameter_index(),
                 argument.parameter_symbol(),
                 argument.evaluation_index(),
-                self.construction_delivery_kind(argument.argument(), argument.category())?,
+                kind,
             ));
         }
 
-        if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
+        if flows.next.is_some()
+            && deliveries_complete
+            && self.diagnostics.len() == diagnostic_count
+            && !self
+                .typed
+                .is_diagnostic_error_type(descriptor.result_type())
+        {
             let root_obligation = match self.typed.copyability(descriptor.result_type()) {
                 Copyability::Copyable => None,
                 Copyability::MoveOnly => Some(UnitConstructionRootDropObligation::new(
@@ -219,6 +232,13 @@ impl Checker<'_> {
                         descriptor.expression().expression(),
                     )?,
                 )),
+                Copyability::Error
+                    if self
+                        .typed
+                        .copyability_error_is_diagnostic(descriptor.result_type()) =>
+                {
+                    return Ok(flows);
+                }
                 Copyability::Unknown | Copyability::Error => {
                     return Err(self.invalid_construction(descriptor.expression().expression()));
                 }
@@ -239,16 +259,20 @@ impl Checker<'_> {
         &self,
         expression: crate::type_checking::UnitExpressionId,
         category: ExpressionCategory,
-    ) -> Result<ConstructionDeliveryKind, OwnershipCheckingError> {
-        if category == ExpressionCategory::Temporary {
-            return Ok(ConstructionDeliveryKind::DeliverTemporary);
-        }
+    ) -> Result<Option<ConstructionDeliveryKind>, OwnershipCheckingError> {
         let Some(ty) = self.typed.expression_type(expression) else {
             return Err(self.invalid_construction(expression.expression()));
         };
+        if self.typed.is_diagnostic_error_type(ty) {
+            return Ok(None);
+        }
+        if category == ExpressionCategory::Temporary {
+            return Ok(Some(ConstructionDeliveryKind::DeliverTemporary));
+        }
         match self.typed.copyability(ty) {
-            Copyability::Copyable => Ok(ConstructionDeliveryKind::Copy),
-            Copyability::MoveOnly => Ok(ConstructionDeliveryKind::Move),
+            Copyability::Copyable => Ok(Some(ConstructionDeliveryKind::Copy)),
+            Copyability::MoveOnly => Ok(Some(ConstructionDeliveryKind::Move)),
+            Copyability::Error if self.typed.copyability_error_is_diagnostic(ty) => Ok(None),
             Copyability::Unknown | Copyability::Error => {
                 Err(self.invalid_construction(expression.expression()))
             }

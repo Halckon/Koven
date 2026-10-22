@@ -1,0 +1,8 @@
+class Node(val value: Int)
+fun entry(own node: Node?): Node? {
+    if (node != null) {
+        var count: Int = 0
+        while (count < 1) { count = count + 1 }
+    }
+    return node
+}

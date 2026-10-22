@@ -1,0 +1,12 @@
+
+        fun first(): Unit { println("first") }
+        fun main(): Unit {
+            var count = 0
+            for (item in arrayOf<Unit>(first())) {
+                if (count == 0) { println("branch") }
+                val copy: Unit = item
+                count += 1
+                println("body")
+            }
+            if (count == 1) { println("count-ok") }
+        }

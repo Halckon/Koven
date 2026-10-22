@@ -6,8 +6,8 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
-        UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
+        CompilationUnitNames, DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind,
+        UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
     parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement, StringPart},
     source::{SourceMap, Span},
@@ -17,7 +17,7 @@ use crate::{
         UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
         UnitAggregateProjectionReceiver, UnitCallableSignature, UnitFunctionParameterType,
         UnitRuntimeFieldLayoutDescriptor, UnitRuntimeFieldLayoutField, UnitTypeId, UnitTypeKind,
-        collect_compilation_unit_signatures, collect_expression_uses,
+        collect_compilation_unit_signatures_recovering, collect_expression_uses,
     },
 };
 
@@ -46,13 +46,17 @@ mod lambda;
 mod literals;
 mod map;
 mod members;
+mod missing_classifier;
+mod missing_name;
 mod nullable;
+mod nullable_when;
 mod operators;
 mod ownership_primitives;
 mod postfix;
 mod range_carrier;
 mod range_construction;
 mod rc;
+mod receiver_recovery;
 mod string;
 mod top_level;
 mod trial;
@@ -83,13 +87,24 @@ pub fn check_compilation_unit_types(
     names: &ValidatedCompilationUnitNames,
     environment: &TypeEnvironment,
 ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
-    let signatures = collect_compilation_unit_signatures(sources, inputs, names, environment)?;
+    check_compilation_unit_types_recovering(sources, inputs, names.names(), environment)
+}
+
+/// 同一类型 producer 的 raw 门；上游错误随 signature 资格保留，不制造 validated names。
+pub(crate) fn check_compilation_unit_types_recovering(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &CompilationUnitNames,
+    environment: &TypeEnvironment,
+) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
+    let signatures =
+        collect_compilation_unit_signatures_recovering(sources, inputs, names, environment)?;
     BodyChecker::new(sources, inputs, names, environment, signatures)?.run()
 }
 
 pub(super) struct BodyChecker<'a> {
     sources: &'a SourceMap,
-    names: &'a ValidatedCompilationUnitNames,
+    names: &'a CompilationUnitNames,
     environment: &'a TypeEnvironment,
     files: Vec<&'a ParsedFile>,
     expression_uses: Vec<Vec<ExpressionUse>>,
@@ -104,8 +119,10 @@ pub(super) struct BodyChecker<'a> {
     current_return_span: Option<Span>,
     loop_depth: usize,
     callable_loop_bases: Vec<usize>,
+    active_nullable_whens: Vec<nullable_when::ActiveWhenFrame>,
     candidate_local_expected: bool,
     current_receiver: Option<UnitTypeId>,
+    current_rejected_extension_receiver: bool,
     current_receiver_mode: Option<ParameterMode>,
     current_owner: Option<DeclarationId>,
     constant_prechecked: BTreeSet<UnitSymbolId>,
@@ -118,11 +135,11 @@ impl<'a> BodyChecker<'a> {
     fn new(
         sources: &'a SourceMap,
         inputs: &[SourceUnitInput<'a>],
-        names: &'a ValidatedCompilationUnitNames,
+        names: &'a CompilationUnitNames,
         environment: &'a TypeEnvironment,
         signatures: CompilationUnitSignatures,
     ) -> Result<Self, CompilationUnitTypeError> {
-        let index = names.names().index();
+        let index = names.index();
         let mut files = Vec::with_capacity(index.source_units().len());
         for source in index.source_units() {
             let parsed = inputs
@@ -133,7 +150,6 @@ impl<'a> BodyChecker<'a> {
             files.push(parsed);
         }
         let references = names
-            .names()
             .references()
             .iter()
             .filter_map(|reference| {
@@ -151,7 +167,6 @@ impl<'a> BodyChecker<'a> {
             })
             .collect();
         let symbols_by_span = names
-            .names()
             .source_units()
             .iter()
             .flat_map(|unit| {
@@ -190,8 +205,10 @@ impl<'a> BodyChecker<'a> {
             current_return_span: None,
             loop_depth: 0,
             callable_loop_bases: Vec::new(),
+            active_nullable_whens: Vec::new(),
             candidate_local_expected: false,
             current_receiver: None,
+            current_rejected_extension_receiver: false,
             current_receiver_mode: None,
             current_owner: None,
             constant_prechecked: BTreeSet::new(),
@@ -211,7 +228,6 @@ impl<'a> BodyChecker<'a> {
     ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
         self.parts.constant_declaration_count = self
             .names
-            .names()
             .index()
             .source_units()
             .iter()
@@ -225,7 +241,7 @@ impl<'a> BodyChecker<'a> {
             })
             .sum();
         self.precheck_constant_dependencies()?;
-        let declarations = self.names.names().index().declarations().to_vec();
+        let declarations = self.names.index().declarations().to_vec();
         for declaration in declarations {
             let signature = self.signatures.declaration(declaration.id()).cloned();
             let callable = signature
@@ -278,11 +294,12 @@ impl<'a> BodyChecker<'a> {
                 ));
             }
         }
+        self.check_missing_name_roots()?;
         self.materialize_generic_body_types_with_limit(generic_limit)?;
         self.materialize_runtime_field_layouts()?;
         self.check_range_types()?;
         self.parts.constants = self.build_constant_facts();
-        let source_units = self.names.names().index().source_units();
+        let source_units = self.names.index().source_units();
         let body_diagnostics =
             ordered_unit_diagnostics(self.sources, source_units, &self.diagnostics)?
                 .into_iter()
@@ -294,18 +311,6 @@ impl<'a> BodyChecker<'a> {
             .into_iter()
             .cloned()
             .collect::<Vec<_>>();
-        // 全部签名/body 检查结束后才原子发布 primitive facts；recovery call facts 保留。
-        if diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity() == Severity::Error)
-        {
-            self.parts.ownership_primitives.clear();
-            self.clear_range_facts();
-            self.parts.integer_operations.clear();
-            self.parts.integer_range_operations.clear();
-            self.parts.iterations.clear();
-            self.parts.map_descriptors.iterations.clear();
-        }
         self.parts
             .integer_range_operations
             .sort_by_key(|fact| fact.expression());
@@ -320,6 +325,18 @@ impl<'a> BodyChecker<'a> {
         self.parts
             .integer_operations
             .sort_by_key(|fact| fact.expression());
+        self.finish_nullable_when_facts();
+        // 排序与全部 trial 完成后才分流。诊断候选仍属原 owner，不重新发布执行表。
+        if !self.signatures.is_valid()
+            || diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity() == Severity::Error)
+        {
+            self.parts.nullable.whens.clear();
+            self.parts.nullable.when_uses.clear();
+            self.parts.retain_ownership_recovery();
+            self.parts.integer_range_operations.clear();
+        }
         Ok(CompilationUnitTypes::new(
             self.signatures,
             self.parts,
@@ -529,20 +546,10 @@ impl<'a> BodyChecker<'a> {
                     },
                 }
             }
-            Expression::This => {
-                let Some(ty) = self
-                    .flow_facts
-                    .get(&FlowKey::This)
-                    .copied()
-                    .or(self.current_receiver)
-                else {
-                    return Err(CompilationUnitTypeError::UnsupportedBody(span));
-                };
-                ExpressionCheck {
-                    ty,
-                    falls_through: true,
-                }
-            }
+            Expression::This => ExpressionCheck {
+                ty: self.this_type(span)?,
+                falls_through: true,
+            },
             Expression::Member {
                 receiver,
                 name_span,
@@ -910,7 +917,7 @@ impl<'a> BodyChecker<'a> {
                     .copied()
                     .or_else(|| self.signatures.symbol_type(*symbol))
                     .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-                let kind = self.names.names().source_units()[symbol.source_unit().index()]
+                let kind = self.names.source_units()[symbol.source_unit().index()]
                     .resolution()
                     .symbols()
                     .get(symbol.symbol().index())
@@ -929,6 +936,9 @@ impl<'a> BodyChecker<'a> {
                         ));
                 }
                 Ok(ty)
+            }
+            Some(UnitReferenceTarget::Unresolved | UnitReferenceTarget::LaterLocal(_)) => {
+                Ok(self.error_type())
             }
             Some(UnitReferenceTarget::Symbols(symbols)) => {
                 let symbols = symbols.clone();

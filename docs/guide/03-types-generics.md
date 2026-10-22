@@ -1,8 +1,8 @@
-# Koven v0.44：类型与泛型
+# Koven v0.45：类型与泛型
 
-> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
 
-本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 基础类型与类型种类
 
@@ -216,6 +216,10 @@ body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`
   受当前 interface 约束但保持静态分发的 `Self`，不产生 interface runtime value。companion
   没有 `this`；其 body 内的 receiver 边界由现行
   [Companion Object 与关联成员](08-class-family-members.md#companion-object-与关联成员)规则定义。
+- `this` 只能引用当前真实 receiver；顶层函数、顶层 initializer 与 companion 函数中没有
+  receiver 时使用 L0166，primary 精确覆盖 `this`，并保留 Error 供后续诊断恢复。不能把
+  非法上下文当作尚未完成的合法 `ThisType`。companion 常量同一 token 已有 L0153 时不重复
+  追加 L0166；合法实例成员与允许的 extension receiver 不受此规则拒绝。
 
 ### Callable 签名、实现与 Override
 

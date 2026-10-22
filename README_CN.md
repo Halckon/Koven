@@ -10,7 +10,7 @@
 
 运行时不使用追踪式垃圾回收。内存与资源按已验证的所有权事实确定性清理：纯内存类型使用 ASAP，资源类型采用词法作用域清理。当前实现和原生支持是有界的，不将语言设计目标视为全部功能或内存安全已完成验证。
 
-当前规范为 [Guide v0.44](docs/guide/README.md)，可执行入门示例见[当前教程](docs/tutorials/README.md)。当前原生子集包括顺序集合、Map 查询/更新/删除及有界借用遍历、普通借用返回，以及带有界局部控制流的 List/View 范围借用。这些是具体组合的支持，不代表任意集合 API 或控制流均已实现；使用方式和限制见[tour 当前能力说明](docs/tutorials/koven-tour.md#collections-and-borrow-results)、[Spec索引](docs/specs/README.md)与[架构快照](docs/architecture/README.md)。性能/成本验收仍延期，不作比较性能承诺。
+当前规范为 [Guide v0.45](docs/guide/README.md)，可执行入门示例见[当前教程](docs/tutorials/README.md)。当前原生子集包括顺序集合、Map 查询/更新/删除及有界借用遍历、普通借用返回，以及带有界局部控制流的 List/View 范围借用。这些是具体组合的支持，不代表任意集合 API 或控制流均已实现；使用方式和限制见[tour 当前能力说明](docs/tutorials/koven-tour.md#collections-and-borrow-results)、[Spec索引](docs/specs/README.md)与[架构快照](docs/architecture/README.md)。性能/成本验收仍延期，不作比较性能承诺。
 
 ---
 
@@ -56,7 +56,7 @@
 | 数字字面量、资源清理及迭代退出 | [numbers-bitwise](docs/tutorials/koven-tour.md#numbers-bitwise)、[scope-cleanup](docs/tutorials/koven-tour.md#scope-cleanup)、[unit-loop-cleanup](docs/tutorials/koven-tour.md#unit-loop-cleanup) |
 | 可变place与迭代借用诊断 | [reject-immutable-place](docs/tutorials/koven-tour.md#reject-immutable-place)、[reject-iteration-move](docs/tutorials/koven-tour.md#reject-iteration-move) |
 
-函数声明以`own param: T`表达所有权交付，默认或`borrow param: T`表达共享借用，`inout param: T`表达可变借用；调用点的可变place交付使用`&place`，Borrow不写调用marker。类家族、nullable与Result等语义见[Guide](docs/guide/README.md)，具体native表示与未支持组合以[Architecture](docs/architecture/README.md)为准。词频示例借用参数数组两遍，使用 Map 的 `get`/`put`/`remove`，并不遍历 Map。List/View 的 `take`/`drop`/`dropLast` 通过 project CLI 导入 `koven.algorithms`；单文件 CLI 不加载这些标准库源码。Map 借用遍历已有有界 single/unit 后端子集，覆盖已验参数、temporary、local/alias 来源、真实实参/callable 出生、有限控制流与替换 epoch、嵌套 provider，以及循环后 owner 返回、Move 或更新；确切组合和独立调用/ABI 前置见[支持矩阵](docs/architecture/map-borrowed-iteration.md)。这些后端回归不新增公开 CLI tour 合同；Field/Inout 原生来源仍按 Guide 延后。集合 `forEach`/`map`/`filter`、未列出的集合 API、String 分词和通用整数格式化仍不能从 Kotlin 经验外推。
+函数声明以`own param: T`表达所有权交付，默认或`borrow param: T`表达共享借用，`inout param: T`表达可变借用；调用点的可变place交付使用`&place`，Borrow不写调用marker。类家族、nullable与Result等语义见[Guide](docs/guide/README.md)，具体native表示与未支持组合以[Architecture](docs/architecture/README.md)为准。词频示例借用参数数组两遍，使用 Map 的 `get`/`put`/`remove`，并不遍历 Map。Guide v0.45 规定单文件与 project 使用相同的 `koven.algorithms` 标准源加载与显式 import 规则。管线迁移和实现缺口由 [SPEC-0341](docs/specs/active/0341-shared-lowering-core.md) 跟踪；规范启用不表示迁移已完成。Map 借用遍历已有有界 single/unit 后端子集，覆盖已验参数、temporary、local/alias 来源、真实实参/callable 出生、有限控制流与替换 epoch、嵌套 provider，以及循环后 owner 返回、Move 或更新；确切组合和独立调用/ABI 前置见[支持矩阵](docs/architecture/map-borrowed-iteration.md)。这些后端回归不新增公开 CLI tour 合同；Field/Inout 原生来源仍按 Guide 延后。集合 `forEach`/`map`/`filter`、未列出的集合 API、String 分词和通用整数格式化仍不能从 Kotlin 经验外推。
 
 ---
 
@@ -220,7 +220,7 @@ Hello, World!
 
 - [**当前可执行教程**](docs/tutorials/README.md)：从Markdown单一源码运行真实CLI合同。
 - [**Spec与演进账本**](docs/specs/README.md)：有界合同、归档关系与能力缺口。
-- [**语言规范 (v0.44)**](docs/guide/README.md)：Koven 语法、语义、类型规则与所有权机制的权威真源。
+- [**语言规范 (v0.45)**](docs/guide/README.md)：Koven 语法、语义、类型规则与所有权机制的权威真源。
 - [**编译器架构快照**](docs/architecture/README.md)：编译流水线、Typed SSA 与代码生成的当前事实说明。
 - [**开发与测试指南**](docs/development/README.md)：分层验证、测试门禁与代码不变式规范。
 - [**架构决策记录 (ADR)**](docs/adr/README.md)：重大架构决策的历史背景、长期考量与技术设计记录。

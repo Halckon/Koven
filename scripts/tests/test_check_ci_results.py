@@ -61,6 +61,152 @@ def stage_command_is_unfiltered(command):
 
 
 class CheckCiResultsTests(unittest.TestCase):
+    def test_unit_migration_routes_and_exact_regressions_run_on_both_hosts(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        job = re.split(r"^  [a-z][a-z-]+:\s*$",
+                       workflow.split("  test:\n", 1)[1], maxsplit=1, flags=re.M)[0]
+        self.assertIn("os: [macos-14, ubuntu-24.04]", job)
+        self.assertEqual(1, job.count("run: bash scripts/check_integration.sh\n"))
+        composition = (root / "scripts/check_integration.sh").read_text()
+        self.assertEqual(1, composition.count("bash scripts/check_core.sh\n"))
+        self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
+        core = (root / "scripts/check_core.sh").read_text()
+        self.assertEqual([
+            "cargo test --locked -p lang-frontend --lib",
+            "cargo test --locked -p lang-codegen",
+            "cargo test --locked -p lang-cli --no-fail-fast",
+            "cargo test --locked -p lang-lsp",
+            "cargo test --locked -p lang-std",
+        ], [line for line in core.splitlines() if line.startswith("cargo ")])
+        for package in ("lang-frontend", "lang-codegen", "lang-cli"):
+            manifest = (root / "crates" / package / "Cargo.toml").read_text()
+            self.assertNotRegex(manifest, r"(?m)^\s*(?:autotests|autobins|test)\s*=\s*false")
+            self.assertNotIn("required-features", manifest)
+        for path in ("lang-frontend/src/lib.rs", "lang-codegen/src/lib.rs",
+                     "lang-cli/src/main.rs", "lang-cli/tests/project_cli.rs",
+                     "lang-cli/tests/project_basic_ownership_cli.rs"):
+            self.assertTrue((root / "crates" / path).is_file())
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        for target in (
+                "parser_file", "unit_name_snapshot", "compilation_unit_memory_document",
+                "unit_recovery", "unit_recovery_missing_names", "unit_recovery_rejected_headers",
+                "unit_recovery_this", "unit_recovery_this_context", "unit_recovery_nominal_error",
+                "unit_single_source_analysis", "single_file_fact_compile_contracts"):
+            self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+            selected = stage_target_occurrences(stage, target)
+            self.assertEqual(1, len(selected))
+            self.assertTrue(selected[0].startswith(
+                "run cargo test --locked -p lang-frontend --no-fail-fast "))
+            self.assertTrue(stage_command_is_unfiltered(selected[0]))
+        groups = (
+            ("compilation_unit_index", (
+                "poisoned_initial_package_does_not_create_path_mismatch",
+                "missing_initial_header_separator_does_not_create_path_mismatch",
+                "later_bad_package_does_not_hide_initial_path_mismatch",
+                "malformed_package_recovery_does_not_create_a_second_package_diagnostic",
+                "package_mismatch_reports_l0146_with_source_anchored_primary_spans",
+            )),
+            ("multifile_name_resolution", (
+                "unloaded_exact_alias_and_wildcard_imports_explain_the_source_set",
+                "loaded_missing_member_tail_and_unclassified_imports_keep_original_diagnostics",
+                "default_package_and_real_long_package_imports_keep_declaration_targets",
+                "exact_alias_same_package_and_input_permutation_publish_stable_declarations",
+                "private_exact_is_l0149_and_blocks_validated_view",
+                "exact_alias_conflict_is_per_namespace_and_repeated_target_is_idempotent",
+                "wildcard_conflict_is_lazy_and_exact_import_wins",
+                "exact_member_is_l0148_while_longest_package_prefix_resolves_top_level",
+            )),
+        )
+        expected, actual = [], []
+        for target, names in groups:
+            source = (root / f"crates/lang-frontend/tests/{target}.rs").read_text()
+            for name in names:
+                self.assertEqual(1, len(re.findall(r"(?m)^fn " + re.escape(name) + r"\(\)", source)))
+                expected.append(["run", "cargo", "test", "--locked", "-p", "lang-frontend",
+                                 "--no-fail-fast", "--test", target, name, "--", "--exact"])
+            actual.extend(shlex.split(command) for command in stage_target_occurrences(stage, target))
+        self.maxDiff = None
+        self.assertEqual(expected, actual)
+
+    def test_single_unit_cli_contracts_are_present_in_unfiltered_cli_matrix(self):
+        root = Path(__file__).resolve().parents[2]
+        # The main unit-migration route test above verifies both hosts and the
+        # unique unfiltered core lang-cli invocation. Do not duplicate it in stage.
+        manifest = (root / "crates/lang-cli/Cargo.toml").read_text()
+        self.assertNotRegex(manifest, r"(?m)^\s*(?:autotests|test)\s*=\s*false")
+        self.assertNotIn("required-features", manifest)
+        groups = (
+            ("tests/single_unit_cli.rs", "", (
+                "single_source_roots_follow_logical_components_and_explicit_identity",
+                "single_source_symlinks_keep_logical_package_and_physical_root_identity",
+                "single_header_failures_preserve_complete_diagnostics_before_root_setup",
+                "single_missing_explicit_root_is_an_operational_error_after_logical_validation",
+                "single_source_root_options_keep_usage_and_program_argument_boundaries",
+                "single_imports_use_only_the_selected_file_and_authorized_standard_sources",
+            )),
+            ("tests/single_file_analysis_cli.rs", "", (
+                "single_file_unit_diagnostics_preserve_complete_output_and_precede_entry_and_codegen",
+                "bodyless_build_preserves_complete_single_and_project_failures",
+            )),
+            ("src/unit_build.rs", "    ", (
+                "unit_single_entry_uses_original_user_source_after_standard_sorting",
+            )),
+        )
+        for path, indent, names in groups:
+            source = (root / "crates/lang-cli" / path).read_text()
+            for name in names:
+                with self.subTest(path=path, name=name):
+                    definitions = list(re.finditer(
+                        r"(?m)^" + indent + "fn " + re.escape(name) + r"\(\)", source))
+                    self.assertEqual(1, len(definitions), name)
+                    # Lock the complete preamble after the preceding item, not just
+                    # the nearest attribute: ignore may precede test or a blank line.
+                    attributes = []
+                    for line in reversed(source[:definitions[0].start()].splitlines()):
+                        stripped = line.strip()
+                        if not stripped or stripped.startswith("//"):
+                            continue
+                        if (line == indent + "}" or
+                                (line.startswith(indent + "const ") and line.endswith(";"))):
+                            break
+                        attributes.insert(0, stripped)
+                    expected = ["#[test]"]
+                    if name == "single_source_symlinks_keep_logical_package_and_physical_root_identity":
+                        expected.insert(0, "#[cfg(unix)]")
+                    self.assertEqual(expected, attributes, name)
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        self.assertEqual([], stage_target_occurrences(stage, "single_unit_cli"))
+
+    def test_initial_package_header_index_exacts_run_once_on_both_hosts(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        job = re.split(r"^  [a-z][a-z-]+:\s*$",
+                       workflow.split("  test:\n", 1)[1], maxsplit=1, flags=re.M)[0]
+        self.assertIn("os: [macos-14, ubuntu-24.04]", job)
+        self.assertEqual(1, job.count("run: bash scripts/check_integration.sh\n"))
+        composition = (root / "scripts/check_integration.sh").read_text()
+        self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
+        names = (
+            "poisoned_initial_package_does_not_create_path_mismatch",
+            "missing_initial_header_separator_does_not_create_path_mismatch",
+            "later_bad_package_does_not_hide_initial_path_mismatch",
+            "malformed_package_recovery_does_not_create_a_second_package_diagnostic",
+            "package_mismatch_reports_l0146_with_source_anchored_primary_spans",
+        )
+        source = (root / "crates/lang-frontend/tests/compilation_unit_index.rs").read_text()
+        for name in names:
+            self.assertEqual(1, len(re.findall(r"(?m)^fn " + re.escape(name) + r"\(\)", source)))
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        selected = stage_target_occurrences(stage, "compilation_unit_index")
+        expected = [
+            ["run", "cargo", "test", "--locked", "-p", "lang-frontend", "--no-fail-fast",
+             "--test", "compilation_unit_index", name, "--", "--exact"]
+            for name in names
+        ]
+        self.maxDiff = None
+        self.assertEqual(expected, [shlex.split(command) for command in selected])
+
     def test_spec0331_rebuilt_closure_targets_run_once_on_both_hosts(self):
         root = Path(__file__).resolve().parents[2]
         stage = (root / "scripts/check_stage_integration.sh").read_text()
@@ -374,18 +520,25 @@ class CheckCiResultsTests(unittest.TestCase):
             self.assertNotIn(" -- ", selected[0], "contract targets must not be filtered")
             self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
 
-    def test_single_file_analysis_contracts_run_in_stage_integration(self):
+    def test_unit_single_source_contracts_replace_retired_analysis_facade(self):
         root = Path(__file__).resolve().parents[2]
         stage = (root / "scripts/check_stage_integration.sh").read_text()
-        commands = stage.replace("\\\n", " ").splitlines()
-        for target in ("single_file_analysis", "single_file_analysis_compile_contracts"):
-            selected = [line for line in commands
-                        if re.search(rf"--test {target}(?:\s|$)", line)]
+        for target in ("unit_single_source_analysis", "single_file_fact_compile_contracts"):
+            selected = stage_target_occurrences(stage, target)
             self.assertEqual(1, len(selected), f"{target} must execute exactly once")
             self.assertTrue(selected[0].startswith(
                 "run cargo test --locked -p lang-frontend --no-fail-fast "))
-            self.assertNotIn(" -- ", selected[0], "contract targets must not be filtered")
+            self.assertTrue(stage_command_is_unfiltered(selected[0]))
             self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+        for target in ("single_file_analysis", "single_file_analysis_compile_contracts"):
+            self.assertEqual([], stage_target_occurrences(stage, target))
+            self.assertFalse((root / f"crates/lang-frontend/tests/{target}.rs").exists())
+        analysis = root / "crates/lang-frontend/src/analysis"
+        self.assertFalse((analysis / "single_file.rs").exists())
+        module = (analysis / "mod.rs").read_text()
+        for retired in ("mod single_file;", "analyze_single_file", "SingleFileAnalysis",
+                        "SingleFileAnalysisError", "SingleFileStage", "SingleFileTypedView"):
+            self.assertNotIn(retired, module)
 
     def test_rust_size_guard_is_always_required(self):
         for event, ref in (("pull_request", "refs/pull/1/merge"),

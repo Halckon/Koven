@@ -227,7 +227,12 @@ pub(super) fn facts(observed: &Observed, sites: &Sites, case: Case) -> Result<Fa
             let unit = source_names.source_unit();
             if source_unit.id() != unit
                 || source_unit.source_id() != observed.fixture.file.source_id()
-                || source_unit.key().logical_path().as_str() != "iteration.ko"
+                || source_unit
+                    .key()
+                    .logical_path()
+                    .expect("rooted source")
+                    .as_str()
+                    != "iteration.ko"
             {
                 return Err(blocked("unit identity", source_unit));
             }

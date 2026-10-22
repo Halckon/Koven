@@ -1,0 +1,16 @@
+
+value class Count(val n: Int)
+fun main(): Unit {
+ var numbers = mutableMapOf<Int, Int>()
+ val key = 1
+ val value = 0
+ numbers.put(key, value)
+ if (numbers[key] == value && key == 1) { println("put reused") }
+ numbers[key] = value
+ if (numbers[key]!! == value) { println("assignment reused") }
+ var counts = mutableMapOf<Int, Count>()
+ val count = Count(0)
+ counts.put(key, count)
+ val queried = counts[key]!!
+ if (count.n == 0 && queried.n == 0) { println("aggregate reused") }
+}

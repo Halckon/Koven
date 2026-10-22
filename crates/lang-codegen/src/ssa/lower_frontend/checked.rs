@@ -1,9 +1,15 @@
-//! Checked scalar CFG preserves the existing entry-specific carry and rebind contract.
+//! Single-file checked operations retain their existing linear and Map roles.
 use super::{
-    BuiltinType, CheckedArithmeticOperator, Edge, EntityType, ExpressionLowerer, LoweredValue,
-    LoweringError, LoweringErrorKind, Operation, Origin, Span, SsaTypeId, TerminatorKind, ValueId,
-    builtin_type, error, value,
+    BlockId, BuiltinType, CheckedArithmeticOperator, ExpressionLowerer, Function, LoweredValue,
+    LoweringError, Operation, Span, SsaTypeId, SymbolId, ValueId, builtin_type,
 };
+use crate::ssa::expression_core::checked::{self, CarryColumn, CheckedCarry, CheckedLowering};
+use std::collections::BTreeMap;
+
+pub(in crate::ssa) struct CheckedRoles {
+    baseline: BTreeMap<SymbolId, LoweredValue>,
+    carried: super::control::LinearBindings,
+}
 
 impl ExpressionLowerer<'_> {
     pub(super) fn checked(
@@ -14,15 +20,7 @@ impl ExpressionLowerer<'_> {
         ty: SsaTypeId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        self.checked_operation(
-            Operation::CheckedArithmetic {
-                operator,
-                left,
-                right,
-            },
-            ty,
-            span,
-        )
+        checked::lower_checked_arithmetic(self, operator, left, right, ty, span)
     }
 
     pub(super) fn checked_operation(
@@ -31,59 +29,50 @@ impl ExpressionLowerer<'_> {
         ty: SsaTypeId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let boolean = self
-            .type_ids
-            .iter()
-            .find_map(|(frontend, ssa)| {
-                (builtin_type(self.typed, *frontend) == Some(BuiltinType::Boolean)).then_some(*ssa)
-            })
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let (_, results) = self.append(
-            operation,
-            vec![EntityType::Value(ty), EntityType::Value(boolean)],
-            span,
-        )?;
+        checked::lower_checked_operation(self, operation, ty, span)
+    }
+}
+
+impl CheckedLowering for ExpressionLowerer<'_> {
+    type Roles = CheckedRoles;
+
+    fn boolean_type(&self) -> Option<SsaTypeId> {
+        self.type_ids.iter().find_map(|(frontend, ssa)| {
+            (builtin_type(self.typed, *frontend) == Some(BuiltinType::Boolean)).then_some(*ssa)
+        })
+    }
+
+    fn ir_cursor(&mut self) -> (&mut Function, &mut BlockId) {
+        (&mut *self.function, &mut self.block)
+    }
+
+    fn capture_roles(&self, span: Span) -> Result<CheckedCarry<Self::Roles>, LoweringError> {
         let baseline = self.bindings.clone();
         let carried = self.linear_binding_slots(&baseline, span)?;
         self.carry_checked_map(&carried, span)?;
-        let previous_block = self.block;
-        let parameter_types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
-        let arguments = carried
+        let columns = carried
             .slots
             .iter()
-            .map(|slot| slot.source)
-            .collect::<Vec<_>>();
-        let failure = self
-            .function
-            .add_block(parameter_types.clone(), Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        let success = self
-            .function
-            .add_block(parameter_types, Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        self.function
-            .set_terminator(
-                self.block,
-                TerminatorKind::Conditional {
-                    condition: value(results[1]),
-                    when_true: Edge {
-                        target: failure,
-                        arguments: arguments.clone(),
-                    },
-                    when_false: Edge {
-                        target: success,
-                        arguments,
-                    },
-                },
-                Origin::Source(span),
-            )
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        self.function
-            .set_terminator(failure, TerminatorKind::Abort, Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        self.block = success;
-        self.bindings = self.rebind_linear_bindings(&baseline, success, &carried, span)?;
-        self.resume_checked_map(previous_block, &carried, span)?;
-        Ok(LoweredValue::Value(value(results[0])))
+            .map(|slot| CarryColumn {
+                source: slot.source,
+                ty: slot.ty,
+            })
+            .collect();
+        Ok(CheckedCarry {
+            columns,
+            roles: CheckedRoles { baseline, carried },
+        })
+    }
+
+    fn restore_roles(
+        &mut self,
+        roles: Self::Roles,
+        from: BlockId,
+        success: BlockId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.bindings =
+            self.rebind_linear_bindings(&roles.baseline, success, &roles.carried, span)?;
+        self.resume_checked_map(from, &roles.carried, span)
     }
 }

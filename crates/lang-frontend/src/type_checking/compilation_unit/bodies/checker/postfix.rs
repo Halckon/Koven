@@ -18,7 +18,11 @@ impl BodyChecker<'_> {
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         self.resolve_static_body_type_ref(source, interface)?;
         Ok(ExpressionCheck {
-            ty: self.deferred_type(DeferredReason::MemberAccess),
+            ty: if self.current_receiver.is_some_and(|ty| self.is_error(ty)) {
+                self.error_type()
+            } else {
+                self.deferred_type(DeferredReason::MemberAccess)
+            },
             falls_through: true,
         })
     }

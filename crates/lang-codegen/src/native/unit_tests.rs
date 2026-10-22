@@ -2,6 +2,8 @@
 mod borrow_result_tests;
 #[path = "unit_borrow_string_tests.rs"]
 mod borrow_string_tests;
+#[path = "unit_companion_boundary_tests.rs"]
+mod companion_boundary;
 #[path = "unit_container_append_tests.rs"]
 mod container_append_tests;
 #[path = "unit_container_clear_tests.rs"]
@@ -30,6 +32,8 @@ mod map_word_frequency_tests;
 mod owned_null_cleanup_tests;
 #[path = "unit_receiver_two_phase_tests.rs"]
 mod receiver_two_phase_tests;
+#[path = "unit_runtime_global_tests.rs"]
+mod runtime_global_tests;
 #[path = "unit_string_clone_tests.rs"]
 mod string_clone_tests;
 #[path = "unit_temporary_null_cleanup_tests.rs"]

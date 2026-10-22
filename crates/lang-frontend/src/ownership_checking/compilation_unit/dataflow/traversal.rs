@@ -14,13 +14,13 @@ use super::{
 /// Collect declaration-owned permissions once; callers may project fields from any source.
 pub(super) fn collect_field_mutability(
     inputs: &[super::SourceUnitInput<'_>],
-    names: &super::ValidatedCompilationUnitNames,
+    names: &super::CompilationUnitNames,
 ) -> Result<
     std::collections::BTreeMap<super::UnitSymbolId, super::VariableKind>,
     OwnershipCheckingError,
 > {
     let mut fields = std::collections::BTreeMap::new();
-    for source in names.names().source_units() {
+    for source in names.source_units() {
         let parsed = inputs
             .iter()
             .find(|input| input.source_id() == source.resolution().source_id())
@@ -188,7 +188,10 @@ impl Checker<'_> {
                 let previous_borrow =
                     std::mem::replace(&mut self.current_borrow_return, borrow_source);
                 let previous_receiver = self.current_receiver;
-                self.current_receiver = self.receiver_context(name);
+                self.current_receiver = match name {
+                    super::NameMarker::Present(_) => self.receiver_context(name),
+                    _ => self.missing_name_receiver(id, name)?,
+                };
                 let mut function_state = State::default();
                 for parameter in parameters {
                     if let Some(symbol) = self.marker_symbol(parameter.name).copied() {
@@ -470,7 +473,10 @@ impl Checker<'_> {
         {
             return self.check_construction(descriptor, state, usage);
         }
-        if let Some(descriptor) = self.typed.integer_operation(self.unit_expression(id)) {
+        if let Some(descriptor) = self
+            .typed
+            .diagnostic_integer_operation(self.unit_expression(id))
+        {
             return self.check_expression(
                 descriptor.receiver().expression(),
                 state,
@@ -484,7 +490,7 @@ impl Checker<'_> {
                 state,
             );
         }
-        if let Some(descriptor) = self.typed.range_size(self.unit_expression(id)) {
+        if let Some(descriptor) = self.typed.diagnostic_range_size(self.unit_expression(id)) {
             return self.check_shared_receiver_read(
                 descriptor.expression(),
                 descriptor.receiver(),
@@ -558,7 +564,7 @@ impl Checker<'_> {
                 subject, entries, ..
             } => {
                 let branch_usage = self.control_result_usage(id)?;
-                self.check_when(subject, &entries, state, branch_usage, false)
+                self.check_when(id, subject, &entries, state, branch_usage, false)
             }
             Expression::Return { value, .. } => {
                 let mut flows = if let Some(value) = value {

@@ -26,6 +26,7 @@ mod non_null_assertion;
 mod nullable_when;
 mod ownership_primitive;
 mod range_producer;
+pub(crate) use compilation_unit::check_compilation_unit_ownership_recovering;
 mod rc;
 mod string;
 
@@ -61,11 +62,13 @@ pub use compilation_unit::{
     UnitDropTarget, UnitIterationCleanupAction, UnitIterationExitKind, UnitIterationExitPlan,
     UnitIterationOwnershipPlan, UnitIterationSourceAccess, UnitLoanFact, UnitLoanTarget,
     UnitMapIterationLoan, UnitMapIterationOwnershipPlan, UnitNonNullAssertionOwnershipPlan,
-    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
-    UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
-    UnitReceiverOwnershipTarget, UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact,
-    UnitValueDeliveryKind, UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
-    check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
+    UnitNullableWhenEntryOwnershipFact, UnitNullableWhenOwnershipPlan, UnitNullableWhenUseFact,
+    UnitNullableWhenUseKind, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact,
+    UnitOwnershipPlace, UnitRcOwnershipEffect, UnitReceiverOwnershipFact,
+    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, UnitShortCircuitPlan,
+    UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
+    ValidatedCompilationUnitOwnership, check_compilation_unit_constant_ownership,
+    check_compilation_unit_ownership,
 };
 pub use const_handoff::{ConstOwnedCompilationUnitView, const_owned_compilation_unit_view};
 pub use constant::{

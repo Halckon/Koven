@@ -25,21 +25,36 @@ impl Checker<'_> {
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         let statement_id = UnitStatementId::new(self.source_unit, statement);
-        if !crate::type_checking::map_iteration_validation::validate_unit_map_iteration(
+        if self
+            .typed
+            .diagnostic_iteration_header_rejected(statement_id)
+        {
+            let errors = self.diagnostics.len();
+            let mut prefix = self.check_expression(source, state, ExpressionUse::Read)?;
+            let Some(base) = prefix.next.as_mut() else {
+                return Ok(prefix);
+            };
+            base.origins.attach(&self.callable_sources.arena);
+            let headers = base.origins.begin_loop();
+            return self.check_maybe_loop(prefix, body, errors, &headers);
+        }
+        if !crate::type_checking::map_iteration_validation::validate_unit_map_iteration_facts(
             self.parsed,
             self.names,
             self.typed,
             statement_id,
+            self.typed.diagnostic_map_iteration(statement_id),
+            self.typed.diagnostic_sequential_iteration(statement_id),
         ) {
             return Err(OwnershipCheckingError::InvalidMapIteration {
                 source_unit: Some(self.source_unit.index()),
                 statement: statement.index(),
             });
         }
-        let map_descriptor = self.typed.map_iteration(statement_id).copied();
+        let map_descriptor = self.typed.diagnostic_map_iteration(statement_id).copied();
         let numeric = self
             .typed
-            .sequential_iteration(UnitStatementId::new(self.source_unit, statement))
+            .diagnostic_sequential_iteration(UnitStatementId::new(self.source_unit, statement))
             .is_some_and(|plan| plan.delivery() == crate::type_checking::ParameterMode::Value);
         let errors = self.diagnostics.len();
         let previous = self.allowed_borrow_call;
@@ -80,7 +95,10 @@ impl Checker<'_> {
             return self.check_maybe_loop(prefix, body, errors, &headers);
         }
         let statement = UnitStatementId::new(self.source_unit, statement);
-        let descriptor = self.typed.sequential_iteration(statement).cloned();
+        let descriptor = self
+            .typed
+            .diagnostic_sequential_iteration(statement)
+            .cloned();
         if descriptor.is_none() && map_descriptor.is_none() {
             return Err(OwnershipCheckingError::InvalidUnitArgumentType {
                 source_unit: self.source_unit.index(),

@@ -2,10 +2,7 @@
 
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{
-        UnitDropPoint, UnitDropTarget, UnitLoanTarget, UnitValueDeliveryKind,
-        UnitValueDeliverySource,
-    },
+    ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget, UnitValueDeliveryKind},
     parser::{AssignmentOperator, Expression, ParameterModeMarker},
     source::Span,
     type_checking::{
@@ -837,15 +834,16 @@ impl UnitExpressionLowerer<'_> {
                 LoweredValue::Unit => self.materialize_unit_value(argument.value, argument.span)?,
             };
             self.consume_container_delivery(id, argument.value, value, argument.span)?;
+            let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
+            self.retain_pending_construction_operand(argument_id, value, argument.span)?;
             self.pending_operands.push(EntityId::Value(value));
         }
 
-        let elements = self.pending_operands[pending_start..]
-            .iter()
-            .copied()
-            .map(|entity| require_value(entity, span))
-            .collect::<Result<Vec<_>, _>>()?;
-        self.pending_operands.truncate(pending_start);
+        let elements = self.commit_construction_operands(
+            pending_start..self.pending_operands.len(),
+            pending_start,
+            span,
+        )?;
 
         let container = self.expression_ssa_type(expression, span)?;
         let (_, results) = self
@@ -974,9 +972,7 @@ impl UnitExpressionLowerer<'_> {
                 self.take_owned_binding(place.root(), value, span)
             }
             UnitValueDeliveryKind::Temporary => {
-                if delivery.source() != &UnitValueDeliverySource::Temporary(argument) {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                }
+                self.validate_temporary_delivery_origin(argument, delivery.source(), span)?;
                 if self.typed.copyability(ty) == Copyability::MoveOnly {
                     self.take_owned_temporary(value, span)?;
                 }

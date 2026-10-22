@@ -13,43 +13,27 @@ use std::{
 
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity, codes},
-    name_resolution::{
-        DeclarationId, NameResolution, ScopeKind, SourceUnitInput, SymbolId, SymbolKind,
-        ValidatedCompilationUnitNames,
-    },
+    name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{
         ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, OwnedCompilationUnitView,
-        OwnedCompilationUnitViewError, OwnershipCheckedFile, ValidatedCompilationUnitOwnership,
+        OwnedCompilationUnitViewError, ValidatedCompilationUnitOwnership,
         const_owned_compilation_unit_view, owned_compilation_unit_view,
     },
-    parser::ParsedFile,
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, CompilationUnitTypes, ConstEnabledTypedUnit, FunctionParameterType,
-        IntrinsicTypeConstructor, ParameterMode, TypeEnvironment, TypeKind, TypedFile,
-        UnitCallableTarget, UnitTypeKind, ValidatedCompilationUnitTypes,
+        BuiltinType, CompilationUnitTypes, ConstEnabledTypedUnit, IntrinsicTypeConstructor,
+        ParameterMode, TypeEnvironment, UnitCallableTarget, UnitTypeKind,
+        ValidatedCompilationUnitTypes,
     },
 };
 
 use crate::{
     llvm,
     llvm::entry::NativeEntryPlan,
-    ssa::{
-        LoweringError, LoweringErrorKind, lower_scalar_file_with_entry,
-        unit_lower::lower_owned_unit_with_entry,
-    },
+    ssa::{LoweringError, LoweringErrorKind, unit_lower::lower_owned_unit_with_entry},
 };
 
 static NEXT_UNIT_OBJECT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
-
-/// 已由调用方完成名称选择的封闭 native process entry shape。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NativeEntry {
-    /// 显式或 conventional `() -> Unit` entry。
-    NoArguments(SymbolId),
-    /// Conventional shared Borrow `Array<String> -> Unit` entry。
-    BorrowedArguments(SymbolId),
-}
 
 /// 已由 project entry resolver 选择的 compilation-unit process entry。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,20 +55,6 @@ impl NativeUnitEntry {
 impl From<DeclarationId> for NativeUnitEntry {
     fn from(declaration: DeclarationId) -> Self {
         Self::NoArguments(declaration)
-    }
-}
-
-impl NativeEntry {
-    const fn symbol(self) -> SymbolId {
-        match self {
-            Self::NoArguments(symbol) | Self::BorrowedArguments(symbol) => symbol,
-        }
-    }
-}
-
-impl From<SymbolId> for NativeEntry {
-    fn from(symbol: SymbolId) -> Self {
-        Self::NoArguments(symbol)
     }
 }
 
@@ -146,31 +116,6 @@ impl fmt::Display for NativeObjectError {
 
 impl std::error::Error for NativeObjectError {}
 
-/// 把一条匹配的 frontend analysis chain 和显式 resolved entry 生成首个 target object。
-///
-/// 调用方继续拥有全部输入、输出路径和链接步骤；本函数不读取源码文件、不创建临时目录，也
-/// 不按名称选择 entry。
-pub fn emit_native_object(
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    entry: impl Into<NativeEntry>,
-    output: &Path,
-) -> Result<(), NativeObjectError> {
-    crate::ssa::validate_frontend_inputs(sources, parsed, names, typed, owned)
-        .map_err(map_lowering_error)?;
-    let entry = entry.into();
-    validate_entry(names, typed, entry)?;
-    let (program, function) =
-        lower_scalar_file_with_entry(sources, parsed, names, typed, owned, entry.symbol())
-            .map_err(map_lowering_error)?;
-    let plan = native_entry_plan(&program, entry, function)?;
-    llvm::emit_verified_object(&program, sources, plan, output)
-        .map_err(|error| map_backend_error(sources, &program, error))
-}
-
 /// 把 validated compilation-unit analysis chain 和已解析的显式 process entry 原子写为 object。
 ///
 /// 所有 frontend、SSA、target layout 与 LLVM 验证均在 sibling temporary 上完成；只有完整 object
@@ -188,7 +133,7 @@ pub fn emit_native_object(
 ///     emit_native_unit_object(sources, inputs, names, environment, typed, owned, entry, output);
 /// }
 /// ```
-/// 常量专用 owned capability 也不能进入旧 native 入口。
+/// 常量专用 owned capability 也不能进入普通 unit native 入口。
 /// ```compile_fail,E0308
 /// use std::path::Path;
 /// use lang_codegen::{emit_native_unit_object, NativeUnitEntry};
@@ -304,62 +249,6 @@ pub fn emit_native_const_owned_unit_object(
     temporary.commit(output)
 }
 
-fn validate_entry(
-    names: &NameResolution,
-    typed: &TypedFile,
-    entry: NativeEntry,
-) -> Result<(), NativeObjectError> {
-    let entry_symbol = entry.symbol();
-    let symbol = names
-        .symbols()
-        .get(entry_symbol.index())
-        .ok_or_else(|| invalid_entry(None))?;
-    let scope = names
-        .scopes()
-        .get(symbol.scope().index())
-        .ok_or_else(|| invalid_entry(Some(symbol.span())))?;
-    let callable = typed
-        .callables()
-        .iter()
-        .find(|callable| callable.symbol() == entry_symbol && callable.owner().is_none())
-        .ok_or_else(|| invalid_entry(Some(symbol.span())))?;
-    let is_unit = matches!(
-        typed.types().get(callable.return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Unit))
-    );
-    if symbol.kind() != SymbolKind::Function
-        || scope.kind() != ScopeKind::File
-        || scope.parent().is_some()
-        || !callable.type_parameters().is_empty()
-        || !is_unit
-    {
-        return Err(invalid_entry(Some(symbol.span())));
-    }
-    let valid_parameters = match entry {
-        NativeEntry::NoArguments(_) => callable.parameters().is_empty(),
-        NativeEntry::BorrowedArguments(_) => match callable.parameters() {
-            [
-                FunctionParameterType {
-                    mode: ParameterMode::Borrow,
-                    ty,
-                },
-            ] => matches!(
-                typed.types().get(*ty),
-                Some(TypeKind::Intrinsic {
-                    constructor: IntrinsicTypeConstructor::Array,
-                    arguments,
-                }) if matches!(arguments.as_slice(), [string]
-                    if typed.types().get(*string) == Some(&TypeKind::Builtin(BuiltinType::String)))
-            ),
-            _ => false,
-        },
-    };
-    if !valid_parameters {
-        return Err(invalid_entry(Some(symbol.span())));
-    }
-    Ok(())
-}
-
 fn validate_unit_entry(
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
@@ -412,17 +301,6 @@ fn native_unit_entry_plan(
     match entry {
         NativeUnitEntry::NoArguments(_) => Ok(NativeEntryPlan::NoArguments { function }),
         NativeUnitEntry::BorrowedArguments(_) => borrowed_arguments_entry_plan(program, function),
-    }
-}
-
-fn native_entry_plan(
-    program: &crate::ssa::model::Program,
-    entry: NativeEntry,
-    function: crate::ssa::model::FunctionId,
-) -> Result<NativeEntryPlan, NativeObjectError> {
-    match entry {
-        NativeEntry::NoArguments(_) => Ok(NativeEntryPlan::NoArguments { function }),
-        NativeEntry::BorrowedArguments(_) => borrowed_arguments_entry_plan(program, function),
     }
 }
 
@@ -487,9 +365,9 @@ fn map_lowering_error(error: LoweringError) -> NativeObjectError {
         }
         LoweringErrorKind::FrontendDiagnostics => NativeObjectErrorKind::FrontendDiagnostics,
         LoweringErrorKind::BlockingDeferred => NativeObjectErrorKind::BlockingDeferred,
-        LoweringErrorKind::UnsupportedNode | LoweringErrorKind::InstanceLimitExceeded => {
-            NativeObjectErrorKind::UnsupportedSource
-        }
+        LoweringErrorKind::UnsupportedNode
+        | LoweringErrorKind::UnsupportedCompanionCall
+        | LoweringErrorKind::InstanceLimitExceeded => NativeObjectErrorKind::UnsupportedSource,
         LoweringErrorKind::MissingFact
         | LoweringErrorKind::InvalidLiteral
         | LoweringErrorKind::InvalidModel
@@ -498,7 +376,11 @@ fn map_lowering_error(error: LoweringError) -> NativeObjectError {
     NativeObjectError {
         kind,
         span: error.span,
-        detail: format!("frontend lowering failed with {:?}", error.kind),
+        detail: if error.kind == LoweringErrorKind::UnsupportedCompanionCall {
+            "companion function calls are not supported by native code generation".to_owned()
+        } else {
+            format!("frontend lowering failed with {:?}", error.kind)
+        },
         diagnostic: None,
     }
 }

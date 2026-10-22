@@ -21,6 +21,7 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 mod definition;
 mod initialization;
 mod lifecycle;
+mod missing_names;
 mod snapshot_lifecycle;
 mod source_set;
 

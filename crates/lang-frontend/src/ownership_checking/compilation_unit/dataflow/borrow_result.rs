@@ -74,7 +74,7 @@ impl Checker<'_> {
             .calls()
             .iter()
             .find(|call| call.expression() == self.unit_expression(expression))?;
-        if let Some(range) = call.range_construction() {
+        if let Some(range) = self.typed.diagnostic_range_construction(call.expression()) {
             return Some(range.source().expression());
         }
         let crate::parser::Expression::Call { arguments, .. } = self

@@ -1,6 +1,9 @@
 //! Trusted source receivers use the same checked descriptor ABI as free producers.
 use super::*;
 
+#[path = "receiver/count_break.rs"]
+mod count_break;
+
 const EXTENSIONS: &str = "borrow fun <T> List<T>.prefix(count:Int):View<T> from this=rangeView(this,0,count)\nborrow fun <T> View<T>.prefix(count:Int):View<T> from this=rangeView(this,0,count)";
 
 #[test]
@@ -173,7 +176,7 @@ fn range_receiver_source_forwarded_nonzero_view_preserves_absolute_offsets() {
 #[test]
 fn range_receiver_source_count_break_retains_existing_loop_cfg_frontier() {
     let body = "for(item in source){read(source.prefix(if(stop){break}else{1}))}";
-    assert_cfg_rejection(body, "source", body);
+    assert_cfg_frontier(body, "source", UnitCfgFrontier::CountBreak);
 }
 
 #[test]
@@ -197,14 +200,19 @@ fn range_receiver_source_borrow_parameter_rebinds_across_nonreturn_count_branch(
 
 #[test]
 fn range_receiver_source_retains_existing_binding_cfg_frontier() {
-    assert_cfg_rejection(
+    assert_cfg_frontier(
         "borrow val part=source.prefix(if(stop){return}else{1});read(part)",
         "return",
-        "return",
+        UnitCfgFrontier::Reject("return"),
     );
 }
 
-fn assert_cfg_rejection(body: &str, fragment: &str, unit_fragment: &str) {
+enum UnitCfgFrontier<'a> {
+    Reject(&'a str),
+    CountBreak,
+}
+
+fn assert_cfg_frontier(body: &str, fragment: &str, unit_frontier: UnitCfgFrontier<'_>) {
     use lang_frontend::{
         name_resolution::resolve_names, ownership_checking::check_ownership,
         type_checking::check_types,
@@ -248,7 +256,7 @@ fn assert_cfg_rejection(body: &str, fragment: &str, unit_fragment: &str) {
         )];
         let (names, typed, owned) =
             crate::ssa::unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
-        let error = crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+        let lowered = crate::ssa::unit_lower::lower_scalar_unit_with_entry(
             &sources,
             &inputs,
             &names,
@@ -256,12 +264,147 @@ fn assert_cfg_rejection(body: &str, fragment: &str, unit_fragment: &str) {
             &typed,
             &owned,
             crate::ssa::unit_lower_test_support::declaration(&names, "app", "main"),
-        )
-        .err()
-        .expect("the existing CFG frontier must reject source before emission");
-        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-        assert_eq!(sources.slice(error.span.unwrap()).unwrap(), unit_fragment);
+        );
+        match unit_frontier {
+            UnitCfgFrontier::Reject(unit_fragment) => {
+                let error = lowered
+                    .err()
+                    .expect("the existing CFG frontier must reject source before emission");
+                assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+                assert_eq!(sources.slice(error.span.unwrap()).unwrap(), unit_fragment);
+            }
+            UnitCfgFrontier::CountBreak => {
+                let (program, entry) =
+                    lowered.expect("real loop-target cleanup admits this Unit source");
+                let [source_unit] = names.names().index().source_units() else {
+                    panic!("one original source unit")
+                };
+                assert_eq!(source_unit.source_id(), source);
+                let receiver_begin_span = assert_count_break_products(
+                    &sources,
+                    &parsed,
+                    source_unit.id(),
+                    owned.ownership(),
+                );
+                count_break::assert_count_break_structure(&sources, &program, receiver_begin_span);
+                verify_program(&program).unwrap();
+                crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            }
+        }
     }
+}
+
+// Observe the original public cleanup products, not a reconstructed liveness set.
+fn assert_count_break_products(
+    sources: &SourceMap,
+    parsed: &lang_frontend::parser::ParsedFile,
+    source_unit: lang_frontend::name_resolution::SourceUnitId,
+    owned: &lang_frontend::ownership_checking::CompilationUnitOwnership,
+) -> lang_frontend::source::Span {
+    use lang_frontend::ownership_checking::{
+        UnitDropTarget, UnitIterationCleanupAction as Action, UnitIterationExitKind as Exit,
+        UnitLoanTarget, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+    };
+    use lang_frontend::type_checking::UnitCallReceiverOrigin;
+
+    let text = |expression: lang_frontend::type_checking::UnitExpressionId| {
+        assert_eq!(expression.source_unit(), source_unit);
+        sources
+            .slice(
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(expression.expression())
+                    .unwrap()
+                    .span(),
+            )
+            .unwrap()
+    };
+    let plans = owned
+        .iterations()
+        .iter()
+        .filter(|plan| text(plan.descriptor().source()) == "source")
+        .collect::<Vec<_>>();
+    let [plan] = plans.as_slice() else {
+        panic!("one original scan provider")
+    };
+    let Some(UnitLoanTarget::Place(place)) = plan.source() else {
+        panic!("original named List source")
+    };
+    assert!(place.is_root());
+    let statement = plan.descriptor().statement();
+    let exits = plan
+        .exits()
+        .iter()
+        .filter(|exit| matches!(exit.kind(), Exit::Break(_) | Exit::Exhaustion))
+        .collect::<Vec<_>>();
+    assert_eq!(exits.len(), 2);
+    let mut receiver_begin_span = None;
+    for exit in exits {
+        let actions = exit.actions();
+        assert_eq!(owned.iteration_cleanup_at(exit.point()), Some(actions));
+        let position = |action| actions.iter().position(|actual| *actual == action).unwrap();
+        let finish = position(Action::FinishProvider(statement));
+        let end_source = position(Action::EndSource(statement));
+        let drops = actions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, action)| match action {
+                Action::Drop(fact) if fact.target() == UnitDropTarget::Named(place.root()) => {
+                    Some((index, fact))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(drop_index, fact)] = drops.as_slice() else {
+            panic!("one source drop on each real exit, including break")
+        };
+        assert!(finish < end_source && end_source < *drop_index);
+        assert_eq!(fact.point(), exit.point());
+        assert_eq!(
+            owned.drops().iter().filter(|other| *other == *fact).count(),
+            1
+        );
+        let receivers = actions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, action)| match action {
+                Action::EndReceiverLoan(fact) => Some((index, fact)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        match exit.kind() {
+            Exit::Break(jump) => {
+                assert_eq!(text(jump), "break");
+                let [(receiver_index, fact)] = receivers.as_slice() else {
+                    panic!("cancel the exact evaluated receiver before its provider")
+                };
+                assert_eq!(text(fact.call()), "source.prefix(if(stop){break}else{1})");
+                let UnitCallReceiverOrigin::Expression(receiver) = fact.source() else {
+                    panic!("source receiver expression")
+                };
+                assert_eq!(text(receiver), "source");
+                let span = parsed
+                    .ast()
+                    .expressions()
+                    .get(receiver.expression())
+                    .unwrap()
+                    .span();
+                assert_eq!(fact.begin_span(), span);
+                assert!(receiver_begin_span.replace(span).is_none());
+                assert_eq!(fact.kind(), UnitReceiverOwnershipKind::SharedLoan);
+                assert!(matches!(
+                    fact.target(),
+                    UnitReceiverOwnershipTarget::Place(actual) if actual == place
+                ));
+                let end_element = position(Action::EndElement(statement));
+                assert!(*receiver_index < end_element && end_element < finish);
+            }
+            Exit::Exhaustion => assert!(receivers.is_empty()),
+            _ => unreachable!(),
+        }
+    }
+    receiver_begin_span.expect("one original receiver loan begin")
 }
 
 #[test]

@@ -1,6 +1,6 @@
-# single Map loop owner 运输
+# Map loop owner 运输
 
-> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 single guarded Map IterationPhi 运输时 · **唯一真源**：`lower_frontend/map_loop_owner` 与普通源码测试
+> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 guarded Map owner 或 Unit Map Borrow loop 运输时 · **唯一真源**：`lower_frontend/map_loop_owner`、`unit_lower` 与普通源码测试
 
 `lower_frontend/map_loop_owner` 消费非 Resource 具名 Map 的精确 IterationPhi 图：唯一
 Header/Exit、Entry/Fallthrough/Exhaustion，以及至多一个保留 Fallthrough 的条件 Break
@@ -30,10 +30,15 @@ own seed 和两个同类型 Map、三个顺序 provider。独立 SSA oracle 核�
 两个 Resource local 与解构派生 element loan 的重入 cleanup 专例只验收 SSA/verifier/LLVM；
 三组普通 native 矩阵验收其各自完整输出，不把前述专例或 stdout 冒充动态精确释放计数。
 
-unit basic/constant 的 continue live/dead 四格，及各自普通 native，基线就已成功；不是本片
-新增 unit 能力。原 break live 两格成功、dead 两格拒绝的独立边界保留。snapshot/closure、
-额外 Abort-survival、混合退出、多个/无条件 jump、无 Fallthrough 或多
-break、更多 IterationPhi/call seed、RangeView 仍保持明确边界，不是语言禁止。
+## Unit dead Map 与 Resource Borrow loop
+
+Unit basic/constant 的 continue live/dead 与原普通native基线成功继续保留；dead break不再沿用旧拒绝表。
+frontend liveness/drop planner记录实际jump continuation，按真实break与exhaustion后继清理dead Map，
+不挪到人为共同尾部；Basic/Constant原SSA与完整native fixture由post054 green22有限片验证。
+Resource Map Borrow的有界loop另消费当前owner/proof/frame槽，跨回边重绑并在break/continue/return按真实边收尾；
+green9保留原single-resource whole、静态proof/LLVM slots与完整正常native输出，不冒称动态计数或全Resource能力。
+未限定loop/payload、field/Inout、snapshot/closure、额外Abort-survival、混合/多个jump、无Fallthrough与RangeView
+等未验收维度继续保明确能力边界；旧single证明与这些Unit修复分别归属，不相互外推。
 
 ## 条件 return 的独立终止路径
 

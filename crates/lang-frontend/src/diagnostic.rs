@@ -179,6 +179,7 @@ pub mod codes {
     pub(crate) const BORROW_RESULT_ESCAPE: &str = "L0163";
     pub(crate) const UNSUPPORTED_BORROW_FLOW: &str = "L0164";
     pub(crate) const FINAL_TYPE_ANALYSIS_INCOMPLETE: &str = "L0165";
+    pub(crate) const THIS_WITHOUT_RECEIVER: &str = "L0166";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -347,6 +348,7 @@ pub mod codes {
         BORROW_RESULT_ESCAPE,
         UNSUPPORTED_BORROW_FLOW,
         FINAL_TYPE_ANALYSIS_INCOMPLETE,
+        THIS_WITHOUT_RECEIVER,
     ];
 
     /// 由集中定义创建生产错误码目录。

@@ -1,11 +1,14 @@
 //! compilation-unit CFG 中跨 edge 携带 value/loan 与出口合流的共享基元。
 
+mod alias_slots;
 mod nullable;
 mod pending_child;
 mod range;
 mod rebind;
 
 use std::collections::{BTreeMap, BTreeSet};
+
+use alias_slots::{MergeProjection, MergeRole};
 
 use lang_frontend::{
     name_resolution::UnitSymbolId,
@@ -16,6 +19,7 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
+    carry::{self, CaptureLoan, IncomingColumns, SourceSlot, Temporary, TypeAtMiss},
     model::{
         BlockId, Edge, EntityId, EntityType, LoanId, Operation, Origin, TerminatorKind, ValueId,
     },
@@ -35,26 +39,6 @@ pub(super) struct BranchExit {
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     pub(super) capture_loans: BTreeMap<(UnitExpressionId, usize), LoanId>,
     pub(super) result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
-}
-
-impl BranchExit {
-    fn base_arguments(&self) -> Vec<EntityId> {
-        let mut arguments = match self.result {
-            LoweredValue::Value(value) => vec![EntityId::Value(value)],
-            _ => Vec::new(),
-        };
-        arguments.extend(self.receiver.map(|receiver| receiver.entity));
-        arguments.extend(self.bindings.values().filter_map(|value| match value {
-            LoweredValue::Value(value) => Some(EntityId::Value(*value)),
-            _ => None,
-        }));
-        arguments.extend(
-            self.borrow_bindings
-                .values()
-                .map(|loan| EntityId::Loan(*loan)),
-        );
-        arguments
-    }
 }
 
 #[derive(Clone)]
@@ -120,14 +104,9 @@ impl UnitExpressionLowerer<'_> {
                 .entity(EntityId::Value(source))
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            carried.push(CarriedBinding {
-                symbol: Some(*symbol),
-                receiver: None,
-                source,
-                ty,
-                pending: Vec::new(),
-                temporaries: Vec::new(),
-            });
+            let mut slot = CarriedBinding::empty(source, ty);
+            slot.symbol = Some(*symbol);
+            carry::seed_slot(&mut carried, slot);
         }
         if let Some(receiver) = self.current_receiver
             && let EntityId::Value(source) = receiver.entity
@@ -137,14 +116,9 @@ impl UnitExpressionLowerer<'_> {
                 .entity(receiver.entity)
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            carried.push(CarriedBinding {
-                symbol: None,
-                receiver: Some(receiver),
-                source,
-                ty,
-                pending: Vec::new(),
-                temporaries: Vec::new(),
-            });
+            let mut slot = CarriedBinding::empty(source, ty);
+            slot.receiver = Some(receiver);
+            carry::seed_slot(&mut carried, slot);
         }
         Ok(carried)
     }
@@ -154,27 +128,17 @@ impl UnitExpressionLowerer<'_> {
         loans: &BTreeMap<UnitSymbolId, LoanId>,
         span: Span,
     ) -> Result<Vec<CarriedAccess>, LoweringError> {
-        let mut carried = loans
-            .iter()
-            .map(|(symbol, source)| {
-                let ty = self
-                    .function
-                    .entity(EntityId::Loan(*source))
-                    .map(|entity| entity.ty)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                Ok(CarriedAccess {
-                    nullable_proofs: Vec::new(),
-                    nullable_children: Vec::new(),
-                    range_sources: Vec::new(),
-                    captures: Vec::new(),
-                    symbol: Some(*symbol),
-                    receiver: None,
-                    source: EntityId::Loan(*source),
-                    ty,
-                    pending: Vec::new(),
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let mut carried = Vec::new();
+        for (&symbol, &source) in loans {
+            let ty = self
+                .function
+                .entity(EntityId::Loan(source))
+                .map(|entity| entity.ty)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let mut slot = CarriedAccess::empty(EntityId::Loan(source), ty);
+            slot.symbol = Some(symbol);
+            carry::seed_slot(&mut carried, slot);
+        }
         if let Some(receiver) = self.current_receiver
             && let EntityId::Loan(source) = receiver.entity
         {
@@ -183,41 +147,16 @@ impl UnitExpressionLowerer<'_> {
                 .entity(receiver.entity)
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            carried.push(CarriedAccess {
-                nullable_proofs: Vec::new(),
-                nullable_children: Vec::new(),
-                range_sources: Vec::new(),
-                captures: Vec::new(),
-                symbol: None,
-                receiver: Some(receiver),
-                source: EntityId::Loan(source),
-                ty,
-                pending: Vec::new(),
-            });
+            let mut slot = CarriedAccess::empty(EntityId::Loan(source), ty);
+            slot.receiver = Some(receiver);
+            carry::seed_slot(&mut carried, slot);
         }
-        for (&key, &loan) in &self.capture_loans {
-            let entity = EntityId::Loan(loan);
-            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == entity) {
-                slot.captures.push(key);
-            } else {
-                let ty = self
-                    .function
-                    .entity(entity)
-                    .map(|entity| entity.ty)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                carried.push(CarriedAccess {
-                    nullable_proofs: Vec::new(),
-                    nullable_children: Vec::new(),
-                    symbol: None,
-                    receiver: None,
-                    source: entity,
-                    ty,
-                    pending: Vec::new(),
-                    range_sources: Vec::new(),
-                    captures: vec![key],
-                });
-            }
-        }
+        carry::collect_aliases::<CaptureLoan, _, _>(
+            self.function,
+            self.capture_loans.iter().map(|(&key, &id)| (key, id)),
+            &mut carried,
+            lowering_error(LoweringErrorKind::InvalidModel, span),
+        )?;
         self.carry_range_sources(&mut carried, span)?;
         self.carry_nullable_proofs(&mut carried, span)?;
         Ok(carried)
@@ -238,58 +177,34 @@ impl UnitExpressionLowerer<'_> {
                 .ty;
             match entity {
                 EntityId::Value(source) => {
-                    if let Some(slot) = bindings.iter_mut().find(|slot| slot.source == source) {
-                        slot.pending.push(index);
-                    } else {
-                        bindings.push(CarriedBinding {
-                            symbol: None,
-                            receiver: None,
-                            source,
-                            ty,
-                            pending: vec![index],
-                            temporaries: Vec::new(),
-                        });
-                    }
+                    let choice = carry::associate_source(
+                        self.function,
+                        bindings,
+                        source,
+                        TypeAtMiss::Known(ty),
+                        lowering_error(LoweringErrorKind::InvalidModel, span),
+                    )?;
+                    bindings[choice.column().index()].pending.push(index);
                 }
                 EntityId::Loan(_) | EntityId::Place(_) => {
-                    if let Some(slot) = loans.iter_mut().find(|slot| slot.source == entity) {
-                        slot.pending.push(index);
-                    } else {
-                        loans.push(CarriedAccess {
-                            nullable_proofs: Vec::new(),
-                            nullable_children: Vec::new(),
-                            range_sources: Vec::new(),
-                            captures: Vec::new(),
-                            symbol: None,
-                            receiver: None,
-                            source: entity,
-                            ty,
-                            pending: vec![index],
-                        });
-                    }
+                    let choice = carry::associate_source(
+                        self.function,
+                        loans,
+                        entity,
+                        TypeAtMiss::Known(ty),
+                        lowering_error(LoweringErrorKind::InvalidModel, span),
+                    )?;
+                    loans[choice.column().index()].pending.push(index);
                 }
             }
         }
         // A pending borrowed temporary needs its owner as well as its loan on each edge.
-        for (expression, source) in &self.temporaries {
-            if let Some(slot) = bindings.iter_mut().find(|slot| slot.source == *source) {
-                slot.temporaries.push(*expression);
-            } else {
-                let ty = self
-                    .function
-                    .entity(EntityId::Value(*source))
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-                    .ty;
-                bindings.push(CarriedBinding {
-                    symbol: None,
-                    receiver: None,
-                    source: *source,
-                    ty,
-                    pending: Vec::new(),
-                    temporaries: vec![*expression],
-                });
-            }
-        }
+        carry::collect_aliases::<Temporary, _, _>(
+            self.function,
+            self.temporaries.iter().map(|(&key, &id)| (key, id)),
+            bindings,
+            lowering_error(LoweringErrorKind::InvalidModel, span),
+        )?;
         self.bind_nullable_columns(bindings, loans, span)?;
         self.bind_pending_child_columns(bindings, loans, span)?;
         Ok(())
@@ -331,7 +246,9 @@ impl UnitExpressionLowerer<'_> {
                 snapshots.push(snapshot);
             }
         }
-        bindings.extend(snapshots);
+        for snapshot in snapshots {
+            carry::seed_slot(bindings, snapshot);
+        }
         Ok(())
     }
 
@@ -499,52 +416,52 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         parameter_types.extend(loan_types);
-        let mut edge_arguments = exits
-            .iter()
-            .map(BranchExit::base_arguments)
-            .collect::<Vec<_>>();
+        let mut columns = IncomingColumns::new(&exits);
+        for role in result_type
+            .map(|_| MergeRole::Result)
+            .into_iter()
+            .chain(first.receiver.map(|_| MergeRole::Receiver))
+            .chain(value_symbols.iter().copied().map(MergeRole::NamedValue))
+            .chain(loan_symbols.iter().copied().map(MergeRole::NamedBorrow))
+        {
+            columns.seed(&MergeProjection { role, span })?;
+        }
+        let prefix_count = columns.role_columns().len();
         if exits
             .iter()
             .any(|exit| exit.pending_operands.len() != first.pending_operands.len())
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let carried_operands = exits
-            .iter()
-            .map(|exit| {
-                exit.pending_operands
-                    .iter()
+        for role in (0..first.pending_operands.len())
+            .map(MergeRole::Pending)
+            .chain(first.temporaries.keys().copied().map(MergeRole::Temporary))
+            .chain(
+                first
+                    .capture_loans
+                    .keys()
+                    .map(|&(call, index)| MergeRole::Capture(call, index)),
+            )
+            .chain(
+                range::keys(&first.result_source_loans)
+                    .into_iter()
+                    .map(|(symbol, index)| MergeRole::ResultSource(symbol, index)),
+            )
+            .chain(
+                first
+                    .nullable_proofs
+                    .keys()
                     .copied()
-                    .chain(exit.temporaries.values().copied().map(EntityId::Value))
-                    .chain(exit.capture_loans.values().copied().map(EntityId::Loan))
-                    .chain(range::arguments(&exit.result_source_loans))
-                    .chain(
-                        exit.nullable_proofs
-                            .values()
-                            .map(|proof| EntityId::Loan(proof.loan)),
-                    )
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        // An alias is reusable only if the same slot aliases it on every incoming edge.
-        let mut pending_indices = Vec::new();
-        for index in 0..carried_operands[0].len() {
-            let slot = (0..edge_arguments[0].len())
-                .find(|slot| {
-                    carried_operands
-                        .iter()
-                        .zip(&edge_arguments)
-                        .all(|(operands, arguments)| arguments[*slot] == operands[index])
-                })
-                .unwrap_or_else(|| {
-                    let slot = edge_arguments[0].len();
-                    for (operands, arguments) in carried_operands.iter().zip(&mut edge_arguments) {
-                        arguments.push(operands[index]);
-                    }
-                    slot
-                });
-            pending_indices.push(slot);
+                    .map(MergeRole::NullableProof),
+            )
+        {
+            columns.associate(&MergeProjection { role, span })?;
         }
+        let pending_indices = columns.role_columns()[prefix_count..]
+            .iter()
+            .map(|column| column.index())
+            .collect::<Vec<_>>();
+        let edge_arguments = columns.arguments().collect::<Vec<_>>();
         for entity in &edge_arguments[0][parameter_types.len()..] {
             parameter_types.push(
                 self.function
@@ -900,6 +817,26 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(())
     }
+}
+
+/// Preserve the existing Value-prefix/access-suffix order without new validation.
+pub(super) fn checked_carry_columns(
+    bindings: &[CarriedBinding],
+    loans: &[CarriedAccess],
+) -> Vec<crate::ssa::expression_core::checked::CarryColumn> {
+    use crate::ssa::expression_core::checked::CarryColumn;
+
+    bindings
+        .iter()
+        .map(|slot| CarryColumn {
+            source: EntityId::Value(slot.source),
+            ty: slot.ty,
+        })
+        .chain(loans.iter().map(|slot| CarryColumn {
+            source: slot.source,
+            ty: slot.ty,
+        }))
+        .collect()
 }
 
 pub(super) fn carried_control_edge(

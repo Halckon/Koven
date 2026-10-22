@@ -8,28 +8,28 @@
 
 当前公开路径包括：
 
-- 单文件 `build` / `run`，接收显式 source、entry 和输出选择；
+- 单文件 `build` / `run`，接收显式 source、可选 source-root、entry 和输出选择；
 - `format` / `format --check`，结果写 stdout，不原地改文件；
 - `--message-format=json` 的版本化 JSON Lines 语言诊断；
 - 显式 `project.toml` 的本地 project build/run。
 
-project loader 严格解析 version 1 manifest，验证 source root、logical path、symlink/overlap 和 physical
-file identity，再发布不可变、稳定排序的 source-set snapshot。build 注册原 SourceMap 后将其移动进
-frontend `analyze_unit_names`，取得拥有源码/语法/环境/名称事实的只读 `UnitNameSnapshot`；
-首个非空诊断 gate 仍在完整 names 前缀后。typed 非空 gate 留宿主，随后先通过
-frontend `complete_compilation_unit_types`，再调用 `analyze_basic_unit_ownership` 共享 basic validation→普通 ownership 推进；宿主继续
-验证 raw ownership，成功后进入单 object、link 和原子 executable 发布。CLI 不从 cwd 或
-祖先目录猜 manifest。typed diagnostics 统一先于 entry 选择；基础 capability 验证成功时沿用
-基础 ownership/native，含常量时由 frontend 专用 gate 发布 typed/owned capability，再调用
-`emit_native_constant_unit_object`。同一只读 entry shape helper 服务两条已验证路径。
+project loader 校验 version 1 manifest、root/logical path、symlink/overlap 和 physical file identity，发布稳定只读 source set。
+std 注册后的原 SourceMap 移入 `UnitNameSnapshot`，统一拥有源码、语法、环境与名称事实。
+`project_build` 与 single bootstrap 共用 `unit_build`，借 snapshot/同轮类型环境推进；标准 loader/core 共用中立错误，CLI 不从 cwd/祖先猜 manifest。
+共同链在完整 names 前缀后 gate；typed diagnostics 由宿主拦截且先于 entry，再由 `complete_compilation_unit_types`
+准入并调用 `analyze_basic_unit_ownership` 共享 basic validation→普通 ownership；宿主验证 raw ownership 后进入单 object、link 与原子 executable 发布。
+基础 capability 成功沿基础 ownership/native；常量经 frontend typed/owned gate 后调用 `emit_native_const_owned_unit_object`。
+两条已验证路径共用只读 entry shape helper；single 初始 header/逻辑路径错误可在共同链前返回。
 
-单文件 bootstrap 使用 frontend `analyze_single_file` 固定推进五阶段，宿主在每个阶段的
-原始 diagnostics gate 上拒绝任意非空集合；不会先跑完后继再挑首错。纯门面接收原
-SourceMap/SourceId与一次创建的name/type环境，返回同轮raw产物，不负责IO、诊断渲染、
-entry或native能力。`SingleFileTypedView`字段封闭，只借出本轮parsed/names/typed；
-observer的临时借用不能作为返回值逃逸，`SingleFileAnalysis<T>`消费式拆出原raw产物。
-CLI typed observer调用 `complete_file_types`，失败在ownership前返回；源诊断沿原TypeChecking渲染，
-内部身份/缺事实使用独立TypeAdmission错误。single/project原exit2/exit1及JSON schema不变。
+单文件先对原源 lex/parse 一次；初始 package header 不完整时在 root IO 前返回完整语法诊断。完整 header 的已声明 package
+按用户路径的逻辑目录组件匹配完整后缀，省略 package 时逻辑路径是 source-root 下文件名；显式 `--source-root` 只比较推导根的物理 canonical identity，
+不按 symlink 目标重推 package、不新增 symlink 禁令。标准源解析产物与原 ParsedFile 按值交给 `analyze_parsed_unit_names`，
+保 SourceMap/SourceId、不复制 AST；不走旧 single 检查链，聚合 lex/parse/name 全前缀后才进入共同 typed/准入/ownership/native。
+
+两宿主保各自 source-set/路径、IO、entry 和呈现：single explicit 只计原用户文件顶层同名 Function，conventional 按该文件 main
+的 process shape 筛选；project 按 selector、可见性、body/process shape 过滤。选中后均走共同 Unit owned/native，不另走旧 single lowering。
+bodyless single 保 lowering UnsupportedNode，project 保 entry unsupported process shape；single/project 各自 exit2/exit1、
+JSON schema 与完整操作错误文本不变。这些 driver 差异不计作类型、ownership 或程序行为不一致。
 
 CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`，通过 `Command`
 参数数组链接已有 native object，不调用 shell 或让外部 driver 重新编译 LLVM IR。
@@ -60,9 +60,9 @@ raw API、基础/常量validate及LSP recovery保持原合同；此资格不证�
 
 它有两种明确模式：
 
-- legacy 单文档：每个打开 URI 独立调用同一 `analyze_single_file`，五阶段gate不拒绝用户
-  诊断；typed observer在ownership之前从封闭只读view构建DefinitionIndex，随后按原
-  parsed/names/typed/owned聚合诊断（parser已含lexer，不重复添加）；
+- 默认单文档：每个 URI 以原 SourceId 与 `MemoryDocument` 进入共同 Unit names/raw types/ownership，
+  URI 只作展示，不充当 root/path；同轮完整诊断与导航交 `UnitAnalysisSnapshot`，无旧 checker fallback；
+  raw 错误不伪造执行资格，健康输入仍保真实上游资格，宿主只用既有 builtin 环境；
 - `koven.sourceSet` version 1：初始化 payload 提供 immutable base sources，open/change 形成 overlay，
   每次候选更新重建共同 compilation-unit snapshot，其名称前缀由 frontend `UnitNameSnapshot` 拥有。
 
@@ -70,15 +70,15 @@ source-set 模式不读取磁盘。`unit_session` 组合唯一名称 owner，后
 validated_names；同次 standard_environments 的 type 半边留宿主。names recovery 保留有效导航，
 typed diagnostics 先由宿主收集，再调用同一 `analyze_basic_unit_ownership`；成功以
 `into_types()` 保存原 typed 而不克隆，NotBasic 取回原 boxed recovery。const（包括仅声明未读）
-不进入基础 ownership；raw ownership 即使有诊断或 deferred 仍保留。typed recovery
-继续向 definition 提供有效事实，不接入严格CLI的最终类型资格门。
+不进入基础 ownership；raw ownership 即使有诊断或 deferred 仍保留，typed recovery 继续导航。
+同轮产物交内部 `UnitAnalysisSnapshot`：先排序完整诊断再建 definition，不增加 CLI 最终类型准入门。
 完整 snapshot 与全部诊断 payload 准备成功、逐项发布成功后才替换内存状态；分析、映射或发送
 失败保留 last-good。已发消息不能撤回，此边界不是 wire 事务。诊断按 target URI 分组并稳定
 发布，definition 直接消费已保存的 name/type target，不重新解析 package/import 或 overload。
 
 `position_adapter` 集中处理 Span 与 UTF-16 的双向映射，拒绝 surrogate pair 中间位置和越界 cursor。
 实现入口位于 `crates/lang-lsp/src/analysis.rs`、`source_set.rs`、`unit_session.rs`、`definition.rs` 和
-`diagnostic_adapter.rs`；对应覆盖位于 `lang-lsp` 的模块与 integration tests。
+`diagnostic_adapter.rs`；`single_file_oracle` 以已审 Unit JSON 硬比十一原源完整诊断与逐 UTF-8 边界有序导航，旧基线只留历史，坐标变换独立核验。
 
 ## Formatter
 
@@ -113,7 +113,7 @@ in/is/as 与 identifier 使用同一整词扫描，避免 input 等名称在运�
 
 当前 workflow 定义 macOS 14 / Ubuntu 24.04 双宿主 check、严格 clippy和组合测试，单次fmt。
 组合入口依次执行core（含lang-std）、ownership_iteration、stage、剩余guide_litmus及教程；
-保留独立入口，没有skip开关；frontend integration由stage及组合脚本显式列出，组合共10次Cargo调用。
+保留独立入口，没有skip开关；frontend integration由stage及组合脚本显式列出，组合共23次Cargo调用。
 外部Rust编译合同通过当前integration executable的Cargo 1.96 fingerprint选择实际依赖rlib；
 同目录旧flags产物可以保留，未知或歧义身份失败，不按时间戳推断。
 `editors/**`与教程修改触发Rust路径；内部直接依赖检查为无条件required job。

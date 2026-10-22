@@ -20,6 +20,7 @@ impl Checker<'_> {
                     contract.argument_span(),
                     contract.parameter_span(),
                 ));
+                self.record_nullable_when_delivery(contract, state)?;
             }
             UnitCallArgumentOwnershipKind::SharedLoan
             | UnitCallArgumentOwnershipKind::ExclusiveLoan => {
@@ -152,6 +153,7 @@ impl Checker<'_> {
                     contract.call_span(),
                     contract.parameter_span(),
                 ));
+                self.record_nullable_when_loan(contract)?;
             }
         }
         Ok(())

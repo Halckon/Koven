@@ -128,22 +128,7 @@ impl UnitExpressionLowerer<'_> {
             _ => return self.lower_statement(statement),
         };
         let elements = elements.clone();
-        let Some((&last, prefix)) = elements.split_last() else {
-            return Ok(LoweredValue::Unit);
-        };
-        for &element in prefix {
-            if self.lower_statement(element)? == LoweredValue::Diverged {
-                return Ok(LoweredValue::Diverged);
-            }
-        }
-        let result = self.lower_statement(last)?;
-        if result != LoweredValue::Diverged {
-            self.emit_drops(UnitDropPoint::AfterStatement(UnitStatementId::new(
-                self.source_unit,
-                statement,
-            )))?;
-        }
-        Ok(result)
+        crate::ssa::statement_core::lower_tail_sequence(self, statement, &elements)
     }
 
     pub(in super::super) fn statement_span(

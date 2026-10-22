@@ -225,36 +225,14 @@ fn move_only_enum_when_waits_for_branch_qualified_subject_drop_facts() {
 }
 
 #[test]
-fn generic_enum_storage_remains_an_explicit_boundary() {
-    let mut sources = SourceMap::new();
-    let (source, parsed) = parsed(
-        &mut sources,
+fn generic_enum_owned_parameter_reaches_verified_llvm() {
+    verified_generic_enum_source(
         "test/generic.ko",
         "package test\n\
          enum class Maybe<T> { Some(item: T), None }\n\
          fun entry(own input: Maybe<Int>): Int = 0",
+        "entry",
     );
-    let inputs = [SourceUnitInput::new(
-        "root",
-        "test/generic.ko",
-        source,
-        &parsed,
-    )];
-    let (name_environment, type_environment) = standard_environments();
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let error = match lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        declaration(&names, "test", "entry"),
-    ) {
-        Ok(_) => panic!("generic enum layout remains outside this slice"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
 }
 
 #[test]
@@ -397,7 +375,7 @@ fn function<'a>(module: &'a super::model::Module, name: &str) -> &'a Function {
 }
 
 #[test]
-fn guide_litmus_04_unit_enum_expression_condition_remains_an_explicit_boundary() {
+fn guide_litmus_04_unit_enum_expression_condition_reaches_verified_llvm() {
     let mut sources = SourceMap::new();
     let text = crate::native_tests::return_control_tests::guide_litmus_04();
     let (source, parsed) = parsed(&mut sources, "demo/enums/litmus4.ko", text);
@@ -409,7 +387,7 @@ fn guide_litmus_04_unit_enum_expression_condition_remains_an_explicit_boundary()
     )];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let error = lower_scalar_unit_with_entry(
+    let (program, _) = lower_scalar_unit_with_entry(
         &sources,
         &inputs,
         &names,
@@ -418,13 +396,342 @@ fn guide_litmus_04_unit_enum_expression_condition_remains_an_explicit_boundary()
         &owned,
         declaration(&names, "demo.enums", "area"),
     )
-    .err()
-    .expect("unit enum expression conditions remain outside the single-file slice");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    .expect("original Guide area accepts its payloadless enum case condition");
+    super::verify::verify_program(&program).expect("original Guide area reaches verified SSA");
+    render_verified_program(&program).expect("original Guide area reaches verified LLVM");
+}
+
+const ORIGINAL_GENERIC_NOMINAL: &str =
+    include_str!("../../tests/fixtures/unit-generic-enum-0321/generic_nominal.ko");
+const ORIGINAL_GENERIC_FUNCTIONS: &str =
+    include_str!("../../tests/fixtures/unit-generic-enum-0321/original_generic_functions.ko");
+
+/// Original source/path/entry, with complete admission before ordinary ownership.
+/// Reuse parsed(), the public frontend chain and the existing verifier; no fact injection.
+fn with_generic_enum_source<R>(
+    path: &str,
+    text: &str,
+    entry_name: &str,
+    check: impl FnOnce(
+        &lang_frontend::ownership_checking::OwnedCompilationUnitView<'_, '_>,
+        lang_frontend::name_resolution::DeclarationId,
+    ) -> R,
+) -> R {
+    use lang_frontend::{
+        name_resolution::{SymbolKind, index_compilation_unit, resolve_compilation_unit_names},
+        ownership_checking::{check_compilation_unit_ownership, owned_compilation_unit_view},
+        type_checking::{check_compilation_unit_types, complete_compilation_unit_types},
+    };
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(&mut sources, path, text);
+    let inputs = [SourceUnitInput::new("root", path, source, &parsed)];
+    let (name_environment, environment) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).expect("original unit index");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+        .expect("original unit names")
+        .validate()
+        .expect("original names validate");
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &environment)
+        .expect("original unit types");
+    assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
+    complete_compilation_unit_types(&sources, &inputs, &names, &environment, &raw)
+        .expect("original complete type admission");
+    let typed = raw.validate().expect("original types validate");
+    let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &environment, &typed)
+        .expect("original ordinary ownership");
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    let owned = owned.validate().expect("original ownership validates");
+    let entries = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .filter(|entry| {
+            entry.name() == entry_name
+                && entry.kind() == SymbolKind::Function
+                && entry.name_span().source_id() == source
+                && parsed.roots().contains(&entry.root())
+        })
+        .collect::<Vec<_>>();
+    let [entry] = entries.as_slice() else {
+        panic!("exact original top-level entry {entry_name}: {entries:?}");
+    };
+    let view = owned_compilation_unit_view(&sources, &inputs, &names, &environment, &typed, &owned)
+        .expect("ordinary owned view");
+    check(&view, entry.id())
+}
+
+fn verified_generic_enum_source(path: &str, text: &str, entry: &str) -> super::model::Program {
+    with_generic_enum_source(path, text, entry, |view, entry| {
+        let (program, _) = super::unit_lower::lower_owned_unit_with_entry(view, entry)
+            .expect("complete original generic enum source must lower");
+        super::verify::verify_program(&program).expect("generic enum SSA verifies");
+        render_verified_program(&program).expect("generic enum LLVM verifies");
+        program
+    })
+}
+
+#[test]
+fn original_generic_nominal_source_reaches_verified_llvm() {
+    verified_generic_enum_source("nominal-run.ko", ORIGINAL_GENERIC_NOMINAL, "bootstrap");
+}
+
+#[test]
+fn original_generic_enum_return_reaches_verified_llvm() {
+    let program = verified_generic_enum_source("lowering.ko", ORIGINAL_GENERIC_FUNCTIONS, "some");
+    let module = &program.modules[0];
+    let returned = function(module, ".some");
+    let tagged = returned.return_types[0];
+    assert!(matches!(
+        module.type_kind(tagged),
+        Some(SsaTypeKind::TaggedUnion { .. })
+    ));
+    assert!(returned.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::TaggedConstruct { tagged: actual, variant: 0, .. } if actual == tagged
+    )));
+}
+
+#[test]
+fn original_generic_enum_projection_reaches_verified_llvm() {
+    let program =
+        verified_generic_enum_source("lowering.ko", ORIGINAL_GENERIC_FUNCTIONS, "enumProjected");
+    let projected = function(&program.modules[0], ".enumProjected");
     assert_eq!(
-        sources
-            .slice(error.span.expect("condition entry range"))
-            .unwrap(),
-        "Shape.Point -> 0"
+        projected
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction.operation,
+                Operation::TaggedPayloadPlace { variant: 0, .. }
+            ))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn original_generic_enum_root_drop_reaches_verified_llvm() {
+    use super::model::{EntityType, Ownership};
+    let program =
+        verified_generic_enum_source("lowering.ko", ORIGINAL_GENERIC_FUNCTIONS, "dropEnum");
+    let module = &program.modules[0];
+    let dropped = function(module, ".dropEnum");
+    let (root, tagged) = dropped
+        .instructions
+        .iter()
+        .find_map(|instruction| {
+            if let Operation::TaggedConstruct {
+                tagged, variant: 0, ..
+            } = instruction.operation
+            {
+                Some((instruction.results[0], tagged))
+            } else {
+                None
+            }
+        })
+        .expect("original Owned<Resource> constructs its root");
+    assert_eq!(module.type_ownership(tagged), Some(Ownership::MoveOnly));
+    assert_eq!(
+        dropped.entity(root).map(|entity| entity.ty),
+        Some(EntityType::Value(tagged))
+    );
+    let drops = dropped
+        .instructions
+        .iter()
+        .filter_map(|instruction| match instruction.operation {
+            Operation::Drop { owner } => Some(EntityId::Value(owner)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(drops, vec![root], "the original owner has one root Drop");
+    let Some(SsaTypeKind::TaggedUnion { variants, .. }) = module.type_kind(tagged) else {
+        panic!("Owned<Resource> is tagged storage");
+    };
+    let Some(SsaTypeKind::Aggregate { fields, .. }) = module.type_kind(variants[0]) else {
+        panic!("Some payload is an aggregate");
+    };
+    assert_eq!(fields.len(), 1);
+    assert!(matches!(
+        module.type_kind(fields[0]),
+        Some(SsaTypeKind::HeapOwner { .. })
+    ));
+    let llvm = render_verified_program(&program).expect("root drop LLVM verifies");
+    let drop_glue = |ty: super::model::SsaTypeId| {
+        let start = llvm
+            .find(&format!(
+                "define internal void @koven.drop.t{}(",
+                ty.index()
+            ))
+            .expect("concrete drop glue exists");
+        let tail = &llvm[start..];
+        let end = tail[1..]
+            .find("\ndefine ")
+            .map_or(tail.len(), |offset| offset + 1);
+        &tail[..end]
+    };
+    let tagged_drop = drop_glue(tagged);
+    assert!(
+        tagged_drop.contains("switch i32"),
+        "active case drop dispatch"
+    );
+    assert_eq!(
+        tagged_drop
+            .matches(&format!("call void @koven.drop.t{}(", variants[0].index()))
+            .count(),
+        1
+    );
+    assert!(!tagged_drop.contains(&format!("call void @koven.drop.t{}(", variants[1].index())));
+    let payload_drop = drop_glue(variants[0]);
+    assert_eq!(
+        payload_drop
+            .matches(&format!("call void @koven.drop.t{}(", fields[0].index()))
+            .count(),
+        1
+    );
+    assert_eq!(
+        drop_glue(fields[0]).matches("call void @free(").count(),
+        1,
+        "the concrete Resource heap owner glue releases its allocation"
+    );
+}
+
+#[test]
+fn generic_enum_instances_keep_layout_and_named_argument_identity() {
+    use super::model::ScalarConstant;
+    let text = include_str!("../../tests/fixtures/unit-generic-enum-0321/two_instances.ko");
+    with_generic_enum_source("test/two-instances.ko", text, "entry", |view, entry| {
+        // Descriptor parameter order is first, second; source evaluation order is second, first.
+        let constructors = view
+            .types()
+            .constructions()
+            .iter()
+            .filter(|descriptor| descriptor.arguments().len() == 2)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            constructors.len(),
+            2,
+            "both named concrete constructors are present"
+        );
+        for descriptor in constructors {
+            let arguments = descriptor.arguments();
+            assert_eq!(arguments[0].parameter_name(), "first");
+            assert_eq!(arguments[0].parameter_index(), 0);
+            assert_eq!(arguments[0].evaluation_index(), 1);
+            assert_eq!(arguments[1].parameter_name(), "second");
+            assert_eq!(arguments[1].parameter_index(), 1);
+            assert_eq!(arguments[1].evaluation_index(), 0);
+        }
+        let (program, _) = super::unit_lower::lower_owned_unit_with_entry(view, entry)
+            .expect("both concrete instances must lower together");
+        super::verify::verify_program(&program).expect("two-instance SSA verifies");
+        render_verified_program(&program).expect("two-instance LLVM verifies");
+        let module = &program.modules[0];
+        let mut tagged_instances = Vec::new();
+        for (name, bits, first, second) in [
+            ("test.ints", 32, 40, 2),
+            ("test.longs", 64, 5_000_000_000, 3),
+        ] {
+            let constructor = function(module, name);
+            let tagged = constructor.return_types[0];
+            let empty = function(
+                module,
+                if bits == 32 {
+                    "test.emptyInts"
+                } else {
+                    "test.emptyLongs"
+                },
+            );
+            assert_eq!(empty.return_types, vec![tagged]);
+            assert!(empty.instructions.iter().any(|instruction| matches!(
+                instruction.operation,
+                Operation::TaggedConstruct { tagged: actual, variant: 1, .. } if actual == tagged
+            )));
+            tagged_instances.push(tagged);
+            let Some(SsaTypeKind::TaggedUnion { variants, .. }) = module.type_kind(tagged) else {
+                panic!("concrete return must be tagged");
+            };
+            assert_eq!(variants.len(), 2, "both cases must have layouts");
+            let Some(SsaTypeKind::Aggregate { fields: types, .. }) = module.type_kind(variants[0])
+            else {
+                panic!("Item payload must have concrete storage");
+            };
+            assert_eq!(types.len(), 2);
+            for ty in types {
+                assert_eq!(
+                    module.type_kind(*ty),
+                    Some(&SsaTypeKind::Integer { bits, signed: true })
+                );
+            }
+            assert!(matches!(module.type_kind(variants[1]),
+                Some(SsaTypeKind::Aggregate { fields, .. }) if fields.is_empty()));
+            let fields = constructor
+                .instructions
+                .iter()
+                .find_map(|instruction| {
+                    if let Operation::AggregateConstruct { aggregate, fields } =
+                        &instruction.operation
+                    {
+                        (*aggregate == variants[0]).then_some(fields)
+                    } else {
+                        None
+                    }
+                })
+                .expect("Item construction uses the selected concrete payload");
+            let constants = constructor
+                .instructions
+                .iter()
+                .filter_map(|instruction| {
+                    if let Operation::Constant(ScalarConstant::Integer(value)) =
+                        instruction.operation
+                    {
+                        Some((instruction.results[0], value))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                constants,
+                vec![
+                    (EntityId::Value(fields[1]), second),
+                    (EntityId::Value(fields[0]), first),
+                ],
+                "second is evaluated first, first second; fields retain declaration order"
+            );
+        }
+        assert_ne!(
+            tagged_instances[0], tagged_instances[1],
+            "Int and Long never share a layout"
+        );
+    });
+}
+
+#[test]
+fn original_generic_nominal_source_runs_natively() {
+    with_generic_enum_source(
+        "nominal-run.ko",
+        ORIGINAL_GENERIC_NOMINAL,
+        "bootstrap",
+        |view, entry| {
+            let directory = crate::native_tests::TestDirectory::create();
+            let object = directory.join("nominal.o");
+            let executable = directory.join("nominal");
+            crate::emit_native_owned_unit_object(view, entry, &object)
+                .expect("complete original generic source emits an ordinary unit object");
+            let linked = std::process::Command::new(crate::test_support::clang())
+                .arg(&object)
+                .arg("-o")
+                .arg(&executable)
+                .output()
+                .expect("clang launches");
+            assert!(linked.status.success(), "{linked:?}");
+            let run = std::process::Command::new(&executable)
+                .output()
+                .expect("native executable launches");
+            // The original single exact only asserts success; stdout/stderr are not historical goldens.
+            assert!(run.status.success(), "{run:?}");
+        },
     );
 }

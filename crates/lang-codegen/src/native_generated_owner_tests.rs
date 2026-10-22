@@ -12,14 +12,12 @@ use inkwell::{
     module::Module,
     values::{CallSiteValue, FunctionValue, InstructionOpcode},
 };
-use lang_frontend::{
-    analysis::{SingleFileAnalysisError, SingleFileStage, analyze_single_file},
-    diagnostic::DiagnosticDetail,
-    source::SourceMap,
-    type_checking::standard_environments,
-};
+use lang_frontend::diagnostic::DiagnosticDetail;
 
-use crate::native_tests::boxed_enum_tests::{lower_to_llvm, write_counted_allocations};
+use crate::native_tests::boxed_enum_tests::{
+    unit_source::{STRICT_REJECTION, UnitSource, llvm_definition},
+    write_counted_allocations,
+};
 
 const MINIMAL: &str = r#"
 class Leaf(val name: String) { deinit() { println(this.name) } }
@@ -181,6 +179,7 @@ fn generated_owner_export_records_rejection_without_executing() {
             "types",
             None,
         ),
+        (STRICT_REJECTION.to_owned(), "types", Some("L0080")),
         (
             format!(
                 "{prefix}fun entry(): Unit {{ val source = Leaf(); consume(source); consume(source) }}"
@@ -207,7 +206,7 @@ fn generated_owner_export_records_rejection_without_executing() {
         assert!(!diagnostics.is_empty());
         if let Some(code) = code {
             assert_eq!(diagnostics.lines().count(), 1, "{diagnostics}");
-            assert!(diagnostics.starts_with(&format!("ownership\t{code}\t")));
+            assert!(diagnostics.starts_with(&format!("{stage}\t{code}\t")));
         }
         for artifact in [
             "case.raw.ll",
@@ -221,7 +220,7 @@ fn generated_owner_export_records_rejection_without_executing() {
 }
 
 /// Invalid source is a frontend observation, never an expected exporter panic.
-fn export_frontend(directory: &Path) -> Option<String> {
+fn export_frontend(directory: &Path) -> Option<UnitSource> {
     assert!(directory.is_dir(), "generated case directory must exist");
     for name in ["stages.tsv", "diagnostics.tsv", "case.raw.ll", "counter.c"] {
         assert!(
@@ -231,61 +230,43 @@ fn export_frontend(directory: &Path) -> Option<String> {
     }
     let source = fs::read_to_string(directory.join("case.ko")).expect("read generated case.ko");
     assert!(source.len() <= 8192, "generated source exceeds 8 KiB");
-    let mut sources = SourceMap::new();
-    let id = sources.add_source("case.ko", &source).unwrap();
-    let (names, types) = standard_environments();
+    let analysis = UnitSource::analyze("case.ko", &source);
+    let report = match &analysis {
+        Ok(unit) => &unit.report,
+        Err(rejection) => &rejection.report,
+    };
     let mut stages = String::new();
     let mut diagnostics = String::new();
-    let analysis = analyze_single_file(
-        &sources,
-        id,
-        &names,
-        &types,
-        |stage, found| {
-            let stage = match stage {
-                // Parser diagnostics include lexical diagnostics with their identity.
-                SingleFileStage::Lexer => return Ok(()),
-                SingleFileStage::Parser => "parse",
-                SingleFileStage::NameResolution => "names",
-                SingleFileStage::TypeChecking => "types",
-                SingleFileStage::OwnershipChecking => "ownership",
-            };
-            stages.push_str(&format!("{stage}\t{}\n", found.len()));
-            for diagnostic in found {
-                let span = diagnostic.primary_span();
-                let labels = diagnostic
-                    .details()
-                    .iter()
-                    .filter_map(|detail| match detail {
-                        DiagnosticDetail::Label(label) => {
-                            Some(format!("{}:{}", label.span().start(), label.span().end()))
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>()
-                    .join(",");
-                diagnostics.push_str(&format!(
-                    "{stage}\t{}\t{}\t{}\t{labels}\n",
-                    diagnostic.code(),
-                    span.start(),
-                    span.end(),
-                ));
-            }
-            if found.is_empty() { Ok(()) } else { Err(()) }
-        },
-        |_| Ok(()),
-    );
+    for (stage, count) in &report.stages {
+        stages.push_str(&format!("{stage}\t{count}\n"));
+    }
+    for (stage, diagnostic) in &report.diagnostics {
+        let span = diagnostic.primary_span();
+        let labels = diagnostic
+            .details()
+            .iter()
+            .filter_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => {
+                    Some(format!("{}:{}", label.span().start(), label.span().end()))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        diagnostics.push_str(&format!(
+            "{stage}\t{}\t{}\t{}\t{labels}\n",
+            diagnostic.code(),
+            span.start(),
+            span.end(),
+        ));
+    }
     fs::write(directory.join("stages.tsv"), stages).unwrap();
     fs::write(directory.join("diagnostics.tsv"), diagnostics).unwrap();
-    match analysis {
-        Ok(_) => Some(source),
-        Err(SingleFileAnalysisError::Host(())) => None,
-        Err(error) => panic!("internal frontend failure, not an invalid-source verdict: {error:?}"),
-    }
+    analysis.ok()
 }
 
 fn export_case(directory: &Path) {
-    let Some(source) = export_frontend(directory) else {
+    let Some(unit) = export_frontend(directory) else {
         return;
     };
     let expected: usize = fs::read_to_string(directory.join("expected-allocations.txt"))
@@ -309,7 +290,8 @@ fn export_case(directory: &Path) {
         (1..=9).contains(&expected),
         "generated valid fixture must allocate between one and nine owners"
     );
-    let mut llvm = lower_to_llvm("case.ko", &source);
+    // Consume the very same qualified products that produced the frontend report.
+    let mut llvm = unit.lower_to_llvm();
     if directory.join("fault.txt").is_file() {
         let fault = fs::read_to_string(directory.join("fault.txt")).unwrap();
         let fault = fault.trim();
@@ -317,7 +299,7 @@ fn export_case(directory: &Path) {
             let context = Context::create();
             let buffer = MemoryBuffer::create_from_memory_range_copy(llvm.as_bytes(), "fault-case");
             let module = context.create_module_from_ir(buffer).unwrap();
-            let (drop_fn, deinit_fn) = inject_missing_holder_deinit_fault(&module);
+            let (drop_fn, deinit_fn) = inject_missing_holder_deinit_fault(&module, &unit);
             module
                 .verify()
                 .expect("fault missing_deinit module verifies");
@@ -402,8 +384,10 @@ fn export_calibration(directory: &Path) {
         DEFAULT_CALIBRATION_V2.to_owned()
     };
 
-    let v1_llvm = lower_to_llvm("v1.ko", &v1_source);
-    let v2_llvm = lower_to_llvm("v2.ko", &v2_source);
+    let v1_unit = UnitSource::analyze("v1.ko", &v1_source).expect("V1 complete Unit frontend");
+    let v2_unit = UnitSource::analyze("v2.ko", &v2_source).expect("V2 complete Unit frontend");
+    let v1_llvm = v1_unit.lower_to_llvm();
+    let v2_llvm = v2_unit.lower_to_llvm();
 
     fs::write(v1_dir.join("clean.raw.ll"), &v1_llvm).unwrap();
     fs::write(v2_dir.join("clean.raw.ll"), &v2_llvm).unwrap();
@@ -471,7 +455,8 @@ fn export_calibration(directory: &Path) {
         let buffer =
             MemoryBuffer::create_from_memory_range_copy(v1_llvm.as_bytes(), "fault-address");
         let module = context.create_module_from_ir(buffer).unwrap();
-        let target_fn = inject_address_fault(&context, &module);
+        let target_fn =
+            inject_address_fault(&context, &module, &v1_unit.definition("inspect", false));
         module.verify().expect("address fault verifies");
         let mutated = module.print_to_string().to_string();
         fs::write(v1_dir.join("fault-address.raw.ll"), &mutated).unwrap();
@@ -508,13 +493,13 @@ fn export_calibration(directory: &Path) {
         ));
     }
 
-    // Mutant 3: Missing deinit output in V1 Leaf.__deinit (erase write)
+    // Mutant 3: Missing deinit output in V1 Leaf.deinit (erase its drop-glue call)
     {
         let context = Context::create();
         let buffer =
             MemoryBuffer::create_from_memory_range_copy(v1_llvm.as_bytes(), "fault-missing_deinit");
         let module = context.create_module_from_ir(buffer).unwrap();
-        let target_fn = inject_missing_deinit_fault(&module);
+        let target_fn = inject_missing_deinit_fault(&module, &v1_unit.definition("Leaf", true));
         module.verify().expect("missing_deinit fault verifies");
         let mutated = module.print_to_string().to_string();
         fs::write(v1_dir.join("fault-missing_deinit.raw.ll"), &mutated).unwrap();
@@ -538,7 +523,7 @@ fn export_calibration(directory: &Path) {
             "fault-premature_holder_free",
         );
         let module = context.create_module_from_ir(buffer).unwrap();
-        let target_fn = inject_premature_holder_free(&context, &module);
+        let target_fn = inject_premature_holder_free(&context, &module, &v2_unit);
         module
             .verify()
             .expect("premature_holder_free fault verifies");
@@ -560,11 +545,12 @@ fn export_calibration(directory: &Path) {
 }
 
 #[allow(clippy::collapsible_if)]
-fn inject_address_fault<'ctx>(context: &'ctx Context, module: &Module<'ctx>) -> String {
-    let function = module
-        .get_functions()
-        .find(|f| f.get_name().to_str().unwrap_or("").contains("inspect"))
-        .expect("must find inspect function in module");
+fn inject_address_fault<'ctx>(
+    context: &'ctx Context,
+    module: &Module<'ctx>,
+    identity: &(usize, String),
+) -> String {
+    let function = llvm_definition(module, identity);
     let name = function.get_name().to_str().unwrap().to_owned();
     let mut target = None;
     for block in function.get_basic_blocks() {
@@ -644,8 +630,9 @@ fn inject_leak_fault(module: &Module<'_>) -> String {
 }
 
 #[allow(clippy::collapsible_if)]
-fn inject_missing_deinit_fault(module: &Module<'_>) -> String {
-    let mut target = None;
+fn inject_missing_deinit_fault(module: &Module<'_>, identity: &(usize, String)) -> String {
+    let deinit = llvm_definition(module, identity);
+    let mut targets = Vec::new();
     for function in module.get_functions() {
         let fn_name = function.get_name().to_str().unwrap_or("");
         if fn_name.starts_with("koven.drop.") {
@@ -653,32 +640,26 @@ fn inject_missing_deinit_fault(module: &Module<'_>) -> String {
                 for instruction in block.get_instructions() {
                     if let Ok(call) = CallSiteValue::try_from(instruction) {
                         if let Some(called) = call.get_called_fn_value() {
-                            let cname = called.get_name().to_str().unwrap_or("");
-                            if cname.contains("__deinit") {
-                                target = Some((
+                            if called == deinit {
+                                targets.push((
                                     called.get_name().to_str().unwrap().to_owned(),
                                     instruction,
                                 ));
-                                break;
                             }
                         }
                     }
                 }
-                if target.is_some() {
-                    break;
-                }
             }
         }
-        if target.is_some() {
-            break;
-        }
     }
-    let (name, call_inst) = target.expect("must find __deinit call in koven.drop");
+    assert_eq!(targets.len(), 1, "one actual Leaf.deinit call in drop glue");
+    let (name, call_inst) = targets.remove(0);
     call_inst.erase_from_basic_block();
     name
 }
 
-fn holder_deinit<'ctx>(module: &Module<'ctx>) -> FunctionValue<'ctx> {
+fn holder_deinit<'ctx>(module: &Module<'ctx>, unit: &UnitSource) -> FunctionValue<'ctx> {
+    let expected = llvm_definition(module, &unit.definition("Holder", true));
     // 1. Identify the unique Holder global constant containing "drop:holder"
     let mut holder_globals = Vec::new();
     for global in module.get_globals() {
@@ -695,29 +676,33 @@ fn holder_deinit<'ctx>(module: &Module<'ctx>) -> FunctionValue<'ctx> {
     );
     let holder_global_name = &holder_globals[0];
 
-    // 2. Identify the unique __deinit function referencing this Holder constant
+    // 2. Keep uniqueness across all actual deinit definitions, not just the selected target.
     let mut holder_deinit_fns = Vec::new();
-    for function in module.get_functions() {
-        let fn_name = function.get_name().to_str().unwrap_or("");
-        if fn_name.contains("__deinit") && function.to_string().contains(holder_global_name) {
+    for identity in unit.deinit_definitions() {
+        let function = llvm_definition(module, &identity);
+        if function.to_string().contains(holder_global_name) {
             holder_deinit_fns.push(function);
         }
     }
     assert_eq!(
         holder_deinit_fns.len(),
         1,
-        "Holder deinit fault requires exactly one __deinit function referencing Holder constant, found {}",
+        "Holder deinit fault requires exactly one Unit Holder.deinit referencing Holder constant, found {}",
         holder_deinit_fns.len()
+    );
+    assert_eq!(
+        holder_deinit_fns[0], expected,
+        "the unique witness belongs to Holder"
     );
     holder_deinit_fns[0]
 }
 
 #[allow(clippy::collapsible_if)]
-fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> (String, String) {
-    let holder_deinit = holder_deinit(module);
+fn inject_missing_holder_deinit_fault(module: &Module<'_>, unit: &UnitSource) -> (String, String) {
+    let holder_deinit = holder_deinit(module, unit);
     let holder_deinit_name = holder_deinit.get_name().to_str().unwrap().to_owned();
 
-    // 3. Identify and erase the unique call to Holder.__deinit in drop glue
+    // 3. Identify and erase the unique call to Holder.deinit in drop glue.
     let mut matching_calls = Vec::new();
     for function in module.get_functions() {
         let fn_name = function.get_name().to_str().unwrap_or("");
@@ -741,7 +726,7 @@ fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> (String, String) {
     assert_eq!(
         matching_calls.len(),
         1,
-        "Holder deinit fault requires exactly one call to Holder.__deinit in drop glue, found {}",
+        "Holder deinit fault requires exactly one call to Holder.deinit in drop glue, found {}",
         matching_calls.len()
     );
     let (holder_drop_fn, call_inst) = matching_calls.remove(0);
@@ -749,8 +734,12 @@ fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> (String, String) {
     (holder_drop_fn, holder_deinit_name)
 }
 
-fn inject_premature_holder_free<'ctx>(context: &'ctx Context, module: &Module<'ctx>) -> String {
-    let deinit = holder_deinit(module);
+fn inject_premature_holder_free<'ctx>(
+    context: &'ctx Context,
+    module: &Module<'ctx>,
+    unit: &UnitSource,
+) -> String {
+    let deinit = holder_deinit(module, unit);
     let mut holders = Vec::new();
     for function in module.get_functions() {
         for block in function.get_basic_blocks() {
@@ -909,7 +898,8 @@ fn export_generated_owner_case_with_missing_deinit_fault() {
     let context = Context::create();
     let buffer = MemoryBuffer::create_from_memory_range_copy(raw_ll.as_bytes(), "exported-fault");
     let module = context.create_module_from_ir(buffer).unwrap();
-    let deinit = holder_deinit(&module);
+    let unit = UnitSource::analyze("case.ko", DEFAULT_CALIBRATION_V2).expect("same source facts");
+    let deinit = holder_deinit(&module, &unit);
     assert!(
         !deinit.get_basic_blocks().is_empty(),
         "deinit definition remains"

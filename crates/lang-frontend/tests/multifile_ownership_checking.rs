@@ -148,3 +148,9 @@ mod receivers;
 
 #[path = "multifile_ownership_checking/container_size.rs"]
 mod container_size;
+
+#[path = "multifile_ownership_checking/jump_continuation.rs"]
+mod jump_continuation;
+
+#[path = "multifile_ownership_checking/nullable_when_unit.rs"]
+mod nullable_when_unit;

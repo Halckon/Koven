@@ -58,7 +58,12 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn inspect(
     gate(
         "read identity: actual provider source path",
         source_unit.source_id() == parsed.source_id()
-            && source_unit.key().logical_path().as_str() == "p/provider.ko"
+            && source_unit
+                .key()
+                .logical_path()
+                .expect("rooted source")
+                .as_str()
+                == "p/provider.ko"
             && descriptor.receiver().source_unit() == source,
         source_unit,
     )?;

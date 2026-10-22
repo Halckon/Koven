@@ -23,6 +23,30 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
+    /// Locate the real temporary alias column, never a synthetic root binding.
+    pub(in super::super) fn nullable_temporary_owner_column(
+        &self,
+        bindings: &[CarriedBinding],
+        subject: UnitExpressionId,
+        owner: ValueId,
+        span: Span,
+    ) -> Result<usize, LoweringError> {
+        let mut matches = bindings
+            .iter()
+            .enumerate()
+            .filter(|(_, slot)| slot.source == owner && slot.temporaries.contains(&subject));
+        let (column, slot) = matches
+            .next()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if matches.next().is_some()
+            || slot.symbol.is_some()
+            || self.temporaries.get(&subject) != Some(&owner)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok(column)
+    }
+
     /// Finalize roles from the real state after all value-prefix slots are present.
     /// Raw source edges can subsequently use this same checked layout unchanged.
     pub(super) fn bind_nullable_columns(
@@ -115,33 +139,24 @@ impl UnitExpressionLowerer<'_> {
         self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
         for (&root, &proof) in &self.nullable_proofs {
             let source = EntityId::Loan(proof.loan);
-            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                // Share the physical entity slot, never collapse distinct root/scope roles.
-                slot.nullable_proofs.push(CarriedNullableProof {
+            let choice = carry::associate_source(
+                self.function,
+                carried,
+                source,
+                TypeAtMiss::Known(EntityType::Loan {
+                    kind: crate::ssa::model::LoanKind::Shared,
+                    target: proof.inner,
+                }),
+                lowering_error(LoweringErrorKind::MissingFact, span),
+            )?;
+            // Share the physical entity slot, never collapse distinct root/scope roles.
+            carried[choice.column().index()]
+                .nullable_proofs
+                .push(CarriedNullableProof {
                     root,
                     proof,
                     owner_column: None,
                 });
-            } else {
-                carried.push(CarriedAccess {
-                    nullable_children: Vec::new(),
-                    nullable_proofs: vec![CarriedNullableProof {
-                        root,
-                        proof,
-                        owner_column: None,
-                    }],
-                    range_sources: Vec::new(),
-                    captures: Vec::new(),
-                    symbol: None,
-                    receiver: None,
-                    source,
-                    ty: EntityType::Loan {
-                        kind: crate::ssa::model::LoanKind::Shared,
-                        target: proof.inner,
-                    },
-                    pending: Vec::new(),
-                });
-            }
         }
         Ok(())
     }

@@ -39,12 +39,22 @@ impl Checker<'_> {
         state: &mut State,
     ) -> Result<(), OwnershipCheckingError> {
         let Some(receiver) = self.current_receiver else {
+            if self
+                .typed
+                .expression_type(self.unit_expression(expression))
+                .is_some_and(|ty| self.typed.is_diagnostic_error_type(ty))
+            {
+                return Ok(());
+            }
             return Err(OwnershipCheckingError::InvalidUnitArgumentType {
                 source_unit: self.source_unit.index(),
                 expression: expression.index(),
             });
         };
         if !self.ensure_this_available_at(span, None, state)? {
+            return Ok(());
+        }
+        if self.typed.is_diagnostic_error_type(receiver.ty) {
             return Ok(());
         }
         match usage {
@@ -84,6 +94,11 @@ impl Checker<'_> {
                             add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
                             self.diagnostics.push(diagnostic);
                         }
+                        Copyability::Error
+                            if self.typed.copyability_error_is_diagnostic(receiver.ty) =>
+                        {
+                            return Ok(());
+                        }
                         Copyability::Unknown | Copyability::Error => {
                             return Err(OwnershipCheckingError::InvalidUnitArgumentType {
                                 source_unit: self.source_unit.index(),
@@ -117,6 +132,11 @@ impl Checker<'_> {
                         )?;
                         add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
                         self.diagnostics.push(diagnostic);
+                    }
+                    Copyability::Error
+                        if self.typed.copyability_error_is_diagnostic(receiver.ty) =>
+                    {
+                        return Ok(());
                     }
                     Copyability::Unknown | Copyability::Error => {
                         return Err(OwnershipCheckingError::InvalidUnitArgumentType {
@@ -316,6 +336,12 @@ impl Checker<'_> {
             };
             return self.implicit_receiver_effect(contract, receiver.owner, state);
         }
+        if self
+            .typed
+            .is_diagnostic_error_type(contract.receiver_type())
+        {
+            return Ok(None);
+        }
         if contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
             && let Some(fact) = self.range_use(expression)
         {
@@ -382,6 +408,13 @@ impl Checker<'_> {
                 let kind = match self.typed.copyability(contract.receiver_type()) {
                     Copyability::Copyable => UnitReceiverOwnershipKind::Copy,
                     Copyability::MoveOnly => UnitReceiverOwnershipKind::Move,
+                    Copyability::Error
+                        if self
+                            .typed
+                            .copyability_error_is_diagnostic(contract.receiver_type()) =>
+                    {
+                        return Ok(None);
+                    }
                     Copyability::Unknown | Copyability::Error => {
                         return Err(OwnershipCheckingError::InvalidUnitArgumentType {
                             source_unit: self.source_unit.index(),
@@ -451,6 +484,12 @@ impl Checker<'_> {
                 expression: contract.call().expression().index(),
             });
         };
+        if self
+            .typed
+            .is_diagnostic_error_type(contract.receiver_type())
+        {
+            return Ok(None);
+        }
         if contract.kind() == UnitCallArgumentOwnershipKind::Value
             && self.typed.copyability(contract.receiver_type()) != Copyability::Copyable
             && self.has_reserved_this_loan(state)
@@ -574,6 +613,13 @@ impl Checker<'_> {
                         }
                         state.this_moved = Some(contract.receiver_span());
                         UnitReceiverOwnershipKind::Move
+                    }
+                    Copyability::Error
+                        if self
+                            .typed
+                            .copyability_error_is_diagnostic(contract.receiver_type()) =>
+                    {
+                        return Ok(None);
                     }
                     Copyability::Unknown | Copyability::Error => {
                         return Err(OwnershipCheckingError::InvalidUnitArgumentType {

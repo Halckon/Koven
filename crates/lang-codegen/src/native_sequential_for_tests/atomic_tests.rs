@@ -1,7 +1,5 @@
-use super::super::{
-    NativeObjectErrorKind, SymbolKind, TestDirectory, analyze, emit_link_and_run,
-    emit_native_object, symbol,
-};
+use super::super::{NativeObjectErrorKind, SymbolKind, TestDirectory, emit_link_and_run};
+use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use std::{collections::BTreeMap, fs};
 
 fn snapshot(path: &std::path::Path) -> BTreeMap<String, Vec<u8>> {
@@ -20,8 +18,10 @@ fn snapshot(path: &std::path::Path) -> BTreeMap<String, Vec<u8>> {
 #[test]
 fn actual_single_file_for_rejects_foreign_sources_and_facts_without_touching_directory() {
     let source = "fun entry(): Unit { for (item in arrayOf(1, 2, 3)) { println(\"visit\") } }";
-    let first = analyze("single-for.ko", source);
-    let second = analyze("single-for.ko", source);
+    let first = UnitSource::analyze("single-for.ko", source)
+        .expect("original source must pass strict Unit admission");
+    let second = UnitSource::analyze("single-for.ko", source)
+        .expect("original source must pass strict Unit admission");
     for present in [false, true] {
         let directory = TestDirectory::create();
         let output = directory.join("program.o");
@@ -29,23 +29,19 @@ fn actual_single_file_for_rejects_foreign_sources_and_facts_without_touching_dir
         if present {
             fs::write(&output, b"old object").unwrap();
         }
-        for (sources, typed, owned) in [
-            (&second.sources, &first.typed, &first.owned),
-            (&first.sources, &second.typed, &second.owned),
-            (&first.sources, &first.typed, &second.owned),
+        for (foreign_sources, typed, owned) in [
+            (Some(&second), &first, &first),
+            (None, &second, &second),
+            (None, &first, &second),
         ] {
             let before = snapshot(&directory.0);
             let guard =
                 crate::llvm::emission_failure::Guard::new(directory.join("keep").join("object.o"));
-            let error = emit_native_object(
-                sources,
-                &first.parsed,
-                &first.names,
-                typed,
-                owned,
-                symbol(&first, "entry", SymbolKind::Function),
-                &output,
-            )
+            let entry = first.declaration("entry", SymbolKind::Function);
+            let error = match foreign_sources {
+                Some(sources) => first.emit_with_sources_from(sources, entry, &output),
+                None => first.emit_with_products_from(typed, owned, entry, &output),
+            }
             .unwrap_err();
             assert_eq!(error.kind(), NativeObjectErrorKind::MismatchedAnalysis);
             assert_eq!(error.span(), None);
@@ -53,16 +49,9 @@ fn actual_single_file_for_rejects_foreign_sources_and_facts_without_touching_dir
             assert_eq!(snapshot(&directory.0), before);
             drop(guard);
         }
-        emit_native_object(
-            &first.sources,
-            &first.parsed,
-            &first.names,
-            &first.typed,
-            &first.owned,
-            symbol(&first, "entry", SymbolKind::Function),
-            &output,
-        )
-        .unwrap();
+        first
+            .emit(first.declaration("entry", SymbolKind::Function), &output)
+            .unwrap();
         crate::test_support::assert_native_object(&fs::read(output).unwrap());
     }
     let run = emit_link_and_run("single-for.ko", source, "entry");
@@ -76,16 +65,11 @@ fn independent_analysis_chains_render_identical_for_ssa_and_verified_llvm() {
     let source = "fun entry(): Unit { for (item in listOf(1, 2, 3)) { if (item == 2) { continue }; if (item == 3) { break }; println(\"visit\") } }";
     let mut expected = None;
     for _ in 0..3 {
-        let analysis = analyze("deterministic-for.ko", source);
-        let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-            symbol(&analysis, "entry", SymbolKind::Function),
-        )
-        .unwrap();
+        let analysis = UnitSource::analyze("deterministic-for.ko", source)
+            .expect("original source must pass strict Unit admission");
+        let (program, entry) = analysis
+            .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+            .unwrap();
         crate::ssa::verify::verify_program(&program).unwrap();
         let rendered = (
             crate::ssa::render_program(&program),
@@ -100,12 +84,15 @@ fn independent_analysis_chains_render_identical_for_ssa_and_verified_llvm() {
 }
 
 #[test]
-fn dynamic_resource_and_non_source_owner_choices_reject_before_llvm_and_output() {
+fn resource_and_non_source_owner_replacement_emission_failure_preserves_output() {
+    // CI-only whole: both original legal sources and all four output states stay together.
+    // Reaching the injected emission failure proves atomic failure, not native success.
     for source in [
         "class Leaf(val name: String) { deinit() { println(this.name) } }\nfun scan(flag: Boolean): Unit { var guard = Leaf(\"initial\"); for (item in arrayOf(1, 2)) { if (flag) { guard = Leaf(\"replacement\") } } }\nfun entry(): Unit { scan(true) }",
         "fun scan(flag: Boolean): Unit { var text = \"initial\"; for (item in arrayOf(1, 2)) { if (flag) { text = \"replacement\" } }; println(text) }\nfun entry(): Unit { scan(true) }",
     ] {
-        let analysis = analyze("bounded-presence.ko", source);
+        let analysis = UnitSource::analyze("bounded-presence.ko", source)
+            .expect("original source must pass strict Unit admission");
         for present in [false, true] {
             let directory = TestDirectory::create();
             let output = directory.join("program.o");
@@ -115,19 +102,13 @@ fn dynamic_resource_and_non_source_owner_choices_reject_before_llvm_and_output()
             }
             let before = snapshot(&directory.0);
             let guard = crate::llvm::emission_failure::Guard::new(directory.join("keep/object.o"));
-            let error = emit_native_object(
-                &analysis.sources,
-                &analysis.parsed,
-                &analysis.names,
-                &analysis.typed,
-                &analysis.owned,
-                symbol(&analysis, "entry", SymbolKind::Function),
-                &output,
-            )
-            .unwrap_err();
-            assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
-            assert!(error.span().is_some());
-            assert_eq!(guard.calls(), 0);
+            let error = analysis
+                .emit(analysis.declaration("entry", SymbolKind::Function), &output)
+                .unwrap_err();
+            assert_eq!(error.kind(), NativeObjectErrorKind::Backend, "{error}");
+            assert_eq!(error.span(), None, "{error}");
+            assert!(error.diagnostic().is_none(), "{error}");
+            assert_eq!(guard.calls(), 1, "the real emission hook must be reached");
             assert_eq!(snapshot(&directory.0), before);
         }
     }

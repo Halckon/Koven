@@ -280,6 +280,7 @@ fn observe_with_identity(
                         && declaration.kind() == SymbolKind::Function
                         && names.names().index().packages()[declaration.package().index()]
                             .name()
+                            .expect("named package")
                             .segments()
                             .iter()
                             .map(String::as_str)
@@ -422,21 +423,32 @@ fn bounded_payload_and_owner_return_sources_record_current_stage_boundary() {
                 && match (&observation.outcome, observation.unit) {
                     (Ok(()), false) => observation.entry_identity_ok,
                     (Err(error), true) => {
+                        // Published 054a74d: the real Rc If proof now rejects the
+                        // reader return before the historical invalid SSA is built.
+                        // These are the unchanged source's full return spans after
+                        // its existing "package p\n" prefix, not a success oracle.
+                        let expected_span = match observation.case {
+                            "normal" => (265, 283),
+                            "break" => (221, 239),
+                            "continue" => (284, 302),
+                            "return" => (229, 247),
+                            _ => return false,
+                        };
                         !observation.entry_identity_ok
                             && error.stage == "lower"
                             && matches!(
                                 error.lower,
                                 Some(LoweringError {
-                                    kind: super::LoweringErrorKind::InvalidSsa,
-                                    span: None,
-                                })
+                                    kind: super::LoweringErrorKind::UnsupportedNode,
+                                    span: Some(span),
+                                }) if (span.start(), span.end()) == expected_span
                             )
-                            && error.span_text.is_none()
+                            && error.span_text.as_deref() == Some("Ok(\"return owner.value\")")
                     }
                     _ => false,
                 }
         }),
-        "observed payload/owner-return boundary is exactly four single LLVM successes and four unit lower InvalidSsa failures"
+        "observed boundary is exactly four single LLVM successes and four source-anchored Unit live-If return rejections"
     );
 }
 

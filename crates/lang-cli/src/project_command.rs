@@ -19,6 +19,7 @@ use crate::{
     format::CommandOutput,
     linker::link_native_object,
     project_build::{ProjectBuildError, emit_project_object},
+    unit_build::UnitBuildError,
 };
 
 const BUILD_USAGE: &str =
@@ -220,14 +221,16 @@ fn require_absent_output(path: &Path) -> Result<(), CommandOutput> {
 
 fn render_project_error(error: ProjectBuildError, message_format: MessageFormat) -> CommandOutput {
     match error {
-        ProjectBuildError::FrontendDiagnostics { human, json } => CommandOutput {
-            status: 1,
-            stdout: Vec::new(),
-            stderr: match message_format {
-                MessageFormat::Human => human.into_bytes(),
-                MessageFormat::Json => json.into_bytes(),
-            },
-        },
+        ProjectBuildError::Unit(UnitBuildError::FrontendDiagnostics { human, json }) => {
+            CommandOutput {
+                status: 1,
+                stdout: Vec::new(),
+                stderr: match message_format {
+                    MessageFormat::Human => human.into_bytes(),
+                    MessageFormat::Json => json.into_bytes(),
+                },
+            }
+        }
         error => operational(format!("project build failed: {error}")),
     }
 }

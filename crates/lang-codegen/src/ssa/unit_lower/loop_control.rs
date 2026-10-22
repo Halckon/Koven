@@ -2,6 +2,7 @@
 
 mod iteration;
 mod iteration_cleanup;
+mod map_borrow;
 mod map_iteration;
 mod nullable_while;
 mod numeric_iteration;
@@ -55,6 +56,12 @@ pub(super) struct LoopContext {
 impl UnitExpressionLowerer<'_> {
     pub(super) fn current_while_proof_scope(&self) -> Option<UnitStatementId> {
         self.loops.last().and_then(|context| context.proof_scope)
+    }
+
+    pub(super) fn current_loop_exit_counts(&self) -> (usize, usize) {
+        self.loops.last().map_or((0, 0), |context| {
+            (context.breaks.len(), context.continues.len())
+        })
     }
 
     pub(super) fn has_iteration_context(&self) -> bool {
@@ -273,6 +280,7 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.retire_borrowed_for_while_break(expression, span)?;
+        self.retire_nullable_when_transfers(self.loops.len(), span)?;
         self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, true)?;
         let jump = self.current_jump(span)?;
@@ -307,6 +315,7 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.advance_iteration(span)?;
+        self.retire_nullable_when_transfers(self.loops.len(), span)?;
         self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, false)?;
         let jump = self.current_jump(span)?;
@@ -392,13 +401,17 @@ impl UnitExpressionLowerer<'_> {
         if self.loops.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        Ok(LoopJump {
-            state: self.loop_state(),
-            span,
-        })
+        let mut state = self.loop_state();
+        // Cleanup already ended cancelled ordinary call loans. Their Rust frames
+        // still unwind in the caller, but must not reappear in the loop successor.
+        // Keep live nullable-child metadata for its existing strict validation.
+        state.pending_call_frames.retain(|frame| {
+            frame.loop_depth < self.loops.len() || !frame.nullable_children.is_empty()
+        });
+        Ok(LoopJump { state, span })
     }
 
-    fn loop_state(&self) -> BranchExit {
+    pub(super) fn loop_state(&self) -> BranchExit {
         BranchExit {
             block: self.block,
             result: LoweredValue::Unit,

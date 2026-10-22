@@ -329,3 +329,17 @@ pub(super) fn control_join_probes() -> [Probe; 2] {
         },
     ]
 }
+
+// Unit typing is complete for companion calls; this is a backend capability boundary,
+// not a language diagnostic. Both renderer options retain the operational-error protocol.
+pub(super) fn assert_companion_capability_rejection(output: &Output, exit_code: i32, host: &str) {
+    assert_eq!(output.status.code(), Some(exit_code), "{output:?}");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    assert_eq!(
+        output.stderr,
+        format!(
+            "error: {host} build failed: native object UnsupportedSource: companion function calls are not supported by native code generation\n"
+        ).as_bytes(),
+        "{output:?}"
+    );
+}

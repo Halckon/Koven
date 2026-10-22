@@ -91,7 +91,6 @@ impl Checker<'_> {
             place.is_root()
                 && self
                     .names
-                    .names()
                     .source_units()
                     .get(place.root().source_unit().index())
                     .is_some_and(|source| {

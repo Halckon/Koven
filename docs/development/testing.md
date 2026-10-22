@@ -68,12 +68,12 @@ policy要求各恰一次且不带过滤器：前者与旧手工名称前缀比�
 policy要求各恰一次、无过滤器：前者与手工 basic validation/checker 比较完整事实和 provenance，
 后者验证封闭字段、能力错配以及按值 Outcome 跨输入借用期的合法持有；不为其虚构借用限制。
 CLI完整测试自动包含 `project_basic_ownership_cli` 的旧主干 human/JSON 全输出 oracle；
-LSP完整测试保留冻结 manual 链与 publications/UTF-16/raw事实差分，不用新门面循环自证。
+LSP 完整测试将真实 Unit 的 raw/LSP 诊断与逐 UTF-8 边界导航硬比固定观测，不由当前分析生成期望。
 
-同一stage完整选择 `single_file_analysis` 与 `single_file_analysis_compile_contracts` 各恰一次、
-无过滤器，分别锁固定五gate/typed observer顺序、原事实与身份，以及封闭字段/只读/HRTB
-借用逃逸和raw能力边界。CLI完整测试包含旧生产捕获的单文件全输出golden，LSP完整测试
-保留旧手工链、完整publication、UTF-16 definition及legacy特有版本/发送事务边界。
+同一 stage 完整选择 `unit_single_source_analysis` 与 `single_file_fact_compile_contracts` 各恰一次、
+无过滤器：前者保单内存来源的严格资格与恢复能力边界，后者保仍活跃的 raw facts 能力隔离及 iteration validator 合同。
+旧 SingleFile 门面及 observer/HRTB 专属协议退役；封闭、能力及借用期由既有 Unit compile-contract targets 保留。
+CLI 全输出 golden 与 LSP 完整 publication/UTF-16 definition/版本发送合同继续约束真实 Unit 消费者。
 
 stage还完整选择 `const_owned_compilation_unit_view`、`const_owned_unit_view_compile_contracts`
 及 `multifile_constant_ownership` 各恰一次，无filter。codegen完整测试含
@@ -127,6 +127,8 @@ Release 也必须公开所选覆盖范围与缺口，不能把定向结果称为
   用重复 `--test <suite>` 合并到一次调用，避免多个进程争抢同一 target 锁。
 - 多个互相独立的定向套件合并运行时使用 `--no-fail-fast`，一次收集各目标结果，避免首个失败
   阻止其余套件执行。存在前置依赖的验证仍分开安排。
+  CLI 全包使用同一标志收集包内测试目标的失败；任一失败仍以非零状态阻止后续包与阶段执行。
+  Unit 单文档恢复的七个 frontend integration target 显式并入既有 stage 批次，不扩大为 frontend 全量。
 - 单个测试二进制内部使用 libtest 默认并行；仅在内存、进程或 native 工具资源紧张时，
   用 `-- --test-threads=<N>` 限制并行，并记录所用值。不要默认强制单线程。
 - 文档检查、diff 检查可与 Cargo 检查并行。依赖前序产物的验证等待前序成功后运行。
@@ -163,7 +165,7 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
 
 `bash scripts/check_integration.sh`依次选择core、ownership_iteration、stage、尚未覆盖的guide_litmus、
 真实CLI教程。独立stage/Guide入口保留，不增加任意skip开关。core包含lang-std源码资产，
-组合为118个唯一frontend integration和10次Cargo调用；接线与失败传播由Python合同测试核验。
+组合为120个唯一frontend integration和23次Cargo调用；接线与失败传播由Python合同测试核验。
 SPEC-0290 补齐 PR69 改动目标中的 23 个遗漏选择；stage policy 锁定相关 25 个目标
 （含此前已选择的 2 个）各恰一次且不带过滤器。range/N1a 测试进入门禁不表示启用其语义，
 脚本接线与 Python policy 通过也不表示新增 Rust 目标已实际运行。

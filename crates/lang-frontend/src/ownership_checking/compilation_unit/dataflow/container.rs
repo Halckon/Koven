@@ -46,9 +46,22 @@ impl Checker<'_> {
             return Ok(flows);
         }
 
+        if self
+            .typed
+            .is_diagnostic_error_type(descriptor.element_type())
+        {
+            return Ok(flows);
+        }
         let move_only = match self.typed.copyability(descriptor.element_type()) {
             Copyability::Copyable => false,
             Copyability::MoveOnly => true,
+            Copyability::Error
+                if self
+                    .typed
+                    .copyability_error_is_diagnostic(descriptor.element_type()) =>
+            {
+                return Ok(flows);
+            }
             Copyability::Unknown | Copyability::Error => {
                 return Err(OwnershipCheckingError::InvalidUnitArgumentType {
                     source_unit: self.source_unit.index(),

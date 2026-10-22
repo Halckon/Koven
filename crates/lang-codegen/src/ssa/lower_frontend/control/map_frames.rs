@@ -193,16 +193,23 @@ impl ExpressionLowerer<'_> {
                 } {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
-                let index = if let Some(index) = slots.iter().position(|slot| slot.source == source)
-                {
-                    if slots[index].ty != ty {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
-                    }
-                    index
-                } else {
-                    slots.push(LinearBindingSlot::new(None, source, ty));
-                    slots.len() - 1
-                };
+                let choice = carry::associate_source(
+                    self.function,
+                    slots,
+                    source,
+                    carry::TypeAtMiss::Known(ty),
+                    error(LoweringErrorKind::MissingFact, span),
+                )?;
+                let column = choice.column();
+                if let carry::ColumnMatch::Reused(_) = choice {
+                    carry::require_column_type(
+                        slots,
+                        column,
+                        ty,
+                        error(LoweringErrorKind::MissingFact, span),
+                    )?;
+                }
+                let index = column.index();
                 if is_cursor {
                     slots[index].map_cursors.push(statement);
                 } else {

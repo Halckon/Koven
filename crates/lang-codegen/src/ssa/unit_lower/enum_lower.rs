@@ -1,10 +1,10 @@
-//! concrete non-generic enum construction 与 smart-cast payload projection lowering。
+//! concrete enum construction 与 smart-cast payload projection lowering。
 
 use lang_frontend::{
     ast::ExpressionId,
     source::Span,
     type_checking::{
-        NominalKind, UnitAggregateProjectionDescriptor, UnitConstructionDescriptor,
+        Copyability, NominalKind, UnitAggregateProjectionDescriptor, UnitConstructionDescriptor,
         UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
     },
 };
@@ -12,10 +12,58 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, Operation, Origin, PlaceAccess},
+    model::{EntityId, EntityType, Operation, Origin, PlaceAccess, SsaTypeId, ValueId},
+    unit_plan::resolve_enum_runtime_payload_types,
 };
 
 impl UnitExpressionLowerer<'_> {
+    pub(super) fn lower_copyable_enum_case_condition(
+        &mut self,
+        owner: ValueId,
+        tagged: SsaTypeId,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let id = UnitExpressionId::new(self.source_unit, expression);
+        if self.typed.construction(id).is_none_or(|descriptor| {
+            !matches!(descriptor.target(), UnitConstructionTarget::EnumCase(_))
+        }) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let descriptor = self.construction_descriptor(expression, span)?;
+        if !descriptor.arguments().is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        match self.typed.copyability(descriptor.result_type()) {
+            Copyability::Copyable => {}
+            Copyability::MoveOnly => {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            Copyability::Unknown | Copyability::Error => {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+        }
+        let (variant, _) = self.validate_enum_construction(&descriptor, span)?;
+        if self.typed.expression_type(id) != Some(descriptor.result_type())
+            || self.expression_ssa_type(expression, span)? != tagged
+            || self
+                .function
+                .entity(EntityId::Value(owner))
+                .map(|entity| entity.ty)
+                != Some(EntityType::Value(tagged))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        // 零参数路径只验证完整 construction/ownership 身份，不求值或构造条件值。
+        if !self
+            .lower_construction_fields(&descriptor, span)?
+            .is_empty()
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        self.lower_enum_tag_test(owner, variant, false, span)
+    }
+
     pub(super) fn lower_enum_construction(
         &mut self,
         expression: ExpressionId,
@@ -74,33 +122,28 @@ impl UnitExpressionLowerer<'_> {
             .signatures()
             .declaration(*result_declaration)
             .and_then(|signature| signature.nominal())
-            .filter(|nominal| {
-                nominal.kind() == NominalKind::EnumClass && nominal.type_parameters().is_empty()
-            })
+            .filter(|nominal| nominal.kind() == NominalKind::EnumClass)
             .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        let case = nominal
+        let (case_index, case) = nominal
             .enum_cases()
             .iter()
-            .find(|case| case.value_symbol() == target)
+            .enumerate()
+            .find(|(_, case)| case.value_symbol() == target)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Some(UnitTypeKind::EnumCase {
-            case: case_symbol,
-            root,
-        }) = self.typed.types().get(case.case_type())
-        else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        if !arguments.is_empty()
-            || !descriptor.instance().type_arguments().is_empty()
-            || *case_symbol != case.type_symbol()
-            || *root != descriptor.result_type()
+        let concrete_payloads =
+            resolve_enum_runtime_payload_types(self.typed, descriptor.result_type(), span)?;
+        let concrete = concrete_payloads
+            .get(case_index)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if arguments != descriptor.instance().type_arguments()
             || descriptor.arguments().len() != case.payloads().len()
             || descriptor.arguments().iter().any(|argument| {
                 case.payloads()
                     .get(argument.parameter_index())
-                    .is_none_or(|payload| {
+                    .zip(concrete.get(argument.parameter_index()))
+                    .is_none_or(|(payload, concrete)| {
                         argument.parameter_symbol() != Some(payload.symbol())
-                            || argument.parameter_type() != payload.ty()
+                            || argument.parameter_type() != *concrete
                     })
             })
         {
@@ -131,11 +174,7 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        let Some(UnitTypeKind::Nominal {
-            declaration,
-            arguments,
-        }) = self.typed.types().get(*root)
-        else {
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = self.typed.types().get(*root) else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let nominal = self
@@ -143,26 +182,28 @@ impl UnitExpressionLowerer<'_> {
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
-            .filter(|nominal| {
-                nominal.kind() == NominalKind::EnumClass
-                    && nominal.type_parameters().is_empty()
-                    && arguments.is_empty()
-            })
+            .filter(|nominal| nominal.kind() == NominalKind::EnumClass)
             .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        let case_signature = nominal
+        let (case_index, case_signature) = nominal
             .enum_cases()
             .iter()
-            .find(|candidate| candidate.type_symbol() == *case)
+            .enumerate()
+            .find(|(_, candidate)| candidate.type_symbol() == *case)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let field = self
             .field_indices
-            .get(&(receiver_type, projection.field()))
+            .get(&(*root, projection.field()))
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let concrete_payloads = resolve_enum_runtime_payload_types(self.typed, *root, span)?;
         if case_signature
             .payloads()
             .get(field)
             .is_none_or(|payload| payload.symbol() != projection.field())
+            || concrete_payloads
+                .get(case_index)
+                .and_then(|fields| fields.get(field))
+                != Some(&projection.ty())
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }

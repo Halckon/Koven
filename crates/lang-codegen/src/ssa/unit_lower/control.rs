@@ -12,7 +12,7 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
     parser::{Expression, LiteralKind, TypeRef, WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitStatementId},
+    type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitTypeKind, UnitTypeRefId},
 };
 
 use super::{
@@ -230,6 +230,10 @@ impl UnitExpressionLowerer<'_> {
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        let control = UnitExpressionId::new(self.source_unit, expression);
+        if self.typed.nullable_when(control).is_some() {
+            return self.lower_nullable_when(control, span);
+        }
         if let Some(subject) = subject {
             let subject_id = UnitExpressionId::new(self.source_unit, subject);
             let subject_type = self
@@ -243,6 +247,12 @@ impl UnitExpressionLowerer<'_> {
                 self.static_self,
                 span,
             )?;
+            if matches!(
+                self.typed.types().get(subject_type),
+                Some(UnitTypeKind::Nullable(_))
+            ) {
+                return self.missing_nullable_when_descriptor(entries, span);
+            }
             let subject_ssa = self.expression_ssa_type(subject, span)?;
             let is_boolean = builtin_type(self.typed, subject_type) == Some(BuiltinType::Boolean);
             let is_tagged = self
@@ -404,6 +414,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver,
             baseline.clone(),
             baseline_borrows,
+            self.result_source_loans.clone(),
             self.nullable_proofs.clone(),
             baseline_closures,
             self.capture_loans.clone(),
@@ -420,6 +431,7 @@ impl UnitExpressionLowerer<'_> {
                 unmatched_consumed_receiver,
                 unmatched_bindings,
                 unmatched_borrows,
+                unmatched_result_loans,
                 unmatched_proofs,
                 unmatched_closures,
                 unmatched_captures,
@@ -438,7 +450,7 @@ impl UnitExpressionLowerer<'_> {
                     unmatched_bindings,
                     unmatched_borrows,
                     unmatched_proofs,
-                    self.result_source_loans.clone(),
+                    unmatched_result_loans,
                     unmatched_closures,
                     unmatched_captures,
                     unmatched_pending,
@@ -463,6 +475,7 @@ impl UnitExpressionLowerer<'_> {
             let mut next_consumed_receiver = unmatched_consumed_receiver;
             let mut next_bindings = unmatched_bindings;
             let mut next_borrows = unmatched_borrows;
+            let mut next_result_loans = unmatched_result_loans;
             let mut next_proofs = unmatched_proofs;
             let mut next_closures = unmatched_closures;
             let mut next_captures = unmatched_captures;
@@ -470,12 +483,13 @@ impl UnitExpressionLowerer<'_> {
             let mut next_frames = unmatched_frames;
             let mut next_temporaries = unmatched_temporaries;
             let mut matches = Vec::new();
-            for condition in &entry.conditions {
+            for (alternative, condition) in entry.conditions.iter().enumerate() {
                 self.block = next_block;
                 self.current_receiver = next_receiver;
                 self.consumed_receiver = next_consumed_receiver;
                 self.bindings = next_bindings;
                 self.borrow_bindings = next_borrows;
+                self.result_source_loans = next_result_loans;
                 self.nullable_proofs = next_proofs;
                 self.closure_bindings = next_closures;
                 self.capture_loans = next_captures;
@@ -494,6 +508,11 @@ impl UnitExpressionLowerer<'_> {
                 let after_condition_borrows = self.borrow_bindings.clone();
                 let after_condition_closures = self.closure_bindings.clone();
                 let after_condition_frames = self.pending_call_frames.clone();
+                let after_condition_result_loans = self.result_source_loans.clone();
+                let after_condition_proofs = self.nullable_proofs.clone();
+                let after_condition_captures = self.capture_loans.clone();
+                let after_condition_pending = self.pending_operands.clone();
+                let after_condition_temporaries = self.temporaries.clone();
                 let after_condition_receiver = self.current_receiver;
                 let after_condition_consumed_receiver = self.consumed_receiver;
                 let mut carried = self.carried_bindings(&after_condition, entry.span)?;
@@ -525,15 +544,24 @@ impl UnitExpressionLowerer<'_> {
                 )?;
                 let matched_borrows =
                     self.rebind_carried_loans(matched, carried.len(), &carried_loans, entry.span)?;
+                self.block = matched;
+                self.bindings = matched_bindings;
+                self.borrow_bindings = matched_borrows;
+                self.closure_bindings = after_condition_closures.clone();
+                self.emit_drops(UnitDropPoint::WhenAlternativeMatch {
+                    control,
+                    entry: index,
+                    alternative,
+                })?;
                 matches.push(BranchExit {
-                    block: matched,
+                    block: self.block,
                     result: LoweredValue::Unit,
-                    bindings: matched_bindings,
-                    borrow_bindings: matched_borrows,
+                    bindings: self.bindings.clone(),
+                    borrow_bindings: self.borrow_bindings.clone(),
                     nullable_proofs: self.nullable_proofs.clone(),
                     receiver: self.current_receiver,
                     consumed_receiver: self.consumed_receiver,
-                    closure_bindings: after_condition_closures.clone(),
+                    closure_bindings: self.closure_bindings.clone(),
                     capture_loans: self.capture_loans.clone(),
                     result_source_loans: self.result_source_loans.clone(),
                     pending_operands: self.pending_operands.clone(),
@@ -544,6 +572,14 @@ impl UnitExpressionLowerer<'_> {
                 self.current_receiver = after_condition_receiver;
                 self.consumed_receiver = after_condition_consumed_receiver;
                 self.pending_call_frames = after_condition_frames;
+                self.bindings = after_condition.clone();
+                self.borrow_bindings = after_condition_borrows;
+                self.nullable_proofs = after_condition_proofs;
+                self.capture_loans = after_condition_captures;
+                self.pending_operands = after_condition_pending;
+                self.temporaries = after_condition_temporaries;
+                self.result_source_loans = after_condition_result_loans;
+                self.closure_bindings = after_condition_closures.clone();
                 next_bindings = self.rebind_carried_control(
                     &after_condition,
                     next,
@@ -553,6 +589,7 @@ impl UnitExpressionLowerer<'_> {
                 )?;
                 next_borrows =
                     self.rebind_carried_loans(next, carried.len(), &carried_loans, entry.span)?;
+                next_result_loans = self.result_source_loans.clone();
                 next_proofs = self.nullable_proofs.clone();
                 next_receiver = self.current_receiver;
                 next_consumed_receiver = self.consumed_receiver;
@@ -592,6 +629,7 @@ impl UnitExpressionLowerer<'_> {
                 next_consumed_receiver,
                 next_bindings,
                 next_borrows,
+                next_result_loans,
                 next_proofs,
                 next_closures,
                 next_captures,
@@ -607,6 +645,7 @@ impl UnitExpressionLowerer<'_> {
             unmatched_consumed_receiver,
             unmatched_bindings,
             unmatched_borrows,
+            unmatched_result_loans,
             unmatched_proofs,
             unmatched_closures,
             unmatched_captures,
@@ -634,6 +673,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver = unmatched_consumed_receiver;
             self.bindings = unmatched_bindings;
             self.borrow_bindings = unmatched_borrows;
+            self.result_source_loans = unmatched_result_loans;
             self.nullable_proofs = unmatched_proofs;
             self.closure_bindings = unmatched_closures;
             self.capture_loans = unmatched_captures;
@@ -696,18 +736,26 @@ impl UnitExpressionLowerer<'_> {
                 })
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            let case = self
+            let target = self
                 .typed
-                .signatures()
-                .declarations()
-                .iter()
-                .filter_map(|signature| signature.nominal())
-                .flat_map(|nominal| nominal.enum_cases())
-                .find(|case| case.type_symbol() == symbol)
+                .type_ref_type(UnitTypeRefId::new(self.source_unit, *type_ref))
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
+            let Some(UnitTypeKind::EnumCase { case, root }) = self.typed.types().get(target) else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+            };
+            let root = resolve_concrete_type(
+                self.typed,
+                *root,
+                self.substitutions,
+                self.static_self,
+                node.span(),
+            )?;
+            if *case != symbol || self.type_ids.get(&root) != Some(&tagged) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+            }
             let (variant, _) = self
                 .enum_payloads
-                .get(&(tagged, case.type_symbol()))
+                .get(&(tagged, symbol))
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
             return self.lower_enum_tag_test(owner, variant, *negated, span);
@@ -715,8 +763,8 @@ impl UnitExpressionLowerer<'_> {
         let WhenCondition::Expression(expression) = condition else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        if subject.is_some_and(|(_, tagged)| tagged.is_some()) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        if let Some((owner, Some(tagged))) = subject {
+            return self.lower_copyable_enum_case_condition(owner, tagged, *expression, span);
         }
         let candidate = self.require_expression_value(*expression)?;
         let Some((subject, None)) = subject else {
@@ -758,7 +806,7 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
-    fn control_result_required(
+    pub(super) fn control_result_required(
         &self,
         expression: ExpressionId,
         span: Span,

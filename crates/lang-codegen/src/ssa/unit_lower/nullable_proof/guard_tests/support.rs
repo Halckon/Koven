@@ -150,7 +150,10 @@ impl Fixture {
                 Some(instance.key())
             );
             assert_eq!(instance.source_unit(), self.source);
-            assert_eq!(emitted.name, instance_function_name(&self.names, instance));
+            assert_eq!(
+                emitted.name,
+                instance_function_name(&self.names, instance).expect("named package")
+            );
             assert_eq!(emitted.origin, Origin::Source(instance.span()));
             let signature = unit_callable_signature(typed, instance.key().target()).unwrap();
             assert!(signature.receiver().is_none());

@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     ast::ExpressionId,
     name_resolution::{
-        NameResolution, ReferenceTarget, ScopeId, ScopeKind, SourceUnitId, SourceUnitInput,
-        SymbolKind, UnitSymbolId, ValidatedCompilationUnitNames,
+        CompilationUnitNames, NameResolution, ReferenceTarget, ScopeId, ScopeKind, SourceUnitId,
+        SourceUnitInput, SymbolKind, UnitSymbolId,
     },
     parser::{Expression, ParsedFile},
     source::Span,
@@ -159,7 +159,7 @@ struct Candidate {
 
 pub(super) fn analyze(
     inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     typed: &CompilationUnitTypes,
 ) -> Result<Analysis, OwnershipCheckingError> {
     let transferabilities = (0..typed.types().len())
@@ -168,7 +168,7 @@ pub(super) fn analyze(
         .collect::<Vec<_>>();
     let mut captures = Vec::new();
     let mut closures = Vec::new();
-    for source in names.names().source_units() {
+    for source in names.source_units() {
         let source_unit = source.source_unit();
         let parsed = input_for_source(inputs, names, source_unit)?;
         let resolution = source.resolution();
@@ -409,11 +409,10 @@ fn classifier_type(
 
 fn input_for_source<'parsed>(
     inputs: &[SourceUnitInput<'parsed>],
-    names: &ValidatedCompilationUnitNames,
+    names: &CompilationUnitNames,
     source_unit: SourceUnitId,
 ) -> Result<&'parsed ParsedFile, OwnershipCheckingError> {
     let source_id = names
-        .names()
         .index()
         .source_units()
         .get(source_unit.index())

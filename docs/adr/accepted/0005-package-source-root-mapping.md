@@ -95,3 +95,6 @@ LSP、测试与虚拟源码共享同一前端入口的边界。
   [ADR-0022](./0022-minimal-project-manifest-source-discovery.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无
+
+- 后继局部扩展：[ADR-0031](0031-single-file-compilation-unit-adapter.md) 按 v0.45 用户明确授权，
+  增加单文件 driver 的 root 适配特例；本 ADR 的多文件显式 root 及其余决定保持。

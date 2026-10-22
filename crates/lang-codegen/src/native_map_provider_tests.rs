@@ -47,8 +47,11 @@ fn assert_result(case: &str, entry: &str, run: &Output, expected: &str) {
 }
 
 fn run_unit(case: &str, source_text: &str) -> Output {
+    run_unit_with_entry(case, "provider.ko", source_text, "entry")
+}
+
+fn run_unit_with_entry(case: &str, path: &str, source_text: &str, entry_name: &str) -> Output {
     // 与四 pipeline gate 保持同一默认包、逻辑路径、原字节及真实 entry。
-    let path = "provider.ko";
     let mut sources = SourceMap::new();
     let source = sources
         .add_source(path, source_text)
@@ -72,21 +75,31 @@ fn run_unit(case: &str, source_text: &str) -> Output {
         panic!("{case}: expected exactly one original source unit");
     };
     assert_eq!(source_unit.source_id(), source);
-    assert_eq!(source_unit.key().root().as_str(), "root");
-    assert_eq!(source_unit.key().logical_path().as_str(), path);
+    assert_eq!(
+        source_unit.key().root().expect("rooted source").as_str(),
+        "root"
+    );
+    assert_eq!(
+        source_unit
+            .key()
+            .logical_path()
+            .expect("rooted source")
+            .as_str(),
+        path
+    );
     let entries = names
         .names()
         .index()
         .declarations()
         .iter()
         .filter(|declaration| {
-            declaration.name() == "entry"
+            declaration.name() == entry_name
                 && declaration.kind() == SymbolKind::Function
                 && declaration.source_unit() == source_unit.id()
                 && declaration.package() == source_unit.package()
                 && declaration.name_span().source_id() == source
                 && names.names().index().packages().get(declaration.package().index())
-                    .is_some_and(|package| package.name().is_default())
+                    .is_some_and(|package| package.name().expect("named package").is_default())
                 && file.roots().contains(&declaration.root())
                 && file.ast().items().get(declaration.root()).is_ok_and(|node| {
                     matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. } if *name == declaration.name_span())
@@ -147,6 +160,9 @@ mod conditional_tests;
 
 #[path = "native_map_provider_temporary_tests.rs"]
 mod temporary_tests;
+
+#[path = "native_map_provider_d10_w09_tests.rs"]
+mod d10_w09;
 
 #[path = "native_map_provider_nested_tests.rs"]
 mod nested_tests;

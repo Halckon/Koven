@@ -17,6 +17,8 @@ use inkwell::{
     values::{BasicValue, CallSiteValue, FunctionValue, InstructionOpcode, InstructionValue},
 };
 
+use crate::native_tests::boxed_enum_tests::unit_source::{UnitSource, llvm_definition};
+
 const SOURCE: &str = r#"
 class Cell(val number: Int) { deinit() { println("drop") } }
 fun make(): Cell = Cell(37)
@@ -34,7 +36,8 @@ fn asan_instruments_generated_user_runtime_and_drop() {
     let directory = Artifacts::create();
     fs::write(directory.0.join("fixture.ko"), SOURCE).unwrap();
     fs::write(directory.0.join("expected.stdout"), b"read\ndrop\n").unwrap();
-    let original = crate::native_tests::boxed_enum_tests::lower_to_llvm("sanitizers.ko", SOURCE);
+    let unit = UnitSource::analyze("sanitizers.ko", SOURCE).expect("complete Unit frontend");
+    let original = unit.lower_to_llvm();
     fs::write(directory.0.join("original.ll"), &original).unwrap();
     let counter = directory.0.join("counter");
     fs::create_dir(&counter).unwrap();
@@ -48,7 +51,7 @@ fn asan_instruments_generated_user_runtime_and_drop() {
         let context = Context::create();
         let buffer = MemoryBuffer::create_from_memory_range_copy(original.as_bytes(), "fixture");
         let module = context.create_module_from_ir(buffer).unwrap();
-        let (target, access) = inject(&context, &module, kind);
+        let (target, access) = inject(&context, &module, &unit, kind);
         module
             .verify()
             .expect("test mutation must remain valid LLVM IR");
@@ -178,15 +181,6 @@ pub(crate) fn mark_address_sanitizer(context: &Context, module: &Module<'_>) -> 
         .collect()
 }
 
-fn named<'ctx>(module: &Module<'ctx>, suffix: &str) -> FunctionValue<'ctx> {
-    let found: Vec<_> = definitions(module)
-        .into_iter()
-        .filter(|function| function.get_name().to_str().unwrap().ends_with(suffix))
-        .collect();
-    assert_eq!(found.len(), 1, "fixture must uniquely select {suffix}");
-    found[0]
-}
-
 fn instructions(function: FunctionValue<'_>) -> Vec<InstructionValue<'_>> {
     function
         .get_basic_blocks()
@@ -216,12 +210,17 @@ fn calls<'ctx>(
 /// Faults modify only this validated fixture's LLVM, never the Koven language.
 /// Exactly one selected instruction per layer prevents a fixture drift from
 /// silently testing another operation (or no operation at all).
-fn inject(context: &Context, module: &Module<'_>, kind: &str) -> (String, &'static str) {
+fn inject(
+    context: &Context,
+    module: &Module<'_>,
+    unit: &UnitSource,
+    kind: &str,
+) -> (String, &'static str) {
     let builder = context.create_builder();
     let (function, access) = match kind {
         "clean" => return ("-".into(), "-"),
         "user" => {
-            let function = named(module, ".read");
+            let function = llvm_definition(module, &unit.definition("read", false));
             let loads: Vec<_> = instructions(function)
                 .into_iter()
                 .filter(|instruction| {
@@ -265,7 +264,10 @@ fn inject(context: &Context, module: &Module<'_>, kind: &str) -> (String, &'stat
                 "fixture must allocate exactly one Cell"
             );
             let (function, allocation) = allocations[0];
-            assert_eq!(function, named(module, ".make"));
+            assert_eq!(
+                function,
+                llvm_definition(module, &unit.definition("make", false))
+            );
             let size = allocation
                 .get_operand(0)
                 .unwrap()

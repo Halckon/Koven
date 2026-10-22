@@ -1,0 +1,38 @@
+package regression
+
+value class Duo<A, B>(val first: A, val second: B)
+enum class Choice<T, E> { Yes(item: T), No(reason: E) }
+
+fun main(): Unit {
+    val inferred = Duo(11, 17)
+    val copied = inferred
+    val (left, right) = inferred
+    if (left == 11 && right == 17 && copied.first == 11 && copied.second == 17) {
+        println("copy-and-destructure")
+    } else {
+        println("bad-copy-and-destructure")
+    }
+
+    val explicit = Duo<Long, Int>(second = 5, first = 23L)
+    if (explicit.first == 23L && explicit.second == 5) {
+        println("distinct-layout")
+    } else {
+        println("bad-distinct-layout")
+    }
+
+    val yes: Choice<Int, Long> = Choice.Yes(29)
+    val selected = when (yes) {
+        is Choice.Yes<Int, Long> -> yes.item
+        is Choice.No<Int, Long> -> 0
+    }
+    val no: Choice<Int, Long> = Choice.No(31L)
+    val rejected = when (no) {
+        is Choice.Yes<Int, Long> -> 0L
+        is Choice.No<Int, Long> -> no.reason
+    }
+    if (selected == 29 && rejected == 31L) {
+        println("enum-composition")
+    } else {
+        println("bad-enum-composition")
+    }
+}

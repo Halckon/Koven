@@ -36,7 +36,7 @@ impl BodyChecker<'_> {
             return Ok(());
         }
         let mut inputs = BTreeMap::new();
-        for source in self.names.names().index().source_units() {
+        for source in self.names.index().source_units() {
             for (_, node) in self.file(source.id()).ast().items().iter() {
                 let Item::Constant {
                     name: NameMarker::Present(name_span),

@@ -1,6 +1,7 @@
-//! SPEC-0253：迁移前 e6dfea4 生产 CLI 捕获的单文件 human/JSON 进程 oracle。
+//! SPEC-0253 原字节源码与 SPEC-0341 compilation-unit 完整 human/JSON 进程 oracle。
 //!
-//! golden 不是由新门面生成；每个 fixture 含有后续阶段错误，锁定首次诊断停点。
+//! 原 fixture 不删下游错误；名称前缀聚合 lex/parse/name，之后仍锁定类型/所有权 gate。
+//! 只迁移逐项观测并核对 producer 的完整 golden；来源见 fixture README。
 //! 所有 gate 同时覆盖 build/run、合法/非法/不存在/默认 entry 与失败原子性。
 
 use std::{
@@ -41,10 +42,10 @@ macro_rules! fixture {
 }
 
 #[test]
-fn single_file_five_stops_preserve_complete_output_and_precede_entry_and_codegen() {
+fn single_file_unit_diagnostics_preserve_complete_output_and_precede_entry_and_codegen() {
     for fixture in [
-        fixture!("lexer", &["L0001", "L0001"]),
-        fixture!("parser", &["L0018", "L0018"]),
+        fixture!("lexer", &["L0001", "L0001", "L0018", "L0080"]),
+        fixture!("parser", &["L0018", "L0018", "L0080"]),
         fixture!("names", &["L0080", "L0080"]),
         fixture!("typed", &["L0084", "L0084"]),
         fixture!("ownership", &["L0131", "L0131"]),
@@ -119,6 +120,74 @@ fn single_file_constant_success_preserves_native_build_run_and_entry_errors() {
         include_str!("fixtures/single_file_analysis/invalid.human.stderr"),
         include_str!("fixtures/single_file_analysis/invalid.json.stderr")
     );
+}
+
+#[test]
+fn bodyless_build_preserves_complete_single_and_project_failures() {
+    let source = include_str!("fixtures/single_file_analysis/bodyless.ko");
+    assert_eq!(source.as_bytes(), b"fun main(): Unit\n");
+    let directory = Directory::new("bodyless", source);
+    fs::rename(
+        directory.path().join("source.ko"),
+        directory.path().join("Entry.ko"),
+    )
+    .expect("preserve observed single input name");
+    for format in ["human", "json"] {
+        for entry in [None, Some("main")] {
+            let mut command = Command::new(env!("CARGO_BIN_EXE_kovenc"));
+            command.current_dir(directory.path()).args([
+                &format!("--message-format={format}"),
+                "build",
+                "Entry.ko",
+            ]);
+            if let Some(entry) = entry {
+                command.args(["--entry", entry]);
+            }
+            let output = command
+                .args(["-o", "program"])
+                .output()
+                .expect("bodyless build");
+            assert_output(
+                &output,
+                2,
+                "",
+                include_str!("fixtures/single_file_analysis/bodyless-single.stderr"),
+            );
+            assert!(!directory.path().join("program").exists());
+            directory.assert_no_temporaries();
+        }
+    }
+    fs::create_dir(directory.path().join("src")).expect("project source root");
+    fs::write(directory.path().join("src/Entry.ko"), source).expect("same bodyless source");
+    fs::write(
+        directory.path().join("project.toml"),
+        "schema = \"koven.project\"\nversion = 1\n\n[project]\nname = \"bodyless-observation\"\nsource-roots = [\"src\"]\n",
+    )
+    .expect("observed project manifest");
+    for format in ["human", "json"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_kovenc"))
+            .current_dir(directory.path())
+            .args([
+                &format!("--message-format={format}"),
+                "build",
+                "--project",
+                "project.toml",
+                "--entry",
+                "main",
+                "-o",
+                "program",
+            ])
+            .output()
+            .expect("bodyless project build");
+        assert_output(
+            &output,
+            1,
+            "",
+            include_str!("fixtures/single_file_analysis/bodyless-project.stderr"),
+        );
+        assert!(!directory.path().join("program").exists());
+        directory.assert_no_temporaries();
+    }
 }
 
 fn assert_stage_gate(fixture: Fixture) {
