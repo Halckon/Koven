@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use lang_frontend::{
     analysis::{UnitSourceDescriptor, analyze_basic_unit_ownership, analyze_parsed_unit_names},
     lexer::lex,
-    name_resolution::{SourceUnitId, SymbolKind, UnitSymbolId},
+    name_resolution::{SourceUnitId, SymbolKind, UnitReferenceTarget},
     ownership_checking::{
         BorrowBindingStorage, CompilationUnitOwnership, RangeUseSite, UnitDropFact, UnitDropPoint,
         UnitDropTarget, UnitIterationCleanupAction as Action, UnitIterationExitKind as Exit,
@@ -147,7 +147,24 @@ fn exercise(path: &str, text: &str, contract: Contract) {
             .symbols()
             .iter()
             .filter(|symbol| symbol.name() == "xs")
-            .map(|symbol| UnitSymbolId::new(unit, symbol.id()))
+            .map(|symbol| {
+                let ids = names
+                    .names()
+                    .references()
+                    .iter()
+                    .filter(|reference| reference.source_unit() == unit)
+                    .filter_map(|reference| match reference.target() {
+                        UnitReferenceTarget::Symbol(id)
+                            if id.source_unit() == unit && id.symbol() == symbol.id() =>
+                        {
+                            Some(*id)
+                        }
+                        _ => None,
+                    })
+                    .collect::<BTreeSet<_>>();
+                assert_eq!(ids.len(), 1, "one actual unit-qualified xs identity");
+                *ids.first().unwrap()
+            })
             .collect::<Vec<_>>();
         let parsed = inputs
             .iter()
