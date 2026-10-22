@@ -9,10 +9,10 @@ mod comma_when_cleanup_tests;
 mod local_object_constant_qualifier_tests;
 #[path = "native_nullable_rc_proof_tests.rs"]
 mod nullable_rc_proof_tests;
-#[path = "native_resource_map_loop_tests.rs"]
-mod resource_map_loop_tests;
 #[path = "native_pending_construction_tests.rs"]
 mod pending_construction_tests;
+#[path = "native_resource_map_loop_tests.rs"]
+mod resource_map_loop_tests;
 
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,
