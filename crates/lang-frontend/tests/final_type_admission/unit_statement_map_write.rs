@@ -238,7 +238,15 @@ fn original_map_writes_complete_without_inventing_query_facts() {
         let complete = complete_file_types(&sources, &file, &names, &types, &raw)
             .expect("the same selected write role closes the raw Single adapter");
         assert!(std::ptr::eq(complete.types(), &raw));
-        assert_eq!(raw, before);
+        assert!(complete.is_same_analysis(&before));
+        assert!(raw.is_compatible_with_names(&names));
+        assert_eq!(raw.source_id(), before.source_id());
+        for typed in [&raw, &before] {
+            if let Some(constants) = typed.constants() {
+                assert!(constants.matches(typed));
+            }
+        }
+        assert_eq!(format!("{raw:?}"), format!("{before:?}"));
     }
 }
 
