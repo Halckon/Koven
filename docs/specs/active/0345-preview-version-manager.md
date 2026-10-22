@@ -48,4 +48,18 @@
 52项通过，无跳过（管理器14项）。完整 scripts/tests 门禁共409项，408通过、1项Linux `/proc`进程组检查在macOS按条件跳过；
 期间追加的管理器回归由上述最终定向运行覆盖。文档742页及 diff whitespace通过。
 独立审查发现并修复未校验pyc执行、切换后清理误报、安装后清理误报；具体负例已入测试并复审闭合。
-双宿主真实包管理与PR CI尚待执行；协议测试不是native验收，M1-S8三个示范程序最终联合验收仍在后继切片。
+macOS arm64 本机真实验收（2026-10-22）：输入 `f1846790fb7e7f9e0b30a7835638a7e27384bd99`，
+Rust 1.96.0、LLVM 21.1.8；`scripts/package_preview.py` 在干净提交上成功生成真实 release 包。
+包内管理器 install 复用消费合同，十二条命令全部通过、消费临时目录清理成功；随后 use／list、
+损坏 checksum 拒绝及 current 不变检查通过，经 `current/bin/kovenc` 复用该包 `run_case` 的
+四组 argv 再执行十二条 build／直接运行／run，均逐字节匹配包内合同；deactivate／uninstall 后
+current 消失且版本列表为空。原始产物与结果保留在仓库外，本条不替代双宿主 CI。
+[实现 CI 39795369166](https://github.com/Halckon/Koven/actions/runs/39795369166) 的双宿主测试、
+双宿主候选生产已通过；Linux独立消费在管理步骤之前失败，真实命令0条，不能记为通过。
+[消费证据](https://github.com/Halckon/Koven/actions/runs/39795369166/artifacts/12434734543)
+显示加载闭包仅 liblzma.so.5 的SHA256不同，包／依赖准备成功、路径相同；未推断两个发行包版本。
+共享Ubuntu准备脚本现显式选择已存在的LLVM传递运行库liblzma5，避免仅满足传递依赖而沿用runner预装构建；
+不新增二进制/Cargo依赖、不变更发行源或安装信任规则，继续原严格实际哈希比较，不建立新ABI例外。
+准备策略失败测试已复现未选择该运行库；修复后63项相关测试、shell语法与文档检查通过，独立审查无阻断项。
+该运行macOS独立消费被取消，不能记为通过；修复后的双宿主真实验收与最终PR CI尚待。
+M1-S8三个示范程序最终联合验收仍在后继切片。

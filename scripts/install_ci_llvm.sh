@@ -22,9 +22,11 @@ sudo install -m 0644 "$key" /usr/share/keyrings/koven-llvm.asc
 printf '%s\n' 'deb [arch=amd64 signed-by=/usr/share/keyrings/koven-llvm.asc] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' \
   | sudo tee /etc/apt/sources.list.d/koven-llvm.list >/dev/null
 sudo apt-get update
+# Explicitly refresh the existing LLVM runtime dependency on both sides.
+# Satisfying LLVM alone can retain different liblzma builds from runner images.
 sudo apt-get install --yes --no-install-recommends \
   "llvm-21-dev=$version" "clang-21=$version" "libclang-cpp21=$version" "libclang-rt-21-dev=$version" \
-  build-essential
+  build-essential liblzma5
 actual_version="$(/usr/lib/llvm-21/bin/llvm-config --version)"
 [[ "$actual_version" == 21.1.8 ]] || {
   echo "Expected LLVM 21.1.8, found $actual_version" >&2
