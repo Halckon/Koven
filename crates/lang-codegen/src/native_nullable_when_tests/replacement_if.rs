@@ -839,7 +839,7 @@ fn assert_structure(source: &UnitSource, program: &Program, name: &str, shape: S
         replacement_origin: assignment.1,
         unused_origin: symbol_span(source, replacement),
     };
-    use Event::*;
+    use self::Event::*;
     let actual = paths.visit(function.entry_block().unwrap(), BTreeSet::new(), Vec::new());
     assert_eq!(
         actual,
