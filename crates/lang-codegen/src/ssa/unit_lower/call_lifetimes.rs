@@ -124,10 +124,16 @@ impl UnitExpressionLowerer<'_> {
                 .next()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
             let Some(seen) = seen_parameters.get_mut(mapping.parameter_index()) else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
             };
             if mappings.next().is_some() || std::mem::replace(seen, true) {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
             }
             let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
             let argument_span = self
@@ -158,7 +164,10 @@ impl UnitExpressionLowerer<'_> {
                 || contract.call_span() != span
                 || self.typed.expression_category(argument_id) != Some(mapping.category())
             {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
             }
             if mapping.mode() == ParameterMode::Inout || contract.crosses_thread() {
                 return Ok(false);
@@ -176,25 +185,36 @@ impl UnitExpressionLowerer<'_> {
                 .filter(|fact| fact.call() == call && fact.argument() == argument_id);
             let delivery = deliveries.next();
             if loans.next().is_some() || deliveries.next().is_some() {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
             }
             // Nothing/不可达后缀没有成功交付事实；实际完成的实参仍由原 consumer 严格核验。
             match mapping.mode() {
                 ParameterMode::Value => {
                     if loan.is_some() {
-                        return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                        return Err(lowering_error(
+                            LoweringErrorKind::MissingFact,
+                            argument.span,
+                        ));
                     }
                     if let Some(delivery) = delivery {
                         if delivery.span() != argument_span
                             || delivery.parameter_span() != contract.parameter_span()
                         {
-                            return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                            return Err(lowering_error(
+                                LoweringErrorKind::MissingFact,
+                                argument.span,
+                            ));
                         }
                         let root_or_temporary = match (delivery.kind(), delivery.source()) {
                             (
                                 UnitValueDeliveryKind::Copy | UnitValueDeliveryKind::Move,
                                 UnitValueDeliverySource::Place(place),
-                            ) => self.direct_control_prefix_root(argument_id, place, argument_span)?,
+                            ) => {
+                                self.direct_control_prefix_root(argument_id, place, argument_span)?
+                            }
                             (
                                 UnitValueDeliveryKind::Temporary,
                                 UnitValueDeliverySource::Temporary(origin),
@@ -208,7 +228,10 @@ impl UnitExpressionLowerer<'_> {
                 }
                 ParameterMode::Borrow => {
                     if delivery.is_some() {
-                        return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                        return Err(lowering_error(
+                            LoweringErrorKind::MissingFact,
+                            argument.span,
+                        ));
                     }
                     if let Some(loan) = loan {
                         if loan.kind() != FrontendLoanKind::Shared
@@ -216,7 +239,10 @@ impl UnitExpressionLowerer<'_> {
                             || loan.end_span() != span
                             || loan.parameter_span() != contract.parameter_span()
                         {
-                            return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                            return Err(lowering_error(
+                                LoweringErrorKind::MissingFact,
+                                argument.span,
+                            ));
                         }
                         let root_or_temporary = match loan.target() {
                             UnitLoanTarget::Place(place) => {
@@ -271,11 +297,16 @@ impl UnitExpressionLowerer<'_> {
             .source_units()
             .get(place.root().source_unit().index())
             .and_then(|source| {
-                source.resolution().symbols().get(place.root().symbol().index())
+                source
+                    .resolution()
+                    .symbols()
+                    .get(place.root().symbol().index())
             })
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        Ok(matches!(symbol.kind(), SymbolKind::Variable | SymbolKind::ValueParameter)
-            && !symbol.is_synthetic())
+        Ok(matches!(
+            symbol.kind(),
+            SymbolKind::Variable | SymbolKind::ValueParameter
+        ) && !symbol.is_synthetic())
     }
 
     pub(super) fn end_pending_abi_call_slots(
