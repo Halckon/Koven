@@ -75,3 +75,10 @@ Linux 严格加载闭包核验通过，未引入 liblzma 哈希或 ABI 豁免。
 原始消费证据：[Linux](https://github.com/Halckon/Koven/actions/runs/39804644182/artifacts/12440200658)、
 [macOS](https://github.com/Halckon/Koven/actions/runs/39804644182/artifacts/12439386839)。
 归档提交仅修改文档和生成索引；合并仍须该提交的最终 PR 门禁无未决状态。
+
+## 7. 主干集成复验
+
+归档后主干合入 `5b844c374257d41dde94592ea60aadd34ae77045`，共享 LLVM 准备脚本冲突。
+集成采用主干 `85f0dfc9` 的固定 liblzma 版本、包及加载文件 SHA256 核验，保留拒绝降级与来源检查；
+本分支的准备策略回归同步断言精确包参数，不退回不固定版本的安装。实现验收仍为上节原输入，
+合并后的双宿主 CI 另行复验，尚不能由原输入成功推断新组合通过。

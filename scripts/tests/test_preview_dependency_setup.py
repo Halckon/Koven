@@ -12,7 +12,7 @@ class PreviewDependencySetup(unittest.TestCase):
         installs = [shlex.split(line) for line in source.splitlines()
                     if line.startswith('sudo apt-get install ')]
         self.assertEqual(len(installs), 1)
-        self.assertIn('liblzma5', installs[0],
+        self.assertIn('liblzma5:amd64=$lzma_version', installs[0],
                       'LLVM dependency satisfaction alone retains different preinstalled liblzma builds')
         self.assertNotIn('--allow-unauthenticated', installs[0])
 
