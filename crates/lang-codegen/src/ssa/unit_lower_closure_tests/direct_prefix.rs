@@ -88,7 +88,10 @@ pub(super) fn assert_cancelled_scalar_call(
             );
         }
         TerminatorKind::Return { values } if !returning => {
-            assert!(values.is_empty(), "the original loop naturally returns Unit");
+            assert!(
+                values.is_empty(),
+                "the original loop naturally returns Unit"
+            );
         }
         _ => panic!("the original return/break source retains its exact transfer kind"),
     }
@@ -116,9 +119,14 @@ fn assert_single_break_tail(
         panic!("the original source has one actual entry declaration")
     };
     let Item::Function {
-        form: FunctionForm::Explicit { body: FunctionBody::Block(body), .. },
+        form:
+            FunctionForm::Explicit {
+                body: FunctionBody::Block(body),
+                ..
+            },
         ..
-    } = entry.payload() else {
+    } = entry.payload()
+    else {
         panic!("the original entry has its explicit Unit block body")
     };
     let Statement::Block { elements } = ast.statements().get(*body).unwrap().payload() else {
@@ -141,7 +149,8 @@ fn assert_single_break_tail(
     else {
         panic!("the original call is the local initializer")
     };
-    let Item::Variable { initializer, .. } = ast.items().get(*declaration).unwrap().payload() else {
+    let Item::Variable { initializer, .. } = ast.items().get(*declaration).unwrap().payload()
+    else {
         panic!("the actual local declaration has its initializer")
     };
     let Expression::Call { arguments, .. } = ast.expressions().get(*initializer).unwrap().payload()
