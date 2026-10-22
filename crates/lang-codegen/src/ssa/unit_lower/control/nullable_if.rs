@@ -1,6 +1,7 @@
 //! Bounded nullable entries: root Borrow, While retests and direct Map Ifs.
 #[cfg(test)]
 mod guard_tests;
+mod heap;
 mod rc;
 
 use super::super::unwrap_modified;
@@ -36,6 +37,9 @@ impl UnitExpressionLowerer<'_> {
             return Ok(None);
         }
         if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
+            return Ok(Some(entry));
+        }
+        if let Some(entry) = self.prepare_heap_nullable_if_entry(control, condition, span)? {
             return Ok(Some(entry));
         }
         let node = self
