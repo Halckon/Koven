@@ -62,6 +62,222 @@ impl UnitExpressionLowerer<'_> {
             })
     }
 
+    /// 普通无 receiver 的声明调用仅复用已封闭的 root/temporary 前缀事务。
+    /// 不授予 receiver、字段/元素、函数值或借用结果新的控制流能力。
+    pub(super) fn supports_direct_control_prefix(
+        &self,
+        call: UnitExpressionId,
+        arguments: &[lang_frontend::parser::CallArgument],
+        descriptor: &lang_frontend::type_checking::UnitCallDescriptor,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        use lang_frontend::ownership_checking::{
+            LoanKind as FrontendLoanKind, UnitCallArgumentOwnershipKind, UnitLoanTarget,
+            UnitValueDeliveryKind, UnitValueDeliverySource,
+        };
+        use lang_frontend::type_checking::{CallableResultSource, UnitCallTarget};
+
+        let UnitCallTarget::Declaration(target) = descriptor.target() else {
+            return Ok(false);
+        };
+        if descriptor.receiver().is_some()
+            || descriptor.result_source() != CallableResultSource::Owned
+            || descriptor.aborts()
+            || descriptor.prints_line()
+            || self.thunk_expression.is_some()
+        {
+            return Ok(false);
+        }
+        if call.source_unit() != self.source_unit
+            || descriptor.expression() != call
+            || self.typed.call(call) != Some(descriptor)
+            || arguments.len() != descriptor.arguments().len()
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let route = self
+            .source_plan
+            .call_site(self.source_token, call)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if route.key().target() != UnitCallableTarget::Declaration(target)
+            || !self.function_ids.contains_key(route.key())
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if !route.delegation().is_empty() || !route.key().callable_arguments().is_empty() {
+            return Ok(false);
+        }
+        let contracts = self
+            .owned
+            .call_argument_contracts_for(call)
+            .collect::<Vec<_>>();
+        if contracts.len() != arguments.len() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let mut seen_parameters = vec![false; arguments.len()];
+        for (index, argument) in arguments.iter().enumerate() {
+            let mut mappings = descriptor
+                .arguments()
+                .iter()
+                .filter(|mapping| mapping.argument_index() == index);
+            let mapping = mappings
+                .next()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
+            let Some(seen) = seen_parameters.get_mut(mapping.parameter_index()) else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+            };
+            if mappings.next().is_some() || std::mem::replace(seen, true) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+            }
+            let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
+            let argument_span = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(argument.value)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, argument.span))?
+                .span();
+            let mut matches = contracts
+                .iter()
+                .filter(|contract| contract.argument() == argument_id);
+            let contract = matches
+                .next()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
+            let expected_kind = match mapping.mode() {
+                ParameterMode::Value => UnitCallArgumentOwnershipKind::Value,
+                ParameterMode::Borrow => UnitCallArgumentOwnershipKind::SharedLoan,
+                ParameterMode::Inout => UnitCallArgumentOwnershipKind::ExclusiveLoan,
+            };
+            if matches.next().is_some()
+                || contract.parameter_index() != mapping.parameter_index()
+                || contract.parameter_type() != mapping.parameter_type()
+                || contract.category() != mapping.category()
+                || contract.kind() != expected_kind
+                || contract.crosses_thread() != mapping.crosses_thread()
+                || contract.argument_span() != argument_span
+                || contract.call_span() != span
+                || self.typed.expression_category(argument_id) != Some(mapping.category())
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+            }
+            if mapping.mode() == ParameterMode::Inout || contract.crosses_thread() {
+                return Ok(false);
+            }
+            let mut loans = self
+                .owned
+                .loans()
+                .iter()
+                .filter(|fact| fact.call() == call && fact.argument() == argument_id);
+            let loan = loans.next();
+            let mut deliveries = self
+                .owned
+                .value_deliveries()
+                .iter()
+                .filter(|fact| fact.call() == call && fact.argument() == argument_id);
+            let delivery = deliveries.next();
+            if loans.next().is_some() || deliveries.next().is_some() {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+            }
+            // Nothing/不可达后缀没有成功交付事实；实际完成的实参仍由原 consumer 严格核验。
+            match mapping.mode() {
+                ParameterMode::Value => {
+                    if loan.is_some() {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                    }
+                    if let Some(delivery) = delivery {
+                        if delivery.span() != argument_span
+                            || delivery.parameter_span() != contract.parameter_span()
+                        {
+                            return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                        }
+                        let root_or_temporary = match (delivery.kind(), delivery.source()) {
+                            (
+                                UnitValueDeliveryKind::Copy | UnitValueDeliveryKind::Move,
+                                UnitValueDeliverySource::Place(place),
+                            ) => self.direct_control_prefix_root(argument_id, place, argument_span)?,
+                            (
+                                UnitValueDeliveryKind::Temporary,
+                                UnitValueDeliverySource::Temporary(origin),
+                            ) => *origin == argument_id,
+                            _ => false,
+                        };
+                        if !root_or_temporary {
+                            return Ok(false);
+                        }
+                    }
+                }
+                ParameterMode::Borrow => {
+                    if delivery.is_some() {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                    }
+                    if let Some(loan) = loan {
+                        if loan.kind() != FrontendLoanKind::Shared
+                            || loan.begin_span() != contract.loan_begin_span()
+                            || loan.end_span() != span
+                            || loan.parameter_span() != contract.parameter_span()
+                        {
+                            return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                        }
+                        let root_or_temporary = match loan.target() {
+                            UnitLoanTarget::Place(place) => {
+                                self.direct_control_prefix_root(argument_id, place, argument_span)?
+                            }
+                            UnitLoanTarget::Temporary(origin) => {
+                                mapping.category() == ExpressionCategory::Temporary
+                                    && *origin == argument_id
+                            }
+                            UnitLoanTarget::This(_) => false,
+                        };
+                        if !root_or_temporary {
+                            return Ok(false);
+                        }
+                    }
+                }
+                ParameterMode::Inout => return Ok(false),
+            }
+        }
+        Ok(true)
+    }
+
+    fn direct_control_prefix_root(
+        &self,
+        argument: UnitExpressionId,
+        place: &lang_frontend::ownership_checking::UnitOwnershipPlace,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        if !place.is_root() || place.root().source_unit() != self.source_unit {
+            return Ok(false);
+        }
+        let mut expression = argument.expression();
+        loop {
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(expression)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            match node.payload() {
+                Expression::Group { expression: inner } => expression = *inner,
+                Expression::Name => break,
+                _ => return Ok(false),
+            }
+        }
+        if self.direct_name_symbol(expression, span)? != Some(place.root()) {
+            return Ok(false);
+        }
+        let symbol = self
+            .names
+            .names()
+            .source_units()
+            .get(place.root().source_unit().index())
+            .and_then(|source| {
+                source.resolution().symbols().get(place.root().symbol().index())
+            })
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        Ok(matches!(symbol.kind(), SymbolKind::Variable | SymbolKind::ValueParameter)
+            && !symbol.is_synthetic())
+    }
+
     pub(super) fn end_pending_abi_call_slots(
         &mut self,
         minimum_loop_depth: usize,

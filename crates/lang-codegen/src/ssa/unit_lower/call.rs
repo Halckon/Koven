@@ -110,6 +110,7 @@ impl UnitExpressionLowerer<'_> {
         }
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
         if !self.supports_control_prefix(span)
+            && !self.supports_direct_control_prefix(call, arguments, descriptor, span)?
             && arguments.iter().any(|argument| {
                 self.argument_contains_control_transfer(argument.value, function_value)
             })
@@ -503,6 +504,8 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let pending_start = self.pending_operands.len();
+        let control_prefix = self.supports_control_prefix(span)
+            || self.supports_direct_control_prefix(call, arguments, descriptor, span)?;
         let range_receiver = matches!(descriptor.result_source(),
             lang_frontend::type_checking::CallableResultSource::Carrier(contract)
                 if contract.origin() == lang_frontend::type_checking::BorrowReturnOrigin::Receiver);
@@ -560,7 +563,7 @@ impl UnitExpressionLowerer<'_> {
                         LoweredValue::Value(value) => {
                             let argument_id =
                                 UnitExpressionId::new(self.source_unit, argument.value);
-                            if self.supports_control_prefix(span)
+                            if control_prefix
                                 && self.typed.expression_type(argument_id).is_some_and(|ty| {
                                     self.typed.copyability(ty) == Copyability::MoveOnly
                                 })
@@ -695,7 +698,7 @@ impl UnitExpressionLowerer<'_> {
             .into_iter()
             .map(|index| self.pending_operands[index])
             .collect::<Vec<_>>();
-        if self.supports_control_prefix(span) {
+        if control_prefix {
             // 正常提交的 Value 实参由 callee 接管；Borrow owner 留到 CallReturn 清理。
             self.temporaries
                 .retain(|_, value| !arguments.contains(&EntityId::Value(*value)));
