@@ -132,17 +132,17 @@ closure capture 按 lambda identity 和 source binding 发布。普通 closure �
 element、constructor root 和 closure environment。drop point 包括最后使用后、replacement 前、
 branch/loop/control transfer、return 和 callable 退出；复合 owner 按逆构造顺序析构。
 
-单文件 `when` 的条件沿未匹配路径依次检查。逗号 alternatives 合入同一 body 前，
-`WhenAlternativeMatch` 标记仅部分匹配路径仍持有的 owner 析构，避免状态交集丢失析构义务。
-nullable 条件路径消费 typed 剩余域；单文件产物提供 nullable plan 查询，包含 body-entry view、
-Copy/Consume extraction 和分支 drop 关联。proof 随 State 失效及合流，任何所有权诊断清空计划。
-extraction 区分 entry body 与 condition alternative；Nothing 调用没有正常出口。未消费 temporary
-subject 在正常、return、break/continue 边清理，abort 不展开析构。
+两入口的 `when` 条件沿未匹配路径检查；`WhenAlternativeMatch` 在真实匹配边清理独有 owner，
+不以 body 状态交集丢弃析构义务。Unit 的 `UnitNullableWhenOwnershipPlan` 连接同轮 typed descriptor、
+entry body、真实 use witness 与已完成 call-argument contract，不复制 move/loan 状态机或伪造 owner。
+source-qualified reference/generation 与实际 assignment 身份约束 view、Borrow/Consume 和 drop 关联；
+替换后的新根不能沿旧 witness 取得提取资格。失败与回滚清除相应计划，未消费 temporary 仍由真实 drop facts 清理。
+单文件原 plan 保留 body/alternative 提取区分；Nothing 无正常出口，Abort 不展开析构。
 
-调用前缀已建立的 loan 与借用 temporary 随 ValueState 分支传递，保持较早实参 owner 活到调用结束。
-`LoanEndFact` 区分 CallReturn 与放弃尚未调用前缀的 ControlTransfer；同边先结束 loan，再执行 drop。
-这些前端事实不等于 native 支持：当前单文件 lowering 仅消费正常 CallReturn 的 loan end，
-ControlTransfer 结束事实还需 Phase 4 接入。
+调用前缀已建立的 loan 与 borrowed temporary 随 ValueState 分支传递，保持前序 owner 活到调用结束。
+`LoanEndFact` 区分 CallReturn 与 ControlTransfer，同边先结束 loan 再 drop。普通 Unit 无receiver的
+有界 direct declaration call 已消费实际前缀退出事实；root/temporary、当前 owner/loan 与 frame 身份均须匹配。
+这不授予 receiver、function-value、field/element 或任意借用结果新的控制流能力，也不以静态事实充当动态计数。
 
 编译单元 drop planner 按调用身份在 ValueState 保存前序借用的具名 owner，使后续实参中的
 分支与嵌套调用不会提前析构它；正常 CallReturn 只解除当前调用的保护。字符串插值中的

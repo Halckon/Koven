@@ -80,19 +80,18 @@ L0158 定位运算符；短路 RHS 不进入值求值。失败依赖不发布值
 保留身份。事实在 trial 完成后统一构建，失败/recovery 不发布半成品；该标记不证明 Phase 3
 所有权、String 物化或 native 能力。
 
-## 单文件 nullable when 事实
+## nullable when 与非空来源事实
 
-`TypedFile::nullable_whens` / `nullable_when` 发布 expression/subject 身份、来源类别、稳定 symbol、
-entry 输入/剩余域、alternative 匹配/未匹配域及 body 的非空 subject view。Boolean/enum 保留
-有限域原子；开放 nullable 域区分 null 与 non-null。native eligibility 仅标记 owned root/temporary
-承载的 class/Box/Rc；字段和元素的 proof 不绑定后续重新求值的源码表达式。
-
-condition 沿未匹配路径传递事实，entry body 独立检查；赋值和显式 inout 实参调用更新 source
-版本，防止后续条件把旧 subject proof 重新关联到已改变的 binding。identity 不存入类型收窄表，
-以免干扰嵌套或后续 if；descriptor 与版本表参与 callable trial snapshot/rollback。
-
-这里描述单文件 `TypedFile` 产物；compilation-unit 类型产物尚未发布等价 nullable when descriptor。
-所有权与 lowering 尚未消费这组新计划，不能将类型事实视为 native 能力已经交付。
+`TypedFile::nullable_whens` / `nullable_when` 保留 subject、来源类别、稳定 symbol、entry/alternative
+输入与剩余域；Boolean/enum 保有限域原子，nullable 域区分 null/non-null，字段/元素不绑定重新求值。
+Unit 为有 subject 的 `null -> …; else -> …` 发布 `UnitNullableWhenDescriptor`，以 source-qualified
+expression/subject/body、真实 reference、symbol 与 generation 连接分支域及 `UnitNullableWhenUseWitness`。
+Name/Group 的非空 use 必须属于当前 entry/callable 且同一 generation；真实赋值或 inout 失效后，
+不能复用旧 When witness。descriptor、活跃 frame 与版本状态随 callable trial 回滚，错误不发布成功产品。
+单文件 condition 沿未匹配路径传事实、body 独立检查；其原 source-version 与 identity 隔离规则保留。
+Unit null 比较沿同源 Group 识别实际 Null 叶并透传 expected type，仍保原 Binary/外层operand身份；
+双null、无上下文null与非nullable错误不放宽。类型事实不是owner/loan或native资格，后继仍核真实产物。
+owned root/temporary 的 class/Box/Rc 有界消费及 field/element 等边界见 [SSA/LLVM](ssa-codegen-runtime.md)。
 
 ## 非空断言事实
 
@@ -158,7 +157,8 @@ callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不�
 泛型、interface/default/override、静态委托、`Copyable`/`Transferable`、String、Box/Rc 和顺序容器共享
 canonical type identity。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
 
-两入口共享语义模型；unit facts 使用 source-qualified ID，不能用单文件 ID 拼接多文件结果。
+两入口共享语义模型；unit facts 保留 source-qualified ID，不拼接单文件 ID。整数 compound 在 statement role 发布 storage 事实，
+Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。
 
 unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、
 不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。

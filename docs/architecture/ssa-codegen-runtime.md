@@ -28,13 +28,13 @@ provider builder 固定 length 快照、零 cursor 的入口运输、guard 真�
 `WhenAlternativeMatch` 析构事实。非 nullable subjectless 逗号分支已通过 SSA 和 native 双路径测试；
 该证据不扩大 nullable native 支持，也不证明 MoveOnly enum 后续类型判别的主体重绑定已闭合。 无 payload Copyable enum case condition 另消费 construction/ownership identity 生成 Boolean tag 比较；Guide4 单文件 native 和精确剩余边界见[Litmus4 账本](guide-conformance.md#return-控制表达式与-litmus4-的-native-边界)。
 
-单文件 pointer-like nullable `when` 消费 typed/ownership descriptor，对 owned whole-root 和
-temporary 的 class、Box、Rc 使用 `NullableBranch` proof；消费提取使用 `NullableTake`。
-class/Box/Rc 的只读后复用、循环读取、消费提取与 temporary 一次求值已有 object/link/run 证据。
-Borrow/Inout/field/element 与 inline nullable 不在该 lowering 范围内。调用实参之间的 CFG
-显式传递 temporary owner、pending loan 和 non-null view；ControlTransfer 的 loan-end 事实在
-return/break/continue cleanup 前消费，abort 直接终止。native 控制转移和分配/释放计数已覆盖三类
-owner：每类 8 次分配、8 次释放；Rc 另验证原 owner 释放后 retained alias 的 payload 仍可读取。
+Unit pointer-like nullable `when` 现消费真实 typed/owned 的 `null/else` descriptor与use witness，
+对 owned whole-root/temporary class、Box、Rc建立实际 `NullableBranch` proof，消费提取走 `NullableTake`。
+view/owner、来源generation、pending槽与分支cleanup逐实体绑定；替换与join结束旧proof，不沿旧generation恢复别名。
+有界 fresh owned HeapOwner `If` 支持一侧直接root-Borrow调用、另一侧为空；按当前根和真实null比较重新证明，
+不复活旧When view，也不扩展Rc/While、nested proof或live-If控制转移。Borrow/Inout/field/element与inline nullable边界保留。
+原single路径及其三类owner 8alloc/8free、Rc retain/release计数属于历史验收；当前Unit普通SSA/LLVM/native输出
+证据不替代原mixed whole的计数/Abort验收，当前范围与待验结果见 [0341检查点](../specs/active/0341-shared-lowering-core.md#50-post054-修复与有限收尾检查点)。
 
 单文件 `!!` lowering 消费 typed assertion 与 ownership plan，owned root/temporary 经
 `NullableBranch` proof 和 `NullableTake` 转移，null 边直接 Abort。待交付的 Value 实参复用
@@ -109,16 +109,16 @@ Copyable Inout receiver 的 inline writeback owner 与原始 Place 一起跨参�
 通过 LLVM pointer phi 保留同一存储。return/break/continue 结束 loan 后沿原 drop facts 清理，
 Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。
 MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回。
-常量专用入口的 named function-value callee pending 帧包围参数帧，参数 return/break/continue
-先移除 alias 再消费 frontend owner drop，Abort 不展开。lambda 的 Borrow storage 参数
-在基础与常量入口复用 shared Loan ABI；基础入口仍拒绝参数控制退出。普通调用的非 Name callee、带捕获 borrowed closure 与超出现行 storage mapper 的 Borrow
-参数仍有边界；Borrow Unit 与 Inout callback 参数保持拒绝。Map 专用同步 callback
-的通用 storage 与 capture 接线见 [Map 当前边界](map-native-execution.md)。Map contains/get/put/remove 在后续参数 CFG 后读取 carry/pending 槽的重绑定 owner/loan；MapPut 自行收集 K/V drop glue，MapRemove 收集 K 并交付 owned V，不依赖 scope Drop。
-常量专用入口允许外层 pending temporary 穿过内层 loop/while；header、回边与 break/false
-出口携带完整 owner/loan/pending 状态，内层跳转仅结束本循环内的调用帧并移除其前缀槽位。
-循环结束保留外层 temporary；return 清理退出帧，Abort 不展开。Copyable 命名变量与已求值
-实参快照在循环入口分开携带，避免循环赋值改写旧实参；MoveOnly owner/loan alias 继续去重。
-while 条件包含 CFG 时从实际条件出口分支。基础入口的 temporary 循环限制仍保留。 direct nullable while 仅将真实 HeapOwner 送专用 proof 路径；SharedOwner Rc 继续既有普通 while，缺映射不回退。原 owner 返回、四种有界退出的 presence 与正常 native 证据及 payload/体内返回欠账见[0332](../archive/specs/0332-rc-nullable-while-regression.md)。
+常量入口的 named function-value callee pending frame 保留原规则：先移除alias，再按frontend owner事实清理，Abort不展开。
+lambda Borrow storage仍复用Shared Loan ABI；普通Unit direct declaration call只为无receiver、已证root/temporary前缀开放控制退出，
+逐项核真实typed/owned/call route与frame身份；函数值、receiver、field/element或借用结果不由此获得新能力，Borrow Unit/Inout callback仍拒绝。
+Map callback通用storage与capture见 [Map当前边界](map-native-execution.md)；contains/get/put/remove在后续参数CFG后读取重绑定owner/loan，
+MapPut自行收集K/V drop glue，MapRemove收集K并交付owned V，不依赖scope Drop。已证ownership primitive优先于普通prefix gate分派。
+常量入口允许外层pending temporary穿过内层loop/while，header、回边和break/false出口携完整owner/loan/pending状态；
+内层跳转仅结束本循环内frame与prefix槽，return清理退出frame，Abort不展开；Copyable binding与已求值实参快照分列，owner/loan alias去重。
+while条件含CFG时从实际条件出口分支；基础入口其余temporary循环边界保留。direct nullable while仅将HeapOwner送专用proof，
+SharedOwner Rc继续普通while，缺映射不回退。[0332](../archive/specs/0332-rc-nullable-while-regression.md)原有bounded done/archive历史不变；
+其§5四Unit payload-reader及体内原owner返回包装债仍OPEN，presence成功或阶段表expected reject不关闭能力债。
 隐式具体 MoveOnly Value `this` 在 frontend pending 队列中保留既有 `This(owner)` target，
 专用后端保留 current receiver 到实参全部完成再移交。参数 return 先清理后建实参，再清理
 receiver，Abort 不展开；CFG 将 receiver 与 pending 槽的 alias 重绑定到同一实体。
