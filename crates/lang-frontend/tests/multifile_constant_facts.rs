@@ -146,7 +146,7 @@ fn parameter_shadowing_does_not_select_the_classifier_constant() {
 fn private_owner_functions_keep_their_existing_resolution_path() {
     for declaration in [
         "object A { private fun helper(): Int = 1\nfun read(): Int = A.helper() }",
-        "class A { companion object { private fun helper(): Int = 1\nfun read(): Int = A.helper() } }",
+        "class A { companion { private fun helper(): Int = 1\nfun read(): Int = A.helper() } }",
     ] {
         let typed = analyze(&format!("package a\n{declaration}"));
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());

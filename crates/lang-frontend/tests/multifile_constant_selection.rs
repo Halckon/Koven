@@ -14,10 +14,10 @@ use lang_frontend::{
 fn imported_and_absolute_constant_targets_keep_exact_type_and_temporary_category() {
     for declaration in [
         "object Config { const val VALUE: Int = 7 }",
-        "class Config { companion object { const val VALUE: Int = 7 } }",
-        "value class Config(val x: Int) { companion object { const val VALUE: Int = 7 } }",
-        "interface Config { companion object { const val VALUE: Int = 7 } }",
-        "enum class Config { One; companion object { const val VALUE: Int = 7 } }",
+        "class Config { companion { const val VALUE: Int = 7 } }",
+        "value class Config(val x: Int) { companion { const val VALUE: Int = 7 } }",
+        "interface Config { companion { const val VALUE: Int = 7 } }",
+        "enum class Config { One; companion { const val VALUE: Int = 7 } }",
     ] {
         for access in ["Config.VALUE", "p.Config.VALUE"] {
             check(declaration, access, &[]);
@@ -29,7 +29,7 @@ fn imported_and_absolute_constant_targets_keep_exact_type_and_temporary_category
 fn private_constant_access_reaches_type_phase_with_l0154() {
     for declaration in [
         "object Config { private const val VALUE: Int = 7 }",
-        "class Config { companion object { private const val VALUE: Int = 7 } }",
+        "class Config { companion { private const val VALUE: Int = 7 } }",
     ] {
         for access in ["Config.VALUE", "p.Config.VALUE"] {
             check(declaration, access, &["L0154"]);
@@ -153,7 +153,7 @@ fn check(declaration: &str, access: &str, expected_codes: &[&str]) {
 #[test]
 fn private_constant_is_visible_inside_its_recorded_owner() {
     check(
-        "class Config { companion object {\nprivate const val SECRET: Int = 3\nconst val VALUE: Int = 7\nfun read(): Int = p.Config.SECRET\n} }",
+        "class Config { companion {\nprivate const val SECRET: Int = 3\nconst val VALUE: Int = 7\nfun read(): Int = p.Config.SECRET\n} }",
         "Config.VALUE",
         &[],
     );
@@ -163,12 +163,12 @@ fn private_constant_is_visible_inside_its_recorded_owner() {
 fn associated_member_import_and_invisible_type_keep_name_phase_diagnostics() {
     for (declaration, import, expected) in [
         (
-            "class Config { companion object { const val VALUE: Int = 7 } }",
+            "class Config { companion { const val VALUE: Int = 7 } }",
             "p.Config.VALUE",
             "L0148",
         ),
         (
-            "private class Config { companion object { const val VALUE: Int = 7 } }",
+            "private class Config { companion { const val VALUE: Int = 7 } }",
             "p.Config",
             "L0149",
         ),
@@ -214,7 +214,7 @@ fn associated_member_import_and_invisible_type_keep_name_phase_diagnostics() {
 fn missing_local_constant_member_stops_before_capability_publication() {
     for declaration in [
         "object A { const val X = 1 }",
-        "class A { companion object { const val X = 1 } }",
+        "class A { companion { const val X = 1 } }",
     ] {
         let mut sources = SourceMap::new();
         let source = sources

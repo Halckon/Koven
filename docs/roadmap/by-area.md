@@ -13,7 +13,7 @@
 | 词法与语法 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | 类型、泛型与声明 | 4 | 0 | 0 | 8 | 0 | 0 | 12 |
 | 控制流 | 2 | 1 | 1 | 2 | 0 | 0 | 6 |
-| 类、接口与成员 | 0 | 1 | 1 | 1 | 0 | 0 | 3 |
+| 类、接口与成员 | 1 | 1 | 1 | 0 | 0 | 0 | 3 |
 | 空安全与错误值 | 0 | 1 | 0 | 4 | 0 | 0 | 5 |
 | 所有权、借用与析构 | 5 | 0 | 0 | 4 | 0 | 0 | 9 |
 | 函数类型与闭包 | 0 | 1 | 0 | 1 | 0 | 0 | 2 |
@@ -67,7 +67,7 @@
 |---|---|---|---|---|---|---|---|
 | ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0323](../archive/specs/0323-final-admission-static-recovery.md) |
 | ▶ 进行中 | N10 | 单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 4 | [0316](../archive/specs/0316-single-readonly-value-methods.md) |
-| ☐ 未开始 | L19 | companion 语法改为 `companion { }`，语义不变（不产生对象）（D13） | P3 语言增量 | v1 必做 | 需新增 | 1,2 | — |
+| ✅ 已交付 | L19 | companion 语法改为 `companion { }`，语义不变（不产生对象）（D13） | P3 语言增量 | v1 必做 | 需新增 | 1,2 | [0342](../archive/specs/0342-companion-block-syntax.md) |
 | ⏸ 延后 | X07 | dyn/interface 值、匿名对象 | X v1 之外 | v2 | 需新增 | 2,3,4 | [v2-interface-values-and-dynamic-dispatch](../proposals/v2-interface-values-and-dynamic-dispatch.md) |
 
 ## 空安全与错误值

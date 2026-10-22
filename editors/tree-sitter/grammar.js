@@ -274,7 +274,6 @@ module.exports = grammar({
       seq(
         optional($.visibility_modifier),
         "companion",
-        "object",
         $.companion_body,
       ),
 

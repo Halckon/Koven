@@ -110,7 +110,7 @@ fn members_are_predeclared_and_companion_does_not_inherit_instance_values() {
     let text = "class Service(val field: Int) {\n\
                     fun read(): Int = helper(field)\n\
                     fun helper(arg: Int): Int = arg\n\
-                    companion object {\n\
+                    companion {\n\
                         const val VERSION: Int = 1\n\
                         fun version(): Int = VERSION\n\
                         fun invalid(): Int = field\n\
@@ -499,27 +499,27 @@ fn checked_in_phase2_pass_and_fail_fixtures_are_executed() {
 fn companion_constants_reject_instance_context_without_importing_its_scope() {
     for (source, invalid) in [
         (
-            "class Config<T> { companion object { const val bad = T.member } }",
+            "class Config<T> { companion { const val bad = T.member } }",
             "T",
         ),
         (
-            "class Config(val field: Int) { companion object { const val bad = field } }",
+            "class Config(val field: Int) { companion { const val bad = field } }",
             "field",
         ),
         (
-            "class Config { fun member(): Int = 1\ncompanion object { const val bad = member() } }",
+            "class Config { fun member(): Int = 1\ncompanion { const val bad = member() } }",
             "member",
         ),
         (
-            "class Config<T> { companion object { const val bad: T = 1 } }",
+            "class Config<T> { companion { const val bad: T = 1 } }",
             "T",
         ),
         (
-            "class Config(val field: Int) { companion object { const val bad = this.field } }",
+            "class Config(val field: Int) { companion { const val bad = this.field } }",
             "this",
         ),
         (
-            "class Config { fun member(): Int = 1\ncompanion object { const val bad = this.member() } }",
+            "class Config { fun member(): Int = 1\ncompanion { const val bad = this.member() } }",
             "this",
         ),
     ] {
@@ -536,8 +536,8 @@ fn companion_constants_reject_instance_context_without_importing_its_scope() {
         }
     }
     for source in [
-        "const val field = 7\nclass Config(val field: Int) { companion object { const val ok = field } }",
-        "object T { const val member = 7 }\nclass Config<T> { companion object { const val ok = T.member } }",
+        "const val field = 7\nclass Config(val field: Int) { companion { const val ok = field } }",
+        "object T { const val member = 7 }\nclass Config<T> { companion { const val ok = T.member } }",
     ] {
         let (sources, parsed) = parsed(source);
         let resolution = resolve_names(&sources, &parsed, &environment()).unwrap();

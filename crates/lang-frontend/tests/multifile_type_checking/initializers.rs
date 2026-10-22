@@ -265,7 +265,7 @@ fn companion_constant_initializers_publish_stable_ordinary_typed_facts() {
         "package p\n\
          val CODE = 9\n\
          class Service {\n\
-             companion object {\n\
+             companion {\n\
                  fun version(): Int = VERSION\n\
                  const val VERSION: Int = 7\n\
              }\n\
@@ -391,7 +391,7 @@ fn invalid_companion_constant_initializer_recovers_and_checks_later_members() {
         &mut sources,
         "invalid-companion-constant.ko",
         "class Service {\n\
-             companion object {\n\
+             companion {\n\
                  const val INVALID: String = 1\n\
                  fun later(): Int = 2\n\
              }\n\

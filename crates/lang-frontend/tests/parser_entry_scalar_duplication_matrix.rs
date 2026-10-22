@@ -73,6 +73,6 @@ fn duplicating_every_utf8_scalar_of_entry_sources_is_recoverable() {
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(duplication_counts, [184, 346, 198]);
-    assert_eq!(duplication_counts.into_iter().sum::<usize>(), 728);
+    assert_eq!(duplication_counts, [184, 339, 198]);
+    assert_eq!(duplication_counts.into_iter().sum::<usize>(), 721);
 }

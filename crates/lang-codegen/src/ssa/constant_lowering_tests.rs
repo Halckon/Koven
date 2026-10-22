@@ -39,10 +39,10 @@ fn lower_constants(text: &str) -> (Analysis, crate::ssa::model::Program) {
 fn associated_constants_lower_across_all_declaration_namespaces() {
     for declaration in [
         "object Labels { const val COUNT = BASE + 1 }",
-        "class Labels { companion object { const val COUNT = BASE + 1 } }",
-        "value class Labels(val number: Int) { companion object { const val COUNT = BASE + 1 } }",
-        "interface Labels { companion object { const val COUNT = BASE + 1 } }",
-        "enum class Labels { One; companion object { const val COUNT = BASE + 1 } }",
+        "class Labels { companion { const val COUNT = BASE + 1 } }",
+        "value class Labels(val number: Int) { companion { const val COUNT = BASE + 1 } }",
+        "interface Labels { companion { const val COUNT = BASE + 1 } }",
+        "enum class Labels { One; companion { const val COUNT = BASE + 1 } }",
     ] {
         let (_, program) = lower_constants(&format!(
             "const val BASE = 40\n{declaration}\nfun answer(): Int = Labels.COUNT"

@@ -128,7 +128,7 @@ fn top_level_initializer_this_reports_exact_l0166_and_has_no_capability() {
 
 #[test]
 fn companion_function_this_reports_exact_l0166_and_has_no_capability() {
-    assert_without_receiver("class Tools { companion object { fun invalid(): Unit { this } } }");
+    assert_without_receiver("class Tools { companion { fun invalid(): Unit { this } } }");
 }
 
 #[test]
@@ -187,9 +187,8 @@ fn instance_this_retains_real_basic_types_ownership_and_sealed_view() {
 #[test]
 fn companion_constant_same_token_l0153_does_not_gain_l0166() {
     for declaration in ["const val BAD = this", "const val BAD: Int = this"] {
-        let (snapshot, environment) = memory(&format!(
-            "class Holder {{ companion object {{ {declaration} }} }}",
-        ));
+        let (snapshot, environment) =
+            memory(&format!("class Holder {{ companion {{ {declaration} }} }}",));
         assert_diagnostics(
             snapshot.names().diagnostics(),
             &[("L0153", unique_span(&snapshot, "this"))],

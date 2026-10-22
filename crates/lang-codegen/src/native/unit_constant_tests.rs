@@ -174,21 +174,19 @@ fn all_constant_types_run_across_files_and_namespaces() {
         ("Config.", format!("object Config {{ {declarations} }}")),
         (
             "Config.",
-            format!("class Config {{ companion object {{ {declarations} }} }}"),
+            format!("class Config {{ companion {{ {declarations} }} }}"),
         ),
         (
             "Config.",
-            format!(
-                "value class Config(val item: Int) {{ companion object {{ {declarations} }} }}"
-            ),
+            format!("value class Config(val item: Int) {{ companion {{ {declarations} }} }}"),
         ),
         (
             "Config.",
-            format!("interface Config {{ companion object {{ {declarations} }} }}"),
+            format!("interface Config {{ companion {{ {declarations} }} }}"),
         ),
         (
             "Config.",
-            format!("enum class Config {{ One; companion object {{ {declarations} }} }}"),
+            format!("enum class Config {{ One; companion {{ {declarations} }} }}"),
         ),
     ] {
         let imports = if prefix.is_empty() {

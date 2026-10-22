@@ -16,12 +16,12 @@
 | P0 止血 | 2 | 0 | 1 | 4 | 0 | 0 | 7 |
 | P1 结构 | 0 | 0 | 1 | 1 | 0 | 0 | 2 |
 | P2 补齐现有 Guide 能力 | 0 | 4 | 1 | 5 | 0 | 0 | 10 |
-| P3 语言增量 | 7 | 0 | 0 | 20 | 0 | 0 | 27 |
+| P3 语言增量 | 8 | 0 | 0 | 19 | 0 | 0 | 27 |
 | P4 文本与 IO | 0 | 0 | 0 | 5 | 0 | 0 | 5 |
 | P5 验收与发布 | 0 | 4 | 0 | 2 | 0 | 0 | 6 |
 | X v1 之外 | 0 | 0 | 0 | 0 | 0 | 11 | 11 |
 
-v1 范围内 80 项（必做 70，其中已交付 31）；X 阶段只列边界，不计入 v1。
+v1 范围内 80 项（必做 70，其中已交付 32）；X 阶段只列边界，不计入 v1。
 
 ## 最近一次实测
 
@@ -152,7 +152,7 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 | ☐ 未开始 | L16 | 同步、非逃逸 Borrow 回调的 forEach 与 List/Map 高层基础 API | v1 必做 | 集合与迭代 | 需新增 | 2,3,4,5 | [collection-api-followups](../proposals/collection-api-followups.md) | 依赖 S1 与 N04。 |
 | ☐ 未开始 | L17 | 丢弃 Result 返回值报诊断（must-use）（D14） | v1 必做 | 空安全与错误值 | 需新增 | 2 | — | — |
 | ☐ 未开始 | L18 | value class 局部解构改为按字段名匹配（D15） | v1 必做 | 类型、泛型与声明 | 需新增 | 1,2 | — | — |
-| ☐ 未开始 | L19 | companion 语法改为 `companion { }`，语义不变（不产生对象）（D13） | v1 必做 | 类、接口与成员 | 需新增 | 1,2 | — | — |
+| ✅ 已交付 | L19 | companion 语法改为 `companion { }`，语义不变（不产生对象）（D13） | v1 必做 | 类、接口与成员 | 需新增 | 1,2 | [0342](../archive/specs/0342-companion-block-syntax.md) | — |
 | ☐ 未开始 | L20 | 可能 abort 的标准 API 必须提供不 abort 版本：getOrNull、checked 运算（返回 T?）等 | v1 必做 | 空安全与错误值 | 需新增 | 2,4,5 | [v0.46-language-decisions](../proposals/v0.46-language-decisions.md) | 错误模型决策（2026-10-22）：不引入异常与 try/catch。 |
 | ☐ 未开始 | L14 | 把 v1 不做的内容移出 Guide：unsafe/extern/RawPtr、线程/channel 预声明 API（D6） | v1 必做 | 验收、发布与文档 | 需新增 | — | — | D6 已决：unsafe/extern/RawPtr 移到 proposals；线程 API 按 D5 保留受限版（T1）。 |
 | ☐ 未开始 | S1 | 非逃逸闭包以 exclusive loan 可变捕获 var（D7） | v1 必做 | 函数类型与闭包 | 需新增 | 2,3,4 | — | D7 已决：非逃逸（借用）闭包以独占借用捕获 var；move/逃逸闭包不允许。L16 的前置。 |

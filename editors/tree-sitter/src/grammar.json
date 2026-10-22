@@ -1507,10 +1507,6 @@
           "value": "companion"
         },
         {
-          "type": "STRING",
-          "value": "object"
-        },
-        {
           "type": "SYMBOL",
           "name": "companion_body"
         }
