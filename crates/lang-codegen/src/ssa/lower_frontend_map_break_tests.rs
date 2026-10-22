@@ -92,6 +92,7 @@ fn check(live: bool) {
             .unwrap()
             .span(),
         live,
+        false,
     );
 }
 
@@ -105,7 +106,7 @@ fn single_map_break_dead_source_red() {
     check(false);
 }
 
-fn assert_unit_boundary(live: bool, constants: bool) {
+fn assert_unit_boundary(live: bool, constants: bool, remove: bool) {
     use crate::ssa::unit_lower_test_support::{declaration, parsed};
     use lang_frontend::{
         name_resolution::{
@@ -117,7 +118,13 @@ fn assert_unit_boundary(live: bool, constants: bool) {
         source::SourceMap,
         type_checking::{check_compilation_unit_types, standard_environments},
     };
-    let text = format!("package p\n{}", source(live));
+    let body = source(live);
+    let body = if remove {
+        body.replace("cache.put(key, \"value\".clone())", "cache.remove(key)")
+    } else {
+        body
+    };
+    let text = format!("package p\n{body}");
     let mut sources = SourceMap::new();
     let (source_id, file) = parsed(&mut sources, "p/main.ko", &text);
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source_id, &file)];
@@ -149,36 +156,39 @@ fn assert_unit_boundary(live: bool, constants: bool) {
             &sources, &inputs, &names, &types, &typed, &owned, entry,
         )
     };
-    if live {
-        let (program, entry) = result
-            .unwrap_or_else(|error| panic!("unit constants={constants}, live={live}: {error:?}"));
-        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-    } else {
-        let error = result
-            .err()
-            .expect("unit dead Map break remains an independent boundary");
-        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-        let span = error.span.unwrap();
-        assert_eq!(span.source_id(), source_id);
-        assert!(sources.slice(span).unwrap().starts_with("for (key in"));
-    }
+    let (program, entry) = result.unwrap_or_else(|error| {
+        panic!("unit constants={constants}, live={live}, remove={remove}: {error:?}")
+    });
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let (loop_span, source_expression) = file
+        .ast()
+        .statements()
+        .iter()
+        .find_map(|(_, node)| match node.payload() {
+            lang_frontend::parser::Statement::For { source, .. } => Some((node.span(), *source)),
+            _ => None,
+        })
+        .unwrap();
+    let source_span = file.ast().expressions().get(source_expression).unwrap().span();
+    // Unit EndElement/EndSource carry the provider statement's actual origin.
+    structure::assert_exit_structure(&program, loop_span, source_span, live, true);
 }
 
 #[test]
 fn unit_map_break_basic_live_is_independent() {
-    assert_unit_boundary(true, false);
+    assert_unit_boundary(true, false, false);
 }
 #[test]
-fn unit_map_break_basic_dead_remains_explicit() {
-    assert_unit_boundary(false, false);
+fn unit_map_break_basic_dead_has_exit_cleanup() {
+    assert_unit_boundary(false, false, false);
 }
 #[test]
 fn unit_map_break_constant_live_is_independent() {
-    assert_unit_boundary(true, true);
+    assert_unit_boundary(true, true, false);
 }
 #[test]
-fn unit_map_break_constant_dead_remains_explicit() {
-    assert_unit_boundary(false, true);
+fn unit_map_break_constant_dead_has_exit_cleanup() {
+    assert_unit_boundary(false, true, false);
 }
 
 #[test]
@@ -222,4 +232,44 @@ fn single_map_break_matrix_has_real_ssa_and_separate_owner_drops() {
         crate::llvm::render_verified_program(&program).unwrap();
         super::assert_map_drop_counts(&program, &counts);
     }
+}
+
+#[test]
+fn unit_map_break_remove_uses_current_owner_on_each_exit() {
+    for constants in [false, true] {
+        for live in [false, true] {
+            assert_unit_boundary(live, constants, true);
+        }
+    }
+}
+
+#[test]
+fn unit_map_break_original_full_fixture_has_separate_owner_drops() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let source = include_str!("../../tests/fixtures/map-conditional-break-0310/live-dead.ko");
+    let analysis = UnitSource::analyze("map-break-live-dead.ko", source).unwrap();
+    analysis.assert_frontend_clean();
+    let entry = analysis.declaration("main", SymbolKind::Function);
+    let (program, entry) = analysis.lower_entry(entry).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let expected = [("removeDead", 2), ("removeLive", 1), ("putDead", 2), ("putLive", 1)]
+        .into_iter()
+        .map(|(name, count)| {
+            let functions = program
+                .modules
+                .iter()
+                .flat_map(|module| &module.functions)
+                .filter(|function| {
+                    let span = function.origin.span();
+                    matches!(&function.origin, crate::ssa::model::Origin::Source(_))
+                        && source[span.start()..span.end()].starts_with(&format!("fun {name}("))
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(functions.len(), 1, "one real source definition for {name}");
+            (functions[0].name.as_str(), count)
+        })
+        .collect::<Vec<_>>();
+    super::assert_map_drop_counts(&program, &expected);
 }
