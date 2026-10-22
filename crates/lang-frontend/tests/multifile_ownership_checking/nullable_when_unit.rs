@@ -672,13 +672,19 @@ fun entry(holder: Holder): Int { return when ((holder.item)) { null -> 0; else -
                 "{name}: explicit Return reaches the escaping When entry"
             );
             if element {
-                let place = unit.typed.types().element_place(leaf)
+                let place = unit
+                    .typed
+                    .types()
+                    .element_place(leaf)
                     .expect("real element descriptor");
                 assert_eq!(place.expression(), leaf);
                 assert_eq!(place.receiver().source_unit(), unit.unit);
                 assert_eq!(place.index().source_unit(), unit.unit);
             } else {
-                let projection = unit.typed.types().aggregate_projection(leaf)
+                let projection = unit
+                    .typed
+                    .types()
+                    .aggregate_projection(leaf)
                     .expect("real field projection descriptor");
                 assert_eq!(projection.expression(), leaf);
                 assert_eq!(
@@ -693,7 +699,9 @@ fun entry(holder: Holder): Int { return when ((holder.item)) { null -> 0; else -
                     diagnostic_codes(unit.owned)
                 );
                 assert_eq!(
-                    diagnostic_codes(unit.owned), ["L0136"], "{name}: unexpected diagnostic"
+                    diagnostic_codes(unit.owned),
+                    ["L0136"],
+                    "{name}: unexpected diagnostic"
                 );
                 let diagnostic = &unit.owned.diagnostics()[0];
                 assert_eq!(
@@ -702,14 +710,24 @@ fun entry(holder: Holder): Int { return when ((holder.item)) { null -> 0; else -
                 );
                 assert_eq!(diagnostic.primary_span(), unit.span(leaf), "{name}");
                 let root = unit.root("items");
-                let binding = unit.owned.bindings().iter()
-                    .find(|fact| fact.symbol() == root).unwrap();
+                let binding = unit
+                    .owned
+                    .bindings()
+                    .iter()
+                    .find(|fact| fact.symbol() == root)
+                    .unwrap();
                 assert_eq!(
                     labels(diagnostic),
-                    [(binding.declaration_span(),
-                        "container owner remains responsible for every initialized element")]
+                    [(
+                        binding.declaration_span(),
+                        "container owner remains responsible for every initialized element"
+                    )]
                 );
-                assert_eq!(diagnostic.details().len(), 1, "{name}: no extra cascade/details");
+                assert_eq!(
+                    diagnostic.details().len(),
+                    1,
+                    "{name}: no extra cascade/details"
+                );
                 assert!(unit.owned.clone().validate().is_err());
                 legacy_rejections.push(name);
             }
@@ -721,7 +739,10 @@ fun entry(holder: Holder): Int { return when ((holder.item)) { null -> 0; else -
                 unit.owned.value_deliveries().is_empty(),
                 "{name}: subject read cannot extract a Value"
             );
-            assert!(unit.owned.rc_effects().is_empty(), "{name}: no retain or copy");
+            assert!(
+                unit.owned.rc_effects().is_empty(),
+                "{name}: no retain or copy"
+            );
             visited.push(name);
         });
     }
@@ -759,8 +780,17 @@ val result = holdItems(&items, when (items[0]) { null -> {}; else -> {} }) }
         ),
     ];
     for (
-        name, source, code, message, primary, primary_text, label, label_text,
-        label_message, call, kind,
+        name,
+        source,
+        code,
+        message,
+        primary,
+        primary_text,
+        label,
+        label_text,
+        label_message,
+        call,
+        kind,
     ) in negatives
     {
         checked(Owner::Node, source, |unit| {
@@ -768,14 +798,30 @@ val result = holdItems(&items, when (items[0]) { null -> {}; else -> {} }) }
                 unit.owned.deferred().is_empty(),
                 "{name}: no deferred ownership outcome is permitted"
             );
-            assert_eq!(diagnostic_codes(unit.owned), [code], "{name}: unexpected diagnostic");
+            assert_eq!(
+                diagnostic_codes(unit.owned),
+                [code],
+                "{name}: unexpected diagnostic"
+            );
             let diagnostic = &unit.owned.diagnostics()[0];
             assert_eq!(diagnostic.message(), message, "{name}");
             let primary_span = diagnostic.primary_span();
-            assert_eq!((primary_span.start(), primary_span.end()), primary, "{name}");
-            assert_eq!(unit.sources.slice(primary_span).unwrap(), primary_text, "{name}");
+            assert_eq!(
+                (primary_span.start(), primary_span.end()),
+                primary,
+                "{name}"
+            );
+            assert_eq!(
+                unit.sources.slice(primary_span).unwrap(),
+                primary_text,
+                "{name}"
+            );
             let contract = unit.contract(call, 0);
-            assert_eq!(contract.kind(), kind, "{name}: real preceding move/loan contract");
+            assert_eq!(
+                contract.kind(),
+                kind,
+                "{name}: real preceding move/loan contract"
+            );
             let origin = if kind == UnitCallArgumentOwnershipKind::Value {
                 contract.argument_span()
             } else {
@@ -785,7 +831,11 @@ val result = holdItems(&items, when (items[0]) { null -> {}; else -> {} }) }
             assert_eq!((origin.start(), origin.end()), label, "{name}");
             assert_eq!(unit.sources.slice(origin).unwrap(), label_text, "{name}");
             assert_eq!(labels(diagnostic), [(origin, label_message)], "{name}");
-            assert_eq!(diagnostic.details().len(), 1, "{name}: no extra cascade/details");
+            assert_eq!(
+                diagnostic.details().len(),
+                1,
+                "{name}: no extra cascade/details"
+            );
             assert!(unit.owned.loans().is_empty());
             assert!(unit.owned.value_deliveries().is_empty());
             assert!(unit.owned.drops().is_empty());
@@ -793,7 +843,11 @@ val result = holdItems(&items, when (items[0]) { null -> {}; else -> {} }) }
             visited.push(name);
         });
     }
-    assert_eq!(visited.len(), 8, "only reached and checked cases count: {visited:?}");
+    assert_eq!(
+        visited.len(),
+        8,
+        "only reached and checked cases count: {visited:?}"
+    );
     assert!(
         legacy_rejections.is_empty(),
         "read-only nullable When subjects hit the old MoveOnly element gate: {legacy_rejections:?}; actually checked: {visited:?}"

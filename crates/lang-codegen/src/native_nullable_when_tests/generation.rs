@@ -1,9 +1,9 @@
 //! Independent real-source generation contracts; SSA only, never native execution.
 
-use super::{OwnedProducts, SourceRejectionKind, UnitSource};
 use super::support::{
     Birth, Control, aliases, birth, controls, expression, function, item_span, root, span,
 };
+use super::{OwnedProducts, SourceRejectionKind, UnitSource};
 use crate::ssa::{
     LoweringErrorKind,
     model::{BlockId, EntityId, Function, Operation, Origin, Program, TerminatorKind},
@@ -61,18 +61,29 @@ fn assert_span(source: &UnitSource, origin: Span, expected: (usize, usize), text
     assert_eq!(source.sources.slice(origin), Ok(text));
 }
 
-fn call_argument(source: &UnitSource, control: &Control, text: &str) -> (UnitExpressionId, UnitExpressionId) {
+fn call_argument(
+    source: &UnitSource,
+    control: &Control,
+    text: &str,
+) -> (UnitExpressionId, UnitExpressionId) {
     let (call, _) = expression(source, control.span, text);
-    let node = source.parsed.ast().expressions().get(call.expression()).unwrap();
+    let node = source
+        .parsed
+        .ast()
+        .expressions()
+        .get(call.expression())
+        .unwrap();
     let Expression::Call { arguments, .. } = node.payload() else {
         panic!("one real direct observe call")
     };
     let [argument] = arguments.as_slice() else {
         panic!("one source argument")
     };
-    (call, UnitExpressionId::new(call.source_unit(), argument.value))
+    (
+        call,
+        UnitExpressionId::new(call.source_unit(), argument.value),
+    )
 }
-
 
 fn assert_original_products(source: &UnitSource, controls: &[Control]) {
     let OwnedProducts::Basic(typed, owned) = &source.products else {
@@ -85,19 +96,27 @@ fn assert_original_products(source: &UnitSource, controls: &[Control]) {
     let scope = item_span(source, "entry");
     let (assignment, assignment_span) = expression(source, scope, "x = replacement");
     assert_span(source, assignment_span, REPLACEMENT, "x = replacement");
-    let descriptor = typed.assignment(assignment).expect("real assignment storage contract");
+    let descriptor = typed
+        .assignment(assignment)
+        .expect("real assignment storage contract");
     assert_eq!(descriptor.expression(), assignment);
     assert_eq!(root(source, descriptor.target()), symbol);
     assert_eq!(Some(descriptor.target_type()), typed.symbol_type(symbol));
     assert!(descriptor.falls_through());
     let declaration = source.names.names().source_units()[symbol.source_unit().index()]
-        .resolution().symbols()[symbol.symbol().index()].span();
+        .resolution()
+        .symbols()[symbol.symbol().index()]
+    .span();
     assert_eq!(source.sources.slice(declaration), Ok("x"));
     let origins = [declaration, assignment_span];
     let observe = source.declaration("observe", SymbolKind::Function);
     let mut expected_drops = Vec::new();
     for (index, control) in controls.iter().enumerate() {
-        let text = if index == 0 { "observe(x)" } else { "observe((x))" };
+        let text = if index == 0 {
+            "observe(x)"
+        } else {
+            "observe((x))"
+        };
         let (call, argument) = call_argument(source, control, text);
         let actual = typed.call(call).expect("real source call contract");
         assert_eq!(actual.target(), UnitCallTarget::Declaration(observe));
@@ -106,7 +125,9 @@ fn assert_original_products(source: &UnitSource, controls: &[Control]) {
             panic!("one real argument mapping")
         };
         assert_eq!(mapping.mode(), ParameterMode::Borrow);
-        let proof = typed.non_null_use(argument).expect("fresh branch narrowed argument");
+        let proof = typed
+            .non_null_use(argument)
+            .expect("fresh branch narrowed argument");
         assert_eq!(proof.symbol(), symbol);
         assert_eq!(proof.expression(), argument);
         assert_eq!(Some(proof.declared_type()), typed.symbol_type(symbol));
@@ -122,7 +143,9 @@ fn assert_original_products(source: &UnitSource, controls: &[Control]) {
         assert_eq!(contract.kind(), UnitCallArgumentOwnershipKind::SharedLoan);
         assert_eq!(contract.parameter_type(), mapping.parameter_type());
         assert_eq!(contract.argument_span(), span(source, argument));
-        let loans = owned.loans().iter()
+        let loans = owned
+            .loans()
+            .iter()
             .filter(|loan| loan.call() == call && loan.argument() == argument)
             .collect::<Vec<_>>();
         let [loan] = loans.as_slice() else {
@@ -136,23 +159,37 @@ fn assert_original_products(source: &UnitSource, controls: &[Control]) {
         };
         assert!(place.is_root());
         assert_eq!(place.root(), symbol);
-        assert!(!owned.value_deliveries().iter().any(|fact| fact.call() == call));
+        assert!(
+            !owned
+                .value_deliveries()
+                .iter()
+                .any(|fact| fact.call() == call)
+        );
         expected_drops.push((UnitDropPoint::CallReturn(call), origins[index]));
         expected_drops.push((
-            UnitDropPoint::BranchExit { control: control.id, branch: 0 },
+            UnitDropPoint::BranchExit {
+                control: control.id,
+                branch: 0,
+            },
             origins[index],
         ));
-        assert!(!owned.drops().iter().any(|fact| {
-            fact.target() == UnitDropTarget::Named(symbol)
-                && fact.point() == UnitDropPoint::AfterExpression(control.subject)
-        }), "observe keeps this generation alive until its real call returns");
+        assert!(
+            !owned.drops().iter().any(|fact| {
+                fact.target() == UnitDropTarget::Named(symbol)
+                    && fact.point() == UnitDropPoint::AfterExpression(control.subject)
+            }),
+            "observe keeps this generation alive until its real call returns"
+        );
     }
-    let drops = owned.drops().iter()
+    let drops = owned
+        .drops()
+        .iter()
         .filter(|fact| fact.target() == UnitDropTarget::Named(symbol))
         .collect::<Vec<_>>();
     assert_eq!(drops.len(), expected_drops.len());
     for (point, origin) in expected_drops {
-        let matching = drops.iter()
+        let matching = drops
+            .iter()
             .filter(|fact| fact.point() == point && fact.value_origin() == origin)
             .count();
         assert_eq!(matching, 1, "one exact generation/path cleanup fact");
@@ -177,15 +214,29 @@ struct Paths<'a> {
 }
 
 impl Paths<'_> {
-    fn visit(&self, block: BlockId, seen: &mut BTreeSet<BlockId>, events: Vec<Event>) -> Vec<Vec<Event>> {
-        assert!(seen.insert(block), "these exact sources have no loop/backedge");
+    fn visit(
+        &self,
+        block: BlockId,
+        seen: &mut BTreeSet<BlockId>,
+        events: Vec<Event>,
+    ) -> Vec<Vec<Event>> {
+        assert!(
+            seen.insert(block),
+            "these exact sources have no loop/backedge"
+        );
         let block = self.function.block(block).unwrap();
         let mut events = events;
         for id in &block.instructions {
             let instruction = self.function.instruction(*id).unwrap();
             match &instruction.operation {
-                Operation::DirectCall { callee, receiver, arguments } => {
-                    let index = self.calls.iter()
+                Operation::DirectCall {
+                    callee,
+                    receiver,
+                    arguments,
+                } => {
+                    let index = self
+                        .calls
+                        .iter()
                         .position(|origin| instruction.origin == Origin::Source(*origin))
                         .expect("only the two source-qualified observe calls");
                     assert_eq!(*callee, self.observe);
@@ -196,9 +247,13 @@ impl Paths<'_> {
                     events.push(Event::Observe(index));
                 }
                 Operation::BorrowEnd { loan } => {
-                    let matches = self.births.iter().enumerate()
+                    let matches = self
+                        .births
+                        .iter()
+                        .enumerate()
                         .filter(|(_, birth)| birth.views.contains(&EntityId::Loan(*loan)))
-                        .map(|(index, _)| index).collect::<Vec<_>>();
+                        .map(|(index, _)| index)
+                        .collect::<Vec<_>>();
                     let [index] = matches.as_slice() else {
                         panic!("retire exactly one real generation view")
                     };
@@ -206,9 +261,13 @@ impl Paths<'_> {
                     events.push(Event::End(*index));
                 }
                 Operation::Drop { owner } => {
-                    let matches = self.births.iter().enumerate()
+                    let matches = self
+                        .births
+                        .iter()
+                        .enumerate()
                         .filter(|(_, birth)| birth.owners.contains(&EntityId::Value(*owner)))
-                        .map(|(index, _)| index).collect::<Vec<_>>();
+                        .map(|(index, _)| index)
+                        .collect::<Vec<_>>();
                     let [index] = matches.as_slice() else {
                         panic!("drop exactly one actual generation owner")
                     };
@@ -225,8 +284,16 @@ impl Paths<'_> {
         }
         let term = block.terminator.as_ref().unwrap();
         match &term.kind {
-            TerminatorKind::NullableBranch { owner, when_null, when_non_null, view } => {
-                let index = self.births.iter().position(|birth| birth.header == block.id)
+            TerminatorKind::NullableBranch {
+                owner,
+                when_null,
+                when_non_null,
+                view,
+            } => {
+                let index = self
+                    .births
+                    .iter()
+                    .position(|birth| birth.header == block.id)
                     .expect("only two actual source When headers");
                 let birth = &self.births[index];
                 assert_eq!(term.origin, Origin::Source(self.controls[index].span));
@@ -242,21 +309,30 @@ impl Paths<'_> {
                 paths
             }
             TerminatorKind::Branch(edge) => {
-                assert!(self.controls.iter().any(|control| {
-                    term.origin == Origin::Source(control.span)
-                }), "only real When arm/join edges, not arbitrary branch fallbacks");
+                assert!(
+                    self.controls
+                        .iter()
+                        .any(|control| { term.origin == Origin::Source(control.span) }),
+                    "only real When arm/join edges, not arbitrary branch fallbacks"
+                );
                 for (index, birth) in self.births.iter().enumerate() {
                     if events.contains(&Event::Drop(index)) {
-                        assert!(edge.arguments.iter().all(|entity| {
-                            !birth.owners.contains(entity) && !birth.views.contains(entity)
-                        }), "retired generation cannot cross its actual outgoing edge");
+                        assert!(
+                            edge.arguments.iter().all(|entity| {
+                                !birth.owners.contains(entity) && !birth.views.contains(entity)
+                            }),
+                            "retired generation cannot cross its actual outgoing edge"
+                        );
                     }
                 }
                 self.visit(edge.target, seen, events)
             }
             TerminatorKind::Return { values } => {
                 assert_eq!(term.origin, self.function.origin);
-                assert!(values.is_empty(), "source entry has only implicit Unit return");
+                assert!(
+                    values.is_empty(),
+                    "source entry has only implicit Unit return"
+                );
                 vec![events]
             }
             _ => panic!("exact source has no If, While, Abort or other transfer"),
@@ -273,8 +349,12 @@ fn assert_ssa_generations(source: &UnitSource, program: &Program, controls: &[Co
     assert_ne!(births[0].view, births[1].view);
     assert!(births[0].owners.is_disjoint(&births[1].owners));
     assert!(births[0].views.is_disjoint(&births[1].views));
-    let parameters = &entry.block(entry.entry_block().unwrap()).unwrap().parameters;
-    let [input @ EntityId::Value(_), replacement @ EntityId::Value(_)] = parameters.as_slice() else {
+    let parameters = &entry
+        .block(entry.entry_block().unwrap())
+        .unwrap()
+        .parameters;
+    let [input @ EntityId::Value(_), replacement @ EntityId::Value(_)] = parameters.as_slice()
+    else {
         panic!("actual two owned nullable parameters in declaration order")
     };
     let old_owner = aliases(entry, *input);
@@ -285,7 +365,9 @@ fn assert_ssa_generations(source: &UnitSource, program: &Program, controls: &[Co
     assert!(!old_owner.contains(&EntityId::Value(births[1].owner)));
     let symbol = root(source, controls[0].subject);
     let declaration = source.names.names().source_units()[symbol.source_unit().index()]
-        .resolution().symbols()[symbol.symbol().index()].span();
+        .resolution()
+        .symbols()[symbol.symbol().index()]
+    .span();
     let assignment = expression(source, item_span(source, "entry"), "x = replacement").1;
     let calls = [
         expression(source, controls[0].span, "observe(x)").1,
@@ -299,7 +381,11 @@ fn assert_ssa_generations(source: &UnitSource, program: &Program, controls: &[Co
         origins: [declaration, assignment],
         observe: function(source, program, "observe").id,
     };
-    let actual = paths.visit(entry.entry_block().unwrap(), &mut BTreeSet::new(), Vec::new());
+    let actual = paths.visit(
+        entry.entry_block().unwrap(),
+        &mut BTreeSet::new(),
+        Vec::new(),
+    );
     let mut expected = Vec::new();
     for first in [false, true] {
         for second in [false, true] {
@@ -315,21 +401,30 @@ fn assert_ssa_generations(source: &UnitSource, program: &Program, controls: &[Co
             expected.push(events);
         }
     }
-    assert_eq!(actual, expected, "all four real paths, exact ordered cleanup once per generation");
+    assert_eq!(
+        actual, expected,
+        "all four real paths, exact ordered cleanup once per generation"
+    );
 }
-
-
 
 #[test]
 fn nullable_when_sequential_generations_keep_distinct_real_proofs() {
     let source = UnitSource::analyze("sequential-generations", SEQUENTIAL)
         .unwrap_or_else(|error| panic!("unexpected earlier source rejection: {error:?}"));
     source.assert_frontend_clean();
-    assert_eq!(source.sources.source_text(source.parsed.source_id()), Ok(SEQUENTIAL));
+    assert_eq!(
+        source.sources.source_text(source.parsed.source_id()),
+        Ok(SEQUENTIAL)
+    );
     let controls = controls(&source, "entry");
     assert_eq!(controls.len(), 2);
     for (control, expected) in controls.iter().zip([FIRST_WHEN, SECOND_WHEN]) {
-        assert_span(&source, control.span, expected, &SEQUENTIAL[expected.0..expected.1]);
+        assert_span(
+            &source,
+            control.span,
+            expected,
+            &SEQUENTIAL[expected.0..expected.1],
+        );
     }
     assert_original_products(&source, &controls);
     let program = match source.lower_entry(source.declaration("entry", SymbolKind::Function)) {
@@ -340,9 +435,16 @@ fn nullable_when_sequential_generations_keep_distinct_real_proofs() {
         Err(error) => {
             assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
             let origin = error.span.expect("source-qualified old boundary");
-            assert_span(&source, origin, FIRST_WHEN, &SEQUENTIAL[FIRST_WHEN.0..FIRST_WHEN.1]);
+            assert_span(
+                &source,
+                origin,
+                FIRST_WHEN,
+                &SEQUENTIAL[FIRST_WHEN.0..FIRST_WHEN.1],
+            );
             assert_eq!(origin, controls[0].span);
-            panic!("expected old-production first When rejection at 130..197; second When, replacement SSA and verifier assertions NOT reached");
+            panic!(
+                "expected old-production first When rejection at 130..197; second When, replacement SSA and verifier assertions NOT reached"
+            );
         }
     };
     assert_ssa_generations(&source, &program, &controls);
@@ -358,14 +460,19 @@ fn assert_label_product_identity(
     let primary = original.primary_span();
     use lang_frontend::{
         lexer::lex,
-        name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
         parser::parse_file,
         type_checking::{check_compilation_unit_types, standard_environments},
     };
     let lexed = lex(sources, primary.source_id()).expect("same real document lexing");
     let parsed = parse_file(sources, &lexed).expect("same real document AST");
     assert!(parsed.diagnostics().is_empty());
-    let inputs = [SourceUnitInput::memory_document(primary.source_id(), &parsed)];
+    let inputs = [SourceUnitInput::memory_document(
+        primary.source_id(),
+        &parsed,
+    )];
     let (name_environment, environment) = standard_environments();
     let index = index_compilation_unit(sources, &inputs).expect("same real source index");
     let names = resolve_compilation_unit_names(sources, &inputs, &index, &name_environment)
@@ -377,33 +484,56 @@ fn assert_label_product_identity(
     let [diagnostic] = typed.diagnostics() else {
         panic!("same single real type diagnostic")
     };
-    assert_eq!(diagnostic, original, "the same complete diagnostic is reproduced");
+    assert_eq!(
+        diagnostic, original,
+        "the same complete diagnostic is reproduced"
+    );
     let callable = |name| {
-        let declarations = names.names().index().declarations().iter()
+        let declarations = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
             .filter(|declaration| declaration.name() == name)
             .collect::<Vec<_>>();
         let [declaration] = declarations.as_slice() else {
             panic!("one real source declaration")
         };
-        typed.signatures().declaration(declaration.id()).unwrap().callable().unwrap()
+        typed
+            .signatures()
+            .declaration(declaration.id())
+            .unwrap()
+            .callable()
+            .unwrap()
     };
     let expected = callable("observe").parameters()[0].ty();
     let replacement = callable("entry").parameters()[1].ty();
     let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(expected) else {
         panic!("observe expects the actual Node declaration")
     };
-    assert_eq!(names.names().index().declarations()[declaration.index()].name(), "Node");
-    let arguments = parsed.ast().expressions().iter()
+    assert_eq!(
+        names.names().index().declarations()[declaration.index()].name(),
+        "Node"
+    );
+    let arguments = parsed
+        .ast()
+        .expressions()
+        .iter()
         .filter(|(_, node)| node.span() == primary)
         .collect::<Vec<_>>();
     let [(argument, node)] = arguments.as_slice() else {
         panic!("the actual failed argument AST node")
     };
     assert!(matches!(node.payload(), Expression::Name));
-    let calls = parsed.ast().expressions().iter().filter(|(_, node)| {
-        matches!(node.payload(), Expression::Call { arguments, .. }
+    let calls = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter(|(_, node)| {
+            matches!(node.payload(), Expression::Call { arguments, .. }
             if arguments.len() == 1 && arguments[0].value == *argument)
-    }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
     let [(_, call)] = calls.as_slice() else {
         panic!("the exact failed argument belongs to one real call")
     };
@@ -411,23 +541,41 @@ fn assert_label_product_identity(
     let [unit] = names.names().source_units() else {
         panic!("one original document")
     };
-    let references = names.names().references().iter()
-        .filter(|reference| reference.source_unit() == unit.source_unit() && reference.span() == primary)
+    let references = names
+        .names()
+        .references()
+        .iter()
+        .filter(|reference| {
+            reference.source_unit() == unit.source_unit() && reference.span() == primary
+        })
         .collect::<Vec<_>>();
     let [reference] = references.as_slice() else {
         panic!("one real failed argument reference")
     };
-    let lang_frontend::name_resolution::UnitReferenceTarget::Symbol(symbol) = reference.target() else {
+    let lang_frontend::name_resolution::UnitReferenceTarget::Symbol(symbol) = reference.target()
+    else {
         panic!("the actual mutable local root")
     };
-    assert_eq!(unit.resolution().symbols()[symbol.symbol().index()].name(), "x");
+    assert_eq!(
+        unit.resolution().symbols()[symbol.symbol().index()].name(),
+        "x"
+    );
     let actual_type = typed.symbol_type(*symbol).unwrap();
     assert_eq!(actual_type, replacement);
     let actual = typed.types().get(actual_type).unwrap();
     assert_eq!(actual, &UnitTypeKind::Nullable(expected));
     let argument = UnitExpressionId::new(unit.source_unit(), *argument);
-    assert!(typed.non_null_use(argument).is_none(), "no old smart cast on failed use");
-    assert_eq!(label, format!("expected declaration#{}, found {actual:?}", declaration.index()));
+    assert!(
+        typed.non_null_use(argument).is_none(),
+        "no old smart cast on failed use"
+    );
+    assert_eq!(
+        label,
+        format!(
+            "expected declaration#{}, found {actual:?}",
+            declaration.index()
+        )
+    );
 }
 
 #[test]
@@ -437,17 +585,26 @@ fn nullable_when_replacement_without_reproof_keeps_exact_type_error() {
         Ok(_) => panic!("old non-null knowledge must not survive nullable replacement"),
     };
     assert!(matches!(rejection.kind, SourceRejectionKind::Diagnostics));
-    assert_eq!(rejection.report.stages, [("parse", 0), ("names", 0), ("types", 1)]);
+    assert_eq!(
+        rejection.report.stages,
+        [("parse", 0), ("names", 0), ("types", 1)]
+    );
     let [(stage, diagnostic)] = rejection.report.diagnostics.as_slice() else {
         panic!("one complete real type diagnostic, no suppressed cascades")
     };
     assert_eq!(*stage, "types");
     assert_eq!(diagnostic.severity(), Severity::Error);
     assert_eq!(diagnostic.code().to_string(), "L0084");
-    assert_eq!(diagnostic.message(), "expression type does not match the expected type");
+    assert_eq!(
+        diagnostic.message(),
+        "expression type does not match the expected type"
+    );
     let primary = diagnostic.primary_span();
     assert_eq!((primary.start(), primary.end()), (227, 228));
-    assert_eq!(rejection.sources.source_text(primary.source_id()), Ok(STALE));
+    assert_eq!(
+        rejection.sources.source_text(primary.source_id()),
+        Ok(STALE)
+    );
     assert_eq!(rejection.sources.slice(primary), Ok("x"));
     let [DiagnosticDetail::Label(label)] = diagnostic.details() else {
         panic!("exactly the original expected-parameter label")
