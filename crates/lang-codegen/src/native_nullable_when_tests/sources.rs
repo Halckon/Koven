@@ -527,8 +527,9 @@ fun entry(holder: Holder): Unit { when (holder.value) { null -> {}; else -> {} }
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        red_span: (79, 125),
-        green_span: (79, 125),
+        // Existing layout rejects the field name before When; not When-field coverage.
+        red_span: (31, 36),
+        green_span: (31, 36),
     },
     Negative {
         name: "container-element",
@@ -667,5 +668,17 @@ fun entry(own subject: Node?): Unit { pair(subject, when (subject) { null -> Nod
         code: "L0135",
         red_span: (157, 164),
         green_span: (157, 164),
+    },
+    // Direct owner-parameter T? has an existing layout; this isolates the When-field gate.
+    Negative {
+        name: "generic-nullable-field",
+        text: r#"class Node {}
+class Holder<T>(val value: T?)
+fun entry(holder: Holder<Node>): Unit { when (holder.value) { null -> {}; else -> {} } }
+"#,
+        stage: "lower",
+        code: "UnsupportedNode",
+        red_span: (85, 131),
+        green_span: (85, 131),
     },
 ];
