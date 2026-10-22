@@ -6,8 +6,8 @@ use crate::{
     parser::{AssignmentOperator, Expression},
     source::Span,
     type_checking::{
-        BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory,
-        ExpressionUse, TypeCheckingError, UnitAssignmentDescriptor, UnitExpressionId, UnitTypeId,
+        BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory, ExpressionUse,
+        TypeCheckingError, UnitAssignmentDescriptor, UnitExpressionId, UnitTypeId,
     },
 };
 
@@ -113,29 +113,45 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         target: ExpressionId,
     ) -> Result<bool, CompilationUnitTypeError> {
-        let node = self.file(source).ast().expressions().get(target)
+        let node = self
+            .file(source)
+            .ast()
+            .expressions()
+            .get(target)
             .map_err(TypeCheckingError::from)?;
         if !matches!(node.payload(), Expression::Name)
-            || self.parts.aggregate_projections.iter().any(|projection| {
-                projection.expression() == UnitExpressionId::new(source, target)
-            })
+            || self
+                .parts
+                .aggregate_projections
+                .iter()
+                .any(|projection| projection.expression() == UnitExpressionId::new(source, target))
         {
             return Ok(false);
         }
         let symbol = match self.reference(source, node.span(), Namespace::Value) {
             Some(UnitReferenceTarget::Symbol(symbol)) => *symbol,
-            Some(UnitReferenceTarget::Declaration(declaration)) => self.signatures
+            Some(UnitReferenceTarget::Declaration(declaration)) => self
+                .signatures
                 .declaration(*declaration)
-                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?.symbol(),
+                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
+                .symbol(),
             _ => return Ok(false),
         };
-        let kind = self.names.source_units().get(symbol.source_unit().index())
+        let kind = self
+            .names
+            .source_units()
+            .get(symbol.source_unit().index())
             .and_then(|source| source.resolution().symbols().get(symbol.symbol().index()))
             .map(|symbol| symbol.kind())
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-        Ok(matches!(kind, SymbolKind::Variable | SymbolKind::ValueParameter
-            | SymbolKind::LambdaParameter | SymbolKind::ForBinding
-            | SymbolKind::DestructuringBinding))
+        Ok(matches!(
+            kind,
+            SymbolKind::Variable
+                | SymbolKind::ValueParameter
+                | SymbolKind::LambdaParameter
+                | SymbolKind::ForBinding
+                | SymbolKind::DestructuringBinding
+        ))
     }
 
     fn assignment_target_contract(

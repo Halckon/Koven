@@ -7,8 +7,8 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, Severity, codes},
     parser::{
-        AssignmentOperator, Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile,
-        Statement, StringPart, TypeRef, WhenCondition,
+        AssignmentOperator, Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker,
+        ParsedFile, Statement, StringPart, TypeRef, WhenCondition,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -636,7 +636,9 @@ impl<F: Facts> Checker<'_, F> {
             complete &= self.type_root(write.key_type, target_node.span(), false)?;
             complete &= self.type_root(write.value_type, target_node.span(), false)?;
             if !matches!(
-                self.facts.expression_type(expression).and_then(|ty| self.facts.shape(ty)),
+                self.facts
+                    .expression_type(expression)
+                    .and_then(|ty| self.facts.shape(ty)),
                 Some(Shape::Builtin(BuiltinType::Unit))
             ) {
                 return Err(self.missing(span, "Map write assignment Unit result"));
@@ -746,7 +748,12 @@ impl<F: Facts> Checker<'_, F> {
                 complete &= self.expression(*left, false)?;
                 complete &= self.expression(*right, false)?;
             }
-            Expression::Assignment { target, operator, value, .. } => {
+            Expression::Assignment {
+                target,
+                operator,
+                value,
+                ..
+            } => {
                 complete &= self.assignment(id, *target, *operator, *value)?;
             }
             Expression::Index {
