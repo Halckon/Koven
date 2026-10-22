@@ -164,8 +164,7 @@ fn assert_rhs_rejection(text: &str, rhs: &str, ordinary_assignment: bool) {
     };
     assert_eq!(diagnostic.code().to_string(), "L0084");
     assert_eq!(sources.slice(diagnostic.primary_span()), Ok(rhs));
-    let admission =
-        complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw);
+    let admission = complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw);
     let Err(FinalTypeAdmissionError::Diagnostics(actual)) = admission else {
         panic!("the original source mismatch must reject before ownership: {admission:?}")
     };
