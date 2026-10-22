@@ -545,7 +545,10 @@ impl Transaction<'_> {
         let successors = edges(&terminator.kind);
         assert!(
             !successors.is_empty(),
-            "every transaction must reach its exact commit or control exit"
+            "every transaction must reach its exact commit or control exit: fixture={}, seen={seen:?}, terminator={terminator:?}, expected_exit={:?}, checkpoint={:?}, events={events:?}",
+            self.fixture.name,
+            self.exit,
+            self.checkpoint
         );
         successors
             .into_iter()
