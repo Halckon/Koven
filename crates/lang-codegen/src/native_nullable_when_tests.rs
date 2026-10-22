@@ -23,6 +23,8 @@ use std::collections::BTreeSet;
 mod generation;
 #[path = "native_nullable_when_tests/products.rs"]
 mod products;
+#[path = "native_nullable_when_tests/replacement_if.rs"]
+mod replacement_if;
 #[path = "native_nullable_when_tests/sources.rs"]
 mod sources;
 #[path = "native_nullable_when_tests/support.rs"]
@@ -821,6 +823,10 @@ fn nullable_when_class_box_rc_ordinary_sources_link_run() {
 #[test]
 fn nullable_when_out_of_slice_sources_keep_exact_boundaries() {
     for fixture in NEGATIVES {
+        if fixture.name == "replaced-generation" {
+            replacement_if::assert_original_replacement(fixture);
+            continue;
+        }
         let expected = fixture.green_span; // RED VERSION selects red_span instead.
         match UnitSource::analyze(fixture.name, fixture.text) {
             Err(rejection) => {
