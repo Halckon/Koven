@@ -81,10 +81,8 @@ fun main(): Unit {
         let wraps = function
             .instructions
             .iter()
-            .filter_map(|instruction| {
-                matches!(instruction.operation, Operation::NullableWrap { .. })
-                    .then(|| only(instruction.results.iter().copied()))
-            })
+            .filter(|instruction| matches!(instruction.operation, Operation::NullableWrap { .. }))
+            .map(|instruction| only(instruction.results.iter().copied()))
             .collect::<Vec<_>>();
         assert_eq!(wraps.len(), 2);
         let branches = function
