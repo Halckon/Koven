@@ -1,8 +1,8 @@
-# Koven v0.45：一致性、Phase 与实施边界
+# Koven v0.46：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -235,7 +235,7 @@ fun area(s: Shape): Int {
 
 ### Litmus 5: 类、值类与伴随对象
 
-演示引用类、内联 `value class`、成员函数与 `companion object` 关联成员：
+演示引用类、内联 `value class`、成员函数与 `companion` 关联成员：
 
 ```kotlin
 package demo.oop
@@ -251,7 +251,7 @@ value class Meter(val value: Int) {
 }
 
 class SystemConfig {
-    companion object {
+    companion {
         const val TIMEOUT_MS: Int = 5000
     }
 }
@@ -383,7 +383,7 @@ fun sumElements(): Int {
 package demo.interop
 
 class BitMasks {
-    companion object {
+    companion {
         const val READ: Int = 1 shl 0
         const val WRITE: Int = 1 shl 1
     }
@@ -430,3 +430,25 @@ v0.45 完整继承 v0.44，仅启用[单文件 Unit 与 import/root 合同](02-n
 `InvalidSsa` 数，二者均降至零；保留原成功能力和真实失败样例，不删除测试、缩小源集合
 或隐藏差异来满足门槛。该一致性不要求内部 ID 或 SSA 文本逐字相等；verifier、资源身份与
 动态释放证据仍各自验收。规范正式启用和实现切换完成分别记录，未完成路径继续记缺陷。
+
+## v0.46 启用边界
+
+v0.46 完整继承 v0.45，仅启用下列规则；具体规则只由相应领域页定义：
+
+| 规则 | 领域页 |
+|---|---|
+| 错误模型、abort 输出合同、`Result` 必须被使用、`Result` 进入内建环境 | [空安全与错误值](09-nullability-errors.md)、[名称与 Package](02-names-files-packages.md#标准环境与允许加载的标准库源) |
+| checked 运算变体、`toXxxOrNull`、字符串插值 | [表达式与运算符](04-expressions-operators.md) |
+| `Equatable`、`Hashable`、`Display`、`Comparable` 与 `==` 操作数规则 | [类型与泛型](03-types-generics.md#值语义能力) |
+| 顶层与关联命名空间只接受 `const val` | [声明与 Callable](05-declarations-callables.md#顶层与关联命名空间的值声明) |
+| 非逃逸闭包可变捕获 | [调用、Lambda 与 Closure](07-calls-lambdas-closures.md#mutating-closure) |
+| `companion { }` 语法 | [Class Family 与成员](08-class-family-members.md#companion-与关联成员) |
+| value class 按名解构、`getOrNull` | [Copyable、布局与构造](11-copyability-layout-construction.md#局部结构化解构)、[集合、索引与解构](12-collections-destructuring.md) |
+| `main` 返回 `Result`、退出码、受限线程与 channel | [程序、Runtime 与标准库](13-program-runtime-standard-library.md) |
+
+unsafe、`extern "C"` 与 `RawPtr` 草图移到 [proposals](../proposals/unsafe-and-ffi-boundary.md)，不再是 v1 的语言承诺。
+
+不启用 `exitProcess`、文本 API 与文件/标准输入输出、`Pair`/`to`、集合高层 API、MoveOnly enum
+消费式匹配、共享内存并发、静态不可变存储，也不改变 v0.45 的两模式一致性要求。
+规范启用不表示上述规则已经实现：未实现的路径必须结构化拒绝，不能伪造事实或把 Deferred
+当成功；新诊断码由实施各项的 Spec 分配。

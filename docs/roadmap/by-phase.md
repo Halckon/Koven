@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：PR #120（D10 统一管线，基于 main c0c5156a，未合并）· Guide v0.45（随 PR #120 启用） · 更新：2026-10-22 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
+基线：PR #120（D10 统一管线，基于 main c0c5156a，未合并）· Guide v0.46 · 更新：2026-10-22 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
 
 只列 v1 范围内条目；● 表示该条目需要在对应 Phase 产出或验收。Phase 定义见 [一致性与实施边界](../guide/15-conformance-and-staging.md)。
 
@@ -53,7 +53,7 @@
 | ☐ 未开始 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | P0 | 需新增 |  |  | ● |  |  |  |  |
 | ☐ 未开始 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | P0 | 需新增 |  |  |  |  | ● | ● |  |
 | ☐ 未开始 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | P0 | — |  |  |  |  |  |  | ● |
-| ▶ 进行中 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | P0 | 需新增 |  |  |  |  |  |  |  |
+| ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | P0 | 需新增 |  |  |  |  |  |  |  |
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | P1 | — |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 | — |  |  |  | ● | ● |  |  |
 | ☐ 未开始 | N01 | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | P2 | 已定义 |  |  | ● | ● | ● |  |  |

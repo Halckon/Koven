@@ -2,11 +2,12 @@
 
 > **性质**：非规范候选索引 · **状态**：未启用 · **读取时机**：任务明确要求评审未来语义时 · **唯一真源**：各 proposal 正文
 
-Proposal 本身不修改现行 v0.45、不批准 Spec，也不代表实现优先级。已选 String.clone 部分
+Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先级。已选 String.clone 部分
 已移入 guide，剩余候选仍未启用；普通开发任务不要读取本目录。
 
 - [v0.44 类型、控制流与基础集合补全](v0.44-language-completion.md)：选定规则已启用，后继候选与实施验收分开
-- [v0.46 v1 待决规则定稿](v0.46-language-decisions.md)：2026-10-22 决策的待启用规则文本，PR #120 合并后启用
+- [v0.46 v1 待决规则定稿](v0.46-language-decisions.md)：规则已由 Guide v0.46 启用，保留范围与验收要求
+- [unsafe 与 FFI 边界](unsafe-and-ffi-boundary.md)：v0.46 从 Guide 13 移出的 `extern`/`RawPtr`/`unsafe` 草图，v2 再议
 - [文本输入与 IO（M1B-b）](text-input-and-io.md)
 - [集合剩余 API 与迭代](collection-api-followups.md)
 - [检测扩展与定向外审（M4）](native-safety-validation.md)
@@ -64,7 +65,7 @@ String Copyable、Map 转换与 v2 interface 值不由此获得启用
 版本号不表示累积继承已经成立；任何未来候选都须明确对现行版本的继承与取代关系。
 启用前按以下顺序收口，每一步保留可审查证据：
 
-1. 逐条对照候选规则与现行 v0.45，列出保留、补充、取代的规则及目标章节；对冲突请求决定。
+1. 逐条对照候选规则与现行 v0.46，列出保留、补充、取代的规则及目标章节；对冲突请求决定。
 2. 明确新版本是否包含其他候选版本。未纳入的候选保持未启用，不能凭版本号隐式合并。
 3. 准备完整的新 guide 与引用更新，并由用户明确启用；在此之前 current 入口仍为现行版本。
 4. 将对应 Spec 重基到启用后的 guide，核对前置 Spec/ADR 与批准依据，再迁移依赖完备的切片到 active。

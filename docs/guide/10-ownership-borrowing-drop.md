@@ -1,8 +1,8 @@
-# Koven v0.45：所有权、借用与析构
+# Koven v0.46：所有权、借用与析构
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审 loan、move、place、drop 与 Transferable 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审 loan、move、place、drop 与 Transferable 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## `Transferable`
 
@@ -30,6 +30,9 @@
     线程同时触碰非原子计数即是数据竞争。这条规则直接对齐 Rust `Rc<T>: !Send` 的结论；
   - `Array<T>` / `List<T>` / `MutableList<T>` 满足 `Transferable` 当且仅当 `T` 满足
     `Transferable`（容器本身独占所有权，规则随元素递归）。
+  - `Sender<T>`、`Receiver<T>` 满足 `Transferable` 当且仅当 `T` 满足；`Thread<T>` 与
+    [mutating closure](07-calls-lambdas-closures.md#mutating-closure) 恒不满足（线程 API 见
+    [受限线程](13-program-runtime-standard-library.md#线程channel-与-move-closure)）。
   - 与 `Copyable` 一样，`Transferable` 由编译器内部标识识别，可用作泛型上界
     （`<T : Transferable>`），v1 不提供用户手动实现、否定或覆盖的语法。
 - v1 的跨线程数据竞争防护只使用编译器绑定的 `Transferable` 能力；`Shareable` 不属于

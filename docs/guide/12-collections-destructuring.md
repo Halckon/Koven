@@ -1,8 +1,8 @@
-# Koven v0.45：集合、索引与解构
+# Koven v0.46：集合、索引与解构
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 顺序容器的表示与索引语义
 
@@ -149,6 +149,10 @@ owner 析构时按高索引到低索引的顺序恰好析构每个元素，随�
 与型变、`dyn` 一样属于明确延后而非无限期悬空的特性。具体产生式与
 生命周期语法仍留给到时的独立 guide，本条不提前批准任何语法。
 
+三种顺序容器另提供编译器绑定的成员 `getOrNull(index: Int): T?`，仅当 `T` 满足 `Copyable` 时可用：
+index 在 `0 until size` 内时返回该元素的复制值，否则返回 `null`，不 abort。receiver 以 Borrow
+方式读取，index 求值一次。MoveOnly 元素的不 abort 访问留待后续借用访问设计。
+
 普通值读取以及调用实参中借用 / 独占借用索引先按源码顺序对 receiver 和 index 各求值
 一次，紧接着做边界检查，再形成绑定到 receiver 有效期的元素 place。`container[i] = value`
 是唯一例外，它不在 RHS 之前建立元素 place 或做边界检查，而是唯一遵循下文的替换顺序：
@@ -191,8 +195,9 @@ v1 不提供顺序容器 `getOrNull`。当前类型系统既不能用普通 `T?`
 `Map<K, V>` 与 `MutableMap<K, V>` 是编译器预声明的独占 owning 键值映射容器。
 
 1. **键能力与等价约束 (`Hashable`)**：
-   - 键类型 `K` 必须满足内建 capability `Hashable`；
-   - 标量与内建类型 `Int`、`Boolean`、`Char`、`String` 内建满足 `Hashable`；
+   - 键类型 `K` 必须满足 `Hashable`（满足条件见[值语义能力](03-types-generics.md#值语义能力)，
+     `Hashable` 蕴含 `Equatable`）；
+   - 八种整数、`Boolean`、`Char`、`String` 内建满足 `Hashable`；`Float`/`Double` 不满足；
    - `Hashable` 与 `Copyable` 正交：`String` 虽为 `MoveOnly`，仍可稳定按其 UTF-8 字节进行确定性哈希与相等比较；
    - 普通 `class`、`Box<T>`、`Rc<T>` 默认不满足 `Hashable`。
 2. **容器角色与所有权**：
@@ -289,8 +294,9 @@ destructuring_binding  = Identifier ;
 仅当 block / lambda body dispatch 已消费 `val` 后看到 `(` 才提交解构。绑定列表至少一项，
 只接受普通 Identifier；即使 Lexer 把源码拼写恰好为 `_` 的 token 归入 Identifier，解构 parser
 也必须按原始 source slice 将它拒绝。`var`、`const val`、`_`、嵌套 pattern、binding 类型标注、
-整个 pattern 的类型标注与 trailing comma 均不支持。重复名称和分量数量是否完整由 Phase 2
-按源类型诊断。initializer 在 AST 中只出现一个 ExpressionId，从而锁定“右值只求值一次”；
+整个 pattern 的类型标注与 trailing comma 均不支持。value class 源按字段名匹配绑定（见
+[局部结构化解构](11-copyability-layout-construction.md#局部结构化解构)）；重复名称、未知名称和
+分量是否完整由 Phase 2 按源类型诊断。initializer 在 AST 中只出现一个 ExpressionId，从而锁定“右值只求值一次”；
 复制式或消费式语义仍由 Phase 2 / 3 决定。
 
 AST 唯一新增以下 statement variant；不得用等价 pattern table、`Item::Variable`、多个可选
@@ -347,26 +353,25 @@ token 不作同步点，Lexer poison / terminal 根因抑制同 Span 与同 clos
 
 
 ```kotlin
-value class Pair<A, B>(val first: A, val second: B)
+value class Channel<T>(val sender: Sender<T>, val receiver: Receiver<T>)
 
-fun <T> channel(): Pair<Sender<T>, Receiver<T>> { ... }
+fun <T> channel(): Channel<T> { ... }
 
-val (sender, receiver) = channel<Int>()
+val (sender, receiver) = channel<Int>()   // 按字段名匹配；写成 (receiver, sender) 同样合法
 ```
 
 该示例只适用于 block / lambda body 内的局部 `val` 解构；独立声明入口和文件顶层继续以
 unsupported destructuring context 拒绝。未来若开放其他上下文，必须复用本节“一次求值、
 完整分量、复制或原子消费”的语义，并先更新现行规范。
 
-`Pair<A, B>` 对任意合法的 `A`、`B` 都可以实例化，不要求类型实参满足 `Copyable`。它仅在
-`A`、`B` 都满足 `Copyable` 时自动满足 `Copyable`，因此上面的 channel 返回值合法但不可
-复制。
+`Channel<T>` 对任意合法的 `T` 都可以实例化；它仅在全部字段满足 `Copyable` 时自动满足
+`Copyable`，而 `Sender`/`Receiver` 不可复制，因此上面的 channel 返回值合法但不可复制。
 
-解构沿用 Kotlin 风格的 `componentN()` 命名约定。对所有类型，`val (a, b) = e` 都必须先把
+对所有类型，`val (a, b) = e` 都必须先把
 `e` **只求值一次**并保存为编译器内部临时值；带副作用的右值不得因分量数量重复执行。随后
 按源类型分成两条互不混用的规则。
 
-对 `value class`，编译器使用内建结构解构，不展开为普通方法调用：
+对 `value class`，编译器使用按字段名匹配的内建结构解构，不展开为普通方法调用：
 
 1. 编译器把所有分量绑定作为一次结构化操作检查。若源类型满足 `Copyable`，绑定获得分量
    的复制，源值仍可使用。
@@ -375,16 +380,13 @@ unsupported destructuring context 拒绝。未来若开放其他上下文，必�
    lowering 的原子边界，不允许观察或使用半解构状态。
 3. v1 的消费式结构解构必须覆盖主构造器的全部分量，并且每个分量恰好绑定一次；部分结构
    解构不支持。占位、跳过或丢弃分量的语法尚未定义，不得自行把它们解释为隐式移动或析构。
-   `val (a, b) = pair` 对两字段 `Pair` 是完整解构。
+   对字段为 `first`、`second` 的 value class，`val (first, second) = pair` 与
+   `val (second, first) = pair` 都是完整解构，`val (a, b) = pair` 是未知名称错误。
 
-- 编译器按 `value class` 主构造参数的声明顺序提供结构分量，逻辑名称为 `component1()`、
-  `component2()` 等；完整解构可使用上述编译器内建的结构化操作，不要求先生成一串普通
-  方法调用。
-- 对单独的 `x.componentN()` 调用：只有对应分量类型满足 `Copyable` 时，自动分量才可从
-  `x` 复制返回。不可复制分量不能通过一次独立调用从聚合中移出；应使用消费式结构解构，
-  防止产生部分移动状态。
+- `value class` 不自动提供 `componentN()`；读取单个字段使用普通字段访问。不可复制字段不能
+  通过字段访问从聚合中移出；应使用消费式结构解构，防止产生部分移动状态。
 - 普通字段访问遵循[所有权规则](10-ownership-borrowing-drop.md)的 place 规则，同样不能绕过上述限制移出不可复制分量。
-- 非 `value class` 若要支持解构，需要显式提供相应 `componentN()` 方法。在右值求值一次
+- 非 `value class` 若要支持解构，需要显式提供相应 `componentN()` 方法，并按位置匹配。在右值求值一次
   后，编译器按绑定顺序对隐藏临时值各调用一次 `componentN()`；返回值和 receiver 的所有权
   完全按这些普通方法的签名与调用规则检查。它不自动复制或消费整个源值，也不获得
   `value class` 的原子聚合拆分能力；若前一个调用的所有权效果使后续调用非法，应产生正常

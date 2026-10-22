@@ -27,7 +27,7 @@
 | 类继承 | 无实现继承；只有 interface、`super<X>` 消歧与窄化 `by field` 委托 | [Class Family](../guide/08-class-family-members.md) |
 | 分发 | v1 无 `dyn`，interface 单态化静态分发 | [一致性](../guide/15-conformance-and-staging.md#动态分发与匿名对象边界) |
 | `const val` | 顶层 / `object` / companion；封闭类型；无运行时地址、owner、init guard 或 drop；每次 use 重新物化 | [关联常量](../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
-| `object` / companion | body 只允许 `const val` 与函数；不分配 singleton、不生成 init guard、无退出析构 | [类型](../guide/03-types-generics.md)、[Companion](../guide/08-class-family-members.md#companion-object-与关联成员) |
+| `object` / companion | body 只允许 `const val` 与函数；不分配 singleton、不生成 init guard、无退出析构 | [类型](../guide/03-types-generics.md)、[Companion](../guide/08-class-family-members.md#companion-与关联成员) |
 | closure capture | 顶层函数/常量和具名 object 是全局身份，不进入环境 | [Lambda 与 Closure](../guide/07-calls-lambdas-closures.md) |
 | 析构分类 | 资源类型（声明 `deinit` 或递归含资源字段）与纯内存类型分轨 | [所有权](../guide/10-ownership-borrowing-drop.md) |
 | 线程能力 | v1 只有 `Transferable`；`Shareable` 推迟到 v2；非原子 `Rc` 永不 Transferable | [所有权](../guide/10-ownership-borrowing-drop.md)、[线程候选](thread-transfer.md) |

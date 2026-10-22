@@ -1,8 +1,8 @@
-# Koven v0.45：类型与泛型
+# Koven v0.46：类型与泛型
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 基础类型与类型种类
 
@@ -82,13 +82,48 @@ body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`
   均未定义。类型检查器不得接受词法规范没有定义的拼写补齐这些能力。
 - `!` 只接受 `Boolean`；一元 `+` / `-` 只接受数值 builtin。`* / % -` 与数值 `+` 要求两侧
   已定型为同一数值类型并返回该类型；`String + String` 返回 `String`，不提供隐式
-  `String + Any`。`< > <= >=` 接受同型数值或同型 `Char`，返回 `Boolean`；`==` / `!=`
-  接受相同类型、`T` 与 `T?` 或任一侧 `Nothing`，返回 `Boolean`；`&&` / `||` 只接受
+  `String + Any`。`< > <= >=` 接受同型且满足 `Comparable` 的操作数，返回 `Boolean`；
+  `==` / `!=` 接受同型且满足 `Equatable` 的 `T`、`T` 与 `T?`，或任一侧为 `Nothing`/`Nothing?`，
+  返回 `Boolean`，两侧均以 Borrow 方式读取，不移动、不复制 MoveOnly 值（能力见
+  [值语义能力](#值语义能力)）；`&&` / `||` 只接受
   `Boolean`。不满足操作数契约使用 L0085，primary 为运算符，左右 operand 作为 label。
 - Elvis `left ?: right` 要求左侧为 `T?` 或 `Nothing?`，并以 expected type 检查右侧可适配
   `T`；结果为 `T`。`!!` 要求 nullable operand 并返回非空 `T`。`to`、cast/type-test、
   尚未由专门合同覆盖的 assignment、member、index、call/callable reference 与 postfix `?` 需要 nominal、place、
   callable 或 `Result` 信息，基础类型检查 只遍历 child 并将自身结果标为 deferred，不臆造类型。
+
+### 值语义能力
+
+`Equatable`、`Hashable` 与 `Comparable` 是编译器推导的能力，用户不能手动实现；`Hashable`
+蕴含 `Equatable`。`Display` 是预声明 interface：
+
+```kotlin
+interface Display { fun toString(): String }
+```
+
+内建类型已实现 `Display`，用户类型通过普通 interface 实现提供；`toString` 的 receiver 为默认
+Borrow。四者的满足条件：
+
+| 类型 | Equatable | Hashable | Display | Comparable |
+|---|---|---|---|---|
+| 八种整数、`Boolean`、`Char`、`String` | ✓ | ✓ | ✓ | 整数、`Char`、`String` |
+| `Unit` | ✓ | ✓ | ✗ | ✗ |
+| `Float`、`Double` | ✓（IEEE 754，`NaN != NaN`） | ✗ | ✓ | ✓ |
+| `IntRange`、`LongRange` | ✓（升序元素序列相等） | ✓ | ✗ | ✗ |
+| `T?` | `T` 满足时 | `T` 满足时 | ✗ | ✗ |
+| `value class` | 全部字段满足时自动满足，按声明顺序逐字段比较 | 全部字段满足时 | 显式实现时 | ✗ |
+| `enum class` | 全部变体的全部 payload 满足时：先比较变体，再逐字段比较 | 同左 | 显式实现时 | ✗ |
+| `Box<T>` | `T` 满足时，比较内部值 | `T` 满足时 | ✗ | ✗ |
+| `Array<T>`、`List<T>`、`MutableList<T>` | `T` 满足时：长度相同且逐元素相等 | ✗ | ✗ | ✗ |
+| 普通 `class` | ✗ | ✗ | 显式实现时 | ✗ |
+| `Rc<T>`、`Map`/`MutableMap`、函数类型 | ✗ | ✗ | ✗ | ✗ |
+
+- 泛型上界可以写 `<T : Equatable>`、`<T : Hashable>`、`<T : Comparable>`、`<T : Display>`，在
+  泛型体内作为能力证明；未约束的 `T` 不得假设满足任何一项。泛型类型按实际类型实参求值。
+- 普通 `class` 的 `==` 是类型错误（L0085）；需要比较时比较具体字段或提供显式方法。
+- `String` 的 `Comparable` 按 UTF-8 字节序列的字典序比较（等价于 Unicode 标量序），不做
+  locale 或大小写折叠；`Float`/`Double` 的比较遵守 IEEE 754，含 `NaN` 的比较结果均为 `false`。
+- 这些能力不改变 `Copyable`、`Transferable` 的判定，也不引入运行时类型信息。
 
 ### 简单变量赋值与整数 Range 身份
 
@@ -215,7 +250,7 @@ body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`
 - `this` 在 class/value/enum/object 实例成员中是当前 `C<T...>`；在 interface 默认方法中是
   受当前 interface 约束但保持静态分发的 `Self`，不产生 interface runtime value。companion
   没有 `this`；其 body 内的 receiver 边界由现行
-  [Companion Object 与关联成员](08-class-family-members.md#companion-object-与关联成员)规则定义。
+  [Companion 与关联成员](08-class-family-members.md#companion-与关联成员)规则定义。
 - `this` 只能引用当前真实 receiver；顶层函数、顶层 initializer 与 companion 函数中没有
   receiver 时使用 L0166，primary 精确覆盖 `this`，并保留 Error 供后续诊断恢复。不能把
   非法上下文当作尚未完成的合法 `ThisType`。companion 常量同一 token 已有 L0153 时不重复
@@ -309,7 +344,7 @@ L0101/L0105。独立的另一条合法 interface requirement 仍照常检查，�
 
 名义图是 callable、`when`、Copyable/解构和 ownership/codegen 的共享稳定输入。调用表达式、
 构造器与 member access 必须消费 typed identity，不得重解析源码名称。v0.37 保留
-[Companion Object 与关联成员](08-class-family-members.md#companion-object-与关联成员)所述的关联
+[Companion 与关联成员](08-class-family-members.md#companion-与关联成员)所述的关联
 命名空间、无 `this` 和声明/Parser 规则；常量阶段的现行范围见
 [一致性与实施边界](15-conformance-and-staging.md#const-val-的阶段交接)。
 
