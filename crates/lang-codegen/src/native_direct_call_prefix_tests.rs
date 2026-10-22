@@ -365,8 +365,10 @@ fn break_destination(
         .iter()
         .filter(|(_, node)| {
             let span = node.span();
-            matches!(node.payload(), lang_frontend::parser::Statement::While { .. })
-                && span.source_id() == exit.source_id()
+            matches!(
+                node.payload(),
+                lang_frontend::parser::Statement::While { .. }
+            ) && span.source_id() == exit.source_id()
                 && scope.start() <= span.start()
                 && span.end() <= scope.end()
                 && span.start() <= exit.start()
@@ -390,8 +392,7 @@ fn break_destination(
     let [header] = headers.as_slice() else {
         panic!("one actual while header")
     };
-    let TerminatorKind::Conditional { when_false, .. } =
-        &header.terminator.as_ref().unwrap().kind
+    let TerminatorKind::Conditional { when_false, .. } = &header.terminator.as_ref().unwrap().kind
     else {
         unreachable!("the header was selected by its actual terminator")
     };
@@ -403,7 +404,10 @@ fn break_destination(
         panic!("the actual while-false exit branches to the shared break join")
     };
     assert_ne!(edge.target, header.id);
-    assert_eq!(function.block(edge.target).unwrap().origin, Origin::Source(span));
+    assert_eq!(
+        function.block(edge.target).unwrap().origin,
+        Origin::Source(span)
+    );
     (span, edge.target)
 }
 
@@ -583,9 +587,11 @@ impl Transaction<'_> {
                     .instructions
                     .iter()
                     .map(|id| self.function.instruction(*id).unwrap())
-                    .filter(|instruction| matches!(instruction.operation,
+                    .filter(|instruction| {
+                        matches!(instruction.operation,
                         Operation::BorrowEnd { loan }
-                            if self.outer_loans.contains(&EntityId::Loan(loan))))
+                            if self.outer_loans.contains(&EntityId::Loan(loan)))
+                    })
                     .collect::<Vec<_>>();
                 let [end] = ends.as_slice() else {
                     panic!("the break edge ends its exact enclosing transaction loan once")
