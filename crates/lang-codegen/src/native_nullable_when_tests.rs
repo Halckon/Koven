@@ -781,9 +781,11 @@ fn assert_ordinary_link_output(
             crate::llvm::native_target_triple().expect("supported native host"),
             "aarch64-apple-darwin"
         );
+        // Resolve aliases of the same already-emitted object, not warning text.
+        let canonical = object.canonicalize().expect("actual emitted object");
         let expected = format!(
             "ld: warning: no platform load command found in '{}', assuming: macOS\n",
-            object.display()
+            canonical.display()
         );
         assert_eq!(
             linked.stderr,

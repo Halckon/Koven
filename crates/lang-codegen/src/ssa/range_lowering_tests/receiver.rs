@@ -277,8 +277,13 @@ fn assert_cfg_frontier(body: &str, fragment: &str, unit_frontier: UnitCfgFrontie
                     panic!("one original source unit")
                 };
                 assert_eq!(source_unit.source_id(), source);
-                assert_count_break_products(&sources, &parsed, source_unit.id(), owned.ownership());
-                assert_count_break_structure(&sources, &program);
+                let receiver_begin_span = assert_count_break_products(
+                    &sources,
+                    &parsed,
+                    source_unit.id(),
+                    owned.ownership(),
+                );
+                assert_count_break_structure(&sources, &program, receiver_begin_span);
                 verify_program(&program).unwrap();
                 crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
             }
@@ -292,7 +297,7 @@ fn assert_count_break_products(
     parsed: &lang_frontend::parser::ParsedFile,
     source_unit: lang_frontend::name_resolution::SourceUnitId,
     owned: &lang_frontend::ownership_checking::CompilationUnitOwnership,
-) {
+) -> lang_frontend::source::Span {
     use lang_frontend::ownership_checking::{
         UnitDropTarget, UnitIterationCleanupAction as Action, UnitIterationExitKind as Exit,
         UnitLoanTarget, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
@@ -331,6 +336,7 @@ fn assert_count_break_products(
         .filter(|exit| matches!(exit.kind(), Exit::Break(_) | Exit::Exhaustion))
         .collect::<Vec<_>>();
     assert_eq!(exits.len(), 2);
+    let mut receiver_begin_span = None;
     for exit in exits {
         let actions = exit.actions();
         assert_eq!(owned.iteration_cleanup_at(exit.point()), Some(actions));
@@ -375,6 +381,14 @@ fn assert_count_break_products(
                     panic!("source receiver expression")
                 };
                 assert_eq!(text(receiver), "source");
+                let span = parsed
+                    .ast()
+                    .expressions()
+                    .get(receiver.expression())
+                    .unwrap()
+                    .span();
+                assert_eq!(fact.begin_span(), span);
+                assert!(receiver_begin_span.replace(span).is_none());
                 assert_eq!(fact.kind(), UnitReceiverOwnershipKind::SharedLoan);
                 assert!(matches!(
                     fact.target(),
@@ -387,6 +401,7 @@ fn assert_count_break_products(
             _ => unreachable!(),
         }
     }
+    receiver_begin_span.expect("one original receiver loan begin")
 }
 
 fn count_break_edges(function: &Function) -> Vec<(BlockId, &Edge)> {
@@ -493,7 +508,11 @@ fn count_break_instruction(
     instruction
 }
 
-fn assert_count_break_structure(sources: &SourceMap, program: &Program) {
+fn assert_count_break_structure(
+    sources: &SourceMap,
+    program: &Program,
+    receiver_begin_span: lang_frontend::source::Span,
+) {
     let scans = program
         .modules
         .iter()
@@ -550,10 +569,9 @@ fn assert_count_break_structure(sources: &SourceMap, program: &Program) {
     let receiver_begin = count_break_instruction(function, |instruction| {
         instruction.id != provider_begin.id && loan_from_owner(instruction, seed)
     });
-    assert!(origin_is(
-        &receiver_begin.origin,
-        "source.prefix(if(stop){break}else{1})"
-    ));
+    // Named receiver BorrowBegin uses its checked loan's receiver-expression span,
+    // not the full call span used by RootPlace and the eventual RangeCall.
+    assert_eq!(receiver_begin.origin, Origin::Source(receiver_begin_span));
     let receiver = receiver_begin.results[0];
     let element_place = count_break_instruction(function, |instruction| {
         matches!(
