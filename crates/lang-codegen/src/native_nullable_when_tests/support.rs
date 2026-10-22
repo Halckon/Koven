@@ -379,7 +379,8 @@ pub(super) fn aliases(function: &Function, seed: EntityId) -> BTreeSet<EntityId>
     }
     let seed_roots = &roots[&seed];
     assert_eq!(
-        seed_roots.len(), 1,
+        seed_roots.len(),
+        1,
         "one grounded real origin for seed {seed:?}: {seed_roots:?}"
     );
     let root = *seed_roots.first().unwrap();
@@ -403,7 +404,9 @@ pub(super) fn aliases(function: &Function, seed: EntityId) -> BTreeSet<EntityId>
             "transport has actual incoming edges"
         );
         assert!(
-            predecessors.iter().all(|argument| found.contains(argument) && &roots[argument] == seed_roots),
+            predecessors
+                .iter()
+                .all(|argument| found.contains(argument) && &roots[argument] == seed_roots),
             "every real incoming edge must have the same grounded origin; function={:?}; seed={seed:?}; root={root:?}; value={value:?}; predecessors={predecessors:?}; roots={roots:#?}",
             function.id
         );
