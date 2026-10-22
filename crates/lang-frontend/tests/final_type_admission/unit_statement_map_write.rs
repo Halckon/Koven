@@ -9,9 +9,8 @@ use lang_frontend::{
 };
 
 // These bytes are copied unchanged from the existing native failure sources.
-const ORIGINAL_UNIT: &str = include_str!(
-    "../fixtures/unit-assignment-admission-0341/unit_array_read_after_if.ko"
-);
+const ORIGINAL_UNIT: &str =
+    include_str!("../fixtures/unit-assignment-admission-0341/unit_array_read_after_if.ko");
 const ORIGINAL_MAPS: [&str; 2] = [
     include_str!("../fixtures/unit-assignment-admission-0341/map_copyable_put_bindings.ko"),
     include_str!("../fixtures/unit-assignment-admission-0341/map_put.ko"),
@@ -52,7 +51,9 @@ fn with_clean_unit(
         .expect("these ordinary sources retain their Basic capability");
     assert!(owned.is_compatible_with(&typed));
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    owned.validate().expect("original ownership facts must complete");
+    owned
+        .validate()
+        .expect("original ownership facts must complete");
 }
 
 fn assert_integer_assignments(
@@ -63,7 +64,13 @@ fn assert_integer_assignments(
 ) {
     let mut found = 0;
     for (expression, node) in file.ast().expressions().iter() {
-        let Expression::Assignment { target, operator, value, .. } = node.payload() else {
+        let Expression::Assignment {
+            target,
+            operator,
+            value,
+            ..
+        } = node.payload()
+        else {
             continue;
         };
         if *operator == AssignmentOperator::Assign {
@@ -73,16 +80,23 @@ fn assert_integer_assignments(
         let expression = UnitExpressionId::new(unit, expression);
         let target = UnitExpressionId::new(unit, *target);
         let value = UnitExpressionId::new(unit, *value);
-        let descriptor = typed.assignment(expression).expect("real compound producer fact");
+        let descriptor = typed
+            .assignment(expression)
+            .expect("real compound producer fact");
         assert_eq!(descriptor.expression(), expression);
         assert_eq!(descriptor.target(), target);
         assert_eq!(descriptor.value(), value);
         assert_eq!(descriptor.operator(), *operator);
         assert!(descriptor.falls_through());
-        assert_eq!(typed.expression_type(target), Some(descriptor.target_type()));
+        assert_eq!(
+            typed.expression_type(target),
+            Some(descriptor.target_type())
+        );
         assert_eq!(typed.expression_type(value), Some(descriptor.target_type()));
         assert_eq!(
-            typed.expression_type(expression).and_then(|ty| typed.types().get(ty)),
+            typed
+                .expression_type(expression)
+                .and_then(|ty| typed.types().get(ty)),
             Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
         );
     }
@@ -101,8 +115,14 @@ fn original_unit_storage_statement_completes_both_unit_input_modes() {
 #[test]
 fn integer_statement_operators_publish_storage_typed_facts() {
     for (ty, literal) in [
-        ("Byte", "1"), ("Short", "1"), ("Int", "1"), ("Long", "1"),
-        ("UByte", "1u"), ("UShort", "1u"), ("UInt", "1u"), ("ULong", "1u"),
+        ("Byte", "1"),
+        ("Short", "1"),
+        ("Int", "1"),
+        ("Long", "1"),
+        ("UByte", "1u"),
+        ("UShort", "1u"),
+        ("UInt", "1u"),
+        ("ULong", "1u"),
     ] {
         let text = format!(
             "fun entry(): Unit {{ var number: {ty} = {literal}; \
@@ -132,17 +152,23 @@ fn assert_rhs_rejection(text: &str, rhs: &str, ordinary_assignment: bool) {
     let (environment, types) = standard_environments();
     let index = index_compilation_unit(&sources, &inputs).unwrap();
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap().validate().unwrap();
+        .unwrap()
+        .validate()
+        .unwrap();
     let raw = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     if ordinary_assignment {
         assert!(raw.assignments().is_empty());
     }
-    let [diagnostic] = raw.diagnostics() else { panic!("{:?}", raw.diagnostics()) };
+    let [diagnostic] = raw.diagnostics() else {
+        panic!("{:?}", raw.diagnostics())
+    };
     assert_eq!(diagnostic.code().to_string(), "L0084");
     assert_eq!(sources.slice(diagnostic.primary_span()), Ok(rhs));
     let Err(FinalTypeAdmissionError::Diagnostics(actual)) =
         complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw)
-    else { panic!("the original source mismatch must reject before ownership") };
+    else {
+        panic!("the original source mismatch must reject before ownership")
+    };
     assert_eq!(actual, raw.diagnostics());
 }
 
@@ -157,16 +183,26 @@ fn compound_rhs_mismatch_has_no_success_descriptor() {
 fn assert_map_write_roles(file: &ParsedFile, typed: &CompilationUnitTypes, unit: SourceUnitId) {
     let mut found = 0;
     for (expression, node) in file.ast().expressions().iter() {
-        let Expression::Assignment { target, value, operator, .. } = node.payload() else {
+        let Expression::Assignment {
+            target,
+            value,
+            operator,
+            ..
+        } = node.payload()
+        else {
             continue;
         };
         let Expression::Index { receiver, index } =
             file.ast().expressions().get(*target).unwrap().payload()
-        else { continue };
+        else {
+            continue;
+        };
         found += 1;
         assert_eq!(*operator, AssignmentOperator::Assign);
         let target = UnitExpressionId::new(unit, *target);
-        let put = typed.map_put(target).expect("the original write descriptor");
+        let put = typed
+            .map_put(target)
+            .expect("the original write descriptor");
         assert_eq!(put.expression(), target);
         assert_eq!(put.receiver(), UnitExpressionId::new(unit, *receiver));
         assert_eq!(put.key(), UnitExpressionId::new(unit, *index));
@@ -174,7 +210,8 @@ fn assert_map_write_roles(file: &ParsedFile, typed: &CompilationUnitTypes, unit:
         assert!(typed.map_get(target).is_none(), "put is not a query");
         assert_eq!(typed.expression_type(target), None, "no invented read type");
         assert_eq!(
-            typed.expression_type(UnitExpressionId::new(unit, expression))
+            typed
+                .expression_type(UnitExpressionId::new(unit, expression))
                 .and_then(|ty| typed.types().get(ty)),
             Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
         );
@@ -217,39 +254,69 @@ fn bare_field_compound_keeps_its_real_projection_and_deferred_boundary() {
     for memory in [true, false] {
         let mut sources = SourceMap::new();
         let (source, file) = parsed(&mut sources, "main.ko", text);
-        let inputs = [if memory { SourceUnitInput::memory_document(source, &file) }
-            else { SourceUnitInput::new("root", "main.ko", source, &file) }];
+        let inputs = [if memory {
+            SourceUnitInput::memory_document(source, &file)
+        } else {
+            SourceUnitInput::new("root", "main.ko", source, &file)
+        }];
         let (environment, types) = standard_environments();
         let index = index_compilation_unit(&sources, &inputs).unwrap();
         let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-            .unwrap().validate().unwrap();
+            .unwrap()
+            .validate()
+            .unwrap();
         let unit = names.names().index().source_units()[0].id();
         let raw = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
         assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
-        let assignments = file.ast().expressions().iter().filter(|(_, node)| {
-            matches!(node.payload(), Expression::Assignment { .. })
-        }).collect::<Vec<_>>();
-        let [(id, node)] = assignments.as_slice() else { panic!("one original assignment") };
-        let Expression::Assignment { target, .. } = node.payload() else { unreachable!() };
+        let assignments = file
+            .ast()
+            .expressions()
+            .iter()
+            .filter(|(_, node)| matches!(node.payload(), Expression::Assignment { .. }))
+            .collect::<Vec<_>>();
+        let [(id, node)] = assignments.as_slice() else {
+            panic!("one original assignment")
+        };
+        let Expression::Assignment { target, .. } = node.payload() else {
+            unreachable!()
+        };
         let expression = UnitExpressionId::new(unit, *id);
         let target = UnitExpressionId::new(unit, *target);
-        let projection = raw.aggregate_projection(target).expect("real bare This field");
+        let projection = raw
+            .aggregate_projection(target)
+            .expect("real bare This field");
         assert_eq!(projection.expression(), target);
-        assert!(matches!(projection.receiver(),
-            lang_frontend::type_checking::UnitAggregateProjectionReceiver::This(_)));
-        assert_eq!(projection.kind(), lang_frontend::type_checking::UnitAggregateProjectionKind::Field);
+        assert!(matches!(
+            projection.receiver(),
+            lang_frontend::type_checking::UnitAggregateProjectionReceiver::This(_)
+        ));
+        assert_eq!(
+            projection.kind(),
+            lang_frontend::type_checking::UnitAggregateProjectionKind::Field
+        );
         let field = projection.field();
         let symbol = &names.names().source_units()[field.source_unit().index()]
-            .resolution().symbols()[field.symbol().index()];
-        assert_eq!(symbol.kind(), lang_frontend::name_resolution::SymbolKind::Field);
+            .resolution()
+            .symbols()[field.symbol().index()];
+        assert_eq!(
+            symbol.kind(),
+            lang_frontend::name_resolution::SymbolKind::Field
+        );
         assert_eq!(sources.slice(symbol.span()), Ok("number"));
         assert!(raw.assignment(expression).is_none());
-        assert_eq!(raw.expression_type(expression).and_then(|ty| raw.types().get(ty)),
-            Some(&UnitTypeKind::Deferred(DeferredReason::Assignment)));
+        assert_eq!(
+            raw.expression_type(expression)
+                .and_then(|ty| raw.types().get(ty)),
+            Some(&UnitTypeKind::Deferred(DeferredReason::Assignment))
+        );
         let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
             complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw)
-        else { panic!("bare field remains outside this root statement slice") };
-        let [diagnostic] = diagnostics.as_slice() else { panic!("{diagnostics:?}") };
+        else {
+            panic!("bare field remains outside this root statement slice")
+        };
+        let [diagnostic] = diagnostics.as_slice() else {
+            panic!("{diagnostics:?}")
+        };
         assert_eq!(diagnostic.code().to_string(), "L0165");
         assert_eq!(diagnostic.primary_span(), node.span());
         assert_eq!(sources.slice(diagnostic.primary_span()), Ok("number += 2"));
