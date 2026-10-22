@@ -5,16 +5,37 @@ use std::collections::BTreeMap;
 use crate::{
     ast::ExpressionId,
     name_resolution::SourceUnitId,
-    parser::{BinaryOperator, Expression},
+    parser::{BinaryOperator, Expression, LiteralKind},
     type_checking::{
-        CompilationUnitTypeError, UnitNonNullUseDescriptor, UnitNullComparisonDescriptor,
-        UnitTypeId, UnitTypeKind,
+        CompilationUnitTypeError, TypeCheckingError, UnitNonNullUseDescriptor,
+        UnitNullComparisonDescriptor, UnitTypeId, UnitTypeKind,
     },
 };
 
 use super::{BodyChecker, UnitExpressionId, flow::ConditionFacts, flow::FlowKey};
 
 impl BodyChecker<'_> {
+    /// Comparison-only syntax classification; do not alter container inference.
+    pub(super) fn is_null_comparison_literal(
+        &self,
+        source: SourceUnitId,
+        mut expression: ExpressionId,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        loop {
+            let node = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(expression)
+                .map_err(TypeCheckingError::from)?;
+            match node.payload() {
+                Expression::Group { expression: inner } => expression = *inner,
+                Expression::Literal(LiteralKind::Null) => return Ok(true),
+                _ => return Ok(false),
+            }
+        }
+    }
+
     // Keep the read narrowed; only the literal null receives storage's expected type.
     pub(super) fn null_comparison_expected(
         &self,
@@ -116,8 +137,8 @@ impl BodyChecker<'_> {
             return;
         }
         let candidate = match (
-            self.is_null_literal(source, *left),
-            self.is_null_literal(source, *right),
+            self.is_null_comparison_literal(source, *left),
+            self.is_null_comparison_literal(source, *right),
         ) {
             (Ok(true), Ok(false)) => *right,
             (Ok(false), Ok(true)) => *left,
@@ -160,8 +181,8 @@ impl BodyChecker<'_> {
         right: ExpressionId,
     ) -> Result<ConditionFacts, CompilationUnitTypeError> {
         let candidate = match (
-            self.is_null_literal(source, left)?,
-            self.is_null_literal(source, right)?,
+            self.is_null_comparison_literal(source, left)?,
+            self.is_null_comparison_literal(source, right)?,
         ) {
             (true, false) => right,
             (false, true) => left,

@@ -167,8 +167,8 @@ impl BodyChecker<'_> {
             });
         }
         let equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
-        let left_null = equality && self.is_null_literal(source, left)?;
-        let right_null = equality && self.is_null_literal(source, right)?;
+        let left_null = equality && self.is_null_comparison_literal(source, left)?;
+        let right_null = equality && self.is_null_comparison_literal(source, right)?;
         let (left_result, right_result) = if left_null && !right_null {
             let right_result = self.check_expression(source, right, None, None, return_type)?;
             let expected = self.null_comparison_expected(source, right, right_result.ty);
