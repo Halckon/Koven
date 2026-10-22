@@ -27,12 +27,22 @@ pub(super) struct Selection {
     pub types: Vec<usize>,
     pub receivers: Vec<ExpressionId>,
 }
+/// A selected write operation, not a value-producing Map query.
+pub(super) struct MapWriteTarget {
+    pub receiver: ExpressionId,
+    pub key: ExpressionId,
+    pub value: ExpressionId,
+    pub key_type: usize,
+    pub value_type: usize,
+    pub coherent: bool,
+}
 pub(super) trait Facts {
     type Symbol: Copy + Ord;
     fn expression_type(&self, expression: ExpressionId) -> Option<usize>;
     fn type_ref_type(&self, type_ref: TypeRefId) -> Option<usize>;
     fn shape(&self, ty: usize) -> Option<Shape>;
     fn selection(&self, expression: ExpressionId) -> Option<Selection>;
+    fn map_write_target(&self, target: ExpressionId) -> Option<MapWriteTarget>;
     fn valid_map_consume(
         &self,
         _sources: &SourceMap,
@@ -351,6 +361,25 @@ macro_rules! shape {
     };
 }
 impl Facts for Single<'_> {
+    fn map_write_target(&self, target: ExpressionId) -> Option<MapWriteTarget> {
+        let put = self.typed.map_put(target)?;
+        let receiver = self
+            .typed
+            .expression_type(put.receiver())
+            .and_then(|ty| self.typed.types().get(ty));
+        Some(MapWriteTarget {
+            receiver: put.receiver(),
+            key: put.key(),
+            value: put.value(),
+            key_type: put.key_type().index(),
+            value_type: put.value_type().index(),
+            coherent: put.expression() == target
+                && matches!(receiver,
+                    Some(TypeKind::Intrinsic {
+                        constructor: IntrinsicTypeConstructor::MutableMap, arguments
+                    }) if arguments.as_slice() == [put.key_type(), put.value_type()]),
+        })
+    }
     type Symbol = SymbolId;
     fn valid_map_consume(
         &self,
@@ -500,6 +529,29 @@ impl Facts for Single<'_> {
     }
 }
 impl Facts for Unit<'_> {
+    fn map_write_target(&self, target: ExpressionId) -> Option<MapWriteTarget> {
+        let id = UnitExpressionId::new(self.source, target);
+        let put = self.typed.map_put(id)?;
+        let receiver = self
+            .typed
+            .expression_type(put.receiver())
+            .and_then(|ty| self.typed.types().get(ty));
+        Some(MapWriteTarget {
+            receiver: put.receiver().expression(),
+            key: put.key().expression(),
+            value: put.value().expression(),
+            key_type: put.key_type().index(),
+            value_type: put.value_type().index(),
+            coherent: put.expression() == id
+                && [put.receiver(), put.key(), put.value()]
+                    .iter()
+                    .all(|expression| expression.source_unit() == self.source)
+                && matches!(receiver,
+                    Some(UnitTypeKind::Intrinsic {
+                        constructor: IntrinsicTypeConstructor::MutableMap, arguments
+                    }) if arguments.as_slice() == [put.key_type(), put.value_type()]),
+        })
+    }
     type Symbol = UnitSymbolId;
     fn valid_map_consume(
         &self,

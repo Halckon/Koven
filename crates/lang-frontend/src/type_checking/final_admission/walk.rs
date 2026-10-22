@@ -7,7 +7,7 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, Severity, codes},
     parser::{
-        Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile,
+        AssignmentOperator, Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile,
         Statement, StringPart, TypeRef, WhenCondition,
     },
     source::{SourceMap, Span},
@@ -593,6 +593,57 @@ impl<F: Facts> Checker<'_, F> {
             _ => Ok(false),
         }
     }
+    fn assignment(
+        &mut self,
+        expression: ExpressionId,
+        target: ExpressionId,
+        operator: AssignmentOperator,
+        value: ExpressionId,
+    ) -> Result<bool> {
+        let Some(write) = self.facts.map_write_target(target) else {
+            let target_complete = self.expression(target, false)?;
+            return Ok(self.expression(value, false)? && target_complete);
+        };
+        let parsed = self.parsed;
+        let target_node = parsed
+            .ast()
+            .expressions()
+            .get(target)
+            .map_err(TypeCheckingError::from)?;
+        if !write.coherent
+            || write.value != value
+            || !matches!(target_node.payload(), Expression::Index { receiver, index }
+                if *receiver == write.receiver && *index == write.key)
+        {
+            return Err(self.missing(target_node.span(), "Map write target/source/type identity"));
+        }
+        let span = parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(TypeCheckingError::from)?
+            .span();
+        let mut complete = operator == AssignmentOperator::Assign;
+        if !complete && !self.existing_error(span) {
+            return Err(self.missing(span, "Map write assignment operator"));
+        }
+        // The descriptor proves a put role. Every evaluated operand still closes;
+        // the Index shell is not a Copyable V? read and receives no invented type.
+        complete &= self.expression(write.receiver, false)?;
+        complete &= self.expression(write.key, false)?;
+        complete &= self.expression(value, false)?;
+        if complete {
+            complete &= self.type_root(write.key_type, target_node.span(), false)?;
+            complete &= self.type_root(write.value_type, target_node.span(), false)?;
+            if !matches!(
+                self.facts.expression_type(expression).and_then(|ty| self.facts.shape(ty)),
+                Some(Shape::Builtin(BuiltinType::Unit))
+            ) {
+                return Err(self.missing(span, "Map write assignment Unit result"));
+            }
+        }
+        Ok(complete)
+    }
     // recovery 仅由失败 Call 传入其 callee 壳；不会传播到 receiver 或其他运行时子节点。
     fn expression(&mut self, id: ExpressionId, recovery: bool) -> Result<bool> {
         if let Some(complete) = self.expressions[id.index()] {
@@ -695,9 +746,8 @@ impl<F: Facts> Checker<'_, F> {
                 complete &= self.expression(*left, false)?;
                 complete &= self.expression(*right, false)?;
             }
-            Expression::Assignment { target, value, .. } => {
-                complete &= self.expression(*target, false)?;
-                complete &= self.expression(*value, false)?;
+            Expression::Assignment { target, operator, value, .. } => {
+                complete &= self.assignment(id, *target, *operator, *value)?;
             }
             Expression::Index {
                 receiver, index, ..
