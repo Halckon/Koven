@@ -210,14 +210,10 @@ fn owned_remove_instruction(function: &Function, owner: ValueId) -> Option<Instr
         if !seen.insert(value) {
             continue;
         }
-        let Some(data) = function.entity(EntityId::Value(value)) else {
-            return None;
-        };
+        let data = function.entity(EntityId::Value(value))?;
         match data.definition {
             Definition::InstructionResult { instruction, index } => {
-                let Some(result) = function.instruction(instruction) else {
-                    return None;
-                };
+                let result = function.instruction(instruction)?;
                 if index != 1
                     || !matches!(result.operation, Operation::MapRemove { .. })
                     || origin.is_some_and(|prior| prior != instruction)
