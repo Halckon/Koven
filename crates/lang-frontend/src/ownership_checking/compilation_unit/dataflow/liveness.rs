@@ -448,16 +448,25 @@ impl Builder<'_, '_> {
                     Ok(LiveSet::new())
                 }
             }
-            Expression::Break { .. } => Ok(self
-                .loop_stack
-                .last()
-                .map(|context| context.0.clone())
-                .unwrap_or_default()),
-            Expression::Continue { .. } => Ok(self
-                .loop_stack
-                .last()
-                .map(|context| context.1.clone())
-                .unwrap_or_default()),
+            Expression::Break { .. } => {
+                let continuation = self
+                    .loop_stack
+                    .last()
+                    .map(|context| context.0.clone())
+                    .unwrap_or_default();
+                // ControlTransfer cleanup observes the target, not lexical fallthrough.
+                self.expression_after[id.index()] = continuation.clone();
+                Ok(continuation)
+            }
+            Expression::Continue { .. } => {
+                let continuation = self
+                    .loop_stack
+                    .last()
+                    .map(|context| context.1.clone())
+                    .unwrap_or_default();
+                self.expression_after[id.index()] = continuation.clone();
+                Ok(continuation)
+            }
             Expression::NonNullAssert { operand, .. } => self.expression(
                 operand,
                 ExpressionUse::Consume {
