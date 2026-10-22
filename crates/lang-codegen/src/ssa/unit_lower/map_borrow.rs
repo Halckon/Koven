@@ -163,9 +163,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let iteration = self.qualify_map_borrow_iteration(
-            root.root(), owner, remove, narrowed, target, span,
-        )?;
+        let iteration =
+            self.qualify_map_borrow_iteration(root.root(), owner, remove, narrowed, target, span)?;
         let baseline = self.bindings.clone();
         let mut carried = self.carried_bindings(&baseline, span)?;
         let mut loans = self.carried_loans(&self.borrow_bindings, span)?;
