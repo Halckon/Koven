@@ -122,6 +122,7 @@ pub(super) fn analyze(
         dataflow.rc_effects.clear();
         dataflow.construction_plans.clear();
         dataflow.non_null_assertions.clear();
+        dataflow.nullable_whens.clear();
         dataflow.ownership_primitives.clear();
         dataflow.field_replacements.clear();
         dataflow.drops.clear();

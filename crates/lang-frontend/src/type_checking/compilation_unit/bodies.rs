@@ -29,6 +29,7 @@ mod integer_range;
 mod map;
 mod non_null_assertion;
 mod nullable;
+mod nullable_when;
 #[cfg(test)]
 #[path = "bodies/numeric_iteration_validation_tests.rs"]
 mod numeric_iteration_validation_tests;
@@ -41,6 +42,7 @@ mod string;
 pub use checker::check_compilation_unit_types;
 pub(crate) use checker::check_compilation_unit_types_recovering;
 pub(crate) use checker::copyability::UnitTransferability;
+pub use nullable_when::*;
 pub use integer::*;
 pub use integer_range::*;
 pub use ownership_primitive::*;

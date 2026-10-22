@@ -36,6 +36,7 @@ mod map_with;
 mod non_null_assertion;
 mod nullable_comparison;
 mod nullable_proof;
+mod nullable_when;
 mod ownership;
 mod ownership_primitive;
 mod range;
@@ -241,6 +242,7 @@ impl UnitExpressionLowerer<'_> {
             })?;
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
+        self.guard_nullable_when_expression(unit_expression, span)?;
         // Only a fully witnessed consume may atomically retire an ordinary If view.
         if matches!(node.payload(), Expression::Call { .. })
             && self
@@ -490,6 +492,7 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.end_thunk_capture_views(span)?;
+        self.retire_nullable_when_transfers(0, span)?;
         self.retire_while_proofs(true, span)?;
         let values = self.return_values(result, span)?;
         self.function

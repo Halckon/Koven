@@ -61,6 +61,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        if let Some(loan) = self.lower_nullable_when_borrow(call, argument, fact, target, span)? {
+            return Ok((loan, Vec::new(), fact.end_span()));
+        }
         if let Some(loan) =
             self.lower_nullable_root_borrow(argument, fact.target(), target, span)?
         {
@@ -351,6 +354,9 @@ impl UnitExpressionLowerer<'_> {
         let Some(proof) = self.nullable_proofs.get(&root).copied() else {
             return Ok(None);
         };
+        if proof.when_scope().is_some() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let owner_type = self
             .function
             .entity(EntityId::Value(proof.owner))

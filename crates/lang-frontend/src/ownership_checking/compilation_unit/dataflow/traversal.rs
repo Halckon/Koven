@@ -564,7 +564,7 @@ impl Checker<'_> {
                 subject, entries, ..
             } => {
                 let branch_usage = self.control_result_usage(id)?;
-                self.check_when(subject, &entries, state, branch_usage, false)
+                self.check_when(id, subject, &entries, state, branch_usage, false)
             }
             Expression::Return { value, .. } => {
                 let mut flows = if let Some(value) = value {

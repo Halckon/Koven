@@ -96,6 +96,7 @@ impl BodyChecker<'_> {
                 declared_type,
                 narrowed_type,
             ));
+        self.record_nullable_when_use(source, expression, symbol, declared_type, narrowed_type);
     }
 
     fn record_null_comparison(&mut self, source: SourceUnitId, expression: ExpressionId) {

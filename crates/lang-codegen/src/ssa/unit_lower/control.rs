@@ -230,6 +230,10 @@ impl UnitExpressionLowerer<'_> {
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        let control = UnitExpressionId::new(self.source_unit, expression);
+        if self.typed.nullable_when(control).is_some() {
+            return self.lower_nullable_when(control, span);
+        }
         if let Some(subject) = subject {
             let subject_id = UnitExpressionId::new(self.source_unit, subject);
             let subject_type = self
@@ -243,6 +247,9 @@ impl UnitExpressionLowerer<'_> {
                 self.static_self,
                 span,
             )?;
+            if matches!(self.typed.types().get(subject_type), Some(UnitTypeKind::Nullable(_))) {
+                return self.missing_nullable_when_descriptor(entries, span);
+            }
             let subject_ssa = self.expression_ssa_type(subject, span)?;
             let is_boolean = builtin_type(self.typed, subject_type) == Some(BuiltinType::Boolean);
             let is_tagged = self
@@ -796,7 +803,7 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
-    fn control_result_required(
+    pub(super) fn control_result_required(
         &self,
         expression: ExpressionId,
         span: Span,

@@ -21,10 +21,20 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
         let usage = self.control_result_usage(id);
-        if let Some(subject) = subject
-            && !self.expression(subject, DropExpressionUse::Read, state)?
-        {
-            return Ok(false);
+        if let Some(subject) = subject {
+            if !self.expression(subject, DropExpressionUse::Read, state)? {
+                return Ok(false);
+            }
+            if self
+                .checker
+                .typed
+                .nullable_when(self.checker.unit_expression(id))
+                .is_some()
+                && self.is_move_only_temporary(subject)
+            {
+                let origin = self.checker.parsed.ast().expressions().get(subject)?.span();
+                self.register_pending_temporary(id, subject, origin, false, state)?;
+            }
         }
         let mut remaining = Some(state.clone());
         let mut exits = Vec::new();
@@ -87,11 +97,21 @@ impl DropPlanner<'_, '_> {
             let mut branch = self.merge_resource_states(id, matched);
             if self.control_body(entry.body, usage, &mut branch)? {
                 self.drop_branch_exit(id, entry_index, &mut branch);
+                self.finish_pending_temporaries(
+                    id,
+                    PlannerDropPoint::AfterExpression(id),
+                    &mut branch,
+                );
                 exits.push(branch);
             }
         }
         if let Some(mut implicit) = remaining {
             self.drop_branch_exit(id, entries.len(), &mut implicit);
+            self.finish_pending_temporaries(
+                id,
+                PlannerDropPoint::AfterExpression(id),
+                &mut implicit,
+            );
             exits.push(implicit);
         }
         let continues = !exits.is_empty();

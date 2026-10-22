@@ -9,6 +9,7 @@ pub(super) mod guard_tests;
 pub(super) enum NullableProofScope {
     If(UnitExpressionId),
     While(UnitStatementId),
+    When(super::nullable_when::NullableWhenScope),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,14 +34,21 @@ impl NullableProof {
     pub(super) fn while_scope(self) -> Option<UnitStatementId> {
         match self.origin.scope {
             NullableProofScope::While(scope) => Some(scope),
-            NullableProofScope::If(_) => None,
+            NullableProofScope::If(_) | NullableProofScope::When(_) => None,
         }
     }
 
     pub(super) fn if_scope(self) -> Option<UnitExpressionId> {
         match self.origin.scope {
             NullableProofScope::If(scope) => Some(scope),
-            NullableProofScope::While(_) => None,
+            NullableProofScope::While(_) | NullableProofScope::When(_) => None,
+        }
+    }
+
+    pub(super) fn when_scope(self) -> Option<super::nullable_when::NullableWhenScope> {
+        match self.origin.scope {
+            NullableProofScope::When(scope) => Some(scope),
+            NullableProofScope::If(_) | NullableProofScope::While(_) => None,
         }
     }
 }
@@ -79,7 +87,7 @@ impl UnitExpressionLowerer<'_> {
         )
     }
 
-    /// Both scopes use the same actual non-null successor and owner-column check.
+    /// Every scope uses the same actual non-null successor and owner-column check.
     pub(super) fn introduce_nullable_proof(
         &mut self,
         header: BlockId,
@@ -89,6 +97,43 @@ impl UnitExpressionLowerer<'_> {
         scope: NullableProofScope,
         span: Span,
     ) -> Result<(), LoweringError> {
+        let (body_owner, view) =
+            self.nullable_branch_view_owner(header, owner_column, inner, span)?;
+        if self
+            .nullable_proofs
+            .values()
+            .any(|outer| outer.loan == view || outer.origin.scope == scope)
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let proof = NullableProof {
+            loan: view,
+            owner: body_owner,
+            inner,
+            origin: NullableProofOrigin {
+                scope,
+                birth: view,
+            },
+        };
+        // Keep only the actual rebound outer candidate validated above. Never
+        // reinstall the qualification's preheader owner/loan IDs at this birth.
+        let mut proofs = self.nullable_proofs.clone();
+        if proofs.insert(root, proof).is_some() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        self.validate_nullable_proofs(&self.bindings, &proofs, span)?;
+        self.nullable_proofs = proofs;
+        Ok(())
+    }
+
+    /// A temporary subject uses this same birth check without inventing a symbol.
+    pub(super) fn nullable_branch_view_owner(
+        &self,
+        header: BlockId,
+        owner_column: usize,
+        inner: SsaTypeId,
+        span: Span,
+    ) -> Result<(ValueId, LoanId), LoweringError> {
         let Some(TerminatorKind::NullableBranch {
             owner,
             when_null,
@@ -120,30 +165,17 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         if self
-            .nullable_proofs
-            .values()
-            .any(|outer| outer.loan == *view || outer.origin.scope == scope)
+            .function
+            .entity(EntityId::Loan(*view))
+            .map(|entity| entity.ty)
+            != Some(EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: inner,
+            })
         {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let proof = NullableProof {
-            loan: *view,
-            owner: *body_owner,
-            inner,
-            origin: NullableProofOrigin {
-                scope,
-                birth: *view,
-            },
-        };
-        // Keep only the actual rebound outer candidate validated above. Never
-        // reinstall the qualification's preheader owner/loan IDs at this birth.
-        let mut proofs = self.nullable_proofs.clone();
-        if proofs.insert(root, proof).is_some() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        self.validate_nullable_proofs(&self.bindings, &proofs, span)?;
-        self.nullable_proofs = proofs;
-        Ok(())
+        Ok((*body_owner, *view))
     }
 
     /// Check the current storage identity, not merely two compatible semantic types.
@@ -188,6 +220,9 @@ impl UnitExpressionLowerer<'_> {
                         || !self.parsed.ast().expressions().get(scope.expression())
                             .is_ok_and(|node| matches!(node.payload(), Expression::If { .. })),
                     NullableProofScope::While(scope) => scope.source_unit() != self.source_unit,
+                    NullableProofScope::When(scope) => {
+                        !self.valid_nullable_when_scope(*root, scope, proof.inner)
+                    }
                 }
                 || !self.function.blocks.iter().any(|block| {
                     matches!(block.terminator.as_ref().map(|terminator| &terminator.kind),

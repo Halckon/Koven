@@ -49,6 +49,7 @@ mod members;
 mod missing_classifier;
 mod missing_name;
 mod nullable;
+mod nullable_when;
 mod operators;
 mod ownership_primitives;
 mod postfix;
@@ -118,6 +119,7 @@ pub(super) struct BodyChecker<'a> {
     current_return_span: Option<Span>,
     loop_depth: usize,
     callable_loop_bases: Vec<usize>,
+    active_nullable_whens: Vec<nullable_when::ActiveWhenFrame>,
     candidate_local_expected: bool,
     current_receiver: Option<UnitTypeId>,
     current_rejected_extension_receiver: bool,
@@ -203,6 +205,7 @@ impl<'a> BodyChecker<'a> {
             current_return_span: None,
             loop_depth: 0,
             callable_loop_bases: Vec::new(),
+            active_nullable_whens: Vec::new(),
             candidate_local_expected: false,
             current_receiver: None,
             current_rejected_extension_receiver: false,
@@ -322,12 +325,15 @@ impl<'a> BodyChecker<'a> {
         self.parts
             .integer_operations
             .sort_by_key(|fact| fact.expression());
+        self.finish_nullable_when_facts();
         // 排序与全部 trial 完成后才分流。诊断候选仍属原 owner，不重新发布执行表。
         if !self.signatures.is_valid()
             || diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.severity() == Severity::Error)
         {
+            self.parts.nullable.whens.clear();
+            self.parts.nullable.when_uses.clear();
             self.parts.retain_ownership_recovery();
             self.parts.integer_range_operations.clear();
         }

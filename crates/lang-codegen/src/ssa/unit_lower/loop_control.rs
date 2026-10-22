@@ -58,6 +58,12 @@ impl UnitExpressionLowerer<'_> {
         self.loops.last().and_then(|context| context.proof_scope)
     }
 
+    pub(super) fn current_loop_exit_counts(&self) -> (usize, usize) {
+        self.loops
+            .last()
+            .map_or((0, 0), |context| (context.breaks.len(), context.continues.len()))
+    }
+
     pub(super) fn has_iteration_context(&self) -> bool {
         self.loops.iter().any(|context| context.iteration.is_some())
     }
@@ -274,6 +280,7 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.retire_borrowed_for_while_break(expression, span)?;
+        self.retire_nullable_when_transfers(self.loops.len(), span)?;
         self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, true)?;
         let jump = self.current_jump(span)?;
@@ -308,6 +315,7 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.advance_iteration(span)?;
+        self.retire_nullable_when_transfers(self.loops.len(), span)?;
         self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, false)?;
         let jump = self.current_jump(span)?;
@@ -403,7 +411,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoopJump { state, span })
     }
 
-    fn loop_state(&self) -> BranchExit {
+    pub(super) fn loop_state(&self) -> BranchExit {
         BranchExit {
             block: self.block,
             result: LoweredValue::Unit,

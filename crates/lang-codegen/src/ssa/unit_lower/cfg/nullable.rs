@@ -23,6 +23,29 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
+    /// Locate the real temporary alias column, never a synthetic root binding.
+    pub(in super::super) fn nullable_temporary_owner_column(
+        &self,
+        bindings: &[CarriedBinding],
+        subject: UnitExpressionId,
+        owner: ValueId,
+        span: Span,
+    ) -> Result<usize, LoweringError> {
+        let mut matches = bindings.iter().enumerate().filter(|(_, slot)| {
+            slot.source == owner && slot.temporaries.contains(&subject)
+        });
+        let (column, slot) = matches
+            .next()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if matches.next().is_some()
+            || slot.symbol.is_some()
+            || self.temporaries.get(&subject) != Some(&owner)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok(column)
+    }
+
     /// Finalize roles from the real state after all value-prefix slots are present.
     /// Raw source edges can subsequently use this same checked layout unchanged.
     pub(super) fn bind_nullable_columns(

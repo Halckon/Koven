@@ -36,6 +36,7 @@ impl Checker<'_> {
 
     pub(super) fn check_when(
         &mut self,
+        control: ExpressionId,
         subject: Option<ExpressionId>,
         entries: &[WhenEntry],
         state: State,
@@ -44,15 +45,18 @@ impl Checker<'_> {
     ) -> Result<Flows, OwnershipCheckingError> {
         let mut prefix = Flows::next(state);
         if let Some(subject) = subject {
-            prefix = self.chain_expression(prefix, subject, ExpressionUse::Read)?;
+            prefix = self.check_nullable_when_subject(control, subject, prefix)?;
         }
         let Some(mut unmatched) = prefix.next.take() else {
             return Ok(prefix);
         };
+        self.begin_nullable_when(control)?;
         let mut branches = Flows::default();
-        for entry in entries {
+        for (entry_index, entry) in entries.iter().enumerate() {
             if entry.else_span.is_some() {
-                branches.merge(self.check_control_body(
+                branches.merge(self.check_nullable_when_body(
+                    control,
+                    entry_index,
                     entry.body,
                     unmatched,
                     branch_usage,
@@ -84,7 +88,9 @@ impl Checker<'_> {
                 }
             }
             if let Some(body_state) = body_state {
-                branches.merge(self.check_control_body(
+                branches.merge(self.check_nullable_when_body(
+                    control,
+                    entry_index,
                     entry.body,
                     body_state,
                     branch_usage,
@@ -159,7 +165,7 @@ impl Checker<'_> {
             } => self.check_if(condition, then_branch, else_branch, state, usage, true),
             Expression::When {
                 subject, entries, ..
-            } => self.check_when(subject, &entries, state, usage, true),
+            } => self.check_when(expression, subject, &entries, state, usage, true),
             Expression::Binary {
                 left,
                 operator: BinaryOperator::Elvis,
@@ -177,7 +183,7 @@ impl Checker<'_> {
         }
     }
 
-    fn check_control_body(
+    pub(super) fn check_control_body(
         &mut self,
         statement: StatementId,
         state: State,

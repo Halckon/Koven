@@ -18,7 +18,7 @@ use super::flow::{intersect_facts, merge_flow_versions};
 use super::{BodyChecker, ExpressionCheck, flow::FlowKey};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum CoverageAtom {
+pub(super) enum CoverageAtom {
     Boolean(bool),
     Null,
     Case(UnitSymbolId),
@@ -59,6 +59,9 @@ impl BodyChecker<'_> {
             _ => None,
         });
         let subject_source = subject_key.map(|key| (key, self.flow_version(key)));
+        let mut nullable_when = self.begin_nullable_when(
+            source, expression, subject, subject_type, nullable_inner, subject_source, entries,
+        )?;
         let baseline = self.flow_facts.clone();
         let baseline_versions = self.flow_versions.clone();
         let mut remaining_facts = baseline.clone();
@@ -74,6 +77,9 @@ impl BodyChecker<'_> {
         let mut exits = Vec::new();
 
         for (entry_index, entry) in entries.iter().enumerate() {
+            let mut nullable_entry = super::nullable_when::begin_entry(
+                nullable_when.as_ref(), entry_index, entry, &remaining_domain,
+            );
             self.flow_facts = remaining_facts.clone();
             self.flow_versions = remaining_versions.clone();
             let mut entry_facts = None;
@@ -123,6 +129,10 @@ impl BodyChecker<'_> {
                         &checked.coverage,
                         checked.non_null,
                         checked.valid,
+                    );
+                    super::nullable_when::record_alternative(
+                        &mut nullable_entry, source, condition, condition_span,
+                        &remaining_domain, &matched, &missed,
                     );
                     if !matched.is_empty() {
                         let mut matched_facts = self.flow_facts.clone();
@@ -192,13 +202,22 @@ impl BodyChecker<'_> {
             } else {
                 expected
             };
+            let frame_base = self.push_nullable_when_frame(
+                nullable_when.as_ref(), entry_index, entry, &body_domain, entry_source_valid,
+            );
             let result = self.check_value_body(
                 source,
                 entry.body,
                 branch_expected,
                 expected_span,
                 return_type,
-            )?;
+            );
+            self.active_nullable_whens.truncate(frame_base);
+            let result = result?;
+            super::nullable_when::finish_entry(
+                &mut nullable_when, nullable_entry, &body_domain,
+                &remaining_domain, result.falls_through,
+            );
             if !body_domain.is_empty() && result.falls_through {
                 exits.push((self.flow_facts.clone(), self.flow_versions.clone()));
             }
@@ -240,6 +259,10 @@ impl BodyChecker<'_> {
         } else {
             self.join_when_branches(source, entries, &branches)?
         };
+        if let Some(mut descriptor) = nullable_when {
+            descriptor.falls_through = falls_through;
+            self.parts.nullable.whens.push(descriptor);
+        }
         Ok(ExpressionCheck { ty, falls_through })
     }
 
@@ -668,7 +691,7 @@ impl BodyChecker<'_> {
 
 /// Private unit domain: enum atoms retain source-qualified unit symbols.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum WhenFlowDomain {
+pub(super) enum WhenFlowDomain {
     Empty,
     Null,
     NonNull,
@@ -677,6 +700,20 @@ enum WhenFlowDomain {
 }
 
 impl WhenFlowDomain {
+    pub(super) fn nullability(&self) -> crate::type_checking::UnitNullableWhenDomain {
+        use crate::type_checking::UnitNullableWhenDomain as Domain;
+        match self {
+            Self::Empty => Domain::Empty,
+            Self::Null => Domain::Null,
+            Self::NonNull => Domain::NonNull,
+            Self::Nullable => Domain::Nullable,
+            Self::Finite(atoms) if atoms.is_empty() => Domain::Empty,
+            Self::Finite(atoms) if atoms == &[CoverageAtom::Null] => Domain::Null,
+            Self::Finite(atoms) if !atoms.contains(&CoverageAtom::Null) => Domain::NonNull,
+            Self::Finite(_) => Domain::Nullable,
+        }
+    }
+
     fn is_empty(&self) -> bool {
         matches!(self, Self::Empty) || matches!(self, Self::Finite(atoms) if atoms.is_empty())
     }

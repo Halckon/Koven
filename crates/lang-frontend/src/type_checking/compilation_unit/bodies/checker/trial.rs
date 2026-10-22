@@ -18,6 +18,7 @@ pub(super) struct UnitTrialState {
     signatures: CompilationUnitSignatures,
     flow_facts: BTreeMap<FlowKey, UnitTypeId>,
     flow_versions: BTreeMap<FlowKey, u64>,
+    active_nullable_whens: Vec<super::nullable_when::ActiveWhenFrame>,
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
 }
@@ -28,6 +29,7 @@ impl BodyChecker<'_> {
             signatures: self.signatures.clone(),
             flow_facts: self.flow_facts.clone(),
             flow_versions: self.flow_versions.clone(),
+            active_nullable_whens: self.active_nullable_whens.clone(),
             parts: self.parts.clone(),
             diagnostics: self.diagnostics.clone(),
         }
@@ -37,6 +39,7 @@ impl BodyChecker<'_> {
         self.signatures = state.signatures;
         self.flow_facts = state.flow_facts;
         self.flow_versions = state.flow_versions;
+        self.active_nullable_whens = state.active_nullable_whens;
         self.parts = state.parts;
         self.diagnostics = state.diagnostics;
     }

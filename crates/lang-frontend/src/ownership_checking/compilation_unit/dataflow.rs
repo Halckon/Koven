@@ -20,6 +20,7 @@ mod map;
 mod map_iteration_source;
 mod missing_name_receiver;
 mod non_null_assertion;
+mod nullable_when;
 mod ownership_primitive;
 mod places;
 mod range_construction;
@@ -103,6 +104,7 @@ pub(super) struct Analysis {
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
     pub(super) non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
+    pub(super) nullable_whens: Vec<super::UnitNullableWhenOwnershipPlan>,
     pub(super) field_replacements: Vec<crate::ownership_checking::UnitFieldReplaceOwnershipPlan>,
     pub(super) ownership_primitives:
         Vec<crate::ownership_checking::UnitOwnershipPrimitiveOwnershipPlan>,
@@ -207,6 +209,7 @@ pub(super) fn analyze(
     let mut rc_effects = Vec::new();
     let mut construction_plans = Vec::new();
     let mut non_null_assertions = Vec::new();
+    let mut nullable_whens = Vec::new();
     let mut ownership_primitives = Vec::new();
     let mut field_replacements = Vec::new();
     let mut borrow_return_origins = Vec::new();
@@ -275,6 +278,7 @@ pub(super) fn analyze(
         checker.constant_control = constant_control;
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
+        nullable_whens.extend(checker.nullable_whens.finish()?);
         formed_owned_locals.extend(checker.formed_owned_locals);
         map_iteration_templates.extend(checker.map_iterations.into_values());
         map_iterations.extend(drop_analysis.map_iterations);
@@ -335,12 +339,14 @@ pub(super) fn analyze(
     };
     if !diagnostics.is_empty() || !deferred.is_empty() || !typed.has_valid_type_facts() {
         formed_owned_locals.clear();
+        nullable_whens.clear();
         borrow_return_origins.clear();
         borrow_results = Default::default();
     } else {
         formed_owned_locals.sort();
         formed_owned_locals.dedup();
     }
+    nullable_whens.sort_by_key(|plan| plan.descriptor().expression());
     borrow_return_origins.sort_by_key(|fact| fact.expression());
     borrow_results.bindings.sort_by_key(|fact| fact.binding);
     borrow_results
@@ -362,6 +368,7 @@ pub(super) fn analyze(
         short_circuits: constant_control.then_some(short_circuits),
         constant_materializations,
         non_null_assertions,
+        nullable_whens,
         ownership_primitives,
         field_replacements,
         diagnostics,
@@ -475,6 +482,7 @@ struct Checker<'a> {
     ownership_primitives: Vec<crate::ownership_checking::UnitOwnershipPrimitiveOwnershipPlan>,
     field_replacements: Vec<crate::ownership_checking::UnitFieldReplaceOwnershipPlan>,
     primitive_deferred: Vec<UnitOwnershipDeferredFact>,
+    nullable_whens: nullable_when::Collection,
 }
 
 impl<'a> Checker<'a> {
@@ -627,6 +635,7 @@ impl<'a> Checker<'a> {
             ownership_primitives: Vec::new(),
             field_replacements: Vec::new(),
             primitive_deferred: Vec::new(),
+            nullable_whens: Default::default(),
         })
     }
 

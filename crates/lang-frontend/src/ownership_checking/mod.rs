@@ -62,6 +62,8 @@ pub use compilation_unit::{
     UnitDropTarget, UnitIterationCleanupAction, UnitIterationExitKind, UnitIterationExitPlan,
     UnitIterationOwnershipPlan, UnitIterationSourceAccess, UnitLoanFact, UnitLoanTarget,
     UnitMapIterationLoan, UnitMapIterationOwnershipPlan, UnitNonNullAssertionOwnershipPlan,
+    UnitNullableWhenEntryOwnershipFact, UnitNullableWhenOwnershipPlan,
+    UnitNullableWhenUseFact, UnitNullableWhenUseKind,
     UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
     UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
     UnitReceiverOwnershipTarget, UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact,

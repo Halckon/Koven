@@ -25,6 +25,8 @@ mod formed_tests;
 #[cfg(test)]
 mod materialization_tests;
 mod non_null_assertion;
+mod nullable_when;
+pub use nullable_when::*;
 mod ownership_primitive;
 #[cfg(test)]
 mod pending_temporary_tests;
@@ -623,6 +625,7 @@ pub struct CompilationUnitOwnership {
     short_circuits: Option<Vec<constant::UnitShortCircuitPlan>>,
     constant_materializations: Option<Vec<constant::UnitConstantMaterializationPlan>>,
     non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
+    nullable_whens: Vec<UnitNullableWhenOwnershipPlan>,
     ownership_primitives: Vec<super::UnitOwnershipPrimitiveOwnershipPlan>,
     field_replacements: Vec<super::UnitFieldReplaceOwnershipPlan>,
     field_replacement_types: Vec<(
@@ -793,6 +796,7 @@ impl CompilationUnitOwnership {
                     .is_some_and(|facts| !facts.declarations().is_empty()),
             },
             non_null_assertions: dataflow.non_null_assertions,
+            nullable_whens: dataflow.nullable_whens,
             field_replacement_types: Self::field_replacement_types(
                 typed,
                 &dataflow.field_replacements,
