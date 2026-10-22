@@ -93,7 +93,10 @@ pub(super) fn assert_exit_structure(
         .instructions
         .iter()
         .filter(|i| {
-            matches!(i.operation, Operation::MapPut { .. } | Operation::MapRemove { .. })
+            matches!(
+                i.operation,
+                Operation::MapPut { .. } | Operation::MapRemove { .. }
+            )
         })
         .collect::<Vec<_>>();
     assert_eq!(updates.len(), 1);

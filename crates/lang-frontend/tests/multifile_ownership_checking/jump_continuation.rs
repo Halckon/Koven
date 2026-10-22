@@ -53,10 +53,11 @@ fn with_ownership(
                 check(owned.ownership());
             } else {
                 let typed = types.validate().unwrap();
-                let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &te, &typed)
-                    .unwrap()
-                    .validate()
-                    .unwrap();
+                let owned =
+                    check_compilation_unit_ownership(&sources, &inputs, &names, &te, &typed)
+                        .unwrap()
+                        .validate()
+                        .unwrap();
                 check(owned.ownership());
             }
         }
@@ -76,7 +77,9 @@ fn local(names: &ValidatedCompilationUnitNames, unit: SourceUnitId, name: &str) 
         .references()
         .iter()
         .find_map(|reference| match reference.target() {
-            UnitReferenceTarget::Symbol(id) if id.source_unit() == unit && id.symbol() == symbol => {
+            UnitReferenceTarget::Symbol(id)
+                if id.source_unit() == unit && id.symbol() == symbol =>
+            {
                 Some(*id)
             }
             _ => None,
@@ -206,7 +209,11 @@ fn live_break_and_continue_keep_the_next_target_owner() {
                     "{jump}, live={live}"
                 );
                 if jump == "continue" {
-                    assert!(cleanup.iter().any(|action| matches!(action, Action::EndElement(_))));
+                    assert!(
+                        cleanup
+                            .iter()
+                            .any(|action| matches!(action, Action::EndElement(_)))
+                    );
                     assert!(cleanup.iter().all(|action| {
                         !matches!(action, Action::FinishProvider(_) | Action::EndSource(_))
                     }));

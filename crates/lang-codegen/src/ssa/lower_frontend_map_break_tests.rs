@@ -169,7 +169,12 @@ fn assert_unit_boundary(live: bool, constants: bool, remove: bool) {
             _ => None,
         })
         .unwrap();
-    let source_span = file.ast().expressions().get(source_expression).unwrap().span();
+    let source_span = file
+        .ast()
+        .expressions()
+        .get(source_expression)
+        .unwrap()
+        .span();
     // Unit EndElement/EndSource carry the provider statement's actual origin.
     structure::assert_exit_structure(&program, loop_span, source_span, live, true);
 }
@@ -254,22 +259,27 @@ fn unit_map_break_original_full_fixture_has_separate_owner_drops() {
     let entry = analysis.declaration("main", SymbolKind::Function);
     let (program, entry) = analysis.lower_entry(entry).unwrap();
     crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-    let expected = [("removeDead", 2), ("removeLive", 1), ("putDead", 2), ("putLive", 1)]
-        .into_iter()
-        .map(|(name, count)| {
-            let functions = program
-                .modules
-                .iter()
-                .flat_map(|module| &module.functions)
-                .filter(|function| {
-                    let span = function.origin.span();
-                    matches!(&function.origin, crate::ssa::model::Origin::Source(_))
-                        && source[span.start()..span.end()].starts_with(&format!("fun {name}("))
-                })
-                .collect::<Vec<_>>();
-            assert_eq!(functions.len(), 1, "one real source definition for {name}");
-            (functions[0].name.as_str(), count)
-        })
-        .collect::<Vec<_>>();
+    let expected = [
+        ("removeDead", 2),
+        ("removeLive", 1),
+        ("putDead", 2),
+        ("putLive", 1),
+    ]
+    .into_iter()
+    .map(|(name, count)| {
+        let functions = program
+            .modules
+            .iter()
+            .flat_map(|module| &module.functions)
+            .filter(|function| {
+                let span = function.origin.span();
+                matches!(&function.origin, crate::ssa::model::Origin::Source(_))
+                    && source[span.start()..span.end()].starts_with(&format!("fun {name}("))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(functions.len(), 1, "one real source definition for {name}");
+        (functions[0].name.as_str(), count)
+    })
+    .collect::<Vec<_>>();
     super::assert_map_drop_counts(&program, &expected);
 }
