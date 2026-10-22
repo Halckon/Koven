@@ -2,6 +2,9 @@
 
 use super::emit_link_and_run;
 
+#[path = "native_map_constant_operand_tests.rs"]
+mod constant_operand_tests;
+
 #[test]
 fn native_map_owned_remove_strings_and_inline_values_have_conditional_drops() {
     let source = r#"

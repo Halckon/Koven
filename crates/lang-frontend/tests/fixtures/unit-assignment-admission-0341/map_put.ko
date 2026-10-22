@@ -1,0 +1,28 @@
+
+        fun main(): Unit {
+            var mm: MutableMap<Int, Int> = mutableMapOf<Int, Int>()
+            mm.put(1, 100)
+            mm.put(2, 200)
+            if (mm.size == 2) {
+                println("size 2")
+            }
+            if (mm.contains(1)) {
+                println("has 1")
+            }
+            if (!mm.contains(99)) {
+                println("no 99")
+            }
+            val v1: Int? = mm[1]
+            if (v1 == 100) {
+                println("val1 100")
+            }
+            mm[3] = 300
+            if (mm.size == 3) {
+                println("size 3")
+            }
+            val v3: Int? = mm[3]
+            if (v3 == 300) {
+                println("val3 300")
+            }
+        }
+    

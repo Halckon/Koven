@@ -137,28 +137,23 @@ fn unit_field_replace_return_prefix_ends_loan_before_parent_cleanup() {
             return unused
         }
     "#;
-    assert_eq!(
-        lower(source, false)
-            .err()
-            .expect("source is outside this lowering boundary")
-            .kind,
-        LoweringErrorKind::UnsupportedNode
-    );
-    let (program, _) =
-        lower(source, true).expect("constant-unit return cancels the pending field commit");
-    let function = entry(&program);
-    assert_eq!(count(function, "HeapFieldExchange"), 0);
-    let end = function
-        .instructions
-        .iter()
-        .position(|instruction| matches!(instruction.operation, Operation::BorrowEnd { .. }))
-        .unwrap();
-    let drop = function
-        .instructions
-        .iter()
-        .position(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
-        .unwrap();
-    assert!(end < drop);
+    for constants in [false, true] {
+        let (program, _) =
+            lower(source, constants).expect("unit return cancels the pending field commit");
+        let function = entry(&program);
+        assert_eq!(count(function, "HeapFieldExchange"), 0);
+        let end = function
+            .instructions
+            .iter()
+            .position(|instruction| matches!(instruction.operation, Operation::BorrowEnd { .. }))
+            .unwrap();
+        let drop = function
+            .instructions
+            .iter()
+            .position(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .unwrap();
+        assert!(end < drop);
+    }
 }
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -327,14 +322,9 @@ fn unit_field_replace_native_break_continue_leave_field_initialized() {
             }}
         "#
         );
-        assert_eq!(
-            lower(&source, false)
-                .err()
-                .expect("source is outside this lowering boundary")
-                .kind,
-            LoweringErrorKind::UnsupportedNode
-        );
-        run_native(&source, true, 5, b"oldvalue\noldvalue\nnewvalue\n");
+        for constants in [false, true] {
+            run_native(&source, constants, 5, b"oldvalue\noldvalue\nnewvalue\n");
+        }
     }
 }
 
