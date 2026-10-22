@@ -14,6 +14,7 @@ subgraph Gactive["现行 active"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
   S0341["S0341<br/>D10 统一 compilation-unit 检查与代码生成管线"]
   S0344["S0344<br/>独立门户内容同步"]
+  S0345["S0345<br/>本地 preview 版本管理"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -37,6 +38,7 @@ ARCH --> S0338
 ARCH --> S0339
 ARCH --> S0340
 ARCH --> S0341
+ARCH --> S0345
 ```
 
 ## 节点链接
@@ -47,6 +49,7 @@ ARCH --> S0341
 | SPEC-0333 | active | [0333-static-map-callers.md](active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](active/0341-shared-lowering-core.md) |
 | SPEC-0344 | active | [0344-site-content-sync.md](active/0344-site-content-sync.md) |
+| SPEC-0345 | active | [0345-preview-version-manager.md](active/0345-preview-version-manager.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

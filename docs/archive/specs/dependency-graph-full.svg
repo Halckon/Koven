@@ -988,6 +988,7 @@
   <path d="M 972 5934 C 972 5966, 1236 5966, 1236 5998" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 450 C 972 482, 708 500, 708 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6054 C 972 6086, 1500 6122, 1500 6154" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1092 6026 C 5500 6026, 5500 6347, 9908 6347" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 6072 C 1236 6104, 1236 6122, 1236 6154" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 6072 C 1236 6104, 180 8288, 180 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 6228 C 1236 6260, 708 6278, 708 6310" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1055,6 +1056,7 @@
   <path d="M 708 8238 C 708 8270, 1236 8288, 1236 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 6522 C 1500 6554, 2292 6590, 2292 6622" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2292 6696 C 2292 6728, 972 6746, 972 6778" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 6191 C 5764 6191, 5764 6347, 9908 6347" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 9684 138 C 9684 170, 1764 188, 1764 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1620 257 C 5764 257, 5764 413, 9908 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1620 257 C 6240 257, 6240 422, 10860 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2439,4 +2441,8 @@
   <rect x="10172" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="10292" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0344</text>
   <text x="10292" y="105" text-anchor="middle" font-size="13">独立门户内容同步</text>
+  <rect x="9908" y="6310" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="10028" y="6333" text-anchor="middle" font-size="13" font-weight="600">SPEC-0345</text>
+  <text x="10028" y="6351" text-anchor="middle" font-size="13">本地 preview 版本管</text>
+  <text x="10028" y="6369" text-anchor="middle" font-size="13">理</text>
 </svg>

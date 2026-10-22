@@ -109,6 +109,7 @@ jobs:
               - 'scripts/check_tutorial.py'
               - 'scripts/package_preview.py'
               - 'scripts/preview_host.py'
+              - 'scripts/preview_manager.py'
               - 'scripts/check_preview_install.py'
               - 'scripts/install_preview_dependencies.sh'
               - 'scripts/install_ci_llvm.sh'
@@ -348,6 +349,7 @@ jobs:
             ${{ runner.temp }}/preview-producer/*.tar.gz
             ${{ runner.temp }}/preview-producer/*.sha256
             ${{ runner.temp }}/preview-producer/check_preview_install.py
+            ${{ runner.temp }}/preview-producer/preview_manager.py
           if-no-files-found: error
       - name: Preserve producer evidence
         if: always()
@@ -386,6 +388,23 @@ jobs:
             --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 \
             --evidence "$RUNNER_TEMP/preview-consumer-evidence" \
             --work-parent "$RUNNER_TEMP" --prepare-dependencies
+      - name: Manage the validated local version
+        shell: bash
+        env:
+          KOVEN_PREVIEW_LIBXML2_EVIDENCE: '1'
+        run: |
+          manager="$RUNNER_TEMP/preview-download/preview_manager.py"
+          root="$RUNNER_TEMP/preview-consumer-evidence/managed 中文"
+          python3 "$manager" --root "$root" install \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 > "$RUNNER_TEMP/managed.json"
+          version=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$RUNNER_TEMP/managed.json")
+          python3 "$manager" --root "$root" use "$version"
+          python3 "$manager" --root "$root" list
+          test -x "$root/current/bin/kovenc"
+          python3 "$manager" --root "$root" deactivate
+          python3 "$manager" --root "$root" uninstall "$version"
+          test ! -e "$root/versions/$version"
       - name: Preserve installation and command evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -431,6 +450,7 @@ jobs:
             ${{ runner.temp }}/preview-producer/*.tar.gz
             ${{ runner.temp }}/preview-producer/*.sha256
             ${{ runner.temp }}/preview-producer/check_preview_install.py
+            ${{ runner.temp }}/preview-producer/preview_manager.py
           if-no-files-found: error
       - name: Preserve producer evidence
         if: always()
@@ -471,6 +491,23 @@ jobs:
             --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 \
             --evidence "$RUNNER_TEMP/preview-consumer-evidence" \
             --work-parent "$RUNNER_TEMP" --prepare-dependencies
+      - name: Manage the validated local version
+        shell: bash
+        env:
+          KOVEN_PREVIEW_LIBXML2_EVIDENCE: '1'
+        run: |
+          manager="$RUNNER_TEMP/preview-download/preview_manager.py"
+          root="$RUNNER_TEMP/preview-consumer-evidence/managed 中文"
+          /usr/bin/python3 "$manager" --root "$root" install \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 > "$RUNNER_TEMP/managed.json"
+          version=$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$RUNNER_TEMP/managed.json")
+          /usr/bin/python3 "$manager" --root "$root" use "$version"
+          /usr/bin/python3 "$manager" --root "$root" list
+          test -x "$root/current/bin/kovenc"
+          /usr/bin/python3 "$manager" --root "$root" deactivate
+          /usr/bin/python3 "$manager" --root "$root" uninstall "$version"
+          test ! -e "$root/versions/$version"
       - name: Preserve installation and command evidence
         if: always()
         uses: actions/upload-artifact@v7
