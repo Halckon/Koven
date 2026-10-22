@@ -31,9 +31,10 @@ impl UnitExpressionLowerer<'_> {
         owner: ValueId,
         span: Span,
     ) -> Result<usize, LoweringError> {
-        let mut matches = bindings.iter().enumerate().filter(|(_, slot)| {
-            slot.source == owner && slot.temporaries.contains(&subject)
-        });
+        let mut matches = bindings
+            .iter()
+            .enumerate()
+            .filter(|(_, slot)| slot.source == owner && slot.temporaries.contains(&subject));
         let (column, slot) = matches
             .next()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;

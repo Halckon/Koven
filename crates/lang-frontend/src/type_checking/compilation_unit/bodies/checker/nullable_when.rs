@@ -54,7 +54,11 @@ impl BodyChecker<'_> {
             || else_entry.else_span.is_none()
             || !else_entry.conditions.is_empty()
             || !matches!(
-                self.file(source).ast().expressions().get(*condition).map(|node| node.payload()),
+                self.file(source)
+                    .ast()
+                    .expressions()
+                    .get(*condition)
+                    .map(|node| node.payload()),
                 Ok(Expression::Literal(LiteralKind::Null))
             )
         {
@@ -142,18 +146,21 @@ impl BodyChecker<'_> {
         }) else {
             return;
         };
-        self.parts.nullable.when_uses.push(UnitNullableWhenUseWitness {
-            expression: UnitExpressionId::new(source, expression),
-            reference,
-            control: frame.control,
-            subject: frame.subject,
-            entry_index: frame.entry_index,
-            body: frame.body,
-            symbol,
-            source_generation: generation,
-            nullable_type,
-            inner_type,
-        });
+        self.parts
+            .nullable
+            .when_uses
+            .push(UnitNullableWhenUseWitness {
+                expression: UnitExpressionId::new(source, expression),
+                reference,
+                control: frame.control,
+                subject: frame.subject,
+                entry_index: frame.entry_index,
+                body: frame.body,
+                symbol,
+                source_generation: generation,
+                nullable_type,
+                inner_type,
+            });
     }
 
     fn nullable_when_reference(
@@ -162,7 +169,14 @@ impl BodyChecker<'_> {
         mut expression: ExpressionId,
     ) -> Option<UnitExpressionId> {
         loop {
-            match self.file(source).ast().expressions().get(expression).ok()?.payload() {
+            match self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(expression)
+                .ok()?
+                .payload()
+            {
                 Expression::Name => return Some(UnitExpressionId::new(source, expression)),
                 Expression::Group { expression: inner } => expression = *inner,
                 _ => return None,
@@ -171,8 +185,14 @@ impl BodyChecker<'_> {
     }
 
     pub(super) fn finish_nullable_when_facts(&mut self) {
-        self.parts.nullable.whens.sort_by_key(|fact| fact.expression());
-        self.parts.nullable.when_uses.sort_by_key(|fact| fact.expression());
+        self.parts
+            .nullable
+            .whens
+            .sort_by_key(|fact| fact.expression());
+        self.parts
+            .nullable
+            .when_uses
+            .sort_by_key(|fact| fact.expression());
     }
 }
 
@@ -207,13 +227,15 @@ pub(super) fn record_alternative(
     remaining: &WhenFlowDomain,
 ) {
     if let (Some(entry), WhenCondition::Expression(expression)) = (entry, condition) {
-        entry.alternatives.push(UnitNullableWhenAlternativeDescriptor {
-            expression: UnitExpressionId::new(source, *expression),
-            span,
-            input_domain: input.nullability(),
-            matched_domain: matched.nullability(),
-            remaining_domain: remaining.nullability(),
-        });
+        entry
+            .alternatives
+            .push(UnitNullableWhenAlternativeDescriptor {
+                expression: UnitExpressionId::new(source, *expression),
+                span,
+                input_domain: input.nullability(),
+                matched_domain: matched.nullability(),
+                remaining_domain: remaining.nullability(),
+            });
     }
 }
 

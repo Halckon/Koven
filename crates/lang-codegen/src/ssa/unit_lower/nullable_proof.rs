@@ -110,10 +110,7 @@ impl UnitExpressionLowerer<'_> {
             loan: view,
             owner: body_owner,
             inner,
-            origin: NullableProofOrigin {
-                scope,
-                birth: view,
-            },
+            origin: NullableProofOrigin { scope, birth: view },
         };
         // Keep only the actual rebound outer candidate validated above. Never
         // reinstall the qualification's preheader owner/loan IDs at this birth.

@@ -82,18 +82,12 @@ impl UnitExpressionLowerer<'_> {
         self.carry_pending_operands(&mut carried, &mut loans, span)?;
         let column = match source.root {
             Some(root) => self.nullable_owner_column(&carried, root, owner, span)?,
-            None => self.nullable_temporary_owner_column(
-                &carried,
-                descriptor.subject(),
-                owner,
-                span,
-            )?,
+            None => {
+                self.nullable_temporary_owner_column(&carried, descriptor.subject(), owner, span)?
+            }
         };
-        let null = self.add_carried_control_block(
-            &carried,
-            &loans,
-            descriptor.entries()[0].span(),
-        )?;
+        let null =
+            self.add_carried_control_block(&carried, &loans, descriptor.entries()[0].span())?;
         let (non_null, view) = self.add_map_borrow_block(
             &carried,
             &loans,
@@ -130,9 +124,9 @@ impl UnitExpressionLowerer<'_> {
                     span,
                 )?;
                 if let Some(root) = source.root {
-                    let generation = descriptor.source_generation().ok_or_else(|| {
-                        lowering_error(LoweringErrorKind::MissingFact, span)
-                    })?;
+                    let generation = descriptor
+                        .source_generation()
+                        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                     self.introduce_nullable_proof(
                         header,
                         column,
@@ -166,13 +160,8 @@ impl UnitExpressionLowerer<'_> {
                         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 }
             } else {
-                self.bindings = self.rebind_carried_control(
-                    &baseline.bindings,
-                    block,
-                    &carried,
-                    &loans,
-                    span,
-                )?;
+                self.bindings =
+                    self.rebind_carried_control(&baseline.bindings, block, &carried, &loans, span)?;
                 self.borrow_bindings =
                     self.rebind_carried_loans(block, carried.len(), &loans, span)?;
             }

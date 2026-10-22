@@ -243,7 +243,10 @@ fun noUse(own value: $T?): Int = when (value) { null -> 0; else -> return 1 }
                     unit.typed.types().nullable_when(descriptor.expression()),
                     Some(descriptor)
                 );
-                assert_eq!(unit.owned.nullable_when(descriptor.expression()), Some(plan));
+                assert_eq!(
+                    unit.owned.nullable_when(descriptor.expression()),
+                    Some(plan)
+                );
                 assert_eq!(plan.entries().len(), descriptor.entries().len());
                 for (entry, typed_entry) in plan.entries().iter().zip(descriptor.entries()) {
                     assert_eq!(entry.index(), typed_entry.index());
@@ -274,10 +277,12 @@ fun noUse(own value: $T?): Int = when (value) { null -> 0; else -> return 1 }
                 assert_eq!(witness.subject(), descriptor.subject());
                 assert_eq!(Some(witness.symbol()), descriptor.stable_symbol());
                 assert_eq!(
-                    Some(witness.source_generation()), descriptor.source_generation()
+                    Some(witness.source_generation()),
+                    descriptor.source_generation()
                 );
                 assert_eq!(
-                    witness.body(), descriptor.entries()[witness.entry_index()].body()
+                    witness.body(),
+                    descriptor.entries()[witness.entry_index()].body()
                 );
                 let mut current = contract.argument();
                 loop {
@@ -287,8 +292,13 @@ fun noUse(own value: $T?): Int = when (value) { null -> 0; else -> return 1 }
                     assert_eq!(chain.control(), witness.control());
                     assert_eq!(chain.source_generation(), witness.source_generation());
                     assert_eq!(chain.body(), witness.body());
-                    match unit.file.ast().expressions()
-                        .get(current.expression()).unwrap().payload()
+                    match unit
+                        .file
+                        .ast()
+                        .expressions()
+                        .get(current.expression())
+                        .unwrap()
+                        .payload()
                     {
                         Expression::Group { expression } => {
                             current = UnitExpressionId::new(unit.unit, *expression);
@@ -306,7 +316,9 @@ fun noUse(own value: $T?): Int = when (value) { null -> 0; else -> return 1 }
                 } else {
                     assert!(usage.loan().is_none());
                     assert!(
-                        unit.owned.value_deliveries().contains(usage.delivery().unwrap())
+                        unit.owned
+                            .value_deliveries()
+                            .contains(usage.delivery().unwrap())
                     );
                     assert_eq!(usage.moved_span(), Some(unit.span(usage.reference())));
                     assert_eq!(unit.text(usage.reference()), "value");
@@ -536,10 +548,15 @@ fn unit_when_named_asap_preserves_later_live_owners() {
                 assert!(plan.source_place().unwrap().is_root());
                 assert_eq!(plan.descriptor().stable_symbol(), Some(root));
                 assert!(plan.descriptor().source_generation().is_some());
-                assert!(plan.uses().iter().all(|usage| {
-                    usage.kind() == UnitNullableWhenUseKind::Observe
-                }));
-                assert_eq!(plan.uses().len(), usize::from(source.contains("read(value)")));
+                assert!(
+                    plan.uses()
+                        .iter()
+                        .all(|usage| { usage.kind() == UnitNullableWhenUseKind::Observe })
+                );
+                assert_eq!(
+                    plan.uses().len(),
+                    usize::from(source.contains("read(value)"))
+                );
             });
         }
     }

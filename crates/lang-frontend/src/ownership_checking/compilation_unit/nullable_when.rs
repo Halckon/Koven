@@ -176,7 +176,10 @@ impl CompilationUnitOwnership {
 
     /// 查询一个真实最外 call argument 的唯一提取契约。
     #[must_use]
-    pub fn nullable_when_use(&self, argument: UnitExpressionId) -> Option<&UnitNullableWhenUseFact> {
+    pub fn nullable_when_use(
+        &self,
+        argument: UnitExpressionId,
+    ) -> Option<&UnitNullableWhenUseFact> {
         self.nullable_whens
             .iter()
             .flat_map(|plan| &plan.uses)

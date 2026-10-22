@@ -765,9 +765,7 @@ impl UnitExpressionLowerer<'_> {
         parameter_type: lang_frontend::type_checking::UnitTypeId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        if let Some(value) =
-            self.lower_nullable_when_value(call, argument, parameter_type, span)?
-        {
+        if let Some(value) = self.lower_nullable_when_value(call, argument, parameter_type, span)? {
             return Ok(value);
         }
         let value = match self.lower(argument)? {

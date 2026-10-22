@@ -76,7 +76,8 @@ impl UnitExpressionLowerer<'_> {
         let mut actuals = arguments.iter().enumerate().filter(|(_, actual)| {
             UnitExpressionId::new(self.source_unit, actual.value) == argument
         });
-        let (index, _) = actuals.next()
+        let (index, _) = actuals
+            .next()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let mut mappings = descriptor
             .arguments()
@@ -130,24 +131,33 @@ impl UnitExpressionLowerer<'_> {
             || fact.argument() != argument
             || fact.reference() != witness.reference()
             || fact.witness() != witness
-            || plan.uses().iter().filter(|candidate| *candidate == fact).count() != 1
+            || plan
+                .uses()
+                .iter()
+                .filter(|candidate| *candidate == fact)
+                .count()
+                != 1
             || root != Some(witness.symbol())
             || self.bindings.get(&witness.symbol()) != Some(&LoweredValue::Value(proof.owner))
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let concrete = |ty| {
-            resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)
-        };
+        let concrete =
+            |ty| resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span);
         let inner = concrete(witness.inner_type())?;
         let nullable = concrete(witness.nullable_type())?;
         if concrete(mapping.parameter_type())? != inner
             || self.type_ids.get(&inner) != Some(&proof.inner)
-            || self.function.entity(EntityId::Value(proof.owner)).map(|entity| entity.ty)
+            || self
+                .function
+                .entity(EntityId::Value(proof.owner))
+                .map(|entity| entity.ty)
                 != self.type_ids.get(&nullable).copied().map(EntityType::Value)
             || self.typed.copyability(inner) != Copyability::MoveOnly
-            || !matches!(self.ssa_types.get(proof.inner.index()),
-                Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. }))
+            || !matches!(
+                self.ssa_types.get(proof.inner.index()),
+                Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. })
+            )
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
@@ -165,9 +175,11 @@ impl UnitExpressionLowerer<'_> {
                 if fact.kind() != UnitNullableWhenUseKind::Observe
                     || fact.delivery().is_some()
                     || fact.moved_span().is_some()
-                    || self.owned.value_deliveries().iter().any(|delivery| {
-                        delivery.call() == call && delivery.argument() == argument
-                    })
+                    || self
+                        .owned
+                        .value_deliveries()
+                        .iter()
+                        .any(|delivery| delivery.call() == call && delivery.argument() == argument)
                     || loans.as_slice() != [loan]
                     || loan.kind() != FrontendLoanKind::Shared
                     || loan.begin_span() != contract.loan_begin_span()
@@ -201,16 +213,18 @@ impl UnitExpressionLowerer<'_> {
                         && self.owned.formed_owned_locals().contains(&witness.symbol()));
                 if fact.kind() != UnitNullableWhenUseKind::Consume
                     || fact.loan().is_some()
-                    || self.owned.loans().iter().any(|loan| {
-                        loan.call() == call && loan.argument() == argument
-                    })
+                    || self
+                        .owned
+                        .loans()
+                        .iter()
+                        .any(|loan| loan.call() == call && loan.argument() == argument)
                     || deliveries.as_slice() != [delivery]
                     || delivery.kind() != UnitValueDeliveryKind::Move
                     || delivery.span() != node.span()
                     || delivery.parameter_span() != contract.parameter_span()
-                    || delivery.place().is_none_or(|path| {
-                        !path.is_root() || path.root() != witness.symbol()
-                    })
+                    || delivery
+                        .place()
+                        .is_none_or(|path| !path.is_root() || path.root() != witness.symbol())
                     || fact.moved_span() != Some(leaf.span())
                     || !owned
                 {
@@ -301,7 +315,8 @@ impl UnitExpressionLowerer<'_> {
         self.nullable_proofs.remove(&prepared.witness.symbol());
         self.bindings.remove(&prepared.witness.symbol());
         self.closure_bindings.remove(&prepared.witness.symbol());
-        self.temporaries.retain(|_, owner| *owner != prepared.proof.owner);
+        self.temporaries
+            .retain(|_, owner| *owner != prepared.proof.owner);
         // The original Name/Group cleanup points were all checked empty before
         // Take. No fact consumer, including result/closure/Map cleanup, runs here.
         // The original argument frame now registers this inner as its pending Value,

@@ -60,7 +60,13 @@ impl BodyChecker<'_> {
         });
         let subject_source = subject_key.map(|key| (key, self.flow_version(key)));
         let mut nullable_when = self.begin_nullable_when(
-            source, expression, subject, subject_type, nullable_inner, subject_source, entries,
+            source,
+            expression,
+            subject,
+            subject_type,
+            nullable_inner,
+            subject_source,
+            entries,
         )?;
         let baseline = self.flow_facts.clone();
         let baseline_versions = self.flow_versions.clone();
@@ -78,7 +84,10 @@ impl BodyChecker<'_> {
 
         for (entry_index, entry) in entries.iter().enumerate() {
             let mut nullable_entry = super::nullable_when::begin_entry(
-                nullable_when.as_ref(), entry_index, entry, &remaining_domain,
+                nullable_when.as_ref(),
+                entry_index,
+                entry,
+                &remaining_domain,
             );
             self.flow_facts = remaining_facts.clone();
             self.flow_versions = remaining_versions.clone();
@@ -131,8 +140,13 @@ impl BodyChecker<'_> {
                         checked.valid,
                     );
                     super::nullable_when::record_alternative(
-                        &mut nullable_entry, source, condition, condition_span,
-                        &remaining_domain, &matched, &missed,
+                        &mut nullable_entry,
+                        source,
+                        condition,
+                        condition_span,
+                        &remaining_domain,
+                        &matched,
+                        &missed,
                     );
                     if !matched.is_empty() {
                         let mut matched_facts = self.flow_facts.clone();
@@ -203,7 +217,11 @@ impl BodyChecker<'_> {
                 expected
             };
             let frame_base = self.push_nullable_when_frame(
-                nullable_when.as_ref(), entry_index, entry, &body_domain, entry_source_valid,
+                nullable_when.as_ref(),
+                entry_index,
+                entry,
+                &body_domain,
+                entry_source_valid,
             );
             let result = self.check_value_body(
                 source,
@@ -215,8 +233,11 @@ impl BodyChecker<'_> {
             self.active_nullable_whens.truncate(frame_base);
             let result = result?;
             super::nullable_when::finish_entry(
-                &mut nullable_when, nullable_entry, &body_domain,
-                &remaining_domain, result.falls_through,
+                &mut nullable_when,
+                nullable_entry,
+                &body_domain,
+                &remaining_domain,
+                result.falls_through,
             );
             if !body_domain.is_empty() && result.falls_through {
                 exits.push((self.flow_facts.clone(), self.flow_versions.clone()));

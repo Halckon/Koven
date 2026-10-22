@@ -39,16 +39,14 @@ impl UnitExpressionLowerer<'_> {
         if !matches!(
             descriptor.source_category(),
             NullableWhenSubjectCategory::OwnedRoot | NullableWhenSubjectCategory::Temporary
-        )
-        {
+        ) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if self.function.borrow_return.is_some() || self.function.carrier_return.is_some() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let concrete = |ty| {
-            resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)
-        };
+        let concrete =
+            |ty| resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span);
         let declared = concrete(descriptor.nullable_type())?;
         let narrowed = concrete(descriptor.inner_type())?;
         let supported = match self.typed.types().get(narrowed) {
@@ -82,8 +80,10 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if !matches!(self.typed.types().get(declared), Some(UnitTypeKind::Nullable(actual)) if *actual == narrowed)
             || self.ssa_types.get(nullable.index()) != Some(&SsaTypeKind::NullableHandle { inner })
-            || !matches!(self.ssa_types.get(inner.index()),
-                Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. }))
+            || !matches!(
+                self.ssa_types.get(inner.index()),
+                Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. })
+            )
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -138,7 +138,10 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         if descriptor.falls_through()
-            != descriptor.entries().iter().any(|entry| entry.falls_through())
+            != descriptor
+                .entries()
+                .iter()
+                .any(|entry| entry.falls_through())
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
@@ -154,8 +157,10 @@ impl UnitExpressionLowerer<'_> {
             .expressions()
             .get(*condition)
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if !matches!(condition_node.payload(), Expression::Literal(LiteralKind::Null))
-            || alternative.expression() != UnitExpressionId::new(self.source_unit, *condition)
+        if !matches!(
+            condition_node.payload(),
+            Expression::Literal(LiteralKind::Null)
+        ) || alternative.expression() != UnitExpressionId::new(self.source_unit, *condition)
             || alternative.span() != condition_node.span()
             || alternative.input_domain() != Nullable
             || alternative.matched_domain() != Null
@@ -166,7 +171,8 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let operands = self.nullable_when_group_chain(descriptor.subject(), span)?;
-        let leaf = *operands.last()
+        let leaf = *operands
+            .last()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         for operand in &operands {
             if self.typed.expression_type(*operand) != Some(descriptor.nullable_type()) {
@@ -180,7 +186,8 @@ impl UnitExpressionLowerer<'_> {
                     .ast()
                     .expressions()
                     .get(leaf.expression())
-                    .is_ok_and(|node| matches!(node.payload(), Expression::Name)) {
+                    .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+                {
                     // An owned This has no stable Name reference; it is not a
                     // temporary and does not gain this whole-root capability.
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -195,11 +202,14 @@ impl UnitExpressionLowerer<'_> {
                     || descriptor
                         .source_generation()
                         .is_none_or(|generation| generation == u64::MAX)
-                    || plan.source_place().is_none_or(|path| !path.is_root() || path.root() != root)
+                    || plan
+                        .source_place()
+                        .is_none_or(|path| !path.is_root() || path.root() != root)
                     || self.direct_name_symbol(leaf.expression(), span)? != Some(root)
                     || self.typed.symbol_type(root) != Some(descriptor.nullable_type())
-                    || operands.iter().any(|operand| self.typed.expression_category(*operand)
-                        != Some(ExpressionCategory::Place))
+                    || operands.iter().any(|operand| {
+                        self.typed.expression_category(*operand) != Some(ExpressionCategory::Place)
+                    })
                     || self.borrow_bindings.contains_key(&root)
                 {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
@@ -215,9 +225,15 @@ impl UnitExpressionLowerer<'_> {
                     || descriptor.source_generation().is_some()
                     || plan.source_place().is_some()
                     || !plan.uses().is_empty()
-                    || self.typed.nullable_when_uses().iter().any(|fact| fact.control() == control)
-                    || operands.iter().any(|operand| self.typed.expression_category(*operand)
-                        != Some(ExpressionCategory::Temporary))
+                    || self
+                        .typed
+                        .nullable_when_uses()
+                        .iter()
+                        .any(|fact| fact.control() == control)
+                    || operands.iter().any(|operand| {
+                        self.typed.expression_category(*operand)
+                            != Some(ExpressionCategory::Temporary)
+                    })
                 {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 }
@@ -234,10 +250,15 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         if root.is_none() {
-            let normal_drops = self.owned.drops().iter().filter(|fact| {
-                fact.point() == UnitDropPoint::AfterExpression(control)
-                    && fact.target() == UnitDropTarget::Temporary(descriptor.subject())
-            }).count();
+            let normal_drops = self
+                .owned
+                .drops()
+                .iter()
+                .filter(|fact| {
+                    fact.point() == UnitDropPoint::AfterExpression(control)
+                        && fact.target() == UnitDropTarget::Temporary(descriptor.subject())
+                })
+                .count();
             if normal_drops != usize::from(descriptor.falls_through()) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
@@ -263,8 +284,10 @@ impl UnitExpressionLowerer<'_> {
             .get(root.source_unit().index())
             .and_then(|source| source.resolution().symbols().get(root.symbol().index()))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if !matches!(symbol.kind(), SymbolKind::Variable | SymbolKind::ValueParameter)
-            || symbol.is_synthetic()
+        if !matches!(
+            symbol.kind(),
+            SymbolKind::Variable | SymbolKind::ValueParameter
+        ) || symbol.is_synthetic()
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -310,7 +333,11 @@ impl UnitExpressionLowerer<'_> {
             }
         } else {
             for operand in &source.operands {
-                if self.temporaries.get(operand).is_some_and(|value| *value != owner) {
+                if self
+                    .temporaries
+                    .get(operand)
+                    .is_some_and(|value| *value != owner)
+                {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 }
             }
@@ -336,7 +363,11 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             operands.push(current);
-            let node = self.parsed.ast().expressions().get(current.expression())
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(current.expression())
                 .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
             match node.payload() {
                 Expression::Group { expression } => {
@@ -382,7 +413,11 @@ impl UnitExpressionLowerer<'_> {
             || witness.entry_index() != scope.entry
             || witness.source_generation() != scope.generation
             || witness.subject() != descriptor.subject()
-            || descriptor.entries().get(scope.entry).map(|entry| entry.body()) != Some(witness.body())
+            || descriptor
+                .entries()
+                .get(scope.entry)
+                .map(|entry| entry.body())
+                != Some(witness.body())
             || witness.nullable_type() != descriptor.nullable_type()
             || witness.inner_type() != descriptor.inner_type()
             || operands.last() != Some(&witness.reference())
@@ -390,9 +425,13 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         for operand in &operands {
-            let fact = self.typed.nullable_when_use(*operand)
+            let fact = self
+                .typed
+                .nullable_when_use(*operand)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let ordinary = self.typed.non_null_use(*operand)
+            let ordinary = self
+                .typed
+                .non_null_use(*operand)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             if fact.expression() != *operand
                 || fact.reference() != witness.reference()
@@ -414,7 +453,11 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
         }
-        let node = self.parsed.ast().expressions().get(witness.reference().expression())
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(witness.reference().expression())
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if !matches!(node.payload(), Expression::Name)
             || self.references.get(&span_key(node.span())) != Some(&witness.symbol())
@@ -432,10 +475,18 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         self.reject_nullable_when_value(expression, span)?;
-        if !self.nullable_proofs.values().any(|proof| proof.when_scope().is_some()) {
+        if !self
+            .nullable_proofs
+            .values()
+            .any(|proof| proof.when_scope().is_some())
+        {
             return Ok(());
         }
-        let node = self.parsed.ast().expressions().get(expression.expression())
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression.expression())
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let receiver = match node.payload() {
             Expression::Member { receiver, .. } | Expression::Index { receiver, .. } => {
@@ -450,11 +501,14 @@ impl UnitExpressionLowerer<'_> {
             _ => None,
         };
         if receiver.is_some_and(|receiver| self.references_nullable_when_root(receiver))
-            || self.typed.null_comparison(expression).is_some_and(|comparison| {
-                self.nullable_proofs
-                    .get(&comparison.symbol())
-                    .is_some_and(|proof| proof.when_scope().is_some())
-            })
+            || self
+                .typed
+                .null_comparison(expression)
+                .is_some_and(|comparison| {
+                    self.nullable_proofs
+                        .get(&comparison.symbol())
+                        .is_some_and(|proof| proof.when_scope().is_some())
+                })
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -485,9 +539,14 @@ impl UnitExpressionLowerer<'_> {
             return false;
         };
         match node.payload() {
-            Expression::Name => self.references.get(&span_key(node.span())).is_some_and(|root| {
-                self.nullable_proofs.get(root).is_some_and(|proof| proof.when_scope().is_some())
-            }),
+            Expression::Name => self
+                .references
+                .get(&span_key(node.span()))
+                .is_some_and(|root| {
+                    self.nullable_proofs
+                        .get(root)
+                        .is_some_and(|proof| proof.when_scope().is_some())
+                }),
             Expression::Group { expression } => self.references_nullable_when_root(*expression),
             Expression::Member { receiver, .. } | Expression::Index { receiver, .. } => {
                 self.references_nullable_when_root(*receiver)

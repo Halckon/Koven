@@ -37,16 +37,23 @@ impl UnitExpressionLowerer<'_> {
             || self.current_receiver.is_some_and(|receiver| {
                 aliases_owner(receiver.entity) || aliases_view(receiver.entity)
             })
-            || self.borrow_bindings.values().any(|loan| *loan == proof.loan)
+            || self
+                .borrow_bindings
+                .values()
+                .any(|loan| *loan == proof.loan)
             || self.capture_loans.values().any(|loan| *loan == proof.loan)
-            || self.result_source_loans.values().any(|loans| loans.contains(&proof.loan))
+            || self
+                .result_source_loans
+                .values()
+                .any(|loans| loans.contains(&proof.loan))
             || self.short_range_ends.contains_key(&proof.loan)
             || self.nullable_proofs.iter().any(|(other, candidate)| {
                 *other != root && (candidate.loan == proof.loan || candidate.owner == proof.owner)
             })
-            || self.bindings.iter().any(|(other, value)| {
-                *other != root && *value == LoweredValue::Value(proof.owner)
-            })
+            || self
+                .bindings
+                .iter()
+                .any(|(other, value)| *other != root && *value == LoweredValue::Value(proof.owner))
             || self.pending_call_frames.iter().any(|frame| {
                 frame
                     .nullable_children
@@ -132,9 +139,18 @@ impl UnitExpressionLowerer<'_> {
         for operand in operands.iter().rev() {
             let point = UnitDropPoint::AfterExpression(*operand);
             if self.owned.drops().iter().any(|fact| fact.point() == point)
-                || self.owned.borrow_results().ends().iter().any(|fact| fact.point() == point)
+                || self
+                    .owned
+                    .borrow_results()
+                    .ends()
+                    .iter()
+                    .any(|fact| fact.point() == point)
                 || self.owned.iteration_cleanup_at(point).is_some()
-                || self.owned.conditional_receiver_drops().iter().any(|fact| fact.point() == point)
+                || self
+                    .owned
+                    .conditional_receiver_drops()
+                    .iter()
+                    .any(|fact| fact.point() == point)
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }

@@ -87,7 +87,12 @@ fn call_argument(
 
 fn canonical_reference(source: &UnitSource, mut argument: UnitExpressionId) -> UnitExpressionId {
     loop {
-        let node = source.parsed.ast().expressions().get(argument.expression()).unwrap();
+        let node = source
+            .parsed
+            .ast()
+            .expressions()
+            .get(argument.expression())
+            .unwrap();
         match node.payload() {
             Expression::Group { expression } => {
                 argument = UnitExpressionId::new(argument.source_unit(), *expression);
@@ -437,18 +442,25 @@ fn assert_new_generation_products(source: &UnitSource, controls: &[Control]) {
     let mut references = Vec::new();
     let mut witnessed = Vec::new();
     for (index, control) in controls.iter().enumerate() {
-        let descriptor = typed.nullable_when(control.id).expect("real bounded control");
+        let descriptor = typed
+            .nullable_when(control.id)
+            .expect("real bounded control");
         assert_eq!(descriptor.expression(), control.id);
         assert_eq!(descriptor.subject(), control.subject);
         assert_eq!(descriptor.subject_reference(), Some(control.subject));
         assert_eq!(descriptor.stable_symbol(), Some(symbol));
-        assert_eq!(descriptor.source_category(), NullableWhenSubjectCategory::OwnedRoot);
+        assert_eq!(
+            descriptor.source_category(),
+            NullableWhenSubjectCategory::OwnedRoot
+        );
         assert_eq!(Some(descriptor.nullable_type()), typed.symbol_type(symbol));
         assert_eq!(
             typed.types().get(descriptor.nullable_type()),
             Some(&UnitTypeKind::Nullable(descriptor.inner_type()))
         );
-        let generation = descriptor.source_generation().expect("real source generation");
+        let generation = descriptor
+            .source_generation()
+            .expect("real source generation");
         assert_ne!(generation, u64::MAX);
         generations.push(generation);
         let [null, present] = descriptor.entries() else {
@@ -460,23 +472,34 @@ fn assert_new_generation_products(source: &UnitSource, controls: &[Control]) {
         assert_eq!(present.input_domain(), Domain::NonNull);
         assert_eq!(present.body_domain(), Domain::NonNull);
         assert_eq!(present.remaining_domain(), Domain::Empty);
-        let plan = owned.nullable_when(control.id).expect("same-analysis owned plan");
+        let plan = owned
+            .nullable_when(control.id)
+            .expect("same-analysis owned plan");
         assert_eq!(plan.descriptor(), descriptor);
-        let place = plan.source_place().expect("owned local root, never fabricated temporary");
+        let place = plan
+            .source_place()
+            .expect("owned local root, never fabricated temporary");
         assert!(place.is_root());
         assert_eq!(place.root(), symbol);
         assert_eq!(plan.entries().len(), 2);
-        for (entry_index, (entry, owned_entry)) in descriptor.entries().iter()
-            .zip(plan.entries()).enumerate()
+        for (entry_index, (entry, owned_entry)) in
+            descriptor.entries().iter().zip(plan.entries()).enumerate()
         {
             assert_eq!(entry.index(), entry_index);
             assert_eq!(entry.body(), controls[index].entries[entry_index].0);
             assert_eq!(entry.span(), controls[index].entries[entry_index].1);
-            assert_eq!((owned_entry.index(), owned_entry.body()), (entry_index, entry.body()));
+            assert_eq!(
+                (owned_entry.index(), owned_entry.body()),
+                (entry_index, entry.body())
+            );
             assert!(entry.falls_through() && owned_entry.falls_through());
             assert!(!owned_entry.breaks() && !owned_entry.continues());
         }
-        let text = if index == 0 { "observe(x)" } else { "observe((x))" };
+        let text = if index == 0 {
+            "observe(x)"
+        } else {
+            "observe((x))"
+        };
         let (call, argument) = call_argument(source, control, text);
         let reference = canonical_reference(source, argument);
         references.push(reference);
@@ -494,7 +517,9 @@ fn assert_new_generation_products(source: &UnitSource, controls: &[Control]) {
         assert_eq!(loan.kind(), LoanKind::Shared);
         let mut current = argument;
         loop {
-            let witness = typed.nullable_when_use(current).expect("real Name/Group witness");
+            let witness = typed
+                .nullable_when_use(current)
+                .expect("real Name/Group witness");
             assert_eq!(witness.expression(), current);
             assert_eq!(witness.reference(), reference);
             assert_eq!(witness.control(), control.id);
@@ -503,8 +528,10 @@ fn assert_new_generation_products(source: &UnitSource, controls: &[Control]) {
             assert_eq!(witness.body(), control.entries[1].0);
             assert_eq!(witness.symbol(), symbol);
             assert_eq!(witness.source_generation(), generation);
-            assert_eq!((witness.nullable_type(), witness.inner_type()),
-                (descriptor.nullable_type(), descriptor.inner_type()));
+            assert_eq!(
+                (witness.nullable_type(), witness.inner_type()),
+                (descriptor.nullable_type(), descriptor.inner_type())
+            );
             assert_ne!(witness.control(), controls[1 - index].id);
             if current == argument {
                 assert_eq!(witness, use_fact.witness());
@@ -513,8 +540,13 @@ fn assert_new_generation_products(source: &UnitSource, controls: &[Control]) {
             if current == reference {
                 break;
             }
-            let Expression::Group { expression } = source.parsed.ast()
-                .expressions().get(current.expression()).unwrap().payload()
+            let Expression::Group { expression } = source
+                .parsed
+                .ast()
+                .expressions()
+                .get(current.expression())
+                .unwrap()
+                .payload()
             else {
                 panic!("canonical reference reached only by actual Group chain")
             };
@@ -525,8 +557,11 @@ fn assert_new_generation_products(source: &UnitSource, controls: &[Control]) {
     assert_ne!(controls[0].subject, controls[1].subject);
     assert_ne!(references[0], references[1]);
     assert_eq!(Some(generations[1]), generations[0].checked_add(1));
-    let actual = typed.nullable_when_uses().iter()
-        .map(|witness| witness.expression()).collect::<BTreeSet<_>>();
+    let actual = typed
+        .nullable_when_uses()
+        .iter()
+        .map(|witness| witness.expression())
+        .collect::<BTreeSet<_>>();
     assert_eq!(actual, witnessed.into_iter().collect::<BTreeSet<_>>());
 }
 

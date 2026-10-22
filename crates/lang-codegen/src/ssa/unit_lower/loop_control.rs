@@ -59,9 +59,9 @@ impl UnitExpressionLowerer<'_> {
     }
 
     pub(super) fn current_loop_exit_counts(&self) -> (usize, usize) {
-        self.loops
-            .last()
-            .map_or((0, 0), |context| (context.breaks.len(), context.continues.len()))
+        self.loops.last().map_or((0, 0), |context| {
+            (context.breaks.len(), context.continues.len())
+        })
     }
 
     pub(super) fn has_iteration_context(&self) -> bool {

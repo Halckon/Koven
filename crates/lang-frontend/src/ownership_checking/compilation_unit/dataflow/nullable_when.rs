@@ -12,8 +12,8 @@ use crate::{
     },
     parser::Expression,
     type_checking::{
-        NullableWhenSubjectCategory, UnitCallTarget, UnitExpressionId,
-        UnitNullableWhenUseWitness, UnitStatementId,
+        NullableWhenSubjectCategory, UnitCallTarget, UnitExpressionId, UnitNullableWhenUseWitness,
+        UnitStatementId,
     },
 };
 
@@ -31,7 +31,9 @@ fn invalid(expression: UnitExpressionId) -> OwnershipCheckingError {
 }
 
 impl Collection {
-    pub(super) fn finish(self) -> Result<Vec<UnitNullableWhenOwnershipPlan>, OwnershipCheckingError> {
+    pub(super) fn finish(
+        self,
+    ) -> Result<Vec<UnitNullableWhenOwnershipPlan>, OwnershipCheckingError> {
         for plan in self.plans.values() {
             if plan.entries.len() != plan.descriptor.entries().len() {
                 return Err(invalid(plan.descriptor.expression()));
@@ -45,7 +47,11 @@ impl Collection {
             .plans
             .get_mut(&fact.witness.control())
             .ok_or_else(|| invalid(fact.argument))?;
-        if let Some(prior) = plan.uses.iter().find(|prior| prior.argument == fact.argument) {
+        if let Some(prior) = plan
+            .uses
+            .iter()
+            .find(|prior| prior.argument == fact.argument)
+        {
             if prior != &fact {
                 return Err(invalid(fact.argument));
             }
@@ -150,9 +156,12 @@ impl Checker<'_> {
         let control = self.unit_expression(control);
         if let Some(plan) = self.nullable_whens.plans.get_mut(&control) {
             let body = UnitStatementId::new(control.source_unit(), body);
-            if plan.descriptor.entries().get(index).is_none_or(|entry| {
-                entry.index() != index || entry.body() != body
-            }) {
+            if plan
+                .descriptor
+                .entries()
+                .get(index)
+                .is_none_or(|entry| entry.index() != index || entry.body() != body)
+            {
                 return Err(invalid(control));
             }
             let fact = UnitNullableWhenEntryOwnershipFact {
@@ -200,12 +209,14 @@ impl Checker<'_> {
             || Some(witness.source_generation()) != descriptor.source_generation()
             || witness.nullable_type() != descriptor.nullable_type()
             || witness.inner_type() != descriptor.inner_type()
-            || descriptor.entries().get(witness.entry_index()).is_none_or(|entry| {
-                entry.body() != witness.body()
-            })
-            || plan.source_place.as_ref().is_none_or(|place| {
-                !place.is_root() || place.root() != witness.symbol()
-            })
+            || descriptor
+                .entries()
+                .get(witness.entry_index())
+                .is_none_or(|entry| entry.body() != witness.body())
+            || plan
+                .source_place
+                .as_ref()
+                .is_none_or(|place| !place.is_root() || place.root() != witness.symbol())
         {
             return Err(invalid(contract.argument()));
         }

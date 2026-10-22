@@ -247,7 +247,10 @@ impl UnitExpressionLowerer<'_> {
                 self.static_self,
                 span,
             )?;
-            if matches!(self.typed.types().get(subject_type), Some(UnitTypeKind::Nullable(_))) {
+            if matches!(
+                self.typed.types().get(subject_type),
+                Some(UnitTypeKind::Nullable(_))
+            ) {
                 return self.missing_nullable_when_descriptor(entries, span);
             }
             let subject_ssa = self.expression_ssa_type(subject, span)?;

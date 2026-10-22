@@ -4,9 +4,7 @@ use super::CompilationUnitTypes;
 use crate::{
     name_resolution::UnitSymbolId,
     source::Span,
-    type_checking::{
-        NullableWhenSubjectCategory, UnitExpressionId, UnitStatementId, UnitTypeId,
-    },
+    type_checking::{NullableWhenSubjectCategory, UnitExpressionId, UnitStatementId, UnitTypeId},
 };
 
 /// 已计算 When 域的 nullability 投影，不携带单文件 enum identity。
