@@ -951,9 +951,7 @@ fn nullable_when_replacement_if_ordinary_source_links_and_runs() {
         .arg(&executable)
         .output()
         .expect("existing native linker launches");
-    assert_eq!(linked.status.code(), Some(0), "{linked:?}");
-    assert!(linked.stdout.is_empty(), "{linked:?}");
-    assert!(linked.stderr.is_empty(), "{linked:?}");
+    assert_ordinary_link_output(&linked, &object, "replacement-if-native.ko");
     let run = Command::new(&executable)
         .output()
         .expect("new ordinary executable launches");

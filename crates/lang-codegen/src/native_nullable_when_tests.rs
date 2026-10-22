@@ -767,6 +767,34 @@ fn nullable_when_asap_temporaries_and_transfers_have_exact_cleanup() {
     }
 }
 
+fn assert_ordinary_link_output(
+    linked: &std::process::Output,
+    object: &std::path::Path,
+    source_name: &str,
+) {
+    assert_eq!(linked.status.code(), Some(0), "{source_name}: {linked:?}");
+    assert!(linked.stdout.is_empty(), "{source_name}: {linked:?}");
+    if cfg!(target_os = "macos") && !linked.stderr.is_empty() {
+        // The host target and ARM64 MH_OBJECT header are checked independently.
+        // Accept only this one system-linker line for the actual emitted object.
+        assert_eq!(
+            crate::llvm::native_target_triple().expect("supported native host"),
+            "aarch64-apple-darwin"
+        );
+        let expected = format!(
+            "ld: warning: no platform load command found in '{}', assuming: macOS\n",
+            object.display()
+        );
+        assert_eq!(
+            linked.stderr,
+            expected.as_bytes(),
+            "{source_name}: {linked:?}"
+        );
+    } else {
+        assert!(linked.stderr.is_empty(), "{source_name}: {linked:?}");
+    }
+}
+
 #[test]
 fn nullable_when_class_box_rc_ordinary_sources_link_run() {
     use std::{fs, process::Command};
@@ -791,17 +819,7 @@ fn nullable_when_class_box_rc_ordinary_sources_link_run() {
             .arg(&executable)
             .output()
             .expect("existing native linker launches");
-        assert_eq!(
-            linked.status.code(),
-            Some(0),
-            "{}: {linked:?}",
-            prepared.fixture.name
-        );
-        assert!(
-            linked.stderr.is_empty(),
-            "{}: {linked:?}",
-            prepared.fixture.name
-        );
+        assert_ordinary_link_output(&linked, &object, prepared.fixture.name);
         let run = Command::new(&executable)
             .output()
             .expect("newly linked ordinary executable launches");

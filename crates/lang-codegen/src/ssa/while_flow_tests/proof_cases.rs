@@ -528,29 +528,30 @@ return number + 1
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                Ok(())
+                Ok(program)
             });
             println!(
-                "ASSIGNMENT OUTCOME source={} unit={} {result:?}",
+                "ASSIGNMENT OUTCOME source={} unit={} {:?}",
                 index / 2,
-                index % 2 == 1
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
             );
             result
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 12);
-    // Unit compound assignment is a pre-existing frontend Deferred boundary.
-    let error = outcomes[11]
-        .as_ref()
-        .expect_err("retain the observed compound boundary");
-    assert_eq!(
-        error,
-        "complete: Diagnostics([Diagnostic { severity: Error, code: L0165, message: DiagnosticText(\"type checking could not complete: assignment type checking is unresolved\"), primary_span: Span { source_id: SourceId(0), start: 59, end: 74 }, details: [] }])"
-    );
-    for result in outcomes.into_iter().take(11) {
-        result.expect("owned assignment delivery and Copyable controls reach LLVM");
+    // The integer statement producer now closes the historical Unit boundary.
+    // Keep all original phase observations before success and identity assertions.
+    for (index, result) in outcomes.into_iter().enumerate() {
+        let program = result.expect("owned assignment delivery and Copyable controls reach LLVM");
+        if index / 2 == 5 {
+            assignment_contract::assert_compound(&program, &sources[index / 2], index % 2 == 1);
+        }
     }
 }
+
+#[path = "assignment_contract.rs"]
+mod assignment_contract;
 
 fn resource_break_source() -> String {
     r#"class Holder(val value: Int)
