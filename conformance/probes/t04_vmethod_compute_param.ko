@@ -1,0 +1,2 @@
+value class V(val x: Int) { fun plus(d: Int): Int = this.x + d }
+fun main(): Unit { if (V(1).plus(2) == 3) { println("vmethod-param") } }

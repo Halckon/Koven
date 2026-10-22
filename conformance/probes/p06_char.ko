@@ -1,0 +1,1 @@
+fun main(): Unit { val c = 'a'; if (c < 'b') { println("char") } }

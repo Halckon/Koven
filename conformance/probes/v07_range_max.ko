@@ -1,0 +1,1 @@
+fun main(): Unit { var n = 0; for (i in 2147483646..2147483647) { n = n + 1 }; if (n == 2) { println("range-max") } }

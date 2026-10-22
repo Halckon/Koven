@@ -1,0 +1,1 @@
+fun main(): Unit { val xs = listOf(1, 2, 3); var i = 0; var s = 0; while (i < xs.size) { s = s + xs[i]; i = i + 1 }; if (s == 6) { println("index-loop") } }

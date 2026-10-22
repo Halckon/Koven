@@ -1,0 +1,1 @@
+fun main(): Unit { val a = Rc(5); val b = a.share(); if (b.value == 5) { println("rc") } }

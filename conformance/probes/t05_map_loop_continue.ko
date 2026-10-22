@@ -1,0 +1,10 @@
+fun main(): Unit {
+    var m = mutableMapOf<String, Int>()
+    for (w in arrayOf("a", "b", "a")) {
+        if (w == "b") { continue }
+        val prev = m.get(w)
+        m.put(w.clone(), if (prev == null) { 1 } else { prev + 1 })
+    }
+    val n = m.get("a")
+    if (n != null && n == 2) { println("map-continue") }
+}

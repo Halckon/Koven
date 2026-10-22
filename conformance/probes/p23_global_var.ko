@@ -1,0 +1,3 @@
+var counter = 0
+fun bump(): Unit { counter = counter + 1 }
+fun main(): Unit { bump(); if (counter == 1) { println("global") } }

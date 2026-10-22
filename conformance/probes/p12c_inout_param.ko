@@ -1,0 +1,2 @@
+fun bump(inout x: Int): Unit { x = x + 1 }
+fun main(): Unit { var n = 1; bump(&n); if (n == 2) { println("inout-param") } }

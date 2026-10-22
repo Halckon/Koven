@@ -1,0 +1,8 @@
+class Node(val v: Int)
+fun pick(flag: Boolean): Node? = if (flag) Node(5) else null
+fun main(): Unit {
+    val a = pick(true)
+    if (a != null) { if (a.v == 5) { println("smart") } }
+    val b = pick(true)!!
+    if (b.v == 5) { println("bangbang") }
+}

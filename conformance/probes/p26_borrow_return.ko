@@ -1,0 +1,3 @@
+class Holder(val name: String)
+fun nameOf(borrow h: Holder): borrow String from h = h.name
+fun main(): Unit { val h = Holder("borrowed"); borrow val n = nameOf(h); println(n) }

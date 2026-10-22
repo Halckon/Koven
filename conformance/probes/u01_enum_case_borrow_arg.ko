@@ -1,0 +1,3 @@
+enum class Color { Red, Green }
+fun isRed(c: Color): Boolean = when (c) { Color.Red -> true; Color.Green -> false }
+fun main(): Unit { if (isRed(Color.Red)) { println("enum-arg") } }

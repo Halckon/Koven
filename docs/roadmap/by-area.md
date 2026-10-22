@@ -23,7 +23,7 @@
 | 编译器结构 | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
 | 工具链 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | 安全验证 | 1 | 1 | 0 | 1 | 0 | 0 | 3 |
-| 验收、发布与文档 | 4 | 3 | 0 | 3 | 0 | 0 | 10 |
+| 验收、发布与文档 | 5 | 3 | 0 | 2 | 0 | 0 | 10 |
 
 ## 词法与语法
 
@@ -177,7 +177,7 @@
 | ✅ 已交付 | B19 | 可执行 tour 与 Guide Litmus 门禁 | S0 已交付基线 | v1 必做 | — | 6 | [0238](../archive/specs/0238-guide-litmus-gate.md) [0262](../archive/specs/0262-current-tutorial-plan-coverage.md) [0271](../archive/specs/0271-tour-combination-coverage.md) [README](../tutorials/README.md) |
 | ✅ 已交付 | B21 | 双宿主 preview 包与独立安装验收 | S0 已交付基线 | v1 必做 | — | 6 | [0272](../archive/specs/0272-preview-candidate-package.md) [0322](../archive/specs/0322-preview-libxml2-host-compatibility.md) |
 | ✅ 已交付 | B25 | Guide 拆分首片：Compiler Contracts 独立真源（D11） | S0 已交付基线 | v1 建议 | — | — | [0233](../archive/specs/0233-parser-compiler-contracts.md) |
-| ☐ 未开始 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | P0 止血 | v1 必做 | — | 6 | — |
+| ✅ 已交付 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | P0 止血 | v1 必做 | — | 6 | [0348](../archive/specs/0348-conformance-corpus.md) |
 | ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | P0 止血 | v1 必做 | 需新增 | — | [v0.46-language-decisions](../proposals/v0.46-language-decisions.md) |
 | ☐ 未开始 | L14 | 把 v1 不做的内容移出 Guide：unsafe/extern/RawPtr、线程/channel 预声明 API（D6） | P3 语言增量 | v1 必做 | 需新增 | — | — |
 | ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | P5 验收与发布 | v1 必做 | — | 6 | — |

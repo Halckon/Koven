@@ -1,0 +1,5 @@
+fun find(m: Map<String, Int>, key: String): Int {
+    for ((k, v) in m) { if (k == key) { return v } }
+    return -1
+}
+fun main(): Unit { var m = mutableMapOf<String, Int>(); m.put("x", 4); m.put("y", 9); val r = m.consume(); if (find(r, "y") == 9 && find(r, "z") == -1) { println("map-return") } }

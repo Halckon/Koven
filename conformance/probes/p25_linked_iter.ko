@@ -1,0 +1,8 @@
+class Node(val v: Int, val next: Node?)
+fun sum(head: Node?): Int {
+    var total = 0
+    var cur = head
+    while (cur != null) { total = total + cur.v; cur = cur.next }
+    return total
+}
+fun main(): Unit { val l = Node(1, Node(2, null)); if (sum(l) == 3) { println("iter") } }

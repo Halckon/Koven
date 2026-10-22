@@ -1,0 +1,8 @@
+fun main(): Unit {
+    var xs = mutableListOf<Int>()
+    xs.add(1); xs.add(2); xs.add(3)
+    xs[0] = 10
+    var s = 0
+    for (x in xs) { s = s + x }
+    if (s == 15 && xs.size == 3) { println("list") }
+}

@@ -500,3 +500,4 @@
 - [SPEC-0342](0342-companion-block-syntax.md)：Parser 落实 Guide v0.46 的 `companion { }`，`companion object` 以 L0077 拒绝并恢复；仓内测试、fixture 与 tree-sitter 同步迁移。
 - [SPEC-0343](0343-top-level-const-only.md)：compilation-unit 类型检查对顶层运行时 `val`/`var` 报 L0167 并保留 initializer 恢复；依赖顶层值的测试改为期望 L0167 或改写夹具。
 - [SPEC-0347](0347-abort-output.md)：abort 向 stderr 输出 `abort: <message>` 与源码位置后 SIGABRT；`kovenc run` 透传退出码并把信号映射为 128+N。
+- [SPEC-0348](0348-conformance-corpus.md)：154 个 review probe、PR #120 基线矩阵与六个 V1 验收程序入库 `conformance/`，附矩阵 runner `scripts/conformance_matrix.sh`。

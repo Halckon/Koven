@@ -1,0 +1,2 @@
+fun find(xs: List<Int>, target: Int): Boolean { for (x in xs) { if (x == target) { return true } }; return false }
+fun main(): Unit { if (find(listOf(1, 2, 3), 2)) { println("loop-return") } }

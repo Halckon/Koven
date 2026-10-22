@@ -1,0 +1,2 @@
+fun make(own s: String): () -> Boolean = move { s == "x" }
+fun main(): Unit { val f = make("x"); if (f()) { println("move") } }

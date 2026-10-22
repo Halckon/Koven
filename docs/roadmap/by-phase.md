@@ -18,7 +18,7 @@
 | Phase 3 所有权 | 18 | 5 | 1 | 13 | 0 | 0 | 37 |
 | Phase 4 SSA/native | 21 | 6 | 1 | 22 | 0 | 0 | 50 |
 | Phase 5 标准库 | 1 | 0 | 0 | 10 | 0 | 0 | 11 |
-| Phase 6 工具 | 5 | 1 | 0 | 3 | 0 | 0 | 9 |
+| Phase 6 工具 | 6 | 1 | 0 | 2 | 0 | 0 | 9 |
 
 ## 矩阵
 
@@ -52,7 +52,7 @@
 | ☐ 未开始 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | P0 | 已定义 |  |  |  |  |  | ● | ● |
 | ✅ 已交付 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | P0 | 需新增 |  |  | ● |  |  |  |  |
 | ✅ 已交付 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | P0 | 已定义 |  |  |  |  | ● | ● |  |
-| ☐ 未开始 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | P0 | — |  |  |  |  |  |  | ● |
+| ✅ 已交付 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | P0 | — |  |  |  |  |  |  | ● |
 | ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | P0 | 需新增 |  |  |  |  |  |  |  |
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | P1 | — |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 | — |  |  |  | ● | ● |  |  |

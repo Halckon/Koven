@@ -1,0 +1,16 @@
+the: 4
+quick: 1
+brown: 1
+fox: 2
+jumps: 1
+over: 1
+lazy: 1
+dog: 2
+sleeps: 1
+and: 1
+runs: 1
+distinct: 11
+total: 16
+most frequent: the (4)
+repeated: the fox dog
+has fox: true, has cat: false

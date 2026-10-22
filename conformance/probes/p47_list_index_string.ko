@@ -1,0 +1,1 @@
+fun main(): Unit { val xs = listOf("a", "b"); println(xs[1]) }

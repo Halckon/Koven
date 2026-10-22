@@ -1,0 +1,2 @@
+fun total(xs: List<String>): Int { var n = 0; for (x in xs) { n = n + 1 }; return n }
+fun main(): Unit { val xs = listOf("a", "b"); if (total(xs) == 2) { println("borrow-list") } }

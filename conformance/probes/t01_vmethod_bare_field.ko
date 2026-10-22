@@ -1,0 +1,2 @@
+value class Meter(val v: Int) { fun cm(): Int = v * 100 }
+fun main(): Unit { val m = Meter(2); if (m.cm() == 200) { println("vmethod-bare") } }

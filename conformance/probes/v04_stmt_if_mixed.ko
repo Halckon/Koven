@@ -1,0 +1,1 @@
+fun main(): Unit { val c = true; if (c) { 1 } else { "s" }; println("stmt-if-mixed") }

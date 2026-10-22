@@ -1,0 +1,11 @@
+fun main(): Unit {
+    var m = mutableMapOf<String, Int>()
+    m.put("b", 2); m.put("a", 1); m.put("c", 3)
+    var i = 0; var ok = true
+    for ((k, v) in m) {
+        if (i == 0 && k != "b") { ok = false }
+        if (i == 2 && v != 3) { ok = false }
+        i = i + 1
+    }
+    if (ok && i == 3) { println("map-order") }
+}

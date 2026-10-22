@@ -1,0 +1,2 @@
+value class P(val x: Int) { fun pos(): Boolean = this.x > 0 }
+fun main(): Unit { if (P(3).pos()) { println("vmethod-bool") } }

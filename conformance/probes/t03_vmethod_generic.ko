@@ -1,0 +1,2 @@
+value class W<T>(val n: Int) { fun get(): Int = this.n }
+fun main(): Unit { val w = W<Int>(4); if (w.get() == 4) { println("vmethod-generic") } }

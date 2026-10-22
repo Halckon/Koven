@@ -1,0 +1,1 @@
+fun main(): Unit { var m = mutableMapOf<Int, Int>(); for (i in 0..<5) { m.put(i, i * 10) }; var seen = 0; for ((k, v) in m) { if (k == 2) { break }; seen = seen + 1 }; if (seen == 2) { println("map-break") } }

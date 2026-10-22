@@ -1,0 +1,3 @@
+interface Named { fun name(): String }
+class Dog() : Named { override fun name(): String = "dog" }
+fun main(): Unit { val d = Dog(); println(d.name()) }

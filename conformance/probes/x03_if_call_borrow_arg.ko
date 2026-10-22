@@ -1,0 +1,2 @@
+fun observe(s: String): Unit { println(s) }
+fun main(): Unit { val s = "obs"; val flag = true; if (flag) { observe(s) } else { }; println("done") }

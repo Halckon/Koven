@@ -1,0 +1,2 @@
+value class Point(val x: Int, val y: Int)
+fun main(): Unit { val p = Point(1, 2); val q = p; if (p.x + q.y == 3) { println("value") } }

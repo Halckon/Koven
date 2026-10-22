@@ -1,0 +1,3 @@
+class Counter(var n: Int) { inout fun inc(): Unit { this.n = this.n + 1 } }
+fun bump(inout c: Counter): Unit { c.inc() }
+fun main(): Unit { var c = Counter(0); bump(&c); if (c.n == 1) { println("inout-class") } }

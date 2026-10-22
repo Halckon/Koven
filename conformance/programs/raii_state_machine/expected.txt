@@ -1,0 +1,28 @@
+a: open
+  opened handle #1
+a: send 5
+  total 5
+a: send 7
+  total 12
+a: close
+  closing after 12 bytes
+  handle #1 released
+a: send 1
+  ignored
+a: open
+  opened handle #2
+a: send 3
+  total 3
+a: shutdown
+  handle #2 released
+  shut down
+a: open
+  ignored
+b: open
+  opened handle #1
+b: send 2
+  total 2
+end of main
+session b dropped
+  handle #1 released
+session a dropped

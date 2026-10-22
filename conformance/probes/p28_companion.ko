@@ -1,0 +1,2 @@
+class P(val x: Int) { companion { fun origin(): P = P(0) } }
+fun main(): Unit { val p = P.origin(); if (p.x == 0) { println("companion") } }

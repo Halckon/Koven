@@ -1,0 +1,2 @@
+value class Point(val x: Int, val y: Int)
+fun main(): Unit { if (Point(1, 2) == Point(1, 2)) { println("veq") } }

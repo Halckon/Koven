@@ -1,0 +1,2 @@
+import koven.algorithms.take
+fun main(): Unit { val xs = listOf("a", "b", "c"); borrow val v = take(xs, 2); for (s in v) { println(s) } }
