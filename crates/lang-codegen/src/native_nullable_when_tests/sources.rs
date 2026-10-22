@@ -2,7 +2,11 @@
 //! No source or expectation is extracted from the legacy mixed native whole.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Family { Node, Box, Rc }
+pub(super) enum Family {
+    Node,
+    Box,
+    Rc,
+}
 
 pub(super) struct Fixture {
     pub(super) family: Family,
@@ -14,9 +18,27 @@ pub(super) struct Fixture {
 
 pub(super) fn fixtures() -> [Fixture; 3] {
     [
-        Fixture { family: Family::Node, name: "ordinary-when-node.ko", text: NODE, stdout: NODE_STDOUT, first_when: (553, 669) },
-        Fixture { family: Family::Box, name: "ordinary-when-box.ko", text: BOX, stdout: BOX_STDOUT, first_when: (597, 713) },
-        Fixture { family: Family::Rc, name: "ordinary-when-rc.ko", text: RC, stdout: RC_STDOUT, first_when: (729, 845) },
+        Fixture {
+            family: Family::Node,
+            name: "ordinary-when-node.ko",
+            text: NODE,
+            stdout: NODE_STDOUT,
+            first_when: (553, 669),
+        },
+        Fixture {
+            family: Family::Box,
+            name: "ordinary-when-box.ko",
+            text: BOX,
+            stdout: BOX_STDOUT,
+            first_when: (597, 713),
+        },
+        Fixture {
+            family: Family::Rc,
+            name: "ordinary-when-rc.ko",
+            text: RC,
+            stdout: RC_STDOUT,
+            first_when: (729, 845),
+        },
     ]
 }
 
@@ -465,7 +487,6 @@ fun entry(): Unit {
 "#;
 
 pub(super) const RC_STDOUT: &[u8] = b"repeat-present\nread\nread\nread\nread\nvalue\nshared\nconsume\nrepeat-null\nnull\nlater-present-start\nlater-present\nlater-use\nlater-null-start\nlater-null\nlater-use\nreturn-present-start\nreturn-present\nprefix-drop\nouter-drop\nreturn-null-start\ninner-call\nprefix-drop\nouter-call\nouter-drop\nreturn-after\nbreak-present-start\nmake\nbreak-present\nprefix-drop\nouter-drop\nbreak-tail\nbreak-null-start\nmake\ninner-call\nprefix-drop\nouter-call\nouter-drop\nbreak-after\nbreak-tail\ncontinue-present-start\nmake\ncontinue-present\nprefix-drop\nouter-drop\ncontinue-tail\ncontinue-null-start\nmake\ninner-call\nprefix-drop\nouter-call\nouter-drop\ncontinue-after\ncontinue-tail\ntemporary-present-start\nmake\ntemporary-present\nouter-call\nouter-drop\ntemporary-after\ntemporary-null-start\nmake\ntemporary-null\nouter-call\nouter-drop\ntemporary-after\ndone\n";
-
 
 // Every negative is a separate full source document, with byte-exact stage boundaries.
 pub(super) struct Negative {
