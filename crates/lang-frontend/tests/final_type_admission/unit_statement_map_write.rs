@@ -8,7 +8,8 @@ use lang_frontend::{
     },
 };
 
-// These bytes are copied unchanged from the existing native failure sources.
+// Native failure sources are preserved except normalized EOF whitespace.
+// All language tokens and their internal byte positions remain unchanged.
 const ORIGINAL_UNIT: &str =
     include_str!("../fixtures/unit-assignment-admission-0341/unit_array_read_after_if.ko");
 const ORIGINAL_MAPS: [&str; 2] = [
