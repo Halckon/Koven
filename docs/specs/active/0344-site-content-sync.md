@@ -47,5 +47,11 @@
 
 独立站点已发布到 `https://koven-lang.github.io/koven-site/`，首次站点构建与 Pages 部署成功（Actions run `39781286849`）。
 主仓库目标变量已设为 `koven-lang/koven-site`；缺失专用通知凭据时必须失败，避免将未送达记为成功。
-尚未执行远端 dispatch 或编译器 native 测试。现有教程源码和 oracle 未改动，
-站点导入测试不能充当本次 native 验收。远端接通前保持 in-progress，不提前归档。
+2026-10-22：PR #124 已合入 main `b35c01746ce2df3e2b0fbfea9e2fa95b719a732c`。
+主仓库使用专用 Repository secret 的[通知运行](https://github.com/Halckon/Koven/actions/runs/39784467407)成功，
+实际触发站点[构建与 Pages 发布](https://github.com/koven-lang/koven-site/actions/runs/39784489466)，两 job 均成功。
+用户确认暂保留 v0.46 固定快照，合入 main 后再切换；重建不会提前切回 v0.45。
+
+本次 main CI `39784202653` 的双平台检查、测试和消费者 job 均通过，但被后续 main 更新取代，整体为 cancelled；
+对应通知正确 skipped。成功 main CI 自动触发路径等待最新 main CI `39786604501`；因此保持 in-progress。
+未运行编译器 native 测试；现有教程源码和 oracle 未改动，站点导入测试不替代 native 验收。
