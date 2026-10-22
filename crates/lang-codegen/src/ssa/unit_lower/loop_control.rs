@@ -2,6 +2,7 @@
 
 mod iteration;
 mod iteration_cleanup;
+mod map_borrow;
 mod map_iteration;
 mod nullable_while;
 mod numeric_iteration;
@@ -392,10 +393,14 @@ impl UnitExpressionLowerer<'_> {
         if self.loops.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        Ok(LoopJump {
-            state: self.loop_state(),
-            span,
-        })
+        let mut state = self.loop_state();
+        // Cleanup already ended cancelled ordinary call loans. Their Rust frames
+        // still unwind in the caller, but must not reappear in the loop successor.
+        // Keep live nullable-child metadata for its existing strict validation.
+        state.pending_call_frames.retain(|frame| {
+            frame.loop_depth < self.loops.len() || !frame.nullable_children.is_empty()
+        });
+        Ok(LoopJump { state, span })
     }
 
     fn loop_state(&self) -> BranchExit {

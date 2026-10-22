@@ -145,9 +145,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok(None);
         }
-        if !owned_remove_origin(self.function, owner) {
+        let Some(remove) = owned_remove_instruction(self.function, owner) else {
             return Ok(None);
-        }
+        };
         // Only ordinary synchronous arguments use pending slots before later operands.
         // Map key/receiver adapters and callable prefixes with an unregistered receiver
         // are intentionally outside this slice.
@@ -159,11 +159,13 @@ impl UnitExpressionLowerer<'_> {
                 descriptor.receiver().is_some()
                     || descriptor.result_source() != CallableResultSource::Owned
             })
-            || !self.loops.is_empty()
             || !self.is_direct_map_borrow_statement(call, span)?
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let iteration = self.qualify_map_borrow_iteration(
+            root.root(), owner, remove, narrowed, target, span,
+        )?;
         let baseline = self.bindings.clone();
         let mut carried = self.carried_bindings(&baseline, span)?;
         let mut loans = self.carried_loans(&self.borrow_bindings, span)?;
@@ -189,12 +191,19 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.rebind_map_borrow_control(&baseline, non_null, &carried, &loans, view, target, span)?;
         self.block = non_null;
+        if let Some(iteration) = iteration {
+            self.validate_map_borrow_iteration_transport(iteration, span)?;
+        }
         Ok(Some(view))
     }
 }
 
 // Follow actual SSA owner transport, not a type match or another remove in the function.
 pub(super) fn owned_remove_origin(function: &Function, owner: ValueId) -> bool {
+    owned_remove_instruction(function, owner).is_some()
+}
+
+fn owned_remove_instruction(function: &Function, owner: ValueId) -> Option<InstructionId> {
     let mut pending = vec![owner];
     let mut seen = BTreeSet::new();
     let mut origin: Option<InstructionId> = None;
@@ -203,18 +212,18 @@ pub(super) fn owned_remove_origin(function: &Function, owner: ValueId) -> bool {
             continue;
         }
         let Some(data) = function.entity(EntityId::Value(value)) else {
-            return false;
+            return None;
         };
         match data.definition {
             Definition::InstructionResult { instruction, index } => {
                 let Some(result) = function.instruction(instruction) else {
-                    return false;
+                    return None;
                 };
                 if index != 1
                     || !matches!(result.operation, Operation::MapRemove { .. })
                     || origin.is_some_and(|prior| prior != instruction)
                 {
-                    return false;
+                    return None;
                 }
                 origin = Some(instruction);
             }
@@ -229,19 +238,19 @@ pub(super) fn owned_remove_origin(function: &Function, owner: ValueId) -> bool {
                             continue;
                         }
                         let Some(EntityId::Value(value)) = edge.arguments.get(index) else {
-                            return false;
+                            return None;
                         };
                         incoming += 1;
                         pending.push(*value);
                     }
                 }
                 if incoming == 0 {
-                    return false;
+                    return None;
                 }
             }
         }
     }
-    origin.is_some()
+    origin
 }
 
 fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
