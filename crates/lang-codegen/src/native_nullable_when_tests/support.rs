@@ -317,7 +317,7 @@ pub(super) fn aliases(function: &Function, seed: EntityId) -> BTreeSet<EntityId>
                     .arguments
                     .get(column)
                     .is_some_and(|value| found.contains(value))),
-                "all real incoming edges agree on the same identity, not merely a matching type"
+                "all real incoming edges agree on the same identity, not merely a matching type; seed={seed:?}; aliases={found:#?}; target={target:#?}; column={column}; parameter={parameter:?}; incoming={incoming:#?}; actual_function={function:#?}"
             );
         }
     }
