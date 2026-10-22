@@ -1,0 +1,38 @@
+name: Notify independent Koven site
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch content update to the configured site repository
+        env:
+          GH_TOKEN: ${{ secrets.KOVEN_SITE_DISPATCH_TOKEN }}
+          SITE_REPOSITORY: ${{ vars.KOVEN_SITE_REPOSITORY }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          SOURCE_REF: ${{ github.ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SITE_REPOSITORY" || -z "$GH_TOKEN" ]]; then
+            echo '::error::Site notification requires KOVEN_SITE_REPOSITORY and KOVEN_SITE_DISPATCH_TOKEN.'
+            exit 1
+          fi
+          [[ "$SITE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+          gh api --method POST "repos/$SITE_REPOSITORY/dispatches" \
+            -f event_type=koven-content-updated \
+            -f "client_payload[repository]=$GITHUB_REPOSITORY" \
+            -f "client_payload[sha]=$SOURCE_SHA" \
+            -f "client_payload[ref]=$SOURCE_REF"
