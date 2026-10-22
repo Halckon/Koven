@@ -716,13 +716,11 @@ fun entry(holder: Holder): Int { return when ((holder.item)) { null -> 0; else -
                     .iter()
                     .find(|fact| fact.symbol() == root)
                     .unwrap();
-                let owner_span = unit
-                    .names
-                    .names()
-                    .source_units()[binding.symbol().source_unit().index()]
-                    .resolution()
-                    .symbols()[binding.symbol().symbol().index()]
-                    .span();
+                let owner_span = unit.names.names().source_units()
+                    [binding.symbol().source_unit().index()]
+                .resolution()
+                .symbols()[binding.symbol().symbol().index()]
+                .span();
                 assert_eq!(
                     labels(diagnostic),
                     [(
