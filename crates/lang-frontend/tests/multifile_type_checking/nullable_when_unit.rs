@@ -513,24 +513,31 @@ fun captured(value: Node?): Int = when (value) {
         let Statement::ControlBody { elements } = body.payload() else {
             panic!("fixture has an actual control body");
         };
-        let (category, reference, uses, boundary_statement, boundary_expression) =
-            match fixture.sources.slice(subject_node.span()).expect("subject source") {
-                "x" => (
-                    NullableWhenSubjectCategory::OwnedRoot,
-                    target,
-                    vec![target],
-                    elements.first().expect("assignment precedes replacement read"),
-                    assignment,
-                ),
-                "value" => (
-                    NullableWhenSubjectCategory::BorrowRoot,
-                    resumed_leaf,
-                    vec![resumed_leaf, resumed],
-                    elements.last().expect("read resumes after lambda declaration"),
-                    resumed_call,
-                ),
-                other => panic!("unexpected complete fixture subject: {other}"),
-            };
+        let (category, reference, uses, boundary_statement, boundary_expression) = match fixture
+            .sources
+            .slice(subject_node.span())
+            .expect("subject source")
+        {
+            "x" => (
+                NullableWhenSubjectCategory::OwnedRoot,
+                target,
+                vec![target],
+                elements
+                    .first()
+                    .expect("assignment precedes replacement read"),
+                assignment,
+            ),
+            "value" => (
+                NullableWhenSubjectCategory::BorrowRoot,
+                resumed_leaf,
+                vec![resumed_leaf, resumed],
+                elements
+                    .last()
+                    .expect("read resumes after lambda declaration"),
+                resumed_call,
+            ),
+            other => panic!("unexpected complete fixture subject: {other}"),
+        };
         let statement = fixture
             .file
             .ast()
