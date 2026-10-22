@@ -13,11 +13,13 @@ use crate::{
 use lang_frontend::{
     name_resolution::SymbolKind,
     ownership_checking::{
-        LoanKind as FrontendLoanKind, UnitCallArgumentOwnershipKind, UnitDropPoint,
-        UnitDropTarget, UnitLoanTarget, UnitValueDeliveryKind,
+        LoanKind as FrontendLoanKind, UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget,
+        UnitLoanTarget, UnitValueDeliveryKind,
     },
     source::Span,
-    type_checking::{CallableResultSource, Copyability, ParameterMode, UnitCallTarget, UnitExpressionId},
+    type_checking::{
+        CallableResultSource, Copyability, ParameterMode, UnitCallTarget, UnitExpressionId,
+    },
 };
 use std::collections::BTreeSet;
 
@@ -66,19 +68,27 @@ fn fixtures() -> Vec<Fixture> {
     ] {
         for exit in [Exit::Return, Exit::Break, Exit::Continue, Exit::Commit] {
             let (mode, parameters, binding, argument, invoke) = match prefix {
-                Prefix::TemporaryBorrow => (
-                    "", "own flag: Boolean", "", "Leaf()", "exercise(flag)",
-                ),
+                Prefix::TemporaryBorrow => {
+                    ("", "own flag: Boolean", "", "Leaf()", "exercise(flag)")
+                }
                 Prefix::NamedValue => (
-                    "own ", "own flag: Boolean", "val prefix = Leaf()", "prefix", "exercise(flag)",
+                    "own ",
+                    "own flag: Boolean",
+                    "val prefix = Leaf()",
+                    "prefix",
+                    "exercise(flag)",
                 ),
                 Prefix::IncomingBorrow => (
-                    "", "prefix: Leaf, own flag: Boolean", "", "prefix",
+                    "",
+                    "prefix: Leaf, own flag: Boolean",
+                    "",
+                    "prefix",
                     "val callerOwner = Leaf(); exercise(callerOwner, flag)",
                 ),
             };
             let control = format!(
-                "when (flag) {{ true -> {{ {} }} else -> {{ 8 }} }}", exit.expression()
+                "when (flag) {{ true -> {{ {} }} else -> {{ 8 }} }}",
+                exit.expression()
             );
             let call = format!("accept({argument}, {control})");
             let outer_call = format!("enclose(Outer(), {call})");
@@ -126,18 +136,31 @@ fun entry(): Unit {{ println("true"); run(true); println("false"); run(false); p
 fn item_span(source: &UnitSource, name: &str) -> Span {
     let id = source.declaration(name, SymbolKind::Function);
     let declaration = &source.names.names().index().declarations()[id.index()];
-    source.parsed.ast().items().get(declaration.root()).unwrap().span()
+    source
+        .parsed
+        .ast()
+        .items()
+        .get(declaration.root())
+        .unwrap()
+        .span()
 }
 
 fn expression(source: &UnitSource, within: Span, text: &str) -> (UnitExpressionId, Span) {
     let [unit] = source.names.names().index().source_units() else {
         panic!("one original MemoryDocument")
     };
-    let found = source.parsed.ast().expressions().iter().filter(|(_, node)| {
-        let span = node.span();
-        within.start() <= span.start() && span.end() <= within.end()
-            && source.sources.slice(span) == Ok(text)
-    }).collect::<Vec<_>>();
+    let found = source
+        .parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter(|(_, node)| {
+            let span = node.span();
+            within.start() <= span.start()
+                && span.end() <= within.end()
+                && source.sources.slice(span) == Ok(text)
+        })
+        .collect::<Vec<_>>();
     let [(id, node)] = found.as_slice() else {
         panic!("one real expression {text:?} in the selected source function")
     };
@@ -146,8 +169,12 @@ fn expression(source: &UnitSource, within: Span, text: &str) -> (UnitExpressionI
 
 fn function<'a>(source: &UnitSource, program: &'a Program, name: &str) -> &'a Function {
     let origin = Origin::Source(item_span(source, name));
-    let found = program.modules.iter().flat_map(|module| &module.functions)
-        .filter(|function| function.origin == origin).collect::<Vec<_>>();
+    let found = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .filter(|function| function.origin == origin)
+        .collect::<Vec<_>>();
     let [function] = found.as_slice() else {
         panic!("one source-qualified function {name}")
     };
@@ -181,20 +208,30 @@ fn assert_products(source: &UnitSource, fixture: &Fixture) {
     assert_eq!(descriptor.arguments().len(), 2);
     let (outer_call, outer_span) = expression(source, scope, &fixture.outer_call);
     let (outer_argument, outer_origin) = expression(source, scope, "Outer()");
-    let outer_descriptor = typed.call(outer_call).expect("real enclosing call descriptor");
+    let outer_descriptor = typed
+        .call(outer_call)
+        .expect("real enclosing call descriptor");
     assert_eq!(
         outer_descriptor.target(),
         UnitCallTarget::Declaration(source.declaration("enclose", SymbolKind::Function))
     );
     assert!(outer_descriptor.receiver().is_none());
-    assert_eq!(outer_descriptor.result_source(), CallableResultSource::Owned);
-    let outer_loans = owned.loans().iter().filter(|loan| {
-        loan.call() == outer_call && loan.argument() == outer_argument
-    }).collect::<Vec<_>>();
+    assert_eq!(
+        outer_descriptor.result_source(),
+        CallableResultSource::Owned
+    );
+    let outer_loans = owned
+        .loans()
+        .iter()
+        .filter(|loan| loan.call() == outer_call && loan.argument() == outer_argument)
+        .collect::<Vec<_>>();
     let [outer_loan] = outer_loans.as_slice() else {
         panic!("one real enclosing Borrow temporary")
     };
-    assert_eq!(outer_loan.target(), &UnitLoanTarget::Temporary(outer_argument));
+    assert_eq!(
+        outer_loan.target(),
+        &UnitLoanTarget::Temporary(outer_argument)
+    );
     assert_eq!(outer_loan.kind(), FrontendLoanKind::Shared);
     assert_eq!(outer_loan.begin_span(), outer_origin);
     assert_eq!(outer_loan.end_span(), outer_span);
@@ -215,11 +252,17 @@ fn assert_products(source: &UnitSource, fixture: &Fixture) {
     );
     let contracts = owned.call_argument_contracts_for(call).collect::<Vec<_>>();
     assert_eq!(contracts.len(), 2);
-    let contract = contracts.iter().find(|contract| contract.argument() == argument).unwrap();
+    let contract = contracts
+        .iter()
+        .find(|contract| contract.argument() == argument)
+        .unwrap();
     assert_eq!(contract.parameter_index(), 0);
     assert_eq!(contract.parameter_type(), mapping.parameter_type());
     assert_eq!(contract.category(), mapping.category());
-    assert_eq!(typed.expression_category(argument), Some(mapping.category()));
+    assert_eq!(
+        typed.expression_category(argument),
+        Some(mapping.category())
+    );
     assert_eq!(contract.argument_span(), argument_span);
     assert_eq!(contract.call_span(), call_span);
     assert!(!contract.crosses_thread());
@@ -232,18 +275,22 @@ fn assert_products(source: &UnitSource, fixture: &Fixture) {
         }
     );
     if fixture.prefix == Prefix::NamedValue {
-        let deliveries = owned.value_deliveries().iter().filter(|fact| {
-            fact.call() == call && fact.argument() == argument
-        }).collect::<Vec<_>>();
+        let deliveries = owned
+            .value_deliveries()
+            .iter()
+            .filter(|fact| fact.call() == call && fact.argument() == argument)
+            .collect::<Vec<_>>();
         let [delivery] = deliveries.as_slice() else {
             panic!("one real evaluated Value prefix")
         };
         assert_eq!(delivery.kind(), UnitValueDeliveryKind::Move);
         assert!(delivery.place().is_some_and(|place| place.is_root()));
     } else {
-        let loans = owned.loans().iter().filter(|fact| {
-            fact.call() == call && fact.argument() == argument
-        }).collect::<Vec<_>>();
+        let loans = owned
+            .loans()
+            .iter()
+            .filter(|fact| fact.call() == call && fact.argument() == argument)
+            .collect::<Vec<_>>();
         let [loan] = loans.as_slice() else {
             panic!("one real evaluated Borrow prefix")
         };
@@ -261,18 +308,26 @@ fn assert_products(source: &UnitSource, fixture: &Fixture) {
     if fixture.exit != Exit::Commit {
         let (_, control_span) = expression(source, scope, &fixture.control);
         let (exit, _) = expression(source, control_span, fixture.exit.expression());
-        let outer_drops = owned.drops().iter().filter(|fact| {
-            fact.point() == UnitDropPoint::ControlTransfer(exit)
-                && fact.target() == UnitDropTarget::Temporary(outer_argument)
-        }).collect::<Vec<_>>();
+        let outer_drops = owned
+            .drops()
+            .iter()
+            .filter(|fact| {
+                fact.point() == UnitDropPoint::ControlTransfer(exit)
+                    && fact.target() == UnitDropTarget::Temporary(outer_argument)
+            })
+            .collect::<Vec<_>>();
         let [outer_drop] = outer_drops.as_slice() else {
             panic!("the enclosing owner is protected until the whole argument transaction ends")
         };
         assert_eq!(outer_drop.value_origin(), outer_origin);
-        let pending = owned.drops().iter().filter(|fact| {
-            fact.point() == UnitDropPoint::ControlTransfer(exit)
-                && fact.target() == UnitDropTarget::Temporary(argument)
-        }).collect::<Vec<_>>();
+        let pending = owned
+            .drops()
+            .iter()
+            .filter(|fact| {
+                fact.point() == UnitDropPoint::ControlTransfer(exit)
+                    && fact.target() == UnitDropTarget::Temporary(argument)
+            })
+            .collect::<Vec<_>>();
         assert_eq!(
             pending.len(),
             usize::from(fixture.prefix != Prefix::IncomingBorrow)
@@ -286,7 +341,11 @@ fn assert_products(source: &UnitSource, fixture: &Fixture) {
 fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
     match terminator {
         TerminatorKind::Branch(edge) => vec![edge],
-        TerminatorKind::Conditional { when_true, when_false, .. } => vec![when_true, when_false],
+        TerminatorKind::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => vec![when_true, when_false],
         TerminatorKind::Return { .. } => Vec::new(),
         _ => panic!("ordinary fixture has no nullable, borrowed return, or Abort terminator"),
     }
@@ -302,7 +361,9 @@ fn transported_aliases(function: &Function, seed: EntityId) -> BTreeSet<EntityId
                 let target = function.block(edge.target).unwrap();
                 assert_eq!(edge.arguments.len(), target.parameters.len());
                 for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
-                    if aliases.contains(argument) { aliases.insert(*parameter); }
+                    if aliases.contains(argument) {
+                        aliases.insert(*parameter);
+                    }
                 }
             }
         }
@@ -310,13 +371,25 @@ fn transported_aliases(function: &Function, seed: EntityId) -> BTreeSet<EntityId
             // A join is the same source owner/loan only if every incoming edge agrees.
             for target in &function.blocks {
                 for (index, parameter) in target.parameters.iter().enumerate() {
-                    if !aliases.contains(parameter) || *parameter == seed { continue; }
-                    let incoming = function.blocks.iter().flat_map(|block| {
-                        edges(&block.terminator.as_ref().unwrap().kind)
-                    }).filter(|edge| edge.target == target.id).collect::<Vec<_>>();
-                    assert!(!incoming.is_empty(), "a transported alias has a real predecessor");
-                    assert!(incoming.iter().all(|edge| aliases.contains(&edge.arguments[index])),
-                        "every incoming edge must preserve the same actual owner/loan identity");
+                    if !aliases.contains(parameter) || *parameter == seed {
+                        continue;
+                    }
+                    let incoming = function
+                        .blocks
+                        .iter()
+                        .flat_map(|block| edges(&block.terminator.as_ref().unwrap().kind))
+                        .filter(|edge| edge.target == target.id)
+                        .collect::<Vec<_>>();
+                    assert!(
+                        !incoming.is_empty(),
+                        "a transported alias has a real predecessor"
+                    );
+                    assert!(
+                        incoming
+                            .iter()
+                            .all(|edge| aliases.contains(&edge.arguments[index])),
+                        "every incoming edge must preserve the same actual owner/loan identity"
+                    );
                 }
             }
             return aliases;
@@ -363,7 +436,12 @@ impl Transaction<'_> {
         }
     }
 
-    fn visit(&self, block_id: BlockId, mut events: Vec<Event>, mut seen: Vec<BlockId>) -> Vec<bool> {
+    fn visit(
+        &self,
+        block_id: BlockId,
+        mut events: Vec<Event>,
+        mut seen: Vec<BlockId>,
+    ) -> Vec<bool> {
         assert!(
             !seen.contains(&block_id),
             "transaction must retire before the next loop iteration"
@@ -378,15 +456,19 @@ impl Transaction<'_> {
                     Operation::DirectCall { receiver: None, .. }
                 ));
                 assert_eq!(
-                    events, self.expected(true),
-                    "{}: complete normal path {seen:?}", self.fixture.name
+                    events,
+                    self.expected(true),
+                    "{}: complete normal path {seen:?}",
+                    self.fixture.name
                 );
                 return vec![true];
             }
             match &instruction.operation {
-                Operation::DirectCall { receiver, arguments, .. }
-                    if instruction.origin == Origin::Source(self.call) =>
-                {
+                Operation::DirectCall {
+                    receiver,
+                    arguments,
+                    ..
+                } if instruction.origin == Origin::Source(self.call) => {
                     assert!(receiver.is_none());
                     assert_eq!(arguments.len(), 2);
                     let aliases = if self.fixture.prefix == Prefix::NamedValue {
@@ -394,12 +476,17 @@ impl Transaction<'_> {
                     } else {
                         &self.loans
                     };
-                    assert!(aliases.contains(&arguments[0]), "commit must use the real rebound prefix");
+                    assert!(
+                        aliases.contains(&arguments[0]),
+                        "commit must use the real rebound prefix"
+                    );
                     events.push(Event::Commit);
                 }
-                Operation::DirectCall { receiver, arguments, .. }
-                    if instruction.origin == Origin::Source(self.outer_call) =>
-                {
+                Operation::DirectCall {
+                    receiver,
+                    arguments,
+                    ..
+                } if instruction.origin == Origin::Source(self.outer_call) => {
                     assert!(receiver.is_none());
                     assert!(self.outer_loans.contains(&arguments[0]));
                     events.push(Event::OuterCommit);
@@ -424,10 +511,15 @@ impl Transaction<'_> {
             }
         }
         let terminator = block.terminator.as_ref().unwrap();
-        if self.exit.is_some_and(|span| terminator.origin == Origin::Source(span)) {
+        if self
+            .exit
+            .is_some_and(|span| terminator.origin == Origin::Source(span))
+        {
             assert_eq!(
-                events, self.expected(false),
-                "{}: complete cancellation path {seen:?}", self.fixture.name
+                events,
+                self.expected(false),
+                "{}: complete cancellation path {seen:?}",
+                self.fixture.name
             );
             match (&terminator.kind, self.fixture.exit) {
                 (TerminatorKind::Return { values }, Exit::Return) => assert!(values.is_empty()),
@@ -436,11 +528,16 @@ impl Transaction<'_> {
             }
             for edge in edges(&terminator.kind) {
                 assert!(edge.arguments.iter().all(|argument| {
-                    !self.owners.contains(argument) && !self.outer_owners.contains(argument)
+                    !self.owners.contains(argument)
+                        && !self.outer_owners.contains(argument)
                         && !self.outer_loans.contains(argument)
                 }));
                 if self.fixture.prefix != Prefix::IncomingBorrow {
-                    assert!(edge.arguments.iter().all(|argument| !self.loans.contains(argument)));
+                    assert!(
+                        edge.arguments
+                            .iter()
+                            .all(|argument| !self.loans.contains(argument))
+                    );
                 }
             }
             return vec![false];
@@ -450,7 +547,8 @@ impl Transaction<'_> {
             !successors.is_empty(),
             "every transaction must reach its exact commit or control exit"
         );
-        successors.into_iter()
+        successors
+            .into_iter()
             .flat_map(|edge| self.visit(edge.target, events.clone(), seen.clone()))
             .collect()
     }
@@ -464,10 +562,14 @@ fn owner_and_loan_aliases(
     borrowed: bool,
 ) -> (BTreeSet<EntityId>, BTreeSet<EntityId>) {
     let (_, origin) = expression(source, scope, constructor);
-    let births = function.instructions.iter().filter(|instruction| {
-        instruction.origin == Origin::Source(origin)
-            && matches!(instruction.operation, Operation::HeapAllocate { .. })
-    }).collect::<Vec<_>>();
+    let births = function
+        .instructions
+        .iter()
+        .filter(|instruction| {
+            instruction.origin == Origin::Source(origin)
+                && matches!(instruction.operation, Operation::HeapAllocate { .. })
+        })
+        .collect::<Vec<_>>();
     let [birth] = births.as_slice() else {
         panic!("one actual prefix owner allocation")
     };
@@ -475,17 +577,21 @@ fn owner_and_loan_aliases(
         panic!("one owner result")
     };
     let owners = transported_aliases(function, *owner);
-    let loans = function.instructions.iter().filter_map(|instruction| {
-        let Operation::BorrowBegin { place, .. } = instruction.operation else {
-            return None;
-        };
-        let root = function.instructions.iter().any(|root| {
-            root.results.contains(&EntityId::Place(place))
-                && matches!(root.operation,
+    let loans = function
+        .instructions
+        .iter()
+        .filter_map(|instruction| {
+            let Operation::BorrowBegin { place, .. } = instruction.operation else {
+                return None;
+            };
+            let root = function.instructions.iter().any(|root| {
+                root.results.contains(&EntityId::Place(place))
+                    && matches!(root.operation,
                     Operation::RootPlace { owner } if owners.contains(&EntityId::Value(owner)))
-        });
-        root.then_some(instruction)
-    }).collect::<Vec<_>>();
+            });
+            root.then_some(instruction)
+        })
+        .collect::<Vec<_>>();
     if !borrowed {
         assert!(loans.is_empty(), "Value prefix is not disguised as a loan");
         return (owners, BTreeSet::new());
@@ -500,7 +606,8 @@ fn owner_and_loan_aliases(
 }
 
 fn assert_paths(source: &UnitSource, fixture: &Fixture, program: &Program) {
-    verify_program(program).expect("real whole-program SSA verifies ownership before path inspection");
+    verify_program(program)
+        .expect("real whole-program SSA verifies ownership before path inspection");
     let function = function(source, program, "exercise");
     let scope = item_span(source, "exercise");
     let (_, call) = expression(source, scope, &fixture.call);
@@ -509,52 +616,83 @@ fn assert_paths(source: &UnitSource, fixture: &Fixture, program: &Program) {
     let exit = (fixture.exit != Exit::Commit)
         .then(|| expression(source, control, fixture.exit.expression()).1);
     let (_, outer_call) = expression(source, scope, &fixture.outer_call);
-    let (outer_owners, outer_loans) = owner_and_loan_aliases(source, function, scope, "Outer()", true);
+    let (outer_owners, outer_loans) =
+        owner_and_loan_aliases(source, function, scope, "Outer()", true);
     let (owners, loans) = if fixture.prefix == Prefix::IncomingBorrow {
-        let entry = function.entry_block().and_then(|id| function.block(id))
+        let entry = function
+            .entry_block()
+            .and_then(|id| function.block(id))
             .expect("the real lowered function has its declared entry block");
         let parameter = entry.parameters[0];
         assert!(matches!(parameter, EntityId::Loan(_)));
         (BTreeSet::new(), transported_aliases(function, parameter))
     } else {
         owner_and_loan_aliases(
-            source, function, scope, "Leaf()", fixture.prefix == Prefix::TemporaryBorrow,
+            source,
+            function,
+            scope,
+            "Leaf()",
+            fixture.prefix == Prefix::TemporaryBorrow,
         )
     };
-    let branches = function.blocks.iter().filter(|block| {
-        block.terminator.as_ref().is_some_and(|terminator| {
-            terminator.origin == Origin::Source(control)
-                && matches!(terminator.kind, TerminatorKind::Conditional { .. })
+    let branches = function
+        .blocks
+        .iter()
+        .filter(|block| {
+            block.terminator.as_ref().is_some_and(|terminator| {
+                terminator.origin == Origin::Source(control)
+                    && matches!(terminator.kind, TerminatorKind::Conditional { .. })
+            })
         })
-    }).collect::<Vec<_>>();
+        .collect::<Vec<_>>();
     let [branch] = branches.as_slice() else {
         panic!("one real Boolean-when decision")
     };
     assert!(owners.is_disjoint(&outer_owners));
     assert!(loans.is_disjoint(&outer_loans));
     let transaction = Transaction {
-        function, fixture, call, outer_call, checkpoint, exit,
-        owners, loans, outer_owners, outer_loans,
+        function,
+        fixture,
+        call,
+        outer_call,
+        checkpoint,
+        exit,
+        owners,
+        loans,
+        outer_owners,
+        outer_loans,
     };
     let mut outcomes = Vec::new();
     for edge in edges(&branch.terminator.as_ref().unwrap().kind) {
         assert_eq!(
-            edge.arguments.iter().filter(|argument| transaction.outer_owners.contains(argument)).count(),
+            edge.arguments
+                .iter()
+                .filter(|argument| transaction.outer_owners.contains(argument))
+                .count(),
             1
         );
         assert_eq!(
-            edge.arguments.iter().filter(|argument| transaction.outer_loans.contains(argument)).count(),
+            edge.arguments
+                .iter()
+                .filter(|argument| transaction.outer_loans.contains(argument))
+                .count(),
             1
         );
         if fixture.prefix != Prefix::IncomingBorrow {
             assert_eq!(
-                edge.arguments.iter().filter(|argument| transaction.owners.contains(argument)).count(),
+                edge.arguments
+                    .iter()
+                    .filter(|argument| transaction.owners.contains(argument))
+                    .count(),
                 1
             );
         }
         if fixture.prefix == Prefix::TemporaryBorrow {
             assert_eq!(
-                edge.arguments.iter().filter(|argument| transaction.loans.contains(argument)).count(),
+                edge.arguments
+                    .iter()
+                    .filter(|argument| transaction.loans.contains(argument))
+                    .count(),
                 1
             );
         }
@@ -563,13 +701,20 @@ fn assert_paths(source: &UnitSource, fixture: &Fixture, program: &Program) {
     outcomes.sort();
     assert_eq!(
         outcomes,
-        if fixture.exit == Exit::Commit { vec![true, true] } else { vec![false, true] }
+        if fixture.exit == Exit::Commit {
+            vec![true, true]
+        } else {
+            vec![false, true]
+        }
     );
     if fixture.prefix == Prefix::IncomingBorrow {
-        assert!(function.instructions.iter().all(|instruction| !matches!(
-            instruction.operation, Operation::BorrowEnd { loan }
-                if transaction.loans.contains(&EntityId::Loan(loan))
-        )), "the incoming loan is never ended by this caller");
+        assert!(
+            function.instructions.iter().all(|instruction| !matches!(
+                instruction.operation, Operation::BorrowEnd { loan }
+                    if transaction.loans.contains(&EntityId::Loan(loan))
+            )),
+            "the incoming loan is never ended by this caller"
+        );
     }
     crate::llvm::render_verified_program(program)
         .expect("the complete source program emits verified LLVM");
@@ -588,16 +733,23 @@ fn prepared_matrix() -> Vec<(Fixture, UnitSource)> {
             Ok((program, _)) => assert_paths(&source, &fixture, &program),
             Err(error) => {
                 assert_ne!(
-                    fixture.exit, Exit::Commit,
+                    fixture.exit,
+                    Exit::Commit,
                     "normal commit is an existing success, not a planned red"
                 );
-                assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{}", fixture.name);
-                let (_, span) = expression(
-                    &source, item_span(&source, "exercise"), &fixture.outer_call,
-                );
                 assert_eq!(
-                    error.span, Some(span),
-                    "{}: only the exact outer direct-call gate is a planned red", fixture.name
+                    error.kind,
+                    LoweringErrorKind::UnsupportedNode,
+                    "{}",
+                    fixture.name
+                );
+                let (_, span) =
+                    expression(&source, item_span(&source, "exercise"), &fixture.outer_call);
+                assert_eq!(
+                    error.span,
+                    Some(span),
+                    "{}: only the exact outer direct-call gate is a planned red",
+                    fixture.name
                 );
                 failures.push(format!("{}: {error:?}", fixture.name));
             }
@@ -629,7 +781,9 @@ fn expected_stdout(prefix: Prefix, exit: Exit) -> String {
     let cancelled = match (prefix, exit) {
         (_, Exit::Commit) => normal,
         (Prefix::IncomingBorrow, Exit::Return) => "outer-drop\ncaller\ndrop\n",
-        (Prefix::IncomingBorrow, Exit::Break | Exit::Continue) => "outer-drop\ntail\ncaller\ndrop\n",
+        (Prefix::IncomingBorrow, Exit::Break | Exit::Continue) => {
+            "outer-drop\ntail\ncaller\ndrop\n"
+        }
         (_, Exit::Return) => "drop\nouter-drop\ncaller\n",
         (_, Exit::Break | Exit::Continue) => "drop\nouter-drop\ntail\ncaller\n",
     };
@@ -644,8 +798,10 @@ fn ordinary_direct_prefix_cancellations_and_commits_link_run_with_exact_stdout()
         assert!(output.status.success(), "{}: {output:?}", fixture.name);
         assert!(output.stderr.is_empty(), "{}: {output:?}", fixture.name);
         assert_eq!(
-            output.stdout, expected_stdout(fixture.prefix, fixture.exit).as_bytes(),
-            "{}", fixture.name
+            output.stdout,
+            expected_stdout(fixture.prefix, fixture.exit).as_bytes(),
+            "{}",
+            fixture.name
         );
     }
 }
@@ -655,19 +811,26 @@ fn ordinary_direct_prefix_scope_negatives_keep_exact_call_rejections() {
     let control = "when (flag) { true -> { return } else -> { 7 } }";
     for (name, definitions, setup, call) in [
         (
-            "field", "class Holder(val item: Leaf)", "val holder = Holder(Leaf())",
+            "field",
+            "class Holder(val item: Leaf)",
+            "val holder = Holder(Leaf())",
             format!("accept(holder.item, {control})"),
         ),
         (
-            "element", "", "val items = arrayOf<Leaf>(Leaf())",
+            "element",
+            "",
+            "val items = arrayOf<Leaf>(Leaf())",
             format!("accept(items[0], {control})"),
         ),
         (
-            "receiver", "class Host { fun method(item: Leaf, own number: Int): Unit {} }",
-            "val host = Host()", format!("host.method(Leaf(), {control})"),
+            "receiver",
+            "class Host { fun method(item: Leaf, own number: Int): Unit {} }",
+            "val host = Host()",
+            format!("host.method(Leaf(), {control})"),
         ),
         (
-            "function-value", "",
+            "function-value",
+            "",
             "val action: (Leaf, own Int) -> Unit = { item, number -> }",
             format!("action(Leaf(), {control})"),
         ),
@@ -682,10 +845,16 @@ fn ordinary_direct_prefix_scope_negatives_keep_exact_call_rejections() {
         source.assert_frontend_clean();
         assert!(matches!(&source.products, OwnedProducts::Basic(..)));
         let (_, span) = expression(&source, item_span(&source, "entry"), &call);
-        let error = source.lower_entry(source.declaration("entry", SymbolKind::Function))
-            .err().expect("out-of-scope call shape remains rejected");
+        let error = source
+            .lower_entry(source.declaration("entry", SymbolKind::Function))
+            .err()
+            .expect("out-of-scope call shape remains rejected");
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
-        assert_eq!(error.span, Some(span), "{name}: exact original call boundary");
+        assert_eq!(
+            error.span,
+            Some(span),
+            "{name}: exact original call boundary"
+        );
         assert_eq!(source.sources.slice(span), Ok(call.as_str()));
     }
 }

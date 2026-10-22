@@ -890,7 +890,10 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
                     } else {
                         "select(number, break)"
                     };
-                    assert_eq!(sources.slice(error.span.expect("exact call span")), Ok(call));
+                    assert_eq!(
+                        sources.slice(error.span.expect("exact call span")),
+                        Ok(call)
+                    );
                     direct_failures.push((path, error));
                     continue;
                 }
@@ -903,7 +906,9 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
         } else {
             let error = match result {
                 Ok(_) => {
-                    panic!("{path}: unsupported closure surface must fail before publishing a program")
+                    panic!(
+                        "{path}: unsupported closure surface must fail before publishing a program"
+                    )
                 }
                 Err(error) => error,
             };
