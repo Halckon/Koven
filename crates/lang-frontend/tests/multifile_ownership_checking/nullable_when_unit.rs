@@ -582,3 +582,220 @@ fn unit_when_ownership_failure_and_assignment_rollback_clear_plans() {
         });
     }
 }
+
+#[test]
+fn unit_when_place_subject_reads_preserve_move_and_loan_guards() {
+    // Only a fully checked legacy L0136 is collected; every other mismatch fails immediately.
+    let positives = [
+        (
+            "element-ordinary",
+            r#"fun entry(items: List<Node?>): Unit { when (items[0]) { null -> {}; else -> {} } }
+"#,
+            "items[0]",
+            "items[0]",
+            true,
+            false,
+        ),
+        (
+            "field-ordinary",
+            r#"class Holder(val item: Node?)
+fun entry(holder: Holder): Unit { when (holder.item) { null -> {}; else -> {} } }
+"#,
+            "holder.item",
+            "holder.item",
+            false,
+            false,
+        ),
+        (
+            "element-group",
+            r#"fun entry(items: List<Node?>): Unit { when ((items[0])) { null -> {}; else -> {} } }
+"#,
+            "items[0]",
+            "(items[0])",
+            true,
+            false,
+        ),
+        (
+            "field-group",
+            r#"class Holder(val item: Node?)
+fun entry(holder: Holder): Unit { when ((holder.item)) { null -> {}; else -> {} } }
+"#,
+            "holder.item",
+            "(holder.item)",
+            false,
+            false,
+        ),
+        (
+            "element-escaping",
+            r#"fun entry(items: List<Node?>): Int { return when ((items[0])) { null -> 0; else -> 1 } }
+"#,
+            "items[0]",
+            "(items[0])",
+            true,
+            true,
+        ),
+        (
+            "field-escaping",
+            r#"class Holder(val item: Node?)
+fun entry(holder: Holder): Int { return when ((holder.item)) { null -> 0; else -> 1 } }
+"#,
+            "holder.item",
+            "(holder.item)",
+            false,
+            true,
+        ),
+    ];
+    let mut legacy_rejections = Vec::new();
+    let mut visited = Vec::new();
+    for (name, source, leaf_text, subject_text, element, escaping) in positives {
+        checked(Owner::Node, source, |unit| {
+            assert!(
+                unit.owned.deferred().is_empty(),
+                "{name}: no deferred ownership outcome is permitted"
+            );
+            let [(control, subject)] = unit.when_subjects()[..] else {
+                panic!("{name}: one real When in this independent source");
+            };
+            assert_eq!(unit.text(subject), subject_text, "{name}");
+            let leaf = unit.expression(leaf_text);
+            assert_eq!(
+                unit.typed.types().expression_category(subject),
+                Some(lang_frontend::type_checking::ExpressionCategory::Place),
+                "{name}"
+            );
+            assert_eq!(
+                unit.file.ast().expressions().iter().any(|(_, node)| {
+                    matches!(node.payload(), Expression::Return { value: Some(value), .. }
+                        if *value == control.expression())
+                }),
+                escaping,
+                "{name}: explicit Return reaches the escaping When entry"
+            );
+            if element {
+                let place = unit.typed.types().element_place(leaf)
+                    .expect("real element descriptor");
+                assert_eq!(place.expression(), leaf);
+                assert_eq!(place.receiver().source_unit(), unit.unit);
+                assert_eq!(place.index().source_unit(), unit.unit);
+            } else {
+                let projection = unit.typed.types().aggregate_projection(leaf)
+                    .expect("real field projection descriptor");
+                assert_eq!(projection.expression(), leaf);
+                assert_eq!(
+                    projection.kind(),
+                    lang_frontend::type_checking::UnitAggregateProjectionKind::Field
+                );
+            }
+            if !unit.owned.diagnostics().is_empty() {
+                assert!(
+                    element,
+                    "{name}: unexpected field ownership error: {:?}",
+                    diagnostic_codes(unit.owned)
+                );
+                assert_eq!(
+                    diagnostic_codes(unit.owned), ["L0136"], "{name}: unexpected diagnostic"
+                );
+                let diagnostic = &unit.owned.diagnostics()[0];
+                assert_eq!(
+                    diagnostic.message(),
+                    "cannot move a non-Copyable element out of a sequential container"
+                );
+                assert_eq!(diagnostic.primary_span(), unit.span(leaf), "{name}");
+                let root = unit.root("items");
+                let binding = unit.owned.bindings().iter()
+                    .find(|fact| fact.symbol() == root).unwrap();
+                assert_eq!(
+                    labels(diagnostic),
+                    [(binding.declaration_span(),
+                        "container owner remains responsible for every initialized element")]
+                );
+                assert_eq!(diagnostic.details().len(), 1, "{name}: no extra cascade/details");
+                assert!(unit.owned.clone().validate().is_err());
+                legacy_rejections.push(name);
+            }
+            assert!(
+                unit.owned.loans().is_empty(),
+                "{name}: discriminating is not a source loan delivery"
+            );
+            assert!(
+                unit.owned.value_deliveries().is_empty(),
+                "{name}: subject read cannot extract a Value"
+            );
+            assert!(unit.owned.rc_effects().is_empty(), "{name}: no retain or copy");
+            visited.push(name);
+        });
+    }
+    let negatives = [
+        (
+            "moved-element-owner",
+            r#"fun consumeItems(own values: List<Node?>): Unit {}
+fun entry(own items: List<Node?>): Unit { consumeItems(items); when (items[0]) { null -> {}; else -> {} } }
+"#,
+            "L0131",
+            "use of moved value",
+            (120, 125),
+            "items",
+            (106, 111),
+            "items",
+            "value was moved here",
+            "consumeItems(items)",
+            UnitCallArgumentOwnershipKind::Value,
+        ),
+        (
+            "exclusive-element-owner",
+            r#"fun holdItems(inout values: List<Node?>, own result: Unit): Unit {}
+fun entry(own input: List<Node?>): Unit { var items = input
+val result = holdItems(&items, when (items[0]) { null -> {}; else -> {} }) }
+"#,
+            "L0135",
+            "read conflicts with an active exclusive loan",
+            (165, 173),
+            "items[0]",
+            (151, 152),
+            "&",
+            "conflicting loan starts here",
+            "holdItems(&items, when (items[0]) { null -> {}; else -> {} })",
+            UnitCallArgumentOwnershipKind::ExclusiveLoan,
+        ),
+    ];
+    for (
+        name, source, code, message, primary, primary_text, label, label_text,
+        label_message, call, kind,
+    ) in negatives
+    {
+        checked(Owner::Node, source, |unit| {
+            assert!(
+                unit.owned.deferred().is_empty(),
+                "{name}: no deferred ownership outcome is permitted"
+            );
+            assert_eq!(diagnostic_codes(unit.owned), [code], "{name}: unexpected diagnostic");
+            let diagnostic = &unit.owned.diagnostics()[0];
+            assert_eq!(diagnostic.message(), message, "{name}");
+            let primary_span = diagnostic.primary_span();
+            assert_eq!((primary_span.start(), primary_span.end()), primary, "{name}");
+            assert_eq!(unit.sources.slice(primary_span).unwrap(), primary_text, "{name}");
+            let contract = unit.contract(call, 0);
+            assert_eq!(contract.kind(), kind, "{name}: real preceding move/loan contract");
+            let origin = if kind == UnitCallArgumentOwnershipKind::Value {
+                contract.argument_span()
+            } else {
+                contract.loan_begin_span()
+            };
+            assert_eq!(primary_span.source_id(), origin.source_id());
+            assert_eq!((origin.start(), origin.end()), label, "{name}");
+            assert_eq!(unit.sources.slice(origin).unwrap(), label_text, "{name}");
+            assert_eq!(labels(diagnostic), [(origin, label_message)], "{name}");
+            assert_eq!(diagnostic.details().len(), 1, "{name}: no extra cascade/details");
+            assert!(unit.owned.loans().is_empty());
+            assert!(unit.owned.value_deliveries().is_empty());
+            assert!(unit.owned.drops().is_empty());
+            assert!(unit.owned.clone().validate().is_err());
+            visited.push(name);
+        });
+    }
+    assert_eq!(visited.len(), 8, "only reached and checked cases count: {visited:?}");
+    assert!(
+        legacy_rejections.is_empty(),
+        "read-only nullable When subjects hit the old MoveOnly element gate: {legacy_rejections:?}; actually checked: {visited:?}"
+    );
+}

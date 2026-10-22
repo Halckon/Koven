@@ -24,6 +24,8 @@ use lang_frontend::{
 };
 use std::collections::BTreeSet;
 
+#[path = "native_nullable_when_tests/generation.rs"]
+mod generation;
 #[path = "native_nullable_when_tests/sources.rs"]
 mod sources;
 #[path = "native_nullable_when_tests/support.rs"]
