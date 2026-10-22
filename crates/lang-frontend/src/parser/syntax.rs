@@ -202,12 +202,12 @@ pub struct ClassifierDeclaration {
     pub body: Option<ClassifierBody>,
 }
 
-/// 一个 companion object Item 的完整 payload。
+/// 一个 `companion { ... }` Item 的完整 payload。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompanionObject {
     /// 真实 `companion`。
     pub companion_span: Span,
-    /// 真实 `object`；缺失恢复时为空范围。
+    /// 已退役的 `object` 关键字：仅在 L0077 恢复时为真实范围，合法写法为 body 起点的空范围。
     pub object_span: Span,
     /// 唯一 body。
     pub body: ClassifierBody,
@@ -561,7 +561,7 @@ pub enum Item {
     },
     /// 顶层 class-family 声明。
     Classifier(Box<ClassifierDeclaration>),
-    /// `companion object` 关联命名空间。
+    /// `companion { ... }` 关联命名空间。
     Companion(Box<CompanionObject>),
     /// 析构函数声明：`deinit() { ... }`。
     Deinit {

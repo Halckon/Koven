@@ -1,8 +1,8 @@
-# Koven v0.45：Class Family、成员与 Receiver
+# Koven v0.46：Class Family、成员与 Receiver
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Value Class
 
@@ -60,6 +60,8 @@ class Node(var value: Int, var next: Node?)    // 引用语义：堆分配，遵
   `Inout` 契约借用（标注必须）。v1 禁止用普通字段读取从聚合中移出不可复制字段：不可复制
   聚合只能整体移动，或按[局部结构化解构](11-copyability-layout-construction.md#局部结构化解构)
   一次性完整消费；不能产生需要追踪“哪些字段已经移走”的部分移动状态。
+- **相等与哈希**：`value class` 在全部字段满足 `Equatable`/`Hashable` 时自动满足对应能力，
+  按声明顺序逐字段比较；`Display` 需显式实现。规则见[值语义能力](03-types-generics.md#值语义能力)。
 - 普通 `class` 是堆分配的引用语义值，本身不满足 `Copyable`，转交所有权时发生移动；它与
   非 `Copyable value class` 都受移动后使用检查约束，二者差异在布局而不在“一个复制、一个
   移动”的固定分类。
@@ -112,12 +114,14 @@ enum class Shape {
   在每个分支里访问该变体专属的字段（如 `radius`、`w`、`h`）。这与 Kotlin 的普通枚举不同，
   不得把每个变体仅理解为无 payload 的单例常量。
 - `when` 表达式对 `enum class` 做穷尽性检查（强制覆盖所有变体，除非有 `else`）。
+- `enum class` 在全部变体的全部 payload 满足 `Equatable`/`Hashable` 时自动满足对应能力：先比较
+  变体，再按声明顺序逐字段比较；`Display` 需显式实现。规则见[值语义能力](03-types-generics.md#值语义能力)。
 
-## Companion Object 与关联成员
+## Companion 与关联成员
 
 ```kotlin
 class Point(val x: Int, val y: Int) {
-    companion object {
+    companion {
         const val DIMENSIONS: Int = 2
         fun origin(): Point = Point(0, 0)
     }
@@ -127,11 +131,12 @@ val p = Point.origin()
 ```
 
 没有二级构造器、没有 `init` 块的情况下，类型级常量和工厂函数通过可选的
-`companion object` 表达；没有类型级成员的类型完全不需要 companion。v1 把 companion
+`companion { ... }` 表达；没有类型级成员的类型完全不需要 companion。v1 把 companion
 定义成**关联命名空间**，不是隐藏 singleton：
 
 - 每个 `class` / `value class` / `enum class` / `interface` 至多一个匿名 companion；不接受
-  `companion object Name`，也不产生可观察的 `Type.Companion` 值或对象身份；
+  命名 companion，也不产生可观察的 `Type.Companion` 值或对象身份。v0.46 起写作 `companion { ... }`，
+  `companion object { ... }` 与 `companion object Name` 由 Parser 以 L0077 拒绝，并给出删除 `object` 的修正建议；
 - body 只允许 `const val` 与关联函数，不允许普通 `val` / `var`、嵌套类型或初始化块；
 - 关联函数可以执行普通运行时代码、构造对象并返回 `Result`，但没有 `this`，也不能直接读取
   实例字段；`const val` 遵循[关联常量规则](05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)，不改变关联函数体；
@@ -145,7 +150,7 @@ val p = Point.origin()
   [常量阶段交接](15-conformance-and-staging.md#const-val-的阶段交接)。
 
 interface 的固定协议常量同样可以声明在 companion 中，例如
-`interface Http { companion object { const val DEFAULT_PORT: Int = 80 } }`；
+`interface Http { companion { const val DEFAULT_PORT: Int = 80 } }`；
 `Http.DEFAULT_PORT` 按关联常量规则选择与求值。该声明不被实现类型继承或 override。要求“每个实现类型各自
 提供一个常量”的 associated-constant contract 是另一项未来能力，v1 不用相同语法悄悄引入。
 
@@ -278,7 +283,7 @@ L0099/L0100（contract）、L0131–L0135（move/loan/mutable place），不得�
 ## Class Family 声明
 
 现行 v1 封闭 `value class` / `class` / `interface` / `enum class` / 具名 `object` 与
-`companion object` 的表面语法。以下产生式中的普通 token 间允许 trivia；需要实际换行
+`companion` 块的表面语法。以下产生式中的普通 token 间允许 trivia；需要实际换行
 或 `;` 的位置单独写成 separator：
 
 ```ebnf
@@ -326,13 +331,13 @@ object_body = "{", [ object_member,
               { member_separator, object_member } ], [ member_separator ], "}" ;
 
 class_member = method_modifiers, function_declaration
-             | declaration_modifiers, companion_object ;
+             | declaration_modifiers, companion_block ;
 interface_member = [ "public" ], function_declaration
-                 | declaration_modifiers, companion_object ;
+                 | declaration_modifiers, companion_block ;
 object_member = method_modifiers, function_declaration
               | declaration_modifiers, constant_declaration ;
 
-companion_object = "companion", "object", companion_body ;
+companion_block = "companion", companion_body ;
 companion_body = "{", [ companion_member,
                  { member_separator, companion_member } ],
                  [ member_separator ], "}" ;
@@ -346,7 +351,7 @@ enum_variant = Identifier, [ "(", enum_variant_parameter,
                { ",", enum_variant_parameter }, ")" ] ;
 enum_variant_parameter = Identifier, ":", type_ref ;
 enum_member = method_modifiers, function_declaration
-            | declaration_modifiers, companion_object ;
+            | declaration_modifiers, companion_block ;
 
 member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
 ```
@@ -465,15 +470,15 @@ method_modifiers = [ visibility_modifier ], [ "override" ],
 
 class_member = method_modifiers, function_declaration
              | deinit_declaration
-             | declaration_modifiers, companion_object ;
+             | declaration_modifiers, companion_block ;
 deinit_declaration = "deinit", "(", ")", block ;
 interface_member = [ "public" ], [ method_receiver_mode ],
                    function_declaration
-                 | declaration_modifiers, companion_object ;
+                 | declaration_modifiers, companion_block ;
 object_member = method_modifiers, function_declaration
               | declaration_modifiers, constant_declaration ;
 enum_member = method_modifiers, function_declaration
-            | declaration_modifiers, companion_object ;
+            | declaration_modifiers, companion_block ;
 ```
 
 - 固定顺序是 visibility、`override`、receiver mode、`fun`；缺省 receiver mode 与显式

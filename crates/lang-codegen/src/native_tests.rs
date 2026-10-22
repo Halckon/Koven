@@ -1138,7 +1138,7 @@ fn associated_constants_reach_native_scalar_char_and_string_operations() {
         r#"const val BASE = 40
         const val TEXT = "中" + "文"
         object Labels { const val COUNT = BASE + 2 }
-        class Tokens { companion object { const val LETTER: Char = '文' } }
+        class Tokens { companion { const val LETTER: Char = '文' } }
         fun letter(): Char = Tokens.LETTER
         fun text(): String = TEXT
         fun output(): Unit {

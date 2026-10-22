@@ -1,8 +1,17 @@
-# Koven v0.45：空安全与错误值
+# Koven v0.46：空安全与错误值
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审 nullable、Nothing、Result、error 与 postfix ? 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审 nullable、Nothing、Result、error 与 postfix ? 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+
+## 错误模型
+
+Koven 不提供异常、`throw`、`try`、`catch` 或栈展开。失败分三类：合法的“没有值”用 `T?`；
+可预期、可恢复的失败用 `Result<T, E>`；程序不变量被破坏用 abort。标准库中任何可能因调用者
+提供的输入而 abort 的 API，都必须同时提供一个返回 `T?` 或 `Result` 的版本；首批变体见
+[checked 运算变体](04-expressions-operators.md#checked-运算变体)、
+[转换的 OrNull 族](04-expressions-operators.md#整数-range-与显式整数转换)与
+[`getOrNull`](12-collections-destructuring.md#索引是-place不是隐式-owned-返回)。
 
 ## `error()` 与空安全运算符
 
@@ -28,6 +37,33 @@ val len = name!!.length
 
 `e!!` 精确求值一次，类型从 `T?` 收窄为 `T`；失败效果等价于标准 abort。
 assertion 的 Abort 身份由编译器绑定，不受同名 `error` 遮蔽；显式 `error(...)` 保持普通名称解析。
+
+## Abort 输出合同
+
+abort 时，runtime 先把已由 `println` 交付但尚未写出的标准输出全部写出，再向 stderr 写两行：
+
+```text
+abort: <message>
+  at <logical-path>:<line>:<column>
+```
+
+- `<logical-path>` 是 source root 内的逻辑路径，与诊断使用的路径相同；行、列从 1 开始，列按
+  Unicode 标量计数，指向触发 abort 的表达式起点。
+- `error(message)` 原样输出 `message` 的 UTF-8 字节，不转义、不追加内容。编译器触发的 abort
+  使用固定文本：
+
+  | 来源 | message |
+  |---|---|
+  | `!!` | `null assertion failed` |
+  | 索引越界 | `index <i> out of bounds for size <n>` |
+  | 整数溢出 | `integer overflow in <op>`，`<op>` 为 `+`、`-`、`*`、`/` 之一 |
+  | 除以零 | `division by zero` |
+  | checked 转换失败 | `value out of range for <Target>` |
+  | `Map.requireValue` 缺键 | `missing key` |
+  | 线程创建失败 | `thread creation failed` |
+
+- 写 stderr 失败时忽略，不重试。写完后进程以 SIGABRT 终止，不执行尚未运行的 drop。
+- 任何线程中的 abort 都终止整个进程，不转成 `Err`，不展开其他线程的栈。
 
 ## `Result<T, E>` 与 Postfix `?`
 
@@ -79,6 +115,17 @@ expression context 接受 `?`；上述 callable、operand 与 `E` 约束由类�
 检查把 `Err` 传播视为普通 return 路径，lowering 在该路径生成正常 drop，
 不得引入 unwind cleanup。应用边界使用 `when` 选择恢复、转换、报告或调用 `error()`；
 `Result` 不“接住异常”，因为该模型中没有异常被抛出。
+
+`Result<T, E>`、`Ok` 与 `Err` 属于[内建环境](02-names-files-packages.md#标准环境与允许加载的标准库源)，
+单文件与 project 相同，不需要 import。
+
+### `Result` 必须被使用
+
+类型为 `Result<T, E>` 的表达式出现在结果被丢弃的位置时，Phase 2 报错。丢弃的位置包括表达式
+语句、block 中非尾部的表达式，以及结果类型为 `Unit` 的 lambda 中的尾表达式。作为 `?` 的
+operand、作为 `when` 的 subject、绑定到 `val`/`var`、作为实参或返回值、赋值给字段都算使用。
+诊断的 help 给出三种处理方式：用 `?` 传播、用 `when` 处理，或绑定到局部 `val` 以表示有意忽略。
+本规则只针对 `Result`；其他类型的返回值被丢弃不报诊断。新诊断码由实施 Spec 分配。
 
 ## Nullable flow 与 extraction
 

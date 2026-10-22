@@ -497,3 +497,4 @@
 - [SPEC-0331](0331-map-borrowed-iteration.md)：Map双分量借用遍历按固定H完整普通/双宿主CI与三产物独审有界归档；74原正目标与G2–G10闭合，独立调用/ABI前置、历史失败与Mac partial保留，归档头CI/main交付另验。
 
 - [SPEC-0332](0332-rc-nullable-while-regression.md)：Rc nullable while表示分派回归；三历史双入口对照与PR118实现CI双host71项有界验收，额外payload/体内返回欠账独立承接；归档head CI/main待验。
+- [SPEC-0342](0342-companion-block-syntax.md)：Parser 落实 Guide v0.46 的 `companion { }`，`companion object` 以 L0077 拒绝并恢复；仓内测试、fixture 与 tree-sitter 同步迁移。

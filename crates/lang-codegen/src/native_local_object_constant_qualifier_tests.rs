@@ -77,7 +77,7 @@ fn role(source: &UnitSource, span: Span, namespace: Namespace) -> &UnitNameRefer
 #[test]
 fn local_object_and_companion_constants_keep_qualifier_roles_and_real_materializations() {
     let text = r#"object Labels { const val COUNT: Int = 42 }
-class Tokens { companion object { const val LETTER: Char = '文' } }
+class Tokens { companion { const val LETTER: Char = '文' } }
 fun count(): Int = Labels.COUNT
 fun letter(): Char = Tokens.LETTER"#;
     // Analyze retains the original strict complete gate before either ownership path.

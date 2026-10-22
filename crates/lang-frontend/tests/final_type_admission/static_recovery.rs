@@ -139,7 +139,8 @@ fn assert_deferred_source_diagnostic(
 
 fn check_companion(text: &str) {
     let (sources, entries) = collect(text);
-    assert_deferred_source_diagnostic(&sources, &entries[0], (95, 103, "P.origin"));
+    let start = text.find("P.origin").expect("companion call");
+    assert_deferred_source_diagnostic(&sources, &entries[0], (start, start + 8, "P.origin"));
     assert!(
         entries[1].deferred.is_empty(),
         "unit positive control must be fully typed"

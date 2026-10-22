@@ -148,7 +148,6 @@ const GRAMMAR_CASES: &[GrammarCase] = &[
             "Unit",
             ";",
             "companion",
-            "object",
             "{",
             "const",
             "val",
@@ -444,5 +443,5 @@ fn non_newline_trivia_preserves_significant_tokens_and_syntax_shape() {
         }
     }
 
-    assert_eq!(executed, 1_172);
+    assert_eq!(executed, 1_169);
 }

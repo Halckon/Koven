@@ -128,7 +128,7 @@ fn replacing_each_significant_token_with_lexer_poison_is_total_and_recoverable()
             lexical_mode_mutations,
             target_code_mutations,
         ),
-        (1_580, 384, 1_196, 56, 1_524)
+        (1_576, 384, 1_192, 56, 1_520)
     );
-    assert_eq!(poison_counts, [395; 4]);
+    assert_eq!(poison_counts, [394; 4]);
 }

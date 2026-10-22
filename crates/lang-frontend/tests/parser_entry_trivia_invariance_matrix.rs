@@ -135,8 +135,8 @@ fn non_newline_trivia_preserves_significant_tokens_and_syntax_shape_for_every_en
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(token_counts, [65, 104, 70]);
-    assert_eq!(code_gap_counts, [65, 106, 67]);
-    assert_eq!(mutation_counts, [207, 330, 213]);
-    assert_eq!(mutation_counts.iter().sum::<usize>(), 750);
+    assert_eq!(token_counts, [65, 103, 70]);
+    assert_eq!(code_gap_counts, [65, 105, 67]);
+    assert_eq!(mutation_counts, [207, 327, 213]);
+    assert_eq!(mutation_counts.iter().sum::<usize>(), 747);
 }

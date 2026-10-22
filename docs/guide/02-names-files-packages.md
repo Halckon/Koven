@@ -1,8 +1,8 @@
-# Koven v0.45：名称、文件、Package 与 Import
+# Koven v0.46：名称、文件、Package 与 Import
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审文件组合、名称解析、可见性与跨文件绑定时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审文件组合、名称解析、可见性与跨文件绑定时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 单文件输入与共同名称解析
 
@@ -41,8 +41,10 @@ frontend 仍不得自行推根或读取文件系统。
 | `koven.algorithms` | `crates/lang-std/koven/algorithms/ranges.ko` | 按本页 import/可见性规则使用 List/View `take`、`drop`、`dropLast` |
 
 标准源码是用户单文件之外的受信任标准输入，不改变“只加载一个用户文件”的约束。
-加载 package 不等于自动导入名称；内建环境也不等于隐式 wildcard import。不得额外自动
-加载或导入 `Pair`、`Result` 或其他 prelude 名称，未绑定的普通名称仍为 L0080。
+加载 package 不等于自动导入名称；内建环境也不等于隐式 wildcard import。内建环境包含
+`Result<T, E>`、`Ok` 与 `Err`，两模式相同、不需要 import；它们遵守普通词法遮蔽规则，同一
+package 中的同名顶层声明与之冲突时使用既有的绑定冲突诊断。除此之外不自动加载或导入其他
+prelude 名称（`Pair` 与 `to` 留待后续版本），未绑定的普通名称仍为 L0080。
 单文件 import 只能解析实际加载的上述标准 package 与该文件自己所在的 package。
 导入其他用户 package 时使用 L0148，诊断说明“该 package 未加载”并提示使用 `--project`；
 不得把失败 directive 忽略，或延后冒充普通名称未知。已加载 package 中不存在的目标、

@@ -25,21 +25,19 @@ fn constant_types_run_in_every_supported_namespace() {
         ("Config.", format!("object Config {{ {declarations} }}")),
         (
             "Config.",
-            format!("class Config {{ companion object {{ {declarations} }} }}"),
+            format!("class Config {{ companion {{ {declarations} }} }}"),
         ),
         (
             "Config.",
-            format!(
-                "value class Config(val item: Int) {{ companion object {{ {declarations} }} }}"
-            ),
+            format!("value class Config(val item: Int) {{ companion {{ {declarations} }} }}"),
         ),
         (
             "Config.",
-            format!("interface Config {{ companion object {{ {declarations} }} }}"),
+            format!("interface Config {{ companion {{ {declarations} }} }}"),
         ),
         (
             "Config.",
-            format!("enum class Config {{ One; companion object {{ {declarations} }} }}"),
+            format!("enum class Config {{ One; companion {{ {declarations} }} }}"),
         ),
     ] {
         let checks = values

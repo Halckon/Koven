@@ -1,27 +1,41 @@
-# Koven v0.45：程序入口、Runtime 与标准库
+# Koven v0.46：程序入口、Runtime 与标准库
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 线程、Channel 与 Move Closure
 
 ```kotlin
-val handle = thread(move { println("running in new thread") })
-handle.join()
+val worker: Thread<Int> = thread(move { compute() })
+val result: Int = worker.join()
 
-val (sender, receiver) = channel<Int>()
-thread(move { sender.send(42) })
-val value = receiver.receive()
+val (sender, receiver) = channel<String>()
+val producer = thread(move { sender.send("hi") })
+val text: String? = receiver.receive()
 ```
 
-`thread()` 的函数类型参数是 `move () -> Unit`，不是普通 `() -> Unit`。函数类型的 `move`
-前缀表示只接受不含借用捕获的闭包；调用点必须显式使用 `move` closure，并由编译器检查全部
-捕获满足跨线程转移约束。所有跨线程 API 的 closure 参数都必须使用 `move (...) -> T` 契约。
+v1 提供受限线程：只转移所有权，没有共享内存。
 
-- 配合 `Transferable` 标记能力做编译期数据竞争防护（跨线程传递的值必须满足该约束，具体
-  判定规则见[所有权规则](10-ownership-borrowing-drop.md)）。v1 的跨线程 API 只转移所有权，
-  不提供共享/别名原语，也不做完整的多线程借用数据流分析；`Shareable` 属于 v2。
+- **创建**：`fun <T> thread(own body: move () -> T): Thread<T>`，要求 `T` 满足 `Transferable`，
+  body 的全部捕获满足 `Transferable`（判定见[所有权规则](10-ownership-borrowing-drop.md)）。函数类型的
+  `move` 前缀表示只接受不含借用捕获的闭包，调用点必须显式使用 `move` closure。创建失败时按
+  [Abort 输出合同](09-nullability-errors.md#abort-输出合同) abort。
+- **join**：`fun <T> Thread<T>.join(): T` 消费 handle，阻塞到 body 返回并交付其结果。
+- **隐式 join**：`Thread<T>` 尚未 join 就被析构时，析构过程阻塞到该线程结束，并析构其结果。
+  v1 不提供 detach。因此函数返回时，它创建并仍持有的线程都已结束。
+- **channel**：`fun <T> channel(): Channel<T>`，其中
+  `value class Channel<T>(val sender: Sender<T>, val receiver: Receiver<T>)`，通常按名解构使用。
+  channel 无容量上限，`send` 不阻塞。
+  - `Sender<T>.send(own value: T): Boolean`：接收端已析构时返回 `false` 并析构 `value`；
+  - `Sender<T>.clone(): Sender<T>`：显式复制发送端，形成多生产者；
+  - `Receiver<T>.receive(): T?`：阻塞到收到值；全部发送端都已析构且队列为空时返回 `null`；
+  - `Receiver<T>` 不可复制。`T` 满足 `Transferable` 时，`Sender<T>` 与 `Receiver<T>` 满足
+    `Transferable`；`Thread<T>` 不满足。
+- **可见性**：`join` 返回时，线程中的全部写入对调用者可见；`send` 之前的写入，对收到该值的
+  `receive` 之后可见。
+- 任何线程中的 abort 都终止整个进程。`Shareable`、共享/别名原语、`Mutex`、原子类型、
+  scoped 借用线程、线程池与完整的多线程借用数据流分析属于 v2。
 - v1/v2 不定义协程；`async` / `await`、`Future`、执行器与具体 lowering 均属于 v3 设计范围，
   不能从保留字或线程 API 推断现行语义。
 
@@ -42,27 +56,33 @@ File.writeText("out.txt", "hello")
 `main` 不是关键字，也不获得新的名称解析优先级。公开单文件 `kovenc build/run` 在调用者没有
 显式传入 `--entry` 时，只在该源码文件所属 package 中、由该文件声明的顶层值命名空间里
 选择名为 `main` 的具名函数；import 或标准库中的同名函数不是候选。合法
-conventional entry 只有以下两个完整单态签名：
+conventional entry 只有以下四个完整单态签名：
 
 ```kotlin
 fun main(): Unit { ... }
 fun main(args: Array<String>): Unit { ... }
+fun main(): Result<Unit, E> { ... }
+fun main(args: Array<String>): Result<Unit, E> { ... }
 ```
 
-- entry 必须是顶层、非泛型、非 member 的具名函数，返回类型精确为 `Unit`。参数名称不参与
-  签名匹配；一个参数的形式使用默认 `Borrow`，不能写 `own` 或 `inout`。
+- entry 必须是顶层、非泛型、非 member 的具名函数，返回类型精确为 `Unit`，或 `Result<Unit, E>`
+  且 `E` 是满足 [`Display`](03-types-generics.md#值语义能力) 的具体类型（不能是类型参数）。参数名称
+  不参与签名匹配；一个参数的形式使用默认 `Borrow`，不能写 `own` 或 `inout`。返回类型不参与
+  “两个合法形状同时存在”的判定：零参数与参数化各算一种形状。
 - 省略 `--entry` 时，零个合法候选、存在同名但签名非法的候选，或两个合法形状同时存在，
   分别形成稳定的 missing、invalid-shape 或 ambiguous entry selection failure。它们属于构建
   操作错误，不分配语言诊断码，也不得被伪装成 Parser/type diagnostic。
-- 显式 `--entry <name>` 使用 `() -> Unit` 契约，并完全关闭
+- 显式 `--entry <name>` 使用 `() -> Unit` 或 `() -> Result<Unit, E>` 契约，并完全关闭
   conventional lookup；它只选择该文件声明、满足该形状的顶层函数，包括名为 `main` 的函数。
   文件内 `private` 候选保持可选；不复用 project 的 public/internal 筛选来缩窄单文件入口。
 - `main(args)` 收到不含可执行文件名的命令行参数，保持原顺序。native wrapper 拥有新建的
   `Array<String>`，在 entry 调用期间建立 Borrow，并在返回后按逆序析构；源平台参数不能转换
   为合法 UTF-8 时，在调用 Koven entry 前形成 operational failure，不以替换字符静默改写。
-- 正常返回仍由既有 C ABI wrapper 映射为退出码 `0`；`error()`/abort、链接失败和启动失败
-  沿用既有边界。v1 不允许 `main` 返回整数、`Result`、`Nothing` 或异步结果，也不定义多个
-  package 的全局 main 搜索。
+- 退出码：返回 `Unit` 或 `Ok(Unit)` 时为 `0`。返回 `Err(e)` 时，先写出未写出的标准输出，再向
+  stderr 写 `error: ` 加 `e.toString()` 加换行，然后析构 `e`，退出码为 `1`；写 stderr 失败时忽略。
+  `error()`/abort 按 [Abort 输出合同](09-nullability-errors.md#abort-输出合同) 以 SIGABRT 终止。
+  链接失败和启动失败沿用既有边界。v1 不允许 `main` 返回整数、`Nothing` 或异步结果，
+  `exitProcess` 随 IO 与进程接口另行定义，也不定义多个 package 的全局 main 搜索。
 
 `main(args)` 必须使用一般 `String` runtime 与真实 `Array<String>` owner；不得用 literal-only
 String、Rust `String` 或宿主指针替代该 ABI。
@@ -217,16 +237,18 @@ kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>..
 
 ### Process Shape 与选择失败
 
-project selector 允许与 conventional main 相同的两个完整 process shape：
+project selector 允许与 conventional main 相同的 process shape：
 
 ```kotlin
 fun start(): Unit { ... }
 fun start(args: Array<String>): Unit { ... }
+fun start(): Result<Unit, E> { ... }
+fun start(args: Array<String>): Result<Unit, E> { ... }
 ```
 
 - 零参数与参数化 shape 精确复用 [conventional `main`](#conventional-main) 与
   [参数化 process entry bridge](../adr/accepted/0019-parameterized-process-entry-bridge.md)：返回
-  `Unit`，参数化形式只有一个默认/shared
+  `Unit` 或 `Result<Unit, E>`，参数化形式只有一个默认/shared
   Borrow `Array<String>` 参数；参数名不参与匹配。generic、`own`/`inout`、其他参数或返回类型
   都不是合法 process entry。
 - 先按 selector 找到目标 package 的同名 declaration/overload set，再过滤可见、合法 shape。
@@ -250,7 +272,9 @@ fun start(args: Array<String>): Unit { ... }
   子进程结束后清理。
 - manifest/provider、entry/link/launch/cleanup failure 是具体 operational error；frontend
   diagnostics 继续遵守 human/JSON Lines 选择，项目错误不得伪造成语言 diagnostic。成功 build
-  stdout/stderr 为空；run 继续转发程序 stdout/stderr 与可表示的退出状态。
+  stdout/stderr 为空；run 继续转发程序 stdout/stderr。程序结束后 `kovenc run` 以子进程的退出
+  状态结束：子进程以退出码 n 正常退出时 `run` 也以 n 退出，被信号终止时以 `128 + 信号编号`
+  退出；构建失败使用既有的 operational/diagnostic 退出码，不与上述取值混用。
 - project source-set loader 产生 base source set，跨文件名称/类型/所有权分析形成 validated unit，
   compilation-unit native lowering 生成单 object；不得用拼接源码、逐文件 object 或单文件
   bootstrap 循环替代该链。
@@ -288,36 +312,8 @@ fun <T> swap(inout a: T, inout b: T): Unit
 
 ---
 
-## 受控底层能力与 Unsafe 边界
+## 受控底层能力的边界
 
-Phase 5 要求标准库（`koven/**/*.ko`）以目标语言自身编写并作为自举真源。为满足内存分配、系统调用与底层数据结构（如 `Vector`、`String` 底层 buffer）的实现需求，Koven 定义以下受控底层能力：
-
-### 受控原语与内部边界
-
-1. **`extern "C"` 外部函数声明**：
-   允许在标准库内部声明直接绑定到平台 libc 或 native runtime 的底层函数：
-   ```kotlin
-   extern "C" fun malloc(size: Int): RawPtr<Unit>
-   extern "C" fun free(ptr: RawPtr<Unit>): Unit
-   ```
-   外部函数必须在编译期验证符号与 C ABI 兼容性，不参与普通 Koven 所有权与生命周期自动析构。
-
-2. **`RawPtr<T>` 裸指针**：
-   `RawPtr<T>` 是标准库内部持有的非安全内存地址抽象，不拥有所有权，不保证内存有效性或非空不变性，不执行自动 drop。解引用、偏移运算或地址转换必须在显式 `unsafe` 块内执行。
-
-3. **`unsafe { ... }` 表达式/块**：
-   `unsafe` 块作为危险操作的隔离边界，用于显式标记并确认包含以下操作：
-   - 调用 `extern "C"` 声明的外部符号；
-   - 对 `RawPtr<T>` 进行读取、写入或内存偏移；
-   - 在已验证内存布局上执行类型跨越式在位强制转换。
-
-### 安全封装与权限隔离
-
-- **标准库特权**：上述底层能力属于受控特权，仅限在标准库内部模块（`koven.*` 命名空间及指定 runtime 桥接层）中使用。
-- **普通用户代码隔离**：在 v1 阶段，应用层用户源码禁止直接使用 `RawPtr<T>` 或自行定义 `unsafe` 块；编译器对非特权 package 的裸指针访问与未受控外部调用拒绝并报结构化诊断。
-- **安全不变量封装**：标准库通过 RAII、所有权（`own` / `borrow`）与类型系统向外暴露完全安全的高层抽象（如 `Box<T>`、`Array<T>`、`String`），确保 unsafe 实现的边界在标准库内部完全闭合。
-
-### 编译器内建与标准库的职责划界与自举演进
-
-- **短期工程闭环策略**：在编译器自举前阶段，编译器提供部分内建核心容器（如 `Array`、`Vector`、`Map`、`Set`）作为快速交付语言核心语义与端到端运行体验的工程策略；
-- **自举演进与能力下沉目标**：长远来看，编译器的内建 intrinsic 应当收敛到最低限度的底层原子能力——即内存分配/释放（`malloc`/`free`）、原子置换（`replace`/`swap`）与受控裸指针（`RawPtr`）。链表、树、环形结构、动态数组与哈希表等高层数据结构将依托标准库内部的 `unsafe`、`RawPtr` 及对象池/Arena 纯自源（`koven/**/*.ko`）实现，而非作为编译器固有魔法存在。
+v1 的用户源码中没有 `unsafe`、`extern` 与裸指针；标准库如何借助 runtime 实现属于实现细节，
+不是语言承诺。原 `extern "C"`、`RawPtr<T>` 与 `unsafe { }` 草图移至
+[unsafe 与 FFI 边界候选](../proposals/unsafe-and-ffi-boundary.md)，属于 v2 评审范围。

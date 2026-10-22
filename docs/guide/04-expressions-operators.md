@@ -1,8 +1,8 @@
-# Koven v0.45：表达式与运算符
+# Koven v0.46：表达式与运算符
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审表达式 Parser、优先级和运算语义时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审表达式 Parser、优先级和运算语义时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 整数溢出与除零
 
@@ -18,9 +18,16 @@
   可观察语义”的原则一致。
 - 无符号类型（`UByte`/`UShort`/`UInt`/`ULong`）的溢出同样按 checked 语义处理，不做隐式
   环绕。
-- v1 不提供显式的 wrapping / saturating / checked 变体方法（如 Rust 的 `wrapping_add` /
-  `saturating_add`）；如果后续证明性能敏感场景确实需要环绕语义作为显式操作，应作为标准
-  库方法在 Phase 5 之后按需引入，不修改默认 `+`/`-`/`*` 的 checked 语义。
+- v1 不提供 wrapping / saturating 变体（如 Rust 的 `wrapping_add` / `saturating_add`）；如果
+  后续证明性能敏感场景确实需要环绕语义作为显式操作，应作为标准库方法按需引入，不修改默认
+  `+`/`-`/`*` 的 checked 语义。不 abort 的 checked 变体见下节。
+
+### checked 运算变体
+
+八种整数类型各提供编译器绑定的成员 `checkedPlus`、`checkedMinus`、`checkedTimes`、`checkedDiv`、
+`checkedRem`，签名为 `fun T.checkedX(other: T): T?`：结果可表示时返回该值，溢出、除数为零或
+`MIN_VALUE / -1` 时返回 `null`，不 abort。receiver 与实参从左到右各求值一次；两侧必须已定型为
+同一整数类型，不隐式转换。默认运算符 `+ - * / %` 的语义不变。
 
 具体 codegen 可以选择任何保持上述可观察结果的实现；后端策略不改变源语言规则。
 
@@ -79,6 +86,12 @@ interpolation      = InterpolationStart,
 token。字符串插值递归调用同一表达式 parser，但以当前层的 `InterpolationEnd` 代替 EOF
 作为 stop token；它不得吃掉结束插值的 `}`。嵌套的括号、索引、调用和字符串仍各自消费
 自己的闭合 delimiter。
+
+字符串插值 `"...${e}..."` 中每个 `e` 的类型必须满足
+[`Display`](03-types-generics.md#值语义能力)，否则 L0085。各插值表达式从左到右各求值一次，以
+Borrow 方式调用 `toString()`，与字面文本按顺序拼接成新的 owned `String`；插值产生的临时值
+在整个字符串表达式结束后按既有规则析构。`println` 的参数仍为 `String`，输出数值写作
+`println("${n}")`。
 
 ## Postfix、调用、索引与函数引用
 
@@ -245,4 +258,7 @@ unsupported operator，不能把它们接受为两次 prefix / binary 或 range 
   Int→Long、UInt→Long 总可表示，负 Int→ULong 仍失败，ULong→Long 上半值域失败。
 - 转换成员是编译器绑定身份，不是一般用户扩展、接口或重载授权。沿用普通调用匹配与
   诊断，不隐式调用转换；Float/Double、Char、Boolean、String、nullable 不因此获得转换。
-  不启用 OrNull、截断、常量求值或错误消息输出保证；同名风格不意味着 Kotlin 的截断语义。
+  不启用截断或常量求值；同名风格不意味着 Kotlin 的截断语义。
+- 64 个转换各有不 abort 的 `toXxxOrNull(): Xxx?`（如 `toIntOrNull()`），值域与对应 `toXxx()`
+  完全相同，只把 Abort 换成返回 `null`。失败时的 abort 消息见
+  [Abort 输出合同](09-nullability-errors.md#abort-输出合同)。

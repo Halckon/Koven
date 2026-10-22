@@ -70,7 +70,7 @@ fn explicit_constant_types_are_closed_in_each_namespace() {
         for body in [
             format!("const val VALUE: {ty} = {value}"),
             format!("object A {{ const val VALUE: {ty} = {value} }}"),
-            format!("class A {{ companion object {{ const val VALUE: {ty} = {value} }} }}"),
+            format!("class A {{ companion {{ const val VALUE: {ty} = {value} }} }}"),
         ] {
             check(
                 [

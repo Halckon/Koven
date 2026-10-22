@@ -8,22 +8,25 @@
 
 | 区域 | 回答的问题 | 权威性 |
 |---|---|---|
-| `guide/` | 现行语言语义、强制 Phase 与实施边界 | 规范性；当前仅 v0.45 |
+| `guide/` | 现行语言语义、强制 Phase 与实施边界 | 规范性；当前仅 v0.46 |
 | `compiler-specs/` | 编译器内部表示、算法与资源约束是什么 | 工程合同；从属 Guide 的语言与 Phase 边界 |
 | `architecture/` | 仓库现在已经实现成什么样 | 当前事实快照 |
 | `development/` | 如何开发、验证与交付 | 工程规则 |
 | `specs/` | 一次变更做什么、依赖与验收是什么 | 变更合同 |
 | `adr/` | guide 留白处为什么选择某项长期方案 | 决策记录 |
 | `proposals/` | 尚未启用的候选设计 | 非规范 |
+| `roadmap/` | v1 包含哪些工作、优先级与当前状态 | 计划总账；只链接语义与证据，不复制 |
 | `archive/` | 旧规范、完成证据和冻结材料 | 只读历史 |
 
 同一规则只保留一个真源。Guide 不写实现历史，Architecture 不写计划，Spec 不复制完整语义，
 ADR 不替代 guide，AGENTS 不保存版本实施清单。Compiler Contracts 不以 current 状态声称
 实现完成，不吸纳未启用语义；当前实现事实继续由代码、测试和 Architecture 证明。
+Roadmap 只改 `roadmap/v1.json` 并用 `scripts/gen_roadmap.py` 重新生成视图；Spec 归档、新开或
+用户决策时同批更新对应条目状态，状态只作摘要，精确范围仍以 Spec 为准。
 
 ## 2. Guide
 
-- [guide/README.md](guide/README.md) 是唯一 current 入口，当前版本固定为 v0.45。
+- [guide/README.md](guide/README.md) 是唯一 current 入口，当前版本固定为 v0.46。
 - 纯结构、链接或不改变含义的表述修正不提升版本；关键字、语法、类型、所有权、标准库契约或
   强制 Phase 边界变化必须形成新版本并由用户明确启用。
 - 候选规则只能进入 `proposals/`；创建更高版本号或 draft Spec 不会自动取得规范地位。

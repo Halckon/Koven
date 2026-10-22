@@ -137,21 +137,19 @@ mod tests {
                 ("Config.", format!("object Config {{ {constant} }}")),
                 (
                     "Config.",
-                    format!("class Config {{ companion object {{ {constant} }} }}"),
+                    format!("class Config {{ companion {{ {constant} }} }}"),
                 ),
                 (
                     "Config.",
-                    format!(
-                        "value class Config(val item: Int) {{ companion object {{ {constant} }} }}"
-                    ),
+                    format!("value class Config(val item: Int) {{ companion {{ {constant} }} }}"),
                 ),
                 (
                     "Config.",
-                    format!("interface Config {{ companion object {{ {constant} }} }}"),
+                    format!("interface Config {{ companion {{ {constant} }} }}"),
                 ),
                 (
                     "Config.",
-                    format!("enum class Config {{ One; companion object {{ {constant} }} }}"),
+                    format!("enum class Config {{ One; companion {{ {constant} }} }}"),
                 ),
             ] {
                 let mut sources = SourceMap::new();
