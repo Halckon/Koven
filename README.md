@@ -137,7 +137,20 @@ kovenc build --project project.toml --entry my_package.main -o my_app
 kovenc run --project project.toml --entry my_package.main
 ```
 
-### 4. Non-Destructive Code Formatter
+### 4. Check Without Building
+
+Run every frontend check that `build` runs (names, types, ownership) without selecting an
+entry or generating code. Exit status is 0 when clean, 1 with diagnostics, 2 on usage or
+operational errors:
+
+```bash
+kovenc check main.ko
+kovenc check --project project.toml
+```
+
+`kovenc --help` prints the full command summary.
+
+### 5. Non-Destructive Code Formatter
 
 Format source code to stdout or verify compliance:
 
@@ -146,7 +159,7 @@ kovenc format path/to/file.ko
 kovenc format --check path/to/file.ko
 ```
 
-### 5. IDE & Machine Diagnostics
+### 6. IDE & Machine Diagnostics
 
 Export structured, machine-readable compiler diagnostics as JSON Lines:
 

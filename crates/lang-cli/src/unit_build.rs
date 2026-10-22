@@ -17,15 +17,17 @@ use lang_frontend::{
         ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
     ownership_checking::{
-        OwnershipCheckingError, check_compilation_unit_constant_ownership,
-        const_owned_compilation_unit_view, owned_compilation_unit_view,
+        ConstEnabledOwnedUnit, OwnershipCheckingError, ValidatedCompilationUnitOwnership,
+        check_compilation_unit_constant_ownership, const_owned_compilation_unit_view,
+        owned_compilation_unit_view,
     },
     parser::{FunctionBody, FunctionForm, Item, ParserInternalError},
     source::{SourceError, SourceId, SourceMap},
     type_checking::{
-        BuiltinType, CompilationUnitTypeError, CompilationUnitTypes, FinalTypeAdmissionError,
-        FinalTypeAdmissionInternalError, IntrinsicTypeConstructor, ParameterMode, TypeEnvironment,
-        UnitCallableTarget, UnitTypeKind, check_compilation_unit_types,
+        BuiltinType, CompilationUnitTypeError, CompilationUnitTypes, ConstEnabledTypedUnit,
+        FinalTypeAdmissionError, FinalTypeAdmissionInternalError, IntrinsicTypeConstructor,
+        ParameterMode, TypeEnvironment, UnitCallableTarget, UnitTypeKind,
+        ValidatedCompilationUnitTypes, check_compilation_unit_types,
         complete_compilation_unit_types,
     },
 };
@@ -186,14 +188,29 @@ impl From<UnitNameAnalysisError> for UnitBuildError {
     }
 }
 
-/// 继续原名称 snapshot；类型环境必须与建立该 snapshot 的标准环境同轮配对。
-/// 入口选择只在全部共同 frontend gate 成功后执行。
-pub(crate) fn emit_unit_object(
-    snapshot: &UnitNameSnapshot,
+/// 全部共同 frontend gate 通过后的 typed/owned 产物；`check` 到此为止，build/run 继续 codegen。
+pub(crate) struct CheckedUnit<'a> {
+    names: &'a ValidatedCompilationUnitNames,
+    products: CheckedProducts,
+}
+
+enum CheckedProducts {
+    Basic {
+        typed: ValidatedCompilationUnitTypes,
+        owned: ValidatedCompilationUnitOwnership,
+    },
+    Constant {
+        typed: ConstEnabledTypedUnit,
+        owned: ConstEnabledOwnedUnit,
+    },
+}
+
+/// 继续原名称 snapshot，执行 names、types、final type admission、ownership 与 validation；
+/// 类型环境必须与建立该 snapshot 的标准环境同轮配对。不选择入口、不生成 object。
+pub(crate) fn check_unit_frontend<'a>(
+    snapshot: &'a UnitNameSnapshot,
     type_environment: &TypeEnvironment,
-    selection: UnitEntrySelection<'_>,
-    object: &Path,
-) -> Result<(), UnitBuildError> {
+) -> Result<CheckedUnit<'a>, UnitBuildError> {
     let sources = snapshot.sources();
     let inputs = snapshot.inputs();
     let names = snapshot.names();
@@ -270,20 +287,9 @@ pub(crate) fn emit_unit_object(
             let owned = owned
                 .validate()
                 .map_err(|_| UnitBuildError::IncompleteOwnership)?;
-            let entry = select_unit_entry(selection, &inputs, names, typed.types())?;
-            let unit = const_owned_compilation_unit_view(
-                sources,
-                &inputs,
+            return Ok(CheckedUnit {
                 names,
-                type_environment,
-                &typed,
-                &owned,
-            )
-            .map_err(|error| {
-                codegen_error(sources, names.names().index().source_units(), error.into())
-            })?;
-            return emit_native_const_owned_unit_object(&unit, entry, object).map_err(|error| {
-                codegen_error(sources, names.names().index().source_units(), error)
+                products: CheckedProducts::Constant { typed, owned },
             });
         }
     };
@@ -298,14 +304,54 @@ pub(crate) fn emit_unit_object(
         Ok(owned) => owned,
         Err(_) => return Err(UnitBuildError::IncompleteOwnership),
     };
-    let entry = select_unit_entry(selection, &inputs, names, typed.types())?;
-    let unit =
-        owned_compilation_unit_view(sources, &inputs, names, type_environment, &typed, &owned)
-            .map_err(|error| {
-                codegen_error(sources, names.names().index().source_units(), error.into())
-            })?;
-    emit_native_owned_unit_object(&unit, entry, object)
-        .map_err(|error| codegen_error(sources, names.names().index().source_units(), error))
+    Ok(CheckedUnit {
+        names,
+        products: CheckedProducts::Basic { typed, owned },
+    })
+}
+
+/// 共同 frontend gate 成功后才执行入口选择与 object emission。
+pub(crate) fn emit_unit_object(
+    snapshot: &UnitNameSnapshot,
+    type_environment: &TypeEnvironment,
+    selection: UnitEntrySelection<'_>,
+    object: &Path,
+) -> Result<(), UnitBuildError> {
+    let checked = check_unit_frontend(snapshot, type_environment)?;
+    let sources = snapshot.sources();
+    let inputs = snapshot.inputs();
+    let names = checked.names;
+    let source_units = names.names().index().source_units();
+    match &checked.products {
+        CheckedProducts::Constant { typed, owned } => {
+            let entry = select_unit_entry(selection, &inputs, names, typed.types())?;
+            let unit = const_owned_compilation_unit_view(
+                sources,
+                &inputs,
+                names,
+                type_environment,
+                typed,
+                owned,
+            )
+            .map_err(|error| codegen_error(sources, source_units, error.into()))?;
+            emit_native_const_owned_unit_object(&unit, entry, object)
+                .map_err(|error| codegen_error(sources, source_units, error))
+        }
+        CheckedProducts::Basic { typed, owned } => {
+            let entry = select_unit_entry(selection, &inputs, names, typed.types())?;
+            let unit = owned_compilation_unit_view(
+                sources,
+                &inputs,
+                names,
+                type_environment,
+                typed,
+                owned,
+            )
+            .map_err(|error| codegen_error(sources, source_units, error.into()))?;
+            emit_native_owned_unit_object(&unit, entry, object)
+                .map_err(|error| codegen_error(sources, source_units, error))
+        }
+    }
 }
 
 fn select_unit_entry(
@@ -659,11 +705,12 @@ mod tests {
         for standard_first in [false, true] {
             let mut sources = SourceMap::new();
             let mut descriptors = Vec::new();
-            let (name_environment, mut type_environment) = standard_environments();
+            let (mut name_environment, mut type_environment) = standard_environments();
             if standard_first {
                 crate::standard_sources::append_standard_sources(
                     &mut sources,
                     &mut descriptors,
+                    &mut name_environment,
                     &mut type_environment,
                 )
                 .unwrap();
@@ -679,6 +726,7 @@ mod tests {
                 crate::standard_sources::append_standard_sources(
                     &mut sources,
                     &mut descriptors,
+                    &mut name_environment,
                     &mut type_environment,
                 )
                 .unwrap();
@@ -701,7 +749,8 @@ mod tests {
                 snapshot.names().diagnostics()
             );
             let units = snapshot.names().index().source_units();
-            assert_eq!(units.len(), 2);
+            // koven/algorithms/ranges.ko、koven/core/result.ko 与用户源。
+            assert_eq!(units.len(), 3);
             assert_eq!(units[0].source_id(), standard);
             let user_unit = units.iter().find(|unit| unit.source_id() == user).unwrap();
             assert_ne!(user_unit.id().index(), 0);

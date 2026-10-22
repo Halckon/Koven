@@ -88,11 +88,12 @@ diff conformance/baseline-aef3f4f8.tsv matrix.tsv
 | `p28_companion` | `companion object {` 改为 `companion {` | Guide v0.46 只接受匿名 `companion { }`，`companion object` 由 Parser 以 L0077 拒绝 | 关联函数调用成功 |
 | `q12_companion_const` | 同上 | 同上 | 关联常量读取成功 |
 | `p23_global_var` | 源码不变 | v0.46 顶层只允许 `const val`，顶层 `var counter` 由 Phase 2 以 L0167 拒绝（SPEC-0343） | 两模式均为 `FE:L0167` |
+| `p16_result_q` | 删除自声明的 `enum class Result<T, E>`，其余不变 | v0.46 起 `Result`/`Ok`/`Err` 属于内建环境（SPEC-0349）；用户任一 package 的同名顶层声明以 L0150 拒绝 | 不再因声明冲突失败；`?` 仍待 N08 |
+| `p16b_result_string` | 同上 | 同上 | 不再因声明冲突失败；String 载荷 lowering 另计 |
+| `p37_is_generic_case` | 同上 | 同上；无实参 `is Result.Ok` 从 subject 推断 root 实参（SPEC-0349） | 前端不再报 L0111 |
 
 以下 probe 未改动，但含义受 v0.46 影响，判读时留意：
 
-- `p16_result_q`、`p16b_result_string`、`p37_is_generic_case` 自行声明 `enum class Result<T, E>`；
-  v0.46 起 `Result`/`Ok`/`Err` 属于内建环境，同 package 同名顶层声明按既有绑定冲突规则处理。
 - `p02_interp` 使用字符串插值；v0.46 已启用插值的类型规则（Guide 04），但 Guide 13 仍保留
   “native lowering 拒绝插值”的旧句，二者待 Guide 澄清。
 

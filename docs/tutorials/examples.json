@@ -233,7 +233,7 @@
       "id": "reject-typed",
       "status": "diagnostic",
       "build": {
-        "exit": 2,
+        "exit": 1,
         "stdout": "",
         "stderr": "{\"code\":\"L0084\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":36,\"byte_start\":30,\"end\":{\"column\":37,\"line\":1},\"source\":\"source.ko\",\"start\":{\"column\":31,\"line\":1}},\"message\":\"expected String, found Int\"}],\"message\":\"expression type does not match the expected type\",\"primary\":{\"byte_end\":40,\"byte_start\":39,\"end\":{\"column\":41,\"line\":1},\"source\":\"source.ko\",\"start\":{\"column\":40,\"line\":1}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n{\"code\":\"L0084\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":60,\"byte_start\":53,\"end\":{\"column\":20,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":13,\"line\":2}},\"message\":\"expected Boolean, found Int\"}],\"message\":\"expression type does not match the expected type\",\"primary\":{\"byte_end\":64,\"byte_start\":63,\"end\":{\"column\":24,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":23,\"line\":2}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
       }
@@ -242,7 +242,7 @@
       "id": "reject-ownership",
       "status": "diagnostic",
       "build": {
-        "exit": 2,
+        "exit": 1,
         "stdout": "",
         "stderr": "{\"code\":\"L0131\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":130,\"byte_start\":122,\"end\":{\"column\":30,\"line\":4},\"source\":\"source.ko\",\"start\":{\"column\":22,\"line\":4}},\"message\":\"value was moved here\"},{\"kind\":\"label\",\"location\":{\"byte_end\":48,\"byte_start\":26,\"end\":{\"column\":32,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":10,\"line\":2}},\"message\":\"selected parameter declared here\"}],\"message\":\"use of moved value\",\"primary\":{\"byte_end\":162,\"byte_start\":154,\"end\":{\"column\":31,\"line\":5},\"source\":\"source.ko\",\"start\":{\"column\":23,\"line\":5}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n{\"code\":\"L0131\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":130,\"byte_start\":122,\"end\":{\"column\":30,\"line\":4},\"source\":\"source.ko\",\"start\":{\"column\":22,\"line\":4}},\"message\":\"value was moved here\"},{\"kind\":\"label\",\"location\":{\"byte_end\":48,\"byte_start\":26,\"end\":{\"column\":32,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":10,\"line\":2}},\"message\":\"selected parameter declared here\"}],\"message\":\"use of moved value\",\"primary\":{\"byte_end\":193,\"byte_start\":185,\"end\":{\"column\":30,\"line\":6},\"source\":\"source.ko\",\"start\":{\"column\":22,\"line\":6}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
       }
@@ -398,7 +398,7 @@
       "id": "reject-immutable-place",
       "status": "diagnostic",
       "build": {
-        "exit": 2,
+        "exit": 1,
         "stdout": "",
         "stderr": "{\"code\":\"L0134\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":33,\"byte_start\":27,\"end\":{\"column\":15,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":9,\"line\":2}},\"message\":\"immutable binding declared here\"}],\"message\":\"inout argument is not a mutable place\",\"primary\":{\"byte_end\":66,\"byte_start\":65,\"end\":{\"column\":29,\"line\":3},\"source\":\"source.ko\",\"start\":{\"column\":28,\"line\":3}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
       }
@@ -407,7 +407,7 @@
       "id": "reject-iteration-move",
       "status": "diagnostic",
       "build": {
-        "exit": 2,
+        "exit": 1,
         "stdout": "",
         "stderr": "{\"code\":\"L0135\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":131,\"byte_start\":126,\"end\":{\"column\":23,\"line\":5},\"source\":\"source.ko\",\"start\":{\"column\":18,\"line\":5}},\"message\":\"conflicting loan starts here\"},{\"kind\":\"label\",\"location\":{\"byte_end\":47,\"byte_start\":25,\"end\":{\"column\":35,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":13,\"line\":2}},\"message\":\"selected parameter declared here\"}],\"message\":\"move conflicts with an active loan\",\"primary\":{\"byte_end\":156,\"byte_start\":151,\"end\":{\"column\":22,\"line\":6},\"source\":\"source.ko\",\"start\":{\"column\":17,\"line\":6}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
       }

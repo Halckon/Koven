@@ -52,7 +52,7 @@ fn single_probe_roots_reject_before_codegen() {
             }
         }
     }
-    assert_rejections(&cases, 2);
+    assert_rejections(&cases, 1);
     assert_numeric_range_probe();
 }
 
@@ -142,7 +142,7 @@ fn single_deferred_user_message_build_preserves_source_root() {
             });
         }
     }
-    support::assert_rejections_count(&cases, 2, 4);
+    support::assert_rejections_count(&cases, 1, 4);
 }
 
 // SPEC-0323: only invoke the compiler's build command, never a produced artifact.
@@ -193,7 +193,7 @@ fn single_static_recovery_build_preserves_source_roots() {
         assert_eq!(after, before, "original source and directory bytes");
         support::assert_companion_capability_rejection(&output, 2, "native");
     }
-    support::assert_rejections_count(&cases, 2, 2);
+    support::assert_rejections_count(&cases, 1, 2);
 }
 
 #[test]
@@ -260,7 +260,7 @@ fn single_mixed_control_join_build_preserves_source_rejection() {
             });
         }
     }
-    support::assert_rejections_count(&cases, 2, 4);
+    support::assert_rejections_count(&cases, 1, 4);
 }
 
 // SPEC-0325: only invoke the compiler's build command, never a produced artifact.
@@ -293,7 +293,7 @@ fn single_assignment_capture_build_preserves_ownership_rejection() {
             });
         }
     }
-    support::assert_rejections_count(&cases, 2, 2);
+    support::assert_rejections_count(&cases, 1, 2);
 }
 
 #[test]

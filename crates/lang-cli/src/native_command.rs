@@ -248,12 +248,17 @@ pub(super) fn child_exit_status(status: std::process::ExitStatus) -> u8 {
 
 fn render_error(error: BootstrapError, message_format: MessageFormat) -> CommandOutput {
     match error {
+        // 与 project 和 `check` 相同：frontend 诊断退出 1，usage/operational 保持 2。
         BootstrapError::Unit(UnitBuildError::FrontendDiagnostics { human, json }) => {
             let rendered = match message_format {
                 MessageFormat::Human => human,
                 MessageFormat::Json => json,
             };
-            CommandOutput::error(rendered)
+            CommandOutput {
+                status: 1,
+                stdout: Vec::new(),
+                stderr: rendered.into_bytes(),
+            }
         }
         error => CommandOutput::error(format!("error: native build failed: {error}\n")),
     }

@@ -39,6 +39,7 @@ frontend 仍不得自行推根或读取文件系统。
 | Package | 标准源码 | 名称可见性 |
 |---|---|---|
 | `koven.algorithms` | `crates/lang-std/koven/algorithms/ranges.ko` | 按本页 import/可见性规则使用 List/View `take`、`drop`、`dropLast` |
+| `koven.core` | `crates/lang-std/koven/core/result.ko` | 声明内建环境的 `Result<T, E>`、`Ok`、`Err`；按下文内建环境规则无需 import |
 
 标准源码是用户单文件之外的受信任标准输入，不改变“只加载一个用户文件”的约束。
 加载 package 不等于自动导入名称；内建环境也不等于隐式 wildcard import。内建环境包含

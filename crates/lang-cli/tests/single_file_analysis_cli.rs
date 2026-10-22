@@ -211,7 +211,7 @@ fn assert_stage_gate(fixture: Fixture) {
         for (format, expected) in [("human", fixture.human), ("json", fixture.json)] {
             for operation in ["build", "run"] {
                 let output = directory.invoke(format, operation, entry);
-                assert_output(&output, 2, "", expected);
+                assert_output(&output, 1, "", expected);
                 assert!(
                     !directory.path().join("program").exists(),
                     "failed frontend published an executable"

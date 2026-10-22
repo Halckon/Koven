@@ -16,5 +16,5 @@
 - 文件系统、manifest、source set 与进程错误在 CLI 边界转成稳定用户结果；不污染 frontend API。
 - 人类诊断、JSON Lines 与 operational error 保持各自协议和 stdout/stderr 边界。
 - 构建发布必须失败原子；`run` 的临时产物和 argv 转交遵循现有 project/native 合同。
-- 最近测试为 `format_cli`、`project_cli`、`native_cli` 及模块内单元测试；修改项目或 native 命令时
+- 最近测试为 `format_cli`、`check_cli`、`project_cli`、`native_cli` 及模块内单元测试；修改项目或 native 命令时
   至少运行对应集成套件和 `cargo build -p lang-cli`。

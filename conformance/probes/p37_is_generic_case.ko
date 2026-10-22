@@ -1,4 +1,3 @@
-enum class Result<T, E> { Ok(success: T), Err(error: E) }
 fun main(): Unit {
     val r: Result<Int, Int> = Result.Ok(1)
     val v: Int = when (r) { is Result.Ok -> r.success; is Result.Err -> 0 }

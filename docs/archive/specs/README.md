@@ -501,3 +501,4 @@
 - [SPEC-0343](0343-top-level-const-only.md)：compilation-unit 类型检查对顶层运行时 `val`/`var` 报 L0167 并保留 initializer 恢复；依赖顶层值的测试改为期望 L0167 或改写夹具。
 - [SPEC-0347](0347-abort-output.md)：abort 向 stderr 输出 `abort: <message>` 与源码位置后 SIGABRT；`kovenc run` 透传退出码并把信号映射为 128+N。
 - [SPEC-0348](0348-conformance-corpus.md)：154 个 review probe、PR #120 基线矩阵与六个 V1 验收程序入库 `conformance/`，附矩阵 runner `scripts/conformance_matrix.sh`。
+- [SPEC-0349](0349-builtin-result-and-check.md)：`koven/core/result.ko` 经宿主授权成为内建环境 `Result`/`Ok`/`Err`，用户顶层同名声明报 L0150；无实参 `is Case` 从 subject 推断实参；新增 `kovenc check` 与 `--help`，单文件诊断退出码改为 1。

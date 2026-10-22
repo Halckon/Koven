@@ -11,7 +11,7 @@
 | 领域（仅 v1 范围） | ✅ 已交付 | ◐ 部分 | ▶ 进行中 | ☐ 未开始 | ❓ 待决策 | ⏸ 延后 | 合计 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | 词法与语法 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| 类型、泛型与声明 | 5 | 0 | 0 | 7 | 0 | 0 | 12 |
+| 类型、泛型与声明 | 5 | 1 | 0 | 6 | 0 | 0 | 12 |
 | 控制流 | 2 | 1 | 1 | 2 | 0 | 0 | 6 |
 | 类、接口与成员 | 2 | 1 | 0 | 0 | 0 | 0 | 3 |
 | 空安全与错误值 | 1 | 1 | 0 | 3 | 0 | 0 | 5 |
@@ -19,7 +19,7 @@
 | 函数类型与闭包 | 0 | 1 | 0 | 1 | 0 | 0 | 2 |
 | 集合与迭代 | 6 | 0 | 0 | 3 | 0 | 0 | 9 |
 | 文本与 IO | 2 | 0 | 0 | 4 | 0 | 0 | 6 |
-| 标准库与运行时 | 2 | 0 | 0 | 5 | 0 | 0 | 7 |
+| 标准库与运行时 | 3 | 0 | 0 | 4 | 0 | 0 | 7 |
 | 编译器结构 | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
 | 工具链 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | 安全验证 | 1 | 1 | 0 | 1 | 0 | 0 | 3 |
@@ -43,7 +43,7 @@
 | ✅ 已交付 | L3 | 八种整数之间的 checked 转换（越界 Abort） | P3 语言增量 | v1 必做 | 已定义 | 2,3,4 | [0327](../archive/specs/0327-checked-integer-conversions.md) |
 | ☐ 未开始 | L3b | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | P3 语言增量 | v1 必做 | 需新增 | 2,4 | — |
 | ✅ 已交付 | L9b | 简单变量普通赋值的类型、Unit 结果与收窄事实失效 | P3 语言增量 | v1 必做 | 已定义 | 2 | [0325](../archive/specs/0325-simple-variable-assignment-types.md) |
-| ☐ 未开始 | L9c | is E.Case 从 subject 推断类型实参；L0086→L0084 诊断码统一 | P3 语言增量 | v1 建议 | 需新增 | 2 | — |
+| ◐ 部分 | L9c | is E.Case 从 subject 推断类型实参；L0086→L0084 诊断码统一 | P3 语言增量 | v1 建议 | 需新增 | 2 | [0349](../archive/specs/0349-builtin-result-and-check.md) |
 | ☐ 未开始 | L18 | value class 局部解构改为按字段名匹配（D15） | P3 语言增量 | v1 必做 | 需新增 | 1,2 | — |
 | ☐ 未开始 | S2 | 泛型推导读取 lambda 返回值（两段式） | P3 语言增量 | v1 建议 | 需新增 | 2 | — |
 | ☐ 未开始 | S4 | 无后缀整数字面量在二元运算中随对侧整数类型定型 | P3 语言增量 | v1 建议 | 需新增 | 2 | — |
@@ -134,7 +134,7 @@
 |---|---|---|---|---|---|---|---|
 | ✅ 已交付 | B11 | 非泛型递归 Box enum 的构造、运输与析构 | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | [0230](../archive/specs/0230-recursive-boxed-enum-native.md) |
 | ✅ 已交付 | B17 | Rc<T> 核心路径与 Koven prelude（error、Pair、Result 源码） | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | — |
-| ☐ 未开始 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | P0 止血 | v1 必做 | 已定义 | 5,6 | — |
+| ✅ 已交付 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | P0 止血 | v1 必做 | 已定义 | 5,6 | [0349](../archive/specs/0349-builtin-result-and-check.md) |
 | ☐ 未开始 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | — |
 | ☐ 未开始 | L8 | Box 访问面措辞修正：box.value 为只读 projection place、unbox(): T | P3 语言增量 | v1 必做 | 需新增 | 2 | — |
 | ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | P4 文本与 IO | v1 建议 | 需新增 | 2,3,4,5 | [thread-transfer](../proposals/thread-transfer.md) |

@@ -27,6 +27,9 @@ mod runtime_constructor;
 #[path = "native_cli/readonly_methods.rs"]
 mod readonly_methods;
 
+#[path = "native_cli/builtin_result.rs"]
+mod builtin_result;
+
 use std::{
     ffi::OsStr,
     fs,
@@ -451,7 +454,7 @@ fn native_commands_reject_usage_outputs_entries_and_frontend_errors() {
     fs::write(&invalid, "fun broken(): Unit { missing }\n").expect("invalid source write");
     let human_output = directory.join("human");
     let human = build(invalid.as_os_str(), "broken", human_output.as_os_str());
-    assert_eq!(human.status.code(), Some(2));
+    assert_eq!(human.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&human.stderr).contains("error[L0080]"));
     assert!(!human_output.exists());
 
@@ -465,7 +468,7 @@ fn native_commands_reject_usage_outputs_entries_and_frontend_errors() {
         OsStr::new("-o"),
         json_output.as_os_str(),
     ]);
-    assert_eq!(json.status.code(), Some(2));
+    assert_eq!(json.status.code(), Some(1));
     assert!(json.stdout.is_empty());
     let records = String::from_utf8(json.stderr)
         .expect("JSON Lines")

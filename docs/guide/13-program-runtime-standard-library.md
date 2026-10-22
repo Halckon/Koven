@@ -279,6 +279,21 @@ fun start(args: Array<String>): Result<Unit, E> { ... }
   compilation-unit native lowering 生成单 object；不得用拼接源码、逐文件 object 或单文件
   bootstrap 循环替代该链。
 
+### 只检查与帮助
+
+```text
+kovenc check <source.ko> [--source-root <dir>]
+kovenc check --project <project.toml>
+kovenc help | --help | -h
+```
+
+- `check` 使用与对应 `build` 相同的 source set、名称、类型、最终类型准入与所有权检查，
+  不选择入口、不生成 object、不链接，也不写任何文件；诊断按 `--message-format` 以与 `build`
+  相同的 human/JSON Lines 形式写 stderr。
+- `check` 退出码：无诊断为 `0`，存在 frontend 诊断为 `1`，usage 或 operational 错误为 `2`。
+  单文件与 project 的 `build`/`run` 遇到 frontend 诊断同样以 `1` 结束。
+- `help`、`--help`、`-h` 把完整命令用法写到 stdout 并以 `0` 结束。
+
 本节不定义 manifest target/default entry、依赖解析、lock、跨 compilation-unit import/ABI、
 多 object、library artifact、安装/发布、cross target、缓存或全项目 conventional main。无依赖
 dependency-aware build 不属于现行语言，必须等待独立 manifest、ABI 与构建规范。

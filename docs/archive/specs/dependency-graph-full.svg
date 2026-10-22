@@ -6,7 +6,7 @@
   </defs>
   <rect width="13032" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="10048" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5064" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，320 份）</text>
+  <text x="5064" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，321 份）</text>
   <rect x="10152" y="30" width="544" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10424" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="10760" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1068,6 +1068,7 @@
   <path d="M 9948 120 C 9948 152, 2028 188, 2028 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 276 C 2028 308, 1236 344, 1236 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 276 C 2028 308, 1500 344, 1500 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1500 450 C 1500 482, 972 500, 972 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2456,4 +2457,9 @@
   <text x="1500" y="399" text-anchor="middle" font-size="13">SPEC-0348</text>
   <text x="1500" y="417" text-anchor="middle" font-size="13">Conformance 种子</text>
   <text x="1500" y="435" text-anchor="middle" font-size="13">集入库</text>
+  <rect x="852" y="532" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="972" y="555" text-anchor="middle" font-size="13">SPEC-0349</text>
+  <text x="972" y="573" text-anchor="middle" font-size="13">内建 Result/Ok/E</text>
+  <text x="972" y="591" text-anchor="middle" font-size="13">rr、is Case sub</text>
+  <text x="972" y="609" text-anchor="middle" font-size="13">ject 推断与 kove…</text>
 </svg>

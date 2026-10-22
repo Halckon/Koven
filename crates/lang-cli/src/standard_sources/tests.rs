@@ -37,8 +37,9 @@ fn loaded_std_ranges_prove_generic_return_caller_root_continuation_and_end() {
         };
         let application = sources.add_source("src/app/Main.ko", text).unwrap();
         let mut descriptors = vec![UnitSourceDescriptor::new("src", "app/Main.ko", application)];
-        let (environment, mut types) = standard_environments();
-        append_standard_sources(&mut sources, &mut descriptors, &mut types).unwrap();
+        let (mut environment, mut types) = standard_environments();
+        append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types)
+            .unwrap();
         let standard = descriptors[1].source_id();
         assert!(!types.is_authorized_range_source(application));
         assert!(types.is_authorized_range_source(standard));
@@ -187,8 +188,8 @@ fn a_user_std_path_and_package_do_not_receive_loader_authority() {
         "koven/algorithms/forged.ko",
         forged,
     )];
-    let (environment, mut types) = standard_environments();
-    append_standard_sources(&mut sources, &mut descriptors, &mut types).unwrap();
+    let (mut environment, mut types) = standard_environments();
+    append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
     assert!(!types.is_authorized_range_source(forged));
     assert!(!types.is_authorized_range_extension_source(forged));
     assert!(types.is_authorized_range_extension_source(descriptors[1].source_id()));
@@ -227,8 +228,8 @@ fn a_forged_standard_receiver_cannot_inherit_loader_extension_authority() {
         "koven/algorithms/forged.ko",
         forged,
     )];
-    let (environment, mut types) = standard_environments();
-    append_standard_sources(&mut sources, &mut descriptors, &mut types).unwrap();
+    let (mut environment, mut types) = standard_environments();
+    append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
     assert!(!types.is_authorized_range_source(forged));
     assert!(!types.is_authorized_range_extension_source(forged));
     let standard = descriptors[1].source_id();
@@ -339,9 +340,9 @@ fn standard_display_without_collision_keeps_the_canonical_name() {
     let user = sources.add_source(display, text).unwrap();
     let original = UnitSourceDescriptor::new("single", "koven/algorithms/ranges.ko", user);
     let mut descriptors = vec![original.clone()];
-    let (environment, mut types) = standard_environments();
-    append_standard_sources(&mut sources, &mut descriptors, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 2);
+    let (mut environment, mut types) = standard_environments();
+    append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
+    assert_eq!(descriptors.len(), 3);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(standard, user);
@@ -367,9 +368,9 @@ fn standard_display_collision_preserves_the_user_source_and_standard_key() {
     let user = sources.add_source(display, text).unwrap();
     let original = UnitSourceDescriptor::new("single", "koven/algorithms/ranges.ko", user);
     let mut descriptors = vec![original.clone()];
-    let (environment, mut types) = standard_environments();
-    append_standard_sources(&mut sources, &mut descriptors, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 2);
+    let (mut environment, mut types) = standard_environments();
+    append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
+    assert_eq!(descriptors.len(), 3);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(standard, user);
@@ -415,9 +416,10 @@ fn standard_display_collision_reaches_the_last_bounded_candidate() {
             descriptors.push(UnitSourceDescriptor::new("user", path, source));
         }
         let originals = descriptors.clone();
-        let (environment, mut types) = standard_environments();
-        append_standard_sources(&mut sources, &mut descriptors, &mut types).unwrap();
-        assert_eq!(descriptors.len(), 4);
+        let (mut environment, mut types) = standard_environments();
+        append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types)
+            .unwrap();
+        assert_eq!(descriptors.len(), 5);
         assert_eq!(&descriptors[..3], originals.as_slice());
         let standard = descriptors[3].source_id();
         for (original, index) in originals.iter().zip(order) {
@@ -465,9 +467,9 @@ fn standard_display_collision_uses_the_first_free_candidate() {
         descriptors.push(UnitSourceDescriptor::new("user", path, source));
     }
     let originals = descriptors.clone();
-    let (environment, mut types) = standard_environments();
-    append_standard_sources(&mut sources, &mut descriptors, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 4);
+    let (mut environment, mut types) = standard_environments();
+    append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
+    assert_eq!(descriptors.len(), 5);
     assert_eq!(&descriptors[..3], originals.as_slice());
     let standard = descriptors[3].source_id();
     for (original, (display, text, _)) in originals.iter().zip(users) {
@@ -497,9 +499,9 @@ fn standard_display_collision_keeps_complete_user_diagnostic_locations() {
         .unwrap();
     let original = UnitSourceDescriptor::new("single", "koven/algorithms/ranges.ko", user);
     let mut descriptors = vec![original.clone()];
-    let (environment, mut types) = standard_environments();
-    append_standard_sources(&mut sources, &mut descriptors, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 2);
+    let (mut environment, mut types) = standard_environments();
+    append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
+    assert_eq!(descriptors.len(), 3);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(user, standard);
@@ -574,9 +576,9 @@ fn standard_display_collision_preserves_range_call_source_identities() {
         .unwrap();
     let original = UnitSourceDescriptor::new("app", "app/Main.ko", user);
     let mut descriptors = vec![original.clone()];
-    let (environment, mut types) = standard_environments();
-    append_standard_sources(&mut sources, &mut descriptors, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 2);
+    let (mut environment, mut types) = standard_environments();
+    append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
+    assert_eq!(descriptors.len(), 3);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(user, standard);
@@ -705,4 +707,44 @@ fn standard_display_collision_preserves_range_call_source_identities() {
             .collect::<Vec<_>>(),
         [binding.binding(), child.binding()]
     );
+}
+
+#[test]
+fn loaded_result_source_alone_receives_builtin_name_authority() {
+    let mut sources = SourceMap::new();
+    let forged = sources
+        .add_source(
+            "koven-std/koven/core/result.ko",
+            "package koven.core\nfun forged(): Result<Int, String> = Ok(1)\n",
+        )
+        .unwrap();
+    let original = UnitSourceDescriptor::new("user", "koven/core/forged.ko", forged);
+    let mut descriptors = vec![original.clone()];
+    let (mut environment, mut types) = standard_environments();
+    append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
+    assert_eq!(descriptors.len(), 3);
+    assert_eq!(descriptors[0], original);
+    assert_eq!(
+        descriptors[1].logical_path().expect("rooted source"),
+        "koven/algorithms/ranges.ko"
+    );
+    let result = descriptors[2].source_id();
+    assert_eq!(
+        descriptors[2].logical_path().expect("rooted source"),
+        "koven/core/result.ko"
+    );
+    assert_eq!(
+        sources.source_name(result).unwrap(),
+        "koven-std/koven/core/result.ko [standard source 1]"
+    );
+    assert_eq!(sources.source_text(result).unwrap(), RESULT_TEXT);
+    assert_eq!(environment.builtin_source(), Some(result));
+    assert!(!types.is_authorized_range_source(result));
+    let snapshot = analyze_unit_names(sources, descriptors, environment).unwrap();
+    assert_unit_names_and_types(&snapshot, &types);
+    let names = snapshot.validated_names().unwrap();
+    let declaration = names.builtin_result_declaration().expect("builtin Result");
+    let declaration = &names.names().index().declarations()[declaration.index()];
+    assert_eq!(declaration.name(), "Result");
+    assert_eq!(declaration.name_span().source_id(), result);
 }

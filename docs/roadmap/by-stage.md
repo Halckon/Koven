@@ -13,15 +13,15 @@
 | 阶段 | ✅ 已交付 | ◐ 部分 | ▶ 进行中 | ☐ 未开始 | ❓ 待决策 | ⏸ 延后 | 合计 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | S0 已交付基线 | 23 | 0 | 0 | 0 | 0 | 0 | 23 |
-| P0 止血 | 5 | 0 | 1 | 1 | 0 | 0 | 7 |
+| P0 止血 | 6 | 0 | 1 | 0 | 0 | 0 | 7 |
 | P1 结构 | 0 | 0 | 1 | 1 | 0 | 0 | 2 |
 | P2 补齐现有 Guide 能力 | 1 | 4 | 0 | 5 | 0 | 0 | 10 |
-| P3 语言增量 | 8 | 0 | 0 | 19 | 0 | 0 | 27 |
+| P3 语言增量 | 8 | 1 | 0 | 18 | 0 | 0 | 27 |
 | P4 文本与 IO | 0 | 0 | 0 | 5 | 0 | 0 | 5 |
 | P5 验收与发布 | 0 | 4 | 0 | 2 | 0 | 0 | 6 |
 | X v1 之外 | 0 | 0 | 0 | 0 | 0 | 11 | 11 |
 
-v1 范围内 80 项（必做 70，其中已交付 36）；X 阶段只列边界，不计入 v1。
+v1 范围内 80 项（必做 70，其中已交付 37）；X 阶段只列边界，不计入 v1。
 
 ## 最近一次实测
 
@@ -97,7 +97,7 @@ P0 之前已合入 main 的编译器骨架与有界能力；不表示每项都�
 |---|---|---|---|---|---|---|---|---|
 | ✅ 已交付 | E1 | 前端硬门禁：Deferred/Error 不进入所有权与 codegen；未知成员报诊断；内部错误结构化；L0165 用户措辞 | v1 必做 | 编译器结构 | — | 2 | [0319](../archive/specs/0319-final-type-admission-diagnostics.md) [0323](../archive/specs/0323-final-admission-static-recovery.md) [0324](../archive/specs/0324-final-admission-user-messages.md) | 内部错误（ICE/ERR）为 0；但 lowering 生成非法 SSA（InvalidSsa）的路径仍有 10 次观察，并入 E2 门槛。 |
 | ▶ 进行中 | E1b | 声明/函数终止性：val 初始化全分支 return 与 L0088 入口一致 | v1 必做 | 控制流 | 已定义 | 2 | [0326](../archive/specs/0326-closed-control-branch-join.md) | 0326 作者已认领，尚未分 Spec。 |
-| ☐ 未开始 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | v1 必做 | 标准库与运行时 | 已定义 | 5,6 | — | 已决（2026-10-22）：Result/Ok/Err 进入内建环境，需改写 v0.45 Guide 02 的“不额外提供”条文；Pair 随 S6（to / mapOf）进入。验收：fun f(): Result<Int, String> 直接可用。 |
+| ✅ 已交付 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | v1 必做 | 标准库与运行时 | 已定义 | 5,6 | [0349](../archive/specs/0349-builtin-result-and-check.md) | SPEC-0349：koven/core/result.ko 由宿主按 SourceId 授权为内建环境，两模式相同、无需 import；用户任一 package 的顶层 Result/Ok/Err 以 L0150 拒绝；kovenc check（单文件与 --project）与 --help 落地，单文件 build/run 的诊断退出码改为 1。Pair 随 S6（to / mapOf）进入。 |
 | ✅ 已交付 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | v1 必做 | 类型、泛型与声明 | 需新增 | 2 | [0343](../archive/specs/0343-top-level-const-only.md) [global-and-static-state](../proposals/global-and-static-state.md) | D4 已决：v1 只允许 const val（候选 G1）；SPEC-0343 以 Phase 2 L0167 拒绝顶层运行时值，后端 UnsupportedSource 仅作防御。 |
 | ✅ 已交付 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | v1 必做 | 空安全与错误值 | 已定义 | 4,5 | [0347](../archive/specs/0347-abort-output.md) | D12 已决：stderr 输出 `abort: <message>` 与 `at <file>:<line>:<col>`；!!、越界、溢出、转换失败使用固定消息；写失败忽略；随后 SIGABRT。规则进 Guide v0.46。 |
 | ✅ 已交付 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | v1 必做 | 验收、发布与文档 | — | 6 | [0348](../archive/specs/0348-conformance-corpus.md) | 已入库 conformance/，runner 为 scripts/conformance_matrix.sh；此前 SPEC-0341 因缺源码只能用 22 个附件与 39 场景验证。 |
@@ -144,7 +144,7 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 | ☐ 未开始 | L8 | Box 访问面措辞修正：box.value 为只读 projection place、unbox(): T | v1 必做 | 标准库与运行时 | 需新增 | 2 | — | N07 的规范前置。 |
 | ✅ 已交付 | L9a | 封闭 if/when 结果 join：不再合并到 Any（D3） | v1 必做 | 控制流 | 已定义 | 2 | [0326](../archive/specs/0326-closed-control-branch-join.md) | — |
 | ✅ 已交付 | L9b | 简单变量普通赋值的类型、Unit 结果与收窄事实失效 | v1 必做 | 类型、泛型与声明 | 已定义 | 2 | [0325](../archive/specs/0325-simple-variable-assignment-types.md) | — |
-| ☐ 未开始 | L9c | is E.Case 从 subject 推断类型实参；L0086→L0084 诊断码统一 | v1 建议 | 类型、泛型与声明 | 需新增 | 2 | — | v0.44 列为额外合同，未纳入。 |
+| ◐ 部分 | L9c | is E.Case 从 subject 推断类型实参；L0086→L0084 诊断码统一 | v1 建议 | 类型、泛型与声明 | 需新增 | 2 | [0349](../archive/specs/0349-builtin-result-and-check.md) | SPEC-0349 已落地 is Case 的 subject 推断：无实参 case type 从 subject（去掉 nullable）同一 enum 实例取 root 实参，覆盖 Result 的 is Ok / is Err；L0086→L0084 诊断码统一仍未做。 |
 | ☐ 未开始 | L11 | 泛型体内未约束 T 的析构轨道（按资源轨道词法作用域析构） | v1 必做 | 所有权、借用与析构 | 需新增 | 2,3 | — | — |
 | ✅ 已交付 | L13 | Map 插入序借用遍历（D8） | v1 必做 | 集合与迭代 | 已定义 | 2,3,4 | [0331](../archive/specs/0331-map-borrowed-iteration.md) | Map 双分量借用遍历已交付；单文件“局部声明夹在 put 与 for 之间”失败随 E2 消失。 |
 | ✅ 已交付 | L13b | MutableMap.consume 整体移交为只读 Map | v1 必做 | 集合与迭代 | 已定义 | 2,3,4 | [0291](../specs/active/0291-readonly-map-construction.md) | consume 已交付；0291 其余待项仍 active。 |

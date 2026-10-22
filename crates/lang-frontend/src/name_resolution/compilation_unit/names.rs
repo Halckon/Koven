@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+mod builtin;
 mod member_lookup;
 #[path = "qualified.rs"]
 mod qualified;
@@ -53,6 +54,7 @@ struct UnitResolver<'a> {
     value_lookup_hints: Vec<UnitNameReference>,
     diagnostics: Vec<Diagnostic>,
     suppressed_unresolved: Vec<BTreeSet<(usize, usize)>>,
+    builtin: Option<builtin::BuiltinResult>,
 }
 
 /// 解析一个显式 compilation unit 的 import、可见性、限定路径与普通名称。
@@ -126,6 +128,8 @@ impl<'a> UnitResolver<'a> {
                 );
             }
         }
+        let builtin =
+            builtin::BuiltinResult::locate(environment, &index, &local, &declaration_symbols)?;
         let unit_count = inputs.len();
         Ok(Self {
             sources,
@@ -140,11 +144,13 @@ impl<'a> UnitResolver<'a> {
             value_lookup_hints: Vec::new(),
             diagnostics: Vec::new(),
             suppressed_unresolved: (0..unit_count).map(|_| BTreeSet::new()).collect(),
+            builtin,
         })
     }
 
     fn run(mut self) -> Result<CompilationUnitNames, CompilationUnitNameError> {
         self.build_automatic_bindings();
+        self.report_builtin_conflicts()?;
         self.resolve_imports()?;
         self.resolve_qualified_paths()?;
         self.resolve_file_references()?;
@@ -193,6 +199,7 @@ impl<'a> UnitResolver<'a> {
                 reference.namespace().map(namespace_rank),
             )
         });
+        let builtin_result = self.builtin.map(|builtin| builtin.declaration());
         Ok(CompilationUnitNames::new(
             self.index,
             source_units,
@@ -200,7 +207,8 @@ impl<'a> UnitResolver<'a> {
             self.references,
             diagnostics,
         )
-        .with_value_lookup_hints(self.value_lookup_hints))
+        .with_value_lookup_hints(self.value_lookup_hints)
+        .with_builtin_result(builtin_result))
     }
 
     fn build_automatic_bindings(&mut self) {
@@ -543,7 +551,32 @@ impl<'a> UnitResolver<'a> {
                                 self.push_wildcard_ambiguity(reference.span(), &candidates)?;
                                 UnitReferenceTarget::Unresolved
                             }
-                            None => UnitReferenceTarget::Unresolved,
+                            None => {
+                                // 内建环境是最低优先级；Value→Type 回退与文件绑定相同。
+                                let namespace = reference.namespace();
+                                let builtin = self
+                                    .builtin_target(namespace, name)
+                                    .map(|target| (namespace, target))
+                                    .or_else(|| {
+                                        (namespace == Namespace::Value
+                                            && fallback.contains(&span_key(reference.span())))
+                                        .then(|| self.builtin_target(Namespace::Type, name))
+                                        .flatten()
+                                        .map(|target| (Namespace::Type, target))
+                                    });
+                                if let Some((namespace, target)) = builtin {
+                                    self.suppressed_unresolved[source_index]
+                                        .insert(span_key(reference.span()));
+                                    self.references.push(UnitNameReference::new(
+                                        source,
+                                        reference.span(),
+                                        Some(namespace),
+                                        target,
+                                    ));
+                                    continue;
+                                }
+                                UnitReferenceTarget::Unresolved
+                            }
                         }
                     }
                 };
