@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：PR #120（D10 统一管线，基于 main c0c5156a，未合并）· Guide v0.46 · 更新：2026-10-22 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
+基线：main 3b202f86（PR #120 已合并，D10 统一管线）· Guide v0.46 · 更新：2026-10-22 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
 
 只列 v1 范围内条目；● 表示该条目需要在对应 Phase 产出或验收。Phase 定义见 [一致性与实施边界](../guide/15-conformance-and-staging.md)。
 
@@ -16,7 +16,7 @@
 | Phase 1 Parser | 2 | 0 | 0 | 2 | 0 | 0 | 4 |
 | Phase 2 名称/类型 | 23 | 5 | 2 | 28 | 0 | 0 | 58 |
 | Phase 3 所有权 | 18 | 5 | 1 | 13 | 0 | 0 | 37 |
-| Phase 4 SSA/native | 19 | 6 | 2 | 23 | 0 | 0 | 50 |
+| Phase 4 SSA/native | 20 | 6 | 1 | 23 | 0 | 0 | 50 |
 | Phase 5 标准库 | 0 | 0 | 0 | 11 | 0 | 0 | 11 |
 | Phase 6 工具 | 5 | 1 | 0 | 3 | 0 | 0 | 9 |
 
@@ -65,7 +65,7 @@
 | ☐ 未开始 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | N09 | borrow T from this（泛型类 receiver 来源） | P2 | 已定义 |  |  | ● | ● | ● |  |  |
-| ▶ 进行中 | N10 | 单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值 | P2 | 已定义 |  |  |  |  | ● |  |  |
+| ✅ 已交付 | N10 | 单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值 | P2 | 已定义 |  |  |  |  | ● |  |  |
 | ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | P3 | 需新增 |  |  | ● |  | ● | ● |  |
 | ☐ 未开始 | L2 | 字符串插值降级："${x}" 要求 x : Display（D2） | P3 | 需新增 |  |  | ● |  | ● |  |  |
 | ✅ 已交付 | L3 | 八种整数之间的 checked 转换（越界 Abort） | P3 | 已定义 |  |  | ● | ● | ● |  |  |

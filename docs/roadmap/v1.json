@@ -2,7 +2,7 @@
   "meta": {
     "title": "Koven v1",
     "updated": "2026-10-22",
-    "baseline": "PR #120（D10 统一管线，基于 main c0c5156a，未合并）· Guide v0.46",
+    "baseline": "main 3b202f86（PR #120 已合并，D10 统一管线）· Guide v0.46",
     "scope_source": "2026-10-13 v1 范围评审（未入库）",
     "v1_definition": "能写真实命令行工具的语言：单进程、同步 IO；被接受的程序内存安全、资源确定性释放；合法程序要么正确运行，要么得到明确的“未实现”诊断；AArch64 macOS 与 x86_64 Linux glibc。",
     "metrics": {
@@ -37,7 +37,7 @@
           "0 / 6（源码尚未入库，见 V0）"
         ]
       ],
-      "note": "数字为未合并 PR #120 头的实测；合并后以 main 复测为准。下一次增量审计更新此处。"
+      "note": "数字为 PR #120 合并前头部 aef3f4f8 的实测；下一次增量审计以合并后的 main 复测并更新此处。"
     }
   },
   "stages": [
@@ -114,7 +114,7 @@
     {"id": "L12", "stage": "P0", "area": "errors", "priority": "must", "status": "todo", "guide": "needed", "phases": [4, 5], "title": "error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置", "decision": "D12", "note": "D12 已决：stderr 输出 `abort: <message>` 与 `at <file>:<line>:<col>`；!!、越界、溢出、转换失败使用固定消息；写失败忽略；随后 SIGABRT。规则进 Guide v0.46。"},
     {"id": "V0", "stage": "P0", "area": "release", "priority": "must", "status": "todo", "guide": "none", "phases": [6], "title": "154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合", "note": "目前只在本地 .local-artifacts；SPEC-0341 因缺源码只能用 22 个附件与 39 场景验证。"},
     {"id": "G46", "stage": "P0", "area": "release", "priority": "must", "status": "done", "guide": "needed", "phases": [], "title": "Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型", "links": ["proposals/v0.46-language-decisions.md"], "note": "已启用（迁移账本 archive/migrations/v0.46-enablement.md）；各规则的实现按条目推进。"},
-    {"id": "E2", "stage": "P1", "area": "pipeline", "priority": "must", "status": "active", "specs": ["0341"], "guide": "none", "phases": [2, 3, 4], "title": "管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend", "decision": "D10", "note": "D10 已决：统一 compilation-unit 管线为终态（Guide v0.45、ADR-0031、SPEC-0341，均在未合并的 PR #120）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0；剩余：enum when 回退 5 个、InvalidSsa 10 次、删除旧 checker 与 lower_frontend。"},
+    {"id": "E2", "stage": "P1", "area": "pipeline", "priority": "must", "status": "active", "specs": ["0341"], "guide": "none", "phases": [2, 3, 4], "title": "管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend", "decision": "D10", "note": "D10 已决：统一 compilation-unit 管线为终态（Guide v0.45、ADR-0031、SPEC-0341，已随 PR #120 合入 main）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0；剩余：enum when 回退 5 个、InvalidSsa 10 次、删除旧 checker 与 lower_frontend。"},
     {"id": "E3", "stage": "P1", "area": "pipeline", "priority": "must", "status": "todo", "guide": "none", "phases": [3, 4], "title": "通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA", "decision": "D10", "note": "先以 nullable 家族（p14、p14b、p14c、p15、q05、v03、v13、x02）试点：全部通过且不新增按组合拆分的 lowering 模块；成功后推广到 P2 各家族。"},
     {"id": "N01", "stage": "P2", "area": "ownership", "priority": "must", "status": "todo", "guide": "enabled", "phases": [2, 3, 4], "title": "赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法", "specs": ["0325"], "note": "0325 只覆盖简单变量赋值的类型。"},
     {"id": "N02", "stage": "P2", "area": "control", "priority": "must", "status": "partial", "guide": "enabled", "phases": [2, 3, 4], "title": "when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件", "specs": ["0241", "0320", "0326"], "note": "enum subject 的 when 在分支结果为 Boolean/String/Unit 时 MissingFact（PR #120 中原单文件能力回退，属 E2 门槛）；Int/String subject、in range、语句位置混型仍失败。"},
@@ -125,7 +125,7 @@
     {"id": "N07", "stage": "P2", "area": "stdlib", "priority": "must", "status": "todo", "guide": "enabled", "phases": [2, 3, 4], "title": "Box.value / unbox() 与 Rc.value 字段投影"},
     {"id": "N08", "stage": "P2", "area": "errors", "priority": "must", "status": "todo", "guide": "enabled", "phases": [2, 3, 4], "title": "Result + 后缀 ? 的 Int 与 String payload 全路径", "links": ["guide/09-nullability-errors.md"], "note": "文件 IO（L6）的硬前置。"},
     {"id": "N09", "stage": "P2", "area": "ownership", "priority": "must", "status": "todo", "guide": "enabled", "phases": [2, 3, 4], "title": "borrow T from this（泛型类 receiver 来源）", "note": "当前报 L0164。"},
-    {"id": "N10", "stage": "P2", "area": "classes", "priority": "must", "status": "active", "guide": "enabled", "phases": [4], "title": "单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值", "specs": ["0316"], "note": "单文件独有缺口随 E2 入口切换消失（PR #120 实测两模式一致）；泛型 value class 方法（t03）两模式仍失败，归 N06。PR 合并后改为 done。"},
+    {"id": "N10", "stage": "P2", "area": "classes", "priority": "must", "status": "done", "guide": "enabled", "phases": [4], "title": "单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值", "specs": ["0316"], "note": "单文件独有缺口随 E2 入口切换消失（PR #120 已合并，实测两模式一致）；泛型 value class 方法（t03）两模式仍失败，归 N06。"},
     {"id": "L1", "stage": "P3", "area": "types", "priority": "must", "status": "todo", "guide": "needed", "phases": [2, 4, 5], "title": "值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable", "decision": "D1"},
     {"id": "L2", "stage": "P3", "area": "text-io", "priority": "must", "status": "todo", "guide": "needed", "phases": [2, 4], "title": "字符串插值降级：\"${x}\" 要求 x : Display", "decision": "D2", "note": "依赖 L1。"},
     {"id": "L3", "stage": "P3", "area": "types", "priority": "must", "status": "done", "guide": "enabled", "phases": [2, 3, 4], "title": "八种整数之间的 checked 转换（越界 Abort）", "specs": ["0327"]},

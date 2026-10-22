@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：PR #120（D10 统一管线，基于 main c0c5156a，未合并）· Guide v0.46 · 更新：2026-10-22 · 其他视图：[按领域](by-area.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
+基线：main 3b202f86（PR #120 已合并，D10 统一管线）· Guide v0.46 · 更新：2026-10-22 · 其他视图：[按领域](by-area.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
 
 **v1 的定义**：能写真实命令行工具的语言：单进程、同步 IO；被接受的程序内存安全、资源确定性释放；合法程序要么正确运行，要么得到明确的“未实现”诊断；AArch64 macOS 与 x86_64 Linux glibc。
 
@@ -15,13 +15,13 @@
 | S0 已交付基线 | 23 | 0 | 0 | 0 | 0 | 0 | 23 |
 | P0 止血 | 2 | 0 | 1 | 4 | 0 | 0 | 7 |
 | P1 结构 | 0 | 0 | 1 | 1 | 0 | 0 | 2 |
-| P2 补齐现有 Guide 能力 | 0 | 4 | 1 | 5 | 0 | 0 | 10 |
+| P2 补齐现有 Guide 能力 | 1 | 4 | 0 | 5 | 0 | 0 | 10 |
 | P3 语言增量 | 8 | 0 | 0 | 19 | 0 | 0 | 27 |
 | P4 文本与 IO | 0 | 0 | 0 | 5 | 0 | 0 | 5 |
 | P5 验收与发布 | 0 | 4 | 0 | 2 | 0 | 0 | 6 |
 | X v1 之外 | 0 | 0 | 0 | 0 | 0 | 11 | 11 |
 
-v1 范围内 80 项（必做 70，其中已交付 32）；X 阶段只列边界，不计入 v1。
+v1 范围内 80 项（必做 70，其中已交付 33）；X 阶段只列边界，不计入 v1。
 
 ## 最近一次实测
 
@@ -37,7 +37,7 @@ v1 范围内 80 项（必做 70，其中已交付 32）；X 阶段只列边界�
 | 原单文件成功、现在两模式失败 | 5（enum when 分支结果为 Boolean/String/Unit） |
 | 六个验收程序可运行 | 0 / 6（源码尚未入库，见 V0） |
 
-数字为未合并 PR #120 头的实测；合并后以 main 复测为准。下一次增量审计更新此处。
+数字为 PR #120 合并前头部 aef3f4f8 的实测；下一次增量审计以合并后的 main 复测并更新此处。
 
 ## 决策
 
@@ -109,7 +109,7 @@ D10 统一管线收尾（两模式差异 0、InvalidSsa 0、原成功能力无�
 
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | v1 必做 | 编译器结构 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) | D10 已决：统一 compilation-unit 管线为终态（Guide v0.45、ADR-0031、SPEC-0341，均在未合并的 PR #120）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0；剩余：enum when 回退 5 个、InvalidSsa 10 次、删除旧 checker 与 lower_frontend。 |
+| ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | v1 必做 | 编译器结构 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) | D10 已决：统一 compilation-unit 管线为终态（Guide v0.45、ADR-0031、SPEC-0341，已随 PR #120 合入 main）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0；剩余：enum when 回退 5 个、InvalidSsa 10 次、删除旧 checker 与 lower_frontend。 |
 | ☐ 未开始 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | v1 必做 | 编译器结构 | — | 3,4 | — | 先以 nullable 家族（p14、p14b、p14c、p15、q05、v03、v13、x02）试点：全部通过且不新增按组合拆分的 lowering 模块；成功后推广到 P2 各家族。 |
 
 ## P2 补齐现有 Guide 能力
@@ -127,7 +127,7 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 | ☐ 未开始 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | v1 必做 | 标准库与运行时 | 已定义 | 2,3,4 | — | — |
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | v1 必做 | 空安全与错误值 | 已定义 | 2,3,4 | [09-nullability-errors](../guide/09-nullability-errors.md) | 文件 IO（L6）的硬前置。 |
 | ☐ 未开始 | N09 | borrow T from this（泛型类 receiver 来源） | v1 必做 | 所有权、借用与析构 | 已定义 | 2,3,4 | — | 当前报 L0164。 |
-| ▶ 进行中 | N10 | 单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值 | v1 必做 | 类、接口与成员 | 已定义 | 4 | [0316](../archive/specs/0316-single-readonly-value-methods.md) | 单文件独有缺口随 E2 入口切换消失（PR #120 实测两模式一致）；泛型 value class 方法（t03）两模式仍失败，归 N06。PR 合并后改为 done。 |
+| ✅ 已交付 | N10 | 单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值 | v1 必做 | 类、接口与成员 | 已定义 | 4 | [0316](../archive/specs/0316-single-readonly-value-methods.md) | 单文件独有缺口随 E2 入口切换消失（PR #120 已合并，实测两模式一致）；泛型 value class 方法（t03）两模式仍失败，归 N06。 |
 
 ## P3 语言增量
 

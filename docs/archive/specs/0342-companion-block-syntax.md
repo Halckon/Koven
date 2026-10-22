@@ -9,7 +9,7 @@
 | 所属 Phase | Phase 1（Parser），外加编辑器语法 |
 | 语言规范 | [Guide v0.46 Companion 与关联成员](../../guide/08-class-family-members.md#companion-与关联成员) |
 | 批准依据 | 2026-10-22 用户同意 D13（companion 语法改为 `companion { }`）并要求按计划开始实施 |
-| 基线 | 分支 `docs/guide-v0.46` 头 `4cdb89b0`（Guide v0.46 启用提交） |
+| 基线 | main `3b202f86`（PR #120 合并）之上的 Guide v0.46 启用提交 |
 | 分支 | `feature/spec-0342-companion-block` |
 | 前置 Spec | 无 |
 | 语言语义变更 | 否；落实已启用的 Guide v0.46 规则 |
@@ -53,12 +53,12 @@ Parser 接受 `companion { ... }` 作为唯一 companion 形式；`companion obj
 | 检查 | 结果 |
 |---|---|
 | `cargo fmt --all -- --check` | 通过 |
-| `cargo test --locked --no-fail-fast -p lang-frontend` | 除下条外全部通过 |
-| 既有失败 `multifile_type_checking::assignments::assignment_publishes_plain_storage_facts_and_keeps_compounds_deferred` | 在未修改的 PR #120 头 `3f0d6fb2` 上同样失败，与本片无关，未处理 |
+| `cargo test --locked --no-fail-fast -p lang-frontend` | 变基前除下条外全部通过 |
+| `multifile_type_checking::assignments::assignment_publishes_plain_storage_facts_and_keeps_compounds_deferred` | 在 PR #120 合并前的头 `3f0d6fb2` 上同样失败；main `3b202f86` 已修复，变基后复跑通过 |
 | 解析器变异矩阵（token/scalar 插入、删除、替换、转置、截断、trivia 不变性等 26 个目标） | 固定统计按删除一个 `object` token 后的语料更新后全部通过 |
 | `npm ci`、`npm run generate`、`npm test`（editors/tree-sitter） | 通过；`src/` 已重新生成 |
-| `cargo test --locked --no-fail-fast --workspace` | 188 个测试目标中 3 个各有失败：上条既有失败；`lang-codegen --lib` 中 companion 边界测试的固定 Span 随源码变化，按新源码更新后 `cargo test -p lang-codegen --lib companion` 3 项通过；另两项与本片无关，见下 |
-| `lang-codegen` `nullable_field_access_without_current_root_fact_stops_in_frontend` | 失败；测试源码不含 companion，未在基线上复核 |
+| `cargo test --locked --no-fail-fast --workspace` | 变基前 188 个测试目标中 3 个各有失败：上条；`lang-codegen --lib` 中 companion 边界测试的固定 Span 随源码变化，按新源码更新后 `cargo test -p lang-codegen --lib companion` 3 项通过；另两项见下 |
+| `lang-codegen` `nullable_field_access_without_current_root_fact_stops_in_frontend` | 变基前失败；main `3b202f86` 已修复该测试，变基后复跑通过 |
 | `lang-cli` `unreadable_directory_and_source_report_io_operations` | 失败；云端以 root 运行，目录权限不生效，属环境原因 |
 
 未运行：远端 CI、macOS、sanitizer。
