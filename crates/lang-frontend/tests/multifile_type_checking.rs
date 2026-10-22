@@ -176,3 +176,6 @@ mod generic_body_isolation;
 
 #[path = "multifile_type_checking/package_dispatch_controls.rs"]
 mod package_dispatch_controls;
+
+#[path = "multifile_type_checking/group_null_comparison.rs"]
+mod group_null_comparison;
