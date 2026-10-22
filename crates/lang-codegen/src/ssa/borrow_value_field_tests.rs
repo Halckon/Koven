@@ -1,6 +1,6 @@
 //! SPEC-0309: inspect only unchanged Programs lowered from ordinary source.
 use super::{
-    LoweringErrorKind, borrow_result_contract_tests::single, borrow_storage_contract_tests::unit,
+    LoweringErrorKind, borrow_memory_test_support::single, borrow_storage_contract_tests::unit,
     model::*, verify::verify_program,
 };
 use crate::native_borrow_value_field_cases::{CLONE, COPYABLE, STRING};
