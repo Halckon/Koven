@@ -418,7 +418,41 @@ fun captured(value: Node?): Int = when (value) {
             .source_category(),
         NullableWhenSubjectCategory::BorrowRoot
     );
-    assert_eq!(fixture.typed.nullable_when_uses().len(), 2);
+    assert_eq!(
+        fixture.typed.nullable_when_uses().len(),
+        2,
+        "actual nullable When uses: {:?}",
+        fixture
+            .typed
+            .nullable_when_uses()
+            .iter()
+            .map(|witness| {
+                let expression = fixture
+                    .file
+                    .ast()
+                    .expressions()
+                    .get(witness.expression().expression())
+                    .expect("real witness expression");
+                let control = fixture
+                    .file
+                    .ast()
+                    .expressions()
+                    .get(witness.control().expression())
+                    .expect("real witness When");
+                (
+                    *witness,
+                    expression.span(),
+                    fixture.sources.slice(expression.span()),
+                    control.span(),
+                    fixture.typed.expression_category(witness.expression()),
+                    fixture
+                        .typed
+                        .nullable_when(witness.control())
+                        .map(|descriptor| descriptor.source_category()),
+                )
+            })
+            .collect::<Vec<_>>()
+    );
     assert_witnesses(&fixture);
     // END GREEN
 }
