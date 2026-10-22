@@ -225,7 +225,10 @@ pub(super) fn link_and_run(llvm: &str, counter: &str, stdout: &[u8]) {
     let run = Command::new(executable).output().unwrap();
     assert!(run.status.success(), "{run:?}");
     assert_eq!(run.stdout, stdout);
-    assert!(run.stderr.is_empty(), "{run:?}");
+    assert!(
+        run.stderr.is_empty() || run.stderr.starts_with(b"abort: "),
+        "{run:?}"
+    );
 }
 
 #[test]

@@ -26,7 +26,10 @@ pub(in crate::llvm) fn require_value<'ctx>(
     let missing = context.append_basic_block(function, "required.missing");
     builder.build_conditional_branch(present, found, missing)?;
     builder.position_at_end(missing);
-    runtime.emit_abort(builder)?;
+    runtime.emit_abort(
+        builder,
+        crate::llvm::runtime::AbortMessage::Text("missing key"),
+    )?;
     builder.position_at_end(found);
     Ok(builder.build_struct_gep(slot_type, slot, 2, name)?)
 }

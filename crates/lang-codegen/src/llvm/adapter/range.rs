@@ -1,5 +1,6 @@
 //! N1a range metadata has inline storage; neither construct nor end allocates elements.
 use super::*;
+use crate::llvm::runtime::AbortMessage;
 use crate::ssa::model::SsaTypeKind;
 
 impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
@@ -42,13 +43,32 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     .builder
                     .build_extract_value(descriptor, 2, "range.end")?
                     .into_int_value();
+                let index_value = self.int_value(*index)?;
+                let length = self.builder.build_int_sub(end, begin, "range.size")?;
+                let out_of_bounds = AbortMessage::IndexOutOfBounds {
+                    index: index_value,
+                    size: length,
+                };
+                // Report a negative index with the bounds text before size conversion.
+                let negative = self.builder.build_int_compare(
+                    IntPredicate::SLT,
+                    index_value,
+                    index_value.get_type().const_zero(),
+                    "range.index.negative",
+                )?;
+                self.dependencies.runtime.abort_if(
+                    &self.builder,
+                    self.llvm_function,
+                    negative,
+                    "range.element.negative",
+                    out_of_bounds,
+                )?;
                 let relative = self.dependencies.runtime.container_int_to_size(
                     &self.builder,
                     self.llvm_function,
-                    self.int_value(*index)?,
+                    index_value,
                     "range.index",
                 )?;
-                let length = self.builder.build_int_sub(end, begin, "range.size")?;
                 let beyond = self.builder.build_int_compare(
                     IntPredicate::UGE,
                     relative,
@@ -60,6 +80,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     self.llvm_function,
                     beyond,
                     "range.element.bounds",
+                    out_of_bounds,
                 )?;
                 // Range construction validated begin <= end <= List length <= Int::MAX.
                 // The relative bounds guard ensures this sum remains in that same range.
@@ -115,16 +136,41 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     return Err(unsupported("range storage type missing"));
                 };
                 let (root, offset, length) = self.range_source(*source)?;
+                let begin = self.int_value(*begin)?;
+                let end = self.int_value(*end)?;
+                // SPEC-0347: negative endpoints report the range text, not a size conversion.
+                let begin_negative = self.builder.build_int_compare(
+                    IntPredicate::SLT,
+                    begin,
+                    begin.get_type().const_zero(),
+                    "range.begin.negative",
+                )?;
+                let end_negative = self.builder.build_int_compare(
+                    IntPredicate::SLT,
+                    end,
+                    end.get_type().const_zero(),
+                    "range.end.negative",
+                )?;
+                let negative =
+                    self.builder
+                        .build_or(begin_negative, end_negative, "range.negative")?;
+                self.dependencies.runtime.abort_if(
+                    &self.builder,
+                    self.llvm_function,
+                    negative,
+                    "range.bounds.negative",
+                    AbortMessage::Text("range out of bounds"),
+                )?;
                 let begin = self.dependencies.runtime.container_int_to_size(
                     &self.builder,
                     self.llvm_function,
-                    self.int_value(*begin)?,
+                    begin,
                     "range.begin",
                 )?;
                 let end = self.dependencies.runtime.container_int_to_size(
                     &self.builder,
                     self.llvm_function,
-                    self.int_value(*end)?,
+                    end,
                     "range.end",
                 )?;
                 let reversed = self.builder.build_int_compare(
@@ -145,6 +191,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     self.llvm_function,
                     invalid,
                     "range.bounds",
+                    AbortMessage::Text("range out of bounds"),
                 )?;
                 // Relative bounds lie within the parent; root coordinates remain <= List length.
                 let begin = self

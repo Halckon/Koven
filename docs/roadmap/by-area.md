@@ -14,7 +14,7 @@
 | 类型、泛型与声明 | 5 | 0 | 0 | 7 | 0 | 0 | 12 |
 | 控制流 | 2 | 1 | 1 | 2 | 0 | 0 | 6 |
 | 类、接口与成员 | 2 | 1 | 0 | 0 | 0 | 0 | 3 |
-| 空安全与错误值 | 0 | 1 | 0 | 4 | 0 | 0 | 5 |
+| 空安全与错误值 | 1 | 1 | 0 | 3 | 0 | 0 | 5 |
 | 所有权、借用与析构 | 5 | 0 | 0 | 4 | 0 | 0 | 9 |
 | 函数类型与闭包 | 0 | 1 | 0 | 1 | 0 | 0 | 2 |
 | 集合与迭代 | 6 | 0 | 0 | 3 | 0 | 0 | 9 |
@@ -74,7 +74,7 @@
 
 | 状态 | ID | 内容 | 阶段 | 优先级 | Guide | Phase | Spec / 依据 |
 |---|---|---|---|---|---|---|---|
-| ☐ 未开始 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | P0 止血 | v1 必做 | 需新增 | 4,5 | — |
+| ✅ 已交付 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | P0 止血 | v1 必做 | 已定义 | 4,5 | [0347](../archive/specs/0347-abort-output.md) |
 | ◐ 部分 | N03 | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0220](../archive/specs/0220-compilation-unit-pointer-nullable-storage-lowering.md) [0296](../archive/specs/0296-owned-null-comparison-cleanup.md) |
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [09-nullability-errors](../guide/09-nullability-errors.md) |
 | ☐ 未开始 | L17 | 丢弃 Result 返回值报诊断（must-use）（D14） | P3 语言增量 | v1 必做 | 需新增 | 2 | — |

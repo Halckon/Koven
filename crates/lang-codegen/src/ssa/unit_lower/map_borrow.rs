@@ -186,7 +186,13 @@ impl UnitExpressionLowerer<'_> {
         // The typed use and branch guard prove this edge unreachable for valid source.
         // No owner is extracted; Abort is the existing non-unwinding failure boundary.
         self.function
-            .set_terminator(null, TerminatorKind::Abort, Origin::Source(span))
+            .set_abort_terminator(
+                null,
+                crate::ssa::model::AbortReason::Text(
+                    "internal error: map borrow proof failed".to_owned(),
+                ),
+                Origin::Source(span),
+            )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.rebind_map_borrow_control(&baseline, non_null, &carried, &loans, view, target, span)?;
         self.block = non_null;

@@ -12,6 +12,7 @@ use inkwell::{
 use crate::ssa::model::SsaTypeId;
 use crate::ssa::model::{Module, Ownership};
 
+use super::runtime::AbortMessage;
 use super::{
     LlvmAdapterError,
     runtime::RuntimeAbi,
@@ -159,7 +160,16 @@ pub(super) fn element_place<'ctx>(
         &format!("{name}.beyond"),
     )?;
     let invalid = builder.build_or(negative, beyond, &format!("{name}.invalid"))?;
-    runtime.abort_if(builder, function, invalid, name)?;
+    runtime.abort_if(
+        builder,
+        function,
+        invalid,
+        name,
+        AbortMessage::IndexOutOfBounds {
+            index,
+            size: logical_length,
+        },
+    )?;
     let size_type = runtime.size_type();
     let index = match index
         .get_type()
@@ -587,7 +597,16 @@ pub(super) fn remove_at<'ctx>(
         &format!("{name}.beyond"),
     )?;
     let invalid = builder.build_or(negative, beyond, &format!("{name}.invalid"))?;
-    runtime.abort_if(builder, function, invalid, name)?;
+    runtime.abort_if(
+        builder,
+        function,
+        invalid,
+        name,
+        AbortMessage::IndexOutOfBounds {
+            index,
+            size: logical_length,
+        },
+    )?;
 
     let size_type = runtime.size_type();
     let size_index = match index
@@ -701,7 +720,13 @@ pub(super) fn remove_last<'ctx>(
         zero,
         &format!("{name}.is_empty"),
     )?;
-    runtime.abort_if(builder, function, is_empty, name)?;
+    runtime.abort_if(
+        builder,
+        function,
+        is_empty,
+        name,
+        AbortMessage::Text("list is empty"),
+    )?;
 
     let one = size_type.const_int(1, false);
     let last_index = builder.build_int_sub(length, one, &format!("{name}.last_index"))?;
@@ -758,7 +783,13 @@ pub(super) fn remove_first<'ctx>(
         zero,
         &format!("{name}.is_empty"),
     )?;
-    runtime.abort_if(builder, function, is_empty, name)?;
+    runtime.abort_if(
+        builder,
+        function,
+        is_empty,
+        name,
+        AbortMessage::Text("list is empty"),
+    )?;
 
     let removed_element: BasicValueEnum<'ctx> = if layout.stride == 0 {
         layout.element.const_zero()
@@ -856,7 +887,16 @@ pub(super) fn insert_at<'ctx>(
         &format!("{name}.beyond"),
     )?;
     let invalid = builder.build_or(negative, beyond, &format!("{name}.invalid"))?;
-    runtime.abort_if(builder, function, invalid, name)?;
+    runtime.abort_if(
+        builder,
+        function,
+        invalid,
+        name,
+        AbortMessage::IndexOutOfBounds {
+            index,
+            size: logical_length,
+        },
+    )?;
 
     let size_type = runtime.size_type();
     let size_index = match index

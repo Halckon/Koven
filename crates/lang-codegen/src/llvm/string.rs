@@ -18,6 +18,16 @@ pub(super) struct StringView<'ctx> {
     length: IntValue<'ctx>,
 }
 
+impl<'ctx> StringView<'ctx> {
+    pub(super) const fn bytes(self) -> PointerValue<'ctx> {
+        self.bytes
+    }
+
+    pub(super) const fn length(self) -> IntValue<'ctx> {
+        self.length
+    }
+}
+
 pub(super) fn view<'ctx>(
     builder: &Builder<'ctx>,
     value: StructValue<'ctx>,
@@ -85,7 +95,13 @@ pub(super) fn concat<'ctx>(
         left.length,
         &format!("{name}.overflow"),
     )?;
-    runtime.abort_if(builder, function, overflow, name)?;
+    runtime.abort_if(
+        builder,
+        function,
+        overflow,
+        name,
+        super::runtime::AbortMessage::Text("size overflow"),
+    )?;
 
     let before_empty = builder
         .get_insert_block()

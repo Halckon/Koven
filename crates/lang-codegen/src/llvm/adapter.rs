@@ -30,8 +30,8 @@ use inkwell::{
 };
 
 use crate::ssa::model::{
-    BinaryOperator, BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId,
-    EntityType, Function, FunctionId, Instruction, LoanId, Module, Operation, Ownership,
+    AbortReason, BinaryOperator, BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge,
+    EntityId, EntityType, Function, FunctionId, Instruction, LoanId, Module, Operation, Ownership,
     PlaceAccess, PlaceId, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
 };
 
@@ -42,7 +42,7 @@ use super::{
         access_type, loan_result, place_result, place_type, value_name, value_results, value_type,
     },
     entry,
-    runtime::RuntimeAbi,
+    runtime::{AbortMessage, RuntimeAbi},
     scalar, string, tagged,
     type_map::TypeMap,
 };
@@ -204,14 +204,21 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     LlvmAdapterError::InvalidSsa("block 引用未知 instruction".to_owned())
                 })?;
                 self.set_debug_location(&instruction.origin)?;
+                self.set_abort_location(&instruction.origin)?;
                 self.lower_instruction(instruction)?;
             }
             let terminator = block.terminator.as_ref().ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("basic block 缺少 terminator".to_owned())
             })?;
             self.set_debug_location(&terminator.origin)?;
-            self.lower_terminator(&terminator.kind)?;
+            self.set_abort_location(&terminator.origin)?;
+            if matches!(terminator.kind, TerminatorKind::Abort) {
+                self.lower_abort(terminator.abort.as_ref())?;
+            } else {
+                self.lower_terminator(&terminator.kind)?;
+            }
         }
+        self.dependencies.runtime.set_abort_location(None);
         self.builder.unset_current_debug_location();
         Ok(())
     }
@@ -304,6 +311,75 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             debug.set_location(self.context, &self.builder, self.function.id, origin)?;
         }
         Ok(())
+    }
+
+    /// SPEC-0347: the source position printed by aborts emitted for this origin.
+    fn set_abort_location(
+        &self,
+        origin: &crate::ssa::model::Origin,
+    ) -> Result<(), LlvmAdapterError> {
+        let location = match self.dependencies.debug {
+            Some(debug) => Some(debug.abort_location(origin)?),
+            None => None,
+        };
+        self.dependencies.runtime.set_abort_location(location);
+        Ok(())
+    }
+
+    fn lower_abort(&mut self, reason: Option<&AbortReason>) -> Result<(), LlvmAdapterError> {
+        let runtime = self.dependencies.runtime;
+        match reason {
+            Some(AbortReason::Error { message }) => {
+                let view = self.string_view(EntityId::Loan(*message))?;
+                runtime.emit_abort(
+                    &self.builder,
+                    AbortMessage::Bytes {
+                        bytes: view.bytes(),
+                        length: view.length(),
+                    },
+                )
+            }
+            Some(AbortReason::CheckedArithmetic { operator, divisor }) => {
+                let overflow = match operator {
+                    CheckedArithmeticOperator::Add => "integer overflow in +",
+                    CheckedArithmeticOperator::Subtract => "integer overflow in -",
+                    CheckedArithmeticOperator::Multiply => "integer overflow in *",
+                    CheckedArithmeticOperator::Divide => "integer overflow in /",
+                    CheckedArithmeticOperator::Remainder => "integer overflow in %",
+                };
+                match operator {
+                    CheckedArithmeticOperator::Divide | CheckedArithmeticOperator::Remainder => {
+                        let divisor = self.int_value(*divisor)?;
+                        let zero = self.builder.build_int_compare(
+                            IntPredicate::EQ,
+                            divisor,
+                            divisor.get_type().const_zero(),
+                            "abort.division_by_zero",
+                        )?;
+                        runtime.emit_abort(
+                            &self.builder,
+                            AbortMessage::Select {
+                                condition: zero,
+                                when_true: "division by zero",
+                                when_false: overflow,
+                            },
+                        )
+                    }
+                    _ => runtime.emit_abort(&self.builder, AbortMessage::Text(overflow)),
+                }
+            }
+            Some(AbortReason::CheckedConversion { target }) => {
+                let text = format!(
+                    "value out of range for {}",
+                    integer_type_name(self.module, *target)?
+                );
+                runtime.emit_abort(&self.builder, AbortMessage::Text(&text))
+            }
+            Some(AbortReason::Text(text)) => {
+                runtime.emit_abort(&self.builder, AbortMessage::Text(text))
+            }
+            None => runtime.emit_abort(&self.builder, AbortMessage::Text("abort")),
+        }
     }
 
     fn lower_instruction(&mut self, instruction: &Instruction) -> Result<(), LlvmAdapterError> {
@@ -1615,7 +1691,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 _ => return Err(unsupported("SPEC-0034 不支持多返回值 return")),
             },
             TerminatorKind::Abort => {
-                self.dependencies.runtime.emit_abort(&self.builder)?;
+                self.lower_abort(None)?;
             }
             TerminatorKind::RangeReturn { view, .. } => {
                 self.builder.build_return(Some(&self.value(*view)?))?;
@@ -1760,4 +1836,24 @@ fn invalid_result_count(operation: &str, expected: usize, actual: usize) -> Llvm
 
 fn unsupported(message: &str) -> LlvmAdapterError {
     LlvmAdapterError::Unsupported(message.to_owned())
+}
+
+/// Koven name of a checked-conversion target for the SPEC-0347 abort message.
+fn integer_type_name(module: &Module, ty: SsaTypeId) -> Result<&'static str, LlvmAdapterError> {
+    match module.type_kind(ty) {
+        Some(crate::ssa::model::SsaTypeKind::Integer { bits, signed }) => {
+            Ok(match (*bits, *signed) {
+                (8, true) => "Byte",
+                (16, true) => "Short",
+                (32, true) => "Int",
+                (64, true) => "Long",
+                (8, false) => "UByte",
+                (16, false) => "UShort",
+                (32, false) => "UInt",
+                (64, false) => "ULong",
+                _ => return Err(unsupported("checked conversion target width")),
+            })
+        }
+        _ => Err(unsupported("checked conversion target is not an integer")),
+    }
 }

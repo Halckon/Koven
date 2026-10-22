@@ -69,6 +69,14 @@ fn public_std_receiver_take_negative_count_aborts_for_list_view_and_empty_source
         let run = Command::new(project.0.join("program")).output().unwrap();
         assert_eq!(run.status.signal(), Some(6), "{run:?}");
         assert!(run.stdout.is_empty(), "{run:?}");
+        // SPEC-0347: the std precondition's error() message and its std source position.
+        let report = String::from_utf8_lossy(&run.stderr);
+        assert!(
+            report.starts_with(
+                "abort: take count must be non-negative\n  at koven-std/koven/algorithms/ranges.ko:"
+            ),
+            "{operand}: {report:?}"
+        );
     }
 }
 

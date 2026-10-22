@@ -56,11 +56,21 @@ abort: <message>
   |---|---|
   | `!!` | `null assertion failed` |
   | 索引越界 | `index <i> out of bounds for size <n>` |
-  | 整数溢出 | `integer overflow in <op>`，`<op>` 为 `+`、`-`、`*`、`/` 之一 |
-  | 除以零 | `division by zero` |
+  | 整数溢出 | `integer overflow in <op>`，`<op>` 为 `+`、`-`、`*`、`/`、`%` 之一 |
+  | 除以零（`/` 与 `%`） | `division by zero` |
   | checked 转换失败 | `value out of range for <Target>` |
   | `Map.requireValue` 缺键 | `missing key` |
+  | 空列表上 `removeFirst`/`removeLast` | `list is empty` |
+  | 区间视图端点越界或反向 | `range out of bounds` |
+  | 以负数长度构造容器 | `negative size` |
   | 线程创建失败 | `thread creation failed` |
+  | 内存分配失败或分配大小超限 | `allocation failed` |
+  | 长度换算超出目标 `size_t` | `size overflow` |
+  | 共享所有权引用计数溢出 | `reference count overflow` |
+  | `println` 写标准输出失败 | `stdout write failed` |
+
+  编译器内部不变量被破坏时 message 以 `internal error: ` 开头，后接简短描述；这类 abort 对合法
+  程序不应出现。
 
 - 写 stderr 失败时忽略，不重试。写完后进程以 SIGABRT 终止，不执行尚未运行的 drop。
 - 任何线程中的 abort 都终止整个进程，不转成 `Err`，不展开其他线程的栈。

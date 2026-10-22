@@ -527,7 +527,9 @@ fn unit_container_ir_keeps_sentinel_void_abi_and_signed_bounds_without_element_m
     ] {
         for count in [0, 1, 3] {
             let (_, program, _) = unit_probe_program(kind, count, 0);
-            let llvm = render_verified_program(&program).expect("Unit fixture LLVM verifies");
+            let llvm = crate::test_support::without_abort_runtime(
+                &render_verified_program(&program).expect("Unit fixture LLVM verifies"),
+            );
             let sentinel = llvm
                 .lines()
                 .find(|line| line.starts_with("@koven.zst.sentinel ="))
@@ -685,6 +687,7 @@ fn unit_container_native_bounds_abort_before_marker_and_valid_indices_read() {
         if valid {
             assert!(run.status.success(), "{label}: {run:?}");
             assert_eq!(run.stdout, b"read-ok\n", "{label}: {run:?}");
+            assert!(run.stderr.is_empty(), "{label}: {run:?}");
         } else {
             use std::os::unix::process::ExitStatusExt;
             assert_eq!(run.status.signal(), Some(6), "{label}: {run:?}");
@@ -692,8 +695,13 @@ fn unit_container_native_bounds_abort_before_marker_and_valid_indices_read() {
                 run.stdout.is_empty(),
                 "marker must not precede bounds abort: {label}: {run:?}"
             );
+            // SPEC-0347: the bounds abort reports its message and source position.
+            let stderr = String::from_utf8_lossy(&run.stderr);
+            assert!(
+                stderr.starts_with("abort: index ") && stderr.contains("\n  at "),
+                "{label}: {stderr:?}"
+            );
         }
-        assert!(run.stderr.is_empty(), "{label}: {run:?}");
     }
 }
 
@@ -721,7 +729,9 @@ fn cfg_carried_unit_element_loan_permits_only_a_zero_byte_read_after_bounds() {
     use inkwell::context::Context;
 
     let (_, program, _) = unit_probe_program_with_cfg(SequentialContainerKind::Array, 3, 2, true);
-    let llvm = render_verified_program(&program).expect("CFG-carried Unit loan LLVM verifies");
+    let llvm = crate::test_support::without_abort_runtime(
+        &render_verified_program(&program).expect("CFG-carried Unit loan LLVM verifies"),
+    );
     assert_no_unit_element_memory_or_allocation(&llvm);
     let context = Context::create();
     let target = native_target_machine()
@@ -774,7 +784,10 @@ fn cfg_carried_unit_element_loan_permits_only_a_zero_byte_read_after_bounds() {
         .split_once("p0.valid:")
         .expect("abort end")
         .0;
-    assert!(abort.contains("call void @abort()"), "{abort}");
+    assert!(
+        abort.contains("call void @koven.abort.report_index("),
+        "{abort}"
+    );
     assert!(abort.contains("unreachable"), "{abort}");
     assert!(!abort.contains("@write"), "{abort}");
 }

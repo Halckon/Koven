@@ -1,4 +1,6 @@
 //! Koven heap owner 的系统分配 ABI 与类型定向 drop glue。
+mod abort;
+pub(in crate::llvm) use abort::AbortMessage;
 mod map_result;
 mod requirements;
 use requirements::RuntimeRequirements;
@@ -6,7 +8,10 @@ use requirements::RuntimeRequirements;
 mod narrow_tests;
 mod string;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use inkwell::{
     AddressSpace, IntPredicate,
@@ -38,6 +43,9 @@ pub(super) struct RuntimeAbi<'ctx> {
     max_buffer_bytes: u64,
     malloc: Option<FunctionValue<'ctx>>,
     abort: Option<FunctionValue<'ctx>>,
+    abort_helpers: Option<abort::AbortHelpers<'ctx>>,
+    /// `  at path:line:column\n` for aborts emitted by the instruction being lowered.
+    abort_location: RefCell<Option<String>>,
     write: Option<FunctionValue<'ctx>>,
     free: Option<FunctionValue<'ctx>>,
     payload_sizes: BTreeMap<SsaTypeId, u64>,
@@ -73,7 +81,8 @@ impl<'ctx> RuntimeAbi<'ctx> {
             add_noreturn_attribute(context, function);
             function
         });
-        let write = requirements.needs_print.then(|| {
+        // Aborts also write their report to stderr (SPEC-0347).
+        let write = (requirements.needs_print || requirements.needs_abort).then(|| {
             llvm.add_function(
                 "write",
                 size_type.fn_type(
@@ -83,6 +92,12 @@ impl<'ctx> RuntimeAbi<'ctx> {
                 None,
             )
         });
+        let abort_helpers = match (abort, write) {
+            (Some(abort), Some(write)) => Some(abort::AbortHelpers::define(
+                context, llvm, size_type, write, abort,
+            )?),
+            _ => None,
+        };
         let free = requirements.needs_free.then(|| {
             llvm.add_function(
                 "free",
@@ -160,6 +175,8 @@ impl<'ctx> RuntimeAbi<'ctx> {
             max_buffer_bytes,
             malloc,
             abort,
+            abort_helpers,
+            abort_location: RefCell::new(None),
             write,
             free,
             payload_sizes,
@@ -213,13 +230,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
         builder.build_conditional_branch(failed, oom, initialized)?;
 
         builder.position_at_end(oom);
-        builder.build_call(
-            self.abort
-                .ok_or_else(|| LlvmAdapterError::Build("abort 未声明".to_owned()))?,
-            &[],
-            "",
-        )?;
-        builder.build_unreachable()?;
+        self.emit_abort_with(builder, AbortMessage::Text("allocation failed"))?;
 
         builder.position_at_end(initialized);
         // Empty payloads still own a unique allocation, but have no bytes to initialize.
@@ -282,7 +293,13 @@ impl<'ctx> RuntimeAbi<'ctx> {
             }
         };
         let failed = builder.build_is_null(allocation, &format!("{name}.failed"))?;
-        self.abort_if(builder, function, failed, name)?;
+        self.abort_if(
+            builder,
+            function,
+            failed,
+            name,
+            AbortMessage::Text("allocation failed"),
+        )?;
         let control = types.shared_control(owner)?;
         let strong = builder.build_struct_gep(control, allocation, 0, &format!("{name}.strong"))?;
         builder.build_store(strong, self.size_type.const_int(1, false))?;
@@ -311,7 +328,13 @@ impl<'ctx> RuntimeAbi<'ctx> {
             self.size_type.const_all_ones(),
             &format!("{name}.overflow"),
         )?;
-        self.abort_if(builder, function, overflow, name)?;
+        self.abort_if(
+            builder,
+            function,
+            overflow,
+            name,
+            AbortMessage::Text("reference count overflow"),
+        )?;
         let next = builder.build_int_add(
             current,
             self.size_type.const_int(1, false),
@@ -334,15 +357,12 @@ impl<'ctx> RuntimeAbi<'ctx> {
             .map_err(Into::into)
     }
 
-    pub(super) fn emit_abort(&self, builder: &Builder<'ctx>) -> Result<(), LlvmAdapterError> {
-        builder.build_call(
-            self.abort
-                .ok_or_else(|| LlvmAdapterError::Build("abort 未声明".to_owned()))?,
-            &[],
-            "",
-        )?;
-        builder.build_unreachable()?;
-        Ok(())
+    pub(super) fn emit_abort(
+        &self,
+        builder: &Builder<'ctx>,
+        message: AbortMessage<'ctx, '_>,
+    ) -> Result<(), LlvmAdapterError> {
+        self.emit_abort_with(builder, message)
     }
 
     pub(super) fn emit_print_literal(
@@ -384,7 +404,13 @@ impl<'ctx> RuntimeAbi<'ctx> {
             self.size_type.const_int(length, false),
             &format!("{name}.incomplete"),
         )?;
-        self.abort_if(builder, function, incomplete, name)
+        self.abort_if(
+            builder,
+            function,
+            incomplete,
+            name,
+            AbortMessage::Text("stdout write failed"),
+        )
     }
 
     pub(super) fn size_type(&self) -> IntType<'ctx> {
@@ -404,7 +430,13 @@ impl<'ctx> RuntimeAbi<'ctx> {
             length.get_type().const_zero(),
             &format!("{name}.negative"),
         )?;
-        self.abort_if(builder, function, negative, name)?;
+        self.abort_if(
+            builder,
+            function,
+            negative,
+            name,
+            AbortMessage::Text("negative size"),
+        )?;
         match length
             .get_type()
             .get_bit_width()
@@ -424,7 +456,13 @@ impl<'ctx> RuntimeAbi<'ctx> {
                     maximum,
                     &format!("{name}.size.overflow"),
                 )?;
-                self.abort_if(builder, function, too_large, name)?;
+                self.abort_if(
+                    builder,
+                    function,
+                    too_large,
+                    name,
+                    AbortMessage::Text("size overflow"),
+                )?;
                 Ok(builder.build_int_truncate(length, self.size_type, &format!("{name}.size"))?)
             }
         }
@@ -444,9 +482,6 @@ impl<'ctx> RuntimeAbi<'ctx> {
                 "buffer length 必须使用目标 size_t".to_owned(),
             ));
         }
-        let abort = self
-            .abort
-            .ok_or_else(|| LlvmAdapterError::Build("abort 未声明".to_owned()))?;
         let sentinel = self
             .zst_sentinel
             .ok_or_else(|| LlvmAdapterError::Build("容器 sentinel 未声明".to_owned()))?;
@@ -466,8 +501,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
         builder.build_unconditional_branch(valid)?;
 
         builder.position_at_end(failed);
-        builder.build_call(abort, &[], "")?;
-        builder.build_unreachable()?;
+        self.emit_abort_with(builder, AbortMessage::Text("allocation failed"))?;
 
         builder.position_at_end(valid);
         if stride == 0 {
@@ -584,6 +618,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
         function: FunctionValue<'ctx>,
         condition: inkwell::values::IntValue<'ctx>,
         name: &str,
+        message: AbortMessage<'ctx, '_>,
     ) -> Result<(), LlvmAdapterError> {
         let failed = self
             .context
@@ -593,13 +628,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
             .append_basic_block(function, &format!("{name}.valid"));
         builder.build_conditional_branch(condition, failed, valid)?;
         builder.position_at_end(failed);
-        builder.build_call(
-            self.abort
-                .ok_or_else(|| LlvmAdapterError::Build("abort 未声明".to_owned()))?,
-            &[],
-            "",
-        )?;
-        builder.build_unreachable()?;
+        self.emit_abort_with(builder, message)?;
         builder.position_at_end(valid);
         Ok(())
     }

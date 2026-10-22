@@ -90,5 +90,5 @@ fn assert_verified_llvm(program: &super::model::Program) {
     println!("verified conversion LLVM: {llvm}");
     assert!(llvm.contains("icmp slt i128"));
     assert!(llvm.contains("icmp sgt i128"));
-    assert!(llvm.contains("call void @abort()"));
+    assert!(llvm.contains("call void @koven.abort.report"));
 }

@@ -440,6 +440,25 @@ impl TerminatorKind {
 pub(crate) struct Terminator {
     pub(crate) kind: TerminatorKind,
     pub(crate) origin: Origin,
+    /// Guide v0.46 abort output for an `Abort` terminator; `None` prints a generic message.
+    pub(crate) abort: Option<AbortReason>,
+}
+
+/// The `abort: <message>` line of the Guide v0.46 abort output contract (SPEC-0347).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum AbortReason {
+    /// `error(message)`: the borrowed String argument, written verbatim.
+    Error { message: LoanId },
+    /// A failed checked integer operation; `/` and `%` report division by zero when
+    /// `divisor` is zero at run time.
+    CheckedArithmetic {
+        operator: CheckedArithmeticOperator,
+        divisor: ValueId,
+    },
+    /// A failed checked integer conversion to the `target` integer type.
+    CheckedConversion { target: SsaTypeId },
+    /// Fixed compiler text.
+    Text(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -604,7 +623,32 @@ impl Function {
         if let TerminatorKind::NullableBranch { view, .. } = kind {
             self.check_entity(EntityId::Loan(view))?;
         }
-        self.blocks[block.index()].terminator = Some(Terminator { kind, origin });
+        self.blocks[block.index()].terminator = Some(Terminator {
+            kind,
+            origin,
+            abort: None,
+        });
+        Ok(())
+    }
+
+    /// Sets an `Abort` terminator together with its Guide v0.46 output message.
+    pub(crate) fn set_abort_terminator(
+        &mut self,
+        block: BlockId,
+        reason: AbortReason,
+        origin: Origin,
+    ) -> Result<(), ModelError> {
+        match &reason {
+            AbortReason::Error { message } => self.check_entity(EntityId::Loan(*message))?,
+            AbortReason::CheckedArithmetic { divisor, .. } => {
+                self.check_entity(EntityId::Value(*divisor))?;
+            }
+            AbortReason::CheckedConversion { .. } | AbortReason::Text(_) => {}
+        }
+        self.set_terminator(block, TerminatorKind::Abort, origin)?;
+        if let Some(terminator) = self.blocks[block.index()].terminator.as_mut() {
+            terminator.abort = Some(reason);
+        }
         Ok(())
     }
 

@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，318 份）"]
+subgraph Garchive["已完成（archive，319 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -327,6 +327,7 @@ subgraph Garchive["已完成（archive，318 份）"]
   S0332["S0332<br/>Rc nullable while 既有路径回归修复"]
   S0342["S0342<br/>companion 块语法"]
   S0343["S0343<br/>顶层运行时值的前端诊断"]
+  S0347["S0347<br/>abort 输出与 kovenc run 退出状态"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1398,6 +1399,7 @@ S0331 --> S0339
 S0331 --> S0340
 S0331 --> S0341
 S0342 --> S0343
+S0343 --> S0347
 ```
 
 ## 节点链接
@@ -1722,6 +1724,7 @@ S0342 --> S0343
 | SPEC-0332 | archive | [0332-rc-nullable-while-regression.md](0332-rc-nullable-while-regression.md) |
 | SPEC-0342 | archive | [0342-companion-block-syntax.md](0342-companion-block-syntax.md) |
 | SPEC-0343 | archive | [0343-top-level-const-only.md](0343-top-level-const-only.md) |
+| SPEC-0347 | archive | [0347-abort-output.md](0347-abort-output.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |

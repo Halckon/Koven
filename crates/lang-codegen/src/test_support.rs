@@ -41,3 +41,28 @@ pub(crate) fn main_symbol() -> &'static str {
         "main"
     }
 }
+
+/// Removes the SPEC-0347 abort report helpers (`@koven.abort.*` definitions and their
+/// private text globals) so IR assertions inspect only the code under test.
+pub(crate) fn without_abort_runtime(llvm: &str) -> String {
+    let mut kept = String::with_capacity(llvm.len());
+    let mut skipping = false;
+    for line in llvm.lines() {
+        if skipping {
+            if line == "}" {
+                skipping = false;
+            }
+            continue;
+        }
+        if line.starts_with("define ") && line.contains("@koven.abort.") {
+            skipping = true;
+            continue;
+        }
+        if line.starts_with("@abort.") {
+            continue;
+        }
+        kept.push_str(line);
+        kept.push('\n');
+    }
+    kept
+}

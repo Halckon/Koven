@@ -325,9 +325,12 @@ fn borrowed_provider_cfg_lowers_length_once_and_cleanup_exits() {
         assert_eq!(when_false.arguments[3], EntityId::Value(next_value));
 
         verify_program(&program).expect("provider CFG must satisfy SSA ownership");
-        let first = render_verified_program(&program).expect("provider LLVM must verify");
-        let second =
-            render_verified_program(&program).expect("provider LLVM must be deterministic");
+        let first = crate::test_support::without_abort_runtime(
+            &render_verified_program(&program).expect("provider LLVM must verify"),
+        );
+        let second = crate::test_support::without_abort_runtime(
+            &render_verified_program(&program).expect("provider LLVM must be deterministic"),
+        );
         assert_eq!(first, second);
         let entry_ir = first
             .split("bb0:")

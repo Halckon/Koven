@@ -233,8 +233,12 @@ fn heap_owner_uses_checked_system_allocation_and_recursive_unique_drop_glue() {
         .set_terminator(entry, TerminatorKind::Return { values: vec![read] }, origin)
         .expect("return must be valid");
 
-    let first = render_verified_program(&program).expect("heap runtime lowering must succeed");
-    let second = render_verified_program(&program).expect("repeat lowering must succeed");
+    let first = crate::test_support::without_abort_runtime(
+        &render_verified_program(&program).expect("heap runtime lowering must succeed"),
+    );
+    let second = crate::test_support::without_abort_runtime(
+        &render_verified_program(&program).expect("repeat lowering must succeed"),
+    );
     assert_eq!(first, second);
 
     assert_eq!(first.matches("call ptr @malloc(i64 1)").count(), 2);
@@ -249,7 +253,12 @@ fn heap_owner_uses_checked_system_allocation_and_recursive_unique_drop_glue() {
     assert!(first.contains("declare ptr @malloc(i64)"));
     assert!(first.contains("declare void @abort() #0"));
     assert!(first.contains("attributes #0 = { noreturn }"));
-    assert_eq!(first.matches("call void @abort()").count(), 3);
+    // SPEC-0347: each check reports through the shared helper, which alone calls abort().
+    assert_eq!(
+        first.matches("call void @koven.abort.report(").count(),
+        3,
+        "{first}"
+    );
     assert_eq!(first.matches("unreachable").count(), 3);
     assert!(!first.contains("invoke "));
     assert!(!first.contains("landingpad"));

@@ -312,7 +312,12 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 self.builder
                     .build_conditional_branch(present, found, absent)?;
                 self.builder.position_at_end(absent);
-                self.dependencies.runtime.emit_abort(&self.builder)?;
+                self.dependencies.runtime.emit_abort(
+                    &self.builder,
+                    // `map.get(k)!!` is the only source-reachable absent edge; the other
+                    // producers unwrap compiler-proven present results.
+                    crate::llvm::runtime::AbortMessage::Text("null assertion failed"),
+                )?;
                 self.builder.position_at_end(found);
                 let value = self
                     .builder

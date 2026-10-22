@@ -494,6 +494,27 @@ fn run<const N: usize>(arguments: [&OsStr; N]) -> Output {
         .expect("kovenc process must start")
 }
 
+/// SPEC-0347: `kovenc run` forwards the program's exit status, reporting SIGABRT as
+/// 128 + 6 like a POSIX shell, and passes the abort report through unchanged.
+#[test]
+fn run_forwards_abort_report_and_signal_status() {
+    let directory = TestDirectory::create();
+    let source = directory.join("abort.ko");
+    let text = "fun main(): Unit {\n  println(\"before\")\n  error(\"stop here\")\n}\n";
+    fs::write(&source, text).expect("source write");
+    let executed = run([OsStr::new("run"), source.as_os_str()]);
+    assert_eq!(executed.status.code(), Some(134), "{executed:?}");
+    assert_eq!(executed.stdout, b"before\n");
+    let column = text.lines().nth(2).unwrap().find("error").unwrap() + 1;
+    assert_eq!(
+        String::from_utf8_lossy(&executed.stderr),
+        format!(
+            "abort: stop here\n  at {}:3:{column}\n",
+            source.to_str().unwrap()
+        )
+    );
+}
+
 #[test]
 fn string_clone_builds_and_runs_through_public_cli() {
     let directory = TestDirectory::create();
