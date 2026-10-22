@@ -1,21 +1,19 @@
 //! Ordinary source: identity and cross-width conversion preserve the real LLVM pipeline.
 use super::{
-    lower_frontend::orchestrate::lower_scalar_file,
-    unit_lower::lower_scalar_unit_with_entry,
-    unit_lower_test_support::{declaration, parsed},
+    unit_lower::lower_owned_unit_with_entry, unit_lower_test_support::parsed,
     verify::verify_program,
 };
 use lang_frontend::{
+    analysis::analyze_basic_unit_ownership,
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
     },
-    ownership_checking::{check_compilation_unit_ownership, check_ownership},
+    ownership_checking::owned_compilation_unit_view,
     parser::parse_file,
     source::SourceMap,
     type_checking::{
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -30,14 +28,37 @@ fn single_conversion_identity_reaches_verified_llvm() {
         assert!(lexed.diagnostics().is_empty());
         let file = parse_file(&sources, &lexed).unwrap();
         assert!(file.diagnostics().is_empty());
+        let inputs = [SourceUnitInput::memory_document(source, &file)];
         let (environment, types) = standard_environments();
-        let names = resolve_names(&sources, &file, &environment).unwrap();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
         assert!(names.diagnostics().is_empty());
-        let typed = check_types(&sources, &file, &names, &types).unwrap();
-        complete_file_types(&sources, &file, &names, &types, &typed).unwrap();
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
+        let names = names.validate().unwrap();
+        let raw = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(raw.diagnostics().is_empty());
+        complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw).unwrap();
+        let (typed, owned) = analyze_basic_unit_ownership(&sources, &inputs, &names, &types, raw)
+            .unwrap()
+            .into_result()
+            .unwrap();
         assert!(owned.diagnostics().is_empty());
-        let program = lower_scalar_file(&sources, &file, &names, &typed, &owned).unwrap();
+        let owned = owned.validate().unwrap();
+        let mut entries = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.name() == "entry"
+                    && declaration.kind() == SymbolKind::Function
+                    && declaration.name_span().source_id() == source
+            });
+        let entry = entries.next().expect("conversion entry exists").id();
+        assert!(entries.next().is_none(), "conversion entry is unique");
+        let unit =
+            owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned).unwrap();
+        let (program, _) = lower_owned_unit_with_entry(&unit, entry).unwrap();
         assert_verified_llvm(&program);
     }
 }
@@ -57,29 +78,34 @@ fn unit_conversion_identity_reaches_verified_llvm() {
         )];
         let (environment, types) = standard_environments();
         let index = index_compilation_unit(&sources, &inputs).unwrap();
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+        assert!(names.diagnostics().is_empty());
+        let names = names.validate().unwrap();
+        let raw = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(raw.diagnostics().is_empty());
+        complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw).unwrap();
+        let (typed, owned) = analyze_basic_unit_ownership(&sources, &inputs, &names, &types, raw)
             .unwrap()
-            .validate()
+            .into_result()
             .unwrap();
-        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-            .unwrap()
-            .validate()
-            .unwrap();
-        complete_compilation_unit_types(&sources, &inputs, &names, &types, typed.types()).unwrap();
-        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
-            .unwrap()
-            .validate()
-            .unwrap();
-        let (program, _) = lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &types,
-            &typed,
-            &owned,
-            declaration(&names, "p", "entry"),
-        )
-        .unwrap();
+        assert!(owned.diagnostics().is_empty());
+        let owned = owned.validate().unwrap();
+        let mut entries = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.name() == "entry"
+                    && declaration.kind() == SymbolKind::Function
+                    && declaration.name_span().source_id() == source
+            });
+        let entry = entries.next().expect("conversion entry exists").id();
+        assert!(entries.next().is_none(), "conversion entry is unique");
+        let unit =
+            owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned).unwrap();
+        let (program, _) = lower_owned_unit_with_entry(&unit, entry).unwrap();
         assert_verified_llvm(&program);
     }
 }
