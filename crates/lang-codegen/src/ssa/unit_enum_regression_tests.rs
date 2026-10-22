@@ -1,5 +1,6 @@
 //! 两份完整原 enum 源码的普通 Unit 成功合同；全采后才统一断言。
 //! 首证只运行 pipeline exact。native exact 须在双源 SSA/LLVM 真绿后独立准入。
+mod discriminant_support;
 mod queries;
 
 use std::{

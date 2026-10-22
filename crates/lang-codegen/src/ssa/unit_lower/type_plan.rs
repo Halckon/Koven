@@ -14,7 +14,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, UnitCallTarget,
-        UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
+        UnitConstructionTarget, UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
     },
 };
 
@@ -479,7 +479,17 @@ fn requires_enum_discriminant(
         node.payload(),
         Expression::When { entries, .. }
             if entries.iter().flat_map(|entry| &entry.conditions).any(|condition| {
-                matches!(condition, WhenCondition::TypeTest { .. })
+                match condition {
+                    WhenCondition::TypeTest { .. } => true,
+                    // Enum expression cases use Int tags and Boolean comparisons,
+                    // regardless of the when expression's own result type.
+                    WhenCondition::Expression(case) => typed
+                        .construction(UnitExpressionId::new(expression.source_unit(), *case))
+                        .is_some_and(|descriptor| {
+                            matches!(descriptor.target(), UnitConstructionTarget::EnumCase(_))
+                        }),
+                    _ => false,
+                }
             })
     ))
 }

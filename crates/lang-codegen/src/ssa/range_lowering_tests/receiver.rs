@@ -273,6 +273,15 @@ fn assert_cfg_frontier(body: &str, fragment: &str, unit_frontier: UnitCfgFrontie
             UnitCfgFrontier::CountBreak => {
                 let (program, entry) =
                     lowered.expect("real loop-target cleanup admits this Unit source");
+                eprintln!(
+                    "COUNT_BREAK_DUMP_V1\nsource={text:?}\nsignatures={:#?}\nbindings={:#?}\niterations={:#?}\nloans={:#?}\nreceivers={:#?}\nmodules={:#?}\nCOUNT_BREAK_DUMP_V1_END",
+                    typed.types().signatures(),
+                    owned.ownership().bindings(),
+                    owned.ownership().iterations(),
+                    owned.ownership().loans(),
+                    owned.ownership().receiver_facts(),
+                    program.modules,
+                );
                 let [source_unit] = names.names().index().source_units() else {
                     panic!("one original source unit")
                 };
@@ -617,6 +626,12 @@ fn assert_count_break_structure(
         panic!("stop controls the real branch")
     };
     assert_eq!(function.blocks[0].parameters.len(), 1);
+    eprintln!(
+        "COUNT_BREAK_CONDITION_V1 condition={condition:?} entry={:?} condition_entity={:#?} origins={:?}",
+        function.blocks[0].parameters,
+        function.entity(EntityId::Value(*condition)),
+        count_break_origins(function, EntityId::Value(*condition)),
+    );
     assert!(is_from(
         EntityId::Value(*condition),
         function.blocks[0].parameters[0]

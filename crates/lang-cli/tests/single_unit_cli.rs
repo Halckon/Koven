@@ -15,6 +15,106 @@ const PACKAGE_MAIN: &str = "package a.b\nfun main(): Unit { println(\"root\") }\
 const MISMATCH: &str = "package declaration does not match logical source path";
 
 #[test]
+fn enum_discriminant_support_runs_in_both_cli_modes() {
+    // These are unchanged complete uploaded sources, shared with the ordinary SSA test.
+    // Each mode must use the actual current CLI, not the legacy single-file lowerer.
+    let cases = [
+        (
+            "e01_enum_when_bool_return.ko",
+            include_str!(
+                "../../lang-codegen/tests/fixtures/unit-enum-discriminant-0341/e01_enum_when_bool_return.ko"
+            ),
+            "e1\n",
+        ),
+        (
+            "e02_enum_when_stmt_println.ko",
+            include_str!(
+                "../../lang-codegen/tests/fixtures/unit-enum-discriminant-0341/e02_enum_when_stmt_println.ko"
+            ),
+            "e2\n",
+        ),
+        (
+            "e03_enum_when_bool_val.ko",
+            include_str!(
+                "../../lang-codegen/tests/fixtures/unit-enum-discriminant-0341/e03_enum_when_bool_val.ko"
+            ),
+            "e5\n",
+        ),
+        (
+            "e04_enum_when_int_return.ko",
+            include_str!(
+                "../../lang-codegen/tests/fixtures/unit-enum-discriminant-0341/e04_enum_when_int_return.ko"
+            ),
+            "e6\n",
+        ),
+        (
+            "p49_when_enum_no_payload.ko",
+            include_str!(
+                "../../lang-codegen/tests/fixtures/unit-enum-discriminant-0341/p49_when_enum_no_payload.ko"
+            ),
+            "green\n",
+        ),
+        (
+            "u01_enum_case_borrow_arg.ko",
+            include_str!(
+                "../../lang-codegen/tests/fixtures/unit-enum-discriminant-0341/u01_enum_case_borrow_arg.ko"
+            ),
+            "enum-arg\n",
+        ),
+    ];
+    for (name, text, stdout) in cases {
+        for project in [false, true] {
+            let directory = Directory::new();
+            let source = format!("src/{name}");
+            directory.write(&source, text);
+            let arguments = if project {
+                directory.write("project.toml", "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"enumprobes\"\nsource-roots = [\"src\"]\n");
+                vec![
+                    "build",
+                    "--project",
+                    "project.toml",
+                    "--entry",
+                    "main",
+                    "-o",
+                    "program",
+                ]
+            } else {
+                vec![
+                    "build",
+                    source.as_str(),
+                    "--source-root",
+                    "src",
+                    "-o",
+                    "program",
+                ]
+            };
+            assert_eq!(
+                fs::read(directory.path().join(&source)).unwrap(),
+                text.as_bytes()
+            );
+            let built = directory.invoke("human", &arguments);
+            assert_eq!(
+                built.status.code(),
+                Some(0),
+                "{name} project={project}: {built:?}"
+            );
+            assert_output(&built, 0, "", "");
+            let executable = directory.path().join("program");
+            assert!(
+                executable.is_file(),
+                "{name} project={project}: missing product"
+            );
+            let run = Command::new(executable)
+                .current_dir(directory.path())
+                .output()
+                .unwrap();
+            assert_output(&run, 0, stdout, "");
+            directory.assert_no_temporaries();
+        }
+    }
+}
+
+#[test]
 fn single_source_roots_follow_logical_components_and_explicit_identity() {
     let directory = Directory::new();
     directory.write("Entry.ko", MAIN);
