@@ -1,6 +1,7 @@
 //! Source identity, real CFG transport, and bounded exact-path assertions.
 use super::*;
-use std::collections::BTreeSet;
+use crate::ssa::model::Definition;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) struct Prepared {
     pub(super) fixture: Fixture,
@@ -280,47 +281,134 @@ pub(super) fn edges(kind: &TerminatorKind) -> Vec<&Edge> {
 }
 
 pub(super) fn aliases(function: &Function, seed: EntityId) -> BTreeSet<EntityId> {
-    let mut found = BTreeSet::from([seed]);
-    loop {
-        let before = found.len();
-        for block in &function.blocks {
-            for edge in edges(&block.terminator.as_ref().unwrap().kind) {
-                let target = function.block(edge.target).unwrap();
-                let extra = usize::from(matches!(&block.terminator.as_ref().unwrap().kind,
-                    TerminatorKind::NullableBranch { when_non_null, .. } if when_non_null.target == edge.target));
-                assert_eq!(edge.arguments.len() + extra, target.parameters.len());
-                for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
-                    if found.contains(argument) {
-                        found.insert(*parameter);
-                    }
+    let entry = function.entry_block().unwrap();
+    let mut roots: BTreeMap<EntityId, BTreeSet<EntityId>> = BTreeMap::new();
+    let mut incoming: BTreeMap<EntityId, BTreeSet<EntityId>> = BTreeMap::new();
+    let mut predecessor_count: BTreeMap<BlockId, usize> = BTreeMap::new();
+    let mut births = BTreeMap::new();
+    for block in &function.blocks {
+        for (column, parameter) in block.parameters.iter().enumerate() {
+            assert_eq!(
+                function.entity(*parameter).unwrap().definition,
+                Definition::BlockParameter {
+                    block: block.id,
+                    index: column
                 }
+            );
+            assert!(roots.insert(*parameter, BTreeSet::new()).is_none());
+            assert!(incoming.insert(*parameter, BTreeSet::new()).is_none());
+            if block.id == entry {
+                roots.get_mut(parameter).unwrap().insert(*parameter);
             }
         }
-        if found.len() == before {
+    }
+    for instruction in &function.instructions {
+        for (index, result) in instruction.results.iter().enumerate() {
+            assert_eq!(
+                function.entity(*result).unwrap().definition,
+                Definition::InstructionResult {
+                    instruction: instruction.id,
+                    index
+                }
+            );
+            assert!(roots.insert(*result, BTreeSet::from([*result])).is_none());
+        }
+    }
+    for block in &function.blocks {
+        let kind = &block.terminator.as_ref().unwrap().kind;
+        for edge in edges(kind) {
+            let target = function.block(edge.target).unwrap();
+            *predecessor_count.entry(target.id).or_default() += 1;
+            let birth = match kind {
+                TerminatorKind::NullableBranch {
+                    when_non_null,
+                    view,
+                    ..
+                } if std::ptr::eq(edge, when_non_null) => Some(EntityId::Loan(*view)),
+                _ => None,
+            };
+            assert_eq!(
+                edge.arguments.len() + usize::from(birth.is_some()),
+                target.parameters.len()
+            );
+            for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
+                assert!(
+                    roots.contains_key(argument),
+                    "same-function real entity definition"
+                );
+                incoming.get_mut(parameter).unwrap().insert(*argument);
+            }
+            if let Some(view) = birth {
+                assert_eq!(target.parameters.last(), Some(&view));
+                assert!(
+                    births.insert(view, target.id).is_none(),
+                    "one actual proof birth"
+                );
+                roots.get_mut(&view).unwrap().insert(view);
+            }
+        }
+    }
+    assert!(!predecessor_count.contains_key(&entry));
+    for (view, target) in births {
+        assert_eq!(
+            predecessor_count[&target], 1,
+            "dedicated non-null proof target"
+        );
+        assert!(
+            incoming[&view].is_empty(),
+            "a proof birth is not an ordinary incoming argument"
+        );
+    }
+    // Propagate origin sets, not entity unions. A loop is grounded only by its
+    // real entry/instruction/proof birth; a rootless cycle remains empty.
+    loop {
+        let mut changed = false;
+        for (parameter, predecessors) in &incoming {
+            let origins = predecessors
+                .iter()
+                .flat_map(|value| roots[value].iter().copied())
+                .collect::<BTreeSet<_>>();
+            let known = roots.get_mut(parameter).unwrap();
+            let before = known.len();
+            known.extend(origins);
+            changed |= known.len() != before;
+        }
+        if !changed {
             break;
         }
     }
-    for target in &function.blocks {
-        for (column, parameter) in target.parameters.iter().enumerate() {
-            if *parameter == seed || !found.contains(parameter) {
-                continue;
-            }
-            let incoming = function
-                .blocks
-                .iter()
-                .flat_map(|block| edges(&block.terminator.as_ref().unwrap().kind))
-                .filter(|edge| edge.target == target.id)
-                .collect::<Vec<_>>();
-            assert!(!incoming.is_empty());
-            assert!(
-                incoming.iter().all(|edge| edge
-                    .arguments
-                    .get(column)
-                    .is_some_and(|value| found.contains(value))),
-                "all real incoming edges agree on the same identity, not merely a matching type; seed={seed:?}; aliases={found:#?}; target={target:#?}; column={column}; parameter={parameter:?}; incoming={incoming:#?}; actual_function={function:#?}"
-            );
+    let seed_roots = &roots[&seed];
+    assert_eq!(
+        seed_roots.len(), 1,
+        "one grounded real origin for seed {seed:?}: {seed_roots:?}"
+    );
+    let root = *seed_roots.first().unwrap();
+    let found = roots
+        .iter()
+        .filter_map(|(value, origins)| origins.contains(&root).then_some(*value))
+        .collect::<BTreeSet<_>>();
+    for value in &found {
+        assert_eq!(
+            &roots[value], seed_roots,
+            "mixed real origins cannot become an alias: {value:?}"
+        );
+        if *value == root {
+            continue;
         }
+        let predecessors = incoming
+            .get(value)
+            .expect("a non-root alias is real block transport");
+        assert!(
+            !predecessors.is_empty(),
+            "transport has actual incoming edges"
+        );
+        assert!(
+            predecessors.iter().all(|argument| found.contains(argument) && &roots[argument] == seed_roots),
+            "every real incoming edge must have the same grounded origin; function={:?}; seed={seed:?}; root={root:?}; value={value:?}; predecessors={predecessors:?}; roots={roots:#?}",
+            function.id
+        );
     }
+    assert!(found.contains(&seed));
     found
 }
 
