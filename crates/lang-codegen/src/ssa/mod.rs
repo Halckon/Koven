@@ -28,6 +28,8 @@ pub(crate) fn render_program(program: &model::Program) -> String {
 #[cfg(test)]
 mod borrow_call_lowering_tests;
 #[cfg(test)]
+mod borrow_memory_test_support;
+#[cfg(test)]
 mod borrow_result_contract_tests;
 mod borrow_result_support;
 #[cfg(test)]

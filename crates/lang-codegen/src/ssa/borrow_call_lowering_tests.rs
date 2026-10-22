@@ -1,6 +1,6 @@
 //! 普通源码覆盖透明分组及字段来源调用，不改写前端事实或 SSA。
 use super::{
-    borrow_result_contract_tests::single, borrow_storage_contract_tests::unit, model::*,
+    borrow_memory_test_support::single, borrow_storage_contract_tests::unit, model::*,
     verify::verify_program,
 };
 
