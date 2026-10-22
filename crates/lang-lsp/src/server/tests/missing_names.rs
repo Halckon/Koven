@@ -29,14 +29,14 @@ fn single_document_missing_names_publish_and_repair_without_losing_healthy_navig
         ),
         (
             "val : Int = true",
-            "val restored: Int = 1",
+            "fun restored(): Int = 1",
             "L0018",
             ":",
             true,
         ),
         (
             "val 1: Int = true",
-            "val restored: Int = 1",
+            "fun restored(): Int = 1",
             "L0018",
             "1",
             false,

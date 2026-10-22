@@ -11,7 +11,7 @@
 | 领域（仅 v1 范围） | ✅ 已交付 | ◐ 部分 | ▶ 进行中 | ☐ 未开始 | ❓ 待决策 | ⏸ 延后 | 合计 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | 词法与语法 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| 类型、泛型与声明 | 4 | 0 | 0 | 8 | 0 | 0 | 12 |
+| 类型、泛型与声明 | 5 | 0 | 0 | 7 | 0 | 0 | 12 |
 | 控制流 | 2 | 1 | 1 | 2 | 0 | 0 | 6 |
 | 类、接口与成员 | 2 | 1 | 0 | 0 | 0 | 0 | 3 |
 | 空安全与错误值 | 0 | 1 | 0 | 4 | 0 | 0 | 5 |
@@ -37,7 +37,7 @@
 |---|---|---|---|---|---|---|---|
 | ✅ 已交付 | B03 | 名称与类型事实：单文件与 compilation-unit、package/import、名义/泛型/interface、单态化 | S0 已交付基线 | v1 必做 | 已定义 | 2 | [0197](../archive/specs/0197-multifile-type-checking.md) [0247](../archive/specs/0247-multifile-baseline.md) [names-and-types](../architecture/names-and-types.md) |
 | ✅ 已交付 | B06 | const val 封闭求值、数值字面量（radix/下划线）与整数具名位运算 | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | [0226](../archive/specs/0226-unit-constant-materialization-ownership.md) [0227](../archive/specs/0227-unit-constant-native-lowering.md) [0229](../archive/specs/0229-extended-numeric-literal-values.md) [0240](../archive/specs/0240-integer-bitwise-execution.md) |
-| ☐ 未开始 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | P0 止血 | v1 必做 | 需新增 | 2 | [global-and-static-state](../proposals/global-and-static-state.md) |
+| ✅ 已交付 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | P0 止血 | v1 必做 | 需新增 | 2 | [0343](../archive/specs/0343-top-level-const-only.md) [global-and-static-state](../proposals/global-and-static-state.md) |
 | ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 4 | — |
 | ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | P3 语言增量 | v1 必做 | 需新增 | 2,4,5 | — |
 | ✅ 已交付 | L3 | 八种整数之间的 checked 转换（越界 Abort） | P3 语言增量 | v1 必做 | 已定义 | 2,3,4 | [0327](../archive/specs/0327-checked-integer-conversions.md) |

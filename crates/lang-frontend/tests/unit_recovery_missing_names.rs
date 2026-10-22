@@ -429,7 +429,6 @@ fn unnamed_classifier_error_receiver_does_not_leak_into_companion_or_following_m
 fn repaired_names_regain_the_real_basic_or_constant_qualification() {
     for (text, constant) in [
         ("fun restored(): Int = 1", false),
-        ("val restored: Int = 1", false),
         ("const val RESTORED: Int = 1", true),
         ("class Restored { fun f(): Int = 1 }", false),
     ] {

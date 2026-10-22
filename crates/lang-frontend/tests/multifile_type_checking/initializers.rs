@@ -1,5 +1,20 @@
 use super::*;
 
+/// Guide v0.46: top-level runtime `val`/`var` report L0167 on the keyword; the
+/// initializer is still type checked so the facts below remain observable.
+fn assert_only_runtime_value_rejections(
+    sources: &SourceMap,
+    diagnostics: &[lang_frontend::diagnostic::Diagnostic],
+    count: usize,
+) {
+    assert_eq!(diagnostics.len(), count, "{diagnostics:?}");
+    for diagnostic in diagnostics {
+        assert_eq!(diagnostic.code().to_string(), "L0167");
+        let keyword = sources.slice(diagnostic.primary_span()).unwrap();
+        assert!(keyword == "val" || keyword == "var", "{keyword}");
+    }
+}
+
 #[test]
 fn top_level_initializer_is_checked_instead_of_silently_skipped() {
     let mut sources = SourceMap::new();
@@ -23,7 +38,8 @@ fn top_level_initializer_is_checked_instead_of_silently_skipped() {
         typed.expression_type(UnitExpressionId::new(unit, initializer)),
         typed.symbol_type(state)
     );
-    assert!(typed.validate().is_ok());
+    assert_only_runtime_value_rejections(&sources, typed.diagnostics(), 1);
+    assert!(typed.validate().is_err());
 }
 
 #[test]
@@ -62,7 +78,7 @@ fn top_level_initializers_publish_stable_cross_file_symbol_and_expression_types(
         check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
             .expect("reversed top-level inputs type check");
 
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_only_runtime_value_rejections(&sources, typed.diagnostics(), 4);
     assert_eq!(typed.expression_types(), reverse.expression_types());
     assert_eq!(typed.body_symbol_types(), reverse.body_symbol_types());
     let values_unit = source_unit(&names, values_source);
@@ -88,38 +104,12 @@ fn top_level_initializers_publish_stable_cross_file_symbol_and_expression_types(
                 .is_some()
         );
     }
-    // Guide05 §36.4: ordinary facts do not grant the separate constant capability.
+    // Guide v0.46: the runtime top-level values make the unit invalid, so neither the
+    // ordinary nor the constant capability can be granted; the facts above are recovery facts.
     assert!(typed.clone().validate().is_err());
     assert!(reverse.clone().validate().is_err());
-    let enabled = typed
-        .validate_constants()
-        .expect("complete constant capability");
-    let reverse = reverse
-        .validate_constants()
-        .expect("reversed constant capability");
-    assert_eq!(enabled.constants(), reverse.constants());
-    let facts = enabled.constants();
-    assert_eq!(facts.declarations().len(), 1);
-    assert_eq!(facts.uses().len(), 1);
-    let declaration = &facts.declarations()[0];
-    assert_eq!(
-        declaration.value(),
-        &ConstValue::String(std::sync::Arc::from(&b"ready"[..]))
-    );
-    let usage = &facts.uses()[0];
-    assert_eq!(usage.target(), declaration.symbol());
-    assert_eq!(usage.ty(), declaration.ty());
-    assert_eq!(usage.value(), declaration.value());
-    assert!(declaration.dependencies().is_empty());
-    assert_eq!(
-        enabled.types().expression_type(usage.expression()),
-        Some(usage.ty())
-    );
-    assert_eq!(
-        enabled.types().expression_category(usage.expression()),
-        Some(ExpressionCategory::Temporary)
-    );
-    assert!(enabled.into_types().validate().is_err());
+    assert!(typed.validate_constants().is_err());
+    assert!(reverse.validate_constants().is_err());
 }
 
 #[test]
@@ -149,7 +139,7 @@ fn cross_file_unannotated_forward_use_preserves_the_single_file_deferred_boundar
         check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
             .expect("reversed unannotated forward inputs keep the same boundary");
 
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_only_runtime_value_rejections(&sources, typed.diagnostics(), 1);
     assert_eq!(typed.expression_types(), reverse.expression_types());
     let before = expression_with_text(&sources, &consumer, "inferred");
     let after = expression_with_text(&sources, &provider, "inferred");
@@ -187,13 +177,16 @@ fn cross_file_unannotated_forward_use_preserves_the_single_file_deferred_boundar
         }
         other => panic!("forward value has only base qualification: {other:?}"),
     };
-    assert_eq!(rejection.len(), 1, "{rejection:?}");
-    assert_eq!(rejection[0].code().to_string(), "L0165");
+    let codes = rejection
+        .iter()
+        .map(|diagnostic| diagnostic.code().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(codes, ["L0165", "L0167"], "{rejection:?}");
     assert_eq!(
         rejection[0].primary_span(),
         consumer.ast().expressions().get(before).unwrap().span()
     );
-    assert!(typed.validate().is_ok());
+    assert!(typed.validate().is_err());
 }
 
 #[test]
@@ -224,7 +217,7 @@ fn invalid_top_level_initializers_recover_and_reject_return_outside_callable() {
             .iter()
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>(),
-        ["L0084", "L0086", "L0084"]
+        ["L0167", "L0084", "L0167", "L0086", "L0084"]
     );
     assert_eq!(
         typed
@@ -234,7 +227,7 @@ fn invalid_top_level_initializers_recover_and_reject_return_outside_callable() {
                 .slice(diagnostic.primary_span())
                 .expect("diagnostic span"))
             .collect::<Vec<_>>(),
-        ["true", "return", "2"]
+        ["val", "true", "val", "return", "2"]
     );
     let unit = source_unit(&names, source);
     let later = expression_with_text(&sources, &file, "3");
@@ -263,7 +256,7 @@ fn companion_constant_initializers_publish_stable_ordinary_typed_facts() {
         &mut sources,
         "p/provider.ko",
         "package p\n\
-         val CODE = 9\n\
+         fun CODE(): Int = 9\n\
          class Service {\n\
              companion {\n\
                  fun version(): Int = VERSION\n\
@@ -276,7 +269,7 @@ fn companion_constant_initializers_publish_stable_ordinary_typed_facts() {
         "p/consumer.ko",
         "package q\n\
          fun readVersion(): Int = p.Service.version()\n\
-         fun readCode(): Int = p.CODE",
+         fun readCode(): Int = p.CODE()",
     );
     let inputs = [
         SourceUnitInput::new("root", "p/a-provider.ko", provider_source, &provider),
@@ -323,7 +316,7 @@ fn companion_constant_initializers_publish_stable_ordinary_typed_facts() {
                 .is_some())
     );
     let consumer_unit = source_unit(&names, consumer_source);
-    for text in ["p.Service.version()", "p.CODE"] {
+    for text in ["p.Service.version()", "p.CODE()"] {
         let expression = expression_with_text(&sources, &consumer, text);
         assert!(matches!(
             typed.types().get(

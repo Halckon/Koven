@@ -586,7 +586,7 @@ mod tests {
              fun ambiguous(): Unit {}\n\
              fun ambiguous(args: Array<String>): Unit {}\n\
              fun <T> generic(): Unit {}\n\
-             val notFunction = 1\n",
+             object notFunction {}\n",
         );
         let (tools_source, tools) = parsed(
             &mut sources,

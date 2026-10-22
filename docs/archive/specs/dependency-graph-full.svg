@@ -6,7 +6,7 @@
   </defs>
   <rect width="12768" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="10048" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5064" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，317 份）</text>
+  <text x="5064" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，318 份）</text>
   <rect x="10152" y="30" width="280" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10292" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="10496" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1065,6 +1065,7 @@
   <path d="M 1620 257 C 6900 257, 6900 413, 12180 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1620 257 C 7032 257, 7032 422, 12444 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1620 257 C 5896 257, 5896 6824, 10172 6824" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 9948 120 C 9948 152, 2028 188, 2028 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2439,4 +2440,7 @@
   <rect x="9828" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="9948" y="87" text-anchor="middle" font-size="13">SPEC-0342</text>
   <text x="9948" y="105" text-anchor="middle" font-size="13">companion 块语法</text>
+  <rect x="1908" y="220" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="2028" y="243" text-anchor="middle" font-size="13">SPEC-0343</text>
+  <text x="2028" y="261" text-anchor="middle" font-size="13">顶层运行时值的前端诊断</text>
 </svg>

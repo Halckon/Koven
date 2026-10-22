@@ -1001,19 +1001,20 @@ fn declarative_roots_emit_with_scalar_entry_while_runtime_globals_stay_unsupport
         .expect("pure type declarations must not block the scalar entry object");
     assert!(object.is_file());
 
-    let runtime_value =
+    // Guide v0.46 (SPEC-0343): a top-level runtime value stops at Phase 2 with L0167 on
+    // its keyword and never reaches native emission.
+    let Err(rejection) =
         UnitSource::analyze("global-root.ko", "val state = 1\nfun bootstrap(): Unit {}")
-            .expect("original source must pass strict Unit admission");
-    runtime_value.assert_frontend_clean();
-    let rejected = directory.join("global-root.o");
-    let error = runtime_value
-        .emit(
-            runtime_value.declaration("bootstrap", SymbolKind::Function),
-            &rejected,
-        )
-        .expect_err("runtime globals still require an explicit runtime contract");
-    assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
-    assert!(!rejected.exists());
+    else {
+        panic!("a top-level runtime value must not pass strict Unit admission");
+    };
+    let report = &rejection.report;
+    assert_eq!(report.stages, [("parse", 0), ("names", 0), ("types", 1)]);
+    let (stage, diagnostic) = &report.diagnostics[0];
+    assert_eq!(*stage, "types");
+    assert_eq!(diagnostic.code().to_string(), "L0167");
+    let span = diagnostic.primary_span();
+    assert_eq!((span.start(), span.end()), (0, 3));
 }
 
 #[test]

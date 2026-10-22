@@ -288,9 +288,9 @@ parser 诊断。每条恢复路径必须消费输入或抵达明确 delimiter / 
 ## 顶层与关联命名空间的值声明
 
 - 顶层、具名 `object` body 与 companion body 中的值声明只接受 `const val`。普通 `val`/`var`
-  出现在这些位置时，Phase 2 报“不支持的顶层运行时值”诊断，主 Span 覆盖引导关键字 `val`/`var`；
-  help 给出两条迁移路径：可以常量化就改写为 `const val`，否则改在 `main` 中构造，再作为参数传递。
-  诊断码由实施 Spec 分配。
+  出现在这些位置时，Phase 2 以 L0167 报“不支持的顶层运行时值”，主 Span 覆盖引导关键字 `val`/`var`；
+  诊断给出两条迁移路径：可以常量化就改写为 `const val`，否则改在 `main` 中构造，再作为参数传递。
+  具名 `object` 与 companion body 中的普通 `val`/`var` 已由 Parser 以 L0077 拒绝。
 - Parser 不变，继续产生原 AST 节点；被拒绝的声明可以继续检查 initializer 以支持恢复与后续
   诊断，但不得进入 ownership 与 native 产物。
 - 函数体内的局部 `val`/`var` 不受影响。静态不可变存储、惰性初始化与共享可变全局状态不在 v1。

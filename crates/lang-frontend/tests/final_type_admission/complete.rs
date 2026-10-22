@@ -335,11 +335,19 @@ fn assert_shared_root_diagnostics(paths: [&str; 3]) {
             .validate()
             .unwrap();
         let typed = check_compilation_unit_types(&sources, &selected, &names, &types).unwrap();
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        assert!(
-            typed.clone().validate().is_ok(),
-            "the old base contract is unchanged"
+        // Guide v0.46: the four top-level runtime values report L0167; the shared-root
+        // behavior below is still checked on the recovery facts.
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>(),
+            ["L0167"; 4],
+            "{:?}",
+            typed.diagnostics()
         );
+        assert!(typed.clone().validate().is_err());
         let source_unit = |source| {
             names
                 .names()
@@ -389,7 +397,10 @@ fn assert_shared_root_diagnostics(paths: [&str; 3]) {
     expected.sort_by_key(|(path, _)| *path);
     let mut snapshots = Vec::new();
     for result in results {
-        let diagnostics = diagnostics(result);
+        let diagnostics = diagnostics(result)
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code().to_string() != "L0167")
+            .collect::<Vec<_>>();
         assert_eq!(
             diagnostics.len(),
             2,
@@ -471,9 +482,17 @@ fn initializer_order_does_not_complete_forward_types_or_cycles() {
     for prefix in cases {
         let text = format!("{prefix}\nfun separate(): Int {{ val n = 1; return n.fooBar() }}");
         with_types(&text, |sources, file, single, unit, source| {
+            // The legacy single-file checker is production-unreachable since PR #120 and does
+            // not implement the Guide v0.46 L0167 rule; the unit pipeline does.
             assert!(single.diagnostics().is_empty());
-            assert!(unit.diagnostics().is_empty());
-            assert!(unit.clone().validate().is_ok());
+            assert_eq!(
+                unit.diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0167", "L0167"]
+            );
+            assert!(unit.clone().validate().is_err());
             let forward = expression(sources, file, "second");
             assert_eq!(
                 single
@@ -499,8 +518,39 @@ fn initializer_order_does_not_complete_forward_types_or_cycles() {
             ("L0080", independent, independent + 6, "fooBar"),
         ];
         assert_exact(&sources, "main.ko", single, &expected);
-        assert_exact(&sources, "main.ko", unit, &expected);
+        let second = text.find("val second").unwrap();
+        let mut unit_expected = vec![("L0167", 0, 3, "val"), ("L0167", second, second + 3, "val")];
+        unit_expected.extend(expected);
+        assert_exact_unordered(&sources, "main.ko", unit, &unit_expected);
     }
+}
+
+fn assert_exact_unordered(
+    sources: &SourceMap,
+    source_name: &str,
+    result: Result<(), FinalTypeAdmissionError>,
+    expected: &[(&str, usize, usize, &str)],
+) {
+    let mut actual = diagnostics(result)
+        .iter()
+        .map(|diagnostic| {
+            let span = diagnostic.primary_span();
+            assert_eq!(sources.source_name(span.source_id()), Ok(source_name));
+            (
+                diagnostic.code().to_string(),
+                span.start(),
+                span.end(),
+                sources.slice(span).unwrap().to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut expected = expected
+        .iter()
+        .map(|&(code, start, end, token)| (code.to_owned(), start, end, token.to_owned()))
+        .collect::<Vec<_>>();
+    actual.sort();
+    expected.sort();
+    assert_eq!(actual, expected);
 }
 
 #[test]

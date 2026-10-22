@@ -13,7 +13,7 @@
 | 阶段 | ✅ 已交付 | ◐ 部分 | ▶ 进行中 | ☐ 未开始 | ❓ 待决策 | ⏸ 延后 | 合计 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | S0 已交付基线 | 23 | 0 | 0 | 0 | 0 | 0 | 23 |
-| P0 止血 | 2 | 0 | 1 | 4 | 0 | 0 | 7 |
+| P0 止血 | 3 | 0 | 1 | 3 | 0 | 0 | 7 |
 | P1 结构 | 0 | 0 | 1 | 1 | 0 | 0 | 2 |
 | P2 补齐现有 Guide 能力 | 1 | 4 | 0 | 5 | 0 | 0 | 10 |
 | P3 语言增量 | 8 | 0 | 0 | 19 | 0 | 0 | 27 |
@@ -21,7 +21,7 @@
 | P5 验收与发布 | 0 | 4 | 0 | 2 | 0 | 0 | 6 |
 | X v1 之外 | 0 | 0 | 0 | 0 | 0 | 11 | 11 |
 
-v1 范围内 80 项（必做 70，其中已交付 33）；X 阶段只列边界，不计入 v1。
+v1 范围内 80 项（必做 70，其中已交付 34）；X 阶段只列边界，不计入 v1。
 
 ## 最近一次实测
 
@@ -98,7 +98,7 @@ P0 之前已合入 main 的编译器骨架与有界能力；不表示每项都�
 | ✅ 已交付 | E1 | 前端硬门禁：Deferred/Error 不进入所有权与 codegen；未知成员报诊断；内部错误结构化；L0165 用户措辞 | v1 必做 | 编译器结构 | — | 2 | [0319](../archive/specs/0319-final-type-admission-diagnostics.md) [0323](../archive/specs/0323-final-admission-static-recovery.md) [0324](../archive/specs/0324-final-admission-user-messages.md) | 内部错误（ICE/ERR）为 0；但 lowering 生成非法 SSA（InvalidSsa）的路径仍有 10 次观察，并入 E2 门槛。 |
 | ▶ 进行中 | E1b | 声明/函数终止性：val 初始化全分支 return 与 L0088 入口一致 | v1 必做 | 控制流 | 已定义 | 2 | [0326](../archive/specs/0326-closed-control-branch-join.md) | 0326 作者已认领，尚未分 Spec。 |
 | ☐ 未开始 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | v1 必做 | 标准库与运行时 | 已定义 | 5,6 | — | 已决（2026-10-22）：Result/Ok/Err 进入内建环境，需改写 v0.45 Guide 02 的“不额外提供”条文；Pair 随 S6（to / mapOf）进入。验收：fun f(): Result<Int, String> 直接可用。 |
-| ☐ 未开始 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | v1 必做 | 类型、泛型与声明 | 需新增 | 2 | [global-and-static-state](../proposals/global-and-static-state.md) | D4 已决：v1 只允许 const val（候选 G1）。现状为 L0165 加后端 UnsupportedSource，需改为 Phase 2 语言诊断，help 给出改 const val 或在 main 中构造两条迁移路径。 |
+| ✅ 已交付 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | v1 必做 | 类型、泛型与声明 | 需新增 | 2 | [0343](../archive/specs/0343-top-level-const-only.md) [global-and-static-state](../proposals/global-and-static-state.md) | D4 已决：v1 只允许 const val（候选 G1）；SPEC-0343 以 Phase 2 L0167 拒绝顶层运行时值，后端 UnsupportedSource 仅作防御。 |
 | ☐ 未开始 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | v1 必做 | 空安全与错误值 | 需新增 | 4,5 | — | D12 已决：stderr 输出 `abort: <message>` 与 `at <file>:<line>:<col>`；!!、越界、溢出、转换失败使用固定消息；写失败忽略；随后 SIGABRT。规则进 Guide v0.46。 |
 | ☐ 未开始 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | v1 必做 | 验收、发布与文档 | — | 6 | — | 目前只在本地 .local-artifacts；SPEC-0341 因缺源码只能用 22 个附件与 39 场景验证。 |
 | ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | v1 必做 | 验收、发布与文档 | 需新增 | — | [v0.46-language-decisions](../proposals/v0.46-language-decisions.md) | 已启用（迁移账本 archive/migrations/v0.46-enablement.md）；各规则的实现按条目推进。 |

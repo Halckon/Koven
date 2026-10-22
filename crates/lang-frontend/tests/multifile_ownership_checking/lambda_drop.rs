@@ -12,9 +12,11 @@ fn lambda_tail_consumes_result_and_drops_only_body_owned_inputs() {
         &mut sources,
         "q/consumer.ko",
         "package q\n\
-         val topAction: move () -> String = move {\n\
-             val result = \"owned\"\n\
-             return result\n\
+         fun topAction(): Unit {\n\
+             val stored: move () -> String = move {\n\
+                 val result = \"owned\"\n\
+                 return result\n\
+             }\n\
          }\n\
          fun entry(): Unit {\n\
              val action: move () -> String = move { \"left\" + p.make() }\n\
