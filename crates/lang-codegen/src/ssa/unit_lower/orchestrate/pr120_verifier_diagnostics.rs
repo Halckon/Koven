@@ -55,6 +55,7 @@ struct Case {
 #[derive(Default)]
 pub(super) struct Capture {
     text: String,
+    compact: String,
     verify_calls: usize,
     verifier_ok: Option<bool>,
     missing_sections: Vec<&'static str>,
@@ -62,9 +63,32 @@ pub(super) struct Capture {
 
 impl Capture {
     fn section(&mut self, label: &str, text: &str) {
+        let start = self.text.len();
         writeln!(self.text, "SECTION {label} bytes={}", text.len()).unwrap();
         self.text.push_str(text);
         writeln!(self.text, "\nEND_SECTION {label}").unwrap();
+        if matches!(
+            label,
+            "source_user"
+                | "source_standard"
+                | "input.descriptors"
+                | "actual_source_units"
+                | "lex.diagnostics"
+                | "parse.diagnostics"
+                | "names.diagnostics"
+                | "types.diagnostics"
+                | "owned.diagnostics"
+                | "owned.deferred"
+                | "entry_source_candidates"
+                | "entry_candidates"
+                | "entry_signature"
+                | "final.verify_result"
+                | "verifier_gate_scope"
+                | "pipeline_result"
+                | "missing_sections"
+        ) {
+            self.compact.push_str(&self.text[start..]);
+        }
     }
 
     fn debug(&mut self, label: &str, value: &impl Debug) {
@@ -72,7 +96,53 @@ impl Capture {
     }
 
     fn note(&mut self, label: &str, value: impl Debug) {
+        let start = self.text.len();
         writeln!(self.text, "{label}={value:?}").unwrap();
+        if matches!(
+            label,
+            "schema"
+                | "case"
+                | "layout"
+                | "root"
+                | "logical_path"
+                | "scope"
+                | "expected_source_sha256_not_runtime_computed"
+                | "source_bytes"
+                | "expected_standard_sha256_not_runtime_computed"
+                | "standard_bytes"
+                | "source_byte_count_matches"
+                | "add_user"
+                | "add_standard"
+                | "authorize_range_source"
+                | "authorize_range_extension_source"
+                | "trusted_standard_source_only"
+                | "lex"
+                | "parse"
+                | "name_snapshot"
+                | "source_identity"
+                | "names_validated"
+                | "check_types"
+                | "type_admission"
+                | "type_admission_same_analysis"
+                | "basic_ownership"
+                | "basic_capability"
+                | "owned_same_analysis"
+                | "owned_validation"
+                | "sealed_owned_view"
+                | "sealed_types_same_object"
+                | "sealed_owned_same_object"
+                | "entry_original_no_arguments_unit"
+                | "lower_result"
+                | "lower_entry"
+                | "verify_error_count"
+                | "verify_calls"
+                | "verifier_ok"
+                | "snapshot_complete"
+                | "evidence_mode"
+                | "full_snapshot_emitted"
+        ) {
+            self.compact.push_str(&self.text[start..]);
+        }
     }
 
     fn component(&mut self, label: &'static str, observe: impl FnOnce(&mut Self)) {
@@ -625,14 +695,28 @@ fn collect(case: &Case, root: &str, capture: &mut Capture) -> Result<(), String>
     }
 }
 
-fn write_record(case: &Case, layout: &str, capture: &Capture) -> std::io::Result<()> {
+fn write_record(
+    case: &Case,
+    layout: &str,
+    capture: &Capture,
+    compact: bool,
+) -> std::io::Result<()> {
     // StdoutLock::write_all 不使用 print!/println! 的 libtest 捕获通道；成功对照也可见。
     // 固定宽度 hex 保留字节；CI 时间戳只会在行前，下载时按 case/layout/seq 解码。
     let mut output = std::io::stdout().lock();
-    let payload = capture.text.as_bytes();
+    let (mode, payload) = if compact {
+        ("success_compact", capture.compact.as_bytes())
+    } else {
+        ("full_fallback", capture.text.as_bytes())
+    };
     writeln!(
         output,
-        "PR120_DIAGNOSTIC_V1 BEGIN case={} layout={layout} scope={} source_sha256={} source_bytes={} payload_bytes={}",
+        "PR120_RESULT_V2 case={} layout={layout} mode={mode} source_sha256={} verifier_ok={:?} verify_calls={}",
+        case.id, case.sha256, capture.verifier_ok, capture.verify_calls
+    )?;
+    writeln!(
+        output,
+        "PR120_DIAGNOSTIC_V2 BEGIN case={} layout={layout} scope={} source_sha256={} source_bytes={} payload_bytes={} evidence_mode={mode}",
         case.id,
         case.scope,
         case.sha256,
@@ -647,14 +731,14 @@ fn write_record(case: &Case, layout: &str, capture: &Capture) -> std::io::Result
         }
         writeln!(
             output,
-            "PR120_DIAGNOSTIC_V1 CHUNK case={} layout={layout} seq={sequence} hex={hex}",
+            "PR120_DIAGNOSTIC_V2 CHUNK case={} layout={layout} seq={sequence} hex={hex}",
             case.id
         )?;
         chunks += 1;
     }
     writeln!(
         output,
-        "PR120_DIAGNOSTIC_V1 END case={} layout={layout} chunks={chunks} payload_bytes={}",
+        "PR120_DIAGNOSTIC_V2 END case={} layout={layout} chunks={chunks} payload_bytes={}",
         case.id,
         payload.len()
     )?;
@@ -665,7 +749,7 @@ fn exercise(case: Case) {
     let mut outcomes = Vec::new();
     for (layout, root) in [("single", "single"), ("project", "src")] {
         let mut capture = Capture::default();
-        capture.note("schema", "PR120_DIAGNOSTIC_V1");
+        capture.note("schema", "PR120_DIAGNOSTIC_V2");
         capture.note("case", case.id);
         capture.note("layout", layout);
         capture.note("root", root);
@@ -694,7 +778,18 @@ fn exercise(case: Case) {
             && capture.verifier_ok.is_some()
             && capture.missing_sections.is_empty();
         capture.note("snapshot_complete", complete);
-        let output = write_record(&case, layout, &capture);
+        // Keep every original observation and completeness decision; only project output.
+        let compact = result.is_ok() && complete && capture.verifier_ok == Some(true);
+        capture.note(
+            "evidence_mode",
+            if compact {
+                "success_compact"
+            } else {
+                "full_fallback"
+            },
+        );
+        capture.note("full_snapshot_emitted", !compact);
+        let output = write_record(&case, layout, &capture, compact);
         outcomes.push((layout, result, complete, output));
     }
     // 两布局记录都已尝试写出后才断言。历史 InvalidSsa 绝不是新的通过 oracle。

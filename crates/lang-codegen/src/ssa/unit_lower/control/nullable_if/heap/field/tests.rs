@@ -15,6 +15,7 @@ use lang_frontend::{
         UnitNameSnapshot, UnitSourceDescriptor, analyze_basic_unit_ownership,
         analyze_parsed_unit_names,
     },
+    diagnostic::Severity,
     lexer::lex,
     name_resolution::SymbolKind,
     ownership_checking::{
@@ -23,9 +24,9 @@ use lang_frontend::{
     parser::{Expression, parse_file},
     source::SourceMap,
     type_checking::{
-        BuiltinType, TypeEnvironment, UnitAggregateProjectionReceiver, UnitExpressionId,
-        UnitTypeKind, check_compilation_unit_types, complete_compilation_unit_types,
-        standard_environments,
+        BuiltinType, DeferredReason, FinalTypeAdmissionError, TypeEnvironment,
+        UnitAggregateProjectionReceiver, UnitExpressionId, UnitTypeKind,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -116,11 +117,14 @@ fun main(): Unit {
 
 #[test]
 fn nullable_field_access_without_current_root_fact_stops_in_frontend() {
-    for body in [
+    for (body, expected_member) in [
         "val a: Node? = Node(5); if (a.v == 5) { println(\"bad\") }",
         "val a: Node? = Node(5); val b: Node? = Node(6); if (a != null) { if (b.v == 6) { println(\"bad\") } }",
         "var a: Node? = Node(5); if (a != null) { a = null; if (a.v == 5) { println(\"stale\") } }",
-    ] {
+    ]
+    .into_iter()
+    .zip(["a.v", "b.v", "a.v"])
+    {
         let text = format!("class Node(val v: Int)\nfun main(): Unit {{ {body} }}\n");
         let (snapshot, environment) = snapshot(&text, "single");
         let inputs = snapshot.inputs();
@@ -131,10 +135,8 @@ fn nullable_field_access_without_current_root_fact_stops_in_frontend() {
             &environment,
         )
         .unwrap();
-        assert!(
-            !typed.diagnostics().is_empty(),
-            "no real non-null fact: {text}"
-        );
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let before = typed.clone();
         let input = only(inputs.iter().filter(|input| {
             snapshot.sources().source_name(input.source_id()).unwrap() == "p14b_nullable_simple.ko"
         }));
@@ -147,24 +149,57 @@ fn nullable_field_access_without_current_root_fact_stops_in_frontend() {
                 .filter(|unit| unit.source_id() == input.source_id()),
         )
         .id();
-        let receiver = only(
+        let (member, member_node, receiver) = only(
             input
                 .parsed()
                 .ast()
                 .expressions()
                 .iter()
-                .filter_map(|(_, node)| match node.payload() {
-                    Expression::Member { receiver, .. } => Some(*receiver),
+                .filter_map(|(id, node)| match node.payload() {
+                    Expression::Member { receiver, .. } => Some((id, node, *receiver)),
                     _ => None,
                 }),
         );
-        assert!(
-            typed
-                .non_null_use(UnitExpressionId::new(unit, receiver))
-                .is_none()
+        let member = UnitExpressionId::new(unit, member);
+        let receiver = UnitExpressionId::new(unit, receiver);
+        assert_eq!(member_node.span().source_id(), input.source_id());
+        assert_eq!(
+            snapshot.sources().slice(member_node.span()),
+            Ok(expected_member)
         );
-        // Do not promote invalid source into an expected lowering/verifier failure.
-        assert!(typed.validate().is_err());
+        assert!(matches!(
+            typed.types().get(typed.expression_type(receiver).unwrap()),
+            Some(UnitTypeKind::Nullable(_))
+        ));
+        // A different use, such as the pre-write target, may have a real fact.
+        assert!(typed.non_null_use(receiver).is_none());
+        assert!(typed.aggregate_projection(member).is_none());
+        assert!(matches!(
+            typed.types().get(typed.expression_type(member).unwrap()),
+            Some(UnitTypeKind::Deferred(DeferredReason::MemberAccess))
+        ));
+        // Raw recovery is not final admission. Reject the original whole source
+        // at its real frontend root, never as a lowering/verifier failure.
+        let diagnostics = match complete_compilation_unit_types(
+            snapshot.sources(),
+            &inputs,
+            snapshot.validated_names().unwrap(),
+            &environment,
+            &typed,
+        ) {
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => diagnostics,
+            other => panic!("expected source diagnostics, got {other:?}: {text}"),
+        };
+        assert_eq!(typed, before, "final admission must not alter raw facts");
+        assert!(typed.is_same_analysis(&before));
+        let diagnostic = only(diagnostics.iter());
+        assert_eq!(diagnostic.severity(), Severity::Error);
+        assert_eq!(diagnostic.code().to_string(), "L0165");
+        assert_eq!(diagnostic.primary_span(), member_node.span());
+        assert_eq!(
+            diagnostic.message(),
+            "type checking could not complete: the member's type is unresolved"
+        );
     }
 }
 
