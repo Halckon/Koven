@@ -17,6 +17,10 @@
 | v1 做到哪了、下一步做什么 | [v1 Roadmap](roadmap/README.md) | 范围、优先级与状态总账 |
 | 为什么采用某项长期方案 | [ADR](adr/README.md) | 架构决策 |
 
+## 生态规划
+
+[v1 生态开发路线图](development/ecosystem/README.md)记录跨仓库里程碑、优先级与联合验收，不改变现行语言语义。
+
 ## 按需候选
 
 [Proposals](proposals/README.md) 只用于任务明确要求评审尚未启用的设计，不参与默认开发路由。

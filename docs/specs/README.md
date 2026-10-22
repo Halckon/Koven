@@ -5,6 +5,8 @@
 Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批准 Spec。
 文档归档只关闭各 Spec 的有界合同，不代表全部语言演进或候选能力完成。
 
+[0344 独立门户内容同步](active/0344-site-content-sync.md)维护站点消费主仓库内容与重建通知边界。
+
 ## 当前入口
 
 ### Active
