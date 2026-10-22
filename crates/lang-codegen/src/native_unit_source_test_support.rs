@@ -4,6 +4,8 @@
 
 #[path = "native_comma_when_cleanup_tests.rs"]
 mod comma_when_cleanup_tests;
+#[path = "native_direct_call_prefix_tests.rs"]
+mod direct_call_prefix_tests;
 #[cfg(test)]
 #[path = "native_local_object_constant_qualifier_tests.rs"]
 mod local_object_constant_qualifier_tests;

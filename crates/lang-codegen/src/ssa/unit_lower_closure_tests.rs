@@ -15,6 +15,7 @@ use super::{
 };
 
 mod borrow_storage;
+mod direct_prefix;
 mod shared_capture;
 
 #[test]
@@ -743,6 +744,7 @@ fn restores_owned_closure_provenance_across_control_flow() {
 
 #[test]
 fn unsupported_closure_surfaces_remain_atomic_boundaries() {
+    let mut direct_failures = Vec::new();
     for (path, source) in [
         (
             "test/temporary.ko",
@@ -855,7 +857,21 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
         let (name_environment, type_environment) = standard_environments();
         let (names, typed, owned) =
             analyze(&sources, &inputs, &name_environment, &type_environment);
-        let error = match lower_scalar_unit_with_entry(
+        let direct = matches!(
+            path,
+            "test/direct-argument-return.ko" | "test/direct-argument-break.ko"
+        );
+        if direct {
+            lang_frontend::type_checking::complete_compilation_unit_types(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                typed.types(),
+            )
+            .expect("the original direct source passes strict final admission");
+        }
+        let result = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
             &names,
@@ -863,14 +879,41 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
             &typed,
             &owned,
             declaration(&names, "test", "entry"),
-        ) {
-            Ok(_) => {
-                panic!("{path}: unsupported closure surface must fail before publishing a program")
-            }
-            Err(error) => error,
-        };
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{path}");
+        );
+        if direct {
+            let (program, entry) = match result {
+                Ok(lowered) => lowered,
+                Err(error) => {
+                    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{path}");
+                    let call = if path.ends_with("return.ko") {
+                        "select(number, return 7)"
+                    } else {
+                        "select(number, break)"
+                    };
+                    assert_eq!(sources.slice(error.span.expect("exact call span")), Ok(call));
+                    direct_failures.push((path, error));
+                    continue;
+                }
+            };
+            direct_prefix::assert_cancelled_scalar_call(
+                &program,
+                entry,
+                path.ends_with("return.ko"),
+            );
+        } else {
+            let error = match result {
+                Ok(_) => {
+                    panic!("{path}: unsupported closure surface must fail before publishing a program")
+                }
+                Err(error) => error,
+            };
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{path}");
+        }
     }
+    assert!(
+        direct_failures.is_empty(),
+        "both original direct sources were inspected: {direct_failures:?}"
+    );
 }
 
 fn function<'a>(module: &'a super::model::Module, name: &str) -> &'a Function {
