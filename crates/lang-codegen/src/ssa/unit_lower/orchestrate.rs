@@ -3,6 +3,8 @@
 #[cfg(test)]
 pub(super) mod nullable_map_guard_support;
 #[cfg(test)]
+mod pr120_verifier_diagnostics;
+#[cfg(test)]
 mod registration_tests;
 use super::*;
 
@@ -16,6 +18,28 @@ pub(super) fn lower_unit_from_facts(
     constant_owned: Option<&ConstEnabledOwnedUnit>,
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
+    lower_unit_impl(
+        (sources, inputs),
+        names,
+        typed,
+        owned,
+        constant_owned,
+        entry,
+        #[cfg(test)]
+        None,
+    )
+}
+
+fn lower_unit_impl(
+    source_inputs: (&SourceMap, &[SourceUnitInput<'_>]),
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    constant_owned: Option<&ConstEnabledOwnedUnit>,
+    entry: DeclarationId,
+    #[cfg(test)] capture: Option<&mut pr120_verifier_diagnostics::Capture>,
+) -> Result<(Program, FunctionId), LoweringError> {
+    let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
     // Both sealed views have already checked the complete frontend identity chain.
     // This whole-set capability check must precede instance planning and Module creation.
@@ -636,7 +660,19 @@ pub(super) fn lower_unit_from_facts(
         closure::finish_thunk(&mut lowerer, plan)?;
     }
 
-    verify_program(&program).map_err(|_| LoweringError {
+    let verification = verify_program(&program);
+    #[cfg(test)]
+    if let Some(capture) = capture {
+        capture.observe(
+            &program,
+            &verification,
+            (sources, names, typed, owned),
+            &function_ids,
+            &types,
+            &source_plan,
+        );
+    }
+    verification.map_err(|_| LoweringError {
         kind: LoweringErrorKind::InvalidSsa,
         span: None,
     })?;

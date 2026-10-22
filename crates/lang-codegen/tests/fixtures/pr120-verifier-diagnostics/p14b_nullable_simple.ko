@@ -1,0 +1,2 @@
+class Node(val v: Int)
+fun main(): Unit { val a: Node? = Node(5); if (a != null) { if (a.v == 5) { println("smart") } } }

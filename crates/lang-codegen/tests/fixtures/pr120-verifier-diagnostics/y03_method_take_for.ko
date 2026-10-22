@@ -1,0 +1,2 @@
+import koven.algorithms.take
+fun main(): Unit { val xs = listOf(1, 2, 3); var n = 0; for (x in xs.take(2)) { n = n + x }; if (n == 3) { println("take-method") } }
