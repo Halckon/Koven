@@ -313,3 +313,83 @@ fn reserved_corpus_matches_the_lexer_contract() {
             .all(|diagnostic| diagnostic.code().to_string() == "L0002")
     );
 }
+
+#[test]
+fn engine_context_corpus_matches_production_lexical_identity_and_recovery() {
+    // Scope distinctions never turn contextual spellings into hard lexer keywords.
+    let soft = [
+        "value", "loop", "own", "borrow", "inout", "move", "to", "by", "infix", "and", "or", "xor",
+        "shl", "shr", "ushr", "get", "set", "error",
+    ];
+    let cases: &[(&str, &[&str])] = &[
+        ("declarations", &[]),
+        ("soft-names", &[]),
+        ("interpolation", &[]),
+        ("string-recovery", &["L0004", "L0006"]),
+        ("comment-recovery", &[]),
+        ("interpolation-recovery", &[]),
+        ("unfinished-comment", &["L0003"]),
+        ("unfinished-interpolation", &["L0005"]),
+        ("multiline-modes", &[]),
+        ("unicode-crlf", &[]),
+        ("mode-expressions", &[]),
+        ("character-recovery", &["L0007", "L0007"]),
+    ];
+    let files = fs::read_dir(textmate_path("tests/corpus"))
+        .expect("scope corpus directory exists")
+        .map(|entry| {
+            entry
+                .expect("corpus entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        files,
+        cases.iter().map(|(name, _)| format!("{name}.ko")).collect(),
+        "every engine source also needs production Lexer coverage"
+    );
+    let mut seen_soft = BTreeSet::new();
+    let mut seen_hard = BTreeSet::new();
+    for (name, codes) in cases {
+        let text = read_asset(&format!("tests/corpus/{name}.ko"));
+        let (sources, _, lexed) = lex_source_twice(name, &text, name, validate_lexed);
+        let actual = lexed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(actual, *codes, "{name}");
+        for lexeme in lexed.lexemes() {
+            let spelling = sources.slice(lexeme.span()).expect("corpus spans resolve");
+            if soft.contains(&spelling) {
+                assert_eq!(
+                    lexeme.kind(),
+                    LexemeKind::Token(TokenKind::Identifier),
+                    "{name}: {spelling}"
+                );
+                seen_soft.insert(spelling.to_owned());
+            }
+            if ["companion", "const"].contains(&spelling) {
+                assert!(
+                    matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Keyword(_))),
+                    "{name}: {spelling}"
+                );
+                seen_hard.insert(spelling.to_owned());
+            }
+            if ["after", "recovered"].contains(&spelling) {
+                assert_eq!(
+                    lexeme.kind(),
+                    LexemeKind::Token(TokenKind::Identifier),
+                    "recovery must resume ordinary tokens: {name}"
+                );
+            }
+        }
+    }
+    assert_eq!(seen_soft, soft.into_iter().map(str::to_owned).collect());
+    assert_eq!(
+        seen_hard,
+        BTreeSet::from(["companion".to_owned(), "const".to_owned()])
+    );
+}

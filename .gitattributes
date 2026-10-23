@@ -1,3 +1,4 @@
 # Exact byte fixtures: retain CRLF without disabling ordinary whitespace checks.
 crates/lang-cli/tests/fixtures/single_file_analysis/success.ko -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 crates/lang-cli/tests/fixtures/single_file_analysis/unicode.ko -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+editors/textmate/tests/corpus/unicode-crlf.ko -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

@@ -1,0 +1,6 @@
+fun sample(
+    borrow input: String,
+    inout output: String
+): Unit {}
+val callback: move (own Thing) -> Unit
+borrow val selected = source

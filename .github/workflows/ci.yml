@@ -190,7 +190,7 @@ jobs:
         run: git diff --check
 
   editors:
-    name: Tree-sitter CLI Corpus
+    name: Editor lexical contracts
     needs: changes
     if: needs.changes.outputs.reuse != 'true' && (needs.changes.outputs.editors == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
@@ -202,6 +202,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Test locked TextMate engine
+        run: |
+          npm ci --prefix editors/textmate --ignore-scripts
+          npm test --prefix editors/textmate
       - name: Install locked Tree-sitter CLI
         run: npm ci --prefix editors/tree-sitter
       - name: Check generated parser and actual corpus

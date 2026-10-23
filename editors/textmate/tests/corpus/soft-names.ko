@@ -1,0 +1,4 @@
+value loop own borrow inout move to by infix and or xor shl shr ushr get set error
+node.value node.loop cell.borrow() player.move() own() inout()
+fun borrow(value: Int): Int = value
+val loop = 1
