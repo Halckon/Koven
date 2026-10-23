@@ -1,6 +1,6 @@
 //! SPEC-0306: inspect unchanged Programs lowered from real mixed-mode source.
 use super::{
-    borrow_result_contract_tests::single, borrow_storage_contract_tests::unit, model::*,
+    borrow_memory_test_support::single, borrow_storage_contract_tests::unit, model::*,
     verify::verify_program,
 };
 use crate::native_mixed_borrow_cases::{Case, Contract};
