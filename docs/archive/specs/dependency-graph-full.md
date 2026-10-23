@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，320 份）"]
+subgraph Garchive["已完成（archive，321 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -328,7 +328,8 @@ subgraph Garchive["已完成（archive，320 份）"]
   S0344["S0344<br/>独立门户内容同步"]
   S0345["S0345<br/>本地 preview 版本管理"]
   S0346["S0346<br/>TextMate 语境与插值恢复"]
-  S0347["S0347<br/>LLVM 安装等待边界"]
+  S0347["S0347<br/>本地 Kovenlings 首片"]
+  S0351["S0351<br/>LLVM 安装等待边界"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1309,6 +1310,7 @@ S0253 --> S0319
 S0254 --> S0255
 S0255 --> S0341
 S0262 --> S0271
+S0262 --> S0347
 S0263 --> S0264
 S0263 --> S0265
 S0263 --> S0268
@@ -1726,7 +1728,8 @@ S0331 --> S0341
 | SPEC-0344 | archive | [0344-site-content-sync.md](0344-site-content-sync.md) |
 | SPEC-0345 | archive | [0345-preview-version-manager.md](0345-preview-version-manager.md) |
 | SPEC-0346 | archive | [0346-textmate-contexts.md](0346-textmate-contexts.md) |
-| SPEC-0347 | archive | [0347-llvm-install-bounds.md](0347-llvm-install-bounds.md) |
+| SPEC-0347 | archive | [0347-local-kovenlings.md](0347-local-kovenlings.md) |
+| SPEC-0351 | archive | [0351-llvm-install-bounds.md](0351-llvm-install-bounds.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |

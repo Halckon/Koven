@@ -28,7 +28,7 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 | 标准库 | Koven prelude、`error`、`println(String)`、`Pair`/`Result`、String 与 Rc 核心路径已接入；[范围 carrier](range-carrier.md) 的 List/View 顶层及可信 receiver take/drop/dropLast 已接通 |
 | 工具 | 单文件/本地 project build/run、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter 已接入 |
 
-CI 的四处 LLVM setup 调用有10分钟总时限；Linux下载采用有限网络重试，APT索引更新错误直接失败。见 [SPEC-0347](../archive/specs/0347-llvm-install-bounds.md) 的边界与验收。
+CI 的四处 LLVM setup 调用有10分钟总时限；Linux下载采用有限网络重试，APT索引更新错误直接失败。见 [SPEC-0351](../archive/specs/0351-llvm-install-bounds.md) 的边界与验收。
 
 ## 规范覆盖边界
 
@@ -86,3 +86,6 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 教程、Guide 和路线图，不进入 Rust workspace。`.github/workflows/notify-site.yml` 在成功 main CI、
 版本 tag 或手动事件后发送可配置的重建通知；未配置目标仓库和 secret 时明确失败。专用 secret 已通过手动通知、跨仓重建与 Pages 发布验证；成功 main CI 自动通知及站点构建、Pages 发布链路也已实际通过。
 交付范围与验收见 [SPEC-0344](../archive/specs/0344-site-content-sync.md)。
+
+本地 [Kovenlings 首片](../tutorials/kovenlings/README.md)提供可变 place 与默认 Borrow 两题，
+复用教程执行器校验失败起点、答案和学习者副本；已接入 bounded composition 门禁。
