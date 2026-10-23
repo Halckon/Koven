@@ -1,26 +1,37 @@
+//! Ordinary source construction contracts; source text and ABI oracles remain unchanged.
 use lang_frontend::{
+    analysis::analyze_basic_unit_ownership,
     lexer::lex,
-    name_resolution::{NameResolution, resolve_names},
-    ownership_checking::{OwnershipCheckedFile, check_ownership},
+    name_resolution::{
+        DeclarationId, SourceUnitInput, SymbolKind, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names,
+    },
+    ownership_checking::{ValidatedCompilationUnitOwnership, owned_compilation_unit_view},
     parser::{ParsedFile, parse_file},
     source::SourceMap,
-    type_checking::{TypeEnvironment, TypedFile, check_types, standard_environments},
+    type_checking::{
+        TypeEnvironment, ValidatedCompilationUnitTypes, check_compilation_unit_types,
+        complete_compilation_unit_types, standard_environments,
+    },
 };
 
 use super::{
-    lower_frontend::orchestrate::lower_scalar_file,
-    model::{Operation, SequentialContainerKind, SsaTypeKind},
+    model::{
+        EntityId, Function, Operation, Origin, Program, SequentialContainerKind, SsaTypeKind,
+        TerminatorKind,
+    },
     render::render_program,
+    unit_lower::lower_owned_unit_with_entry,
 };
 
 struct Analysis {
     sources: SourceMap,
     parsed: ParsedFile,
-    names: NameResolution,
-    #[allow(dead_code)]
+    names: ValidatedCompilationUnitNames,
     types: TypeEnvironment,
-    typed: TypedFile,
-    owned: OwnershipCheckedFile,
+    typed: ValidatedCompilationUnitTypes,
+    owned: ValidatedCompilationUnitOwnership,
+    entry: DeclarationId,
 }
 
 #[path = "container_lowering_tests/runtime_helpers.rs"]
@@ -45,18 +56,12 @@ fn runtime_generator_single_source_accepts_pointer_and_shared_initializers() {
                  val items = {container}<Int>(3, {initializer})\n\
                  return items[2] }}"
             );
-            let analysis = analyze(&text);
+            let analysis = analyze(&text, "entry");
             assert!(analysis.parsed.diagnostics().is_empty());
-            assert!(analysis.names.diagnostics().is_empty());
-            assert!(analysis.typed.diagnostics().is_empty());
-            assert!(analysis.owned.diagnostics().is_empty());
-            if let Err(error) = lower_scalar_file(
-                &analysis.sources,
-                &analysis.parsed,
-                &analysis.names,
-                &analysis.typed,
-                &analysis.owned,
-            ) {
+            assert!(analysis.names.names().diagnostics().is_empty());
+            assert!(analysis.typed.types().diagnostics().is_empty());
+            assert!(analysis.owned.ownership().diagnostics().is_empty());
+            if let Err(error) = lower_unit(&analysis) {
                 failures.push(format!("{container}/{environment}: {error:?}"));
             }
         }
@@ -67,20 +72,54 @@ fn runtime_generator_single_source_accepts_pointer_and_shared_initializers() {
     );
 }
 
-fn analyze(text: &str) -> Analysis {
+fn analyze(text: &str, entry_name: &str) -> Analysis {
     let mut sources = SourceMap::new();
     let source = sources
         .add_source("container-lowering.ko", text)
         .expect("source must be unique");
     let lexed = lex(&sources, source).expect("lexing must succeed internally");
+    assert!(lexed.diagnostics().is_empty(), "{:?}", lexed.diagnostics());
     let parsed = parse_file(&sources, &lexed).expect("parsing must succeed internally");
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
     let (environment, types) = standard_environments();
-    let names =
-        resolve_names(&sources, &parsed, &environment).expect("names must resolve internally");
-    let typed =
-        check_types(&sources, &parsed, &names, &types).expect("types must check internally");
-    let owned = check_ownership(&sources, &parsed, &names, &typed)
-        .expect("ownership must check internally");
+    let index = index_compilation_unit(&sources, &inputs).expect("valid source input");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .expect("names must resolve internally")
+        .validate()
+        .expect("names must be valid");
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .expect("types must check internally");
+    assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
+    complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw)
+        .expect("all source types must be complete");
+    let (typed, owned) = analyze_basic_unit_ownership(&sources, &inputs, &names, &types, raw)
+        .expect("ownership must check internally")
+        .into_result()
+        .expect("types must remain valid");
+    let owned = owned.validate().expect("ownership must be valid");
+    let mut entries = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .filter(|declaration| {
+            declaration.name() == entry_name
+                && declaration.kind() == SymbolKind::Function
+                && declaration.name_span().source_id() == source
+        });
+    let entry = entries
+        .next()
+        .expect("selected source function exists")
+        .id();
+    assert!(
+        entries.next().is_none(),
+        "selected source function is unique"
+    );
     Analysis {
         sources,
         parsed,
@@ -88,7 +127,63 @@ fn analyze(text: &str) -> Analysis {
         types,
         typed,
         owned,
+        entry,
     }
+}
+
+fn lower_unit(analysis: &Analysis) -> Result<super::model::Program, super::LoweringError> {
+    let inputs = [SourceUnitInput::memory_document(
+        analysis.parsed.source_id(),
+        &analysis.parsed,
+    )];
+    let unit = owned_compilation_unit_view(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.types,
+        &analysis.typed,
+        &analysis.owned,
+    )?;
+    lower_owned_unit_with_entry(&unit, analysis.entry).map(|(program, _)| program)
+}
+
+fn source_function<'a>(analysis: &Analysis, program: &'a Program, name: &str) -> &'a Function {
+    let mut declarations =
+        analysis
+            .names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.name() == name
+                    && declaration.kind() == SymbolKind::Function
+                    && declaration.name_span().source_id() == analysis.parsed.source_id()
+            });
+    let declaration = declarations.next().expect("source function declaration");
+    assert!(
+        declarations.next().is_none(),
+        "source function declaration is unique"
+    );
+    let span = analysis
+        .parsed
+        .ast()
+        .items()
+        .get(declaration.root())
+        .unwrap()
+        .span();
+    let mut functions = program.modules[0]
+        .functions
+        .iter()
+        .filter(|function| function.origin == Origin::Source(span));
+    let function = functions
+        .next()
+        .expect("same-source function body is emitted");
+    assert!(
+        functions.next().is_none(),
+        "one concrete body for this source declaration"
+    );
+    function
 }
 
 #[test]
@@ -100,20 +195,15 @@ fn lowers_string_list_forms_in_source_order_and_drops_each_container_once() {
             val mutable = mutableListOf<String>("mutable-0")
             val empty = MutableList<String>()
         }"#,
+        "exercise",
     );
     assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
+    assert!(analysis.names.names().diagnostics().is_empty());
+    assert!(analysis.typed.types().diagnostics().is_empty());
+    assert!(analysis.owned.ownership().diagnostics().is_empty());
 
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("list-form String owners must lower into verified container SSA");
+    let program = lower_unit(&analysis)
+        .expect("list-form String owners must lower into verified container SSA");
     let module = &program.modules[0];
     let string = module
         .types
@@ -139,7 +229,7 @@ fn lowers_string_list_forms_in_source_order_and_drops_each_container_once() {
         ]
     );
 
-    let instructions = &module.functions[0].instructions;
+    let instructions = &source_function(&analysis, &program, "exercise").instructions;
     let literal_bytes = instructions
         .iter()
         .filter_map(|instruction| match &instruction.operation {
@@ -182,21 +272,18 @@ fn lowers_string_list_forms_in_source_order_and_drops_each_container_once() {
 
 #[test]
 fn moves_a_string_value_into_a_returned_list_without_a_second_owner_drop() {
-    let analysis = analyze("fun wrap(own input: String): List<String> = listOf(input)");
+    let analysis = analyze(
+        "fun wrap(own input: String): List<String> = listOf(input)",
+        "wrap",
+    );
     assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
+    assert!(analysis.names.names().diagnostics().is_empty());
+    assert!(analysis.typed.types().diagnostics().is_empty());
+    assert!(analysis.owned.ownership().diagnostics().is_empty());
 
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("Value delivery must move the String parameter into the returned container");
-    let function = &program.modules[0].functions[0];
+    let program = lower_unit(&analysis)
+        .expect("Value delivery must move the String parameter into the returned container");
+    let function = source_function(&analysis, &program, "wrap");
     let construct = function
         .instructions
         .iter()
@@ -224,24 +311,15 @@ fn runtime_length_container_helper_borrows_selected_pointer_initializer() {
          Array<String>(size, initializer)\n\
          fun entry(): Unit { val items = generate(2, { index -> \"value\" })\n\
          println(items[1]) }",
+        "entry",
     );
     assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("runtime construction borrows the incoming pointer without consuming it");
-    let function = program.modules[0]
-        .functions
-        .iter()
-        .find(|function| function.name.contains("generate"))
-        .expect("selected helper body is emitted");
+    assert!(analysis.names.names().diagnostics().is_empty());
+    assert!(analysis.typed.types().diagnostics().is_empty());
+    assert!(analysis.owned.ownership().diagnostics().is_empty());
+    let program = lower_unit(&analysis)
+        .expect("runtime construction borrows the incoming pointer without consuming it");
+    let function = source_function(&analysis, &program, "generate");
     let initializer = function
         .block(function.entry_block().unwrap())
         .unwrap()
@@ -249,16 +327,71 @@ fn runtime_length_container_helper_borrows_selected_pointer_initializer() {
     let generations = function
         .instructions
         .iter()
-        .filter_map(|instruction| {
-            if let Operation::ContainerGenerateBorrowed { initializer, .. } = instruction.operation
-            {
-                Some(super::model::EntityId::Loan(initializer))
-            } else {
-                None
-            }
+        .filter(|instruction| {
+            matches!(
+                instruction.operation,
+                Operation::ContainerGenerateBorrowed { .. }
+            )
         })
         .collect::<Vec<_>>();
-    assert_eq!(generations, [initializer]);
+    let [generation] = generations.as_slice() else {
+        panic!("one container generation")
+    };
+    let Operation::ContainerGenerateBorrowed {
+        initializer: carried,
+        ..
+    } = generation.operation
+    else {
+        unreachable!("selected container generation")
+    };
+    let entry = function.block(function.entry_block().unwrap()).unwrap();
+    let TerminatorKind::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &entry.terminator.as_ref().unwrap().kind
+    else {
+        panic!("runtime length guard branches before initialization")
+    };
+    assert_eq!(generation.block, when_false.target);
+    assert!(matches!(
+        function
+            .block(when_true.target)
+            .unwrap()
+            .terminator
+            .as_ref()
+            .unwrap()
+            .kind,
+        TerminatorKind::Abort
+    ));
+    assert_eq!(
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| block.terminator.as_ref().unwrap().kind.targets())
+            .filter(|target| *target == generation.block)
+            .count(),
+        1,
+        "initializer has one real incoming edge, not a mixed-root join"
+    );
+    let success = function.block(generation.block).unwrap();
+    let slots = success
+        .parameters
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, parameter)| (*parameter == EntityId::Loan(carried)).then_some(slot))
+        .collect::<Vec<_>>();
+    let [slot] = slots.as_slice() else {
+        panic!("initializer is one exact success-block loan parameter")
+    };
+    assert_eq!(
+        when_false.arguments[*slot], initializer,
+        "guard transports the original incoming pointer without substitution"
+    );
+    assert_eq!(
+        function.entity(EntityId::Loan(carried)).unwrap().ty,
+        function.entity(initializer).unwrap().ty
+    );
     assert!(
         function
             .instructions
@@ -275,20 +408,13 @@ fn mutable_list_add_single_file_lowers_to_container_append() {
                 list.add(2)\n\
                 list.add(3)\n\
                 }";
-    let analysis = analyze(text);
+    let analysis = analyze(text, "run");
     assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("lowering succeeds");
-    let function = &program.modules[0].functions[0];
+    assert!(analysis.names.names().diagnostics().is_empty());
+    assert!(analysis.typed.types().diagnostics().is_empty());
+    assert!(analysis.owned.ownership().diagnostics().is_empty());
+    let program = lower_unit(&analysis).expect("lowering succeeds");
+    let function = source_function(&analysis, &program, "run");
     let appends = function
         .instructions
         .iter()
@@ -304,20 +430,13 @@ fn mutable_list_clear_single_file_lowers_to_container_clear() {
                 var list = mutableListOf(1, 2)\n\
                 list.clear()\n\
                 }";
-    let analysis = analyze(text);
+    let analysis = analyze(text, "run");
     assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("lowering succeeds");
-    let function = &program.modules[0].functions[0];
+    assert!(analysis.names.names().diagnostics().is_empty());
+    assert!(analysis.typed.types().diagnostics().is_empty());
+    assert!(analysis.owned.ownership().diagnostics().is_empty());
+    let program = lower_unit(&analysis).expect("lowering succeeds");
+    let function = source_function(&analysis, &program, "run");
     let clears = function
         .instructions
         .iter()
@@ -333,20 +452,13 @@ fn mutable_list_remove_at_single_file_lowers_to_container_remove_at() {
                 var list = mutableListOf(10, 20)\n\
                 return list.removeAt(0)\n\
                 }";
-    let analysis = analyze(text);
+    let analysis = analyze(text, "run");
     assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("lowering succeeds");
-    let function = &program.modules[0].functions[0];
+    assert!(analysis.names.names().diagnostics().is_empty());
+    assert!(analysis.typed.types().diagnostics().is_empty());
+    assert!(analysis.owned.ownership().diagnostics().is_empty());
+    let program = lower_unit(&analysis).expect("lowering succeeds");
+    let function = source_function(&analysis, &program, "run");
     let remove_ats = function
         .instructions
         .iter()
@@ -362,20 +474,13 @@ fn mutable_list_remove_last_single_file_lowers_to_container_remove_last() {
                 var list = mutableListOf(10, 20)\n\
                 return list.removeLast()\n\
                 }";
-    let analysis = analyze(text);
+    let analysis = analyze(text, "run");
     assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("lowering succeeds");
-    let function = &program.modules[0].functions[0];
+    assert!(analysis.names.names().diagnostics().is_empty());
+    assert!(analysis.typed.types().diagnostics().is_empty());
+    assert!(analysis.owned.ownership().diagnostics().is_empty());
+    let program = lower_unit(&analysis).expect("lowering succeeds");
+    let function = source_function(&analysis, &program, "run");
     let remove_lasts = function
         .instructions
         .iter()
@@ -391,20 +496,13 @@ fn mutable_list_remove_first_single_file_lowers_to_container_remove_first() {
                 var list = mutableListOf(10, 20)\n\
                 return list.removeFirst()\n\
                 }";
-    let analysis = analyze(text);
+    let analysis = analyze(text, "run");
     assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("lowering succeeds");
-    let function = &program.modules[0].functions[0];
+    assert!(analysis.names.names().diagnostics().is_empty());
+    assert!(analysis.typed.types().diagnostics().is_empty());
+    assert!(analysis.owned.ownership().diagnostics().is_empty());
+    let program = lower_unit(&analysis).expect("lowering succeeds");
+    let function = source_function(&analysis, &program, "run");
     let remove_firsts = function
         .instructions
         .iter()
@@ -420,20 +518,13 @@ fn mutable_list_insert_at_single_file_lowers_to_container_insert_at() {
                 var list = mutableListOf(10, 20)\n\
                 list.insertAt(1, 15)\n\
                 }";
-    let analysis = analyze(text);
+    let analysis = analyze(text, "run");
     assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("lowering succeeds");
-    let function = &program.modules[0].functions[0];
+    assert!(analysis.names.names().diagnostics().is_empty());
+    assert!(analysis.typed.types().diagnostics().is_empty());
+    assert!(analysis.owned.ownership().diagnostics().is_empty());
+    let program = lower_unit(&analysis).expect("lowering succeeds");
+    let function = source_function(&analysis, &program, "run");
     let insert_ats = function
         .instructions
         .iter()
