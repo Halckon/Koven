@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，321 份）"]
+subgraph Garchive["已完成（archive，322 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -327,6 +327,7 @@ subgraph Garchive["已完成（archive，321 份）"]
   S0332["S0332<br/>Rc nullable while 既有路径回归修复"]
   S0342["S0342<br/>companion 块语法"]
   S0343["S0343<br/>顶层运行时值的前端诊断"]
+  S0346["S0346<br/>TextMate 语境与插值恢复"]
   S0347["S0347<br/>abort 输出与 kovenc run 退出状态"]
   S0348["S0348<br/>Conformance 种子集入库"]
   S0349["S0349<br/>内建 Result/Ok/Err、is Case subject 推断与 kovenc check"]
@@ -1729,6 +1730,7 @@ S0348 --> S0349
 | SPEC-0332 | archive | [0332-rc-nullable-while-regression.md](0332-rc-nullable-while-regression.md) |
 | SPEC-0342 | archive | [0342-companion-block-syntax.md](0342-companion-block-syntax.md) |
 | SPEC-0343 | archive | [0343-top-level-const-only.md](0343-top-level-const-only.md) |
+| SPEC-0346 | archive | [0346-textmate-contexts.md](0346-textmate-contexts.md) |
 | SPEC-0347 | archive | [0347-abort-output.md](0347-abort-output.md) |
 | SPEC-0348 | archive | [0348-conformance-corpus.md](0348-conformance-corpus.md) |
 | SPEC-0349 | archive | [0349-builtin-result-and-check.md](0349-builtin-result-and-check.md) |

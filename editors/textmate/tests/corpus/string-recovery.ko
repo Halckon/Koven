@@ -1,0 +1,4 @@
+val broken = "unfinished
+val after = 1
+val escaped = "bad\
+fun recovered(): Unit {}

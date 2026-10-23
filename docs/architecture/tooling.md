@@ -94,7 +94,7 @@ string segment 与 LF/CRLF 字节。它不排序声明、不折行、不合并�
 `editors/textmate/syntaxes/koven.tmLanguage.json` 提供 `.ko` 的词法高亮近似；
 `editors/textmate/tests/lexical-contract.tsv`、`highlight.ko`、`reserved.ko` 和 `scopes.tsv` 锁定代表性
 scope。Node verifier 执行 grammar regex，frontend integration test 用同一数据对照生产 Lexer。
-对应覆盖位于 TextMate 的 Node tests 与 frontend 的 `textmate_grammar` integration suite。
+`engine-scopes.json` 与 `tests/corpus/` 还由官方 vscode-textmate/Oniguruma 执行 UTF-16 逐 scope 断言；生产 Lexer 对照相同源码的软关键字身份、插值及恢复诊断。软关键字仅在可识别的声明/控制流形态着色，普通名称保持 identifier；TextMate 仍不承担 Parser 或语义诊断。
 
 ## Tree-sitter
 

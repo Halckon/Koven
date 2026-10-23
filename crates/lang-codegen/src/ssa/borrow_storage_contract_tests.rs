@@ -1,5 +1,5 @@
 //! 查询未改写的普通源码 SSA，校验通用 storage 和实际投影的 shared 合同。
-use super::{borrow_result_contract_tests::single, model::*, verify::verify_program};
+use super::{borrow_memory_test_support::single, model::*, verify::verify_program};
 
 #[test]
 fn borrowed_last_use_direct_place_alias_preserves_parent_and_permission_restore() {

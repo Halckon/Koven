@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 316 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 317 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -258,6 +258,8 @@
 - [SPEC-0189](./0189-standard-println-output.md)：标准 `println(String)` 与最小 stdout 输出
 
 ## Phase 6
+
+- [SPEC-0346](./0346-textmate-contexts.md)：修复 TextMate 语境与插值恢复，执行真实引擎与生产 Lexer 对照
 
 - [SPEC-0052](./0052-minimal-project-manifest-source-set.md)：最小 project manifest 与本地 source-set provider
 - [SPEC-0054](./0054-local-project-build-run.md)：无依赖本地 project build/run
