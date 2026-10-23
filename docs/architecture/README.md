@@ -28,6 +28,8 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 | 标准库 | Koven prelude、`error`、`println(String)`、`Pair`/`Result`、String 与 Rc 核心路径已接入；[范围 carrier](range-carrier.md) 的 List/View 顶层及可信 receiver take/drop/dropLast 已接通 |
 | 工具 | 单文件/本地 project build/run、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter 已接入 |
 
+CI 的四处 LLVM setup 调用有10分钟总时限；Linux下载采用有限网络重试，APT索引更新错误直接失败。见 [SPEC-0347](../archive/specs/0347-llvm-install-bounds.md) 的边界与验收。
+
 ## 规范覆盖边界
 
 本地整合已包含 SPEC-0229–0234、0236 的代码或文档切片；各自的实际验证与遗留缺口见
