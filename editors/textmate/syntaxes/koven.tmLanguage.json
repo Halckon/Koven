@@ -13,6 +13,7 @@
     { "include": "#declarations" },
     { "include": "#builtin-types" },
     { "include": "#operators" },
+    { "include": "#contextual-keywords" },
     { "include": "#keywords" },
     { "include": "#reserved-words" },
     { "include": "#punctuation" }
@@ -74,6 +75,7 @@
           "begin": "\\{",
           "end": "\\}",
           "patterns": [
+            { "include": "#interpolation-braces" },
             { "include": "$self" }
           ]
         }
@@ -84,6 +86,17 @@
         {
           "name": "constant.character.koven",
           "match": "'(?:\\\\[\\\\'\"nrt0]|[^'\\r\\n\\\\])'"
+        },
+        {
+          "name": "invalid.illegal.character.koven",
+          "begin": "'",
+          "end": "'|(?=\\r?$)",
+          "patterns": [
+            {
+              "match": "\\\\[^\\r\\n]",
+              "name": "invalid.illegal.character.koven"
+            }
+          ]
         }
       ]
     },
@@ -151,19 +164,61 @@
         }
       ]
     },
+    "contextual-keywords": {
+      "patterns": [
+        {
+          "name": "storage.modifier.ownership.koven",
+          "match": "(?<![A-Za-z0-9_.])(?:own|borrow|inout)(?=[ \\t]+[A-Za-z_][A-Za-z0-9_]*[ \\t]*:)"
+        },
+        {
+          "name": "keyword.control.koven",
+          "match": "(?<![A-Za-z0-9_.])loop(?=[ \\t]*\\{)"
+        },
+        {
+          "name": "storage.modifier.ownership.koven",
+          "match": "(?<![A-Za-z0-9_.])(?:own|borrow|inout)(?=[ \\t]+fun\\b)|(?<![A-Za-z0-9_.])borrow(?=[ \\t]+val\\b)"
+        },
+        {
+          "match": "([,(])[ \\t]*(own|borrow|inout)(?=[ \\t]+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*(?:[ \\t]*<[^()\\r\\n]*>)?\\??[ \\t]*[,)])",
+          "captures": {
+            "1": {
+              "name": "punctuation.separator.koven"
+            },
+            "2": {
+              "name": "storage.modifier.ownership.koven"
+            }
+          }
+        },
+        {
+          "match": "(:)[ \\t]*(borrow)(?=[ \\t]+[A-Za-z_])",
+          "captures": {
+            "1": {
+              "name": "punctuation.separator.koven"
+            },
+            "2": {
+              "name": "storage.modifier.ownership.koven"
+            }
+          }
+        },
+        {
+          "name": "storage.modifier.ownership.koven",
+          "match": "(?<![A-Za-z0-9_.])move(?=[ \\t]*(?:\\{|\\([^)]*\\)[ \\t]*->))"
+        }
+      ]
+    },
     "keywords": {
       "patterns": [
         {
           "name": "keyword.declaration.koven",
-          "match": "\\b(?:class|companion|const|enum|extern|fun|import|interface|object|package|typealias|val|value|var|vararg)\\b"
+          "match": "\\b(?:class|companion|const|enum|extern|fun|import|interface|object|package|typealias|val|var|vararg)\\b"
         },
         {
           "name": "keyword.control.koven",
-          "match": "\\b(?:break|continue|else|for|if|loop|return|when|while)\\b"
+          "match": "\\b(?:break|continue|else|for|if|return|when|while)\\b"
         },
         {
           "name": "storage.modifier.ownership.koven",
-          "match": "\\b(?:borrow|inout|move|own|unsafe)\\b"
+          "match": "\\b(?:unsafe)\\b"
         },
         {
           "name": "storage.modifier.visibility.koven",

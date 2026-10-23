@@ -1,0 +1,472 @@
+[
+  {
+    "file": "corpus/declarations.ko",
+    "checks": [
+      {
+        "text": "companion",
+        "scope": "keyword.declaration.koven",
+        "start": 0
+      },
+      {
+        "text": "const",
+        "scope": "keyword.declaration.koven",
+        "start": 12
+      },
+      {
+        "text": "val",
+        "scope": "keyword.declaration.koven",
+        "start": 18
+      },
+      {
+        "text": "answer",
+        "scope": "variable.other.readwrite.koven",
+        "start": 22
+      },
+      {
+        "text": "value",
+        "scope": "keyword.declaration.koven",
+        "start": 41
+      },
+      {
+        "text": "Point",
+        "scope": "entity.name.type.koven",
+        "start": 53
+      },
+      {
+        "text": "own",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 83
+      },
+      {
+        "text": "borrow",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 101
+      },
+      {
+        "text": "inout",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 123
+      },
+      {
+        "text": "borrow",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 153
+      },
+      {
+        "text": "move",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 191
+      },
+      {
+        "text": "loop",
+        "scope": "keyword.control.koven",
+        "start": 202
+      }
+    ]
+  },
+  {
+    "file": "corpus/soft-names.ko",
+    "checks": [
+      {
+        "text": "value",
+        "scope": "source.koven",
+        "start": 0
+      },
+      {
+        "text": "loop",
+        "scope": "source.koven",
+        "start": 6
+      },
+      {
+        "text": "own",
+        "scope": "source.koven",
+        "start": 11
+      },
+      {
+        "text": "borrow",
+        "scope": "source.koven",
+        "start": 15
+      },
+      {
+        "text": "inout",
+        "scope": "source.koven",
+        "start": 22
+      },
+      {
+        "text": "move",
+        "scope": "source.koven",
+        "start": 28
+      },
+      {
+        "text": "to",
+        "scope": "source.koven",
+        "start": 33
+      },
+      {
+        "text": "by",
+        "scope": "source.koven",
+        "start": 36
+      },
+      {
+        "text": "infix",
+        "scope": "source.koven",
+        "start": 39
+      },
+      {
+        "text": "and",
+        "scope": "source.koven",
+        "start": 45
+      },
+      {
+        "text": "or",
+        "scope": "source.koven",
+        "start": 49
+      },
+      {
+        "text": "xor",
+        "scope": "source.koven",
+        "start": 52
+      },
+      {
+        "text": "shl",
+        "scope": "source.koven",
+        "start": 56
+      },
+      {
+        "text": "shr",
+        "scope": "source.koven",
+        "start": 60
+      },
+      {
+        "text": "ushr",
+        "scope": "source.koven",
+        "start": 64
+      },
+      {
+        "text": "get",
+        "scope": "source.koven",
+        "start": 69
+      },
+      {
+        "text": "set",
+        "scope": "source.koven",
+        "start": 73
+      },
+      {
+        "text": "error",
+        "scope": "source.koven",
+        "start": 77
+      },
+      {
+        "text": "value",
+        "scope": "source.koven",
+        "start": 88
+      },
+      {
+        "text": "loop",
+        "scope": "source.koven",
+        "start": 99
+      },
+      {
+        "text": "borrow",
+        "scope": "source.koven",
+        "start": 109
+      },
+      {
+        "text": "move",
+        "scope": "source.koven",
+        "start": 125
+      },
+      {
+        "text": "own",
+        "scope": "source.koven",
+        "start": 132
+      },
+      {
+        "text": "inout",
+        "scope": "source.koven",
+        "start": 138
+      },
+      {
+        "text": "borrow",
+        "scope": "entity.name.function.koven",
+        "start": 150
+      },
+      {
+        "text": "value",
+        "scope": "source.koven",
+        "start": 157
+      },
+      {
+        "text": "value",
+        "scope": "source.koven",
+        "start": 176
+      },
+      {
+        "text": "loop",
+        "scope": "variable.other.readwrite.koven",
+        "start": 186
+      }
+    ]
+  },
+  {
+    "file": "corpus/interpolation.ko",
+    "checks": [
+      {
+        "text": "1",
+        "scope": "constant.numeric.integer.koven",
+        "start": 25
+      },
+      {
+        "text": "2",
+        "scope": "constant.numeric.integer.koven",
+        "start": 31
+      },
+      {
+        "text": "3",
+        "scope": "constant.numeric.integer.koven",
+        "start": 37
+      },
+      {
+        "text": "tail",
+        "scope": "string.quoted.double.koven",
+        "start": 41
+      },
+      {
+        "text": "4",
+        "scope": "constant.numeric.integer.koven",
+        "start": 73
+      },
+      {
+        "text": "after",
+        "scope": "string.quoted.double.koven",
+        "start": 79
+      },
+      {
+        "text": "/* } */",
+        "scope": "comment.block.koven",
+        "start": 106
+      },
+      {
+        "text": "'}'",
+        "scope": "constant.character.koven",
+        "start": 114
+      },
+      {
+        "text": "done",
+        "scope": "string.quoted.double.koven",
+        "start": 120
+      },
+      {
+        "text": "literal",
+        "scope": "string.quoted.double.koven",
+        "start": 144
+      },
+      {
+        "text": "$name",
+        "scope": "string.quoted.double.koven",
+        "start": 153
+      }
+    ]
+  },
+  {
+    "file": "corpus/string-recovery.ko",
+    "checks": [
+      {
+        "text": "unfinished",
+        "scope": "string.quoted.double.koven",
+        "start": 14
+      },
+      {
+        "text": "val",
+        "scope": "keyword.declaration.koven",
+        "start": 25
+      },
+      {
+        "text": "after",
+        "scope": "variable.other.readwrite.koven",
+        "start": 29
+      },
+      {
+        "text": "fun",
+        "scope": "keyword.declaration.koven",
+        "start": 59
+      },
+      {
+        "text": "recovered",
+        "scope": "entity.name.function.koven",
+        "start": 63
+      }
+    ]
+  },
+  {
+    "file": "corpus/comment-recovery.ko",
+    "checks": [
+      {
+        "text": "stillComment",
+        "scope": "comment.block.koven",
+        "start": 18
+      },
+      {
+        "text": "recovered",
+        "scope": "entity.name.function.koven",
+        "start": 49
+      }
+    ]
+  },
+  {
+    "file": "corpus/interpolation-recovery.ko",
+    "checks": [
+      {
+        "text": "2",
+        "scope": "constant.numeric.integer.koven",
+        "start": 23
+      },
+      {
+        "text": "3",
+        "scope": "constant.numeric.integer.koven",
+        "start": 29
+      },
+      {
+        "text": "end",
+        "scope": "string.quoted.double.koven",
+        "start": 33
+      },
+      {
+        "text": "recovered",
+        "scope": "entity.name.function.koven",
+        "start": 42
+      }
+    ]
+  },
+  {
+    "file": "corpus/unfinished-comment.ko",
+    "checks": [
+      {
+        "text": "retained",
+        "scope": "comment.block.koven",
+        "start": 12
+      }
+    ]
+  },
+  {
+    "file": "corpus/unfinished-interpolation.ko",
+    "checks": [
+      {
+        "text": "3",
+        "scope": "constant.numeric.integer.koven",
+        "start": 31
+      }
+    ]
+  },
+  {
+    "file": "corpus/multiline-modes.ko",
+    "checks": [
+      {
+        "text": "borrow",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 16
+      },
+      {
+        "text": "inout",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 42
+      },
+      {
+        "text": "move",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 88
+      },
+      {
+        "text": "own",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 94
+      }
+    ]
+  },
+  {
+    "file": "corpus/unicode-crlf.ko",
+    "checks": [
+      {
+        "text": "2",
+        "start": 28,
+        "scope": "constant.numeric.integer.koven"
+      },
+      {
+        "text": "尾部",
+        "start": 32,
+        "scope": "string.quoted.double.koven"
+      },
+      {
+        "text": "afterUnicode",
+        "start": 41,
+        "scope": "entity.name.function.koven"
+      }
+    ]
+  },
+  {
+    "file": "corpus/mode-expressions.ko",
+    "checks": [
+      {
+        "text": "borrow",
+        "scope": "source.koven",
+        "start": 6
+      },
+      {
+        "text": "own",
+        "scope": "source.koven",
+        "start": 29
+      },
+      {
+        "text": "inout",
+        "scope": "source.koven",
+        "start": 55
+      },
+      {
+        "text": "move",
+        "scope": "source.koven",
+        "start": 77
+      },
+      {
+        "text": "own",
+        "scope": "storage.modifier.ownership.koven",
+        "start": 107
+      }
+    ]
+  },
+  {
+    "file": "corpus/character-recovery.ko",
+    "checks": [
+      {
+        "text": "'ab}'",
+        "scope": "invalid.illegal.character.koven",
+        "start": 15
+      },
+      {
+        "text": "3",
+        "scope": "constant.numeric.integer.koven",
+        "start": 23
+      },
+      {
+        "text": "tail",
+        "scope": "string.quoted.double.koven",
+        "start": 27
+      },
+      {
+        "text": "'\\q}'",
+        "scope": "invalid.illegal.character.koven",
+        "start": 51
+      },
+      {
+        "text": "4",
+        "scope": "constant.numeric.integer.koven",
+        "start": 59
+      },
+      {
+        "text": "done",
+        "scope": "string.quoted.double.koven",
+        "start": 63
+      }
+    ]
+  }
+]

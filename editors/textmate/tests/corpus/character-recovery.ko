@@ -1,0 +1,2 @@
+val text = "${ 'ab}' + 3 } tail"
+val escaped = "${ '\q}' + 4 } done"

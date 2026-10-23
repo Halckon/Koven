@@ -1,0 +1,6 @@
+companion { const val answer: Int = 42 }
+value class Point(val x: Int)
+fun consume(own owner: Thing, borrow reader: Thing, inout writer: Thing): Unit {}
+borrow fun read(): Int = 1
+val task = move { 1 }
+loop { break }
