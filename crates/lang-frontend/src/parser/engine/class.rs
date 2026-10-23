@@ -732,7 +732,6 @@ impl Parser<'_> {
 
     pub(super) fn parse_companion_object(&mut self) -> Result<ItemId, ParserInternalError> {
         let companion_span = self.bump()?.span();
-        // Guide v0.46: `companion { ... }`; the retired `object` keyword is recovered.
         let object_span = if self.current_is_keyword(Keyword::Object) {
             let object_span = self.bump()?.span();
             self.emit(
