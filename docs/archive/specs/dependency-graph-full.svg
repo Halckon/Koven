@@ -6,7 +6,7 @@
   </defs>
   <rect width="13296" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="10576" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5328" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，321 份）</text>
+  <text x="5328" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，322 份）</text>
   <rect x="10680" y="30" width="280" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10820" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="11024" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -976,6 +976,7 @@
   <path d="M 1884 6668 C 6292 6668, 6292 6824, 10700 6824" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 708 5966, 708 5998" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 2028 188, 2028 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 6252 120 C 6252 152, 2292 188, 2292 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 444 500, 444 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 2028 5672, 2028 5704" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 972 5828, 972 5860" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2454,6 +2455,10 @@
   <text x="2028" y="243" text-anchor="middle" font-size="13">SPEC-0347</text>
   <text x="2028" y="261" text-anchor="middle" font-size="13">本地 Kovenlings </text>
   <text x="2028" y="279" text-anchor="middle" font-size="13">首片</text>
+  <rect x="2172" y="220" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="2292" y="243" text-anchor="middle" font-size="13">SPEC-0348</text>
+  <text x="2292" y="261" text-anchor="middle" font-size="13">API 声明索引与教程示例协</text>
+  <text x="2292" y="279" text-anchor="middle" font-size="13">议首片</text>
   <rect x="10356" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="10476" y="87" text-anchor="middle" font-size="13">SPEC-0351</text>
   <text x="10476" y="105" text-anchor="middle" font-size="13">LLVM 安装等待边界</text>

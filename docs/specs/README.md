@@ -164,3 +164,5 @@ draft → approved → in-progress → done
 新建草案使用 [TEMPLATE.md](TEMPLATE.md)，放入 `drafts/` 或对应未启用版本子目录。
 
 - [0347 本地 Kovenlings](../archive/specs/0347-local-kovenlings.md)：基于 v0.45 已验收能力的两道本地练习；双宿主真实验收已通过并归档。
+
+- [0348 API 声明索引](../archive/specs/0348-api-documentation.md)：v0.45 解析器导出与既有教程示例验证首片。
