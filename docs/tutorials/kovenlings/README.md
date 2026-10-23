@@ -1,6 +1,6 @@
 # Kovenlings：两道本地练习
 
-> **性质**：学习材料与执行合同 · **状态**：current（首片验收中） · **读取时机**：练习可变位置与所有权参数时 · **唯一真源**：各题源码与 exercises.json 的提示、运行合同
+> **性质**：学习材料与执行合同 · **状态**：current · **读取时机**：练习可变位置与所有权参数时 · **唯一真源**：各题源码与 exercises.json 的提示、运行合同
 
 本页使用 Guide v0.45 已有能力，不依赖 v0.46。先按[开发环境](../../development/README.md)构建
 `kovenc`，下列命令在仓库根目录执行。这里验证你提供的本地源码，会编译并运行它；仅使用你信任的练习文件。
@@ -41,4 +41,4 @@ python3 scripts/check_kovenlings.py
 “起点预期失败通过”不等于练习已经做对；`--source` 才检查你的解法。
 完整诊断（含代码与位置）、stdout、stderr 和退出状态固定在 [exercises.json](exercises.json)。
 复用教程 `run_case`，由双平台 CI 的 bounded composition 执行；不提供网页运行、项目题或完整测试框架。
-交付状态见 [SPEC-0347](../../specs/active/0347-local-kovenlings.md)。
+交付状态见 [SPEC-0347](../../archive/specs/0347-local-kovenlings.md)。

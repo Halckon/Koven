@@ -1,10 +1,10 @@
 # SPEC-0347: 本地 Kovenlings 首片
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实现或验收本地练习时 · **唯一真源**：本次交付范围与验收
+> **性质**：交付合同 · **状态**：done · **读取时机**：实现或验收本地练习时 · **唯一真源**：本次交付范围与验收
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | KOV-P6-0347 |
 | 所属 Phase | Phase 6 |
 | 语言规范 | 当前 Guide v0.45，不依赖 v0.46 |
@@ -37,8 +37,8 @@ M2 按已验收能力独立启动本地切片；不宣称 M0/M2 整体完成，�
 
 - [x] loader/选择/失败传播负例先失败再实现；复用 run_case，无第二套进程执行器。
 - [x] 两 starter 精确诊断、两答案 build/直接运行/run 在真实 CLI 上通过；错误学习者源码被拒绝。
-- [ ] 提示与答案独立复核，双平台 CI 运行真实练习，不以 mock 代替。
-- [ ] 文档、库存、生成图与 CI 路由同步，最终 CI 通过后归档。
+- [x] 提示与答案独立复核，双平台 CI 运行真实练习，不以 mock 代替。
+- [x] 文档、库存、生成图与 CI 路由同步，最终 CI 通过后归档。
 
 ## 5. 当前验证
 
@@ -54,3 +54,11 @@ M2 按已验收能力独立启动本地切片；不宣称 M0/M2 整体完成，�
 首轮 CI 的430项脚本测试暴露 composition 旧“教程最后运行”断言；已改为两个检查各一次、
 固定顺序及前序失败停止，并独立复核。修复后本机全套430项中429通过，1项 Linux /proc 专属
 测试按平台跳过，需由 Linux CI 覆盖。首次失败来源见 CI run `39893319338`。
+
+## 6. 双宿主实现验收
+
+实现输入 `7ad9a896db2e64d084d5bf8ce6dbed2b902b7cdc`，
+[PR131 CI 39893655095](https://github.com/Halckon/Koven/actions/runs/39893655095)全部必需门禁成功。
+macOS 与 Linux 的 bounded composition 均实际验证4个练习变体；两宿主 Clippy、targeted tests、
+preview producer 与独立 consumer 均成功。脚本430项在 Linux CI 通过；编辑器任务按改动过滤跳过。
+本片完成，不代表 M2 整体完成。归档提交最终 CI 与合并身份由 [PR131](https://github.com/Halckon/Koven/pull/131)保存。
