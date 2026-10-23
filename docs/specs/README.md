@@ -13,7 +13,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树3份，[0291](active/0291-readonly-map-construction.md)保留有界交付待项；[0333静态Map调用](active/0333-static-map-callers.md)为approved、未实施；[0341统一Unit管线](active/0341-shared-lowering-core.md)为in-progress，按 Guide v0.45 推进单文件/project 共用 compilation-unit 检查和代码生成；helper 抽取只作迁移步骤，能力差异与通用 lowering 对账仍开放。Map双分量借用遍历已按[0331有限合同](../archive/specs/0331-map-borrowed-iteration.md)验收归档，原调用/ABI前置分别保留。
+- [Active 合同](active/README.md)：当前本树4份，[0291](active/0291-readonly-map-construction.md)保留有界交付待项；[0333静态Map调用](active/0333-static-map-callers.md)为approved、未实施；[0341统一Unit管线](active/0341-shared-lowering-core.md)为in-progress，按 Guide v0.45 推进单文件/project 共用 compilation-unit 检查和代码生成；helper 抽取只作迁移步骤，能力差异与通用 lowering 对账仍开放。Map双分量借用遍历已按[0331有限合同](../archive/specs/0331-map-borrowed-iteration.md)验收归档，原调用/ABI前置分别保留。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -162,3 +162,5 @@ draft → approved → in-progress → done
 新建草案使用 [TEMPLATE.md](TEMPLATE.md)，放入 `drafts/` 或对应未启用版本子目录。
 
 - [0347 本地 Kovenlings](../archive/specs/0347-local-kovenlings.md)：基于 v0.45 已验收能力的两道本地练习；双宿主真实验收已通过并归档。
+
+- [0348 API 声明索引](active/0348-api-documentation.md)：v0.45 解析器导出与既有教程示例验证首片。

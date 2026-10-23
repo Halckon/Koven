@@ -119,12 +119,13 @@ class CompositionContracts(unittest.TestCase):
             self.assertEqual(1, targets.count(target))
         self.assertEqual(23, len(cargo))
         self.assertEqual(["python3 scripts/check_tutorial.py",
-                          "python3 scripts/check_kovenlings.py"],
+                          "python3 scripts/check_kovenlings.py",
+                          "python3 scripts/check_api_examples.py"],
                          [line for line in calls if line.startswith("python3 ")])
 
     def test_each_phase_propagates_failure_and_stops_following_phases(self):
         # Failure stubs are CI-only; local authoring inspects this contract as text.
-        for fail in ("--lib", "lang-codegen", "lang-cli", "ownership_iteration", "numeric_literals", "parser_class_family", "parser_prefix_truncation_matrix", "parser_long_invalid_number_boundaries", "parser_token_inventory", "guide_litmus", "check_tutorial", "check_kovenlings"):
+        for fail in ("--lib", "lang-codegen", "lang-cli", "ownership_iteration", "numeric_literals", "parser_class_family", "parser_prefix_truncation_matrix", "parser_long_invalid_number_boundaries", "parser_token_inventory", "guide_litmus", "check_tutorial", "check_kovenlings", "check_api_examples"):
             with self.subTest(fail=fail):
                 status, calls = self.invoke(fail)
                 self.assertEqual(37, status)
@@ -134,9 +135,11 @@ class CompositionContracts(unittest.TestCase):
                         "cargo test --locked -p lang-codegen",
                         "cargo test --locked -p lang-cli --no-fail-fast",
                     ], calls)
-                if fail != "check_kovenlings":
+                if fail != "check_api_examples":
+                    self.assertFalse(any("check_api_examples.py" in line for line in calls))
+                if fail not in ("check_kovenlings", "check_api_examples"):
                     self.assertFalse(any("check_kovenlings.py" in line for line in calls))
-                if fail not in ("check_tutorial", "check_kovenlings"):
+                if fail not in ("check_tutorial", "check_kovenlings", "check_api_examples"):
                     self.assertFalse(any("check_tutorial.py" in line for line in calls))
 
 

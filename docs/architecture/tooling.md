@@ -9,7 +9,7 @@
 当前公开路径包括：
 
 - 单文件 `build` / `run`，接收显式 source、可选 source-root、entry 和输出选择；
-- `format` / `format --check`，结果写 stdout，不原地改文件；
+- `format` / `format --check` 不原地改文件；`doc` 导出 syntax-only 声明 JSON，见 [API 入口](../tutorials/api/README.md)；
 - `--message-format=json` 的版本化 JSON Lines 语言诊断；
 - 显式 `project.toml` 的本地 project build/run。
 

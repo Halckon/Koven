@@ -976,6 +976,7 @@
   <path d="M 1884 6668 C 6160 6668, 6160 6824, 10436 6824" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 708 5966, 708 5998" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 2028 188, 2028 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 6372 92 C 8404 92, 8404 257, 10436 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 444 500, 444 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 2028 5672, 2028 5704" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 972 5828, 972 5860" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2454,4 +2455,8 @@
   <text x="2028" y="243" text-anchor="middle" font-size="13">SPEC-0347</text>
   <text x="2028" y="261" text-anchor="middle" font-size="13">本地 Kovenlings </text>
   <text x="2028" y="279" text-anchor="middle" font-size="13">首片</text>
+  <rect x="10436" y="220" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="10556" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0348</text>
+  <text x="10556" y="261" text-anchor="middle" font-size="13">API 声明索引与教程示例协</text>
+  <text x="10556" y="279" text-anchor="middle" font-size="13">议首片</text>
 </svg>

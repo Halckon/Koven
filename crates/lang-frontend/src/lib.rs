@@ -29,3 +29,6 @@ pub mod source;
 
 /// v0.22 基础类型检查、局部推导与 typed 产物。
 pub mod type_checking;
+
+/// Syntax-only top-level declaration views for documentation consumers.
+pub mod declaration_index;
