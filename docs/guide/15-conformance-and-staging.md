@@ -138,11 +138,11 @@ Phase 2 发布稳定 subject、剩余域、alternative 交集及 assertion Abort
 Phase 3 消费这些事实发布 view/extraction、move/loan/drop 与 branch join 事实；
 Phase 4 只消费已验证产物，不重新解释条件或推导所有权。
 
-Nullable flow 与 extraction 的 frontend facts/ownership 适用于所有已接受的 nullable 类型；首轮 native 实施只覆盖
+Nullable flow 与 extraction 的 frontend facts/ownership 适用于所有已接受的 nullable 类型；native 实施按表示分批推进，首轮覆盖
 ADR-0017 已支持、且由 owned whole-root/temporary 承载的普通 class、`Box`、`Rc` pointer-like
 nullable。pointer-like Borrow/Inout/field/element subject 的 proof lowering 等待 nullable-place/
 loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定其 frontend 合法性。
-scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
+scalar/value/enum/String/顺序容器等 inline/tagged nullable 在独立 SSA/LLVM ABI ADR 接受后由后继 Spec 接入；
 Elvis、safe call、`as?`、nullable function value、条件借用结果和跨 nullable 的 place-return
 也继续延后。普通确定借用 nullable 存储与条件借用结果不同；v0.42 的普通结果合同见
 [§28](10-ownership-borrowing-drop.md)，阶段接线依照 [ADR-0029](../adr/accepted/0029-ordinary-borrow-result-continuation.md)。

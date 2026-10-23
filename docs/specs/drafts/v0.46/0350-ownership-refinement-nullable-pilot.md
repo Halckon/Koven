@@ -12,7 +12,7 @@
 | 基线 | `feature/spec-0349-builtin-result` 合并 main `1a200aaa` |
 | 分支 | `feature/spec-0350-ownership-refinement` |
 | 前置 ADR | [ADR-0032](../../../adr/proposed/0032-ownership-refinement-layer.md)（细化层）、[ADR-0033](../../../adr/proposed/0033-inline-nullable-representation.md)（inline nullable 表示），均为 proposed |
-| 阻塞项 | ADR-0032、ADR-0033 未 accepted；§8 的分流与删除策略待用户确认。确认前不实施 |
+| 阻塞项 | ADR-0032、ADR-0033 未 accepted；§8 第 3 项（String niche）待用户确认。确认前不实施 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
@@ -120,13 +120,14 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 
 - 细化层首片要承接子集内的基础构造（调用、算术、控制流），工作量主要在这里，nullable 本身反而较小；
 - SSA 构造需与 verifier 的 loan 规则逐项对齐，可能暴露现有事实的缺口；
-- Guide 15 写“首轮 native 实施只覆盖”pointer-like nullable，同时允许 inline nullable 经独立 ADR 与后继
-  Spec 推进；本片按后者理解，如用户认为需要先改 Guide 15，则阻塞到 Guide 修订。
+- Guide 15 原写“首轮 native 实施只覆盖”pointer-like nullable，同时允许 inline nullable 经独立 ADR 与
+  后继 Spec 推进。2026-10-23 按用户要求做了不改含义的表述澄清（native 按表示分批推进，inline nullable
+  在 ADR 接受后由后继 Spec 接入），不提升 Guide 版本；Elvis 等的延后不变。
 
-## 8. 待用户确认
+## 8. 用户决定与待确认
 
-1. 迁移期按函数确定性预检分流（§2.4），终态删除旧函数体路径；还是要求新层覆盖 `unit_lower` 现有
-   全部能力后一次性切换。
-2. 已迁移家族的旧模块在最后一个消费者迁走时删除（§4），不保留兼容层。
-3. ADR-0033 中 String 的 niche 用 `capacity == usize::MAX`，而不是 bytes 指针：现行实现用 null bytes 表示空串；
-   容器 buffer 在空时使用非 null sentinel，可以直接用指针 niche。
+1. 已确认（2026-10-23）：迁移期按函数确定性预检分流（§2.4）——函数体全在已迁移子集内走新层，
+   否则走旧路径，逐家族迁移；终态删除旧函数体路径与预检。
+2. 已确认（2026-10-23）：已迁移家族的旧模块在最后一个消费者迁走时删除（§4），不保留兼容层。
+3. 待确认：ADR-0033 中 String 的 niche 用 `capacity == usize::MAX` 哨兵，还是把空串改为非 null
+   sentinel 指针后用 `bytes == null` 作 niche。容器 buffer 在空时已使用非 null sentinel，直接用指针 niche。
