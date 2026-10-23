@@ -374,7 +374,7 @@ fn single_resource_deinit_nested_copy_keeps_generic_receivers_unsupported() {
 #[test]
 fn single_resource_deinit_nested_copy_rejects_move_only_and_exclusive_access() {
     for (body, code, fragment) in [
-        ("consume(this.inner.payload)", "L0132", "this.inner.payload"),
+        ("consume(this.inner.payload)", "L0132", "payload"),
         ("update(&this.inner.code)", "L0134", "&"),
     ] {
         let source = format!(
@@ -392,10 +392,17 @@ fn single_resource_deinit_nested_copy_rejects_move_only_and_exclusive_access() {
         };
         assert_eq!(*stage, "ownership");
         assert_eq!(diagnostic.code().to_string(), code);
+        // Member consumption reports its final name_span; Inout reports the '&' marker.
+        // Anchor both to the actual body access, never the same-named field declaration.
+        let span = diagnostic.primary_span();
         assert_eq!(
-            rejection.sources.slice(diagnostic.primary_span()),
-            Ok(fragment)
+            rejection.sources.source_text(span.source_id()),
+            Ok(source.as_str())
         );
+        assert_eq!(rejection.sources.slice(span), Ok(fragment));
+        assert_eq!(source.matches(body).count(), 1);
+        let start = source.find(body).unwrap() + body.find(fragment).unwrap();
+        assert_eq!((span.start(), span.end()), (start, start + fragment.len()));
     }
 }
 

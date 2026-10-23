@@ -2,11 +2,12 @@
 use super::*;
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use crate::ssa::model::{
-    Definition, EntityId, EntityType, Function, Instruction, LoanKind, Program, SsaTypeKind,
-    ValueId,
+    Definition, EntityId, EntityType, Function, Instruction, LoanKind, Origin, Program,
+    SsaTypeKind, ValueId,
 };
 use lang_frontend::{
-    name_resolution::SymbolKind, ownership_checking::ConstructionDeliveryKind,
+    name_resolution::SymbolKind,
+    ownership_checking::{ConstructionDeliveryKind, UnitDropPoint, UnitDropTarget},
     type_checking::UnitConstructionTarget,
 };
 
@@ -257,19 +258,64 @@ fn assert_nullable_field_exchange(analysis: &UnitSource, program: &Program) {
     }
     assert_ne!(old, initial_value);
     assert_ne!(old, replacement_value);
+    let [holder_fact, old_fact] = analysis.ownership().drops() else {
+        panic!("原 source 只发布父 owner 与未使用 old 的两个 drop fact");
+    };
+    let holder_symbol = replacement_plan.place().root();
+    assert_eq!(holder_fact.target(), UnitDropTarget::Named(holder_symbol));
+    assert_eq!(
+        holder_fact.point(),
+        UnitDropPoint::CallReturn(loan_fact.call())
+    );
+    let UnitDropTarget::Named(old_symbol) = old_fact.target() else {
+        panic!("exchange 返回值归属原 old binding，不是匿名 temporary");
+    };
+    assert_ne!(old_symbol, holder_symbol);
+    assert_eq!(old_symbol.source_unit(), holder_symbol.source_unit());
+    let UnitDropPoint::AfterStatement(old_statement) = old_fact.point() else {
+        panic!("未使用 old 在其 local statement 完成后析构");
+    };
+    assert_eq!(old_statement.source_unit(), loan_fact.call().source_unit());
+    for (fact, start, end, text) in [
+        (holder_fact, 107, 113, "holder"),
+        (old_fact, 136, 139, "old"),
+    ] {
+        let expected = analysis
+            .sources()
+            .span(span.source_id(), start, end)
+            .unwrap();
+        assert_eq!(analysis.sources().slice(expected), Ok(text));
+        assert_eq!(fact.value_origin(), expected);
+    }
     let drops = function
         .instructions
         .iter()
-        .filter_map(|instruction| match instruction.operation {
-            Operation::Drop { owner } => Some(owner),
-            _ => None,
-        })
+        .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
         .collect::<Vec<_>>();
+    let [holder_drop, old_drop] = drops.as_slice() else {
+        panic!("父 owner 与旧字段各 drop 一次；已移交的 inner/wrapper 不再独立 drop");
+    };
     assert_eq!(
-        drops,
-        [old, holder_owner],
-        "旧字段与完整父 owner 各 drop 一次；已移交的 inner/wrapper 不再独立 drop"
+        holder_drop.operation,
+        Operation::Drop {
+            owner: holder_owner
+        }
     );
+    assert_eq!(old_drop.operation, Operation::Drop { owner: old });
+    assert_eq!(
+        holder_drop.origin,
+        Origin::Source(holder_fact.value_origin())
+    );
+    assert_eq!(old_drop.origin, Origin::Source(old_fact.value_origin()));
+    let position = |instruction: &Instruction| {
+        function.blocks[0]
+            .instructions
+            .iter()
+            .position(|id| *id == instruction.id)
+            .unwrap()
+    };
+    assert!(position(exchange) < position(holder_drop));
+    assert!(position(holder_drop) < position(old_drop));
     assert!(!function.instructions.iter().any(|instruction| matches!(
         instruction.operation,
         Operation::RootReplace { .. } | Operation::BorrowEnd { .. }

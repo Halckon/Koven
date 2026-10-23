@@ -524,8 +524,9 @@ fun entry(holder: Holder): Unit { when (holder.value) { null -> {}; else -> {} }
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        // Existing layout rejects the field name before When; not When-field coverage.
-        green_span: (31, 36),
+        // Ordinary nullable class fields now have layouts; field-When stays unsupported.
+        // Reject at the exact whole When before evaluating its field subject.
+        green_span: (79, 125),
     },
     Negative {
         name: "container-element",
