@@ -5,7 +5,10 @@ pub(in crate::ssa) mod borrowed_proof_cases;
 #[path = "if_cleanup_observation.rs"]
 mod if_cleanup_observation;
 
-use super::super::{integer_range_value_tests::collect_sources, verify::verify_program};
+use super::super::{
+    integer_range_value_tests::{collect_shape_boundaries, collect_sources},
+    verify::verify_program,
+};
 
 fn observe(group: &str, cases: &[(String, bool)]) {
     let sources = cases
@@ -251,7 +254,7 @@ fn direct_proof_sources() -> [String; 5] {
 
 fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>> {
     let sources = direct_proof_sources();
-    let observations = collect_sources(&sources);
+    let observations = collect_shape_boundaries(&sources);
     assert_eq!(observations.len(), sources.len() * 2);
     observations
         .into_iter()
@@ -918,7 +921,7 @@ fn numeric_for_preserves_the_outer_nullable_while_proof() {
     let source = numeric_nested_source();
     let grouped = source.replace("in 0..<2", "in ((0..<2))");
     let sources = [source, grouped];
-    let outcomes = collect_sources(&sources)
+    let outcomes = collect_shape_boundaries(&sources)
         .into_iter()
         .enumerate()
         .map(|(index, result)| {
