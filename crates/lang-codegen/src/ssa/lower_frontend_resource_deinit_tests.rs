@@ -45,7 +45,7 @@ impl ResourceUnit {
         let [function] = functions.as_slice() else {
             panic!("expected one concrete function for original declaration {name}");
         };
-        *function
+        function
     }
 
     fn deinit(&self, name: &str) -> &Function {
@@ -75,7 +75,7 @@ impl ResourceUnit {
         let [function] = functions.as_slice() else {
             panic!("expected one registered deinit within original class {name}");
         };
-        *function
+        function
     }
 }
 
