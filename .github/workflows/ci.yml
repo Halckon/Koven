@@ -248,6 +248,7 @@ jobs:
       - name: Set up LLVM 21
         id: llvm
         uses: ./.github/actions/setup-llvm
+        timeout-minutes: 10
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.96.0'
@@ -279,6 +280,7 @@ jobs:
       - name: Set up LLVM 21
         id: llvm
         uses: ./.github/actions/setup-llvm
+        timeout-minutes: 10
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.96.0'
@@ -337,6 +339,7 @@ jobs:
         with:
           python-version: '3.12'
       - uses: ./.github/actions/setup-llvm
+        timeout-minutes: 10
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.96.0'
@@ -460,6 +463,7 @@ jobs:
       - name: Verify Ubuntu system Python
         run: /usr/bin/python3 -c 'import sys; assert sys.version_info[:2] == (3, 12)'
       - uses: ./.github/actions/setup-llvm
+        timeout-minutes: 10
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.96.0'

@@ -30,7 +30,8 @@ mktemp() { [[ $# == 0 ]] || return 97; printf '%s/key\n' "$MOCK_ROOT"; }
 rm() { record rm "$@"; [[ "$*" == "-f $MOCK_ROOT/key" ]]; }
 curl() {
   record curl "$@"
-  [[ "$*" == "--fail --silent --show-error --location --retry 3 https://apt.llvm.org/llvm-snapshot.gpg.key -o $MOCK_ROOT/key" ]]
+  [[ "$MOCK_MODE" != key_failure ]] || return 28
+  [[ "$*" == "--fail --silent --show-error --location --connect-timeout 15 --max-time 60 --retry 2 --retry-max-time 180 https://apt.llvm.org/llvm-snapshot.gpg.key -o $MOCK_ROOT/key" ]]
 }
 gpg() {
   record gpg "$@"
@@ -45,13 +46,19 @@ gpg() {
 }
 sudo() {
   record sudo "$@"
+  if [[ "$1" == apt-get ]]; then
+    [[ "${*:2:6}" == '-o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30' ]] || return 97
+    set -- "$1" "${@:8}"
+  fi
   case "$1 $2" in
     'install -m') [[ "$*" == "install -m 0644 $MOCK_ROOT/key /usr/share/keyrings/koven-llvm.asc" ]] ;;
     'tee /etc/apt/sources.list.d/koven-llvm.list')
       local line
       IFS= read -r line
       [[ "$line" == 'deb [arch=amd64 signed-by=/usr/share/keyrings/koven-llvm.asc] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' ]] ;;
-    'apt-get update') [[ $# == 2 ]] ;;
+    'apt-get -o')
+      [[ "$*" == 'apt-get -o APT::Update::Error-Mode=any update' ]] || return 97
+      [[ "$MOCK_MODE" != update_failure ]] || return 100 ;;
     'apt-get install')
       [[ "$MOCK_MODE" != install_failure ]] || return 100
       mock_installed=1 ;;
@@ -168,7 +175,7 @@ class PreviewDependencyInstaller(unittest.TestCase):
 
     @staticmethod
     def installs(calls):
-        return [call for call in calls if call[:3] == ['sudo', 'apt-get', 'install']]
+        return [call for call in calls if call[:2] == ['sudo', 'apt-get'] and 'install' in call]
 
     def test_verified_pins_are_literal(self):
         script = INSTALLER.read_text(encoding='utf-8')
@@ -180,7 +187,9 @@ class PreviewDependencyInstaller(unittest.TestCase):
     def test_exact_package_and_actual_bytes_are_required(self):
         result, calls = self.run_installer()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.installs(calls), [['sudo', 'apt-get', 'install', '--yes',
+        self.assertEqual(self.installs(calls), [['sudo', 'apt-get', '-o', 'Acquire::Retries=2',
+                         '-o', 'Acquire::http::Timeout=30', '-o', 'Acquire::https::Timeout=30',
+                         'install', '--yes',
                          '--no-install-recommends', *[f'{name}={LLVM_VERSION}' for name in
                          ('llvm-21-dev', 'clang-21', 'libclang-cpp21', 'libclang-rt-21-dev')],
                          f'liblzma5:amd64={LZMA_VERSION}', 'build-essential']])
@@ -208,6 +217,14 @@ class PreviewDependencyInstaller(unittest.TestCase):
     def test_identical_index_entries_do_not_create_a_false_conflict(self):
         result, _ = self.run_installer('duplicate_index')
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_network_failure_never_uses_stale_indexes_or_installs(self):
+        for mode, code in (('key_failure', 28), ('update_failure', 100)):
+            with self.subTest(mode=mode):
+                result, calls = self.run_installer(mode)
+                self.assertEqual(result.returncode, code)
+                self.assertEqual(self.installs(calls), [])
+                self.assertFalse(any(call[0] in ('apt-cache', 'llvm-config') for call in calls))
 
     def test_install_failure_never_retries_or_verifies_success(self):
         result, calls = self.run_installer('install_failure')
