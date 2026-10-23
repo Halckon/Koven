@@ -11,9 +11,9 @@
 - 单文件 `build` / `run`，接收显式 source、可选 source-root、entry 和输出选择；
 - `format` / `format --check` 不原地改文件；`doc` 导出 syntax-only 声明 JSON，见 [API 入口](../tutorials/api/README.md)；
 - `--message-format=json` 的版本化 JSON Lines 语言诊断；
-- 显式 `project.toml` 的本地 project build/run。
+- 显式 `project.toml` 的本地 project build/run；`source-set --project <project.toml>` 导出 ADR-0021 v1 base JSON。
 
-project loader 校验 version 1 manifest、root/logical path、symlink/overlap 和 physical file identity，发布稳定只读 source set。
+project loader 校验 version 1 manifest、root/logical path、symlink/overlap 和 physical file identity；导出保留完整文本与逻辑身份，以 canonical file URI 展示，不分析源码。
 std 注册后的原 SourceMap 移入 `UnitNameSnapshot`，统一拥有源码、语法、环境与名称事实。
 `project_build` 与 single bootstrap 共用 `unit_build`，借 snapshot/同轮类型环境推进；标准 loader/core 共用中立错误，CLI 不从 cwd/祖先猜 manifest。
 共同链在完整 names 前缀后 gate；typed diagnostics 由宿主拦截且先于 entry，再由 `complete_compilation_unit_types`

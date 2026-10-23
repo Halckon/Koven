@@ -9,7 +9,7 @@ mod names_model;
 pub use diagnostic_order::{UnitDiagnosticOrderError, ordered_unit_diagnostics};
 pub use index::{
     CompilationUnitInputError, LogicalPathError, index_compilation_unit,
-    package_path_mismatch_diagnostic,
+    package_path_mismatch_diagnostic, validate_logical_path,
 };
 pub use model::*;
 pub use names::*;
