@@ -50,6 +50,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | loan、move、capture、drop facts | [所有权](ownership.md) |
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
+| 所有权细化层、子集分流与 inline nullable 表示 | [所有权细化层](ownership-refinement.md) |
 | N1a 连续范围的类型、来源与阶段能力门 | [范围 carrier](range-carrier.md) |
 | 普通借用结果的短期同步实参消费与source终止 | [同步Borrow实参](synchronous-borrow-result-arguments.md) |
 | 普通多参数唯一来源 Borrow 返回与调用分流 | [多参数借用返回](multi-parameter-borrow-results.md) |

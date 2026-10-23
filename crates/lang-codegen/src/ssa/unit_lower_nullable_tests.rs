@@ -136,7 +136,9 @@ fn assert_original_borrow(program: &Program, entry: FunctionId, use_span: Span) 
         .iter()
         .filter_map(|block| {
             let terminator = block.terminator.as_ref()?;
-            if original(terminator.origin.span()).starts_with("if (n != null)")
+            // SPEC-0350: `main` is inside the refinement subset, which attributes the
+            // proof branch to the null comparison of the outer `if`.
+            if original(terminator.origin.span()) == "n != null"
                 && matches!(terminator.kind, TerminatorKind::NullableBranch { .. })
             {
                 Some((block.id, &terminator.kind))

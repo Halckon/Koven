@@ -56,18 +56,78 @@ fn uses_and_defs(body: &RefinedBody, block: BlockRef) -> (BTreeSet<Slot>, BTreeS
     (uses, defs)
 }
 
+/// Abort blocks reached from a two-way branch, mapped to the branch's other target.
+fn abort_siblings(body: &RefinedBody, reachable: &[BlockRef]) -> BTreeMap<BlockRef, BlockRef> {
+    let mut siblings = BTreeMap::new();
+    for block in reachable {
+        let Some((terminator, _)) = &body.blocks[block.0].terminator else {
+            continue;
+        };
+        if let [first, second] = terminator.successors()[..] {
+            for (abort, other) in [(first, second), (second, first)] {
+                if matches!(body.blocks[abort.0].terminator, Some((RTerm::Abort(_), _))) {
+                    siblings.insert(abort, other);
+                }
+            }
+        }
+    }
+    siblings
+}
+
+/// Folds a block into its `Goto` predecessor when that predecessor is its only one, so
+/// no SSA block merely forwards its parameters.
+fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, LoweringError> {
+    let mut body = body.clone();
+    loop {
+        let reachable = reachable(&body, span)?;
+        let mut predecessors: BTreeMap<BlockRef, usize> = BTreeMap::new();
+        for block in &reachable {
+            let (terminator, _) = body.blocks[block.0].terminator.as_ref().expect("reachable");
+            for successor in terminator.successors() {
+                *predecessors.entry(successor).or_default() += 1;
+            }
+        }
+        let candidate = reachable.iter().find_map(|block| {
+            match body.blocks[block.0].terminator.as_ref().expect("reachable") {
+                (RTerm::Goto(successor), _)
+                    if successor != block
+                        && successor.0 != 0
+                        && predecessors.get(successor) == Some(&1)
+                        && body.blocks[successor.0].view.is_none() =>
+                {
+                    Some((*block, *successor))
+                }
+                _ => None,
+            }
+        });
+        let Some((block, successor)) = candidate else {
+            return Ok(body);
+        };
+        let folded = std::mem::take(&mut body.blocks[successor.0]);
+        let target = &mut body.blocks[block.0];
+        target.statements.extend(folded.statements);
+        target.terminator = folded.terminator;
+    }
+}
+
 fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
     let reachable = reachable(body, span)?;
     let local: BTreeMap<_, _> = reachable
         .iter()
         .map(|block| (*block, uses_and_defs(body, *block)))
         .collect();
+    let siblings = abort_siblings(body, &reachable);
     let mut live_in: BTreeMap<BlockRef, BTreeSet<Slot>> = BTreeMap::new();
     loop {
         let mut changed = false;
         for block in reachable.iter().rev() {
             let (uses, defs) = &local[block];
             let mut live = uses.clone();
+            if let Some(sibling) = siblings.get(block) {
+                // An abort edge carries every owner the other edge continues with, so
+                // nothing is left unaccounted at the branch.
+                live.extend(live_in.get(sibling).into_iter().flatten().copied());
+            }
             let (terminator, _) = body.blocks[block.0].terminator.as_ref().expect("reachable");
             for successor in terminator.successors() {
                 for slot in live_in.get(&successor).into_iter().flatten() {
@@ -209,6 +269,21 @@ impl Emitter<'_> {
                 owner: self.value(*owner, span)?,
                 proof: loan(self.get(*proof, span)?, span)?,
             },
+            ROp::AggregateConstruct { aggregate, fields } => Operation::AggregateConstruct {
+                aggregate: *aggregate,
+                fields: fields
+                    .iter()
+                    .map(|slot| self.value(*slot, span))
+                    .collect::<Result<_, _>>()?,
+            },
+            ROp::HeapAllocate { owner, payload } => Operation::HeapAllocate {
+                owner: *owner,
+                payload: self.value(*payload, span)?,
+            },
+            ROp::HeapFieldRead { receiver, field } => Operation::HeapFieldRead {
+                receiver: loan(self.get(*receiver, span)?, span)?,
+                field: *field,
+            },
         })
     }
 }
@@ -222,6 +297,8 @@ pub(super) fn emit(
     span: Span,
 ) -> Result<(), LoweringError> {
     let invalid = |_| error(LoweringErrorKind::InvalidModel, span);
+    let merged = merge_straight_lines(body, span)?;
+    let body = &merged;
     let Shape { reachable, live_in } = shape(body, span)?;
     if entry_parameters.len() != body.parameters.len() {
         return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -313,6 +390,17 @@ pub(super) fn emit(
                             operator: *operator,
                             divisor,
                         },
+                        origin,
+                    )
+                    .map_err(model_error)?;
+                continue;
+            }
+            RTerm::Abort(RAbort::NullAssertion) => {
+                emitter
+                    .function
+                    .set_abort_terminator(
+                        target,
+                        AbortReason::Text("null assertion failed".to_owned()),
                         origin,
                     )
                     .map_err(model_error)?;

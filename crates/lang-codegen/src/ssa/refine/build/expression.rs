@@ -55,7 +55,10 @@ impl Builder<'_, '_> {
         Ok(result)
     }
 
-    fn required(&mut self, expression: ExpressionId) -> Result<Option<Slot>, LoweringError> {
+    pub(super) fn required(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<Option<Slot>, LoweringError> {
         match self.expression(expression)? {
             Lowered::Value(slot) => Ok(Some(slot)),
             Lowered::Diverged => Ok(None),
@@ -69,8 +72,22 @@ impl Builder<'_, '_> {
         self.value(op, EntityType::Value(ty), span)
     }
 
-    fn expression_inner(&mut self, expression: ExpressionId) -> Result<Lowered, LoweringError> {
+    pub(super) fn expression_inner(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<Lowered, LoweringError> {
         let (payload, span) = self.node(expression)?;
+        let id = self.unit(expression);
+        let typed = self.inputs.typed;
+        if typed.construction(id).is_some() {
+            return self.construction(expression, span);
+        }
+        if typed.aggregate_projection(id).is_some() {
+            return self.projection(expression, span);
+        }
+        if typed.non_null_assertion(id).is_some() {
+            return self.non_null_assertion(expression, span);
+        }
         match payload {
             Expression::Group { expression: inner } => self.expression(inner),
             Expression::Literal(literal) => self.literal(literal, expression, span),
@@ -185,7 +202,10 @@ impl Builder<'_, '_> {
     }
 
     /// The active proof view for a MoveOnly non-null name use.
-    fn narrowed_view(&self, expression: ExpressionId) -> Result<Option<Slot>, LoweringError> {
+    pub(super) fn narrowed_view(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<Slot>, LoweringError> {
         let (payload, span) = self.node(expression)?;
         let Expression::Name = payload else {
             return Ok(None);
@@ -507,14 +527,17 @@ impl Builder<'_, '_> {
                     lowered.push(value);
                 }
                 ParameterMode::Borrow => {
+                    let value = self.adapt_borrowed(value, value_expression, argument)?;
                     let target = self.body.slots[value.0];
                     let EntityType::Value(target) = target else {
                         return Err(error(LoweringErrorKind::InvalidModel, span));
                     };
+                    // The loan originates at the borrowed argument; it ends at the call.
+                    let argument_span = self.span(value_expression);
                     let place = self.value(
                         ROp::RootPlace { owner: value },
                         EntityType::Place(target),
-                        span,
+                        argument_span,
                     )?;
                     let loan = self.value(
                         ROp::BorrowBegin {
@@ -525,7 +548,7 @@ impl Builder<'_, '_> {
                             kind: LoanKind::Shared,
                             target,
                         },
-                        span,
+                        argument_span,
                     )?;
                     loans.push(loan);
                     lowered.push(loan);
@@ -578,6 +601,23 @@ impl Builder<'_, '_> {
             self.drops(UnitDropPoint::AfterExpression(self.unit(argument)))?;
         }
         Ok(result)
+    }
+
+    /// A Borrow argument of type `T` for a `T?` parameter: the temporary is wrapped and
+    /// its drop obligation moves to the wrapper.
+    fn adapt_borrowed(
+        &mut self,
+        value: Slot,
+        expression: ExpressionId,
+        argument: &lang_frontend::type_checking::UnitCallArgumentDescriptor,
+    ) -> Result<Slot, LoweringError> {
+        let id = self.unit(expression);
+        let temporary = self.temporaries.contains_key(&id);
+        let adapted = self.adapt(value, expression, argument.parameter_type())?;
+        if adapted != value && temporary {
+            self.temporaries.insert(id, adapted);
+        }
+        Ok(adapted)
     }
 
     fn assignment(

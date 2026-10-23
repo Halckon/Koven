@@ -771,13 +771,12 @@ fun entry(own initial: Holder?): Int {
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 4);
-    for outcome in outcomes.iter().take(3) {
+    // SPEC-0350: the unit prefix frame used to stop with UnsupportedNode at `current`;
+    // `entry` now lies in the refinement subset (class nullable view + field read), so
+    // the populated call frame reaches verified LLVM in both layouts as well.
+    for outcome in &outcomes {
         assert!(outcome.is_ok(), "accepted value argument: {outcome:?}");
     }
-    assert_eq!(
-        outcomes[3].as_ref().unwrap_err(),
-        "lower: LoweringError { kind: UnsupportedNode, span: Some(Span { source_id: SourceId(0), start: 159, end: 166 }) }"
-    );
 }
 
 pub(in crate::ssa) fn pending_child_source() -> String {

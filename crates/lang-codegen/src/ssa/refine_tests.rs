@@ -22,9 +22,17 @@ fn run(source: &str) -> (String, Option<i32>) {
     )
 }
 
-/// Lowers a single-source unit twice (forward and reversed inputs are identical here)
+/// Lowers a single-source unit twice, checks determinism and the inline nullable type,
 /// and returns the rendered program.
 fn render(source: &str) -> String {
+    let (rendered, inline) = render_branching(source);
+    assert!(inline, "{rendered}");
+    rendered
+}
+
+/// Lowers twice, checks determinism and a `NullableBranch`; reports whether an inline
+/// nullable type was interned.
+fn render_branching(source: &str) -> (String, bool) {
     let mut sources = SourceMap::new();
     let text = format!("package p\n{source}");
     let (id, file) = parsed(&mut sources, "p/main.ko", &text);
@@ -49,13 +57,10 @@ fn render(source: &str) -> String {
     let rendered = render_program(&program);
     assert_eq!(rendered, render_program(&again), "deterministic output");
     let module = &program.modules[0];
-    assert!(
-        module
-            .types
-            .iter()
-            .any(|kind| matches!(kind, SsaTypeKind::InlineNullable { .. })),
-        "{rendered}"
-    );
+    let inline = module
+        .types
+        .iter()
+        .any(|kind| matches!(kind, SsaTypeKind::InlineNullable { .. }));
     assert!(
         module
             .functions
@@ -66,7 +71,7 @@ fn render(source: &str) -> String {
             ))),
         "{rendered}"
     );
-    rendered
+    (rendered, inline)
 }
 
 #[test]
@@ -172,4 +177,61 @@ fn nullable_string_owner_is_freed_once_on_both_edges() {
     }"#;
     render(source);
     counted(source, 2, b"hit\nnone\nequal\n");
+}
+
+const NODE: &str =
+    "class Node(val v: Int)\n    fun pick(flag: Boolean): Node? = if (flag) Node(5) else null\n";
+
+#[test]
+fn class_nullable_view_field_read_and_bang_bang_free_each_owner_once() {
+    let source = format!(
+        r#"{NODE}fun main(): Unit {{
+        val a = pick(true)
+        if (a != null) {{ if (a.v == 5) {{ println("smart") }} }}
+        val b = pick(true)!!
+        if (b.v == 5) {{ println("bangbang") }}
+        val c = pick(true)
+        val d = c!!
+        if (d.v == 5) {{ println("root") }}
+    }}"#
+    );
+    let (rendered, inline) = render_branching(&source);
+    assert!(
+        !inline,
+        "a pointer-like nullable needs no inline type: {rendered}"
+    );
+    assert!(rendered.contains("heap.field_read"), "{rendered}");
+    counted(&source, 3, b"smart\nbangbang\nroot\n");
+}
+
+#[test]
+fn bang_bang_on_null_aborts_at_the_assertion() {
+    let source = format!(
+        r#"{NODE}fun main(): Unit {{ val b = pick(false)!!; if (b.v == 5) {{ println("unreachable") }} }}"#
+    );
+    let output = crate::native_tests::emit_link_and_run("refine.ko", &source, "main");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: null assertion failed\n  at "),
+        "{stderr:?}"
+    );
+}
+
+#[test]
+fn checked_arithmetic_abort_edge_carries_live_owners() {
+    let source = r#"fun main(): Unit {
+        val s: String? = "a" + "b"
+        var x: Int? = 2147483647
+        if (x != null) { val y = x + 1; if (y == 0) { println("unreachable") } }
+        if (s != null) { println(s) }
+    }"#;
+    render(source);
+    let output = crate::native_tests::emit_link_and_run("refine.ko", source, "main");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: integer overflow in +\n  at "),
+        "{stderr:?}"
+    );
 }

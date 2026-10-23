@@ -2,6 +2,7 @@
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
 mod condition;
 mod expression;
+mod heap;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -17,7 +18,7 @@ use lang_frontend::{
 };
 
 use super::{
-    RefineBody, RefineInputs,
+    RefineBody, RefineInputs, RefineTypes,
     body::{BlockRef, ROp, RStmt, RTerm, RefinedBody, Slot},
 };
 use crate::ssa::{
@@ -34,7 +35,7 @@ pub(super) enum Lowered {
 
 pub(super) struct Builder<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
-    type_ids: &'i BTreeMap<UnitTypeId, SsaTypeId>,
+    types: &'i RefineTypes<'i>,
     body: RefinedBody,
     /// `None` after a terminator: the rest of the sequence is unreachable.
     block: Option<BlockRef>,
@@ -62,11 +63,11 @@ pub(super) struct View {
 pub(super) fn build(
     inputs: &RefineInputs<'_>,
     entities: &[crate::ssa::model::EntityId],
-    type_ids: &BTreeMap<UnitTypeId, SsaTypeId>,
+    types: &RefineTypes<'_>,
 ) -> Result<RefinedBody, LoweringError> {
     let mut builder = Builder {
         inputs,
-        type_ids,
+        types,
         body: RefinedBody::default(),
         block: None,
         bindings: BTreeMap::new(),
@@ -150,7 +151,8 @@ impl Builder<'_, '_> {
     }
 
     fn ssa_type(&self, ty: UnitTypeId, span: Span) -> Result<SsaTypeId, LoweringError> {
-        self.type_ids
+        self.types
+            .type_ids
             .get(&ty)
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
@@ -337,7 +339,11 @@ impl Builder<'_, '_> {
     }
 
     /// Views must not outlive their owner: end them before it is dropped or moved.
-    fn end_views_of(&mut self, symbol: UnitSymbolId, span: Span) -> Result<(), LoweringError> {
+    pub(super) fn end_views_of(
+        &mut self,
+        symbol: UnitSymbolId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
         let (ended, kept): (Vec<View>, Vec<View>) = self
             .active_views
             .drain(..)

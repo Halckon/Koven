@@ -1,6 +1,8 @@
 //! Deterministic precheck for the migrated subset (SPEC-0350 §3). It reads typed and
 //! ownership facts plus AST construct kinds; it never runs lowering. Anything outside
 //! the subset keeps the existing per-family path.
+mod heap;
+
 use std::collections::BTreeSet;
 
 use lang_frontend::{
@@ -12,13 +14,15 @@ use lang_frontend::{
         PrefixOperator, Statement,
     },
     type_checking::{
-        BuiltinType, Copyability, ParameterMode, UnitCallTarget, UnitExpressionId, UnitTypeId,
-        UnitTypeKind,
+        BuiltinType, Copyability, NominalKind, ParameterMode, UnitCallTarget, UnitExpressionId,
+        UnitNominalSignature, UnitTypeId, UnitTypeKind,
     },
 };
 
 use super::{RefineBody, RefineInputs};
-use crate::ssa::lowering_support::string_literal;
+use crate::ssa::{
+    lowering_support::string_literal, unit_plan::resolve_nominal_runtime_field_types,
+};
 
 struct Checker<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
@@ -26,8 +30,8 @@ struct Checker<'i, 'a> {
     known: BTreeSet<UnitSymbolId>,
     /// Expressions lowered in branch form, whose own drop points are never emitted.
     branch_form: BTreeSet<UnitExpressionId>,
-    /// Pilot routing gate: the function touches an inline nullable value.
-    inline_nullable: bool,
+    /// Pilot routing gate: the function touches a nullable value.
+    nullable: bool,
 }
 
 pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
@@ -35,7 +39,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         inputs,
         known: inputs.parameters.iter().copied().collect(),
         branch_form: BTreeSet::new(),
-        inline_nullable: false,
+        nullable: false,
     };
     for ty in inputs
         .parameters
@@ -43,24 +47,28 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         .filter_map(|symbol| inputs.typed.symbol_type(*symbol))
         .chain([inputs.return_type])
     {
-        checker.note_inline_nullable(ty);
+        checker.note_nullable(ty);
     }
     // Borrow parameters are read by copy, so only Copyable ones are in the subset.
-    let signature = inputs.parameters.iter().all(|symbol| {
-        inputs.typed.symbol_type(*symbol).is_some_and(|ty| {
-            checker.storage_type(ty)
-                && (inputs.typed.body_parameter_mode(*symbol) != Some(ParameterMode::Borrow)
-                    || inputs.typed.copyability(ty) == Copyability::Copyable)
-        })
-    }) && (checker.unit(inputs.return_type)
-        || checker.storage_type(inputs.return_type));
+    let signature = inputs.parameters.len() == inputs.borrowed.len()
+        && inputs
+            .parameters
+            .iter()
+            .zip(&inputs.borrowed)
+            .all(|(symbol, borrowed)| {
+                inputs.typed.symbol_type(*symbol).is_some_and(|ty| {
+                    checker.storage_type(ty)
+                        && (!borrowed || inputs.typed.copyability(ty) == Copyability::Copyable)
+                })
+            })
+        && (checker.unit(inputs.return_type) || checker.storage_type(inputs.return_type));
     signature
         && match inputs.body {
             RefineBody::Expression(expression) => checker.expression(expression),
             RefineBody::Block(statement) => checker.statement(statement),
         }
         && checker.drops_supported()
-        && checker.inline_nullable
+        && checker.nullable
 }
 
 /// Every storage type an accepted body uses, plus nullable inners and Boolean flags.
@@ -69,7 +77,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         inputs,
         known: BTreeSet::new(),
         branch_form: BTreeSet::new(),
-        inline_nullable: false,
+        nullable: false,
     };
     let Ok(item) = inputs.parsed.ast().items().get(inputs.function_item) else {
         return Vec::new();
@@ -155,20 +163,59 @@ impl Checker<'_, '_> {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if integer(*b))
     }
 
-    /// Types a slot may hold: scalars, String and Copyable scalar nullables.
+    /// A non-generic `class` whose fields are scalars or String.
+    fn class(&self, ty: UnitTypeId) -> bool {
+        self.class_fields(ty).is_some_and(|fields| {
+            fields
+                .iter()
+                .all(|field| self.scalar(*field) || self.string(*field))
+        })
+    }
+
+    /// Concrete field types of a non-generic `class`, in declaration order.
+    fn class_fields(&self, ty: UnitTypeId) -> Option<Vec<UnitTypeId>> {
+        let nominal = self.class_signature(ty)?;
+        resolve_nominal_runtime_field_types(self.inputs.typed, ty, nominal, &[]).ok()
+    }
+
+    fn class_signature(&self, ty: UnitTypeId) -> Option<&UnitNominalSignature> {
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = self.kind(ty)
+        else {
+            return None;
+        };
+        let nominal = self
+            .inputs
+            .typed
+            .signatures()
+            .declaration(*declaration)?
+            .nominal()?;
+        (arguments.is_empty()
+            && nominal.kind() == NominalKind::Class
+            && nominal.type_parameters().is_empty())
+        .then_some(nominal)
+    }
+
+    /// MoveOnly nullable inners are read through proof views.
+    fn view_inner(&self, ty: UnitTypeId) -> bool {
+        self.string(ty) || self.class(ty)
+    }
+
+    /// Types a slot may hold: scalars, String, plain classes and their nullables.
     fn storage_type(&self, ty: UnitTypeId) -> bool {
         match self.kind(ty) {
             Some(UnitTypeKind::Builtin(BuiltinType::String)) => true,
-            Some(UnitTypeKind::Nullable(inner)) => self.scalar(*inner) || self.string(*inner),
-            _ => self.scalar(ty),
+            Some(UnitTypeKind::Nullable(inner)) => self.scalar(*inner) || self.view_inner(*inner),
+            _ => self.scalar(ty) || self.class(ty),
         }
     }
 
-    /// Records whether the function handles an ADR-0033 inline nullable at all.
-    fn note_inline_nullable(&mut self, ty: UnitTypeId) {
-        if matches!(self.kind(ty), Some(UnitTypeKind::Nullable(inner)) if self.scalar(*inner) || self.string(*inner))
-        {
-            self.inline_nullable = true;
+    /// Records whether the function handles a nullable value at all.
+    fn note_nullable(&mut self, ty: UnitTypeId) {
+        if matches!(self.kind(ty), Some(UnitTypeKind::Nullable(_))) {
+            self.nullable = true;
         }
     }
 
@@ -186,13 +233,20 @@ impl Checker<'_, '_> {
         let typed = self.inputs.typed;
         typed.construction(id).is_none()
             && typed.aggregate_projection(id).is_none()
-            && typed.integer_operation(id).is_none()
+            && typed.non_null_assertion(id).is_none()
+            && self.unspecialized(expression)
+    }
+
+    /// No typed fact outside the class/assertion families claims the expression.
+    fn unspecialized(&self, expression: ExpressionId) -> bool {
+        let id = self.id(expression);
+        let typed = self.inputs.typed;
+        typed.integer_operation(id).is_none()
             && typed.integer_range_operation(id).is_none()
             && typed.string_operation(id).is_none()
             && typed.rc_operation(id).is_none()
             && typed.range_size(id).is_none()
             && typed.ownership_primitive(id).is_none()
-            && typed.non_null_assertion(id).is_none()
             && typed.nullable_when(id).is_none()
             && self.inputs.constant_owned.is_none_or(|owned| {
                 owned.materialization_at(id).is_none() && owned.short_circuit_at(id).is_none()
@@ -227,10 +281,20 @@ impl Checker<'_, '_> {
                 self.kind(ty),
                 Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
             );
-        if !self.plain(expression) || !(returns || self.unit(ty) || self.storage_type(ty)) {
+        if !self.unspecialized(expression) || !(returns || self.unit(ty) || self.storage_type(ty)) {
             return false;
         }
-        self.note_inline_nullable(ty);
+        self.note_nullable(ty);
+        let id = self.id(expression);
+        if self.inputs.typed.construction(id).is_some() {
+            return self.construction(expression);
+        }
+        if self.inputs.typed.aggregate_projection(id).is_some() {
+            return self.projection(expression);
+        }
+        if self.inputs.typed.non_null_assertion(id).is_some() {
+            return self.non_null_assertion(expression);
+        }
         match node.payload().clone() {
             Expression::Group { expression } => self.expression(expression),
             Expression::Literal(LiteralKind::Integer(_)) => self.integer_type(ty),
@@ -370,10 +434,10 @@ impl Checker<'_, '_> {
         });
         if let Some(fact) = self.inputs.typed.null_comparison(id) {
             self.branch_form.insert(id);
-            self.note_inline_nullable(fact.nullable_type());
+            self.note_nullable(fact.nullable_type());
             let inner_ok = match self.kind(fact.nullable_type()) {
                 Some(UnitTypeKind::Nullable(inner)) if self.scalar(*inner) => true,
-                Some(UnitTypeKind::Nullable(inner)) if self.string(*inner) => {
+                Some(UnitTypeKind::Nullable(inner)) if self.view_inner(*inner) => {
                     views && fact.non_null_when_true()
                 }
                 _ => false,
@@ -446,12 +510,30 @@ impl Checker<'_, '_> {
         let modes: Vec<_> = descriptor
             .arguments()
             .iter()
-            .map(|argument| (argument.argument_index(), argument.mode()))
+            .map(|argument| {
+                (
+                    argument.argument_index(),
+                    argument.mode(),
+                    argument.parameter_type(),
+                )
+            })
             .collect();
-        modes.into_iter().all(|(index, mode)| {
+        modes.into_iter().all(|(index, mode, parameter)| {
             let Some(value) = values.get(index).copied() else {
                 return false;
             };
+            // A borrowed MoveOnly value is wrapped for a nullable parameter only when it is
+            // a temporary whose drop obligation can move to the wrapper.
+            if mode == ParameterMode::Borrow
+                && self.expression_type(value).is_some_and(|actual| {
+                    actual != parameter
+                        && self.inputs.typed.copyability(actual) != Copyability::Copyable
+                })
+                && self.inputs.typed.expression_category(self.id(value))
+                    != Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+            {
+                return false;
+            }
             if mode == ParameterMode::Borrow
                 && let Some(fact) = self.inputs.typed.non_null_use(self.id(value))
                 && self.inputs.typed.copyability(fact.narrowed_type()) == Copyability::MoveOnly
@@ -548,7 +630,7 @@ impl Checker<'_, '_> {
         };
         let declared = self.inputs.typed.symbol_type(symbol);
         if let Some(ty) = declared {
-            self.note_inline_nullable(ty);
+            self.note_nullable(ty);
         }
         let supported = declared.is_some_and(|ty| self.storage_type(ty));
         self.known.insert(symbol);

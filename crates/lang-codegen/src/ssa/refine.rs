@@ -49,8 +49,10 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) function_item: ItemId,
     pub(in crate::ssa) body: RefineBody,
     pub(in crate::ssa) return_type: UnitTypeId,
-    /// Value-mode parameters in declaration order.
+    /// Parameters in declaration order.
     pub(in crate::ssa) parameters: Vec<UnitSymbolId>,
+    /// Per parameter: whether the caller passes a shared loan (Borrow mode).
+    pub(in crate::ssa) borrowed: Vec<bool>,
     pub(in crate::ssa) span: Span,
 }
 
@@ -64,6 +66,15 @@ pub(in crate::ssa) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId>
     subset::type_demands(inputs)
 }
 
+/// The unit's interned type identities, filled in after [`type_demands`].
+pub(in crate::ssa) struct RefineTypes<'t> {
+    pub(in crate::ssa) type_ids: &'t BTreeMap<UnitTypeId, SsaTypeId>,
+    /// Class owner type to its payload aggregate.
+    pub(in crate::ssa) heap_payloads: &'t BTreeMap<SsaTypeId, SsaTypeId>,
+    /// (owner type, field symbol) to payload field index.
+    pub(in crate::ssa) field_indices: &'t BTreeMap<(UnitTypeId, UnitSymbolId), usize>,
+}
+
 /// Lowers an accepted function body into `function`, whose `entry` block holds
 /// `parameters` (one entity per `inputs.parameters` symbol).
 pub(in crate::ssa) fn lower(
@@ -71,8 +82,8 @@ pub(in crate::ssa) fn lower(
     function: &mut Function,
     entry: BlockId,
     parameters: &[EntityId],
-    type_ids: &BTreeMap<UnitTypeId, SsaTypeId>,
+    types: &RefineTypes<'_>,
 ) -> Result<(), LoweringError> {
-    let body = build::build(inputs, parameters, type_ids)?;
+    let body = build::build(inputs, parameters, types)?;
     emit::emit(&body, function, entry, parameters, inputs.span)
 }

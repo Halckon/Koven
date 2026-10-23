@@ -11,6 +11,9 @@ pub(super) fn assert_unit_direct_proof(program: &Program, case: usize) {
     assert_proof(program, case, true);
 }
 
+/// The one direct source whose unit `entry` lies in the SPEC-0350 refinement subset.
+const REFINED_UNIT_CASE: usize = 4;
+
 fn assert_proof(program: &Program, case: usize, unit: bool) {
     let module = only(program.modules.iter());
     let function = only(module.functions.iter().filter(|function| {
@@ -54,7 +57,23 @@ fn assert_proof(program: &Program, case: usize, unit: bool) {
     assert_eq!(body.parameters.last(), Some(&EntityId::Loan(*view)));
     assert_eq!(absent.parameters.len(), when_null.arguments.len());
     assert!(!when_null.arguments.contains(&EntityId::Loan(*view)));
-    let flag = if unit {
+    let flag = if unit && case == REFINED_UNIT_CASE {
+        // SPEC-0350: the unit `return current.value` source is inside the refinement
+        // subset. Slot liveness carries only live slots: the unused `flag` loan stays an
+        // entry parameter, and the loop header without a backedge folds into the entry.
+        let entry = function.block(function.entry_block().unwrap()).unwrap();
+        assert_eq!(header.id, entry.id);
+        for block in [body, absent] {
+            assert!(
+                block
+                    .parameters
+                    .iter()
+                    .all(|entity| !matches!(entity, EntityId::Loan(_))
+                        || *entity == EntityId::Loan(*view))
+            );
+        }
+        None
+    } else if unit {
         let boolean_loan = |entities: &[EntityId]| {
             only(entities.iter().copied().filter(|entity| {
                 matches!(function.entity(*entity).unwrap().ty,

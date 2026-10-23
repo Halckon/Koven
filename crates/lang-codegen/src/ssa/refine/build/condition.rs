@@ -118,6 +118,20 @@ impl Builder<'_, '_> {
                 .bindings
                 .get(&fact.symbol())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            // The operands are read by the branch itself; their drop points follow it on
+            // both edges.
+            let Expression::Binary { left, right, .. } = payload else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            let operand_drops: Vec<_> = [left, right]
+                .into_iter()
+                .flat_map(|operand| {
+                    self.collect_drops(UnitDropPoint::AfterExpression(self.unit(operand)))
+                })
+                .collect();
+            let drops_owner = operand_drops.iter().any(|(_, target, _)| {
+                *target == lang_frontend::ownership_checking::UnitDropTarget::Named(fact.symbol())
+            });
             let Some(UnitTypeKind::Nullable(inner)) =
                 self.inputs.typed.types().get(fact.nullable_type())
             else {
@@ -146,27 +160,30 @@ impl Builder<'_, '_> {
                 (when_false, when_true)
             };
             self.block = Some(non_null_block);
-            if self.move_only(inner) {
+            if !self.move_only(inner) {
+                let narrowed = self.value(
+                    ROp::NullableTake { owner, proof: view },
+                    EntityType::Value(inner_ssa),
+                    span,
+                )?;
+                self.narrowed.insert(fact.symbol(), narrowed);
+            } else if drops_owner {
+                // The owner dies right after the test: its proof ends before the drop.
+                self.push(ROp::BorrowEnd { loan: view }, Vec::new(), span)?;
+            } else {
                 // The view stays live in the branch it enters; Borrow uses read through it.
                 self.pending_views.push(super::View {
                     symbol: fact.symbol(),
                     slot: view,
                     target: on_non_null,
                 });
-                self.goto(on_non_null, span)?;
-                self.block = Some(null_block);
-                self.goto(on_null, span)?;
-                return Ok(());
             }
-            let narrowed = self.value(
-                ROp::NullableTake { owner, proof: view },
-                EntityType::Value(inner_ssa),
-                span,
-            )?;
-            self.narrowed.insert(fact.symbol(), narrowed);
+            self.emit_drops(&operand_drops)?;
             self.goto(on_non_null, span)?;
             self.block = Some(null_block);
+            self.emit_drops(&operand_drops)?;
             self.goto(on_null, span)?;
+            self.finish_drops(&operand_drops);
             return Ok(());
         }
         let Lowered::Value(condition) = self.expression(expression)? else {

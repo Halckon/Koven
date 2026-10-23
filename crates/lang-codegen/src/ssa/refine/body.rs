@@ -85,6 +85,20 @@ pub(super) enum ROp {
         owner: Slot,
         proof: Slot,
     },
+    /// Consumes `fields` (payload field order) into a class payload aggregate.
+    AggregateConstruct {
+        aggregate: SsaTypeId,
+        fields: Vec<Slot>,
+    },
+    HeapAllocate {
+        owner: SsaTypeId,
+        payload: Slot,
+    },
+    /// Copies a Copyable field out through a shared loan of the owner.
+    HeapFieldRead {
+        receiver: Slot,
+        field: usize,
+    },
 }
 
 impl ROp {
@@ -102,7 +116,9 @@ impl ROp {
             | Self::Drop { owner: slot }
             | Self::BooleanNot { operand: slot }
             | Self::NullableWrap { owner: slot, .. }
-            | Self::NullableIsNull { owner: slot } => vec![*slot],
+            | Self::NullableIsNull { owner: slot }
+            | Self::HeapAllocate { payload: slot, .. }
+            | Self::HeapFieldRead { receiver: slot, .. } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::StringConcat { left, right }
@@ -110,7 +126,10 @@ impl ROp {
                 vec![*left, *right]
             }
             Self::NullableTake { owner, proof } => vec![*owner, *proof],
-            Self::DirectCall { arguments, .. } => arguments.clone(),
+            Self::DirectCall { arguments, .. }
+            | Self::AggregateConstruct {
+                fields: arguments, ..
+            } => arguments.clone(),
         }
     }
 }
@@ -128,6 +147,8 @@ pub(super) enum RAbort {
         operator: CheckedArithmeticOperator,
         divisor: Slot,
     },
+    /// `!!` on a null value.
+    NullAssertion,
 }
 
 #[derive(Clone, Debug)]
@@ -156,6 +177,7 @@ impl RTerm {
             Self::NullBranch { owner, .. } => vec![*owner],
             Self::Return(Some(value)) => vec![*value],
             Self::Abort(RAbort::CheckedArithmetic { divisor, .. }) => vec![*divisor],
+            Self::Abort(RAbort::NullAssertion) => Vec::new(),
         }
     }
 

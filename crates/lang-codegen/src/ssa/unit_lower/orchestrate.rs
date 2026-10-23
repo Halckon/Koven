@@ -452,6 +452,10 @@ fn lower_unit_impl(
                 body: refine_body,
                 return_type: plan.return_type,
                 parameters: plan.parameter_symbols.clone(),
+                borrowed: entities
+                    .iter()
+                    .map(|entity| matches!(entity, EntityId::Loan(_)))
+                    .collect(),
                 span: plan.instance.span(),
             };
             if crate::ssa::refine::accepts(&inputs) {
@@ -462,7 +466,12 @@ fn lower_unit_impl(
                     .functions
                     .get_mut(plan.id.index())
                     .expect("planned unit function must exist");
-                crate::ssa::refine::lower(&inputs, function, entry, &entities, types.type_ids())?;
+                let refine_types = crate::ssa::refine::RefineTypes {
+                    type_ids: types.type_ids(),
+                    heap_payloads: types.heap_payloads(),
+                    field_indices: types.field_indices(),
+                };
+                crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
                 continue;
             }
         }

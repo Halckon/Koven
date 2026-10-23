@@ -86,6 +86,18 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 子集外（例如 when、for、闭包、receiver 调用、Rc、容器、Map、enum、value class、泛型实例、
 字段赋值、`break`/`continue`、`?:`、`?.`）一律由现有路径处理。子集只为试点设定，后续家族 Spec 逐步扩大。
 
+已实现子集（以 `ssa::refine::subset` 为准，比上面的计划更窄）：
+
+- 类型：Boolean、整数、String、非泛型且字段只含标量/String 的 class，以及它们的 nullable；Char 与
+  `Box` 尚未接入；
+- Borrow 参数只接受 Copyable 类型（MoveOnly Borrow 参数仍走旧路径）；MoveOnly 局部只能声明，
+  不能重新赋值；Borrow 实参需要 `T → T?` 包装时只接受 temporary；
+- MoveOnly nullable 的 proof view 只在 `if`/`while` 条件（含 `&&` 与分组）的真边上建立；
+- `!!` 只接受 Consume 转移，operand 为 owned 命名 root 或 call temporary；
+- 字段读取只读 Copyable 标量字段，receiver 为 owned 命名 class 或其 proof view。
+
+路由门槛：函数签名或函数体触及任一 nullable 类型（见 §8 决定 4）。
+
 ## 4. 现有代码的处理
 
 - 试点不删除 `nullable_proof`、`nullable_when`、`nullable_comparison`、`non_null_assertion`、
@@ -133,3 +145,36 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 2. 已确认（2026-10-23）：已迁移家族的旧模块在最后一个消费者迁走时删除（§4），不保留兼容层。
 3. 已确认（2026-10-23）：String 的 niche 用 bytes 指针，空串改为非 null sentinel；不采用 capacity 哨兵。
    容器 buffer 现已使用非 null sentinel，直接用指针 niche。
+4. 已确认（2026-10-24）：p14 由新层承接——新层支持 class 构造、字段读取、`!!` 与 pointer-like
+   nullable view，路由门槛从“触及 inline nullable”放宽为“触及任一 nullable”；受影响的既有测试只更新
+   IR 形状断言并逐项说明，行为断言不放宽。
+
+## 9. 实施记录
+
+| 步 | 提交 | 内容 |
+|---|---|---|
+| 1 | `27e98ad0` | String 空串 bytes 改用 `koven.zst.sentinel`（字面量、concat、clone、argv） |
+| 2 | `9f1fc5df` | `SsaTypeKind::InlineNullable`、verifier、LLVM 布局/操作与 drop glue |
+| 3a | `892d545a` | `ssa::refine`：子集预检、槽位 CFG、按活跃性构造 SSA；`Int?`/`Boolean?` 局部、参数、返回、`while` 与短路 |
+| 3b | `ec9febf8` | `String?` proof view、String 拼接/比较、短路的 BranchExit 析构 |
+| 3c | 本提交 | class 构造、字段读取、`!!`、pointer-like nullable view；门槛放宽；abort 边携带存活 owner；单前驱直线块合并 |
+
+3c 修正的问题：
+
+- abort 边（checked 算术、`!!` 的 null 边）原先只传活跃槽，存活 MoveOnly owner 未交付即报
+  `MissingOwnedExit`；现在 abort 块继承其兄弟边的活跃集合；
+- 子集原以 `body_parameter_mode` 判断 Borrow 参数，但该事实只覆盖 lambda，MoveOnly Borrow 参数会被
+  误收；现改为按入口实体是否为 loan 判断；
+- null 比较 operand 自身的 `AfterExpression` 析构点此前未发出；现于两条出边各发一次，owner 在此
+  死亡时先结束 view。
+
+3c 更新的既有测试（仅 IR 形状，行为断言不变）：
+
+| 测试 | 原断言 | 更新原因 |
+|---|---|---|
+| `nullable_if::heap::field::tests::ordinary_null_check_without_field_use_*` | 不建立 `NullableBranch` | 新层对每个 null 比较建立 proof；改为断言 view 唯一用途是立即结束、两边各析构 owner 一次；测试改名 |
+| 同模块 `assert_field_proofs` | proof 的 origin 是源码 `If`，块 origin 是分支语句 | 新层的 proof origin 是 null 比较本身，块 origin 为函数；旧路径分支保留原断言 |
+| `unit_lower_nullable_tests::original_nullable_class_borrow_nested_if_*` | 分支 origin 以 `if (n != null)` 开头 | 改为 origin 等于 `n != null` |
+| `while_flow_tests::proof_cases::nullable_field_value_argument_*` | unit prefix 源码报 UnsupportedNode | 该函数现由新层 lowering，四个 frame 都通过 SSA 与 LLVM |
+| `while_flow_tests::direct_contract`（unit 第 4 例） | Boolean flag loan 沿 header/body/absent 传递 | 新层只传活跃槽，未用的 flag 留在入口；无回边的 header 并入入口块 |
+
