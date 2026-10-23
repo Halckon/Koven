@@ -44,15 +44,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use lang_frontend::{
-    diagnostic::DiagnosticDetail,
-    lexer::lex,
-    name_resolution::{NameResolution, SymbolId, SymbolKind, resolve_names},
-    ownership_checking::{OwnershipCheckedFile, check_ownership},
-    parser::{ParsedFile, parse_file},
-    source::SourceMap,
-    type_checking::{TypedFile, check_types, standard_environments},
-};
+use lang_frontend::{diagnostic::DiagnosticDetail, name_resolution::SymbolKind};
 
 use super::{NativeObjectErrorKind, NativeUnitEntry};
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
@@ -66,14 +58,6 @@ use crate::{
 };
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
-
-struct Analysis {
-    sources: SourceMap,
-    parsed: ParsedFile,
-    names: NameResolution,
-    typed: TypedFile,
-    owned: OwnershipCheckedFile,
-}
 
 pub(crate) struct TestDirectory(PathBuf);
 
@@ -110,44 +94,6 @@ impl Drop for TestDirectory {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.0).expect("owned test directory must be removable");
     }
-}
-
-fn analyze(source_name: &str, text: &str) -> Analysis {
-    let mut sources = SourceMap::new();
-    let source = sources
-        .add_source(source_name, text)
-        .expect("source must be unique");
-    let lexed = lex(&sources, source).expect("lexing must succeed internally");
-    let parsed = parse_file(&sources, &lexed).expect("parsing must succeed internally");
-    let (name_environment, type_environment) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &name_environment)
-        .expect("name resolution must succeed internally");
-    let typed = check_types(&sources, &parsed, &names, &type_environment)
-        .expect("type checking must succeed internally");
-    let owned = check_ownership(&sources, &parsed, &names, &typed)
-        .expect("ownership checking must succeed internally");
-    Analysis {
-        sources,
-        parsed,
-        names,
-        typed,
-        owned,
-    }
-}
-
-fn symbol(analysis: &Analysis, name: &str, kind: SymbolKind) -> SymbolId {
-    analysis
-        .names
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == name && symbol.kind() == kind)
-        .map(|symbol| symbol.id())
-        .unwrap_or_else(|| {
-            panic!(
-                "missing fixture symbol {name:?} {kind:?}; symbols: {:?}",
-                analysis.names.symbols()
-            )
-        })
 }
 
 pub(crate) fn emit_link_and_run(source_name: &str, text: &str, entry_name: &str) -> Output {
@@ -1019,15 +965,20 @@ fn declarative_roots_emit_with_scalar_entry_while_runtime_globals_stay_unsupport
 #[test]
 fn target_layout_failure_bridges_to_l0145_with_use_and_declaration_spans() {
     let source = "value class Huge(val item: Int)\nfun bootstrap(): Unit { Huge(1) }";
-    let analysis = analyze("layout-failure.ko", source);
+    let analysis = UnitSource::analyze("layout-failure.ko", source)
+        .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let source_id = analysis
+        .declaration_span(analysis.declaration("bootstrap", SymbolKind::Function))
+        .source_id();
     let declaration = analysis
-        .sources
-        .span(analysis.parsed.source_id(), 12, 16)
+        .sources()
+        .span(source_id, 12, 16)
         .expect("declaration span must be valid");
     let use_start = source.rfind("Huge(1)").expect("constructor use must exist");
     let primary = analysis
-        .sources
-        .span(analysis.parsed.source_id(), use_start, use_start + 7)
+        .sources()
+        .span(source_id, use_start, use_start + 7)
         .expect("constructor span must be valid");
     let mut program = Program::default();
     let module_id = program.add_module("layout_bridge");
@@ -1048,7 +999,7 @@ fn target_layout_failure_bridges_to_l0145_with_use_and_declaration_spans() {
     );
 
     let error = map_backend_error(
-        &analysis.sources,
+        analysis.sources(),
         &program,
         LlvmAdapterError::InvalidLayout(TargetLayoutError {
             ty: aggregate,

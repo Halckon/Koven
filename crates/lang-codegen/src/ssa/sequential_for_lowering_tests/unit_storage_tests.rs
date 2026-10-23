@@ -2,11 +2,13 @@
 
 use super::super::model::{
     BinaryOperator, Block, BlockId, ComparisonOperator, EntityId, EntityType, Function,
-    Instruction, LoanKind, Module, Operation, Ownership, PlaceAccess, Program, ScalarConstant,
+    Instruction, LoanKind, Module, Operation, Ownership, PlaceAccess, ScalarConstant,
     SequentialContainerKind, SsaTypeKind, TerminatorKind,
 };
 use super::cleanup_tests::{loan, transport, value};
-use super::{analyze, defining_instruction, incoming_edges, parameter_slot};
+use super::{
+    SourceProgram, analyze, analyze_case, defining_instruction, incoming_edges, parameter_slot,
+};
 
 #[test]
 fn nonempty_unit_array_source_lowers_to_verified_ssa() {
@@ -30,40 +32,6 @@ fn nonempty_unit_array_source_lowers_to_verified_ssa() {
         "#,
         "main",
     );
-}
-
-fn analyze_case(filename: &str, source_text: &str) -> Program {
-    use lang_frontend::{
-        lexer::lex,
-        name_resolution::resolve_names,
-        ownership_checking::check_ownership,
-        parser::parse_file,
-        source::SourceMap,
-        type_checking::{check_types, standard_environments},
-    };
-    let mut sources = SourceMap::new();
-    let source = sources.add_source(filename, source_text).expect("source");
-    let lexed = lex(&sources, source).expect("lexer");
-    let parsed = parse_file(&sources, &lexed).expect("parser");
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
-    for diagnostics in [
-        lexed.diagnostics(),
-        parsed.diagnostics(),
-        names.diagnostics(),
-        typed.diagnostics(),
-        owned.diagnostics(),
-    ] {
-        assert!(diagnostics.is_empty(), "{filename}: {diagnostics:?}");
-    }
-    let program = super::super::lower_frontend::orchestrate::lower_scalar_file(
-        &sources, &parsed, &names, &typed, &owned,
-    )
-    .unwrap_or_else(|error| panic!("{filename}: {error:?}\n{source_text}"));
-    super::super::verify::verify_program(&program).expect("Unit container SSA must verify");
-    program
 }
 
 fn fixture(provider: &str, constructor: &str, arguments: &str, count: usize) -> String {
@@ -90,14 +58,6 @@ fn fixture(provider: &str, constructor: &str, arguments: &str, count: usize) -> 
     )
 }
 
-fn named<'a>(module: &'a Module, name: &str) -> &'a Function {
-    module
-        .functions
-        .iter()
-        .find(|f| f.name == name)
-        .expect(name)
-}
-
 fn only(function: &Function, predicate: impl Fn(&Operation) -> bool) -> &Instruction {
     let instructions = function
         .instructions
@@ -118,11 +78,12 @@ fn position(block: &Block, instruction: &Instruction) -> usize {
 }
 
 fn assert_factory(
-    module: &Module,
+    analysis: &SourceProgram,
     expected_kind: SequentialContainerKind,
     expected_calls: &[&str],
 ) {
-    let source = named(module, "source");
+    let module = &analysis.program.modules[0];
+    let source = analysis.function("source");
     let construct = only(source, |op| {
         matches!(op, Operation::ContainerConstruct { .. })
     });
@@ -157,7 +118,7 @@ fn assert_factory(
     let block = source.block(construct.block).unwrap();
     let mut previous = None;
     for ((name, call), operand) in expected_calls.iter().zip(calls).zip(elements) {
-        let producer = named(module, name);
+        let producer = analysis.function(name);
         assert!(
             producer.return_types.is_empty(),
             "Unit producer retains void ABI"
@@ -217,7 +178,7 @@ fn assert_factory(
     if let Some(first_name) = expected_calls.first() {
         let first = only(
             source,
-            |op| matches!(op, Operation::DirectCall { callee, .. } if *callee == named(module, first_name).id),
+            |op| matches!(op, Operation::DirectCall { callee, .. } if *callee == analysis.function(first_name).id),
         );
         assert!(position(block, marker_print) < position(block, first));
     }
@@ -298,10 +259,11 @@ fn normal_identity(
     entity
 }
 
-fn assert_iteration(module: &Module, expect_read: bool) {
-    let run = named(module, "main");
+fn assert_iteration(analysis: &SourceProgram, expect_read: bool) {
+    let module = &analysis.program.modules[0];
+    let run = analysis.entry();
     assert!(run.return_types.is_empty(), "Unit entry retains void ABI");
-    let source_id = named(module, "source").id;
+    let source_id = analysis.function("source").id;
     let source = only(
         run,
         |op| matches!(op, Operation::DirectCall { callee, .. } if *callee == source_id),
@@ -574,11 +536,14 @@ fn unit_container_nine_source_cases_preserve_factory_and_iteration_identities() 
             3,
         ),
     ] {
-        let program = analyze_case(filename, &fixture(provider, constructor, arguments, count));
-        assert_eq!(program.modules.len(), 1);
-        let module = &program.modules[0];
-        assert_factory(module, kind, calls);
-        assert_iteration(module, true);
+        let analysis = analyze_case(
+            filename,
+            &fixture(provider, constructor, arguments, count),
+            "main",
+        );
+        assert_eq!(analysis.program.modules.len(), 1);
+        assert_factory(&analysis, kind, calls);
+        assert_iteration(&analysis, true);
     }
 }
 
@@ -587,13 +552,13 @@ fn unit_discard_binding_keeps_logical_iteration_without_a_read() {
     let source = fixture("List", "listOf", "first(), second(), third()", 3)
         .replace("for (item in source())", "for (_ in source())")
         .replace("val copy: Unit = item", "");
-    let program = analyze_case("unit_list_discard.ko", &source);
+    let analysis = analyze_case("unit_list_discard.ko", &source, "main");
     assert_factory(
-        &program.modules[0],
+        &analysis,
         SequentialContainerKind::List,
         &["first", "second", "third"],
     );
-    assert_iteration(&program.modules[0], false);
+    assert_iteration(&analysis, false);
 }
 
 #[test]
@@ -612,15 +577,17 @@ fn unit_diverged_operand_preserves_only_evaluated_prefix() {
             }}
         "#
         );
-        let program = analyze_case("unit_diverged_operand.ko", &source);
-        let module = &program.modules[0];
-        let factory = named(module, "source");
+        let analysis = analyze_case("unit_diverged_operand.ko", &source, "source");
+        let factory = analysis.entry();
+        let second = analysis.function("second").id;
         let first = only(
             factory,
-            |op| matches!(op, Operation::DirectCall { callee, .. } if *callee == named(module, "first").id),
+            |op| matches!(op, Operation::DirectCall { callee, .. } if *callee == analysis.function("first").id),
         );
         assert!(first.results.is_empty());
-        assert!(!factory.instructions.iter().any(|i| matches!(i.operation, Operation::DirectCall { callee, .. } if callee == named(module, "second").id)));
+        assert!(!factory.instructions.iter().any(
+            |i| matches!(i.operation, Operation::DirectCall { callee, .. } if callee == second)
+        ));
         assert!(
             !factory
                 .instructions
@@ -647,14 +614,14 @@ fn unit_container_fresh_frontend_chains_render_identically() {
         "first(), second(), third()",
         3,
     );
-    let first = analyze_case("unit_mutable_list_determinism.ko", &source);
-    let second = analyze_case("unit_mutable_list_determinism.ko", &source);
+    let first = analyze_case("unit_mutable_list_determinism.ko", &source, "main");
+    let second = analyze_case("unit_mutable_list_determinism.ko", &source, "main");
     assert_eq!(
-        super::super::render::render_program(&first),
-        super::super::render::render_program(&second)
+        super::super::render::render_program(&first.program),
+        super::super::render::render_program(&second.program)
     );
     assert_eq!(
-        crate::llvm::render_verified_program(&first).expect("first LLVM"),
-        crate::llvm::render_verified_program(&second).expect("second LLVM")
+        crate::llvm::render_verified_program(&first.program).expect("first LLVM"),
+        crate::llvm::render_verified_program(&second.program).expect("second LLVM")
     );
 }

@@ -34,74 +34,35 @@ pub(super) struct Probe {
 }
 
 pub(super) fn lower(fixture: &Fixture) -> Product {
-    let analysis = super::super::analyze(fixture.name, fixture.source);
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let checkpoint_symbols: Vec<_> = analysis
-        .names
-        .symbols()
-        .iter()
-        .filter(|symbol| symbol.name() == "checkpoint" && symbol.kind() == SymbolKind::Function)
-        .collect();
-    assert_eq!(
-        checkpoint_symbols.len(),
-        1,
-        "fixture declaration must be unique"
-    );
-    let declaration = checkpoint_symbols[0].span();
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        super::super::symbol(&analysis, "entry", SymbolKind::Function),
-    )
-    .expect("ordinary checkpoint source must lower without bypassing SSA verification");
+    let analysis = super::super::UnitSource::analyze(fixture.name, fixture.source)
+        .expect("original checkpoint source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let declaration =
+        analysis.declaration_span(analysis.declaration("checkpoint", SymbolKind::Function));
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("ordinary checkpoint source must lower without bypassing SSA verification");
     crate::ssa::verify::verify_program(&program).expect("real source SSA must verify");
     assert_eq!(program.modules.len(), 1, "single-source route only");
     let module = program.module(entry.module()).unwrap();
     let checkpoints: Vec<_> = module
         .functions
         .iter()
-        .filter(|function| {
-            let span = function.origin.span();
-            span.source_id() == declaration.source_id()
-                && span.start() <= declaration.start()
-                && declaration.end() <= span.end()
-        })
+        .filter(|function| function.origin == Origin::Source(declaration))
         .collect();
     assert_eq!(checkpoints.len(), 1, "unique source-bound FunctionId");
+    // Its source item fixes identity; instrumentation uses this returned SSA body's actual name.
     let checkpoint = checkpoints[0];
-    assert_eq!(checkpoint.name, "checkpoint");
     let Origin::Source(span) = &checkpoint.origin else {
         panic!("checkpoint must be source-authored")
     };
     assert_eq!(
-        analysis.sources.source_name(span.source_id()).unwrap(),
+        analysis.sources().source_name(span.source_id()).unwrap(),
         fixture.name
     );
     assert!(
         analysis
-            .sources
+            .sources()
             .slice(*span)
             .unwrap()
             .starts_with("fun checkpoint(")

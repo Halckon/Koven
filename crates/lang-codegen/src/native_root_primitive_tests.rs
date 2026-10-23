@@ -1,5 +1,5 @@
 //! SPEC-0244：源码原语真实 link/run 与精确 owner 释放。
-use super::{TestDirectory, analyze, emit_link_and_run, symbol};
+use super::{TestDirectory, UnitSource, emit_link_and_run};
 use lang_frontend::name_resolution::SymbolKind;
 use std::{fs, process::Command};
 
@@ -122,26 +122,12 @@ fn root_primitive_native_all_storage_owners_free_exactly_once() {
             swap(&inline, &otherInline)
         }
     "#;
-    let analysis = analyze("root-counted.ko", source);
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
-    )
-    .expect("source root owners lower to verified SSA");
+    let analysis = UnitSource::analyze("root-counted.ko", source)
+        .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("source root owners lower to verified SSA");
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
         .unwrap()
         .replace("@malloc(", "@counted_malloc(")
@@ -203,7 +189,7 @@ __attribute__((destructor)) static void verify_counts(void) {{
 
 #[test]
 fn root_primitive_native_conditional_commit_and_return_free_each_owner_once() {
-    let analysis = analyze(
+    let analysis = UnitSource::analyze(
         "root-conditional-counts.ko",
         r#"
         fun test(flag: Boolean): Unit {
@@ -215,16 +201,12 @@ fn root_primitive_native_conditional_commit_and_return_free_each_owner_once() {
         fun entry(): Unit { test(true)
  test(false) }
     "#,
-    );
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
     )
-    .expect("conditional return keeps old root until normal commit");
+    .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("conditional return keeps old root until normal commit");
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
         .unwrap()
         .replace("@malloc(", "@counted_malloc(")
@@ -234,7 +216,7 @@ fn root_primitive_native_conditional_commit_and_return_free_each_owner_once() {
 
 #[test]
 fn root_primitive_native_abort_never_commits_or_drops_the_old_root() {
-    let analysis = analyze(
+    let analysis = UnitSource::analyze(
         "root-abort-counts.ko",
         r#"
         fun entry(): Unit {
@@ -242,16 +224,12 @@ fn root_primitive_native_abort_never_commits_or_drops_the_old_root() {
             val old = replace(&target, error("stop"))
         }
     "#,
-    );
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
     )
-    .expect("abort has a prefix, no commit");
+    .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("abort has a prefix, no commit");
     assert!(!crate::ssa::render_program(&program).contains("root_replace"));
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
         .unwrap()

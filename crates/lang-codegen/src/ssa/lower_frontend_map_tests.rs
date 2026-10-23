@@ -156,38 +156,38 @@ fn assert_map_put_count(program: &crate::ssa::model::Program, expected: usize) {
 }
 
 fn assert_map_source_lowers(source: &str) -> crate::ssa::model::Program {
-    let analysis = analyze(source);
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{source}: {:?}",
-        analysis.parsed.diagnostics()
+    lower_map_unit(source, "entry").0
+}
+
+fn lower_map_unit(
+    source: &str,
+    entry_name: &str,
+) -> (
+    crate::ssa::model::Program,
+    crate::native_tests::boxed_enum_tests::unit_source::UnitSource,
+) {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let analysis = UnitSource::analyze("lowering.ko", source)
+        .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    analysis.assert_frontend_clean();
+    let declaration = analysis.declaration(entry_name, SymbolKind::Function);
+    let (program, entry) = analysis
+        .lower_entry(declaration)
+        .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    assert_eq!(
+        program
+            .module(entry.module())
+            .unwrap()
+            .function(entry)
+            .unwrap()
+            .origin,
+        crate::ssa::model::Origin::Source(analysis.declaration_span(declaration))
     );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{source}: {:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{source}: {:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{source}: {:?}",
-        analysis.owned.diagnostics()
-    );
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap_or_else(|error| panic!("{source}: {error:?}"));
     crate::llvm::render_verified_program(&program)
         .unwrap_or_else(|error| panic!("{source}: {error:?}"));
-    program
+    (program, analysis)
 }
 
 #[test]

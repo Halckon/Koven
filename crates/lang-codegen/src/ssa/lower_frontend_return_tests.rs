@@ -1,7 +1,9 @@
 //! SPEC-0241: enum condition facts and explicit limits of the single-file slice.
 use super::{Analysis, LoweringErrorKind, Operation, analyze, lower_scalar_file};
+use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use crate::native_tests::return_control_tests::guide_litmus_04;
 use lang_frontend::{
+    name_resolution::SymbolKind,
     ownership_checking::{LoanEndPoint, LoanKind, LoanTarget},
     type_checking::{ConstructionTarget, ExpressionCategory, ParameterMode},
 };
@@ -31,16 +33,13 @@ fn assert_frontend(analysis: &Analysis) {
 
 #[test]
 fn guide_litmus_04_uses_three_boolean_tag_tests_without_constructing_a_condition() {
-    let analysis = analyze(guide_litmus_04());
-    assert_frontend(&analysis);
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("exact Guide example lowers");
+    let analysis = UnitSource::analyze("lowering.ko", guide_litmus_04())
+        .expect("the exact Guide example passes strict Unit admission");
+    analysis.assert_frontend_clean();
+    let declaration = analysis.declaration("area", SymbolKind::Function);
+    let (program, _) = analysis
+        .lower_entry(declaration)
+        .expect("exact Guide example lowers");
     let instructions = program
         .modules
         .iter()

@@ -221,21 +221,8 @@ fn single_map_break_matrix_has_real_ssa_and_separate_owner_drops() {
             vec![("parameterOwner", 1), ("separateOwners", 2)],
         ),
     ] {
-        let analysis = analyze(text);
-        assert!(analysis.parsed.diagnostics().is_empty());
-        assert!(analysis.names.diagnostics().is_empty());
-        assert!(analysis.typed.diagnostics().is_empty());
-        assert!(analysis.owned.diagnostics().is_empty());
-        let program = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .unwrap();
-        crate::llvm::render_verified_program(&program).unwrap();
-        super::assert_map_drop_counts(&program, &counts);
+        let (program, analysis) = super::lower_map_unit(text, "main");
+        super::assert_unit_map_drop_counts(&program, &analysis, &counts);
     }
 }
 

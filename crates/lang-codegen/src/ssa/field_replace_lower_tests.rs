@@ -1,9 +1,24 @@
 //! SPEC-0246：单文件 direct-field commit 与未扩展边界。
 use super::*;
+use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+
+fn analyze_field(source: &str) -> UnitSource {
+    let analysis = UnitSource::analyze("lowering.ko", source)
+        .unwrap_or_else(|error| panic!("{source}\n{error:?}"));
+    analysis.assert_frontend_clean();
+    analysis
+}
+
+fn lower_field(
+    analysis: &UnitSource,
+) -> Result<crate::ssa::model::Program, crate::ssa::LoweringError> {
+    let entry = analysis.declaration("test", lang_frontend::name_resolution::SymbolKind::Function);
+    analysis.lower_entry(entry).map(|(program, _)| program)
+}
 
 #[test]
 fn field_replace_single_uses_dedicated_exchange_and_preserves_parent() {
-    let analysis = analyze(
+    let analysis = analyze_field(
         r#"
         class Holder(var state: String, val id: Int)
         fun test(): String {
@@ -14,19 +29,7 @@ fn field_replace_single_uses_dedicated_exchange_and_preserves_parent() {
         }
     "#,
     );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("direct field exchange");
+    let program = lower_field(&analysis).expect("direct field exchange");
     let rendered = render_program(&program);
     assert!(rendered.contains("heap.field_exchange"), "{rendered}");
     assert!(!rendered.contains("root_replace"), "{rendered}");
@@ -58,25 +61,9 @@ fn field_replace_single_existing_field_storage_families() {
         let source = format!(
             "{declarations}\nclass Holder(var state: {ty})\nfun test(): Unit {{ val initial: {ty} = {first}\nval holder = Holder(initial)\nval old = replace(&holder.state, {second}) }}"
         );
-        let analysis = analyze(&source);
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{source}\n{:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{source}\n{:?}",
-            analysis.owned.diagnostics()
-        );
-        let program = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .unwrap_or_else(|failure| panic!("{source}\n{failure:?}"));
+        let analysis = analyze_field(&source);
+        let program =
+            lower_field(&analysis).unwrap_or_else(|failure| panic!("{source}\n{failure:?}"));
         render_verified_program(&program).expect("existing field storage verifies");
     }
 }
@@ -91,28 +78,9 @@ fn field_replace_single_unclosed_projections_stay_unsupported() {
         "class Holder(var a: Int, var b: Int)\nfun test(): Unit { val holder = Holder(1, 2)\nval old = replace(&holder.a, holder.b) }",
         "class Holder(var a: String, var b: String)\nfun test(): Unit { val holder = Holder(\"a\", \"b\")\nval old = replace(&holder.a, holder.b.clone()) }",
     ] {
-        let analysis = analyze(source);
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{source}\n{:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{source}\n{:?}",
-            analysis.owned.diagnostics()
-        );
+        let analysis = analyze_field(source);
         assert_eq!(
-            lower_scalar_file(
-                &analysis.sources,
-                &analysis.parsed,
-                &analysis.names,
-                &analysis.typed,
-                &analysis.owned
-            )
-            .err()
-            .expect("unsupported")
-            .kind,
+            lower_field(&analysis).err().expect("unsupported").kind,
             LoweringErrorKind::UnsupportedNode,
             "{source}"
         );

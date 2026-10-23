@@ -53,7 +53,7 @@ val checked = observe(node!!) }}
 
 #[test]
 fn non_null_assertion_transfers_one_allocation_and_preserves_explicit_rc_alias() {
-    use super::{TestDirectory, analyze, symbol};
+    use super::{TestDirectory, UnitSource};
     use lang_frontend::name_resolution::SymbolKind;
     use std::{fs, process::Command};
 
@@ -85,16 +85,12 @@ fun observe(own node: {inner}): Unit {{ {observe} }}
 fun entry(): Unit {{ val checked = observe(keep(make()!!)) }}
 "#
         );
-        let analysis = analyze("assertion-counted.ko", &source);
-        let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-            symbol(&analysis, "entry", SymbolKind::Function),
-        )
-        .expect("counted assertion source must verify");
+        let analysis = UnitSource::analyze("assertion-counted.ko", &source)
+            .expect("original source must pass strict Unit admission");
+        analysis.assert_frontend_clean();
+        let (program, entry) = analysis
+            .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+            .expect("counted assertion source must verify");
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
             .expect("counted assertion LLVM must verify")
             .replace("@malloc(", "@counted_malloc(")

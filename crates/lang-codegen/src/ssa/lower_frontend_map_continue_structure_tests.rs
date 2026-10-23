@@ -503,15 +503,18 @@ pub(super) fn assert_continue_structure(
     }
 }
 
-pub(super) fn assert_distinct_owner_backedges(program: &Program) {
+pub(super) fn assert_distinct_owner_backedges(program: &Program, source: Span) {
     // A fixture label chooses the test subject only. Each owner is identified by
     // its real construction and operation results, never by the shared Map type.
-    let function = program
+    let functions = program
         .modules
         .iter()
         .flat_map(|module| &module.functions)
-        .find(|function| function.name == "separateOwners")
-        .unwrap();
+        .filter(|function| function.origin == Origin::Source(source))
+        .collect::<Vec<_>>();
+    let [function] = functions.as_slice() else {
+        panic!("one original separateOwners function");
+    };
     let mut seeds = function
         .instructions
         .iter()
