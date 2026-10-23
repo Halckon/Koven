@@ -1,18 +1,19 @@
 use super::super::{
-    model::{EntityId, Operation, Program},
+    model::{EntityId, Operation},
     verify::verify_program,
 };
 
-fn fixture() -> Program {
+fn fixture() -> super::SourceProgram {
     super::analyze(
         "fun scan(xs: Array<Int>): Int { var total = 0; for (item in xs) { total = total + item }; return total }",
+        "scan",
     )
 }
 
 #[test]
 fn provider_stale_place_is_rejected_after_source_end() {
-    let mut program = fixture();
-    let function = &mut program.modules[0].functions[0];
+    let mut analysis = fixture();
+    let function = analysis.entry_mut();
     let element = function
         .instructions
         .iter()
@@ -49,7 +50,8 @@ fn provider_stale_place_is_rejected_after_source_end() {
         .unwrap();
     block.instructions.insert(position + 1, end);
     block.terminator = terminator;
-    let error = verify_program(&program).expect_err("place cannot outlive provider source");
+    let error =
+        verify_program(&analysis.program).expect_err("place cannot outlive provider source");
     assert!(
         error.errors.iter().any(|error| matches!(
             error.kind,
@@ -61,8 +63,8 @@ fn provider_stale_place_is_rejected_after_source_end() {
 
 #[test]
 fn entry_reborrow_cannot_revive_a_finished_provider_source() {
-    let mut program = fixture();
-    let function = &mut program.modules[0].functions[0];
+    let mut analysis = fixture();
+    let function = analysis.entry_mut();
     let element = function
         .instructions
         .iter()
@@ -112,7 +114,8 @@ fn entry_reborrow_cannot_revive_a_finished_provider_source() {
         .instructions
         .splice(position..position, [end, reborrow]);
     block.terminator = terminator;
-    let error = verify_program(&program).expect_err("finished source cannot be reborrowed");
+    let error =
+        verify_program(&analysis.program).expect_err("finished source cannot be reborrowed");
     assert!(
         error.errors.iter().any(|error| matches!(
             error.kind,

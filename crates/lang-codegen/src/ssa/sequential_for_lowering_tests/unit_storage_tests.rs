@@ -28,6 +28,7 @@ fn nonempty_unit_array_source_lowers_to_verified_ssa() {
             println("done")
         }
         "#,
+        "main",
     );
 }
 
