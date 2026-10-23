@@ -1,0 +1,5 @@
+print(borrow is Thing)
+print(own as Thing)
+val pair = (inout to value)
+print(move and bits)
+val callable: (own to) -> Unit

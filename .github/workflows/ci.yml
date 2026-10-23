@@ -109,6 +109,7 @@ jobs:
               - 'scripts/check_tutorial.py'
               - 'scripts/package_preview.py'
               - 'scripts/preview_host.py'
+              - 'scripts/preview_manager.py'
               - 'scripts/check_preview_install.py'
               - 'scripts/install_preview_dependencies.sh'
               - 'scripts/install_ci_llvm.sh'
@@ -189,7 +190,7 @@ jobs:
         run: git diff --check
 
   editors:
-    name: Tree-sitter CLI Corpus
+    name: Editor lexical contracts
     needs: changes
     if: needs.changes.outputs.reuse != 'true' && (needs.changes.outputs.editors == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
@@ -201,6 +202,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Test locked TextMate engine
+        run: |
+          npm ci --prefix editors/textmate --ignore-scripts
+          npm test --prefix editors/textmate
       - name: Install locked Tree-sitter CLI
         run: npm ci --prefix editors/tree-sitter
       - name: Check generated parser and actual corpus
@@ -348,6 +353,7 @@ jobs:
             ${{ runner.temp }}/preview-producer/*.tar.gz
             ${{ runner.temp }}/preview-producer/*.sha256
             ${{ runner.temp }}/preview-producer/check_preview_install.py
+            ${{ runner.temp }}/preview-producer/preview_manager.py
           if-no-files-found: error
       - name: Preserve producer evidence
         if: always()
@@ -386,6 +392,47 @@ jobs:
             --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 \
             --evidence "$RUNNER_TEMP/preview-consumer-evidence" \
             --work-parent "$RUNNER_TEMP" --prepare-dependencies
+      - name: Manage the validated local version
+        shell: bash
+        env:
+          KOVEN_PREVIEW_LIBXML2_EVIDENCE: '1'
+        run: |
+          manager="$RUNNER_TEMP/preview-download/preview_manager.py"
+          root="$RUNNER_TEMP/preview-consumer-evidence/managed 中文"
+          python3 "$manager" --root "$root" install \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 > "$RUNNER_TEMP/managed.json"
+          version=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$RUNNER_TEMP/managed.json")
+          python3 "$manager" --root "$root" use "$version"
+          python3 "$manager" --root "$root" list
+          test -x "$root/current/bin/kovenc"
+          before=$(readlink "$root/current")
+          printf 'corrupt\n' > "$RUNNER_TEMP/invalid.sha256"
+          if python3 "$manager" --root "$root" install \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/invalid.sha256"; then
+            echo 'corrupt package unexpectedly installed' >&2
+            exit 1
+          fi
+          test "$(readlink "$root/current")" = "$before"
+          (
+            cd "$root/current/examples/parameter-report"
+            "$root/current/bin/kovenc" build --project project.toml --entry app.main -o "$RUNNER_TEMP/managed-program"
+          )
+          "$RUNNER_TEMP/managed-program" alpha 你好 tail > "$RUNNER_TEMP/preview-consumer-evidence/managed.stdout" \
+            2> "$RUNNER_TEMP/preview-consumer-evidence/managed.stderr"
+          python3 - "$root/current/examples/parameter-report/contract.json" "$RUNNER_TEMP/preview-consumer-evidence" <<'PYCODE'
+          import json, pathlib, sys
+          row = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          expected = next(case['artifact'] for case in row['cases'] if case['args'] == ['alpha', '你好', 'tail'])
+          evidence = pathlib.Path(sys.argv[2])
+          assert expected['exit'] == 0
+          for stream in ('stdout', 'stderr'):
+              assert (evidence / ('managed.' + stream)).read_bytes() == expected[stream].encode('utf-8')
+          PYCODE
+          python3 "$manager" --root "$root" deactivate
+          python3 "$manager" --root "$root" uninstall "$version"
+          test ! -e "$root/versions/$version"
       - name: Preserve installation and command evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -431,6 +478,7 @@ jobs:
             ${{ runner.temp }}/preview-producer/*.tar.gz
             ${{ runner.temp }}/preview-producer/*.sha256
             ${{ runner.temp }}/preview-producer/check_preview_install.py
+            ${{ runner.temp }}/preview-producer/preview_manager.py
           if-no-files-found: error
       - name: Preserve producer evidence
         if: always()
@@ -471,6 +519,47 @@ jobs:
             --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 \
             --evidence "$RUNNER_TEMP/preview-consumer-evidence" \
             --work-parent "$RUNNER_TEMP" --prepare-dependencies
+      - name: Manage the validated local version
+        shell: bash
+        env:
+          KOVEN_PREVIEW_LIBXML2_EVIDENCE: '1'
+        run: |
+          manager="$RUNNER_TEMP/preview-download/preview_manager.py"
+          root="$RUNNER_TEMP/preview-consumer-evidence/managed 中文"
+          /usr/bin/python3 "$manager" --root "$root" install \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 > "$RUNNER_TEMP/managed.json"
+          version=$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$RUNNER_TEMP/managed.json")
+          /usr/bin/python3 "$manager" --root "$root" use "$version"
+          /usr/bin/python3 "$manager" --root "$root" list
+          test -x "$root/current/bin/kovenc"
+          before=$(readlink "$root/current")
+          printf 'corrupt\n' > "$RUNNER_TEMP/invalid.sha256"
+          if /usr/bin/python3 "$manager" --root "$root" install \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/invalid.sha256"; then
+            echo 'corrupt package unexpectedly installed' >&2
+            exit 1
+          fi
+          test "$(readlink "$root/current")" = "$before"
+          (
+            cd "$root/current/examples/parameter-report"
+            "$root/current/bin/kovenc" build --project project.toml --entry app.main -o "$RUNNER_TEMP/managed-program"
+          )
+          "$RUNNER_TEMP/managed-program" alpha 你好 tail > "$RUNNER_TEMP/preview-consumer-evidence/managed.stdout" \
+            2> "$RUNNER_TEMP/preview-consumer-evidence/managed.stderr"
+          /usr/bin/python3 - "$root/current/examples/parameter-report/contract.json" "$RUNNER_TEMP/preview-consumer-evidence" <<'PYCODE'
+          import json, pathlib, sys
+          row = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          expected = next(case['artifact'] for case in row['cases'] if case['args'] == ['alpha', '你好', 'tail'])
+          evidence = pathlib.Path(sys.argv[2])
+          assert expected['exit'] == 0
+          for stream in ('stdout', 'stderr'):
+              assert (evidence / ('managed.' + stream)).read_bytes() == expected[stream].encode('utf-8')
+          PYCODE
+          /usr/bin/python3 "$manager" --root "$root" deactivate
+          /usr/bin/python3 "$manager" --root "$root" uninstall "$version"
+          test ! -e "$root/versions/$version"
       - name: Preserve installation and command evidence
         if: always()
         uses: actions/upload-artifact@v7

@@ -1,0 +1,4 @@
+val text = "begin ${ { { 1 } + 2 } + 3 } tail"
+val nested = "${ "inner ${4}" } after"
+val protected = "${ /* } */ '}' } done"
+val escaped = "\${literal} $name"

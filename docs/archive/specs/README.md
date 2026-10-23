@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 316 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 317 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -259,6 +259,8 @@
 
 ## Phase 6
 
+- [SPEC-0346](./0346-textmate-contexts.md)：修复 TextMate 语境与插值恢复，执行真实引擎与生产 Lexer 对照
+
 - [SPEC-0052](./0052-minimal-project-manifest-source-set.md)：最小 project manifest 与本地 source-set provider
 - [SPEC-0054](./0054-local-project-build-run.md)：无依赖本地 project build/run
 - [SPEC-0055](./0055-single-document-lsp-diagnostics.md)：发布单文档 LSP 诊断
@@ -497,3 +499,5 @@
 - [SPEC-0331](0331-map-borrowed-iteration.md)：Map双分量借用遍历按固定H完整普通/双宿主CI与三产物独审有界归档；74原正目标与G2–G10闭合，独立调用/ABI前置、历史失败与Mac partial保留，归档头CI/main交付另验。
 
 - [SPEC-0332](0332-rc-nullable-while-regression.md)：Rc nullable while表示分派回归；三历史双入口对照与PR118实现CI双host71项有界验收，额外payload/体内返回欠账独立承接；归档head CI/main待验。
+
+- [SPEC-0345](0345-preview-version-manager.md)：本地 preview 安装、身份查询、原子激活、停用及卸载；双宿主真实消费通过，三个示范程序联合验收保留后继。
