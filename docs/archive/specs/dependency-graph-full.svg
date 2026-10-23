@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="13296" height="9538" viewBox="0 0 13296 9538" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="13640" height="9538" viewBox="0 0 13640 9538" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="13296" height="9538" fill="#ffffff"/>
+  <rect width="13640" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="10312" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="5196" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，322 份）</text>
   <rect x="10416" y="30" width="544" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -13,6 +13,8 @@
   <text x="11164" y="8012" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="11368" y="342" width="1864" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="12300" y="362" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
+  <rect x="13296" y="30" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="13436" y="50" text-anchor="middle" font-size="13" fill="#64748b">v0.46（draft）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 500, 180 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2466,4 +2468,8 @@
   <text x="972" y="573" text-anchor="middle" font-size="13">内建 Result/Ok/E</text>
   <text x="972" y="591" text-anchor="middle" font-size="13">rr、is Case sub</text>
   <text x="972" y="609" text-anchor="middle" font-size="13">ject 推断与 kove…</text>
+  <rect x="13316" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="13436" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0350</text>
+  <text x="13436" y="105" text-anchor="middle" font-size="13">E3 所有权细化层与 nul</text>
+  <text x="13436" y="123" text-anchor="middle" font-size="13">lable 家族试点</text>
 </svg>

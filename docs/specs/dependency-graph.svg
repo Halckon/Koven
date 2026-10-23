@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="3264" height="382" viewBox="0 0 3264 382" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="3608" height="382" viewBox="0 0 3608 382" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="3264" height="382" fill="#ffffff"/>
+  <rect width="3608" height="382" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，322 份）</text>
   <rect x="384" y="30" width="544" height="280" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -13,6 +13,8 @@
   <text x="1132" y="188" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="1336" y="168" width="1864" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="2268" y="188" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
+  <rect x="3264" y="30" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3404" y="50" text-anchor="middle" font-size="13" fill="#64748b">v0.46（draft）</text>
   <path d="M 300 92 C 656 92, 656 239, 1012 239" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 352 92, 352 239, 404 239" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 828 92, 828 248, 1356 248" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -74,6 +76,10 @@
   <rect x="668" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="788" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0344</text>
   <text x="788" y="105" text-anchor="middle" font-size="13">独立门户内容同步</text>
+  <rect x="3284" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="3404" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0350</text>
+  <text x="3404" y="105" text-anchor="middle" font-size="13">E3 所有权细化层与 nul</text>
+  <text x="3404" y="123" text-anchor="middle" font-size="13">lable 家族试点</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">archive，322 份</text>

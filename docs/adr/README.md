@@ -30,5 +30,9 @@
 [0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为
 native ABI 提议；SPEC-0211 的 Phase 3 事实运输不以其被接受为前提。
 
+[0032 所有权细化层](proposed/0032-ownership-refinement-layer.md)与
+[0033 inline nullable 表示](proposed/0033-inline-nullable-representation.md)是路线图 E3 的提议，
+由 SPEC-0350 草案引用；接受前不实施。
+
 新决策使用 [TEMPLATE.md](TEMPLATE.md) 并先放入 `proposed/`。改变 accepted 决定时新增 ADR；完整被取代的旧记录
 进入 archive 并建立双向取代关系；局部扩展保留旧 ADR 的其他决定，只追加双向关系。

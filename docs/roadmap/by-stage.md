@@ -110,7 +110,7 @@ D10 统一管线收尾（两模式差异 0、InvalidSsa 0、原成功能力无�
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | v1 必做 | 编译器结构 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) | D10 已决：统一 compilation-unit 管线为终态（Guide v0.45、ADR-0031、SPEC-0341，已随 PR #120 合入 main）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0；剩余：enum when 回退 5 个、InvalidSsa 10 次、删除旧 checker 与 lower_frontend。 |
-| ☐ 未开始 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | v1 必做 | 编译器结构 | — | 3,4 | — | 先以 nullable 家族（p14、p14b、p14c、p15、q05、v03、v13、x02）试点：全部通过且不新增按组合拆分的 lowering 模块；成功后推广到 P2 各家族。 |
+| ☐ 未开始 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | v1 必做 | 编译器结构 | — | 3,4 | [0350](../specs/drafts/v0.46/0350-ownership-refinement-nullable-pilot.md) | 先以 nullable 家族试点（2026-10-23 用户决定不含 Elvis 的 p15，余 7 个）：全部通过且不新增按组合拆分的 lowering 模块；成功后推广到 P2 各家族。SPEC-0350 草案与 ADR-0032（细化层）、ADR-0033（inline nullable：tag + payload，String/容器 niche）待接受。 |
 
 ## P2 补齐现有 Guide 能力
 
@@ -120,7 +120,7 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 |---|---|---|---|---|---|---|---|---|
 | ☐ 未开始 | N01 | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | v1 必做 | 所有权、借用与析构 | 已定义 | 2,3,4 | [0325](../archive/specs/0325-simple-variable-assignment-types.md) | 0325 只覆盖简单变量赋值的类型。 |
 | ◐ 部分 | N02 | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | v1 必做 | 控制流 | 已定义 | 2,3,4 | [0241](../archive/specs/0241-return-control-operands.md) [0320](../archive/specs/0320-enum-case-borrow-categories.md) [0326](../archive/specs/0326-closed-control-branch-join.md) | enum subject 的 when 在分支结果为 Boolean/String/Unit 时 MissingFact（PR #120 中原单文件能力回退，属 E2 门槛）；Int/String subject、in range、语句位置混型仍失败。 |
-| ◐ 部分 | N03 | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | v1 必做 | 空安全与错误值 | 已定义 | 2,3,4 | [0220](../archive/specs/0220-compilation-unit-pointer-nullable-storage-lowering.md) [0296](../archive/specs/0296-owned-null-comparison-cleanup.md) | nullable 家族 8 个 probe 全部失败，作为 E3 试点。 |
+| ◐ 部分 | N03 | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | v1 必做 | 空安全与错误值 | 已定义 | 2,3,4 | [0220](../archive/specs/0220-compilation-unit-pointer-nullable-storage-lowering.md) [0296](../archive/specs/0296-owned-null-comparison-cleanup.md) | nullable 家族 8 个 probe 中 p14b、q05 已通过（2026-10-23 实测），其余 6 个失败；除 Elvis 的 p15 外由 E3 试点（SPEC-0350）承接，p15 待 Guide 15 解除 Elvis 延后。 |
 | ◐ 部分 | N04 | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | v1 必做 | 函数类型与闭包 | 已定义 | 2,3,4 | [0278](../archive/specs/0278-borrowed-closure-escape-verification.md) [borrowed-closure-escape](../architecture/borrowed-closure-escape.md) | 闭包家族 5 个 probe 失败；move 闭包（p18）是受限线程 T1 的前置。 |
 | ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | v1 必做 | 类型、泛型与声明 | 已定义 | 4 | — | — |
 | ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | v1 必做 | 类、接口与成员 | 已定义 | 2,3,4 | [0323](../archive/specs/0323-final-admission-static-recovery.md) | companion 调用已由 0323 转为正确的静态角色；native 仍未通。 |

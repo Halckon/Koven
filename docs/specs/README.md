@@ -126,6 +126,7 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 - [v0.43 广义后继](drafts/v0.43/README.md#0298首片之外的开放后继)：0298 更广表达式/控制流/循环仍为候选；0292 consume 保持原 draft。
 - [v0.44 候选](drafts/v0.44/README.md)：0291 已重基为 active，版本目录只保留阶段路由；[Proposals](../proposals/README.md) 不自动批准实施，P2 预算继续延期。
+- [v0.46 候选](drafts/v0.46/README.md)：0350 E3 细化层与 nullable 试点草案，等待 ADR-0032/0033 接受。
 - [演进历史基线](evolution-status.md) / [工程方法](../development/README.md)：前者保留历史检查点，当前交付只在本节维护。
 - [冻结库存](inventory.md)：active/archive 的独立声明与漏项检测，不由目录扫描自动生成。
 - [依赖图](dependency-graph.md) / [SVG](dependency-graph.svg)：由 `scripts/gen_spec_dag.py` 生成拓扑，不承载验收状态。
@@ -134,6 +135,7 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 - [v0.43 首片与后继合同](drafts/v0.43/README.md)
 - [v0.44 候选合同](drafts/v0.44/README.md)
+- [v0.46 候选合同](drafts/v0.46/README.md)
 
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
