@@ -501,3 +501,5 @@
 - [SPEC-0332](0332-rc-nullable-while-regression.md)：Rc nullable while表示分派回归；三历史双入口对照与PR118实现CI双host71项有界验收，额外payload/体内返回欠账独立承接；归档head CI/main待验。
 
 - [SPEC-0345](0345-preview-version-manager.md)：本地 preview 安装、身份查询、原子激活、停用及卸载；双宿主真实消费通过，三个示范程序联合验收保留后继。
+
+- [SPEC-0344](0344-site-content-sync.md)：独立门户内容同步及成功 main CI 自动通知、站点构建与 Pages 发布实证；设计快照与工具链身份分开。
