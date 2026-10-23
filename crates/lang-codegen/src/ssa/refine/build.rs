@@ -45,6 +45,18 @@ pub(super) struct Builder<'i, 'a> {
     narrowed: BTreeMap<UnitSymbolId, Slot>,
     temporaries: BTreeMap<UnitExpressionId, Slot>,
     consumed_drops: BTreeSet<usize>,
+    /// MoveOnly non-null views created by a condition, keyed by the branch they enter.
+    pending_views: Vec<View>,
+    /// Views live on the current path, innermost last.
+    active_views: Vec<View>,
+}
+
+/// A shared proof view of a MoveOnly nullable binding's inner value.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct View {
+    pub(super) symbol: UnitSymbolId,
+    pub(super) slot: Slot,
+    pub(super) target: BlockRef,
 }
 
 pub(super) fn build(
@@ -62,6 +74,8 @@ pub(super) fn build(
         narrowed: BTreeMap::new(),
         temporaries: BTreeMap::new(),
         consumed_drops: BTreeSet::new(),
+        pending_views: Vec::new(),
+        active_views: Vec::new(),
     };
     let entry = builder.body.block();
     builder.block = Some(entry);
@@ -250,27 +264,114 @@ impl Builder<'_, '_> {
 
     /// Consumes every drop fact published at `point`, in publication order.
     fn drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
-        let facts: Vec<_> = self
-            .inputs
+        let facts = self.collect_drops(point);
+        self.emit_drops(&facts)?;
+        self.finish_drops(&facts);
+        Ok(())
+    }
+
+    /// The not-yet-consumed facts at `point`.
+    pub(super) fn collect_drops(&self, point: UnitDropPoint) -> Vec<(usize, UnitDropTarget, Span)> {
+        self.inputs
             .owned
             .drops()
             .iter()
             .enumerate()
             .filter(|(index, fact)| fact.point() == point && !self.consumed_drops.contains(index))
-            .map(|(index, fact)| (index, *fact))
-            .collect();
-        for (index, fact) in facts {
-            let span = fact.value_origin();
-            let slot = match fact.target() {
-                UnitDropTarget::Named(symbol) => self.bindings.get(&symbol).copied(),
-                UnitDropTarget::Temporary(expression) => self.temporaries.remove(&expression),
+            .map(|(index, fact)| (index, fact.target(), fact.value_origin()))
+            .collect()
+    }
+
+    /// Emits the drops on the current path; a point reached by several edges emits once
+    /// per edge before [`Self::finish_drops`] consumes the facts.
+    pub(super) fn emit_drops(
+        &mut self,
+        facts: &[(usize, UnitDropTarget, Span)],
+    ) -> Result<(), LoweringError> {
+        for (_, target, span) in facts {
+            let slot = match target {
+                UnitDropTarget::Named(symbol) => {
+                    self.end_views_of(*symbol, *span)?;
+                    self.bindings.get(symbol).copied()
+                }
+                UnitDropTarget::Temporary(expression) => self.temporaries.get(expression).copied(),
                 _ => None,
             }
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-            self.push(ROp::Drop { owner: slot }, Vec::new(), span)?;
-            self.consumed_drops.insert(index);
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
+            self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
         }
         Ok(())
+    }
+
+    pub(super) fn finish_drops(&mut self, facts: &[(usize, UnitDropTarget, Span)]) {
+        for (index, target, _) in facts {
+            if let UnitDropTarget::Temporary(expression) = target {
+                self.temporaries.remove(expression);
+            }
+            self.consumed_drops.insert(*index);
+        }
+    }
+
+    /// Enters a branch block: views proven for it become active on this path.
+    pub(super) fn enter(&mut self, block: BlockRef) -> usize {
+        self.block = Some(block);
+        let mark = self.active_views.len();
+        let (entered, pending): (Vec<View>, Vec<View>) = self
+            .pending_views
+            .drain(..)
+            .partition(|view| view.target == block);
+        self.pending_views = pending;
+        self.active_views.extend(entered);
+        mark
+    }
+
+    /// Leaves a branch normally: ends the views it activated that are still live.
+    pub(super) fn leave(&mut self, mark: usize, span: Span) -> Result<(), LoweringError> {
+        while self.active_views.len() > mark {
+            let view = self.active_views.pop().expect("length checked");
+            if self.block.is_some() {
+                self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Views must not outlive their owner: end them before it is dropped or moved.
+    fn end_views_of(&mut self, symbol: UnitSymbolId, span: Span) -> Result<(), LoweringError> {
+        let (ended, kept): (Vec<View>, Vec<View>) = self
+            .active_views
+            .drain(..)
+            .partition(|view| view.symbol == symbol);
+        self.active_views = kept;
+        for view in ended {
+            self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
+        }
+        Ok(())
+    }
+
+    /// A control transfer leaves every active view; they end before the terminator.
+    pub(super) fn end_all_views(&mut self, span: Span) -> Result<(), LoweringError> {
+        for view in self.active_views.clone().into_iter().rev() {
+            self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
+        }
+        Ok(())
+    }
+
+    /// Blocks that never receive a view (loop exits, joins) must not have pending ones.
+    pub(super) fn leave_unclaimed(&mut self, mark: usize, span: Span) -> Result<(), LoweringError> {
+        if self.active_views.len() != mark || !self.pending_views.is_empty() {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        Ok(())
+    }
+
+    /// The view proving `symbol` non-null on the current path, if any.
+    pub(super) fn active_view(&self, symbol: UnitSymbolId) -> Option<Slot> {
+        self.active_views
+            .iter()
+            .rev()
+            .find(|view| view.symbol == symbol)
+            .map(|view| view.slot)
     }
 
     /// Every drop fact whose point lies in this function must have been consumed.
@@ -466,11 +567,14 @@ impl Builder<'_, '_> {
         self.goto(header, span)?;
         self.block = Some(header);
         self.condition(condition, body_block, exit)?;
-        self.block = Some(body_block);
-        if self.statement(loop_body)? != Lowered::Diverged {
+        let mark = self.enter(body_block);
+        let reached = self.statement(loop_body)? != Lowered::Diverged;
+        self.leave(mark, span)?;
+        if reached {
             self.goto(header, span)?;
         }
-        self.block = Some(exit);
+        let mark = self.enter(exit);
+        self.leave_unclaimed(mark, span)?;
         self.drops(UnitDropPoint::LoopExit(UnitStatementId::new(
             self.inputs.source_unit,
             statement,

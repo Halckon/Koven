@@ -145,6 +145,14 @@ impl Emitter<'_> {
             ROp::ReadLoan { loan: slot } => Operation::Read {
                 source: crate::ssa::model::PlaceAccess::Loan(loan(self.get(*slot, span)?, span)?),
             },
+            ROp::StringConcat { left, right } => Operation::StringConcat {
+                left: self.get(*left, span)?,
+                right: self.get(*right, span)?,
+            },
+            ROp::StringEqual { left, right } => Operation::StringEqual {
+                left: self.get(*left, span)?,
+                right: self.get(*right, span)?,
+            },
             ROp::RootPlace { owner } => Operation::RootPlace {
                 owner: self.value(*owner, span)?,
             },

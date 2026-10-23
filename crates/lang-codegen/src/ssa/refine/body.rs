@@ -28,6 +28,15 @@ pub(super) enum ROp {
     PrintString {
         value: Slot,
     },
+    /// Operands are owned values or shared loans; neither is consumed.
+    StringConcat {
+        left: Slot,
+        right: Slot,
+    },
+    StringEqual {
+        left: Slot,
+        right: Slot,
+    },
     /// Copy a Copyable value out of a shared loan.
     ReadLoan {
         loan: Slot,
@@ -94,7 +103,10 @@ impl ROp {
             | Self::BooleanNot { operand: slot }
             | Self::NullableWrap { owner: slot, .. }
             | Self::NullableIsNull { owner: slot } => vec![*slot],
-            Self::Compare { left, right, .. } | Self::CheckedArithmetic { left, right, .. } => {
+            Self::Compare { left, right, .. }
+            | Self::CheckedArithmetic { left, right, .. }
+            | Self::StringConcat { left, right }
+            | Self::StringEqual { left, right } => {
                 vec![*left, *right]
             }
             Self::NullableTake { owner, proof } => vec![*owner, *proof],

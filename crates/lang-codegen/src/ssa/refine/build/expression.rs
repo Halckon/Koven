@@ -184,6 +184,23 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
     }
 
+    /// The active proof view for a MoveOnly non-null name use.
+    fn narrowed_view(&self, expression: ExpressionId) -> Result<Option<Slot>, LoweringError> {
+        let (payload, span) = self.node(expression)?;
+        let Expression::Name = payload else {
+            return Ok(None);
+        };
+        let Some(fact) = self.inputs.typed.non_null_use(self.unit(expression)) else {
+            return Ok(None);
+        };
+        if !self.move_only(fact.narrowed_type()) {
+            return Ok(None);
+        }
+        self.active_view(fact.symbol())
+            .map(Some)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+    }
+
     /// Applies the frontend-approved `inner -> inner?` adaptation, if any.
     pub(super) fn adapt(
         &mut self,
@@ -231,6 +248,46 @@ impl Builder<'_, '_> {
             .is_some()
         {
             return self.condition_value(expression);
+        }
+        let string = matches!(
+            self.inputs.typed.types().get(self.expression_type(left)?),
+            Some(UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::String
+            ))
+        );
+        if string {
+            // String operands are read, not consumed; a non-null use reads its proof view.
+            let mut operands = Vec::with_capacity(2);
+            let mut view_reads = Vec::new();
+            for operand in [left, right] {
+                if let Some(view) = self.narrowed_view(operand)? {
+                    operands.push(view);
+                    view_reads.push(operand);
+                    continue;
+                }
+                let Some(slot) = self.required(operand)? else {
+                    return Ok(Lowered::Diverged);
+                };
+                operands.push(slot);
+            }
+            let (left, right) = (operands[0], operands[1]);
+            let op = match operator {
+                BinaryOperator::Add => ROp::StringConcat { left, right },
+                BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                    ROp::StringEqual { left, right }
+                }
+                _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+            };
+            let mut result = self.typed_value(op, expression)?;
+            self.drops(UnitDropPoint::AfterBinaryOperands(self.unit(expression)))?;
+            // A view read completes at the operation; the name's own drop point follows it.
+            for operand in view_reads {
+                self.drops(UnitDropPoint::AfterExpression(self.unit(operand)))?;
+            }
+            if operator == BinaryOperator::NotEqual {
+                result = self.typed_value(ROp::BooleanNot { operand: result }, expression)?;
+            }
+            return Ok(Lowered::Value(result));
         }
         let Some(left) = self.required(left)? else {
             return Ok(Lowered::Diverged);
@@ -339,11 +396,12 @@ impl Builder<'_, '_> {
             .into_iter()
             .enumerate()
         {
-            self.block = Some(block);
+            let mark = self.enter(block);
             let value = match branch {
                 Some(branch) => self.branch_value(branch)?,
                 None => Some(None),
             };
+            self.leave(mark, span)?;
             let Some(value) = value else {
                 continue;
             };
@@ -360,6 +418,9 @@ impl Builder<'_, '_> {
             })?;
             self.goto(join, span)?;
             reached = true;
+        }
+        if !self.pending_views.is_empty() {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
         }
         if !reached {
             self.block = None;
@@ -422,11 +483,20 @@ impl Builder<'_, '_> {
         }
         let mut lowered = Vec::with_capacity(arguments.len());
         let mut loans = Vec::new();
+        let mut view_reads = Vec::new();
         for argument in descriptor.arguments() {
             let value_expression = arguments
                 .get(argument.argument_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
                 .value;
+            if argument.mode() == ParameterMode::Borrow
+                && let Some(view) = self.narrowed_view(value_expression)?
+            {
+                // A MoveOnly non-null use borrows through the condition's proof view.
+                lowered.push(view);
+                view_reads.push(value_expression);
+                continue;
+            }
             let Some(value) = self.required(value_expression)? else {
                 return Ok(Lowered::Diverged);
             };
@@ -504,6 +574,9 @@ impl Builder<'_, '_> {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
         }
         self.drops(UnitDropPoint::CallReturn(call))?;
+        for argument in view_reads {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(argument)))?;
+        }
         Ok(result)
     }
 
@@ -551,6 +624,7 @@ impl Builder<'_, '_> {
             None => None,
         };
         self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
+        self.end_all_views(span)?;
         let unit_return = self.is_unit(self.inputs.return_type);
         self.finish_return(result, unit_return, span)?;
         Ok(Lowered::Diverged)

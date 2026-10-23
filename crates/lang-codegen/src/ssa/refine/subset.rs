@@ -144,6 +144,13 @@ impl Checker<'_, '_> {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if *b == BuiltinType::Boolean || integer(*b))
     }
 
+    fn string(&self, ty: UnitTypeId) -> bool {
+        matches!(
+            self.kind(ty),
+            Some(UnitTypeKind::Builtin(BuiltinType::String))
+        )
+    }
+
     fn integer_type(&self, ty: UnitTypeId) -> bool {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if integer(*b))
     }
@@ -152,14 +159,15 @@ impl Checker<'_, '_> {
     fn storage_type(&self, ty: UnitTypeId) -> bool {
         match self.kind(ty) {
             Some(UnitTypeKind::Builtin(BuiltinType::String)) => true,
-            Some(UnitTypeKind::Nullable(inner)) => self.scalar(*inner),
+            Some(UnitTypeKind::Nullable(inner)) => self.scalar(*inner) || self.string(*inner),
             _ => self.scalar(ty),
         }
     }
 
     /// Records whether the function handles an ADR-0033 inline nullable at all.
     fn note_inline_nullable(&mut self, ty: UnitTypeId) {
-        if matches!(self.kind(ty), Some(UnitTypeKind::Nullable(inner)) if self.scalar(*inner)) {
+        if matches!(self.kind(ty), Some(UnitTypeKind::Nullable(inner)) if self.scalar(*inner) || self.string(*inner))
+        {
             self.inline_nullable = true;
         }
     }
@@ -186,10 +194,9 @@ impl Checker<'_, '_> {
             && typed.ownership_primitive(id).is_none()
             && typed.non_null_assertion(id).is_none()
             && typed.nullable_when(id).is_none()
-            && self
-                .inputs
-                .constant_owned
-                .is_none_or(|owned| owned.materialization_at(id).is_none())
+            && self.inputs.constant_owned.is_none_or(|owned| {
+                owned.materialization_at(id).is_none() && owned.short_circuit_at(id).is_none()
+            })
     }
 
     fn reference(&self, expression: ExpressionId) -> Option<UnitSymbolId> {
@@ -256,16 +263,14 @@ impl Checker<'_, '_> {
                 else_branch,
                 ..
             } => {
-                self.condition(condition)
+                self.condition(condition, true)
                     && self.statement(then_branch)
                     && else_branch.is_none_or(|branch| self.statement(branch))
                     && (self.unit(ty) || else_branch.is_some())
             }
             Expression::Call { arguments, .. } => {
-                self.call(expression)
-                    && arguments
-                        .iter()
-                        .all(|argument| self.expression(argument.value))
+                let values: Vec<_> = arguments.iter().map(|argument| argument.value).collect();
+                self.call(expression) && self.arguments(expression, &values)
             }
             Expression::Assignment {
                 target,
@@ -311,12 +316,13 @@ impl Checker<'_, '_> {
             .null_comparison(self.id(expression))
             .is_some()
         {
-            return self.condition(expression);
+            return self.condition(expression, false);
         }
         let Some(operand) = self.expression_type(left) else {
             return false;
         };
         let supported = match operator {
+            BinaryOperator::Add if self.string(operand) => true,
             BinaryOperator::Add
             | BinaryOperator::Subtract
             | BinaryOperator::Multiply
@@ -326,15 +332,32 @@ impl Checker<'_, '_> {
             | BinaryOperator::LessEqual
             | BinaryOperator::Greater
             | BinaryOperator::GreaterEqual => self.integer_type(operand),
-            BinaryOperator::Equal | BinaryOperator::NotEqual => self.scalar(operand),
+            BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                self.scalar(operand) || self.string(operand)
+            }
             _ => false,
         };
-        supported && self.expression(left) && self.expression(right)
+        let string = self.string(operand);
+        supported && self.operand(left, string) && self.operand(right, string)
+    }
+
+    /// A String operand may be a MoveOnly non-null name, read through its proof view.
+    fn operand(&mut self, expression: ExpressionId, string: bool) -> bool {
+        if string
+            && let Some(fact) = self.inputs.typed.non_null_use(self.id(expression))
+            && self.inputs.typed.copyability(fact.narrowed_type()) == Copyability::MoveOnly
+        {
+            return self.reference(expression) == Some(fact.symbol())
+                && self.known.contains(&fact.symbol());
+        }
+        self.expression(expression)
     }
 
     /// Mirrors the builder: `!`, groups, `&&`, `||` and null comparisons are branch form
     /// (their own drop points are never emitted); other conditions are plain values.
-    fn condition(&mut self, expression: ExpressionId) -> bool {
+    /// `views`: a MoveOnly null comparison may open a proof view only directly in an
+    /// `if`/`while` condition (through groups and `&&`), on its true edge.
+    fn condition(&mut self, expression: ExpressionId, views: bool) -> bool {
         let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
             return false;
         };
@@ -348,30 +371,40 @@ impl Checker<'_, '_> {
         if let Some(fact) = self.inputs.typed.null_comparison(id) {
             self.branch_form.insert(id);
             self.note_inline_nullable(fact.nullable_type());
-            let inner_copyable = matches!(
-                self.kind(fact.nullable_type()),
-                Some(UnitTypeKind::Nullable(inner)) if self.scalar(*inner)
-            );
-            return boolean && inner_copyable && self.known.contains(&fact.symbol());
+            let inner_ok = match self.kind(fact.nullable_type()) {
+                Some(UnitTypeKind::Nullable(inner)) if self.scalar(*inner) => true,
+                Some(UnitTypeKind::Nullable(inner)) if self.string(*inner) => {
+                    views && fact.non_null_when_true()
+                }
+                _ => false,
+            };
+            return boolean && inner_ok && self.known.contains(&fact.symbol());
         }
         match node.payload().clone() {
-            Expression::Group { expression: inner }
-            | Expression::Prefix {
+            Expression::Group { expression: inner } => {
+                self.branch_form.insert(id);
+                boolean && self.plain(expression) && self.condition(inner, views)
+            }
+            Expression::Prefix {
                 operator: PrefixOperator::Not,
                 operand: inner,
                 ..
             } => {
                 self.branch_form.insert(id);
-                boolean && self.plain(expression) && self.condition(inner)
+                boolean && self.plain(expression) && self.condition(inner, false)
             }
             Expression::Binary {
                 left,
-                operator: BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr,
+                operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
                 right,
                 ..
             } => {
                 self.branch_form.insert(id);
-                boolean && self.plain(expression) && self.condition(left) && self.condition(right)
+                let views = views && operator == BinaryOperator::LogicalAnd;
+                boolean
+                    && self.plain(expression)
+                    && self.condition(left, views)
+                    && self.condition(right, views)
             }
             _ => self.expression(expression),
         }
@@ -404,6 +437,32 @@ impl Checker<'_, '_> {
         simple && target
     }
 
+    /// Arguments are plain expressions, except that a Borrow argument may be a MoveOnly
+    /// non-null name read through its proof view.
+    fn arguments(&mut self, call: ExpressionId, values: &[ExpressionId]) -> bool {
+        let Some(descriptor) = self.inputs.typed.call(self.id(call)) else {
+            return false;
+        };
+        let modes: Vec<_> = descriptor
+            .arguments()
+            .iter()
+            .map(|argument| (argument.argument_index(), argument.mode()))
+            .collect();
+        modes.into_iter().all(|(index, mode)| {
+            let Some(value) = values.get(index).copied() else {
+                return false;
+            };
+            if mode == ParameterMode::Borrow
+                && let Some(fact) = self.inputs.typed.non_null_use(self.id(value))
+                && self.inputs.typed.copyability(fact.narrowed_type()) == Copyability::MoveOnly
+            {
+                return self.reference(value) == Some(fact.symbol())
+                    && self.known.contains(&fact.symbol());
+            }
+            self.expression(value)
+        })
+    }
+
     fn assignment(&self, target: ExpressionId) -> bool {
         let Some(symbol) = self.reference(target) else {
             return false;
@@ -428,7 +487,7 @@ impl Checker<'_, '_> {
             Statement::LocalVariable { declaration } => self.local_variable(declaration),
             Statement::While {
                 condition, body, ..
-            } => self.condition(condition) && self.statement(body),
+            } => self.condition(condition, true) && self.statement(body),
             _ => false,
         }
     }

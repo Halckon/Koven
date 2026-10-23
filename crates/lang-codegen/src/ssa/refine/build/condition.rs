@@ -1,6 +1,7 @@
 //! Branch-form conditions: `&&`/`||`/`!` short-circuit and null comparisons with proofs.
 use lang_frontend::{
     ast::ExpressionId,
+    ownership_checking::UnitDropPoint,
     parser::{BinaryOperator, Expression, PrefixOperator},
     type_checking::UnitTypeKind,
 };
@@ -13,6 +14,72 @@ use crate::ssa::{
 };
 
 impl Builder<'_, '_> {
+    /// Short-circuit: the skipped exit consumes `BranchExit` 1 and the evaluated exits
+    /// consume `BranchExit` 0 on both outcome edges. Proof views flow only to the true
+    /// target; any other edge ends them.
+    fn logical(
+        &mut self,
+        expression: ExpressionId,
+        and: bool,
+        (left, right): (ExpressionId, ExpressionId),
+        when_true: BlockRef,
+        when_false: BlockRef,
+    ) -> Result<(), LoweringError> {
+        let span = self.span(expression);
+        let control = self.unit(expression);
+        let middle = self.body.block();
+        let skip = self.body.block();
+        if and {
+            self.condition(left, middle, skip)?;
+        } else {
+            self.condition(left, skip, middle)?;
+        }
+        let skip_target = if and { when_false } else { when_true };
+        let skipped = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 1 });
+        let mark = self.enter(skip);
+        self.emit_drops(&skipped)?;
+        self.finish_drops(&skipped);
+        self.route_views(mark, skip_target, when_true, span)?;
+        self.goto(skip_target, span)?;
+
+        let mark = self.enter(middle);
+        let evaluated_true = self.body.block();
+        let evaluated_false = self.body.block();
+        self.condition(right, evaluated_true, evaluated_false)?;
+        let left_views: Vec<_> = self.active_views.drain(mark..).collect();
+        let evaluated = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 0 });
+        for (path, target) in [(evaluated_true, when_true), (evaluated_false, when_false)] {
+            let mark = self.enter(path);
+            self.active_views.extend(left_views.iter().copied());
+            self.emit_drops(&evaluated)?;
+            self.route_views(mark, target, when_true, span)?;
+            self.goto(target, span)?;
+        }
+        self.finish_drops(&evaluated);
+        Ok(())
+    }
+
+    /// Views above `mark` continue into `target` when it is the true target; otherwise
+    /// they end here.
+    fn route_views(
+        &mut self,
+        mark: usize,
+        target: BlockRef,
+        when_true: BlockRef,
+        span: lang_frontend::source::Span,
+    ) -> Result<(), LoweringError> {
+        let views: Vec<_> = self.active_views.drain(mark..).collect();
+        if target == when_true {
+            self.pending_views
+                .extend(views.into_iter().map(|view| super::View { target, ..view }));
+            return Ok(());
+        }
+        for view in views {
+            self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
+        }
+        Ok(())
+    }
+
     /// Ends the current block with a branch to `when_true` / `when_false`.
     pub(super) fn condition(
         &mut self,
@@ -36,14 +103,13 @@ impl Builder<'_, '_> {
                 right,
                 ..
             } => {
-                let middle = self.body.block();
-                if operator == BinaryOperator::LogicalAnd {
-                    self.condition(left, middle, when_false)?;
-                } else {
-                    self.condition(left, when_true, middle)?;
-                }
-                self.block = Some(middle);
-                return self.condition(right, when_true, when_false);
+                return self.logical(
+                    expression,
+                    operator == BinaryOperator::LogicalAnd,
+                    (left, right),
+                    when_true,
+                    when_false,
+                );
             }
             _ => {}
         }
@@ -81,8 +147,16 @@ impl Builder<'_, '_> {
             };
             self.block = Some(non_null_block);
             if self.move_only(inner) {
-                // MoveOnly proofs are views; the migrated subset has no such use yet.
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                // The view stays live in the branch it enters; Borrow uses read through it.
+                self.pending_views.push(super::View {
+                    symbol: fact.symbol(),
+                    slot: view,
+                    target: on_non_null,
+                });
+                self.goto(on_non_null, span)?;
+                self.block = Some(null_block);
+                self.goto(on_null, span)?;
+                return Ok(());
             }
             let narrowed = self.value(
                 ROp::NullableTake { owner, proof: view },

@@ -126,3 +126,50 @@ fn checked_arithmetic_in_refined_function_aborts_with_message() {
         "{stderr:?}"
     );
 }
+
+fn counted(source: &str, allocations: usize, stdout: &[u8]) {
+    let mut sources = SourceMap::new();
+    let text = format!("package p\n{source}");
+    let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let entry = declaration(&names, "p", "main");
+    let (program, entry) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry,
+    )
+    .expect("refined program lowers and verifies");
+    let llvm =
+        crate::llvm::render_verified_program_with_entry(&program, entry).expect("verified LLVM");
+    let output = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, allocations);
+    crate::native_tests::boxed_enum_tests::assert_success(&output, stdout);
+}
+
+#[test]
+fn nullable_string_return_and_borrowed_view() {
+    let source = r#"fun find(flag: Boolean): String? { if (flag) { return "hit" }; return null }
+    fun main(): Unit { val s = find(true); if (s != null) { println(s) } }"#;
+    render(source);
+    assert_eq!(run(source), ("hit\n".to_owned(), Some(0)));
+}
+
+#[test]
+fn nullable_string_owner_is_freed_once_on_both_edges() {
+    let source = r#"fun find(flag: Boolean): String? { if (flag) { return "h" + "it" }; return null }
+    fun main(): Unit {
+        val s = find(true)
+        if (s != null) { println(s) }
+        val t = find(false)
+        if (t != null) { println(t) } else { println("none") }
+        val u = find(true)
+        if (u != null && u == "hit") { println("equal") }
+    }"#;
+    render(source);
+    counted(source, 2, b"hit\nnone\nequal\n");
+}
