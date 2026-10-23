@@ -22,6 +22,9 @@
 [0030 范围 carrier 来源事实](accepted/0030-range-carrier-source-facts.md)只覆盖已批准 N1a 首片，
 运输独立新描述符 mode 与根来源/end facts；实现与端到端验收由 0289 维护。
 
+[0032 所有权细化层](accepted/0032-ownership-refinement-layer.md)与[0033 inline nullable 表示](accepted/0033-inline-nullable-representation.md)
+按 2026-10-23 用户明确确认接受（0033 局部扩展 0018）；实施与验收由 0350 维护。
+
 [0031 单文件 Unit driver 适配](accepted/0031-single-file-compilation-unit-adapter.md)按 2026-10-19 用户
 对 Guide v0.45 的明确批准接受，局部扩展 0005；project 原显式 root 与发现政策保持。
 
@@ -29,10 +32,6 @@
 
 [0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为
 native ABI 提议；SPEC-0211 的 Phase 3 事实运输不以其被接受为前提。
-
-[0032 所有权细化层](proposed/0032-ownership-refinement-layer.md)与
-[0033 inline nullable 表示](proposed/0033-inline-nullable-representation.md)是路线图 E3 的提议，
-由 SPEC-0350 草案引用；接受前不实施。
 
 新决策使用 [TEMPLATE.md](TEMPLATE.md) 并先放入 `proposed/`。改变 accepted 决定时新增 ADR；完整被取代的旧记录
 进入 archive 并建立双向取代关系；局部扩展保留旧 ADR 的其他决定，只追加双向关系。

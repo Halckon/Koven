@@ -1,15 +1,15 @@
 # ADR-0032：compilation-unit lowering 的所有权细化层
 
-> **性质**：架构决策记录 · **状态**：proposed · **读取时机**：设计或审查 E3 通用 lowering、细化 IR 与 SSA 构造时 · **唯一真源**：本 ADR
+> **性质**：架构决策记录 · **状态**：accepted · **读取时机**：设计或审查 E3 通用 lowering、细化 IR 与 SSA 构造时 · **唯一真源**：本 ADR
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-不适用（`proposed`）。2026-10-23 用户选择以 nullable 家族试点路线图 E3，并要求与 D10 的清理方向
-一致、最终统一使用新层；本记录的具体决定尚待用户确认。
+2026-10-23 用户明确确认：以 nullable 家族试点路线图 E3；终态统一使用细化层；迁移期按函数体
+是否全在已迁移子集内确定性分流、逐家族迁移；已迁移家族的旧模块不留兼容层。
 
 ## 背景
 
@@ -32,7 +32,7 @@ frontend 已发布 lowering 需要的全部语义事实：source-qualified drop 
 结束、Value delivery、receiver 合同、null comparison 边事实与非空 use。缺的是把这些事实机械
 落实为显式指令、再统一构造 SSA 的中间层。
 
-## 决策提议
+## 决策
 
 ### 两段式：细化，再构造 SSA
 
@@ -102,7 +102,7 @@ frontend 已发布 lowering 需要的全部语义事实：source-qualified drop 
 
 ## 关联
 
-- 相关 Spec：SPEC-0350（E3 nullable 家族试点，draft）；SPEC-0341（D10，管线统一）
-- 相关 ADR：[ADR-0006](../accepted/0006-typed-ssa-block-parameters.md)、[ADR-0017](../accepted/0017-nullable-handle-ssa-abi.md)、[ADR-0033](0033-inline-nullable-representation.md)
+- 相关 Spec：[SPEC-0350](../../specs/active/0350-ownership-refinement-nullable-pilot.md)（E3 nullable 家族试点）；SPEC-0341（D10，管线统一）
+- 相关 ADR：[ADR-0006](0006-typed-ssa-block-parameters.md)、[ADR-0017](0017-nullable-handle-ssa-abi.md)、[ADR-0033](0033-inline-nullable-representation.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无

@@ -1,18 +1,18 @@
 # SPEC-0350: E3 所有权细化层与 nullable 家族试点
 
-> **性质**：设计草案 · **状态**：draft · **读取时机**：评审或实施路线图 E3（通用所有权细化层）时 · **唯一真源**：本片目标、范围与验收；语义以 Guide 为准，长期决定以 ADR-0032/0033 为准
+> **性质**：实施合同 · **状态**：in-progress · **读取时机**：评审或实施路线图 E3（通用所有权细化层）时 · **唯一真源**：本片目标、范围与验收；语义以 Guide 为准，长期决定以 ADR-0032/0033 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P4-0350` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
-| 语言规范 | [Guide v0.46 nullable flow 与 extraction](../../../guide/09-nullability-errors.md#nullable-flow-与-extraction)、[Guide 15 nullable 实施边界](../../../guide/15-conformance-and-staging.md) |
+| 语言规范 | [Guide v0.46 nullable flow 与 extraction](../../guide/09-nullability-errors.md#nullable-flow-与-extraction)、[Guide 15 nullable 实施边界](../../guide/15-conformance-and-staging.md) |
 | 批准依据 | 2026-10-23 用户选择：先做 E3 nullable 试点；inline nullable 采用 tag + payload 并做 niche；试点只做 7 个 probe（不含 Elvis 的 p15）；细化层与 D10 方向一致，终态统一使用新层 |
 | 基线 | `feature/spec-0349-builtin-result` 合并 main `1a200aaa` |
 | 分支 | `feature/spec-0350-ownership-refinement` |
-| 前置 ADR | [ADR-0032](../../../adr/proposed/0032-ownership-refinement-layer.md)（细化层）、[ADR-0033](../../../adr/proposed/0033-inline-nullable-representation.md)（inline nullable 表示），均为 proposed |
-| 阻塞项 | ADR-0032、ADR-0033 未 accepted；§8 第 3 项（String niche）待用户确认。确认前不实施 |
+| 前置 ADR | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)（细化层）、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)（inline nullable 表示），2026-10-23 accepted |
+| 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
@@ -61,7 +61,9 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 ### 2.3 inline nullable（ADR-0033）
 
 - `SsaTypeKind::InlineNullable { inner, niche }`、类型 intern、LLVM 类型映射、drop glue 与 verifier 规则；
-- 首批 niche：String（`capacity == usize::MAX`）与顺序容器（`buffer == null`），其余显式 tag；
+- 首批 niche：String（`bytes == null`）与顺序容器（`buffer == null`），其余显式 tag；
+- 第一步单独提交：String 空串 bytes 从 null 改为非 null sentinel（字面量、concat、clone、argv 四处），
+  更新锁定 null 字面量的 String LLVM 测试，并跑 String 相关 native 测试；
 - 现有 `NullableHandle` 路径不变。
 
 ### 2.4 分流（迁移期）
@@ -105,7 +107,7 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 
 ## 6. 验收标准
 
-- [ ] ADR-0032、ADR-0033 accepted。
+- [x] ADR-0032、ADR-0033 accepted（2026-10-23）。
 - [ ] 7 个 probe 在单文件与 project 两种模式下 build 成功，stdout 与期望一致、退出 0。
 - [ ] 154 个 probe 的 conformance 矩阵与本 Spec 基线相比，没有原本 OK 的 probe 变差，两模式差异为 0。
 - [ ] inline nullable：`Int?`、`Boolean?`、`Char?`、`String?` 的 wrap/null/branch/take/drop 有 SSA verifier
@@ -129,5 +131,5 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 1. 已确认（2026-10-23）：迁移期按函数确定性预检分流（§2.4）——函数体全在已迁移子集内走新层，
    否则走旧路径，逐家族迁移；终态删除旧函数体路径与预检。
 2. 已确认（2026-10-23）：已迁移家族的旧模块在最后一个消费者迁走时删除（§4），不保留兼容层。
-3. 待确认：ADR-0033 中 String 的 niche 用 `capacity == usize::MAX` 哨兵，还是把空串改为非 null
-   sentinel 指针后用 `bytes == null` 作 niche。容器 buffer 在空时已使用非 null sentinel，直接用指针 niche。
+3. 已确认（2026-10-23）：String 的 niche 用 bytes 指针，空串改为非 null sentinel；不采用 capacity 哨兵。
+   容器 buffer 现已使用非 null sentinel，直接用指针 niche。
