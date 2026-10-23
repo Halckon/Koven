@@ -6,6 +6,8 @@ pub(super) struct RuntimeRequirements {
     pub(super) needs_abort: bool,
     pub(super) needs_print: bool,
     pub(super) needs_free: bool,
+    /// ADR-0033: an empty String literal points at the shared non-null sentinel.
+    pub(super) needs_empty_string: bool,
     pub(super) allocated_owners: BTreeSet<SsaTypeId>,
     pub(super) shared_allocated_owners: BTreeSet<SsaTypeId>,
     pub(super) container_allocations: BTreeSet<SsaTypeId>,
@@ -22,6 +24,7 @@ impl RuntimeRequirements {
             needs_abort: false,
             needs_print: false,
             needs_free: false,
+            needs_empty_string: false,
             allocated_owners: BTreeSet::new(),
             shared_allocated_owners: BTreeSet::new(),
             container_allocations: BTreeSet::new(),
@@ -95,6 +98,9 @@ impl RuntimeRequirements {
                     Operation::PrintLiteral { .. } => {
                         requirements.needs_print = true;
                         requirements.needs_abort = true;
+                    }
+                    Operation::StringLiteral { ref bytes, .. } if bytes.is_empty() => {
+                        requirements.needs_empty_string = true;
                     }
                     Operation::StringConcat { .. } | Operation::StringClone { .. } => {
                         requirements.needs_allocation = true;

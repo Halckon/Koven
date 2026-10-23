@@ -254,7 +254,7 @@ fn define_borrowed_arguments_wrapper<'ctx>(
     let empty_owner = string::build_owner(
         &builder,
         llvm_string,
-        pointer.const_null(),
+        runtime.empty_string_bytes()?,
         length,
         size.const_zero(),
         "argv.string.empty",

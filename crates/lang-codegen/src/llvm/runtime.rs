@@ -105,26 +105,28 @@ impl<'ctx> RuntimeAbi<'ctx> {
                 None,
             )
         });
-        let zst_sentinel =
-            if requirements.container_allocations.is_empty() && !requirements.needs_allocation {
-                None
-            } else {
-                let alignment = requirements
-                    .container_allocations
-                    .iter()
-                    .map(|ty| types.container_layout(*ty))
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into_iter()
-                    .map(|layout| layout.element_alignment)
-                    .max()
-                    .unwrap_or(1);
-                let global = llvm.add_global(context.i8_type(), None, "koven.zst.sentinel");
-                global.set_linkage(Linkage::Private);
-                global.set_constant(true);
-                global.set_initializer(&context.i8_type().const_zero());
-                global.set_alignment(alignment.max(1));
-                Some(global.as_pointer_value())
-            };
+        let zst_sentinel = if requirements.container_allocations.is_empty()
+            && !requirements.needs_allocation
+            && !requirements.needs_empty_string
+        {
+            None
+        } else {
+            let alignment = requirements
+                .container_allocations
+                .iter()
+                .map(|ty| types.container_layout(*ty))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .map(|layout| layout.element_alignment)
+                .max()
+                .unwrap_or(1);
+            let global = llvm.add_global(context.i8_type(), None, "koven.zst.sentinel");
+            global.set_linkage(Linkage::Private);
+            global.set_constant(true);
+            global.set_initializer(&context.i8_type().const_zero());
+            global.set_alignment(alignment.max(1));
+            Some(global.as_pointer_value())
+        };
 
         let mut payload_sizes = BTreeMap::new();
         for owner in requirements.allocated_owners {
@@ -415,6 +417,12 @@ impl<'ctx> RuntimeAbi<'ctx> {
 
     pub(super) fn size_type(&self) -> IntType<'ctx> {
         self.size_type
+    }
+
+    /// ADR-0033: empty Strings share the non-null sentinel, so `bytes` is never null.
+    pub(super) fn empty_string_bytes(&self) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+        self.zst_sentinel
+            .ok_or_else(|| LlvmAdapterError::Build("空 String sentinel 未声明".to_owned()))
     }
 
     pub(super) fn container_int_to_size(
