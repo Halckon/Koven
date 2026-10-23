@@ -11,6 +11,7 @@ mod integer_range;
 mod map;
 mod map_iteration;
 mod module_lowering;
+mod nullable;
 mod range;
 mod root_exchange;
 #[cfg(test)]
@@ -1162,7 +1163,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("nullable wrap", 1, results.len()));
                 };
-                let value = if self
+                let value = if let Some(value) = self.inline_nullable_wrap(*result, *owner)? {
+                    value
+                } else if self
                     .module
                     .presence_payload_type(value_type(self.function, *result)?)
                     .is_some()
@@ -1221,7 +1224,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                         "nullable proof 的 LLVM loan 映射不存在".to_owned(),
                     )
                 })?;
-                let value = if self
+                let value = if let Some((_, payload)) = self.inline_nullable_payload(*owner)? {
+                    payload
+                } else if self
                     .module
                     .presence_payload_type(value_type(self.function, *owner)?)
                     .is_some()

@@ -197,6 +197,12 @@ pub(crate) enum SsaTypeKind {
     NullableHandle {
         inner: SsaTypeId,
     },
+    /// ADR-0033 non-pointer `T?`: `{present, payload}`, or `inner`'s own layout with a null
+    /// data pointer when `niche` (String, sequential containers).
+    InlineNullable {
+        inner: SsaTypeId,
+        niche: bool,
+    },
     SequentialContainer {
         kind: SequentialContainerKind,
         element: SsaTypeId,
@@ -945,6 +951,9 @@ pub(crate) enum ModelError {
     ExpectedPointerLikeOwner {
         ty: SsaTypeId,
     },
+    ExpectedInlineNullableInner {
+        ty: SsaTypeId,
+    },
     ExpectedAggregate {
         ty: SsaTypeId,
     },
@@ -1003,6 +1012,12 @@ impl fmt::Display for ModelError {
             }
             Self::ExpectedPointerLikeOwner { ty } => {
                 write!(formatter, "type {ty:?} is not a pointer-like owner")
+            }
+            Self::ExpectedInlineNullableInner { ty } => {
+                write!(
+                    formatter,
+                    "type {ty:?} cannot carry an inline nullable wrapper"
+                )
             }
             Self::ExpectedAggregate { ty } => write!(formatter, "type {ty:?} is not an aggregate"),
             Self::ExpectedMapContainer { ty } => {

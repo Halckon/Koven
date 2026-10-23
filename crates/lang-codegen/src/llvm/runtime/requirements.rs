@@ -284,7 +284,9 @@ impl RuntimeRequirements {
                 })?;
                 self.collect_drop_type(module, payload)?;
             }
-            Some(SsaTypeKind::NullableHandle { inner }) => {
+            Some(
+                SsaTypeKind::NullableHandle { inner } | SsaTypeKind::InlineNullable { inner, .. },
+            ) => {
                 self.collect_drop_type(module, *inner)?;
             }
             Some(SsaTypeKind::SequentialContainer { element, .. }) => {

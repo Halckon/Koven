@@ -116,6 +116,13 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
             output.push('>');
             Ok(())
         }
+        SsaTypeKind::InlineNullable { inner, niche } => {
+            let form = if *niche { "niche" } else { "inline" };
+            write!(output, "nullable_{form}<")?;
+            write_type_id(output, *inner)?;
+            output.push('>');
+            Ok(())
+        }
         SsaTypeKind::SequentialContainer { kind, element } => {
             write!(output, "container {kind:?}<")?;
             write_type_id(output, *element)?;

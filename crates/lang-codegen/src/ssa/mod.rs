@@ -5,6 +5,7 @@ mod closure;
 mod constant_materialization;
 mod deinit;
 mod expression_core;
+mod inline_nullable;
 mod integer;
 mod integer_range;
 mod integer_range_type;

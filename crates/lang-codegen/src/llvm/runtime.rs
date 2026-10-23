@@ -1,5 +1,6 @@
 //! Koven heap owner 的系统分配 ABI 与类型定向 drop glue。
 mod abort;
+mod inline_nullable;
 pub(in crate::llvm) use abort::AbortMessage;
 mod map_result;
 mod requirements;
@@ -870,6 +871,9 @@ impl<'ctx> RuntimeAbi<'ctx> {
                         }
                     }
                     let _ = environment;
+                }
+                Some(SsaTypeKind::InlineNullable { inner, niche }) => {
+                    self.define_inline_nullable_drop(*inner, *niche, *function, &builder, value)?;
                 }
                 Some(SsaTypeKind::ZeroSized { .. } | SsaTypeKind::FunctionPointer { .. }) => {}
                 _ => {

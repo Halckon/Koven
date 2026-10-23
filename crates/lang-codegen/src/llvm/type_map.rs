@@ -99,6 +99,22 @@ impl<'ctx> TypeMap<'ctx> {
                 SsaTypeKind::HeapOwner { .. } | SsaTypeKind::NullableHandle { .. } => {
                     Some(pointer.into())
                 }
+                // ADR-0033: inner types precede their nullable identity in the type table.
+                SsaTypeKind::InlineNullable { inner, niche } => {
+                    let inner = types.get(inner).copied().ok_or_else(|| {
+                        LlvmAdapterError::Unsupported(
+                            "inline nullable inner 不具有 LLVM storage".to_owned(),
+                        )
+                    })?;
+                    if *niche {
+                        Some(inner)
+                    } else {
+                        let nullable =
+                            context.opaque_struct_type(&format!("koven.nullable.t{index}"));
+                        nullable.set_body(&[context.bool_type().into(), inner], false);
+                        Some(nullable.into())
+                    }
+                }
                 SsaTypeKind::SharedOwner { .. } => {
                     let control = context.opaque_struct_type(&format!("koven.shared.t{index}"));
                     shared_controls.insert(id, control);
