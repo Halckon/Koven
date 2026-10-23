@@ -1,10 +1,10 @@
 # SPEC-0348: API 声明索引与教程示例协议首片
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实现与验收 API 抽取首片时 · **唯一真源**：本次交付范围
+> **性质**：交付合同 · **状态**：done · **读取时机**：实现与验收 API 抽取首片时 · **唯一真源**：本次交付范围
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | KOV-P6-0348 |
 | 所属 Phase | Phase 6 |
 | 里程碑 | CORE-V1-M2 / M2-S1 |
@@ -39,8 +39,8 @@ API 示例库存引用已有教程 ID、该教程已有源码路径与唯一顶�
 
 - [x] 失败测试先行，参数模式、Unicode位置、遗漏项、语法错误与输入不变覆盖。
 - [x] 库存负例、失败传播及两教程真实抽取与运行通过。
-- [ ] 独立复核、定向门禁与双平台 CI 通过。
-- [ ] Architecture、路线图、库存更新，归档 head CI 通过后合并。
+- [x] 独立复核、定向门禁与双平台 CI 通过。
+- [x] Architecture、路线图、库存更新；归档 head CI 与合并身份由 PR134 最终记录维护。
 
 ## 5. 输入
 
@@ -57,3 +57,13 @@ macOS arm64、Rust 1.96.0、LLVM 21：CLI 58项单元测试与 doc 端到端测�
 文档748页及 diff 检查通过。没有把本机 Linux 专属跳过计作通过。
 独立上下文复核实测 Unicode 行列、部分语法失败、泛型/from 签名、遗漏成员/扩展函数、
 用法与IO错误、执行失败传播及双宿主CI路由，未发现阻断项。远端双宿主验收仍待执行。
+
+## 7. 双宿主交付验收
+
+实现输入 `b61c74b3f2bae72a96d87a9907fcfe61e7a13f53` 的
+[CI 39902813164](https://github.com/Halckon/Koven/actions/runs/39902813164)全部必需任务成功。
+macOS 与 Linux 的 API checker 均实际抽取并执行 function/borrowing 两教程，0项 planned；
+两平台 Clippy、targeted tests、preview producer 与独立 consumer 均成功。Linux 脚本434项通过；
+编辑器门禁按改动过滤跳过。第6节的“待执行”保留为本机阶段记录，本节补足远端验收。
+本首片完成，不扩大 syntax-only 范围，也不宣称 M2 整体完成。
+归档提交最终 CI、审查与合并身份见 [PR134](https://github.com/Halckon/Koven/pull/134)。
