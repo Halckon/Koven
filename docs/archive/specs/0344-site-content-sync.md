@@ -1,10 +1,10 @@
 # SPEC-0344: 独立门户内容同步
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：维护独立门户内容同步时 · **唯一真源**：本次交付范围与验收
+> **性质**：交付合同 · **状态**：done · **读取时机**：维护独立门户内容同步时 · **唯一真源**：本次交付范围与验收
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-0344` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | [当前 Guide](../../guide/README.md)；门户按用户指定的已启用 v0.46 分支设计 |
@@ -55,3 +55,16 @@
 本次 main CI `39784202653` 的双平台检查、测试和消费者 job 均通过，但被后续 main 更新取代，整体为 cancelled；
 对应通知正确 skipped。成功 main CI 自动触发路径等待最新 main CI `39786604501`；因此保持 in-progress。
 未运行编译器 native 测试；现有教程源码和 oracle 未改动，站点导入测试不替代 native 验收。
+
+## 6. 自动交付闭环验收（2026-10-23）
+
+[main CI 39882044428](https://github.com/Halckon/Koven/actions/runs/39882044428)
+在源码 `1a200aaa927a2a0f42b7675e24878585aff73b1e` 成功后，自动触发
+[通知 39885091673](https://github.com/Halckon/Koven/actions/runs/39885091673)（workflow_run）。
+通知日志的 SOURCE_SHA 与该输入一致，随后站点
+[repository_dispatch 39885101632](https://github.com/koven-lang/koven-site/actions/runs/39885101632)
+的 build、deploy 均成功；站点输入为 `70a6bc8631bbdfa1479e590b584ba034b3857e3e`。
+实际内容 checkout 仍为用户指定的 `acfacca31a5f43d9999c018bcb1f29d3bd786c6f`，
+通知来源提交与内容设计提交是不同身份，未宣称 v0.46 已合入 main 或工具链兼容。
+该实证闭合上节自动触发待验项，原手动验证与取消记录保留。
+本次仅归档与事实更新；文档门禁及链接检查通过，不新增编译器或浏览器行为验收。

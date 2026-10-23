@@ -52,7 +52,7 @@
 
 通过 GitHub 连接器和本机 Git 读取后，主仓库远端 main 为
 `b35c01746ce2df3e2b0fbfea9e2fa95b719a732c`；本路线图分支已快进到该输入，保留上节初始观察。
-新增 [SPEC-0344](../../specs/active/0344-site-content-sync.md)负责成功 main CI 后通知站点，
+新增 [SPEC-0344](../../archive/specs/0344-site-content-sync.md)负责成功 main CI 后通知站点，
 不重复新建该通知能力的生态 Spec；active 现为 4，draft 8、archive 316 未变。
 网站远端 main 仍为 `9d9b4446ca2b1cb33695be20b2a6ef2e81624370`，编辑器远端 main 仍为
 `17f0f1b2f9d6a9f53bcca29d8d08a8c091c4c338`。连接器读取编辑器返回 404，改用本机 Git 核实成功。
