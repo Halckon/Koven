@@ -13,6 +13,7 @@ mod native_command;
 mod project;
 mod project_build;
 mod project_command;
+mod source_set;
 mod standard_sources;
 mod unit_build;
 
@@ -21,7 +22,7 @@ use std::{ffi::OsString, io::Write, process::ExitCode};
 use format::CommandOutput;
 
 const GLOBAL_USAGE: &str =
-    "usage: kovenc [--message-format=human|json] <format|build|run|doc> ...\n";
+    "usage: kovenc [--message-format=human|json] <format|build|run|doc|source-set> ...\n";
 
 #[derive(Clone, Copy)]
 enum MessageFormat {
@@ -42,6 +43,7 @@ fn run(arguments: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -
         Err(output) => return write_output(output, stdout, stderr),
     };
     let output = match arguments.split_first() {
+        Some((command, rest)) if command == "source-set" => source_set::execute(rest),
         Some((command, rest)) if command == "doc" => doc::execute(rest, message_format),
         Some((command, rest)) if command == "format" => format::execute(rest, message_format),
         Some((command, rest)) if command == "build" => {
@@ -51,10 +53,10 @@ fn run(arguments: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -
             native_command::execute_run(rest, message_format)
         }
         Some((command, _)) => global_usage(format!(
-            "unknown command {}; expected `format`, `build`, `run` or `doc`",
+            "unknown command {}; expected `format`, `build`, `run`, `doc` or `source-set`",
             command.to_string_lossy()
         )),
-        None => global_usage("expected `format`, `build`, `run` or `doc` command"),
+        None => global_usage("expected `format`, `build`, `run`, `doc` or `source-set` command"),
     };
 
     write_output(output, stdout, stderr)
@@ -133,8 +135,8 @@ mod tests {
         assert!(stdout.is_empty());
         assert_eq!(
             String::from_utf8(stderr).expect("UTF-8 stderr"),
-            "error: expected `format`, `build`, `run` or `doc` command\n\
-             usage: kovenc [--message-format=human|json] <format|build|run|doc> ...\n"
+            "error: expected `format`, `build`, `run`, `doc` or `source-set` command\n\
+             usage: kovenc [--message-format=human|json] <format|build|run|doc|source-set> ...\n"
         );
 
         let mut stdout = Vec::new();

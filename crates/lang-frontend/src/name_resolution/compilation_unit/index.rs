@@ -317,7 +317,8 @@ pub fn index_compilation_unit(
     ))
 }
 
-fn validate_logical_path(path: &str) -> Result<(), CompilationUnitInputError> {
+/// Validate host-provided logical identity without parsing or analyzing source text.
+pub fn validate_logical_path(path: &str) -> Result<(), CompilationUnitInputError> {
     let invalid = |reason| CompilationUnitInputError::InvalidLogicalPath {
         path: path.to_owned(),
         reason,

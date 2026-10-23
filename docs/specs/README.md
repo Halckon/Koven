@@ -11,6 +11,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 [0351 LLVM安装等待边界](../archive/specs/0351-llvm-install-bounds.md)已完成PR双平台验收；归档提交与合并后联动另验。
 
+[0352 CLI source-set 导出](../archive/specs/0352-source-set-export.md)已按 PR138 完整双宿主实现 CI 验收归档；最终 head 与合并后 CI 另验。
+
 ## 当前入口
 
 ### Active
