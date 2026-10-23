@@ -9,6 +9,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 [0346 TextMate 语境与插值恢复](../archive/specs/0346-textmate-contexts.md)已按 PR129 双宿主完整 CI 验收归档；归档 head 与合并另验。
 
+[0351 LLVM安装等待边界](../archive/specs/0351-llvm-install-bounds.md)已完成PR双平台验收；归档提交与合并后联动另验。
+
 ## 当前入口
 
 ### Active

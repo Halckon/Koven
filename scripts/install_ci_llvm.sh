@@ -23,7 +23,9 @@ dpkg --compare-versions "$before_version" le "$lzma_version" || {
 }
 key="$(mktemp)"
 trap 'rm -f "$key"' EXIT
-curl --fail --silent --show-error --location --retry 3 \
+# Bound each key download and its retry window; do not wait on a stalled connection.
+curl --fail --silent --show-error --location --connect-timeout 15 --max-time 60 \
+  --retry 2 --retry-max-time 180 \
   https://apt.llvm.org/llvm-snapshot.gpg.key -o "$key"
 key_info="$(gpg --batch --show-keys --with-colons "$key")"
 primary_count="$(printf '%s\n' "$key_info" | awk -F: '$1 == "pub" {count++} END {print count+0}')"
@@ -33,7 +35,9 @@ actual="$(printf '%s\n' "$key_info" | awk -F: '$1 == "fpr" {print $10; exit}')"
 sudo install -m 0644 "$key" /usr/share/keyrings/koven-llvm.asc
 printf '%s\n' 'deb [arch=amd64 signed-by=/usr/share/keyrings/koven-llvm.asc] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' \
   | sudo tee /etc/apt/sources.list.d/koven-llvm.list >/dev/null
-sudo apt-get update
+# Retry individual downloads only; update errors must not silently reuse stale indexes.
+sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+  -o APT::Update::Error-Mode=any update
 apt-cache policy liblzma5:amd64
 # Installed dpkg status alone is insufficient: require the indexed exact package.
 indexed_sha256="$(apt-cache show "liblzma5:amd64=$lzma_version" | awk '$1 == "SHA256:" {print $2}' | sort -u)"
@@ -41,7 +45,8 @@ indexed_sha256="$(apt-cache show "liblzma5:amd64=$lzma_version" | awk '$1 == "SH
   echo 'Pinned liblzma5 package is unavailable or its indexed SHA256 differs' >&2
   exit 1
 }
-sudo apt-get install --yes --no-install-recommends \
+sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+  install --yes --no-install-recommends \
   "llvm-21-dev=$version" "clang-21=$version" "libclang-cpp21=$version" "libclang-rt-21-dev=$version" \
   "liblzma5:amd64=$lzma_version" build-essential
 installed_lzma="$(dpkg-query -W -f='${Version} ${Architecture}' liblzma5:amd64)"
