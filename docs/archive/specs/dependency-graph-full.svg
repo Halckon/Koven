@@ -6,7 +6,7 @@
   </defs>
   <rect width="13032" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="10312" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5196" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，319 份）</text>
+  <text x="5196" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，320 份）</text>
   <rect x="10416" y="30" width="280" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10556" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="10760" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -975,6 +975,7 @@
   <path d="M 972 6540 C 972 6572, 1764 6590, 1764 6622" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1884 6668 C 6160 6668, 6160 6824, 10436 6824" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 708 5966, 708 5998" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 6252 120 C 6252 152, 2028 188, 2028 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 444 500, 444 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 2028 5672, 2028 5704" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 972 5828, 972 5860" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2449,4 +2450,8 @@
   <text x="10212" y="87" text-anchor="middle" font-size="13">SPEC-0346</text>
   <text x="10212" y="105" text-anchor="middle" font-size="13">TextMate 语境与插值</text>
   <text x="10212" y="123" text-anchor="middle" font-size="13">恢复</text>
+  <rect x="1908" y="220" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="2028" y="243" text-anchor="middle" font-size="13">SPEC-0347</text>
+  <text x="2028" y="261" text-anchor="middle" font-size="13">本地 Kovenlings </text>
+  <text x="2028" y="279" text-anchor="middle" font-size="13">首片</text>
 </svg>

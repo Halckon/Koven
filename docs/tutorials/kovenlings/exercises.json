@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "exercises": [
+    {
+      "id": "mutable-place",
+      "hint": "replace 的 inout 参数需要可变 place；先检查绑定应当使用 val 还是 var。",
+      "starter": {
+        "status": "diagnostic",
+        "build": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "{\"code\":\"L0134\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":33,\"byte_start\":27,\"end\":{\"column\":15,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":9,\"line\":2}},\"message\":\"immutable binding declared here\"}],\"message\":\"inout argument is not a mutable place\",\"primary\":{\"byte_end\":66,\"byte_start\":65,\"end\":{\"column\":29,\"line\":3},\"source\":\"source.ko\",\"start\":{\"column\":28,\"line\":3}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
+        }
+      },
+      "solution": {
+        "status": "executable",
+        "args": [],
+        "build": {
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        "artifact": {
+          "exit": 0,
+          "stdout": "replaced\n",
+          "stderr": ""
+        },
+        "run": {
+          "exit": 0,
+          "stdout": "replaced\n",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "id": "borrow-owner",
+      "hint": "inspect 只读取资源，不需要取得 owner。默认参数模式是 Borrow；不要为了再次读取而创建另一份资源。",
+      "starter": {
+        "status": "diagnostic",
+        "build": {
+          "exit": 2,
+          "stdout": "",
+          "stderr": "{\"code\":\"L0131\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":216,\"byte_start\":208,\"end\":{\"column\":21,\"line\":7},\"source\":\"source.ko\",\"start\":{\"column\":13,\"line\":7}},\"message\":\"value was moved here\"},{\"kind\":\"label\",\"location\":{\"byte_end\":105,\"byte_start\":83,\"end\":{\"column\":35,\"line\":4},\"source\":\"source.ko\",\"start\":{\"column\":13,\"line\":4}},\"message\":\"selected parameter declared here\"}],\"message\":\"use of moved value\",\"primary\":{\"byte_end\":238,\"byte_start\":230,\"end\":{\"column\":21,\"line\":8},\"source\":\"source.ko\",\"start\":{\"column\":13,\"line\":8}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
+        }
+      },
+      "solution": {
+        "status": "executable",
+        "args": [],
+        "build": {
+          "exit": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        "artifact": {
+          "exit": 0,
+          "stdout": "read\nread\ndrop\n",
+          "stderr": ""
+        },
+        "run": {
+          "exit": 0,
+          "stdout": "read\nread\ndrop\n",
+          "stderr": ""
+        }
+      }
+    }
+  ]
+}
