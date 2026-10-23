@@ -497,7 +497,7 @@ fn run<const N: usize>(arguments: [&OsStr; N]) -> Output {
         .expect("kovenc process must start")
 }
 
-/// SPEC-0347: `kovenc run` forwards the program's exit status, reporting SIGABRT as
+/// SPEC-0353: `kovenc run` forwards the program's exit status, reporting SIGABRT as
 /// 128 + 6 like a POSIX shell, and passes the abort report through unchanged.
 #[test]
 fn run_forwards_abort_report_and_signal_status() {

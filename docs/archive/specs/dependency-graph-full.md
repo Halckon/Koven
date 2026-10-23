@@ -328,9 +328,9 @@ subgraph Garchive["已完成（archive，322 份）"]
   S0342["S0342<br/>companion 块语法"]
   S0343["S0343<br/>顶层运行时值的前端诊断"]
   S0346["S0346<br/>TextMate 语境与插值恢复"]
-  S0347["S0347<br/>abort 输出与 kovenc run 退出状态"]
-  S0348["S0348<br/>Conformance 种子集入库"]
   S0349["S0349<br/>内建 Result/Ok/Err、is Case subject 推断与 kovenc check"]
+  S0353["S0353<br/>abort 输出与 kovenc run 退出状态"]
+  S0354["S0354<br/>Conformance 种子集入库"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1404,9 +1404,9 @@ S0331 --> S0339
 S0331 --> S0340
 S0331 --> S0341
 S0342 --> S0343
-S0343 --> S0347
-S0343 --> S0348
-S0348 --> S0349
+S0343 --> S0353
+S0343 --> S0354
+S0354 --> S0349
 ```
 
 ## 节点链接
@@ -1732,9 +1732,9 @@ S0348 --> S0349
 | SPEC-0342 | archive | [0342-companion-block-syntax.md](0342-companion-block-syntax.md) |
 | SPEC-0343 | archive | [0343-top-level-const-only.md](0343-top-level-const-only.md) |
 | SPEC-0346 | archive | [0346-textmate-contexts.md](0346-textmate-contexts.md) |
-| SPEC-0347 | archive | [0347-abort-output.md](0347-abort-output.md) |
-| SPEC-0348 | archive | [0348-conformance-corpus.md](0348-conformance-corpus.md) |
 | SPEC-0349 | archive | [0349-builtin-result-and-check.md](0349-builtin-result-and-check.md) |
+| SPEC-0353 | archive | [0353-abort-output.md](0353-abort-output.md) |
+| SPEC-0354 | archive | [0354-conformance-corpus.md](0354-conformance-corpus.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |

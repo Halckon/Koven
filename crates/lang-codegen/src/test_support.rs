@@ -42,7 +42,7 @@ pub(crate) fn main_symbol() -> &'static str {
     }
 }
 
-/// Removes the SPEC-0347 abort report helpers (`@koven.abort.*` definitions and their
+/// Removes the SPEC-0353 abort report helpers (`@koven.abort.*` definitions and their
 /// private text globals) so IR assertions inspect only the code under test.
 pub(crate) fn without_abort_runtime(llvm: &str) -> String {
     let mut kept = String::with_capacity(llvm.len());

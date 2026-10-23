@@ -138,7 +138,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 let (root, offset, length) = self.range_source(*source)?;
                 let begin = self.int_value(*begin)?;
                 let end = self.int_value(*end)?;
-                // SPEC-0347: negative endpoints report the range text, not a size conversion.
+                // SPEC-0353: negative endpoints report the range text, not a size conversion.
                 let begin_negative = self.builder.build_int_compare(
                     IntPredicate::SLT,
                     begin,

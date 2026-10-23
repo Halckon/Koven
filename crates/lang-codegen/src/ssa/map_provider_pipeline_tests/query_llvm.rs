@@ -160,7 +160,7 @@ fn abort_edge(b: BasicBlock<'_>) -> Result<(), Failure> {
             .filter_map(|i| CallSiteValue::try_from(i).ok()),
         "LLVM checked-slot abort call",
     )?;
-    // SPEC-0347: the edge reports through the noreturn helper, which alone calls abort().
+    // SPEC-0353: the edge reports through the noreturn helper, which alone calls abort().
     need(
         t.get_opcode() == Op::Unreachable
             && call.count_arguments() == 4

@@ -1,11 +1,13 @@
-# SPEC-0347: abort 输出与 `kovenc run` 退出状态
+# SPEC-0353: abort 输出与 `kovenc run` 退出状态
 
 > **性质**：实施合同 · **状态**：done · **读取时机**：实现或验收 abort 的 stderr 输出、`kovenc run` 退出状态时 · **唯一真源**：本片实施范围与验收；语义以 Guide 为准
+
+> 原编号 SPEC-0347；与 main 上的同号 Spec 冲突，2026-10-24 改号，分支名保持不变。
 
 | 字段 | 值 |
 |---|---|
 | 状态 | done |
-| Goal ID | `KOV-P4-0347` |
+| Goal ID | `KOV-P4-0353` |
 | 所属 Phase | Phase 4（SSA lowering）、Phase 5（LLVM 与 CLI） |
 | 语言规范 | [Guide v0.46 Abort 输出合同](../../guide/09-nullability-errors.md#abort-输出合同)、[Guide 13 `kovenc run`](../../guide/13-program-runtime-standard-library.md) |
 | 批准依据 | 2026-10-22 用户同意 D9、D12 并要求按计划开始实施（路线图 C1） |

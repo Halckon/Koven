@@ -450,7 +450,7 @@ pub(crate) struct Terminator {
     pub(crate) abort: Option<AbortReason>,
 }
 
-/// The `abort: <message>` line of the Guide v0.46 abort output contract (SPEC-0347).
+/// The `abort: <message>` line of the Guide v0.46 abort output contract (SPEC-0353).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum AbortReason {
     /// `error(message)`: the borrowed String argument, written verbatim.

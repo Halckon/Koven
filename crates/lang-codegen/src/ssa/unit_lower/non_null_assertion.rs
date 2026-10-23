@@ -56,7 +56,7 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             let operand = self.require_expression_value(descriptor.operand().expression())?;
-            // SPEC-0347: the abort position is the asserted expression's start.
+            // SPEC-0353: the abort position is the asserted expression's start.
             return self.unwrap_map_result(operand, span);
         }
         if plan.non_null_transfer() != NonNullAssertionTransferKind::Consume

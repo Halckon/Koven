@@ -1,11 +1,13 @@
-# SPEC-0348: Conformance 种子集入库
+# SPEC-0354: Conformance 种子集入库
 
 > **性质**：实施合同 · **状态**：done · **读取时机**：维护 `conformance/` 种子集或矩阵 runner 时 · **唯一真源**：本片实施范围与验收；语义以 Guide 为准
+
+> 原编号 SPEC-0348；与 main 上的同号 Spec 冲突，2026-10-24 改号，分支名保持不变。
 
 | 字段 | 值 |
 |---|---|
 | 状态 | done |
-| Goal ID | `KOV-P0-0348` |
+| Goal ID | `KOV-P0-0354` |
 | 所属 Phase | Phase 6（工具：conformance 输入与矩阵 runner） |
 | 语言规范 | [Guide v0.46 本版边界](../../guide/15-conformance-and-staging.md#v046-启用边界) |
 | 批准依据 | 2026-10-22 用户批准 v1 路线图并要求按计划开始实施（路线图条目 V0） |

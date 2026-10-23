@@ -85,7 +85,7 @@ fn public_std_range_scalar_count_abort_precedes_consumer_without_unwind() {
             let run = Command::new(project.0.join("program")).output().unwrap();
             assert_eq!(run.status.signal(), Some(6), "{run:?}");
             assert_eq!(run.stdout, b"before\n", "{run:?}");
-            // SPEC-0347: the checked-count failure names its operator before SIGABRT.
+            // SPEC-0353: the checked-count failure names its operator before SIGABRT.
             let report = String::from_utf8_lossy(&run.stderr);
             assert!(
                 report.starts_with(&format!("abort: {message}\n  at ")),

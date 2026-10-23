@@ -99,8 +99,8 @@ P0 之前已合入 main 的编译器骨架与有界能力；不表示每项都�
 | ▶ 进行中 | E1b | 声明/函数终止性：val 初始化全分支 return 与 L0088 入口一致 | v1 必做 | 控制流 | 已定义 | 2 | [0326](../archive/specs/0326-closed-control-branch-join.md) | 0326 作者已认领，尚未分 Spec。 |
 | ✅ 已交付 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | v1 必做 | 标准库与运行时 | 已定义 | 5,6 | [0349](../archive/specs/0349-builtin-result-and-check.md) | SPEC-0349：koven/core/result.ko 由宿主按 SourceId 授权为内建环境，两模式相同、无需 import；用户任一 package 的顶层 Result/Ok/Err 以 L0150 拒绝；kovenc check（单文件与 --project）与 --help 落地，单文件 build/run 的诊断退出码改为 1。Pair 随 S6（to / mapOf）进入。 |
 | ✅ 已交付 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | v1 必做 | 类型、泛型与声明 | 需新增 | 2 | [0343](../archive/specs/0343-top-level-const-only.md) [global-and-static-state](../proposals/global-and-static-state.md) | D4 已决：v1 只允许 const val（候选 G1）；SPEC-0343 以 Phase 2 L0167 拒绝顶层运行时值，后端 UnsupportedSource 仅作防御。 |
-| ✅ 已交付 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | v1 必做 | 空安全与错误值 | 已定义 | 4,5 | [0347](../archive/specs/0347-abort-output.md) | D12 已决：stderr 输出 `abort: <message>` 与 `at <file>:<line>:<col>`；!!、越界、溢出、转换失败使用固定消息；写失败忽略；随后 SIGABRT。规则进 Guide v0.46。 |
-| ✅ 已交付 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | v1 必做 | 验收、发布与文档 | — | 6 | [0348](../archive/specs/0348-conformance-corpus.md) | 已入库 conformance/，runner 为 scripts/conformance_matrix.sh；此前 SPEC-0341 因缺源码只能用 22 个附件与 39 场景验证。 |
+| ✅ 已交付 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | v1 必做 | 空安全与错误值 | 已定义 | 4,5 | [0353](../archive/specs/0353-abort-output.md) | D12 已决：stderr 输出 `abort: <message>` 与 `at <file>:<line>:<col>`；!!、越界、溢出、转换失败使用固定消息；写失败忽略；随后 SIGABRT。规则进 Guide v0.46。 |
+| ✅ 已交付 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | v1 必做 | 验收、发布与文档 | — | 6 | [0354](../archive/specs/0354-conformance-corpus.md) | 已入库 conformance/，runner 为 scripts/conformance_matrix.sh；此前 SPEC-0341 因缺源码只能用 22 个附件与 39 场景验证。 |
 | ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | v1 必做 | 验收、发布与文档 | 需新增 | — | [v0.46-language-decisions](../proposals/v0.46-language-decisions.md) | 已启用（迁移账本 archive/migrations/v0.46-enablement.md）；各规则的实现按条目推进。 |
 
 ## P1 结构

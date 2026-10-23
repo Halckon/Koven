@@ -427,7 +427,7 @@ fn zst_container_uses_aligned_sentinel_without_allocation_or_addressing() {
     assert!(!llvm.contains("getelementptr"));
     assert!(!llvm.contains("store %koven.t0"));
     assert!(llvm.contains("icmp sge i32"), "{llvm}");
-    // SPEC-0347: the bounds failure reports index and size before abort().
+    // SPEC-0353: the bounds failure reports index and size before abort().
     assert!(
         llvm.contains("call void @koven.abort.report_index("),
         "{llvm}"

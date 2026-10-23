@@ -1,4 +1,4 @@
-//! Guide v0.46 abort output contract (SPEC-0347).
+//! Guide v0.46 abort output contract (SPEC-0353).
 //!
 //! Every abort writes `abort: <message>\n` and, when the source position is known,
 //! `  at <logical-path>:<line>:<column>\n` to stderr, ignores write failures, then calls

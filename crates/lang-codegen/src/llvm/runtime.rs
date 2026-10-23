@@ -82,7 +82,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
             add_noreturn_attribute(context, function);
             function
         });
-        // Aborts also write their report to stderr (SPEC-0347).
+        // Aborts also write their report to stderr (SPEC-0353).
         let write = (requirements.needs_print || requirements.needs_abort).then(|| {
             llvm.add_function(
                 "write",

@@ -9,9 +9,9 @@
 | 所属 Phase | Phase 2（名称与类型）、Phase 6（CLI） |
 | 语言规范 | [Guide v0.46 标准环境](../../guide/02-names-files-packages.md#标准环境与允许加载的标准库源)、[Guide 09 `Result`](../../guide/09-nullability-errors.md#resultt-e-与-postfix-)、[Guide 13 只检查与帮助](../../guide/13-program-runtime-standard-library.md#只检查与帮助) |
 | 批准依据 | 2026-10-22 用户决定：(1) 用户任一 package 的顶层 `Result`（类型空间）或 `Ok`/`Err`（任一空间）与内建冲突，报既有 L0150，局部与类型参数仍静默遮蔽；(2) 无实参 `is Ok`/`is Err` 从 subject 推断类型实参（并入路线图 L9c）；(3) `kovenc check` 有诊断退出 1，单文件 build/run 诊断退出码由 2 改为 1，usage/operational 保持 2；(4) LSP 不在范围 |
-| 基线 | `f5f5b22f`（SPEC-0348 之后的 v0.46 分支栈） |
+| 基线 | `f5f5b22f`（SPEC-0354 之后的 v0.46 分支栈） |
 | 分支 | `feature/spec-0349-builtin-result` |
-| 前置 Spec | [SPEC-0348](0348-conformance-corpus.md)（仅分支顺序） |
+| 前置 Spec | [SPEC-0354](0354-conformance-corpus.md)（仅分支顺序） |
 | 语言语义变更 | 否；落实已启用的 Guide v0.46 内建环境，补 Guide 02 标准源表与 Guide 13 CLI 形式 |
 
 ## 1. Goal

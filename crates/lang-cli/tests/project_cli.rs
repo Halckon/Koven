@@ -393,7 +393,7 @@ fn project_build_and_run_link_multi_package_exact_alias_and_argv_entries() {
         OsStr::new("--entry"),
         OsStr::new("app.fail"),
     ]);
-    // SPEC-0347: SIGABRT is reported as 128 + 6 and the abort report names the logical path.
+    // SPEC-0353: SIGABRT is reported as 128 + 6 and the abort report names the logical path.
     assert_eq!(failed.status.code(), Some(134), "{failed:?}");
     assert_eq!(failed.stdout, b"before abort\n", "{failed:?}");
     let report = String::from_utf8_lossy(&failed.stderr);
