@@ -774,7 +774,11 @@ fun entry(own initial: Holder?): Int {
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 4);
     for outcome in outcomes.iter().take(3) {
-        assert!(outcome.is_ok(), "accepted value argument: {outcome:?}");
+        assert!(
+            outcome.is_ok(),
+            "accepted value argument: {:?}",
+            outcome.as_ref().map(|_| ())
+        );
     }
     // Preserve the first three successes; the original fourth source now has the same
     // full success contract, including identities and cleanup before the real call.
