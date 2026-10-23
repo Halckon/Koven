@@ -160,3 +160,5 @@ draft → approved → in-progress → done
 - 一个 Spec 只定义一个 Goal；长期架构理由写 ADR，完整语义链接 Guide
 
 新建草案使用 [TEMPLATE.md](TEMPLATE.md)，放入 `drafts/` 或对应未启用版本子目录。
+
+- [0347 本地 Kovenlings](../archive/specs/0347-local-kovenlings.md)：基于 v0.45 已验收能力的两道本地练习；双宿主真实验收已通过并归档。

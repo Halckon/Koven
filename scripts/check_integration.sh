@@ -8,3 +8,4 @@ bash scripts/check_stage_integration.sh
 # Core already executes all codegen tests; stage owns the other Guide targets.
 cargo test --locked -p lang-frontend --test guide_litmus
 python3 scripts/check_tutorial.py
+python3 scripts/check_kovenlings.py

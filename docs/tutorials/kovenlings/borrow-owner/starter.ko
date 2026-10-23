@@ -1,0 +1,9 @@
+class Resource(val label: String) {
+    deinit() { println("drop") }
+}
+fun inspect(own resource: Resource): Unit { println(resource.label) }
+fun main(): Unit {
+    val resource = Resource("read")
+    inspect(resource)
+    inspect(resource)
+}
