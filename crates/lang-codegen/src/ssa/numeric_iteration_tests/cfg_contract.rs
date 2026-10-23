@@ -1,9 +1,14 @@
 //! Exact endpoint recurrence in ordinary-source SSA; no execution or fabricated facts.
-use super::{collect_sources, verify_program};
-use crate::ssa::model::{
-    BinaryOperator, Block, BlockId, ComparisonOperator, Definition, Edge, EntityId, EntityType,
-    Function, Instruction, Module, Operation, Program, ScalarConstant, SsaTypeId, SsaTypeKind,
-    TerminatorKind, ValueId,
+use lang_frontend::source::Span;
+
+use super::verify_program;
+use crate::ssa::{
+    integer_range_value_tests::collect_source_functions,
+    model::{
+        BinaryOperator, Block, BlockId, ComparisonOperator, Definition, Edge, EntityId, EntityType,
+        Function, Instruction, Module, Operation, Origin, Program, ScalarConstant, SsaTypeId,
+        SsaTypeKind, TerminatorKind, ValueId,
+    },
 };
 
 #[test]
@@ -14,25 +19,32 @@ fn numeric_snapshot_and_terminal_edges_preserve_exact_endpoints() {
                 "fun make(a:{integer},b:{integer}):{range}{{println(\"source\");return a..b}}\n\
                  fun entry(a:{integer},b:{integer}):Unit{{for(item in make(a,b)){{val copy:{integer}=item;{finish}}}}}"
             );
-            let programs = collect_sources(&[source]);
+            let programs = collect_source_functions(&[source]);
             assert_eq!(
                 programs.len(),
                 2,
-                "both ordinary lowering entries are observed"
+                "both original source layouts use the Unit entry"
             );
-            for program in programs {
-                let program = program.expect("ordinary numeric iteration reaches SSA");
-                verify_program(&program).expect("ordinary numeric iteration SSA verifies");
-                assert_endpoint_cfg(&program, bits);
+            for source in programs {
+                let source = source.expect("ordinary numeric iteration reaches SSA");
+                verify_program(&source.program).expect("ordinary numeric iteration SSA verifies");
+                assert_endpoint_cfg(&source.program, bits, &source.functions);
             }
         }
     }
 }
 
-fn assert_endpoint_cfg(program: &Program, bits: u16) {
+fn assert_endpoint_cfg(program: &Program, bits: u16, functions: &[(String, Span)]) {
     let module = only(program.modules.iter(), "one ordinary source module");
-    let make = source_function(module, "make");
-    let function = source_function(module, "entry");
+    let span = |name: &str| {
+        only(
+            functions.iter().filter(|(actual, _)| actual == name),
+            "one exact function declaration in the actual lowered source",
+        )
+        .1
+    };
+    let make = source_function(module, span("make"));
+    let function = source_function(module, span("entry"));
     let call = only(
         function
             .instructions
@@ -247,14 +259,12 @@ fn assert_endpoint_cfg(program: &Program, bits: u16) {
     );
 }
 
-fn source_function<'a>(module: &'a Module, name: &str) -> &'a Function {
-    let qualified = format!("koven.p.{name}.d");
+fn source_function(module: &Module, span: Span) -> &Function {
     only(
-        module
-            .functions
-            .iter()
-            .filter(|function| function.name == name || function.name.starts_with(&qualified)),
-        "the ordinary source function exists exactly once",
+        module.functions.iter().filter(
+            |function| matches!(&function.origin, Origin::Source(actual) if *actual == span),
+        ),
+        "the full original declaration identifies exactly one SSA function",
     )
 }
 
