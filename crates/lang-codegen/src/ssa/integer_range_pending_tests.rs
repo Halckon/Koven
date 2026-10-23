@@ -1,24 +1,21 @@
 //! Ordinary Range storage reaches its value ABI; independent nullable use stays bounded.
 use super::{
     LoweringError, LoweringErrorKind,
-    lower_frontend::orchestrate::lower_scalar_file,
     model::Program,
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{declaration, parsed},
     verify::verify_program,
 };
+use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use lang_frontend::{
-    lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
     },
-    ownership_checking::{check_compilation_unit_ownership, check_ownership},
-    parser::parse_file,
+    ownership_checking::check_compilation_unit_ownership,
     source::SourceMap,
     type_checking::{
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
     },
 };
 fn lower_source(text: &str, unit: bool) -> Result<Program, LoweringError> {
@@ -51,19 +48,11 @@ fn lower_source(text: &str, unit: bool) -> Result<Program, LoweringError> {
         )
         .map(|(program, _)| program)
     } else {
-        let source = sources.add_source("range.ko", text).unwrap();
-        let lexed = lex(&sources, source).unwrap();
-        assert!(lexed.diagnostics().is_empty());
-        let file = parse_file(&sources, &lexed).unwrap();
-        assert!(file.diagnostics().is_empty());
-        let names = resolve_names(&sources, &file, &environment).unwrap();
-        assert!(names.diagnostics().is_empty());
-        let typed = check_types(&sources, &file, &names, &types).unwrap();
-        complete_file_types(&sources, &file, &names, &types, &typed).unwrap();
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        assert!(owned.diagnostics().is_empty());
-        assert!(owned.deferred().is_empty());
-        lower_scalar_file(&sources, &file, &names, &typed, &owned)
+        let analysis = UnitSource::analyze("range.ko", text)
+            .expect("integer builtin source must pass strict Unit analysis");
+        analysis.assert_frontend_clean();
+        let entry = analysis.declaration("entry", SymbolKind::Function);
+        analysis.lower_entry(entry).map(|(program, _)| program)
     };
     match &result {
         Ok(program) => println!(
