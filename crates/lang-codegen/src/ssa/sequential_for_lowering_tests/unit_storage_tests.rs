@@ -251,6 +251,15 @@ fn normal_identity(
             }
             other => panic!("normal path does not reach expected block: {other:?}"),
         };
+        assert_eq!(
+            incoming_edges(function, edge.target),
+            [(current, edge)],
+            "normal checked-arithmetic path has one exact incoming edge"
+        );
+        assert_eq!(
+            edge.arguments.len(),
+            function.block(edge.target).unwrap().parameters.len()
+        );
         if edge.arguments.contains(&entity) {
             entity = transport(function, edge, entity);
         }
@@ -338,6 +347,7 @@ fn assert_iteration(analysis: &SourceProgram, expect_read: bool) {
     let body_owner = transport(run, when_true, header_owner);
     let body_source = transport(run, when_true, header_source);
     let body_cursor = transport(run, when_true, EntityId::Value(cursor));
+    let body_snapshot = transport(run, when_true, EntityId::Value(snapshot));
     let element = only(run, |op| {
         matches!(op, Operation::ContainerElementPlace { .. })
     });
@@ -395,7 +405,7 @@ fn assert_iteration(analysis: &SourceProgram, expect_read: bool) {
     let at_back = |entity| normal_identity(run, body.id, back_block.id, entity);
     assert_eq!(backedge.arguments[owner_slot], at_back(body_owner));
     assert_eq!(backedge.arguments[source_slot], at_back(body_source));
-    assert_eq!(backedge.arguments[length_slot], EntityId::Value(snapshot));
+    assert_eq!(backedge.arguments[length_slot], at_back(body_snapshot));
     let advance = defining_instruction(run, backedge.arguments[cursor_slot]);
     assert_eq!(advance.block, back_block.id);
     let Operation::Binary {

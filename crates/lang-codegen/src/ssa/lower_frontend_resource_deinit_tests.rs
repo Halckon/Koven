@@ -2,6 +2,10 @@
 //! Legacy rejection, direct-invoked resource closure and raw DropPoint observations
 //! retain their original pipeline.
 
+#[path = "lower_frontend_resource_deinit_tests/field_chain.rs"]
+mod field_chain;
+
+use field_chain::assert_nested_this_field_chain;
 use lang_frontend::name_resolution::SymbolKind;
 
 use super::{
@@ -210,12 +214,189 @@ fn single_resource_deinit_handles_nested_class_fields_and_body_generic_call_root
             Operation::DirectCall { callee: target, .. } if target == callee.id()
         )));
     }
+    assert_nested_this_field_chain(&unit, outer, "this.inner.code", &[0, 0], record, true);
+    let allocations = unit
+        .entry()
+        .instructions
+        .iter()
+        .filter(|instruction| matches!(instruction.operation, Operation::HeapAllocate { .. }))
+        .collect::<Vec<_>>();
+    let [inner_allocation, outer_allocation] = allocations.as_slice() else {
+        panic!("the original source allocates exactly Inner and Outer");
+    };
+    let [inner_owner @ EntityId::Value(_)] = inner_allocation.results.as_slice() else {
+        panic!("Inner construction produces the actual nested owner");
+    };
+    let [EntityId::Value(outer_owner)] = outer_allocation.results.as_slice() else {
+        panic!("Outer construction produces the sole scope-cleanup owner");
+    };
+    assert_eq!(
+        unit.source.sources().slice(inner_allocation.origin.span()),
+        Ok("Inner(7)")
+    );
+    assert_eq!(
+        unit.module().deinit(
+            unit.entry()
+                .entity(*inner_owner)
+                .unwrap()
+                .ty
+                .semantic_type()
+        ),
+        Some(inner.id())
+    );
+    assert_eq!(
+        unit.module().deinit(
+            unit.entry()
+                .entity(EntityId::Value(*outer_owner))
+                .unwrap()
+                .ty
+                .semantic_type()
+        ),
+        Some(outer.id())
+    );
+    let Operation::HeapAllocate { payload, .. } = outer_allocation.operation else {
+        unreachable!()
+    };
+    let payloads = unit
+        .entry()
+        .instructions
+        .iter()
+        .filter(|instruction| instruction.results == [EntityId::Value(payload)])
+        .collect::<Vec<_>>();
+    let [payload] = payloads.as_slice() else {
+        panic!("Outer has one real payload definition")
+    };
+    assert!(
+        matches!(&payload.operation, Operation::AggregateConstruct { fields, .. }
+        if fields.len() == 2 && EntityId::Value(fields[0]) == *inner_owner)
+    );
+    assert_eq!(
+        unit.entry()
+            .instructions
+            .iter()
+            .filter_map(|instruction| match instruction.operation {
+                Operation::Drop { owner } => Some(owner),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        [*outer_owner]
+    );
     assert_eq!(
         render_program(&unit.program),
         render_program(&lower_resource(source, "run").program)
     );
     render_verified_program(&unit.program)
         .expect("nested resource fields and generic body calls verify");
+}
+
+#[test]
+fn single_resource_deinit_grouped_nested_copy_and_borrow_keep_distinct_extents() {
+    let source = r#"fun take(own code: Int): Unit {}
+        fun observe(code: Int): Unit {}
+        fun inspect(owner: Outer): Unit {}
+        class Leaf(val code: Int)
+        class Middle(val leaf: Leaf)
+        class Outer(val middle: Middle) {
+            deinit() {
+                take(((this.middle).leaf).code)
+                observe(((middle).leaf).code)
+                inspect(this)
+            }
+        }
+        fun run(): Unit { val outer = Outer(Middle(Leaf(9))) }"#;
+    let unit = lower_resource(source, "run");
+    let body = unit.deinit("Outer");
+    assert_nested_this_field_chain(
+        &unit,
+        body,
+        "((this.middle).leaf).code",
+        &[0, 0, 0],
+        unit.function("take"),
+        true,
+    );
+    assert_nested_this_field_chain(
+        &unit,
+        body,
+        "((middle).leaf).code",
+        &[0, 0, 0],
+        unit.function("observe"),
+        false,
+    );
+    let receiver = body.block(body.entry_block().unwrap()).unwrap().parameters[0];
+    let inspect = unit.function("inspect");
+    let last_call = body
+        .instructions
+        .iter()
+        .rev()
+        .find(|instruction| matches!(instruction.operation, Operation::DirectCall { .. }))
+        .unwrap();
+    assert!(matches!(&last_call.operation,
+        Operation::DirectCall { callee, receiver: None, arguments }
+            if *callee == inspect.id() && arguments.as_slice() == [receiver]));
+    assert_eq!(
+        render_program(&unit.program),
+        render_program(&lower_resource(source, "run").program)
+    );
+    render_verified_program(&unit.program)
+        .expect("grouped readonly paths preserve copy and call loan extents");
+}
+
+#[test]
+fn single_resource_deinit_nested_copy_keeps_generic_receivers_unsupported() {
+    for (source, fragment) in [
+        (
+            "fun take(own code: Int): Unit {}\nclass Inner(val code: Int)\nclass Outer<T>(val inner: Inner, val tag: T) { deinit() { take(this.inner.code) } }\nfun run(): Unit { val outer = Outer(Inner(1), 2) }",
+            "Outer(Inner(1), 2)",
+        ),
+        (
+            "fun take(own code: Int): Unit {}\nclass Inner<T>(val code: T)\nclass Outer(val inner: Inner<Int>) { deinit() { take(this.inner.code) } }\nfun run(): Unit { val outer = Outer(Inner(1)) }",
+            "this.inner.code",
+        ),
+    ] {
+        let unit = UnitSource::analyze("unsupported.ko", source)
+            .expect("generic receiver source is frontend-clean");
+        unit.assert_frontend_clean();
+        let error = unit
+            .lower_entry(unit.declaration("run", SymbolKind::Function))
+            .err()
+            .expect("the readonly copy path must not open generic class receivers");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{source}");
+        let span = error
+            .span
+            .expect("unsupported generic receiver retains its source origin");
+        assert_eq!(unit.sources().source_text(span.source_id()), Ok(source));
+        assert_eq!(unit.sources().slice(span), Ok(fragment));
+        let start = source.find(fragment).unwrap();
+        assert_eq!((span.start(), span.end()), (start, start + fragment.len()));
+    }
+}
+
+#[test]
+fn single_resource_deinit_nested_copy_rejects_move_only_and_exclusive_access() {
+    for (body, code, fragment) in [
+        ("consume(this.inner.payload)", "L0132", "this.inner.payload"),
+        ("update(&this.inner.code)", "L0134", "&"),
+    ] {
+        let source = format!(
+            "class Payload {{}}\nclass Inner(val payload: Payload, var code: Int)\nfun consume(own value: Payload): Unit {{}}\nfun update(inout value: Int): Unit {{}}\nclass Outer(val inner: Inner) {{ deinit() {{ {body} }} }}\nfun run(): Unit {{ val outer = Outer(Inner(Payload(), 1)) }}"
+        );
+        let Err(rejection) = UnitSource::analyze("readonly-boundary.ko", &source) else {
+            panic!("readonly this must not authorize a MoveOnly read or exclusive child");
+        };
+        assert_eq!(
+            rejection.report.stages,
+            [("parse", 0), ("names", 0), ("types", 0), ("ownership", 1)]
+        );
+        let [(stage, diagnostic)] = rejection.report.diagnostics.as_slice() else {
+            panic!("the actual Unit ownership boundary must reject exactly this access");
+        };
+        assert_eq!(*stage, "ownership");
+        assert_eq!(diagnostic.code().to_string(), code);
+        assert_eq!(
+            rejection.sources.slice(diagnostic.primary_span()),
+            Ok(fragment)
+        );
+    }
 }
 
 #[test]
