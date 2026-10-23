@@ -82,5 +82,5 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 
 教程源码与执行合同继续由 `docs/tutorials/` 及真实 CLI 门禁维护。独立门户消费指定 Git 版本的
 教程、Guide 和路线图，不进入 Rust workspace。`.github/workflows/notify-site.yml` 在成功 main CI、
-版本 tag 或手动事件后发送可配置的重建通知；未配置目标仓库和 secret 时明确失败，尚不代表远端已接通。
-交付范围与待项见 [SPEC-0344](../specs/active/0344-site-content-sync.md)。
+版本 tag 或手动事件后发送可配置的重建通知；未配置目标仓库和 secret 时明确失败。专用 secret 已通过手动通知、跨仓重建与 Pages 发布验证；成功 main CI 自动通知及站点构建、Pages 发布链路也已实际通过。
+交付范围与验收见 [SPEC-0344](../archive/specs/0344-site-content-sync.md)。

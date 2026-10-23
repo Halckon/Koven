@@ -61,3 +61,29 @@ Python 协议测试覆盖校验、成员拒绝、缺项、字节差异、宿主�
 
 本片不交付最低系统通用兼容承诺、签名/公证、浏览器下载隔离、缺失依赖负向安装、
 包管理器上架、自动更新或性能排名；这些保留在 M5 后续合同。实际进度和所有未执行项只在 Spec 记录。
+
+## 4. 本地版本管理
+
+候选包附带 `tools/preview_manager.py`，CI artifact 也提供与 bootstrap 同目录的副本。
+使用来自可信发布输入的管理器、归档和 checksum；checksum 仅核完整性，不认证发布者。
+无需源码 checkout 或 Cargo，但仍须先准备上述外部 LLVM／系统依赖。
+
+```sh
+python3 preview_manager.py --root "$HOME/.local/share/koven-preview" install \
+  --archive candidate.tar.gz --sha256 candidate.tar.gz.sha256
+python3 preview_manager.py --root "$HOME/.local/share/koven-preview" list
+python3 preview_manager.py --root "$HOME/.local/share/koven-preview" use SOURCE_COMMIT-TARGET
+export PATH="$HOME/.local/share/koven-preview/current/bin:$PATH"
+python3 preview_manager.py --root "$HOME/.local/share/koven-preview" deactivate
+python3 preview_manager.py --root "$HOME/.local/share/koven-preview" uninstall SOURCE_COMMIT-TARGET
+```
+
+把 `SOURCE_COMMIT-TARGET` 替换为 install/list 返回的完整 ID。根目录必须不存在或已由本工具
+初始化；不接管现有普通目录。install 完整验证并运行十二条示例命令，成功才发布，不自动激活。
+同 ID 拒绝覆盖；use 重新检查文件与宿主后原子切换 current，失败保持旧指向。
+卸载当前版本前必须停用或切换；保留其他版本、操作证据和同级文件，不修改 shell 配置。
+输出 JSON 记录 ID／当前版本，验证摘要走 stderr；失败退出非零。发布成功后的临时清理失败
+以成功结果中的 `cleanup_warning` 报告并保留路径，不把已发布版本误报为未安装。安装证据位于根目录的
+`evidence-*`，失败材料保留供排查；不是自动更新、签名／公证或对同用户恶意写入的隔离。
+此片实现与双宿主验收见 [SPEC-0345](../archive/specs/0345-preview-version-manager.md)，
+不代表 M1-S8 三个示范程序的最终联合验收已完成。

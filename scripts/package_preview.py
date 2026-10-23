@@ -18,7 +18,7 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = 'registry+https://github.com/rust-lang/crates.io-index'
-TOOLS = ('check_tutorial.py', 'check_preview_install.py', 'preview_host.py',
+TOOLS = ('preview_manager.py', 'check_tutorial.py', 'check_preview_install.py', 'preview_host.py',
          'install_preview_dependencies.sh', 'install_ci_llvm.sh')
 COMPILER_OVERRIDES = ('RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'RUSTC', 'RUSTC_WRAPPER',
                       'RUSTC_WORKSPACE_WRAPPER', 'CARGO_BUILD_RUSTC',
@@ -483,7 +483,8 @@ def package(output, root=ROOT):
             archive_package(assembled, archive)
             (output / (archive.name + '.sha256')).write_text(digest(archive.read_bytes()) + '  ' + archive.name + '\n')
             consumer.verify_archive(archive, output / (archive.name + '.sha256'))
-            shutil.copyfile(assembled / 'tools/check_preview_install.py', output / 'check_preview_install.py')
+            for bootstrap in ('check_preview_install.py', 'preview_manager.py'):
+                shutil.copyfile(assembled / 'tools' / bootstrap, output / bootstrap)
             result.update(success=True, archive=archive.name, manifest=manifest)
     except Exception as error:
         result['failure'] = f'{type(error).__name__}: {error}'

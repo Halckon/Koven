@@ -33,7 +33,7 @@ class PreviewPackageProtocol(unittest.TestCase):
         self.producer = load_producer()
         for directory in ('scripts', 'docs/tutorials'):
             (self.root / directory).mkdir(parents=True)
-        for name in ('check_tutorial.py', 'check_preview_install.py', 'preview_host.py',
+        for name in ('preview_manager.py', 'check_tutorial.py', 'check_preview_install.py', 'preview_host.py',
                      'install_preview_dependencies.sh', 'install_ci_llvm.sh'):
             shutil.copyfile(ROOT / 'scripts' / name, self.root / 'scripts' / name)
         for name in ('examples.json', 'koven-tour.md'):
