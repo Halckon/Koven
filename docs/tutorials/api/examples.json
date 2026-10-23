@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "entries": [
+    {"example": "function", "file": "source.ko", "function": "greeting"},
+    {"example": "borrowing", "file": "source.ko", "function": "inspect"}
+  ]
+}

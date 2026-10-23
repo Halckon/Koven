@@ -9,8 +9,9 @@ ROOT = Path(__file__).resolve().parents[2]
 class PreviewDependencySetup(unittest.TestCase):
     def test_llvm_install_explicitly_refreshes_existing_lzma_runtime(self):
         source = (ROOT / 'scripts/install_ci_llvm.sh').read_text().replace('\\\n', ' ')
-        installs = [shlex.split(line) for line in source.splitlines()
-                    if line.startswith('sudo apt-get install ')]
+        commands = [shlex.split(line) for line in source.splitlines()
+                    if line.startswith('sudo apt-get ')]
+        installs = [command for command in commands if 'install' in command]
         self.assertEqual(len(installs), 1)
         self.assertIn('liblzma5:amd64=$lzma_version', installs[0],
                       'LLVM dependency satisfaction alone retains different preinstalled liblzma builds')

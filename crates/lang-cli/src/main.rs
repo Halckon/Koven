@@ -5,6 +5,7 @@ mod bootstrap;
 mod bootstrap_tests;
 
 mod diagnostic_renderer;
+mod doc;
 mod format;
 mod linker;
 mod machine_diagnostic_renderer;
@@ -19,7 +20,8 @@ use std::{ffi::OsString, io::Write, process::ExitCode};
 
 use format::CommandOutput;
 
-const GLOBAL_USAGE: &str = "usage: kovenc [--message-format=human|json] <format|build|run> ...\n";
+const GLOBAL_USAGE: &str =
+    "usage: kovenc [--message-format=human|json] <format|build|run|doc> ...\n";
 
 #[derive(Clone, Copy)]
 enum MessageFormat {
@@ -40,6 +42,7 @@ fn run(arguments: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -
         Err(output) => return write_output(output, stdout, stderr),
     };
     let output = match arguments.split_first() {
+        Some((command, rest)) if command == "doc" => doc::execute(rest, message_format),
         Some((command, rest)) if command == "format" => format::execute(rest, message_format),
         Some((command, rest)) if command == "build" => {
             native_command::execute_build(rest, message_format)
@@ -48,10 +51,10 @@ fn run(arguments: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -
             native_command::execute_run(rest, message_format)
         }
         Some((command, _)) => global_usage(format!(
-            "unknown command {}; expected `format`, `build` or `run`",
+            "unknown command {}; expected `format`, `build`, `run` or `doc`",
             command.to_string_lossy()
         )),
-        None => global_usage("expected `format`, `build` or `run` command"),
+        None => global_usage("expected `format`, `build`, `run` or `doc` command"),
     };
 
     write_output(output, stdout, stderr)
@@ -130,8 +133,8 @@ mod tests {
         assert!(stdout.is_empty());
         assert_eq!(
             String::from_utf8(stderr).expect("UTF-8 stderr"),
-            "error: expected `format`, `build` or `run` command\n\
-             usage: kovenc [--message-format=human|json] <format|build|run> ...\n"
+            "error: expected `format`, `build`, `run` or `doc` command\n\
+             usage: kovenc [--message-format=human|json] <format|build|run|doc> ...\n"
         );
 
         let mut stdout = Vec::new();

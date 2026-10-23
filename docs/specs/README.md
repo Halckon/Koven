@@ -9,6 +9,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 [0346 TextMate 语境与插值恢复](../archive/specs/0346-textmate-contexts.md)已按 PR129 双宿主完整 CI 验收归档；归档 head 与合并另验。
 
+[0351 LLVM安装等待边界](../archive/specs/0351-llvm-install-bounds.md)已完成PR双平台验收；归档提交与合并后联动另验。
+
 ## 当前入口
 
 ### Active
@@ -162,3 +164,5 @@ draft → approved → in-progress → done
 新建草案使用 [TEMPLATE.md](TEMPLATE.md)，放入 `drafts/` 或对应未启用版本子目录。
 
 - [0347 本地 Kovenlings](../archive/specs/0347-local-kovenlings.md)：基于 v0.45 已验收能力的两道本地练习；双宿主真实验收已通过并归档。
+
+- [0348 API 声明索引](../archive/specs/0348-api-documentation.md)：v0.45 解析器导出与既有教程示例验证首片。

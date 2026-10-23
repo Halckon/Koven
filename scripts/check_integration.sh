@@ -9,3 +9,4 @@ bash scripts/check_stage_integration.sh
 cargo test --locked -p lang-frontend --test guide_litmus
 python3 scripts/check_tutorial.py
 python3 scripts/check_kovenlings.py
+python3 scripts/check_api_examples.py > /dev/null
