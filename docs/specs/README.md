@@ -5,15 +5,19 @@
 Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批准 Spec。
 文档归档只关闭各 Spec 的有界合同，不代表全部语言演进或候选能力完成。
 
-[0344 独立门户内容同步](active/0344-site-content-sync.md)维护站点消费主仓库内容与重建通知边界。
+[0344 独立门户内容同步](../archive/specs/0344-site-content-sync.md)维护站点消费主仓库内容与重建通知边界。
 
 [0346 TextMate 语境与插值恢复](../archive/specs/0346-textmate-contexts.md)已按 PR129 双宿主完整 CI 验收归档；归档 head 与合并另验。
+
+[0351 LLVM安装等待边界](../archive/specs/0351-llvm-install-bounds.md)已完成PR双平台验收；归档提交与合并后联动另验。
+
+[0352 CLI source-set 导出](../archive/specs/0352-source-set-export.md)已按 PR138 完整双宿主实现 CI 验收归档；最终 head 与合并后 CI 另验。
 
 ## 当前入口
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树4份，[0291](active/0291-readonly-map-construction.md)保留有界交付待项；[0333静态Map调用](active/0333-static-map-callers.md)为approved、未实施；[0341统一Unit管线](active/0341-shared-lowering-core.md)为in-progress，按 Guide v0.45 推进单文件/project 共用 compilation-unit 检查和代码生成；helper 抽取只作迁移步骤，能力差异与通用 lowering 对账仍开放。Map双分量借用遍历已按[0331有限合同](../archive/specs/0331-map-borrowed-iteration.md)验收归档，原调用/ABI前置分别保留。
+- [Active 合同](active/README.md)：当前本树3份，[0291](active/0291-readonly-map-construction.md)保留有界交付待项；[0333静态Map调用](active/0333-static-map-callers.md)为approved、未实施；[0341统一Unit管线](active/0341-shared-lowering-core.md)为in-progress，按 Guide v0.45 推进单文件/project 共用 compilation-unit 检查和代码生成；helper 抽取只作迁移步骤，能力差异与通用 lowering 对账仍开放。Map双分量借用遍历已按[0331有限合同](../archive/specs/0331-map-borrowed-iteration.md)验收归档，原调用/ABI前置分别保留。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -67,6 +71,10 @@ C [0321 List MoveOnly交付记账](../archive/specs/0321-mutable-list-element-de
 原p38的single/project、basic/constant普通源码矩阵通过，归档head CI及main交付仍待。
 A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或v1全部完成；Resource/deinit、新出口、
 通用循环和其他容器/API仍按原能力边界及独立后继处理。
+
+### 生态安装切片
+
+- [0345 本地 preview 版本管理](../archive/specs/0345-preview-version-manager.md)：M1-S8 本地包首片已验收归档，不依赖 v0.46；三个示范程序联合验收仍待后继。
 
 ### 近期交付
 
@@ -158,3 +166,7 @@ draft → approved → in-progress → done
 - 一个 Spec 只定义一个 Goal；长期架构理由写 ADR，完整语义链接 Guide
 
 新建草案使用 [TEMPLATE.md](TEMPLATE.md)，放入 `drafts/` 或对应未启用版本子目录。
+
+- [0347 本地 Kovenlings](../archive/specs/0347-local-kovenlings.md)：基于 v0.45 已验收能力的两道本地练习；双宿主真实验收已通过并归档。
+
+- [0348 API 声明索引](../archive/specs/0348-api-documentation.md)：v0.45 解析器导出与既有教程示例验证首片。

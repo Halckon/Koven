@@ -1,7 +1,7 @@
 //! SPEC-0305: inspect only Programs lowered from ordinary source.
 use super::{
-    borrow_result_contract_tests::single, borrow_storage_contract_tests::unit, model::*,
-    verify::verify_program,
+    borrow_memory_test_support::single as memory_unit, borrow_result_contract_tests::single,
+    borrow_storage_contract_tests::unit, model::*, verify::verify_program,
 };
 
 fn check(program: &Program, source_index: usize, reused_arguments: bool) {
@@ -113,7 +113,7 @@ fn check(program: &Program, source_index: usize, reused_arguments: bool) {
 fn multi_parameter_borrow_single_source_matrix() {
     for case in crate::native_multi_borrow_cases::cases() {
         let program =
-            single(case.source).unwrap_or_else(|error| panic!("{}: {error:?}", case.name));
+            memory_unit(case.source).unwrap_or_else(|error| panic!("{}: {error:?}", case.name));
         check(&program, case.source_index, case.reused_arguments);
     }
 }

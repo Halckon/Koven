@@ -5,7 +5,7 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 
-use super::{collect_sources, holder, verify_program};
+use super::{collect_shape_boundaries, collect_sources, holder, verify_program};
 
 #[path = "borrowed_proof_contract.rs"]
 mod borrowed_proof_contract;
@@ -69,7 +69,13 @@ fn nullable_while_preserves_the_outer_borrowed_for_access() {
 }
 
 fn observe_borrowed_sources(relation: &str, sources: &[String; 2]) {
-    let outcomes = collect_sources(sources)
+    let observations = if relation == "for-inside-while" {
+        collect_shape_boundaries(sources)
+    } else {
+        assert_eq!(relation, "while-inside-for");
+        collect_sources(sources)
+    };
+    let outcomes = observations
         .into_iter()
         .enumerate()
         .map(|(index, result)| {

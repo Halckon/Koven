@@ -1,10 +1,14 @@
 //! Bounded retirement, owner returns and direct Int reads for a real nullable while view.
 use super::*;
-use crate::ssa::model::SsaTypeKind;
+use crate::ssa::model::{Definition, SsaTypeKind};
+
 use lang_frontend::type_checking::{
     NominalKind, UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
     UnitAggregateProjectionReceiver,
 };
+
+#[cfg(test)]
+mod retirement_tests;
 
 impl UnitExpressionLowerer<'_> {
     /// The true flag qualifies only an unchanged nullable owner for this return.
@@ -192,6 +196,97 @@ impl UnitExpressionLowerer<'_> {
         })
     }
 
+    /// Retirement alone may ignore an already evaluated, independent Int prefix.
+    /// No call/CFG state changes here; entry and owner-return keep their empty gate.
+    fn has_only_retirement_int_prefix(&self) -> bool {
+        let [frame] = self.pending_call_frames.as_slice() else {
+            return false;
+        };
+        if self.pending_operands.is_empty()
+            || frame.pending_start != 0
+            || frame.receiver
+            || !frame.nullable_children.is_empty()
+            || !frame.loan_arguments.is_empty()
+            || !frame.created_loans.is_empty()
+            || !frame.abi_slots.is_empty()
+            || frame.field_replace_owner.is_some()
+            || !frame.shared_field_roots.is_empty()
+            || !frame.exclusive_root_owners.is_empty()
+            || frame.call.source_unit() != self.source_unit
+            || !self
+                .parsed
+                .ast()
+                .expressions()
+                .get(frame.call.expression())
+                .is_ok_and(|node| matches!(node.payload(), Expression::Call { .. }))
+        {
+            return false;
+        }
+        let Some(descriptor) = self.typed.call(frame.call) else {
+            return false;
+        };
+        if descriptor.expression() != frame.call
+            || descriptor.receiver().is_some()
+            || descriptor.result_source()
+                != lang_frontend::type_checking::CallableResultSource::Owned
+            || descriptor.aborts()
+            || descriptor.prints_line()
+            || !matches!(
+                descriptor.target(),
+                lang_frontend::type_checking::UnitCallTarget::Declaration(_)
+            )
+        {
+            return false;
+        }
+        let Some(integer) = self.typed.types().builtin(BuiltinType::Int) else {
+            return false;
+        };
+        let Some(&integer_type) = self.type_ids.get(&integer) else {
+            return false;
+        };
+        if self.typed.copyability(integer) != Copyability::Copyable
+            || self.ssa_types.get(integer_type.index())
+                != Some(&SsaTypeKind::Integer {
+                    bits: 32,
+                    signed: true,
+                })
+        {
+            return false;
+        }
+        let Some(block) = self.function.block(self.block) else {
+            return false;
+        };
+        self.pending_operands.iter().all(|&entity| {
+            let EntityId::Value(_) = entity else {
+                return false;
+            };
+            let Some(data) = self.function.entity(entity) else {
+                return false;
+            };
+            if data.ty != EntityType::Value(integer_type) {
+                return false;
+            }
+            // Value origin is immaterial to Copyable Int lifetime. Require its
+            // actual current-block definition, not a compatible type or raw ID.
+            match data.definition {
+                Definition::BlockParameter {
+                    block: defined,
+                    index,
+                } => defined == self.block && block.parameters.get(index) == Some(&entity),
+                Definition::InstructionResult { instruction, index } => {
+                    block.instructions.contains(&instruction)
+                        && self
+                            .function
+                            .instruction(instruction)
+                            .is_some_and(|defined| {
+                                defined.block == self.block
+                                    && defined.results.get(index) == Some(&entity)
+                            })
+                }
+            }
+        })
+    }
+
     pub(super) fn end_nullable_proof(
         &mut self,
         root: UnitSymbolId,
@@ -227,7 +322,11 @@ impl UnitExpressionLowerer<'_> {
         }
         // All checks precede both BorrowEnd and state removal, in particular an owner Drop.
         self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
-        self.ensure_no_while_proof_carriers(span)?;
+        if proof.while_scope().is_some() && self.has_only_retirement_int_prefix() {
+            self.ensure_while_proof_non_call_carriers(span)?;
+        } else {
+            self.ensure_no_while_proof_carriers(span)?;
+        }
         if self
             .nullable_proofs
             .iter()

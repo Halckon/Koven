@@ -1,19 +1,24 @@
 use lang_frontend::{
+    analysis::analyze_basic_unit_ownership,
     lexer::lex,
-    name_resolution::resolve_names,
-    ownership_checking::check_ownership,
+    name_resolution::{
+        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
+    },
+    ownership_checking::owned_compilation_unit_view,
     parser::parse_file,
     source::{SourceMap, Span},
-    type_checking::{check_types, standard_environments},
+    type_checking::{
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
+    },
 };
 
 use super::{
-    lower_frontend::orchestrate::lower_scalar_file,
     model::{
         EntityId, EntityType, LoanKind, Operation, Origin, Program, ScalarConstant,
         SequentialContainerKind, TerminatorKind,
     },
     render::render_program,
+    unit_lower::lower_owned_unit_with_entry,
     verify::{VerifyErrorKind, verify_program},
 };
 use crate::llvm::render_verified_program;
@@ -37,16 +42,40 @@ fn source_borrowed_array_string_index_lowers_to_checked_element_loan() {
     let source = sources.add_source("argv-index.ko", text).expect("source");
     let lexed = lex(&sources, source).expect("lexer");
     let parsed = parse_file(&sources, &lexed).expect("parser");
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
+    assert!(lexed.diagnostics().is_empty());
     assert!(parsed.diagnostics().is_empty());
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let (environment, types) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).expect("valid source input");
+    let names =
+        resolve_compilation_unit_names(&sources, &inputs, &index, &environment).expect("names");
     assert!(names.diagnostics().is_empty());
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let names = names.validate().expect("valid names");
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &types).expect("types");
+    assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
+    complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw)
+        .expect("complete types");
+    let (typed, owned) = analyze_basic_unit_ownership(&sources, &inputs, &names, &types, raw)
+        .expect("ownership")
+        .into_result()
+        .expect("valid types");
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-
-    let program = lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
+    let owned = owned.validate().expect("valid ownership");
+    let mut entries = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .filter(|declaration| {
+            declaration.name() == "inspect"
+                && declaration.kind() == SymbolKind::Function
+                && declaration.name_span().source_id() == source
+        });
+    let entry = entries.next().expect("source inspect exists").id();
+    assert!(entries.next().is_none(), "source inspect is unique");
+    let unit = owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned)
+        .expect("same-analysis owned unit");
+    let (program, _) = lower_owned_unit_with_entry(&unit, entry)
         .expect("borrowed Array<String> indexing must lower");
     let ssa = render_program(&program);
     assert!(ssa.contains("container.element_place %l0"), "{ssa}");

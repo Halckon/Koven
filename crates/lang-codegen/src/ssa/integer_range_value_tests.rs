@@ -5,108 +5,176 @@ use super::{
     lower_frontend::orchestrate::lower_scalar_file,
     model::{EntityId, Operation, Ownership, Program, SsaTypeKind},
     render::render_program,
-    unit_lower::lower_scalar_unit_with_entry,
-    unit_lower_test_support::{declaration, parsed},
+    unit_lower::lower_owned_unit_with_entry,
     verify::verify_program,
 };
 use lang_frontend::{
+    analysis::analyze_basic_unit_ownership,
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
+        resolve_names,
     },
-    ownership_checking::{check_compilation_unit_ownership, check_ownership},
+    ownership_checking::{check_ownership, owned_compilation_unit_view},
     parser::parse_file,
-    source::SourceMap,
+    source::{SourceMap, Span},
     type_checking::{
         check_compilation_unit_types, check_types, complete_compilation_unit_types,
         complete_file_types, standard_environments,
     },
 };
-fn lower_source(text: &str, unit: bool) -> Result<Program, String> {
-    let mut sources = SourceMap::new();
-    let (environment, types) = standard_environments();
-    let result = if unit {
-        println!("STAGE unit=true parse");
-        let text = format!("package p\n{text}");
-        let (source, file) = parsed(&mut sources, "p/range.ko", &text);
-        let inputs = [SourceUnitInput::new("root", "p/range.ko", source, &file)];
-        let index = index_compilation_unit(&sources, &inputs).unwrap();
-        println!("STAGE unit=true names");
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-            .map_err(|error| format!("names API: {error:?}"))?
-            .validate()
-            .map_err(|error| format!("names diagnostics: {error:?}"))?;
-        println!("STAGE unit=true types");
-        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-            .map_err(|error| format!("types API: {error:?}"))?;
-        complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
-            .map_err(|error| format!("complete: {error:?}"))?;
-        let typed = typed
-            .validate()
-            .map_err(|error| format!("types validation: {error:?}"))?;
-        println!("STAGE unit=true ownership");
-        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
-            .map_err(|error| format!("ownership API: {error:?}"))?
-            .validate()
-            .map_err(|error| format!("ownership diagnostics: {error:?}"))?;
-        println!("STAGE unit=true lower");
-        lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &types,
-            &typed,
-            &owned,
-            declaration(&names, "p", "entry"),
-        )
-        .map(|(program, _)| program)
-    } else {
-        println!("STAGE unit=false parse");
-        let source = sources.add_source("range.ko", text).unwrap();
-        let lexed = lex(&sources, source).unwrap();
-        assert!(lexed.diagnostics().is_empty());
-        let file = parse_file(&sources, &lexed).unwrap();
-        assert!(file.diagnostics().is_empty());
-        println!("STAGE unit=false names");
-        let names = resolve_names(&sources, &file, &environment).unwrap();
-        if !names.diagnostics().is_empty() {
-            return Err(format!("names diagnostics: {:?}", names.diagnostics()));
-        }
-        println!("STAGE unit=false types");
-        let typed = check_types(&sources, &file, &names, &types).unwrap();
-        complete_file_types(&sources, &file, &names, &types, &typed)
-            .map_err(|error| format!("complete: {error:?}"))?;
-        println!("STAGE unit=false ownership");
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        if !owned.diagnostics().is_empty() || !owned.deferred().is_empty() {
-            return Err(format!(
-                "ownership: {:?}, deferred: {:?}",
-                owned.diagnostics(),
-                owned.deferred()
-            ));
-        }
-        println!("STAGE unit=false lower");
-        lower_scalar_file(&sources, &file, &names, &typed, &owned)
-    }
-    .map_err(|error| format!("lower: {error:?}"));
-    match &result {
-        Ok(program) => println!(
-            "MODE unit={unit} SOURCE {text:?} SSA {}",
-            render_program(program)
-        ),
-        Err(error) => println!("MODE unit={unit} SOURCE {text:?} LOWER {error:?}"),
-    }
-    result
+
+pub(super) struct SourceProgram {
+    pub(super) program: Program,
+    pub(super) functions: Vec<(String, Span)>,
 }
 
+fn lower_unit_source(text: &str, package_layout: bool) -> Result<SourceProgram, String> {
+    let mut sources = SourceMap::new();
+    let text = if package_layout {
+        format!("package p\n{text}")
+    } else {
+        text.to_owned()
+    };
+    let path = if package_layout {
+        "p/range.ko"
+    } else {
+        "range.ko"
+    };
+    let source = sources.add_source(path, &text).unwrap();
+    let lexed = lex(&sources, source).unwrap();
+    assert!(lexed.diagnostics().is_empty());
+    let file = parse_file(&sources, &lexed).unwrap();
+    assert!(file.diagnostics().is_empty());
+    let inputs = [if package_layout {
+        SourceUnitInput::new("root", path, source, &file)
+    } else {
+        SourceUnitInput::memory_document(source, &file)
+    }];
+    let (environment, types) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .map_err(|error| format!("names API: {error:?}"))?
+        .validate()
+        .map_err(|error| format!("names diagnostics: {error:?}"))?;
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .map_err(|error| format!("types API: {error:?}"))?;
+    complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw)
+        .map_err(|error| format!("complete: {error:?}"))?;
+    let (typed, owned) = analyze_basic_unit_ownership(&sources, &inputs, &names, &types, raw)
+        .map_err(|error| format!("ownership API: {error:?}"))?
+        .into_result()
+        .map_err(|error| format!("types validation: {error:?}"))?;
+    let owned = owned
+        .validate()
+        .map_err(|error| format!("ownership diagnostics: {error:?}"))?;
+    let mut entries = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .filter(|declaration| {
+            declaration.name() == "entry"
+                && declaration.kind() == SymbolKind::Function
+                && declaration.name_span().source_id() == source
+        });
+    let entry = entries.next().expect("one source entry exists").id();
+    assert!(entries.next().is_none(), "source entry is unique");
+    let unit = owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned)
+        .map_err(|error| format!("owned unit view: {error:?}"))?;
+    let (program, _) =
+        lower_owned_unit_with_entry(&unit, entry).map_err(|error| format!("lower: {error:?}"))?;
+    let functions = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .filter(|declaration| {
+            declaration.kind() == SymbolKind::Function
+                && declaration.name_span().source_id() == source
+        })
+        .map(|declaration| {
+            let span = file.ast().items().get(declaration.root()).unwrap().span();
+            (declaration.name().to_owned(), span)
+        })
+        .collect();
+    Ok(SourceProgram { program, functions })
+}
+
+// Temporary test-only exit boundary, not a fallback from a failed Unit attempt.
+// Only the four explicit shape-boundary wholes below retain this original pipeline.
+fn lower_legacy_shape_boundary(text: &str) -> Result<Program, String> {
+    let mut sources = SourceMap::new();
+    let (environment, types) = standard_environments();
+    let source = sources.add_source("range.ko", text).unwrap();
+    let lexed = lex(&sources, source).unwrap();
+    assert!(lexed.diagnostics().is_empty());
+    let file = parse_file(&sources, &lexed).unwrap();
+    assert!(file.diagnostics().is_empty());
+    let names = resolve_names(&sources, &file, &environment).unwrap();
+    if !names.diagnostics().is_empty() {
+        return Err(format!("names diagnostics: {:?}", names.diagnostics()));
+    }
+    let typed = check_types(&sources, &file, &names, &types).unwrap();
+    complete_file_types(&sources, &file, &names, &types, &typed)
+        .map_err(|error| format!("complete: {error:?}"))?;
+    let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
+    if !owned.diagnostics().is_empty() || !owned.deferred().is_empty() {
+        return Err(format!(
+            "ownership: {:?}, deferred: {:?}",
+            owned.diagnostics(),
+            owned.deferred()
+        ));
+    }
+    lower_scalar_file(&sources, &file, &names, &typed, &owned)
+        .map_err(|error| format!("lower: {error:?}"))
+}
+
+/// Both original source layouts now use Unit; false/true means no header/package p.
 pub(super) fn collect_sources(sources: &[String]) -> Vec<Result<Program, String>> {
+    collect_source_functions(sources)
+        .into_iter()
+        .map(|result| result.map(|source| source.program))
+        .collect()
+}
+
+/// Query-only declaration spans from the same parsed input that produced each Program.
+pub(super) fn collect_source_functions(sources: &[String]) -> Vec<Result<SourceProgram, String>> {
+    let mut results = Vec::new();
+    for source in sources {
+        for package_layout in [false, true] {
+            let result = lower_unit_source(source, package_layout);
+            match &result {
+                Ok(_) => println!("UNIT layout_package={package_layout} lower=ok"),
+                Err(error) => {
+                    println!("UNIT layout_package={package_layout} SOURCE {source:?} {error}")
+                }
+            }
+            results.push(result);
+        }
+    }
+    results
+}
+
+/// Exactly four existing wholes still pin distinct Legacy/Unit SSA shapes:
+/// single_direct_nullable_while_birth_and_local_retirement_reach_llvm,
+/// unit_direct_nullable_while_birth_and_local_retirement_reach_llvm,
+/// numeric_for_preserves_the_outer_nullable_while_proof, and
+/// borrowed_for_preserves_the_outer_nullable_while_proof.
+/// Remove this boundary only after those original loan/terminal/origin contracts
+/// receive an explicit retirement decision; do not silently rewrite their expectations.
+pub(super) fn collect_shape_boundaries(sources: &[String]) -> Vec<Result<Program, String>> {
     let mut results = Vec::new();
     for source in sources {
         for unit in [false, true] {
-            println!("BEGIN unit={unit} SOURCE {source:?}");
-            let result = lower_source(source, unit);
-            if let Err(error) = &result {
-                println!("STOP unit={unit} SOURCE {source:?} {error}");
+            let result = if unit {
+                lower_unit_source(source, true).map(|source| source.program)
+            } else {
+                lower_legacy_shape_boundary(source)
+            };
+            match &result {
+                Ok(_) => println!("SHAPE BOUNDARY unit={unit} lower=ok"),
+                Err(error) => println!("SHAPE BOUNDARY unit={unit} SOURCE {source:?} {error}"),
             }
             results.push(result);
         }

@@ -2,11 +2,13 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 317 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 323 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
 由 `scripts/gen_spec_dag.py` 重建；现行拓扑见 [Specs 索引](../../specs/README.md)。
+
+[0352 CLI project source-set v1 导出](0352-source-set-export.md)（Phase 6）已按 PR138 双宿主实现 CI 验收；归档 head 与合并后 CI 另验。
 
 ## Phase 0
 
@@ -501,6 +503,15 @@
 - [SPEC-0332](0332-rc-nullable-while-regression.md)：Rc nullable while表示分派回归；三历史双入口对照与PR118实现CI双host71项有界验收，额外payload/体内返回欠账独立承接；归档head CI/main待验。
 - [SPEC-0342](0342-companion-block-syntax.md)：Parser 落实 Guide v0.46 的 `companion { }`，`companion object` 以 L0077 拒绝并恢复；仓内测试、fixture 与 tree-sitter 同步迁移。
 - [SPEC-0343](0343-top-level-const-only.md)：compilation-unit 类型检查对顶层运行时 `val`/`var` 报 L0167 并保留 initializer 恢复；依赖顶层值的测试改为期望 L0167 或改写夹具。
+
+- [SPEC-0345](0345-preview-version-manager.md)：本地 preview 安装、身份查询、原子激活、停用及卸载；双宿主真实消费通过，三个示范程序联合验收保留后继。
+
+- [SPEC-0344](0344-site-content-sync.md)：独立门户内容同步及成功 main CI 自动通知、站点构建与 Pages 发布实证；设计快照与工具链身份分开。
+
+- [0347 本地 Kovenlings 首片](0347-local-kovenlings.md)
+
+- [0348 API 声明索引与教程示例协议](0348-api-documentation.md)
+- [SPEC-0351](./0351-llvm-install-bounds.md)：LLVM setup总时限与下载有限重试，PR双平台验收通过
 - [SPEC-0353](0353-abort-output.md)：abort 向 stderr 输出 `abort: <message>` 与源码位置后 SIGABRT；`kovenc run` 透传退出码并把信号映射为 128+N。
 - [SPEC-0354](0354-conformance-corpus.md)：154 个 review probe、PR #120 基线矩阵与六个 V1 验收程序入库 `conformance/`，附矩阵 runner `scripts/conformance_matrix.sh`。
 - [SPEC-0349](0349-builtin-result-and-check.md)：`koven/core/result.ko` 经宿主授权成为内建环境 `Result`/`Ok`/`Err`，用户顶层同名声明报 L0150；无实参 `is Case` 从 subject 推断实参；新增 `kovenc check` 与 `--help`，单文件诊断退出码改为 1。

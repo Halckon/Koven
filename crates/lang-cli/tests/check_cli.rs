@@ -261,6 +261,6 @@ fn help_prints_full_usage_to_stdout() {
     assert_eq!(unknown.status.code(), Some(2));
     assert!(
         String::from_utf8_lossy(&unknown.stderr)
-            .contains("expected `format`, `check`, `build`, `run` or `help`")
+            .contains("expected `format`, `check`, `build`, `run`, `doc`, `source-set` or `help`")
     );
 }

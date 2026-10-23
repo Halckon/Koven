@@ -5,7 +5,10 @@ pub(in crate::ssa) mod borrowed_proof_cases;
 #[path = "if_cleanup_observation.rs"]
 mod if_cleanup_observation;
 
-use super::super::{integer_range_value_tests::collect_sources, verify::verify_program};
+use super::super::{
+    integer_range_value_tests::{collect_shape_boundaries, collect_sources},
+    verify::verify_program,
+};
 
 fn observe(group: &str, cases: &[(String, bool)]) {
     let sources = cases
@@ -251,7 +254,7 @@ fn direct_proof_sources() -> [String; 5] {
 
 fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>> {
     let sources = direct_proof_sources();
-    let observations = collect_sources(&sources);
+    let observations = collect_shape_boundaries(&sources);
     assert_eq!(observations.len(), sources.len() * 2);
     observations
         .into_iter()
@@ -752,7 +755,8 @@ fun entry(own initial: Holder?): Int {
     return 0
 }"#
     .to_owned();
-    let outcomes = collect_sources(&[first, prefix])
+    let sources = [first, prefix];
+    let outcomes = collect_sources(&sources)
         .into_iter()
         .enumerate()
         .map(|(index, result)| {
@@ -760,24 +764,39 @@ fun entry(own initial: Holder?): Int {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                Ok(())
+                Ok(program)
             });
             println!(
-                "VALUE ARG FRAME source={} unit={} {result:?}",
+                "VALUE ARG FRAME source={} unit={} {:?}",
                 index / 2,
-                index % 2 == 1
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
             );
             result
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 4);
-    // SPEC-0350: the unit prefix frame used to stop with UnsupportedNode at `current`;
-    // `entry` now lies in the refinement subset (class nullable view + field read), so
-    // the populated call frame reaches verified LLVM in both layouts as well.
-    for outcome in &outcomes {
-        assert!(outcome.is_ok(), "accepted value argument: {outcome:?}");
+    for outcome in outcomes.iter().take(3) {
+        assert!(
+            outcome.is_ok(),
+            "accepted value argument: {:?}",
+            outcome.as_ref().map(|_| ())
+        );
+    }
+    // Preserve the first three successes; the original fourth source now has the same
+    // full success contract, including identities and cleanup before the real call.
+    for (index, outcome) in outcomes.into_iter().enumerate() {
+        value_argument_contract::assert_value_argument(
+            &outcome.expect("ordinary nullable field value argument reaches verified LLVM"),
+            &sources[index / 2],
+            index % 2 == 1,
+            index / 2 == 1,
+        );
     }
 }
+
+#[path = "value_argument_contract.rs"]
+mod value_argument_contract;
 
 pub(in crate::ssa) fn pending_child_source() -> String {
     r#"class Holder(val text: String, val value: Int)
@@ -902,7 +921,7 @@ fn numeric_for_preserves_the_outer_nullable_while_proof() {
     let source = numeric_nested_source();
     let grouped = source.replace("in 0..<2", "in ((0..<2))");
     let sources = [source, grouped];
-    let outcomes = collect_sources(&sources)
+    let outcomes = collect_shape_boundaries(&sources)
         .into_iter()
         .enumerate()
         .map(|(index, result)| {

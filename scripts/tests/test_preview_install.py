@@ -40,6 +40,7 @@ class PreviewInstallProtocol(unittest.TestCase):
 
     def package(self, mutate=None, extra_members=()):
         files = {
+            'tools/preview_manager.py': ((ROOT / 'scripts/preview_manager.py').read_bytes(), 0o644),
             'bin/kovenc': (b'mock binary', 0o755),
             'README.md': (b'mock documentation', 0o644),
             'licenses/NOTICE': (b'mock licenses', 0o644),

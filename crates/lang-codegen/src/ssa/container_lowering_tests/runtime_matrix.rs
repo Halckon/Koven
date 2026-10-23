@@ -1,4 +1,4 @@
-use super::{analyze, lower_scalar_file, render_program, runtime_matrix_support};
+use super::{analyze, lower_unit, render_program, runtime_matrix_support};
 
 #[test]
 fn runtime_generator_single_matrix_preserves_element_capture_and_storage_contracts() {
@@ -15,27 +15,21 @@ fn runtime_generator_single_matrix_preserves_element_capture_and_storage_contrac
                             named,
                             length,
                         );
-                        let analysis = analyze(&text);
+                        let analysis = analyze(&text, "entry");
                         assert!(analysis.parsed.diagnostics().is_empty(), "{text}");
-                        assert!(analysis.names.diagnostics().is_empty(), "{text}");
+                        assert!(analysis.names.names().diagnostics().is_empty(), "{text}");
                         assert!(
-                            analysis.typed.diagnostics().is_empty(),
+                            analysis.typed.types().diagnostics().is_empty(),
                             "{text}: {:?}",
-                            analysis.typed.diagnostics()
+                            analysis.typed.types().diagnostics()
                         );
                         assert!(
-                            analysis.owned.diagnostics().is_empty(),
+                            analysis.owned.ownership().diagnostics().is_empty(),
                             "{text}: {:?}",
-                            analysis.owned.diagnostics()
+                            analysis.owned.ownership().diagnostics()
                         );
-                        let arena = analysis.typed.types().len();
-                        match lower_scalar_file(
-                            &analysis.sources,
-                            &analysis.parsed,
-                            &analysis.names,
-                            &analysis.typed,
-                            &analysis.owned,
-                        ) {
+                        let arena = analysis.typed.types().types().len();
+                        match lower_unit(&analysis) {
                             Ok(program) => {
                                 runtime_matrix_support::assert_layout(&program, environment);
                                 assert!(
@@ -50,7 +44,7 @@ fn runtime_generator_single_matrix_preserves_element_capture_and_storage_contrac
                                 case.element
                             )),
                         }
-                        assert_eq!(analysis.typed.types().len(), arena);
+                        assert_eq!(analysis.typed.types().types().len(), arena);
                     }
                 }
             }

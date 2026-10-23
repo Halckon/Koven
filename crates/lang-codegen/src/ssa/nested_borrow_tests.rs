@@ -1,6 +1,6 @@
 //! SPEC-0307: query verified SSA from ordinary source, without IR mutation.
 use super::{
-    borrow_result_contract_tests::single, borrow_storage_contract_tests::unit, model::*,
+    borrow_memory_test_support::single, borrow_storage_contract_tests::unit, model::*,
     verify::verify_program,
 };
 use crate::native_nested_borrow_cases::Case;
