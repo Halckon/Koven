@@ -44,7 +44,10 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use lang_frontend::{diagnostic::DiagnosticDetail, name_resolution::SymbolKind};
+use lang_frontend::{
+    diagnostic::DiagnosticDetail, lexer::lex, name_resolution::SymbolKind, parser::parse_file,
+    source::SourceMap, type_checking::standard_environments,
+};
 
 use super::{NativeObjectErrorKind, NativeUnitEntry};
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
