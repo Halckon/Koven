@@ -120,15 +120,22 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 ## 6. 验收标准
 
 - [x] ADR-0032、ADR-0033 accepted（2026-10-23）。
-- [ ] 7 个 probe 在单文件与 project 两种模式下 build 成功，stdout 与期望一致、退出 0。
-- [ ] 154 个 probe 的 conformance 矩阵与本 Spec 基线相比，没有原本 OK 的 probe 变差，两模式差异为 0。
+- [x] 7 个 probe 在单文件与 project 两种模式下 build 成功，stdout 与期望一致、退出 0（2026-10-24，
+  本地 debug `kovenc`，Linux x86_64）。
+- [x] 154 个 probe 的 conformance 矩阵：与 3b（`ec9febf8`）同脚本对照，OK 由 103 增至 104，唯一变化是
+  p14 由 MissingFact 变为 OK，两模式差异为 0。macOS 与 CI 未跑。
 - [ ] inline nullable：`Int?`、`Boolean?`、`Char?`、`String?` 的 wrap/null/branch/take/drop 有 SSA verifier
-  正反测试，以及 LLVM 布局测试（含 niche 的 size 等式）。
-- [ ] `String?` 的 drop 计数：non-null 与 null 路径各验证分配与释放次数相等。
-- [ ] 子集预检的正负例测试；同一输入在正逆 inputs 顺序下分流与 SSA 输出确定。
-- [ ] 受影响目标定向测试通过：`lang-codegen` 中 nullable、unit_lower、verifier、LLVM nullable 相关测试，
-  `lang-cli` native 与 project 测试中 nullable 相关项；fmt 与 `check_docs.py` 通过。
-- [ ] 没有新增按类型 × 控制流组合拆分的 lowering 模块；Architecture 只记录实际已实现事实。
+  正反测试，以及 LLVM 布局测试（含 niche 的 size 等式）。现有 `Int?`、`String?` 的 native 计数与拒绝用例；
+  `Boolean?`、`Char?` 及 size 等式尚缺。
+- [x] `String?` 的 drop 计数：non-null 与 null 路径各验证分配与释放次数相等
+  （`refine_tests::nullable_string_owner_is_freed_once_on_both_edges`；class nullable 另见同文件计数测试）。
+- [ ] 子集预检的正负例测试；同一输入在正逆 inputs 顺序下分流与 SSA 输出确定。现有正例与重复 lowering
+  的确定性断言；逐类负例与逆序 inputs 尚缺。
+- [x] 受影响目标定向测试通过：`lang-codegen` lib 全部 2415 项，`lang-cli` 的 `native_cli` 34 项与
+  `project_cli` 39 项；fmt、clippy（仅既有 `llvm/map/hash.rs` 告警）、尺寸护栏与 `check_docs.py` 通过
+  （2026-10-24，3c）。
+- [x] 没有新增按类型 × 控制流组合拆分的 lowering 模块（新增文件按阶段：`refine/build/heap.rs`、
+  `refine/subset/heap.rs`）；Architecture 新增[所有权细化层](../../architecture/ownership-refinement.md)页，只记录已实现事实。
 
 ## 7. 风险
 
@@ -157,7 +164,7 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 | 2 | `9f1fc5df` | `SsaTypeKind::InlineNullable`、verifier、LLVM 布局/操作与 drop glue |
 | 3a | `892d545a` | `ssa::refine`：子集预检、槽位 CFG、按活跃性构造 SSA；`Int?`/`Boolean?` 局部、参数、返回、`while` 与短路 |
 | 3b | `ec9febf8` | `String?` proof view、String 拼接/比较、短路的 BranchExit 析构 |
-| 3c | 本提交 | class 构造、字段读取、`!!`、pointer-like nullable view；门槛放宽；abort 边携带存活 owner；单前驱直线块合并 |
+| 3c | `d82a20a9` | class 构造、字段读取、`!!`、pointer-like nullable view；门槛放宽；abort 边携带存活 owner；单前驱直线块合并 |
 
 3c 修正的问题：
 
