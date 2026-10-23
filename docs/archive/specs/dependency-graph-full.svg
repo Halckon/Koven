@@ -6,7 +6,7 @@
   </defs>
   <rect width="13032" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="10048" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5064" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，317 份）</text>
+  <text x="5064" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，318 份）</text>
   <rect x="10152" y="30" width="544" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10424" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="10760" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -988,6 +988,7 @@
   <path d="M 972 5934 C 972 5966, 1236 5966, 1236 5998" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 450 C 972 482, 708 500, 708 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6054 C 972 6086, 1500 6122, 1500 6154" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 6054 C 972 6086, 972 6278, 972 6310" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 6072 C 1236 6104, 1236 6122, 1236 6154" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 6072 C 1236 6104, 180 8288, 180 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 6228 C 1236 6260, 708 6278, 708 6310" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1055,6 +1056,7 @@
   <path d="M 708 8238 C 708 8270, 1236 8288, 1236 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 6522 C 1500 6554, 2292 6590, 2292 6622" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2292 6696 C 2292 6728, 972 6746, 972 6778" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1500 6228 C 1500 6260, 972 6278, 972 6310" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 9684 138 C 9684 170, 1764 188, 1764 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1620 257 C 5896 257, 5896 413, 10172 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1620 257 C 6372 257, 6372 422, 11124 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2439,6 +2441,10 @@
   <rect x="10436" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="10556" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0344</text>
   <text x="10556" y="105" text-anchor="middle" font-size="13">独立门户内容同步</text>
+  <rect x="852" y="6310" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="972" y="6333" text-anchor="middle" font-size="13">SPEC-0345</text>
+  <text x="972" y="6351" text-anchor="middle" font-size="13">本地 preview 版本管</text>
+  <text x="972" y="6369" text-anchor="middle" font-size="13">理</text>
   <rect x="9828" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="9948" y="87" text-anchor="middle" font-size="13">SPEC-0346</text>
   <text x="9948" y="105" text-anchor="middle" font-size="13">TextMate 语境与插值</text>

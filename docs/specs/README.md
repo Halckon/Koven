@@ -68,6 +68,10 @@ C [0321 List MoveOnly交付记账](../archive/specs/0321-mutable-list-element-de
 A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或v1全部完成；Resource/deinit、新出口、
 通用循环和其他容器/API仍按原能力边界及独立后继处理。
 
+### 生态安装切片
+
+- [0345 本地 preview 版本管理](../archive/specs/0345-preview-version-manager.md)：M1-S8 本地包首片已验收归档，不依赖 v0.46；三个示范程序联合验收仍待后继。
+
 ### 近期交付
 
 - [0331 Map双分量借用遍历](../archive/specs/0331-map-borrowed-iteration.md)：H `7c38bcf3` 完成冻结普通联合门、完整[PR119实现CI](https://github.com/Halckon/Koven/actions/runs/39217973375)与三产物独审；原失败/独立调用与ABI前置及Mac partial保留。此为最小归档，归档头CI与正常merge/main状态另验，不称已合并。

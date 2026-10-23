@@ -18,7 +18,7 @@ import time
 
 PREFIX = 'koven-preview'
 EXAMPLE = 'examples/parameter-report'
-TOOLS = ('check_tutorial.py', 'check_preview_install.py', 'preview_host.py',
+TOOLS = ('preview_manager.py', 'check_tutorial.py', 'check_preview_install.py', 'preview_host.py',
          'install_preview_dependencies.sh', 'install_ci_llvm.sh')
 TARGET_HOSTS = {'aarch64-apple-darwin': ('Darwin', 'arm64'),
                 'x86_64-unknown-linux-gnu': ('Linux', 'x86_64')}
