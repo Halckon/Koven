@@ -1,10 +1,10 @@
 # SPEC-0352: CLI project source-set v1 导出
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实现与验收编辑器项目输入前置时 · **唯一真源**：本次交付范围
+> **性质**：交付合同 · **状态**：done · **读取时机**：实现与验收编辑器项目输入前置时 · **唯一真源**：本次交付范围
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | KOV-P6-0352 |
 | 所属 Phase | Phase 6 |
 | 里程碑 | CORE-V1-M3 / 编辑器 SPEC-0007 生产方前置 |
@@ -51,7 +51,7 @@ URI 呈现适配函数，升级须复验编码矩阵，不向跨 crate API 泄�
 | 原 project 命令与 CLI 单元测试 | project_cli、lang-cli bin | 串行 39/39、58/58 通过；首次并行 7 例 native 超时，未计通过 |
 | fmt、CLI clippy、workspace check、CLI build | 对应 Cargo 门禁 | fmt check、CLI all-targets clippy -D warnings、workspace all-targets check、CLI/LSP build 通过 |
 | 真实 CLI→LSP 初始化消费 | 本机真实 stdio 联合探针 | 编码 URI、跨文件诊断、dirty overlay、close 恢复、更新 base 后新会话重放均通过；消费者接入另验 |
-| 文档/依赖/尺寸门禁、独立复核、双宿主 CI | CI 与脚本 | 本地门禁通过；独立复核发现路径不兼容已修复并复核；双宿主 CI 待执行 |
+| 文档/依赖/尺寸门禁、独立复核、双宿主 CI | CI 与脚本 | 本地门禁通过；独立复核发现路径不兼容已修复并复核；实现 head `a9154483` 的完整双宿主 CI [39929521401](https://github.com/Halckon/Koven/actions/runs/39929521401) 通过，含 preview producer/independent consumer |
 
 ## 5. 输入与交付
 
@@ -65,3 +65,6 @@ LSP `e77b514dca2543fe2ad5e20090e06983fb9524a081dbd292a8a9ffeff6ec284d`。
 探针脚本 SHA-256 `2a9a04400cd7de43974fcdd65d0d089a466e3d2435e3a0c7817c09e77a0441b8`，
 原始脚本/日志暂存本机 `/private/tmp`，非长期证据；长期行为证据以入库测试与 CI 为准。
 尺寸门禁报告既有 38 份超限文件，无新增超限；不把旧欠账记为已清理。
+
+frontend `compilation_unit_index` 14/14 通过。真实消费长期回归已提交至编辑器 [7573083](https://github.com/koven-lang/koven-editors/commit/7573083)，其 [CI 39932379501](https://github.com/koven-lang/koven-editors/actions/runs/39932379501) 的真实 CLI/LSP 任务通过；两 IDE 后续任务独立验收。
+本次按实现 head 验收归档；归档 head 的 CI、PR138 合并及实际 main CI 继续作为交付门禁，不把待执行结果写成通过。

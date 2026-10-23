@@ -2,11 +2,13 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 322 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 323 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
 由 `scripts/gen_spec_dag.py` 重建；现行拓扑见 [Specs 索引](../../specs/README.md)。
+
+[0352 CLI project source-set v1 导出](0352-source-set-export.md)（Phase 6）已按 PR138 双宿主实现 CI 验收；归档 head 与合并后 CI 另验。
 
 ## Phase 0
 

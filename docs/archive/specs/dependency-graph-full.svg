@@ -6,7 +6,7 @@
   </defs>
   <rect width="13296" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="10576" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5328" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，322 份）</text>
+  <text x="5328" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，323 份）</text>
   <rect x="10680" y="30" width="280" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10820" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="11024" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -423,7 +423,7 @@
   <path d="M 444 5154 C 444 5186, 708 5204, 708 5236" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 5154 C 444 5186, 1236 5360, 1236 5392" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 2370 C 180 2402, 180 5672, 180 5704" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 300 2324 C 5500 2324, 5500 4391, 10700 4391" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 2370 C 180 2402, 1500 4322, 1500 4354" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2022 C 708 2054, 708 2834, 708 2866" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2022 C 708 2054, 1236 2090, 1236 2122" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2022 C 708 2054, 2556 4166, 2556 4198" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -867,7 +867,7 @@
   <path d="M 708 4548 C 708 4580, 1500 5360, 1500 5392" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 4548 C 708 4580, 1236 5672, 1236 5704" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2556 4272 C 2556 4304, 444 5966, 444 5998" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 2676 4235 C 6688 4235, 6688 4391, 10700 4391" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 2556 4272 C 2556 4304, 1500 4322, 1500 4354" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 3978 C 972 4010, 180 5048, 180 5080" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 3978 C 972 4010, 444 5048, 444 5080" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 3978 C 972 4010, 444 4892, 444 4924" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2464,8 +2464,8 @@
   <rect x="10356" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="10476" y="87" text-anchor="middle" font-size="13">SPEC-0351</text>
   <text x="10476" y="105" text-anchor="middle" font-size="13">LLVM 安装等待边界</text>
-  <rect x="10700" y="4354" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="10820" y="4377" text-anchor="middle" font-size="13" font-weight="600">SPEC-0352</text>
-  <text x="10820" y="4395" text-anchor="middle" font-size="13">CLI project so</text>
-  <text x="10820" y="4413" text-anchor="middle" font-size="13">urce-set v1 导出</text>
+  <rect x="1380" y="4354" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1500" y="4377" text-anchor="middle" font-size="13">SPEC-0352</text>
+  <text x="1500" y="4395" text-anchor="middle" font-size="13">CLI project so</text>
+  <text x="1500" y="4413" text-anchor="middle" font-size="13">urce-set v1 导出</text>
 </svg>
