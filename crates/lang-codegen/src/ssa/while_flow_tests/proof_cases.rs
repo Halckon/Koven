@@ -752,7 +752,8 @@ fun entry(own initial: Holder?): Int {
     return 0
 }"#
     .to_owned();
-    let outcomes = collect_sources(&[first, prefix])
+    let sources = [first, prefix];
+    let outcomes = collect_sources(&sources)
         .into_iter()
         .enumerate()
         .map(|(index, result)| {
@@ -760,25 +761,39 @@ fun entry(own initial: Holder?): Int {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                Ok(())
+                Ok(program)
             });
             println!(
-                "VALUE ARG FRAME source={} unit={} {result:?}",
+                "VALUE ARG FRAME source={} unit={} {:?}",
                 index / 2,
-                index % 2 == 1
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
             );
             result
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 4);
     for outcome in outcomes.iter().take(3) {
-        assert!(outcome.is_ok(), "accepted value argument: {outcome:?}");
+        assert!(
+            outcome.is_ok(),
+            "accepted value argument: {:?}",
+            outcome.as_ref().map(|_| ())
+        );
     }
-    assert_eq!(
-        outcomes[3].as_ref().unwrap_err(),
-        "lower: LoweringError { kind: UnsupportedNode, span: Some(Span { source_id: SourceId(0), start: 159, end: 166 }) }"
-    );
+    // Preserve the first three successes; the original fourth source now has the same
+    // full success contract, including identities and cleanup before the real call.
+    for (index, outcome) in outcomes.into_iter().enumerate() {
+        value_argument_contract::assert_value_argument(
+            &outcome.expect("ordinary nullable field value argument reaches verified LLVM"),
+            &sources[index / 2],
+            index % 2 == 1,
+            index / 2 == 1,
+        );
+    }
 }
+
+#[path = "value_argument_contract.rs"]
+mod value_argument_contract;
 
 pub(in crate::ssa) fn pending_child_source() -> String {
     r#"class Holder(val text: String, val value: Int)

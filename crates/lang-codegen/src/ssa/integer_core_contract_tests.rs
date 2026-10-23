@@ -1,30 +1,39 @@
 //! Ordinary-source pairs for the shared integer intrinsic lowering contract.
 use lang_frontend::{
-    name_resolution::{
-        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
-    },
+    lexer::lex,
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
         check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
-        check_ownership,
     },
-    source::{SourceMap, Span},
+    parser::{ParsedFile, parse_file},
+    source::{SourceId, SourceMap, Span},
     type_checking::{
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
     },
 };
 
 use super::{
-    lower_scalar_file_with_entry,
     model::{
         Definition, EntityId, EntityType, Function, FunctionId, LoanKind, Operation, PlaceAccess,
         Program, ScalarConstant, SsaTypeKind, TerminatorKind,
     },
     unit_lower::{constant::lower_constant_unit_with_entry, lower_scalar_unit_with_entry},
-    unit_lower_test_support::{declaration, parsed},
+    unit_lower_test_support::declaration,
     verify::verify_program,
 };
+
+fn parsed(sources: &mut SourceMap, name: &str, text: &str) -> (SourceId, ParsedFile) {
+    let source = sources.add_source(name, text).expect("unique source");
+    let lexed = lex(sources, source).expect("lexing succeeds internally");
+    assert!(lexed.diagnostics().is_empty(), "{:?}", lexed.diagnostics());
+    let parsed = parse_file(sources, &lexed).expect("parsing succeeds internally");
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    (source, parsed)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct SourceKey(String, usize, usize);
@@ -312,21 +321,79 @@ fn paired(text: &str, other_text: &str, constants: bool) -> Contract {
             (entry, other)
         };
         let (name_environment, environment) = standard_environments();
-        let names = resolve_names(&sources, &file, &name_environment).unwrap();
+        let single_input = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
+        let index = index_compilation_unit(&sources, &single_input).unwrap();
+        assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let names =
+            resolve_compilation_unit_names(&sources, &single_input, &index, &name_environment)
+                .unwrap();
         assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-        let typed = check_types(&sources, &file, &names, &environment).unwrap();
-        complete_file_types(&sources, &file, &names, &environment, &typed).unwrap();
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        assert!(owned.deferred().is_empty());
-        let entry = names
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.name() == "entry" && symbol.kind() == SymbolKind::Function)
+        let names = names.validate().unwrap();
+        let recovery =
+            check_compilation_unit_types(&sources, &single_input, &names, &environment).unwrap();
+        assert!(
+            recovery.diagnostics().is_empty(),
+            "{:?}",
+            recovery.diagnostics()
+        );
+        complete_compilation_unit_types(&sources, &single_input, &names, &environment, &recovery)
+            .unwrap();
+        let entry = declaration(&names, "pair", "entry");
+        let (single, entry) = if constants {
+            assert!(
+                recovery.clone().validate().is_err(),
+                "basic capability rejects real const input"
+            );
+            let typed = recovery.validate_constants().unwrap();
+            let owned = check_compilation_unit_constant_ownership(
+                &sources,
+                &single_input,
+                &names,
+                &environment,
+                &typed,
+            )
+            .unwrap();
+            assert!(
+                owned.ownership().diagnostics().is_empty(),
+                "{:?}",
+                owned.ownership().diagnostics()
+            );
+            assert!(owned.ownership().deferred().is_empty());
+            let owned = owned.validate().unwrap();
+            lower_constant_unit_with_entry(
+                &sources,
+                &single_input,
+                &names,
+                &environment,
+                &typed,
+                &owned,
+                entry,
+            )
             .unwrap()
-            .id();
-        let (single, entry) =
-            lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry).unwrap();
+        } else {
+            let typed = recovery.validate().unwrap();
+            let owned = check_compilation_unit_ownership(
+                &sources,
+                &single_input,
+                &names,
+                &environment,
+                &typed,
+            )
+            .unwrap();
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            assert!(owned.deferred().is_empty());
+            let owned = owned.validate().unwrap();
+            lower_scalar_unit_with_entry(
+                &sources,
+                &single_input,
+                &names,
+                &environment,
+                &typed,
+                &owned,
+                entry,
+            )
+            .unwrap()
+        };
         let expected = contract(&sources, &single, entry);
         let inputs = [
             SourceUnitInput::new("root", "other/entry.ko", other_source, &other),
