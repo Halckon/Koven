@@ -1,8 +1,7 @@
 //! SPEC-0300: real source owner facts and normal-exhaustion SSA transport.
 use super::{analyze, lower_map_unit, lower_scalar_file};
-use lang_frontend::ownership_checking::{
-    CleanupOwnerValue, DropPoint, DropTarget, IterationPhiBoundary, IterationPhiIncomingKind,
-};
+#[path = "lower_frontend_map_loop_unit_identity.rs"]
+mod unit_identity;
 
 const ORIGINAL: &str =
     include_str!("../../tests/fixtures/owned-null-cleanup-0296/single-loop-boundary.ko");
@@ -10,63 +9,7 @@ const NORMAL: &str = include_str!("../../tests/fixtures/map-loop-owner-0300/norm
 
 #[test]
 fn single_map_loop_original_remove_uses_published_header_owner() {
-    let analysis = analyze(ORIGINAL);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let guarded = analysis
-        .owned
-        .drops()
-        .iter()
-        .find(|fact| fact.condition().is_some())
-        .expect("the original source publishes a guarded Map owner");
-    let DropTarget::Named(symbol) = guarded.target() else {
-        panic!("the Map is a named owner")
-    };
-    let Some(CleanupOwnerValue::IterationPhi {
-        statement,
-        symbol: owner_symbol,
-        boundary,
-        ..
-    }) = analysis
-        .owned
-        .cleanup_conditions()
-        .owner_value(guarded.owner().unwrap())
-    else {
-        panic!("the drop is tied to an iteration owner")
-    };
-    assert_eq!(*owner_symbol, symbol);
-    assert_eq!(*boundary, IterationPhiBoundary::Header);
-    assert_eq!(guarded.point(), DropPoint::LoopExit(*statement));
-    let plan = analysis.owned.iteration(*statement).unwrap();
-    for kind in [
-        IterationPhiIncomingKind::Entry,
-        IterationPhiIncomingKind::Fallthrough,
-        IterationPhiIncomingKind::Exhaustion,
-    ] {
-        assert!(
-            plan.closure_phi_incomings()
-                .iter()
-                .any(|edge| edge.kind() == kind)
-        );
-    }
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap_or_else(|error| {
-        panic!(
-            "normal-exhaustion Map carrier: {error:?}; drops={:?}; incoming={:?}",
-            analysis.owned.drops(),
-            plan.closure_phi_incomings()
-        )
-    });
-    crate::llvm::render_verified_program(&program).unwrap();
-    assert_map_drop_counts(&program, &[("main", 1)]);
+    unit_identity::check_original(ORIGINAL);
 }
 
 #[test]
@@ -76,129 +19,7 @@ fn unit_map_loop_original_source_is_an_independent_control() {
 
 #[test]
 fn single_map_loop_normal_exhaustion_preserves_dead_and_live_owners() {
-    let analysis = analyze(NORMAL);
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let mut header_drops = 0;
-    let mut exit_drops = 0;
-    for fact in analysis
-        .owned
-        .drops()
-        .iter()
-        .filter(|fact| fact.condition().is_some())
-    {
-        let Some(CleanupOwnerValue::IterationPhi {
-            statement,
-            boundary,
-            symbol,
-            ..
-        }) = analysis
-            .owned
-            .cleanup_conditions()
-            .owner_value(fact.owner().unwrap())
-        else {
-            panic!("Map phi owner")
-        };
-        assert_eq!(
-            analysis
-                .typed
-                .is_resource_type(analysis.typed.symbol_type(*symbol).unwrap()),
-            Some(false)
-        );
-        let plan = analysis.owned.iteration(*statement).unwrap();
-        let exit = plan
-            .closure_phis()
-            .iter()
-            .find(|phi| phi.symbol() == *symbol && phi.boundary() == IterationPhiBoundary::Exit)
-            .unwrap();
-        let incoming = plan
-            .closure_phi_incomings()
-            .iter()
-            .find(|edge| edge.kind() == IterationPhiIncomingKind::Exhaustion)
-            .unwrap()
-            .bindings()
-            .iter()
-            .find(|binding| binding.target() == exit.owner())
-            .unwrap();
-        assert_eq!(
-            incoming.availability_selector(),
-            exit.availability_selector()
-        );
-        match boundary {
-            IterationPhiBoundary::Header => {
-                header_drops += 1;
-                assert_eq!(fact.point(), DropPoint::LoopExit(*statement));
-                assert!(
-                    incoming.values().is_empty(),
-                    "cleaned Header must not reappear in Exit"
-                );
-                assert!(matches!(
-                    analysis
-                        .owned
-                        .cleanup_conditions()
-                        .get(incoming.available_when()),
-                    Some(lang_frontend::ownership_checking::CleanupCondition::Never)
-                ));
-            }
-            IterationPhiBoundary::Exit => {
-                exit_drops += 1;
-                assert_ne!(fact.point(), DropPoint::LoopExit(*statement));
-                assert_eq!(
-                    incoming.values().len(),
-                    1,
-                    "a live Exit receives one Header owner"
-                );
-                let header = plan
-                    .closure_phis()
-                    .iter()
-                    .find(|phi| {
-                        phi.symbol() == *symbol && phi.boundary() == IterationPhiBoundary::Header
-                    })
-                    .unwrap();
-                assert_eq!(incoming.values()[0].source(), header.owner());
-                assert_eq!(incoming.available_when(), header.availability_condition());
-                assert_eq!(fact.condition(), Some(exit.availability_condition()));
-            }
-        }
-    }
-    assert_eq!((header_drops, exit_drops), (2, 2));
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap_or_else(|error| {
-        panic!(
-            "{error:?}; guarded={:?}; plans={:?}",
-            analysis
-                .owned
-                .drops()
-                .iter()
-                .filter(|fact| fact.condition().is_some())
-                .collect::<Vec<_>>(),
-            analysis.owned.iterations()
-        )
-    });
-    crate::llvm::render_verified_program(&program).unwrap();
-    assert_map_drop_counts(
-        &program,
-        &[
-            ("removeDead", 1),
-            ("removeLive", 1),
-            ("putDead", 1),
-            ("putLive", 1),
-        ],
-    );
+    unit_identity::check_normal(NORMAL);
 }
 
 #[test]
@@ -384,37 +205,7 @@ fn single_map_loop_parameter_seed_and_same_typed_owners_stay_distinct() {
 #[test]
 fn single_map_loop_resource_payload_keeps_existing_classification() {
     let source = "class Resource { deinit() { println(\"drop\") } }\nfun main(): Unit { var resources = mutableMapOf<Int, Resource>(); for (key in arrayOf(1, 2)) { resources.put(key, Resource()) }; println(\"after\") }";
-    let analysis = analyze(source);
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let fact = analysis
-        .owned
-        .drops()
-        .iter()
-        .find(|fact| fact.condition().is_some())
-        .unwrap();
-    let DropTarget::Named(symbol) = fact.target() else {
-        panic!("resource Map owner")
-    };
-    assert_eq!(
-        analysis
-            .typed
-            .is_resource_type(analysis.typed.symbol_type(symbol).unwrap()),
-        Some(true)
-    );
-    assert!(
-        !matches!(fact.point(), DropPoint::LoopExit(_)),
-        "Resource remains lexical"
-    );
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap();
-    crate::llvm::render_verified_program(&program).unwrap();
+    unit_identity::check_resource(source);
 }
 
 #[test]
