@@ -4,17 +4,15 @@
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        NameResolution, SourceUnitId, SourceUnitInput, SymbolKind, ValidatedCompilationUnitNames,
-        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitId, SourceUnitInput, SourceUnitKey, SymbolKind, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names,
     },
-    ownership_checking::{
-        CompilationUnitOwnership, check_compilation_unit_ownership, check_ownership,
-    },
+    ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
     parser::{ParsedFile, parse_file},
     source::SourceMap,
     type_checking::{
-        CompilationUnitTypes, TypedFile, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, complete_file_types, standard_environments,
+        CompilationUnitTypes, check_compilation_unit_types, complete_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -38,8 +36,6 @@ const OWNED_LOCALS: Fixture = Fixture {
     consumes: 6,
 };
 
-type SingleInspector =
-    fn(&ParsedFile, &NameResolution, &TypedFile, &mut Vec<String>) -> Outcome<()>;
 type UnitInspector = fn(
     SourceUnitId,
     &ParsedFile,
@@ -187,157 +183,15 @@ fn record_inspection(outcome: &Outcome<()>, stages: &mut Vec<String>) {
 }
 
 fn observe_single(stages: &mut Vec<String>) -> Outcome<()> {
-    observe_single_fixture(&OWNED_LOCALS, |_, _, _, _| Ok(()), stages)
+    observe_single_fixture(&OWNED_LOCALS, |_, _, _, _, _, _| Ok(()), stages)
 }
 
 pub(super) fn observe_single_fixture(
     fixture: &Fixture,
-    inspect: SingleInspector,
+    inspect: UnitInspector,
     stages: &mut Vec<String>,
 ) -> Outcome<()> {
-    let mut sources = SourceMap::new();
-    let parsed = parsed(&mut sources, fixture.source_name, fixture.source, stages)?;
-    let (environment, types) = standard_environments();
-    let names = step(
-        "names",
-        resolve_names(&sources, &parsed, &environment),
-        stages,
-    )?;
-    gate(
-        "names diagnostics",
-        names.diagnostics().is_empty(),
-        names.diagnostics(),
-        stages,
-    )?;
-    let entries: Vec<_> = names
-        .symbols()
-        .iter()
-        .filter(|symbol| {
-            symbol.name() == "main"
-                && symbol.kind() == SymbolKind::Function
-                && !symbol.is_synthetic()
-                && symbol.span().source_id() == parsed.source_id()
-        })
-        .collect();
-    let [entry] = entries.as_slice() else {
-        return Err(Failure {
-            stage: "unique real single main".to_owned(),
-            detail: format!(
-                "candidates={entries:?}; actual symbols={:?}",
-                names.symbols()
-            ),
-        });
-    };
-    stages.push(format!("selected real single main={entry:?}"));
-    let typed = step(
-        "raw types",
-        check_types(&sources, &parsed, &names, &types),
-        stages,
-    )?;
-    gate(
-        "raw type diagnostics",
-        typed.diagnostics().is_empty(),
-        typed.diagnostics(),
-        stages,
-    )?;
-    stages.push(format!(
-        "all raw consume descriptors={:#?}",
-        typed.map_consumes()
-    ));
-    gate(
-        &format!("{} real consume descriptors", fixture.consumes),
-        typed.map_consumes().len() == fixture.consumes,
-        typed.map_consumes(),
-        stages,
-    )?;
-    for descriptor in typed.map_consumes() {
-        let call = step(
-            "consume call AST",
-            parsed.ast().expressions().get(descriptor.expression()),
-            stages,
-        )?;
-        let receiver = step(
-            "consume receiver AST",
-            parsed.ast().expressions().get(descriptor.receiver()),
-            stages,
-        )?;
-        stages.push(format!(
-            "real descriptor={descriptor:?}; call span={:?}, text={:?}; receiver span={:?}, text={:?}",
-            call.span(), sources.slice(call.span()), receiver.span(), sources.slice(receiver.span()),
-        ));
-        gate(
-            "raw consume receiver/root/storage/read/result identities",
-            descriptor.source().is_some_and(|(root, storage)| {
-                typed.symbol_type(root) == Some(storage)
-                    && names.symbols().iter().any(|symbol| {
-                        symbol.id() == root
-                            && symbol.kind() == SymbolKind::Variable
-                            && symbol.span().source_id() == parsed.source_id()
-                    })
-            }) && typed.expression_type(descriptor.receiver()) == Some(descriptor.receiver_type())
-                && typed.expression_type(descriptor.expression()) == Some(descriptor.result_type()),
-            descriptor,
-            stages,
-        )?;
-    }
-    let complete = step(
-        "complete types",
-        complete_file_types(&sources, &parsed, &names, &types, &typed),
-        stages,
-    )?;
-    gate(
-        "complete same analysis",
-        complete.is_same_analysis(&typed),
-        "original typed identity",
-        stages,
-    )?;
-    gate(
-        "complete diagnostics",
-        complete.types().diagnostics().is_empty(),
-        complete.types().diagnostics(),
-        stages,
-    )?;
-    gate(
-        &format!("complete preserves all {} descriptors", fixture.consumes),
-        complete.types().map_consumes() == typed.map_consumes(),
-        complete.types().map_consumes(),
-        stages,
-    )?;
-    let owned = step(
-        "ownership",
-        check_ownership(&sources, &parsed, &names, complete.types()),
-        stages,
-    )?;
-    gate(
-        "ownership diagnostics",
-        owned.diagnostics().is_empty(),
-        owned.diagnostics(),
-        stages,
-    )?;
-    gate(
-        "ownership completeness",
-        owned.deferred().is_empty(),
-        owned.deferred(),
-        stages,
-    )?;
-    let inspected = inspect(&parsed, &names, complete.types(), stages);
-    record_inspection(&inspected, stages);
-    let (program, function) = step(
-        "lower SSA with real main",
-        super::lower_scalar_file_with_entry(
-            &sources,
-            &parsed,
-            &names,
-            complete.types(),
-            &owned,
-            entry.id(),
-        )
-        .map_err(|error| lowering_error(&sources, error)),
-        stages,
-    )?;
-    let rendered = verify_and_render(&program, function, fixture.consumes, stages);
-    rendered?;
-    inspected
+    observe_fixture(fixture, false, inspect, stages)
 }
 
 fn observe_unit(stages: &mut Vec<String>) -> Outcome<()> {
@@ -349,18 +203,49 @@ pub(super) fn observe_unit_fixture(
     inspect: UnitInspector,
     stages: &mut Vec<String>,
 ) -> Outcome<()> {
+    observe_fixture(fixture, true, inspect, stages)
+}
+
+// Each source shape gets its own real analysis. Result-based stages keep a failure in
+// either entry from preventing collection of the other; no panic-based UnitSource.
+fn observe_fixture(
+    fixture: &Fixture,
+    cross_file: bool,
+    inspect: UnitInspector,
+    stages: &mut Vec<String>,
+) -> Outcome<()> {
     let mut sources = SourceMap::new();
-    let provider = parsed(
-        &mut sources,
-        "p/provider.ko",
-        &format!("package p\n{}", fixture.source),
-        stages,
-    )?;
-    let consumer = parsed(&mut sources, "q/consumer.ko", fixture.consumer, stages)?;
-    let inputs = [
-        SourceUnitInput::new("root", "p/provider.ko", provider.source_id(), &provider),
-        SourceUnitInput::new("root", "q/consumer.ko", consumer.source_id(), &consumer),
-    ];
+    let provider = if cross_file {
+        parsed(
+            &mut sources,
+            "p/provider.ko",
+            &format!("package p\n{}", fixture.source),
+            stages,
+        )?
+    } else {
+        parsed(&mut sources, fixture.source_name, fixture.source, stages)?
+    };
+    let consumer = if cross_file {
+        Some(parsed(
+            &mut sources,
+            "q/consumer.ko",
+            fixture.consumer,
+            stages,
+        )?)
+    } else {
+        None
+    };
+    let inputs = if let Some(consumer) = &consumer {
+        vec![
+            SourceUnitInput::new("root", "p/provider.ko", provider.source_id(), &provider),
+            SourceUnitInput::new("root", "q/consumer.ko", consumer.source_id(), consumer),
+        ]
+    } else {
+        vec![SourceUnitInput::memory_document(
+            provider.source_id(),
+            &provider,
+        )]
+    };
     let (environment, types) = standard_environments();
     let index = step("index", index_compilation_unit(&sources, &inputs), stages)?;
     let names = step(
@@ -387,62 +272,113 @@ pub(super) fn observe_unit_fixture(
         .iter()
         .filter(|unit| {
             unit.source_id() == provider.source_id()
-                && unit.key().logical_path().expect("rooted source").as_str() == "p/provider.ko"
+                && if cross_file {
+                    unit.key()
+                        .logical_path()
+                        .is_some_and(|path| path.as_str() == "p/provider.ko")
+                } else {
+                    unit.key() == &SourceUnitKey::MemoryDocument
+                }
         })
         .collect();
-    let consumer_units: Vec<_> = actual_sources
-        .iter()
-        .filter(|unit| {
-            unit.source_id() == consumer.source_id()
-                && unit.key().logical_path().expect("rooted source").as_str() == "q/consumer.ko"
-        })
-        .collect();
-    let ([provider_unit], [consumer_unit]) = (provider_units.as_slice(), consumer_units.as_slice())
-    else {
+    let [provider_unit] = provider_units.as_slice() else {
         return Err(Failure {
-            stage: "unique real provider and consumer source units".to_owned(),
-            detail: format!(
-                "provider={provider_units:?}; consumer={consumer_units:?}; all={actual_sources:?}"
-            ),
+            stage: "unique real fixture source unit".to_owned(),
+            detail: format!("provider={provider_units:?}; all={actual_sources:?}"),
         });
     };
-    gate(
-        "two distinct source-qualified packages",
-        actual_sources.len() == 2
-            && provider_unit.id() != consumer_unit.id()
-            && index.packages().iter().any(|package| {
-                package.id() == provider_unit.package()
-                    && package.name().expect("named package").segments() == ["p"]
+    let (entry_unit, entry_source, entry_name, entry_label) = if let Some(consumer) = &consumer {
+        let consumer_units: Vec<_> = actual_sources
+            .iter()
+            .filter(|unit| {
+                unit.source_id() == consumer.source_id()
+                    && unit
+                        .key()
+                        .logical_path()
+                        .is_some_and(|path| path.as_str() == "q/consumer.ko")
             })
-            && index.packages().iter().any(|package| {
-                package.id() == consumer_unit.package()
-                    && package.name().expect("named package").segments() == ["q"]
-            }),
-        (actual_sources, index.packages()),
-        stages,
-    )?;
+            .collect();
+        let [consumer_unit] = consumer_units.as_slice() else {
+            return Err(Failure {
+                stage: "unique real consumer source unit".to_owned(),
+                detail: format!("consumer={consumer_units:?}; all={actual_sources:?}"),
+            });
+        };
+        gate(
+            "two distinct source-qualified packages",
+            actual_sources.len() == 2
+                && provider_unit.id() != consumer_unit.id()
+                && index.packages().iter().any(|package| {
+                    package.id() == provider_unit.package()
+                        && package.name().is_some_and(|name| name.segments() == ["p"])
+                })
+                && index.packages().iter().any(|package| {
+                    package.id() == consumer_unit.package()
+                        && package.name().is_some_and(|name| name.segments() == ["q"])
+                }),
+            (actual_sources, index.packages()),
+            stages,
+        )?;
+        (*consumer_unit, consumer.source_id(), "entry", "q.entry")
+    } else {
+        gate(
+            "one actual MemoryDocument in the default package",
+            actual_sources.len() == 1
+                && index.packages().len() == 1
+                && index.packages().iter().any(|package| {
+                    package.id() == provider_unit.package()
+                        && package.name().is_some_and(|name| name.is_default())
+                }),
+            (actual_sources, index.packages()),
+            stages,
+        )?;
+        (*provider_unit, provider.source_id(), "main", "single main")
+    };
     let entries: Vec<_> = index
         .declarations()
         .iter()
         .filter(|declaration| {
-            declaration.name() == "entry"
+            declaration.name() == entry_name
                 && declaration.kind() == SymbolKind::Function
-                && declaration.source_unit() == consumer_unit.id()
-                && declaration.package() == consumer_unit.package()
-                && declaration.name_span().source_id() == consumer.source_id()
+                && declaration.source_unit() == entry_unit.id()
+                && declaration.package() == entry_unit.package()
+                && declaration.name_span().source_id() == entry_source
         })
         .collect();
     let [entry] = entries.as_slice() else {
         return Err(Failure {
-            stage: "unique real q.entry".to_owned(),
+            stage: format!("unique real {entry_label}"),
             detail: format!(
                 "candidates={entries:?}; all declarations={:?}",
                 index.declarations()
             ),
         });
     };
+    // Preserve the single-file non-synthetic symbol oracle through the selected
+    // declaration's actual source-qualified symbol, not a name-only replacement.
+    gate(
+        "selected entry is the real non-synthetic source symbol",
+        names
+            .names()
+            .declaration_symbol(entry.id())
+            .is_some_and(|selected| {
+                selected.source_unit() == entry_unit.id()
+                    && names.names().source_units().iter().any(|unit| {
+                        unit.source_unit() == selected.source_unit()
+                            && unit.resolution().symbols().iter().any(|symbol| {
+                                symbol.id() == selected.symbol()
+                                    && symbol.name() == entry_name
+                                    && symbol.kind() == SymbolKind::Function
+                                    && !symbol.is_synthetic()
+                                    && symbol.span() == entry.name_span()
+                            })
+                    })
+            }),
+        entry,
+        stages,
+    )?;
     stages.push(format!(
-        "selected real q.entry={entry:?}; source units={actual_sources:?}"
+        "selected real {entry_label}={entry:?}; source units={actual_sources:?}"
     ));
     let typed = step(
         "raw types",
@@ -507,6 +443,13 @@ pub(super) fn observe_unit_fixture(
             "real qualified descriptor={descriptor:?}; call span={:?}, text={:?}; receiver span={:?}, text={:?}",
             call.span(), sources.slice(call.span()), receiver.span(), sources.slice(receiver.span()),
         ));
+        gate(
+            "qualified consume call/receiver retain the actual source spans",
+            call.span().source_id() == provider.source_id()
+                && receiver.span().source_id() == provider.source_id(),
+            (call.span(), receiver.span()),
+            stages,
+        )?;
     }
     let complete = step(
         "complete types",
@@ -515,7 +458,7 @@ pub(super) fn observe_unit_fixture(
     )?;
     gate(
         "complete same analysis",
-        complete.is_same_analysis(&typed),
+        complete.is_same_analysis(&typed) && std::ptr::eq(complete.types(), &typed),
         "original body typed identity",
         stages,
     )?;
@@ -571,8 +514,10 @@ pub(super) fn observe_unit_fixture(
         stages,
     );
     record_inspection(&inspected, stages);
+    // The existing adapter seals these same validated products into an owned-unit
+    // view and immediately enters lower_owned_unit_with_entry.
     let (program, function) = step(
-        "lower SSA with real q.entry",
+        &format!("lower SSA with real {entry_label}"),
         super::unit_lower::lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -611,7 +556,18 @@ fn complete_map_consume_fixture_reaches_verified_llvm() {
         });
     }
     // No assertion or old panic-based helper may stop collection after the first entry.
+    let failed = observations
+        .iter()
+        .any(|observation| observation.outcome.is_err());
     for observation in &observations {
+        if !failed {
+            println!(
+                "MAP CONSUME FIXTURE {}: verified LLVM ({} recorded stages)",
+                observation.entry,
+                observation.stages.len(),
+            );
+            continue;
+        }
         println!(
             "MAP CONSUME FIXTURE {}\n{}",
             observation.entry,
