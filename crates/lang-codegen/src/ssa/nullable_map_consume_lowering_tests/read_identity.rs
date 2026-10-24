@@ -11,10 +11,8 @@ use lang_frontend::{
     parser::{Item, NameMarker, Statement},
 };
 
-mod single;
 mod unit;
 
-pub(super) use single::inspect as inspect_single;
 pub(super) use unit::inspect as inspect_unit;
 
 #[derive(Debug)]

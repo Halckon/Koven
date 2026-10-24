@@ -1,5 +1,6 @@
 //! Source-qualified unit facts; local expression and symbol numbers never cross files.
 use super::*;
+use crate::ssa::nullable_map_consume_lowering_tests::unit::{Context, Layout};
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, Symbol, SymbolKind, UnitReferenceTarget, UnitSymbolId,
@@ -17,6 +18,8 @@ use lang_frontend::{
         UnitCallableTarget, UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
+
+mod owner;
 
 struct Fe<'a> {
     sources: &'a SourceMap,
@@ -271,13 +274,18 @@ fn local_source(case: &Case, fe: &Fe<'_>, source: &SourceInput) -> Outcome<Sourc
     Ok(Source::Local { construction, puts })
 }
 
-fn parameter_source(fe: &Fe<'_>, source: &SourceInput) -> Outcome<Source> {
+fn parameter_source(
+    case: &Case,
+    layout: Layout,
+    fe: &Fe<'_>,
+    source: &SourceInput,
+) -> Outcome<Source> {
     let Fe {
+        sources,
         files,
         names,
         typed,
         owned,
-        ..
     } = *fe;
     let SourceInput {
         initializer,
@@ -364,8 +372,10 @@ fn parameter_source(fe: &Fe<'_>, source: &SourceInput) -> Outcome<Source> {
         let argument = one(call.arguments(), "unit C3 unique argument mapping")?;
         gate(
             "unit C3 exact own parameter mapping",
-            source != input.source_unit()
-                && argument.parameter_index() == index
+            (match layout {
+                Layout::Memory => source == input.source_unit(),
+                Layout::Rooted => source != input.source_unit(),
+            }) && argument.parameter_index() == index
                 && argument.argument_index() == 0
                 && argument.mode() == ParameterMode::Value
                 && argument.parameter_type() == storage
@@ -432,11 +442,14 @@ fn parameter_source(fe: &Fe<'_>, source: &SourceInput) -> Outcome<Source> {
             .filter(|value| {
                 value.source_unit() == source
                     && value.name_span() == caller_name
-                    && value.name() == "entry"
+                    && value.name() == layout.entry_name()
                     && value.kind() == SymbolKind::Function
             })
             .collect();
-        let caller_declaration = *one(&caller_declarations, "unit C3 actual q.entry caller")?;
+        let caller_declaration = *one(
+            &caller_declarations,
+            "unit C3 actual layout-selected caller",
+        )?;
         let caller_units: Vec<_> = names
             .names()
             .index()
@@ -448,17 +461,8 @@ fn parameter_source(fe: &Fe<'_>, source: &SourceInput) -> Outcome<Source> {
         gate(
             "unit C3 caller owns and transfers its distinct source once",
             caller_unit.source_id() == caller_file.source_id()
-                && caller_unit
-                    .key()
-                    .logical_path()
-                    .expect("rooted source")
-                    .as_str()
-                    == "q/consumer.ko"
+                && layout.consumer_matches(case, sources, names, caller_unit)
                 && caller_unit.package() == caller_declaration.package()
-                && names.names().index().packages().iter().any(|package| {
-                    package.id() == caller_unit.package()
-                        && package.name().expect("named package").segments() == ["q"]
-                })
                 && caller != callable_span
                 && contains(caller, declaration_span)
                 && declaration_span.end() < call_span.start()
@@ -476,6 +480,7 @@ fn parameter_source(fe: &Fe<'_>, source: &SourceInput) -> Outcome<Source> {
             (caller_unit, caller_declaration, root, call),
         )?;
         let initializer_id = UnitExpressionId::new(source, initializer);
+        owner::named(fe, root, initializer_id, caller, caller_name)?;
         let initializer = if ordinal == 0 {
             CallerInit::Present {
                 construction: construction(caller_file, typed, initializer_id, inner, scalar)?,
@@ -519,14 +524,33 @@ fn parameter_source(fe: &Fe<'_>, source: &SourceInput) -> Outcome<Source> {
 }
 
 pub(in crate::ssa::nullable_map_consume_lowering_tests) fn facts(
-    case: &Case,
-    sources: &SourceMap,
+    context: &Context<'_>,
     files: &[(SourceUnitId, &ParsedFile)],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     trace: &mut Trace,
 ) -> Outcome<Facts> {
+    let Context {
+        case,
+        layout,
+        sources,
+    } = *context;
+    let fe = Fe {
+        sources,
+        files,
+        names,
+        typed,
+        owned,
+    };
+    // UnitDropFact is the unconditional table; conditional receiver obligations
+    // are separate. Preserve the former single root, named result and discarded
+    // result condition.none checks without inventing a Unit owner/condition field.
+    gate(
+        "unit consume fixture has no conditional receiver cleanup",
+        owned.conditional_receiver_drops().is_empty(),
+        owned.conditional_receiver_drops(),
+    )?;
     let descriptor = one(typed.map_consumes(), "unit unique real consume descriptor")?;
     let source = descriptor.expression().source_unit();
     let parsed = file(files, source)?;
@@ -539,14 +563,10 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn facts(
         .collect();
     let unit = *one(&units, "unit consume source identity")?;
     gate(
-        "unit consume belongs to actual p/provider source and package",
+        "unit consume belongs to actual layout-selected provider source and package",
         unit.source_id() == parsed.source_id()
-            && unit.key().logical_path().expect("rooted source").as_str() == "p/provider.ko"
-            && descriptor.receiver().source_unit() == source
-            && names.names().index().packages().iter().any(|package| {
-                package.id() == unit.package()
-                    && package.name().expect("named package").segments() == ["p"]
-            }),
+            && layout.provider_matches(case, sources, names, unit)
+            && descriptor.receiver().source_unit() == source,
         unit,
     )?;
     let (root, storage) = descriptor
@@ -677,6 +697,16 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn facts(
             && declaration_span.end() < control_span.start(),
         (callable_span, declaration_span, control_span),
     )?;
+    // Bind Named(root) to the real initializer and callable. Facts retains those
+    // source origins for source::check's birth-to-branch lineage and graph::cleanup's
+    // unique current null owner; the qualified target alone is not the SSA proof.
+    owner::named(
+        &fe,
+        root,
+        UnitExpressionId::new(source, initializer),
+        callable_span,
+        callable_name,
+    )?;
     let root_drops: Vec<_> = owned
         .drops()
         .iter()
@@ -754,6 +784,15 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn facts(
                 && owned.formed_owned_locals().contains(&result),
             (read, result, result_symbol),
         )?;
+        // The exact result initializer is this consume. Its named obligation and
+        // CallReturn origin feed the unchanged consume-result alias/cleanup proof.
+        owner::named(
+            &fe,
+            result,
+            UnitExpressionId::new(source, result_initializer),
+            callable_span,
+            callable_name,
+        )?;
         let drops: Vec<_> = owned
             .drops()
             .iter()
@@ -772,13 +811,6 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn facts(
         }
     };
     let initializer = UnitExpressionId::new(source, initializer);
-    let fe = Fe {
-        sources,
-        files,
-        names,
-        typed,
-        owned,
-    };
     let source_input = SourceInput {
         initializer,
         declaration: declaration_span,
@@ -789,7 +821,7 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn facts(
         scalar,
     };
     let source = if case.id == "C3" {
-        parameter_source(&fe, &source_input)?
+        parameter_source(case, layout, &fe, &source_input)?
     } else {
         local_source(case, &fe, &source_input)?
     };

@@ -3,18 +3,18 @@
 use lang_frontend::{
     ast::TypeRefId,
     name_resolution::{
-        NameResolution, SourceUnitId, SourceUnitInput, SymbolKind, ValidatedCompilationUnitNames,
-        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitId, SourceUnitInput, SourceUnitKey, SymbolKind, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names,
     },
-    ownership_checking::{check_compilation_unit_ownership, check_ownership},
+    ownership_checking::{check_compilation_unit_ownership, owned_compilation_unit_view},
     parser::{
         Expression, FunctionBody, FunctionForm, Item, LiteralKind, NameMarker, Statement,
         VariableKind,
     },
     type_checking::{
-        BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, TypeKind, TypedFile,
-        UnitCallTarget, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, complete_file_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, UnitCallTarget, UnitTypeKind,
+        UnitTypeRefId, check_compilation_unit_types, complete_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -107,80 +107,6 @@ fn dead_syntax(sources: &SourceMap, parsed: &ParsedFile) -> Option<DeadSyntax> {
     })
 }
 
-fn inspect_single(
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    trace: &mut Trace,
-) {
-    let syntax = dead_syntax(sources, parsed);
-    trace.check(
-        "exact main Block: valueless Return then only dead typed null declaration",
-        syntax.is_some(),
-        syntax,
-    );
-    let Some(syntax) = syntax else {
-        return;
-    };
-    let roots: Vec<_> = names
-        .symbols()
-        .iter()
-        .filter(|symbol| {
-            symbol.name() == "dead"
-                && symbol.kind() == SymbolKind::Variable
-                && !symbol.is_synthetic()
-                && symbol.span() == syntax.name
-        })
-        .collect();
-    let storage = match roots.as_slice() {
-        [root] => typed.symbol_type(root.id()),
-        _ => None,
-    };
-    let int = typed.types().builtin(BuiltinType::Int);
-    let nullable_int = int.and_then(|int| typed.types().find(&TypeKind::Nullable(int)));
-    let map = int.zip(nullable_int).and_then(|(key, value)| {
-        typed.types().find(&TypeKind::Intrinsic {
-            constructor: IntrinsicTypeConstructor::MutableMap,
-            arguments: vec![key, value],
-        })
-    });
-    let nullable_map = map.and_then(|map| typed.types().find(&TypeKind::Nullable(map)));
-    let declared = typed.type_ref_type(syntax.type_ref);
-    trace.check(
-        "actual dead declaration and storage are Nullable<MutableMap<Int, Nullable<Int>>>",
-        nullable_map.is_some()
-            && roots.len() == 1
-            && storage == nullable_map
-            && declared == nullable_map
-            && typed.type_ref_type(syntax.main_return_type)
-                == typed.types().builtin(BuiltinType::Unit),
-        (roots, storage, declared, nullable_map, typed.types()),
-    );
-    let counts = [
-        typed.map_constructions().len(),
-        typed.map_sizes().len(),
-        typed.map_contains_calls().len(),
-        typed.map_gets().len(),
-        typed.map_puts().len(),
-        typed.map_removes().len(),
-        typed.map_with_values().len(),
-        typed.map_consumes().len(),
-        typed.map_require_values().len(),
-        typed.non_null_assertions().len(),
-    ];
-    trace.check(
-        "no Map operation or assertion descriptors",
-        counts == [0; 10],
-        counts,
-    );
-    trace.check(
-        "declared dead storage is concretely pure memory",
-        storage.is_some_and(|ty| typed.is_resource_type(ty) == Some(false)),
-        storage.and_then(|ty| typed.is_resource_type(ty)),
-    );
-}
-
 fn inspect_unit(
     sources: &SourceMap,
     file: (SourceUnitId, &ParsedFile),
@@ -190,7 +116,7 @@ fn inspect_unit(
 ) {
     let syntax = dead_syntax(sources, file.1);
     trace.check(
-        "exact provider main Block: valueless Return then only dead typed null declaration",
+        "exact main Block: valueless Return then only dead typed null declaration",
         syntax.is_some(),
         syntax,
     );
@@ -232,7 +158,8 @@ fn inspect_unit(
     let declared = typed.type_ref_type(UnitTypeRefId::new(file.0, syntax.type_ref));
     let main_return = typed.type_ref_type(UnitTypeRefId::new(file.0, syntax.main_return_type));
     trace.check("actual qualified dead declaration and storage are Nullable<MutableMap<Int, Nullable<Int>>>",
-        nullable_map.is_some() && root.is_some() && storage == nullable_map && declared == nullable_map
+        nullable_map.is_some() && roots.len() == 1 && root.is_some()
+            && storage == nullable_map && declared == nullable_map
             && main_return == typed.types().builtin(BuiltinType::Unit),
         (root, storage, declared, nullable_map, main_return, typed.types()));
     let counts = [
@@ -260,121 +187,37 @@ fn inspect_unit(
 }
 
 fn observe_single(trace: &mut Trace) -> Outcome<LowerObservation> {
-    let mut sources = SourceMap::new();
-    let parsed = parsed(&mut sources, SINGLE_PATH, SINGLE_SOURCE, trace)?;
-    let (environment, types) = standard_environments();
-    let names = step(
-        "names",
-        resolve_names(&sources, &parsed, &environment),
-        trace,
-    )?;
-    diagnostics("names diagnostics", &sources, names.diagnostics(), trace)?;
-    let entries: Vec<_> = names
-        .symbols()
-        .iter()
-        .filter(|symbol| {
-            symbol.name() == "main"
-                && symbol.kind() == SymbolKind::Function
-                && !symbol.is_synthetic()
-                && symbol.span().source_id() == parsed.source_id()
-        })
-        .collect();
-    let [entry] = entries.as_slice() else {
-        return Err(Failure {
-            stage: "unique real single main".to_owned(),
-            detail: format!("candidates={entries:#?}; symbols={:#?}", names.symbols()),
-        });
-    };
-    trace.stages.push(format!(
-        "selected real main={entry:#?}; {}",
-        origin(&sources, entry.span())
-    ));
-    let typed = step(
-        "raw types",
-        check_types(&sources, &parsed, &names, &types),
-        trace,
-    )?;
-    let raw = diagnostics("raw type diagnostics", &sources, typed.diagnostics(), trace);
-    inspect_single(&sources, &parsed, &names, &typed, trace);
-    let complete = step(
-        "complete types",
-        complete_file_types(&sources, &parsed, &names, &types, &typed)
-            .map_err(|error| admission_error(&sources, error)),
-        trace,
-    )?;
-    raw?;
-    trace.check(
-        "same complete analysis and original facts",
-        complete.is_same_analysis(&typed) && std::ptr::eq(complete.types(), &typed),
-        (
-            complete.is_same_analysis(&typed),
-            std::ptr::eq(complete.types(), &typed),
-        ),
-    );
-    diagnostics(
-        "complete diagnostics",
-        &sources,
-        complete.types().diagnostics(),
-        trace,
-    )?;
-    let owned = step(
-        "ownership",
-        check_ownership(&sources, &parsed, &names, complete.types()),
-        trace,
-    )?;
-    let clean = diagnostics(
-        "ownership diagnostics",
-        &sources,
-        owned.diagnostics(),
-        trace,
-    );
-    trace.stages.push(format!(
-        "ownership deferred={:#?}; drops={:#?}; assertion plans={:#?}",
-        owned.deferred(),
-        owned.drops(),
-        owned.non_null_assertions()
-    ));
-    let complete_ownership = gate(
-        "ownership completeness",
-        owned.deferred().is_empty(),
-        owned.deferred(),
-    );
-    trace.check(
-        "no assertion ownership plans in the return/dead declaration source",
-        owned.non_null_assertions().is_empty(),
-        owned.non_null_assertions(),
-    );
-    clean?;
-    complete_ownership?;
-    trace
-        .stages
-        .push("attempt lower SSA with real main".to_owned());
-    Ok(LowerObservation {
-        entry: selected_entry(&sources, entry.name(), entry.span()),
-        outcome: finish_lower(
-            &sources,
-            crate::ssa::lower_scalar_file_with_entry(
-                &sources,
-                &parsed,
-                &names,
-                complete.types(),
-                &owned,
-                entry.id(),
-            ),
-            trace,
-        ),
-    })
+    observe(false, trace)
 }
 
 fn observe_unit(trace: &mut Trace) -> Outcome<LowerObservation> {
+    observe(true, trace)
+}
+
+// This flag selects only the original source layout, never a checker or error fallback.
+fn observe(unit: bool, trace: &mut Trace) -> Outcome<LowerObservation> {
     let mut sources = SourceMap::new();
-    let provider = parsed(&mut sources, "p/provider.ko", PROVIDER_SOURCE, trace);
-    let consumer = parsed(&mut sources, "q/consumer.ko", CONSUMER_SOURCE, trace);
-    let (provider, consumer) = (provider?, consumer?);
-    let inputs = [
-        SourceUnitInput::new("root", "p/provider.ko", provider.source_id(), &provider),
-        SourceUnitInput::new("root", "q/consumer.ko", consumer.source_id(), &consumer),
-    ];
+    let (provider, consumer) = if unit {
+        let provider = parsed(&mut sources, "p/provider.ko", PROVIDER_SOURCE, trace);
+        let consumer = parsed(&mut sources, "q/consumer.ko", CONSUMER_SOURCE, trace);
+        (provider?, Some(consumer?))
+    } else {
+        (
+            parsed(&mut sources, SINGLE_PATH, SINGLE_SOURCE, trace)?,
+            None,
+        )
+    };
+    let inputs = if let Some(consumer) = &consumer {
+        vec![
+            SourceUnitInput::new("root", "p/provider.ko", provider.source_id(), &provider),
+            SourceUnitInput::new("root", "q/consumer.ko", consumer.source_id(), consumer),
+        ]
+    } else {
+        vec![SourceUnitInput::memory_document(
+            provider.source_id(),
+            &provider,
+        )]
+    };
     let (environment, types) = standard_environments();
     let index = step("index", index_compilation_unit(&sources, &inputs), trace)?;
     let names = step(
@@ -394,54 +237,87 @@ fn observe_unit(trace: &mut Trace) -> Outcome<LowerObservation> {
     let provider_units: Vec<_> = index
         .source_units()
         .iter()
-        .filter(|unit| {
-            unit.source_id() == provider.source_id()
-                && unit.key().logical_path().expect("rooted source").as_str() == "p/provider.ko"
-        })
+        .filter(|source| source.source_id() == provider.source_id())
         .collect();
-    let consumer_units: Vec<_> = index
-        .source_units()
-        .iter()
-        .filter(|unit| {
-            unit.source_id() == consumer.source_id()
-                && unit.key().logical_path().expect("rooted source").as_str() == "q/consumer.ko"
-        })
-        .collect();
-    let ([provider_unit], [consumer_unit]) = (provider_units.as_slice(), consumer_units.as_slice())
-    else {
+    let [provider_unit] = provider_units.as_slice() else {
         return Err(Failure {
-            stage: "unique real provider and consumer".to_owned(),
-            detail: format!("provider={provider_units:#?}; consumer={consumer_units:#?}"),
+            stage: "unique real provider source".to_owned(),
+            detail: format!("provider={provider_units:#?}"),
         });
     };
-    gate(
-        "two distinct source-qualified packages",
-        index.source_units().len() == 2
-            && provider_unit.id() != consumer_unit.id()
-            && index.packages().iter().any(|package| {
-                package.id() == provider_unit.package()
-                    && package.name().expect("named package").segments() == ["p"]
-            })
-            && index.packages().iter().any(|package| {
-                package.id() == consumer_unit.package()
-                    && package.name().expect("named package").segments() == ["q"]
-            }),
-        (index.source_units(), index.packages()),
-    )?;
+    let (entry_unit, entry_parsed, entry_name) = if let Some(consumer) = &consumer {
+        let consumer_units: Vec<_> = index
+            .source_units()
+            .iter()
+            .filter(|source| source.source_id() == consumer.source_id())
+            .collect();
+        let [consumer_unit] = consumer_units.as_slice() else {
+            return Err(Failure {
+                stage: "unique real consumer source".to_owned(),
+                detail: format!("consumer={consumer_units:#?}"),
+            });
+        };
+        gate(
+            "two distinct source-qualified packages and original rooted paths",
+            index.source_units().len() == 2
+                && provider_unit.id() != consumer_unit.id()
+                && provider_unit
+                    .key()
+                    .logical_path()
+                    .is_some_and(|path| path.as_str() == "p/provider.ko")
+                && consumer_unit
+                    .key()
+                    .logical_path()
+                    .is_some_and(|path| path.as_str() == "q/consumer.ko")
+                && index.packages().iter().any(|package| {
+                    package.id() == provider_unit.package()
+                        && package.name().is_some_and(|name| name.segments() == ["p"])
+                })
+                && index.packages().iter().any(|package| {
+                    package.id() == consumer_unit.package()
+                        && package.name().is_some_and(|name| name.segments() == ["q"])
+                }),
+            (index.source_units(), index.packages()),
+        )?;
+        (*consumer_unit, consumer, "entry")
+    } else {
+        gate(
+            "one real MemoryDocument with original path and default package",
+            index.source_units().len() == 1
+                && provider_unit.key() == &SourceUnitKey::MemoryDocument
+                && sources
+                    .source_name(provider.source_id())
+                    .is_ok_and(|path| path == SINGLE_PATH)
+                && provider.package().is_none()
+                && index.packages().iter().any(|package| {
+                    package.id() == provider_unit.package()
+                        && package
+                            .name()
+                            .is_some_and(|name| name.segments().is_empty())
+                }),
+            (index.source_units(), index.packages()),
+        )?;
+        (*provider_unit, &provider, "main")
+    };
     let entries: Vec<_> = index
         .declarations()
         .iter()
         .filter(|declaration| {
-            declaration.name() == "entry"
+            declaration.name() == entry_name
                 && declaration.kind() == SymbolKind::Function
-                && declaration.source_unit() == consumer_unit.id()
-                && declaration.package() == consumer_unit.package()
-                && declaration.name_span().source_id() == consumer.source_id()
+                && declaration.source_unit() == entry_unit.id()
+                && declaration.package() == entry_unit.package()
+                && declaration.name_span().source_id() == entry_parsed.source_id()
+                && entry_parsed.roots().contains(&declaration.root())
+                && entry_parsed.ast().items().get(declaration.root()).is_ok_and(|node| {
+                    matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. }
+                        if *name == declaration.name_span())
+                })
         })
         .collect();
     let [entry] = entries.as_slice() else {
         return Err(Failure {
-            stage: "unique real q.entry".to_owned(),
+            stage: format!("unique real {entry_name}"),
             detail: format!(
                 "candidates={entries:#?}; declarations={:#?}",
                 index.declarations()
@@ -449,7 +325,8 @@ fn observe_unit(trace: &mut Trace) -> Outcome<LowerObservation> {
         });
     };
     trace.stages.push(format!(
-        "selected real q.entry={entry:#?}; sources={:#?}",
+        "selected real {entry_name}={entry:#?}; {}; sources={:#?}",
+        origin(&sources, entry.name_span()),
         index.source_units()
     ));
     let typed = step(
@@ -458,30 +335,32 @@ fn observe_unit(trace: &mut Trace) -> Outcome<LowerObservation> {
         trace,
     )?;
     let raw = diagnostics("raw type diagnostics", &sources, typed.diagnostics(), trace);
-    let mains: Vec<_> = index
-        .declarations()
-        .iter()
-        .filter(|declaration| {
-            declaration.name() == "main"
-                && declaration.kind() == SymbolKind::Function
-                && declaration.source_unit() == provider_unit.id()
-                && declaration.package() == provider_unit.package()
-                && declaration.name_span().source_id() == provider.source_id()
-        })
-        .collect();
-    let consumer_calls: Vec<_> = typed
-        .calls()
-        .iter()
-        .filter(|call| call.expression().source_unit() == consumer_unit.id())
-        .collect();
-    trace.check(
-        "real q.entry consumer call targets actual p.main",
-        matches!((mains.as_slice(), consumer_calls.as_slice()), ([main], [call])
-            if call.target() == UnitCallTarget::Declaration(main.id())
-                && Some(call.return_type()) == typed.types().builtin(BuiltinType::Unit)
-                && call.receiver().is_none() && call.arguments().is_empty()),
-        (mains, consumer_calls),
-    );
+    if consumer.is_some() {
+        let mains: Vec<_> = index
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.name() == "main"
+                    && declaration.kind() == SymbolKind::Function
+                    && declaration.source_unit() == provider_unit.id()
+                    && declaration.package() == provider_unit.package()
+                    && declaration.name_span().source_id() == provider.source_id()
+            })
+            .collect();
+        let consumer_calls: Vec<_> = typed
+            .calls()
+            .iter()
+            .filter(|call| call.expression().source_unit() == entry_unit.id())
+            .collect();
+        trace.check(
+            "real q.entry consumer call targets actual p.main",
+            matches!((mains.as_slice(), consumer_calls.as_slice()), ([main], [call])
+                if call.target() == UnitCallTarget::Declaration(main.id())
+                    && Some(call.return_type()) == typed.types().builtin(BuiltinType::Unit)
+                    && call.receiver().is_none() && call.arguments().is_empty()),
+            (mains, consumer_calls),
+        );
+    }
     inspect_unit(
         &sources,
         (provider_unit.id(), &provider),
@@ -496,14 +375,23 @@ fn observe_unit(trace: &mut Trace) -> Outcome<LowerObservation> {
         trace,
     )?;
     raw?;
+    let same_types = complete.is_same_analysis(&typed)
+        && std::ptr::eq(complete.types(), &typed)
+        && typed.is_compatible_with(&sources, &inputs, &names, &types);
     trace.check(
         "same complete analysis and original facts",
-        complete.is_same_analysis(&typed) && std::ptr::eq(complete.types(), &typed),
+        same_types,
         (
             complete.is_same_analysis(&typed),
             std::ptr::eq(complete.types(), &typed),
+            typed.is_compatible_with(&sources, &inputs, &names, &types),
         ),
     );
+    gate(
+        "complete analysis identity",
+        same_types,
+        "original raw and input chain",
+    )?;
     diagnostics(
         "complete diagnostics",
         &sources,
@@ -546,6 +434,17 @@ fn observe_unit(trace: &mut Trace) -> Outcome<LowerObservation> {
     );
     clean?;
     complete_ownership?;
+    let same_ownership = owned.is_compatible_with(&typed);
+    trace.check(
+        "ownership retains original analysis",
+        same_ownership,
+        same_ownership,
+    );
+    gate(
+        "ownership analysis identity",
+        same_ownership,
+        "original qualified types",
+    )?;
     let owned = step(
         "qualified ownership",
         owned.validate().map_err(|value| {
@@ -557,22 +456,34 @@ fn observe_unit(trace: &mut Trace) -> Outcome<LowerObservation> {
         }),
         trace,
     )?;
+    let view = step(
+        "sealed owned unit",
+        owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned),
+        trace,
+    )?;
+    let same_view = std::ptr::eq(view.sources(), &sources)
+        && std::ptr::eq(view.inputs(), inputs.as_slice())
+        && std::ptr::eq(view.names(), &names)
+        && std::ptr::eq(view.types(), typed.types())
+        && std::ptr::eq(view.ownership(), owned.ownership());
+    trace.check(
+        "sealed view preserves all original references",
+        same_view,
+        same_view,
+    );
+    gate(
+        "sealed view identity",
+        same_view,
+        "source/input/name/type/ownership",
+    )?;
     trace
         .stages
-        .push("attempt lower SSA with real q.entry".to_owned());
+        .push(format!("attempt lower SSA with real {entry_name}"));
     Ok(LowerObservation {
         entry: selected_entry(&sources, entry.name(), entry.name_span()),
         outcome: finish_lower(
             &sources,
-            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                &sources,
-                &inputs,
-                &names,
-                &types,
-                &typed,
-                &owned,
-                entry.id(),
-            ),
+            crate::ssa::unit_lower::lower_owned_unit_with_entry(&view, entry.id()),
             trace,
         ),
     })

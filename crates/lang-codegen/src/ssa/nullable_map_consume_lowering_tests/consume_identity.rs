@@ -16,11 +16,9 @@ use lang_frontend::{
 
 mod graph;
 mod llvm;
-mod single;
 mod source;
 mod unit;
 
-pub(super) use single::facts as single_facts;
 pub(super) use unit::facts as unit_facts;
 
 #[derive(Debug)]
