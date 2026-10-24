@@ -251,7 +251,7 @@ pub(super) fn check(
                     }
                 },
         "SSA nonoptional owner or caller Borrow survives every real incoming",
-        &source_chain,
+        source_chain,
     )?;
     for (&entity, span) in source_chain.iter().zip([
         input.scan,
