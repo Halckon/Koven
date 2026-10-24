@@ -1,4 +1,4 @@
-//! Independent p/q ordinary unit chain and source-qualified frontend input checks.
+//! Same-round strict Unit pipeline for the original memory and p/q input layouts.
 
 use lang_frontend::{
     name_resolution::{
@@ -7,7 +7,9 @@ use lang_frontend::{
     },
     ownership_checking::{
         UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, check_compilation_unit_ownership,
+        owned_compilation_unit_view,
     },
+    parser::{Item, NameMarker},
     type_checking::{
         CompilationUnitTypes, IntrinsicTypeConstructor, UnitCallReceiverOrigin, UnitExpressionId,
         UnitTypeId, UnitTypeKind, check_compilation_unit_types, complete_compilation_unit_types,
@@ -17,33 +19,60 @@ use lang_frontend::{
 
 use super::*;
 
+mod layout;
+pub(super) use layout::Layout;
+
+#[derive(Clone, Copy)]
+pub(super) struct Context<'a> {
+    pub case: &'a Case,
+    pub layout: Layout,
+    pub sources: &'a SourceMap,
+}
+
 pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<()> {
-    observe_impl(case, trace, false, false)
+    observe_impl(case, trace, Layout::Rooted, false, false)
 }
 
 pub(super) fn observe_read_identity(case: &Case, trace: &mut Trace) -> Outcome<()> {
-    observe_impl(case, trace, true, false)
+    observe_impl(case, trace, Layout::Rooted, true, false)
 }
 
 pub(super) fn observe_consume_identity(case: &Case, trace: &mut Trace) -> Outcome<()> {
-    observe_impl(case, trace, false, true)
+    observe_impl(case, trace, Layout::Rooted, false, true)
 }
 
-fn observe_impl(
+pub(super) fn observe_impl(
     case: &Case,
     trace: &mut Trace,
+    layout: Layout,
     identity: bool,
     consume_identity: bool,
 ) -> Outcome<()> {
     let mut sources = SourceMap::new();
-    // Parse both independent files before propagating either recoverable parse failure.
-    let provider = parsed(&mut sources, "p/provider.ko", case.provider, trace);
-    let consumer = parsed(&mut sources, "q/consumer.ko", case.consumer, trace);
-    let (provider, consumer) = (provider?, consumer?);
-    let inputs = [
-        SourceUnitInput::new("root", "p/provider.ko", provider.source_id(), &provider),
-        SourceUnitInput::new("root", "q/consumer.ko", consumer.source_id(), &consumer),
-    ];
+    let parsed_files = match layout {
+        Layout::Memory => vec![parsed(&mut sources, case.path, case.single, trace)?],
+        Layout::Rooted => {
+            // Collect both independent parse outcomes before propagating either failure.
+            let provider = parsed(&mut sources, "p/provider.ko", case.provider, trace);
+            let consumer = parsed(&mut sources, "q/consumer.ko", case.consumer, trace);
+            vec![provider?, consumer?]
+        }
+    };
+    let provider = &parsed_files[0];
+    let consumer = &parsed_files[match layout {
+        Layout::Memory => 0,
+        Layout::Rooted => 1,
+    }];
+    let inputs = match layout {
+        Layout::Memory => vec![SourceUnitInput::memory_document(
+            provider.source_id(),
+            provider,
+        )],
+        Layout::Rooted => vec![
+            SourceUnitInput::new("root", "p/provider.ko", provider.source_id(), provider),
+            SourceUnitInput::new("root", "q/consumer.ko", consumer.source_id(), consumer),
+        ],
+    };
     let (environment, types) = standard_environments();
     let index = step("index", index_compilation_unit(&sources, &inputs), trace)?;
     let names = step(
@@ -65,14 +94,14 @@ fn observe_impl(
         .iter()
         .filter(|unit| {
             unit.source_id() == provider.source_id()
-                && unit.key().logical_path().expect("rooted source").as_str() == "p/provider.ko"
+                && layout.provider_matches(case, &sources, &names, unit)
         })
         .collect();
     let consumer_units: Vec<_> = actual_sources
         .iter()
         .filter(|unit| {
             unit.source_id() == consumer.source_id()
-                && unit.key().logical_path().expect("rooted source").as_str() == "q/consumer.ko"
+                && layout.consumer_matches(case, &sources, &names, unit)
         })
         .collect();
     let ([provider_unit], [consumer_unit]) = (provider_units.as_slice(), consumer_units.as_slice())
@@ -85,33 +114,42 @@ fn observe_impl(
         });
     };
     gate(
-        "two distinct source-qualified packages",
-        actual_sources.len() == 2
-            && provider_unit.id() != consumer_unit.id()
-            && index.packages().iter().any(|package| {
-                package.id() == provider_unit.package()
-                    && package.name().expect("named package").segments() == ["p"]
-            })
-            && index.packages().iter().any(|package| {
-                package.id() == consumer_unit.package()
-                    && package.name().expect("named package").segments() == ["q"]
-            }),
-        (actual_sources, index.packages()),
+        "exact original source-unit layout and packages",
+        match layout {
+            Layout::Memory => {
+                actual_sources.len() == 1
+                    && inputs.len() == 1
+                    && provider_unit.id() == consumer_unit.id()
+                    && provider.package().is_none()
+            }
+            Layout::Rooted => {
+                actual_sources.len() == 2
+                    && inputs.len() == 2
+                    && provider_unit.id() != consumer_unit.id()
+                    && provider_unit.package() != consumer_unit.package()
+            }
+        },
+        (layout, actual_sources, index.packages()),
     )?;
     let entries: Vec<_> = index
         .declarations()
         .iter()
         .filter(|declaration| {
-            declaration.name() == "entry"
+            declaration.name() == layout.entry_name()
                 && declaration.kind() == SymbolKind::Function
                 && declaration.source_unit() == consumer_unit.id()
                 && declaration.package() == consumer_unit.package()
                 && declaration.name_span().source_id() == consumer.source_id()
+                && consumer.roots().contains(&declaration.root())
+                && consumer.ast().items().get(declaration.root()).is_ok_and(|node| {
+                    matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. }
+                        if *name == declaration.name_span())
+                })
         })
         .collect();
     let [entry] = entries.as_slice() else {
         return Err(Failure {
-            stage: "unique real q.entry".to_owned(),
+            stage: format!("unique real {} entry", layout.entry_name()),
             detail: format!(
                 "candidates={entries:#?}; declarations={:#?}",
                 index.declarations()
@@ -119,7 +157,7 @@ fn observe_impl(
         });
     };
     trace.stages.push(format!(
-        "selected real q.entry={entry:#?}; sources={actual_sources:#?}"
+        "selected real {layout:?} entry={entry:#?}; sources={actual_sources:#?}"
     ));
     let typed = step(
         "raw types",
@@ -127,11 +165,15 @@ fn observe_impl(
         trace,
     )?;
     let raw = diagnostics("raw type diagnostics", &sources, typed.diagnostics(), trace);
-    let files = [
-        (provider_unit.id(), &provider),
-        (consumer_unit.id(), &consumer),
+    let roles = [
+        (provider_unit.id(), provider),
+        (consumer_unit.id(), consumer),
     ];
-    inspect_inputs(case, &sources, &files, &names, &typed, trace);
+    let files = match layout {
+        Layout::Memory => vec![roles[0]],
+        Layout::Rooted => roles.to_vec(),
+    };
+    inspect_inputs(case, &sources, &roles, &names, &typed, trace);
     let complete = step(
         "complete types",
         complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
@@ -139,14 +181,18 @@ fn observe_impl(
         trace,
     )?;
     raw?;
+    let same = complete.is_same_analysis(&typed)
+        && std::ptr::eq(complete.types(), &typed)
+        && typed.is_compatible_with(&sources, &inputs, &names, &types);
     trace.check(
         "complete retains original analysis and every raw fact",
-        complete.is_same_analysis(&typed) && std::ptr::eq(complete.types(), &typed),
+        same,
         (
             complete.is_same_analysis(&typed),
             std::ptr::eq(complete.types(), &typed),
         ),
     );
+    gate("complete original analysis identity", same, &typed)?;
     diagnostics(
         "complete diagnostics",
         &sources,
@@ -200,6 +246,11 @@ fn observe_impl(
     }
     ownership_diagnostics?;
     completeness?;
+    gate(
+        "ownership original typed identity",
+        owned.is_compatible_with(&typed),
+        &owned,
+    )?;
     let owned = step(
         "qualified ownership",
         owned.validate().map_err(|value| {
@@ -211,24 +262,54 @@ fn observe_impl(
         }),
         trace,
     )?;
-    let (program, function) = step(
-        "lower SSA with real q.entry",
-        crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &types,
-            &typed,
-            &owned,
-            entry.id(),
-        )
-        .map_err(|error| lowering_error(&sources, error)),
+    let view = step(
+        "sealed owned unit",
+        owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned),
         trace,
     )?;
+    gate(
+        "sealed view retains every original analysis reference",
+        std::ptr::eq(view.sources(), &sources)
+            && std::ptr::eq(view.inputs(), inputs.as_slice())
+            && std::ptr::eq(view.names(), &names)
+            && std::ptr::eq(view.types(), typed.types())
+            && std::ptr::eq(view.ownership(), owned.ownership()),
+        (layout, entry.id()),
+    )?;
+    let (program, function) = step(
+        "lower SSA with original explicit Unit entry",
+        crate::ssa::unit_lower::lower_owned_unit_with_entry(&view, entry.id())
+            .map_err(|error| lowering_error(&sources, error)),
+        trace,
+    )?;
+    let entry_span = consumer
+        .ast()
+        .items()
+        .get(entry.root())
+        .ok()
+        .map(|node| node.span());
+    let lowered_entries: Vec<_> = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .filter(|candidate| {
+            entry_span
+                .is_some_and(|span| candidate.origin == crate::ssa::model::Origin::Source(span))
+        })
+        .collect();
+    trace.check(
+        "selected Unit declaration is actual lowered entry",
+        matches!(lowered_entries.as_slice(), [actual] if actual.id == function),
+        (entry.id(), entry_span, function, &lowered_entries),
+    );
+    let context = Context {
+        case,
+        layout,
+        sources: &sources,
+    };
     if consume_identity {
         let facts = consume_identity::unit_facts(
-            case,
-            &sources,
+            &context,
             &files,
             &names,
             typed.types(),
@@ -240,7 +321,7 @@ fn observe_impl(
     // Preserve the complete ordinary pipeline even when the independent query fails.
     let queried = if identity {
         read_identity::inspect_unit(
-            &sources,
+            &context,
             &files,
             &names,
             typed.types(),
