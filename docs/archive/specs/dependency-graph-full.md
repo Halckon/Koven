@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，323 份）"]
+subgraph Garchive["已完成（archive，324 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -332,6 +332,7 @@ subgraph Garchive["已完成（archive，323 份）"]
   S0348["S0348<br/>API 声明索引与教程示例协议首片"]
   S0351["S0351<br/>LLVM 安装等待边界"]
   S0352["S0352<br/>CLI project source-set v1 导出"]
+  S0353["S0353<br/>LSP 全文格式化适配"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1737,6 +1738,7 @@ S0331 --> S0341
 | SPEC-0348 | archive | [0348-api-documentation.md](0348-api-documentation.md) |
 | SPEC-0351 | archive | [0351-llvm-install-bounds.md](0351-llvm-install-bounds.md) |
 | SPEC-0352 | archive | [0352-source-set-export.md](0352-source-set-export.md) |
+| SPEC-0353 | archive | [0353-lsp-formatting.md](0353-lsp-formatting.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
