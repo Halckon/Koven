@@ -29,7 +29,15 @@ fn complete_nullable_map_consume_string_fixture_reaches_verified_llvm() {
         };
         observations.push((entry, stages, outcome));
     }
+    let failed = observations.iter().any(|(_, _, outcome)| outcome.is_err());
     for (entry, stages, outcome) in &observations {
+        if !failed {
+            println!(
+                "NULLABLE MAP CONSUME STRING FIXTURE {entry}: verified LLVM ({} recorded stages)",
+                stages.len(),
+            );
+            continue;
+        }
         println!(
             "NULLABLE MAP CONSUME STRING FIXTURE {entry}\n{}",
             stages.join("\n")
