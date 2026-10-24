@@ -15,7 +15,7 @@ use lsp_types::{
         DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, LogMessage,
         Notification as LspNotification, PublishDiagnostics,
     },
-    request::{GotoDefinition, Request as LspRequest},
+    request::{Formatting, GotoDefinition, Request as LspRequest},
 };
 
 use crate::{
@@ -113,6 +113,10 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
                     handle_definition_request(&connection, request, &state)?;
                     continue;
                 }
+                if request.method == Formatting::METHOD {
+                    handle_formatting_request(&connection, request, &state)?;
+                    continue;
+                }
                 send_response(
                     &connection,
                     Response::new_err(
@@ -146,6 +150,7 @@ fn capabilities() -> ServerCapabilities {
             },
         )),
         definition_provider: Some(OneOf::Left(true)),
+        document_formatting_provider: Some(OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
 }
@@ -299,6 +304,46 @@ fn publish_document(
     .next()
     .ok_or(DiagnosticMappingError::UnknownSource(document.source_id))?;
     publish(connection, uri.clone(), Some(document.version), diagnostics)
+}
+
+fn handle_formatting_request(
+    connection: &Connection,
+    request: Request,
+    state: &SessionState,
+) -> Result<(), ServerError> {
+    let result = formatting_response(request.params, state);
+    let response = match result {
+        Ok(edits) => Response::new_ok(request.id, serde_json::to_value(edits)?),
+        Err(RequestError::InvalidParams(message)) => {
+            Response::new_err(request.id, ErrorCode::InvalidParams as i32, message)
+        }
+        Err(RequestError::Internal(message)) => {
+            Response::new_err(request.id, ErrorCode::InternalError as i32, message)
+        }
+    };
+    send_response(connection, response)
+}
+
+fn formatting_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<Vec<lsp_types::TextEdit>>, RequestError> {
+    let params: lsp_types::DocumentFormattingParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    // 工具链采用 frontend 固定样式，客户端 options 不创建另一套格式语义。
+    match state {
+        SessionState::Unit(session) => session.formatting_edits(&params.text_document.uri),
+        SessionState::SingleDocument(documents) => {
+            let Some(document) = documents.get(params.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            crate::formatting::edits(
+                document.analysis.name_snapshot().sources(),
+                document.source_id,
+            )
+        }
+    }
+    .map_err(RequestError::Internal)
 }
 
 fn handle_definition_request(

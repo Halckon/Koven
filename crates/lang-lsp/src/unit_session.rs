@@ -154,6 +154,25 @@ impl UnitSession {
             .definition_locations(&self.config, uri, position)
     }
 
+    /// 只为当前打开的 overlay 提供编辑，不能把关闭后的 base 当作编辑器文本。
+    pub(crate) fn formatting_edits(
+        &self,
+        uri: &Uri,
+    ) -> Result<Option<Vec<lsp_types::TextEdit>>, String> {
+        if !self.overlays.contains_key(uri.as_str()) {
+            return Ok(None);
+        }
+        let source_id = self
+            .config
+            .sources()
+            .iter()
+            .position(|source| source.uri() == uri)
+            .and_then(|index| self.snapshot.source_ids.get(index))
+            .copied()
+            .ok_or_else(|| "open document is absent from source-set snapshot".to_owned())?;
+        crate::formatting::edits(self.snapshot.analysis.name_snapshot().sources(), source_id)
+    }
+
     fn prepare_update(
         &self,
         overlays: BTreeMap<String, Overlay>,
