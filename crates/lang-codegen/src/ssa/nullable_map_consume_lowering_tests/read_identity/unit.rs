@@ -5,10 +5,12 @@ use lang_frontend::{
     name_resolution::{
         SourceUnitId, SymbolKind, UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{CompilationUnitOwnership, UnitDropPoint, UnitDropTarget},
+    ownership_checking::{
+        CompilationUnitOwnership, UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget,
+    },
     type_checking::{
-        CompilationUnitTypes, ExpressionCategory, UnitCallableTarget, UnitExpressionId,
-        UnitStatementId, UnitTypeKind,
+        BuiltinType, CompilationUnitTypes, ExpressionCategory, ParameterMode, UnitCallTarget,
+        UnitCallableTarget, UnitExpressionId, UnitStatementId, UnitTypeKind,
     },
 };
 
@@ -296,7 +298,6 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn inspect(
         gate(
             "read identity: original unit CallReturn and null BranchExit facts",
             root_drops.len() == 2
-                && owned.drops().len() == 2
                 && root_drops
                     .iter()
                     .filter(|drop| {
@@ -320,6 +321,15 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn inspect(
                     .all(|drop| drop.value_origin() == symbol.span()),
             &root_drops,
         )?;
+        print_temporary(
+            context,
+            parsed,
+            names,
+            typed,
+            owned,
+            root,
+            (callable_span, control_span),
+        )?;
         Cleanup::InBranches
     };
     trace.stages.push(format!("read identity real unit input: source={source:?}; path={:?}; root={root:?}; descriptor={descriptor:#?}; comparison={comparison:#?}; drops={:#?}", sources.source_name(parsed.source_id()), owned.drops()));
@@ -334,5 +344,135 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn inspect(
             cleanup,
         },
         trace,
+    )
+}
+
+// B1/B2 also borrow their original stdout String temporary after the If. Check
+// its complete source-qualified identity, not a global count or an arbitrary Drop.
+fn print_temporary(
+    context: &Context<'_>,
+    parsed: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    root: UnitSymbolId,
+    (callable, control): (Span, Span),
+) -> Outcome<()> {
+    let expected_literal = match context.case.id {
+        "B1" => "\"read done\"",
+        "B2" => "\"else read done\"",
+        other => return Err(missing("original branch-cleanup stdout fixture", other)),
+    };
+    let calls: Vec<_> = typed
+        .calls()
+        .iter()
+        .filter(|call| call.prints_line())
+        .collect();
+    let call = *one(&calls, "one actual compiler-bound stdout call")?;
+    let UnitCallTarget::External(external) = call.target() else {
+        return Err(missing("actual stdout external target", call));
+    };
+    gate(
+        "read identity: stdout call is in the original source",
+        call.expression().source_unit() == root.source_unit(),
+        call,
+    )?;
+    let node = parsed
+        .ast()
+        .expressions()
+        .get(call.expression().expression())
+        .map_err(|error| missing("actual stdout AST call", error))?;
+    let Expression::Call {
+        callee, arguments, ..
+    } = node.payload()
+    else {
+        return Err(missing("actual stdout Call node", node));
+    };
+    let argument = one(arguments, "original stdout sole argument")?;
+    let literal = parsed
+        .ast()
+        .expressions()
+        .get(argument.value)
+        .map_err(|error| missing("actual stdout String literal", error))?;
+    let callee = parsed
+        .ast()
+        .expressions()
+        .get(*callee)
+        .map_err(|error| missing("actual stdout callee", error))?;
+    let references: Vec<_> = names
+        .names()
+        .references()
+        .iter()
+        .filter(|reference| {
+            reference.source_unit() == root.source_unit() && reference.span() == callee.span()
+        })
+        .collect();
+    let reference = *one(&references, "actual stdout resolved callee")?;
+    let argument_id = UnitExpressionId::new(root.source_unit(), argument.value);
+    let string = typed
+        .types()
+        .builtin(BuiltinType::String)
+        .ok_or_else(|| missing("actual stdout String type", "absent"))?;
+    let mapping = one(call.arguments(), "actual stdout argument mapping")?;
+    gate(
+        "read identity: original post-If println borrows its exact String literal",
+        contains(callable, node.span())
+            && control.end() < node.span().start()
+            && matches!(callee.payload(), Expression::Name)
+            && context.sources.slice(callee.span()).ok() == Some("println")
+            && matches!(reference.target(), UnitReferenceTarget::ExternalOverloadSet(candidates)
+                if candidates.as_slice() == [external])
+            && matches!(literal.payload(), Expression::String { .. })
+            && context.sources.slice(literal.span()).ok() == Some(expected_literal)
+            && argument.named_prefix.is_none()
+            && argument.mode_marker.is_none()
+            && argument.span == literal.span()
+            && typed.expression_type(argument_id) == Some(string)
+            && typed.expression_category(argument_id) == Some(ExpressionCategory::Temporary)
+            && mapping.argument_index() == 0
+            && mapping.parameter_index() == 0
+            && mapping.mode() == ParameterMode::Borrow
+            && mapping.parameter_type() == string
+            && mapping.category() == ExpressionCategory::Temporary
+            && !mapping.crosses_thread()
+            && call.receiver().is_none()
+            && !call.aborts()
+            && Some(call.return_type()) == typed.types().builtin(BuiltinType::Unit),
+        (node, literal, reference, call),
+    )?;
+    let contracts: Vec<_> = owned
+        .call_argument_contracts_for(call.expression())
+        .collect();
+    let contract = *one(&contracts, "actual stdout ownership argument contract")?;
+    gate(
+        "read identity: stdout shared-loan contract keeps exact call and temporary",
+        contract.call() == call.expression()
+            && contract.argument() == argument_id
+            && contract.parameter_index() == 0
+            && contract.parameter_type() == string
+            && contract.category() == ExpressionCategory::Temporary
+            && contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
+            && !contract.crosses_thread()
+            && contract.argument_span() == literal.span()
+            && contract.call_span() == node.span()
+            && contract.parameter_span().is_none()
+            && contract.loan_begin_span() == literal.span(),
+        contract,
+    )?;
+    let other_drops: Vec<_> = owned
+        .drops()
+        .iter()
+        .filter(|drop| drop.target() != UnitDropTarget::Named(root))
+        .collect();
+    let drop = *one(
+        &other_drops,
+        "sole non-root Drop is the original stdout temporary",
+    )?;
+    gate(
+        "read identity: exact stdout String temporary CallReturn cleanup",
+        drop.point() == UnitDropPoint::CallReturn(call.expression())
+            && drop.target() == UnitDropTarget::Temporary(argument_id)
+            && drop.value_origin() == literal.span(),
+        drop,
     )
 }
