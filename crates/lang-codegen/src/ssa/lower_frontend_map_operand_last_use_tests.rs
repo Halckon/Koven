@@ -2,6 +2,9 @@
 use super::{analyze, lower_scalar_file};
 use lang_frontend::ownership_checking::{DropPoint, DropTarget, IterationExitKind};
 
+#[path = "lower_frontend_map_operand_unit_identity.rs"]
+mod unit_identity;
+
 const ORIGINAL: &str =
     include_str!("../../tests/fixtures/map-conditional-return-0313/updating-operand-boundary.ko");
 
@@ -291,19 +294,19 @@ fn map_operand_last_use_no_map_nullable_control() {
 
 #[test]
 fn map_operand_last_use_remove_live_red() {
-    assert_single(ORIGINAL, "remove-live-goal", true);
+    unit_identity::check(ORIGINAL, "updatingOperand", 1);
 }
 #[test]
 fn map_operand_last_use_remove_dead_red() {
-    assert_single(&source("remove", false), "remove-dead-goal", true);
+    unit_identity::check(&source("remove", false), "updatingOperand", 1);
 }
 #[test]
 fn map_operand_last_use_contains_live_red() {
-    assert_single(&source("contains", true), "contains-live-goal", true);
+    unit_identity::check(&source("contains", true), "updatingOperand", 1);
 }
 #[test]
 fn map_operand_last_use_contains_dead_red() {
-    assert_single(&source("contains", false), "contains-dead-goal", true);
+    unit_identity::check(&source("contains", false), "updatingOperand", 1);
 }
 
 fn assert_boundary(text: &str, kind: crate::ssa::LoweringErrorKind, expected: &str) {
@@ -597,33 +600,7 @@ fn map_operand_last_use_two_maps_and_borrowed_array_are_rejected() {
 #[test]
 fn map_operand_last_use_cardinality_fixture_ssa() {
     let text = include_str!("../../tests/fixtures/map-return-last-use-0318/cardinality.ko");
-    let a = analyze(text);
-    assert!(
-        a.parsed.diagnostics().is_empty(),
-        "{:?}",
-        a.parsed.diagnostics()
-    );
-    assert!(
-        a.names.diagnostics().is_empty(),
-        "{:?}",
-        a.names.diagnostics()
-    );
-    assert!(
-        a.typed.diagnostics().is_empty(),
-        "{:?}",
-        a.typed.diagnostics()
-    );
-    assert!(
-        a.owned.diagnostics().is_empty(),
-        "{:?}",
-        a.owned.diagnostics()
-    );
-    let program = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned).unwrap();
-    crate::llvm::render_verified_program(&program).unwrap();
-    assert_eq!(
-        super::operand_structure::assert_source(&program, &a.parsed),
-        4
-    );
+    unit_identity::check(text, "main", 4);
     unit(text, false, true, "");
     unit(text, true, true, "");
 }
