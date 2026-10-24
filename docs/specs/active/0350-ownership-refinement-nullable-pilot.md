@@ -124,13 +124,17 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
   本地 debug `kovenc`，Linux x86_64）。
 - [x] 154 个 probe 的 conformance 矩阵：与 3b（`ec9febf8`）同脚本对照，OK 由 103 增至 104，唯一变化是
   p14 由 MissingFact 变为 OK，两模式差异为 0。macOS 与 CI 未跑。
-- [ ] inline nullable：`Int?`、`Boolean?`、`Char?`、`String?` 的 wrap/null/branch/take/drop 有 SSA verifier
-  正反测试，以及 LLVM 布局测试（含 niche 的 size 等式）。现有 `Int?`、`String?` 的 native 计数与拒绝用例；
-  `Boolean?`、`Char?` 及 size 等式尚缺。
+- [x] inline nullable：`Int?`、`Boolean?`、`Char?`、`String?` 的 wrap/null/branch/take/drop 有 SSA verifier
+  正反测试，以及 LLVM 布局测试（含 niche 的 size 等式）——`llvm/inline_nullable_tests.rs`：四类 native
+  计数运行、tagged 布局与 LLVM ABI 尺寸一致、String/List 的 niche 尺寸与对齐等于 inner、wrap/take 类型
+  不符被拒绝；`Boolean?` 另有源码级 native 运行。`Char?` 只在 SSA 层构造：Char 字面量的 lowering 不在
+  本 Spec 范围（unit 路径整体尚不支持，见 probe p06）。
 - [x] `String?` 的 drop 计数：non-null 与 null 路径各验证分配与释放次数相等
   （`refine_tests::nullable_string_owner_is_freed_once_on_both_edges`；class nullable 另见同文件计数测试）。
-- [ ] 子集预检的正负例测试；同一输入在正逆 inputs 顺序下分流与 SSA 输出确定。现有正例与重复 lowering
-  的确定性断言；逐类负例与逆序 inputs 尚缺。
+- [x] 子集预检的正负例测试；同一输入在正逆 inputs 顺序下分流与 SSA 输出确定——
+  `ssa/refine_subset_tests.rs`：5 个正例、10 类负例（无 nullable、when、break、MoveOnly Borrow 参数、
+  MoveOnly 重新赋值、条件外的 MoveOnly null 比较、receiver 调用、Box、泛型 class、非标量字段），以及
+  两文件 unit 在正逆 inputs 下分流集合与渲染 SSA 相同。
 - [x] 受影响目标定向测试通过：`lang-codegen` lib 全部 2415 项，`lang-cli` 的 `native_cli` 34 项与
   `project_cli` 39 项；fmt、clippy（仅既有 `llvm/map/hash.rs` 告警）、尺寸护栏与 `check_docs.py` 通过
   （2026-10-24，3c）。

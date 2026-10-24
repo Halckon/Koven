@@ -235,3 +235,16 @@ fn checked_arithmetic_abort_edge_carries_live_owners() {
         "{stderr:?}"
     );
 }
+
+#[test]
+fn nullable_boolean_join_and_smart_cast_run() {
+    let source = r#"fun flag(c: Boolean): Boolean? = if (c) false else null
+    fun main(): Unit {
+        val a = flag(true)
+        if (a != null) { if (!a) { println("false") } }
+        val b = flag(false)
+        if (b == null) { println("none") }
+    }"#;
+    render(source);
+    assert_eq!(run(source), ("false\nnone\n".to_owned(), Some(0)));
+}

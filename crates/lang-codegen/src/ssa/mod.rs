@@ -14,6 +14,8 @@ mod map_result;
 mod map_source;
 mod refine;
 #[cfg(test)]
+mod refine_subset_tests;
+#[cfg(test)]
 mod refine_tests;
 #[cfg(test)]
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;

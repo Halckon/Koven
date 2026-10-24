@@ -129,26 +129,35 @@ fn null_parameter(function: &Function, block: BlockId) -> ValueId {
 
 /// `Int?`: `5` takes the non-null edge and compares equal; `null` takes the null edge.
 fn int_program() -> (Program, FunctionId, SsaTypeId) {
+    tagged_program(
+        SsaTypeKind::Integer {
+            bits: 32,
+            signed: true,
+        },
+        ScalarConstant::Integer(5),
+    )
+}
+
+/// A tagged inline nullable of `inner`: `constant` takes the non-null edge and compares
+/// equal to itself; `null` takes the null edge. Prints `five` / `none` on success.
+fn tagged_program(
+    inner: SsaTypeKind,
+    constant: ScalarConstant,
+) -> (Program, FunctionId, SsaTypeId) {
     let mut program = Program::default();
-    let module_id = program.add_module("inline_int");
+    let module_id = program.add_module("inline_tagged");
     let module = program.module_mut(module_id).expect("module");
-    let int = module.intern_type(SsaTypeKind::Integer {
-        bits: 32,
-        signed: true,
-    });
+    let int = module.intern_type(inner);
     let boolean = module.intern_type(SsaTypeKind::Boolean);
-    let nullable = module.add_inline_nullable_type(int).expect("Int?");
+    let nullable = module
+        .add_inline_nullable_type(int)
+        .expect("tagged nullable");
     let main = module
         .add_function("main", Vec::new(), origin())
         .expect("main");
     let function = module.function_mut(main).expect("function");
     let entry = function.add_block(Vec::new(), origin()).expect("entry");
-    let five = emit_value(
-        function,
-        entry,
-        Operation::Constant(ScalarConstant::Integer(5)),
-        int,
-    );
+    let five = emit_value(function, entry, Operation::Constant(constant), int);
     let wrapped = emit_value(
         function,
         entry,
@@ -434,4 +443,150 @@ fn inline_nullable_rejects_pointer_like_nested_and_map_presence_inners() {
         niche: true,
     });
     assert!(verify_program(&program).is_err());
+}
+
+#[test]
+fn inline_boolean_and_char_nullables_use_present_tag_and_run_both_edges() {
+    for (inner, constant, payload) in [
+        (SsaTypeKind::Boolean, ScalarConstant::Boolean(true), "i1"),
+        (
+            SsaTypeKind::Char,
+            ScalarConstant::Char(u32::from('k')),
+            "i32",
+        ),
+    ] {
+        let (program, main, nullable) = tagged_program(inner, constant);
+        verify_program(&program).expect("tagged nullable program verifies");
+        let ir = render_verified_program_with_entry(&program, main).expect("tagged lowers");
+        let name = format!(
+            "%koven.nullable.t{} = type {{ i1, {payload} }}",
+            nullable.index()
+        );
+        assert!(ir.contains(&name), "{ir}");
+        assert!(
+            !ir.contains("@koven.drop"),
+            "Copyable needs no drop glue: {ir}"
+        );
+        run_counted(&ir, 0, b"five\nnone\n");
+    }
+}
+
+#[test]
+fn inline_nullable_layouts_match_llvm_and_niches_add_no_size() {
+    let mut program = Program::default();
+    let module_id = program.add_module("inline_layout");
+    let module = program.module_mut(module_id).expect("module");
+    let mut tagged = Vec::new();
+    for inner in [
+        SsaTypeKind::Boolean,
+        SsaTypeKind::Char,
+        SsaTypeKind::Integer {
+            bits: 8,
+            signed: true,
+        },
+        SsaTypeKind::Integer {
+            bits: 32,
+            signed: true,
+        },
+        SsaTypeKind::Integer {
+            bits: 64,
+            signed: false,
+        },
+    ] {
+        let inner = module.intern_type(inner);
+        tagged.push((
+            inner,
+            module.add_inline_nullable_type(inner).expect("tagged"),
+        ));
+    }
+    let string = module.add_string_owner_type();
+    let int = module.intern_type(SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    });
+    let list = module
+        .add_sequential_container_type(SequentialContainerKind::List, int)
+        .expect("List<Int>");
+    let niched = [string, list].map(|inner| {
+        (
+            inner,
+            module
+                .add_inline_nullable_type(inner)
+                .expect("niched nullable"),
+        )
+    });
+
+    let context = inkwell::context::Context::create();
+    let target = super::native_target_machine()
+        .expect("first target")
+        .1
+        .get_target_data();
+    let plan = super::layout::TargetLayoutPlan::build(&context, module, &target)
+        .expect("inline nullable layouts pass preflight");
+    let types = super::type_map::TypeMap::lower(&context, module, &target)
+        .expect("inline nullable LLVM types");
+    for (inner, nullable) in tagged {
+        let planned = plan.layout(nullable).expect("tagged layout");
+        let actual = types.basic_type(nullable).expect("tagged LLVM type");
+        assert_eq!(planned.size, target.get_abi_size(&actual));
+        assert_eq!(planned.alignment, target.get_abi_alignment(&actual));
+        let inner = plan.layout(inner).expect("inner layout");
+        assert!(planned.size > inner.size, "the present tag needs storage");
+        assert_eq!(planned.alignment, inner.alignment.max(1));
+    }
+    for (inner, nullable) in niched {
+        let planned = plan.layout(nullable).expect("niched layout");
+        let inner = plan.layout(inner).expect("inner layout");
+        assert_eq!(
+            planned, inner,
+            "the pointer niche adds no size or alignment"
+        );
+    }
+}
+
+#[test]
+fn verifier_rejects_mismatched_inline_nullable_operations() {
+    // Wrapping an `Int` into a `Boolean?` identity.
+    let (mut program, main, _) = int_program();
+    {
+        let module = program.module_mut(main.module()).expect("module");
+        let boolean = module.intern_type(SsaTypeKind::Boolean);
+        let other = module.add_inline_nullable_type(boolean).expect("Boolean?");
+        let function = module.function_mut(main).expect("function");
+        let wrap = function
+            .instructions
+            .iter_mut()
+            .find(|instruction| matches!(instruction.operation, Operation::NullableWrap { .. }))
+            .expect("wrap");
+        let Operation::NullableWrap { nullable, .. } = &mut wrap.operation else {
+            unreachable!()
+        };
+        *nullable = other;
+    }
+    assert!(
+        verify_program(&program).is_err(),
+        "wrap of a non-inner value"
+    );
+
+    // Taking the payload under a result type other than the inner type.
+    let (mut program, main, nullable) = int_program();
+    {
+        let module = program.module_mut(main.module()).expect("module");
+        let boolean = module.intern_type(SsaTypeKind::Boolean);
+        let function = module.function_mut(main).expect("function");
+        let take = function
+            .instructions
+            .iter_mut()
+            .find(|instruction| matches!(instruction.operation, Operation::NullableTake { .. }))
+            .expect("take");
+        let EntityId::Value(result) = take.results[0] else {
+            panic!("take yields a value")
+        };
+        function.values[result.index()].ty = EntityType::Value(boolean);
+    }
+    let _ = nullable;
+    assert!(
+        verify_program(&program).is_err(),
+        "take under a non-inner type"
+    );
 }

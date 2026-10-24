@@ -115,5 +115,27 @@ pub(in crate::ssa) fn lower(
     types: &RefineTypes<'_>,
 ) -> Result<(), LoweringError> {
     let body = build::build(inputs, parameters, types)?;
-    emit::emit(&body, function, entry, parameters, inputs.span)
+    emit::emit(&body, function, entry, parameters, inputs.span)?;
+    #[cfg(test)]
+    ROUTED.with(|routed| {
+        if let Some(routed) = routed.borrow_mut().as_mut() {
+            routed.push(function.name.clone());
+        }
+    });
+    Ok(())
+}
+
+#[cfg(test)]
+thread_local! {
+    static ROUTED: std::cell::RefCell<Option<Vec<String>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Test-only: runs `lower` and returns the names of the functions this layer lowered,
+/// in lowering order.
+#[cfg(test)]
+pub(in crate::ssa) fn observe_routing<T>(lower: impl FnOnce() -> T) -> (T, Vec<String>) {
+    ROUTED.with(|routed| *routed.borrow_mut() = Some(Vec::new()));
+    let result = lower();
+    let names = ROUTED.with(|routed| routed.borrow_mut().take().unwrap_or_default());
+    (result, names)
 }
