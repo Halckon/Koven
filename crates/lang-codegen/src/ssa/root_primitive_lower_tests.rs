@@ -2,35 +2,17 @@
 use super::*;
 
 fn lower_primitive(text: &str) -> crate::ssa::model::Program {
-    let analysis = analyze(text);
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
+    let analysis = crate::native_tests::boxed_enum_tests::unit_source::UnitSource::analyze(
+        "lowering.ko",
+        text,
     )
-    .unwrap_or_else(|error| {
-        panic!(
-            "{text}\n{error:?}\nplans: {:?}",
-            analysis.owned.ownership_primitives()
-        )
-    })
+    .unwrap_or_else(|error| panic!("{text}\n{error:?}"));
+    analysis.assert_frontend_clean();
+    let entry = analysis.declaration("test", lang_frontend::name_resolution::SymbolKind::Function);
+    analysis
+        .lower_entry(entry)
+        .unwrap_or_else(|error| panic!("{text}\n{error:?}"))
+        .0
 }
 
 #[test]

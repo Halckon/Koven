@@ -1,5 +1,5 @@
 //! SPEC-0300: real source owner facts and normal-exhaustion SSA transport.
-use super::{analyze, lower_scalar_file};
+use super::{analyze, lower_map_unit, lower_scalar_file};
 use lang_frontend::ownership_checking::{
     CleanupOwnerValue, DropPoint, DropTarget, IterationPhiBoundary, IterationPhiIncomingKind,
 };
@@ -372,19 +372,12 @@ fn assert_unit_lowers(source: &str) {
 #[test]
 fn single_map_loop_parameter_seed_and_same_typed_owners_stay_distinct() {
     let source = include_str!("../../tests/fixtures/map-loop-owner-0300/distinct-owners.ko");
-    let analysis = analyze(source);
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap();
-    crate::llvm::render_verified_program(&program).unwrap();
-    assert_map_drop_counts(&program, &[("parameterOwner", 1), ("separateOwners", 2)]);
+    let (program, analysis) = lower_map_unit(source, "main");
+    assert_unit_map_drop_counts(
+        &program,
+        &analysis,
+        &[("parameterOwner", 1), ("separateOwners", 2)],
+    );
     assert_unit_lowers(source);
 }
 
@@ -471,6 +464,34 @@ fn assert_map_drop_counts(program: &crate::ssa::model::Program, expected: &[(&st
             "{name}: expected static Map drops for the selected exits"
         );
     }
+}
+
+fn assert_unit_map_drop_counts(
+    program: &crate::ssa::model::Program,
+    analysis: &crate::native_tests::boxed_enum_tests::unit_source::UnitSource,
+    expected: &[(&str, usize)],
+) {
+    use crate::ssa::model::Origin;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let expected = expected
+        .iter()
+        .map(|(name, count)| {
+            let declaration = analysis.declaration(name, SymbolKind::Function);
+            let span = analysis.declaration_span(declaration);
+            let functions = program
+                .modules
+                .iter()
+                .flat_map(|module| &module.functions)
+                .filter(|function| function.origin == Origin::Source(span))
+                .collect::<Vec<_>>();
+            let [function] = functions.as_slice() else {
+                panic!("one original source function for {name}");
+            };
+            (function.name.as_str(), *count)
+        })
+        .collect::<Vec<_>>();
+    assert_map_drop_counts(program, &expected);
 }
 
 #[path = "lower_frontend_map_break_tests.rs"]

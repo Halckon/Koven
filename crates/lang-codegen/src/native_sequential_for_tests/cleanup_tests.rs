@@ -1,5 +1,5 @@
 //! SPEC-0182: native temporary Array<String> cleanup across four exit paths.
-use super::super::{SymbolKind, analyze, boxed_enum_tests, emit_link_and_run, symbol};
+use super::super::{SymbolKind, UnitSource, boxed_enum_tests, emit_link_and_run};
 
 fn run_cleanup(case: &str, body: &str, expected: &[u8], allocations: usize) {
     let text = format!(
@@ -28,21 +28,12 @@ fn run_cleanup(case: &str, body: &str, expected: &[u8], allocations: usize) {
     let run = emit_link_and_run(&source_name, &text, "entry");
     boxed_enum_tests::assert_success(&run, expected);
 
-    let analysis = analyze(&source_name, &text);
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
-    )
-    .expect("supported String provider with body-local resource guards");
+    let analysis = UnitSource::analyze(&source_name, &text)
+        .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("supported String provider with body-local resource guards");
     let ir = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     let counted = boxed_enum_tests::run_counted_allocations(&ir, allocations);
     boxed_enum_tests::assert_success(&counted, expected);

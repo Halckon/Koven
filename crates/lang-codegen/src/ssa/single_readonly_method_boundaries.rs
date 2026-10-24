@@ -1,8 +1,39 @@
 //! Scope controls use only original frontend-produced source facts.
 use super::*;
+use lang_frontend::{
+    name_resolution::resolve_names, ownership_checking::check_ownership, type_checking::check_types,
+};
+
+// These old negative controls intentionally retain the independent legacy path.
+// They are not positive MemoryDocument consumers and do not select a fallback.
+fn lower_legacy_single(text: &str) -> (SourceMap, Result<(Program, FunctionId), LoweringError>) {
+    let mut sources = SourceMap::new();
+    let (_, parsed) = super::super::unit_lower_test_support::parsed(
+        &mut sources,
+        "app/readonly-method.ko",
+        &format!("package app\n{text}"),
+    );
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&sources, &parsed, &environment).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let entry = names
+        .symbols()
+        .iter()
+        .find(|s| s.name() == "entry")
+        .unwrap()
+        .id();
+    let result = super::super::lower_frontend::orchestrate::lower_scalar_file_with_entry(
+        &sources, &parsed, &names, &typed, &owned, entry,
+    );
+    (sources, result)
+}
 
 fn rejected(source: &str, fragment: &str) {
-    let (sources, result) = lower(source, Pipeline::Single);
+    let (sources, result) = lower_legacy_single(source);
     let error = result
         .err()
         .expect("unselected single receiver slice remains rejected");

@@ -107,15 +107,8 @@ fn assert_temporary_cleanup(exit: Exit) {
     "#
     );
     eprintln!("temporary_cleanup_{exit:?}.ko:\n{text}");
-    let program = analyze(&text);
-    let named = |name| {
-        program
-            .modules
-            .iter()
-            .flat_map(|m| &m.functions)
-            .find(|f| f.name == name)
-            .unwrap()
-    };
+    let analysis = analyze(&text, "run");
+    let named = |name| analysis.function(name);
     let run = named("run");
     let source = call(run, named("source").id);
     let first = call(run, named("earlier").id);
@@ -176,6 +169,7 @@ fn assert_temporary_cleanup(exit: Exit) {
     let body_owner = transport(run, when_true, header_owner);
     let body_loan = transport(run, when_true, header_loan);
     let body_cursor = transport(run, when_true, EntityId::Value(cursor));
+    let body_snapshot = transport(run, when_true, EntityId::Value(snapshot));
     let element = only_instruction(run, |op| {
         matches!(op, Operation::ContainerElementPlace { .. })
     });
@@ -271,7 +265,7 @@ fn assert_temporary_cleanup(exit: Exit) {
             );
             assert_eq!(
                 backedge.arguments[parameter_slot(header, EntityId::Value(snapshot))],
-                EntityId::Value(snapshot)
+                body_snapshot
             );
             let advance = defining_instruction(
                 run,

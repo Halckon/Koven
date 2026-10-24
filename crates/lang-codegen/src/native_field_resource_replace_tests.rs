@@ -1,6 +1,6 @@
 //! Direct field exchange composed with ordinary concrete resource class cleanup.
 
-use super::{SymbolKind, analyze, emit_link_and_run, symbol};
+use super::{SymbolKind, UnitSource, emit_link_and_run};
 
 const RESOURCES: &str = r#"
 class Leaf(val name: String) { deinit() { println(this.name) } }
@@ -115,16 +115,12 @@ fun entry(): Unit {
 fn assert_run_and_counted(source: &str, allocations: usize, expected: &[u8]) {
     let run = emit_link_and_run("field-resource-replace.ko", source, "entry");
     super::boxed_enum_tests::assert_success(&run, expected);
-    let analysis = analyze("field-resource-counted.ko", source);
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
-    )
-    .expect("field resource replacement lowers to verified SSA");
+    let analysis = UnitSource::analyze("field-resource-counted.ko", source)
+        .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("field resource replacement lowers to verified SSA");
     let ir = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     let counted = super::boxed_enum_tests::run_counted_allocations(&ir, allocations);
     super::boxed_enum_tests::assert_success(&counted, expected);
