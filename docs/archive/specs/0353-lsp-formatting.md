@@ -1,10 +1,10 @@
 # SPEC-0353: LSP 全文格式化适配
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施与验收编辑器格式化前置时 · **唯一真源**：本次交付范围
+> **性质**：交付合同 · **状态**：done · **读取时机**：实施与验收编辑器格式化前置时 · **唯一真源**：本次交付范围
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | KOV-P6-0353 |
 | 所属 Phase | Phase 6 |
 | 里程碑 | 编辑器 M2 / SPEC-0010 生产方前置 |
@@ -51,7 +51,7 @@
 | 连续编辑、项目旧/重复版本与重复 open、单文档历史行为 | 同组测试及明确普通回归选集 | 通过，另 6 项既有 lifecycle、legacy 与 position_adapter 精确回归通过 |
 | 真实 stdio 与 CLI 一致 | `--test formatting_stdio`；同头 CLI/LSP 探针 | stdio 1 项双模式通过；两模式各 6 输入与 CLI 输出/错误边界一致 |
 | 工程门禁与尺寸 | fmt all check、LSP all-targets clippy -D warnings、workspace all-targets check、CLI/LSP build、docs、diff、sizes | 全部通过；1923 手写 Rust 文件，38 项既有超限，本次未新增例外 |
-| 独立审查、PR CI、归档、实际 main CI | 独立上下文检查实现、测试与进程清理，交付门禁另行记录 | 两轮审查通过；PR CI、归档与实际 main CI 待执行 |
+| 独立审查、PR CI、归档、实际 main CI | 独立上下文检查实现、测试与进程清理，交付门禁另行记录 | 两轮审查通过；实现 `fec1d126` 的 [CI40056609504](https://github.com/Halckon/Koven/actions/runs/40056609504) 成功：15 jobs 成功，编辑器词法资源因无相关变更跳过；最终归档 head 与实际 main CI 另验 |
 
 生产方通过不等于三个 IDE 联合验收完成；消费者状态仍在编辑器仓库维护。
 
@@ -72,3 +72,15 @@
 临时探针 SHA-256 `75265f7e7bae9d00910350bdc0cb7db4808fe7ac6ad63fb0eff30fa54d167ceb`；
 原始脚本/日志在本机 `/private/tmp`，非长期证据，长期回归以入库协议与 stdio 测试为准。
 内部错误映射经独立静态审查，本地未新增故障注入测试；完整既有故障覆盖留 CI。
+
+## 7. 远端实现验收与归档
+
+[PR150](https://github.com/Halckon/Koven/pull/150) 的实现 head 为
+`fec1d126c54e72971a83678538c6e723fbcb1731`；CI 合成输入已包含当时 main `8b836fa0`。
+Linux/macOS 原始测试 job 日志均确认 LSP 55 项零失败/忽略，新增 8 项格式化协议测试及
+真实 stdio 测试实际通过；两种既有发送失败测试在 CI 中通过。本机首次误运行记录仍保留。
+双宿主编译/lint、组合/教程/资源验证、预览构建与独立消费、证据和聚合门禁均成功。
+编辑器词法检查按改动过滤跳过，不计为执行通过；本片未改语法资源。
+
+本片据实现验收归档。最终归档 head CI、PR 合并与实际 main CI 尚待核验，结果继续在 PR
+记录；消费者 SPEC-0010 尚未实施，不能由本片推断 IDE 格式化或 M2 联合验收已完成。
