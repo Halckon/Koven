@@ -558,6 +558,42 @@ pub(super) fn check(
             }
             _ => {
                 for (_, edge) in g.edges.iter().filter(|(from, _)| *from == block) {
+                    // The all-incoming families prove lineage, not that an old
+                    // column is still live. Check every actual edge operand against
+                    // this path's current roles before translating the state.
+                    for &argument in &edge.arguments {
+                        if layers.iter().any(|l| l.owners.contains(&argument)) {
+                            need(
+                                state.owners.contains(&Some(argument)),
+                                "stack edge cannot carry retired or non-current source owner",
+                                (edge, argument, &state),
+                            )?;
+                        }
+                        if layers.iter().any(|l| {
+                            l.source.contains(&argument)
+                                || l.components.iter().any(|c| c.contains(&argument))
+                        }) {
+                            need(
+                                state.loans.contains_key(&argument),
+                                "stack edge cannot carry an ended source/component/child lease",
+                                (edge, argument, &state),
+                            )?;
+                        }
+                        if layers.iter().any(|l| l.cursors.contains(&argument)) {
+                            need(
+                                state.cursors.contains(&Some(argument)),
+                                "stack edge carries only current per-layer cursor",
+                                (edge, argument, &state),
+                            )?;
+                        }
+                        if guards.iter().any(|g| g.owners.contains(&argument)) {
+                            need(
+                                state.guards.contains(&Some(argument)),
+                                "stack edge cannot carry retired Guard owner",
+                                (edge, argument, &state),
+                            )?;
+                        }
+                    }
                     let mut next = state.clone();
                     transport(g, edge, &mut next)?;
                     pending.push((edge.target, next));

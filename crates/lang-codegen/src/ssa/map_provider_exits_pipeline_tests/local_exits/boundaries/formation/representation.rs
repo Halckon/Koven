@@ -1,14 +1,11 @@
 //! Existing String-field Resource and body Guard identities from the same FE products.
 use super::*;
 use lang_frontend::{
-    name_resolution::{NameResolution, ValidatedCompilationUnitNames},
-    ownership_checking::{
-        CompilationUnitOwnership, DropPoint, DropTarget, OwnershipCheckedFile, UnitDropPoint,
-        UnitDropTarget,
-    },
+    name_resolution::ValidatedCompilationUnitNames,
+    ownership_checking::{CompilationUnitOwnership, UnitDropPoint, UnitDropTarget},
     type_checking::{
-        BuiltinType, CompilationUnitTypes, NominalKind, ParameterMode, TypeId, TypeKind, TypedFile,
-        UnitExpressionId, UnitStatementId, UnitTypeId, UnitTypeKind,
+        BuiltinType, CompilationUnitTypes, NominalKind, ParameterMode, UnitExpressionId,
+        UnitStatementId, UnitTypeId, UnitTypeKind,
     },
 };
 #[derive(Clone, Debug)]
@@ -46,50 +43,7 @@ fn class(parsed: &ParsedFile, marker: Span, deinit: Span) -> Result<(), Failure>
         member.span(),
     )
 }
-pub(super) fn single(
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    ty: TypeId,
-) -> Result<Option<Representation>, Failure> {
-    if typed.types().get(ty) == Some(&TypeKind::Builtin(BuiltinType::String)) {
-        return Ok(None);
-    }
-    let Some(TypeKind::Nominal { nominal, arguments }) = typed.types().get(ty) else {
-        return Err(failure("formation existing component representation", ty));
-    };
-    let d = one(
-        typed.nominals().iter().filter(|d| d.id() == *nominal),
-        "formation actual Resource descriptor",
-    )?;
-    let deinit = d
-        .deinit()
-        .ok_or_else(|| failure("formation actual Resource deinit", d))?;
-    let original = parsed.ast().items().get(deinit.item()).unwrap();
-    let marker = names.symbols()[nominal.symbol().index()].span();
-    class(parsed, marker, original.span())?;
-    need(
-        arguments.is_empty()
-            && d.kind() == NominalKind::Class
-            && d.type_parameters().is_empty()
-            && d.interfaces().is_empty()
-            && deinit.owner() == *nominal
-            && deinit.receiver_type() == ty
-            && deinit.receiver_mode() == ParameterMode::Borrow
-            && d.fields().iter().all(|field| {
-                typed.symbol_type(*field).is_some_and(|t| {
-                    typed.types().get(t) == Some(&TypeKind::Builtin(BuiltinType::String))
-                })
-            })
-            && typed.is_resource_type(ty) == Some(true),
-        "formation exact existing Resource nominal and owned String fields",
-        d,
-    )?;
-    Ok(Some(Representation {
-        deinit: original.span(),
-        strings: d.fields().len(),
-    }))
-}
+
 pub(super) fn unit(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -175,47 +129,7 @@ fn guard_site(parsed: &ParsedFile, site: &Site) -> Result<Option<(Span, Expressi
     )?;
     Ok(declarations.first().copied())
 }
-pub(super) fn single_guard(
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    site: &Site,
-) -> Result<Option<Guard>, Failure> {
-    let Some((marker, initializer)) = guard_site(parsed, site)? else {
-        return Ok(None);
-    };
-    let local = one(
-        names.symbols().iter().filter(|s| s.span() == marker),
-        "formation actual Guard root",
-    )?;
-    let construction = typed
-        .construction(initializer)
-        .ok_or_else(|| failure("formation same-analysis Guard construction", initializer))?;
-    let repr = single(parsed, names, typed, construction.result_type())?
-        .ok_or_else(|| failure("formation actual Resource Guard", initializer))?;
-    let drop = one(
-        owned
-            .drops()
-            .iter()
-            .filter(|d| d.target() == DropTarget::Named(local.id())),
-        "formation sole original Guard Drop fact",
-    )?;
-    need(
-        repr.strings == 0
-            && construction.arguments().is_empty()
-            && typed.symbol_type(local.id()) == Some(construction.result_type())
-            && drop.point() == DropPoint::AfterStatement(site.body)
-            && drop.value_origin() == marker,
-        "formation original Guard formation and actual body-local Drop point",
-        (construction, drop),
-    )?;
-    Ok(Some(Guard {
-        initializer: span(parsed, initializer),
-        origin: drop.value_origin(),
-        deinit: repr.deinit,
-    }))
-}
+
 pub(super) fn unit_guard(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,

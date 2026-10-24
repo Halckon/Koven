@@ -12,7 +12,7 @@ use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 pub(crate) use sources::{Case, Kind, Shape, sources};
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     println!(
-        "BIRTH INPUT label={} unit={unit} source={:?} golden={:?}",
+        "BIRTH INPUT label={} rooted={unit} source={:?} golden={:?}",
         case.label, case.source, case.golden
     );
     let mut sources = SourceMap::new();
@@ -26,39 +26,32 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     let input = ast::input(case, &sources, &parsed)?;
     let mut report = Report::default();
     let mut proof = None;
-    let lowered = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |n, t, o, r| {
-                source_forms::facts::unit(&sources, &parsed, n, t, o, r);
-                let checked = facts::unit((case, &sources, &parsed, &input), n, t, o);
-                r.query(
-                    "birth same-analysis qualified actual creation/consume/invoke and owner",
-                    &checked,
-                );
-                proof = Some(checked);
-            },
-        )
-    } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
-            source_forms::facts::single(&sources, &parsed, n, t, o, r);
-            let checked = facts::single((case, &sources, &parsed, &input), n, t, o);
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        unit,
+        |n, t, o, r| {
+            source_forms::facts::unit(&sources, &parsed, n, t, o, r);
+            let checked = facts::unit((case, &sources, &parsed, &input), n, t, o);
             r.query(
-                "birth same-analysis actual intrinsic/source/owner/cleanup",
+                "birth same-analysis qualified actual creation/consume/invoke and owner",
                 &checked,
             );
             proof = Some(checked);
-        })
-    };
+        },
+    );
     println!(
-        "BIRTH LOWER label={} unit={unit} report={report:#?} outcome={:?}",
+        "BIRTH LOWER label={} rooted={unit} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
+    report.query(
+        "Unit temporary Entry keeps outer source and actual producer/owner transport",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     let proof = proof.ok_or_else(|| failure("birth actual analysis observer", "not called"))??;
     report.query(
         "birth actual SSA producer/current owner/full incoming/protected uses/Drop",
@@ -67,7 +60,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
     println!(
-        "BIRTH FINAL label={} unit={unit} report={report:#?}",
+        "BIRTH FINAL label={} rooted={unit} report={report:#?}",
         case.label
     );
     if report.passed() {
@@ -80,8 +73,8 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
 fn original_intrinsic_and_unit_function_value_births_keep_exact_owner_identity() {
     let cases = sources();
     assert_eq!(cases.len(), 16);
-    // Preserve all six Single FunctionValue goals for 0336 without turning
-    // their existing ordinary-call prerequisite into a rejection oracle.
+    // These six FunctionValue sources retain their original rooted-only cells.
+    // Do not add Memory cells or recast the old Single prerequisite as a rejection oracle.
     for c in cases.iter().filter(|c| c.kind == Kind::FunctionValue) {
         println!(
             "BIRTH SINGLE FUNCTION PREREQUISITE label={} source={:?} golden={:?}",
@@ -97,7 +90,7 @@ fn original_intrinsic_and_unit_function_value_births_keep_exact_owner_identity()
         } {
             let result = observe(&case, unit);
             println!(
-                "BIRTH CASE label={} unit={unit} result={result:?}",
+                "BIRTH CASE label={} rooted={unit} result={result:?}",
                 case.label
             );
             outcomes.push((case.label, unit, result));

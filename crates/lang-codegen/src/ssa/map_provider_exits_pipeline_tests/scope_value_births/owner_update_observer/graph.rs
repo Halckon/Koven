@@ -107,6 +107,7 @@ pub(super) fn check(c: &Case, p: &ParsedFile, i: &Input, program: &Program) -> R
         parameters,
     )?;
     let mut actual_births = BTreeMap::new();
+    let mut owner_seeds = BTreeSet::new();
     for b in &i.births {
         let factory = function(module, b.factory)?;
         let call = one(
@@ -129,6 +130,7 @@ pub(super) fn check(c: &Case, p: &ParsedFile, i: &Input, program: &Program) -> R
             call,
         )?;
         actual_births.insert(call.id, b.expression);
+        owner_seeds.insert(result(call)?);
     }
     let mut actual_observes = BTreeMap::new();
     for &(call, arg) in &i.observes {
@@ -143,7 +145,17 @@ pub(super) fn check(c: &Case, p: &ParsedFile, i: &Input, program: &Program) -> R
     }
     if let Some(put) = i.put {
         put_clones(&g, p, put)?;
+        let operation = one(
+            g.instructions.iter().copied().filter(|op| {
+                op.origin == Origin::Source(span(p, put))
+                    && matches!(op.operation, Operation::MapPut { .. })
+            }),
+            "update original control fresh MapPut owner",
+        )?;
+        owner_seeds.insert(result(operation)?);
     }
+    let mut map_owners = owner_seeds.clone();
+    let mut observed_capabilities = BTreeSet::new();
     let mut visited = BTreeSet::new();
     let mut counted = BTreeSet::new();
     for flag in if c.code <= 9 {
@@ -269,6 +281,9 @@ pub(super) fn check(c: &Case, p: &ParsedFile, i: &Input, program: &Program) -> R
                             "update observe reads exact current source epoch in original source order",
                             (op, &state.origins, flag, state.observes),
                         )?;
+                        observed_capabilities.extend(
+                            crate::ssa::map_provider_exits_pipeline_tests::scope_future_observer::graph::observe_capabilities(
+                                &g, op, EntityId::Loan(*loan), owner, span(p, arg), span(p, call))?);
                         let end = one(
                             g.instructions.iter().copied().filter(|end| {
                                 end.operation == Operation::BorrowEnd { loan: *loan }
@@ -338,6 +353,7 @@ pub(super) fn check(c: &Case, p: &ParsedFile, i: &Input, program: &Program) -> R
             match &g.term(block)?.kind {
                 TerminatorKind::Branch(edge) => {
                     transfer(&g, edge, &mut state)?;
+                    map_owners.extend(state.origins.keys().copied().map(EntityId::Value));
                     block = edge.target;
                 }
                 TerminatorKind::Conditional {
@@ -368,6 +384,7 @@ pub(super) fn check(c: &Case, p: &ParsedFile, i: &Input, program: &Program) -> R
                     conditionals += 1;
                     let edge = if selected { when_true } else { when_false };
                     transfer(&g, edge, &mut state)?;
+                    map_owners.extend(state.origins.keys().copied().map(EntityId::Value));
                     block = edge.target;
                 }
                 TerminatorKind::Return { values } => {
@@ -440,6 +457,24 @@ pub(super) fn check(c: &Case, p: &ParsedFile, i: &Input, program: &Program) -> R
             )?;
         }
     }
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &g,
+        module,
+        &owner_seeds,
+    )?;
+    let map_types = owner_seeds
+        .iter()
+        .map(|&owner| scan.entity(owner).unwrap().ty.semantic_type())
+        .collect::<BTreeSet<_>>();
+    let expected = map_owners
+        .into_iter()
+        .chain(observed_capabilities)
+        .collect();
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+        &g,
+        &map_types.into_iter().collect::<Vec<_>>(),
+        &expected,
+    )?;
     Ok(())
 }
 

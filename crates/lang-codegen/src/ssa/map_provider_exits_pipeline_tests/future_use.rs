@@ -1,4 +1,5 @@
 //! Pure source lifetime follows the frontend's actual future use, not lexical scope.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod facts;
 mod graph;
 use super::{
@@ -130,24 +131,27 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(
+        pipeline::memory_document_observed(
             &sources,
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
-                facts::single(case, &sources, &parsed, names, typed, owned, report);
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                facts::unit(case, &sources, &parsed, names, typed, owned, report);
                 println!(
-                    "G9 SINGLE ORIGINAL plans={:#?} drops={:#?} conditions={:#?}",
+                    "G9 UNIT ORIGINAL plans={:#?} drops={:#?}",
                     owned.map_iterations(),
-                    owned.drops(),
-                    owned.cleanup_conditions()
+                    owned.drops()
                 );
             },
         )
     };
     println!("G9 REPORT {} unit={unit} {report:#?}", case.label);
     let (program, _) = result?;
+    report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     if !report.passed() {
         return Err(failure("original FE query", report));
     }

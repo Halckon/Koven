@@ -378,7 +378,6 @@ struct Caller<'a, 'ir> {
     graph: &'a Graph<'ir>,
     module: &'ir Module,
     f: &'a Input,
-    unit: bool,
 }
 impl Caller<'_, '_> {
     fn check(
@@ -388,7 +387,7 @@ impl Caller<'_, '_> {
         prior: &[(ValueId, ValueId)],
         uses: &mut Uses,
     ) -> Result<CallerShape, Failure> {
-        let (g, module, f, unit) = (self.graph, self.module, self.f, self.unit);
+        let (g, module, f) = (self.graph, self.module, self.f);
         let scan = function(module, input.function)?;
         let call = one(
             g.instructions.iter().copied().filter(
@@ -493,15 +492,7 @@ impl Caller<'_, '_> {
         g.incoming_from(a, &[call.block])?;
         g.incoming_from(b, &[call.block])?;
         let mut current = prior.to_vec();
-        if unit {
-            current.push((value(call)?, value(call)?));
-        } else {
-            need(
-                prior.is_empty(),
-                "temporary exits SSA single caller carries no implicit local columns",
-                prior,
-            )?;
-        }
+        current.push((value(call)?, value(call)?));
         let left_roles = caller_edge(g, when_true, &current, uses)?;
         let right_roles = caller_edge(g, when_false, &current, uses)?;
         let ea = g.branch(a)?;
@@ -565,12 +556,10 @@ pub(super) fn check(module: &Module, f: &Input, input: &Inputs) -> Result<(), Fa
     let g = Graph::new(entry)?;
     full_graph(&g)?;
     let mut uses = Uses::default();
-    let unit = input.unit.is_some();
     let caller = Caller {
         graph: &g,
         module,
         f,
-        unit,
     };
     let first = caller.check(a, 7, &[], &mut uses)?;
     let second = caller.check(b, 0, &first.carried, &mut uses)?;

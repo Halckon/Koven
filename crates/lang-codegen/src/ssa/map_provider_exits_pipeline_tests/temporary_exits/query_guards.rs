@@ -1,86 +1,16 @@
 //! 两个独立 Resource local 共用真实 Guard 类型与析构；形成不冒充当前 owner。
 use super::super::ast::{Anchors, Input};
-use super::{Failure, failure, need, one, single_bridge, unit_bridge};
+use super::{Failure, failure, need, one, unit_bridge};
 use lang_frontend::{
     name_resolution::{
-        NameResolution, Namespace, SourceUnitId, SymbolId, SymbolKind, UnitSymbolId,
-        ValidatedCompilationUnitNames,
+        Namespace, SourceUnitId, SymbolKind, UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{CompilationUnitOwnership, OwnershipCheckedFile},
+    ownership_checking::CompilationUnitOwnership,
     type_checking::{
-        CompilationUnitTypes, ConstructionTarget, ExpressionCategory, NominalKind, ParameterMode,
-        TypeKind, TypedFile, UnitConstructionTarget, UnitExpressionId, UnitItemId, UnitStatementId,
-        UnitTypeKind,
+        CompilationUnitTypes, ExpressionCategory, NominalKind, ParameterMode,
+        UnitConstructionTarget, UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeKind,
     },
 };
-
-pub(super) fn single(
-    f: &Input,
-    a: &Anchors,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<[SymbolId; 2], Failure> {
-    let mut locals = Vec::new();
-    let mut classes = Vec::new();
-    let mut types = Vec::new();
-    for guard in &a.guards {
-        let local = single_bridge::symbol(names, guard.marker, SymbolKind::Variable)?;
-        let class = single_bridge::symbol(names, guard.class_marker, SymbolKind::Classifier)?;
-        let nominal = one(
-            typed.nominals().iter().filter(|n| n.id().symbol() == class),
-            "temporary exits FE unique actual Guard nominal",
-        )?;
-        let construction = typed
-            .construction(guard.initializer)
-            .ok_or_else(|| failure("temporary exits FE actual Guard construction", guard))?;
-        let deinit = nominal
-            .deinit()
-            .ok_or_else(|| failure("temporary exits FE actual Guard deinit", nominal))?;
-        need(
-            nominal.kind() == NominalKind::Class
-                && nominal.fields().is_empty()
-                && nominal.type_parameters().is_empty()
-                && nominal.direct_interfaces().is_empty()
-                && nominal.interfaces().is_empty()
-                && nominal.variants().is_empty()
-                && deinit.owner() == nominal.id()
-                && deinit.item() == guard.deinit_item
-                && deinit.body() == guard.deinit_body
-                && deinit.receiver_mode() == ParameterMode::Borrow
-                && deinit.receiver_type() == construction.result_type()
-                && construction.expression() == guard.initializer
-                && construction.arguments().is_empty()
-                && construction.instance().type_arguments().is_empty()
-                && construction.target() == ConstructionTarget::Nominal(nominal.id())
-                && matches!(typed.types().get(construction.result_type()),
-                Some(TypeKind::Nominal { nominal: id, arguments }) if *id == nominal.id() && arguments.is_empty())
-                && typed.expression_type(guard.initializer) == Some(construction.result_type())
-                && typed.expression_category(guard.initializer)
-                    == Some(ExpressionCategory::Temporary)
-                && typed.symbol_type(local) == Some(construction.result_type())
-                && typed.is_resource_type(construction.result_type()) == Some(true)
-                && owned.formed_owned_locals().contains(&local),
-            "temporary exits FE exact Guard Resource formation, nominal and real deinit",
-            (guard, local, nominal, construction, deinit),
-        )?;
-        single_bridge::callee(f, names, guard.initializer, class, Namespace::Type)?;
-        locals.push(local);
-        classes.push(class);
-        types.push(construction.result_type());
-    }
-    need(
-        locals.len() == 2
-            && locals[0] != locals[1]
-            && classes[0] == classes[1]
-            && types[0] == types[1],
-        "temporary exits FE Guard locals distinct and same actual class/type",
-        (&locals, classes, types),
-    )?;
-    locals
-        .try_into()
-        .map_err(|v| failure("temporary exits FE two actual Guard locals", v))
-}
 
 pub(super) fn unit(
     f: &Input,

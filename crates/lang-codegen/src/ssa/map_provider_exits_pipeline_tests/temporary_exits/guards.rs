@@ -3,113 +3,16 @@
 use super::{
     super::Report,
     ast::{Anchors, Input},
-    single as single_facts, unit as unit_facts,
+    unit as unit_facts,
 };
 use lang_frontend::{
-    name_resolution::{NameResolution, Namespace, SymbolKind, ValidatedCompilationUnitNames},
-    ownership_checking::{
-        CleanupOwnerValue, CompilationUnitOwnership, DropTarget, OwnershipCheckedFile,
-        UnitDropTarget,
-    },
+    name_resolution::{Namespace, SymbolKind, ValidatedCompilationUnitNames},
+    ownership_checking::{CompilationUnitOwnership, UnitDropTarget},
     type_checking::{
-        CompilationUnitTypes, ConstructionTarget, ExpressionCategory, NominalKind, ParameterMode,
-        TypeKind, TypedFile, UnitConstructionTarget, UnitExpressionId, UnitItemId, UnitStatementId,
-        UnitTypeKind,
+        CompilationUnitTypes, ExpressionCategory, NominalKind, ParameterMode,
+        UnitConstructionTarget, UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeKind,
     },
 };
-
-pub(super) fn single(
-    f: &Input,
-    a: &Anchors,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    report: &mut Report,
-) {
-    let mut locals = Vec::new();
-    for guard in &a.guards {
-        let local = single_facts::symbol(names, guard.marker);
-        let class = single_facts::symbol(names, guard.class_marker);
-        let construction = typed.construction(guard.initializer);
-        let nominals = typed
-            .nominals()
-            .iter()
-            .filter(|nominal| Some(nominal.id().symbol()) == class)
-            .collect::<Vec<_>>();
-        report.check("single temporary exits actual Guard Resource constructor/deinit identity",
-            local.is_some() && class.is_some_and(|id| {
-                    names.symbols().iter().any(|s| s.id() == id && s.kind() == SymbolKind::Classifier)
-                        && super::calls_single::callee(f, names, guard.initializer, id, Namespace::Type)
-                }) && matches!(nominals.as_slice(), [nominal]
-                if nominal.kind() == NominalKind::Class && nominal.fields().is_empty()
-                    && nominal.deinit().is_some_and(|deinit| deinit.owner() == nominal.id()
-                        && deinit.item() == guard.deinit_item && deinit.body() == guard.deinit_body
-                        && deinit.receiver_mode() == ParameterMode::Borrow))
-                && construction.is_some_and(|c| c.expression() == guard.initializer
-                    && c.arguments().is_empty() && c.instance().type_arguments().is_empty()
-                    && matches!(c.target(), ConstructionTarget::Nominal(id) if Some(id.symbol()) == class)
-                    && matches!(typed.types().get(c.result_type()), Some(TypeKind::Nominal { nominal, arguments })
-                        if Some(nominal.symbol()) == class && arguments.is_empty())
-                    && Some(c.result_type()) == typed.expression_type(guard.initializer)
-                    && typed.expression_category(guard.initializer) == Some(ExpressionCategory::Temporary)
-                    && local.is_some_and(|id| typed.symbol_type(id) == Some(c.result_type()))
-                    && typed.is_resource_type(c.result_type()) == Some(true)),
-            (guard, guard.class_item, class, local, construction, &nominals));
-        let drops = owned
-            .drops()
-            .iter()
-            .filter(|drop| matches!(drop.target(), DropTarget::Named(id) if Some(id) == local))
-            .collect::<Vec<_>>();
-        report.check(
-            "single temporary exits Guard marker formation history and actual Drop origins",
-            local.is_some_and(|id| {
-                owned.formed_owned_locals().contains(&id)
-                    && names.symbols().iter().any(|s| {
-                        s.id() == id
-                            && s.span() == guard.marker
-                            && s.kind() == SymbolKind::Variable
-                            && !s.is_synthetic()
-                    })
-            }) && !drops.is_empty()
-                && drops.iter().all(|drop| drop.value_origin() == guard.marker),
-            (guard.marker, local, &drops, owned.formed_owned_locals()),
-        );
-        if let Some(local) = local {
-            locals.push(local);
-        }
-        for drop in drops {
-            let owner = drop
-                .owner()
-                .and_then(|id| owned.cleanup_conditions().owner_value(id));
-            if let Some(CleanupOwnerValue::Expression { expression, origin }) = owner {
-                report.check(
-                    "single temporary exits Guard Expression owner uses actual construction origin",
-                    *expression == guard.initializer && *origin == guard.span,
-                    (guard, drop, owner),
-                );
-            }
-
-            println!(
-                "SPEC0331 TEMPORARY EXITS SINGLE GUARD marker={:?} initializer={:?} construction_span={:?} deinit_span={:?} drop={drop:#?} actual_owner={:#?} actual_condition={:#?}",
-                guard.marker,
-                guard.initializer,
-                guard.span,
-                guard.deinit_span,
-                drop.owner()
-                    .and_then(|owner| owned.cleanup_conditions().owner_value(owner)),
-                drop.condition()
-                    .and_then(|condition| owned.cleanup_conditions().get(condition))
-            );
-        }
-    }
-    report.check(
-        "single temporary exits two distinct Guard locals share the real class/deinit",
-        matches!(locals.as_slice(), [left, right] if left != right)
-            && a.guards[0].class_item == a.guards[1].class_item
-            && a.guards[0].deinit_item == a.guards[1].deinit_item,
-        (&locals, &a.guards),
-    );
-}
 
 pub(super) fn unit(
     f: &Input,

@@ -101,34 +101,21 @@ pub(super) fn observe_with(
     clean(&sources, "parse diagnostics", parsed.diagnostics())?;
     let input = super::identity::ast(&sources, &parsed, case.owned)?;
     let mut report = Report::default();
-    let outcome = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |names, typed, owned, report| {
-                report.query(
-                    "actual Resource FE scope",
-                    &super::identity::unit(&input, &parsed, names, typed, owned),
-                );
-            },
-        )
-    } else {
-        pipeline::single_observed(
-            &sources,
-            &parsed,
-            &mut report,
-            |names, typed, owned, report| {
-                report.query(
-                    "actual Resource FE scope",
-                    &super::identity::single(&input, &parsed, names, typed, owned),
-                );
-            },
-        )
-    };
+    let outcome = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        unit,
+        |names, typed, owned, report| {
+            report.query(
+                "actual Resource FE scope",
+                &super::identity::unit(&input, &parsed, names, typed, owned),
+            );
+        },
+    );
     println!(
-        "RESOURCE CONTINUATION case={} unit={unit} report={report:#?} outcome={:?}",
+        "RESOURCE CONTINUATION case={} rooted={unit} report={report:#?} outcome={:?}",
         case.label,
         outcome.as_ref().map(|(_, entry)| entry)
     );

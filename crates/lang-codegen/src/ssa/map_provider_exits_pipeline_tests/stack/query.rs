@@ -96,6 +96,38 @@ pub(super) fn check(
         }
         calls::provider_calls(parsed, module, &g, inputs, &layers, &mut uses)?;
         paths::check(parsed, &g, inputs, &layers, &guards, unit)?;
+        let mut expected = BTreeSet::new();
+        let mut map_types = BTreeSet::new();
+        for layer in &layers {
+            expected.extend(layer.owners.iter().copied());
+            expected.extend(layer.source.iter().copied());
+            map_types.insert(f.entity(result(layer.birth)?).unwrap().ty.semantic_type());
+            if let Source::Parameter {
+                slot, borrow: true, ..
+            } = layer.site.source
+            {
+                let seed = g.block(f.entry_block().unwrap())?.parameters[slot];
+                expected.extend(family(&g, &[seed])?);
+            }
+            if let Operation::BorrowBegin { place, .. } = layer.birth.operation {
+                // root_birth independently proved this exact provider acquisition.
+                // Do not absorb unrelated RootPlace results merely by matching a type/owner.
+                let place = EntityId::Place(place);
+                need(
+                    !g.edges
+                        .iter()
+                        .any(|(_, edge)| edge.arguments.contains(&place)),
+                    "stack original provider RootPlace remains local to its actual current owner",
+                    layer.birth,
+                )?;
+                expected.insert(place);
+            }
+        }
+        crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+            &g,
+            &map_types.into_iter().collect::<Vec<_>>(),
+            &expected,
+        )?;
         uses.check(&g, None)?;
     }
     calls::callers(sources, parsed, module, inputs)?;

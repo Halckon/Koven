@@ -6,7 +6,7 @@ use crate::ssa::map_provider_exits_pipeline_tests::{
     fixture::{Failure, failure, need},
     query_inputs::one,
 };
-pub(in super::super::super) use facts::{single, unit};
+pub(in super::super::super) use facts::unit;
 pub(in super::super::super) use graph::check;
 use lang_frontend::{
     ast::{ExpressionId, StatementId},

@@ -231,6 +231,21 @@ pub(super) fn check(
     )?;
     need(!g.instructions.iter().any(|i|matches!(i.operation,Operation::BorrowEnd{loan} if roots.contains(&EntityId::Loan(loan)))) && !g.instructions.iter().any(|i|matches!(i.operation,Operation::Drop{owner} if matches!(scan.entity(EntityId::Value(owner)).unwrap().ty,EntityType::Value(t) if matches!(module.type_kind(t),Some(SsaTypeKind::MapContainer{..}))))),"callee preserves caller loan and never drops its Map",scan.id)?;
     uses.check(&g, None)?;
+    let expected = roots
+        .iter()
+        .copied()
+        .chain([
+            EntityId::Loan(source),
+            EntityId::Loan(hs),
+            EntityId::Loan(bs),
+            xs,
+        ])
+        .collect();
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+        &g,
+        &[scan.entity(*anchor).unwrap().ty.semantic_type()],
+        &expected,
+    )?;
     // Caller owns separate per-call loans. Both end after the actual scan returns;
     // any post-scan MapPut must follow the first loan End on that exact owner.
     let caller = one(

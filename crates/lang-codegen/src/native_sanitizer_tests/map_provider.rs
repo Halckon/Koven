@@ -1,4 +1,4 @@
-//! CI-only export bridge for the real Resource Map provider; no synthetic damaged IR.
+//! CI-only export of MemoryDocument/rooted Unit Resource Map IR; no synthetic damaged IR.
 use super::*;
 use crate::ssa::map_provider_exits_pipeline_tests::{history_sanitizer_ir, history_sources};
 
@@ -21,7 +21,13 @@ fn map_provider_resource_histories_export_real_ir() {
     let mut manifest = String::new();
     for case in cases {
         for unit in [false, true] {
+            // Keep the sanitizer artifact labels stable; both inputs now use Unit products.
             let entry = if unit { "unit" } else { "single" };
+            let input = if unit {
+                "rooted Unit"
+            } else {
+                "MemoryDocument Unit"
+            };
             let label = format!("{}-{entry}", case.label);
             let path = directory.join(&label);
             fs::create_dir(&path).unwrap();
@@ -72,7 +78,7 @@ fn map_provider_resource_histories_export_real_ir() {
             manifest.push_str(&label);
             manifest.push('\n');
             println!(
-                "SPEC0331 CI PROVIDER EXPORT case={label} source=original SSA=verified LLVM=verified plain=golden"
+                "SPEC0331 CI PROVIDER EXPORT case={label} input={input} source=original SSA=verified LLVM=verified plain=golden"
             );
         }
     }

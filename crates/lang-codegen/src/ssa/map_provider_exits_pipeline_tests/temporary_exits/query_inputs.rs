@@ -3,8 +3,6 @@
 mod query_cleanup;
 #[path = "query_guards.rs"]
 mod query_guards;
-#[path = "query_inputs_single.rs"]
-mod single_bridge;
 #[path = "query_inputs_unit.rs"]
 mod unit_bridge;
 
@@ -17,11 +15,11 @@ use super::{
 };
 use lang_frontend::{
     ast::ExpressionId,
-    name_resolution::{NameResolution, SourceUnitId, ValidatedCompilationUnitNames},
-    ownership_checking::{CompilationUnitOwnership, OwnershipCheckedFile},
+    name_resolution::{SourceUnitId, ValidatedCompilationUnitNames},
+    ownership_checking::CompilationUnitOwnership,
     parser::{BinaryOperator, Expression},
     source::Span,
-    type_checking::{BuiltinType, CompilationUnitTypes, TypedFile},
+    type_checking::{BuiltinType, CompilationUnitTypes},
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -60,7 +58,7 @@ pub(super) struct CallerInput {
 }
 #[derive(Debug)]
 pub(super) struct Inputs {
-    pub unit: Option<SourceUnitId>,
+    pub unit: SourceUnitId,
     pub entry: Span,
     pub read: Span,
     pub sites: [SiteInput; 2],
@@ -68,15 +66,6 @@ pub(super) struct Inputs {
     pub callers: Vec<CallerInput>,
 }
 
-pub(super) fn single(
-    f: &Input,
-    a: &Anchors,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<Inputs, Failure> {
-    single_bridge::collect(f, a, names, typed, owned)
-}
 pub(super) fn unit(
     f: &Input,
     a: &Anchors,
@@ -113,12 +102,7 @@ fn callee_span(f: &Input, expression: ExpressionId) -> Result<Span, Failure> {
     Ok(span)
 }
 
-fn spans(
-    f: &Input,
-    a: &Anchors,
-    drops: [Span; 2],
-    unit: Option<SourceUnitId>,
-) -> Result<Inputs, Failure> {
+fn spans(f: &Input, a: &Anchors, drops: [Span; 2], unit: SourceUnitId) -> Result<Inputs, Failure> {
     let entry = anchor(a, "entry")?;
     let read = anchor(a, "read")?;
     let returning = f.exit == Exit::Return;

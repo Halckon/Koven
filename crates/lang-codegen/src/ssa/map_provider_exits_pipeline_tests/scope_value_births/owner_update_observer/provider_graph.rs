@@ -327,5 +327,10 @@ pub(super) fn check(
             }
         }
     }
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &g,
+        module,
+        &anchors.iter().copied().collect(),
+    )?;
     uses.check(&g, None)
 }

@@ -151,6 +151,11 @@ pub(super) fn check(
             (case.exit, &mut uses),
         )?;
         uses.check(&g, returned)?;
+        crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+            &g,
+            module,
+            &BTreeSet::from([anchor]),
+        )?;
         paths(
             &g,
             producer.id,

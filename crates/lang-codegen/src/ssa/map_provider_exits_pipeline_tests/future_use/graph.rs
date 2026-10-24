@@ -228,6 +228,11 @@ pub(super) fn check(
         &mut uses,
     )?;
     uses.check(&g, None)?;
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &g,
+        module,
+        &BTreeSet::from([*anchor]),
+    )?;
     paths(&g, drop.id, marker.id, &source_ends, &calls, case.form)?;
     Ok(())
 }

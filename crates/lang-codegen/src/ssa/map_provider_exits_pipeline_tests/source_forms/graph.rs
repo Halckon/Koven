@@ -1,10 +1,13 @@
 //! The new owned MutableMap rows must root and drop the original parameter on every exit.
+#[path = "entries.rs"]
+mod entries;
 use super::super::{
     fixture::{failure, need},
     query_graph::Graph,
 };
 use super::*;
 use crate::ssa::model::*;
+pub(in super::super) use entries::check as temporary_entries;
 use lang_frontend::parser::{Item, NameMarker};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -145,7 +148,111 @@ pub(in super::super) fn owned_map(
             pending.push((edge.target, count, visited.clone()));
         }
     }
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &graph,
+        module,
+        &BTreeSet::from([anchor]),
+    )?;
+    let owners = edge_family(&graph, anchor)?;
+    let leases = edge_family(&graph, EntityId::Loan(source))?;
+    let mut expected = owners
+        .iter()
+        .chain(&leases)
+        .copied()
+        .collect::<BTreeSet<_>>();
+    expected.insert(EntityId::Place(place));
+    // resource_forms shares this observer and has an original post-For
+    // readMap(source). Only that exact source call may add argument capabilities.
+    for (_, node) in parsed.ast().expressions().iter() {
+        if node.span().source_id() != scan.source_id()
+            || node.span().start() <= scan.start()
+            || node.span().end() >= scan.end()
+        {
+            continue;
+        }
+        let lang_frontend::parser::Expression::Call {
+            callee, arguments, ..
+        } = node.payload()
+        else {
+            continue;
+        };
+        let callee_span = parsed.ast().expressions().get(*callee).unwrap().span();
+        if sources.slice(callee_span) != Ok("readMap") {
+            continue;
+        }
+        let declaration = super::super::query_inputs::one(parsed.roots().iter().filter_map(|id| {
+            let declaration = parsed.ast().items().get(*id).ok()?;
+            matches!(declaration.payload(), Item::Function { name: NameMarker::Present(name), .. }
+                if sources.slice(*name) == Ok("readMap")).then_some(declaration.span())
+        }), "owned source original post-provider readMap declaration")?;
+        let target = super::super::query_graph::function(module, declaration)?;
+        let call = super::super::query_inputs::one(graph.instructions.iter().copied().filter(|op| {
+            op.origin == Origin::Source(node.span())
+                && matches!(op.operation, Operation::DirectCall { callee, .. } if callee == target.id)
+        }), "owned source exact original post-provider readMap call")?;
+        let [argument] = arguments.as_slice() else {
+            return Err(failure("owned source original readMap argument", arguments));
+        };
+        let argument_span = parsed
+            .ast()
+            .expressions()
+            .get(argument.value)
+            .unwrap()
+            .span();
+        let Operation::DirectCall {
+            receiver: None,
+            arguments,
+            ..
+        } = &call.operation
+        else {
+            return Err(failure("owned source actual readMap ABI", call));
+        };
+        let [argument @ EntityId::Loan(_)] = arguments.as_slice() else {
+            return Err(failure("owned source actual readMap Shared argument", call));
+        };
+        let root = super::super::query_inputs::one(graph.instructions.iter().copied().filter(|op| {
+            op.origin == Origin::Source(argument_span)
+                && matches!(op.operation, Operation::RootPlace { owner } if owners.contains(&EntityId::Value(owner)))
+        }), "owned source original readMap argument exact current RootPlace")?;
+        let Operation::RootPlace { owner } = root.operation else {
+            unreachable!()
+        };
+        expected.extend(
+            super::super::scope_future_observer::graph::observe_capabilities(
+                &graph,
+                call,
+                *argument,
+                owner,
+                argument_span,
+                node.span(),
+            )?,
+        );
+    }
+    super::super::query_inventory::check(&graph, &[ty.semantic_type()], &expected)?;
     need(returns > 0, "actual normal exit checked", returns)
+}
+
+fn edge_family(g: &Graph<'_>, anchor: EntityId) -> Result<BTreeSet<EntityId>, Failure> {
+    let mut members = BTreeSet::from([anchor]);
+    loop {
+        let before = members.len();
+        for (_, edge) in &g.edges {
+            for (&argument, &parameter) in
+                edge.arguments.iter().zip(&g.block(edge.target)?.parameters)
+            {
+                if members.contains(&argument) {
+                    members.insert(parameter);
+                }
+            }
+        }
+        if before == members.len() {
+            break;
+        }
+    }
+    for &member in &members {
+        g.anchored(member, &[anchor])?;
+    }
+    Ok(members)
 }
 fn transport(g: &Graph<'_>, current: EntityId, anchor: EntityId) -> Result<(), Failure> {
     let mut pending = vec![current];

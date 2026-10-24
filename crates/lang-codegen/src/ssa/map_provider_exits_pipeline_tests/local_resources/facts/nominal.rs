@@ -3,7 +3,7 @@ use super::*;
 use lang_frontend::{
     ast::{ItemId, StatementId},
     parser::{Item, NameMarker},
-    type_checking::{NominalKind, TypeId, UnitItemId, UnitTypeId},
+    type_checking::{NominalKind, UnitItemId, UnitTypeId},
 };
 struct Class {
     name: Span,
@@ -66,61 +66,7 @@ fn class(sources: &SourceMap, parsed: &ParsedFile) -> Result<Class, Failure> {
         body,
     })
 }
-pub(in crate::ssa::map_provider_exits_pipeline_tests) fn single(
-    nullable: bool,
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    value: TypeId,
-) -> Result<(), Failure> {
-    let class = class(sources, parsed)?;
-    let inner = match (nullable, typed.types().get(value)) {
-        (true, Some(TypeKind::Nullable(inner))) => *inner,
-        (false, Some(TypeKind::Nominal { .. })) => value,
-        other => {
-            return Err(failure(
-                "exact original nullable/nonnullable component",
-                other,
-            ));
-        }
-    };
-    let Some(TypeKind::Nominal { nominal, arguments }) = typed.types().get(inner) else {
-        return Err(failure("actual Resource nominal", inner));
-    };
-    let descriptor = one(
-        typed.nominals().iter().filter(|n| n.id() == *nominal),
-        "actual Resource nominal descriptor",
-    )?;
-    let field = one(descriptor.fields().iter(), "actual Resource owned field")?;
-    let deinit = descriptor
-        .deinit()
-        .ok_or_else(|| failure("actual explicit Resource deinit", descriptor))?;
-    need(
-        arguments.is_empty()
-            && descriptor.kind() == NominalKind::Class
-            && names.symbols().iter().any(|s| {
-                s.id() == nominal.symbol()
-                    && s.span() == class.name
-                    && s.kind() == SymbolKind::Classifier
-            })
-            && names
-                .symbols()
-                .iter()
-                .any(|s| s.id() == *field && s.span() == class.field)
-            && typed.symbol_type(*field).is_some_and(|t| {
-                typed.types().get(t) == Some(&TypeKind::Builtin(BuiltinType::String))
-            })
-            && deinit.owner() == *nominal
-            && deinit.item() == class.item
-            && deinit.body() == class.body
-            && deinit.receiver_type() == inner
-            && deinit.receiver_mode() == ParameterMode::Borrow,
-        "actual original Resource with owned String and explicit deinit",
-        (descriptor, deinit),
-    )?;
-    Ok(())
-}
+
 pub(in crate::ssa::map_provider_exits_pipeline_tests) fn unit(
     nullable: bool,
     sources: &SourceMap,

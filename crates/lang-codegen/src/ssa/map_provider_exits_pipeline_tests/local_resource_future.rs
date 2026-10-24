@@ -1,4 +1,5 @@
 //! Resource local future-use corners: lexical cleanup after all later reads and markers.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod facts;
 mod graph;
 mod sources;
@@ -50,26 +51,25 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(
+        pipeline::memory_document_observed(
             &sources,
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
-                facts::single(case, &sources, &parsed, names, typed, owned, report);
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                facts::unit(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
-                    "Resource future actual single plan count",
+                    "Resource future actual qualified plan count",
                     typed.map_iterations().len() == if case.form == 2 { 4 } else { 2 }
                         && owned.map_iterations().len() == typed.map_iterations().len(),
                     typed.map_iterations(),
                 );
                 println!(
-                    "RESOURCE LOCAL FUTURE SINGLE case={} formed={:#?} plans={:#?} drops={:#?} conditions={:#?} loans={:#?}",
+                    "RESOURCE LOCAL FUTURE UNIT case={} formed={:#?} plans={:#?} drops={:#?} loans={:#?}",
                     case.label,
                     owned.formed_owned_locals(),
                     owned.map_iterations(),
                     owned.drops(),
-                    owned.cleanup_conditions(),
                     owned.loans()
                 );
             },
@@ -80,6 +80,10 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
         case.label
     );
     let (program, _) = result?;
+    report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     if !report.passed() {
         return Err(failure("original Resource future FE", report));
     }

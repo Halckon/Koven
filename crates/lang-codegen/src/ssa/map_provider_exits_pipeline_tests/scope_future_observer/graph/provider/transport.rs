@@ -3,6 +3,7 @@ use super::*;
 use crate::ssa::map_provider_exits_pipeline_tests::query_map_normal_body as body;
 pub(super) struct Carried<'a> {
     pub owner: EntityId,
+    pub map_entities: BTreeSet<EntityId>,
     pub pre: BlockId,
     pub header: BlockId,
     pub body: BlockId,
@@ -200,8 +201,13 @@ pub(super) fn check<'a>(
             uses.permit(e, op);
         }
     }
+    let mut map_entities = BTreeSet::from([result(root)?]);
+    for roles in [initial, header, current, exhausted] {
+        map_entities.extend([roles[0], roles[1]]);
+    }
     Ok(Carried {
         owner: exhausted[0],
+        map_entities,
         pre: first.block,
         header: has.block,
         body: next.block,

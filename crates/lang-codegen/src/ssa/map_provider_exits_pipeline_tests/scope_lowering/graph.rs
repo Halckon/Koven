@@ -105,6 +105,11 @@ pub(super) fn check(
             "scope legal unacquired dead tail has no SSA construction/provider/cleanup",
             scan,
         )?;
+        crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+            &g,
+            &[],
+            &BTreeSet::new(),
+        )?;
         return Ok(());
     }
     let entry = g.block(scan.entry_block().unwrap())?;
@@ -133,6 +138,7 @@ pub(super) fn check(
     )?;
     let originals = family(&g, &[seed])?;
     let mut uses = Uses::default();
+    let mut expected_map = originals.clone();
     protect(&mut uses, &originals);
     let leased = if let Some(site) = &i.site {
         provider::check(c, parsed, i, module, &g, (&originals, site), &mut uses)?
@@ -153,6 +159,7 @@ pub(super) fn check(
         )?;
         BTreeSet::new()
     };
+    expected_map.extend(leased.iter().copied());
     if let Some(call) = &i.observe_call {
         let op = at(&g, ast::span(parsed, call.id), |o| {
             matches!(o, Operation::DirectCall { .. })
@@ -194,6 +201,7 @@ pub(super) fn check(
             )?;
             uses.permit(EntityId::Loan(source), begin);
             let aliases = family(&g, &[argument])?;
+            expected_map.extend(aliases.iter().copied());
             protect(&mut uses, &aliases);
             uses.permit(argument, op);
             let end=one(g.instructions.iter().copied().filter(|instruction|matches!(instruction.operation,Operation::BorrowEnd{loan}if aliases.contains(&EntityId::Loan(loan)))),"scope independent control argument unique End")?;
@@ -236,5 +244,10 @@ pub(super) fn check(
             )?;
         }
     }
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+        &g,
+        &[map],
+        &expected_map,
+    )?;
     uses.check(&g, None)
 }

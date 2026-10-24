@@ -26,7 +26,7 @@ fn observe(text: &str, unit: bool) -> Result<(), Failure> {
             |_, _, _, _| {},
         )
     } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |_, _, _, _| {})
+        super::legacy_boundaries::observe(&sources, &parsed, "entry", &mut report, |_, _, _, _| {})
     };
     println!(
         "DELIVERY BOUNDARY INPUT unit={unit} source={text:?} report={report:#?} outcome={:?}",

@@ -3,8 +3,6 @@
 mod query_cleanup;
 #[path = "query_guards.rs"]
 mod query_guards;
-#[path = "query_inputs_single.rs"]
-mod single_bridge;
 #[path = "query_inputs_unit.rs"]
 mod unit_bridge;
 
@@ -17,11 +15,11 @@ use super::{
 };
 use lang_frontend::{
     ast::ExpressionId,
-    name_resolution::{NameResolution, ValidatedCompilationUnitNames},
-    ownership_checking::{CompilationUnitOwnership, OwnershipCheckedFile},
+    name_resolution::{SourceUnitId, ValidatedCompilationUnitNames},
+    ownership_checking::CompilationUnitOwnership,
     parser::Expression,
     source::Span,
-    type_checking::{BuiltinType, CompilationUnitTypes, TypedFile},
+    type_checking::{BuiltinType, CompilationUnitTypes},
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -66,7 +64,7 @@ pub(super) struct OperandInput {
 
 #[derive(Debug)]
 pub(super) struct Inputs {
-    pub unit: bool,
+    pub unit: SourceUnitId,
     pub entry: Span,
     pub scan: Span,
     pub read: Span,
@@ -79,16 +77,6 @@ pub(super) struct Inputs {
     pub guards: [GuardInput; 2],
     pub transfer: Span,
     pub operand: Option<OperandInput>,
-}
-
-pub(super) fn single(
-    f: &Input,
-    a: &Anchors,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<Inputs, Failure> {
-    single_bridge::collect(f, a, names, typed, owned)
 }
 
 pub(super) fn unit(
@@ -208,7 +196,7 @@ fn caller_span(f: &Input, a: &Anchors, index: usize, drop: Span) -> Result<Calle
     })
 }
 
-fn spans(f: &Input, a: &Anchors, drops: [Span; 2], unit: bool) -> Result<Inputs, Failure> {
+fn spans(f: &Input, a: &Anchors, drops: [Span; 2], unit: SourceUnitId) -> Result<Inputs, Failure> {
     let parameter = a
         .parameter()
         .ok_or_else(|| failure("nested exits FE sole scan parameter", a))?;

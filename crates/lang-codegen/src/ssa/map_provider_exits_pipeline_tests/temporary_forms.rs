@@ -127,9 +127,9 @@ fun entry():Unit{{println("nonempty");for((key,value) in produce()){{read(key,va
     cases
 }
 
-fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
+fn observe(case: &Case, rooted: bool) -> Result<(), Failure> {
     println!(
-        "TEMPORARY FORMS INPUT case={} unit={unit} source={:?} golden={:?}",
+        "TEMPORARY FORMS INPUT case={} rooted={rooted} source={:?} golden={:?}",
         case.label, case.source, case.golden
     );
     let mut sources = SourceMap::new();
@@ -141,40 +141,30 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let result = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |names, typed, owned, report| {
-                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
-                report.query(
-                    "represented temporary original qualified FE identities",
-                    &facts::unit(case, &sources, &parsed, names, typed, owned),
-                );
-            },
-        )
-    } else {
-        pipeline::single_observed(
-            &sources,
-            &parsed,
-            &mut report,
-            |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
-                report.query(
-                    "represented temporary original single FE identities",
-                    &facts::single(case, &sources, &parsed, names, typed, owned),
-                );
-            },
-        )
-    };
+    let result = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        rooted,
+        |names, typed, owned, report| {
+            source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+            report.query(
+                "represented temporary original qualified FE identities",
+                &facts::unit(case, &sources, &parsed, names, typed, owned),
+            );
+        },
+    );
     println!(
-        "TEMPORARY FORMS LOWER {} unit={unit} report={report:#?} outcome={:?}",
+        "TEMPORARY FORMS LOWER {} rooted={rooted} report={report:#?} outcome={:?}",
         case.label,
         result.as_ref().map(|(_, id)| id)
     );
     let (program, _) = result?;
+    report.query(
+        "Unit original temporary entry and actual canonical owner acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     report.query(
         "represented temporary actual SSA identities and storage",
         &graph::check(case, &sources, &parsed, &program),
@@ -191,13 +181,13 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
 fn existing_temporary_representations_reach_both_verified_pipelines() {
     let mut results = Vec::new();
     for case in sources() {
-        for unit in [false, true] {
-            let result = observe(&case, unit);
+        for rooted in [false, true] {
+            let result = observe(&case, rooted);
             println!(
-                "TEMPORARY FORMS CASE {} unit={unit} result={result:?}",
+                "TEMPORARY FORMS CASE {} rooted={rooted} result={result:?}",
                 case.label
             );
-            results.push((case.label.clone(), unit, result));
+            results.push((case.label.clone(), rooted, result));
         }
     }
     assert_eq!(results.len(), 20);

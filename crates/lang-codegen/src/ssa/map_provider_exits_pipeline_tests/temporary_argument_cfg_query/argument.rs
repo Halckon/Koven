@@ -8,7 +8,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Input {
     pub arms: [Span; 2],
 }
 #[allow(clippy::too_many_arguments)]
-pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check<'p>(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check_unit<'p>(
     sources: &SourceMap,
     parsed: &ParsedFile,
     input: &Input,
@@ -205,34 +205,29 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check<'p>(
         .copied()
         .filter(|e| flags.contains(e))
         .collect::<Vec<_>>();
-    match current_flags.as_slice() {
-        [] => need(
-            [yes.block, no.block].iter().all(|&b| {
-                g.block(b)
-                    .unwrap()
-                    .parameters
-                    .iter()
-                    .all(|e| !flags.contains(e))
-            }),
-            "immutable single flag is not fabricated as arm transport",
-            &current_flags,
-        )?,
-        [current] => {
-            let yes_flag = g.transported(when_true, *parameter)?;
-            let no_flag = g.transported(when_false, *parameter)?;
-            need(
-                g.argument(y, *current)? == yes_flag && g.argument(n, *current)? == no_flag,
-                "Unit argument merge keeps exact flag from both original arm columns",
-                (current, yes_flag, no_flag),
-            )?;
-        }
-        _ => {
-            return Err(failure(
-                "unique original current flag argument column",
-                current_flags,
-            ));
-        }
-    }
+    let current = one(
+        current_flags.into_iter(),
+        "Unit argument merge requires exactly its current flag column",
+    )?;
+    let yes_flag = g.transported(when_true, *parameter)?;
+    let no_flag = g.transported(when_false, *parameter)?;
+    need(
+        g.argument(y, current)? == yes_flag
+            && g.argument(n, current)? == no_flag
+            && when_true.arguments.as_slice() == [*parameter]
+            && when_false.arguments.as_slice() == [*parameter]
+            && g.block(yes.block)?.parameters.as_slice() == [yes_flag]
+            && g.block(no.block)?.parameters.as_slice() == [no_flag]
+            && y.arguments.len() == 2
+            && n.arguments.len() == 2
+            && g.block(call.block)?.parameters.len() == 2
+            && y.arguments.iter().copied().collect::<BTreeSet<_>>()
+                == BTreeSet::from([result(yes)?, yes_flag])
+            && n.arguments.iter().copied().collect::<BTreeSet<_>>()
+                == BTreeSet::from([result(no)?, no_flag]),
+        "Unit argument merge keeps the exact complete flag and literal columns from both arms",
+        (current, yes_flag, no_flag),
+    )?;
     uses.permit(EntityId::Loan(flag_source), flag);
     let flag_ends = g
         .instructions
@@ -254,16 +249,10 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check<'p>(
             .copied()
             .filter(|e| flags.contains(e))
             .collect::<Vec<_>>();
-        let current = match candidates.as_slice() {
-            [] => *parameter,
-            [current] => *current,
-            _ => {
-                return Err(failure(
-                    "unique current flag at callable Return",
-                    candidates,
-                ));
-            }
-        };
+        let current = one(
+            candidates.into_iter(),
+            "Unit flag End closes its actual current callable-Return column",
+        )?;
         need(
             EntityId::Loan(loan) == current
                 && matches!(&g.term(end.block)?.kind, TerminatorKind::Return { values }

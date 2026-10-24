@@ -173,6 +173,11 @@ pub(super) fn check(
             (last, drop, after),
         )?;
         uses.check(&g, None)?;
+        crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+            &g,
+            module,
+            &BTreeSet::from([anchor]),
+        )?;
         paths(&g, call.id, formed.id, drop.id, after.id, &ends)?;
     }
     Ok(())

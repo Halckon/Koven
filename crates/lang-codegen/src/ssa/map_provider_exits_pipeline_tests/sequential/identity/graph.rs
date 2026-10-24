@@ -115,6 +115,8 @@ pub(in super::super) fn ssa(
     need(spans.len() == 2, "two original AST For", &spans)?;
     let mut roots = BTreeSet::new();
     let mut all_provider_ends = BTreeSet::new();
+    let mut expected_map = BTreeSet::new();
+    let mut map_types = BTreeSet::new();
     for (index, span) in spans.into_iter().enumerate() {
         let first = one(
             g.instructions.iter().copied().filter(|i| {
@@ -135,6 +137,7 @@ pub(in super::super) fn ssa(
         uses.permit(EntityId::Loan(source), first);
         uses.protect(result(first)?);
         let anchor = entry.parameters[c.slots[index]];
+        map_types.insert(function.entity(anchor).unwrap().ty.semantic_type());
         need(
             matches!(
                 function.entity(anchor).unwrap().ty,
@@ -336,7 +339,8 @@ pub(in super::super) fn ssa(
         let source_end=one(g.ops(when_false.target)?.into_iter().filter(|i|matches!(i.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==exhausted)),"exact exhausted provider End")?;
         all_provider_ends.insert(source_end.id);
         uses.permit(exhausted, source_end);
-        transported(&g, exhausted, EntityId::Loan(source))?;
+        expected_map.extend(transported(&g, exhausted, EntityId::Loan(source))?);
+        expected_map.extend(transported(&g, bs, EntityId::Loan(source))?);
         if breaks {
             let end=one(g.ops(key.block)?.into_iter().filter(|i|matches!(i.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==bs)),"exact break provider End")?;
             need(
@@ -374,6 +378,12 @@ pub(in super::super) fn ssa(
     for &root in &roots {
         uses.protect(root);
     }
+    expected_map.extend(roots.iter().copied());
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+        &g,
+        &map_types.into_iter().collect::<Vec<_>>(),
+        &expected_map,
+    )?;
     uses.check(&g, None)?;
     for i in &g.instructions {
         if let Operation::BorrowEnd { loan } = i.operation {

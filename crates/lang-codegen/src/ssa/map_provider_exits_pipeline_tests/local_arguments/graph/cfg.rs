@@ -44,7 +44,7 @@ pub(super) fn check<'ir>(
         flag: super::ast::span(parsed, *condition),
         arms: [arm(*then_branch)?, arm(*no)?],
     };
-    let (call, end) = argument::check(sources, parsed, &original, module, g, factory, uses)?;
+    let (call, end) = argument::check_unit(sources, parsed, &original, module, g, factory, uses)?;
     Ok(arguments::Delivery {
         call,
         cleanup: vec![end],

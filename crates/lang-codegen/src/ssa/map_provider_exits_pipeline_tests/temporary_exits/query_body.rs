@@ -20,7 +20,6 @@ pub(super) struct Body<'a, 'ir> {
     pub block: BlockId,
     pub roles: Roles,
     pub exit: Exit,
-    pub unit: bool,
 }
 
 #[derive(Debug)]
@@ -237,7 +236,7 @@ impl Body<'_, '_> {
             "temporary exits SSA actual consumer and all derived call loans complete",
             (&live, &roots),
         )?;
-        let end_origin = if self.unit { site.span } else { site.transfer };
+        let end_origin = site.span;
         let mut sequence = vec![
             (Operation::Drop { owner: guard }, site.guard.marker),
             (Operation::BorrowEnd { loan: v }, end_origin),

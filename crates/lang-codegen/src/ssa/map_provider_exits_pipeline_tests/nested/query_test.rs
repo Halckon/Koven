@@ -5,13 +5,13 @@ use super::{
         fixture::{Failure, failure, verify_failure},
         identity, pipeline,
     },
-    Observation, ast, query_inputs, query_ssa, single, unit,
+    Observation, ast, query_inputs, query_ssa, unit,
 };
 
-fn observe(label: &'static str, map: bool, hash: &str, text: &str, unit: bool) -> Observation {
+fn observe(label: &'static str, map: bool, hash: &str, text: &str, rooted: bool) -> Observation {
     let mut report = Report::default();
     println!(
-        "SPEC0331 NESTED IDENTITY INPUT case={label} unit={unit} path=provider.ko frozen_sha256={hash} text={text:?}"
+        "SPEC0331 NESTED IDENTITY INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={hash} text={text:?}"
     );
     let outcome = ast::Input::new(text, map).and_then(|input| {
         let anchors = ast::collect(&input);
@@ -20,46 +20,27 @@ fn observe(label: &'static str, map: bool, hash: &str, text: &str, unit: bool) -
             &anchors,
         );
         let mut inputs: Option<Result<query_inputs::Inputs, Failure>> = None;
-        let (program, entry) = if unit {
-            pipeline::unit_observed(
-                &input.sources,
-                &input.parsed,
-                "provider.ko",
-                &mut report,
-                |names, typed, owned, report| {
-                    unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                    let queried = anchors
-                        .as_ref()
-                        .map_err(|e| failure("nested identity AST for FE", e))
-                        .and_then(|a| query_inputs::unit(&input, a, names, typed, owned));
-                    report.query(
-                        "nested identity same-analysis FE source/caller/component/cleanup bridge",
-                        &queried,
-                    );
-                    inputs = Some(queried);
-                },
-            )
-        } else {
-            pipeline::single_observed(
-                &input.sources,
-                &input.parsed,
-                &mut report,
-                |names, typed, owned, report| {
-                    single::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                    let queried = anchors
-                        .as_ref()
-                        .map_err(|e| failure("nested identity AST for FE", e))
-                        .and_then(|a| query_inputs::single(&input, a, names, typed, owned));
-                    report.query(
-                        "nested identity same-analysis FE source/caller/component/cleanup bridge",
-                        &queried,
-                    );
-                    inputs = Some(queried);
-                },
-            )
-        }?;
+        let (program, entry) = pipeline::unit_input_observed(
+            &input.sources,
+            &input.parsed,
+            "provider.ko",
+            &mut report,
+            rooted,
+            |names, typed, owned, report| {
+                unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+                let queried = anchors
+                    .as_ref()
+                    .map_err(|e| failure("nested identity AST for FE", e))
+                    .and_then(|a| query_inputs::unit(&input, a, names, typed, owned));
+                report.query(
+                    "nested identity same-analysis FE source/caller/component/cleanup bridge",
+                    &queried,
+                );
+                inputs = Some(queried);
+            },
+        )?;
         println!(
-            "SPEC0331 NESTED IDENTITY SSA case={label} unit={unit}\n{}",
+            "SPEC0331 NESTED IDENTITY SSA case={label} rooted={rooted}\n{}",
             crate::ssa::render::render_program(&program)
         );
         let reachable = anchors
@@ -97,12 +78,12 @@ fn observe(label: &'static str, map: bool, hash: &str, text: &str, unit: bool) -
             true,
             llvm.len(),
         );
-        println!("SPEC0331 NESTED IDENTITY LLVM case={label} unit={unit}\n{llvm}");
+        println!("SPEC0331 NESTED IDENTITY LLVM case={label} rooted={rooted}\n{llvm}");
         Ok(())
     });
     Observation {
         label,
-        unit,
+        rooted,
         report,
         outcome,
     }
@@ -112,14 +93,14 @@ fn observe(label: &'static str, map: bool, hash: &str, text: &str, unit: bool) -
 fn nested_map_sources_preserve_caller_and_all_edge_identity() {
     let mut observations = Vec::new();
     for (label, map, hash, text, _golden) in super::sources() {
-        for unit in [false, true] {
-            observations.push(observe(label, map, hash, text, unit));
+        for rooted in [false, true] {
+            observations.push(observe(label, map, hash, text, rooted));
         }
     }
     for observation in &observations {
         println!(
-            "SPEC0331 NESTED IDENTITY OUTCOME case={} unit={} report={:#?}",
-            observation.label, observation.unit, observation.report
+            "SPEC0331 NESTED IDENTITY OUTCOME case={} rooted={} report={:#?}",
+            observation.label, observation.rooted, observation.report
         );
         match &observation.outcome {
             Ok(()) => println!("stage=LLVM render/verify result=ok"),
@@ -131,7 +112,7 @@ fn nested_map_sources_preserve_caller_and_all_edge_identity() {
             && observations
                 .iter()
                 .all(|o| o.report.passed() && o.outcome.is_ok()),
-        "两份原源×single/unit四fresh、八site必须完成同次FE、完整validator、真实caller/两lease/四component全部incoming/uses、SSA和LLVM；\
+        "两份原源×MemoryDocument/rooted Unit四fresh、八site必须完成同次FE、完整validator、真实caller/两lease/四component全部incoming/uses、SSA和LLVM；\
          query失败与原阶段错误分账，未运行不算通过，不推断动态次数。\n{observations:#?}"
     );
 }

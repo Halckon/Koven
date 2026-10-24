@@ -419,7 +419,7 @@ pub(super) fn collect(
         .try_into()
         .map_err(|v| failure("nested exits FE two qualified caller Drops", v))?;
     return_checks(f, a, names, typed, unit)?;
-    spans(f, a, drops, true)
+    spans(f, a, drops, unit)
 }
 
 fn borrow_call(

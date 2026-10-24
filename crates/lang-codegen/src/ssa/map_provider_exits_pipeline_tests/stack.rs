@@ -93,42 +93,25 @@ fn observe(label: &str, text: &str, unit: bool) -> Result<(), Failure> {
         .count();
     let mut report = Report::default();
     let mut inputs = None;
-    let lowered = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |names, typed, owned, report| {
-                let observed = facts::unit(&sources, &parsed, names, typed, owned);
-                report.query("stack original qualified FE bridge", &observed);
-                inputs = Some(observed);
-                report.check(
-                    "stack all original For plans",
-                    owned.map_iterations().len() == count,
-                    owned.map_iterations(),
-                );
-            },
-        )
-    } else {
-        pipeline::single_observed(
-            &sources,
-            &parsed,
-            &mut report,
-            |names, typed, owned, report| {
-                let observed = facts::single(&sources, &parsed, names, typed, owned);
-                report.query("stack original single FE bridge", &observed);
-                inputs = Some(observed);
-                report.check(
-                    "stack all original For plans",
-                    owned.map_iterations().len() == count,
-                    owned.map_iterations(),
-                );
-            },
-        )
-    };
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        unit,
+        |names, typed, owned, report| {
+            let observed = facts::unit(&sources, &parsed, names, typed, owned);
+            report.query("stack original qualified FE bridge", &observed);
+            inputs = Some(observed);
+            report.check(
+                "stack all original For plans",
+                owned.map_iterations().len() == count,
+                owned.map_iterations(),
+            );
+        },
+    );
     println!(
-        "G8 STACK LOWER case={label} unit={unit} report={report:#?} result={:?}",
+        "G8 STACK LOWER case={label} rooted={unit} report={report:#?} result={:?}",
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
@@ -140,16 +123,16 @@ fn observe(label: &str, text: &str, unit: bool) -> Result<(), Failure> {
                 .as_ref()
                 .map_err(|e| failure("stack original FE bridge", e))
         })
-        .and_then(|input| query::check(&sources, &parsed, &program, input, unit));
-    println!("G8 STACK QUERY case={label} unit={unit} result={queried:?}");
+        .and_then(|input| query::check(&sources, &parsed, &program, input, true));
+    println!("G8 STACK QUERY case={label} rooted={unit} result={queried:?}");
     report.query("stack independent complete identities", &queried);
     crate::ssa::verify::verify_program(&program).map_err(|e| verify_failure(&sources, e))?;
     let llvm = crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
     println!(
-        "G8 STACK SSA case={label} unit={unit}\n{}",
+        "G8 STACK SSA case={label} rooted={unit}\n{}",
         crate::ssa::render::render_program(&program)
     );
-    println!("G8 STACK LLVM case={label} unit={unit}\n{llvm}");
+    println!("G8 STACK LLVM case={label} rooted={unit}\n{llvm}");
     if !report.passed() {
         return Err(failure("stack FE/SSA identities", report));
     }
@@ -160,9 +143,9 @@ fn group(index: usize, expected: usize) {
     let mut observations = Vec::new();
     for (label, source) in originals(index) {
         for unit in [false, true] {
-            println!("G8 STACK INPUT case={label} unit={unit} source={source:?}");
+            println!("G8 STACK INPUT case={label} rooted={unit} source={source:?}");
             let result = observe(label, source, unit);
-            println!("G8 STACK CASE case={label} unit={unit} result={result:?}");
+            println!("G8 STACK CASE case={label} rooted={unit} result={result:?}");
             observations.push(result);
         }
     }
@@ -206,12 +189,12 @@ fn runtime_group(cases: Vec<Case>, count: usize) {
     for case in cases {
         for unit in [false, true] {
             println!(
-                "G8 STACK RUNTIME INPUT case={} unit={unit} source={:?} golden={:?}",
+                "G8 STACK RUNTIME INPUT case={} rooted={unit} source={:?} golden={:?}",
                 case.label, case.source, case.golden
             );
             let result = observe(&case.label, &case.source, unit);
             println!(
-                "G8 STACK RUNTIME CASE case={} unit={unit} result={result:?}",
+                "G8 STACK RUNTIME CASE case={} rooted={unit} result={result:?}",
                 case.label
             );
             observations.push(result);

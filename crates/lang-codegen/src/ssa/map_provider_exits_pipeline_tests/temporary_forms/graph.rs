@@ -120,6 +120,8 @@ struct Shape<'a> {
     pre: BlockId,
     exit: BlockId,
     owners: BTreeSet<EntityId>,
+    capabilities: BTreeSet<EntityId>,
+    map: SsaTypeId,
 }
 
 struct Query<'a, 'ir> {
@@ -412,7 +414,18 @@ impl<'ir> Query<'_, 'ir> {
             "temporary form owning cleanup before its exact after marker",
             (drop, after),
         )?;
+        let mut capabilities = BTreeSet::from([EntityId::Place(place)]);
+        for current in roles {
+            need(
+                capabilities.insert(EntityId::Value(current.owner))
+                    && capabilities.insert(EntityId::Loan(current.source)),
+                "Unit represented temporary has distinct current owner and lease roles",
+                current,
+            )?;
+        }
         Ok(Shape {
+            capabilities,
+            map: map_type,
             call,
             drop,
             after,
@@ -478,6 +491,22 @@ pub(super) fn check(
                 == 1,
         "temporary forms exactly two distinct Map Drops before the only normal Return",
         drops,
+    )?;
+    need(
+        first.capabilities.is_disjoint(&second.capabilities),
+        "Unit distinct Call owners never share storage or provider capabilities",
+        (&first.capabilities, &second.capabilities),
+    )?;
+    let expected = first
+        .capabilities
+        .union(&second.capabilities)
+        .copied()
+        .collect();
+    // A set union of already directed, disjoint roles is only an inventory, never an alias proof.
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+        &g,
+        &[first.map, second.map],
+        &expected,
     )?;
     uses.check(&g, None)
 }

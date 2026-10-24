@@ -1,7 +1,7 @@
 //! Original D6 positive observations with same-analysis owner and actual provider proofs.
 mod ast;
 mod facts;
-mod graph;
+pub(super) mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure, need},
@@ -46,7 +46,7 @@ pub(crate) fn cases() -> [Case; 6] {
 }
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     println!(
-        "SCOPE D FUTURE INPUT label={} unit={unit} source={:?} golden={:?}",
+        "SCOPE D FUTURE INPUT label={} rooted={unit} source={:?} golden={:?}",
         c.label, c.source, c.golden
     );
     let mut sources = SourceMap::new();
@@ -59,14 +59,19 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     clean(&sources, "parse", p.diagnostics())?;
     let i = ast::input(c, &sources, &p)?;
     println!(
-        "SCOPE D FUTURE AST label={} unit={unit} input={i:#?}",
+        "SCOPE D FUTURE AST label={} rooted={unit} input={i:#?}",
         c.label
     );
     let mut report = Report::default();
     let mut observed = false;
     let mut proof = None;
-    let lowered = if unit {
-        pipeline::unit_observed(&sources, &p, "provider.ko", &mut report, |n, t, o, r| {
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &p,
+        "provider.ko",
+        &mut report,
+        unit,
+        |n, t, o, r| {
             observed = true;
             let result = facts::unit(c, &p, &i, n, t, o);
             r.query(
@@ -74,17 +79,10 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
                 &result,
             );
             proof = result.ok();
-        })
-    } else {
-        pipeline::single_observed(&sources, &p, &mut report, |n, t, o, r| {
-            observed = true;
-            let result = facts::single(c, &p, &i, n, t, o);
-            r.query("D original future owner/return/move/put facts", &result);
-            proof = result.ok();
-        })
-    };
+        },
+    );
     println!(
-        "SCOPE D FUTURE LOWER label={} unit={unit} observed={observed} report={report:#?} outcome={:?}",
+        "SCOPE D FUTURE LOWER label={} rooted={unit} observed={observed} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, entry)| entry)
     );
@@ -109,7 +107,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
             .map_err(|e| failure("LLVM", e)),
     );
     println!(
-        "SCOPE D FUTURE FINAL label={} unit={unit} report={report:#?}",
+        "SCOPE D FUTURE FINAL label={} rooted={unit} report={report:#?}",
         c.label
     );
     need(
@@ -125,7 +123,7 @@ fn original_future_owner_handoffs_report_real_facts() {
         for unit in [false, true] {
             let result = observe(&c, unit);
             println!(
-                "SCOPE D FUTURE CASE label={} unit={unit} result={result:?}",
+                "SCOPE D FUTURE CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
             outcomes.push((c.label, unit, result));

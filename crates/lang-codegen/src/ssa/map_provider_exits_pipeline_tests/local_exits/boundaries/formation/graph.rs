@@ -54,12 +54,20 @@ fn original_call<'a>(
 }
 
 pub(in super::super::super::super) fn check(
-    _sources: &SourceMap,
+    sources: &SourceMap,
     parsed: &ParsedFile,
     program: &Program,
     input: &Inputs,
 ) -> Result<(), Failure> {
     let module = one(program.modules.iter(), "formation original module")?;
+    let (entry_span, _) = super::function(sources, parsed, "entry")?;
+    let entry_function = source_function(module, entry_span)?;
+    crate::ssa::map_provider_exits_pipeline_tests::identity::entry_sources(
+        sources,
+        program,
+        entry_function.id,
+        &[("entry", entry_span), ("scan", input.site.scan)],
+    )?;
     let scanner = source_function(module, input.site.scan)?;
     let g = Graph::new(scanner)?;
     let mut uses = Uses::default();
@@ -293,6 +301,20 @@ pub(in super::super::super::super) fn check(
     )?;
     conditional::check(&g, parsed, input)?;
     super::representation::graph(module, &g, input, seed, next)?;
+    let mut owner_births = BTreeSet::from([original_seed, seed]);
+    for &(at, _) in &input.calls {
+        let call = original_call(&g, module, input, at)?;
+        for &entity in &call.results {
+            if map_value(module, &g, entity) {
+                owner_births.insert(entity);
+            }
+        }
+    }
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &g,
+        module,
+        &owner_births,
+    )?;
     paths::check(
         &g,
         module,

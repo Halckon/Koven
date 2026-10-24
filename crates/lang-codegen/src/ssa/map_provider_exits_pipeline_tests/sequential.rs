@@ -169,30 +169,22 @@ fn observe(case: &Case, unit: bool, report: &mut Report) -> Result<(), Failure> 
     clean(&sources, "lex diagnostics", lexed.diagnostics())?;
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse diagnostics", parsed.diagnostics())?;
-    let (program, entry) = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            report,
-            |names, typed, owned, r| {
-                r.query(
-                    "unit two original Borrow roots and complete cleanup",
-                    &identity::unit(case, &sources, &parsed, names, typed, owned),
-                );
-            },
-        )?
-    } else {
-        pipeline::single_observed(&sources, &parsed, report, |names, typed, owned, r| {
+    let (program, entry) = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        report,
+        unit,
+        |names, typed, owned, r| {
             r.query(
-                "single two original Borrow roots and complete cleanup",
-                &identity::single(case, &sources, &parsed, names, typed, owned),
+                "unit two original Borrow roots and complete cleanup",
+                &identity::unit(case, &sources, &parsed, names, typed, owned),
             );
-        })?
-    };
+        },
+    )?;
     report.query(
         "all actual incoming Borrow identities and provider cleanup",
-        &identity::ssa(case, &sources, &parsed, &program, unit),
+        &identity::ssa(case, &sources, &parsed, &program, true),
     );
     super::super::verify::verify_program(&program).map_err(|e| failure("SSA verifier", e))?;
     let ir =
@@ -209,7 +201,7 @@ fn sequential_borrowed_maps_keep_current_roots_and_cleanup_in_both_entries() {
             let mut report = Report::default();
             let outcome = observe(&case, unit, &mut report);
             println!(
-                "SEQUENTIAL case={} unit={unit} outcome={outcome:?} report={report:#?}",
+                "SEQUENTIAL case={} rooted={unit} outcome={outcome:?} report={report:#?}",
                 case.label
             );
             results.push((case.label.clone(), unit, report.passed() && outcome.is_ok()));

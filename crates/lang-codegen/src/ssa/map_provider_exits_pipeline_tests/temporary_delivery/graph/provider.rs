@@ -262,5 +262,23 @@ pub(super) fn check<'ir>(
             )?;
         }
     }
-    Ok(())
+    let mut expected = BTreeSet::from([EntityId::Place(place)]);
+    for frame in [initial, header, current, exit] {
+        need(
+            expected.insert(EntityId::Value(frame.owner))
+                && expected.insert(EntityId::Loan(frame.source)),
+            "Unit delivered Map has distinct current owner and source roles",
+            frame,
+        )?;
+    }
+    need(
+        expected.is_disjoint(&delivered.map_capabilities),
+        "Unit returned Map never aliases the independently evaluated Map argument",
+        (&expected, &delivered.map_capabilities),
+    )?;
+    expected.extend(delivered.map_capabilities.iter().copied());
+    let types = std::iter::once(map)
+        .chain(delivered.map_types.iter().copied())
+        .collect::<Vec<_>>();
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(g, &types, &expected)
 }

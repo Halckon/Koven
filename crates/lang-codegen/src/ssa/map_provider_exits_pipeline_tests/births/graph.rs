@@ -185,5 +185,9 @@ pub(super) fn check(
         "birth sole Map cleanup, no old construction/put/consume duplicate",
         all_drops,
     )?;
+    let births = prior.iter().copied().chain([seed]).collect::<BTreeSet<_>>();
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &g, module, &births,
+    )?;
     uses.check(&g, None)
 }

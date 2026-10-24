@@ -14,7 +14,7 @@ use crate::ssa::model::{
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     lexer::lex,
-    name_resolution::{NameResolution, SymbolKind, ValidatedCompilationUnitNames},
+    name_resolution::{SymbolKind, ValidatedCompilationUnitNames},
     ownership_checking as ownership,
     parser::{
         AssignmentOperator, Expression, ForBinding, Item, NameMarker, ParsedFile, Statement,
@@ -140,142 +140,6 @@ fn anchors(sources: &SourceMap, parsed: &ParsedFile) -> Result<Anchors, Failure>
         target: *target,
         rhs: *value,
     })
-}
-
-fn single_facts(
-    a: &Anchors,
-    names: &NameResolution,
-    typed: &types::TypedFile,
-    owned: &ownership::OwnershipCheckedFile,
-) -> Result<(), Failure> {
-    use ownership::{
-        DropPoint as P, DropTarget as T, IterationCleanupAction as A, IterationExitKind as E,
-    };
-    let d = typed
-        .map_iteration(a.statement)
-        .ok_or_else(|| failure("w09 single descriptor", a))?;
-    let p = owned
-        .map_iteration(a.statement)
-        .ok_or_else(|| failure("w09 single plan", a))?;
-    println!("D10 W09 SINGLE REAL descriptor={d:#?} plan={p:#?}");
-    let make = one(
-        names.symbols().iter().filter(|s| {
-            s.kind() == SymbolKind::Function && s.span() == a.make_name && !s.is_synthetic()
-        }),
-        "w09 actual single make symbol",
-    )?;
-    let call = typed
-        .call(a.source)
-        .ok_or_else(|| failure("w09 single source Call", a))?;
-    need(
-        d.source() == a.source
-            && p.descriptor() == d
-            && typed.expression_category(a.source) == Some(types::ExpressionCategory::Temporary)
-            && call.target() == types::CallableTarget::Source(make.id())
-            && call.arguments().is_empty()
-            && call.receiver().is_none()
-            && call.return_type() == d.source_type()
-            && call.result_source() == types::CallableResultSource::Owned
-            && p.source_access() == ownership::MapIterationSourceAccess::Temporary
-            && p.source_kind()
-                == &ownership::IterationSource::BorrowedSource(ownership::LoanTarget::Temporary(
-                    a.source,
-                ))
-            && typed.types().get(d.key_type())
-                == Some(&types::TypeKind::Builtin(types::BuiltinType::String))
-            && typed.types().get(d.value_type())
-                == Some(&types::TypeKind::Builtin(types::BuiltinType::Int)),
-        "w09 single actual Call/Temporary/source types",
-        (d, p, call),
-    )?;
-    for (i, component) in [
-        ownership::MapIterationComponent::Key,
-        ownership::MapIterationComponent::Value,
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let symbol = d.bindings()[i];
-        let loan = &p.loans()[i];
-        need(
-            names.symbols().iter().any(|s| {
-                s.id() == symbol && s.span() == a.bindings[i] && s.kind() == SymbolKind::ForBinding
-            }) && d.bindings()[0] != d.bindings()[1]
-                && loan.binding() == symbol
-                && loan.component() == component
-                && loan.statement() == a.statement
-                && loan.source() == a.source
-                && Some(loan.origin()) == p.source()
-                && p.bindings()[i].symbol() == symbol
-                && p.bindings()[i].kind() == ownership::OwnershipBindingKind::Shared
-                && owned.binding_kind(symbol) == Some(ownership::OwnershipBindingKind::Shared),
-            "w09 single component identity",
-            (symbol, loan),
-        )?;
-    }
-    let drop = one(
-        owned
-            .drops()
-            .iter()
-            .filter(|d| d.target() == T::Temporary(a.source)),
-        "w09 single unique source Drop",
-    )?;
-    need(
-        drop.point() == P::LoopExit(a.statement) && drop.value_origin() == a.source_span,
-        "w09 single Drop exact source/point",
-        drop,
-    )?;
-    let expected = [
-        (
-            E::Fallthrough,
-            P::AfterStatement(a.body),
-            vec![
-                A::EndBinding {
-                    statement: a.statement,
-                    symbol: d.value_binding(),
-                },
-                A::EndBinding {
-                    statement: a.statement,
-                    symbol: d.key_binding(),
-                },
-            ],
-        ),
-        (
-            E::Exhaustion,
-            P::LoopExit(a.statement),
-            vec![
-                A::FinishProvider(a.statement),
-                A::EndSource(a.statement),
-                A::Drop(*drop),
-            ],
-        ),
-    ];
-    need(
-        p.exits().len() == expected.len(),
-        "w09 single complete exit set",
-        p.exits(),
-    )?;
-    for (kind, point, actions) in expected {
-        let exit = one(
-            p.exits().iter().filter(|e| e.kind() == kind),
-            "w09 single unique exit",
-        )?;
-        let complete = owned
-            .cleanup_steps()
-            .iter()
-            .filter_map(|(at, action)| (*at == point).then_some(*action))
-            .collect::<Vec<_>>();
-        need(
-            exit.point() == point
-                && exit.actions() == actions
-                && complete == actions
-                && owned.cleanup_conditions().get(exit.condition())
-                    == Some(&ownership::CleanupCondition::Always),
-            "w09 single complete ordered cleanup",
-            (exit, complete, actions),
-        )?;
-    }
-    Ok(())
 }
 
 fn unit_facts(
@@ -509,7 +373,7 @@ fn observe(unit: bool) -> Observation {
                 },
             )
         } else {
-            pipeline::single_observed_with_entry(
+            pipeline::memory_document_observed_with_entry(
                 &sources,
                 &parsed,
                 "main",
@@ -517,12 +381,9 @@ fn observe(unit: bool) -> Observation {
                 |n, t, o, r| {
                     let facts = anchors
                         .as_ref()
-                        .map_err(|e| failure("w09 AST for single query", e))
-                        .and_then(|a| single_facts(a, n, t, o));
-                    r.query(
-                        "w09 same-analysis single source and complete cleanup",
-                        &facts,
-                    );
+                        .map_err(|e| failure("w09 AST for unit query", e))
+                        .and_then(|a| unit_facts(a, n, t, o));
+                    r.query("w09 same-analysis unit source and complete cleanup", &facts);
                 },
             )
         }?;
@@ -562,7 +423,7 @@ fn w09_temporary_map_carry_reaches_verified_llvm() {
         observations
             .iter()
             .all(|o| o.report.passed() && o.outcome.is_ok()),
-        "原222B w09 的 single/unit 两 fresh 必须完成同轮完整 FE/sealed、真实 main、SSA 与 LLVM；UnsupportedNode 不是成功 oracle。\n{observations:#?}"
+        "原222B w09 的 MemoryDocument/rooted Unit 两 fresh 必须完成同轮完整 FE/sealed、真实 main、SSA 与 LLVM；UnsupportedNode 不是成功 oracle。\n{observations:#?}"
     );
 }
 
