@@ -6,7 +6,7 @@ use super::super::{
     query_inputs::one,
 };
 use super::{Case, Report};
-use ast::{Loop, Scanner};
+use ast::Scanner;
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::{

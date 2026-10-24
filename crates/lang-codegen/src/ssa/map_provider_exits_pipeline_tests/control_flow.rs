@@ -190,8 +190,8 @@ fn observe(label: &str, text: &str, unit: bool) -> Result<(), Failure> {
                             };
                             Some((id, kind))
                         })
-                        .collect::<std::collections::BTreeSet<_>>();
-                    let mut actual = std::collections::BTreeSet::new();
+                        .collect::<Vec<_>>();
+                    let mut actual = Vec::new();
                     for exit in plan.exits() {
                         let (id, kind) = match exit.kind() {
                             Exit::Continue(id) => (id, 0),
@@ -202,13 +202,15 @@ fn observe(label: &str, text: &str, unit: bool) -> Result<(), Failure> {
                         super::fixture::need(
                             id.source_unit() == descriptor.statement().source_unit()
                                 && exit.point() == UnitDropPoint::ControlTransfer(id)
-                                && actual.insert((id.expression(), kind)),
+                                && !actual.contains(&(id.expression(), kind)),
                             "ordinary CFG exact unique original Unit control-transfer point",
                             exit,
                         )?;
+                        actual.push((id.expression(), kind));
                     }
                     super::fixture::need(
-                        actual == expected,
+                        actual.len() == expected.len()
+                            && expected.iter().all(|transfer| actual.contains(transfer)),
                         "ordinary CFG all and only this original For body's transfer IDs/kinds",
                         (&actual, &expected),
                     )

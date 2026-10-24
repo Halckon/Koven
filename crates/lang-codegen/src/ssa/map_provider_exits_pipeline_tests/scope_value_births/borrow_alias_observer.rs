@@ -5,7 +5,7 @@ use super::super::{
     Report,
     fixture::{Failure, clean, failure, need},
     pipeline,
-    query_graph::{Graph, Uses, function, loan, result},
+    query_graph::{Graph, Uses, function, loan},
     query_inputs::one,
 };
 use crate::ssa::model::*;

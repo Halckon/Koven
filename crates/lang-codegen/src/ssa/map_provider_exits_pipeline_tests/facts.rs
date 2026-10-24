@@ -6,8 +6,8 @@ use super::{
 use lang_frontend::{
     name_resolution::{SymbolKind, UnitReferenceTarget, ValidatedCompilationUnitNames},
     ownership_checking::{
-        CompilationUnitOwnership, LoanKind, MapIterationComponent, OwnershipBindingKind,
-        UnitDropTarget, UnitIterationSourceAccess, UnitLoanTarget,
+        CompilationUnitOwnership, IterationSource, LoanKind, MapIterationComponent,
+        OwnershipBindingKind, UnitDropTarget, UnitIterationSourceAccess, UnitLoanTarget,
     },
     type_checking::{
         BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, MapIterationKind,
