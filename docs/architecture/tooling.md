@@ -55,8 +55,7 @@ raw API、基础/常量validate及LSP recovery保持原合同；此资格不证�
 
 ## LSP
 
-`lang-lsp` 是标准 stdio server，声明 UTF-16 position encoding、full-document sync、诊断和
-`textDocument/definition`。
+`lang-lsp` 是标准 stdio server，声明 UTF-16、full-document sync、诊断、`textDocument/definition` 与 `textDocument/formatting`。
 
 它有两种明确模式：
 
@@ -76,6 +75,7 @@ typed diagnostics 先由宿主收集，再调用同一 `analyze_basic_unit_owner
 失败保留 last-good。已发消息不能撤回，此边界不是 wire 事务。诊断按 target URI 分组并稳定
 发布，definition 直接消费已保存的 name/type target，不重新解析 package/import 或 overload。
 
+全文格式化读取已打开 snapshot，复用 frontend 固定样式并返回 UTF-16 编辑；语法错误或未打开文档返回 null，不应用结果或改变既有版本合同。
 `position_adapter` 集中处理 Span 与 UTF-16 的双向映射，拒绝 surrogate pair 中间位置和越界 cursor。
 实现入口位于 `crates/lang-lsp/src/analysis.rs`、`source_set.rs`、`unit_session.rs`、`definition.rs` 和
 `diagnostic_adapter.rs`；`single_file_oracle` 以已审 Unit JSON 硬比十一原源完整诊断与逐 UTF-8 边界有序导航，旧基线只留历史，坐标变换独立核验。

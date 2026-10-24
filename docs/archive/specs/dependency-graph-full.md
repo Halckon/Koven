@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，328 份）"]
+subgraph Garchive["已完成（archive，329 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -335,6 +335,7 @@ subgraph Garchive["已完成（archive，328 份）"]
   S0349["S0349<br/>内建 Result/Ok/Err、is Case subject 推断与 kovenc check"]
   S0351["S0351<br/>LLVM 安装等待边界"]
   S0352["S0352<br/>CLI project source-set v1 导出"]
+  S0353["S0353<br/>LSP 全文格式化适配"]
   S0354["S0354<br/>Conformance 种子集入库"]
   S0355["S0355<br/>abort 输出与 kovenc run 退出状态"]
 end
@@ -1750,6 +1751,7 @@ S0354 --> S0349
 | SPEC-0349 | archive | [0349-builtin-result-and-check.md](0349-builtin-result-and-check.md) |
 | SPEC-0351 | archive | [0351-llvm-install-bounds.md](0351-llvm-install-bounds.md) |
 | SPEC-0352 | archive | [0352-source-set-export.md](0352-source-set-export.md) |
+| SPEC-0353 | archive | [0353-lsp-formatting.md](0353-lsp-formatting.md) |
 | SPEC-0354 | archive | [0354-conformance-corpus.md](0354-conformance-corpus.md) |
 | SPEC-0355 | archive | [0355-abort-output.md](0355-abort-output.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |

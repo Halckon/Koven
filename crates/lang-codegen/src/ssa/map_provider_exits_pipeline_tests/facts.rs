@@ -798,10 +798,14 @@ fn unit_exit(
         matches!(guards.as_slice(), [drop] if drop.point() == UnitDropPoint::ControlTransfer(transfer) && drop.value_origin() == site.local), &guards);
     report.check(
         "unit components are never formed owned locals or Named Drop owners",
-        !owned.drops().iter().any(
-            |drop| matches!(drop.target(), UnitDropTarget::Named(s) if d.bindings().contains(&s)),
-        ),
-        owned.drops(),
+        !owned
+            .formed_owned_locals()
+            .iter()
+            .any(|symbol| d.bindings().contains(symbol))
+            && !owned.drops().iter().any(
+                |drop| matches!(drop.target(), UnitDropTarget::Named(s) if d.bindings().contains(&s)),
+            ),
+        (owned.formed_owned_locals(), owned.drops()),
     );
     let c = typed.call(call);
     let target = c.and_then(|c| {

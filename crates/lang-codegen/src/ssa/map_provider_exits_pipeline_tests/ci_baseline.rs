@@ -1,4 +1,4 @@
-//! Unmodified real-source baseline for CI private contracts; safe ordinary local acceptance.
+//! 原真实单 Map plan 的 MemoryDocument/rooted Unit baseline；不混入六源 Guard oracle。
 use super::{Report, pipeline};
 use crate::ssa::{model::Program, verify::verify_program};
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
@@ -13,7 +13,7 @@ fun entry(): Unit {
 }
 "#;
 
-pub(super) fn baseline(unit: bool) -> Program {
+pub(super) fn baseline(rooted: bool) -> Program {
     let mut sources = SourceMap::new();
     let id = sources.add_source("provider.ko", SOURCE).unwrap();
     let lexed = lex(&sources, id).unwrap();
@@ -21,7 +21,7 @@ pub(super) fn baseline(unit: bool) -> Program {
     let parsed = parse_file(&sources, &lexed).unwrap();
     assert!(parsed.diagnostics().is_empty());
     let mut report = Report::default();
-    let (program, _) = if unit {
+    let (program, _) = if rooted {
         pipeline::unit_observed(
             &sources,
             &parsed,
@@ -29,16 +29,16 @@ pub(super) fn baseline(unit: bool) -> Program {
             &mut report,
             |_, _, owned, r| {
                 r.check(
-                    "original single unit Map provider",
+                    "original rooted Unit Map provider",
                     owned.map_iterations().len() == 1,
                     owned.map_iterations(),
                 );
             },
         )
     } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |_, _, owned, r| {
+        pipeline::memory_document_observed(&sources, &parsed, &mut report, |_, _, owned, r| {
             r.check(
-                "original single file Map provider",
+                "original MemoryDocument Unit Map provider",
                 owned.map_iterations().len() == 1,
                 owned.map_iterations(),
             );
@@ -53,8 +53,11 @@ pub(super) fn baseline(unit: bool) -> Program {
 
 #[test]
 fn both_real_provider_baselines_reach_verified_llvm() {
-    for unit in [false, true] {
-        baseline(unit);
-        println!("SPEC0331 ORDINARY CI BASELINE unit={unit} SSA=verified LLVM=verified");
+    for rooted in [false, true] {
+        baseline(rooted);
+        println!(
+            "SPEC0331 ORDINARY CI BASELINE input={} SSA=verified LLVM=verified",
+            super::input_label(rooted)
+        );
     }
 }

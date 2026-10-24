@@ -13,6 +13,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 [0352 CLI source-set 导出](../archive/specs/0352-source-set-export.md)已按 PR138 完整双宿主实现 CI 验收归档；最终 head 与合并后 CI 另验。
 
+[0353 LSP 全文格式化适配](../archive/specs/0353-lsp-formatting.md)已按 PR150 双宿主实现 CI 验收归档；最终 head 与实际 main CI 另验。
+
 ## 当前入口
 
 ### Active

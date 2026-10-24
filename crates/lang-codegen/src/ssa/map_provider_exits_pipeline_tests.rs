@@ -1,4 +1,4 @@
-//! SPEC-0331 的普通 Map provider 成功合同；十二条真实 pipeline 全收齐后统一断言。
+//! SPEC-0331 的普通 Map provider 成功合同；六源 × MemoryDocument/rooted Unit 全采后断。
 //! 不执行 native，不以当前 lower 的 UnsupportedNode 债务作为通过条件。
 
 mod borrowed;
@@ -29,6 +29,7 @@ pub(in crate::ssa) use query_graph::Graph as OrdinaryGraph;
 pub(in crate::ssa) use query_inputs::one as one_query;
 mod query_inputs;
 mod query_map_normal_body;
+mod query_owner;
 mod query_ssa;
 mod query_temporary_cleanup;
 mod query_test;
@@ -147,27 +148,36 @@ impl Report {
 #[derive(Debug)]
 struct Observation {
     label: &'static str,
-    unit: bool,
+    rooted: bool,
     report: Report,
     outcome: Result<(), Failure>,
 }
 
-fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
+fn input_label(rooted: bool) -> &'static str {
+    if rooted {
+        "rooted Unit"
+    } else {
+        "MemoryDocument Unit"
+    }
+}
+
+fn observe(label: &'static str, text: &str, rooted: bool) -> Observation {
     let mut report = Report::default();
+    let input = input_label(rooted);
     println!(
-        "SPEC0331 PROVIDER EXIT INPUT case={label} unit={unit} path=provider.ko text={text:?}"
+        "SPEC0331 PROVIDER EXIT INPUT case={label} input={input} path=provider.ko text={text:?}"
     );
     let outcome = Fixture::new(label, text).and_then(|fixture| {
         let expected_functions = identity::source_functions(&fixture);
         report.query("source function AST identity", &expected_functions);
-        let lowered = if unit {
+        let lowered = if rooted {
             pipeline::unit(&fixture, &mut report)
         } else {
-            pipeline::single(&fixture, &mut report)
+            pipeline::memory_document(&fixture, &mut report)
         }?;
         let (program, entry) = lowered;
         println!(
-            "SPEC0331 PROVIDER EXIT SSA case={label} unit={unit}\n{}",
+            "SPEC0331 PROVIDER EXIT SSA case={label} input={input}\n{}",
             super::render::render_program(&program)
         );
         // 只读 query 的失败留在独立 report，不吞 lower 已到达的 verify/LLVM 原错误。
@@ -190,12 +200,12 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|error| fixture::failure("LLVM render/verify", error))?;
         report.check("LLVM render/verify", true, llvm.len());
-        println!("SPEC0331 PROVIDER EXIT LLVM case={label} unit={unit}\n{llvm}");
+        println!("SPEC0331 PROVIDER EXIT LLVM case={label} input={input}\n{llvm}");
         Ok(())
     });
     Observation {
         label,
-        unit,
+        rooted,
         report,
         outcome,
     }
@@ -205,15 +215,17 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
 fn map_and_mutable_map_unconditional_exits_reach_verified_llvm() {
     let mut observations = Vec::new();
     for (label, source, _golden) in sources() {
-        for unit in [false, true] {
-            observations.push(observe(label, source, unit));
+        for rooted in [false, true] {
+            observations.push(observe(label, source, rooted));
         }
     }
     // 所有真实观察结束后只有这一个硬成功断言，首红不能短路另外十一格。
     for observation in &observations {
         println!(
-            "SPEC0331 PROVIDER EXIT OUTCOME case={} unit={} report={:#?}",
-            observation.label, observation.unit, observation.report
+            "SPEC0331 PROVIDER EXIT OUTCOME case={} input={} report={:#?}",
+            observation.label,
+            input_label(observation.rooted),
+            observation.report
         );
         match &observation.outcome {
             Ok(()) => println!("stage=LLVM render/verify result=ok"),
