@@ -458,7 +458,7 @@ fn lower_unit_impl(
                     .collect(),
                 span: plan.instance.span(),
             };
-            if crate::ssa::refine::accepts(&inputs) {
+            if crate::ssa::refine::routes(&inputs) {
                 for ty in crate::ssa::refine::type_demands(&inputs) {
                     types.intern(module, typed, ty, plan.instance.span())?;
                 }

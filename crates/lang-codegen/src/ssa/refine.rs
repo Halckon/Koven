@@ -61,6 +61,36 @@ pub(in crate::ssa) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     subset::accepts(inputs)
 }
 
+/// Whether the function instance is lowered here; [`accepts`] unless a test pinned the
+/// per-family path.
+pub(in crate::ssa) fn routes(inputs: &RefineInputs<'_>) -> bool {
+    #[cfg(test)]
+    if PER_FAMILY_ONLY.with(std::cell::Cell::get) {
+        return false;
+    }
+    accepts(inputs)
+}
+
+#[cfg(test)]
+thread_local! {
+    static PER_FAMILY_ONLY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Test-only: runs `lower` with every function on the per-family path, for tests that
+/// inspect or fault-inject that path's private guards.
+#[cfg(test)]
+pub(in crate::ssa) fn with_per_family_lowering<T>(lower: impl FnOnce() -> T) -> T {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            PER_FAMILY_ONLY.with(|flag| flag.set(false));
+        }
+    }
+    PER_FAMILY_ONLY.with(|flag| flag.set(true));
+    let _reset = Reset;
+    lower()
+}
+
 /// Frontend types an accepted body needs in the SSA type table, in first-use order.
 pub(in crate::ssa) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
     subset::type_demands(inputs)
