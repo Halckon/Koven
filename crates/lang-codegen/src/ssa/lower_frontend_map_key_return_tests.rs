@@ -1,13 +1,14 @@
-//! SPEC-0297: real source facts and both lowering entries for key return.
-use super::super::{analyze, lower_scalar_file};
+//! SPEC-0297: original key-return sources through MemoryDocument and rooted Unit.
+#[path = "lower_frontend_map_key_return_unit_identity.rs"]
+mod unit_identity;
+
 use crate::ssa::{
     model::{Operation, Program},
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support,
 };
 use lang_frontend::{
-    name_resolution::SourceUnitInput, ownership_checking::LoanEndPoint, source::SourceMap,
-    type_checking::standard_environments,
+    name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
 
 fn source(operation: &str, key: &str) -> String {
@@ -55,71 +56,7 @@ fn check_operation(program: &Program, operation: &str, count: usize) {
 
 fn single(operation: &str, key: &str, count: usize) {
     let source = source(operation, key);
-    let a = analyze(&source);
-    assert!(
-        a.parsed.diagnostics().is_empty(),
-        "{source}: {:?}",
-        a.parsed.diagnostics()
-    );
-    assert!(
-        a.names.diagnostics().is_empty(),
-        "{source}: {:?}",
-        a.names.diagnostics()
-    );
-    assert!(
-        a.typed.diagnostics().is_empty(),
-        "{source}: {:?}",
-        a.typed.diagnostics()
-    );
-    assert!(
-        a.owned.diagnostics().is_empty(),
-        "{source}: {:?}",
-        a.owned.diagnostics()
-    );
-    let (call, receiver) = match operation {
-        "get" => (
-            a.typed.map_gets()[0].expression(),
-            a.typed.map_gets()[0].receiver(),
-        ),
-        "contains" => (
-            a.typed.map_contains_calls()[0].expression(),
-            a.typed.map_contains_calls()[0].receiver(),
-        ),
-        "remove" => (
-            a.typed.map_removes()[0].expression(),
-            a.typed.map_removes()[0].receiver(),
-        ),
-        _ => unreachable!(),
-    };
-    let endings = a
-        .owned
-        .loan_ends()
-        .iter()
-        .filter(|fact| matches!(fact.point(), LoanEndPoint::ControlTransfer(_)))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        endings.len(),
-        if key == "if (flag) { return } else { return }" {
-            2
-        } else {
-            1
-        }
-    );
-    for end in &endings {
-        assert_eq!(end.call(), call);
-        assert_eq!(end.argument(), receiver);
-        let begin = a
-            .owned
-            .loan_begin(end.argument())
-            .expect("real receiver loan begin");
-        assert_eq!(begin.call(), end.call());
-        assert_eq!(begin.argument(), end.argument());
-        assert_eq!(begin.is_receiver_reservation(), operation == "remove");
-    }
-    let program = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned)
-        .unwrap_or_else(|error| panic!("{source}\n{error:?}\nreal loan endings: {endings:?}"));
-    check_operation(&program, operation, count);
-    crate::llvm::render_verified_program(&program).unwrap();
+    unit_identity::check(&source, operation, key, count);
 }
 
 fn unit(operation: &str, key: &str, count: usize) {
