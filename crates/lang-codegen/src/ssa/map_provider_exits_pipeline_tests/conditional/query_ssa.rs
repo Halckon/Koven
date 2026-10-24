@@ -10,6 +10,7 @@ use super::{
     query_inputs::Inputs,
 };
 use crate::ssa::model::*;
+use lang_frontend::source::Span;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Copy, Debug)]
@@ -185,7 +186,6 @@ pub(super) fn check(
     f: &Input,
     a: &Anchors,
     input: &Inputs,
-    unit: bool,
 ) -> Result<(), Failure> {
     let module = one(program.modules.iter(), "conditional identity sole module")?;
     let scan_span = one(
@@ -279,6 +279,7 @@ pub(super) fn check(
     uses.protect(seed);
     uses.permit(EntityId::Loan(lease), first);
     let mut pre_ops = Vec::new();
+    let mut source_root = None;
     match (f.map, seed, &birth.operation) {
         (
             true,
@@ -302,6 +303,7 @@ pub(super) fn check(
             uses.permit(seed, root);
             uses.permit(EntityId::Place(*place), birth);
             pre_ops.push(root.id);
+            source_root = Some(EntityId::Place(*place));
         }
         (false, EntityId::Loan(entry), Operation::SharedReborrow { source }) => {
             need(
@@ -332,8 +334,8 @@ pub(super) fn check(
     )?;
     let carried_seed = pre_edge.arguments.contains(&seed).then_some(seed);
     need(
-        !f.map || carried_seed.is_some(),
-        "conditional identity owned source is carried",
+        carried_seed.is_some(),
+        "conditional identity Unit carries the actual owner or caller Borrow",
         pre_edge,
     )?;
     let initial = Roles {
@@ -433,6 +435,12 @@ pub(super) fn check(
     )?;
     body_roles.body = Some((loan(key)?, loan(val)?, value(allocation)?));
     body_roles.protect(&mut uses);
+    let mut source_roles = vec![
+        (pre, initial, scan_span),
+        (header, header_roles, a.span),
+        (body, body_roles, a.span),
+        (exhausted, exhausted_roles, a.span),
+    ];
     let mut branch_block = body;
     let mut current = body_roles;
     let mut decisions = Vec::new();
@@ -455,6 +463,18 @@ pub(super) fn check(
         )?;
         let positive = transport(&graph, yes, current, &mut uses)?;
         let negative = transport(&graph, no, current, &mut uses)?;
+        let branch = &a.branches[index];
+        let then_span = f
+            .parsed
+            .ast()
+            .statements()
+            .get(branch.body)
+            .map_err(|e| failure("conditional identity actual then-body origin", e))?
+            .span();
+        // Unit control lowering creates true arms at their statement and
+        // no-else false arms at the actual If, not at the enclosing For.
+        source_roles.push((yes.target, positive, then_span));
+        source_roles.push((no.target, negative, f.expression(branch.expression)?.1));
         graph.incoming_from(yes.target, &[branch_block])?;
         graph.incoming_from(no.target, &[branch_block])?;
         paths.push((yes.target, positive));
@@ -519,7 +539,6 @@ pub(super) fn check(
         f,
         a,
         input,
-        unit,
     };
     let mut nexts = Vec::new();
     let mut returned_value = None;
@@ -584,10 +603,24 @@ pub(super) fn check(
             edge,
         )?;
     }
-    if let (Some(b), Some(e)) = (
-        paths[1].1.seed.filter(|_| !f.map),
-        exhausted_roles.seed.filter(|_| !f.map),
-    ) {
+    let after_seed = if f.map {
+        need(
+            graph.block(after)?.parameters.is_empty(),
+            "conditional identity ended owner has no after-loop parameter",
+            after,
+        )?;
+        None
+    } else {
+        let b = paths[1]
+            .1
+            .seed
+            .ok_or_else(|| failure("conditional identity Break caller Borrow", paths[1]))?;
+        let e = exhausted_roles.seed.ok_or_else(|| {
+            failure(
+                "conditional identity Exhaustion caller Borrow",
+                exhausted_roles,
+            )
+        })?;
         let b = graph.transported(from_break, b)?;
         need(
             b == graph.transported(from_empty, e)?
@@ -596,13 +629,22 @@ pub(super) fn check(
             after,
         )?;
         uses.protect(b);
-    } else {
-        need(
-            graph.block(after)?.parameters.is_empty(),
-            "conditional identity ended provider has no after-loop parameters",
-            after,
-        )?;
-    }
+        Some(b)
+    };
+    need(
+        graph.block(after)?.origin == Origin::Source(a.span),
+        "conditional identity actual after-loop merge origin",
+        graph.block(after)?,
+    )?;
+    source_inventory(
+        module,
+        &graph,
+        f,
+        &source_roles,
+        source_root,
+        after_seed,
+        &mut uses,
+    )?;
     cleanup.fallback(after)?;
     let expected_provider = [first.id, has.id, key.id, val.id]
         .into_iter()
@@ -637,5 +679,174 @@ pub(super) fn check(
         "SPEC0331 CONDITIONAL IDENTITY SSA scan={:?} blocks={roles:?} paths={paths:?} edges={:#?}",
         scan.id, graph.edges
     );
+    Ok(())
+}
+
+// The old FE Header/Exit presence tables are not invented for Unit. The
+// already-proved directed paths define every live source role; this inventory
+// excludes hidden replacements/capabilities and orphan entity records.
+fn source_inventory(
+    module: &Module,
+    graph: &Graph<'_>,
+    f: &Input,
+    roles: &[(BlockId, Roles, Span)],
+    root: Option<EntityId>,
+    after_seed: Option<EntityId>,
+    uses: &mut Uses,
+) -> Result<(), Failure> {
+    let scan = graph.function;
+    let mut definitions = BTreeSet::new();
+    for (index, block) in scan.blocks.iter().enumerate() {
+        need(
+            block.id.function() == scan.id && block.id.index() == index,
+            "conditional identity exact block arena identity",
+            block.id,
+        )?;
+        for (index, &entity) in block.parameters.iter().enumerate() {
+            need(
+                definitions.insert(entity)
+                    && scan.entity(entity).is_some_and(|data| {
+                        data.definition
+                            == Definition::BlockParameter {
+                                block: block.id,
+                                index,
+                            }
+                            && data.origin == block.origin
+                    }),
+                "conditional identity every parameter exact definition and origin",
+                (block.id, index, entity),
+            )?;
+        }
+    }
+    for (index, instruction) in scan.instructions.iter().enumerate() {
+        need(
+            instruction.id.function() == scan.id && instruction.id.index() == index,
+            "conditional identity exact instruction arena identity",
+            instruction.id,
+        )?;
+        for (index, &entity) in instruction.results.iter().enumerate() {
+            need(
+                definitions.insert(entity)
+                    && scan.entity(entity).is_some_and(|data| {
+                        data.definition
+                            == Definition::InstructionResult {
+                                instruction: instruction.id,
+                                index,
+                            }
+                            && data.origin == instruction.origin
+                    }),
+                "conditional identity every result exact definition and origin",
+                (instruction.id, index, entity),
+            )?;
+        }
+    }
+    need(
+        definitions.len() == scan.values.len() + scan.loans.len() + scan.places.len()
+            && roles.len() == 10
+            && after_seed.is_some() != f.map
+            && root.is_some() == f.map
+            && scan.borrow_return.is_none()
+            && scan.carrier_return.is_none(),
+        "conditional identity complete definitions and only live source boundary roles",
+        (&definitions, roles, after_seed, root),
+    )?;
+    let seed = roles[0].1.seed.ok_or_else(|| {
+        failure(
+            "conditional identity original source inventory seed",
+            roles[0],
+        )
+    })?;
+    let seed_type = scan
+        .entity(seed)
+        .ok_or_else(|| failure("conditional identity original source inventory type", seed))?
+        .ty;
+    let map_type = seed_type.semantic_type();
+    let lease_type = EntityType::Loan {
+        kind: LoanKind::Shared,
+        target: map_type,
+    };
+    need(
+        module.map_container(map_type).is_some()
+            && module.type_ownership(map_type) == Some(Ownership::MoveOnly)
+            && seed_type
+                == if f.map {
+                    EntityType::Value(map_type)
+                } else {
+                    lease_type
+                },
+        "conditional identity nonnullable MoveOnly owner or caller Shared source",
+        seed_type,
+    )?;
+    let mut expected = BTreeSet::new();
+    for (index, &(block, role, span)) in roles.iter().enumerate() {
+        need(
+            graph.block(block)?.origin == Origin::Source(span),
+            "conditional identity each role has its actual control-source origin",
+            (block, span, graph.block(block)?),
+        )?;
+        let seed = role
+            .seed
+            .ok_or_else(|| failure("conditional identity live Unit source role", role))?;
+        for (entity, ty) in [(seed, seed_type), (EntityId::Loan(role.source), lease_type)] {
+            need(
+                expected.insert(entity) && scan.entity(entity).is_some_and(|data| data.ty == ty),
+                "conditional identity distinct current source and provider lease roles",
+                (block, entity, ty),
+            )?;
+            // The initial provider lease is a BorrowBegin/SharedReborrow result;
+            // every other source role is this block's own grounded parameter.
+            if index != 0 || entity == seed {
+                let slot = one(
+                    graph
+                        .block(block)?
+                        .parameters
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(slot, &actual)| (actual == entity).then_some(slot)),
+                    "conditional identity source role actual parameter column",
+                )?;
+                need(
+                    scan.entity(entity).is_some_and(|data| {
+                        data.definition == Definition::BlockParameter { block, index: slot }
+                            && data.origin == Origin::Source(span)
+                    }),
+                    "conditional identity source role exact definition and source span",
+                    (block, slot, entity),
+                )?;
+            }
+        }
+    }
+    if let Some(seed) = after_seed {
+        need(
+            expected.insert(seed) && scan.entity(seed).is_some_and(|data| data.ty == seed_type),
+            "conditional identity only the unchanged caller Borrow survives the merge",
+            seed,
+        )?;
+    }
+    if let Some(root) = root {
+        need(
+            expected.insert(root)
+                && scan
+                    .entity(root)
+                    .is_some_and(|data| data.ty == EntityType::Place(map_type)),
+            "conditional identity sole owned source storage is distinct from every lease",
+            root,
+        )?;
+    }
+    let actual = definitions
+        .into_iter()
+        .filter(|&entity| {
+            scan.entity(entity)
+                .is_some_and(|data| module.map_container(data.ty.semantic_type()).is_some())
+        })
+        .collect::<BTreeSet<_>>();
+    need(
+        actual == expected,
+        "conditional identity entire Map capability inventory has no replacement or extra owner",
+        (&actual, &expected),
+    )?;
+    for entity in actual {
+        uses.protect(entity);
+    }
     Ok(())
 }

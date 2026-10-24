@@ -26,7 +26,6 @@ pub(super) struct Context<'a, 'ir> {
     pub f: &'a Input,
     pub a: &'a Anchors,
     pub input: &'a Inputs,
-    pub unit: bool,
 }
 
 impl Context<'_, '_> {
@@ -94,7 +93,7 @@ impl Context<'_, '_> {
         roles: Roles,
         uses: &mut Uses,
     ) -> Result<Tail, Failure> {
-        let (graph, module, f, a, unit) = (self.graph, self.module, self.f, self.a, self.unit);
+        let (graph, module, f, a) = (self.graph, self.module, self.f, self.a);
         let (key, val, guard) = roles
             .body
             .ok_or_else(|| failure("conditional identity live cleanup body", roles))?;
@@ -103,7 +102,8 @@ impl Context<'_, '_> {
         } else {
             a.span
         };
-        let cleanup_span = if unit { a.span } else { transfer };
+        // Both layouts consume Unit cleanup facts with the actual For origin.
+        let cleanup_span = a.span;
         let ops = graph.ops(block)?;
         let guard_drop = one(
             ops.iter()
