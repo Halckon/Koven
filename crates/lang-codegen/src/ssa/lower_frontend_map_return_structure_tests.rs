@@ -139,6 +139,7 @@ pub(super) fn reaches(
 pub(super) fn assert_return_structure(
     program: &Program,
     return_span: Span,
+    cleanup_span: Span,
     source_span: Span,
     live: bool,
 ) {
@@ -436,7 +437,7 @@ pub(super) fn assert_return_structure(
         if block == returned.id {
             let element_end = *element_ends.iter().find(|i| i.block == block).unwrap();
             before(function, element_end, end);
-            assert_eq!(element_end.origin, Origin::Source(return_span));
+            assert_eq!(element_end.origin, Origin::Source(cleanup_span));
         }
     }
     let fallthrough_end = *element_ends

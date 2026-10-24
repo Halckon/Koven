@@ -171,6 +171,7 @@ fn update_owner(instruction: &Instruction) -> EntityId {
 pub(super) fn assert_continue_structure(
     program: &Program,
     continue_span: Span,
+    cleanup_span: Span,
     source_span: Span,
     live: bool,
 ) {
@@ -416,7 +417,7 @@ pub(super) fn assert_continue_structure(
         let element_end = end_in(function, block, element_loan);
         before(function, element_end, advance);
         if block == continued.id {
-            assert_eq!(element_end.origin, Origin::Source(continue_span));
+            assert_eq!(element_end.origin, Origin::Source(cleanup_span));
         }
     }
     assert!(!forwards(
@@ -663,63 +664,21 @@ fn single_map_continue_cleanup_preserves_provider_and_reverses_body_locals() {
             cache.contains(9)
         }
     "#;
-    let analysis = super::analyze(text);
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
+    let (program, analysis) = super::super::lower_map_unit(text, "main");
+    let origins = super::super::unit_iteration::assert_facts(
+        &analysis,
+        super::super::unit_iteration::Control::Continue,
+        true,
     );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let plan = &analysis.owned.iterations()[0];
-    let continuation = plan
-        .exits()
-        .iter()
-        .find_map(|exit| match exit.kind() {
-            lang_frontend::ownership_checking::IterationExitKind::Continue(expression) => {
-                Some(expression)
-            }
-            _ => None,
-        })
-        .unwrap();
-    let continue_span = analysis
-        .parsed
-        .ast()
-        .expressions()
-        .get(continuation)
-        .unwrap()
-        .span();
-    let source_span = analysis
-        .parsed
-        .ast()
-        .expressions()
-        .get(plan.descriptor().source())
-        .unwrap()
-        .span();
-    let program = super::lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap();
+    let continue_span = origins.control;
     crate::ssa::verify::verify_program(&program).unwrap();
-    crate::llvm::render_verified_program(&program).unwrap();
-    assert_continue_structure(&program, continue_span, source_span, true);
+    assert_continue_structure(
+        &program,
+        continue_span,
+        origins.statement,
+        origins.source,
+        true,
+    );
 
     let function = function_at_continue(&program, continue_span);
     let local = |name| {
@@ -727,8 +686,14 @@ fn single_map_continue_cleanup_preserves_provider_and_reverses_body_locals() {
             .modules
             .iter()
             .flat_map(|module| &module.functions)
-            .find(|function| function.name == name)
-            .unwrap();
+            .filter(|function| {
+                let declaration = analysis
+                    .declaration(name, lang_frontend::name_resolution::SymbolKind::Function);
+                function.origin == Origin::Source(analysis.declaration_span(declaration))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(callee.len(), 1, "one real source callee for {name}");
+        let callee = callee[0];
         only(function, |i| {
             matches!(i.operation, Operation::DirectCall { callee: id, .. }
             if id == callee.id)

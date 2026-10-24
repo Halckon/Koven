@@ -1,6 +1,7 @@
 //! Inspect only real-source SSA. No IR mutation or synthetic fixtures.
 use crate::ssa::model::{
-    BlockId, Definition, Edge, EntityId, Function, Operation, Origin, Program, TerminatorKind,
+    BlockId, Definition, Edge, EntityId, Function, Instruction, LoanKind, Operation, Origin,
+    Program, TerminatorKind,
 };
 use lang_frontend::source::Span;
 
@@ -53,7 +54,23 @@ pub(super) fn assert_exit_structure(
     live: bool,
     unit_cleanup: bool,
 ) {
-    let function = &program.modules[0].functions[0];
+    let functions = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .filter(|function| {
+            function.instructions.iter().any(|instruction| {
+                instruction.origin == Origin::Source(source_span)
+                    && matches!(instruction.operation, Operation::ContainerConstruct { .. })
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        functions.len(),
+        1,
+        "the original source selects its real function"
+    );
+    let function = functions[0];
     let seed = function
         .instructions
         .iter()
@@ -118,6 +135,112 @@ pub(super) fn assert_exit_structure(
         0
     ));
 
+    let header_incoming = all_edges
+        .iter()
+        .filter(|(_, edge)| edge.target == header.id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        header_incoming.len(),
+        2,
+        "only entry and the actual fallthrough backedge"
+    );
+    assert!(
+        header_incoming
+            .iter()
+            .any(|incoming| incoming.0 == preheader && incoming.1 == entry)
+    );
+    assert!(
+        header_incoming
+            .iter()
+            .any(|incoming| incoming.0 == back[0].0 && incoming.1 == back[0].1)
+    );
+
+    let source_constructions = function
+        .instructions
+        .iter()
+        .filter(|instruction| {
+            instruction.origin == Origin::Source(source_span)
+                && matches!(instruction.operation, Operation::ContainerConstruct { .. })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(source_constructions.len(), 1);
+    let source_owner = source_constructions[0].results[0];
+    assert_eq!(source_constructions[0].block, preheader);
+    let definition = |entity| -> &Instruction {
+        let Definition::InstructionResult { instruction, .. } =
+            function.entity(entity).unwrap().definition
+        else {
+            panic!("provider identity must have an actual producing instruction")
+        };
+        function.instruction(instruction).unwrap()
+    };
+    let lengths = function
+        .instructions
+        .iter()
+        .filter(|instruction| matches!(instruction.operation, Operation::ContainerLength { .. }))
+        .collect::<Vec<_>>();
+    assert_eq!(lengths.len(), 1);
+    assert_eq!(lengths[0].block, preheader);
+    let Operation::ContainerLength {
+        owner: initial_loan,
+    } = lengths[0].operation
+    else {
+        unreachable!()
+    };
+    let Operation::BorrowBegin {
+        place,
+        kind: LoanKind::Shared,
+    } = definition(initial_loan).operation
+    else {
+        panic!("provider length reads its actual shared source loan")
+    };
+    let Operation::RootPlace { owner } = definition(EntityId::Place(place)).operation else {
+        panic!("provider loan must name the constructed source owner")
+    };
+    assert_eq!(EntityId::Value(owner), source_owner);
+    let loan_slots = entry
+        .arguments
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, entity)| (*entity == initial_loan).then_some(slot))
+        .collect::<Vec<_>>();
+    assert_eq!(loan_slots.len(), 1);
+    let loan_slot = loan_slots[0];
+    let header_loan = header.parameters[loan_slot];
+    assert_eq!(when_true.arguments[loan_slot], header_loan);
+    assert_eq!(when_false.arguments[loan_slot], header_loan);
+    let body_loan = body.parameters[loan_slot];
+    let exhausted_loan = exhausted.parameters[loan_slot];
+    assert!(forwards(
+        function,
+        back[0].1.arguments[loan_slot],
+        body_loan,
+        0
+    ));
+    let source_slots = entry
+        .arguments
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, entity)| (*entity == source_owner).then_some(slot))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        source_slots.len(),
+        1,
+        "one exact hidden source-owner column"
+    );
+    let source_slot = source_slots[0];
+    let header_source = header.parameters[source_slot];
+    assert_eq!(when_true.arguments[source_slot], header_source);
+    assert_eq!(when_false.arguments[source_slot], header_source);
+    let body_source = body.parameters[source_slot];
+    let exhausted_source = exhausted.parameters[source_slot];
+    assert!(forwards(
+        function,
+        back[0].1.arguments[source_slot],
+        body_source,
+        0
+    ));
+
     let source_drops = function
         .instructions
         .iter()
@@ -161,6 +284,7 @@ pub(super) fn assert_exit_structure(
     else {
         unreachable!()
     };
+    assert_eq!(source_loan, body_loan);
     let element_loan = function.instructions.iter().find(|i| matches!(i.operation, Operation::BorrowBegin { place, .. } if EntityId::Place(place) == element_place.results[0])).unwrap().results[0];
     for (end, expected) in [(ends[0], element_loan), (ends[1], source_loan)] {
         let Operation::BorrowEnd { loan } = end.operation else {
@@ -199,6 +323,15 @@ pub(super) fn assert_exit_structure(
                 .iter()
                 .all(|end| position(block.id, end.id) < position(block.id, source_drop.id))
         );
+        let expected_loan = if block.id == break_block.id {
+            body_loan
+        } else {
+            exhausted_loan
+        };
+        let Operation::BorrowEnd { loan } = source_ends.last().unwrap().operation else {
+            unreachable!()
+        };
+        assert!(forwards(function, EntityId::Loan(loan), expected_loan, 0));
     }
     let map_drops = function
         .instructions
@@ -217,6 +350,35 @@ pub(super) fn assert_exit_structure(
     assert_eq!(break_edge.target, exhausted_edge.target);
     assert_ne!(break_block.id, exhausted.id);
     let joined = function.block(break_edge.target).unwrap();
+    let exit_incoming = all_edges
+        .iter()
+        .filter(|(_, edge)| edge.target == joined.id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        exit_incoming.len(),
+        2,
+        "only break and exhaustion enter the exit merge"
+    );
+    assert!(
+        exit_incoming
+            .iter()
+            .any(|incoming| incoming.0 == break_block.id && incoming.1 == break_edge)
+    );
+    assert!(
+        exit_incoming
+            .iter()
+            .any(|incoming| incoming.0 == exhausted.id && incoming.1 == exhausted_edge)
+    );
+    for (block, expected) in [(break_block, body_source), (exhausted, exhausted_source)] {
+        let source_drop = source_drops
+            .iter()
+            .find(|drop| drop.block == block.id)
+            .unwrap();
+        let Operation::Drop { owner } = source_drop.operation else {
+            unreachable!()
+        };
+        assert!(forwards(function, EntityId::Value(owner), expected, 0));
+    }
     if live {
         let slots = break_edge
             .arguments

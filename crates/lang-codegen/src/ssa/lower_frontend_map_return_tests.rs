@@ -1,8 +1,9 @@
 #[path = "lower_frontend_map_return_structure_tests.rs"]
 mod structure;
-// SPEC-0313: ordinary source conditional return, independent single/unit baseline.
+// Original conditional return source, admitted through the same Unit analysis.
+use super::unit_iteration::{Control, assert_facts};
+// Unchanged mixed and negative children still inspect their original Legacy route.
 use super::{analyze, lower_scalar_file};
-use lang_frontend::ownership_checking::{IterationExitKind, IterationPhiIncomingKind};
 
 fn source(live: bool) -> String {
     format!(
@@ -13,81 +14,13 @@ fn source(live: bool) -> String {
 
 fn check(live: bool) {
     let text = source(live);
-    let analysis = analyze(&text);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let plan = &analysis.owned.iterations()[0];
-    assert_eq!(plan.exits().len(), 3);
-    assert_eq!(
-        plan.exits()
-            .iter()
-            .filter(|e| matches!(e.kind(), IterationExitKind::Return(_)))
-            .count(),
-        1
-    );
-    assert_eq!(plan.closure_phi_incomings().len(), 3);
-    for kind in [
-        IterationPhiIncomingKind::Entry,
-        IterationPhiIncomingKind::Fallthrough,
-        IterationPhiIncomingKind::Exhaustion,
-    ] {
-        assert_eq!(
-            plan.closure_phi_incomings()
-                .iter()
-                .filter(|e| e.kind() == kind)
-                .count(),
-            1
-        );
-    }
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap_or_else(|error| {
-        panic!(
-            "return live={live}: {error:?}; drops={:?}; plan={plan:?}; conditions={:?}",
-            analysis.owned.drops(),
-            analysis.owned.cleanup_conditions()
-        )
-    });
-    crate::llvm::render_verified_program(&program).unwrap();
-    let expression = plan
-        .exits()
-        .iter()
-        .find_map(|exit| match exit.kind() {
-            IterationExitKind::Return(expression) => Some(expression),
-            _ => None,
-        })
-        .unwrap();
+    let (program, analysis) = super::lower_map_unit(&text, "main");
+    let origins = assert_facts(&analysis, Control::Return, live);
     structure::assert_return_structure(
         &program,
-        analysis
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .unwrap()
-            .span(),
-        analysis
-            .parsed
-            .ast()
-            .expressions()
-            .get(plan.descriptor().source())
-            .unwrap()
-            .span(),
+        origins.control,
+        origins.statement,
+        origins.source,
         live,
     );
 }
