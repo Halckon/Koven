@@ -1,4 +1,5 @@
 //! Real local formation plus future uses: preserve every public FE/lowering observation.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
 mod graph;
 mod sources;
@@ -52,25 +53,25 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(
+        pipeline::memory_document_observed(
             &sources,
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
-                facts::single(case, &sources, &parsed, names, typed, owned, report);
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                facts::unit(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
-                    "local future original single descriptor count",
+                    "local future original unit descriptor count",
                     typed.map_iterations().len() == if case.form == 2 { 4 } else { 2 },
                     typed.map_iterations(),
                 );
                 println!(
-                    "LOCAL FUTURE SINGLE FACTS case={} formed={:#?} plans={:#?} drops={:#?} conditions={:#?} loans={:#?}",
+                    "LOCAL FUTURE UNIT FACTS case={} formed={:#?} plans={:#?} drops={:#?} deliveries={:#?} loans={:#?}",
                     case.label,
                     owned.formed_owned_locals(),
                     owned.map_iterations(),
                     owned.drops(),
-                    owned.cleanup_conditions(),
+                    owned.value_deliveries(),
                     owned.loans()
                 );
             },
@@ -82,6 +83,10 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
+    report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     let identity = graph::check(case, &sources, &parsed, &program);
     report.query("local future independent SSA identities", &identity);
     let verified =

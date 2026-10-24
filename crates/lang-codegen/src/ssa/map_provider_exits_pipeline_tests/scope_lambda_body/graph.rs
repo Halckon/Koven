@@ -307,6 +307,11 @@ pub(super) fn check(
         }
     }
     need(g.instructions.iter().filter(|op|matches!(op.operation,Operation::Drop{owner}if module.map_container(thunk.entity(EntityId::Value(owner)).unwrap().ty.semantic_type()).is_some())).count()==1&&!g.instructions.iter().any(|op|matches!(op.operation,Operation::MapConstruct{..}|Operation::MapPut{..}|Operation::MapConsume{..}|Operation::ClosureConstruct{..}))&&g.blocks.iter().all(|&block|match &g.term(block).unwrap().kind{TerminatorKind::Return{values}=>values.is_empty()&&g.term(block).unwrap().origin==Origin::Source(lambda.span()),_=>true}),"A2 sole current cleanup and true lambda Unit Return, no alternate Map birth",thunk.id)?;
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &g,
+        module,
+        &BTreeSet::from([seed]),
+    )?;
     uses.check(&g, None)
 }
 fn control(

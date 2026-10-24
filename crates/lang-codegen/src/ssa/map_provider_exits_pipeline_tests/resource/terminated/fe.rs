@@ -6,25 +6,18 @@ use super::super::super::{
 use super::super::identity::Input;
 use lang_frontend::{
     ast::ExpressionId,
-    name_resolution::{
-        NameResolution, ReferenceTarget, SymbolKind, UnitReferenceTarget,
-        ValidatedCompilationUnitNames,
-    },
+    name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
     ownership_checking::{
-        CleanupCondition, CleanupOwnerValue, CleanupSelection, CleanupSelectorSource,
-        CompilationUnitOwnership, DropPoint, DropTarget, IterationCleanupAction as A,
-        IterationExitKind as E, IterationPhiBoundary as B, IterationPhiIncomingKind as K,
-        LoanKind as FLoanKind, LoanTarget, MapIterationComponent, MapIterationSourceAccess,
-        OwnershipBindingKind, OwnershipCheckedFile, UnitCallArgumentOwnershipKind as UK,
-        UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
-        UnitIterationExitKind as UE, UnitIterationSourceAccess, UnitLoanTarget,
-        UnitValueDeliveryKind,
+        CompilationUnitOwnership, DropPoint, LoanKind as FLoanKind, MapIterationComponent,
+        OwnershipBindingKind, UnitCallArgumentOwnershipKind as UK, UnitDropPoint, UnitDropTarget,
+        UnitIterationCleanupAction as UA, UnitIterationExitKind as UE, UnitIterationSourceAccess,
+        UnitLoanTarget, UnitValueDeliveryKind,
     },
     parser::{Expression, Item, NameMarker, ParsedFile},
     source::Span,
     type_checking::{
-        BuiltinType, CallableTarget, CompilationUnitTypes, ParameterMode, TypeKind, TypedFile,
-        UnitCallTarget, UnitExpressionId, UnitStatementId, UnitTypeKind,
+        BuiltinType, CompilationUnitTypes, ParameterMode, UnitCallTarget, UnitExpressionId,
+        UnitStatementId, UnitTypeKind,
     },
 };
 
@@ -149,399 +142,6 @@ fn return_values(
         .collect()
 }
 
-pub(super) fn single(
-    input: &Input,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<(), Failure> {
-    let (transfer, returning) = transfer(input, parsed)?;
-    let normal = normal_point(input, parsed)?;
-    let locals = loop_locals(input, parsed);
-    let root = one(
-        names
-            .references()
-            .iter()
-            .filter(|r| r.span() == input.source_span)
-            .filter_map(|r| match r.target() {
-                ReferenceTarget::Symbol(s) => Some(*s),
-                _ => None,
-            }),
-        "resource single original source root",
-    )?;
-    let symbol = one(
-        names.symbols().iter().filter(|s| {
-            s.id() == root
-                && s.kind() == SymbolKind::ValueParameter
-                && !s.is_synthetic()
-                && s.span() == input.parameter
-        }),
-        "resource single actual parameter",
-    )?;
-    let signature = one(
-        typed
-            .callables()
-            .iter()
-            .filter(|c| c.parameter_symbols() == [Some(root)]),
-        "resource single actual scan signature",
-    )?;
-    let scan_name = scan_name(input, parsed)?;
-    need(
-        names
-            .symbols()
-            .iter()
-            .any(|s| s.id() == signature.symbol() && s.span() == scan_name),
-        "terminal single original scan root",
-        signature,
-    )?;
-    if returning {
-        for operand in return_values(transfer, normal, parsed)? {
-            need(
-                match operand {
-                    Some(value) => typed.expression_type(value) == Some(signature.return_type()),
-                    None => {
-                        typed.types().get(signature.return_type())
-                            == Some(&TypeKind::Builtin(BuiltinType::Unit))
-                    }
-                },
-                "terminal single original Return operand matches scan result",
-                (operand, signature),
-            )?;
-        }
-    }
-    let mode = if input.owned {
-        ParameterMode::Value
-    } else {
-        ParameterMode::Borrow
-    };
-    let p = owned
-        .map_iteration(input.statement)
-        .ok_or_else(|| failure("resource single plan", input.statement))?;
-    let d = p.descriptor();
-    need(
-        typed.map_iterations().len() == 1
-            && owned.map_iterations().len() == 1
-            && typed.map_iteration(input.statement) == Some(d)
-            && d.source() == input.source
-            && typed.is_resource_type(d.value_type()) == Some(true)
-            && typed.is_resource_type(d.source_type()) == Some(true)
-            && matches!(signature.parameters(), [s] if s.mode == mode && s.ty == d.source_type())
-            && matches!(p.source(), Some(LoanTarget::Place(place)) if place.root() == root && place.is_root())
-            && p.source_access()
-                == if input.owned {
-                    MapIterationSourceAccess::Owned
-                } else {
-                    MapIterationSourceAccess::Shared
-                },
-        "resource single original type/source capability",
-        (d, p.source(), signature),
-    )?;
-    for (i, binding) in d.bindings().into_iter().enumerate() {
-        need(
-            owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
-                && p.loans()[i].binding() == binding
-                && p.bindings()[i].symbol() == binding
-                && p.bindings()[i].kind() == OwnershipBindingKind::Shared
-                && p.loans()[i].component()
-                    == [MapIterationComponent::Key, MapIterationComponent::Value][i]
-                && p.loans()[i].kind() == FLoanKind::Shared
-                && p.loans()[i].statement() == input.statement
-                && p.loans()[i].source() == input.source
-                && Some(p.loans()[i].origin()) == p.source(),
-            "resource single separate Shared components",
-            p.loans(),
-        )?;
-    }
-    let drops = owned
-        .drops()
-        .iter()
-        .filter(|f| f.target() == DropTarget::Named(root))
-        .collect::<Vec<_>>();
-    let transfer_point = DropPoint::ControlTransfer(transfer);
-    let exhausted_point = DropPoint::LoopExit(input.statement);
-    need(
-        if input.owned {
-            drops.len() == if returning { 2 } else { 1 }
-                && drops.iter().all(|d| {
-                    d.value_origin() == symbol.span()
-                        && d.capture_slot().is_none()
-                        && d.instance_address().is_none()
-                })
-                && drops.iter().filter(|d| d.point() == normal).count() == 1
-                && (!returning || drops.iter().filter(|d| d.point() == transfer_point).count() == 1)
-        } else {
-            drops.is_empty()
-        },
-        "terminal single exact source obligations",
-        &drops,
-    )?;
-    need(
-        p.exits().len() == 2,
-        "terminal single complete exit set",
-        p.exits(),
-    )?;
-    for (kind, point, body) in [
-        (
-            if returning {
-                E::Return(transfer)
-            } else {
-                E::Break(transfer)
-            },
-            transfer_point,
-            true,
-        ),
-        (E::Exhaustion, exhausted_point, false),
-    ] {
-        let exit = one(
-            p.exits()
-                .iter()
-                .filter(|e| e.kind() == kind && e.point() == point),
-            "terminal single actual exit",
-        )?;
-        let mut expected = owned
-            .drops()
-            .iter()
-            .copied()
-            .filter(|d| d.point() == point && d.target() != DropTarget::Named(root))
-            .map(A::Drop)
-            .collect::<Vec<_>>();
-        need(
-            expected.len() == if body { locals.len() } else { 0 },
-            "terminal single every actual loop-local cleanup",
-            (&locals, &expected),
-        )?;
-        for action in &expected {
-            let A::Drop(drop) = action else {
-                unreachable!()
-            };
-            need(body && drop.condition().is_none()
-                && drop.value_origin().source_id() == input.for_span.source_id()
-                && drop.value_origin().start() > input.for_span.start()
-                && drop.value_origin().end() < input.for_span.end()
-                && matches!(drop.target(), DropTarget::Named(local) if names.symbols().iter().any(|s| s.id()==local && s.span()==drop.value_origin()))
-                && drop.owner().is_some_and(|owner| matches!(owned.cleanup_conditions().owner_value(owner), Some(CleanupOwnerValue::Expression { expression, origin }) if locals.contains(&(drop.value_origin(),*expression)) && parsed.ast().expressions().get(*expression).is_ok_and(|node| node.span()==*origin && origin.start()>input.for_span.start() && origin.end()<input.for_span.end()))),
-                "terminal single real loop-local construction/drop", drop)?;
-        }
-        if body {
-            expected.extend([
-                A::EndBinding {
-                    statement: input.statement,
-                    symbol: d.value_binding(),
-                },
-                A::EndBinding {
-                    statement: input.statement,
-                    symbol: d.key_binding(),
-                },
-            ]);
-        }
-        expected.extend([
-            A::FinishProvider(input.statement),
-            A::EndSource(input.statement),
-        ]);
-        expected.extend(
-            drops
-                .iter()
-                .filter(|d| d.point() == point)
-                .map(|d| A::Drop(**d)),
-        );
-        let full = owned
-            .cleanup_steps()
-            .iter()
-            .filter_map(|(at, action)| (*at == point).then_some(*action))
-            .collect::<Vec<_>>();
-        need(
-            exit.actions() == expected && full == expected,
-            "terminal single full ordered cleanup, source after EndSource",
-            (exit, full, expected),
-        )?;
-    }
-    let conditions = owned.cleanup_conditions();
-    let incoming_kinds = if returning {
-        vec![K::Entry, K::Exhaustion]
-    } else {
-        vec![K::Entry, K::Break(transfer), K::Exhaustion]
-    };
-    need(
-        p.closure_phi_incomings().len() == incoming_kinds.len(),
-        "terminal single complete incoming set",
-        p,
-    )?;
-    if input.owned {
-        let h = one(
-            p.closure_phis()
-                .iter()
-                .filter(|p| p.symbol() == root && p.boundary() == B::Header),
-            "terminal single Header",
-        )?;
-        let x = one(
-            p.closure_phis()
-                .iter()
-                .filter(|p| p.symbol() == root && p.boundary() == B::Exit),
-            "terminal single Exit",
-        )?;
-        need(
-            p.closure_phis().len() == 2
-                && h.owner() != x.owner()
-                && h.availability_selector() != x.availability_selector(),
-            "terminal single distinct boundary owner/selector",
-            p,
-        )?;
-        for phi in [h, x] {
-            let selector = conditions
-                .selector(phi.availability_selector())
-                .ok_or_else(|| failure("terminal single actual selector", phi))?;
-            need(
-                matches!(conditions.owner_value(phi.owner()), Some(CleanupOwnerValue::IterationPhi { statement, symbol, boundary, origin }) if *statement==input.statement && *symbol==root && *boundary==phi.boundary() && *origin==input.for_span)
-                    && matches!(selector.source(), CleanupSelectorSource::IterationPhi { statement, boundary, .. } if statement==input.statement && boundary==phi.boundary())
-                    && selector.origin() == input.for_span
-                    && selector.selection() == CleanupSelection::IterationPresence
-                    && selector.branch_count() == 2
-                    && matches!(conditions.get(phi.availability_condition()), Some(CleanupCondition::Choice { selector, branches }) if *selector==phi.availability_selector() && matches!(branches.as_slice(), [no,yes] if conditions.get(*no)==Some(&CleanupCondition::Never) && conditions.get(*yes)==Some(&CleanupCondition::Always))),
-                "terminal single complete original owner and Choice",
-                (phi, selector),
-            )?;
-        }
-        for drop in &drops {
-            let phi = if drop.point() == transfer_point { h } else { x };
-            need(
-                drop.owner() == Some(phi.owner())
-                    && drop.condition() == Some(phi.availability_condition()),
-                "terminal single Drop reads exact current boundary owner",
-                drop,
-            )?;
-        }
-        for kind in incoming_kinds {
-            let edge = one(
-                p.closure_phi_incomings()
-                    .iter()
-                    .filter(|e| e.kind() == kind),
-                "terminal single unique incoming kind",
-            )?;
-            let entry = kind == K::Entry;
-            let phi = if entry { h } else { x };
-            let point = if entry {
-                DropPoint::AfterExpression(input.source)
-            } else if kind == K::Exhaustion {
-                exhausted_point
-            } else {
-                transfer_point
-            };
-            let binding = one(
-                edge.bindings().iter(),
-                "terminal single exact incoming binding",
-            )?;
-            let value = one(
-                binding.values().iter(),
-                "terminal single live incoming owner",
-            )?;
-            need(
-                edge.point() == point
-                    && edge.boundary() == phi.boundary()
-                    && conditions.get(edge.condition()) == Some(&CleanupCondition::Always)
-                    && binding.target() == phi.owner()
-                    && binding.availability_selector() == phi.availability_selector()
-                    && value.condition() == binding.available_when()
-                    && if entry {
-                        conditions.get(binding.available_when()) == Some(&CleanupCondition::Always)
-                            && matches!(conditions.owner_value(value.source()), Some(CleanupOwnerValue::Parameter { symbol, origin }) if *symbol==root && *origin==input.parameter)
-                    } else {
-                        value.source() == h.owner()
-                            && binding.available_when() == h.availability_condition()
-                    },
-                "terminal single every incoming original provenance",
-                edge,
-            )?;
-        }
-    } else {
-        need(
-            p.closure_phis().is_empty(),
-            "terminal single Borrow has no owner phi",
-            p,
-        )?;
-        for kind in incoming_kinds {
-            let edge = one(
-                p.closure_phi_incomings()
-                    .iter()
-                    .filter(|e| e.kind() == kind),
-                "terminal single Borrow incoming",
-            )?;
-            let entry = kind == K::Entry;
-            let point = if entry {
-                DropPoint::AfterExpression(input.source)
-            } else if kind == K::Exhaustion {
-                exhausted_point
-            } else {
-                transfer_point
-            };
-            need(
-                edge.bindings().is_empty()
-                    && edge.point() == point
-                    && edge.boundary() == if entry { B::Header } else { B::Exit }
-                    && conditions.get(edge.condition()) == Some(&CleanupCondition::Always),
-                "terminal single Borrow has only exact empty incoming bindings",
-                edge,
-            )?;
-        }
-    }
-    let mut calls = 0;
-    for (id, node) in parsed.ast().expressions().iter() {
-        let Some(call) = typed
-            .call(id)
-            .filter(|c| c.target() == CallableTarget::Source(signature.symbol()))
-        else {
-            continue;
-        };
-        calls += 1;
-        let Expression::Call { arguments, .. } = node.payload() else {
-            return Err(failure("resource caller AST", node));
-        };
-        let [arg] = arguments.as_slice() else {
-            return Err(failure("resource caller arity", arguments));
-        };
-        let arg_span = parsed
-            .ast()
-            .expressions()
-            .get(arg.value)
-            .map_err(|e| failure("resource caller argument", e))?
-            .span();
-        let arg_root = one(
-            names
-                .references()
-                .iter()
-                .filter(|r| r.span() == arg_span)
-                .filter_map(|r| match r.target() {
-                    ReferenceTarget::Symbol(s) => Some(*s),
-                    _ => None,
-                }),
-            "resource original caller root",
-        )?;
-        let loans = owned
-            .loans()
-            .iter()
-            .filter(|l| l.call() == id)
-            .collect::<Vec<_>>();
-        need(
-            call.return_type() == signature.return_type()
-                && typed.expression_type(id) == Some(signature.return_type())
-                && matches!(call.arguments(), [a] if a.mode() == mode && a.argument_index() == 0 && a.parameter_index() == 0 && Some(a.parameter_type()) == typed.expression_type(arg.value))
-                && if input.owned {
-                    loans.is_empty()
-                } else {
-                    matches!(loans.as_slice(), [l] if l.argument() == arg.value && l.kind() == FLoanKind::Shared && matches!(l.target(), LoanTarget::Place(p) if p.is_root() && p.root() == arg_root))
-                },
-            "resource single caller Value/Borrow contract and original root",
-            (call, arg_root, loans),
-        )?;
-    }
-    need(
-        calls == 2 && symbol.span() == input.parameter,
-        "resource single two actual caller sites and original parameter span",
-        (calls, symbol),
-    )?;
-    Ok(())
-}
-
 pub(super) fn unit(
     input: &Input,
     parsed: &ParsedFile,
@@ -563,6 +163,29 @@ pub(super) fn unit(
                 _ => None,
             }),
         "resource unit original source root",
+    )?;
+    let original = one(
+        names
+            .names()
+            .source_units()
+            .iter()
+            .filter(|u| u.source_unit() == root.source_unit()),
+        "resource original qualified parameter source unit",
+    )?;
+    let symbol = one(
+        original
+            .resolution()
+            .symbols()
+            .iter()
+            .filter(|s| s.id() == root.symbol()),
+        "resource actual qualified parameter symbol",
+    )?;
+    need(
+        symbol.span() == input.parameter
+            && !symbol.is_synthetic()
+            && symbol.kind() == lang_frontend::name_resolution::SymbolKind::ValueParameter,
+        "resource Unit parameter preserves exact original declaration marker",
+        symbol,
     )?;
     let statement = UnitStatementId::new(root.source_unit(), input.statement);
     let p = owned
@@ -628,6 +251,7 @@ pub(super) fn unit(
     for (index, binding) in d.bindings().into_iter().enumerate() {
         need(
             p.bindings()[index].symbol() == binding
+                && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
                 && p.bindings()[index].kind() == OwnershipBindingKind::Shared
                 && p.loans()[index].binding() == binding
                 && p.loans()[index].component()

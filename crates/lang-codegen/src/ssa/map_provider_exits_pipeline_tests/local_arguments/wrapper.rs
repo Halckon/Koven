@@ -9,13 +9,8 @@ use crate::ssa::map_provider_exits_pipeline_tests::{
 use crate::ssa::model::*;
 use lang_frontend::{
     ast::ExpressionId,
-    name_resolution::{
-        NameResolution, ReferenceTarget, UnitReferenceTarget, ValidatedCompilationUnitNames,
-    },
-    ownership_checking::{
-        CompilationUnitOwnership, LoanEndPoint, LoanKind as FeLoanKind, LoanTarget,
-        OwnershipCheckedFile, UnitLoanTarget,
-    },
+    name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
+    ownership_checking::{CompilationUnitOwnership, LoanKind as FeLoanKind, UnitLoanTarget},
     parser::{Expression, ParsedFile},
     source::{SourceMap, Span},
     type_checking::*,
@@ -77,78 +72,7 @@ fn input(sources: &SourceMap, parsed: &ParsedFile) -> Result<Input, Failure> {
         returned,
     })
 }
-pub(in super::super) fn single(
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<(), Failure> {
-    let i = input(sources, parsed)?;
-    let symbol = |span| {
-        one(
-            names
-                .symbols()
-                .iter()
-                .filter(|s| s.span() == span && !s.is_synthetic()),
-            "generic wrapper actual source symbol",
-        )
-        .map(|s| s.id())
-    };
-    let parameter = symbol(i.wrapper.parameter.unwrap())?;
-    let call = typed
-        .call(i.call)
-        .ok_or_else(|| failure("generic wrapper typed inner Call", i.call))?;
-    let signature = one(
-        typed
-            .callables()
-            .iter()
-            .filter(|c| c.symbol() == symbol(i.implementation.name).unwrap()),
-        "generic wrapper implementation signature",
-    )?;
-    let reference = one(
-        names
-            .references()
-            .iter()
-            .filter(|r| r.span() == ast::span(parsed, i.argument)),
-        "generic wrapper actual input reference",
-    )?;
-    need(
-        call.target() == CallableTarget::Source(symbol(i.implementation.name)?)
-            && call.receiver().is_none()
-            && call.instance().type_arguments().is_empty()
-            && call.result_source() == CallableResultSource::Owned
-            && call.return_type() == signature.return_type()
-            && matches!(call.arguments(),[a]if a.argument_index()==0&&a.parameter_index()==0&&a.mode()==ParameterMode::Borrow&&a.category()==ExpressionCategory::Place
-            &&a.parameter_type()==signature.parameters()[0].ty)
-            && reference.target() == &ReferenceTarget::Symbol(parameter),
-        "generic wrapper actual selected non-generic Call forwards exact Borrow parameter",
-        call,
-    )?;
-    let loan = one(
-        owned
-            .loans()
-            .iter()
-            .filter(|l| l.call() == i.call && l.argument() == i.argument),
-        "generic wrapper input loan",
-    )?;
-    let end = one(
-        owned
-            .loan_ends()
-            .iter()
-            .filter(|e| e.call() == i.call && e.argument() == i.argument),
-        "generic wrapper input loan endpoint",
-    )?;
-    need(
-        loan.kind() == FeLoanKind::Shared
-            && matches!(loan.target(),LoanTarget::Place(p)if p.is_root()&&p.root()==parameter)
-            && loan.begin_span() == ast::span(parsed, i.argument)
-            && loan.end_span() == ast::span(parsed, i.call)
-            && end.point() == LoanEndPoint::CallReturn(i.call),
-        "generic wrapper exact original parameter loan/CallReturn",
-        (loan, end),
-    )
-}
+
 pub(in super::super) fn unit(
     sources: &SourceMap,
     parsed: &ParsedFile,

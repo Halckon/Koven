@@ -106,14 +106,14 @@ pub(crate) fn sources() -> Vec<Case> {
     cases
 }
 
-fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
+fn observe(case: &Case, rooted: bool, control: bool) -> Result<(), Failure> {
     let (text, golden) = if control {
         (&case.control, &case.control_golden)
     } else {
         (&case.source, &case.golden)
     };
     println!(
-        "DELIVERY INPUT case={} unit={unit} control={control} source={text:?} golden={golden:?}",
+        "DELIVERY INPUT case={} rooted={rooted} control={control} source={text:?} golden={golden:?}",
         case.label
     );
     let mut sources = SourceMap::new();
@@ -125,39 +125,34 @@ fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let lowered = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |n, t, o, r| {
-                source_forms::facts::unit(&sources, &parsed, n, t, o, r);
-                r.query(
-                    "delivery qualified selected arguments/cleanup",
-                    &facts::unit(case, &sources, &parsed, n, t, o, control),
-                );
-            },
-        )
-    } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
-            source_forms::facts::single(&sources, &parsed, n, t, o, r);
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        rooted,
+        |n, t, o, r| {
+            source_forms::facts::unit(&sources, &parsed, n, t, o, r);
             r.query(
-                "delivery selected arguments/cleanup",
-                &facts::single(case, &sources, &parsed, n, t, o, control),
+                "delivery qualified selected arguments/cleanup",
+                &facts::unit(case, &sources, &parsed, n, t, o, control),
             );
-        })
-    };
+        },
+    );
     println!(
-        "DELIVERY LOWER {} unit={unit} control={control} report={report:#?} outcome={:?}",
+        "DELIVERY LOWER {} rooted={rooted} control={control} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
+    report.query(
+        "Unit original temporary entry and actual canonical owner acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     let deep = graph::check(case, &sources, &parsed, &program, control);
     report.query("delivery actual SSA owner/argument graph", &deep);
     println!(
-        "DELIVERY GRAPH {} unit={unit} control={control} deep={deep:?}",
+        "DELIVERY GRAPH {} rooted={rooted} control={control} deep={deep:?}",
         case.label
     );
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
@@ -171,13 +166,13 @@ fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
 fn check(control: bool) {
     let mut outcomes = Vec::new();
     for case in sources() {
-        for unit in [false, true] {
-            let result = observe(&case, unit, control);
+        for rooted in [false, true] {
+            let result = observe(&case, rooted, control);
             println!(
-                "DELIVERY CASE {} unit={unit} control={control} result={result:?}",
+                "DELIVERY CASE {} rooted={rooted} control={control} result={result:?}",
                 case.label
             );
-            outcomes.push((case.label.clone(), unit, result));
+            outcomes.push((case.label.clone(), rooted, result));
         }
     }
     assert_eq!(outcomes.len(), 12);

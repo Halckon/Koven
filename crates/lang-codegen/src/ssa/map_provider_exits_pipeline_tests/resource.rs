@@ -42,40 +42,27 @@ fn observe(label: &str, text: &str, unit: bool, report: &mut Report) -> Result<(
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse diagnostics", parsed.diagnostics())?;
     let input = identity::ast(&sources, &parsed, label == "map-resource")?;
-    let (program, entry) = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            report,
-            |names, typed, owned, report| {
-                report.query(
-                    "resource original unit FE obligations",
-                    &identity::unit(&input, &parsed, names, typed, owned),
-                );
-                report.check(
-                    "unit one actual Resource Map provider",
-                    typed.map_iterations().len() == 1 && owned.map_iterations().len() == 1,
-                    (typed.map_iterations(), owned.map_iterations()),
-                );
-            },
-        )?
-    } else {
-        pipeline::single_observed(&sources, &parsed, report, |names, typed, owned, report| {
+    let (program, entry) = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        report,
+        unit,
+        |names, typed, owned, report| {
             report.query(
-                "resource original single FE obligations",
-                &identity::single(&input, &parsed, names, typed, owned),
+                "resource original unit FE obligations",
+                &identity::unit(&input, &parsed, names, typed, owned),
             );
             report.check(
-                "single one actual Resource Map provider",
+                "unit one actual Resource Map provider",
                 typed.map_iterations().len() == 1 && owned.map_iterations().len() == 1,
                 (typed.map_iterations(), owned.map_iterations()),
             );
-        })?
-    };
+        },
+    )?;
     report.query(
         "resource independent SSA incoming/current lexical drop",
-        &identity::ssa(&program, &input, unit),
+        &identity::ssa(&program, &input, true),
     );
     super::super::verify::verify_program(&program).map_err(|e| verify_failure(&sources, e))?;
     report.check("SSA verifier", true, entry);
@@ -93,7 +80,7 @@ fn resource_map_normal_sources_reach_verified_llvm_in_both_entries() {
             let mut report = Report::default();
             let outcome = observe(label, text, unit, &mut report);
             println!(
-                "SPEC0331 RESOURCE case={label} unit={unit} outcome={outcome:?} report={report:#?}"
+                "SPEC0331 RESOURCE case={label} rooted={unit} outcome={outcome:?} report={report:#?}"
             );
             results.push((label, unit, report.passed() && outcome.is_ok()));
         }

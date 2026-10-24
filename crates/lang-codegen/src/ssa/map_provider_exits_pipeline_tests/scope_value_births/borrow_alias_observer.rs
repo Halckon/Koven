@@ -5,7 +5,7 @@ use super::super::{
     Report,
     fixture::{Failure, clean, failure, need},
     pipeline,
-    query_graph::{Graph, Uses, function, loan, result},
+    query_graph::{Graph, Uses, function, loan},
     query_inputs::one,
 };
 use crate::ssa::model::*;
@@ -214,7 +214,7 @@ fn symbol(n: &NameResolution, s: Span) -> Result<SymbolId, Failure> {
 }
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     println!(
-        "SCOPE B ALIAS INPUT label={} unit={unit} source={:?} golden={:?}",
+        "SCOPE B ALIAS INPUT label={} rooted={unit} source={:?} golden={:?}",
         c.label, c.source, c.golden
     );
     let mut sources = SourceMap::new();
@@ -227,14 +227,19 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     clean(&sources, "parse", p.diagnostics())?;
     let i = input(c, &sources, &p)?;
     println!(
-        "SCOPE B ALIAS AST label={} unit={unit} input={i:?}",
+        "SCOPE B ALIAS AST label={} rooted={unit} input={i:?}",
         c.label
     );
     let mut report = Report::default();
     let mut observed = false;
     let mut proof = None;
-    let lowered = if unit {
-        pipeline::unit_observed(&sources, &p, "provider.ko", &mut report, |n, t, o, r| {
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &p,
+        "provider.ko",
+        &mut report,
+        unit,
+        |n, t, o, r| {
             observed = true;
             let checked = facts::unit(c, &sources, &p, &i, n, t, o);
             r.query(
@@ -352,109 +357,10 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
                 "alias same-analysis qualified public observation collected",
                 &data,
             );
-        })
-    } else {
-        pipeline::single_observed(&sources, &p, &mut report, |n, t, o, r| {
-            observed = true;
-            let checked = facts::single(c, &sources, &p, &i, n, t, o);
-            r.query(
-                "alias exact canonical storage/ends/complete plan contract",
-                &checked,
-            );
-            proof = checked.ok();
-            let data = (|| -> Result<(), Failure> {
-                let alias = symbol(n, i.alias)?;
-                let source = symbol(n, i.source)?;
-                let bindings = o
-                    .borrow_results()
-                    .bindings()
-                    .iter()
-                    .filter(|b| b.binding() == alias)
-                    .collect::<Vec<_>>();
-                let ends = o
-                    .borrow_results()
-                    .ends()
-                    .iter()
-                    .filter(|end| end.binding() == alias)
-                    .collect::<Vec<_>>();
-                println!(
-                    "SCOPE B ALIAS FE label={} unit=false source={source:?} source_mode={:?} source_capability={:?} alias={alias:?} type={:?} initializer_type={:?} initializer_category={:?} bindings={:?} ends={:?} all_borrow_results={:#?}",
-                    c.label,
-                    t.parameter_mode(source),
-                    o.binding_kind(source),
-                    t.symbol_type(alias),
-                    t.expression_type(i.initializer),
-                    t.expression_category(i.initializer),
-                    bindings,
-                    ends,
-                    o.borrow_results()
-                );
-                for b in &bindings {
-                    println!(
-                        "SCOPE B ALIAS BINDING label={} unit=false binding={:?} initializer={:?} storage={:?} origin={:?} parent={:?} source_loan={:?} marker={:?}",
-                        c.label,
-                        b.binding(),
-                        b.initializer(),
-                        b.storage(),
-                        b.origin(),
-                        b.parent(),
-                        b.source_loan(),
-                        b.marker_span()
-                    );
-                }
-                if let Some((statement, source)) = i.site {
-                    let plan = o.map_iteration(statement);
-                    println!(
-                        "SCOPE B ALIAS PLAN label={} unit=false descriptor={:?} ownership={plan:#?}",
-                        c.label,
-                        t.map_iteration(statement)
-                    );
-                    if let Some(plan) = plan {
-                        println!(
-                            "SCOPE B ALIAS CANONICAL label={} unit=false source={:?} access={:?} components={:?} exits={:#?}",
-                            c.label,
-                            plan.source(),
-                            plan.source_access(),
-                            plan.loans(),
-                            plan.exits()
-                        );
-                    }
-                    need(
-                        plan.is_some() && t.expression_type(source).is_some(),
-                        "alias actual acquired For plan exists",
-                        plan,
-                    )?;
-                }
-                if let Some(call) = i.call {
-                    println!(
-                        "SCOPE B ALIAS CONTROL label={} unit=false typed_call={:?} loans={:?} loan_ends={:?}",
-                        c.label,
-                        t.call(call),
-                        o.loans()
-                            .iter()
-                            .filter(|v| v.call() == call)
-                            .collect::<Vec<_>>(),
-                        o.loan_ends()
-                            .iter()
-                            .filter(|v| v.call() == call)
-                            .collect::<Vec<_>>()
-                    );
-                }
-                need(
-                    bindings.len() == 1
-                        && !ends.is_empty()
-                        && bindings[0].initializer() == i.initializer
-                        && bindings[0].marker_span() == i.marker,
-                    "alias observation contains true AST binding and nonzero real ends",
-                    (bindings, ends),
-                )?;
-                Ok(())
-            })();
-            r.query("alias same-analysis public observation collected", &data);
-        })
-    };
+        },
+    );
     println!(
-        "SCOPE B ALIAS LOWER label={} unit={unit} observed={observed} report={report:#?} outcome={:?}",
+        "SCOPE B ALIAS LOWER label={} rooted={unit} observed={observed} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, e)| e)
     );
@@ -484,7 +390,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
         ))
     }
 }
-fn control(p: &ParsedFile, i: &Input, program: &Program) -> Result<(), Failure> {
+fn control(p: &ParsedFile, i: &Input, program: &Program) -> Result<BTreeSet<EntityId>, Failure> {
     let module = one(program.modules.iter(), "alias actual original SSA module")?;
     let scan = function(module, i.scan)?;
     let g = Graph::new(scan)?;
@@ -531,26 +437,57 @@ fn control(p: &ParsedFile, i: &Input, program: &Program) -> Result<(), Failure> 
     uses.protect(source);
     uses.permit(source, birth);
     uses.protect(EntityId::Loan(alias));
+    let Expression::Call {
+        arguments: original_arguments,
+        ..
+    } = p
+        .ast()
+        .expressions()
+        .get(i.call.unwrap())
+        .unwrap()
+        .payload()
+    else {
+        return Err(failure("alias original observe is a Call", i.call));
+    };
+    let argument_span = span(
+        p,
+        one(
+            original_arguments.iter(),
+            "alias original observe sole argument",
+        )?
+        .value,
+    );
     let mut lineage = BTreeSet::from([EntityId::Loan(alias)]);
-    for op in &g.instructions {
-        if let Operation::SharedReborrow { source } = op.operation
-            && lineage.contains(&EntityId::Loan(source))
-        {
-            need(
-                g.position(birth)? < g.position(op)? && g.position(op)? < g.position(call)?,
-                "alias actual argument child created before consumer",
-                op,
-            )?;
-            uses.permit(EntityId::Loan(source), op);
-            uses.protect(result(op)?);
-            lineage.insert(result(op)?);
-        }
+    let mut children = Vec::new();
+    let mut current = arguments[0];
+    let mut later = g.position(call)?;
+    while current != EntityId::Loan(alias) {
+        need(
+            lineage.insert(current),
+            "alias exact observe ancestor chain is acyclic",
+            current,
+        )?;
+        let child = g.definition(current)?;
+        let Operation::SharedReborrow { source: parent } = child.operation else {
+            return Err(failure(
+                "alias observe argument descends from the actual original alias",
+                child,
+            ));
+        };
+        need(
+            child.block == call.block
+                && child.origin == Origin::Source(argument_span)
+                && g.position(birth)? < g.position(child)?
+                && g.position(child)? < later,
+            "alias exact observed child is born after alias and before its consumer",
+            child,
+        )?;
+        uses.permit(EntityId::Loan(parent), child);
+        uses.protect(current);
+        children.push(current);
+        current = EntityId::Loan(parent);
+        later = g.position(child)?;
     }
-    need(
-        lineage.contains(&arguments[0]),
-        "alias actual observe consumes this alias/child loan",
-        call,
-    )?;
     uses.permit(arguments[0], call);
     let end = one(
         g.instructions
@@ -565,22 +502,22 @@ fn control(p: &ParsedFile, i: &Input, program: &Program) -> Result<(), Failure> 
         (call, end),
     )?;
     uses.permit(EntityId::Loan(alias), end);
-    for child in lineage
-        .iter()
-        .copied()
-        .filter(|v| *v != EntityId::Loan(alias))
-    {
+    let mut prior_end = g.position(call)?;
+    for child in children {
         let end_child=one(g.instructions.iter().copied().filter(|op|matches!(op.operation,Operation::BorrowEnd{loan}if EntityId::Loan(loan)==child)),"alias actual child End")?;
         need(
-            g.position(call)? < g.position(end_child)?
-                && g.position(end_child)? < g.position(end)?,
-            "alias actual child CallReturn End before parent End",
+            prior_end < g.position(end_child)?
+                && g.position(end_child)? < g.position(end)?
+                && end_child.origin == Origin::Source(span(p, i.call.unwrap())),
+            "alias exact observed child chain closes in reverse order at original CallReturn before alias End",
             end_child,
         )?;
+        prior_end = g.position(end_child)?;
         uses.permit(child, end_child);
     }
     need(!g.instructions.iter().any(|op|matches!(op.operation,Operation::BorrowEnd{loan}if EntityId::Loan(loan)==source))&&!g.instructions.iter().any(|op|matches!(op.operation,Operation::Drop{owner}if module.map_container(scan.entity(EntityId::Value(owner)).unwrap().ty.semantic_type()).is_some())),"alias original source Borrow remains caller-owned",scan.id)?;
-    uses.check(&g, None)
+    uses.check(&g, None)?;
+    Ok(lineage)
 }
 #[test]
 fn original_alias_sources_report_real_facts() {
@@ -589,7 +526,7 @@ fn original_alias_sources_report_real_facts() {
         for unit in [false, true] {
             let result = observe(&c, unit);
             println!(
-                "SCOPE B ALIAS CASE label={} unit={unit} result={result:?}",
+                "SCOPE B ALIAS CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
             results.push((c.label, unit, result));

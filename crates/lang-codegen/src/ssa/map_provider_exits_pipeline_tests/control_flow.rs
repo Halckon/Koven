@@ -124,42 +124,121 @@ fn observe(label: &str, text: &str, unit: bool) -> Result<(), Failure> {
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let result = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |_, _, owned, _| {
-                println!(
-                    "ORDINARY CFG FACTS case={label} unit=true plans={:#?} drops={:#?}",
-                    owned.map_iterations(),
-                    owned.drops()
-                );
-            },
-        )
-    } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |_, _, owned, _| {
-            println!(
-                "ORDINARY CFG FACTS case={label} unit=false plans={:#?} conditions={:#?} steps={:#?}",
+    let result = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        unit,
+        |_, _, owned, report| {
+            use lang_frontend::{
+                ownership_checking::{UnitDropPoint, UnitIterationExitKind as Exit},
+                parser::{Expression, Statement},
+            };
+            let original_fors = parsed
+                .ast()
+                .statements()
+                .iter()
+                .filter(|(_, node)| matches!(node.payload(), Statement::For { .. }))
+                .count();
+            report.check(
+                "ordinary CFG complete original For ownership inventory",
+                owned.map_iterations().len() == original_fors,
                 owned.map_iterations(),
-                owned.cleanup_conditions(),
-                owned.cleanup_steps()
             );
-        })
-    };
+            for plan in owned.map_iterations() {
+                let bridge = (|| -> Result<(), Failure> {
+                    let descriptor = plan.descriptor();
+                    let node = parsed
+                        .ast()
+                        .statements()
+                        .get(descriptor.statement().statement())
+                        .map_err(|e| failure("ordinary CFG original Unit For", e))?;
+                    let Statement::For { source, body, .. } = node.payload() else {
+                        return Err(failure("ordinary CFG descriptor is original For", node));
+                    };
+                    let body = parsed
+                        .ast()
+                        .statements()
+                        .get(*body)
+                        .map_err(|e| failure("ordinary CFG original For body", e))?
+                        .span();
+                    super::fixture::need(
+                        descriptor.source().source_unit() == descriptor.statement().source_unit()
+                            && descriptor.source().expression() == *source
+                            && node.span().source_id() == parsed.source_id(),
+                        "ordinary CFG exact Unit descriptor/source/For identity",
+                        descriptor,
+                    )?;
+                    let expected = parsed
+                        .ast()
+                        .expressions()
+                        .iter()
+                        .filter_map(|(id, expression)| {
+                            let span = expression.span();
+                            if span.source_id() != body.source_id()
+                                || span.start() < body.start()
+                                || span.end() > body.end()
+                            {
+                                return None;
+                            }
+                            let kind = match expression.payload() {
+                                Expression::Continue { .. } => 0,
+                                Expression::Break { .. } => 1,
+                                Expression::Return { .. } => 2,
+                                _ => return None,
+                            };
+                            Some((id, kind))
+                        })
+                        .collect::<Vec<_>>();
+                    let mut actual = Vec::new();
+                    for exit in plan.exits() {
+                        let (id, kind) = match exit.kind() {
+                            Exit::Continue(id) => (id, 0),
+                            Exit::Break(id) => (id, 1),
+                            Exit::Return(id) => (id, 2),
+                            _ => continue,
+                        };
+                        super::fixture::need(
+                            id.source_unit() == descriptor.statement().source_unit()
+                                && exit.point() == UnitDropPoint::ControlTransfer(id)
+                                && !actual.contains(&(id.expression(), kind)),
+                            "ordinary CFG exact unique original Unit control-transfer point",
+                            exit,
+                        )?;
+                        actual.push((id.expression(), kind));
+                    }
+                    super::fixture::need(
+                        actual.len() == expected.len()
+                            && expected.iter().all(|transfer| actual.contains(transfer)),
+                        "ordinary CFG all and only this original For body's transfer IDs/kinds",
+                        (&actual, &expected),
+                    )
+                })();
+                report.query(
+                    "ordinary CFG Unit exact body transfers retain original AST spans",
+                    &bridge,
+                );
+            }
+            println!(
+                "ORDINARY CFG FACTS case={label} unit=true plans={:#?} drops={:#?}",
+                owned.map_iterations(),
+                owned.drops()
+            );
+        },
+    );
     println!(
-        "ORDINARY CFG LOWER case={label} unit={unit} report={report:#?} outcome={:?}",
+        "ORDINARY CFG LOWER case={label} rooted={unit} report={report:#?} outcome={:?}",
         result.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = result?;
-    let identity = query::check(&sources, &parsed, &program, unit);
-    println!("ORDINARY CFG QUERY case={label} unit={unit} result={identity:?}");
+    let identity = query::check(&sources, &parsed, &program, true);
+    println!("ORDINARY CFG QUERY case={label} rooted={unit} result={identity:?}");
     report.query("ordinary CFG complete graph identities", &identity);
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
     println!(
-        "ORDINARY CFG SSA case={label} unit={unit}\n{}",
+        "ORDINARY CFG SSA case={label} rooted={unit}\n{}",
         crate::ssa::render::render_program(&program)
     );
     if !report.passed() {
@@ -375,12 +454,12 @@ fn ordinary_cfg_neighbors_reach_both_pipelines() {
     for case in neighbor_sources() {
         for unit in [false, true] {
             println!(
-                "ORDINARY CFG NEIGHBOR INPUT case={} unit={unit} source={:?} golden={:?}",
+                "ORDINARY CFG NEIGHBOR INPUT case={} rooted={unit} source={:?} golden={:?}",
                 case.label, case.source, case.golden
             );
             let result = observe(&case.label, &case.source, unit);
             println!(
-                "ORDINARY CFG NEIGHBOR CASE case={} unit={unit} result={result:?}",
+                "ORDINARY CFG NEIGHBOR CASE case={} rooted={unit} result={result:?}",
                 case.label
             );
             outcomes.push(result);
@@ -511,12 +590,12 @@ fn ordinary_return_delivery_reaches_both_pipelines() {
     for case in return_sources() {
         for unit in [false, true] {
             println!(
-                "ORDINARY RETURN INPUT case={} unit={unit} source={:?} golden={:?}",
+                "ORDINARY RETURN INPUT case={} rooted={unit} source={:?} golden={:?}",
                 case.label, case.source, case.golden
             );
             let result = observe(&case.label, &case.source, unit);
             println!(
-                "ORDINARY RETURN CASE case={} unit={unit} result={result:?}",
+                "ORDINARY RETURN CASE case={} rooted={unit} result={result:?}",
                 case.label
             );
             outcomes.push(result);
@@ -532,7 +611,7 @@ fn ordinary_conditional_sources_reach_both_pipelines() {
     for case in sources() {
         for unit in [false, true] {
             println!(
-                "ORDINARY CFG INPUT case={} unit={unit} source={:?} golden={:?} axes={:?}",
+                "ORDINARY CFG INPUT case={} rooted={unit} source={:?} golden={:?} axes={:?}",
                 case.label,
                 case.source,
                 case.golden,
@@ -540,7 +619,7 @@ fn ordinary_conditional_sources_reach_both_pipelines() {
             );
             let result = observe(&case.label, &case.source, unit);
             println!(
-                "ORDINARY CFG CASE case={} unit={unit} result={result:?}",
+                "ORDINARY CFG CASE case={} rooted={unit} result={result:?}",
                 case.label
             );
             outcomes.push(result);
@@ -559,9 +638,9 @@ fn ordinary_factory_without_for_reaches_both_pipelines() {
             common(mutable)
         );
         for unit in [false, true] {
-            println!("ORDINARY CFG INPUT case=noFor-{mutable} unit={unit} source={text:?}");
+            println!("ORDINARY CFG INPUT case=noFor-{mutable} rooted={unit} source={text:?}");
             let result = observe("noFor", &text, unit);
-            println!("ORDINARY CFG CONTROL mutable={mutable} unit={unit} result={result:?}");
+            println!("ORDINARY CFG CONTROL mutable={mutable} rooted={unit} result={result:?}");
             outcomes.push(result);
         }
     }
@@ -590,10 +669,7 @@ pub(crate) fn future_transfer_sources() -> Vec<(bool, String)> {
 }
 
 fn observe_future_transfer(mutable: bool, text: &str, unit: bool) -> Result<(), Failure> {
-    use lang_frontend::{
-        ownership_checking::{DropTarget, UnitDropTarget},
-        parser::Statement,
-    };
+    use lang_frontend::{ownership_checking::UnitDropTarget, parser::Statement};
 
     let mut sources = SourceMap::new();
     let id = sources
@@ -612,55 +688,28 @@ fn observe_future_transfer(mutable: bool, text: &str, unit: bool) -> Result<(), 
         )?;
     let mut report = Report::default();
     let mut identity = None;
-    let result = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |names, typed, owned, report| {
-                let observed =
-                    super::local_exits::formation::unit(&sources, &parsed, names, typed, owned);
-                report.query("future-transfer qualified original identities", &observed);
-                identity = Some(observed);
-                let resolution = names.names().source_units().first().unwrap().resolution();
-                let symbols = resolution
-                    .symbols()
-                    .iter()
-                    .filter(|s| s.name() == "source")
-                    .map(|s| s.id())
-                    .collect::<Vec<_>>();
-                report.check("future-transfer original owner has no Drop", symbols.len()==1 && !owned.drops().iter().any(|d|
-                            matches!(d.target(), UnitDropTarget::Named(s) if symbols.contains(&s.symbol()))), (&symbols, owned.drops()));
-            },
-        )
-    } else {
-        pipeline::single_observed(
-            &sources,
-            &parsed,
-            &mut report,
-            |names, typed, owned, report| {
-                let observed =
-                    super::local_exits::formation::single(&sources, &parsed, names, typed, owned);
-                report.query("future-transfer Single original identities", &observed);
-                identity = Some(observed);
-                let symbols = names
-                    .symbols()
-                    .iter()
-                    .filter(|s| s.name() == "source")
-                    .map(|s| s.id())
-                    .collect::<Vec<_>>();
-                report.check(
-                    "future-transfer original owner has no Drop",
-                    symbols.len() == 1
-                        && !owned.drops().iter().any(
-                            |d| matches!(d.target(), DropTarget::Named(s) if symbols.contains(&s)),
-                        ),
-                    (&symbols, owned.drops()),
-                );
-            },
-        )
-    };
+    let result = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        unit,
+        |names, typed, owned, report| {
+            let observed =
+                super::local_exits::formation::unit(&sources, &parsed, names, typed, owned);
+            report.query("future-transfer qualified original identities", &observed);
+            identity = Some(observed);
+            let resolution = names.names().source_units().first().unwrap().resolution();
+            let symbols = resolution
+                .symbols()
+                .iter()
+                .filter(|s| s.name() == "source")
+                .map(|s| s.id())
+                .collect::<Vec<_>>();
+            report.check("future-transfer original owner has no Drop", symbols.len()==1 && !owned.drops().iter().any(|d|
+                        matches!(d.target(), UnitDropTarget::Named(s) if symbols.contains(&s.symbol()))), (&symbols, owned.drops()));
+        },
+    );
     if let (Some(Ok(input)), Ok((program, _))) = (&identity, &result) {
         report.query(
             "future-transfer exact live current Value delivered once",
@@ -679,13 +728,9 @@ fn observe_future_transfer(mutable: bool, text: &str, unit: bool) -> Result<(), 
                 .map_err(|e| failure("LLVM", e)),
         );
     }
-    let sealed = if unit {
-        "unit full ownership validator"
-    } else {
-        "single full iteration validator"
-    };
+    let sealed = "unit full ownership validator";
     println!(
-        "ORDINARY CFG FUTURE TRANSFER ORIGINAL mutable={mutable} unit={unit} for_span={for_span:?} report={report:#?} result={:?}",
+        "ORDINARY CFG FUTURE TRANSFER ORIGINAL mutable={mutable} rooted={unit} for_span={for_span:?} report={report:#?} result={:?}",
         result.as_ref().map(|(_, entry)| entry)
     );
     if !report.passed()
@@ -707,7 +752,7 @@ fn ordinary_future_source_transfer_reaches_verified_llvm() {
         for unit in [false, true] {
             let observed = observe_future_transfer(mutable, &text, unit);
             println!(
-                "ORDINARY CFG FUTURE TRANSFER mutable={mutable} unit={unit} source={text:?} result={observed:?}"
+                "ORDINARY CFG FUTURE TRANSFER mutable={mutable} rooted={unit} source={text:?} result={observed:?}"
             );
             outcomes.push(observed);
         }
@@ -740,11 +785,11 @@ fn populated_future_source_transfer_reaches_verified_llvm() {
     for (mutable, text) in populated_future_transfer_sources() {
         for unit in [false, true] {
             println!(
-                "POPULATED FUTURE INPUT mutable={mutable} unit={unit} source={text:?} golden={:?}",
+                "POPULATED FUTURE INPUT mutable={mutable} rooted={unit} source={text:?} golden={:?}",
                 "key\nsink\n"
             );
             let observed = observe_future_transfer(mutable, &text, unit);
-            println!("POPULATED FUTURE CASE mutable={mutable} unit={unit} result={observed:?}");
+            println!("POPULATED FUTURE CASE mutable={mutable} rooted={unit} result={observed:?}");
             outcomes.push(observed);
         }
     }

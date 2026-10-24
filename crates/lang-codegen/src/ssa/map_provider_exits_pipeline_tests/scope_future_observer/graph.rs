@@ -74,6 +74,7 @@ fn control(c: &Case, p: &ParsedFile, i: &Input, m: &Module, caller: bool) -> Res
     let mut places = BTreeMap::new();
     let mut loans = BTreeMap::new();
     let mut known_loans = BTreeSet::new();
+    let mut observed_capabilities = BTreeSet::new();
     if !caller && c.code != 21 {
         let [EntityId::Value(owner)] = block.parameters.as_slice() else {
             return Err(failure("D own Map parameter is actual Value ABI", block));
@@ -262,6 +263,14 @@ fn control(c: &Case, p: &ParsedFile, i: &Input, m: &Module, caller: bool) -> Res
                     "D actual observation reads current owned epoch after Return/MoveName/put",
                     op,
                 )?;
+                observed_capabilities.extend(observe_capabilities(
+                    &g,
+                    op,
+                    EntityId::Loan(*loan),
+                    current.unwrap(),
+                    ast::span(p, arg),
+                    ast::span(p, call),
+                )?);
                 let begin = g.definition(EntityId::Loan(*loan))?;
                 need(
                     begin.origin == Origin::Source(ast::span(p, arg)),
@@ -389,12 +398,101 @@ fn control(c: &Case, p: &ParsedFile, i: &Input, m: &Module, caller: bool) -> Res
         "D every actual Map Value belongs to original parameter/Call/put result",
         (&maps, &tracked),
     )?;
+    // Only the capabilities required by original observe arguments are expected.
+    // The interpreter's broader live sets cannot justify an extra unused birth.
+    let expected = tracked
+        .iter()
+        .copied()
+        .map(EntityId::Value)
+        .chain(observed_capabilities)
+        .collect();
+    let map_types = function(m, i.factory)?
+        .return_types
+        .iter()
+        .copied()
+        .chain(
+            tracked
+                .iter()
+                .map(|&owner| f.entity(EntityId::Value(owner)).unwrap().ty.semantic_type()),
+        )
+        .filter(|&ty| m.map_container(ty).is_some())
+        .collect::<BTreeSet<_>>();
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+        &g,
+        &map_types.into_iter().collect::<Vec<_>>(),
+        &expected,
+    )?;
     println!(
         "SCOPE D FUTURE CONTROL label={} caller={caller} observes={observe_index} births={births_count} scan_calls={calls} puts={puts} drops={drops} returned={returned}",
         c.label
     );
     Ok(())
 }
+// Follow the independently selected original observe argument backwards, never
+// discover expected capabilities by scanning arbitrary Root/Begin operations.
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn observe_capabilities(
+    g: &Graph<'_>,
+    call: &Instruction,
+    argument: EntityId,
+    owner: ValueId,
+    argument_span: lang_frontend::source::Span,
+    call_span: lang_frontend::source::Span,
+) -> Result<BTreeSet<EntityId>, Failure> {
+    let mut expected = BTreeSet::new();
+    let mut current = argument;
+    let mut child_birth = g.position(call)?;
+    let mut child_end = g.position(call)?;
+    loop {
+        need(
+            expected.insert(current),
+            "D original observe capability lineage is acyclic",
+            current,
+        )?;
+        let birth = g.definition(current)?;
+        let end = one(g.instructions.iter().copied().filter(|op| {
+            matches!(op.operation, Operation::BorrowEnd { loan } if EntityId::Loan(loan) == current)
+        }), "D original observe lineage unique exact loan End")?;
+        need(
+            birth.block == call.block
+                && end.block == call.block
+                && birth.origin == Origin::Source(argument_span)
+                && end.origin == Origin::Source(call_span)
+                && g.position(birth)? < child_birth
+                && child_end < g.position(end)?,
+            "D original observe lineage exact argument birth and reverse CallReturn cleanup",
+            (birth, end),
+        )?;
+        child_birth = g.position(birth)?;
+        child_end = g.position(end)?;
+        match birth.operation {
+            Operation::SharedReborrow { source } => current = EntityId::Loan(source),
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            } => {
+                let place = EntityId::Place(place);
+                let root = g.definition(place)?;
+                need(
+                    root.operation == Operation::RootPlace { owner }
+                        && root.block == call.block
+                        && root.origin == Origin::Source(argument_span)
+                        && g.position(root)? < g.position(birth)?,
+                    "D original observe roots its exact current epoch at the original argument span",
+                    root,
+                )?;
+                expected.insert(place);
+                return Ok(expected);
+            }
+            _ => {
+                return Err(failure(
+                    "D original observe has actual Shared argument lineage",
+                    birth,
+                ));
+            }
+        }
+    }
+}
+
 fn clones(
     g: &Graph<'_>,
     p: &ParsedFile,

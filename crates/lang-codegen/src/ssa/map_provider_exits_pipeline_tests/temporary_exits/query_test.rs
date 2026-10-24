@@ -5,14 +5,14 @@ use super::{
         fixture::{Failure, failure, verify_failure},
         identity, pipeline,
     },
-    Case, Observation, ast, query_inputs, query_ssa, single, sources, unit,
+    Case, Observation, ast, query_inputs, query_ssa, sources, unit,
 };
 
-fn observe(case: &Case, unit: bool) -> Observation {
+fn observe(case: &Case, rooted: bool) -> Observation {
     let mut report = Report::default();
     // SHA 是经仓外逐字复核的冻结输入标识；这里未做运行时哈希或 native 求值。
     println!(
-        "SPEC0331 TEMPORARY EXITS IDENTITY INPUT case={} unit={unit} path=provider.ko frozen_sha256={} golden_sha256={} golden_bytes={} golden_status=predicted_only text={:?}",
+        "SPEC0331 TEMPORARY EXITS IDENTITY INPUT case={} rooted={rooted} path=provider.ko frozen_sha256={} golden_sha256={} golden_bytes={} golden_status=predicted_only text={:?}",
         case.label,
         case.source_hash,
         case.golden_hash,
@@ -26,40 +26,24 @@ fn observe(case: &Case, unit: bool) -> Observation {
             &anchors,
         );
         let mut inputs: Option<Result<query_inputs::Inputs, Failure>> = None;
-        let (program, entry) = if unit {
-            pipeline::unit_observed(
-                &input.sources,
-                &input.parsed,
-                "provider.ko",
-                &mut report,
-                |names, typed, owned, report| {
-                    unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                    let queried = anchors
-                        .as_ref()
-                        .map_err(|e| failure("temporary exits identity AST for FE", e))
-                        .and_then(|a| query_inputs::unit(&input, a, names, typed, owned));
-                    report.query("temporary exits identity same-analysis FE bridge", &queried);
-                    inputs = Some(queried);
-                },
-            )
-        } else {
-            pipeline::single_observed(
-                &input.sources,
-                &input.parsed,
-                &mut report,
-                |names, typed, owned, report| {
-                    single::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                    let queried = anchors
-                        .as_ref()
-                        .map_err(|e| failure("temporary exits identity AST for FE", e))
-                        .and_then(|a| query_inputs::single(&input, a, names, typed, owned));
-                    report.query("temporary exits identity same-analysis FE bridge", &queried);
-                    inputs = Some(queried);
-                },
-            )
-        }?;
+        let (program, entry) = pipeline::unit_input_observed(
+            &input.sources,
+            &input.parsed,
+            "provider.ko",
+            &mut report,
+            rooted,
+            |names, typed, owned, report| {
+                unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+                let queried = anchors
+                    .as_ref()
+                    .map_err(|e| failure("temporary exits identity AST for FE", e))
+                    .and_then(|a| query_inputs::unit(&input, a, names, typed, owned));
+                report.query("temporary exits identity same-analysis FE bridge", &queried);
+                inputs = Some(queried);
+            },
+        )?;
         println!(
-            "SPEC0331 TEMPORARY EXITS IDENTITY SSA case={} unit={unit}\n{}",
+            "SPEC0331 TEMPORARY EXITS IDENTITY SSA case={} rooted={rooted}\n{}",
             case.label,
             crate::ssa::render::render_program(&program)
         );
@@ -83,14 +67,7 @@ fn observe(case: &Case, unit: bool) -> Observation {
         let queried = inputs
             .as_ref()
             .map_err(|e| failure("temporary exits identity FE bridge for SSA", e))
-            .and_then(|inputs| {
-                super::super::fixture::need(
-                    inputs.unit.is_some() == unit,
-                    "temporary exits identity actual same-pipeline tag",
-                    inputs.unit,
-                )?;
-                query_ssa::check(&program, entry, &input, inputs)
-            });
+            .and_then(|inputs| query_ssa::check(&program, entry, &input, inputs));
         report.query(
             "temporary exits identity actual factory/owner/lease/Guard/all-edge/all-use closure",
             &queried,
@@ -103,14 +80,14 @@ fn observe(case: &Case, unit: bool) -> Observation {
             .map_err(|e| failure("LLVM render/verify", e))?;
         report.check("temporary exits LLVM render/verify", true, llvm.len());
         println!(
-            "SPEC0331 TEMPORARY EXITS IDENTITY LLVM case={} unit={unit}\n{llvm}",
+            "SPEC0331 TEMPORARY EXITS IDENTITY LLVM case={} rooted={rooted}\n{llvm}",
             case.label
         );
         Ok(())
     });
     Observation {
         label: case.label,
-        unit,
+        rooted,
         report,
         outcome,
     }
@@ -120,14 +97,14 @@ fn observe(case: &Case, unit: bool) -> Observation {
 fn temporary_map_exits_preserve_factory_owner_and_all_edge_identity() {
     let mut observations = Vec::new();
     for case in sources() {
-        for unit in [false, true] {
-            observations.push(observe(&case, unit));
+        for rooted in [false, true] {
+            observations.push(observe(&case, rooted));
         }
     }
     for observation in &observations {
         println!(
-            "SPEC0331 TEMPORARY EXITS IDENTITY OUTCOME case={} unit={} report={:#?}",
-            observation.label, observation.unit, observation.report
+            "SPEC0331 TEMPORARY EXITS IDENTITY OUTCOME case={} rooted={} report={:#?}",
+            observation.label, observation.rooted, observation.report
         );
         match &observation.outcome {
             Ok(()) => println!("stage=LLVM render/verify result=ok"),

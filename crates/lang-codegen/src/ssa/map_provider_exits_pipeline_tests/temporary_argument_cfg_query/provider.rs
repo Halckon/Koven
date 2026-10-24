@@ -96,18 +96,11 @@ pub(super) fn check<'p>(
         .copied()
         .filter(|e| flags.contains(e))
         .collect::<Vec<_>>();
-    // Single keeps its immutable entry loan outside the provider; Unit's ordinary
-    // argument CFG rebinds it and carries that exact current column through the loop.
-    let initial_flag = match current_flags.as_slice() {
-        [] => None,
-        [flag] => Some(*flag),
-        _ => {
-            return Err(failure(
-                "one actual current flag column at argument merge",
-                current_flags,
-            ));
-        }
-    };
+    // Both input routes now use Unit: the current argument-merge flag is mandatory.
+    let initial_flag = Some(one(
+        current_flags.into_iter(),
+        "Unit provider starts with the exact current argument-merge flag",
+    )?);
     let entry = g.branch(first.block)?;
     let (header, header_flag) = via(g, entry, initial, initial_flag)?;
     let has = at(g, site.span, |o| {
@@ -267,6 +260,15 @@ pub(super) fn check<'p>(
             }
         }
     }
+    let mut expected = BTreeSet::from([EntityId::Place(place)]);
+    for frame in [initial, header, body, exit] {
+        need(
+            expected.insert(frame[0]) && expected.insert(frame[1]),
+            "Unit CFG provider has distinct current owners and source leases",
+            frame,
+        )?;
+    }
+    super::super::query_inventory::check(g, &[map], &expected)?;
     Ok(source_end)
 }
 

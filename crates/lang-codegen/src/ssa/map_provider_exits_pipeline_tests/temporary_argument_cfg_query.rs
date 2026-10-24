@@ -67,7 +67,7 @@ pub(super) fn check(
         flag: input.flag,
         arms: input.arms,
     };
-    let (call, argument_end) = argument::check(
+    let (call, argument_end) = argument::check_unit(
         sources,
         parsed,
         &argument_input,
@@ -175,6 +175,7 @@ pub(super) fn check(
         )?;
         uses.permit(EntityId::Value(owner), size);
         uses.permit(EntityId::Value(owner), drop);
+        super::query_inventory::check(&g, &[map], &BTreeSet::from([EntityId::Value(owner)]))?;
         None
     };
     uses.check(&g, None)?;

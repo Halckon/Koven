@@ -1,4 +1,5 @@
 //! Ordinary storage histories consumed by the actual Map provider, never instrumented IR.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 use super::{
     Report,
     fixture::{clean, failure},
@@ -155,13 +156,13 @@ fn storage_histories_reach_both_real_provider_pipelines() {
                         },
                     )?
                 } else {
-                    pipeline::single_observed(
+                    pipeline::memory_document_observed(
                         &sources,
                         &parsed,
                         &mut report,
                         |_, typed, owned, r| {
                             r.check(
-                                "one actual single Map plan",
+                                "one actual unit Map plan",
                                 typed.map_iterations().len() == 1
                                     && owned.map_iterations().len() == 1,
                                 owned.map_iterations(),
@@ -210,9 +211,9 @@ pub(crate) fn sanitizer_ir(case: &Case, unit: bool) -> String {
             },
         )
     } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |_, typed, owned, r| {
+        pipeline::memory_document_observed(&sources, &parsed, &mut report, |_, typed, owned, r| {
             r.check(
-                "one actual Resource single provider",
+                "one actual Resource unit provider",
                 typed.map_iterations().len() == 1 && owned.map_iterations().len() == 1,
                 owned.map_iterations(),
             );

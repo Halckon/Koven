@@ -1,4 +1,5 @@
 //! The installation event and its complete RHS share an end byte, but are different epochs.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod ast;
 mod facts;
 mod graph;
@@ -101,16 +102,15 @@ fn observed(case: &Case, unit_mode: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
+        pipeline::memory_document_observed(&sources, &parsed, &mut report, |n, t, o, r| {
             println!(
-                "COMPLETED EPOCH SINGLE RAW plans={:#?} drops={:#?} conditions={:#?}",
+                "COMPLETED EPOCH UNIT RAW plans={:#?} drops={:#?}",
                 o.map_iterations(),
-                o.drops(),
-                o.cleanup_conditions()
+                o.drops()
             );
             r.query(
-                "completed event single FE identity",
-                &facts::single(case, &sources, &parsed, n, t, o),
+                "completed event qualified FE identity",
+                &facts::unit(case, &sources, &parsed, n, t, o),
             );
         })
     };

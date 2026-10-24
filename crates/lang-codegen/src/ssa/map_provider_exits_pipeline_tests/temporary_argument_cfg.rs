@@ -19,9 +19,11 @@ pub(super) fn source(mutable: bool, control: bool) -> String {
     )
 }
 
-fn observe(mutable: bool, unit: bool, control: bool) -> Result<(), Failure> {
+fn observe(mutable: bool, rooted: bool, control: bool) -> Result<(), Failure> {
     let text = source(mutable, control);
-    println!("ARGUMENT CFG INPUT mutable={mutable} unit={unit} control={control} source={text:?}");
+    println!(
+        "ARGUMENT CFG INPUT mutable={mutable} rooted={rooted} control={control} source={text:?}"
+    );
     let mut sources = SourceMap::new();
     let id = sources
         .add_source("provider.ko", &text)
@@ -31,27 +33,26 @@ fn observe(mutable: bool, unit: bool, control: bool) -> Result<(), Failure> {
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let lowered = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |n, t, o, r| source_forms::facts::unit(&sources, &parsed, n, t, o, r),
-        )
-    } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
-            source_forms::facts::single(&sources, &parsed, n, t, o, r);
-        })
-    };
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        rooted,
+        |n, t, o, r| source_forms::facts::unit(&sources, &parsed, n, t, o, r),
+    );
     println!(
-        "ARGUMENT CFG LOWER mutable={mutable} unit={unit} control={control} report={report:#?} outcome={:?}",
+        "ARGUMENT CFG LOWER mutable={mutable} rooted={rooted} control={control} report={report:#?} outcome={:?}",
         lowered.as_ref().map(|(_, entry)| entry)
     );
     if !report.passed() {
         return Err(failure("original FE queries", report));
     }
     let (program, _) = lowered?;
+    report.query(
+        "Unit original temporary entry and actual canonical owner acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     report.query(
         "actual ordinary argument CFG and returned owner identity",
         &super::temporary_argument_cfg_query::check(&sources, &parsed, &program),
@@ -67,10 +68,10 @@ fn observe(mutable: bool, unit: bool, control: bool) -> Result<(), Failure> {
 fn check(control: bool) {
     let mut outcomes = Vec::new();
     for mutable in [false, true] {
-        for unit in [false, true] {
-            let result = observe(mutable, unit, control);
+        for rooted in [false, true] {
+            let result = observe(mutable, rooted, control);
             println!(
-                "ARGUMENT CFG CASE mutable={mutable} unit={unit} control={control} result={result:?}"
+                "ARGUMENT CFG CASE mutable={mutable} rooted={rooted} control={control} result={result:?}"
             );
             outcomes.push(result);
         }

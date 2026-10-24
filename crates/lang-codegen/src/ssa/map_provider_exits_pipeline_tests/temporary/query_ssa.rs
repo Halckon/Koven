@@ -546,6 +546,30 @@ pub(super) fn check(
             calls,
         )?;
     }
+    // These sets were built only from the two actual Call births and all
+    // directed current-role columns. Type filtering merely selects Map roles.
+    let types = [&first, &second]
+        .into_iter()
+        .map(|shape| {
+            let call = graph
+                .function
+                .instruction(shape.call)
+                .ok_or_else(|| failure("temporary inventory actual factory call", shape.call))?;
+            Ok(ty(&graph, result(call)?)?.semantic_type())
+        })
+        .collect::<Result<Vec<_>, Failure>>()?;
+    let related = first
+        .protected
+        .union(&second.protected)
+        .copied()
+        .filter(|&entity| {
+            graph
+                .function
+                .entity(entity)
+                .is_some_and(|data| types.contains(&data.ty.semantic_type()))
+        })
+        .collect::<BTreeSet<_>>();
+    super::super::query_inventory::check(&graph, &types, &related)?;
     uses.check(&graph, None)?;
     // 全部受保护定义必须是图内实际 instruction result 或经过全部 incoming 核验的参数。
     for entity in first.protected.union(&second.protected) {

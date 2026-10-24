@@ -1,8 +1,8 @@
 //! 两份本地 named 源的四次 fresh；复杂 owner/Drop 拓扑先采实际事实，不推定。
 //! 仅普通 source → frontend/validator → SSA/LLVM；不执行 native。
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod ast;
 mod deep;
-mod single;
 mod unit;
 
 use super::{
@@ -84,21 +84,18 @@ fn observe(
                 },
             )
         } else {
-            pipeline::single_observed(
+            pipeline::memory_document_observed(
                 &input.sources,
                 &input.parsed,
                 &mut report,
                 |names, typed, owned, report| {
-                    single::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+                    unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
                     if deep_query {
                         let query = anchors
                             .as_ref()
                             .map_err(|e| failure("local deep AST", e))
-                            .and_then(|a| deep::single(&input, a, names, typed, owned));
-                        report.query(
-                            "local independent single owner phi and all incoming",
-                            &query,
-                        );
+                            .and_then(|a| deep::unit(&input, a, names, typed, owned));
+                        report.query("local independent unit last-use obligations", &query);
                     }
                 },
             )

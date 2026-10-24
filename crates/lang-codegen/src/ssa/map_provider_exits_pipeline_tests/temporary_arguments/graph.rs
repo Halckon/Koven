@@ -300,6 +300,11 @@ pub(super) fn check(
             drop,
         )?;
         uses.permit(EntityId::Value(owner), drop);
+        crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+            &g,
+            &[map_type],
+            &BTreeSet::from([EntityId::Value(owner)]),
+        )?;
         need(
             !g.instructions.iter().any(|i| {
                 matches!(

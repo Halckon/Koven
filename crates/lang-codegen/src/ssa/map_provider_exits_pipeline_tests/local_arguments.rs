@@ -1,4 +1,5 @@
 //! Argument-bearing ordinary factories form the actual named provider owner.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod ast;
 mod facts;
 mod generic;
@@ -56,17 +57,17 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
-            source_forms::facts::single(&sources, &parsed, n, t, o, r);
-            let checked = facts::single(case, &sources, &parsed, &input, n, t, o);
+        pipeline::memory_document_observed(&sources, &parsed, &mut report, |n, t, o, r| {
+            source_forms::facts::unit(&sources, &parsed, n, t, o, r);
+            let checked = facts::unit(case, &sources, &parsed, &input, n, t, o);
             r.query(
-                "local argument exact Call, delivery, birth and all owner incoming",
+                "local argument exact qualified Call, delivery, birth and provider owner",
                 &checked,
             );
             if case.label.starts_with("generic-wrapper-") {
                 r.query(
-                    "generic named wrapper forwarding",
-                    &generic::wrapper::single(&sources, &parsed, n, t, o),
+                    "generic named wrapper qualified forwarding",
+                    &generic::wrapper::unit(&sources, &parsed, n, t, o),
                 );
             }
             proof = Some(checked);
@@ -78,6 +79,10 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
+    report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     let proof = proof.ok_or_else(|| failure("local argument observer", "not called"))??;
     report.query(
         "local argument actual SSA current owner, complete incoming and protected uses",

@@ -448,6 +448,11 @@ pub(super) fn check(
             pending.push((edge.target, ended, dropped));
         }
     }
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &g,
+        module,
+        &BTreeSet::from([*anchor]),
+    )?;
     Ok(())
 }
 

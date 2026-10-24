@@ -12,7 +12,7 @@ use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 pub(crate) use sources::{Case, sources};
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     println!(
-        "SCOPE B INT INPUT label={} unit={unit} source={:?} golden={:?}",
+        "SCOPE B INT INPUT label={} rooted={unit} source={:?} golden={:?}",
         c.label, c.source, c.golden
     );
     let mut sources = SourceMap::new();
@@ -26,27 +26,23 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     let input = ast::input(c, &sources, &p)?;
     let mut report = Report::default();
     let mut proof = None;
-    let lower = if unit {
-        pipeline::unit_observed(&sources, &p, "provider.ko", &mut report, |n, t, o, r| {
+    let lower = pipeline::unit_input_observed(
+        &sources,
+        &p,
+        "provider.ko",
+        &mut report,
+        unit,
+        |n, t, o, r| {
             let result = facts::unit((c, &sources, &p, &input), n, t, o);
             r.query(
                 "Int actual qualified creation/Copy types/consume/reader/current cleanup",
                 &result,
             );
             proof = result.ok();
-        })
-    } else {
-        pipeline::single_observed(&sources, &p, &mut report, |n, t, o, r| {
-            let result = facts::single((c, &sources, &p, &input), n, t, o);
-            r.query(
-                "Int actual creation/Copy types/consume/reader/current cleanup",
-                &result,
-            );
-            proof = result.ok();
-        })
-    };
+        },
+    );
     println!(
-        "SCOPE B INT LOWER label={} unit={unit} report={report:#?} outcome={:?}",
+        "SCOPE B INT LOWER label={} rooted={unit} report={report:#?} outcome={:?}",
         c.label,
         lower.as_ref().map(|(_, e)| e)
     );
@@ -62,7 +58,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
     println!(
-        "SCOPE B INT FINAL label={} unit={unit} report={report:#?}",
+        "SCOPE B INT FINAL label={} rooted={unit} report={report:#?}",
         c.label
     );
     if report.passed() {
@@ -78,7 +74,7 @@ fn original_int_storage_sources_preserve_actual_identity() {
         for unit in [false, true] {
             let result = observe(&c, unit);
             println!(
-                "SCOPE B INT CASE label={} unit={unit} result={result:?}",
+                "SCOPE B INT CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
             outcomes.push((c.label, unit, result));

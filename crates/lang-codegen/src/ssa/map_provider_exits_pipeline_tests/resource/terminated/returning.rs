@@ -158,40 +158,27 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     clean(&sources, "parse", parsed.diagnostics())?;
     let input = super::super::identity::ast(&sources, &parsed, case.owned)?;
     let mut report = Report::default();
-    let outcome = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |names, typed, owned, report| {
-                report.query(
-                    "return original unit FE",
-                    &super::fe::unit(&input, &parsed, names, typed, owned),
-                )
-            },
-        )
-    } else {
-        pipeline::single_observed(
-            &sources,
-            &parsed,
-            &mut report,
-            |names, typed, owned, report| {
-                report.query(
-                    "return original single FE",
-                    &super::fe::single(&input, &parsed, names, typed, owned),
-                )
-            },
-        )
-    };
+    let outcome = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        unit,
+        |names, typed, owned, report| {
+            report.query(
+                "return original unit FE",
+                &super::fe::unit(&input, &parsed, names, typed, owned),
+            )
+        },
+    );
     println!(
-        "RESOURCE RETURN case={} unit={unit} report={report:#?} outcome={:?}",
+        "RESOURCE RETURN case={} rooted={unit} report={report:#?} outcome={:?}",
         case.label,
         outcome.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = outcome?;
     assert!(report.passed(), "{report:#?}");
-    super::graph::check_return(&program, &input, &sources, &parsed, unit)?;
+    super::graph::check_return(&program, &input, &sources, &parsed, true)?;
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA verifier", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e))?;
     Ok(())

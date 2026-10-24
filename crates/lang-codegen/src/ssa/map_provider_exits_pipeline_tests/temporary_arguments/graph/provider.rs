@@ -241,7 +241,18 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check(
     )?;
     uses.permit(EntityId::Loan(exit.source), end);
     uses.permit(EntityId::Value(exit.owner), drop);
-    Ok(())
+    let mut expected = BTreeSet::from([EntityId::Place(place)]);
+    for frame in [initial, header, body_frame, exit] {
+        need(
+            expected.insert(EntityId::Value(frame.owner))
+                && expected.insert(EntityId::Loan(frame.source)),
+            "Unit temporary owner and source are distinct current roles at every boundary",
+            frame,
+        )?;
+    }
+    // The old Always/empty-phi FE obligations are now these nonoptional current
+    // columns, all incoming edges, exact retirement, and the complete definition inventory.
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(g, &[map], &expected)
 }
 
 fn body<'ir>(

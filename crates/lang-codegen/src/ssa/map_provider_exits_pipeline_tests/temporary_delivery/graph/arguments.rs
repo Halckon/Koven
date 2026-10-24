@@ -6,6 +6,8 @@ pub(super) struct Delivery<'ir> {
     pub call: &'ir Instruction,
     pub cleanup: Vec<&'ir Instruction>,
     pub argument_owners: BTreeSet<ValueId>,
+    pub map_capabilities: BTreeSet<EntityId>,
+    pub map_types: Vec<SsaTypeId>,
 }
 
 pub(super) fn check<'ir>(
@@ -43,6 +45,8 @@ pub(super) fn check<'ir>(
     )?;
     let mut cleanup = Vec::new();
     let mut argument_owners = BTreeSet::new();
+    let mut map_capabilities = BTreeSet::new();
+    let mut map_types = Vec::new();
     let mut previous = None;
     for actual in &input.arguments {
         let evaluator = function(module, actual.function.span)?;
@@ -73,6 +77,10 @@ pub(super) fn check<'ir>(
         )?;
         previous = Some(g.position(evaluate)?);
         uses.protect(owner_entity);
+        if module.map_container(ty).is_some() {
+            map_types.push(ty);
+            map_capabilities.insert(owner_entity);
+        }
         let mode = input.factory.parameters[actual.parameter].mode;
         if mode == ParameterMode::Value {
             need(
@@ -138,6 +146,23 @@ pub(super) fn check<'ir>(
             )?;
             uses.permit(owner_entity, root);
             uses.permit(owner_entity, drop);
+            let capabilities = [
+                owner_entity,
+                EntityId::Place(place),
+                EntityId::Loan(current),
+            ];
+            need(
+                g.edges.iter().all(|(_, edge)| {
+                    edge.arguments
+                        .iter()
+                        .all(|entity| !capabilities.contains(entity))
+                }),
+                "Unit synchronous argument capabilities never escape after CallReturn retirement",
+                capabilities,
+            )?;
+            if module.map_container(ty).is_some() {
+                map_capabilities.extend(capabilities);
+            }
             uses.protect(EntityId::Place(place));
             uses.permit(EntityId::Place(place), begin);
             uses.protect(EntityId::Loan(current));
@@ -150,5 +175,7 @@ pub(super) fn check<'ir>(
         call,
         cleanup,
         argument_owners,
+        map_capabilities,
+        map_types,
     })
 }

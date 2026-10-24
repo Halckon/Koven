@@ -7,24 +7,17 @@ use super::super::{
 use crate::ssa::model::*;
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    name_resolution::{
-        NameResolution, ReferenceTarget, SymbolKind, UnitReferenceTarget,
-        ValidatedCompilationUnitNames,
-    },
+    name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
     ownership_checking::{
-        CleanupCondition, CleanupOwnerValue, CleanupSelection, CleanupSelectorSource,
-        CompilationUnitOwnership, DropPoint, DropTarget, IterationCleanupAction as A,
-        IterationExitKind as E, IterationPhiBoundary as B, IterationPhiIncomingKind as K,
-        LoanKind as FLoanKind, LoanTarget, MapIterationSourceAccess, OwnershipBindingKind,
-        OwnershipCheckedFile, UnitCallArgumentOwnershipKind as UK, UnitDropPoint, UnitDropTarget,
-        UnitIterationCleanupAction as UA, UnitIterationExitKind as UE, UnitIterationSourceAccess,
-        UnitLoanTarget, UnitValueDeliveryKind,
+        CompilationUnitOwnership, LoanKind as FLoanKind, UnitCallArgumentOwnershipKind as UK,
+        UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
+        UnitIterationExitKind as UE, UnitIterationSourceAccess, UnitLoanTarget,
+        UnitValueDeliveryKind,
     },
     parser::{Expression, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile, Statement},
     source::{SourceMap, Span},
     type_checking::{
-        CallableTarget, CompilationUnitTypes, ParameterMode, TypedFile, UnitCallTarget,
-        UnitExpressionId, UnitStatementId,
+        CompilationUnitTypes, ParameterMode, UnitCallTarget, UnitExpressionId, UnitStatementId,
     },
 };
 
@@ -164,276 +157,6 @@ pub(super) fn ast(sources: &SourceMap, parsed: &ParsedFile, owned: bool) -> Resu
     })
 }
 
-pub(super) fn single(
-    input: &Input,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<(), Failure> {
-    let root = one(
-        names
-            .references()
-            .iter()
-            .filter(|r| r.span() == input.source_span)
-            .filter_map(|r| match r.target() {
-                ReferenceTarget::Symbol(s) => Some(*s),
-                _ => None,
-            }),
-        "resource single original source root",
-    )?;
-    let symbol = one(
-        names.symbols().iter().filter(|s| {
-            s.id() == root
-                && s.kind() == SymbolKind::ValueParameter
-                && !s.is_synthetic()
-                && s.span() == input.parameter
-        }),
-        "resource single actual parameter",
-    )?;
-    let signature = one(
-        typed
-            .callables()
-            .iter()
-            .filter(|c| c.parameter_symbols() == [Some(root)]),
-        "resource single actual scan signature",
-    )?;
-    let mode = if input.owned {
-        ParameterMode::Value
-    } else {
-        ParameterMode::Borrow
-    };
-    let p = owned
-        .map_iteration(input.statement)
-        .ok_or_else(|| failure("resource single plan", input.statement))?;
-    let d = p.descriptor();
-    need(
-        typed.map_iterations().len() == 1
-            && owned.map_iterations().len() == 1
-            && typed.map_iteration(input.statement) == Some(d)
-            && d.source() == input.source
-            && typed.is_resource_type(d.value_type()) == Some(true)
-            && typed.is_resource_type(d.source_type()) == Some(true)
-            && matches!(signature.parameters(), [s] if s.mode == mode && s.ty == d.source_type())
-            && matches!(p.source(), Some(LoanTarget::Place(place)) if place.root() == root && place.is_root())
-            && p.source_access()
-                == if input.owned {
-                    MapIterationSourceAccess::Owned
-                } else {
-                    MapIterationSourceAccess::Shared
-                },
-        "resource single original type/source capability",
-        (d, p.source(), signature),
-    )?;
-    for (i, binding) in d.bindings().into_iter().enumerate() {
-        need(
-            owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
-                && p.loans()[i].binding() == binding
-                && p.loans()[i].kind() == FLoanKind::Shared,
-            "resource single separate Shared components",
-            p.loans(),
-        )?;
-    }
-    let fallthrough = one(
-        p.exits()
-            .iter()
-            .filter(|e| e.kind() == input.continued.map_or(E::Fallthrough, E::Continue)),
-        "resource single fallthrough",
-    )?;
-    let exhausted = one(
-        p.exits().iter().filter(|e| e.kind() == E::Exhaustion),
-        "resource single exhaustion",
-    )?;
-    need(
-        p.exits().len() == 2
-            && fallthrough.point()
-                == input.continued.map_or(
-                    DropPoint::AfterStatement(input.body),
-                    DropPoint::ControlTransfer,
-                )
-            && fallthrough.actions().ends_with(&[
-                A::EndBinding {
-                    statement: input.statement,
-                    symbol: d.value_binding(),
-                },
-                A::EndBinding {
-                    statement: input.statement,
-                    symbol: d.key_binding(),
-                },
-            ])
-            && exhausted.point() == DropPoint::LoopExit(input.statement)
-            && exhausted.actions()
-                == [
-                    A::FinishProvider(input.statement),
-                    A::EndSource(input.statement),
-                ],
-        "resource single exact cleanup, without component/source Drop",
-        p.exits(),
-    )?;
-    let body_drops = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|f| f.point() == fallthrough.point())
-        .map(A::Drop)
-        .collect::<Vec<_>>();
-    need(
-        fallthrough.actions()[..fallthrough.actions().len() - 2] == body_drops,
-        "single full body-local Drop prefix",
-        fallthrough,
-    )?;
-    let drops = owned
-        .drops()
-        .iter()
-        .filter(|f| f.target() == DropTarget::Named(root))
-        .collect::<Vec<_>>();
-    if input.owned {
-        let [drop] = drops.as_slice() else {
-            return Err(failure("resource single unique scope drop", drops));
-        };
-        let conditions = owned.cleanup_conditions();
-        let h = one(
-            p.closure_phis()
-                .iter()
-                .filter(|phi| phi.symbol() == root && phi.boundary() == B::Header),
-            "resource single Header",
-        )?;
-        let x = one(
-            p.closure_phis()
-                .iter()
-                .filter(|phi| phi.symbol() == root && phi.boundary() == B::Exit),
-            "resource single Exit",
-        )?;
-        need(
-            p.closure_phis().len() == 2
-                && p.closure_phi_incomings().len() == 3
-                && h.owner() != x.owner()
-                && drop.point() == DropPoint::AfterStatement(input.scope)
-                && drop.value_origin() == symbol.span()
-                && drop.owner() == Some(x.owner())
-                && drop.condition() == Some(x.availability_condition())
-                && drop.capture_slot().is_none()
-                && drop.instance_address().is_none(),
-            "resource single real Exit owner lexical obligation",
-            (h, x, drop),
-        )?;
-        for phi in [h, x] {
-            let selector = conditions
-                .selector(phi.availability_selector())
-                .ok_or_else(|| failure("resource original selector", phi))?;
-            need(
-                matches!(conditions.owner_value(phi.owner()), Some(CleanupOwnerValue::IterationPhi { statement, symbol, boundary, .. }) if *statement == input.statement && *symbol == root && *boundary == phi.boundary())
-                    && matches!(selector.source(), CleanupSelectorSource::IterationPhi { statement, boundary, .. } if statement == input.statement && boundary == phi.boundary())
-                    && selector.selection() == CleanupSelection::IterationPresence
-                    && selector.branch_count() == 2
-                    && matches!(conditions.get(phi.availability_condition()), Some(CleanupCondition::Choice { selector, branches }) if *selector == phi.availability_selector() && matches!(branches.as_slice(), [no, yes] if conditions.get(*no) == Some(&CleanupCondition::Never) && conditions.get(*yes) == Some(&CleanupCondition::Always))),
-                "resource single public owner and complete Choice",
-                (phi, selector),
-            )?;
-        }
-        for (kind, phi, point) in [
-            (K::Entry, h, DropPoint::AfterExpression(input.source)),
-            (
-                input.continued.map_or(K::Fallthrough, K::Continue),
-                h,
-                fallthrough.point(),
-            ),
-            (K::Exhaustion, x, exhausted.point()),
-        ] {
-            let edge = one(
-                p.closure_phi_incomings()
-                    .iter()
-                    .filter(|e| e.kind() == kind),
-                "resource single all incoming kinds",
-            )?;
-            let [binding] = edge.bindings() else {
-                return Err(failure("resource single incoming binding", edge));
-            };
-            let [value] = binding.values() else {
-                return Err(failure("resource single incoming value", binding));
-            };
-            let first = kind == K::Entry;
-            need(
-                edge.point() == point
-                    && edge.boundary() == phi.boundary()
-                    && conditions.get(edge.condition()) == Some(&CleanupCondition::Always)
-                    && binding.target() == phi.owner()
-                    && binding.availability_selector() == phi.availability_selector()
-                    && value.condition() == binding.available_when()
-                    && if first {
-                        conditions.get(binding.available_when()) == Some(&CleanupCondition::Always)
-                            && matches!(conditions.owner_value(value.source()), Some(CleanupOwnerValue::Parameter { symbol: s, origin }) if *s == root && *origin == symbol.span())
-                    } else {
-                        value.source() == h.owner()
-                            && binding.available_when() == h.availability_condition()
-                    },
-                "resource single each complete incoming provenance",
-                edge,
-            )?;
-        }
-    } else {
-        need(
-            drops.is_empty(),
-            "resource single Borrow source has no owner Drop",
-            drops,
-        )?;
-    }
-    let mut calls = 0;
-    for (id, node) in parsed.ast().expressions().iter() {
-        let Some(call) = typed
-            .call(id)
-            .filter(|c| c.target() == CallableTarget::Source(signature.symbol()))
-        else {
-            continue;
-        };
-        calls += 1;
-        let Expression::Call { arguments, .. } = node.payload() else {
-            return Err(failure("resource caller AST", node));
-        };
-        let [arg] = arguments.as_slice() else {
-            return Err(failure("resource caller arity", arguments));
-        };
-        let arg_span = parsed
-            .ast()
-            .expressions()
-            .get(arg.value)
-            .map_err(|e| failure("resource caller argument", e))?
-            .span();
-        let arg_root = one(
-            names
-                .references()
-                .iter()
-                .filter(|r| r.span() == arg_span)
-                .filter_map(|r| match r.target() {
-                    ReferenceTarget::Symbol(s) => Some(*s),
-                    _ => None,
-                }),
-            "resource original caller root",
-        )?;
-        let loans = owned
-            .loans()
-            .iter()
-            .filter(|l| l.call() == id)
-            .collect::<Vec<_>>();
-        need(
-            matches!(call.arguments(), [a] if a.mode() == mode && a.argument_index() == 0 && a.parameter_index() == 0 && Some(a.parameter_type()) == typed.expression_type(arg.value))
-                && if input.owned {
-                    loans.is_empty()
-                } else {
-                    matches!(loans.as_slice(), [l] if l.argument() == arg.value && l.kind() == FLoanKind::Shared && matches!(l.target(), LoanTarget::Place(p) if p.is_root() && p.root() == arg_root))
-                },
-            "resource single caller Value/Borrow contract and original root",
-            (call, arg_root, loans),
-        )?;
-    }
-    need(
-        calls == 2 && symbol.span() == input.parameter,
-        "resource single two actual caller sites and original parameter span",
-        (calls, symbol),
-    )?;
-    Ok(())
-}
-
 pub(super) fn unit(
     input: &Input,
     parsed: &ParsedFile,
@@ -452,6 +175,29 @@ pub(super) fn unit(
                 _ => None,
             }),
         "resource unit original source root",
+    )?;
+    let original = one(
+        names
+            .names()
+            .source_units()
+            .iter()
+            .filter(|u| u.source_unit() == root.source_unit()),
+        "resource original qualified parameter source unit",
+    )?;
+    let symbol = one(
+        original
+            .resolution()
+            .symbols()
+            .iter()
+            .filter(|s| s.id() == root.symbol()),
+        "resource actual qualified parameter symbol",
+    )?;
+    need(
+        symbol.span() == input.parameter
+            && !symbol.is_synthetic()
+            && symbol.kind() == lang_frontend::name_resolution::SymbolKind::ValueParameter,
+        "resource Unit parameter preserves exact original declaration marker",
+        symbol,
     )?;
     let statement = UnitStatementId::new(root.source_unit(), input.statement);
     let p = owned
@@ -491,6 +237,19 @@ pub(super) fn unit(
         "resource unit real source type and capability",
         (signature, p),
     )?;
+    for (index, binding) in d.bindings().into_iter().enumerate() {
+        need(
+            owned.binding_kind(binding)
+                == Some(lang_frontend::ownership_checking::OwnershipBindingKind::Shared)
+                && p.loans()[index].binding() == binding
+                && p.loans()[index].statement() == statement
+                && p.loans()[index].source() == d.source()
+                && p.loans()[index].kind() == FLoanKind::Shared
+                && Some(p.loans()[index].origin()) == p.source(),
+            "resource Unit preserves separate original Shared component identities",
+            p.loans(),
+        )?;
+    }
     let fallthrough = one(
         p.exits().iter().filter(|e| {
             e.kind()
@@ -928,5 +687,27 @@ pub(super) fn ssa(program: &Program, input: &Input, unit: bool) -> Result<(), Fa
         "resource exact provider source origins",
         input.for_span,
     )?;
+    if input.owned {
+        crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+            &g,
+            module,
+            &std::collections::BTreeSet::from([*seed]),
+        )?;
+    } else {
+        let expected = roles
+            .into_iter()
+            .chain([
+                EntityId::Loan(lease),
+                EntityId::Loan(hs),
+                EntityId::Loan(bs),
+                EntityId::Loan(xs),
+            ])
+            .collect();
+        crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+            &g,
+            &[seed_type],
+            &expected,
+        )?;
+    }
     Ok(())
 }

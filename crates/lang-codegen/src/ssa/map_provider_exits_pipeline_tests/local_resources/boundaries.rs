@@ -1,4 +1,5 @@
 //! Independent live-owner neighbor: two Resource providers reuse the same formed root.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 use super::*;
 
 fn sources() -> Vec<Case> {
@@ -63,23 +64,22 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(
+        pipeline::memory_document_observed(
             &sources,
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
                 report.check(
-                    "Resource repeat four original single providers",
+                    "Resource repeat four original qualified providers",
                     typed.map_iterations().len() == 4 && owned.map_iterations().len() == 4,
                     (typed.map_iterations(), owned.map_iterations()),
                 );
                 println!(
-                    "G2 RESOURCE REPEAT SINGLE case={} plans={:#?} drops={:#?} conditions={:#?}",
+                    "G2 RESOURCE REPEAT UNIT case={} plans={:#?} drops={:#?}",
                     case.label,
                     owned.map_iterations(),
-                    owned.drops(),
-                    owned.cleanup_conditions()
+                    owned.drops()
                 );
             },
         )
@@ -89,6 +89,10 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
         case.label
     );
     let (program, _) = result?;
+    report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     if !report.passed() {
         return Err(failure("original repeat Resource FE", report));
     }

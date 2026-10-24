@@ -173,5 +173,10 @@ pub(super) fn check(
         }
     }
     need(c.provider==i.site.is_some()&&g.instructions.iter().filter(|op|matches!(op.operation,Operation::Drop{owner}if module.map_container(scan.entity(EntityId::Value(owner)).unwrap().ty.semantic_type()).is_some())).count()==1&&!g.instructions.iter().any(|op|matches!(op.operation,Operation::MapConstruct{..}|Operation::MapPut{..}|Operation::MapConsume{..}))&&g.blocks.iter().all(|&block|!matches!(&g.term(block).unwrap().kind,TerminatorKind::Return{values}if !values.is_empty())),"Int one current cleanup and void terminal, no alternate scanner Map birth",scan.id)?;
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &g,
+        module,
+        &BTreeSet::from([seed]),
+    )?;
     uses.check(&g, None)
 }

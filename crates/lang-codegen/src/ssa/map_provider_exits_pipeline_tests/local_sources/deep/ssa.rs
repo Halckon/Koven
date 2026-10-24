@@ -42,8 +42,9 @@ pub(in super::super) fn query(
         let mut uses = Uses::default();
         let mut previous_exit = None;
         let mut map_drops = BTreeSet::new();
+        let mut owner_births = BTreeSet::new();
         for site in sites {
-            let (pre, exit, drop) = site_query(
+            let (pre, exit, drop, owner_birth) = site_query(
                 input,
                 anchors,
                 module,
@@ -86,6 +87,7 @@ pub(in super::super) fn query(
             }
             previous_exit = Some(exit);
             map_drops.insert(drop);
+            owner_births.insert(owner_birth);
         }
         let actual_drops = g
             .instructions
@@ -160,6 +162,11 @@ pub(in super::super) fn query(
             "local complete provider operation inventory",
             scanner,
         )?;
+        crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+            &g,
+            module,
+            &owner_births,
+        )?;
         uses.check(&g, None)?;
     }
     Ok(())
@@ -173,7 +180,7 @@ fn site_query(
     site: &Site,
     reader: FunctionId,
     uses: &mut Uses,
-) -> Result<(BlockId, BlockId, InstructionId), Failure> {
+) -> Result<(BlockId, BlockId, InstructionId, EntityId), Failure> {
     let op = |predicate: fn(&Operation) -> bool| {
         one(
             g.instructions
@@ -525,7 +532,7 @@ fn site_query(
         uses.protect(result(size_op)?);
         uses.permit(result(size_op)?, compare);
     }
-    Ok((pre, exit, drop.id))
+    Ok((pre, exit, drop.id, seed))
 }
 
 fn value_entity(entity: EntityId) -> Result<ValueId, Failure> {

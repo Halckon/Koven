@@ -1,6 +1,4 @@
 //! 同次公开 FE facts 的独立桥；仅在完整验证后交付源码身份，不制造 SSA ID。
-#[path = "query_inputs_single.rs"]
-mod single_bridge;
 #[path = "query_inputs_unit.rs"]
 mod unit_bridge;
 
@@ -12,12 +10,9 @@ use super::{
     ast::{Anchors, Function, Input, Read, Site},
 };
 use lang_frontend::{
-    ast::ExpressionId,
-    name_resolution::{NameResolution, ValidatedCompilationUnitNames},
-    ownership_checking::{CompilationUnitOwnership, OwnershipCheckedFile},
-    parser::Expression,
-    source::Span,
-    type_checking::{CompilationUnitTypes, TypedFile},
+    ast::ExpressionId, name_resolution::ValidatedCompilationUnitNames,
+    ownership_checking::CompilationUnitOwnership, parser::Expression, source::Span,
+    type_checking::CompilationUnitTypes,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -55,16 +50,6 @@ pub(super) struct Inputs {
     pub reads: [ReadInput; 4],
     pub callers: [CallerInput; 2],
     pub sizes: [Span; 2],
-}
-
-pub(super) fn single(
-    f: &Input,
-    a: &Anchors,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<Inputs, Failure> {
-    single_bridge::collect(f, a, names, typed, owned)
 }
 
 pub(super) fn unit(

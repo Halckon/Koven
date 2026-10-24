@@ -184,31 +184,23 @@ fn observe(text: &str, unit: bool, expected_owned_mutable: bool) -> Result<Strin
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let result = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |names, typed, owned, report| {
-                facts::unit(&sources, &parsed, names, typed, owned, report)
-            },
-        )
-    } else {
-        pipeline::single_observed(
-            &sources,
-            &parsed,
-            &mut report,
-            |names, typed, owned, report| {
-                facts::single(&sources, &parsed, names, typed, owned, report)
-            },
-        )
-    };
+    let result = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        unit,
+        |names, typed, owned, report| facts::unit(&sources, &parsed, names, typed, owned, report),
+    );
     println!(
-        "SOURCE FORMS unit={unit} report={report:#?} outcome={:?}",
+        "SOURCE FORMS rooted={unit} report={report:#?} outcome={:?}",
         result.as_ref().map(|(_, id)| id)
     );
     let (program, _) = result?;
+    report.query(
+        "Unit temporary Entry keeps outer source and actual producer/owner transport",
+        &graph::temporary_entries(&parsed, &program),
+    );
     if expected_owned_mutable {
         graph::owned_map(&sources, &parsed, &program, true)?;
     }
@@ -234,7 +226,7 @@ fn owned_mutable_and_group_sources_preserve_verified_programs() {
                 _ => false,
             };
             println!(
-                "SOURCE FORMS CASE {} unit={unit} equivalent={same} result={:?}",
+                "SOURCE FORMS CASE {} rooted={unit} equivalent={same} result={:?}",
                 case.label,
                 result.as_ref().map(|s| s.len())
             );

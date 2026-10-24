@@ -248,5 +248,19 @@ pub(super) fn check(
             }
         }
     }
+    if c.code == 19 {
+        crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+            &g,
+            &[map],
+            &carried.map_entities,
+        )?;
+    }
+    if c.code != 19 {
+        crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+            &g,
+            m,
+            &anchors.iter().copied().collect(),
+        )?;
+    }
     uses.check(&g, returned)
 }

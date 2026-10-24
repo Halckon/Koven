@@ -9,8 +9,7 @@ use lang_frontend::{
     parser::{Expression, ParsedFile},
     source::Span,
     type_checking::{
-        CallableTarget, CompilationUnitTypes, ParameterMode, UnitCallTarget, UnitCallableTarget,
-        UnitTypeKind,
+        CompilationUnitTypes, ParameterMode, UnitCallTarget, UnitCallableTarget, UnitTypeKind,
     },
 };
 
@@ -399,27 +398,26 @@ fn observe(case: &RouteCase, unit: bool) -> Result<(), Failure> {
     let mut resolved_route = None;
     report.query("ordinary original AST route and argument", &actual_call);
     // Queries only record failures. They cannot replace or prevent actual lowering.
-    let lowered = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |names, typed, owned, report| {
-                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
-                let proof = unit_route(case, &sources, &parsed, names, typed, owned);
-                report.query("ordinary same-analysis actual resolved route", &proof);
-                resolved_route = Some(proof);
-                let calls = typed
-                    .calls()
-                    .iter()
-                    .filter(|call| {
-                        actual_call
-                            .as_ref()
-                            .is_ok_and(|id| *id == call.expression().expression())
-                    })
-                    .collect::<Vec<_>>();
-                report.check(
+    let lowered = pipeline::unit_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        |names, typed, owned, report| {
+            source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+            let proof = unit_route(case, &sources, &parsed, names, typed, owned);
+            report.query("ordinary same-analysis actual resolved route", &proof);
+            resolved_route = Some(proof);
+            let calls = typed
+                .calls()
+                .iter()
+                .filter(|call| {
+                    actual_call
+                        .as_ref()
+                        .is_ok_and(|id| *id == call.expression().expression())
+                })
+                .collect::<Vec<_>>();
+            report.check(
                     "ordinary actual qualified Symbol route and ABI argument",
                     matches!(calls.as_slice(), [call] if matches!(call.target(), UnitCallTarget::Symbol(_))
                         && call.receiver().is_some() == case.receiver
@@ -429,80 +427,33 @@ fn observe(case: &RouteCase, unit: bool) -> Result<(), Failure> {
                         && call.arguments()[0].mode() == ParameterMode::Borrow),
                     &calls,
                 );
-                report.check(
-                    "ordinary real qualified delegation plan",
-                    typed.signatures().delegations().len() == usize::from(case.delegated)
-                        && typed
-                            .signatures()
-                            .delegations()
-                            .iter()
-                            .all(|plan| plan.forwarders().len() == 1),
-                    typed.signatures().delegations(),
-                );
-                report.check(
-                    "ordinary original qualified provider count",
-                    typed.map_iterations().len() == usize::from(case.provider)
-                        && owned.map_iterations().len() == usize::from(case.provider),
-                    (typed.map_iterations(), owned.map_iterations()),
-                );
-                println!(
-                    "ORDINARY ROUTE UNIT case={} calls={:#?} delegation={:#?} plans={:#?} drops={:#?} deliveries={:#?}",
-                    case.label,
-                    typed.calls(),
-                    typed.signatures().delegations(),
-                    owned.map_iterations(),
-                    owned.drops(),
-                    owned.value_deliveries()
-                );
-            },
-        )
-    } else {
-        pipeline::single_observed(
-            &sources,
-            &parsed,
-            &mut report,
-            |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
-                let call = actual_call.as_ref().ok().and_then(|id| typed.call(*id));
-                report.check(
-                    "ordinary actual single source route and ABI argument",
-                    call.is_some_and(|call| {
-                        matches!(call.target(), CallableTarget::Source(_))
-                            && call.receiver().is_some() == case.receiver
-                            && call.arguments().len() == 1
-                            && call.arguments()[0].argument_index() == 0
-                            && call.arguments()[0].parameter_index() == 0
-                            && call.arguments()[0].mode() == ParameterMode::Borrow
-                    }),
-                    call,
-                );
-                report.check(
-                    "ordinary real single delegation plan",
-                    typed.delegations().len() == usize::from(case.delegated)
-                        && typed
-                            .delegations()
-                            .iter()
-                            .all(|plan| plan.forwarders().len() == 1),
-                    typed.delegations(),
-                );
-                report.check(
-                    "ordinary original single provider count",
-                    typed.map_iterations().len() == usize::from(case.provider)
-                        && owned.map_iterations().len() == usize::from(case.provider),
-                    (typed.map_iterations(), owned.map_iterations()),
-                );
-                println!(
-                    "ORDINARY ROUTE SINGLE case={} calls={:#?} delegation={:#?} plans={:#?} drops={:#?} conditions={:#?}",
-                    case.label,
-                    typed.calls(),
-                    typed.delegations(),
-                    owned.map_iterations(),
-                    owned.drops(),
-                    owned.cleanup_conditions()
-                );
-            },
-        )
-    };
+            report.check(
+                "ordinary real qualified delegation plan",
+                typed.signatures().delegations().len() == usize::from(case.delegated)
+                    && typed
+                        .signatures()
+                        .delegations()
+                        .iter()
+                        .all(|plan| plan.forwarders().len() == 1),
+                typed.signatures().delegations(),
+            );
+            report.check(
+                "ordinary original qualified provider count",
+                typed.map_iterations().len() == usize::from(case.provider)
+                    && owned.map_iterations().len() == usize::from(case.provider),
+                (typed.map_iterations(), owned.map_iterations()),
+            );
+            println!(
+                "ORDINARY ROUTE UNIT case={} calls={:#?} delegation={:#?} plans={:#?} drops={:#?} deliveries={:#?}",
+                case.label,
+                typed.calls(),
+                typed.signatures().delegations(),
+                owned.map_iterations(),
+                owned.drops(),
+                owned.value_deliveries()
+            );
+        },
+    );
     println!(
         "ORDINARY ROUTE LOWER case={} unit={unit} report={report:#?} outcome={:?}",
         case.label,
