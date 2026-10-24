@@ -673,6 +673,7 @@ pub(super) fn check(program: &Program, input: &Inputs) -> Result<Shape, Failure>
         body_cursor: bc,
         edges,
     };
+    super::query_owner::check(module, scan, input, &shape)?;
     println!("SPEC0331 PROVIDER IDENTITY SSA {shape:#?}");
     Ok(shape)
 }
