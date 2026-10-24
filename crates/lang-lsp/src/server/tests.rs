@@ -19,6 +19,7 @@ use super::run;
 const TIMEOUT: Duration = Duration::from_secs(5);
 
 mod definition;
+mod formatting;
 mod initialization;
 mod lifecycle;
 mod missing_names;
@@ -65,6 +66,10 @@ fn initialize_with_options(client: &Connection, options: Option<serde_json::Valu
     ));
     assert_eq!(
         result.capabilities.definition_provider,
+        Some(lsp_types::OneOf::Left(true))
+    );
+    assert_eq!(
+        result.capabilities.document_formatting_provider,
         Some(lsp_types::OneOf::Left(true))
     );
     send_notification(
