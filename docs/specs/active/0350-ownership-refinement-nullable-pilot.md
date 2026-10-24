@@ -185,10 +185,11 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 | `while_flow_tests::proof_cases::nullable_field_value_argument_*` | unit prefix 源码报 UnsupportedNode | 该函数现由新层 lowering，四个 frame 都通过 SSA 与 LLVM |
 | `while_flow_tests::direct_contract`（unit 第 4 例） | Boolean flag loan 沿 header/body/absent 传递 | 新层只传活跃槽，未用的 flag 留在入口；无回边的 header 并入入口块 |
 
-合并 main（`ccd29d32`，含 D10 新增的旧路径合同测试）后又涉及两项：
+合并 main（`ccd29d32`、`8b836fa0`，含 D10 新增的旧路径合同测试）后又涉及三项：
 
 | 测试 | 原断言 | 处理 |
 |---|---|---|
 | `while_flow_tests::value_argument_contract` | proof 分支 origin 是整个 `while` | 两种布局的 `entry` 都已由新层 lowering，改为断言 origin 是 `current != null`；其余断言不变 |
 | `nullable_proof::guard_tests` 的 `Fixture`（含 `while_proof::retirement_tests`） | 旧路径私有 guard 的故障注入 | 测试对象就是旧路径，故用仅测试可见的 `refine::with_per_family_lowering` 固定走旧路径；生产路由不变 |
+| `field_replace_lower_tests::field_replace_single_nullable_layout_keeps_*` | `Holder<Int>`/`Holder<String>` 的 `T?` 字段被拒绝 | 3a 起泛型实例的标量/String nullable 字段按 ADR-0033 内联布局 intern，改为断言其通过 SSA 与 LLVM；非泛型 `Int?`/`String?` 字段仍被旧存储门拒绝，断言不变 |
 

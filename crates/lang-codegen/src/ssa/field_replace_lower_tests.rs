@@ -350,8 +350,6 @@ fn field_replace_single_nullable_layout_keeps_nonclass_and_generic_boundaries() 
         ),
         ("class Holder(val state: Int?)", "Holder"),
         ("class Holder(val state: String?)", "Holder"),
-        ("class Holder<T>(val state: T?)", "Holder<Int>"),
-        ("class Holder<T>(val state: T?)", "Holder<String>"),
         (
             "value class Inline(val id: Int)\nclass Holder(val state: Inline?)",
             "Holder",
@@ -382,6 +380,16 @@ fn field_replace_single_nullable_layout_keeps_nonclass_and_generic_boundaries() 
             Ok("state"),
             "{source}"
         );
+    }
+    // SPEC-0350 / ADR-0033: a generic class instantiated with a scalar or String
+    // nullable field interns the inline nullable layout, so this recipe now lowers
+    // (non-generic `Int?`/`String?` fields above keep the pointer-like storage gate).
+    for owner in ["Holder<Int>", "Holder<String>"] {
+        let source =
+            format!("class Holder<T>(val state: T?)\nfun test(own input: {owner}): Unit {{}}");
+        let program = lower_field(&analyze_field(&source))
+            .unwrap_or_else(|error| panic!("inline nullable field layout: {error:?}\n{source}"));
+        crate::llvm::render_verified_program(&program).expect("verified LLVM");
     }
 }
 
