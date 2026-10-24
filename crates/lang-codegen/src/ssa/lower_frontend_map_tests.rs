@@ -8,22 +8,25 @@ mod loop_owner_tests;
 
 #[test]
 fn map_nullable_value_owned_remove_remains_unsupported() {
-    let analysis = analyze(
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let analysis = UnitSource::analyze(
+        "lowering.ko",
         "class Token(val n: Int)\nfun inspect(inout m: MutableMap<Int, Token?>): Unit {\n val result = m.remove(1)\n}",
-    );
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let Err(error) = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    ) else {
+    )
+    .expect("original nullable remove source passes complete Unit frontend admission");
+    analysis.assert_frontend_clean();
+    let declaration = analysis.declaration("inspect", SymbolKind::Function);
+    let Err(error) = analysis.lower_entry(declaration) else {
         panic!("nullable owned remove requires a separate Missing contract")
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
+    assert_eq!(
+        error.span.unwrap().source_id(),
+        analysis.parsed().source_id()
+    );
 }
 
 #[test]

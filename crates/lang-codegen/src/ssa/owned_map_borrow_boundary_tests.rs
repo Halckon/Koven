@@ -1,30 +1,62 @@
 //! Normal source negative controls; no malformed facts or IR.
 use super::unit_lower_test_support::parsed;
 use lang_frontend::{
+    analysis::{UnitSourceDescriptor, analyze_parsed_unit_names, analyze_unit_recovery},
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::check_compilation_unit_ownership,
-    type_checking::{check_compilation_unit_types, standard_environments},
+    type_checking::{
+        CompilationUnitTypes, FinalTypeAdmissionError, TypeEnvironment,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
+    },
 };
 
 fn diagnostics(source: &str, unit: bool) -> String {
     if !unit {
         let mut sources = lang_frontend::source::SourceMap::new();
         let (id, file) = parsed(&mut sources, "negative.ko", source);
-        let _ = id;
         let (environment, types) = standard_environments();
-        let names =
-            lang_frontend::name_resolution::resolve_names(&sources, &file, &environment).unwrap();
-        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-        let typed =
-            lang_frontend::type_checking::check_types(&sources, &file, &names, &types).unwrap();
-        let owned =
-            lang_frontend::ownership_checking::check_ownership(&sources, &file, &names, &typed)
-                .unwrap();
-        return format!(
+        let snapshot = analyze_parsed_unit_names(
+            sources,
+            vec![(UnitSourceDescriptor::memory_document(id), file)],
+            environment,
+        )
+        .unwrap();
+        assert!(
+            snapshot.names().diagnostics().is_empty(),
+            "{:?}",
+            snapshot.names().diagnostics()
+        );
+        let names = snapshot.validated_names().unwrap();
+        let inputs = snapshot.inputs();
+        assert_eq!(inputs.len(), 1);
+        assert_eq!(inputs[0].source_id(), id);
+        assert!(std::ptr::eq(
+            inputs[0].parsed(),
+            &snapshot.parsed_files()[0]
+        ));
+        assert_eq!(snapshot.sources().source_text(id), Ok(source));
+        // Preserve the original parallel type/ownership observation even when
+        // raw types reject. This public producer continues these exact parsed
+        // and name products; it does not reparse or fabricate a qualification.
+        let (raw, owned) = analyze_unit_recovery(&snapshot, &types).unwrap();
+        observe_complete_types(snapshot.sources(), &inputs, names, &types, &raw);
+        let diagnostics = format!(
             "types={:?}; ownership={:?}",
-            typed.diagnostics(),
+            raw.diagnostics(),
             owned.diagnostics()
         );
+        match raw.validate() {
+            Ok(typed) => {
+                assert!(owned.is_compatible_with(&typed));
+            }
+            Err(raw) => {
+                eprintln!(
+                    "MemoryDocument basic qualification rejected: {:?}",
+                    raw.diagnostics()
+                );
+            }
+        }
+        return diagnostics;
     }
     let mut sources = lang_frontend::source::SourceMap::new();
     let (provider, entry) = source.split_once("fun entry()").unwrap();
@@ -49,13 +81,38 @@ fn diagnostics(source: &str, unit: bool) -> String {
         .validate()
         .unwrap();
     let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    observe_complete_types(&sources, &inputs, &names, &types, &typed);
     if !typed.diagnostics().is_empty() {
         return format!("types={:?}", typed.diagnostics());
     }
     let typed = typed.validate().unwrap();
     let owned =
         check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    assert!(owned.is_compatible_with(&typed));
     format!("ownership={:?}", owned.diagnostics())
+}
+
+// Observe complete admission without replacing the original raw diagnostics
+// or granting a capability. Basic and complete are distinct qualifications:
+// recovery diagnostics neither require complete success nor imply its failure.
+fn observe_complete_types(
+    sources: &lang_frontend::source::SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &lang_frontend::name_resolution::ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    raw: &CompilationUnitTypes,
+) {
+    assert!(raw.is_compatible_with(sources, inputs, names, environment));
+    match complete_compilation_unit_types(sources, inputs, names, environment, raw) {
+        Ok(complete) => {
+            assert!(complete.is_same_analysis(raw));
+            assert!(std::ptr::eq(complete.types(), raw));
+        }
+        Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+            eprintln!("Unit complete admission diagnostics (not the raw oracle): {diagnostics:?}");
+        }
+        Err(error) => panic!("original Unit complete admission failed internally: {error:?}"),
+    }
 }
 
 #[test]
