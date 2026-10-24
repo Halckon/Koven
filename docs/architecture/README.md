@@ -25,7 +25,7 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 | 名称与类型 | 单文件及 compilation-unit package/import、名义/泛型/interface、call/member/container 等事实已接入 |
 | 所有权 | move/loan/drop/capture、结构移动、容器 element place、跨文件所有权与 validated gate 已接入 |
 | SSA / LLVM | owner-aware typed SSA、标量/聚合/容器/closure/String/Rc/nullable/receiver 与多文件 native 路径已接入；宿主支持 AArch64 macOS 和 x86_64 Linux + glibc |
-| 标准库 | Koven prelude、`error`、`println(String)`、`Pair`/`Result`、String 与 Rc 核心路径已接入；[范围 carrier](range-carrier.md) 的 List/View 顶层及可信 receiver take/drop/dropLast 已接通 |
+| 标准库 | Koven prelude、`error`、`println(String)`、`Pair`、内建 `Result`/`Ok`/`Err`（`koven/core/result.ko`）、String 与 Rc 核心路径已接入；[范围 carrier](range-carrier.md) 的 List/View 顶层及可信 receiver take/drop/dropLast 已接通 |
 | 工具 | 单文件/本地 project build/run、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter 已接入 |
 
 CI 的四处 LLVM setup 调用有10分钟总时限；Linux下载采用有限网络重试，APT索引更新错误直接失败。见 [SPEC-0351](../archive/specs/0351-llvm-install-bounds.md) 的边界与验收。
@@ -52,6 +52,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | loan、move、capture、drop facts | [所有权](ownership.md) |
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
+| 所有权细化层、子集分流与 inline nullable 表示 | [所有权细化层](ownership-refinement.md) |
 | N1a 连续范围的类型、来源与阶段能力门 | [范围 carrier](range-carrier.md) |
 | 普通借用结果的短期同步实参消费与source终止 | [同步Borrow实参](synchronous-borrow-result-arguments.md) |
 | 普通多参数唯一来源 Borrow 返回与调用分流 | [多参数借用返回](multi-parameter-borrow-results.md) |

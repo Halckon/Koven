@@ -261,7 +261,7 @@ fn fixed_headers_and_list_construction_use_one_checked_continuous_allocation() {
     assert!(first.contains("extractvalue %koven.container.t2 %v0, 1"));
     assert!(first.contains("trunc i64"));
     assert!(first.contains("= load %koven.container.t2, ptr"));
-    assert!(first.contains("call void @abort()"));
+    assert!(first.contains("call void @koven.abort.report"));
     assert!(first.contains("unreachable"));
     let make_ir = first
         .split("@f0.make")
@@ -333,7 +333,9 @@ fn runtime_length_generation_calls_initializer_in_an_explicit_loop() {
     );
     ret(function, entry, vec![owner], &origin);
 
-    let llvm = render_verified_program(&program).expect("generated container LLVM must verify");
+    let llvm = crate::test_support::without_abort_runtime(
+        &render_verified_program(&program).expect("generated container LLVM must verify"),
+    );
     assert!(llvm.contains("v1.loop:"));
     assert!(llvm.contains("v1.body:"));
     assert!(llvm.contains("v1.done:"));
@@ -417,13 +419,19 @@ fn zst_container_uses_aligned_sentinel_without_allocation_or_addressing() {
     );
     ret(function, entry, vec![owner], &origin);
 
-    let llvm = render_verified_program(&program).expect("ZST container LLVM must verify");
+    let llvm = crate::test_support::without_abort_runtime(
+        &render_verified_program(&program).expect("ZST container LLVM must verify"),
+    );
     assert!(llvm.contains("@koven.zst.sentinel = private constant i8 0"));
     assert!(!llvm.contains("call ptr @malloc"));
     assert!(!llvm.contains("getelementptr"));
     assert!(!llvm.contains("store %koven.t0"));
     assert!(llvm.contains("icmp sge i32"), "{llvm}");
-    assert!(llvm.contains("call void @abort()"));
+    // SPEC-0355: the bounds failure reports index and size before abort().
+    assert!(
+        llvm.contains("call void @koven.abort.report_index("),
+        "{llvm}"
+    );
 }
 
 #[test]
@@ -476,7 +484,7 @@ fn checked_element_place_aborts_before_address_formation() {
         .expect("checked target index");
     let gep = llvm.find("getelementptr i64").expect("element address");
     assert!(negative < upper && upper < branch && branch < convert && convert < gep);
-    assert!(llvm.contains("call void @abort()"));
+    assert!(llvm.contains("call void @koven.abort.report"));
     assert!(!llvm.contains("call ptr @malloc"));
 }
 

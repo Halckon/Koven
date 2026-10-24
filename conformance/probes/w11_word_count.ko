@@ -1,0 +1,10 @@
+fun main(): Unit {
+    var m = mutableMapOf<String, Int>()
+    for (w in arrayOf("x", "y", "x", "z", "x")) {
+        val prev = m.get(w)
+        m.put(w.clone(), if (prev == null) { 1 } else { prev + 1 })
+    }
+    var best = 0
+    for ((k, v) in m) { if (v > best) { best = v } }
+    if (best == 3) { println("word-count") }
+}

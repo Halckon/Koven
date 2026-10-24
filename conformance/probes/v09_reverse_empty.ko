@@ -1,0 +1,1 @@
+fun main(): Unit { var n = 0; for (i in 5..1) { n = n + 1 }; if (n == 0) { println("reverse-empty") } }

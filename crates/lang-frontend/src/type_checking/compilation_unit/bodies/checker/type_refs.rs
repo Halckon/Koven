@@ -22,17 +22,22 @@ use super::{BodyChecker, copyability::UnitTransferability};
 enum BodyTypeUse {
     Runtime,
     Static,
-    TypeTest,
+    /// `subject` 是去掉 nullable 前的被测类型，供无实参 case type 推断 root 实参。
+    TypeTest {
+        subject: Option<UnitTypeId>,
+    },
 }
 
 impl BodyChecker<'_> {
     /// 解析 `is` / `!is` 的目标类型；case refinement 只由该调用路径消费。
+    /// 无类型实参的 case type 从被测 subject 的同一 enum 实例推断 root 实参。
     pub(super) fn resolve_type_test_ref(
         &mut self,
         source: SourceUnitId,
         id: TypeRefId,
+        subject: Option<UnitTypeId>,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
-        self.resolve_body_type_ref_for(source, id, BodyTypeUse::TypeTest)
+        self.resolve_body_type_ref_for(source, id, BodyTypeUse::TypeTest { subject })
     }
 
     /// 解析 `super<Interface>` 等不产生运行时 interface value 的静态类型位置。
@@ -368,7 +373,23 @@ impl BodyChecker<'_> {
             )?;
             return Ok(self.error_type());
         }
-        let root = if arguments.is_empty() && allow_implicit_arguments {
+        let subject_arguments = match usage {
+            BodyTypeUse::TypeTest { subject }
+                if arguments.is_empty() && !nominal.type_parameters().is_empty() =>
+            {
+                self.case_subject_arguments(subject, declaration)
+            }
+            _ => None,
+        };
+        let root = if let Some(subject_arguments) = subject_arguments {
+            self.signatures.types_mut().intern(UnitTypeKind::Nominal {
+                declaration,
+                arguments: subject_arguments,
+            })
+        } else if arguments.is_empty()
+            && allow_implicit_arguments
+            && self.type_ref_inside_declaration(source, id, declaration)?
+        {
             self.signatures.types_mut().intern(UnitTypeKind::Nominal {
                 declaration,
                 arguments: implicit_arguments,
@@ -397,6 +418,52 @@ impl BodyChecker<'_> {
             .types_mut()
             .intern(UnitTypeKind::EnumCase { case, root });
         Ok(ty)
+    }
+
+    /// subject 去掉 nullable（及既有 case refinement）后若是同一 enum 的实例，返回其实参。
+    fn case_subject_arguments(
+        &self,
+        subject: Option<UnitTypeId>,
+        declaration: crate::name_resolution::DeclarationId,
+    ) -> Option<Vec<UnitTypeId>> {
+        let mut ty = subject?;
+        loop {
+            match self.signatures.types().get(ty)? {
+                UnitTypeKind::Nullable(inner) | UnitTypeKind::EnumCase { root: inner, .. } => {
+                    ty = *inner;
+                }
+                UnitTypeKind::Nominal {
+                    declaration: found,
+                    arguments,
+                } if *found == declaration => return Some(arguments.clone()),
+                _ => return None,
+            }
+        }
+    }
+
+    /// enum 自身声明体内的 case type 引用才可回退到声明的类型参数。
+    fn type_ref_inside_declaration(
+        &self,
+        source: SourceUnitId,
+        id: TypeRefId,
+        declaration: crate::name_resolution::DeclarationId,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        let declaration = &self.names.index().declarations()[declaration.index()];
+        if declaration.source_unit() != source {
+            return Ok(false);
+        }
+        let ast = self.file(source).ast();
+        let item = ast
+            .items()
+            .get(declaration.root())
+            .map_err(TypeCheckingError::from)?
+            .span();
+        let reference = ast
+            .type_refs()
+            .get(id)
+            .map_err(TypeCheckingError::from)?
+            .span();
+        Ok(item.start() <= reference.start() && reference.end() <= item.end())
     }
 
     fn instantiate_external_type(

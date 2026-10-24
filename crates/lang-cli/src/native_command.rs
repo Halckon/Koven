@@ -213,11 +213,7 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
     }
     let output = match Command::new(&executable).args(program_arguments).output() {
         Ok(output) => CommandOutput {
-            status: output
-                .status
-                .code()
-                .and_then(|status| u8::try_from(status).ok())
-                .unwrap_or(1),
+            status: child_exit_status(output.status),
             stdout: output.stdout,
             stderr: output.stderr,
         },
@@ -234,14 +230,35 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
     }
 }
 
+/// `kovenc run` exit status for the finished program (Guide v0.46 D9): its own exit code,
+/// or `128 + signal` when a signal such as SIGABRT ended it, like a POSIX shell.
+pub(super) fn child_exit_status(status: std::process::ExitStatus) -> u8 {
+    if let Some(code) = status.code() {
+        return u8::try_from(code).unwrap_or(1);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        if let Some(signal) = status.signal() {
+            return u8::try_from(128 + signal).unwrap_or(u8::MAX);
+        }
+    }
+    1
+}
+
 fn render_error(error: BootstrapError, message_format: MessageFormat) -> CommandOutput {
     match error {
+        // 与 project 和 `check` 相同：frontend 诊断退出 1，usage/operational 保持 2。
         BootstrapError::Unit(UnitBuildError::FrontendDiagnostics { human, json }) => {
             let rendered = match message_format {
                 MessageFormat::Human => human,
                 MessageFormat::Json => json,
             };
-            CommandOutput::error(rendered)
+            CommandOutput {
+                status: 1,
+                stdout: Vec::new(),
+                stderr: rendered.into_bytes(),
+            }
         }
         error => CommandOutput::error(format!("error: native build failed: {error}\n")),
     }

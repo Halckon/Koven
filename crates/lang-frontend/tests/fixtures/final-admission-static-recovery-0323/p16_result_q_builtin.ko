@@ -1,0 +1,7 @@
+fun parse(n: Int): Result<Int, Int> = if (n > 0) Result.Ok(n) else Result.Err(1)
+fun twice(n: Int): Result<Int, Int> { val v = parse(n)?; return Result.Ok(v * 2) }
+fun main(): Unit {
+    val r = twice(3)
+    val v: Int = when (r) { is Result.Ok<Int, Int> -> r.success; is Result.Err<Int, Int> -> 0 }
+    if (v == 6) { println("question") }
+}

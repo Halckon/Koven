@@ -23,7 +23,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         owner: ValueId,
         name: &str,
     ) -> Result<IntValue<'ctx>, LlvmAdapterError> {
-        if self
+        if let Some(is_null) = self.inline_nullable_is_null(owner, name)? {
+            Ok(is_null)
+        } else if self
             .module
             .presence_payload_type(value_type(self.function, owner)?)
             .is_some()
@@ -45,7 +47,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         owner: ValueId,
     ) -> Result<inkwell::values::PointerValue<'ctx>, LlvmAdapterError> {
         let ty = value_type(self.function, owner)?;
-        let (inner, payload) = if let Some(inner) = self.module.presence_payload_type(ty) {
+        let (inner, payload) = if let Some(inline) = self.inline_nullable_payload(owner)? {
+            inline
+        } else if let Some(inner) = self.module.presence_payload_type(ty) {
             (
                 inner,
                 self.builder
@@ -312,7 +316,12 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 self.builder
                     .build_conditional_branch(present, found, absent)?;
                 self.builder.position_at_end(absent);
-                self.dependencies.runtime.emit_abort(&self.builder)?;
+                self.dependencies.runtime.emit_abort(
+                    &self.builder,
+                    // `map.get(k)!!` is the only source-reachable absent edge; the other
+                    // producers unwrap compiler-proven present results.
+                    crate::llvm::runtime::AbortMessage::Text("null assertion failed"),
+                )?;
                 self.builder.position_at_end(found);
                 let value = self
                     .builder

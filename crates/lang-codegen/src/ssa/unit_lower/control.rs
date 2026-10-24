@@ -657,9 +657,11 @@ impl UnitExpressionLowerer<'_> {
             if result_required {
                 if subject.is_some_and(|(_, tagged)| tagged.is_some()) {
                     self.function
-                        .set_terminator(
+                        .set_abort_terminator(
                             unmatched_block,
-                            TerminatorKind::Abort,
+                            crate::ssa::model::AbortReason::Text(
+                                "internal error: when subject matched no branch".to_owned(),
+                            ),
                             Origin::Source(span),
                         )
                         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;

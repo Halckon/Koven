@@ -503,6 +503,8 @@
 - [SPEC-0331](0331-map-borrowed-iteration.md)：Map双分量借用遍历按固定H完整普通/双宿主CI与三产物独审有界归档；74原正目标与G2–G10闭合，独立调用/ABI前置、历史失败与Mac partial保留，归档头CI/main交付另验。
 
 - [SPEC-0332](0332-rc-nullable-while-regression.md)：Rc nullable while表示分派回归；三历史双入口对照与PR118实现CI双host71项有界验收，额外payload/体内返回欠账独立承接；归档head CI/main待验。
+- [SPEC-0342](0342-companion-block-syntax.md)：Parser 落实 Guide v0.46 的 `companion { }`，`companion object` 以 L0077 拒绝并恢复；仓内测试、fixture 与 tree-sitter 同步迁移。
+- [SPEC-0343](0343-top-level-const-only.md)：compilation-unit 类型检查对顶层运行时 `val`/`var` 报 L0167 并保留 initializer 恢复；依赖顶层值的测试改为期望 L0167 或改写夹具。
 
 - [SPEC-0345](0345-preview-version-manager.md)：本地 preview 安装、身份查询、原子激活、停用及卸载；双宿主真实消费通过，三个示范程序联合验收保留后继。
 
@@ -512,3 +514,7 @@
 
 - [0348 API 声明索引与教程示例协议](0348-api-documentation.md)
 - [SPEC-0351](./0351-llvm-install-bounds.md)：LLVM setup总时限与下载有限重试，PR双平台验收通过
+- [SPEC-0355](0355-abort-output.md)：abort 向 stderr 输出 `abort: <message>` 与源码位置后 SIGABRT；`kovenc run` 透传退出码并把信号映射为 128+N。
+- [SPEC-0354](0354-conformance-corpus.md)：154 个 review probe、PR #120 基线矩阵与六个 V1 验收程序入库 `conformance/`，附矩阵 runner `scripts/conformance_matrix.sh`。
+- [SPEC-0349](0349-builtin-result-and-check.md)：`koven/core/result.ko` 经宿主授权成为内建环境 `Result`/`Ok`/`Err`，用户顶层同名声明报 L0150；无实参 `is Case` 从 subject 推断实参；新增 `kovenc check` 与 `--help`，单文件诊断退出码改为 1。
+- [SPEC-0350](0350-ownership-refinement-nullable-pilot.md)：ADR-0032 所有权细化层与 ADR-0033 inline nullable 首片；nullable 家族 7 个 probe 在单文件与 project 两种模式通过，子集外函数仍走按家族路径。

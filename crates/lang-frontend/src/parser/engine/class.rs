@@ -733,15 +733,15 @@ impl Parser<'_> {
     pub(super) fn parse_companion_object(&mut self) -> Result<ItemId, ParserInternalError> {
         let companion_span = self.bump()?.span();
         let object_span = if self.current_is_keyword(Keyword::Object) {
-            self.bump()?.span()
-        } else {
-            let primary = self.current()?.span();
+            let object_span = self.bump()?.span();
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
-                "unsupported class-family form",
-                primary,
+                "write `companion { ... }`; `companion object` is not Koven syntax",
+                object_span,
             )?;
-            self.empty_at(primary.start())?
+            object_span
+        } else {
+            self.empty_at(self.current()?.span().start())?
         };
         let body = if self.current_is_symbol(Symbol::LeftBrace) {
             self.parse_ordinary_classifier_body(ClassMemberContext::Companion)?

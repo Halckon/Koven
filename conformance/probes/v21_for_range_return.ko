@@ -1,0 +1,2 @@
+fun firstEven(n: Int): Int { for (i in 1..n) { if (i % 2 == 0) { return i } }; return -1 }
+fun main(): Unit { if (firstEven(5) == 2) { println("range-return") } }

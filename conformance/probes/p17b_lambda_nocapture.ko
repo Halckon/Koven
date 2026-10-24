@@ -1,0 +1,2 @@
+fun apply(f: (Int) -> Int, x: Int): Int = f(x)
+fun main(): Unit { if (apply({ n -> n * 3 }, 7) == 21) { println("lambda0") } }

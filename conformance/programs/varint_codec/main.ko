@@ -1,0 +1,90 @@
+// 二进制编解码：ZigZag + LEB128 varint 把 Int 编码进 UByte 列表，再顺序解码还原；
+// 截断与超长输入以 Result 报错。覆盖 Int 的最小值与最大值。
+
+fun zigzag(n: Int): Int = (n shl 1) xor (n shr 31)
+
+fun unzigzag(z: Int): Int = (z ushr 1) xor -(z and 1)
+
+fun encode(n: Int, inout out: MutableList<UByte>): Unit {
+    var rest = zigzag(n)
+    loop {
+        val low = rest and 0x7F
+        rest = rest ushr 7
+        if (rest == 0) {
+            out.add(low.toUByte())
+            return
+        }
+        out.add((low or 0x80).toUByte())
+    }
+}
+
+class Reader(val bytes: MutableList<UByte>, var pos: Int) {
+    fun atEnd(): Boolean = this.pos >= this.bytes.size
+
+    inout fun next(): Result<Int, String> {
+        var result = 0
+        var shift = 0
+        while (shift <= 28) {
+            if (this.atEnd()) return Err("truncated varint at byte ${this.pos}")
+            val b = this.bytes[this.pos].toInt()
+            this.pos = this.pos + 1
+            result = result or ((b and 0x7F) shl shift)
+            if ((b and 0x80) == 0) return Ok(unzigzag(result))
+            shift = shift + 7
+        }
+        return Err("varint too long at byte ${this.pos}")
+    }
+}
+
+fun bytesText(bytes: MutableList<UByte>, start: Int): String {
+    var text = "["
+    var i = start
+    while (i < bytes.size) {
+        if (i > start) { text = text + " " }
+        text = text + "${bytes[i]}"
+        i = i + 1
+    }
+    return text + "]"
+}
+
+fun report(title: String, own bytes: MutableList<UByte>): Unit {
+    println("decode " + title + " " + bytesText(bytes, 0) + ":")
+    val reader = Reader(bytes, 0)
+    while (!reader.atEnd()) {
+        val item = reader.next()
+        when (item) {
+            is Ok -> println("  value ${item.success}")
+            is Err -> {
+                println("  error: " + item.error)
+                return
+            }
+        }
+    }
+}
+
+fun main(): Unit {
+    val values = listOf(0, 1, -1, 63, -64, 64, 300, -12345, 2147483647, -2147483648)
+    var buffer: MutableList<UByte> = mutableListOf()
+    for (n in values) {
+        val start = buffer.size
+        encode(n, &buffer)
+        println("${n} -> " + bytesText(buffer, start))
+    }
+    println("total bytes: ${buffer.size}")
+
+    val reader = Reader(buffer, 0)
+    var matched = 0
+    for (n in values) {
+        val decoded = reader.next()
+        when (decoded) {
+            is Ok -> {
+                if (decoded.success == n) { matched = matched + 1 }
+            }
+            is Err -> println("unexpected: " + decoded.error)
+        }
+    }
+    println("roundtrip ${matched}/${values.size}, at end: ${reader.atEnd()}")
+
+    report("truncated", mutableListOf<UByte>(0xACu, 0x02u, 0x80u))
+    report("overlong", mutableListOf<UByte>(0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0x01u))
+}

@@ -1,0 +1,6 @@
+fun main(): Unit {
+    var m = mutableMapOf<String, Int>()
+    m.put("a", 1); m.put("b", 2)
+    val v = m.get("b")
+    if (v != null && v == 2 && m.size == 2) { println("map") }
+}

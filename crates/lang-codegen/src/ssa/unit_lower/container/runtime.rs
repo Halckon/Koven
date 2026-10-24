@@ -228,7 +228,11 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.function
-            .set_terminator(failure, TerminatorKind::Abort, Origin::Source(span))
+            .set_abort_terminator(
+                failure,
+                crate::ssa::model::AbortReason::Text("negative size".to_owned()),
+                Origin::Source(span),
+            )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.block = success;
         self.bindings = self.rebind_carried_control(&baseline, success, &bindings, &loans, span)?;

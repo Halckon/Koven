@@ -1,0 +1,8 @@
+package koven.core
+
+// Guide 02/09 内建环境：`Result`、`Ok`、`Err` 两种 CLI 模式相同，不需要 import。
+// 名称授权由宿主按 SourceId 发布；同名用户源码不能取得内建身份。
+enum class Result<T, E> {
+    Ok(success: T),
+    Err(error: E)
+}

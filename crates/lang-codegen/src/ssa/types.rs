@@ -201,6 +201,7 @@ impl Module {
             | SsaTypeKind::SharedOwner { .. }
             | SsaTypeKind::StringOwner
             | SsaTypeKind::NullableHandle { .. } => Some(Ownership::MoveOnly),
+            SsaTypeKind::InlineNullable { inner, .. } => self.type_ownership(*inner),
             SsaTypeKind::RangeView { .. }
             | SsaTypeKind::SequentialContainer { .. }
             | SsaTypeKind::MapContainer { .. } => Some(Ownership::MoveOnly),
@@ -249,7 +250,9 @@ impl Module {
 
     pub(crate) fn nullable_inner(&self, id: SsaTypeId) -> Option<SsaTypeId> {
         match self.type_kind(id)? {
-            SsaTypeKind::NullableHandle { inner } => Some(*inner),
+            SsaTypeKind::NullableHandle { inner } | SsaTypeKind::InlineNullable { inner, .. } => {
+                Some(*inner)
+            }
             _ => self
                 .presence_payload_type(id)
                 .filter(|_| self.type_ownership(id) == Some(Ownership::MoveOnly)),

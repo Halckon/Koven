@@ -112,7 +112,13 @@ fn checked_slot<'ctx>(
     )?;
     let valid = builder.build_and(bounded, present, &format!("{name}.index.valid"))?;
     let invalid = builder.build_not(valid, &format!("{name}.index.invalid"))?;
-    runtime.abort_if(builder, function, invalid, &format!("{name}.index"))?;
+    runtime.abort_if(
+        builder,
+        function,
+        invalid,
+        &format!("{name}.index"),
+        crate::llvm::runtime::AbortMessage::Text("internal error: invalid map iteration cursor"),
+    )?;
 
     // The u64 comparison above proves this conversion lossless on narrow targets.
     let index = if runtime.size_type().get_bit_width() < 64 {
@@ -137,7 +143,13 @@ fn checked_slot<'ctx>(
         context.i32_type().const_int(SLOT_STATE_OCCUPIED, false),
         &format!("{name}.dead"),
     )?;
-    runtime.abort_if(builder, function, dead, &format!("{name}.occupied"))?;
+    runtime.abort_if(
+        builder,
+        function,
+        dead,
+        &format!("{name}.occupied"),
+        crate::llvm::runtime::AbortMessage::Text("internal error: invalid map iteration cursor"),
+    )?;
     Ok((slot_type, slot))
 }
 

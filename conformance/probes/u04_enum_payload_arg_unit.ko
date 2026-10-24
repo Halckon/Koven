@@ -1,0 +1,3 @@
+enum class Shape { Circle(r: Int), Point }
+fun area(s: Shape): Int = when (s) { is Shape.Circle -> s.r * s.r; Shape.Point -> 0 }
+fun main(): Unit { if (area(Shape.Circle(2)) == 4 && area(Shape.Point) == 0) { println("enum-payload-arg") } }

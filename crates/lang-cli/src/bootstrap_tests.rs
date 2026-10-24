@@ -89,10 +89,9 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     );
     for required in [
         "value class Pair<A, B>(val first: A, val second: B)",
-        "enum class Result<T, E>",
-        "Ok(success: T)",
-        "Err(error: E)",
         "bootstrapPairResult",
+        "val ok: Result<Int, Int> = Ok(7)",
+        "is Ok -> ok.success",
     ] {
         assert!(
             original
@@ -101,6 +100,13 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
             "missing standard declaration {required:?}"
         );
     }
+
+    // Result/Ok/Err 由内建环境 koven/core/result.ko 提供；prelude 不再自行声明。
+    assert!(
+        !original
+            .windows("enum class Result".len())
+            .any(|window| window == b"enum class Result")
+    );
 
     let directory = TestDirectory::create();
     let object = directory.join("prelude.o");

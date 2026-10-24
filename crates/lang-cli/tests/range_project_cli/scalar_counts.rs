@@ -67,14 +67,14 @@ fn public_std_range_scalar_counts_preserve_live_descriptors() {
 fn public_std_range_scalar_count_abort_precedes_consumer_without_unwind() {
     use std::os::unix::process::ExitStatusExt;
     for algorithm in ["take", "drop", "dropLast"] {
-        for (expression, n, divisor) in [
-            ("n+1", "2147483647", "1"),
-            ("n-1", "-2147483648", "1"),
-            ("n*2", "2147483647", "1"),
-            ("n/divisor", "2", "0"),
-            ("n%divisor", "2", "0"),
-            ("n/divisor", "-2147483648", "-1"),
-            ("n%divisor", "-2147483648", "-1"),
+        for (expression, n, divisor, message) in [
+            ("n+1", "2147483647", "1", "integer overflow in +"),
+            ("n-1", "-2147483648", "1", "integer overflow in -"),
+            ("n*2", "2147483647", "1", "integer overflow in *"),
+            ("n/divisor", "2", "0", "division by zero"),
+            ("n%divisor", "2", "0", "division by zero"),
+            ("n/divisor", "-2147483648", "-1", "integer overflow in /"),
+            ("n%divisor", "-2147483648", "-1", "integer overflow in %"),
         ] {
             let project = Project::new();
             let built = project.build(&format!("package app\nimport koven.algorithms.{algorithm} as trim\nimport koven.algorithms.take\nclass Item(val text:String){{deinit(){{println(\"unwind\")}}}}\nfun read(view:View<Item>):Unit{{println(\"consumer\")}}\nfun scan(n:Int,divisor:Int):Unit{{val root=listOf(Item(\"a\"));borrow val parent=take(root,1);println(\"before\");read(parent.trim({expression}));println(\"after\")}}\nfun main():Unit{{scan({n},{divisor})}}"));
@@ -85,6 +85,12 @@ fn public_std_range_scalar_count_abort_precedes_consumer_without_unwind() {
             let run = Command::new(project.0.join("program")).output().unwrap();
             assert_eq!(run.status.signal(), Some(6), "{run:?}");
             assert_eq!(run.stdout, b"before\n", "{run:?}");
+            // SPEC-0355: the checked-count failure names its operator before SIGABRT.
+            let report = String::from_utf8_lossy(&run.stderr);
+            assert!(
+                report.starts_with(&format!("abort: {message}\n  at ")),
+                "{algorithm}/{expression}: {report:?}"
+            );
         }
     }
 }

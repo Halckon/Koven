@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，324 份）"]
+subgraph Garchive["已完成（archive，330 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -325,14 +325,20 @@ subgraph Garchive["已完成（archive，324 份）"]
   S0330["S0330<br/>while 条件收窄与保守循环流事实"]
   S0331["S0331<br/>Map 双分量借用式插入序遍历"]
   S0332["S0332<br/>Rc nullable while 既有路径回归修复"]
+  S0342["S0342<br/>companion 块语法"]
+  S0343["S0343<br/>顶层运行时值的前端诊断"]
   S0344["S0344<br/>独立门户内容同步"]
   S0345["S0345<br/>本地 preview 版本管理"]
   S0346["S0346<br/>TextMate 语境与插值恢复"]
   S0347["S0347<br/>本地 Kovenlings 首片"]
   S0348["S0348<br/>API 声明索引与教程示例协议首片"]
+  S0349["S0349<br/>内建 Result/Ok/Err、is Case subject 推断与 kovenc check"]
+  S0350["S0350<br/>E3 所有权细化层与 nullable 家族试点"]
   S0351["S0351<br/>LLVM 安装等待边界"]
   S0352["S0352<br/>CLI project source-set v1 导出"]
   S0353["S0353<br/>LSP 全文格式化适配"]
+  S0354["S0354<br/>Conformance 种子集入库"]
+  S0355["S0355<br/>abort 输出与 kovenc run 退出状态"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1409,6 +1415,10 @@ S0331 --> S0338
 S0331 --> S0339
 S0331 --> S0340
 S0331 --> S0341
+S0342 --> S0343
+S0343 --> S0354
+S0343 --> S0355
+S0354 --> S0349
 ```
 
 ## 节点链接
@@ -1731,14 +1741,20 @@ S0331 --> S0341
 | SPEC-0330 | archive | [0330-while-conservative-flow.md](0330-while-conservative-flow.md) |
 | SPEC-0331 | archive | [0331-map-borrowed-iteration.md](0331-map-borrowed-iteration.md) |
 | SPEC-0332 | archive | [0332-rc-nullable-while-regression.md](0332-rc-nullable-while-regression.md) |
+| SPEC-0342 | archive | [0342-companion-block-syntax.md](0342-companion-block-syntax.md) |
+| SPEC-0343 | archive | [0343-top-level-const-only.md](0343-top-level-const-only.md) |
 | SPEC-0344 | archive | [0344-site-content-sync.md](0344-site-content-sync.md) |
 | SPEC-0345 | archive | [0345-preview-version-manager.md](0345-preview-version-manager.md) |
 | SPEC-0346 | archive | [0346-textmate-contexts.md](0346-textmate-contexts.md) |
 | SPEC-0347 | archive | [0347-local-kovenlings.md](0347-local-kovenlings.md) |
 | SPEC-0348 | archive | [0348-api-documentation.md](0348-api-documentation.md) |
+| SPEC-0349 | archive | [0349-builtin-result-and-check.md](0349-builtin-result-and-check.md) |
+| SPEC-0350 | archive | [0350-ownership-refinement-nullable-pilot.md](0350-ownership-refinement-nullable-pilot.md) |
 | SPEC-0351 | archive | [0351-llvm-install-bounds.md](0351-llvm-install-bounds.md) |
 | SPEC-0352 | archive | [0352-source-set-export.md](0352-source-set-export.md) |
 | SPEC-0353 | archive | [0353-lsp-formatting.md](0353-lsp-formatting.md) |
+| SPEC-0354 | archive | [0354-conformance-corpus.md](0354-conformance-corpus.md) |
+| SPEC-0355 | archive | [0355-abort-output.md](0355-abort-output.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |

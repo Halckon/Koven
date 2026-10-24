@@ -163,7 +163,7 @@ fn string_runtime_ir_has_target_layout_checked_concat_equality_print_and_drop() 
 }
 
 #[test]
-fn empty_static_string_uses_null_cap_zero_without_allocation() {
+fn empty_static_string_uses_sentinel_cap_zero_without_allocation() {
     let origin = origin();
     let mut program = Program::default();
     let module_id = program.add_module("empty_string");
@@ -190,7 +190,13 @@ fn empty_static_string_uses_null_cap_zero_without_allocation() {
         .expect("return");
 
     let ir = render_verified_program(&program).expect("empty String must lower and verify");
-    assert!(ir.contains("%koven.string.t0 zeroinitializer"));
+    // ADR-0033: the empty literal points at the shared non-null sentinel, capacity 0.
+    assert!(
+        ir.contains("@koven.zst.sentinel = private constant i8 0"),
+        "{ir}"
+    );
+    assert!(!ir.contains("%koven.string.t0 zeroinitializer"), "{ir}");
+    assert!(!ir.contains("ptr null"), "{ir}");
     assert!(!ir.contains("declare ptr @malloc"));
     assert!(!ir.contains("llvm.memcpy"));
 }

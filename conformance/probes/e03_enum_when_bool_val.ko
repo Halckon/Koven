@@ -1,0 +1,2 @@
+enum class Color { Red, Green }
+fun main(): Unit { val c = Color.Green; val b = when (c) { Color.Red -> true; Color.Green -> false }; if (!b) { println("e5") } }

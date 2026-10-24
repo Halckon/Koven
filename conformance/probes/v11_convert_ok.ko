@@ -1,0 +1,1 @@
+fun main(): Unit { val a: Int = 5; val b: Long = a.toLong(); val c: UByte = 200u; if (b == 5L && c.toInt() + 100 == 300 && 300L.toInt() == 300) { println("convert") } }

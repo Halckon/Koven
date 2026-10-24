@@ -116,7 +116,7 @@ fn invalid_inferred_constant_type_points_to_initializer_without_type_error_casca
 fn constant_type_gate_applies_inside_object_and_companion_namespaces() {
     for source in [
         "object Config { const val sample: Any = 1 }",
-        "class Config { companion object { const val sample: Any? = 1 } }",
+        "class Config { companion { const val sample: Any? = 1 } }",
     ] {
         let (_, typed) = checked(source);
         assert_eq!(codes(typed.diagnostics()), ["L0155"], "{source}");
@@ -126,10 +126,10 @@ fn constant_type_gate_applies_inside_object_and_companion_namespaces() {
 #[test]
 fn associated_constant_selection_uses_declaration_namespace_and_concrete_type() {
     for declaration in [
-        "class Config { companion object { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
-        "value class Config(val item: Int) { companion object { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
-        "interface Config { companion object { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
-        "enum class Config { One; companion object { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
+        "class Config { companion { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
+        "value class Config(val item: Int) { companion { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
+        "interface Config { companion { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
+        "enum class Config { One; companion { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
         "object Config { const val LIMIT = BASE\nconst val BASE: Int = 7 }",
     ] {
         // Concrete Int facts must be available even if the use precedes the declaration.
@@ -180,7 +180,7 @@ fn associated_constant_selection_uses_declaration_namespace_and_concrete_type() 
 fn associated_constant_visibility_and_missing_member_are_precise() {
     for (declaration, target, code) in [
         (
-            "class Config { companion object { private const val LIMIT: Int = 7 } }",
+            "class Config { companion { private const val LIMIT: Int = 7 } }",
             "Config.LIMIT",
             "L0154",
         ),
@@ -191,7 +191,7 @@ fn associated_constant_visibility_and_missing_member_are_precise() {
         ),
         ("class Config {}", "Config.MISSING", "L0080"),
         (
-            "interface Protocol { companion object { const val LIMIT: Int = 7 } }\nclass Config : Protocol {}",
+            "interface Protocol { companion { const val LIMIT: Int = 7 } }\nclass Config : Protocol {}",
             "Config.LIMIT",
             "L0080",
         ),
@@ -206,14 +206,14 @@ fn associated_constant_visibility_and_missing_member_are_precise() {
         );
     }
     let (_, typed) = checked(
-        "class Config { companion object { private const val LIMIT: Int = 7\nconst val COPY: Int = Config.LIMIT } }",
+        "class Config { companion { private const val LIMIT: Int = 7\nconst val COPY: Int = Config.LIMIT } }",
     );
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
 }
 
 #[test]
 fn associated_constant_selection_does_not_override_a_value_receiver() {
-    let source = "class Config { companion object { const val LIMIT: Int = 7 } }\nclass Holder(val LIMIT: Boolean)\nfun inspect(Config: Holder): Boolean = Config.LIMIT";
+    let source = "class Config { companion { const val LIMIT: Int = 7 } }\nclass Holder(val LIMIT: Boolean)\nfun inspect(Config: Holder): Boolean = Config.LIMIT";
     let (sources, parsed, typed) = analyzed(source);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let (expression, _) = parsed
@@ -370,7 +370,7 @@ fn constant_qualification_rejects_companion_this_before_type_cascades() {
             .add_source(
                 "context.ko",
                 format!(
-                    "class Config<T>(val field: Int) {{ fun member(): Int = field\ncompanion object {{ {declaration} }} }}"
+                    "class Config<T>(val field: Int) {{ fun member(): Int = field\ncompanion {{ {declaration} }} }}"
                 ),
             )
             .unwrap();

@@ -37,12 +37,13 @@ fn check(texts: [&str; 2], expected_codes: &[&str], expected_span: Option<&str>)
             expected_codes
         );
         if let Some(span) = expected_span {
-            assert_eq!(
-                sources
-                    .slice(typed.diagnostics()[0].primary_span())
-                    .unwrap(),
-                span
-            );
+            // Guide v0.46 L0167 on a helper top-level `val` precedes the diagnostic under test.
+            let diagnostic = typed
+                .diagnostics()
+                .iter()
+                .find(|d| d.code().to_string() != "L0167")
+                .expect("diagnostic under test");
+            assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), span);
         }
         let snapshot = (
             typed.types().clone(),
@@ -70,7 +71,7 @@ fn explicit_constant_types_are_closed_in_each_namespace() {
         for body in [
             format!("const val VALUE: {ty} = {value}"),
             format!("object A {{ const val VALUE: {ty} = {value} }}"),
-            format!("class A {{ companion object {{ const val VALUE: {ty} = {value} }} }}"),
+            format!("class A {{ companion {{ const val VALUE: {ty} = {value} }} }}"),
         ] {
             check(
                 [
@@ -107,13 +108,14 @@ fn inferred_constant_types_and_mismatches_keep_precise_diagnostics() {
 }
 
 #[test]
-fn ordinary_variables_keep_nonconstant_types() {
+fn ordinary_top_level_variables_report_only_the_runtime_value_rule() {
+    // Guide v0.46: top-level runtime values are L0167, never constant-type errors.
     check(
         [
             "package a\nval sample: Double = 1.5",
             "package b\nval sample: Int? = 1",
         ],
-        &[],
+        &["L0167", "L0167"],
         None,
     );
 }
@@ -198,7 +200,7 @@ fn runtime_expressions_are_rejected_even_in_short_circuit_rhs() {
                 ),
                 "package b\nfun unused(): Unit {}",
             ],
-            &["L0156"],
+            &["L0167", "L0156"],
             Some(span),
         );
     }

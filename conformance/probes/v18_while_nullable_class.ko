@@ -1,0 +1,2 @@
+class Node(val v: Int)
+fun main(): Unit { var n: Node? = Node(4); var t = 0; while (n != null) { t = t + n.v; n = null }; if (t == 4) { println("while-class") } }

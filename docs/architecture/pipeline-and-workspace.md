@@ -130,9 +130,9 @@ object 和 executable 使用同目录临时文件并在成功后原子发布；�
 支持范围的长期决定见 [ADR-0026](../adr/accepted/0026-linux-x86-64-native-host.md)。
 
 标准库公共源码位于 `crates/lang-std/koven/`。当前单文件和 project CLI 均通过
-[`standard_sources.rs`](../../crates/lang-cli/src/standard_sources.rs)显式追加并授权
-`koven/algorithms/ranges.ko`。普通 CLI 入口尚不自动注入
-`prelude.ko` 中的 `Pair`/`Result`；该文件的声明及 bootstrap 验证入口不等于普通 CLI 默认导入或完整传播已接通。
+[`standard_sources.rs`](../../crates/lang-cli/src/standard_sources.rs)显式追加
+`koven/algorithms/ranges.ko`（授权范围原语）与 `koven/core/result.ko`（按 SourceId 授权为内建
+`Result`/`Ok`/`Err`，SPEC-0349）。`prelude.ko` 中的 `Pair` 与 bootstrap 入口不自动注入普通 CLI。
 frontend 只消费宿主明确提供的输入，不隐式读取文件系统。
 
 ## 不变量

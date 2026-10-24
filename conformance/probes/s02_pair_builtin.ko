@@ -1,0 +1,1 @@
+fun main(): Unit { val p = Pair(1, 2); if (p.first == 1) { println("pair") } }

@@ -1,0 +1,5 @@
+fun main(): Unit {
+    val r: Result<Int, Int> = Result.Ok(1)
+    val v: Int = when (r) { is Result.Ok -> r.success; is Result.Err -> 0 }
+    if (v == 1) { println("case-noargs") }
+}

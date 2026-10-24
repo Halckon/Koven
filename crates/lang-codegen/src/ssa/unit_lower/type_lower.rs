@@ -228,15 +228,21 @@ impl UnitTypeLowering {
             UnitTypeKind::Builtin(BuiltinType::String) => module.add_string_owner_type(),
             UnitTypeKind::Builtin(BuiltinType::Unit) => module.intern_type(SsaTypeKind::Unit),
             UnitTypeKind::Nullable(inner) => {
-                if !is_supported_nullable_inner(typed, inner) {
+                if !is_inline_nullable_inner(typed, inner)
+                    && !is_supported_nullable_inner(typed, inner)
+                {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
                 let inner_type = inner;
                 let inner = self.intern_inner(module, typed, inner_type, span)?;
                 self.define_pending_owner(module, typed, inner_type)?;
-                module
-                    .add_nullable_handle_type(inner)
-                    .map_err(|_| lowering_error(LoweringErrorKind::UnsupportedNode, span))?
+                if is_inline_nullable_inner(typed, inner_type) {
+                    // ADR-0033: non-pointer `T?` keeps its inner value inline.
+                    module.add_inline_nullable_type(inner)
+                } else {
+                    module.add_nullable_handle_type(inner)
+                }
+                .map_err(|_| lowering_error(LoweringErrorKind::UnsupportedNode, span))?
             }
             UnitTypeKind::Intrinsic {
                 constructor: IntrinsicTypeConstructor::View,
@@ -704,6 +710,27 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
     }
 }
 
+/// ADR-0033 inline inners admitted so far (SPEC-0350): Boolean, integers and String.
+fn is_inline_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
+    matches!(
+        typed.types().get(ty),
+        Some(UnitTypeKind::Builtin(
+            BuiltinType::Boolean
+                | BuiltinType::String
+                | BuiltinType::Byte
+                | BuiltinType::Short
+                | BuiltinType::Int
+                | BuiltinType::Long
+                | BuiltinType::UByte
+                | BuiltinType::UShort
+                | BuiltinType::UInt
+                | BuiltinType::ULong
+        ))
+    )
+}
+
+/// Storage-recipe support stays pointer-like: inline nullable bodies are lowered only
+/// by the refinement layer, which interns their types itself.
 fn is_supported_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
     match typed.types().get(ty) {
         Some(UnitTypeKind::Intrinsic {

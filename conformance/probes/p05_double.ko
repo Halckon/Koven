@@ -1,0 +1,1 @@
+fun main(): Unit { val d = 1.5 * 2.0; if (d == 3.0) { println("double") } }

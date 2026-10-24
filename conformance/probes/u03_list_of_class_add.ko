@@ -1,0 +1,2 @@
+class Item(val n: Int)
+fun main(): Unit { var xs = mutableListOf<Item>(); xs.add(Item(1)); xs.add(Item(2)); if (xs.size == 2) { println("class-list") } }

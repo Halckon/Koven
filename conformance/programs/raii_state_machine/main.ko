@@ -1,0 +1,90 @@
+// RAII 状态机：会话按命令在 Idle / Active / Closed 间迁移。连接句柄是带 deinit 的资源，
+// 它的释放时机（replace 换出后在作用域末尾析构、字段覆盖时析构、main 结束时按声明
+// 逆序析构会话及其字段）全部体现在输出中。
+
+class Handle(val id: Int) {
+    deinit() {
+        println("  handle #${this.id} released")
+    }
+}
+
+enum class State {
+    Idle,
+    Active(sent: Int),
+    Closed
+}
+
+enum class Command {
+    Open,
+    Send(bytes: Int),
+    Close,
+    Shutdown;
+
+    fun label(): String = when (this) {
+        is Open -> "open"
+        is Send -> "send ${bytes}"
+        is Close -> "close"
+        is Shutdown -> "shutdown"
+    }
+}
+
+class Session(val name: String, var state: State, var handle: Handle?, var opened: Int) {
+    deinit() {
+        println("session " + this.name + " dropped")
+    }
+
+    inout fun apply(cmd: Command): Unit {
+        println(this.name + ": " + cmd.label())
+        val current = this.state
+        when (cmd) {
+            is Command.Open -> {
+                if (current is State.Idle) {
+                    this.opened = this.opened + 1
+                    this.handle = Handle(this.opened)
+                    this.state = State.Active(0)
+                    println("  opened handle #${this.opened}")
+                } else {
+                    println("  ignored")
+                }
+            }
+            is Command.Send -> {
+                if (current is State.Active) {
+                    val total = current.sent + cmd.bytes
+                    this.state = State.Active(total)
+                    println("  total ${total}")
+                } else {
+                    println("  ignored")
+                }
+            }
+            is Command.Close -> {
+                if (current is State.Active) {
+                    val released = replace(&this.handle, null)
+                    this.state = State.Idle
+                    println("  closing after ${current.sent} bytes")
+                } else {
+                    println("  ignored")
+                }
+            }
+            is Command.Shutdown -> {
+                this.state = State.Closed
+                this.handle = null
+                println("  shut down")
+            }
+        }
+    }
+}
+
+fun main(): Unit {
+    val first = Session("a", State.Idle, null, 0)
+    val second = Session("b", State.Idle, null, 0)
+    val script = listOf(
+        Command.Open, Command.Send(5), Command.Send(7), Command.Close, Command.Send(1),
+        Command.Open, Command.Send(3), Command.Shutdown, Command.Open
+    )
+    for (cmd in script) {
+        first.apply(cmd)
+    }
+    second.apply(Command.Open)
+    second.apply(Command.Send(2))
+    println("end of main")
+}

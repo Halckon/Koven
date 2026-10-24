@@ -1,0 +1,1 @@
+fun main(): Unit { val a: Int = 5; val b: Long = a.toLong(); if (b == 5L) { println("conv") } }

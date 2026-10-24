@@ -99,16 +99,24 @@ fn assert_unqualified(typed: &CompilationUnitTypes, owned: &CompilationUnitOwner
 }
 
 fn assert_without_receiver(text: &str) {
+    assert_without_receiver_after(text, &[]);
+}
+
+/// `leading` are diagnostics the unit reports before the `this` rejection, such as the
+/// Guide v0.46 L0167 on a top-level runtime value.
+fn assert_without_receiver_after(text: &str, leading: &[(&str, &str)]) {
     let (snapshot, environment) = memory(text);
     assert!(snapshot.names().diagnostics().is_empty());
     assert!(snapshot.validated_names().is_some());
     let (typed, owned) = analyze_unit_recovery(&snapshot, &environment)
         .expect("ordinary receiver error is not an internal failure");
     assert!(typed.signatures().diagnostics().is_empty());
-    assert_diagnostics(
-        typed.diagnostics(),
-        &[("L0166", unique_span(&snapshot, "this"))],
-    );
+    let mut expected = leading
+        .iter()
+        .map(|(code, slice)| (*code, unique_span(&snapshot, slice)))
+        .collect::<Vec<_>>();
+    expected.push(("L0166", unique_span(&snapshot, "this")));
+    assert_diagnostics(typed.diagnostics(), &expected);
     assert_eq!(typed.body_diagnostics(), typed.diagnostics());
     assert_error_this(&snapshot, &typed);
     assert!(owned.diagnostics().is_empty());
@@ -123,12 +131,12 @@ fn top_level_function_this_reports_exact_l0166_and_has_no_capability() {
 
 #[test]
 fn top_level_initializer_this_reports_exact_l0166_and_has_no_capability() {
-    assert_without_receiver("val invalid = this");
+    assert_without_receiver_after("val bad = this", &[("L0167", "val")]);
 }
 
 #[test]
 fn companion_function_this_reports_exact_l0166_and_has_no_capability() {
-    assert_without_receiver("class Tools { companion object { fun invalid(): Unit { this } } }");
+    assert_without_receiver("class Tools { companion { fun invalid(): Unit { this } } }");
 }
 
 #[test]
@@ -187,9 +195,8 @@ fn instance_this_retains_real_basic_types_ownership_and_sealed_view() {
 #[test]
 fn companion_constant_same_token_l0153_does_not_gain_l0166() {
     for declaration in ["const val BAD = this", "const val BAD: Int = this"] {
-        let (snapshot, environment) = memory(&format!(
-            "class Holder {{ companion object {{ {declaration} }} }}",
-        ));
+        let (snapshot, environment) =
+            memory(&format!("class Holder {{ companion {{ {declaration} }} }}",));
         assert_diagnostics(
             snapshot.names().diagnostics(),
             &[("L0153", unique_span(&snapshot, "this"))],

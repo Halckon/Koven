@@ -4,7 +4,7 @@ use crate::{
     ast::TypeRefId,
     diagnostic::codes,
     name_resolution::{DeclarationId, SourceUnitId, SymbolKind, UnitSymbolId},
-    parser::Item,
+    parser::{Item, VariableKind},
     source::Span,
     type_checking::{
         DeferredReason, TypeCheckingError, UnitExpressionId, UnitTypeId, UnitTypeKind,
@@ -20,6 +20,7 @@ impl BodyChecker<'_> {
         declaration: DeclarationId,
         source: SourceUnitId,
         item: &Item,
+        item_span: Span,
     ) -> Result<(), CompilationUnitTypeError> {
         let (type_ref, initializer) = match item {
             Item::Variable {
@@ -34,6 +35,16 @@ impl BodyChecker<'_> {
             } => (*type_ref, *initializer),
             _ => return Err(CompilationUnitTypeError::MissingDeclarationSymbol),
         };
+        if let Item::Variable { kind, .. } = item {
+            // Guide v0.46: top-level values are `const val` only. The initializer is still
+            // checked below so later diagnostics recover, but the unit cannot validate.
+            let keyword = self.top_level_variable_keyword(item_span, *kind)?;
+            self.emit(
+                codes::UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE,
+                "top-level runtime values are not supported; use `const val` or construct the value in `main` and pass it as an argument",
+                keyword,
+            )?;
+        }
         let signature = self
             .signatures
             .declaration(declaration)
@@ -153,6 +164,28 @@ impl BodyChecker<'_> {
             }
         }
         false
+    }
+
+    /// `val`/`var` 关键字范围：未包裹的 Variable item 恰好从该关键字开始。
+    fn top_level_variable_keyword(
+        &self,
+        item_span: Span,
+        kind: VariableKind,
+    ) -> Result<Span, CompilationUnitTypeError> {
+        let length = match kind {
+            VariableKind::Val | VariableKind::Var => 3,
+            VariableKind::BorrowVal(marker) => {
+                return Ok(marker);
+            }
+        };
+        self.sources
+            .span(
+                item_span.source_id(),
+                item_span.start(),
+                item_span.start() + length,
+            )
+            .map_err(TypeCheckingError::from)
+            .map_err(CompilationUnitTypeError::from)
     }
 
     fn top_level_type_ref_span(

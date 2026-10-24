@@ -61,7 +61,7 @@ pub(crate) const GRAMMAR_CASES: &[GrammarCase] = &[
     },
     GrammarCase {
         name: "interface companion",
-        source: "interface Printable { fun show(): Unit; companion object { const val NAME: String = \"printable\" } }",
+        source: "interface Printable { fun show(): Unit; companion { const val NAME: String = \"printable\" } }",
     },
     GrammarCase {
         name: "enum variants and member",

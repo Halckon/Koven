@@ -112,7 +112,7 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let actual = self.check_expression(source, expression, None, None, return_type)?;
-        let target = self.resolve_type_test_ref(source, type_ref)?;
+        let target = self.resolve_type_test_ref(source, type_ref, Some(actual.ty))?;
         if !self.is_error(actual.ty)
             && !self.is_error(target)
             && !self.valid_type_test_relation(actual.ty, target)

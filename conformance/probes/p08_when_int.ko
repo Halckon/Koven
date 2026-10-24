@@ -1,0 +1,2 @@
+fun name(n: Int): String = when (n) { 1 -> "one"; 2 -> "two"; else -> "many" }
+fun main(): Unit { println(name(2)) }

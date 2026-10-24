@@ -1,5 +1,6 @@
 //! verified typed SSA 到 LLVM IR 的 first-class value 适配器。
 
+mod abort;
 mod borrowed_generate;
 mod call;
 mod callable;
@@ -10,6 +11,7 @@ mod integer_range;
 mod map;
 mod map_iteration;
 mod module_lowering;
+mod nullable;
 mod range;
 mod root_exchange;
 #[cfg(test)]
@@ -204,14 +206,21 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     LlvmAdapterError::InvalidSsa("block 引用未知 instruction".to_owned())
                 })?;
                 self.set_debug_location(&instruction.origin)?;
+                self.set_abort_location(&instruction.origin)?;
                 self.lower_instruction(instruction)?;
             }
             let terminator = block.terminator.as_ref().ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("basic block 缺少 terminator".to_owned())
             })?;
             self.set_debug_location(&terminator.origin)?;
-            self.lower_terminator(&terminator.kind)?;
+            self.set_abort_location(&terminator.origin)?;
+            if matches!(terminator.kind, TerminatorKind::Abort) {
+                self.lower_abort(terminator.abort.as_ref())?;
+            } else {
+                self.lower_terminator(&terminator.kind)?;
+            }
         }
+        self.dependencies.runtime.set_abort_location(None);
         self.builder.unset_current_debug_location();
         Ok(())
     }
@@ -1154,7 +1163,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("nullable wrap", 1, results.len()));
                 };
-                let value = if self
+                let value = if let Some(value) = self.inline_nullable_wrap(*result, *owner)? {
+                    value
+                } else if self
                     .module
                     .presence_payload_type(value_type(self.function, *result)?)
                     .is_some()
@@ -1213,7 +1224,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                         "nullable proof 的 LLVM loan 映射不存在".to_owned(),
                     )
                 })?;
-                let value = if self
+                let value = if let Some((_, payload)) = self.inline_nullable_payload(*owner)? {
+                    payload
+                } else if self
                     .module
                     .presence_payload_type(value_type(self.function, *owner)?)
                     .is_some()
@@ -1615,7 +1628,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 _ => return Err(unsupported("SPEC-0034 不支持多返回值 return")),
             },
             TerminatorKind::Abort => {
-                self.dependencies.runtime.emit_abort(&self.builder)?;
+                self.lower_abort(None)?;
             }
             TerminatorKind::RangeReturn { view, .. } => {
                 self.builder.build_return(Some(&self.value(*view)?))?;

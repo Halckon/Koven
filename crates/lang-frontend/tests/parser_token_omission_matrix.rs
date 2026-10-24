@@ -102,7 +102,7 @@ fn deleting_each_significant_token_is_total_and_recovers_non_owner_suffixes() {
     assert!(recoverable_omissions > 0);
     assert_eq!(
         (executed, owner_omissions, recoverable_omissions),
-        (395, 96, 299)
+        (394, 96, 298)
     );
 }
 

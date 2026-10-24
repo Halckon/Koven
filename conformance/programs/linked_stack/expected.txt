@@ -1,0 +1,8 @@
+stack: 50 -> 40 -> 30 -> 20 -> 10 -> nil
+size 5, sum 150
+pop: 50
+reversed: 10 -> 20 -> 30 -> 40 -> nil
+after push: 99 -> 10 -> 20 -> 30 -> 40 -> nil
+snapshot: 10 :: 20 :: 30 :: 40 :: [] (len 4)
+drained: 99 10 20 30 40
+final pop: none, size 0

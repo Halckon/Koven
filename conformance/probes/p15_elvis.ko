@@ -1,0 +1,2 @@
+fun f(x: Int?): Int = x ?: 7
+fun main(): Unit { if (f(null) == 7) { println("elvis") } }

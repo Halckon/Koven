@@ -1,0 +1,1 @@
+fun main(): Unit { var i = 0; var s = 0; while (i < 10) { s = s + i; i = i + 1 }; if (s == 45) { println("while") } }

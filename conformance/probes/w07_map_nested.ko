@@ -1,0 +1,1 @@
+fun main(): Unit { var m = mutableMapOf<Int, Int>(); m.put(1, 1); m.put(2, 2); var n = 0; for ((a, x) in m) { for ((b, y) in m) { n = n + x * y } }; if (n == 9) { println("map-nested") } }

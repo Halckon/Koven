@@ -992,7 +992,7 @@ impl UnitNominalSignature {
         &self.members
     }
 
-    /// 返回 companion object callable signatures。
+    /// 返回 companion callable signatures。
     #[must_use]
     pub fn companion_members(&self) -> &[UnitCallableSignature] {
         &self.companion_members

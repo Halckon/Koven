@@ -19,7 +19,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树3份，[0291](active/0291-readonly-map-construction.md)保留有界交付待项；[0333静态Map调用](active/0333-static-map-callers.md)为approved、未实施；[0341统一Unit管线](active/0341-shared-lowering-core.md)为in-progress，按 Guide v0.45 推进单文件/project 共用 compilation-unit 检查和代码生成；helper 抽取只作迁移步骤，能力差异与通用 lowering 对账仍开放。Map双分量借用遍历已按[0331有限合同](../archive/specs/0331-map-borrowed-iteration.md)验收归档，原调用/ABI前置分别保留。
+- [Active 合同](active/README.md)：当前本树3份，[0291](active/0291-readonly-map-construction.md)保留有界交付待项；[0333静态Map调用](active/0333-static-map-callers.md)为approved、未实施；[0341统一Unit管线](active/0341-shared-lowering-core.md)为in-progress，按 Guide v0.46 推进单文件/project 共用 compilation-unit 检查和代码生成；helper 抽取只作迁移步骤，能力差异与通用 lowering 对账仍开放。Map双分量借用遍历已按[0331有限合同](../archive/specs/0331-map-borrowed-iteration.md)验收归档，原调用/ABI前置分别保留。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -136,6 +136,7 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 - [v0.43 广义后继](drafts/v0.43/README.md#0298首片之外的开放后继)：0298 更广表达式/控制流/循环仍为候选；0292 consume 保持原 draft。
 - [v0.44 候选](drafts/v0.44/README.md)：0291 已重基为 active，版本目录只保留阶段路由；[Proposals](../proposals/README.md) 不自动批准实施，P2 预算继续延期。
+- [v0.46 候选](drafts/v0.46/README.md)：当前无草案；[0350 E3 细化层与 nullable 试点](../archive/specs/0350-ownership-refinement-nullable-pilot.md)已验收归档。
 - [演进历史基线](evolution-status.md) / [工程方法](../development/README.md)：前者保留历史检查点，当前交付只在本节维护。
 - [冻结库存](inventory.md)：active/archive 的独立声明与漏项检测，不由目录扫描自动生成。
 - [依赖图](dependency-graph.md) / [SVG](dependency-graph.svg)：由 `scripts/gen_spec_dag.py` 生成拓扑，不承载验收状态。
@@ -144,6 +145,7 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 - [v0.43 首片与后继合同](drafts/v0.43/README.md)
 - [v0.44 候选合同](drafts/v0.44/README.md)
+- [v0.46 候选合同](drafts/v0.46/README.md)
 
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成

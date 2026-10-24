@@ -192,6 +192,15 @@ impl<'ctx, 'sources> DebugEmitter<'ctx, 'sources> {
         Ok(())
     }
 
+    /// `  at <logical-path>:<line>:<column>\n` for the Guide v0.46 abort output.
+    pub(super) fn abort_location(&self, origin: &Origin) -> Result<String, LlvmAdapterError> {
+        let position = self.plan.position(origin)?;
+        Ok(format!(
+            "  at {}:{}:{}\n",
+            position.source_name, position.line, position.column
+        ))
+    }
+
     pub(super) fn finalize(&self) {
         self.builder.finalize();
     }

@@ -17,13 +17,26 @@ fn narrow_target_checks_physical_buffer_and_logical_length_bridge() {
     let abort = llvm.add_function("abort", context.void_type().fn_type(&[], false), None);
     let sentinel = llvm.add_global(context.i8_type(), None, "sentinel");
     sentinel.set_initializer(&context.i8_type().const_zero());
+    let write = llvm.add_function(
+        "write",
+        size_type.fn_type(
+            &[context.i32_type().into(), pointer.into(), size_type.into()],
+            false,
+        ),
+        None,
+    );
+    let abort_helpers =
+        super::abort::AbortHelpers::define(&context, &llvm, size_type, write, abort)
+            .expect("abort helpers");
     let runtime = RuntimeAbi {
         context: &context,
         size_type,
         max_buffer_bytes: (1_u64 << (index_bits - 1)) - 1,
         malloc: Some(malloc),
         abort: Some(abort),
-        write: None,
+        abort_helpers: Some(abort_helpers),
+        abort_location: std::cell::RefCell::new(None),
+        write: Some(write),
         free: None,
         payload_sizes: BTreeMap::new(),
         shared_allocation_sizes: BTreeMap::new(),

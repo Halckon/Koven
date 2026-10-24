@@ -153,7 +153,7 @@ implementation 和 delegation route，不重新按名称或 shape 选择；callb
 - 顺序容器构造、element place/read/replace；
 - closure environment、capture 与 callable thunk；
 - String owner/operation（含 [StringClone](string-clone.md)）、Rc retain/release/payload loan；
-- pointer-like nullable handle；
+- pointer-like nullable handle；触及 nullable 且落在迁移子集内的函数改由[所有权细化层](ownership-refinement.md)lowering；
 - source-qualified drop、loan、Value delivery 和 multi-file entry。
 
 lowerer 只接受它能证明的 concrete layout 和 runtime recipe。缺少 frontend fact、身份不一致或不支持的
@@ -179,7 +179,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
   aggregate/tagged 表示。HeapOwner payload 已接受 tagged union；单文件 Box 延迟定义 payload，与 unit 路径一样打断非 nullable enum 递归。两入口的具体非泛型 Box enum 已验证构造/运输/递归释放：简单 cases 2 次、四层树与 inline root 共 45 次分配/释放，逐指针计数；不证明解引用、generic 或 nullable 递归。
 - drop glue 由 concrete type 递归生成；Rc retain/release、String allocation/free、container buffer、
   abort 和 stdout 通过集中 runtime helper 发出。
-- nullable handle 使用 null niche 和条件 drop；不把所有 nullable 类型统一强制成 pointer。
+- nullable handle 使用 null niche 和条件 drop；[inline nullable](ownership-refinement.md#inline-nullable-布局)不强制成 pointer。
 - 一个 compilation unit 生成一个 LLVM module，并保留多 source DWARF 行映射。
 
 [Unit 容器存储](unit-container-storage.md)记录单文件有界接入与 void ABI 隔离。实现位于 `crates/lang-codegen/src/llvm/`；runtime helper 集中在 `llvm/runtime.rs` 与

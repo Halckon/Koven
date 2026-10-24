@@ -2,7 +2,7 @@
 
 > **性质**：教程入口 · **状态**：current · **读取时机**：学习可执行的 Koven 示例时 · **唯一真源**：本目录
 
-[当前 Koven tour](koven-tour.md)依据 [Guide v0.45](../guide/README.md)。仅覆盖继承的已交付子集，不证明 v0.45 管线迁移已完成。源码只保存在 Markdown；
+[当前 Koven tour](koven-tour.md)依据 [Guide v0.46](../guide/README.md)。仅覆盖继承的已交付子集，不证明 v0.45 管线迁移或 v0.46 新规则已实现。源码只保存在 Markdown；
 `examples.json` 保存完整输出合同，`scripts/check_tutorial.py` 使用真实 CLI 验收。
 跨文件合同按路径引用本页 fence ID，自动生成现行 project manifest；源码不在 JSON 重复。
 定向验收可重复传入 `--example ID`；CI 默认选择17个正例和4个负例；parameter-report的四组argv共用一份三文件源码，

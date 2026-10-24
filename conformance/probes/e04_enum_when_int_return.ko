@@ -1,0 +1,3 @@
+enum class Color { Red, Green }
+fun code(c: Color): Int { return when (c) { Color.Red -> 1; Color.Green -> 2 } }
+fun main(): Unit { if (code(Color.Green) == 2) { println("e6") } }

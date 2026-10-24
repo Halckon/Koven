@@ -1,0 +1,1 @@
+fun main(): Unit { val a = "ab"; val b = a.clone() + "c"; if (b == "abc") { println(b) } }

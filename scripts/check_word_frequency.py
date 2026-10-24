@@ -107,7 +107,9 @@ def check(cli, evidence):
         execute([str(cli), 'run', *inputs, 'probe.main', '--'], decimal, directory)
         execute([str(cli), 'build', *inputs, 'probe.negative', '-o', 'negative'], blank, directory)
         execute([str(directory / 'negative')], dict(exit=-signal.SIGABRT), directory, abort=True)
-        execute([str(cli), 'run', *inputs, 'probe.negative', '--'], dict(exit=1), directory, abort=True)
+        # Guide v0.46 D9: `kovenc run` forwards the program's status, so SIGABRT surfaces as 128 + 6.
+        execute([str(cli), 'run', *inputs, 'probe.negative', '--'],
+                dict(exit=128 + signal.SIGABRT), directory, abort=True)
 
         # Native argv cannot contain NUL. Invalid UTF-8 must be refused before either entry.
         if os.name != 'posix':

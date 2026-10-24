@@ -1,0 +1,3 @@
+class Node(val v: Int)
+fun show(n: Node?): Unit { if (n != null) { println("non-null") } else { println("null") } }
+fun main(): Unit { show(Node(1)); show(null) }

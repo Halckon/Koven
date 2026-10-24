@@ -171,7 +171,7 @@ fn unnamed_members_and_companion_constants_keep_real_parameter_types() {
         let text = format!(
             "class C(val field: Int) {{\nfun {name}(x: Int): Int {{\n\
              val observed: Int = this.field\nval wrong: Int = false\nreturn x\n}}\n\
-             companion object {{ const val {name}: Int = true }}\nfun good(): Int = 1\n}}"
+             companion {{ const val {name}: Int = true }}\nfun good(): Int = 1\n}}"
         );
         let (snapshot, environment) = memory(&text);
         let function = format!("fun {name}(");
@@ -345,7 +345,7 @@ fn unnamed_classifier_error_receiver_does_not_leak_into_companion_or_following_m
     for name in ["", "1"] {
         let text = format!(
             "class {name}(val field: Int) {{\nfun read(): Int = this.field\n\
-             companion object {{\nfun invalid(): Int = this\nconst val BAD: Int = this\n}}\n\
+             companion {{\nfun invalid(): Int = this\nconst val BAD: Int = this\n}}\n\
              fun later(): Int = true\n}}\nfun target(): Int = 1\nfun use(): Int = target()"
         );
         let (snapshot, environment) = memory(&text);
@@ -429,7 +429,6 @@ fn unnamed_classifier_error_receiver_does_not_leak_into_companion_or_following_m
 fn repaired_names_regain_the_real_basic_or_constant_qualification() {
     for (text, constant) in [
         ("fun restored(): Int = 1", false),
-        ("val restored: Int = 1", false),
         ("const val RESTORED: Int = 1", true),
         ("class Restored { fun f(): Int = 1 }", false),
     ] {

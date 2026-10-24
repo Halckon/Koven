@@ -10,13 +10,13 @@ use std::{
 use std::process::Command;
 
 use lang_frontend::{
-    analysis::{UnitSourceDescriptor, analyze_parsed_unit_names},
+    analysis::{UnitNameSnapshot, UnitSourceDescriptor, analyze_parsed_unit_names},
     diagnostic::Diagnostic,
     lexer::lex,
     name_resolution::package_path_mismatch_diagnostic,
     parser::{ParsedFile, parse_file},
-    source::SourceMap,
-    type_checking::standard_environments,
+    source::{SourceId, SourceMap},
+    type_checking::{TypeEnvironment, standard_environments},
 };
 
 use crate::{
@@ -109,17 +109,42 @@ impl From<UnitBuildError> for BootstrapError {
     }
 }
 
+/// 单文件 source set 完成名称前缀后的产物；build/run 与 `check` 共用。
+pub(crate) struct PreparedSingleSource {
+    pub(crate) snapshot: UnitNameSnapshot,
+    pub(crate) types: TypeEnvironment,
+    pub(crate) source: SourceId,
+}
+
 /// 从一份显式用户 source 和有限受信标准源构建并链接一个 native target。
 pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
     validate_paths(target)?;
-    let text = fs::read_to_string(target.source).map_err(|error| BootstrapError::ReadSource {
-        path: target.source.to_path_buf(),
+    let prepared = prepare_single_source(target.source, target.source_root)?;
+    emit_unit_object(
+        &prepared.snapshot,
+        &prepared.types,
+        UnitEntrySelection::Single {
+            source: prepared.source,
+            selection: target.entry,
+        },
+        target.object,
+    )?;
+    link_native_object(target.object, target.executable).map_err(BootstrapError::Linker)?;
+    Ok(())
+}
+
+/// 读取一份显式用户 source，推导 source root，追加标准源并完成名称前缀。
+pub(crate) fn prepare_single_source(
+    path: &Path,
+    source_root: Option<&Path>,
+) -> Result<PreparedSingleSource, BootstrapError> {
+    let text = fs::read_to_string(path).map_err(|error| BootstrapError::ReadSource {
+        path: path.to_path_buf(),
         kind: error.kind(),
     })?;
-    let source_name = target
-        .source
+    let source_name = path
         .to_str()
-        .ok_or_else(|| BootstrapError::NonUtf8SourcePath(target.source.to_path_buf()))?;
+        .ok_or_else(|| BootstrapError::NonUtf8SourcePath(path.to_path_buf()))?;
     let mut sources = SourceMap::new();
     let source = sources
         .add_source(source_name, text)
@@ -129,12 +154,13 @@ pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), Bootstr
     if !parsed.initial_package_header_is_complete() {
         return Err(source_diagnostics(&sources, parsed.diagnostics()));
     }
-    let logical_path = single_logical_path(&sources, &parsed, target.source, target.source_root)?;
+    let logical_path = single_logical_path(&sources, &parsed, path, source_root)?;
     let mut descriptors = vec![UnitSourceDescriptor::new("single", logical_path, source)];
-    let (name_environment, mut type_environment) = standard_environments();
+    let (mut name_environment, mut type_environment) = standard_environments();
     crate::standard_sources::append_standard_sources(
         &mut sources,
         &mut descriptors,
+        &mut name_environment,
         &mut type_environment,
     )?;
     // Loader 只追加标准 descriptor；用户原解析产物移动一次，标准源各解析一次。
@@ -150,17 +176,11 @@ pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), Bootstr
     }
     let snapshot = analyze_parsed_unit_names(sources, parsed_sources, name_environment)
         .map_err(UnitBuildError::from)?;
-    emit_unit_object(
-        &snapshot,
-        &type_environment,
-        UnitEntrySelection::Single {
-            source,
-            selection: target.entry,
-        },
-        target.object,
-    )?;
-    link_native_object(target.object, target.executable).map_err(BootstrapError::Linker)?;
-    Ok(())
+    Ok(PreparedSingleSource {
+        snapshot,
+        types: type_environment,
+        source,
+    })
 }
 
 fn single_logical_path(

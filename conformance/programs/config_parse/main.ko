@@ -1,0 +1,116 @@
+// 配置解析：逐字符解析内嵌的 `key = value` 文本，跳过空行与 `#` 注释；
+// 值按整数、布尔、文本分类，首个错误行以 Result 报告并带行号。
+// 当前 String 不提供字符访问，因此输入以 Char 序列内嵌。
+
+enum class Setting : Display {
+    Number(n: Int),
+    Flag(on: Boolean),
+    Text(s: String);
+
+    override fun toString(): String = when (this) {
+        is Number -> "int ${n}"
+        is Flag -> "bool ${on}"
+        is Text -> "text " + s
+    }
+}
+
+value class Entry(val key: String, val setting: Setting)
+
+class Cursor(val text: List<Char>, var pos: Int, var line: Int) {
+    fun atEnd(): Boolean = this.pos >= this.text.size
+    fun peek(): Char = if (this.atEnd()) '\0' else this.text[this.pos]
+
+    inout fun bump(): Unit {
+        if (this.peek() == '\n') { this.line = this.line + 1 }
+        this.pos = this.pos + 1
+    }
+
+    inout fun skipSpaces(): Unit {
+        while (this.peek() == ' ') { this.bump() }
+    }
+}
+
+fun digit(c: Char): Int = when (c) {
+    '0' -> 0; '1' -> 1; '2' -> 2; '3' -> 3; '4' -> 4
+    '5' -> 5; '6' -> 6; '7' -> 7; '8' -> 8; '9' -> 9
+    else -> -1
+}
+
+fun isKeyChar(c: Char): Boolean = (c >= 'a' && c <= 'z') || c == '_'
+
+fun parseKey(inout cur: Cursor): Result<String, String> {
+    val line = cur.line
+    var key = ""
+    while (isKeyChar(cur.peek())) {
+        key = key + cur.peek().toString()
+        cur.bump()
+    }
+    if (key == "") return Err("line ${line}: expected a key, found '${cur.peek()}'")
+    cur.skipSpaces()
+    if (cur.peek() != '=') return Err("line ${line}: expected '=' after " + key)
+    cur.bump()
+    return Ok(key)
+}
+
+fun readSetting(inout cur: Cursor): Setting {
+    var text = ""
+    var number = 0
+    var numeric = true
+    while (!cur.atEnd() && cur.peek() != '\n') {
+        val d = digit(cur.peek())
+        if (d < 0) { numeric = false } else if (numeric) { number = number * 10 + d }
+        text = text + cur.peek().toString()
+        cur.bump()
+    }
+    if (numeric && text != "") return Setting.Number(number)
+    if (text == "true") return Setting.Flag(true)
+    if (text == "false") return Setting.Flag(false)
+    return Setting.Text(text)
+}
+
+fun parseConfig(own text: List<Char>): Result<MutableList<Entry>, String> {
+    var cur = Cursor(text, 0, 1)
+    var entries: MutableList<Entry> = mutableListOf()
+    while (!cur.atEnd()) {
+        cur.skipSpaces()
+        if (cur.peek() == '#') {
+            while (!cur.atEnd() && cur.peek() != '\n') { cur.bump() }
+        } else if (!cur.atEnd() && cur.peek() != '\n') {
+            val key = parseKey(&cur)?
+            cur.skipSpaces()
+            entries.add(Entry(key, readSetting(&cur)))
+        }
+        if (!cur.atEnd()) { cur.bump() }
+    }
+    return Ok(entries)
+}
+
+fun report(title: String, own text: List<Char>): Unit {
+    println("[" + title + "]")
+    val parsed = parseConfig(text)
+    when (parsed) {
+        is Ok -> {
+            for (entry in parsed.success) {
+                println(entry.key + ": ${entry.setting}")
+            }
+            println("${parsed.success.size} settings")
+        }
+        is Err -> println("error: " + parsed.error)
+    }
+}
+
+fun main(): Unit {
+    report("good", listOf(
+        '#', ' ', 's', 'e', 'r', 'v', 'e', 'r', '\n',
+        'n', 'a', 'm', 'e', ' ', '=', ' ', 'k', 'o', 'v', 'e', 'n', '\n',
+        'p', 'o', 'r', 't', ' ', '=', ' ', '8', '0', '8', '0', '\n',
+        '\n',
+        ' ', ' ', 'd', 'e', 'b', 'u', 'g', ' ', '=', ' ', 't', 'r', 'u', 'e', '\n',
+        'r', 'e', 't', 'r', 'i', 'e', 's', '=', '3', '\n'
+    ))
+    report("missing equals", listOf(
+        'm', 'o', 'd', 'e', ' ', '=', ' ', 'f', 'a', 's', 't', '\n',
+        'l', 'e', 'v', 'e', 'l', ' ', '3', '\n'
+    ))
+    report("bad key", listOf('9', ' ', '=', ' ', '1'))
+}

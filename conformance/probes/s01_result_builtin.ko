@@ -1,0 +1,2 @@
+fun f(): Result<Int, Int> = Result.Ok(1)
+fun main(): Unit { println("result-builtin") }

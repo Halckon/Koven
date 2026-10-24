@@ -1134,7 +1134,7 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir() {
     assert!(first.contains("phi i32"));
     assert!(first.contains("br i1"));
     assert!(first.contains("call i32 @f9.addSigned"));
-    assert!(first.contains("call void @abort()"));
+    assert!(first.contains("call void @koven.abort.report"));
     assert!(first.contains("unreachable"));
     assert!(!first.contains("invoke "));
     assert!(!first.contains("landingpad"));

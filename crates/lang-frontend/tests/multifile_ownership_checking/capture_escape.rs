@@ -168,7 +168,7 @@ fn elvis_expression_body_rejects_borrowed_closure_escape() {
     let (source, parsed) = parsed(
         &mut sources,
         "main.ko",
-        "val none: Nothing? = null\nfun read(xs: List<Int>): Unit {}\nfun leak(xs: List<Int>): () -> Unit = none ?: ({ read(xs) })",
+        "fun read(xs: List<Int>): Unit {}\nfun leak(xs: List<Int>, none: Nothing?): () -> Unit = none ?: ({ read(xs) })",
     );
     let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
     let (name_environment, type_environment) = standard_environments();

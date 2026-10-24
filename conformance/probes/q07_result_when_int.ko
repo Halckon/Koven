@@ -1,0 +1,3 @@
+enum class Res { Ok(v: Int), Err(code: Int) }
+fun f(n: Int): Res = if (n > 0) Res.Ok(n) else Res.Err(n)
+fun main(): Unit { val r = f(2); val x: Int = when (r) { is Res.Ok -> r.v; is Res.Err -> r.code }; if (x == 2) { println("res-int") } }

@@ -405,6 +405,76 @@ fn lower_unit_impl(
         let references = symbol_references(names, plan.instance.source_unit(), Namespace::Value);
         let type_references =
             symbol_references(names, plan.instance.source_unit(), Namespace::Type);
+        // ADR-0032: a function wholly inside the migrated subset uses the refinement layer.
+        let refine_entry = {
+            let function = &module.functions[plan.id.index()];
+            let entry = function
+                .entry_block()
+                .expect("planned unit function has an entry block");
+            let entities = function
+                .block(entry)
+                .expect("entry block exists")
+                .parameters
+                .clone();
+            (plan.receiver.is_none()
+                && plan.instance.substitutions().is_empty()
+                && plan.instance.key().static_self().is_none()
+                && function.borrow_return.is_none()
+                && function.carrier_return.is_none()
+                && entities.len() == plan.parameter_symbols.len()
+                && entities
+                    .iter()
+                    .all(|entity| matches!(entity, EntityId::Value(_) | EntityId::Loan(_))))
+            .then_some((entry, entities))
+        };
+        if let Some((entry, entities)) = refine_entry {
+            let refine_body = match &plan.body {
+                FunctionPlanBody::Expression(expression) => {
+                    crate::ssa::refine::RefineBody::Expression(*expression)
+                }
+                FunctionPlanBody::Block(statement) => {
+                    crate::ssa::refine::RefineBody::Block(*statement)
+                }
+            };
+            let inputs = crate::ssa::refine::RefineInputs {
+                sources,
+                parsed,
+                source_unit: plan.instance.source_unit(),
+                names,
+                typed,
+                owned,
+                constant_owned,
+                function_ids: &function_ids,
+                source_plan: &source_plan,
+                source_token: plan.instance.source_token(),
+                references: &references,
+                function_item: plan.function_item,
+                body: refine_body,
+                return_type: plan.return_type,
+                parameters: plan.parameter_symbols.clone(),
+                borrowed: entities
+                    .iter()
+                    .map(|entity| matches!(entity, EntityId::Loan(_)))
+                    .collect(),
+                span: plan.instance.span(),
+            };
+            if crate::ssa::refine::routes(&inputs) {
+                for ty in crate::ssa::refine::type_demands(&inputs) {
+                    types.intern(module, typed, ty, plan.instance.span())?;
+                }
+                let function = module
+                    .functions
+                    .get_mut(plan.id.index())
+                    .expect("planned unit function must exist");
+                let refine_types = crate::ssa::refine::RefineTypes {
+                    type_ids: types.type_ids(),
+                    heap_payloads: types.heap_payloads(),
+                    field_indices: types.field_indices(),
+                };
+                crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
+                continue;
+            }
+        }
         let function = module
             .functions
             .get_mut(plan.id.index())

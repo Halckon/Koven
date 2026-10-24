@@ -1,0 +1,5 @@
+fun main(): Unit {
+    var xs = mutableListOf(1, 2, 3)
+    val r = xs.removeAt(0)
+    if (r == 1 && xs.size == 2) { println("removeAt") }
+}

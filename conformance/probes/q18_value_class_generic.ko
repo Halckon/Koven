@@ -1,0 +1,2 @@
+value class Two<A, B>(val a: A, val b: B)
+fun main(): Unit { val t = Two(1, 2); if (t.a + t.b == 3) { println("vgen") } }

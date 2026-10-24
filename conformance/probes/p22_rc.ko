@@ -1,0 +1,2 @@
+class Data(val n: Int)
+fun main(): Unit { val a = Rc(Data(4)); val b = a.share(); if (b.value.n == 4) { println("rc") } }

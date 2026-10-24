@@ -488,16 +488,41 @@ fn adapts_pointer_like_nullable_storage_at_each_owned_value_boundary() {
     );
 }
 
+/// SPEC-0350 / ADR-0033: `Int?` and `String?` fields are inline nullable layouts, no
+/// longer unauthorized recipes.
+#[test]
+fn generic_class_inline_nullable_fields_lower() {
+    let (name_environment, type_environment) = standard_environments();
+    for actual in ["Int", "String"] {
+        let mut sources = SourceMap::new();
+        let path = "test/inline-nullable.ko";
+        let text = format!(
+            "package test\n\
+             class Dependent<T>(val item: T?)\n\
+             fun entry(own input: Dependent<{actual}>): Int = 1"
+        );
+        let (source, parsed) = parsed(&mut sources, path, &text);
+        let inputs = [SourceUnitInput::new("root", path, source, &parsed)];
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "test", "entry"),
+        )
+        .unwrap_or_else(|error| panic!("{actual}? field layout lowers: {error:?}"));
+        crate::llvm::render_verified_program(&program).expect("verified LLVM");
+    }
+}
+
 #[test]
 fn rejects_unauthorized_nested_generic_class_field_layouts() {
     let (name_environment, type_environment) = standard_environments();
     for (name, declarations, actual) in [
-        ("inline-nullable", "class Dependent<T>(val item: T?)", "Int"),
-        (
-            "string-nullable",
-            "class Dependent<T>(val item: T?)",
-            "String",
-        ),
         (
             "other-intrinsic",
             "class Dependent<T>(val item: Array<T>)",

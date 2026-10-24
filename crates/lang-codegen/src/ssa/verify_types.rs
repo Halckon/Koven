@@ -235,6 +235,17 @@ fn verify_type_definition(
                 );
             }
         }
+        SsaTypeKind::InlineNullable { inner, niche } => {
+            if inner.module() != module.id
+                || super::inline_nullable::inline_nullable_niche(module, *inner) != Some(*niche)
+            {
+                push_type_error(
+                    errors,
+                    id,
+                    "inline nullable inner type must be a defined local inline type with matching niche",
+                );
+            }
+        }
         SsaTypeKind::RangeView { source } => {
             if !matches!(
                 module.type_kind(*source),

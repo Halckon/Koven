@@ -1,8 +1,8 @@
-# Koven v0.45：调用、Lambda 与 Closure
+# Koven v0.46：调用、Lambda 与 Closure
 
-> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审调用匹配、lambda、capture 与 overload trial 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审调用匹配、lambda、capture 与 overload trial 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Closure Capture 与跨线程转移
 
@@ -15,13 +15,37 @@ lambda 的 capture 集由名称解析后的自由值引用决定，不按标识�
 
 无 `move` 前缀且实际有 capture 的 lambda 是 **borrowed closure**：对每个候选只建立 shared
 capture；owned、Borrow 和 Inout binding 均只提供 shared read/reborrow，捕获名称在 lambda 内
-不能赋值或按值移出。loan 从 lambda 求值完成后持续到该 closure 值的 ASAP drop point。它可在
+不能按值移出，除下节 mutating closure 外也不能赋值。loan 从 lambda 求值完成后持续到该 closure 值的 ASAP drop point。它可在
 当前具名函数/lambda 内绑定、移动和作为 Borrow 实参同步调用，但不得 return、写入字段、交给
 Value 参数或被 escaping move closure 捕获；这些逃逸产生 L0137。无 capture 的普通 lambda
 没有 loan，可按普通函数值使用。
 
 普通 closure 可 shared capture `this`；无前缀字段引用规范化为同一个 `this` capture。该规则
 只授予只读能力，不提前决定 instance method receiver 的其他契约。
+
+### Mutating Closure
+
+非 move 闭包的 body 中对捕获的局部 `var` 赋值时，该捕获由 shared loan 改为**独占借用**，
+该闭包称为 mutating closure：
+
+```kotlin
+fun applyAll(values: List<Int>, action: (Int) -> Unit): Unit {
+    for (value in values) { action(value) }
+}
+
+var total = 0
+applyAll(listOf(1, 2, 3), { x -> total = total + x })   // 调用结束后独占借用结束
+println("${total}")
+```
+
+- mutating closure 的使用限制与 borrowed closure 相同：不得 return、写入字段、交给 `Value`
+  参数或被 escaping move closure 捕获，违反时 L0137。
+- 闭包值存活期间，被独占借用的 `var` 不能在闭包外读、写或借用，冲突使用既有借用冲突诊断；
+  loan 从闭包求值完成持续到该闭包值的 ASAP drop point。
+- mutating closure 不满足 `Copyable` 与 `Transferable`。
+- 只允许以这种方式写入本函数的局部 `var`；对 `inout` 参数、字段或 `this` 的写入不在本版本，
+  仍按普通 borrowed closure 规则拒绝。同一闭包对其他捕获仍是 shared read。
+- move closure 不变：捕获的仍是 snapshot，捕获名称不能赋值。
 
 ### Move Closure
 
@@ -98,7 +122,8 @@ v1 跨线程入口只接受编译器可查询 capture facts 的 move lambda 或�
 
 跨线程转移不是从函数名或 `move` 函数类型推测的效果。typed callable target 必须携带由
 `TypeEnvironment` 绑定的封闭 cross-thread effect；预声明 `thread(task)` 的 task 位置和
-`Sender.send(value)` 的 value 位置具有该 effect，源码同名函数不获得。对应 operand 或 move
+`Sender.send(value)` 的 value 位置具有该 effect，源码同名函数不获得；线程 API 本身见
+[受限线程](13-program-runtime-standard-library.md#线程channel-与-move-closure)。对应 operand 或 move
 closure capture 不满足 `Transferable` 时产生 L0139。`Shareable`、跨线程借用和完整多线程
 数据流继续属于 v2。
 

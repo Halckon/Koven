@@ -409,7 +409,7 @@ fn static_members_require_qualified_use_and_do_not_expose_private_symbols() {
     let (lib_id, lib) = parsed(
         &mut sources,
         "lib.ko",
-        "package lib\nobject Util { private fun open(x: Boolean): Unit {}; fun open(x: Int): Unit {}; fun open(x: String): Unit {}; private fun hidden(): Unit {} }\nclass Host { companion object { fun make(): Unit {}; private fun secret(): Unit {} } }",
+        "package lib\nobject Util { private fun open(x: Boolean): Unit {}; fun open(x: Int): Unit {}; fun open(x: String): Unit {}; private fun hidden(): Unit {} }\nclass Host { companion { fun make(): Unit {}; private fun secret(): Unit {} } }",
     );
     let (ok_id, ok) = parsed(
         &mut sources,
@@ -548,7 +548,7 @@ fn loaded_missing_member_tail_and_unclassified_imports_keep_original_diagnostics
     let (p_id, p) = parsed(
         &mut sources,
         "p.ko",
-        "package p\nclass Type { companion object { fun member(): Unit {} } }",
+        "package p\nclass Type { companion { fun member(): Unit {} } }",
     );
     let (short_id, short) = parsed(&mut sources, "short.ko", "package short\nclass Branch");
     let (long_id, long) = parsed(

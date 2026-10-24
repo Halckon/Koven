@@ -1,0 +1,2 @@
+class Cfg { companion { const val N: Int = 3 } }
+fun main(): Unit { if (Cfg.N == 3) { println("cconst") } }

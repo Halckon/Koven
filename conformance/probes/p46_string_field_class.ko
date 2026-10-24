@@ -1,0 +1,3 @@
+class Person(val name: String, var age: Int)
+fun describe(p: Person): Unit { println(p.name) }
+fun main(): Unit { val p = Person("ann", 3); describe(p) }

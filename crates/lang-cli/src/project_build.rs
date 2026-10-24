@@ -7,9 +7,9 @@ use std::{
 };
 
 use lang_frontend::{
-    analysis::{UnitSourceDescriptor, analyze_unit_names},
+    analysis::{UnitNameSnapshot, UnitSourceDescriptor, analyze_unit_names},
     source::SourceMap,
-    type_checking::standard_environments,
+    type_checking::{TypeEnvironment, standard_environments},
 };
 
 use crate::{
@@ -66,6 +66,21 @@ pub(crate) fn emit_project_object(
     object: &Path,
     protected_outputs: &[&Path],
 ) -> Result<(), ProjectBuildError> {
+    let (snapshot, type_environment) = prepare_project_unit(manifest, protected_outputs)?;
+    emit_unit_object(
+        &snapshot,
+        &type_environment,
+        UnitEntrySelection::Project(selector),
+        object,
+    )
+    .map_err(ProjectBuildError::Unit)
+}
+
+/// 加载显式 project source set，追加标准源并完成名称前缀；build/run 与 `check` 共用。
+pub(crate) fn prepare_project_unit(
+    manifest: &Path,
+    protected_outputs: &[&Path],
+) -> Result<(UnitNameSnapshot, TypeEnvironment), ProjectBuildError> {
     let project = load_project_source_set(manifest).map_err(ProjectBuildError::Project)?;
     validate_project_paths(manifest, &project, protected_outputs)?;
     let mut sources = SourceMap::new();
@@ -81,21 +96,16 @@ pub(crate) fn emit_project_object(
             source_id,
         ));
     }
-    let (name_environment, mut type_environment) = standard_environments();
+    let (mut name_environment, mut type_environment) = standard_environments();
     crate::standard_sources::append_standard_sources(
         &mut sources,
         &mut descriptors,
+        &mut name_environment,
         &mut type_environment,
     )?;
     let snapshot =
         analyze_unit_names(sources, descriptors, name_environment).map_err(UnitBuildError::from)?;
-    emit_unit_object(
-        &snapshot,
-        &type_environment,
-        UnitEntrySelection::Project(selector),
-        object,
-    )
-    .map_err(ProjectBuildError::Unit)
+    Ok((snapshot, type_environment))
 }
 
 fn validate_project_paths(

@@ -1,0 +1,4 @@
+interface A { fun hi(): String = "a" }
+interface B { fun hi(): String = "b" }
+class C() : A, B { override fun hi(): String = super<A>.hi() + super<B>.hi() }
+fun main(): Unit { println(C().hi()) }

@@ -8,14 +8,14 @@
 
 当前公开路径包括：
 
-- 单文件 `build` / `run`，接收显式 source、可选 source-root、entry 和输出选择；
-- `format` / `format --check` 不原地改文件；`doc` 导出 syntax-only 声明 JSON，见 [API 入口](../tutorials/api/README.md)；
+- 单文件 `build` / `run`，接收显式 source、可选 source-root、entry 和输出选择；`check <source.ko> [--source-root <dir>]` 与 `check --project <manifest>` 只跑同一全部 frontend gate（不选入口、不生成 object），退出 0 干净/1 诊断/2 usage 或 operational；`help`/`--help`/`-h` 写 stdout 并退出 0；
+- `format` / `format --check`，结果写 stdout，不原地改文件；`doc` 导出 syntax-only 声明 JSON，见 [API 入口](../tutorials/api/README.md)；
 - `--message-format=json` 的版本化 JSON Lines 语言诊断；
 - 显式 `project.toml` 的本地 project build/run；`source-set --project <project.toml>` 导出 ADR-0021 v1 base JSON。
 
-project loader 校验 version 1 manifest、root/logical path、symlink/overlap 和 physical file identity；导出保留完整文本与逻辑身份，以 canonical file URI 展示，不分析源码。
-std 注册后的原 SourceMap 移入 `UnitNameSnapshot`，统一拥有源码、语法、环境与名称事实。
-`project_build` 与 single bootstrap 共用 `unit_build`，借 snapshot/同轮类型环境推进；标准 loader/core 共用中立错误，CLI 不从 cwd/祖先猜 manifest。
+project loader 校验 version 1 manifest、root/logical path、symlink/overlap 和 physical file identity，发布稳定只读 source set；导出保留完整文本与逻辑身份，以 canonical file URI 展示，不分析源码。
+std 依次登记 `ranges.ko`、`koven/core/result.ko`，后者经 `NameEnvironment::authorize_builtin_source` 按 SourceId 授权为内建 `Result`/`Ok`/`Err`；原 SourceMap 移入 `UnitNameSnapshot`，统一拥有源码、语法、环境与名称事实。
+`project_build` 与 single bootstrap 共用 `unit_build`（`check_unit_frontend` 跑全部 frontend gate，`emit_unit_object` 其后选入口并生成 object），借 snapshot/同轮类型环境推进；标准 loader/core 共用中立错误，CLI 不从 cwd/祖先猜 manifest。
 共同链在完整 names 前缀后 gate；typed diagnostics 由宿主拦截且先于 entry，再由 `complete_compilation_unit_types`
 准入并调用 `analyze_basic_unit_ownership` 共享 basic validation→普通 ownership；宿主验证 raw ownership 后进入单 object、link 与原子 executable 发布。
 基础 capability 成功沿基础 ownership/native；常量经 frontend typed/owned gate 后调用 `emit_native_const_owned_unit_object`。
@@ -28,15 +28,15 @@ std 注册后的原 SourceMap 移入 `UnitNameSnapshot`，统一拥有源码、�
 
 两宿主保各自 source-set/路径、IO、entry 和呈现：single explicit 只计原用户文件顶层同名 Function，conventional 按该文件 main
 的 process shape 筛选；project 按 selector、可见性、body/process shape 过滤。选中后均走共同 Unit owned/native，不另走旧 single lowering。
-bodyless single 保 lowering UnsupportedNode，project 保 entry unsupported process shape；single/project 各自 exit2/exit1、
+bodyless single 保 lowering UnsupportedNode，project 保 entry unsupported process shape；frontend 诊断三条路径均 exit1（SPEC-0349 起），operational 错误 single/project 各自 exit2/exit1、
 JSON schema 与完整操作错误文本不变。这些 driver 差异不计作类型、ownership 或程序行为不一致。
 
 CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`，通过 `Command`
 参数数组链接已有 native object，不调用 shell 或让外部 driver 重新编译 LLVM IR。
 链接启动失败与进程失败保留现有结构化错误；受支持目标在 codegen 边界先行校验。
 
-实现入口是 `crates/lang-cli/src/main.rs`、`native_command.rs`、`project/`、`project_build.rs` 和
-`project_command.rs`；对应覆盖位于 `native_cli`、`project_cli` 与 `format_cli` integration suites。
+实现入口是 `crates/lang-cli/src/main.rs`、`native_command.rs`、`check_command.rs`、`project/`、`project_build.rs` 和
+`project_command.rs`；对应覆盖位于 `native_cli`、`project_cli`、`check_cli` 与 `format_cli` integration suites。
 
 ## 最终类型消费准入
 

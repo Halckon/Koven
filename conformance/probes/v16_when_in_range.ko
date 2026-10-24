@@ -1,0 +1,2 @@
+fun bucket(x: Int): String = when (x) { in 0..9 -> "small"; else -> "big" }
+fun main(): Unit { println(bucket(3)) }

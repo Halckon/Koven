@@ -143,11 +143,7 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
     }
     let mut output = match Command::new(&executable).args(program_arguments).output() {
         Ok(output) => CommandOutput {
-            status: output
-                .status
-                .code()
-                .and_then(|status| u8::try_from(status).ok())
-                .unwrap_or(1),
+            status: crate::native_command::child_exit_status(output.status),
             stdout: output.stdout,
             stderr: output.stderr,
         },

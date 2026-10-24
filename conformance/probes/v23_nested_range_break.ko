@@ -1,0 +1,1 @@
+fun main(): Unit { var n = 0; for (i in 0..<3) { for (j in 0..<3) { if (j == 1) { break }; n = n + 1 } }; if (n == 3) { println("nested-range") } }

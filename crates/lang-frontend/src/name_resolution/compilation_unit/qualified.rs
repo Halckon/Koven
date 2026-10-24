@@ -216,7 +216,10 @@ impl UnitResolver<'_> {
             .sources
             .slice(spans[0])
             .map_err(NameResolutionError::from)?;
-        let Some(lookup) = self.lookup_file_binding(source, Namespace::Type, root_name) else {
+        let Some(lookup) = self
+            .lookup_file_binding(source, Namespace::Type, root_name)
+            .or_else(|| self.builtin_root(root_name).map(Ok))
+        else {
             return Ok(false);
         };
         let binding = match lookup {

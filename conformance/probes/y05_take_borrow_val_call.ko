@@ -1,0 +1,3 @@
+import koven.algorithms.take
+fun read(view: View<String>): Unit { for (s in view) { println(s) } }
+fun main(): Unit { val xs = listOf("a", "b", "c"); borrow val v = take(xs, 2); read(v) }

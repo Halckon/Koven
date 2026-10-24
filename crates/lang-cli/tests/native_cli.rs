@@ -27,6 +27,9 @@ mod runtime_constructor;
 #[path = "native_cli/readonly_methods.rs"]
 mod readonly_methods;
 
+#[path = "native_cli/builtin_result.rs"]
+mod builtin_result;
+
 use std::{
     ffi::OsStr,
     fs,
@@ -451,7 +454,7 @@ fn native_commands_reject_usage_outputs_entries_and_frontend_errors() {
     fs::write(&invalid, "fun broken(): Unit { missing }\n").expect("invalid source write");
     let human_output = directory.join("human");
     let human = build(invalid.as_os_str(), "broken", human_output.as_os_str());
-    assert_eq!(human.status.code(), Some(2));
+    assert_eq!(human.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&human.stderr).contains("error[L0080]"));
     assert!(!human_output.exists());
 
@@ -465,7 +468,7 @@ fn native_commands_reject_usage_outputs_entries_and_frontend_errors() {
         OsStr::new("-o"),
         json_output.as_os_str(),
     ]);
-    assert_eq!(json.status.code(), Some(2));
+    assert_eq!(json.status.code(), Some(1));
     assert!(json.stdout.is_empty());
     let records = String::from_utf8(json.stderr)
         .expect("JSON Lines")
@@ -492,6 +495,27 @@ fn run<const N: usize>(arguments: [&OsStr; N]) -> Output {
         .args(arguments)
         .output()
         .expect("kovenc process must start")
+}
+
+/// SPEC-0355: `kovenc run` forwards the program's exit status, reporting SIGABRT as
+/// 128 + 6 like a POSIX shell, and passes the abort report through unchanged.
+#[test]
+fn run_forwards_abort_report_and_signal_status() {
+    let directory = TestDirectory::create();
+    let source = directory.join("abort.ko");
+    let text = "fun main(): Unit {\n  println(\"before\")\n  error(\"stop here\")\n}\n";
+    fs::write(&source, text).expect("source write");
+    let executed = run([OsStr::new("run"), source.as_os_str()]);
+    assert_eq!(executed.status.code(), Some(134), "{executed:?}");
+    assert_eq!(executed.stdout, b"before\n");
+    let column = text.lines().nth(2).unwrap().find("error").unwrap() + 1;
+    assert_eq!(
+        String::from_utf8_lossy(&executed.stderr),
+        format!(
+            "abort: stop here\n  at {}:3:{column}\n",
+            source.to_str().unwrap()
+        )
+    );
 }
 
 #[test]

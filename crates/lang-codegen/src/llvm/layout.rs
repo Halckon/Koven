@@ -179,6 +179,15 @@ impl LayoutCalculator<'_, '_> {
                 | SsaTypeKind::SharedReference { .. }
                 | SsaTypeKind::FunctionPointer { .. },
             ) => self.pointer_layout,
+            Some(SsaTypeKind::InlineNullable { inner, niche: true }) => self.dependency(*inner)?,
+            Some(SsaTypeKind::InlineNullable {
+                inner,
+                niche: false,
+            }) => {
+                let present = self.llvm_layout(self.context.bool_type().into());
+                let payload = self.dependency(*inner)?;
+                self.record(ty, &[present, payload])?
+            }
             Some(SsaTypeKind::RangeView { .. } | SsaTypeKind::StringOwner) => self.record(
                 ty,
                 &[self.pointer_layout, self.size_layout, self.size_layout],

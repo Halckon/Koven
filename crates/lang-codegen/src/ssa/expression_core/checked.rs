@@ -3,8 +3,8 @@ use super::LoweredValue;
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{
-        BlockId, CheckedArithmeticOperator, Edge, EntityId, EntityType, Function, Operation,
-        Origin, SsaTypeId, TerminatorKind, ValueId,
+        AbortReason, BlockId, CheckedArithmeticOperator, Edge, EntityId, EntityType, Function,
+        Operation, Origin, SsaTypeId, TerminatorKind, ValueId,
     },
 };
 use lang_frontend::source::Span;
@@ -64,6 +64,16 @@ pub(in crate::ssa) fn lower_checked_operation<H: CheckedLowering>(
     let boolean = host
         .boolean_type()
         .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+    let failure_reason = match &operation {
+        Operation::CheckedArithmetic {
+            operator, right, ..
+        } => AbortReason::CheckedArithmetic {
+            operator: *operator,
+            divisor: *right,
+        },
+        Operation::CheckedIntegerConvert { .. } => AbortReason::CheckedConversion { target: ty },
+        _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+    };
     let results = {
         let (function, block) = host.ir_cursor();
         function
@@ -115,7 +125,7 @@ pub(in crate::ssa) fn lower_checked_operation<H: CheckedLowering>(
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         function
-            .set_terminator(failure, TerminatorKind::Abort, Origin::Source(span))
+            .set_abort_terminator(failure, failure_reason, Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         *block = success;
         (from, success)

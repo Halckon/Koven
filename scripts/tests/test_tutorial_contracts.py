@@ -76,7 +76,7 @@ class TutorialContracts(unittest.TestCase):
         for command, expected, _ in calls[9:]:
             self.assertEqual(command, ['/test-cli', '--message-format=json', 'build',
                                        'source.ko', '-o', 'program'])
-            self.assertEqual(expected['exit'], 2)
+            self.assertEqual(expected['exit'], 1)
 
     def test_parameter_report_executes_all_four_cases_from_one_source_set(self):
         calls = []
