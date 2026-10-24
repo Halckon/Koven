@@ -4,6 +4,7 @@ use super::{
     query_cleanup,
     query_graph::{Graph, Uses, function, loan, result, value},
     query_inputs::{Inputs, one},
+    query_owner,
 };
 use crate::ssa::model::*;
 use std::collections::BTreeSet;
@@ -248,6 +249,7 @@ pub(super) fn check(program: &Program, input: &Inputs) -> Result<(), Failure> {
         birth,
     )?;
     let mut pre_ops = vec![];
+    let mut root_place = None;
     match (input.owned, seed, &birth.operation) {
         (
             true,
@@ -273,6 +275,7 @@ pub(super) fn check(program: &Program, input: &Inputs) -> Result<(), Failure> {
             )?;
             uses.permit(seed, root);
             uses.permit(EntityId::Place(*place), birth);
+            root_place = Some(EntityId::Place(*place));
             pre_ops.push(root.id);
         }
         (false, EntityId::Loan(entry), Operation::SharedReborrow { source }) => {
@@ -304,8 +307,8 @@ pub(super) fn check(program: &Program, input: &Inputs) -> Result<(), Failure> {
         .filter(|&p| graph.argument(pre_edge, p).is_ok_and(|v| v == seed))
         .collect::<Vec<_>>();
     need(
-        header_seed.len() <= 1 && (!input.owned || header_seed.len() == 1),
-        "identity SSA optional caller Borrow or required owner column",
+        header_seed.len() == 1,
+        "identity SSA required Unit owner or caller Borrow column",
         &header_seed,
     )?;
     let mut seeds = vec![seed];
@@ -495,6 +498,27 @@ pub(super) fn check(program: &Program, input: &Inputs) -> Result<(), Failure> {
         graph.edges.len() == expected_edges,
         "identity SSA all CFG edges counted without hidden transfer",
         &graph.edges,
+    )?;
+    // Unit has no old FE IterationPresence/Choice table. The exact incoming
+    // columns above carry a nonoptional current source; HasNext tests iteration,
+    // not owner availability. `exhausted` is the pre-cleanup false-edge carrier,
+    // not the old post-cleanup Exit phi. Break/Return retirement is proved above.
+    query_owner::check(
+        module,
+        &graph,
+        input,
+        query_owner::SourceRoles {
+            blocks: &roles,
+            seeds: &seeds,
+            leases: [
+                EntityId::Loan(lease),
+                EntityId::Loan(hs),
+                EntityId::Loan(bs),
+                false_source,
+            ],
+            root: root_place,
+        },
+        &mut uses,
     )?;
     // Every seed alias and provider capability use is accounted for, including false/merge paths.
     // In Borrow mode only the original seed may feed the initial reborrow; no alias is ended.

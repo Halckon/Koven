@@ -27,6 +27,43 @@ use lang_frontend::{
 
 type Lowered = (Program, FunctionId);
 
+// 仅迁移显式选择 MemoryDocument 的消费者；single_* 的原单文件合同保持不变。
+pub(super) fn memory_document(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
+    memory_document_observed(
+        &fixture.sources,
+        &fixture.parsed,
+        report,
+        |names, typed, owned, report| {
+            facts::unit(fixture, names, typed, owned, report);
+            entry_unit(fixture, names, typed, owned, report);
+            if report.identity_requested {
+                report.fe_identity = Some(super::query_inputs::unit(fixture, names, typed, owned));
+            }
+        },
+    )
+}
+
+pub(super) fn memory_document_observed(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    report: &mut Report,
+    observe: impl FnOnce(
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &CompilationUnitOwnership,
+        &mut Report,
+    ),
+) -> Result<Lowered, Failure> {
+    unit_input_observed_with_entry(
+        sources,
+        parsed,
+        SourceUnitInput::memory_document(parsed.source_id(), parsed),
+        "entry",
+        report,
+        observe,
+    )
+}
+
 pub(super) fn single(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
     single_observed(
         &fixture.sources,
@@ -206,17 +243,36 @@ pub(super) fn unit_observed_with_entry(
         &mut Report,
     ),
 ) -> Result<Lowered, Failure> {
-    // 不加 package、wrapper、标准库文件或第二 source；与 single 完全相同字节和逻辑路径。
-    let inputs = [SourceUnitInput::new(
-        "root",
-        path,
-        parsed.source_id(),
+    unit_input_observed_with_entry(
+        sources,
         parsed,
-    )];
+        SourceUnitInput::new("root", path, parsed.source_id(), parsed),
+        entry_name,
+        report,
+        observe,
+    )
+}
+
+// MemoryDocument 与原 rooted 入口每次独立跑完整分析，不按源码或失败结果选路。
+fn unit_input_observed_with_entry(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    input: SourceUnitInput<'_>,
+    entry_name: &str,
+    report: &mut Report,
+    observe: impl FnOnce(
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &CompilationUnitOwnership,
+        &mut Report,
+    ),
+) -> Result<Lowered, Failure> {
+    // 不加 package、wrapper、标准库文件或第二 source；保留 SourceMap 与原始源码字节。
+    let inputs = [input];
     report.check(
         "unit lex/parse and single original input",
         true,
-        (path, parsed.source_id()),
+        (input.key(), parsed.source_id()),
     );
     let (name_environment, environment) = standard_environments();
     let index = index_compilation_unit(sources, &inputs)
@@ -447,7 +503,9 @@ fn entry_unit(
 ) {
     use lang_frontend::{
         name_resolution::UnitReferenceTarget,
-        ownership_checking::{UnitCallArgumentOwnershipKind as K, UnitValueDeliveryKind},
+        ownership_checking::{
+            LoanKind, UnitCallArgumentOwnershipKind as K, UnitLoanTarget, UnitValueDeliveryKind,
+        },
         parser::Expression,
         type_checking::{ParameterMode, UnitCallTarget, UnitExpressionId},
     };
@@ -515,6 +573,15 @@ fn entry_unit(
             .call_argument_contracts_for(call_id_unit)
             .collect::<Vec<_>>();
         report.check("unit actual entry scan source ownership contract", matches!(contracts.as_slice(), [c] if c.argument() == argument_id && c.parameter_index() == 0 && c.kind() == if f.map { K::Value } else { K::SharedLoan }), &contracts);
+        let loans = owned
+            .loans()
+            .iter()
+            .filter(|loan| loan.call() == call_id_unit)
+            .collect::<Vec<_>>();
+        report.check("unit actual entry source borrow/value delivery facts", if f.map { loans.is_empty() } else {
+            matches!(loans.as_slice(), [loan] if loan.argument() == argument_id && loan.kind() == LoanKind::Shared
+                && matches!(loan.target(), UnitLoanTarget::Place(p) if Some(p.root()) == source && p.is_root()))
+        }, loans);
         let deliveries = owned
             .value_deliveries()
             .iter()
