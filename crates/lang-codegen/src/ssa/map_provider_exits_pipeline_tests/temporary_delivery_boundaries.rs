@@ -7,7 +7,7 @@ use super::{
 };
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 
-fn observe(text: &str, unit: bool) -> Result<(), Failure> {
+fn observe(text: &str, rooted: bool) -> Result<(), Failure> {
     let mut sources = SourceMap::new();
     let id = sources
         .add_source("provider.ko", text)
@@ -17,19 +17,17 @@ fn observe(text: &str, unit: bool) -> Result<(), Failure> {
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let result = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |_, _, _, _| {},
-        )
-    } else {
-        super::legacy_boundaries::observe(&sources, &parsed, "entry", &mut report, |_, _, _, _| {})
-    };
+    let result = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        rooted,
+        |_, _, _, _| {},
+    );
+    let input = super::input_label(rooted);
     println!(
-        "DELIVERY BOUNDARY INPUT unit={unit} source={text:?} report={report:#?} outcome={:?}",
+        "DELIVERY BOUNDARY INPUT input={input} source={text:?} report={report:#?} outcome={:?}",
         result.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = result?;
@@ -62,10 +60,11 @@ fn same_root_borrow_then_owned_delivery_is_rejected_before_lowering() {
                     "println(\"begin\");val shared=borrowedArgument();",
                 )
                 .replace(call, "produce(shared,shared)");
-            for unit in [false, true] {
-                let result = observe(&text, unit);
+            for rooted in [false, true] {
+                let result = observe(&text, rooted);
+                let input = super::input_label(rooted);
                 println!(
-                    "DELIVERY BOUNDARY SAME ROOT {} unit={unit} control={control} result={result:?}",
+                    "DELIVERY BOUNDARY SAME ROOT {} input={input} control={control} result={result:?}",
                     case.label
                 );
                 outcomes.push(result.is_err_and(|e| {

@@ -13,7 +13,6 @@ mod formation_runtime;
 mod future_use;
 mod history;
 mod identity;
-mod legacy_boundaries;
 mod local_arguments;
 pub(crate) use local_arguments::{
     generic_prerequisite_sources as local_generic_argument_prerequisite_sources,

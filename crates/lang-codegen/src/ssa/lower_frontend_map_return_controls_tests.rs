@@ -238,6 +238,48 @@ fn ordinary_source_controls_return_shapes_remain_bounded() {
     }
 }
 
+// This FE-only observer keeps the original single source and ownership phase.
+// Its diagnostics remain a contains-code contract, not a unique-diagnostic oracle.
+fn active_source_unit_ownership(
+    text: &str,
+) -> lang_frontend::ownership_checking::CompilationUnitOwnership {
+    use lang_frontend::{
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        ownership_checking::check_compilation_unit_ownership,
+        source::SourceMap,
+        type_checking::{
+            check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
+        },
+    };
+
+    let mut sources = SourceMap::new();
+    let (source, parsed) =
+        crate::ssa::unit_lower_test_support::parsed(&mut sources, "lowering.ko", text);
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let (environment, types) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let names = names.validate().unwrap();
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
+    {
+        let complete =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw).unwrap();
+        assert!(complete.is_same_analysis(&raw));
+        assert!(std::ptr::eq(complete.types(), &raw));
+        assert!(raw.is_compatible_with(&sources, &inputs, &names, &types));
+    }
+    let typed = raw.validate().unwrap();
+    let owned =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    assert!(owned.is_compatible_with(&typed));
+    owned
+}
+
 #[test]
 fn ordinary_source_controls_active_source_and_element_diagnostics() {
     for (text, code) in [
@@ -254,30 +296,14 @@ fn ordinary_source_controls_active_source_and_element_diagnostics() {
             "L0135",
         ),
     ] {
-        let analysis = analyze(text);
+        let owned = active_source_unit_ownership(text);
         assert!(
-            analysis.parsed.diagnostics().is_empty(),
-            "{:?}",
-            analysis.parsed.diagnostics()
-        );
-        assert!(
-            analysis.names.diagnostics().is_empty(),
-            "{:?}",
-            analysis.names.diagnostics()
-        );
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis
-                .owned
+            owned
                 .diagnostics()
                 .iter()
                 .any(|d| d.code().to_string() == code),
             "{:?}",
-            analysis.owned.diagnostics()
+            owned.diagnostics()
         );
     }
 }

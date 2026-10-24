@@ -47,7 +47,7 @@ pub(super) fn unit_input_observed(
     unit_input_observed_with_entry(sources, parsed, input, "entry", report, observe)
 }
 
-// 两种输入布局均消费真实 Unit 产品；旧差分负控独立在 legacy_boundaries。
+// 两种输入布局均消费真实 Unit 产品；不保留 Legacy fallback。
 pub(super) fn memory_document(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
     memory_document_observed(
         &fixture.sources,
