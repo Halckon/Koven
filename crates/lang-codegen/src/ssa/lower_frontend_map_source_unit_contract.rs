@@ -152,11 +152,7 @@ fn source_protocol(unit: &UnitSource, program: &Program, name: &str, after_use: 
             }
         } else {
             fallthrough_seen += usize::from(exit.kind() == UnitIterationExitKind::Fallthrough);
-            assert!(
-                exit.actions()
-                    .iter()
-                    .any(|action| *action == Action::EndElement(statement))
-            );
+            assert!(exit.actions().contains(&Action::EndElement(statement)));
             assert!(exit.actions().iter().all(|action| {
                 !matches!(action, Action::EndSource(id) | Action::FinishProvider(id) if *id == statement)
                     && !matches!(action, Action::Drop(fact) if fact.target() == target)
