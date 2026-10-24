@@ -381,6 +381,23 @@ pub(super) fn observe(
             .collect::<Vec<_>>();
         report.check("unit conditional entry actual ownership contract", matches!(contracts.as_slice(), [contract] if contract.argument() == argument_id && contract.parameter_index() == 0
             && contract.kind() == if f.map { UnitCallArgumentOwnershipKind::Value } else { UnitCallArgumentOwnershipKind::SharedLoan }), contracts);
+        let loans = owned
+            .loans()
+            .iter()
+            .filter(|loan| loan.call() == call_id)
+            .collect::<Vec<_>>();
+        report.check(
+            "unit conditional entry actual Value or Shared loan identity",
+            if f.map {
+                loans.is_empty()
+            } else {
+                matches!(loans.as_slice(), [loan] if loan.argument() == argument_id
+                    && loan.kind() == LoanKind::Shared
+                    && matches!(loan.target(), UnitLoanTarget::Place(path)
+                        if path.is_root() && Some(path.root()) == argument_source))
+            },
+            loans,
+        );
         let deliveries = owned
             .value_deliveries()
             .iter()
