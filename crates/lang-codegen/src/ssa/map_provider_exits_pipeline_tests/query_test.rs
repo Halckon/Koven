@@ -1,29 +1,30 @@
-//! 独立 ordinary exact：原六源码 × 两入口全采后断，不安装 mutation 或执行 native。
+//! 独立 ordinary exact：原六源码 × MemoryDocument/rooted Unit 全采后断，不变异、不执行 native。
 use super::{
     Observation, Report,
     fixture::{Fixture, failure, verify_failure},
-    identity, pipeline, query_ssa,
+    identity, input_label, pipeline, query_ssa,
 };
 
-fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
+fn observe(label: &'static str, text: &str, rooted: bool) -> Observation {
     let mut report = Report {
         identity_requested: true,
         ..Report::default()
     };
+    let input = input_label(rooted);
     let outcome = Fixture::new(label, text).and_then(|fixture| {
         println!(
-            "SPEC0331 EXIT IDENTITY INPUT case={label} unit={unit} path={:?} text={text:?}",
+            "SPEC0331 EXIT IDENTITY INPUT case={label} input={input} path={:?} text={text:?}",
             fixture.path
         );
         let expected = identity::source_functions(&fixture);
         report.query("identity original source functions", &expected);
-        let (program, entry) = if unit {
+        let (program, entry) = if rooted {
             pipeline::unit(&fixture, &mut report)
         } else {
-            pipeline::single(&fixture, &mut report)
+            pipeline::memory_document(&fixture, &mut report)
         }?;
         println!(
-            "SPEC0331 EXIT IDENTITY RAW SSA case={label} unit={unit}\n{}",
+            "SPEC0331 EXIT IDENTITY RAW SSA case={label} input={input}\n{}",
             crate::ssa::render::render_program(&program)
         );
         let reachable = expected
@@ -45,7 +46,7 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
         let inputs = report.fe_identity.take().unwrap_or_else(|| {
             Err(failure(
                 "identity same-run FE bridge missing",
-                (label, unit),
+                (label, input),
             ))
         });
         report.query(
@@ -74,7 +75,7 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
                 .map_err(|e| failure(e.stage, &e.original)),
         );
         if let Ok(llvm) = &rendered {
-            println!("SPEC0331 EXIT IDENTITY RAW LLVM case={label} unit={unit}\n{llvm}");
+            println!("SPEC0331 EXIT IDENTITY RAW LLVM case={label} input={input}\n{llvm}");
         }
         // This exact adds SSA identity evidence only; LLVM coverage remains render/verify.
         verified?;
@@ -83,7 +84,7 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
     });
     Observation {
         label,
-        unit,
+        rooted,
         report,
         outcome,
     }
@@ -93,14 +94,17 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
 fn unconditional_map_exits_preserve_cleanup_and_carrier_identity() {
     let mut observations = Vec::new();
     for (label, source, _golden) in super::sources() {
-        for unit in [false, true] {
-            observations.push(observe(label, source, unit));
+        for rooted in [false, true] {
+            observations.push(observe(label, source, rooted));
         }
     }
     for observation in &observations {
         println!(
-            "SPEC0331 EXIT IDENTITY OUTCOME case={} unit={} report={:#?} result={:#?}",
-            observation.label, observation.unit, observation.report, observation.outcome
+            "SPEC0331 EXIT IDENTITY OUTCOME case={} input={} report={:#?} result={:#?}",
+            observation.label,
+            input_label(observation.rooted),
+            observation.report,
+            observation.outcome
         );
     }
     assert!(
@@ -108,6 +112,6 @@ fn unconditional_map_exits_preserve_cleanup_and_carrier_identity() {
             && observations
                 .iter()
                 .all(|o| o.report.passed() && o.outcome.is_ok()),
-        "原六源×single/unit必须完整采齐，FE/SSA身份查询和原verify/LLVM分别全绿。\n{observations:#?}"
+        "原六源×MemoryDocument/rooted Unit必须完整采齐，FE/SSA身份查询和原verify/LLVM分别全绿。\n{observations:#?}"
     );
 }
