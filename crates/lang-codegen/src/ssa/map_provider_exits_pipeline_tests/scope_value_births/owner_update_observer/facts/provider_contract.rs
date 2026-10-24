@@ -1,138 +1,13 @@
 //! Actual typed reader delivery and both complete ordinary provider cleanup exits.
 use super::*;
 use lang_frontend::ownership_checking::{
-    CompilationUnitOwnership, DropPoint, IterationCleanupAction as A, IterationExitKind as K,
-    LoanKind, MapIterationComponent, OwnershipBindingKind, UnitDropPoint,
+    CompilationUnitOwnership, LoanKind, MapIterationComponent, OwnershipBindingKind, UnitDropPoint,
     UnitIterationCleanupAction as UA, UnitIterationExitKind as UK, UnitLoanTarget,
 };
 use lang_frontend::{
     name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
     type_checking::{CompilationUnitTypes, UnitCallTarget, UnitExpressionId, UnitStatementId},
 };
-pub(super) fn single(
-    c: &Case,
-    p: &ParsedFile,
-    i: &Input,
-    n: &NameResolution,
-    t: &TypedFile,
-    o: &OwnershipCheckedFile,
-) -> Result<(), Failure> {
-    let site = super::super::ast::site(p, i)?;
-    let plan = o
-        .map_iteration(site.statement)
-        .ok_or_else(|| failure("update actual Single delivery plan", site.statement))?;
-    let d = plan.descriptor();
-    let target = one(
-        n.symbols()
-            .iter()
-            .filter(|s| {
-                inside(i.reader.unwrap(), s.span())
-                    && s.kind() == lang_frontend::name_resolution::SymbolKind::Function
-            })
-            .map(|s| s.id()),
-        "update original actual reader symbol",
-    )?;
-    let call = t
-        .call(site.read)
-        .ok_or_else(|| failure("update actual Single reader Call", site.read))?;
-    need(
-        call.target() == CallableTarget::Source(target)
-            && call.arguments().len() == 2
-            && call.receiver().is_none(),
-        "update reader actual selected two-Borrow ABI",
-        call,
-    )?;
-    for (index, component) in [MapIterationComponent::Key, MapIterationComponent::Value]
-        .into_iter()
-        .enumerate()
-    {
-        let symbol = super::local(n, site.bindings[index])?;
-        let published = &plan.loans()[index];
-        let loan = one(
-            o.loans()
-                .iter()
-                .filter(|l| l.call() == site.read && l.argument() == site.arguments[index]),
-            "update exact Single K/V call loan",
-        )?;
-        let end = one(
-            o.loan_ends()
-                .iter()
-                .filter(|l| l.call() == site.read && l.argument() == site.arguments[index]),
-            "update exact Single K/V CallReturn endpoint",
-        )?;
-        need(
-            d.bindings()[index] == symbol
-                && o.binding_kind(symbol) == Some(OwnershipBindingKind::Shared)
-                && super::reference(p, n, site.arguments[index])? == symbol
-                && published.statement() == site.statement
-                && published.source() == site.source
-                && published.component() == component
-                && published.binding() == symbol
-                && published.kind() == LoanKind::Shared
-                && Some(published.origin()) == plan.source()
-                && call.arguments()[index].argument_index() == index
-                && call.arguments()[index].parameter_index() == index
-                && call.arguments()[index].mode() == ParameterMode::Borrow
-                && call.arguments()[index].parameter_type()
-                    == [d.key_type(), d.value_type()][index]
-                && loan.kind() == LoanKind::Shared
-                && matches!(loan.target(),LoanTarget::Place(path)if path.is_root()&&path.root()==symbol)
-                && loan.begin_span() == span(p, site.arguments[index])
-                && loan.end_span() == span(p, site.read)
-                && end.point() == LoanEndPoint::CallReturn(site.read),
-            "update complete Single K/V canonical source/reader/loan endpoint",
-            (published, loan, end),
-        )?;
-    }
-    let mut exhausted = vec![
-        A::FinishProvider(site.statement),
-        A::EndSource(site.statement),
-    ];
-    if c.code == 11 {
-        exhausted.push(A::Drop(*one(
-            o.drops()
-                .iter()
-                .filter(|d| d.point() == DropPoint::LoopExit(site.statement)),
-            "update actual old source LoopExit drop fact",
-        )?));
-    }
-    for (kind, point, actions) in [
-        (
-            K::Fallthrough,
-            DropPoint::AfterStatement(site.body),
-            vec![
-                A::EndBinding {
-                    statement: site.statement,
-                    symbol: d.value_binding(),
-                },
-                A::EndBinding {
-                    statement: site.statement,
-                    symbol: d.key_binding(),
-                },
-            ],
-        ),
-        (
-            K::Exhaustion,
-            DropPoint::LoopExit(site.statement),
-            exhausted,
-        ),
-    ] {
-        let exit = one(
-            plan.exits().iter().filter(|e| e.kind() == kind),
-            "update exact complete Single normal exit",
-        )?;
-        need(
-            plan.exits().len() == 2
-                && exit.point() == point
-                && exit.actions() == actions
-                && o.cleanup_conditions().get(exit.condition())
-                    == Some(&lang_frontend::ownership_checking::CleanupCondition::Always),
-            "update exact reverse K/V End, provider/source End and old Drop order",
-            exit,
-        )?;
-    }
-    Ok(())
-}
 pub(super) fn unit(
     c: &Case,
     p: &ParsedFile,

@@ -154,6 +154,11 @@ pub(super) fn check(
             (a, n),
         )?;
         let map_type = f.entity(a).unwrap().ty.semantic_type();
+        crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+            &g,
+            module,
+            &std::collections::BTreeSet::from([a, n]),
+        )?;
         need(
             f.entity(n).unwrap().ty == f.entity(a).unwrap().ty,
             "new epoch preserves Map type",

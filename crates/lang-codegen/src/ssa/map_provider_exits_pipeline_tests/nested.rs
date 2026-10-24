@@ -1,4 +1,4 @@
-//! 同根双层正常遍历两源 × single/unit-basic；四次 fresh 观察后统一硬成功。
+//! 同根双层正常遍历两源 × MemoryDocument/rooted Unit-basic；四次 fresh 观察后统一硬成功。
 //! Map Borrow 独立记账；golden 是预测，复杂 owner/exit/cleanup 先完整观察，不预填拓扑。
 mod ast;
 mod query_body;
@@ -9,7 +9,6 @@ mod query_inputs;
 mod query_ssa;
 mod query_tail;
 mod query_test;
-mod single;
 mod unit;
 
 use super::{
@@ -44,7 +43,7 @@ pub(crate) fn sources() -> [(&'static str, bool, &'static str, &'static str, &'s
 #[derive(Debug)]
 struct Observation {
     label: &'static str,
-    unit: bool,
+    rooted: bool,
     report: Report,
     outcome: Result<(), Failure>,
 }
@@ -54,12 +53,12 @@ fn observe(
     map: bool,
     source_hash: &str,
     text: &str,
-    unit: bool,
+    rooted: bool,
 ) -> Observation {
     let mut report = Report::default();
     // SHA 是仓外核验的冻结输入标识；不声称这里进行了运行时哈希或 native 求值。
     println!(
-        "SPEC0331 NESTED INPUT case={label} unit={unit} path=provider.ko frozen_sha256={source_hash} text={text:?}"
+        "SPEC0331 NESTED INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={source_hash} text={text:?}"
     );
     let outcome = ast::Input::new(text, map).and_then(|input| {
         let anchors = ast::collect(&input);
@@ -67,28 +66,18 @@ fn observe(
             "nested actual parent/child For and same-source AST anchors",
             &anchors,
         );
-        let (program, entry) = if unit {
-            pipeline::unit_observed(
-                &input.sources,
-                &input.parsed,
-                "provider.ko",
-                &mut report,
-                |names, typed, owned, report| {
-                    unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                },
-            )
-        } else {
-            pipeline::single_observed(
-                &input.sources,
-                &input.parsed,
-                &mut report,
-                |names, typed, owned, report| {
-                    single::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                },
-            )
-        }?;
+        let (program, entry) = pipeline::unit_input_observed(
+            &input.sources,
+            &input.parsed,
+            "provider.ko",
+            &mut report,
+            rooted,
+            |names, typed, owned, report| {
+                unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+            },
+        )?;
         println!(
-            "SPEC0331 NESTED SSA case={label} unit={unit}\n{}",
+            "SPEC0331 NESTED SSA case={label} rooted={rooted}\n{}",
             crate::ssa::render::render_program(&program)
         );
         // 只复用无单 For/Name/Guard 假设的入口与源码函数可达查询。
@@ -109,12 +98,12 @@ fn observe(
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|e| failure("LLVM render/verify", e))?;
         report.check("nested LLVM render/verify", true, llvm.len());
-        println!("SPEC0331 NESTED LLVM case={label} unit={unit}\n{llvm}");
+        println!("SPEC0331 NESTED LLVM case={label} rooted={rooted}\n{llvm}");
         Ok(())
     });
     Observation {
         label,
-        unit,
+        rooted,
         report,
         outcome,
     }
@@ -124,14 +113,14 @@ fn observe(
 fn map_and_mutable_map_nested_borrow_sources_reach_verified_llvm() {
     let mut observations = Vec::new();
     for (label, map, hash, source, _golden) in sources() {
-        for unit in [false, true] {
-            observations.push(observe(label, map, hash, source, unit));
+        for rooted in [false, true] {
+            observations.push(observe(label, map, hash, source, rooted));
         }
     }
     for observation in &observations {
         println!(
-            "SPEC0331 NESTED OUTCOME case={} unit={} report={:#?}",
-            observation.label, observation.unit, observation.report
+            "SPEC0331 NESTED OUTCOME case={} rooted={} report={:#?}",
+            observation.label, observation.rooted, observation.report
         );
         match &observation.outcome {
             Ok(()) => println!("stage=LLVM render/verify result=ok"),

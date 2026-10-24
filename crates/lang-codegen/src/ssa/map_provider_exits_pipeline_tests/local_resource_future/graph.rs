@@ -212,6 +212,11 @@ pub(super) fn check(
         )?;
         uses.protect(result(zero)?);
         uses.check(&g, Some((drop.block, value(zero)?)))?;
+        crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+            &g,
+            module,
+            &BTreeSet::from([anchor]),
+        )?;
         paths(
             &g,
             producer.id,

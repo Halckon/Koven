@@ -1,8 +1,5 @@
 //! Original AST anchors plus normalized snapshots from the same public FE products.
-mod conditions;
-mod incoming;
 mod representation;
-mod single;
 mod source_drops;
 mod unit;
 use super::super::{
@@ -14,7 +11,6 @@ use lang_frontend::{
     parser::{Expression, ForBinding, Item, NameMarker, ParsedFile, Statement},
     source::{SourceMap, Span},
 };
-pub(super) use single::collect as single;
 pub(super) use unit::collect as unit;
 
 #[derive(Clone, Debug)]

@@ -270,5 +270,6 @@ pub(super) fn check(
         "nested SSA exact complete caller call/size set with no hidden provider",
         &calls,
     )?;
+    super::super::query_inventory::check(&g, &[map_type], &protected)?;
     witness.finish(&g)
 }

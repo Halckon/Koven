@@ -54,7 +54,7 @@ fun read(key:String,value:String):Unit{{println(key);println(value)}}
         .collect()
 }
 
-fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
+fn observe(case: &Case, rooted: bool, control: bool) -> Result<(), Failure> {
     let text = if control { &case.control } else { &case.source };
     let golden = if control {
         &case.control_golden
@@ -62,7 +62,7 @@ fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
         &case.golden
     };
     println!(
-        "TEMPORARY ARGUMENT INPUT case={} unit={unit} control={control} source={text:?} golden={golden:?}",
+        "TEMPORARY ARGUMENT INPUT case={} rooted={rooted} control={control} source={text:?} golden={golden:?}",
         case.label
     );
     let mut sources = SourceMap::new();
@@ -74,35 +74,30 @@ fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let lowered = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |n, t, o, r| {
-                source_forms::facts::unit(&sources, &parsed, n, t, o, r);
-                r.query(
-                    "argument original qualified overload and Borrow facts",
-                    &facts::unit(case, &sources, &parsed, n, t, o, control),
-                );
-            },
-        )
-    } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
-            source_forms::facts::single(&sources, &parsed, n, t, o, r);
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        rooted,
+        |n, t, o, r| {
+            source_forms::facts::unit(&sources, &parsed, n, t, o, r);
             r.query(
-                "argument original overload and Borrow facts",
-                &facts::single(case, &sources, &parsed, n, t, o, control),
+                "argument original qualified overload and Borrow facts",
+                &facts::unit(case, &sources, &parsed, n, t, o, control),
             );
-        })
-    };
+        },
+    );
     println!(
-        "TEMPORARY ARGUMENT LOWER {} unit={unit} control={control} report={report:#?} outcome={:?}",
+        "TEMPORARY ARGUMENT LOWER {} rooted={rooted} control={control} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
+    report.query(
+        "Unit original temporary entry and actual canonical owner acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     report.query(
         "argument independent selected Call and current owner graph",
         &graph::check(case, &sources, &parsed, &program, control),
@@ -118,13 +113,13 @@ fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
 fn check(control: bool) {
     let mut outcomes = Vec::new();
     for case in sources() {
-        for unit in [false, true] {
-            let result = observe(&case, unit, control);
+        for rooted in [false, true] {
+            let result = observe(&case, rooted, control);
             println!(
-                "TEMPORARY ARGUMENT CASE {} unit={unit} control={control} result={result:?}",
+                "TEMPORARY ARGUMENT CASE {} rooted={rooted} control={control} result={result:?}",
                 case.label
             );
-            outcomes.push((case.label.clone(), unit, result));
+            outcomes.push((case.label.clone(), rooted, result));
         }
     }
     assert_eq!(outcomes.len(), 4);

@@ -1,4 +1,5 @@
 //! Legal alternate formation histories must not be mistaken for missing frontend facts.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod alias;
 pub(in super::super) mod formation;
 use super::super::{
@@ -107,23 +108,24 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
             },
         )
     } else {
-        pipeline::single_observed(
+        pipeline::memory_document_observed(
             &sources,
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                let observed = formation::unit(&sources, &parsed, names, typed, owned);
+                report.query(
+                    "alternate original qualified formation identities",
+                    &observed,
+                );
+                identity = Some(observed);
                 if label == "old-alias-rebound" {
-                    println!(
-                        "ALTERNATE SINGLE OLD ALIAS plans={:#?} drops={:#?} conditions={:#?}",
-                        owned.map_iterations(),
-                        owned.drops(),
-                        owned.cleanup_conditions()
+                    report.query(
+                        "rebound alias original Unit identities",
+                        &alias::unit_facts(&sources, &parsed, names, typed, owned),
                     );
                 }
-                let observed = formation::single(&sources, &parsed, names, typed, owned);
-                report.query("alternate original Single formation identities", &observed);
-                identity = Some(observed);
             },
         )
     };
@@ -154,6 +156,10 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
         );
     }
     if let Ok((program, _)) = &result {
+        report.query(
+            "Unit complete temporary source acquisition",
+            &source_forms::graph::temporary_entries(&parsed, program),
+        );
         report.query(
             "alternate actual SSA verifier",
             &verify_program(program).map_err(|e| failure("SSA", e)),

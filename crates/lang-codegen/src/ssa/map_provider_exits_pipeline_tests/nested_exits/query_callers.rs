@@ -354,16 +354,14 @@ pub(super) fn check(
             w.uses.protect(result(call)?);
             let mut roles = carried.clone();
             roles.insert(role, current);
-            if inputs.unit {
-                roles.insert(
-                    if index == 0 {
-                        Role::CallerResultA
-                    } else {
-                        Role::CallerResultB
-                    },
-                    result(call)?,
-                );
-            }
+            roles.insert(
+                if index == 0 {
+                    Role::CallerResultA
+                } else {
+                    Role::CallerResultB
+                },
+                result(call)?,
+            );
             let (joined, next) = query_tail::conditional(
                 &g,
                 f,
@@ -439,5 +437,12 @@ pub(super) fn check(
         "nested exits SSA complete actual caller call/size/provider set",
         &calls,
     )?;
+    let mut related = protected;
+    for role in [Role::CallerOwnerA, Role::CallerOwnerB] {
+        if let Some(entities) = w.aliases.get(&role) {
+            related.extend(entities.iter().copied());
+        }
+    }
+    super::super::query_inventory::check(&g, &[map_type], &related)?;
     w.finish(&g)
 }

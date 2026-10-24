@@ -203,6 +203,11 @@ pub(super) fn check(
             )?;
         }
         uses.check(&g, None)?;
+        crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+            &g,
+            module,
+            &anchors.iter().copied().collect(),
+        )?;
         paths(
             &g,
             calls,

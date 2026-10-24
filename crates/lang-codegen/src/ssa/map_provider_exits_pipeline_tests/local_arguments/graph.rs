@@ -170,5 +170,23 @@ pub(super) fn check(
         "local argument exact disjoint input/output Map Drop families",
         map_drops,
     )?;
+    let mut map_births = BTreeSet::from([EntityId::Value(owner)]);
+    map_births.extend(
+        delivered
+            .argument_owners
+            .iter()
+            .copied()
+            .filter_map(|owner| {
+                let entity = EntityId::Value(owner);
+                module
+                    .map_container(entry.entity(entity).unwrap().ty.semantic_type())
+                    .map(|_| entity)
+            }),
+    );
+    crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+        &g,
+        module,
+        &map_births,
+    )?;
     uses.check(&g, None)
 }

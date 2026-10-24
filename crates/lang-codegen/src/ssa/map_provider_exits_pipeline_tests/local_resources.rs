@@ -1,4 +1,5 @@
 //! Factory-formed Resource Map locals retain their original owner through all exits.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod boundaries;
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod graph;
@@ -176,26 +177,25 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(
+        pipeline::memory_document_observed(
             &sources,
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
-                facts::single(case, &sources, &parsed, names, typed, owned, report);
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                facts::unit(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
-                    "G2 Resource two actual single Map plans",
+                    "G2 Resource two actual qualified Map plans",
                     typed.map_iterations().len() == 2 && owned.map_iterations().len() == 2,
                     (typed.map_iterations(), owned.map_iterations()),
                 );
                 println!(
-                    "G2 RESOURCE SINGLE case={} nullable={} formed={:#?} plans={:#?} drops={:#?} conditions={:#?}",
+                    "G2 RESOURCE UNIT case={} nullable={} formed={:#?} plans={:#?} drops={:#?}",
                     case.label,
                     case.nullable,
                     owned.formed_owned_locals(),
                     owned.map_iterations(),
-                    owned.drops(),
-                    owned.cleanup_conditions()
+                    owned.drops()
                 );
             },
         )
@@ -205,10 +205,14 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
         case.label
     );
     let (program, _) = result?;
+    report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     if !report.passed() {
         return Err(failure("original Resource FE queries", report));
     }
-    graph::check(case, &sources, &parsed, &program, unit)?;
+    graph::check(case, &sources, &parsed, &program, true)?;
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
     Ok(())

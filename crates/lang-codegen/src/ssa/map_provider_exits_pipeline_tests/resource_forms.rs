@@ -163,7 +163,7 @@ fun entry():Unit{{println("nonempty");val actual=make();{caller};println("empty"
 }
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     println!(
-        "RESOURCE FORMS INPUT case={} unit={unit} source={:?} golden={:?}",
+        "RESOURCE FORMS INPUT case={} rooted={unit} source={:?} golden={:?}",
         case.label, case.source, case.golden
     );
     let mut sources = SourceMap::new();
@@ -175,32 +175,26 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", parsed.diagnostics())?;
     let mut report = Report::default();
-    let result = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |names, typed, owned, report| {
-                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report)
-            },
-        )
-    } else {
-        pipeline::single_observed(
-            &sources,
-            &parsed,
-            &mut report,
-            |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report)
-            },
-        )
-    };
+    let result = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        unit,
+        |names, typed, owned, report| {
+            source_forms::facts::unit(&sources, &parsed, names, typed, owned, report)
+        },
+    );
     println!(
-        "RESOURCE FORMS {} unit={unit} report={report:#?} outcome={:?}",
+        "RESOURCE FORMS {} rooted={unit} report={report:#?} outcome={:?}",
         case.label,
         result.as_ref().map(|(_, id)| id)
     );
     let (program, _) = result?;
+    report.query(
+        "Unit temporary Entry keeps outer source and actual producer/owner transport",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     if !report.passed() {
         return Err(failure("original frontend observations", report));
     }
@@ -217,7 +211,7 @@ fn existing_resource_representations_reach_verified_llvm() {
         for unit in [false, true] {
             let result = observe(&case, unit);
             println!(
-                "RESOURCE FORMS CASE {} unit={unit} result={result:?}",
+                "RESOURCE FORMS CASE {} rooted={unit} result={result:?}",
                 case.label
             );
             outcomes.push((case.label.clone(), unit, result));

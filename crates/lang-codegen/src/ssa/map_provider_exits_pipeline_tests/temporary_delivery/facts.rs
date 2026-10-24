@@ -6,243 +6,20 @@ use super::super::{
 };
 use super::{Case, Delivery, ast};
 use lang_frontend::{
-    name_resolution::{
-        NameResolution, ReferenceTarget, UnitReferenceTarget, ValidatedCompilationUnitNames,
-    },
+    name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
     ownership_checking::{
-        CompilationUnitOwnership, DropPoint, DropTarget, LoanKind, LoanTarget,
-        MapIterationComponent, MapIterationSourceAccess, OwnershipBindingKind,
-        OwnershipCheckedFile, UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget,
-        UnitIterationSourceAccess, UnitLoanTarget, UnitValueDeliveryKind, UnitValueDeliverySource,
+        CompilationUnitOwnership, LoanKind, MapIterationComponent, OwnershipBindingKind,
+        UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget, UnitIterationSourceAccess,
+        UnitLoanTarget, UnitValueDeliveryKind, UnitValueDeliverySource,
     },
     parser::{Expression, ParsedFile},
     source::SourceMap,
     type_checking::{
-        BuiltinType, CallableResultSource, CallableTarget, CompilationUnitTypes,
-        ExpressionCategory, IntrinsicTypeConstructor, ParameterMode, TypeKind, TypedFile,
-        UnitCallTarget, UnitExpressionId, UnitStatementId, UnitTypeKind,
+        BuiltinType, CallableResultSource, CompilationUnitTypes, ExpressionCategory,
+        IntrinsicTypeConstructor, ParameterMode, UnitCallTarget, UnitExpressionId, UnitStatementId,
+        UnitTypeKind,
     },
 };
-
-pub(super) fn single(
-    case: &Case,
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    control: bool,
-) -> Result<(), Failure> {
-    let input = ast::input(case, sources, parsed, control)?;
-    let symbol = |span| {
-        one(
-            names
-                .symbols()
-                .iter()
-                .filter(|s| s.span() == span && !s.is_synthetic()),
-            "delivery actual source symbol",
-        )
-        .map(|s| s.id())
-    };
-    let target = symbol(input.factory.name)?;
-    let signature = one(
-        typed.callables().iter().filter(|c| c.symbol() == target),
-        "delivery actual selected callable signature",
-    )?;
-    let call = typed
-        .call(input.call)
-        .ok_or_else(|| failure("delivery actual selected Call", input.call))?;
-    need(
-        call.target() == CallableTarget::Source(target)
-            && call.receiver().is_none()
-            && call.arguments().len() == input.arguments.len()
-            && signature.parameters().len() == input.arguments.len()
-            && call.return_type() == signature.return_type()
-            && call.result_source() == CallableResultSource::Owned,
-        "delivery selected callable complete arity and owned result",
-        (call, signature),
-    )?;
-    let resource = !matches!(case.delivery, Delivery::SameMapBorrow);
-    let kind = if case.mutable {
-        IntrinsicTypeConstructor::MutableMap
-    } else {
-        IntrinsicTypeConstructor::Map
-    };
-    need(
-        typed.is_resource_type(call.return_type()) == Some(resource)
-            && matches!(typed.types().get(call.return_type()),Some(TypeKind::Intrinsic {constructor,arguments})
-            if *constructor==kind&&arguments.len()==2&&typed.types().get(arguments[0])==Some(&TypeKind::Builtin(BuiltinType::String))
-                &&(resource||typed.types().get(arguments[1])==Some(&TypeKind::Builtin(BuiltinType::String)))),
-        "delivery original map kind and Resource/Pure classification",
-        call.return_type(),
-    )?;
-    for (index, argument) in input.arguments.iter().enumerate() {
-        let descriptor = call.arguments()[index];
-        let parameter = &input.factory.parameters[argument.parameter];
-        let expected = signature.parameters()[argument.parameter];
-        let value = typed
-            .call(argument.expression)
-            .ok_or_else(|| failure("delivery actual evaluator typed Call", argument.expression))?;
-        let parameter_symbol = symbol(parameter.name)?;
-        need(
-            value.target() == CallableTarget::Source(symbol(argument.function.name)?)
-                && value.arguments().is_empty()
-                && value.receiver().is_none()
-                && value.result_source() == CallableResultSource::Owned
-                && value.return_type() == expected.ty
-                && descriptor.argument_index() == index
-                && descriptor.parameter_index() == argument.parameter
-                && descriptor.mode() == parameter.mode
-                && expected.mode == parameter.mode
-                && descriptor.parameter_type() == value.return_type()
-                && descriptor.category() == ExpressionCategory::Temporary
-                && typed.expression_type(argument.expression) == Some(value.return_type())
-                && typed.expression_category(argument.expression)
-                    == Some(ExpressionCategory::Temporary)
-                && signature.parameter_symbols()[argument.parameter] == Some(parameter_symbol)
-                && typed.parameter_mode(parameter_symbol) == Some(parameter.mode)
-                && owned.binding_kind(parameter_symbol)
-                    == Some(if parameter.mode == ParameterMode::Value {
-                        OwnershipBindingKind::Owned
-                    } else {
-                        OwnershipBindingKind::Shared
-                    }),
-            "delivery exact source-order argument to declared parameter mapping/type/category/capability",
-            (index, descriptor, value),
-        )?;
-        let loans = owned
-            .loans()
-            .iter()
-            .filter(|l| l.call() == input.call && l.argument() == argument.expression)
-            .collect::<Vec<_>>();
-        let drops = owned
-            .drops()
-            .iter()
-            .filter(|d| d.target() == DropTarget::Temporary(argument.expression))
-            .collect::<Vec<_>>();
-        if parameter.mode == ParameterMode::Borrow {
-            need(
-                matches!(loans.as_slice(),[loan] if loan.kind()==LoanKind::Shared&&loan.target()==&LoanTarget::Temporary(argument.expression)
-                &&loan.begin_span()==ast::expression(parsed,argument.expression)&&loan.end_span()==ast::expression(parsed,input.call))
-                    && matches!(drops.as_slice(),[drop] if drop.point()==DropPoint::CallReturn(input.call)
-                    &&drop.value_origin()==ast::expression(parsed,argument.expression)),
-                "delivery borrowed temporary has exact loan and synchronous original Drop",
-                (loans, drops),
-            )?;
-        } else {
-            need(
-                loans.is_empty() && drops.is_empty(),
-                "delivery Value temporary is transferred, never borrowed or separately dropped",
-                (loans, drops),
-            )?;
-        }
-    }
-    need(
-        typed.map_iterations().len() == usize::from(!control)
-            && owned.map_iterations().len() == usize::from(!control),
-        "delivery original provider/control plan count",
-        typed.map_iterations(),
-    )?;
-    if let Some(site) = &input.site {
-        let p = owned
-            .map_iteration(site.statement)
-            .ok_or_else(|| failure("delivery original temporary plan", site))?;
-        let d = p.descriptor();
-        need(
-            typed.map_iteration(site.statement) == Some(d)
-                && d.source() == input.call
-                && d.source_type() == call.return_type()
-                && p.source_access() == MapIterationSourceAccess::Temporary
-                && p.source() == Some(&LoanTarget::Temporary(input.call)),
-            "delivery actual output Call is independent provider hidden owner",
-            p,
-        )?;
-        let read = typed
-            .call(site.read)
-            .ok_or_else(|| failure("delivery actual component reader", site.read))?;
-        need(
-            read.target() == CallableTarget::Source(symbol(input.reader.name)?)
-                && read.arguments().len() == 2,
-            "delivery actual reader selection",
-            read,
-        )?;
-        for (index, loan) in p.loans().iter().enumerate() {
-            let reference = one(
-                names
-                    .references()
-                    .iter()
-                    .filter(|r| r.span() == ast::expression(parsed, site.arguments[index])),
-                "delivery actual component reference",
-            )?;
-            let binding = d.bindings()[index];
-            need(
-                binding == symbol(site.bindings[index])?
-                    && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
-                    && loan.source() == input.call
-                    && loan.component()
-                        == [MapIterationComponent::Key, MapIterationComponent::Value][index]
-                    && loan.statement() == site.statement
-                    && loan.binding() == binding
-                    && loan.origin() == &LoanTarget::Temporary(input.call)
-                    && loan.kind() == LoanKind::Shared
-                    && matches!(reference.target(),ReferenceTarget::Symbol(root) if *root==binding)
-                    && read.arguments()[index].argument_index() == index
-                    && read.arguments()[index].parameter_index() == index
-                    && read.arguments()[index].mode() == ParameterMode::Borrow
-                    && read.arguments()[index].parameter_type()
-                        == [d.key_type(), d.value_type()][index],
-                "delivery actual Shared component and reader Borrow root",
-                (loan, reference),
-            )?;
-        }
-        cleanup::single(site.statement, site.source, site.body, site.call, owned)?;
-    } else {
-        let root = symbol(input.control_root.unwrap())?;
-        let size_id = input.size.unwrap();
-        let size = typed
-            .map_size(size_id)
-            .ok_or_else(|| failure("delivery actual control typed size descriptor", size_id))?;
-        let Expression::Member { receiver, .. } =
-            parsed.ast().expressions().get(size_id).unwrap().payload()
-        else {
-            return Err(failure("delivery actual control size member", size_id));
-        };
-        let reference = one(
-            names
-                .references()
-                .iter()
-                .filter(|r| r.span() == ast::expression(parsed, *receiver)),
-            "delivery control size actual original root reference",
-        )?;
-        need(
-            size.expression() == size_id
-                && size.receiver() == *receiver
-                && size.map_type() == call.return_type()
-                && matches!(reference.target(),ReferenceTarget::Symbol(actual) if *actual==root),
-            "delivery actual typed size receiver/canonical expression/type/root",
-            (size, reference),
-        )?;
-        let drop = one(
-            owned
-                .drops()
-                .iter()
-                .filter(|d| d.target() == DropTarget::Named(root)),
-            "delivery actual control result Drop",
-        )?;
-        need(
-            drop.value_origin() == input.control_root.unwrap()
-                && drop.point()
-                    == if resource {
-                        DropPoint::AfterStatement(input.entry.body)
-                    } else {
-                        DropPoint::CallReturn(size.expression())
-                    },
-            "delivery control Resource lexical/Pure last-size Drop",
-            drop,
-        )?;
-    }
-    Ok(())
-}
 
 pub(super) fn unit(
     case: &Case,
@@ -474,6 +251,9 @@ pub(super) fn unit(
                 (loan, reference),
             )?;
         }
+        // Old FE owner/condition/phi observations are carried by the graph's
+        // exact current roles, all incoming edges, complete inventory and
+        // argument/output retirement; this getter proves only Unit Drop actions.
         cleanup::unit(
             UnitStatementId::new(unit, site.body),
             site.call,

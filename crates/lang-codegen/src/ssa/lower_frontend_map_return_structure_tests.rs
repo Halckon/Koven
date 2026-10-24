@@ -471,14 +471,30 @@ pub(super) fn assert_return_structure(
     }
 }
 
-// Append beside the existing oracle helpers; inspect ordinary, unmodified fixture SSA only.
-pub(super) fn assert_distinct_return_owners(program: &Program) {
-    let function = program
+// Declaration spans bind fixture labels to actual functions without depending
+// on single-file names or reproducing the Unit generated-name convention.
+pub(super) fn source_function(
+    program: &Program,
+    source: Span,
+) -> (&crate::ssa::model::Module, &Function) {
+    let functions = program
         .modules
         .iter()
-        .flat_map(|module| &module.functions)
-        .find(|function| function.name == "separateOwners")
-        .unwrap();
+        .flat_map(|module| {
+            module.functions.iter().filter_map(move |function| {
+                (function.origin == Origin::Source(source)).then_some((module, function))
+            })
+        })
+        .collect::<Vec<_>>();
+    let [function] = functions.as_slice() else {
+        panic!("one exact source function for declaration {source:?}");
+    };
+    *function
+}
+
+// Append beside the existing oracle helpers; inspect ordinary, unmodified fixture SSA only.
+pub(super) fn assert_distinct_return_owners(program: &Program, source: Span) {
+    let (_, function) = source_function(program, source);
     let mut seeds = function
         .instructions
         .iter()
@@ -634,35 +650,34 @@ pub(super) fn assert_distinct_return_owners(program: &Program) {
 
 // The real operand call returns a Copyable value before the two body Resources
 // are destroyed in reverse declaration order; it is the value handed to Return.
-pub(super) fn assert_operand_before_body_cleanup(program: &Program, source: &str) {
-    operand_before_body_cleanup(program, source, false);
+pub(super) fn assert_operand_before_body_cleanup(
+    program: &Program,
+    source: &str,
+    cleanup: Span,
+    operand: Span,
+) {
+    operand_before_body_cleanup(program, source, cleanup, operand, false);
 }
 
-pub(super) fn assert_owned_operand_before_body_cleanup(program: &Program, source: &str) {
-    operand_before_body_cleanup(program, source, true);
+pub(super) fn assert_owned_operand_before_body_cleanup(
+    program: &Program,
+    source: &str,
+    cleanup: Span,
+    operand: Span,
+) {
+    operand_before_body_cleanup(program, source, cleanup, operand, true);
 }
 
-fn operand_before_body_cleanup(program: &Program, source: &str, named_source: bool) {
-    let module = program
-        .modules
-        .iter()
-        .find(|module| {
-            module
-                .functions
-                .iter()
-                .any(|function| function.name == "cleanup")
-        })
-        .unwrap();
-    let function = module
-        .functions
-        .iter()
-        .find(|function| function.name == "cleanup")
-        .unwrap();
-    let operand = module
-        .functions
-        .iter()
-        .find(|function| function.name == "operand")
-        .unwrap();
+fn operand_before_body_cleanup(
+    program: &Program,
+    source: &str,
+    cleanup: Span,
+    operand: Span,
+    named_source: bool,
+) {
+    let (module, function) = source_function(program, cleanup);
+    let (operand_module, operand) = source_function(program, operand);
+    assert_eq!(module.id, operand_module.id);
     let call = only(
         function,
         |i| matches!(i.operation, Operation::DirectCall { callee, .. } if callee == operand.id),

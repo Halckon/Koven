@@ -1,9 +1,11 @@
 //! Real local formation and Move sources; red observations precede capability changes.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod boundaries;
 pub(super) use boundaries::formation;
 pub(crate) use boundaries::{alias_rebound_source, sources as alternate_sources};
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
 mod graph;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod owner_flow;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -140,30 +142,34 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(
+        pipeline::memory_document_observed(
             &sources,
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
-                facts::single(case, &sources, &parsed, names, typed, owned, report);
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                facts::unit(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
-                    "G2 exactly two original Map descriptors",
+                    "G2 exactly two original qualified Map descriptors",
                     typed.map_iterations().len() == 2,
                     typed.map_iterations(),
                 );
                 println!(
-                    "G2 SINGLE ORIGINAL formed={:#?} plans={:#?} drops={:#?} conditions={:#?}",
+                    "G2 UNIT ORIGINAL formed={:#?} plans={:#?} drops={:#?} deliveries={:#?}",
                     owned.formed_owned_locals(),
                     owned.map_iterations(),
                     owned.drops(),
-                    owned.cleanup_conditions()
+                    owned.value_deliveries()
                 );
             },
         )
     };
     println!("G2 REPORT {} unit={unit} {report:#?}", case.label);
     let (program, _) = result?;
+    report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     if !report.passed() {
         return Err(failure("original FE query", report));
     }

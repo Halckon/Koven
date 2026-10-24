@@ -10,19 +10,18 @@ use super::{
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{
-        DeclarationId, NameResolution, ReferenceTarget, SourceUnitId, SymbolId, SymbolKind,
-        UnitReferenceTarget, ValidatedCompilationUnitNames,
+        DeclarationId, NameResolution, SourceUnitId, SymbolId, SymbolKind, UnitReferenceTarget,
+        ValidatedCompilationUnitNames,
     },
     ownership_checking::{
-        CompilationUnitOwnership, IterationSource, LoanKind, LoanTarget, MapIterationComponent,
-        MapIterationSourceAccess, OwnershipBindingKind, OwnershipCheckedFile,
-        UnitIterationSourceAccess, UnitLoanTarget,
+        CompilationUnitOwnership, IterationSource, LoanKind, MapIterationComponent,
+        OwnershipBindingKind, UnitIterationSourceAccess, UnitLoanTarget,
     },
     parser::Expression,
     source::Span,
     type_checking::{
-        CallableResultSource, CallableTarget, CompilationUnitTypes, ExpressionCategory,
-        ParameterMode, TypedFile, UnitCallTarget, UnitExpressionId, UnitStatementId,
+        CallableResultSource, CompilationUnitTypes, ExpressionCategory, ParameterMode,
+        UnitCallTarget, UnitExpressionId, UnitStatementId,
     },
 };
 
@@ -86,165 +85,6 @@ fn callee_span(f: &Input, expression: ExpressionId) -> Result<Span, Failure> {
         return Err(failure("temporary FE actual Call expression", value));
     };
     Ok(f.expression(*callee)?.1)
-}
-
-fn single_callee(
-    f: &Input,
-    names: &NameResolution,
-    expression: ExpressionId,
-    selected: SymbolId,
-) -> Result<(), Failure> {
-    let span = callee_span(f, expression)?;
-    let reference = one(
-        names.references().iter().filter(|r| r.span() == span),
-        "temporary FE actual callee reference",
-    )?;
-    let selected_present = match reference.target() {
-        ReferenceTarget::Symbol(id) => *id == selected,
-        ReferenceTarget::OverloadSet(ids) => ids.contains(&selected),
-        _ => false,
-    };
-    need(
-        selected_present,
-        "temporary FE typed-selected source target belongs to real callee reference",
-        reference,
-    )
-}
-
-pub(super) fn single(
-    f: &Input,
-    a: &Anchors,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<Inputs, Failure> {
-    need(
-        names.source_id() == f.parsed.source_id()
-            && typed.source_id() == f.parsed.source_id()
-            && owned.source_id() == f.parsed.source_id()
-            && typed.map_iterations().len() == 2
-            && owned.map_iterations().len() == 2,
-        "temporary FE same source exact two actual plans",
-        (typed.map_iterations(), owned.map_iterations()),
-    )?;
-    let read = anchor(a, "read")?;
-    let read_id = symbol(names, read.name_span)?;
-    let mut sites = Vec::new();
-    let mut owners = Vec::new();
-    let mut bindings = Vec::new();
-    for site in &a.sites {
-        let d = typed
-            .map_iteration(site.statement)
-            .ok_or_else(|| failure("temporary FE exact typed For", site))?;
-        let p = owned
-            .map_iteration(site.statement)
-            .ok_or_else(|| failure("temporary FE exact owned For", site))?;
-        need(
-            d.statement() == site.statement
-                && d.source() == site.source
-                && p.descriptor() == d
-                && typed.expression_type(site.source) == Some(d.source_type())
-                && typed.expression_category(site.source) == Some(ExpressionCategory::Temporary)
-                && p.source_access() == MapIterationSourceAccess::Temporary
-                && matches!(p.source_kind(), IterationSource::BorrowedSource(LoanTarget::Temporary(id)) if *id == site.source),
-            "temporary FE actual factory expression is this provider owner",
-            (site, d, p),
-        )?;
-        let factory = anchor(a, site.factory)?;
-        let factory_id = symbol(names, factory.name_span)?;
-        let factory_symbol = one(
-            names.symbols().iter().filter(|s| s.id() == factory_id),
-            "temporary FE actual factory symbol",
-        )?;
-        need(
-            factory_symbol.kind() == SymbolKind::Function && factory_symbol.name() == site.factory,
-            "temporary FE factory symbol matches actual function",
-            factory_symbol,
-        )?;
-        let call = typed
-            .call(site.source)
-            .ok_or_else(|| failure("temporary FE actual factory typed Call", site.source))?;
-        need(
-            call.expression() == site.source
-                && call.target() == CallableTarget::Source(factory_id)
-                && call.receiver().is_none()
-                && call.arguments().is_empty()
-                && call.result_source() == CallableResultSource::Owned
-                && call.return_type() == d.source_type(),
-            "temporary FE own zero-argument factory Call selected result",
-            call,
-        )?;
-        single_callee(f, names, site.source, factory_id)?;
-        for (index, component) in [MapIterationComponent::Key, MapIterationComponent::Value]
-            .into_iter()
-            .enumerate()
-        {
-            let binding = d.bindings()[index];
-            let loan = p.loan(component);
-            need(
-                binding == symbol(names, site.bindings[index])?
-                    && typed.symbol_type(binding) == Some([d.key_type(), d.value_type()][index])
-                    && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
-                    && p.bindings()[index].symbol() == binding
-                    && p.bindings()[index].kind() == OwnershipBindingKind::Shared
-                    && loan.statement() == site.statement
-                    && loan.source() == site.source
-                    && loan.binding() == binding
-                    && loan.component() == component
-                    && loan.kind() == LoanKind::Shared
-                    && loan.origin() == &LoanTarget::Temporary(site.source),
-                "temporary FE actual component binding and source lineage",
-                (site, binding, loan),
-            )?;
-        }
-        let call = typed
-            .call(site.read)
-            .ok_or_else(|| failure("temporary FE actual read typed Call", site.read))?;
-        need(
-            call.expression() == site.read
-                && call.target() == CallableTarget::Source(read_id)
-                && call.receiver().is_none()
-                && call.arguments().len() == 2,
-            "temporary FE actual read target and arity before indexing",
-            call,
-        )?;
-        single_callee(f, names, site.read, read_id)?;
-        for (index, argument) in call.arguments().iter().enumerate() {
-            let span = f.expression(site.arguments[index])?.1;
-            let reference = one(
-                names.references().iter().filter(|r| r.span() == span),
-                "temporary FE actual component reference",
-            )?;
-            need(
-                argument.argument_index() == index
-                    && argument.parameter_index() == index
-                    && argument.mode() == ParameterMode::Borrow
-                    && argument.parameter_type() == [d.key_type(), d.value_type()][index]
-                    && matches!(reference.target(), ReferenceTarget::Symbol(id) if *id == d.bindings()[index]),
-                "temporary FE read Borrow delivery belongs to actual K/V",
-                (argument, reference),
-            )?;
-        }
-        let (drop, owner) = query_cleanup::single(site, owned)?;
-        owners.push(owner);
-        bindings.extend(d.bindings());
-        sites.push(spans(f, a, site, drop)?);
-    }
-    need(
-        owners.len() == 2
-            && owners[0] != owners[1]
-            && bindings
-                .iter()
-                .enumerate()
-                .all(|(i, b)| !bindings[..i].contains(b)),
-        "temporary FE distinct source owners and all four bindings",
-        (owners, bindings),
-    )?;
-    Ok(Inputs {
-        entry: anchor(a, "entry")?.span,
-        read: read.span,
-        sites,
-    })
 }
 
 fn declaration(

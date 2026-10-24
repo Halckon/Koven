@@ -340,7 +340,7 @@ pub(super) fn collect(
     callers(f, a, names, typed, owned, unit)?;
     let guards = query_guards::unit(f, a, names, typed, owned, unit)?;
     let drops = query_cleanup::unit(f, a, guards, owned, unit)?;
-    spans(f, a, drops, Some(unit))
+    spans(f, a, drops, unit)
 }
 
 fn borrow_call(

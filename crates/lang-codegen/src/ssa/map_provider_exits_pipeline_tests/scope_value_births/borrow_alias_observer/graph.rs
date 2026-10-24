@@ -90,13 +90,24 @@ pub(super) fn check(
         (begin, alias_end, proof),
     )?;
     if !c.provider {
-        super::control(p, i, program)?;
+        let children = super::control(p, i, program)?;
         need(
             alias_end.origin == Origin::Source(proof.declaration)
                 && g.position(alias_end)? + 1 == g.ops(alias_end.block)?.len()
                 && matches!(&g.term(alias_end.block)?.kind,TerminatorKind::Return{values}if values.is_empty()),
             "alias control published observe-statement lease cleanup is last before ordinary Return",
             alias_end,
+        )?;
+        let expected = originals
+            .iter()
+            .chain(&aliases)
+            .chain(&children)
+            .copied()
+            .collect();
+        crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+            &g,
+            &[map],
+            &expected,
         )?;
         return Ok(());
     }
@@ -373,5 +384,12 @@ pub(super) fn check(
         )?;
     }
     need(!g.instructions.iter().any(|op|matches!(op.operation,Operation::BorrowEnd{loan}if originals.contains(&EntityId::Loan(loan))))&&!scan.values.iter().any(|v|module.map_container(v.ty.semantic_type()).is_some())&&!g.instructions.iter().any(|op|matches!(op.operation,Operation::MapConstruct{..}|Operation::MapConsume{..}|Operation::MapPut{..})),"alias caller-owned Map is never recreated/consumed/dropped or ended by scanner",scan.id)?;
+    let expected = originals
+        .iter()
+        .chain(&aliases)
+        .chain(&leases)
+        .copied()
+        .collect();
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(&g, &[map], &expected)?;
     uses.check(&g, None)
 }

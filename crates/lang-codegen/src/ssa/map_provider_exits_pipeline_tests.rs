@@ -13,6 +13,7 @@ mod formation_runtime;
 mod future_use;
 mod history;
 mod identity;
+mod legacy_boundaries;
 mod local_arguments;
 pub(crate) use local_arguments::{
     generic_prerequisite_sources as local_generic_argument_prerequisite_sources,
@@ -28,6 +29,7 @@ mod query_graph;
 pub(in crate::ssa) use query_graph::Graph as OrdinaryGraph;
 pub(in crate::ssa) use query_inputs::one as one_query;
 mod query_inputs;
+mod query_inventory;
 mod query_map_normal_body;
 mod query_owner;
 mod query_ssa;

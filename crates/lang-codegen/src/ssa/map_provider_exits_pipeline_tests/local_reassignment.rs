@@ -1,4 +1,5 @@
 //! Legal source replacement histories: ordinary FE/lowering observations precede repairs.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod boundaries;
 mod completed_epoch;
 mod facts;
@@ -66,29 +67,28 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(
+        pipeline::memory_document_observed(
             &sources,
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
                 report.query(
-                    "reassignment independent single facts",
-                    &facts::single(case, &sources, &parsed, names, typed, owned),
+                    "reassignment independent unit facts",
+                    &facts::unit(case, &sources, &parsed, names, typed, owned),
                 );
                 report.check(
-                    "reassignment original descriptor count",
+                    "reassignment original qualified descriptor count",
                     typed.map_iterations().len() == expected,
                     typed.map_iterations(),
                 );
                 println!(
-                    "LOCAL REASSIGN SINGLE FACTS case={} formed={:#?} plans={:#?} drops={:#?} conditions={:#?} bindings={:#?} loans={:#?}",
+                    "LOCAL REASSIGN UNIT FACTS case={} formed={:#?} plans={:#?} drops={:#?} deliveries={:#?} loans={:#?}",
                     case.label,
                     owned.formed_owned_locals(),
                     owned.map_iterations(),
                     owned.drops(),
-                    owned.cleanup_conditions(),
-                    owned.bindings(),
+                    owned.value_deliveries(),
                     owned.loans()
                 );
             },
@@ -101,8 +101,12 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     );
     let (program, _) = lowered?;
     report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
+    report.query(
         "reassignment independent SSA identities",
-        &graph::check(case, &sources, &parsed, &program, unit),
+        &graph::check(case, &sources, &parsed, &program, true),
     );
     let verified =
         crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA verifier", e));

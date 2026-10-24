@@ -166,11 +166,7 @@ pub(super) fn check(
                     layer: INNER,
                     guard: Role::InnerGuard,
                     guard_input: &input.guards[1],
-                    origin: if input.unit {
-                        input.sites[1].span
-                    } else {
-                        input.transfer
-                    },
+                    origin: input.sites[1].span,
                     advance: (f.exit == Exit::Continue).then_some(input.transfer),
                 },
                 &inner_body,
@@ -227,11 +223,7 @@ pub(super) fn check(
                     layer: INNER,
                     guard: Role::InnerGuard,
                     guard_input: &input.guards[1],
-                    origin: if input.unit {
-                        input.sites[1].span
-                    } else {
-                        input.transfer
-                    },
+                    origin: input.sites[1].span,
                     advance: None,
                 },
                 &inner_body,
@@ -243,11 +235,7 @@ pub(super) fn check(
                     layer: OUTER,
                     guard: Role::OuterGuard,
                     guard_input: &input.guards[0],
-                    origin: if input.unit {
-                        input.sites[0].span
-                    } else {
-                        input.transfer
-                    },
+                    origin: input.sites[0].span,
                     advance: None,
                 },
                 &after_inner,
@@ -384,6 +372,37 @@ pub(super) fn check(
         "nested exits SSA exact complete provider/call/size/Guard-allocation sets",
         (&w.providers, &calls),
     )?;
+    // The live GO columns are proved by every actual incoming above, not by
+    // matching its type or recreating Legacy presence selectors.
+    let related = [
+        Role::Caller,
+        Role::OuterSource,
+        Role::InnerSource,
+        Role::OuterGuard,
+        Role::InnerGuard,
+    ]
+    .into_iter()
+    .flat_map(|role| w.aliases.get(&role).into_iter().flatten().copied())
+    .collect::<BTreeSet<_>>();
+    let go_type = ty(
+        &g,
+        result(
+            g.function
+                .instruction(go)
+                .ok_or_else(|| failure("nested exits actual GO birth", go))?,
+        )?,
+    )?
+    .semantic_type();
+    let gi_type = ty(
+        &g,
+        result(
+            g.function
+                .instruction(gi)
+                .ok_or_else(|| failure("nested exits actual GI birth", gi))?,
+        )?,
+    )?
+    .semantic_type();
+    super::super::query_inventory::check(&g, &[map_type, go_type, gi_type], &related)?;
     w.finish(&g)
 }
 

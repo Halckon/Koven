@@ -11,44 +11,23 @@ use ast::{Site, expression_span, returned, sites, within};
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{
-        NameResolution, ReferenceTarget, SymbolId, SymbolKind, UnitReferenceTarget, UnitSymbolId,
-        ValidatedCompilationUnitNames,
+        SymbolKind, UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
     },
     ownership_checking::{
-        CleanupCondition as C, CleanupOwnerValue as O, CleanupSelection, CleanupSelectorSource,
-        CompilationUnitOwnership, DropPoint, DropTarget, IterationCleanupAction as A,
-        IterationExitKind as E, IterationPhiBoundary as B, IterationPhiIncomingKind as K,
-        IterationPhiPresenceSource, IterationSource, LoanKind, LoanTarget, MapIterationComponent,
-        MapIterationOwnershipPlan, MapIterationSourceAccess, OwnershipBindingKind,
-        OwnershipCheckedFile, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
-        UnitIterationExitKind as UE, UnitIterationSourceAccess, UnitLoanTarget,
+        CompilationUnitOwnership, DropPoint, IterationExitKind as E, IterationSource, LoanKind,
+        MapIterationComponent, OwnershipBindingKind, UnitDropPoint, UnitDropTarget,
+        UnitIterationCleanupAction as UA, UnitIterationExitKind as UE, UnitIterationSourceAccess,
+        UnitLoanTarget,
     },
     parser::{Expression, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, CallableResultSource, CallableTarget, CompilationUnitTypes,
-        ExpressionCategory, IntrinsicTypeConstructor, ParameterMode, TypeKind, TypedFile,
-        UnitCallTarget, UnitExpressionId, UnitStatementId, UnitTypeKind,
+        BuiltinType, CallableResultSource, CompilationUnitTypes, ExpressionCategory,
+        IntrinsicTypeConstructor, ParameterMode, UnitCallTarget, UnitExpressionId, UnitStatementId,
+        UnitTypeKind,
     },
 };
-fn reference(
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    id: ExpressionId,
-) -> Result<SymbolId, Failure> {
-    let span = expression_span(parsed, id)?;
-    one(
-        names
-            .references()
-            .iter()
-            .filter(|r| r.span() == span)
-            .filter_map(|r| match r.target() {
-                ReferenceTarget::Symbol(s) => Some(*s),
-                _ => None,
-            }),
-        "Resource original Name root",
-    )
-}
+
 fn qualified(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -80,234 +59,6 @@ fn marker(
                 s.id() == id.symbol() && s.span() == span && s.kind() == kind && !s.is_synthetic()
             })
     })
-}
-pub(super) fn single(
-    case: &Case,
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    report: &mut Report,
-) {
-    match sites((case.mutable, case.form, case.exit), sources, parsed) {
-        Ok(sites) => {
-            for site in &sites {
-                report.query(
-                    "Resource local original single identities",
-                    &single_site((case, sources, parsed), site, names, typed, owned),
-                );
-            }
-        }
-        Err(e) => report.query::<()>("Resource local original AST", &Err(e)),
-    }
-}
-fn single_site(
-    input: (&Case, &SourceMap, &ParsedFile),
-    site: &Site,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<(), Failure> {
-    let (case, sources, parsed) = input;
-    let root = reference(parsed, names, site.source)?;
-    let original = if site.root.initializer == site.birth.initializer {
-        root
-    } else {
-        reference(parsed, names, site.root.initializer)?
-    };
-    for (id, local) in [(root, &site.root), (original, &site.birth)] {
-        need(
-            names.symbols().iter().any(|s| {
-                s.id() == id
-                    && s.span() == local.marker
-                    && s.kind() == SymbolKind::Variable
-                    && !s.is_synthetic()
-            }) && owned.formed_owned_locals().contains(&id),
-            "Resource local actual formation history",
-            (id, local),
-        )?;
-    }
-    need(
-        (root == original) == (site.root.marker == site.birth.marker)
-            && (root == original
-                || !owned
-                    .drops()
-                    .iter()
-                    .any(|d| d.target() == DropTarget::Named(original)))
-            && !owned
-                .drops()
-                .iter()
-                .any(|d| d.target() == DropTarget::Temporary(site.birth.initializer)),
-        "Resource local original Move obligation not duplicated",
-        (root, original),
-    )?;
-    let p = owned
-        .map_iteration(site.statement)
-        .ok_or_else(|| failure("Resource original Map plan", site))?;
-    let d = p.descriptor();
-    let ty = d.source_type();
-    let constructor = if case.mutable {
-        IntrinsicTypeConstructor::MutableMap
-    } else {
-        IntrinsicTypeConstructor::Map
-    };
-    need(
-        typed.map_iteration(site.statement) == Some(d)
-            && d.source() == site.source
-            && d.kind() == site.map_kind
-            && typed.is_resource_type(ty) == Some(true)
-            && typed.is_resource_type(d.value_type()) == Some(true)
-            && typed.symbol_type(root) == Some(ty)
-            && typed.symbol_type(original) == Some(ty)
-            && typed.expression_type(site.source) == Some(ty)
-            && typed.expression_category(site.source) == Some(ExpressionCategory::Place)
-            && typed.expression_type(site.root.initializer) == Some(ty)
-            && typed.expression_category(site.root.initializer)
-                == Some(if root == original {
-                    ExpressionCategory::Temporary
-                } else {
-                    ExpressionCategory::Place
-                })
-            && typed.expression_type(site.birth.initializer) == Some(ty)
-            && typed.expression_category(site.birth.initializer)
-                == Some(ExpressionCategory::Temporary)
-            && matches!(typed.types().get(ty),Some(TypeKind::Intrinsic{constructor:c,arguments}) if *c==constructor && arguments.as_slice()==[d.key_type(),d.value_type()])
-            && typed.types().get(d.key_type()) == Some(&TypeKind::Builtin(BuiltinType::String))
-            && p.source_access() == MapIterationSourceAccess::Owned
-            && matches!(p.source_kind(),IterationSource::BorrowedSource(LoanTarget::Place(path)) if path.is_root() && path.root()==root),
-        "Resource local original descriptor/type/category/Owned root",
-        p,
-    )?;
-    nominal::single(case.nullable, sources, parsed, names, typed, d.value_type())?;
-    let factory = one(
-        names
-            .symbols()
-            .iter()
-            .filter(|s| s.span() == site.factory && s.kind() == SymbolKind::Function),
-        "Resource original selected factory",
-    )?;
-    let call = typed
-        .call(site.birth.initializer)
-        .ok_or_else(|| failure("Resource original factory call", site))?;
-    need(
-        call.target() == CallableTarget::Source(factory.id())
-            && call.receiver().is_none()
-            && call.arguments().is_empty()
-            && call.return_type() == ty
-            && call.result_source() == CallableResultSource::Owned,
-        "Resource local exact selected zero-argument factory Call",
-        call,
-    )?;
-    for (index, binding) in d.bindings().into_iter().enumerate() {
-        need(
-            names.symbols().iter().any(|s| {
-                s.id() == binding
-                    && s.span() == site.bindings[index]
-                    && s.kind() == SymbolKind::ForBinding
-            }) && typed.symbol_type(binding) == Some([d.key_type(), d.value_type()][index])
-                && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
-                && p.bindings()[index].symbol() == binding
-                && p.bindings()[index].kind() == OwnershipBindingKind::Shared
-                && p.loans()[index].statement() == site.statement
-                && p.loans()[index].source() == site.source
-                && p.loans()[index].binding() == binding
-                && p.loans()[index].component()
-                    == [MapIterationComponent::Key, MapIterationComponent::Value][index]
-                && p.loans()[index].kind() == LoanKind::Shared
-                && Some(p.loans()[index].origin()) == p.source(),
-            "Resource local original K/V Shared identities",
-            p.loans(),
-        )?;
-    }
-    if let Some((value, args)) = returned(site, parsed)? {
-        let call = typed
-            .call(value)
-            .ok_or_else(|| failure("Resource actual Return operand", value))?;
-        need(
-            matches!(call.target(),CallableTarget::Source(id) if names.symbols().iter().any(|s|s.id()==id && s.span()==site.result))
-                && typed.types().get(call.return_type())
-                    == Some(&TypeKind::Builtin(BuiltinType::Int))
-                && matches!(call.arguments(),[k,v] if k.mode()==ParameterMode::Borrow && v.mode()==ParameterMode::Borrow && k.parameter_type()==d.key_type() && v.parameter_type()==d.value_type())
-                && reference(parsed, names, args[0])? == d.key_binding()
-                && reference(parsed, names, args[1])? == d.value_binding(),
-            "Resource actual returned Call keeps exact nullable/nonnullable K/V",
-            call,
-        )?;
-    }
-    let guard = one(
-        owned.formed_owned_locals().iter().copied().filter(|id| {
-            names.symbols().iter().any(|s| {
-                s.id() == *id && s.span() == site.guard.marker && s.kind() == SymbolKind::Variable
-            })
-        }),
-        "Resource actual Guard formation",
-    )?;
-    let guard = *one(
-        owned
-            .drops()
-            .iter()
-            .filter(|d| d.target() == DropTarget::Named(guard)),
-        "Resource actual Guard Drop",
-    )?;
-    need(guard.value_origin()==site.guard.marker && guard.point()==site.point && guard.condition().is_none()
-        && guard.owner().is_some_and(|id|matches!(owned.cleanup_conditions().owner_value(id),Some(O::Expression{expression,origin}) if *expression==site.guard.initializer && *origin==site.guard_span)),"Resource local Guard actual construction/Drop",guard)?;
-    need(
-        p.exits().len() == 2,
-        "Resource actual complete exit set",
-        p.exits(),
-    )?;
-    for (kind, point, body) in [
-        (site.kind, site.point, true),
-        (E::Exhaustion, DropPoint::LoopExit(site.statement), false),
-    ] {
-        let exit = one(
-            p.exits()
-                .iter()
-                .filter(|e| e.kind() == kind && e.point() == point),
-            "Resource local actual exit",
-        )?;
-        let mut expected = if body {
-            vec![
-                A::Drop(guard),
-                A::EndBinding {
-                    statement: site.statement,
-                    symbol: d.value_binding(),
-                },
-                A::EndBinding {
-                    statement: site.statement,
-                    symbol: d.key_binding(),
-                },
-            ]
-        } else {
-            vec![]
-        };
-        if !body || matches!(kind, E::Break(_) | E::Return(_)) {
-            expected.extend([
-                A::FinishProvider(site.statement),
-                A::EndSource(site.statement),
-            ]);
-        }
-        expected.extend(
-            owned
-                .drops()
-                .iter()
-                .copied()
-                .filter(|d| d.point() == point && d.target() == DropTarget::Named(root))
-                .map(A::Drop),
-        );
-        let full = owned
-            .cleanup_steps()
-            .iter()
-            .filter_map(|(at, a)| (*at == point).then_some(*a))
-            .collect::<Vec<_>>();
-        need(
-            exit.actions() == expected && full == expected,
-            "Resource local complete Guard/V/K/provider/source action order",
-            (exit, full, expected),
-        )?;
-    }
-    owner::single(site, parsed, root, p, owned)
 }
 
 pub(super) fn unit(

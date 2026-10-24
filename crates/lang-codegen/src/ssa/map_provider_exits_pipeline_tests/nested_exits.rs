@@ -10,7 +10,6 @@ mod query_resources;
 mod query_ssa;
 mod query_tail;
 mod query_test;
-mod single;
 mod unit;
 
 use super::{
@@ -116,16 +115,16 @@ fn sources() -> [Case; 6] {
 #[derive(Debug)]
 struct Observation {
     label: &'static str,
-    unit: bool,
+    rooted: bool,
     report: Report,
     outcome: Result<(), Failure>,
 }
 
-fn observe(case: &Case, unit: bool) -> Observation {
+fn observe(case: &Case, rooted: bool) -> Observation {
     let mut report = Report::default();
     // SHA 是经仓外逐字复核的冻结输入标识；这里未做运行时哈希或 native 求值。
     println!(
-        "SPEC0331 NESTED EXITS INPUT case={} unit={unit} path=provider.ko frozen_sha256={} golden_sha256={} golden_bytes={} golden_status=predicted_only text={:?}",
+        "SPEC0331 NESTED EXITS INPUT case={} rooted={rooted} path=provider.ko frozen_sha256={} golden_sha256={} golden_bytes={} golden_status=predicted_only text={:?}",
         case.label,
         case.source_hash,
         case.golden_hash,
@@ -138,28 +137,18 @@ fn observe(case: &Case, unit: bool) -> Observation {
             "nested exits actual AST parent/child For, Guards, calls and caller identities",
             &anchors,
         );
-        let (program, entry) = if unit {
-            pipeline::unit_observed(
-                &input.sources,
-                &input.parsed,
-                "provider.ko",
-                &mut report,
-                |names, typed, owned, report| {
-                    unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                },
-            )
-        } else {
-            pipeline::single_observed(
-                &input.sources,
-                &input.parsed,
-                &mut report,
-                |names, typed, owned, report| {
-                    single::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                },
-            )
-        }?;
+        let (program, entry) = pipeline::unit_input_observed(
+            &input.sources,
+            &input.parsed,
+            "provider.ko",
+            &mut report,
+            rooted,
+            |names, typed, owned, report| {
+                unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+            },
+        )?;
         println!(
-            "SPEC0331 NESTED EXITS SSA case={} unit={unit}\n{}",
+            "SPEC0331 NESTED EXITS SSA case={} rooted={rooted}\n{}",
             case.label,
             crate::ssa::render::render_program(&program)
         );
@@ -182,14 +171,14 @@ fn observe(case: &Case, unit: bool) -> Observation {
             .map_err(|e| failure("LLVM render/verify", e))?;
         report.check("nested exits LLVM render/verify", true, llvm.len());
         println!(
-            "SPEC0331 NESTED EXITS LLVM case={} unit={unit}\n{llvm}",
+            "SPEC0331 NESTED EXITS LLVM case={} rooted={rooted}\n{llvm}",
             case.label
         );
         Ok(())
     });
     Observation {
         label: case.label,
-        unit,
+        rooted,
         report,
         outcome,
     }
@@ -199,14 +188,14 @@ fn observe(case: &Case, unit: bool) -> Observation {
 fn map_and_mutable_map_nested_inner_exits_reach_verified_llvm() {
     let mut observations = Vec::new();
     for case in sources() {
-        for unit in [false, true] {
-            observations.push(observe(&case, unit));
+        for rooted in [false, true] {
+            observations.push(observe(&case, rooted));
         }
     }
     for observation in &observations {
         println!(
-            "SPEC0331 NESTED EXITS OUTCOME case={} unit={} report={:#?}",
-            observation.label, observation.unit, observation.report
+            "SPEC0331 NESTED EXITS OUTCOME case={} rooted={} report={:#?}",
+            observation.label, observation.rooted, observation.report
         );
         match &observation.outcome {
             Ok(()) => println!("stage=LLVM render/verify result=ok"),

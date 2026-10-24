@@ -439,6 +439,20 @@ fn check_kind(
     if !input.owned {
         caller(module, scan)?;
     }
+    if input.owned {
+        crate::ssa::map_provider_exits_pipeline_tests::local_exits::owner_flow::check(
+            &g,
+            module,
+            &BTreeSet::from([*anchor]),
+        )?;
+    } else {
+        let expected = originals.iter().chain(&leases).copied().collect();
+        crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(
+            &g,
+            &[map_type],
+            &expected,
+        )?;
+    }
     Ok(())
 }
 

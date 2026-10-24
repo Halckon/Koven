@@ -127,14 +127,64 @@ pub(super) fn provider_calls(
             (i, literal, right_ast),
         )?;
         uses.permit(left, i);
-        let TerminatorKind::Conditional { condition, .. } = g.term(i.block)?.kind else {
+        let term = g.term(i.block)?;
+        let TerminatorKind::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } = &term.kind
+        else {
             return Err(failure("stack equality actual conditional branch", i));
         };
-        need(
-            EntityId::Value(condition) == result(i)?,
-            "stack condition branch uses actual equality result",
-            i,
+        let branch = one(
+            parsed.ast().expressions().iter().filter_map(|(_, node)| {
+                let Expression::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } = node.payload()
+                else {
+                    return None;
+                };
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(*condition)
+                    .is_ok_and(|condition| condition.span() == binary.span())
+                    .then_some((node.span(), *then_branch, *else_branch))
+            }),
+            "stack exact original If selecting this equality",
         )?;
+        let then_span = parsed
+            .ast()
+            .statements()
+            .get(branch.1)
+            .map_err(|e| failure("stack original true arm", e))?
+            .span();
+        let else_span = branch
+            .2
+            .map(|id| {
+                parsed
+                    .ast()
+                    .statements()
+                    .get(id)
+                    .map(|node| node.span())
+                    .map_err(|e| failure("stack original false arm", e))
+            })
+            .transpose()?
+            .unwrap_or(branch.0);
+        need(
+            EntityId::Value(*condition) == result(i)?
+                && term.origin == Origin::Source(branch.0)
+                && g.block(when_true.target)?.origin == Origin::Source(then_span)
+                && g.block(when_false.target)?.origin == Origin::Source(else_span)
+                && when_true.target != when_false.target,
+            "stack original selector polarity keeps true/false transfer and continuation arms distinct",
+            (i, term, branch),
+        )?;
+        g.incoming_from(when_true.target, &[i.block])?;
+        g.incoming_from(when_false.target, &[i.block])?;
     }
     Ok(())
 }
@@ -386,6 +436,27 @@ pub(super) fn callers(
                 TerminatorKind::Abort => {}
                 _ => {
                     for (_, edge) in g.edges.iter().filter(|(from, _)| *from == block) {
+                        for &argument in &edge.arguments {
+                            if roots.iter().any(|root| root.owners.contains(&argument)) {
+                                need(
+                                    state.owners.contains(&Some(argument)),
+                                    "stack caller edge carries only actual current source owner",
+                                    (edge, argument, &state),
+                                )?;
+                            }
+                            if let EntityId::Loan(_) = argument
+                                && roots.iter().any(|root| {
+                                    f.entity(root.born).unwrap().ty.semantic_type()
+                                        == f.entity(argument).unwrap().ty.semantic_type()
+                                })
+                            {
+                                need(
+                                    state.loans.contains_key(&argument),
+                                    "stack caller edge cannot carry a retired Map loan",
+                                    (edge, argument, &state),
+                                )?;
+                            }
+                        }
                         let mut next = state.clone();
                         for owner in next.owners.iter_mut().flatten() {
                             *owner = transport(&g, edge, *owner)?;

@@ -224,5 +224,10 @@ pub(super) fn check(
     )?;
     // The exact edge set has no OE-to-acquire path and no inner role on outer backedge.
     // Per-role aliases and Uses prove caller/OS stay live through the inner-only prefix.
+    let related = [Role::Caller, Role::OuterSource, Role::InnerSource]
+        .into_iter()
+        .flat_map(|role| witness.aliases.get(&role).into_iter().flatten().copied())
+        .collect::<BTreeSet<_>>();
+    super::super::query_inventory::check(&g, &[map_type], &related)?;
     witness.finish(&g)
 }

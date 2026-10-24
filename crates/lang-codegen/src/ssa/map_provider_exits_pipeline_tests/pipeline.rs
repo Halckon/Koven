@@ -1,33 +1,53 @@
 //! 原始 lex/parse/names/raw/complete/ownership/公开完整 validator → 普通真实 lower。
 use super::{
     Report, facts,
-    fixture::{Failure, Fixture, at, clean, complete_failure, failure, lower_failure},
+    fixture::{Failure, Fixture, clean, complete_failure, failure, lower_failure},
 };
 use crate::ssa::{
-    lower_scalar_file_with_entry,
     model::{FunctionId, Program},
     unit_lower::lower_owned_unit_with_entry,
 };
 use lang_frontend::{
     name_resolution::{
-        NameResolution, SourceUnitInput, SymbolKind, ValidatedCompilationUnitNames,
-        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitInput, SymbolKind, ValidatedCompilationUnitNames, index_compilation_unit,
+        resolve_compilation_unit_names,
     },
     ownership_checking::{
-        CompilationUnitOwnership, OwnershipCheckedFile, check_compilation_unit_ownership,
-        check_ownership, owned_compilation_unit_view, validate_iteration_facts,
+        CompilationUnitOwnership, check_compilation_unit_ownership, owned_compilation_unit_view,
     },
     parser::{Item, NameMarker, ParsedFile},
     source::SourceMap,
     type_checking::{
-        CompilationUnitTypes, TypedFile, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, complete_file_types, standard_environments,
+        CompilationUnitTypes, check_compilation_unit_types, complete_compilation_unit_types,
+        standard_environments,
     },
 };
 
 type Lowered = (Program, FunctionId);
 
-// 仅迁移显式选择 MemoryDocument 的消费者；single_* 的原单文件合同保持不变。
+// The boolean selects only the input layout, never another checker or a fallback.
+pub(super) fn unit_input_observed(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    path: &str,
+    report: &mut Report,
+    rooted: bool,
+    observe: impl FnOnce(
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &CompilationUnitOwnership,
+        &mut Report,
+    ),
+) -> Result<Lowered, Failure> {
+    let input = if rooted {
+        SourceUnitInput::new("root", path, parsed.source_id(), parsed)
+    } else {
+        SourceUnitInput::memory_document(parsed.source_id(), parsed)
+    };
+    unit_input_observed_with_entry(sources, parsed, input, "entry", report, observe)
+}
+
+// 两种输入布局均消费真实 Unit 产品；旧差分负控独立在 legacy_boundaries。
 pub(super) fn memory_document(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
     memory_document_observed(
         &fixture.sources,
@@ -54,149 +74,30 @@ pub(super) fn memory_document_observed(
         &mut Report,
     ),
 ) -> Result<Lowered, Failure> {
-    unit_input_observed_with_entry(
-        sources,
-        parsed,
-        SourceUnitInput::memory_document(parsed.source_id(), parsed),
-        "entry",
-        report,
-        observe,
-    )
+    memory_document_observed_with_entry(sources, parsed, "entry", report, observe)
 }
 
-pub(super) fn single(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
-    single_observed(
-        &fixture.sources,
-        &fixture.parsed,
-        report,
-        |names, raw, owned, report| {
-            facts::single(fixture, names, raw, owned, report);
-            entry_single(fixture, names, raw, owned, report);
-            if report.identity_requested {
-                report.fe_identity = Some(super::query_inputs::single(fixture, names, raw, owned));
-            }
-        },
-    )
-}
-
-// Test-local stage bridge: the observer sees this one analysis; it cannot replace any product.
-pub(super) fn single_observed(
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    report: &mut Report,
-    observe: impl FnOnce(&NameResolution, &TypedFile, &OwnershipCheckedFile, &mut Report),
-) -> Result<Lowered, Failure> {
-    single_observed_with_entry(sources, parsed, "entry", report, observe)
-}
-
-// Preserve original-source entry identity without renaming a fixture or adding a wrapper.
-pub(super) fn single_observed_with_entry(
+// Preserve the original callable name when the fixture's entry is not `entry`.
+pub(super) fn memory_document_observed_with_entry(
     sources: &SourceMap,
     parsed: &ParsedFile,
     entry_name: &str,
     report: &mut Report,
-    observe: impl FnOnce(&NameResolution, &TypedFile, &OwnershipCheckedFile, &mut Report),
+    observe: impl FnOnce(
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &CompilationUnitOwnership,
+        &mut Report,
+    ),
 ) -> Result<Lowered, Failure> {
-    report.check("single lex/parse clean", true, parsed.source_id());
-    let (name_environment, environment) = standard_environments();
-    let names = resolve_names(sources, parsed, &name_environment)
-        .map_err(|error| failure("single names infrastructure", error))?;
-    clean(sources, "single names diagnostics", names.diagnostics())?;
-    let entries = names.symbols().iter().filter(|symbol| {
-        symbol.name() == entry_name && !symbol.is_synthetic() && symbol.kind() == SymbolKind::Function
-            && symbol.span().source_id() == parsed.source_id()
-            && parsed.roots().iter().any(|root| {
-                parsed.ast().items().get(*root).is_ok_and(|node| {
-                    matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. } if *name == symbol.span())
-                })
-            })
-    }).collect::<Vec<_>>();
-    let [entry] = entries.as_slice() else {
-        return Err(failure("single real entry selection", entries));
-    };
-    report.check("single actual source entry symbol", true, entry);
-    let raw = check_types(sources, parsed, &names, &environment)
-        .map_err(|error| failure("single raw type infrastructure", error))?;
-    report.check(
-        "single raw diagnostics clean",
-        raw.diagnostics().is_empty(),
-        raw.diagnostics(),
-    );
-    // raw 即使有诊断仍执行完整准入，保存 complete 原始根因，不冒充 lower 拒绝。
-    let complete = complete_file_types(sources, parsed, &names, &environment, &raw)
-        .map_err(|error| complete_failure(sources, error))?;
-    let same = complete.is_same_analysis(&raw)
-        && std::ptr::eq(complete.types(), &raw)
-        && raw.is_compatible_with_names(&names);
-    report.check(
-        "single complete keeps original raw/names analysis",
-        same,
-        raw.source_id(),
-    );
-    if !same {
-        return Err(failure(
-            "single complete analysis identity",
-            "original raw identity mismatch",
-        ));
-    }
-    clean(sources, "single raw diagnostics", raw.diagnostics())?;
-    let owned = check_ownership(sources, parsed, &names, complete.types())
-        .map_err(|error| failure("single ownership infrastructure", error))?;
-    clean(sources, "single ownership diagnostics", owned.diagnostics())?;
-    if !owned.deferred().is_empty() {
-        return Err(failure(
-            "single ownership deferred",
-            owned
-                .deferred()
-                .iter()
-                .map(|deferred| {
-                    let location = parsed
-                        .ast()
-                        .expressions()
-                        .get(deferred.expression())
-                        .map(|node| super::fixture::location(sources, node.span()));
-                    (deferred, location)
-                })
-                .collect::<Vec<_>>(),
-        ));
-    }
-    let same = owned.is_compatible_with(&names, &raw);
-    report.check(
-        "single ownership original analysis and no deferred",
-        same,
-        owned.source_id(),
-    );
-    if !same {
-        return Err(failure(
-            "single ownership analysis identity",
-            "raw/names mismatch",
-        ));
-    }
-    observe(&names, &raw, &owned, report);
-    // 完整公共 validator 独立于只读 input query；失败保留原 reason/span。
-    validate_iteration_facts(parsed, &names, complete.types(), &owned).map_err(|error| {
-        at(
-            sources,
-            "single full iteration validator",
-            &error,
-            error.span(),
-        )
-    })?;
-    report.check(
-        "single full iteration validator",
-        true,
-        "validate_iteration_facts: Ok",
-    );
-    report.check("single lower actually attempted", true, entry.id());
-    lower_scalar_file_with_entry(
+    unit_input_observed_with_entry(
         sources,
         parsed,
-        &names,
-        complete.types(),
-        &owned,
-        entry.id(),
+        SourceUnitInput::memory_document(parsed.source_id(), parsed),
+        entry_name,
+        report,
+        observe,
     )
-    .map_err(|error| lower_failure(sources, error))
 }
 
 pub(super) fn unit(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
@@ -417,83 +318,36 @@ fn unit_input_observed_with_entry(
         ));
     }
     report.check("unit lower actually attempted", true, entry.id());
-    lower_owned_unit_with_entry(&view, entry.id()).map_err(|error| lower_failure(sources, error))
-}
-
-// Actual entry argument-to-parameter delivery, independently of the provider exit-shape query.
-fn entry_single(
-    f: &Fixture,
-    names: &lang_frontend::name_resolution::NameResolution,
-    typed: &lang_frontend::type_checking::TypedFile,
-    owned: &lang_frontend::ownership_checking::OwnershipCheckedFile,
-    report: &mut Report,
-) {
-    use lang_frontend::{
-        name_resolution::ReferenceTarget,
-        ownership_checking::LoanKind,
-        parser::Expression,
-        type_checking::{CallableTarget, ParameterMode},
-    };
-    let Ok(site) = super::fixture::loop_site(f) else {
-        return;
-    };
-    let mode = if f.map {
-        ParameterMode::Value
-    } else {
-        ParameterMode::Borrow
-    };
-    for call_id in site.entry_calls {
-        let Some(call) = typed.call(call_id) else {
-            report.check("single actual entry scan descriptor", false, call_id);
-            continue;
-        };
-        let node = f.parsed.ast().expressions().get(call_id);
-        let argument = node.ok().and_then(|n| {
-            if let Expression::Call { arguments, .. } = n.payload() {
-                arguments.first()
-            } else {
-                None
-            }
-        });
-        let Some(argument) = argument else {
-            report.check("single actual entry scan argument", false, call_id);
-            continue;
-        };
-        let argument_node = f.parsed.ast().expressions().get(argument.value);
-        let target = match call.target() {
-            CallableTarget::Source(s) => names.symbols().iter().find(|v| v.id() == s),
-            _ => None,
-        };
-        let refs = names
-            .references()
-            .iter()
-            .filter(|r| argument_node.as_ref().is_ok_and(|n| r.span() == n.span()))
-            .collect::<Vec<_>>();
-        let source = match refs.as_slice() {
-            [r] => {
-                if let ReferenceTarget::Symbol(s) = r.target() {
-                    Some(*s)
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
-        report.check("single real entry scan target/source parameter slot/mode", target.is_some_and(|s| s.name() == "scan" && !s.is_synthetic())
-            && call.receiver().is_none() && matches!(call.arguments(), [a] if a.argument_index() == 0 && a.parameter_index() == 0 && a.mode() == mode && Some(a.parameter_type()) == typed.expression_type(argument.value))
-            && source.is_some(), (call_id, call, argument_node, refs));
-        let loans = owned
-            .loans()
-            .iter()
-            .filter(|loan| loan.call() == call_id)
-            .collect::<Vec<_>>();
-        report.check("single actual entry source borrow/value delivery facts", if f.map { loans.is_empty() } else {
-            matches!(loans.as_slice(), [loan] if loan.argument() == argument.value && loan.kind() == LoanKind::Shared
-                && matches!(loan.target(), lang_frontend::ownership_checking::LoanTarget::Place(p) if Some(p.root()) == source && p.is_root()))
-        }, loans);
+    let (program, lowered_entry) = lower_owned_unit_with_entry(&view, entry.id())
+        .map_err(|error| lower_failure(sources, error))?;
+    let entry_span = parsed
+        .ast()
+        .items()
+        .get(entry.root())
+        .map_err(|error| failure("unit selected entry AST identity", error))?
+        .span();
+    let entries = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .filter(|function| function.origin == crate::ssa::model::Origin::Source(entry_span))
+        .collect::<Vec<_>>();
+    let same = matches!(entries.as_slice(), [function] if function.id == lowered_entry);
+    report.check(
+        "unit returned entry is the selected original source function",
+        same,
+        (entry.id(), entry_span, lowered_entry),
+    );
+    if !same {
+        return Err(failure(
+            "unit returned entry source identity",
+            (lowered_entry, entries),
+        ));
     }
+    Ok((program, lowered_entry))
 }
 
+// Actual Unit entry argument-to-parameter delivery, independent of the exit-shape query.
 fn entry_unit(
     f: &Fixture,
     names: &lang_frontend::name_resolution::ValidatedCompilationUnitNames,

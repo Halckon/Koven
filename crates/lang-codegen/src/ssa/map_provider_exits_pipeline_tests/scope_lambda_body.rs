@@ -12,7 +12,7 @@ use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 pub(crate) use sources::{Case, sources};
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     println!(
-        "SCOPE A2 INPUT label={} unit={unit} source={:?} golden={:?}",
+        "SCOPE A2 INPUT label={} rooted={unit} source={:?} golden={:?}",
         c.label, c.source, c.golden
     );
     let mut sources = SourceMap::new();
@@ -26,33 +26,23 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     let input = ast::input(c, &sources, &parsed)?;
     let mut report = Report::default();
     let mut proof = None;
-    let lowered = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |n, t, o, r| {
-                let checked = facts::unit((c, &sources, &parsed, &input), n, t, o);
-                r.query(
-                    "A2 actual qualified callback/lambda/internal owner/complete cleanup",
-                    &checked,
-                );
-                proof = checked.ok();
-            },
-        )
-    } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
-            let checked = facts::single((c, &sources, &parsed, &input), n, t, o);
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &parsed,
+        "provider.ko",
+        &mut report,
+        unit,
+        |n, t, o, r| {
+            let checked = facts::unit((c, &sources, &parsed, &input), n, t, o);
             r.query(
-                "A2 actual callback/lambda/internal owner/complete cleanup",
+                "A2 actual qualified callback/lambda/internal owner/complete cleanup",
                 &checked,
             );
             proof = checked.ok();
-        })
-    };
+        },
+    );
     println!(
-        "SCOPE A2 LOWER label={} unit={unit} report={report:#?} outcome={:?}",
+        "SCOPE A2 LOWER label={} rooted={unit} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, e)| e)
     );
@@ -68,7 +58,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
     println!(
-        "SCOPE A2 FINAL label={} unit={unit} report={report:#?}",
+        "SCOPE A2 FINAL label={} rooted={unit} report={report:#?}",
         c.label
     );
     if report.passed() {
@@ -84,7 +74,7 @@ fn a2_original_lambda_body_sources_preserve_actual_identity() {
         for unit in [false, true] {
             let result = observe(&c, unit);
             println!(
-                "SCOPE A2 CASE label={} unit={unit} result={result:?}",
+                "SCOPE A2 CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
             outcomes.push((c.label, unit, result));

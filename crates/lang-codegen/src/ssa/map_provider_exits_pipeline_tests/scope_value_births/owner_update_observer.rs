@@ -51,7 +51,7 @@ pub(crate) fn cases() -> [Case; 10] {
 }
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     println!(
-        "SCOPE C UPDATE INPUT label={} unit={unit} source={:?} golden={:?}",
+        "SCOPE C UPDATE INPUT label={} rooted={unit} source={:?} golden={:?}",
         c.label, c.source, c.golden
     );
     let mut sources = SourceMap::new();
@@ -64,29 +64,27 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     clean(&sources, "parse", p.diagnostics())?;
     let i = ast::input(c, &sources, &p)?;
     println!(
-        "SCOPE C UPDATE AST label={} unit={unit} input={i:#?}",
+        "SCOPE C UPDATE AST label={} rooted={unit} input={i:#?}",
         c.label
     );
     let mut report = Report::default();
     let mut observed = false;
     let mut proof = None;
-    let lowered = if unit {
-        pipeline::unit_observed(&sources, &p, "provider.ko", &mut report, |n, t, o, r| {
+    let lowered = pipeline::unit_input_observed(
+        &sources,
+        &p,
+        "provider.ko",
+        &mut report,
+        unit,
+        |n, t, o, r| {
             observed = true;
             let query = facts::unit(c, &p, &i, n, t, o);
             r.query("update original qualified AST/type/ownership facts", &query);
             proof = query.ok();
-        })
-    } else {
-        pipeline::single_observed(&sources, &p, &mut report, |n, t, o, r| {
-            observed = true;
-            let query = facts::single(c, &p, &i, n, t, o);
-            r.query("update original AST/type/ownership facts", &query);
-            proof = query.ok();
-        })
-    };
+        },
+    );
     println!(
-        "SCOPE C UPDATE LOWER label={} unit={unit} observed={observed} report={report:#?} outcome={:?}",
+        "SCOPE C UPDATE LOWER label={} rooted={unit} observed={observed} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, e)| e)
     );
@@ -116,7 +114,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     let llvm = crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e));
     report.query("update actual LLVM verifier", &llvm);
     println!(
-        "SCOPE C UPDATE FINAL label={} unit={unit} report={report:#?}",
+        "SCOPE C UPDATE FINAL label={} rooted={unit} report={report:#?}",
         c.label
     );
     need(
@@ -130,12 +128,14 @@ fn original_owner_updates_report_real_facts() {
     let mut results = Vec::new();
     for c in cases() {
         for unit in [false, true] {
+            // P07/P08 retain their original rooted-only observation cells;
+            // this matrix boundary is not a capability fallback.
             if c.code <= 8 && !unit {
                 continue;
             }
             let result = observe(&c, unit);
             println!(
-                "SCOPE C UPDATE CASE label={} unit={unit} result={result:?}",
+                "SCOPE C UPDATE CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
             results.push((c.label, unit, result));

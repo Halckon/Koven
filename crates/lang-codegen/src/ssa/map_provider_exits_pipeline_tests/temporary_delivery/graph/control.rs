@@ -107,29 +107,84 @@ pub(super) fn check(
         "delivery no-For has one normal Return and no provider operations",
         g.function.id,
     )?;
-    // Walk all normal paths. A repeated block is a CFG cycle, never a place to Drop.
-    let mut pending = vec![(g.function.entry_block().unwrap(), 0usize, BTreeSet::new())];
-    while let Some((block, count, mut visited)) = pending.pop() {
+    // Rebuild the old current-owner/availability obligation from actual Unit
+    // values on every path and every edge, never from an undirected alias set.
+    let mut proven = BTreeSet::new();
+    let mut pending = vec![(
+        g.function.entry_block().unwrap(),
+        None,
+        0usize,
+        BTreeSet::new(),
+    )];
+    while let Some((block, mut current, mut count, mut visited)) = pending.pop() {
         need(
             visited.insert(block),
             "delivery control graph is acyclic",
             block,
         )?;
-        let count = count + usize::from(block == drop.block);
+        for instruction in g.ops(block)? {
+            for entity in instruction.operation.entities() {
+                if family.contains(&entity) {
+                    need(
+                        current == Some(entity),
+                        "Unit control operand is the actual live current returned owner",
+                        (instruction, current),
+                    )?;
+                }
+            }
+            if instruction.id == delivered.call.id {
+                need(
+                    current.is_none(),
+                    "Unit control unique owner birth",
+                    instruction,
+                )?;
+                current = Some(anchor);
+                proven.insert(anchor);
+            }
+            if instruction.id == drop.id {
+                need(
+                    matches!(drop.operation, Operation::Drop { owner } if current == Some(EntityId::Value(owner))),
+                    "Unit control Drop consumes its exact current owner",
+                    (instruction, current),
+                )?;
+                current = None;
+                count += 1;
+            }
+        }
         match &g.term(block)?.kind {
             TerminatorKind::Return { values } => need(
-                count == 1 && values.is_empty(),
-                "delivery every normal control Return drops output exactly once",
-                (block, count),
+                count == 1 && current.is_none() && values.is_empty(),
+                "Unit control every normal Return retires the original output once",
+                (block, count, current),
             )?,
             TerminatorKind::Abort => {}
             _ => {
                 for (_, edge) in g.edges.iter().filter(|(from, _)| *from == block) {
-                    pending.push((edge.target, count, visited.clone()));
+                    let carried = edge
+                        .arguments
+                        .iter()
+                        .copied()
+                        .filter(|entity| family.contains(entity))
+                        .collect::<Vec<_>>();
+                    need(
+                        carried == current.into_iter().collect::<Vec<_>>(),
+                        "Unit control edge carries only the live current owner, never a retired ancestor",
+                        (edge, current, &carried),
+                    )?;
+                    let next = current
+                        .map(|entity| g.transported(edge, entity))
+                        .transpose()?;
+                    proven.extend(next);
+                    pending.push((edge.target, next, count, visited.clone()));
                 }
             }
         }
     }
+    need(
+        proven == family,
+        "Unit control entire owner family is directionally proven",
+        (&proven, &family),
+    )?;
     need(
         family
             .iter()
@@ -151,5 +206,14 @@ pub(super) fn check(
             )?;
         }
     }
-    Ok(())
+    need(
+        proven.is_disjoint(&delivered.map_capabilities),
+        "Unit control returned owner is separate from every synchronous Map argument capability",
+        (&proven, &delivered.map_capabilities),
+    )?;
+    proven.extend(delivered.map_capabilities.iter().copied());
+    let types = std::iter::once(map)
+        .chain(delivered.map_types.iter().copied())
+        .collect::<Vec<_>>();
+    crate::ssa::map_provider_exits_pipeline_tests::query_inventory::check(g, &types, &proven)
 }

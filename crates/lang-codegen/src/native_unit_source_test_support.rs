@@ -36,7 +36,7 @@ use lang_frontend::{
     parser::{ParsedFile, parse_file},
     source::{SourceMap, Span},
     type_checking::{
-        ConstEnabledTypedUnit, FinalTypeAdmissionError, TypeEnvironment,
+        CompilationUnitTypes, ConstEnabledTypedUnit, FinalTypeAdmissionError, TypeEnvironment,
         ValidatedCompilationUnitTypes, check_compilation_unit_types,
         complete_compilation_unit_types, standard_environments,
     },
@@ -284,6 +284,22 @@ impl UnitSource {
 
     pub(crate) fn sources(&self) -> &SourceMap {
         &self.sources
+    }
+
+    /// Read the original AST and qualified names owned by this same admitted analysis.
+    pub(crate) fn parsed(&self) -> &ParsedFile {
+        &self.parsed
+    }
+
+    pub(crate) fn names(&self) -> &ValidatedCompilationUnitNames {
+        &self.names
+    }
+
+    pub(crate) fn types(&self) -> &CompilationUnitTypes {
+        match &self.products {
+            OwnedProducts::Basic(typed, _) => typed.types(),
+            OwnedProducts::Constant(typed, _) => typed.types(),
+        }
     }
 
     /// Inspect the same admitted ownership products subsequently consumed by lowering.

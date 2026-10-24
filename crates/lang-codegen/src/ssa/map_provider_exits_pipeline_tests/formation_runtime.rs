@@ -145,9 +145,9 @@ fn ordinary_resource_formations_reach_verified_llvm() {
     use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
     let mut outcomes = vec![];
     for case in sources() {
-        for unit in [false, true] {
+        for rooted in [false, true] {
             println!(
-                "FORMATION RESOURCE INPUT label={} unit={unit} axes={:?} source={:?} golden={:?}",
+                "FORMATION RESOURCE INPUT label={} rooted={rooted} axes={:?} source={:?} golden={:?}",
                 case.label,
                 (case.history, case.mutable, case.populated),
                 case.source,
@@ -164,31 +164,18 @@ fn ordinary_resource_formations_reach_verified_llvm() {
                 clean(&sources, "parse", parsed.diagnostics())?;
                 let mut report = Report::default();
                 let mut identity = None;
-                let result = if unit {
-                    pipeline::unit_observed(
-                        &sources,
-                        &parsed,
-                        "provider.ko",
-                        &mut report,
-                        |names, typed, owned, report| {
-                            let original = formation::unit(&sources, &parsed, names, typed, owned);
-                            report.query("formation runtime qualified original facts", &original);
-                            identity = Some(original);
-                        },
-                    )
-                } else {
-                    pipeline::single_observed(
-                        &sources,
-                        &parsed,
-                        &mut report,
-                        |names, typed, owned, report| {
-                            let original =
-                                formation::single(&sources, &parsed, names, typed, owned);
-                            report.query("formation runtime Single original facts", &original);
-                            identity = Some(original);
-                        },
-                    )
-                };
+                let result = pipeline::unit_input_observed(
+                    &sources,
+                    &parsed,
+                    "provider.ko",
+                    &mut report,
+                    rooted,
+                    |names, typed, owned, report| {
+                        let original = formation::unit(&sources, &parsed, names, typed, owned);
+                        report.query("formation runtime qualified original facts", &original);
+                        identity = Some(original);
+                    },
+                );
                 if let Ok((program, _)) = &result {
                     if let Some(Ok(input)) = &identity {
                         report.query(
@@ -208,7 +195,7 @@ fn ordinary_resource_formations_reach_verified_llvm() {
                     );
                 }
                 println!(
-                    "FORMATION RESOURCE OBSERVED label={} unit={unit} report={report:#?} result={:?}",
+                    "FORMATION RESOURCE OBSERVED label={} rooted={rooted} report={report:#?} result={:?}",
                     case.label,
                     result.as_ref().map(|(_, entry)| entry)
                 );
@@ -219,7 +206,7 @@ fn ordinary_resource_formations_reach_verified_llvm() {
                 Ok(())
             })();
             println!(
-                "FORMATION RESOURCE CASE label={} unit={unit} result={observed:?}",
+                "FORMATION RESOURCE CASE label={} rooted={rooted} result={observed:?}",
                 case.label
             );
             outcomes.push(observed);

@@ -1,4 +1,5 @@
 //! Concrete Map return with an unused generic parameter exercises the ordinary generic ABI.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 use super::temporary_arguments::{ast, facts};
 #[path = "generic_graph.rs"]
 mod graph;
@@ -119,26 +120,31 @@ fn observe(c: &Case, unit: bool, control: bool) -> Result<(), Failure> {
             },
         )
     } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
-            source_forms::facts::single(&sources, &parsed, n, t, o, r);
+        pipeline::memory_document_observed(&sources, &parsed, &mut report, |n, t, o, r| {
+            source_forms::facts::unit(&sources, &parsed, n, t, o, r);
             r.query(
-                "generic wrapper original forwarding Call",
-                &wrapper::single(&sources, &parsed, n, t, o),
+                "generic wrapper original qualified forwarding Call",
+                &wrapper::unit(&sources, &parsed, n, t, o),
             );
             r.query(
-                "generic original ordinary argument and selected overload proof",
-                &facts::single(c, &sources, &parsed, n, t, o, control),
+                "generic original ordinary argument and actual overload proof",
+                &facts::unit(c, &sources, &parsed, n, t, o, control),
             );
             let input = ast::input(&sources, &parsed, control).unwrap();
-            let call = t.call(input.produce).unwrap();
-            let ends = o
-                .loan_ends()
+            let unit = t
+                .calls()
                 .iter()
-                .filter(|e| e.call() == input.produce && e.argument() == input.value)
-                .collect::<Vec<_>>();
-            r.check("generic exact original CallReturn loan endpoint",matches!(ends.as_slice(),[e] if e.point()==lang_frontend::ownership_checking::LoanEndPoint::CallReturn(input.produce)),&ends);
-
-            r.check("generic actual concrete Int type argument",matches!(call.instance().type_arguments(),[ty]if t.types().get(*ty)==Some(&lang_frontend::type_checking::TypeKind::Builtin(lang_frontend::type_checking::BuiltinType::Int))),call);
+                .find(|call| call.expression().expression() == input.produce)
+                .unwrap()
+                .expression()
+                .source_unit();
+            let call = t
+                .call(lang_frontend::type_checking::UnitExpressionId::new(
+                    unit,
+                    input.produce,
+                ))
+                .unwrap();
+            r.check("generic actual concrete Int type argument",matches!(call.instance().type_arguments(),[ty]if t.types().get(*ty)==Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(lang_frontend::type_checking::BuiltinType::Int))),call);
         })
     };
     println!(
@@ -147,6 +153,10 @@ fn observe(c: &Case, unit: bool, control: bool) -> Result<(), Failure> {
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
+    report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     report.query(
         "generic same existing exact argument/current owner SSA proof",
         &graph::check(c, &sources, &parsed, &program, control),

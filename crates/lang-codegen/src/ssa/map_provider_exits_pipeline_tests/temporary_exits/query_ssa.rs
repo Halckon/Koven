@@ -103,7 +103,6 @@ struct Context<'a, 'ir> {
     graph: &'a Graph<'ir>,
     module: &'ir Module,
     f: &'a Input,
-    unit: bool,
 }
 impl Context<'_, '_> {
     fn site(&self, site: &SiteInput, uses: &mut Uses) -> Result<Shape, Failure> {
@@ -290,7 +289,6 @@ impl Context<'_, '_> {
             block: body,
             roles: body_roles,
             exit: self.f.exit,
-            unit: self.unit,
         }
         .check(uses, &mut protected)?;
         let mut blocks = vec![pre, header, body, exhausted];
@@ -538,6 +536,27 @@ fn finish(g: &Graph<'_>, shapes: &[&Shape], uses: &Uses) -> Result<(), Failure> 
         "temporary exits SSA per-function protected Return",
         &returns,
     )?;
+    // Every expected owner/lease/place is already tied to a real Call or
+    // Guard allocation and every incoming column, including the terminal path.
+    let mut types = Vec::new();
+    for shape in shapes {
+        let call = g
+            .function
+            .instruction(shape.call)
+            .ok_or_else(|| failure("temporary exits inventory real factory", shape.call))?;
+        types.push(ty(g, result(call)?)?.semantic_type());
+        types.push(ty(g, EntityId::Value(shape.guard))?.semantic_type());
+    }
+    let related = shapes
+        .iter()
+        .flat_map(|shape| shape.protected.iter().copied())
+        .filter(|&entity| {
+            g.function
+                .entity(entity)
+                .is_some_and(|data| types.contains(&data.ty.semantic_type()))
+        })
+        .collect::<BTreeSet<_>>();
+    super::super::query_inventory::check(g, &types, &related)?;
     uses.check(g, returns.first().copied())?;
     for entity in shapes.iter().flat_map(|s| s.protected.iter()) {
         let data = g
@@ -609,7 +628,6 @@ pub(super) fn check(
                 graph: &g,
                 module,
                 f,
-                unit: input.unit.is_some(),
             }
             .site(site, &mut uses)?;
             need(
@@ -629,7 +647,6 @@ pub(super) fn check(
             graph: &g,
             module,
             f,
-            unit: input.unit.is_some(),
         };
         let first = c.site(a, &mut uses)?;
         let second = c.site(b, &mut uses)?;

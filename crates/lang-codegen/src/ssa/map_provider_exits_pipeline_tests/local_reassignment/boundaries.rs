@@ -1,4 +1,5 @@
 //! Ordinary legal neighbors distinguish transparent RHS groups from unproved epoch arity.
+// The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 use super::*;
 
 pub(crate) fn grouped_sources() -> Vec<Case> {
@@ -80,29 +81,28 @@ fn observe(label: &str, source: &str, grouped: Option<&Case>, unit: bool) -> Res
             },
         )
     } else {
-        pipeline::single_observed(
+        pipeline::memory_document_observed(
             &sources,
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
                 if let Some(case) = grouped {
                     report.query(
-                        "grouped RHS original single epoch identity",
-                        &super::facts::single(case, &sources, &parsed, names, typed, owned),
+                        "grouped RHS original qualified epoch identity",
+                        &super::facts::unit(case, &sources, &parsed, names, typed, owned),
                     );
                 }
                 report.check(
-                    "neighbor original descriptor count",
+                    "neighbor original qualified descriptor count",
                     typed.map_iterations().len() == expected
                         && owned.map_iterations().len() == expected,
                     (typed.map_iterations(), owned.map_iterations()),
                 );
                 println!(
-                    "LOCAL REASSIGN NEIGHBOR SINGLE case={label} plans={:#?} drops={:#?} conditions={:#?}",
+                    "LOCAL REASSIGN NEIGHBOR UNIT case={label} plans={:#?} drops={:#?}",
                     owned.map_iterations(),
-                    owned.drops(),
-                    owned.cleanup_conditions()
+                    owned.drops()
                 );
             },
         )
@@ -112,10 +112,14 @@ fn observe(label: &str, source: &str, grouped: Option<&Case>, unit: bool) -> Res
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
+    report.query(
+        "Unit complete temporary source acquisition",
+        &source_forms::graph::temporary_entries(&parsed, &program),
+    );
     if let Some(case) = grouped {
         report.query(
             "grouped RHS independent SSA identities",
-            &super::graph::check(case, &sources, &parsed, &program, unit),
+            &super::graph::check(case, &sources, &parsed, &program, true),
         );
     }
     let verified =
