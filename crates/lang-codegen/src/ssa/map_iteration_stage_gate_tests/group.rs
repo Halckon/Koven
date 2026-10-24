@@ -1,10 +1,10 @@
-//! Group whole-set admission; original five fresh frontend identity paths remain required.
+//! Group whole-set：原五次 fresh 分析保留，Single 以真实 MemoryDocument Unit 准入。
 //! 五次 fresh 实际管线全收集后断言；FE 红不能变成 Unsupported，查询红不能阻止 lower。
 mod ast;
 mod cleanup;
 mod facts;
 mod fixture;
-mod single;
+mod ssa;
 mod unit;
 
 use super::{Pathway, Report, SourceCase};
@@ -78,12 +78,8 @@ fn observe(pathway: Pathway, reverse_inputs: bool) -> Observation {
             Fixture::new(&CASES)
         }
     };
-    let result = fixture.and_then(|fixture| match pathway {
-        Pathway::Single => single::collect(&fixture, "entry", &mut report),
-        Pathway::Basic | Pathway::Const => {
-            unit::collect(&fixture, pathway, reverse_inputs, "entry", &mut report)
-        }
-    });
+    let result = fixture
+        .and_then(|fixture| unit::collect(&fixture, pathway, reverse_inputs, "entry", &mut report));
     Observation {
         label: format!("group-whole-set/{pathway:?}/reverse={reverse_inputs}"),
         report,

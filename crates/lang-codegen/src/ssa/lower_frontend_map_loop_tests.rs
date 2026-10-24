@@ -1,7 +1,7 @@
 //! SPEC-0300: real source owner facts and normal-exhaustion SSA transport.
 use super::{analyze, lower_map_unit, lower_scalar_file};
 #[path = "lower_frontend_map_loop_unit_identity.rs"]
-mod unit_identity;
+pub(super) mod unit_identity;
 
 const ORIGINAL: &str =
     include_str!("../../tests/fixtures/owned-null-cleanup-0296/single-loop-boundary.ko");

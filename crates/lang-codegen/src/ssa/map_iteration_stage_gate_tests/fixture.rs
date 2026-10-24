@@ -9,6 +9,7 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     diagnostic::Diagnostic,
     lexer::lex,
+    name_resolution::{SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames},
     parser::{ForBinding, Item, NameMarker, ParsedFile, Statement, parse_file},
     source::{SourceMap, Span},
     type_checking::{IntrinsicTypeConstructor, MapIterationKind},
@@ -91,6 +92,69 @@ impl Fixture {
         };
         fixture.add("whole.ko", text, None)?;
         Ok(fixture)
+    }
+
+    pub fn inputs(
+        &self,
+        pathway: super::Pathway,
+        reverse_inputs: bool,
+    ) -> Result<Vec<SourceUnitInput<'_>>, Stopped> {
+        if matches!(pathway, super::Pathway::Single) {
+            let [file] = self.files.as_slice() else {
+                return Err(stopped("single unit input", "expected one original source"));
+            };
+            return Ok(vec![SourceUnitInput::memory_document(
+                file.parsed.source_id(),
+                &file.parsed,
+            )]);
+        }
+        let mut inputs = self
+            .files
+            .iter()
+            .map(|file| {
+                SourceUnitInput::new("root", &file.path, file.parsed.source_id(), &file.parsed)
+            })
+            .collect::<Vec<_>>();
+        if reverse_inputs {
+            inputs.reverse();
+        }
+        Ok(inputs)
+    }
+
+    pub fn check_input_identity(
+        &self,
+        pathway: super::Pathway,
+        names: &ValidatedCompilationUnitNames,
+        report: &mut super::Report,
+    ) {
+        let units = names.names().index().source_units();
+        let memory = matches!(pathway, super::Pathway::Single);
+        report.check(
+            "unit original input kind and complete source identity",
+            units.len() == self.files.len()
+                && (!memory || units.len() == 1)
+                && self.files.iter().all(|file| {
+                    file.parsed.package().is_none()
+                        && units
+                            .iter()
+                            .filter(|unit| {
+                                unit.source_id() == file.parsed.source_id()
+                                    && if memory {
+                                        unit.key() == &SourceUnitKey::MemoryDocument
+                                    } else {
+                                        unit.key()
+                                            .root()
+                                            .is_some_and(|root| root.as_str() == "root")
+                                            && unit.key().logical_path().is_some_and(|path| {
+                                                path.as_str() == file.path.as_str()
+                                            })
+                                    }
+                            })
+                            .count()
+                            == 1
+                }),
+            units,
+        );
     }
 
     pub fn function_location(&self, name_span: Span) -> Option<Location> {
@@ -195,6 +259,7 @@ pub(super) fn location(sources: &SourceMap, span: Span) -> Option<Location> {
 #[derive(Debug)]
 pub(super) struct LowerOutcome {
     error: Option<LoweringError>,
+    error_location: Option<Location>,
     success: Option<SuccessfulLower>,
 }
 
@@ -246,11 +311,20 @@ impl LowerOutcome {
                 )
             }
         };
-        Self { error, success }
+        let error_location = error
+            .as_ref()
+            .and_then(|error| error.span)
+            .and_then(|span| location(sources, span));
+        Self {
+            error,
+            error_location,
+            success,
+        }
     }
 
     pub fn matches(&self) -> bool {
         self.error.is_none()
+            && self.error_location.is_none()
             && self.success.as_ref().is_some_and(|success| {
                 // 同一分析的真实返回 ID 与源身份；无跨分析裸 ID 比较。
                 success
