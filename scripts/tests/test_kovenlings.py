@@ -18,7 +18,7 @@ class KovenlingsContracts(unittest.TestCase):
         for row in rows:
             self.assertTrue(row['hint'].strip())
             self.assertEqual(row['starter']['status'], 'diagnostic')
-            self.assertEqual(row['starter']['build']['exit'], 2)
+            self.assertEqual(row['starter']['build']['exit'], 1)
             self.assertEqual(row['solution']['status'], 'executable')
             self.assertEqual(row['solution']['artifact']['exit'], 0)
 
