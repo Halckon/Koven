@@ -1,4 +1,4 @@
-//! SPEC-0331 的普通 Map provider 成功合同；四条真实 pipeline 全收齐后统一断言。
+//! SPEC-0331 的普通 Map provider 成功合同；两种真实 Unit 输入的四格全收齐后断言。
 //! 不执行 native，不以当前 lower 的 UnsupportedNode 债务作为通过条件。
 
 mod facts;
@@ -7,6 +7,7 @@ mod identity;
 mod pipeline;
 mod query_inputs;
 mod query_llvm;
+mod query_owner;
 mod query_ssa;
 mod query_test;
 
@@ -61,7 +62,7 @@ struct Observation {
 fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
     let mut report = Report::default();
     let outcome = Fixture::new(label, text).and_then(|fixture| {
-        // unit 也保持单 source 和原始字节；无 package 时只用默认包 provider.ko/entry。
+        // false 是 MemoryDocument，true 是原 logical-path Unit；各自保持原始单源字节。
         println!(
             "SPEC0331 PROVIDER INPUT case={label} unit={unit} path={:?} text={text:?}",
             fixture.path
