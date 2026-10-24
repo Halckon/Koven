@@ -122,13 +122,13 @@ impl UnitExpressionLowerer<'_> {
             else {
                 return Ok(LoweredValue::Diverged);
             };
-            if !matches!(lowered.arguments.as_slice(), [EntityId::Loan(_)]) {
+            let [EntityId::Loan(message)] = lowered.arguments.as_slice() else {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
+            };
             self.function
-                .set_terminator(
+                .set_abort_terminator(
                     self.block,
-                    crate::ssa::model::TerminatorKind::Abort,
+                    crate::ssa::model::AbortReason::Error { message: *message },
                     Origin::Source(span),
                 )
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;

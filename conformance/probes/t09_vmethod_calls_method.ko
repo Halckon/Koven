@@ -1,0 +1,2 @@
+value class V(val x: Int) { fun dbl(): Int = this.x * 2; fun quad(): Int = this.dbl() * 2 }
+fun main(): Unit { if (V(1).quad() == 4) { println("vmethod-chain") } }

@@ -7,7 +7,7 @@
       "starter": {
         "status": "diagnostic",
         "build": {
-          "exit": 2,
+          "exit": 1,
           "stdout": "",
           "stderr": "{\"code\":\"L0134\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":33,\"byte_start\":27,\"end\":{\"column\":15,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":9,\"line\":2}},\"message\":\"immutable binding declared here\"}],\"message\":\"inout argument is not a mutable place\",\"primary\":{\"byte_end\":66,\"byte_start\":65,\"end\":{\"column\":29,\"line\":3},\"source\":\"source.ko\",\"start\":{\"column\":28,\"line\":3}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
         }
@@ -38,7 +38,7 @@
       "starter": {
         "status": "diagnostic",
         "build": {
-          "exit": 2,
+          "exit": 1,
           "stdout": "",
           "stderr": "{\"code\":\"L0131\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":216,\"byte_start\":208,\"end\":{\"column\":21,\"line\":7},\"source\":\"source.ko\",\"start\":{\"column\":13,\"line\":7}},\"message\":\"value was moved here\"},{\"kind\":\"label\",\"location\":{\"byte_end\":105,\"byte_start\":83,\"end\":{\"column\":35,\"line\":4},\"source\":\"source.ko\",\"start\":{\"column\":13,\"line\":4}},\"message\":\"selected parameter declared here\"}],\"message\":\"use of moved value\",\"primary\":{\"byte_end\":238,\"byte_start\":230,\"end\":{\"column\":21,\"line\":8},\"source\":\"source.ko\",\"start\":{\"column\":13,\"line\":8}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
         }

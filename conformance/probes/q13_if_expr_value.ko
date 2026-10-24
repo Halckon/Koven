@@ -1,0 +1,1 @@
+fun main(): Unit { val x = 3; val s = if (x > 2) "big" else "small"; println(s) }

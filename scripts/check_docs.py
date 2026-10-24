@@ -35,7 +35,7 @@ MARKDOWN_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 HTML_TAG_RE = re.compile(
     r"</?[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][^>]*)?\s*/?>"
 )
-CURRENT_GUIDE_VERSION = "v0.45"
+CURRENT_GUIDE_VERSION = "v0.46"
 CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*(v[\d.]+)\s*-->")
 CURRENT_COMPILER_CONTRACTS_RE = re.compile(r"<!--\s*current-compiler-contracts\s*-->")
 SCOPED_AGENT_DIRS = (
@@ -52,9 +52,10 @@ EXPECTED_DRAFT_SPEC_IDS = {
     "v0.40": frozenset(),
     "v0.43": frozenset({"0292"}),
     "v0.44": frozenset({"0334", "0335", "0336", "0337", "0338", "0339", "0340"}),
+    "v0.46": frozenset(),
 }
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
-    {*(f"{number:04d}" for number in range(1, 25)), "0026", "0027", "0028", "0029", "0030", "0031"}
+    {*(f"{number:04d}" for number in range(1, 25)), "0026", "0027", "0028", "0029", "0030", "0031", "0032", "0033"}
 )
 EXPECTED_PROPOSED_ADR_IDS: frozenset[str] = frozenset({"0025"})
 EXPECTED_ARCHIVED_ADR_IDS: frozenset[str] = frozenset()
@@ -336,6 +337,7 @@ class DocsChecker:
         self.check_line_budgets()
         self.check_evidence_retention()
         self.check_generated_graph()
+        self.check_generated_roadmap()
         return sorted(set(self.errors))
 
     def check_generated_graph(self) -> None:
@@ -343,6 +345,13 @@ class DocsChecker:
         from gen_spec_dag import drift_errors
 
         for message in drift_errors(self.root):
+            self.error(message)
+
+    def check_generated_roadmap(self) -> None:
+        """Verify the v1 roadmap data is valid and its views are byte-fresh."""
+        from gen_roadmap import drift_errors as roadmap_drift_errors
+
+        for message in roadmap_drift_errors(self.root):
             self.error(message)
 
     def check_links(self) -> None:
@@ -575,6 +584,7 @@ class DocsChecker:
                     "docs/architecture/",
                     "docs/development/",
                     "docs/proposals/",
+                    "docs/roadmap/",
                     "docs/specs/",
                     "docs/adr/",
                 )

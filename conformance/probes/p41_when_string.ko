@@ -1,0 +1,1 @@
+fun main(): Unit { val s = "b"; val n = when (s) { "a" -> 1; "b" -> 2; else -> 0 }; if (n == 2) { println("when-str") } }

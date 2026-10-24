@@ -672,7 +672,7 @@ fn assert_diagnostics(directory: &Directory, source: &str, root: Option<&str>, e
             if operation == "build" {
                 arguments.extend(["-o", "must-not-publish"]);
             }
-            assert_output(&directory.invoke(format, &arguments), 2, "", stderr);
+            assert_output(&directory.invoke(format, &arguments), 1, "", stderr);
             assert!(!directory.path().join("must-not-publish").exists());
             directory.assert_no_temporaries();
         }

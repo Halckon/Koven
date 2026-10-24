@@ -331,7 +331,14 @@ fn selected_source_order_and_forward_types_keep_basic_qualification() {
         assert_eq!(names.names().index().source_units().len(), 2);
         let typed =
             check_compilation_unit_types(&sources, &selected, &names, &types).expect("raw types");
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        // Guide v0.46: the provider's top-level runtime value is L0167; the forward boundary
+        // below is still observable as a recovery fact.
+        let codes = typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(codes, ["L0167"], "{:?}", typed.diagnostics());
         let source_unit = |source| {
             names
                 .names()
@@ -364,8 +371,8 @@ fn selected_source_order_and_forward_types_keep_basic_qualification() {
         );
         snapshots.push(typed.expression_types().clone());
         assert!(
-            typed.validate().is_ok(),
-            "base validation is deliberately not final"
+            typed.validate().is_err(),
+            "a top-level runtime value cannot qualify"
         );
     }
     assert_eq!(snapshots[0], snapshots[1]);

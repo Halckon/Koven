@@ -1,0 +1,5 @@
+fun parse(n: Int): Result<String, String> = if (n > 0) Result.Ok("good") else Result.Err("bad")
+fun main(): Unit {
+    val r = parse(1)
+    when (r) { is Result.Ok<String, String> -> println(r.success); is Result.Err<String, String> -> println(r.error) }
+}

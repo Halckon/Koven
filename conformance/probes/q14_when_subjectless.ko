@@ -1,0 +1,1 @@
+fun main(): Unit { val x = 5; val s = when { x < 3 -> "low"; x < 7 -> "mid"; else -> "high" }; println(s) }

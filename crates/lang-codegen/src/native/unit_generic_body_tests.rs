@@ -167,6 +167,8 @@ fn unit_generic_body_native_nullable_resource_and_empty_container() {
     }
 }
 
+/// SPEC-0350: the nongeneric `Int?` body is inside the refinement subset and now runs;
+/// the generic `T?` body below still takes the existing path and keeps its rejection.
 #[test]
 fn unit_generic_body_native_nongeneric_nullable_int_control() {
     let analysis = analyze_sources(
@@ -177,9 +179,13 @@ fn unit_generic_body_native_nongeneric_nullable_int_control() {
             return 0
         }"#,
         r#"package q
-        fun entry(): Unit { val size = p.nullable(1) }"#,
+        fun entry(): Unit {
+            val size = p.nullable(1)
+            if (size == 0) { println("refined-nullable") }
+        }"#,
     );
-    assert_nullable_int_rejection(&analysis);
+    // Copyable Int? allocates nothing, so the allocation-counting harness does not apply.
+    run(&analysis, b"refined-nullable\n");
 }
 
 #[test]
@@ -296,7 +302,7 @@ fn assert_nullable_int_rejection(analysis: &UnitAnalysis) {
         .span();
     assert_eq!(span.source_id(), analysis.provider_source);
     let error = reject_preserving_outputs(analysis);
-    // Frozen from the real nongeneric control: the type plan omits unsupported
+    // Frozen from the generic body on the existing lowering path: its type plan omits
     // inline nullable storage, and this null literal has no SSA type mapping.
     assert_eq!(error.kind(), NativeObjectErrorKind::InvalidModel);
     assert_eq!(error.span(), Some(span));

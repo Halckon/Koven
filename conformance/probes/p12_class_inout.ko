@@ -1,0 +1,2 @@
+class Counter(var count: Int) { inout fun inc(): Unit { this.count = this.count + 1 } }
+fun main(): Unit { var c = Counter(0); c.inc(); c.inc(); if (c.count == 2) { println("counter") } }

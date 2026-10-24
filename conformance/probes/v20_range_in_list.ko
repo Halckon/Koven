@@ -1,0 +1,1 @@
+fun main(): Unit { val rs = listOf(1..2, 5..6); var n = 0; for (r in rs) { if (3 in r) { n = n + 1 } }; if (n == 0 && rs.size == 2) { println("range-in-list") } }

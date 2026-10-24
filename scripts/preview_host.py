@@ -357,7 +357,7 @@ def _inspect_host(binary, evidence):
         libraries, records, minimum = mac_libraries(binary, evidence)
         host.update(libraries=libraries, load_records=records, minimum_os=minimum)
         probe = run_probe([binary, '--help'], {**os.environ, 'DYLD_PRINT_LIBRARIES': '1'}, evidence)
-        if probe.returncode != 2 or b'unknown command --help' not in probe.stderr:
+        if probe.returncode != 0 or not probe.stdout.startswith(b'usage: kovenc'):
             raise ValueError('actual CLI loader probe did not reach the command boundary')
         loaded = verify_dyld_loads(probe.stderr.decode('utf-8', errors='strict'), binary, libraries)
         host.update(os_version=platform.mac_ver()[0], libraries=libraries,

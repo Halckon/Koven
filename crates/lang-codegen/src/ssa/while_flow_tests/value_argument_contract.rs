@@ -38,13 +38,13 @@ pub(super) fn assert_value_argument(program: &Program, source: &str, unit: bool,
     else {
         unreachable!()
     };
-    let while_start = source.find("while (").unwrap();
-    let while_length = source[while_start..].find('}').unwrap() + 1;
+    // SPEC-0350: in both layouts `entry` lies in the refinement subset, which attributes
+    // the proof branch to the null comparison rather than the whole `while`.
     assert_source(
         &header.terminator.as_ref().unwrap().origin,
         source_id,
-        while_start,
-        while_length,
+        source.find("current != null").unwrap(),
+        "current != null".len(),
         unit,
     );
     let body = function.block(when_non_null.target).unwrap();

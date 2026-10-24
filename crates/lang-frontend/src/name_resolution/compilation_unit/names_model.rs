@@ -26,6 +26,8 @@ pub enum CompilationUnitNameError {
     DiagnosticCode(DiagnosticCodeError),
     /// unit 诊断无法由受检模型构造。
     Diagnostic(DiagnosticError),
+    /// 宿主授权的内建环境来源不在本 unit 中，或未导出所需名称。
+    MissingBuiltinExport(&'static str),
 }
 impl fmt::Display for CompilationUnitNameError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -39,6 +41,10 @@ impl fmt::Display for CompilationUnitNameError {
             }
             Self::DiagnosticCode(error) => write!(formatter, "invalid diagnostic catalog: {error}"),
             Self::Diagnostic(error) => write!(formatter, "invalid unit diagnostic: {error}"),
+            Self::MissingBuiltinExport(name) => write!(
+                formatter,
+                "authorized built-in source does not provide `{name}` in this compilation unit"
+            ),
         }
     }
 }
@@ -169,6 +175,7 @@ pub struct CompilationUnitNames {
     declaration_symbols: BTreeMap<DeclarationId, UnitSymbolId>,
     references: Vec<UnitNameReference>,
     value_lookup_hints: Vec<UnitNameReference>,
+    builtin_result: Option<DeclarationId>,
     diagnostics: Vec<Diagnostic>,
 }
 impl CompilationUnitNames {
@@ -185,8 +192,18 @@ impl CompilationUnitNames {
             declaration_symbols,
             references,
             value_lookup_hints: Vec::new(),
+            builtin_result: None,
             diagnostics,
         }
+    }
+    pub(super) fn with_builtin_result(mut self, declaration: Option<DeclarationId>) -> Self {
+        self.builtin_result = declaration;
+        self
+    }
+    /// 返回宿主授权标准源中的内建 `Result` 声明；未授权内建环境时为 `None`。
+    #[must_use]
+    pub const fn builtin_result_declaration(&self) -> Option<DeclarationId> {
+        self.builtin_result
     }
     pub(super) fn with_value_lookup_hints(mut self, hints: Vec<UnitNameReference>) -> Self {
         self.value_lookup_hints = hints;
@@ -261,5 +278,10 @@ impl ValidatedCompilationUnitNames {
     #[must_use]
     pub fn into_names(self) -> CompilationUnitNames {
         self.0
+    }
+    /// 返回内建 `Result` 声明，供 postfix `?` 等后续阶段按身份而非拼写识别。
+    #[must_use]
+    pub const fn builtin_result_declaration(&self) -> Option<DeclarationId> {
+        self.0.builtin_result
     }
 }

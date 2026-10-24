@@ -1,0 +1,2 @@
+import koven.algorithms.take
+fun main(): Unit { val xs = listOf("a", "b", "c"); for (x in take(xs, 2)) { println(x) } }

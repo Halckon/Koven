@@ -51,10 +51,7 @@ fn routes() -> Vec<Route> {
         Route {
             name: "companion",
             callee: "Tools.other",
-            declarations: format!(
-                "class Tools{{companion object{{{}}}}}",
-                body("companion-call")
-            ),
+            declarations: format!("class Tools{{companion{{{}}}}}", body("companion-call")),
             receiver: false,
             delegated: false,
         },

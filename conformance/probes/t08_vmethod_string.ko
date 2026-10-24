@@ -1,0 +1,2 @@
+value class Tag(val n: Int) { fun label(): String = if (this.n > 0) "pos" else "neg" }
+fun main(): Unit { println(Tag(1).label()) }

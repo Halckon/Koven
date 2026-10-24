@@ -1,0 +1,119 @@
+// 表达式求值：把内嵌的字符序列解析成 Box 递归的表达式树（+ - * / 与括号，
+// 左结合、乘除优先于加减），打印加全括号的树后求值；语法错误与除零以 Result 报告。
+
+enum class Expr {
+    Num(n: Int),
+    Bin(op: Char, left: Box<Expr>, right: Box<Expr>)
+}
+
+fun digit(c: Char): Int = when (c) {
+    '0' -> 0; '1' -> 1; '2' -> 2; '3' -> 3; '4' -> 4
+    '5' -> 5; '6' -> 6; '7' -> 7; '8' -> 8; '9' -> 9
+    else -> -1
+}
+
+class Parser(val src: List<Char>, var pos: Int) {
+    fun atEnd(): Boolean = this.pos >= this.src.size
+    fun peek(): Char = if (this.atEnd()) '\0' else this.src[this.pos]
+
+    inout fun skipSpaces(): Unit {
+        while (this.peek() == ' ') { this.pos = this.pos + 1 }
+    }
+
+    inout fun parseAll(): Result<Expr, String> {
+        val tree = this.parseSum()?
+        this.skipSpaces()
+        if (!this.atEnd()) return Err("unexpected '${this.peek()}' at ${this.pos}")
+        return Ok(tree)
+    }
+
+    inout fun parseSum(): Result<Expr, String> {
+        var left = this.parseProduct()?
+        this.skipSpaces()
+        while (this.peek() == '+' || this.peek() == '-') {
+            val op = this.peek()
+            this.pos = this.pos + 1
+            val right = this.parseProduct()?
+            left = Expr.Bin(op, Box(left), Box(right))
+            this.skipSpaces()
+        }
+        return Ok(left)
+    }
+
+    inout fun parseProduct(): Result<Expr, String> {
+        var left = this.parseAtom()?
+        this.skipSpaces()
+        while (this.peek() == '*' || this.peek() == '/') {
+            val op = this.peek()
+            this.pos = this.pos + 1
+            val right = this.parseAtom()?
+            left = Expr.Bin(op, Box(left), Box(right))
+            this.skipSpaces()
+        }
+        return Ok(left)
+    }
+
+    inout fun parseAtom(): Result<Expr, String> {
+        this.skipSpaces()
+        if (this.atEnd()) return Err("unexpected end at ${this.pos}")
+        if (this.peek() == '(') {
+            this.pos = this.pos + 1
+            val inner = this.parseSum()?
+            if (this.peek() != ')') return Err("expected ')' at ${this.pos}")
+            this.pos = this.pos + 1
+            return Ok(inner)
+        }
+        if (digit(this.peek()) < 0) return Err("unexpected '${this.peek()}' at ${this.pos}")
+        var n = 0
+        while (digit(this.peek()) >= 0) {
+            n = n * 10 + digit(this.peek())
+            this.pos = this.pos + 1
+        }
+        return Ok(Expr.Num(n))
+    }
+}
+
+fun show(e: Expr): String = when (e) {
+    is Expr.Num -> "${e.n}"
+    is Expr.Bin -> "(" + show(e.left.value) + " ${e.op} " + show(e.right.value) + ")"
+}
+
+fun combine(op: Char, a: Int, b: Int): Result<Int, String> = when (op) {
+    '+' -> Ok(a + b)
+    '-' -> Ok(a - b)
+    '*' -> Ok(a * b)
+    else -> if (b == 0) Err("division by zero") else Ok(a / b)
+}
+
+fun eval(e: Expr): Result<Int, String> = when (e) {
+    is Expr.Num -> Ok(e.n)
+    is Expr.Bin -> combine(e.op, eval(e.left.value)?, eval(e.right.value)?)
+}
+
+fun run(own src: List<Char>): Unit {
+    val parser = Parser(src, 0)
+    val parsed = parser.parseAll()
+    when (parsed) {
+        is Ok -> {
+            val text = show(parsed.success)
+            val result = eval(parsed.success)
+            when (result) {
+                is Ok -> println(text + " = ${result.success}")
+                is Err -> println(text + " = error: " + result.error)
+            }
+        }
+        is Err -> println("parse error: " + parsed.error)
+    }
+}
+
+fun main(): Unit {
+    run(listOf('1', ' ', '+', ' ', '2', ' ', '*', ' ', '3'))
+    run(listOf('(', '1', '+', '2', ')', '*', '3'))
+    run(listOf(
+        '1', '0', '0', ' ', '/', ' ', '(', '7', ' ', '-', ' ', '2', ')',
+        ' ', '-', ' ', '4', '*', '3'
+    ))
+    run(listOf('8', ' ', '/', ' ', '(', '3', ' ', '-', ' ', '3', ')'))
+    run(listOf('2', ' ', '*', ' ', '(', '3', ' ', '+'))
+    run(listOf('1', '2', ' ', '%', ' ', '5'))
+}

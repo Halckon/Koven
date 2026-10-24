@@ -1,0 +1,1 @@
+fun main(): Unit { val n = "k"; println("hello ${n}") }

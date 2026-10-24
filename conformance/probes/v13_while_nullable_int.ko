@@ -1,0 +1,1 @@
+fun main(): Unit { var x: Int? = 5; var total = 0; while (x != null) { total = total + x; x = null }; if (total == 5) { println("while-nullable") } }

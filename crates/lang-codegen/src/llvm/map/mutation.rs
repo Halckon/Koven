@@ -172,7 +172,10 @@ pub(in crate::llvm) fn put<'ctx>(
     )?;
     builder.build_conditional_branch(found_tombstone, write_slot, no_slot)?;
     builder.position_at_end(no_slot);
-    runtime.emit_abort(builder)?;
+    runtime.emit_abort(
+        builder,
+        crate::llvm::runtime::AbortMessage::Text("internal error: map has no free slot"),
+    )?;
 
     builder.position_at_end(loop_body);
     // SAFETY: the verified slot layout and capacity-bounded index describe this buffer access.

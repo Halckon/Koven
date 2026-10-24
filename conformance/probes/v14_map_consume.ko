@@ -1,0 +1,1 @@
+fun main(): Unit { var m = mutableMapOf<String, Int>(); m.put("a", 1); m.put("b", 2); val r = m.consume(); val v = r.get("b"); if (v != null && v == 2 && r.size == 2) { println("consume") } }

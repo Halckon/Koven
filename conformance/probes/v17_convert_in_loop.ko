@@ -1,0 +1,1 @@
+fun main(): Unit { var s: Long = 0L; for (i in 0..<3) { s = s + i.toLong() }; if (s == 3L) { println("conv-loop") } }

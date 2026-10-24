@@ -1,0 +1,17 @@
+0 -> [0]
+1 -> [2]
+-1 -> [1]
+63 -> [126]
+-64 -> [127]
+64 -> [128 1]
+300 -> [216 4]
+-12345 -> [241 192 1]
+2147483647 -> [254 255 255 255 15]
+-2147483648 -> [255 255 255 255 15]
+total bytes: 22
+roundtrip 10/10, at end: true
+decode truncated [172 2 128]:
+  value 150
+  error: truncated varint at byte 3
+decode overlong [255 255 255 255 255 1]:
+  error: varint too long at byte 5

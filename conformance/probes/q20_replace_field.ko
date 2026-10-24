@@ -1,0 +1,2 @@
+class Box2(var s: String)
+fun main(): Unit { val b = Box2("old"); val prev = replace(&b.s, "new"); println(prev); println(b.s) }

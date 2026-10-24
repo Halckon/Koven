@@ -72,25 +72,25 @@ impl Fixture {
 #[test]
 fn selected_companion_calls_report_precise_native_capability() {
     let mut observations = Vec::new();
-    const INDEPENDENT: &str = "class Factory { companion object { fun identity(value: Int): Int = value } }\nfun main(): Unit { val result = Factory.identity(7); if (result == 7) { println(\"factory\") } }";
+    const INDEPENDENT: &str = "class Factory { companion { fun identity(value: Int): Int = value } }\nfun main(): Unit { val result = Factory.identity(7); if (result == 7) { println(\"factory\") } }";
     for (text, expected_start, expected_end, expected_call) in [
         (
             include_str!(
                 "../../../lang-frontend/tests/fixtures/final-admission-static-recovery-0323/p28_companion.ko"
             ),
-            95,
-            105,
+            88,
+            98,
             "P.origin()",
         ),
         (
             include_str!(
                 "../../../lang-frontend/tests/fixtures/final-admission-static-recovery-0323/companion_minimal.ko"
             ),
-            95,
-            105,
+            88,
+            98,
             "P.origin()",
         ),
-        (INDEPENDENT, 109, 128, "Factory.identity(7)"),
+        (INDEPENDENT, 102, 121, "Factory.identity(7)"),
     ] {
         let fixture = Fixture::new(text);
         let inputs = fixture.inputs();
@@ -201,7 +201,7 @@ fn selected_companion_calls_report_precise_native_capability() {
 fn unused_companion_preserves_top_level_and_instance_native_calls() {
     let fixture = Fixture::new(
         "class Holder(val item: Int) {\n\
-             companion object { fun create(): Holder = Holder(1) }\n\
+             companion { fun create(): Holder = Holder(1) }\n\
              fun value(): Int = item\n\
          }\n\
          fun top(): Int = 7\n\

@@ -1,0 +1,2 @@
+fun apply(f: (Int) -> Int, x: Int): Int = f(x)
+fun main(): Unit { val k = 3; if (apply({ n -> n * k }, 7) == 21) { println("lambda") } }

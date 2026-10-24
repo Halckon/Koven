@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 
 use crate::ssa::{
     model::{
-        Definition, EntityId, EntityType, FunctionId, LoanKind, Operation, Program, SsaTypeKind,
-        TerminatorKind,
+        Block, Definition, EntityId, EntityType, FunctionId, LoanKind, Operation, Program,
+        SsaTypeKind, TerminatorKind,
     },
     unit_lower::lower_owned_unit_with_entry,
     verify::verify_program,
@@ -15,14 +15,15 @@ use lang_frontend::{
         UnitNameSnapshot, UnitSourceDescriptor, analyze_basic_unit_ownership,
         analyze_parsed_unit_names,
     },
+    ast::StatementId,
     diagnostic::Severity,
     lexer::lex,
-    name_resolution::SymbolKind,
+    name_resolution::{SourceUnitInput, SymbolKind},
     ownership_checking::{
         OwnedCompilationUnitView, UnitDropPoint, UnitDropTarget, owned_compilation_unit_view,
     },
     parser::{Expression, parse_file},
-    source::SourceMap,
+    source::{SourceMap, Span},
     type_checking::{
         BuiltinType, DeferredReason, FinalTypeAdmissionError, TypeEnvironment,
         UnitAggregateProjectionReceiver, UnitExpressionId, UnitTypeKind,
@@ -102,8 +103,11 @@ fun main(): Unit {
     }
 }
 
+/// SPEC-0350: `main` is inside the refinement subset, which proves every null test with
+/// a `NullableBranch`. Without a field use the view ends at once, before the owner's
+/// published drop on that edge; the null edge drops the same owner.
 #[test]
-fn ordinary_null_check_without_field_use_does_not_mint_a_view() {
+fn ordinary_null_check_without_field_use_ends_its_view_before_the_drop() {
     let text = r#"class Node(val v: Int)
 fun main(): Unit {
     val a: Node? = Node(5)
@@ -111,7 +115,82 @@ fun main(): Unit {
 }
 "#;
     for root in ["single", "src"] {
-        check_source(text, root, 0);
+        let (program, entry) = check_source_with(text, root, |_, _, _| {});
+        let function = program
+            .module(entry.module())
+            .unwrap()
+            .function(entry)
+            .unwrap();
+        let (owner, null_edge, non_null_edge, loan) = only(function.blocks.iter().filter_map(
+            |block| match &block.terminator.as_ref()?.kind {
+                TerminatorKind::NullableBranch {
+                    owner,
+                    when_null,
+                    when_non_null,
+                    view,
+                } => Some((*owner, when_null, when_non_null, *view)),
+                _ => None,
+            },
+        ));
+        let body = function.block(non_null_edge.target).unwrap();
+        let null = function.block(null_edge.target).unwrap();
+        let column = only(
+            non_null_edge
+                .arguments
+                .iter()
+                .enumerate()
+                .filter_map(|(index, entity)| (*entity == EntityId::Value(owner)).then_some(index)),
+        );
+        assert_eq!(body.parameters.last(), Some(&EntityId::Loan(loan)));
+        let users = function
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                instruction
+                    .operation
+                    .entities()
+                    .contains(&EntityId::Loan(loan))
+            })
+            .collect::<Vec<_>>();
+        let [end] = users.as_slice() else {
+            panic!("the view's only use is its end")
+        };
+        assert!(matches!(end.operation, Operation::BorrowEnd { .. }));
+        let drops = |block: &crate::ssa::model::Block, owner: EntityId| {
+            block
+                .instructions
+                .iter()
+                .filter(|id| {
+                    matches!(function.instruction(**id).unwrap().operation,
+                        Operation::Drop { owner: dropped } if EntityId::Value(dropped) == owner)
+                })
+                .count()
+        };
+        assert_eq!(drops(body, body.parameters[column]), 1);
+        assert_eq!(drops(null, null.parameters[column]), 1);
+        let position = |id| {
+            body.instructions
+                .iter()
+                .position(|candidate| *candidate == id)
+        };
+        let drop = body
+            .instructions
+            .iter()
+            .copied()
+            .find(|id| {
+                matches!(
+                    function.instruction(*id).unwrap().operation,
+                    Operation::Drop { .. }
+                )
+            })
+            .unwrap();
+        assert!(position(end.id) < position(drop));
+        assert!(
+            function.instructions.iter().all(|instruction| !matches!(
+                instruction.operation,
+                Operation::HeapFieldRead { .. }
+            ))
+        );
     }
 }
 
@@ -236,6 +315,16 @@ fn snapshot(text: &str, root: &str) -> (UnitNameSnapshot, TypeEnvironment) {
 }
 
 fn check_source(text: &str, root: &str, expected: usize) -> (Program, FunctionId) {
+    check_source_with(text, root, |program, entry, view| {
+        assert_field_proofs(program, entry, view, expected);
+    })
+}
+
+fn check_source_with(
+    text: &str,
+    root: &str,
+    shape: impl FnOnce(&Program, FunctionId, &OwnedCompilationUnitView<'_, '_>),
+) -> (Program, FunctionId) {
     let (snapshot, environment) = snapshot(text, root);
     let sources = snapshot.sources();
     let inputs = snapshot.inputs();
@@ -267,7 +356,7 @@ fn check_source(text: &str, root: &str, expected: usize) -> (Program, FunctionId
     let (program, entry) = lower_owned_unit_with_entry(&view, declaration.id())
         .unwrap_or_else(|error| panic!("whole {root} source failed: {error:?}\n{text}"));
     verify_program(&program).unwrap();
-    assert_field_proofs(&program, entry, &view, expected);
+    shape(&program, entry, &view);
     let llvm = crate::llvm::render_verified_program(&program).unwrap();
     assert!(!llvm.is_empty());
     (program, entry)
@@ -313,46 +402,41 @@ fn assert_field_proofs(
         )
         .id();
         let nodes = input.parsed().ast().expressions();
-        let (_, control) = only(nodes.iter().filter(|(_, node)| node.span() == control_span));
-        let Expression::If {
+        let (control_id, control) =
+            only(nodes.iter().filter(|(_, node)| node.span() == control_span));
+        let body = function.block(non_null_edge.target).unwrap();
+        let null = function.block(null_edge.target).unwrap();
+        let comparison = if let Expression::If {
             mut condition,
             then_branch,
             else_branch,
             ..
         } = *control.payload()
-        else {
-            panic!("proof originates at this source If")
-        };
-        while let Expression::Group { expression } = nodes.get(condition).unwrap().payload() {
-            condition = *expression;
-        }
-        let comparison = view
-            .types()
-            .null_comparison(UnitExpressionId::new(source, condition))
-            .unwrap();
-        let (present, absent) = if comparison.non_null_when_true() {
-            (then_branch, else_branch)
+        {
+            while let Expression::Group { expression } = nodes.get(condition).unwrap().payload() {
+                condition = *expression;
+            }
+            let comparison = view
+                .types()
+                .null_comparison(UnitExpressionId::new(source, condition))
+                .unwrap();
+            let (present, absent) = if comparison.non_null_when_true() {
+                (then_branch, else_branch)
+            } else {
+                (else_branch.unwrap(), Some(then_branch))
+            };
+            assert_if_block_origins(input, (body, null), (present, absent), control_span);
+            comparison
         } else {
-            (else_branch.unwrap(), Some(then_branch))
+            // SPEC-0350: a function inside the refinement subset attributes the proof
+            // branch to the null comparison itself; its blocks carry the function origin.
+            let comparison = view
+                .types()
+                .null_comparison(UnitExpressionId::new(source, control_id))
+                .expect("proof originates at a source If or its null comparison");
+            assert!(comparison.non_null_when_true());
+            comparison
         };
-        let body = function.block(non_null_edge.target).unwrap();
-        let null = function.block(null_edge.target).unwrap();
-        assert_eq!(
-            body.origin.span(),
-            input
-                .parsed()
-                .ast()
-                .statements()
-                .get(present)
-                .unwrap()
-                .span()
-        );
-        assert_eq!(
-            null.origin.span(),
-            absent
-                .map(|id| input.parsed().ast().statements().get(id).unwrap().span())
-                .unwrap_or(control_span)
-        );
         let column = only(
             non_null_edge
                 .arguments
@@ -569,6 +653,21 @@ fn assert_field_proofs(
                 | Operation::NullableTake { .. }
         )),
         "no nullable storage masquerades as payload or a second inner owner"
+    );
+}
+
+/// The per-family `If` lowering gives the proof's blocks their branch statement origins.
+fn assert_if_block_origins(
+    input: SourceUnitInput<'_>,
+    (body, null): (&Block, &Block),
+    (present, absent): (StatementId, Option<StatementId>),
+    control_span: Span,
+) {
+    let statement = |id: StatementId| input.parsed().ast().statements().get(id).unwrap().span();
+    assert_eq!(body.origin.span(), statement(present));
+    assert_eq!(
+        null.origin.span(),
+        absent.map(statement).unwrap_or(control_span)
     );
 }
 

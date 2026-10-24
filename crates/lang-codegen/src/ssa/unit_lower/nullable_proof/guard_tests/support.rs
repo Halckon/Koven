@@ -46,15 +46,19 @@ impl Fixture {
                 .unwrap()
                 .validate()
                 .unwrap();
-        let (program, entry) = lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &types_environment,
-            &typed,
-            &owned,
-            declaration(&names, "p", "entry"),
-        )
+        // The guards under test belong to the per-family lowering; SPEC-0350 would
+        // otherwise route these nullable entries through the refinement layer.
+        let (program, entry) = crate::ssa::refine::with_per_family_lowering(|| {
+            lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &types_environment,
+                &typed,
+                &owned,
+                declaration(&names, "p", "entry"),
+            )
+        })
         .expect("ordinary source lowers before private checkpoint recovery");
         verify_program(&program).expect("unmodified ordinary-unit SSA baseline verifies");
         let source = names.names().source_units()[0].source_unit();

@@ -140,7 +140,7 @@ fn closure_reads_do_not_capture_constant_or_namespace_identity() {
     let (_, ownership) = checked(
         r#"
 object Labels { const val TEXT = "hello" }
-class Names { companion object { const val TEXT = Labels.TEXT } }
+class Names { companion { const val TEXT = Labels.TEXT } }
 fun use(): Unit {
     val shared: () -> String = { Labels.TEXT }
     val owned: move () -> String = move { Names.TEXT }

@@ -44,7 +44,7 @@ def load_exercises(root=EXERCISES):
                 if (set(output) != {'exit', 'stdout', 'stderr'} or type(output['exit']) is not int
                         or not isinstance(output['stdout'], str) or not isinstance(output['stderr'], str)):
                     raise ValueError('exercise requires complete output oracles')
-                if output['exit'] != (2 if diagnostic else 0):
+                if output['exit'] != (1 if diagnostic else 0):
                     raise ValueError('starter must fail compilation and solution must succeed')
             if diagnostic:
                 diagnostics = [json.loads(line) for line in contract['build']['stderr'].splitlines()]

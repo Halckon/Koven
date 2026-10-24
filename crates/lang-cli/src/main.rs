@@ -4,6 +4,7 @@ mod bootstrap;
 #[cfg(test)]
 mod bootstrap_tests;
 
+mod check_command;
 mod diagnostic_renderer;
 mod doc;
 mod format;
@@ -21,8 +22,26 @@ use std::{ffi::OsString, io::Write, process::ExitCode};
 
 use format::CommandOutput;
 
-const GLOBAL_USAGE: &str =
-    "usage: kovenc [--message-format=human|json] <format|build|run|doc|source-set> ...\n";
+const GLOBAL_USAGE: &str = "usage: kovenc [--message-format=human|json] <format|check|build|run|doc|source-set|help> ...\n";
+const HELP: &str = "\
+usage: kovenc [--message-format=human|json] <command> ...
+
+commands:
+  kovenc format [--check] <path>
+  kovenc check <source.ko> [--source-root <dir>]
+  kovenc check --project <project.toml>
+  kovenc build <source.ko> [--source-root <dir>] [--entry <name>] -o <executable>
+  kovenc build --project <project.toml> --entry <qualified-name> -o <executable>
+  kovenc run <source.ko> [--source-root <dir>] [--entry <name>] [-- <program-arg>...]
+  kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>...]
+  kovenc doc <path>
+  kovenc source-set --project <project.toml>
+  kovenc help | --help | -h
+
+`--message-format` selects human diagnostics or JSON Lines on stderr.
+`check` runs every frontend check used by `build` without selecting an entry or
+generating code: exit 0 when clean, 1 with diagnostics, 2 on usage or operational errors.
+";
 
 #[derive(Clone, Copy)]
 enum MessageFormat {
@@ -43,9 +62,13 @@ fn run(arguments: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -
         Err(output) => return write_output(output, stdout, stderr),
     };
     let output = match arguments.split_first() {
+        Some((command, _)) if command == "help" || command == "--help" || command == "-h" => {
+            CommandOutput::success(HELP.as_bytes().to_vec())
+        }
         Some((command, rest)) if command == "source-set" => source_set::execute(rest),
         Some((command, rest)) if command == "doc" => doc::execute(rest, message_format),
         Some((command, rest)) if command == "format" => format::execute(rest, message_format),
+        Some((command, rest)) if command == "check" => check_command::execute(rest, message_format),
         Some((command, rest)) if command == "build" => {
             native_command::execute_build(rest, message_format)
         }
@@ -53,10 +76,12 @@ fn run(arguments: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -
             native_command::execute_run(rest, message_format)
         }
         Some((command, _)) => global_usage(format!(
-            "unknown command {}; expected `format`, `build`, `run`, `doc` or `source-set`",
+            "unknown command {}; expected `format`, `check`, `build`, `run`, `doc`, `source-set` or `help`",
             command.to_string_lossy()
         )),
-        None => global_usage("expected `format`, `build`, `run`, `doc` or `source-set` command"),
+        None => global_usage(
+            "expected `format`, `check`, `build`, `run`, `doc`, `source-set` or `help` command",
+        ),
     };
 
     write_output(output, stdout, stderr)
@@ -135,8 +160,8 @@ mod tests {
         assert!(stdout.is_empty());
         assert_eq!(
             String::from_utf8(stderr).expect("UTF-8 stderr"),
-            "error: expected `format`, `build`, `run`, `doc` or `source-set` command\n\
-             usage: kovenc [--message-format=human|json] <format|build|run|doc|source-set> ...\n"
+            "error: expected `format`, `check`, `build`, `run`, `doc`, `source-set` or `help` command\n\
+             usage: kovenc [--message-format=human|json] <format|check|build|run|doc|source-set|help> ...\n"
         );
 
         let mut stdout = Vec::new();
@@ -167,6 +192,25 @@ mod tests {
             ),
             ExitCode::from(2)
         );
+    }
+
+    #[test]
+    fn help_spellings_print_full_usage_to_stdout_and_exit_zero() {
+        for spelling in ["help", "--help", "-h"] {
+            let mut stdout = Vec::new();
+            let mut stderr = Vec::new();
+            assert_eq!(
+                run(&[OsString::from(spelling)], &mut stdout, &mut stderr),
+                ExitCode::from(0)
+            );
+            assert!(stderr.is_empty());
+            let stdout = String::from_utf8(stdout).expect("UTF-8 stdout");
+            assert!(stdout.starts_with("usage: kovenc"), "{stdout}");
+            for command in ["format", "check", "build", "run"] {
+                assert!(stdout.contains(&format!("kovenc {command} ")), "{stdout}");
+            }
+            assert!(stdout.contains("kovenc check --project <project.toml>"));
+        }
     }
 
     #[test]

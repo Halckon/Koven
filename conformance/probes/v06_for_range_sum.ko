@@ -1,0 +1,1 @@
+fun main(): Unit { var s = 0; for (i in 0..<5) { s = s + i }; for (j in 1..3) { s = s + j }; if (s == 16) { println("for-range") } }

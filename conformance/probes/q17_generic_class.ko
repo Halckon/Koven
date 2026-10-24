@@ -1,0 +1,2 @@
+class Holder<T>(val item: T) { fun get(): borrow T from this = this.item }
+fun main(): Unit { val h = Holder("x"); println(h.get()) }

@@ -1,0 +1,50 @@
+// 词频：统计内嵌单词序列中各词的出现次数。
+// MutableMap 按插入顺序遍历，因此输出顺序即各词首次出现的顺序。
+
+fun countWords(words: List<String>): MutableMap<String, Int> {
+    var counts: MutableMap<String, Int> = mutableMapOf()
+    for (word in words) {
+        val seen = counts[word]
+        if (seen == null) {
+            counts[word.clone()] = 1
+        } else {
+            counts[word.clone()] = seen + 1
+        }
+    }
+    return counts
+}
+
+fun main(): Unit {
+    val words = listOf(
+        "the", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog",
+        "the", "dog", "sleeps", "and", "the", "fox", "runs"
+    )
+    val counts = countWords(words)
+
+    var total = 0
+    var best = ""
+    var bestCount = 0
+    for ((key, value) in counts) {
+        println(key + ": ${value}")
+        total = total + value
+        if (value > bestCount) {
+            best = key.clone()
+            bestCount = value
+        }
+    }
+
+    var repeated = ""
+    for ((key, value) in counts) {
+        if (value >= 2) {
+            repeated = repeated + " " + key
+        }
+    }
+
+    val hasFox = "fox" in counts
+    val hasCat = "cat" in counts
+    println("distinct: ${counts.size}")
+    println("total: ${total}")
+    println("most frequent: " + best + " (${bestCount})")
+    println("repeated:" + repeated)
+    println("has fox: ${hasFox}, has cat: ${hasCat}")
+}

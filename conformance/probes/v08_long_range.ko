@@ -1,0 +1,1 @@
+fun main(): Unit { var s: Long = 0L; for (i in 1L..4L) { s = s + i }; if (s == 10L) { println("long-range") } }

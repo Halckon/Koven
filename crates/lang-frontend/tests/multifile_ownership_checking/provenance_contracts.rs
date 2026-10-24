@@ -10,7 +10,7 @@ fn unit_parameter_bindings_cover_cross_file_member_and_lambda_modes() {
          fun accept(own calleeOwned: String, calleeShared: String, inout calleeExclusive: String): Unit {}\n\
          class Worker {\n\
              fun run(own memberOwned: String, memberShared: String): Unit {}\n\
-             companion object {\n\
+             companion {\n\
                  fun configure(inout companionExclusive: String): Unit {}\n\
              }\n\
          }",

@@ -1,0 +1,2 @@
+class R(val n: String) { deinit() { println(this.n) } }
+fun main(): Unit { val a = R("a"); val b = R("b"); println("body") }

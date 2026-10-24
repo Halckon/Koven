@@ -1,0 +1,1 @@
+fun main(): Unit { val a: Int = -1; val b = a.toULong(); println("should-not-print") }

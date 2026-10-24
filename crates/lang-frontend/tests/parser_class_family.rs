@@ -110,7 +110,7 @@ fn parses_all_classifier_kinds_and_preserves_source_identity() {
 
 #[test]
 fn class_header_and_members_preserve_typed_children_and_modifiers() {
-    let text = "public class Boxed<T: Copyable>(private val item: T, var count: Int): Printable, Resettable {\n    override fun reset(): Unit {}\n    private companion object { const val VERSION: Int = 1; fun create(): Boxed<Int> = Boxed(1, 0) }\n}";
+    let text = "public class Boxed<T: Copyable>(private val item: T, var count: Int): Printable, Resettable {\n    override fun reset(): Unit {}\n    private companion { const val VERSION: Int = 1; fun create(): Boxed<Int> = Boxed(1, 0) }\n}";
     let (sources, parsed) = declaration(text);
     assert!(
         parsed.diagnostics().is_empty(),
@@ -240,11 +240,11 @@ fn receiver_mode_rejects_duplicates_ordering_and_non_instance_positions() {
         ("borrow fun top(): Unit {}", "borrow"),
         ("borrow class C", "borrow"),
         (
-            "class C { companion object { borrow fun f(): Unit {} } }",
+            "class C { companion { borrow fun f(): Unit {} } }",
             "borrow",
         ),
         ("object O { borrow const val X: Int = 1 }", "borrow"),
-        ("class C { borrow companion object {} }", "borrow"),
+        ("class C { borrow companion {} }", "borrow"),
         (
             "interface I { internal borrow fun f(): Unit {} }",
             "internal",
@@ -363,7 +363,7 @@ fn receiver_after_fun_is_rejected_without_becoming_a_name_or_sibling_member() {
 
 #[test]
 fn enum_uses_commas_and_semicolon_before_shared_members() {
-    let text = "enum class Shape { Circle(radius: Double), Rectangle(w: Double, h: Double), Point; fun area(): Double = 0.0; companion object { const val COUNT: Int = 3 } }";
+    let text = "enum class Shape { Circle(radius: Double), Rectangle(w: Double, h: Double), Point; fun area(): Double = 0.0; companion { const val COUNT: Int = 3 } }";
     let (_, parsed) = declaration(text);
     assert!(
         parsed.diagnostics().is_empty(),
@@ -455,9 +455,9 @@ fn segmented_string_classifier_name_recovers_the_complete_owner() {
 #[test]
 fn interface_object_and_companion_keep_the_v1_static_member_boundary() {
     for text in [
-        "interface Protocol { fun send(item: Int): Unit; public fun version(): Int = 1; companion object { const val VERSION: Int = 1 } }",
+        "interface Protocol { fun send(item: Int): Unit; public fun version(): Int = 1; companion { const val VERSION: Int = 1 } }",
         "object Config: Protocol { const val VERSION: Int = 1; override fun send(item: Int): Unit {}; fun describe(): String = \"config\" }",
-        "class Factory { companion object { const val VERSION: Int = 1; fun create(): Factory = Factory() } }",
+        "class Factory { companion { const val VERSION: Int = 1; fun create(): Factory = Factory() } }",
     ] {
         let (_, parsed) = declaration(text);
         assert!(
@@ -550,8 +550,7 @@ fn member_recovery_respects_lexical_owners_and_outer_hard_closers() {
 
 #[test]
 fn malformed_companion_constant_preserves_string_owner_and_both_closers() {
-    let text =
-        r#"interface Printable { fun show(): Unit; companion object { const "printable" } }"#;
+    let text = r#"interface Printable { fun show(): Unit; companion { const "printable" } }"#;
     let (_, parsed) = declaration(text);
     assert_eq!(
         codes(parsed.diagnostics()),
@@ -572,6 +571,48 @@ fn malformed_companion_constant_preserves_string_owner_and_both_closers() {
     };
     assert!(companion.body.right_brace_span.is_some());
     assert_eq!(companion.body.members.len(), 1);
+}
+
+#[test]
+fn companion_block_is_the_only_companion_form() {
+    let text = "class Point { companion { const val ORIGIN: Int = 0 } }";
+    let (_, parsed) = declaration(text);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let body = classifier(&parsed).body.as_ref().expect("class body");
+    let Item::Companion(companion) = item(&parsed, body.members[0]) else {
+        panic!("expected companion block")
+    };
+    assert_eq!(
+        &text[companion.companion_span.start()..companion.companion_span.end()],
+        "companion"
+    );
+    assert!(companion.object_span.is_empty());
+    assert_eq!(
+        companion.object_span.start(),
+        text.find("{ const").expect("body")
+    );
+    assert_eq!(companion.body.members.len(), 1);
+
+    let retired = "class Point { companion object { const val ORIGIN: Int = 0 } }";
+    let (_, parsed) = declaration(retired);
+    assert_eq!(codes(parsed.diagnostics()), ["L0077".to_owned()]);
+    let diagnostic = &parsed.diagnostics()[0];
+    let object = retired.find("object").expect("object keyword");
+    assert_eq!(diagnostic.primary_span().start(), object);
+    assert_eq!(diagnostic.primary_span().end(), object + "object".len());
+    assert_eq!(
+        diagnostic.message(),
+        "write `companion { ... }`; `companion object` is not Koven syntax"
+    );
+    let body = classifier(&parsed).body.as_ref().expect("class body");
+    let Item::Companion(companion) = item(&parsed, body.members[0]) else {
+        panic!("expected recovered companion")
+    };
+    assert_eq!(companion.body.members.len(), 1, "body is still recovered");
 }
 
 #[test]

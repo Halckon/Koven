@@ -224,12 +224,12 @@ fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
         Err(error) => {
             assert!(!supported, "{error:?}");
             assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+            // SPEC-0350: `String?` now has an SSA type, so the rejection moved from the
+            // signature into the body of the same unsupported `nullableValue` declaration.
             let span = error.span.unwrap();
-            assert_eq!(span.start(), "package p\n".len());
-            assert_eq!(
-                &text[span.start()..span.end()],
-                text.lines().nth(1).unwrap()
-            );
+            let line_start = "package p\n".len();
+            let line = text.lines().nth(1).unwrap();
+            assert!(line_start <= span.start() && span.end() <= line_start + line.len());
         }
     }
 }

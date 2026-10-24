@@ -1101,6 +1101,7 @@ pub(super) fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
                 | SsaTypeKind::SharedOwner { .. }
                 | SsaTypeKind::StringOwner
                 | SsaTypeKind::NullableHandle { .. }
+                | SsaTypeKind::InlineNullable { .. }
                 | SsaTypeKind::RangeView { .. }
                 | SsaTypeKind::SequentialContainer { .. }
                 | SsaTypeKind::MapContainer { .. }

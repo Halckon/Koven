@@ -21,7 +21,7 @@ fn cross_file_member_bodies_calls_and_fields_publish_source_qualified_facts() {
              fun forwarded(): String = label()\n\
          }\n\
          value class Pair<T>(val first: T, val second: T)\n\
-         class Tools { companion object { fun identity(input: Int): Int = input } }",
+         class Tools { companion { fun identity(input: Int): Int = input } }",
     );
     let (uses_source, uses) = parsed(
         &mut sources,

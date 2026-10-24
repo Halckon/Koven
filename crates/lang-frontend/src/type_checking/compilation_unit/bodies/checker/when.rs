@@ -392,7 +392,7 @@ impl BodyChecker<'_> {
                 negated,
                 type_ref,
             } => {
-                let target = self.resolve_type_test_ref(source, *type_ref)?;
+                let target = self.resolve_type_test_ref(source, *type_ref, subject)?;
                 let Some(subject) = subject else {
                     let target_span = self
                         .file(source)

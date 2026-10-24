@@ -1,0 +1,2 @@
+fun twice(f: (Int) -> Int): Int = f(f(1))
+fun main(): Unit { if (twice({ n -> n + 1 }) == 3) { println("lambda-arg") } }

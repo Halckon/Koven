@@ -311,7 +311,7 @@ fn assert_dynamic_conversion_ir(program: &Program, llvm: &str, source: &str, tar
     });
     assert!(positions.windows(2).all(|p| p[0] < p[1]));
     assert!(llvm.contains(&format!("br i1 %v{}, label", failed.index())));
-    assert!(llvm.contains("call void @abort()"));
+    assert!(llvm.contains("call void @koven.abort.report"));
     assert!(llvm.contains("unreachable"));
     assert!(!llvm.contains("poison"));
 }

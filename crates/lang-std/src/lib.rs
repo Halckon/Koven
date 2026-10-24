@@ -13,5 +13,10 @@ mod tests {
         assert!(prelude.is_file(), "lang-std 必须保留 Koven 源码真源");
         let ranges = Path::new(env!("CARGO_MANIFEST_DIR")).join("koven/algorithms/ranges.ko");
         assert!(ranges.is_file(), "通用 take 必须由标准库 Koven 源码实现");
+        let result = Path::new(env!("CARGO_MANIFEST_DIR")).join("koven/core/result.ko");
+        assert!(
+            result.is_file(),
+            "内建环境 Result 必须由标准库 Koven 源码声明"
+        );
     }
 }

@@ -234,7 +234,10 @@ __attribute__((destructor)) static void unexpected_return(void) { _Exit(42); }
     assert!(link.status.success(), "{link:?}");
     let run = Command::new(&executable).output().unwrap();
     assert!(run.status.success(), "{run:?}");
-    assert!(run.stdout.is_empty() && run.stderr.is_empty(), "{run:?}");
+    assert!(
+        run.stdout.is_empty() && run.stderr.starts_with(b"abort: "),
+        "{run:?}"
+    );
 }
 
 #[test]

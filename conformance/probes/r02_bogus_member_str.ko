@@ -1,0 +1,1 @@
+fun main(): Unit { val s = "abc"; val n = s.length; println("x") }

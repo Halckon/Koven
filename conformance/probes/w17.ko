@@ -1,0 +1,1 @@
+fun main(): Unit { var m = mutableMapOf<String, Int>(); m.put("b", 2); val t = 1; for ((k, v) in m) { println(k) }; if (t == 1) { println("end") } }

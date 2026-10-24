@@ -1,0 +1,1 @@
+fun main(): Unit { val x = when { 1 > 0 -> 1; else -> "s" }; println("any-join") }

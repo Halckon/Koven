@@ -56,7 +56,8 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             let operand = self.require_expression_value(descriptor.operand().expression())?;
-            return self.unwrap_map_result(operand, descriptor.operator_span());
+            // SPEC-0355: the abort position is the asserted expression's start.
+            return self.unwrap_map_result(operand, span);
         }
         if plan.non_null_transfer() != NonNullAssertionTransferKind::Consume
             || !matches!(
@@ -158,10 +159,10 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.function
-            .set_terminator(
+            .set_abort_terminator(
                 null,
-                TerminatorKind::Abort,
-                Origin::Source(descriptor.operator_span()),
+                crate::ssa::model::AbortReason::Text("null assertion failed".to_owned()),
+                Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         let rebound = carried

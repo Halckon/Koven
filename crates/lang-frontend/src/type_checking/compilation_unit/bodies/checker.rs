@@ -255,10 +255,12 @@ impl<'a> BodyChecker<'a> {
             let file = self.files[declaration.source_unit().index()];
             let item = unwrapped_item(file, declaration.root())?.clone();
             if matches!(item, Item::Variable { .. } | Item::Constant { .. }) {
+                let item_span = unwrapped_item_span(file, declaration.root())?;
                 self.check_top_level_initializer(
                     declaration.id(),
                     declaration.source_unit(),
                     &item,
+                    item_span,
                 )?;
                 continue;
             }
@@ -1122,6 +1124,17 @@ fn unwrapped_item(parsed: &ParsedFile, id: crate::ast::ItemId) -> Result<&Item, 
         item = parsed.ast().items().get(*declaration)?.payload();
     }
     Ok(item)
+}
+
+fn unwrapped_item_span(
+    parsed: &ParsedFile,
+    id: crate::ast::ItemId,
+) -> Result<Span, TypeCheckingError> {
+    let mut node = parsed.ast().items().get(id)?;
+    while let Item::Modified { declaration, .. } = node.payload() {
+        node = parsed.ast().items().get(*declaration)?;
+    }
+    Ok(node.span())
 }
 
 fn item_requires_body_check(item: &Item) -> bool {

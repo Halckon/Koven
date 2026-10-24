@@ -148,7 +148,7 @@ fn generic_substitution_defaults_and_companion_members_preserve_instance_contrac
              class Good<U> : Required<U> { override fun apply(input: U): U = input }\n\
              class Conflict : Left, Right {}\n\
              class CompanionOnly : Required<Int> {\n\
-                 companion object { fun apply(input: Int): Int = input }\n\
+                 companion { fun apply(input: Int): Int = input }\n\
              }",
         ),
     ]);
@@ -163,7 +163,7 @@ fn instance_and_companion_callable_shapes_use_distinct_scopes() {
         "package p\n\
          class Scoped {\n\
              fun same(input: Int): Unit {}\n\
-             companion object { fun same(input: Int): Unit {} }\n\
+             companion { fun same(input: Int): Unit {} }\n\
          }",
     )]);
 

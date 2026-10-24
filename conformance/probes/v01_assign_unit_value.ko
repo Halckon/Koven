@@ -1,0 +1,1 @@
+fun main(): Unit { var x = 1; val u: Unit = (x = 2); if (x == 2) { println("assign-unit") } }

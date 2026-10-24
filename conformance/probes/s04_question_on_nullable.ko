@@ -1,0 +1,2 @@
+fun f(x: Int?): Int? { val y = x?; return y }
+fun main(): Unit { println("q") }

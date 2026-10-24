@@ -1,7 +1,7 @@
 public class Service(private val logger: Logger): Logger by logger {
     override fun log(message: String): Unit {}
 
-    companion object {
+    companion {
         const val VERSION: Int = 1
         fun create(logger: Logger): Service = Service(logger)
     }

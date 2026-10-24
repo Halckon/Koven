@@ -1,0 +1,89 @@
+// 链表/栈：用拥有所有权的 class 节点实现整数栈（push、pop、原地反转），节点接合只用
+// replace 原子置换；再用 Box 递归 enum 构造一份不可变 cons 列表快照。
+
+class Node(val item: Int, var next: Node?)
+
+enum class Cons {
+    Nil,
+    Link(head: Int, tail: Box<Cons>)
+}
+
+class Stack(var top: Node?, var count: Int) {
+    inout fun push(item: Int): Unit {
+        val rest = replace(&this.top, null)
+        this.top = Node(item, rest)
+        this.count = this.count + 1
+    }
+
+    inout fun pop(): Int? {
+        val node: Node = replace(&this.top, null) ?: return null
+        this.top = replace(&node.next, null)
+        this.count = this.count - 1
+        return node.item
+    }
+
+    inout fun reverse(): Unit {
+        var done: Node? = null
+        var rest = replace(&this.top, null)
+        while (rest != null) {
+            val node = rest!!
+            rest = replace(&node.next, done)
+            done = node
+        }
+        this.top = done
+    }
+}
+
+fun render(node: Node?): String {
+    if (node == null) return "nil"
+    return "${node.item} -> " + render(node.next)
+}
+
+fun sum(node: Node?): Int {
+    if (node == null) return 0
+    return node.item + sum(node.next)
+}
+
+fun snapshot(node: Node?): Cons {
+    if (node == null) return Cons.Nil
+    return Cons.Link(node.item, Box(snapshot(node.next)))
+}
+
+fun consText(list: Cons): String = when (list) {
+    is Cons.Nil -> "[]"
+    is Cons.Link -> "${list.head} :: " + consText(list.tail.value)
+}
+
+fun consLength(list: Cons): Int = when (list) {
+    is Cons.Nil -> 0
+    is Cons.Link -> 1 + consLength(list.tail.value)
+}
+
+fun show(value: Int?): String = if (value == null) "none" else "${value}"
+
+fun main(): Unit {
+    val stack = Stack(null, 0)
+    for (i in 1..5) {
+        stack.push(i * 10)
+    }
+    println("stack: " + render(stack.top))
+    println("size ${stack.count}, sum ${sum(stack.top)}")
+    println("pop: " + show(stack.pop()))
+
+    stack.reverse()
+    println("reversed: " + render(stack.top))
+    val snap = snapshot(stack.top)
+
+    stack.push(99)
+    println("after push: " + render(stack.top))
+    println("snapshot: " + consText(snap) + " (len ${consLength(snap)})")
+
+    var drained = ""
+    loop {
+        val next = stack.pop()
+        if (next == null) break
+        drained = drained + " ${next}"
+    }
+    println("drained:" + drained)
+    println("final pop: " + show(stack.pop()) + ", size ${stack.count}")
+}

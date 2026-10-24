@@ -1,0 +1,2 @@
+fun inc(n: Int): Int = n + 1
+fun main(): Unit { val f = ::inc; if (f(1) == 2) { println("fnref") } }

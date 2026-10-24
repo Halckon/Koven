@@ -1,0 +1,3 @@
+enum class Expr { Num(v: Int), Add(l: Box<Expr>, r: Box<Expr>) }
+fun eval(e: Expr): Int = when (e) { is Expr.Num -> e.v; is Expr.Add -> eval(e.l.value) + eval(e.r.value) }
+fun main(): Unit { val e = Expr.Add(Box(Expr.Num(1)), Box(Expr.Num(2))); if (eval(e) == 3) { println("box") } }

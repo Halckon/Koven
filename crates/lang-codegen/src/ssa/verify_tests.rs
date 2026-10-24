@@ -635,6 +635,7 @@ fn multiple_return_program() -> Program {
             values: vec![true_result],
         },
         origin: origin(),
+        abort: None,
     });
     fixture.function_mut().blocks[false_block.index()].terminator =
         Some(super::model::Terminator {
@@ -642,6 +643,7 @@ fn multiple_return_program() -> Program {
                 values: vec![false_result],
             },
             origin: origin(),
+            abort: None,
         });
     fixture.program
 }

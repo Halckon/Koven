@@ -1,0 +1,2 @@
+class Counter(var count: Int)
+fun main(): Unit { var c = Counter(0); c.count = 5; if (c.count == 5) { println("field-assign") } }

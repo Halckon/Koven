@@ -1,0 +1,2 @@
+fun pick(c: Boolean): Int? = if (c) 7 else null
+fun main(): Unit { val x = pick(true); if (x != null && x == 7) { println("join-nullable") } }

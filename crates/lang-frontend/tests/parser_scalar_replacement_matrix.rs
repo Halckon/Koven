@@ -94,13 +94,13 @@ fn replacing_every_utf8_scalar_with_the_fixed_alphabet_is_recoverable() {
         }
     }
 
-    assert_eq!((candidates, noops), (17_472, 123));
+    assert_eq!((candidates, noops), (17_381, 123));
     assert_eq!(
         replacement_counts,
         [
-            1_274, 1_342, 1_344, 1_338, 1_342, 1_344, 1_342, 1_342, 1_340, 1_327, 1_327, 1_344,
-            1_343,
+            1_267, 1_335, 1_337, 1_331, 1_335, 1_337, 1_335, 1_335, 1_333, 1_320, 1_320, 1_337,
+            1_336
         ]
     );
-    assert_eq!(replacement_counts.into_iter().sum::<usize>(), 17_349);
+    assert_eq!(replacement_counts.into_iter().sum::<usize>(), 17_258);
 }

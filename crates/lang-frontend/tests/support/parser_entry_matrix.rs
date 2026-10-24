@@ -80,7 +80,7 @@ pub(crate) const ENTRY_CASES: &[EntryCase] = &[
     EntryCase {
         name: "declaration interface companion",
         kind: EntryKind::Declaration,
-        source: "interface Printable { fun show(): Unit; companion object { const val NAME: String = \"printable\" } }",
+        source: "interface Printable { fun show(): Unit; companion { const val NAME: String = \"printable\" } }",
     },
     EntryCase {
         name: "block local destructuring",

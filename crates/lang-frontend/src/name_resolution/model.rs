@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     diagnostic::Diagnostic,
-    source::{SourceId, Span},
+    source::{SourceError, SourceId, SourceMap, Span},
 };
 
 macro_rules! define_id {
@@ -85,6 +85,7 @@ pub struct NameEnvironment {
     symbols: Vec<ExternalSymbol>,
     types: BTreeMap<String, ExternalBinding>,
     values: BTreeMap<String, ExternalBinding>,
+    builtin_source: Option<SourceId>,
 }
 
 impl Default for NameEnvironment {
@@ -94,6 +95,7 @@ impl Default for NameEnvironment {
             symbols: Vec::new(),
             types: BTreeMap::new(),
             values: BTreeMap::new(),
+            builtin_source: None,
         }
     }
 }
@@ -158,6 +160,24 @@ impl NameEnvironment {
 
     pub(crate) fn owner(&self) -> Arc<()> {
         Arc::clone(&self.owner)
+    }
+
+    /// 授权宿主加载的标准来源提供内建环境 `Result`/`Ok`/`Err`（Guide 02）。
+    /// SourceId 包含 SourceMap 身份；同名文件或声明 `package koven.core` 的用户源不能冒充。
+    pub fn authorize_builtin_source(
+        &mut self,
+        sources: &SourceMap,
+        source: SourceId,
+    ) -> Result<(), SourceError> {
+        sources.source_text(source)?;
+        self.builtin_source = Some(source);
+        Ok(())
+    }
+
+    /// 返回宿主授权的内建环境来源；未授权时内建名称不参与解析。
+    #[must_use]
+    pub const fn builtin_source(&self) -> Option<SourceId> {
+        self.builtin_source
     }
 
     fn declare(

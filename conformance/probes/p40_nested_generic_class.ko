@@ -1,0 +1,4 @@
+class Stack<T>(var items: MutableList<T>) {
+    inout fun push(own v: T): Unit { items.add(v) }
+}
+fun main(): Unit { var s = Stack<Int>(mutableListOf<Int>()); s.push(1); if (s.items.size == 1) { println("stack") } }

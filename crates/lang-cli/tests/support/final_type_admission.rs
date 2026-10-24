@@ -87,12 +87,14 @@ pub(super) fn static_recovery_probes() -> [Probe; 2] {
             token: "P.origin",
         },
         Probe {
+            // SPEC-0349: the CLI loads the built-in Result, so this variant omits the
+            // user declaration that would now conflict with it (L0150).
             name: "p16_result_q.ko",
             text: include_str!(
-                "../../../lang-frontend/tests/fixtures/final-admission-static-recovery-0323/p16_result_q.ko"
+                "../../../lang-frontend/tests/fixtures/final-admission-static-recovery-0323/p16_result_q_builtin.ko"
             ),
             code: "L0165",
-            primary: 185..194,
+            primary: 127..136,
             token: "parse(n)?",
         },
     ]

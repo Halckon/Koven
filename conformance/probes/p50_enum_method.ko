@@ -1,0 +1,4 @@
+enum class Shape { Circle(r: Int), Square(s: Int);
+    fun area(): Int = when (this) { is Circle -> 3 * r * r; is Square -> s * s }
+}
+fun main(): Unit { val s = Shape.Square(3); if (s.area() == 9) { println("enum-method") } }

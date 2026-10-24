@@ -22,6 +22,9 @@
 [0030 范围 carrier 来源事实](accepted/0030-range-carrier-source-facts.md)只覆盖已批准 N1a 首片，
 运输独立新描述符 mode 与根来源/end facts；实现与端到端验收由 0289 维护。
 
+[0032 所有权细化层](accepted/0032-ownership-refinement-layer.md)与[0033 inline nullable 表示](accepted/0033-inline-nullable-representation.md)
+按 2026-10-23 用户明确确认接受（0033 局部扩展 0018）；实施与验收由 0350 维护。
+
 [0031 单文件 Unit driver 适配](accepted/0031-single-file-compilation-unit-adapter.md)按 2026-10-19 用户
 对 Guide v0.45 的明确批准接受，局部扩展 0005；project 原显式 root 与发现政策保持。
 

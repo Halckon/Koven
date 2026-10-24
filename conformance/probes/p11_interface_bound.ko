@@ -1,0 +1,4 @@
+interface Named { fun name(): String }
+class Dog() : Named { override fun name(): String = "dog" }
+fun <T : Named> greet(x: T): Unit { println(x.name()) }
+fun main(): Unit { greet(Dog()) }

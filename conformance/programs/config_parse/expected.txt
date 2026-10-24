@@ -1,0 +1,10 @@
+[good]
+name: text koven
+port: int 8080
+debug: bool true
+retries: int 3
+4 settings
+[missing equals]
+error: line 2: expected '=' after level
+[bad key]
+error: line 1: expected a key, found '9'

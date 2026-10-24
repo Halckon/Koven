@@ -37,7 +37,10 @@ fn abort_does_not_unwind_a_pending_constant_string_owner() {
             run.status.success(),
             "{value}: counted Abort must check state before exiting: {run:?}"
         );
-        assert!(run.stdout.is_empty() && run.stderr.is_empty(), "{run:?}");
+        assert!(
+            run.stdout.is_empty() && run.stderr.starts_with(b"abort: "),
+            "{run:?}"
+        );
     }
 }
 
@@ -156,7 +159,10 @@ fn function_value_prefix_cleanup_preserves_the_closure_and_its_capture() {
             let run = run_counted_strings(&provider, &consumer, drops, 1, aborting);
             assert!(run.status.success(), "{mode}/{flag}/{exit}: {run:?}");
             assert_eq!(run.stdout, expected.as_bytes(), "{run:?}");
-            assert!(run.stderr.is_empty(), "{run:?}");
+            assert!(
+                run.stderr.is_empty() || run.stderr.starts_with(b"abort: "),
+                "{run:?}"
+            );
         }
     }
 }
@@ -213,7 +219,10 @@ fn inner_loops_preserve_pending_string_owner_and_loan() {
             let run = run_counted_strings(&provider, consumer, drops, 1, aborting);
             assert!(run.status.success(), "{mode}/{inner}: {run:?}");
             assert_eq!(run.stdout, expected.as_bytes(), "{run:?}");
-            assert!(run.stderr.is_empty(), "{run:?}");
+            assert!(
+                run.stderr.is_empty() || run.stderr.starts_with(b"abort: "),
+                "{run:?}"
+            );
         }
     }
 }

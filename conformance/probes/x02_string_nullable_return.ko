@@ -1,0 +1,2 @@
+fun find(flag: Boolean): String? { if (flag) { return "hit" }; return null }
+fun main(): Unit { val s = find(true); if (s != null) { println(s) } }

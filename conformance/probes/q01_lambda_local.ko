@@ -1,0 +1,1 @@
+fun main(): Unit { val f: (Int) -> Int = { n -> n * 3 }; if (f(7) == 21) { println("lambda-local") } }

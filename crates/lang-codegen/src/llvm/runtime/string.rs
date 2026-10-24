@@ -38,7 +38,13 @@ impl<'ctx> RuntimeAbi<'ctx> {
             }
         };
         let failed = builder.build_is_null(allocation, &format!("{name}.oom"))?;
-        self.abort_if(builder, function, failed, name)?;
+        self.abort_if(
+            builder,
+            function,
+            failed,
+            name,
+            super::AbortMessage::Text("allocation failed"),
+        )?;
         Ok(allocation)
     }
 
@@ -74,6 +80,12 @@ impl<'ctx> RuntimeAbi<'ctx> {
             length,
             &format!("{name}.incomplete"),
         )?;
-        self.abort_if(builder, function, incomplete, name)
+        self.abort_if(
+            builder,
+            function,
+            incomplete,
+            name,
+            super::AbortMessage::Text("stdout write failed"),
+        )
     }
 }

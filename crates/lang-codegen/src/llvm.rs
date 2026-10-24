@@ -21,6 +21,8 @@ mod entities;
 pub(crate) mod entry;
 #[cfg(test)]
 mod entry_tests;
+#[cfg(test)]
+mod inline_nullable_tests;
 pub(crate) mod layout;
 #[cfg(test)]
 mod layout_tests;

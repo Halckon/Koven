@@ -1,7 +1,7 @@
 //! UTF-8 String owner 的 LLVM 值布局与字节级 primitive lowering。
 
 use inkwell::{
-    AddressSpace, IntPredicate,
+    IntPredicate,
     builder::Builder,
     context::Context,
     module::{Linkage, Module as LlvmModule},
@@ -16,6 +16,16 @@ use super::{LlvmAdapterError, runtime::RuntimeAbi, type_map::TypeMap};
 pub(super) struct StringView<'ctx> {
     bytes: PointerValue<'ctx>,
     length: IntValue<'ctx>,
+}
+
+impl<'ctx> StringView<'ctx> {
+    pub(super) const fn bytes(self) -> PointerValue<'ctx> {
+        self.bytes
+    }
+
+    pub(super) const fn length(self) -> IntValue<'ctx> {
+        self.length
+    }
 }
 
 pub(super) fn view<'ctx>(
@@ -44,9 +54,7 @@ pub(super) fn literal<'ctx>(
 ) -> Result<StructValue<'ctx>, LlvmAdapterError> {
     let string_type = types.basic_type(string)?.into_struct_type();
     let pointer = if bytes.is_empty() {
-        llvm.get_context()
-            .ptr_type(AddressSpace::default())
-            .const_null()
+        runtime.empty_string_bytes()?
     } else {
         let constant = llvm.get_context().const_string(bytes, false);
         let global = llvm.add_global(constant.get_type(), None, &format!("{name}.bytes"));
@@ -85,7 +93,13 @@ pub(super) fn concat<'ctx>(
         left.length,
         &format!("{name}.overflow"),
     )?;
-    runtime.abort_if(builder, function, overflow, name)?;
+    runtime.abort_if(
+        builder,
+        function,
+        overflow,
+        name,
+        super::runtime::AbortMessage::Text("size overflow"),
+    )?;
 
     let before_empty = builder
         .get_insert_block()
@@ -105,7 +119,7 @@ pub(super) fn concat<'ctx>(
     let empty_value = build_owner(
         builder,
         string_type,
-        context.ptr_type(AddressSpace::default()).const_null(),
+        runtime.empty_string_bytes()?,
         length,
         runtime.size_type().const_zero(),
         &format!("{name}.empty_value"),
@@ -174,7 +188,7 @@ pub(super) fn clone_owner<'ctx>(
     let empty_value = build_owner(
         builder,
         string_type,
-        context.ptr_type(AddressSpace::default()).const_null(),
+        runtime.empty_string_bytes()?,
         runtime.size_type().const_zero(),
         runtime.size_type().const_zero(),
         &format!("{name}.clone.empty_value"),

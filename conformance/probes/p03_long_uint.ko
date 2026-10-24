@@ -1,0 +1,7 @@
+fun main(): Unit {
+    val a: Long = 3000000000L
+    val b: UInt = 7u
+    val c: Byte = 3
+    val six: Byte = 6
+    if (a * 2L == 6000000000L && b + 1u == 8u && c + c == six) { println("widths") }
+}

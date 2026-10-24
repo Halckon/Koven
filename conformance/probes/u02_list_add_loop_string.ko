@@ -1,0 +1,5 @@
+fun main(): Unit {
+    var xs = mutableListOf<String>()
+    for (a in arrayOf("x", "y")) { xs.add(a.clone()) }
+    for (s in xs) { println(s) }
+}

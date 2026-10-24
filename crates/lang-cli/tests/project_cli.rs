@@ -393,9 +393,14 @@ fn project_build_and_run_link_multi_package_exact_alias_and_argv_entries() {
         OsStr::new("--entry"),
         OsStr::new("app.fail"),
     ]);
-    assert_eq!(failed.status.code(), Some(1), "{failed:?}");
+    // SPEC-0355: SIGABRT is reported as 128 + 6 and the abort report names the logical path.
+    assert_eq!(failed.status.code(), Some(134), "{failed:?}");
     assert_eq!(failed.stdout, b"before abort\n", "{failed:?}");
-    assert!(failed.stderr.is_empty(), "{failed:?}");
+    let report = String::from_utf8_lossy(&failed.stderr);
+    assert!(
+        report.starts_with("abort: project failure\n  at src/app/Main.ko:"),
+        "{failed:?}"
+    );
 }
 
 #[test]

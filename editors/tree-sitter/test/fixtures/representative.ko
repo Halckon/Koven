@@ -9,7 +9,7 @@ interface Shape {
 
 class Circle(val radius: Double): Shape {
     override borrow fun area(): Double = radius * radius
-    companion object {
+    companion {
         const val KIND: String = "circle"
     }
 }

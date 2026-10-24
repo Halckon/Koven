@@ -1,0 +1,1 @@
+fun main(): Unit { val a: Int? = 5; if (a != null) { if (a == 5) { println("nint") } } }

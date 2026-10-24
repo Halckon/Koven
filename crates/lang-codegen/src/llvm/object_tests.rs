@@ -380,7 +380,7 @@ fn emitted_koven_objects_link_and_run_normal_and_abort_entries() {
     let (abort_sources, abort_program, abort_entry) = abort_entry_program();
     let abort_llvm =
         render_verified_program_with_entry(&abort_program, abort_entry).expect("abort IR");
-    assert!(abort_llvm.contains("call void @abort()"));
+    assert!(abort_llvm.contains("call void @koven.abort.report"));
     assert!(abort_llvm.contains("unreachable"));
     assert!(!abort_llvm.contains("landingpad"));
     assert!(!abort_llvm.contains("personality"));
