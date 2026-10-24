@@ -320,7 +320,7 @@ fn function_at(program: &Program, span: Span) -> &Function {
         .flat_map(|module| &module.functions)
         .filter(|function| function.origin == Origin::Source(span))
         .collect::<Vec<_>>();
-    *one(&functions, "unique function at original declaration Origin")
+    one(&functions, "unique function at original declaration Origin")
 }
 
 fn edges(block: &Block) -> Vec<&Edge> {
