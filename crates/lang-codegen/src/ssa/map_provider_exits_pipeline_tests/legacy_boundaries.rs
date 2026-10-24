@@ -1,7 +1,7 @@
 //! Explicit test-only Legacy boundary probe, never selected as a fallback.
-//! Sole consumers: the exact pre-lower L0135 conflict and the historical
-//! `result.consume()` UnsupportedNode / Unit-success differential. Retire this
-//! probe only when those two contracts have an explicitly approved replacement.
+//! Sole consumer: the exact pre-lower L0135 conflict, still pending migration.
+//! The historical `result.consume()` rejection was retired in favor of the
+//! original source's strong Unit-success contract; it no longer uses this probe.
 use super::{
     Report,
     fixture::{Failure, at, clean, complete_failure, failure, lower_failure},
