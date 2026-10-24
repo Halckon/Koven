@@ -2,11 +2,10 @@
 use super::{
     Pathway, Report, facts,
     fixture::{Fixture, LowerOutcome, Stopped, clean, stopped},
+    roots,
 };
 use lang_frontend::{
-    name_resolution::{
-        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-    },
+    name_resolution::{SymbolKind, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
         check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
         const_owned_compilation_unit_view, owned_compilation_unit_view,
@@ -25,14 +24,7 @@ pub(super) fn collect(
     report: &mut Report,
 ) -> Result<LowerOutcome, Stopped> {
     let sources = &fixture.sources;
-    let mut inputs = fixture
-        .files
-        .iter()
-        .map(|file| SourceUnitInput::new("root", &file.path, file.parsed.source_id(), &file.parsed))
-        .collect::<Vec<_>>();
-    if reverse_inputs {
-        inputs.reverse();
-    }
+    let inputs = fixture.inputs(pathway, reverse_inputs)?;
     report.check(
         "unit lex/parse clean and actual input order",
         true,
@@ -51,6 +43,7 @@ pub(super) fn collect(
     let names = names
         .validate()
         .map_err(|error| stopped("unit names qualification", error))?;
+    fixture.check_input_identity(pathway, &names, report);
     let entries = names
         .names()
         .index()
@@ -114,7 +107,7 @@ pub(super) fn collect(
     }
     clean(sources, "unit raw diagnostics", raw.diagnostics())?;
     match pathway {
-        Pathway::Basic => {
+        Pathway::Single | Pathway::Basic => {
             let typed = raw
                 .validate()
                 .map_err(|error| stopped("unit basic type qualification", error))?;
@@ -157,13 +150,14 @@ pub(super) fn collect(
                     && std::ptr::eq(view.ownership(), owned.ownership()),
                 "source/input/name/type/ownership references",
             );
-            let lowered = crate::ssa::unit_lower::lower_owned_unit_with_entry(&view, entry.id());
-            report.check(
-                "unit basic lower actually attempted",
-                true,
-                lowered.as_ref().err(),
-            );
-            Ok(LowerOutcome::new(sources, expected_entry, lowered))
+            roots::collect(
+                fixture,
+                &names,
+                typed.types(),
+                entry.id(),
+                report,
+                |root, _| crate::ssa::unit_lower::lower_owned_unit_with_entry(&view, root),
+            )
         }
         Pathway::Const => {
             // 没有常量声明也必须取得专用 capability；绝不借 basic view 或转换伪造。
@@ -234,20 +228,16 @@ pub(super) fn collect(
                     && std::ptr::eq(view.constant_ownership(), &owned),
                 "const references, no cast",
             );
-            let lowered = crate::ssa::unit_lower::constant::lower_const_owned_unit_with_entry(
-                &view,
+            roots::collect(
+                fixture,
+                &names,
+                typed.types(),
                 entry.id(),
-            );
-            report.check(
-                "unit const lower actually attempted",
-                true,
-                lowered.as_ref().err(),
-            );
-            Ok(LowerOutcome::new(sources, expected_entry, lowered))
+                report,
+                |root, _| {
+                    crate::ssa::unit_lower::constant::lower_const_owned_unit_with_entry(&view, root)
+                },
+            )
         }
-        Pathway::Single => Err(stopped(
-            "unit fixture infrastructure",
-            "single pathway sent to unit collector",
-        )),
     }
 }

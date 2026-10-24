@@ -506,3 +506,209 @@ fn precedes(function: &Function, first: &Instruction, second: &Instruction) {
         assert!(!reachable(function, second.block, first.block));
     }
 }
+
+/// The original guarded-owner observation, on one real admitted Unit analysis.
+/// Unit publishes exact drops and transports the current owner in SSA; it does
+/// not expose the legacy condition/IterationPhi graph for tests to reconstruct.
+pub(in super::super) fn check_guarded_original(text: &str) {
+    use lang_frontend::{
+        ownership_checking::{
+            UnitDropPoint, UnitIterationCleanupAction as Action, UnitIterationExitKind,
+            UnitIterationSourceAccess, UnitLoanTarget,
+        },
+        parser::{BinaryOperator, LiteralKind},
+        type_checking::{IterationProvider, SequentialContainerKind},
+    };
+
+    let (unit, program, _) = lower(text, &["main"]);
+    // Includes the exact initializer, pre-for MapPut result, every header input,
+    // result-0-only MapRemove backedge, and current-header exhaustion Drop.
+    map_contract::map_protocol(&unit, &program, "main", map_contract::Cleanup::Dead, false);
+    let scope = declaration_span(&unit, "main");
+    let function = function_at(&program, scope);
+    let plan = iteration(&unit, scope);
+    let descriptor = plan.descriptor();
+    let statement = descriptor.statement();
+    let remove = one(unit.types().map_removes(), "one original remove");
+    let map_root = reference_root(&unit, remove.receiver());
+    let map_fact = named_drop(&unit, map_root, scope);
+    assert_eq!(
+        unit.sources().slice(map_fact.value_origin()).unwrap(),
+        "texts"
+    );
+    assert_eq!(map_root.source_unit(), statement.source_unit());
+    assert_eq!(
+        unit.types()
+            .is_resource_type(unit.types().symbol_type(map_root).unwrap()),
+        Some(false)
+    );
+    assert_eq!(
+        descriptor.provider(),
+        IterationProvider::Sequential(SequentialContainerKind::Array)
+    );
+    assert_eq!(plan.source_access(), UnitIterationSourceAccess::Temporary);
+    assert_eq!(
+        plan.source(),
+        Some(&UnitLoanTarget::Temporary(descriptor.source()))
+    );
+    let source_span = expression_span(&unit, descriptor.source());
+    let source_constructor = one(
+        unit.types().container_constructions(),
+        "one actual array source",
+    );
+    assert_eq!(source_constructor.expression(), descriptor.source());
+    assert_eq!(
+        source_constructor.container_type(),
+        descriptor.source_type()
+    );
+    assert!(unit.ownership().closures().is_empty());
+    assert!(unit.ownership().captures().is_empty());
+    assert!(
+        plan.exits()
+            .iter()
+            .flat_map(|exit| exit.actions())
+            .all(|action| {
+                !matches!(action, Action::EndCaptureLoan { .. })
+                    && !matches!(action, Action::Drop(fact)
+                if matches!(fact.target(), UnitDropTarget::Captured { .. }))
+            })
+    );
+
+    let exhaustion = plan
+        .exits()
+        .iter()
+        .filter(|exit| exit.kind() == UnitIterationExitKind::Exhaustion)
+        .collect::<Vec<_>>();
+    let exhaustion = one(&exhaustion, "one original exhaustion edge");
+    let [
+        Action::FinishProvider(finished),
+        Action::EndSource(ended),
+        Action::Drop(source_fact),
+        Action::Drop(owner_fact),
+    ] = exhaustion.actions()
+    else {
+        panic!("exhaustion finishes the array provider before its source and outer Map drops")
+    };
+    assert_eq!((*finished, *ended), (statement, statement));
+    assert_eq!(*owner_fact, map_fact);
+    assert_eq!(map_fact.point(), UnitDropPoint::LoopExit(statement));
+    assert_eq!(source_fact.point(), UnitDropPoint::LoopExit(statement));
+    assert_eq!(
+        source_fact.target(),
+        UnitDropTarget::Temporary(descriptor.source())
+    );
+    assert_eq!(source_fact.value_origin(), source_span);
+    let source_facts = unit
+        .ownership()
+        .drops()
+        .iter()
+        .filter(|fact| fact.target() == source_fact.target())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        **one(&source_facts, "one real temporary-source drop"),
+        *source_fact
+    );
+
+    let cfg = loop_edges(function, statement_span(&unit, statement), 1);
+    let source_birth = instruction_at(function, source_span, |operation| {
+        matches!(operation, Operation::ContainerConstruct { .. })
+    });
+    let source_slot = column(function, cfg.entry, result(source_birth, 0));
+    let source_drop = instruction_at(function, source_span, |operation| {
+        matches!(operation, Operation::Drop { .. })
+    });
+    let Operation::Drop {
+        owner: dropped_source,
+    } = source_drop.operation
+    else {
+        unreachable!()
+    };
+    assert_eq!(source_drop.block, cfg.exhaustion.target);
+    transported(
+        function,
+        EntityId::Value(dropped_source),
+        cfg.header.parameters[source_slot],
+    );
+    let source_ends = function
+        .block(cfg.exhaustion.target)
+        .unwrap()
+        .instructions
+        .iter()
+        .map(|id| function.instruction(*id).unwrap())
+        .filter(|instruction| matches!(instruction.operation, Operation::BorrowEnd { .. }))
+        .collect::<Vec<_>>();
+    let source_end = one::<&Instruction>(&source_ends, "one exhaustion source-loan end");
+    let Operation::BorrowEnd { loan } = source_end.operation else {
+        unreachable!()
+    };
+    transported(function, EntityId::Loan(loan), result(source_birth, 0));
+    let map_drop = instruction_at(function, map_fact.value_origin(), |operation| {
+        matches!(operation, Operation::Drop { .. })
+    });
+    precedes(function, source_end, source_drop);
+    precedes(function, source_drop, map_drop);
+
+    let comparison = one(
+        unit.types().null_comparisons(),
+        "one actual named null comparison",
+    );
+    let nullable_fact = named_drop(&unit, comparison.symbol(), scope);
+    assert_eq!(
+        initializer(&unit, nullable_fact.value_origin()),
+        remove.expression()
+    );
+    assert_eq!(comparison.nullable_type(), remove.result_type());
+    let Expression::Binary {
+        left,
+        operator: BinaryOperator::NotEqual,
+        right,
+        ..
+    } = unit
+        .parsed()
+        .ast()
+        .expressions()
+        .get(comparison.expression().expression())
+        .unwrap()
+        .payload()
+    else {
+        panic!("the original result is compared with null")
+    };
+    let left = UnitExpressionId::new(comparison.expression().source_unit(), *left);
+    assert_eq!(reference_root(&unit, left), comparison.symbol());
+    assert!(matches!(
+        unit.parsed()
+            .ast()
+            .expressions()
+            .get(*right)
+            .unwrap()
+            .payload(),
+        Expression::Literal(LiteralKind::Null)
+    ));
+    assert_eq!(nullable_fact.point(), UnitDropPoint::AfterExpression(left));
+    let removed = instruction_at(
+        function,
+        expression_span(&unit, remove.expression()),
+        |operation| matches!(operation, Operation::MapRemove { .. }),
+    );
+    let [EntityId::Value(_), EntityId::Value(nullable)] = removed.results.as_slice() else {
+        panic!("the current Map and its distinct nullable result")
+    };
+    let presence = instruction_at(
+        function,
+        expression_span(&unit, comparison.expression()),
+        |operation| matches!(operation, Operation::AggregateProject { field: 0, .. }),
+    );
+    assert!(
+        matches!(presence.operation, Operation::AggregateProject { aggregate, field: 0 }
+        if aggregate == *nullable)
+    );
+    let nullable_drop = instruction_at(function, nullable_fact.value_origin(), |operation| {
+        matches!(operation, Operation::Drop { .. })
+    });
+    assert_eq!(
+        nullable_drop.operation,
+        Operation::Drop { owner: *nullable }
+    );
+    precedes(function, removed, presence);
+    precedes(function, presence, nullable_drop);
+}

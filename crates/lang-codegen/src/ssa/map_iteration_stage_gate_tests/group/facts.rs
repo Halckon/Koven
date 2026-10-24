@@ -1,22 +1,20 @@
 //! 全部四个真实 For 的只读身份合同；Group 集合排序独立于生产能力门。
-use super::super::fixture::{File, loop_sites};
+use super::super::fixture::loop_sites;
 use super::{
     Report, ast, cleanup,
     fixture::{Fixture, Location, Stopped, location, stopped},
 };
 use lang_frontend::{
     name_resolution::{
-        NameResolution, ReferenceTarget, SymbolKind, UnitReferenceTarget,
-        ValidatedCompilationUnitNames,
+        SourceUnitKey, SymbolKind, UnitReferenceTarget, ValidatedCompilationUnitNames,
     },
     ownership_checking::{
-        CompilationUnitOwnership, IterationSource, LoanKind, LoanTarget, MapIterationComponent,
-        MapIterationSourceAccess, OwnershipBindingKind, OwnershipCheckedFile,
-        UnitIterationSourceAccess, UnitLoanTarget,
+        CompilationUnitOwnership, IterationSource, LoanKind, MapIterationComponent,
+        OwnershipBindingKind, UnitIterationSourceAccess, UnitLoanTarget,
     },
     type_checking::{
         BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, MapIterationKind,
-        ParameterMode, TypeKind, TypedFile, UnitExpressionId, UnitStatementId, UnitTypeKind,
+        ParameterMode, UnitExpressionId, UnitStatementId, UnitTypeKind,
     },
 };
 
@@ -45,196 +43,6 @@ fn role_counts(roles: &[(bool, MapIterationKind)]) -> bool {
         })
 }
 
-pub(super) fn single(
-    fixture: &Fixture,
-    file: &File,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    report: &mut Report,
-) -> Result<Location, Stopped> {
-    // 先保全部真实产物；下面任何 query 红均不能遮住真实 lower/validator 的结果。
-    println!(
-        "SPEC0331 GROUP SINGLE FACTS typed={:#?} ownership={owned:#?}",
-        typed.map_iterations()
-    );
-    let sites = loop_sites(file)?;
-    report.check(
-        "single exact four AST/typed/owned Map sites",
-        sites.len() == 4 && typed.map_iterations().len() == 4 && owned.map_iterations().len() == 4,
-        (sites.len(), typed.map_iterations(), owned.map_iterations()),
-    );
-    let mut groups = Vec::new();
-    let mut roles = Vec::new();
-    for site in &sites {
-        let shape = ast::source(fixture, file, site);
-        report.check(
-            "single actual Group or direct Name AST",
-            shape.is_ok(),
-            &shape,
-        );
-        let Ok(shape) = shape else {
-            continue;
-        };
-        let descriptor = typed.map_iteration(site.statement);
-        let plan = owned.map_iteration(site.statement);
-        let (Some(descriptor), Some(plan)) = (descriptor, plan) else {
-            report.check(
-                "single real Map descriptor/plan exist",
-                false,
-                (descriptor, plan),
-            );
-            continue;
-        };
-        roles.push((shape.grouped, descriptor.kind()));
-        let identity = descriptor.statement() == site.statement
-            && descriptor.source() == site.source
-            && Some(descriptor.source_type()) == typed.expression_type(site.source)
-            && typed.expression_type(shape.name) == typed.expression_type(site.source)
-            && plan.descriptor() == descriptor
-            && typed.sequential_iteration(site.statement).is_none()
-            && owned.iteration(site.statement).is_none();
-        report.check(
-            "single outer Group descriptor and inner Name same type",
-            identity,
-            (&shape, descriptor, plan.descriptor()),
-        );
-        let source_type = typed.types().get(descriptor.source_type());
-        report.check("single intrinsic distinct Int/String K/V", matches!(source_type,
-            Some(TypeKind::Intrinsic { constructor, arguments })
-            if kind(*constructor) == Some(descriptor.kind())
-                && arguments.as_slice() == [descriptor.key_type(), descriptor.value_type()]
-                && typed.types().get(descriptor.key_type()) == Some(&TypeKind::Builtin(BuiltinType::Int))
-                && typed.types().get(descriptor.value_type()) == Some(&TypeKind::Builtin(BuiltinType::String))), source_type);
-        let references = names
-            .references()
-            .iter()
-            .filter_map(|reference| {
-                if reference.span() == shape.name_span
-                    && let ReferenceTarget::Symbol(symbol) = reference.target()
-                {
-                    Some(*symbol)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        let source = match references.as_slice() {
-            [source] => Some(*source),
-            _ => None,
-        };
-        let symbol = source.and_then(|id| names.symbols().iter().find(|symbol| symbol.id() == id));
-        let is_owned = !shape.grouped && descriptor.kind() == MapIterationKind::Map;
-        let mode = if is_owned {
-            ParameterMode::Value
-        } else {
-            ParameterMode::Borrow
-        };
-        let binding = if is_owned {
-            OwnershipBindingKind::Owned
-        } else {
-            OwnershipBindingKind::Shared
-        };
-        let access = if is_owned {
-            MapIterationSourceAccess::Owned
-        } else {
-            MapIterationSourceAccess::Shared
-        };
-        let parameter = symbol.is_some_and(|symbol| {
-            symbol.kind() == SymbolKind::ValueParameter
-                && !symbol.is_synthetic()
-                && symbol.span().source_id() == file.parsed.source_id()
-        }) && source.is_some_and(|source| {
-            typed.parameter_mode(source) == Some(mode)
-                && typed.symbol_type(source) == Some(descriptor.source_type())
-                && owned.binding_kind(source) == Some(binding)
-        });
-        report.check(
-            "single inner Name resolves to unique real mode/root parameter",
-            parameter,
-            (&references, symbol, mode, binding),
-        );
-        let origin = matches!(plan.source(), Some(LoanTarget::Place(place))
-                if Some(place.root()) == source && place.is_root())
-            && matches!(plan.source_kind(), IterationSource::BorrowedSource(origin)
-                if Some(origin) == plan.source())
-            && plan.source_access() == access;
-        report.check(
-            "single real root/source-kind/access identity",
-            origin,
-            (plan.source(), plan.source_kind(), plan.source_access()),
-        );
-        report.check(
-            "single distinct component bindings and loans",
-            descriptor.key_binding() != descriptor.value_binding()
-                && !source.is_some_and(|s| descriptor.bindings().contains(&s))
-                && plan.loans()[0] != plan.loans()[1],
-            plan.loans(),
-        );
-        for (index, component) in [MapIterationComponent::Key, MapIterationComponent::Value]
-            .into_iter()
-            .enumerate()
-        {
-            let symbol = names.symbols().iter().find(|symbol| {
-                symbol.span() == site.bindings[index]
-                    && !symbol.is_synthetic()
-                    && symbol.kind() == SymbolKind::ForBinding
-            });
-            let binding = descriptor.bindings()[index];
-            let component_type = [descriptor.key_type(), descriptor.value_type()][index];
-            let loan = plan.loan(component);
-            report.check(
-                "single actual component statement/outer-source/binding/origin",
-                symbol.is_some_and(|symbol| symbol.id() == binding)
-                    && typed.symbol_type(binding) == Some(component_type)
-                    && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
-                    && plan.bindings()[index].symbol() == binding
-                    && plan.bindings()[index].kind() == OwnershipBindingKind::Shared
-                    && loan == &plan.loans()[index]
-                    && loan.component() == component
-                    && loan.statement() == site.statement
-                    && loan.source() == site.source
-                    && loan.binding() == binding
-                    && loan.kind() == LoanKind::Shared
-                    && Some(loan.origin()) == plan.source(),
-                (symbol, loan),
-            );
-        }
-        cleanup::single(file, site, plan, owned, is_owned, report);
-        if shape.grouped {
-            // 选择依据是实际 Group AST + 同一计划来源，不是 Map kind 或生产 qualify。
-            groups.push((descriptor.statement(), site.span));
-            report.check(
-                "single candidate Group source identity",
-                identity && parameter && origin,
-                (descriptor.statement(), site.source, shape.name),
-            );
-        }
-    }
-    report.check(
-        "single one of each direct/Group Map kind",
-        role_counts(&roles),
-        &roles,
-    );
-    groups.sort_by_key(|(statement, _)| statement.index());
-    report.check(
-        "single two distinct Group sites sorted by actual StatementId",
-        groups.len() == 2 && groups[0].0 != groups[1].0 && groups[0].1 != groups[1].1,
-        &groups,
-    );
-    let [(first, span), _] = groups.as_slice() else {
-        return Err(stopped("single exact Group oracle set", &groups));
-    };
-    let expected = location(&fixture.sources, *span)
-        .ok_or_else(|| stopped("single full Group For location", (first, span)))?;
-    report.check(
-        "single first actual Group full For/path/text",
-        true,
-        (first, &expected),
-    );
-    Ok(expected)
-}
-
 pub(super) fn unit(
     fixture: &Fixture,
     names: &ValidatedCompilationUnitNames,
@@ -251,6 +59,8 @@ pub(super) fn unit(
         typed.map_iterations().len() == 4 && owned.map_iterations().len() == 4,
         (typed.map_iterations(), owned.map_iterations()),
     );
+    let memory = matches!(names.names().index().source_units(), [source]
+        if source.key() == &SourceUnitKey::MemoryDocument);
     let mut all_sites = Vec::new();
     let mut groups = Vec::new();
     let mut roles = Vec::new();
@@ -275,7 +85,12 @@ pub(super) fn unit(
         };
         report.check(
             "unit per-file loop count",
-            sites.len() == usize::from(file.constructor.is_some()),
+            sites.len()
+                == if memory {
+                    4
+                } else {
+                    usize::from(file.constructor.is_some())
+                },
             (&file.path, &sites),
         );
         for site in sites {
@@ -319,7 +134,7 @@ pub(super) fn unit(
             report.check("unit intrinsic distinct Int/String K/V", matches!(source_type,
                 Some(UnitTypeKind::Intrinsic { constructor, arguments })
                 if kind(*constructor) == Some(descriptor.kind())
-                    && file.constructor == Some((*constructor, descriptor.kind()))
+                    && file.constructor.is_none_or(|expected| expected == (*constructor, descriptor.kind()))
                     && arguments.as_slice() == [descriptor.key_type(), descriptor.value_type()]
                     && typed.types().get(descriptor.key_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
                     && typed.types().get(descriptor.value_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::String))), source_type);
@@ -377,7 +192,9 @@ pub(super) fn unit(
                     && !symbol.is_synthetic()
                     && symbol.span().source_id() == file.parsed.source_id()
             }) && source.is_some_and(|source| {
-                source.source_unit() == source_unit && owned.binding_kind(source) == Some(binding)
+                source.source_unit() == source_unit
+                    && typed.symbol_type(source) == Some(descriptor.source_type())
+                    && owned.binding_kind(source) == Some(binding)
             }) && matches!(parameters.as_slice(), [parameter] if parameter.mode() == mode
                     && parameter.ty() == descriptor.source_type());
             report.check(
@@ -444,13 +261,13 @@ pub(super) fn unit(
         }
     }
     report.check(
-        "unit exact four actual AST sites and distinct source units",
+        "unit exact four actual AST sites and original source grouping",
         all_sites.len() == 4
             && all_sites.iter().enumerate().all(|(i, a)| {
                 all_sites
                     .iter()
                     .skip(i + 1)
-                    .all(|b| a.0.source_unit() != b.0.source_unit())
+                    .all(|b| a.0 != b.0 && (a.0.source_unit() == b.0.source_unit()) == memory)
             }),
         &all_sites,
     );

@@ -68,6 +68,50 @@ fn observe(name: &str, text: &str, supported: bool) {
     }
 }
 
+// Only this all-success whole uses Unit. Mixed and negative observations keep
+// the original observe path, including their exact rejection owner and phase.
+fn observe_owned_source_unit(name: &str, text: &str) {
+    use crate::{
+        native_tests::boxed_enum_tests::unit_source::UnitSource,
+        ssa::model::{Operation, Origin, TerminatorKind},
+    };
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let analysis = UnitSource::analyze("lowering.ko", text)
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+    analysis.assert_frontend_clean();
+    let declaration = analysis.declaration("work", SymbolKind::Function);
+    let (program, entry) = analysis
+        .lower_entry(declaration)
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+    assert_eq!(
+        program
+            .module(entry.module())
+            .unwrap()
+            .function(entry)
+            .unwrap()
+            .origin,
+        Origin::Source(analysis.declaration_span(declaration))
+    );
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program(&program).unwrap();
+    for function in program.modules.iter().flat_map(|module| &module.functions) {
+        for block in &function.blocks {
+            if let TerminatorKind::Return { values } = &block.terminator.as_ref().unwrap().kind {
+                for value in values {
+                    assert!(
+                        !function.instructions.iter().any(|instruction| {
+                            matches!(instruction.operation, Operation::Drop { owner } if owner == *value)
+                        }),
+                        "returned owner is never also dropped"
+                    );
+                }
+            }
+        }
+    }
+    println!("CONTROL {name}: VERIFIED_LLVM");
+}
+
 #[test]
 fn ordinary_source_controls_owned_source_return() {
     for own in [false, true] {
@@ -94,10 +138,9 @@ fn ordinary_source_controls_owned_source_return() {
                 let text = format!(
                     "fun work({parameter}): Unit {{ {source} {before} for (key in keys) {{ {update} if (key == 2) {{ return }}; println(\"tail\") }}; {tail} {map_tail} }}"
                 );
-                observe(
+                observe_owned_source_unit(
                     &format!("owned-source-own={own}-live={live}-map={map}"),
                     &text,
-                    true,
                 );
             }
         }

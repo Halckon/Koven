@@ -192,100 +192,63 @@ fn lower_map_unit(
 
 #[test]
 fn map_remove_temporary_null_comparison_inspects_real_drop_facts() {
-    use lang_frontend::ownership_checking::DropTarget;
+    use lang_frontend::{
+        ownership_checking::{UnitDropPoint, UnitDropTarget},
+        parser::{BinaryOperator, Expression, LiteralKind},
+    };
     let source = "fun entry() { var m = mutableMapOf<Int, String>(); m.put(1, \"text\".clone()); val present = m.remove(1) != null; if (present) { println(\"present\") } }";
-    let analysis = analyze(source);
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let removed = analysis.typed.map_removes()[0].expression();
+    let (_, analysis) = lower_map_unit(source, "entry");
+    let [remove] = analysis.types().map_removes() else {
+        panic!("one original Map remove descriptor")
+    };
+    let removed = remove.expression();
     let drops = analysis
-        .owned
+        .ownership()
         .drops()
         .iter()
-        .filter(|fact| fact.target() == DropTarget::Temporary(removed))
+        .filter(|fact| fact.target() == UnitDropTarget::Temporary(removed))
         .collect::<Vec<_>>();
     assert_eq!(
         drops.len(),
         1,
         "frontend publishes the actual result cleanup"
     );
+    let UnitDropPoint::AfterBinaryOperands(comparison) = drops[0].point() else {
+        panic!("the original temporary is cleaned after the null comparison operands")
+    };
+    assert_eq!(comparison.source_unit(), removed.source_unit());
+    assert_eq!(
+        removed.source_unit(),
+        analysis.names().names().index().source_units()[0].id()
+    );
+    let expressions = analysis.parsed().ast().expressions();
+    let Expression::Binary {
+        left,
+        operator: BinaryOperator::NotEqual,
+        right,
+        ..
+    } = expressions.get(comparison.expression()).unwrap().payload()
+    else {
+        panic!("the fact belongs to the original non-null comparison")
+    };
+    assert_eq!(*left, removed.expression());
     assert!(matches!(
-        drops[0].point(),
-        lang_frontend::ownership_checking::DropPoint::AfterBinaryOperands(_)
+        expressions.get(*right).unwrap().payload(),
+        Expression::Literal(LiteralKind::Null)
     ));
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("temporary result consumes its explicit frontend cleanup fact");
-    crate::llvm::render_verified_program(&program).unwrap();
+    assert_eq!(
+        drops[0].value_origin(),
+        expressions.get(removed.expression()).unwrap().span()
+    );
+    assert_eq!(
+        analysis.types().expression_type(removed),
+        Some(remove.result_type())
+    );
 }
 
 #[test]
 fn map_remove_single_for_guarded_owner_is_carried() {
-    use lang_frontend::ownership_checking::{
-        CleanupOwnerValue, DropTarget, IterationCleanupAction, LoanTarget,
-    };
     let source =
         include_str!("../../tests/fixtures/owned-null-cleanup-0296/single-loop-boundary.ko");
-    let analysis = analyze(source);
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    assert!(
-        !analysis
-            .owned
-            .cleanup_steps()
-            .iter()
-            .any(|(_, action)| matches!(
-                action,
-                IterationCleanupAction::ReleaseClosureInstances { .. }
-                    | IterationCleanupAction::ReleaseRetainedClosureSources { .. }
-                    | IterationCleanupAction::TestLastCaptureLoan { .. }
-                    | IterationCleanupAction::SaveClosureCapture { .. }
-                    | IterationCleanupAction::SaveOwnerSnapshot { .. }
-            )),
-        "{:?}",
-        analysis.owned.cleanup_steps()
-    );
-    let guarded = analysis
-        .owned
-        .drops()
-        .iter()
-        .find(|fact| fact.condition().is_some())
-        .expect("ordinary for publishes guarded owner cleanup");
-    let DropTarget::Named(symbol) = guarded.target() else {
-        panic!("outer named owner")
-    };
-    let Some(CleanupOwnerValue::IterationPhi {
-        statement,
-        symbol: owner_symbol,
-        ..
-    }) = analysis
-        .owned
-        .cleanup_conditions()
-        .owner_value(guarded.owner().unwrap())
-    else {
-        panic!("loop owner phi")
-    };
-    assert_eq!(*owner_symbol, symbol);
-    let plan = analysis.owned.iteration(*statement).unwrap();
-    assert!(!matches!(plan.source(), Some(LoanTarget::Place(place)) if place.root() == symbol));
-    assert_eq!(
-        analysis
-            .typed
-            .is_resource_type(analysis.typed.symbol_type(symbol).unwrap()),
-        Some(false)
-    );
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("the guarded owner has a verified normal-exhaustion carrier");
-    crate::llvm::render_verified_program(&program).unwrap();
+    loop_owner_tests::unit_identity::check_guarded_original(source);
 }

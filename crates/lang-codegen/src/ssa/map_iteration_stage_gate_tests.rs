@@ -1,10 +1,11 @@
 //! SPEC-0331 最小 provider 资格的普通源码阶段门。
-//! 两种 Borrow normal 均须完成 SSA/LLVM；原始 source 字节保留，不构造/变异 facts，不执行 native。
+//! 原 Single 列使用 MemoryDocument Unit；源码字节、六/五观察格与全部阶段义务保留。
+//! whole-set 在同一 sealed view 逐真实根完成 SSA/LLVM，不拼接 Program，不执行 native。
 
 mod facts;
 mod fixture;
 mod group;
-mod single;
+mod roots;
 mod unit;
 
 use fixture::{Fixture, SourceCase};
@@ -91,16 +92,15 @@ fn observe(
     whole_set: bool,
 ) -> Observation {
     let mut report = Report::default();
-    let result = Fixture::new(cases).and_then(|fixture| match pathway {
-        Pathway::Single => single::collect(&fixture, entry_name, whole_set, &mut report),
-        Pathway::Basic | Pathway::Const => unit::collect(
+    let result = Fixture::new(cases).and_then(|fixture| {
+        unit::collect(
             &fixture,
             pathway,
             reverse_inputs,
             entry_name,
             whole_set,
             &mut report,
-        ),
+        )
     });
     Observation {
         label: format!("{label}/{pathway:?}/reverse={reverse_inputs}"),
@@ -147,9 +147,17 @@ fn map_and_mutable_map_borrow_normal_verify_in_three_pathways() {
 #[test]
 fn whole_typed_source_set_verifies_unused_borrow_map_loops() {
     let mut observations = Vec::new();
-    // 单文件也锁整个 typed file；entry 体为空，两个 Map 函数从未被 entry 调用。
+    // 单文件仍检查全部同轮 facts；entry 为空，未调用函数由同一 view 逐根验证。
     let text = WHOLE.iter().map(|case| case.text).collect::<String>();
-    observations.push(single::collect_whole_file(&text));
+    let mut report = Report::default();
+    let result = Fixture::single_whole(&text).and_then(|fixture| {
+        unit::collect(&fixture, Pathway::Single, false, "entry", true, &mut report)
+    });
+    observations.push(Observation {
+        label: "whole-file/Single".to_owned(),
+        report,
+        result,
+    });
     for pathway in [Pathway::Basic, Pathway::Const] {
         for reverse_inputs in [false, true] {
             observations.push(observe(
