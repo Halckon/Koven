@@ -695,7 +695,7 @@ fn unit_container_native_bounds_abort_before_marker_and_valid_indices_read() {
                 run.stdout.is_empty(),
                 "marker must not precede bounds abort: {label}: {run:?}"
             );
-            // SPEC-0353: the bounds abort reports its message and source position.
+            // SPEC-0355: the bounds abort reports its message and source position.
             let stderr = String::from_utf8_lossy(&run.stderr);
             assert!(
                 stderr.starts_with("abort: index ") && stderr.contains("\n  at "),

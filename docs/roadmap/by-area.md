@@ -74,7 +74,7 @@
 
 | 状态 | ID | 内容 | 阶段 | 优先级 | Guide | Phase | Spec / 依据 |
 |---|---|---|---|---|---|---|---|
-| ✅ 已交付 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | P0 止血 | v1 必做 | 已定义 | 4,5 | [0353](../archive/specs/0353-abort-output.md) |
+| ✅ 已交付 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | P0 止血 | v1 必做 | 已定义 | 4,5 | [0355](../archive/specs/0355-abort-output.md) |
 | ◐ 部分 | N03 | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0220](../archive/specs/0220-compilation-unit-pointer-nullable-storage-lowering.md) [0296](../archive/specs/0296-owned-null-comparison-cleanup.md) |
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [09-nullability-errors](../guide/09-nullability-errors.md) |
 | ☐ 未开始 | L17 | 丢弃 Result 返回值报诊断（must-use）（D14） | P3 语言增量 | v1 必做 | 需新增 | 2 | — |

@@ -1074,7 +1074,7 @@
   <path d="M 9948 120 C 9948 152, 2028 188, 2028 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 276 C 2028 308, 1236 344, 1236 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 276 C 2028 308, 1500 344, 1500 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1500 450 C 1500 482, 972 500, 972 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1236 450 C 1236 482, 972 500, 972 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2488,11 +2488,11 @@
   <text x="1500" y="4395" text-anchor="middle" font-size="13">CLI project so</text>
   <text x="1500" y="4413" text-anchor="middle" font-size="13">urce-set v1 导出</text>
   <rect x="1116" y="376" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="1236" y="399" text-anchor="middle" font-size="13">SPEC-0353</text>
-  <text x="1236" y="417" text-anchor="middle" font-size="13">abort 输出与 kove</text>
-  <text x="1236" y="435" text-anchor="middle" font-size="13">nc run 退出状态</text>
+  <text x="1236" y="399" text-anchor="middle" font-size="13">SPEC-0354</text>
+  <text x="1236" y="417" text-anchor="middle" font-size="13">Conformance 种子</text>
+  <text x="1236" y="435" text-anchor="middle" font-size="13">集入库</text>
   <rect x="1380" y="376" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="1500" y="399" text-anchor="middle" font-size="13">SPEC-0354</text>
-  <text x="1500" y="417" text-anchor="middle" font-size="13">Conformance 种子</text>
-  <text x="1500" y="435" text-anchor="middle" font-size="13">集入库</text>
+  <text x="1500" y="399" text-anchor="middle" font-size="13">SPEC-0355</text>
+  <text x="1500" y="417" text-anchor="middle" font-size="13">abort 输出与 kove</text>
+  <text x="1500" y="435" text-anchor="middle" font-size="13">nc run 退出状态</text>
 </svg>

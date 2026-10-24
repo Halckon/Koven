@@ -1,4 +1,4 @@
-//! SPEC-0353: Guide v0.46 abort output contract on real native executables.
+//! SPEC-0355: Guide v0.46 abort output contract on real native executables.
 use super::emit_link_and_run;
 use std::os::unix::process::ExitStatusExt;
 

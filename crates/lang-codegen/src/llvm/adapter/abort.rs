@@ -1,4 +1,4 @@
-//! SPEC-0353: abort reasons and source positions lowered to the runtime abort report.
+//! SPEC-0355: abort reasons and source positions lowered to the runtime abort report.
 use super::{FunctionLowerer, IntPredicate, LlvmAdapterError, unsupported};
 use crate::{
     llvm::runtime::AbortMessage,
@@ -8,7 +8,7 @@ use crate::{
 impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources>
 {
-    /// SPEC-0353: the source position printed by aborts emitted for this origin.
+    /// SPEC-0355: the source position printed by aborts emitted for this origin.
     pub(super) fn set_abort_location(&self, origin: &Origin) -> Result<(), LlvmAdapterError> {
         let location = match self.dependencies.debug {
             Some(debug) => Some(debug.abort_location(origin)?),
@@ -78,7 +78,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     }
 }
 
-/// Koven name of a checked-conversion target for the SPEC-0353 abort message.
+/// Koven name of a checked-conversion target for the SPEC-0355 abort message.
 fn integer_type_name(module: &Module, ty: SsaTypeId) -> Result<&'static str, LlvmAdapterError> {
     match module.type_kind(ty) {
         Some(crate::ssa::model::SsaTypeKind::Integer { bits, signed }) => {

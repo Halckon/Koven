@@ -59,7 +59,7 @@ pub(super) fn assert_abort(executable: &Path, directory: &Path) {
     let output = child.wait_with_output().expect("reap conversion child");
     assert_eq!(output.status.signal(), Some(6), "{output:?}");
     assert_eq!(output.stdout, b"before\n", "{output:?}");
-    // SPEC-0353: the Guide v0.46 abort report precedes SIGABRT.
+    // SPEC-0355: the Guide v0.46 abort report precedes SIGABRT.
     assert!(
         String::from_utf8_lossy(&output.stderr).starts_with("abort: value out of range for "),
         "{output:?}"

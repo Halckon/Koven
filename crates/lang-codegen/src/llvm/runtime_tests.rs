@@ -253,7 +253,7 @@ fn heap_owner_uses_checked_system_allocation_and_recursive_unique_drop_glue() {
     assert!(first.contains("declare ptr @malloc(i64)"));
     assert!(first.contains("declare void @abort() #0"));
     assert!(first.contains("attributes #0 = { noreturn }"));
-    // SPEC-0353: each check reports through the shared helper, which alone calls abort().
+    // SPEC-0355: each check reports through the shared helper, which alone calls abort().
     assert_eq!(
         first.matches("call void @koven.abort.report(").count(),
         3,

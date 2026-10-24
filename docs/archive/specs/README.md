@@ -512,6 +512,6 @@
 
 - [0348 API 声明索引与教程示例协议](0348-api-documentation.md)
 - [SPEC-0351](./0351-llvm-install-bounds.md)：LLVM setup总时限与下载有限重试，PR双平台验收通过
-- [SPEC-0353](0353-abort-output.md)：abort 向 stderr 输出 `abort: <message>` 与源码位置后 SIGABRT；`kovenc run` 透传退出码并把信号映射为 128+N。
+- [SPEC-0355](0355-abort-output.md)：abort 向 stderr 输出 `abort: <message>` 与源码位置后 SIGABRT；`kovenc run` 透传退出码并把信号映射为 128+N。
 - [SPEC-0354](0354-conformance-corpus.md)：154 个 review probe、PR #120 基线矩阵与六个 V1 验收程序入库 `conformance/`，附矩阵 runner `scripts/conformance_matrix.sh`。
 - [SPEC-0349](0349-builtin-result-and-check.md)：`koven/core/result.ko` 经宿主授权成为内建环境 `Result`/`Ok`/`Err`，用户顶层同名声明报 L0150；无实参 `is Case` 从 subject 推断实参；新增 `kovenc check` 与 `--help`，单文件诊断退出码改为 1。
