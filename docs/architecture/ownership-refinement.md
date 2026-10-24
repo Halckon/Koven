@@ -1,6 +1,6 @@
 # 所有权细化层
 
-> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 `ssa::refine`、子集预检或 inline nullable 表示时 · **唯一真源**：`lang-codegen` 代码与测试 · [ADR-0032](../adr/accepted/0032-ownership-refinement-layer.md) · [ADR-0033](../adr/accepted/0033-inline-nullable-representation.md) · [SPEC-0350](../specs/active/0350-ownership-refinement-nullable-pilot.md)
+> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 `ssa::refine`、子集预检或 inline nullable 表示时 · **唯一真源**：`lang-codegen` 代码与测试 · [ADR-0032](../adr/accepted/0032-ownership-refinement-layer.md) · [ADR-0033](../adr/accepted/0033-inline-nullable-representation.md) · [SPEC-0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md)
 
 ## 分流
 

@@ -1,16 +1,16 @@
 # SPEC-0350: E3 所有权细化层与 nullable 家族试点
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：评审或实施路线图 E3（通用所有权细化层）时 · **唯一真源**：本片目标、范围与验收；语义以 Guide 为准，长期决定以 ADR-0032/0033 为准
+> **性质**：实施合同 · **状态**：done · **读取时机**：评审或实施路线图 E3（通用所有权细化层）时 · **唯一真源**：本片目标、范围与验收；语义以 Guide 为准，长期决定以 ADR-0032/0033 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0350` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.46 nullable flow 与 extraction](../../guide/09-nullability-errors.md#nullable-flow-与-extraction)、[Guide 15 nullable 实施边界](../../guide/15-conformance-and-staging.md) |
 | 批准依据 | 2026-10-23 用户选择：先做 E3 nullable 试点；inline nullable 采用 tag + payload 并做 niche；试点只做 7 个 probe（不含 Elvis 的 p15）；细化层与 D10 方向一致，终态统一使用新层 |
 | 基线 | `feature/spec-0349-builtin-result` 合并 main `1a200aaa` |
-| 分支 | `feature/spec-0350-ownership-refinement` |
+| 分支 | `feature/spec-0350-ownership-refinement`（PR #153） |
 | 前置 ADR | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)（细化层）、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)（inline nullable 表示），2026-10-23 accepted |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
@@ -196,4 +196,10 @@ baseline `conformance/baseline-aef3f4f8.tsv` 中 p14b、q05 记为 InvalidSsa；
 | `while_flow_tests::value_argument_contract` | proof 分支 origin 是整个 `while` | 两种布局的 `entry` 都已由新层 lowering，改为断言 origin 是 `current != null`；其余断言不变 |
 | `nullable_proof::guard_tests` 的 `Fixture`（含 `while_proof::retirement_tests`） | 旧路径私有 guard 的故障注入 | 测试对象就是旧路径，故用仅测试可见的 `refine::with_per_family_lowering` 固定走旧路径；生产路由不变 |
 | `field_replace_lower_tests::field_replace_single_nullable_layout_keeps_*` | `Holder<Int>`/`Holder<String>` 的 `T?` 字段被拒绝 | 3a 起泛型实例的标量/String nullable 字段按 ADR-0033 内联布局 intern，改为断言其通过 SSA 与 LLVM；非泛型 `Int?`/`String?` 字段仍被旧存储门拒绝，断言不变 |
+
+## 10. 归档
+
+2026-10-24 归档：§6 验收项全部完成，本地 Linux 证据见各项；双宿主 CI 以 PR #153 的
+pull_request 运行为准，合并前须全绿。E3 在路线图上仍为进行中：本片只是 nullable 家族试点，
+其余家族迁入细化层由后继 Spec 承接。
 

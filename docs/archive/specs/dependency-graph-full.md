@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，329 份）"]
+subgraph Garchive["已完成（archive，330 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -333,6 +333,7 @@ subgraph Garchive["已完成（archive，329 份）"]
   S0347["S0347<br/>本地 Kovenlings 首片"]
   S0348["S0348<br/>API 声明索引与教程示例协议首片"]
   S0349["S0349<br/>内建 Result/Ok/Err、is Case subject 推断与 kovenc check"]
+  S0350["S0350<br/>E3 所有权细化层与 nullable 家族试点"]
   S0351["S0351<br/>LLVM 安装等待边界"]
   S0352["S0352<br/>CLI project source-set v1 导出"]
   S0353["S0353<br/>LSP 全文格式化适配"]
@@ -343,7 +344,6 @@ subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
   S0341["S0341<br/>D10 统一 compilation-unit 检查与代码生成管线"]
-  S0350["S0350<br/>E3 所有权细化层与 nullable 家族试点"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1749,6 +1749,7 @@ S0354 --> S0349
 | SPEC-0347 | archive | [0347-local-kovenlings.md](0347-local-kovenlings.md) |
 | SPEC-0348 | archive | [0348-api-documentation.md](0348-api-documentation.md) |
 | SPEC-0349 | archive | [0349-builtin-result-and-check.md](0349-builtin-result-and-check.md) |
+| SPEC-0350 | archive | [0350-ownership-refinement-nullable-pilot.md](0350-ownership-refinement-nullable-pilot.md) |
 | SPEC-0351 | archive | [0351-llvm-install-bounds.md](0351-llvm-install-bounds.md) |
 | SPEC-0352 | archive | [0352-source-set-export.md](0352-source-set-export.md) |
 | SPEC-0353 | archive | [0353-lsp-formatting.md](0353-lsp-formatting.md) |
@@ -1757,7 +1758,6 @@ S0354 --> S0349
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
-| SPEC-0350 | active | [0350-ownership-refinement-nullable-pilot.md](../../specs/active/0350-ownership-refinement-nullable-pilot.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

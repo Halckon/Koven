@@ -96,7 +96,7 @@ Guide 11 规定 `T?` 当且仅当 `T` 为 Copyable 时 Copyable，nullable 包�
 
 ## 关联
 
-- 相关 Spec：[SPEC-0350](../../specs/active/0350-ownership-refinement-nullable-pilot.md)（E3 nullable 家族试点）；SPEC-0334（String? 与 Map 组合 ABI 前置，draft）
+- 相关 Spec：[SPEC-0350](../../archive/specs/0350-ownership-refinement-nullable-pilot.md)（E3 nullable 家族试点）；SPEC-0334（String? 与 Map 组合 ABI 前置，draft）
 - 相关 ADR：[ADR-0017](0017-nullable-handle-ssa-abi.md)、[ADR-0018](0018-string-owner-runtime-abi.md)、[ADR-0032](0032-ownership-refinement-layer.md)
 - 局部扩展：ADR-0018（空串 canonical pointer 明确为非 null；其余决定不变）
 - 取代的 ADR：无

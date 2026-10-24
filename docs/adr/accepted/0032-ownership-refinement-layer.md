@@ -102,7 +102,7 @@ frontend 已发布 lowering 需要的全部语义事实：source-qualified drop 
 
 ## 关联
 
-- 相关 Spec：[SPEC-0350](../../specs/active/0350-ownership-refinement-nullable-pilot.md)（E3 nullable 家族试点）；SPEC-0341（D10，管线统一）
+- 相关 Spec：[SPEC-0350](../../archive/specs/0350-ownership-refinement-nullable-pilot.md)（E3 nullable 家族试点）；SPEC-0341（D10，管线统一）
 - 相关 ADR：[ADR-0006](0006-typed-ssa-block-parameters.md)、[ADR-0017](0017-nullable-handle-ssa-abi.md)、[ADR-0033](0033-inline-nullable-representation.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无
