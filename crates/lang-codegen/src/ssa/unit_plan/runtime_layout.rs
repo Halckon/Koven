@@ -308,15 +308,34 @@ pub(crate) fn resolve_nominal_runtime_field_types(
         .collect()
 }
 
-/// SPEC-0191 当前只递归接受由 `List`、单参数 ordinary class 与 direct owner parameter 组成的
-/// 有限 recipe；nullable/function/其他 intrinsic 与非 class nominal 继续保持门禁。
+/// SPEC-0191 的递归 recipe 仍限 `List`、单参数 ordinary class 与 direct owner parameter。
+/// 顶层 nullable 另接受 direct owner parameter，或非泛型 ordinary class 中的非泛型 class；
+/// 其余 nullable recipe 不因类型闭合而自动放行，递归 owner 仍由 type mapper 拒绝。
 fn supported_nested_runtime_field_recipe(
     typed: &CompilationUnitTypes,
     owner: &UnitNominalSignature,
     template: UnitTypeId,
 ) -> bool {
     if let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(template) {
-        return direct_owner_type_parameter(typed, owner, *inner);
+        if direct_owner_type_parameter(typed, owner, *inner) {
+            return true;
+        }
+        if owner.kind() != NominalKind::Class || !owner.type_parameters().is_empty() {
+            return false;
+        }
+        return matches!(
+            typed.types().get(*inner),
+            Some(UnitTypeKind::Nominal { declaration, arguments })
+                if arguments.is_empty()
+                    && typed
+                        .signatures()
+                        .declaration(*declaration)
+                        .and_then(|signature| signature.nominal())
+                        .is_some_and(|nested| {
+                            nested.kind() == NominalKind::Class
+                                && nested.type_parameters().is_empty()
+                        })
+        );
     }
     supported_nested_runtime_field_recipe_with(typed, owner, template, &mut BTreeSet::new())
 }

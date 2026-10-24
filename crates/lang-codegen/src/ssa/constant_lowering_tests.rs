@@ -1,38 +1,23 @@
 //! SPEC-0209: consume validated constant/materialization facts, never initializer syntax.
 use super::*;
-use crate::ssa::model::{ScalarConstant, SsaTypeKind};
+use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+use crate::ssa::model::{FunctionId, ScalarConstant, SsaTypeKind};
 
-fn lower_constants(text: &str) -> (Analysis, crate::ssa::model::Program) {
-    let analysis = analyze(text);
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
+fn lower_constants(
+    text: &str,
+    entry_name: &str,
+) -> (UnitSource, crate::ssa::model::Program, FunctionId) {
+    let analysis = UnitSource::analyze("lowering.ko", text)
+        .unwrap_or_else(|error| panic!("{text}\n{error:?}"));
+    analysis.assert_frontend_clean();
+    let entry = analysis.declaration(
+        entry_name,
+        lang_frontend::name_resolution::SymbolKind::Function,
     );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("constant facts must lower");
-    (analysis, program)
+    let (program, function) = analysis
+        .lower_entry(entry)
+        .expect("constant facts must lower");
+    (analysis, program, function)
 }
 
 #[test]
@@ -44,10 +29,15 @@ fn associated_constants_lower_across_all_declaration_namespaces() {
         "interface Labels { companion { const val COUNT = BASE + 1 } }",
         "enum class Labels { One; companion { const val COUNT = BASE + 1 } }",
     ] {
-        let (_, program) = lower_constants(&format!(
-            "const val BASE = 40\n{declaration}\nfun answer(): Int = Labels.COUNT"
-        ));
-        let operations = program.modules[0].functions[0]
+        let (_, program, entry) = lower_constants(
+            &format!("const val BASE = 40\n{declaration}\nfun answer(): Int = Labels.COUNT"),
+            "answer",
+        );
+        let operations = program
+            .module(entry.module())
+            .unwrap()
+            .function(entry)
+            .unwrap()
             .instructions
             .iter()
             .map(|instruction| &instruction.operation)
@@ -80,9 +70,10 @@ fn exact_scalar_and_char_values_keep_their_ssa_types() {
         ("ULong", "18446744073709551615uL", "ret i64 -1"),
         ("Char", "'文'", "ret i32 25991"),
     ] {
-        let (_, program) = lower_constants(&format!(
-            "const val VALUE: {ty} = {literal}\nfun answer(): {ty} = VALUE"
-        ));
+        let (_, program, _) = lower_constants(
+            &format!("const val VALUE: {ty} = {literal}\nfun answer(): {ty} = VALUE"),
+            "answer",
+        );
         let llvm = render_verified_program(&program).unwrap();
         assert!(llvm.contains(expected_return), "{ty}: {llvm}");
         if ty == "Char" {
@@ -94,7 +85,7 @@ fn exact_scalar_and_char_values_keep_their_ssa_types() {
 
 #[test]
 fn string_constant_reads_materialize_independent_literal_owners() {
-    let (analysis, program) = lower_constants(
+    let (analysis, program, _) = lower_constants(
         r#"
 const val TEXT = "中" + "文"
 fun view(text: String): Unit {}
@@ -103,6 +94,7 @@ fun use(): Boolean {
     return TEXT + TEXT == TEXT
 }
 "#,
+        "use",
     );
     let literals = program.modules[0]
         .functions
@@ -114,14 +106,8 @@ fun use(): Boolean {
         })
         .collect::<Vec<_>>();
     assert_eq!(literals, ["中文".as_bytes(); 4]);
-    let repeated = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap();
+    let entry = analysis.declaration("use", lang_frontend::name_resolution::SymbolKind::Function);
+    let (repeated, _) = analysis.lower_entry(entry).unwrap();
     assert_eq!(render_program(&program), render_program(&repeated));
     assert_eq!(
         render_verified_program(&program).unwrap(),
@@ -131,12 +117,21 @@ fun use(): Boolean {
 
 #[test]
 fn unused_constant_namespaces_emit_only_the_entry() {
-    let (_, program) = lower_constants(
+    let (_, program, entry) = lower_constants(
         "const val UNUSED = 40 + 2\nobject Config { const val TEXT = \"unused\" }\nfun entry(): Unit {}",
+        "entry",
     );
     let llvm = render_verified_program(&program).unwrap();
     assert_eq!(program.modules[0].functions.len(), 1);
-    assert!(program.modules[0].functions[0].instructions.is_empty());
+    assert!(
+        program
+            .module(entry.module())
+            .unwrap()
+            .function(entry)
+            .unwrap()
+            .instructions
+            .is_empty()
+    );
     for absent in ["UNUSED", "Config", "unused", "global", "init_guard"] {
         assert!(!llvm.contains(absent), "{llvm}");
     }

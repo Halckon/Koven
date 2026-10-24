@@ -6,47 +6,189 @@ mod unit_storage_boundary_tests;
 mod unit_storage_tests;
 
 use lang_frontend::{
+    analysis::analyze_basic_unit_ownership,
     lexer::lex,
-    name_resolution::resolve_names,
-    ownership_checking::check_ownership,
-    parser::parse_file,
+    name_resolution::{
+        SourceUnitInput, SymbolKind, ValidatedCompilationUnitNames, index_compilation_unit,
+        resolve_compilation_unit_names,
+    },
+    ownership_checking::owned_compilation_unit_view,
+    parser::{ParsedFile, parse_file},
     source::SourceMap,
-    type_checking::{check_types, standard_environments},
+    type_checking::{
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
+    },
 };
 
 use super::{
-    lower_frontend::orchestrate::lower_scalar_file,
     model::{
         BinaryOperator, Block, BlockId, ComparisonOperator, Definition, Edge, EntityId, Function,
-        Instruction, LoanKind, Operation, ScalarConstant, TerminatorKind,
+        FunctionId, Instruction, LoanKind, Operation, Origin, Program, ScalarConstant,
+        TerminatorKind,
     },
     render::render_program,
+    unit_lower::lower_owned_unit_with_entry,
     verify::verify_program,
 };
 
-fn analyze(source_text: &str) -> super::model::Program {
+struct SourceProgram {
+    program: Program,
+    sources: SourceMap,
+    parsed: ParsedFile,
+    names: ValidatedCompilationUnitNames,
+    entry: FunctionId,
+}
+
+impl SourceProgram {
+    fn entry(&self) -> &Function {
+        self.program
+            .module(self.entry.module())
+            .unwrap()
+            .function(self.entry)
+            .unwrap()
+    }
+
+    fn entry_mut(&mut self) -> &mut Function {
+        self.program
+            .module_mut(self.entry.module())
+            .unwrap()
+            .function_mut(self.entry)
+            .unwrap()
+    }
+
+    fn function(&self, name: &str) -> &Function {
+        let mut declarations =
+            self.names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .filter(|declaration| {
+                    declaration.name() == name
+                        && declaration.kind() == SymbolKind::Function
+                        && declaration.name_span().source_id() == self.parsed.source_id()
+                });
+        let declaration = declarations.next().expect("source function declaration");
+        assert!(
+            declarations.next().is_none(),
+            "unique source function declaration"
+        );
+        let span = self
+            .parsed
+            .ast()
+            .items()
+            .get(declaration.root())
+            .unwrap()
+            .span();
+        let mut functions = self
+            .program
+            .modules
+            .iter()
+            .flat_map(|module| &module.functions)
+            .filter(|function| function.origin == Origin::Source(span));
+        let function = functions
+            .next()
+            .expect("same-source function body is emitted");
+        assert!(
+            functions.next().is_none(),
+            "one body for the original source declaration"
+        );
+        function
+    }
+}
+
+fn analyze(source_text: &str, entry_name: &str) -> SourceProgram {
+    analyze_case("sequential-for.ko", source_text, entry_name)
+}
+
+fn analyze_case(filename: &str, source_text: &str, entry_name: &str) -> SourceProgram {
     let mut sources = SourceMap::new();
-    let source = sources
-        .add_source("sequential-for.ko", source_text)
-        .expect("source");
+    let source = sources.add_source(filename, source_text).expect("source");
     let lexed = lex(&sources, source).expect("lexer");
+    assert!(lexed.diagnostics().is_empty(), "{:?}", lexed.diagnostics());
     let parsed = parse_file(&sources, &lexed).expect("parser");
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",
         parsed.diagnostics()
     );
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let program = lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
-        .expect("sequential for loop must lower");
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let (environment, types) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).expect("source input");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .expect("names")
+        .validate()
+        .expect("valid names");
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &types).expect("types");
+    assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
+    complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw)
+        .expect("all original source types must be complete");
+    let (typed, owned) = analyze_basic_unit_ownership(&sources, &inputs, &names, &types, raw)
+        .expect("ownership")
+        .into_result()
+        .expect("valid types");
+    let owned = owned.validate().expect("valid ownership");
+    // Same original map, parsed tree, unit index, name owner and type environment throughout.
+    assert_eq!(parsed.source_id(), source);
+    assert_eq!(names.names().index().source_units().len(), 1);
+    assert_eq!(names.names().index().source_units()[0].source_id(), source);
+    assert_eq!(names.names().source_units().len(), 1);
+    assert_eq!(
+        names.names().source_units()[0].resolution().source_id(),
+        source
+    );
+    assert!(
+        typed
+            .types()
+            .is_compatible_with(&sources, &inputs, &names, &types)
+    );
+    assert!(owned.ownership().is_compatible_with(&typed));
+    for diagnostics in [
+        names.names().diagnostics(),
+        typed.types().diagnostics(),
+        owned.ownership().diagnostics(),
+    ] {
+        assert!(diagnostics.is_empty(), "{filename}: {diagnostics:?}");
+    }
+    let mut entries = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .filter(|declaration| {
+            declaration.name() == entry_name
+                && declaration.kind() == SymbolKind::Function
+                && declaration.name_span().source_id() == source
+        });
+    let declaration = entries.next().expect("selected source function exists");
+    assert!(
+        entries.next().is_none(),
+        "selected source function is unique"
+    );
+    let entry_span = parsed.ast().items().get(declaration.root()).unwrap().span();
+    let unit = owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned)
+        .expect("same-analysis owned unit");
+    let (program, entry) =
+        lower_owned_unit_with_entry(&unit, declaration.id()).unwrap_or_else(|error| {
+            panic!("{filename}: sequential for loop must lower: {error:?}\n{source_text}")
+        });
     verify_program(&program).expect("lowered for loop SSA must verify");
-    program
+    assert_eq!(
+        program
+            .module(entry.module())
+            .unwrap()
+            .function(entry)
+            .unwrap()
+            .origin,
+        Origin::Source(entry_span)
+    );
+    SourceProgram {
+        program,
+        sources,
+        parsed,
+        names,
+        entry,
+    }
 }
 
 #[test]
@@ -60,8 +202,8 @@ fn borrowed_named_array_iteration_lowers_to_verified_ssa_cfg() {
             return total
         }
     "#;
-    let program = analyze(text);
-    let ssa = render_program(&program);
+    let analysis = analyze(text, "sum");
+    let ssa = render_program(&analysis.program);
     assert!(ssa.contains("container.length"), "{ssa}");
     assert!(ssa.contains("container.element_place"), "{ssa}");
     assert!(ssa.contains("borrow.shared"), "{ssa}");
@@ -79,8 +221,8 @@ fn discard_binding_lowers_to_verified_ssa() {
             return c
         }
     "#;
-    let program = analyze(text);
-    let ssa = render_program(&program);
+    let analysis = analyze(text, "count");
+    let ssa = render_program(&analysis.program);
     assert!(ssa.contains("container.length"), "{ssa}");
     assert!(ssa.contains("container.element_place"), "{ssa}");
     assert!(ssa.contains("end_borrow"), "{ssa}");
@@ -97,8 +239,8 @@ fn temporary_list_source_iteration_lowers_to_verified_ssa() {
             return total
         }
     "#;
-    let program = analyze(text);
-    let ssa = render_program(&program);
+    let analysis = analyze(text, "test");
+    let ssa = render_program(&analysis.program);
     assert!(ssa.contains("container.length"), "{ssa}");
     assert!(ssa.contains("container.element_place"), "{ssa}");
     assert!(ssa.contains("end_borrow"), "{ssa}");
@@ -121,8 +263,8 @@ fn mutable_list_with_break_and_continue_lowers_to_verified_ssa() {
             return sum
         }
     "#;
-    let program = analyze(text);
-    let ssa = render_program(&program);
+    let analysis = analyze(text, "test");
+    let ssa = render_program(&analysis.program);
     assert!(ssa.contains("container.length"), "{ssa}");
     assert!(ssa.contains("container.element_place"), "{ssa}");
 }
@@ -139,8 +281,8 @@ fn early_return_from_for_loop_lowers_to_verified_ssa() {
             return -1
         }
     "#;
-    let program = analyze(text);
-    let ssa = render_program(&program);
+    let analysis = analyze(text, "find_first_even");
+    let ssa = render_program(&analysis.program);
     assert!(ssa.contains("container.length"), "{ssa}");
     assert!(ssa.contains("return %"), "{ssa}");
 }
@@ -157,8 +299,8 @@ fn borrowed_destructuring_iteration_lowers_to_verified_ssa() {
             return total
         }
     "#;
-    let program = analyze(text);
-    let ssa = render_program(&program);
+    let analysis = analyze(text, "sum_pairs");
+    let ssa = render_program(&analysis.program);
     assert!(ssa.contains("container.length"), "{ssa}");
     assert!(ssa.contains("container.element_place"), "{ssa}");
 }
@@ -176,8 +318,8 @@ fn nested_for_loops_lower_to_verified_ssa() {
             return total
         }
     "#;
-    let program = analyze(text);
-    let ssa = render_program(&program);
+    let analysis = analyze(text, "matrix_sum");
+    let ssa = render_program(&analysis.program);
     assert!(ssa.contains("container.length"), "{ssa}");
 }
 
@@ -252,10 +394,9 @@ fn temporary_source_boundaries_keep_call_and_length_in_preheader() {
             "#
         );
         eprintln!("temporary_{provider}_{cardinality}.ko:\n{text}");
-        let program = analyze(&text);
-        let functions = || program.modules.iter().flat_map(|module| &module.functions);
-        let source = functions().find(|f| f.name == "source").expect("source");
-        let run = functions().find(|f| f.name == "run").expect("run");
+        let analysis = analyze(&text, "run");
+        let source = analysis.function("source");
+        let run = analysis.function("run");
         let calls = run.instructions.iter().filter(|instruction| {
             matches!(instruction.operation, Operation::DirectCall { callee, .. } if callee == source.id)
         }).collect::<Vec<_>>();
@@ -356,6 +497,7 @@ fn temporary_source_boundaries_keep_call_and_length_in_preheader() {
         };
         let body_source = transport(header_source);
         let body_cursor = transport(EntityId::Value(cursor));
+        let body_snapshot = transport(EntityId::Value(snapshot));
         let elements = run
             .instructions
             .iter()
@@ -384,7 +526,7 @@ fn temporary_source_boundaries_keep_call_and_length_in_preheader() {
         assert!(header_incoming.contains(&(preheader.id, enter)));
         assert!(header_incoming.contains(&(body.id, backedge)));
         assert_eq!(backedge.arguments[source_slot], body_source);
-        assert_eq!(backedge.arguments[length_slot], EntityId::Value(snapshot));
+        assert_eq!(backedge.arguments[length_slot], body_snapshot);
         let advance = defining_instruction(run, backedge.arguments[cursor_slot]);
         assert_eq!(advance.block, body.id);
         let Operation::Binary {

@@ -42,7 +42,7 @@ fn string_clone_copies_owned_container_elements_without_moving_them() {
 
 #[test]
 fn string_clone_heap_owners_free_once_and_static_empty_clone_has_exact_allocation_cost() {
-    use super::{TestDirectory, analyze, symbol};
+    use super::{TestDirectory, UnitSource};
     use lang_frontend::name_resolution::SymbolKind;
     use std::{fs, process::Command};
     let source = r#"
@@ -59,16 +59,12 @@ fn string_clone_heap_owners_free_once_and_static_empty_clone_has_exact_allocatio
             consume("".clone())
         }
     "#;
-    let analysis = analyze("clone-counted.ko", source);
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "stringCloneEntry", SymbolKind::Function),
-    )
-    .expect("clone owner lifecycle verifies");
+    let analysis = UnitSource::analyze("clone-counted.ko", source)
+        .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("stringCloneEntry", SymbolKind::Function))
+        .expect("clone owner lifecycle verifies");
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
         .unwrap()
         .replace("@malloc(", "@counted_malloc(")
@@ -156,22 +152,18 @@ fn string_clone_evaluates_temporary_receiver_once_and_survives_source_return_dro
 
 #[test]
 fn string_clone_allocation_failure_aborts_before_publishing_result() {
-    use super::{TestDirectory, analyze, symbol};
+    use super::{TestDirectory, UnitSource};
     use lang_frontend::name_resolution::SymbolKind;
     use std::{fs, process::Command};
-    let analysis = analyze(
+    let analysis = UnitSource::analyze(
         "clone-failure.ko",
         r#"fun stringCloneEntry(): Unit { println("copy".clone()) }"#,
-    );
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "stringCloneEntry", SymbolKind::Function),
     )
-    .unwrap();
+    .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("stringCloneEntry", SymbolKind::Function))
+        .unwrap();
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
         .unwrap()
         .replace("@malloc(", "@failing_malloc(")
@@ -251,27 +243,21 @@ fn string_clone_borrows_named_fields_and_rc_payloads() {
 
 #[test]
 fn string_clone_borrowed_rc_payload_is_rejected_at_existing_native_abi_boundary() {
-    use super::{analyze, symbol};
+    use super::UnitSource;
     use lang_frontend::name_resolution::SymbolKind;
-    let analysis = analyze(
+    let analysis = UnitSource::analyze(
         "clone-borrowed-rc.ko",
         r#"
         fun duplicate(shared: Rc<String>): String = shared.value.clone()
         fun stringCloneEntry(): Unit { val shared = Rc("text"); println(duplicate(shared)) }
     "#,
-    );
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let error = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "stringCloneEntry", SymbolKind::Function),
     )
-    .err()
-    .expect("Borrow Rc payload has no normalized native loan ABI yet");
+    .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let error = analysis
+        .lower_entry(analysis.declaration("stringCloneEntry", SymbolKind::Function))
+        .err()
+        .expect("Borrow Rc payload has no normalized native loan ABI yet");
     assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
 }
 
@@ -301,9 +287,9 @@ fn string_clone_owned_result_supports_move_capture_and_early_return() {
 
 #[test]
 fn integrated_numeric_element_clone_moves_into_boxed_enum_and_drops_once() {
-    use super::{analyze, symbol};
+    use super::UnitSource;
     use lang_frontend::name_resolution::SymbolKind;
-    let analysis = analyze(
+    let analysis = UnitSource::analyze(
         "integrated-clone-box.ko",
         r#"
         enum class Text { Value(text: String), Empty }
@@ -316,16 +302,12 @@ fn integrated_numeric_element_clone_moves_into_boxed_enum_and_drops_once() {
             println(texts[0b0_1])
         }
         "#,
-    );
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
     )
-    .expect("numeric element clone and boxed enum ownership compose");
+    .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("numeric element clone and boxed enum ownership compose");
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     let output = super::boxed_enum_tests::run_counted_allocations(&llvm, 4);
     super::boxed_enum_tests::assert_success(&output, "boxed\n界é\n".as_bytes());

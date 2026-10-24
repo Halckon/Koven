@@ -1,5 +1,7 @@
 //! 后续实参提前退出时，先结束此前实参的借用，再清理 temporary owner。
 use super::*;
+use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+use lang_frontend::name_resolution::SymbolKind;
 
 #[test]
 fn later_argument_transfer_ends_earlier_temporary_borrow_before_drop() {
@@ -57,26 +59,15 @@ fn later_argument_transfer_ends_earlier_temporary_borrow_before_drop() {
 
 #[test]
 fn grouped_temporary_has_one_owner_at_argument_merge() {
-    let analysis = analyze(
+    let analysis = UnitSource::analyze(
+        "lowering.ko",
         "class Node()\nfun outer(node: Node, own result: Int): Unit {}\nfun test(flag: Boolean): Unit { outer((Node()), if (flag) 0 else 1)\nif (flag) {} else {} }",
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
     )
-    .expect("grouping must not duplicate ownership on a merge edge");
+    .expect("the original grouped temporary source passes strict Unit admission");
+    analysis.assert_frontend_clean();
+    let declaration = analysis.declaration("test", SymbolKind::Function);
+    let (program, _) = analysis
+        .lower_entry(declaration)
+        .expect("grouping must not duplicate ownership on a merge edge");
     render_verified_program(&program).expect("each temporary owner must be transferred once");
 }

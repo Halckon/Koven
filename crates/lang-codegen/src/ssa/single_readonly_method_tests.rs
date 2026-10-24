@@ -1,26 +1,48 @@
 //! SPEC-0316: real source -> unchanged SSA/LLVM/native; no injected runtime or IR.
 use super::{LoweringError, LoweringErrorKind, model::*, verify::verify_program};
+use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use lang_frontend::{
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
     },
-    ownership_checking::{check_compilation_unit_constant_ownership, check_ownership},
+    ownership_checking::check_compilation_unit_constant_ownership,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 use std::{fs, process::Command};
 
 #[derive(Clone, Copy, Debug)]
 enum Pipeline {
+    // The original single source shape now uses strict MemoryDocument Unit products.
     Single,
     Unit,
     ConstantUnit,
 }
 
-fn lower(
-    text: &str,
-    pipeline: Pipeline,
-) -> (SourceMap, Result<(Program, FunctionId), LoweringError>) {
+fn lower(text: &str, pipeline: Pipeline, name: &str, call: &str) -> (Program, FunctionId) {
+    if matches!(pipeline, Pipeline::Single) {
+        let analysis =
+            UnitSource::analyze("app/readonly-method.ko", &format!("package app\n{text}"))
+                .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        analysis.assert_frontend_clean();
+        let declaration = analysis.declaration("entry", SymbolKind::Function);
+        let (program, entry) = checked_lowering(
+            name,
+            call,
+            analysis.sources(),
+            analysis.lower_entry(declaration),
+        );
+        assert_eq!(
+            program
+                .module(entry.module())
+                .unwrap()
+                .function(entry)
+                .unwrap()
+                .origin,
+            Origin::Source(analysis.declaration_span(declaration))
+        );
+        return (program, entry);
+    }
     let mut sources = SourceMap::new();
     let (source, parsed) = super::unit_lower_test_support::parsed(
         &mut sources,
@@ -28,66 +50,63 @@ fn lower(
         &format!("package app\n{text}"),
     );
     let (environment, types) = standard_environments();
-    let result = match pipeline {
-        Pipeline::Single => {
-            let names = resolve_names(&sources, &parsed, &environment).unwrap();
-            assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-            let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-            assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-            let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-            let entry = names
-                .symbols()
-                .iter()
-                .find(|s| s.name() == "entry")
-                .unwrap()
-                .id();
-            super::lower_frontend::orchestrate::lower_scalar_file_with_entry(
-                &sources, &parsed, &names, &typed, &owned, entry,
-            )
-        }
-        Pipeline::Unit | Pipeline::ConstantUnit => {
-            let inputs = [SourceUnitInput::new(
-                "app",
-                "app/readonly-method.ko",
-                source,
-                &parsed,
-            )];
-            if matches!(pipeline, Pipeline::ConstantUnit) {
-                let index = index_compilation_unit(&sources, &inputs).unwrap();
-                let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-                    .unwrap()
-                    .validate()
-                    .unwrap();
-                let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-                    .unwrap()
-                    .validate_constants()
-                    .unwrap();
-                let owned = check_compilation_unit_constant_ownership(
-                    &sources, &inputs, &names, &types, &typed,
-                )
+    let inputs = [SourceUnitInput::new(
+        "app",
+        "app/readonly-method.ko",
+        source,
+        &parsed,
+    )];
+    // Keep the independent package Unit / ConstantUnit controls unchanged.
+    let result = if matches!(pipeline, Pipeline::ConstantUnit) {
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate_constants()
+            .unwrap();
+        let owned =
+            check_compilation_unit_constant_ownership(&sources, &inputs, &names, &types, &typed)
                 .unwrap()
                 .validate()
                 .unwrap();
-                let entry = super::unit_lower_test_support::declaration(&names, "app", "entry");
-                super::unit_lower::constant::lower_constant_unit_with_entry(
-                    &sources, &inputs, &names, &types, &typed, &owned, entry,
-                )
-            } else {
-                let (names, typed, owned) = super::unit_lower_test_support::analyze(
-                    &sources,
-                    &inputs,
-                    &environment,
-                    &types,
-                );
-                let entry = super::unit_lower_test_support::declaration(&names, "app", "entry");
-                super::unit_lower::lower_scalar_unit_with_entry(
-                    &sources, &inputs, &names, &types, &typed, &owned, entry,
-                )
-            }
-        }
+        let entry = super::unit_lower_test_support::declaration(&names, "app", "entry");
+        super::unit_lower::constant::lower_constant_unit_with_entry(
+            &sources, &inputs, &names, &types, &typed, &owned, entry,
+        )
+    } else {
+        let (names, typed, owned) =
+            super::unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let entry = super::unit_lower_test_support::declaration(&names, "app", "entry");
+        super::unit_lower::lower_scalar_unit_with_entry(
+            &sources, &inputs, &names, &types, &typed, &owned, entry,
+        )
     };
-    (sources, result)
+    checked_lowering(name, call, &sources, result)
+}
+
+fn checked_lowering(
+    name: &str,
+    call: &str,
+    sources: &SourceMap,
+    result: Result<(Program, FunctionId), LoweringError>,
+) -> (Program, FunctionId) {
+    if let Err(error) = result {
+        assert_eq!(
+            error.kind,
+            LoweringErrorKind::UnsupportedNode,
+            "{name}: {error:?}"
+        );
+        assert_eq!(
+            error.span.and_then(|s| sources.slice(s).ok()),
+            Some(call),
+            "{name}: {error:?}"
+        );
+        panic!("{name}: positive source rejected at exact receiver call {call}: {error:?}");
+    }
+    result.unwrap()
 }
 
 fn run_case(
@@ -114,21 +133,7 @@ fn run_case(
     } else {
         fixture.to_owned()
     };
-    let (sources, result) = lower(&text, pipeline);
-    if let Err(error) = result {
-        assert_eq!(
-            error.kind,
-            LoweringErrorKind::UnsupportedNode,
-            "{name}: {error:?}"
-        );
-        assert_eq!(
-            error.span.and_then(|s| sources.slice(s).ok()),
-            Some(call),
-            "{name}: {error:?}"
-        );
-        panic!("{name}: positive source rejected at exact receiver call {call}: {error:?}");
-    }
-    let (program, entry) = result.unwrap();
+    let (program, entry) = lower(&text, pipeline, name, call);
     verify_program(&program).unwrap();
     assert_receiver_abi(&program);
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
@@ -617,8 +622,12 @@ case!(
 fn readonly_moveonly_temporary_drop_follows_actual_receiver_loan() {
     let source = include_str!("../../tests/fixtures/readonly_methods/moveonly_temporary.ko");
     for pipeline in [Pipeline::Single, Pipeline::Unit] {
-        let (_, result) = lower(source, pipeline);
-        let (program, entry) = result.unwrap();
+        let (program, entry) = lower(
+            source,
+            pipeline,
+            "readonly_moveonly_temporary_drop_follows_actual_receiver_loan",
+            "Reading(7,\"payload\".clone()).readNumber()",
+        );
         let function = program.modules[0].function(entry).unwrap();
         let call = function
             .instructions

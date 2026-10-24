@@ -1,150 +1,49 @@
 //! 原始 lex/parse/names/raw/complete/ownership/公开完整 validator → 普通真实 lower。
 use super::{
     Report, facts,
-    fixture::{Failure, Fixture, at, clean, complete_failure, failure, lower_failure},
+    fixture::{Failure, Fixture, clean, complete_failure, failure, lower_failure},
 };
 use crate::ssa::{
-    lower_scalar_file_with_entry,
     model::{FunctionId, Program},
     unit_lower::lower_owned_unit_with_entry,
 };
 use lang_frontend::{
     name_resolution::{
-        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
+        SourceUnitInput, SourceUnitKey, SymbolKind, index_compilation_unit,
+        resolve_compilation_unit_names,
     },
-    ownership_checking::{
-        check_compilation_unit_ownership, check_ownership, owned_compilation_unit_view,
-        validate_iteration_facts,
-    },
+    ownership_checking::{check_compilation_unit_ownership, owned_compilation_unit_view},
     parser::{Item, NameMarker},
     type_checking::{
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
     },
 };
 
 type Lowered = (Program, FunctionId);
 
+// 每次调用独立建立整条 Unit 产品链，不复用另一列的 names/types/ownership。
 pub(super) fn single(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
-    let sources = &fixture.sources;
-    let parsed = &fixture.parsed;
-    report.check("single lex/parse clean", true, parsed.source_id());
-    let (name_environment, environment) = standard_environments();
-    let names = resolve_names(sources, parsed, &name_environment)
-        .map_err(|error| failure("single names infrastructure", error))?;
-    clean(sources, "single names diagnostics", names.diagnostics())?;
-    let entries = names.symbols().iter().filter(|symbol| {
-        symbol.name() == "entry" && !symbol.is_synthetic() && symbol.kind() == SymbolKind::Function
-            && symbol.span().source_id() == parsed.source_id()
-            && parsed.roots().iter().any(|root| {
-                parsed.ast().items().get(*root).is_ok_and(|node| {
-                    matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. } if *name == symbol.span())
-                })
-            })
-    }).collect::<Vec<_>>();
-    let [entry] = entries.as_slice() else {
-        return Err(failure("single real entry selection", entries));
-    };
-    report.check("single actual source entry symbol", true, entry);
-    let raw = check_types(sources, parsed, &names, &environment)
-        .map_err(|error| failure("single raw type infrastructure", error))?;
-    report.check(
-        "single raw diagnostics clean",
-        raw.diagnostics().is_empty(),
-        raw.diagnostics(),
-    );
-    // raw 即使有诊断仍执行完整准入，保存 complete 原始根因，不冒充 lower 拒绝。
-    let complete = complete_file_types(sources, parsed, &names, &environment, &raw)
-        .map_err(|error| complete_failure(sources, error))?;
-    let same = complete.is_same_analysis(&raw)
-        && std::ptr::eq(complete.types(), &raw)
-        && raw.is_compatible_with_names(&names);
-    report.check(
-        "single complete keeps original raw/names analysis",
-        same,
-        raw.source_id(),
-    );
-    if !same {
-        return Err(failure(
-            "single complete analysis identity",
-            "original raw identity mismatch",
-        ));
-    }
-    clean(sources, "single raw diagnostics", raw.diagnostics())?;
-    let owned = check_ownership(sources, parsed, &names, complete.types())
-        .map_err(|error| failure("single ownership infrastructure", error))?;
-    clean(sources, "single ownership diagnostics", owned.diagnostics())?;
-    if !owned.deferred().is_empty() {
-        return Err(failure(
-            "single ownership deferred",
-            owned
-                .deferred()
-                .iter()
-                .map(|deferred| {
-                    let location = parsed
-                        .ast()
-                        .expressions()
-                        .get(deferred.expression())
-                        .map(|node| super::fixture::location(sources, node.span()));
-                    (deferred, location)
-                })
-                .collect::<Vec<_>>(),
-        ));
-    }
-    let same = owned.is_compatible_with(&names, &raw);
-    report.check(
-        "single ownership original analysis and no deferred",
-        same,
-        owned.source_id(),
-    );
-    if !same {
-        return Err(failure(
-            "single ownership analysis identity",
-            "raw/names mismatch",
-        ));
-    }
-    facts::single(fixture, &names, &raw, &owned, report);
-    // 完整公共 validator 独立于只读 input query；失败保留原 reason/span。
-    validate_iteration_facts(parsed, &names, complete.types(), &owned).map_err(|error| {
-        at(
-            sources,
-            "single full iteration validator",
-            &error,
-            error.span(),
-        )
-    })?;
-    report.check(
-        "single full iteration validator",
-        true,
-        "validate_iteration_facts: Ok",
-    );
-    report.check("single lower actually attempted", true, entry.id());
-    lower_scalar_file_with_entry(
-        sources,
-        parsed,
-        &names,
-        complete.types(),
-        &owned,
-        entry.id(),
-    )
-    .map_err(|error| lower_failure(sources, error))
+    lower(fixture, report, false)
 }
 
 pub(super) fn unit(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
+    lower(fixture, report, true)
+}
+
+fn lower(fixture: &Fixture, report: &mut Report, rooted: bool) -> Result<Lowered, Failure> {
     let sources = &fixture.sources;
     let parsed = &fixture.parsed;
-    // 不加 package、wrapper、标准库文件或第二 source；与 single 完全相同字节和逻辑路径。
-    let inputs = [SourceUnitInput::new(
-        "root",
-        fixture.path,
-        parsed.source_id(),
-        parsed,
-    )];
+    // 原单源列使用真实 MemoryDocument；原 Unit 列保留 root/provider.ko。
+    // SourceMap 路径、源码字节和默认包不变；不加 wrapper 或第二 source。
+    let inputs = [if rooted {
+        SourceUnitInput::new("root", fixture.path, parsed.source_id(), parsed)
+    } else {
+        SourceUnitInput::memory_document(parsed.source_id(), parsed)
+    }];
     report.check(
         "unit lex/parse and single original input",
         true,
-        (fixture.path, parsed.source_id()),
+        (rooted, fixture.path, parsed.source_id()),
     );
     let (name_environment, environment) = standard_environments();
     let index = index_compilation_unit(sources, &inputs)
@@ -162,10 +61,29 @@ pub(super) fn unit(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Fa
             "expected exactly one source",
         ));
     };
-    if source_unit.source_id() != parsed.source_id() || parsed.package().is_some() {
+    let same_input = source_unit.source_id() == parsed.source_id()
+        && parsed.package().is_none()
+        && if rooted {
+            source_unit
+                .key()
+                .root()
+                .is_some_and(|root| root.as_str() == "root")
+                && source_unit
+                    .key()
+                    .logical_path()
+                    .is_some_and(|path| path.as_str() == fixture.path)
+        } else {
+            source_unit.key() == &SourceUnitKey::MemoryDocument
+        };
+    report.check(
+        "unit original input kind and source identity",
+        same_input,
+        source_unit,
+    );
+    if !same_input {
         return Err(failure(
             "unit source qualification",
-            "expected original default-package source",
+            "expected original default-package source and selected input kind",
         ));
     }
     let entries = names.names().index().declarations().iter().filter(|declaration| {

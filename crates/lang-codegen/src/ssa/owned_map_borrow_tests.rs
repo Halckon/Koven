@@ -1,11 +1,8 @@
 //! SPEC-0299: ordinary-source non-consuming Map result Borrow, without IR mutation.
 use lang_frontend::{
-    lexer::lex,
-    name_resolution::{SourceUnitInput, resolve_names},
-    ownership_checking::check_ownership,
-    parser::parse_file,
+    name_resolution::{SourceUnitInput, SymbolKind},
     source::SourceMap,
-    type_checking::{check_types, standard_environments},
+    type_checking::standard_environments,
 };
 
 fn check(payload: &str, grouped: bool, compilation_unit: bool) {
@@ -46,18 +43,31 @@ pub(super) fn lower(source: &str, compilation_unit: bool) -> super::model::Progr
         )
         .map(|(program, _)| program)
     } else {
-        let id = sources.add_source("result.ko", source.to_owned()).unwrap();
-        let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
-        let names = resolve_names(&sources, &parsed, &environment).unwrap();
-        let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-        let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-        assert!(parsed.diagnostics().is_empty());
-        assert!(names.diagnostics().is_empty());
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        super::lower_frontend::orchestrate::lower_scalar_file(
-            &sources, &parsed, &names, &typed, &owned,
-        )
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+
+        // Keep the original one-file bytes and display path; only the phase entry changes.
+        let analysis = UnitSource::analyze("result.ko", source).unwrap();
+        analysis.assert_frontend_clean();
+        let declaration = analysis.declaration("entry", SymbolKind::Function);
+        let (program, entry) = analysis.lower_entry(declaration).unwrap_or_else(|error| {
+            let origin = error.span.map(|span| {
+                (
+                    analysis.sources().source_name(span.source_id()).unwrap(),
+                    analysis.sources().slice(span).unwrap(),
+                )
+            });
+            panic!("unit={compilation_unit}: {error:?}; origin={origin:?}")
+        });
+        assert_eq!(
+            program
+                .module(entry.module())
+                .unwrap()
+                .function(entry)
+                .unwrap()
+                .origin,
+            super::model::Origin::Source(analysis.declaration_span(declaration))
+        );
+        Ok(program)
     };
     let program = result.unwrap_or_else(|error| {
         let origin = error.span.map(|span| {

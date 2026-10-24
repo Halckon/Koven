@@ -1,5 +1,5 @@
 //! SPEC-0246：单文件一级 class 字段 replace 的真实运行与唯一释放。
-use super::{TestDirectory, analyze, emit_link_and_run, symbol};
+use super::{TestDirectory, UnitSource, emit_link_and_run};
 use lang_frontend::name_resolution::SymbolKind;
 use std::{fs, process::Command};
 
@@ -135,26 +135,12 @@ fn field_replace_native_returns_unique_owners_and_frees_exact_pointers() {
 }
 
 fn lower_counted(source: &str) -> String {
-    let analysis = analyze("field-counted.ko", source);
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
-    )
-    .expect("field replacement lowers to verified SSA");
+    let analysis = UnitSource::analyze("field-counted.ko", source)
+        .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("field replacement lowers to verified SSA");
     crate::llvm::render_verified_program_with_entry(&program, entry)
         .unwrap()
         .replace("@malloc(", "@counted_malloc(")

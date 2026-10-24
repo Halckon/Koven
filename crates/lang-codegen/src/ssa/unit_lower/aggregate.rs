@@ -346,6 +346,9 @@ impl UnitExpressionLowerer<'_> {
         let Some(receiver) = explicit_receiver else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
+        if let Some(value) = self.read_this_field_path(expression, result_type, span)? {
+            return Ok(value);
+        }
         if let Some(value) = self.read_borrowed_heap_field(receiver, field, result_type, span)? {
             return Ok(value);
         }

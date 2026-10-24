@@ -34,7 +34,7 @@ use lang_frontend::{
         owned_compilation_unit_view,
     },
     parser::{ParsedFile, parse_file},
-    source::SourceMap,
+    source::{SourceMap, Span},
     type_checking::{
         ConstEnabledTypedUnit, FinalTypeAdmissionError, TypeEnvironment,
         ValidatedCompilationUnitTypes, check_compilation_unit_types,
@@ -280,6 +280,46 @@ impl UnitSource {
             panic!("expected one real top-level declaration {name} {kind:?}: {entries:?}");
         };
         entry.id()
+    }
+
+    pub(crate) fn sources(&self) -> &SourceMap {
+        &self.sources
+    }
+
+    /// Inspect the same admitted ownership products subsequently consumed by lowering.
+    pub(crate) fn ownership(&self) -> &CompilationUnitOwnership {
+        match &self.products {
+            OwnedProducts::Basic(_, owned) => owned.ownership(),
+            OwnedProducts::Constant(_, owned) => owned.ownership(),
+        }
+    }
+
+    /// Bind a source function to its real item span, without reproducing Unit symbol names.
+    pub(crate) fn declaration_span(&self, declaration: DeclarationId) -> Span {
+        let index = self.names.names().index();
+        let declaration = index
+            .declarations()
+            .iter()
+            .find(|candidate| candidate.id() == declaration)
+            .expect("declaration belongs to these original Unit names");
+        let [source] = index.source_units() else {
+            panic!("expected exactly one original memory document");
+        };
+        assert_eq!(source.source_id(), self.parsed.source_id());
+        assert_eq!(source.key(), &SourceUnitKey::MemoryDocument);
+        assert_eq!(declaration.source_unit(), source.id());
+        assert_eq!(declaration.package(), source.package());
+        assert_eq!(declaration.name_span().source_id(), self.parsed.source_id());
+        assert!(self.parsed.roots().contains(&declaration.root()));
+        let span = self
+            .parsed
+            .ast()
+            .items()
+            .get(declaration.root())
+            .expect("original declaration item exists")
+            .span();
+        assert_eq!(span.source_id(), self.parsed.source_id());
+        span
     }
 
     fn lower(&self) -> (Program, FunctionId) {

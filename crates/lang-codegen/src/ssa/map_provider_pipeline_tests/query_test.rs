@@ -1,4 +1,4 @@
-//! 原四格完整 pipeline 的独立 ordinary query；不安装变异，不额外创建源。
+//! 两源 × MemoryDocument/logical-path Unit 的独立 ordinary query；不变异、不额外创建源。
 use super::{
     Observation, Report,
     fixture::{Fixture, failure, verify_failure},
@@ -113,6 +113,6 @@ fn normal_map_provider_preserves_source_component_cursor_identity() {
             && observations
                 .iter()
                 .all(|o| o.report.passed() && o.outcome.is_ok()),
-        "原两source×single/basic必须完整FE/lower/verify/LLVM及独立实体query全绿；不以verifier替代身份，不跳过失败格。\n{observations:#?}"
+        "原两source×MemoryDocument/logical-path Unit必须完整FE/lower/verify/LLVM及独立实体query全绿；不以verifier替代身份，不跳过失败格。\n{observations:#?}"
     );
 }

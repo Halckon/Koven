@@ -1,6 +1,7 @@
 //! 正常源码产物及纯 verifier 合同负例；不改写或注入 LLVM/运行时故障。
 use super::{
-    LoweringErrorKind, model::*, verify::verify_program, verify_borrow_result::call_contract,
+    LoweringErrorKind, borrow_memory_test_support::single as memory_unit, model::*,
+    verify::verify_program, verify_borrow_result::call_contract,
 };
 use lang_frontend::{
     lexer::lex,
@@ -84,7 +85,7 @@ fn assert_flow(program: &Program) {
 
 #[test]
 fn borrowed_result_single_ssa_uses_returned_loan_and_orders_end_before_move() {
-    assert_flow(&single(&format!("{PROVIDER}{ENTRY}")).unwrap());
+    assert_flow(&memory_unit(&format!("{PROVIDER}{ENTRY}")).unwrap());
 }
 
 #[test]
@@ -125,7 +126,7 @@ fn borrowed_result_unit_ssa_uses_returned_loan_and_orders_end_before_move() {
 
 #[test]
 fn borrowed_result_verifier_rejects_wrong_source_and_owned_result_contracts_without_ir_mutation() {
-    let program = single(&format!("{PROVIDER}{ENTRY}")).unwrap();
+    let program = memory_unit(&format!("{PROVIDER}{ENTRY}")).unwrap();
     let module = &program.modules[0];
     let function = module
         .functions

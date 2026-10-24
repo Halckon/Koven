@@ -67,29 +67,28 @@ fn non_source_inout_borrow_return_unit_lowering_remains_unsupported() {
 
 #[test]
 fn stable_place_root_single_lowering_preserves_real_storage() {
-    use lang_frontend::{
-        lexer::lex,
-        name_resolution::resolve_names,
-        ownership_checking::check_ownership,
-        parser::parse_file,
-        source::SourceMap,
-        type_checking::{check_types, standard_environments},
-    };
-    let mut sources = SourceMap::new();
-    let source = sources
-        .add_source(
-            "stable.ko",
-            "fun entry() { val source = \"kept\"; borrow val item = source; println(item) }",
-        )
-        .unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty());
-    assert_eq!(owned.borrow_results().bindings().len(), 1);
-    let program = lower_scalar_file(&sources, &parsed, &names, &typed, &owned).unwrap();
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let analysis = UnitSource::analyze(
+        "stable.ko",
+        "fun entry() { val source = \"kept\"; borrow val item = source; println(item) }",
+    )
+    .unwrap();
+    analysis.assert_frontend_clean();
+    assert!(analysis.ownership().diagnostics().is_empty());
+    assert_eq!(analysis.ownership().borrow_results().bindings().len(), 1);
+    let declaration = analysis.declaration("entry", SymbolKind::Function);
+    let (program, entry) = analysis.lower_entry(declaration).unwrap();
+    assert_eq!(
+        program
+            .module(entry.module())
+            .unwrap()
+            .function(entry)
+            .unwrap()
+            .origin,
+        super::model::Origin::Source(analysis.declaration_span(declaration))
+    );
     super::verify::verify_program(&program).unwrap();
     assert!(program.modules[0].functions.iter().any(|f| {
         f.instructions

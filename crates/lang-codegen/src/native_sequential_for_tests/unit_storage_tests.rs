@@ -1,6 +1,8 @@
 //! SPEC-0248: native Unit containers retain source order and logical cardinality.
 
+use super::super::UnitSource;
 use super::emit_link_and_run;
+use crate::native_tests::boxed_enum_tests::unit_source::SourceRejectionKind;
 
 fn check(
     filename: &str,
@@ -223,22 +225,31 @@ fn unit_empty_mutable_list_constructor_runs_natively() {
 #[test]
 fn unit_value_return_retains_l0087_at_the_returned_expression() {
     let text = "fun unitCall(): Unit {}\nfun invalid(): Unit { return unitCall() }";
-    let analysis = super::super::analyze("unit_invalid_return.ko", text);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    let diagnostics = analysis.typed.diagnostics();
+    let Err(analysis) = UnitSource::analyze("unit_invalid_return.ko", text) else {
+        panic!("the original Unit-valued return must be rejected by types");
+    };
+    assert!(matches!(analysis.kind, SourceRejectionKind::Diagnostics));
+    assert_eq!(
+        analysis.report.stages,
+        [("parse", 0), ("names", 0), ("types", 1)]
+    );
+    let diagnostics = &analysis.report.diagnostics;
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code().to_string(), "L0087");
+    assert_eq!(diagnostics[0].0, "types");
+    let diagnostic = &diagnostics[0].1;
+    assert_eq!(diagnostic.code().to_string(), "L0087");
+    let source = diagnostic.primary_span().source_id();
+    assert_eq!(
+        analysis.sources.source_name(source).unwrap(),
+        "unit_invalid_return.ko"
+    );
+    assert_eq!(analysis.sources.source_text(source).unwrap(), text);
     let start = text.rfind("unitCall()").unwrap();
     let expected = analysis
         .sources
-        .span(
-            analysis.parsed.source_id(),
-            start,
-            start + "unitCall()".len(),
-        )
+        .span(source, start, start + "unitCall()".len())
         .unwrap();
-    assert_eq!(diagnostics[0].primary_span(), expected);
+    assert_eq!(diagnostic.primary_span(), expected);
     assert_eq!(analysis.sources.slice(expected).unwrap(), "unitCall()");
 }
 
@@ -254,22 +265,30 @@ fn unit_source_element_replacement_retains_l0135_at_the_target() {
             }
         }
     "#;
-    let analysis = super::super::analyze("unit_invalid_source_replacement.ko", text);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
+    let Err(analysis) = UnitSource::analyze("unit_invalid_source_replacement.ko", text) else {
+        panic!("the original iteration source mutation must be rejected by ownership");
+    };
+    assert!(matches!(analysis.kind, SourceRejectionKind::Diagnostics));
+    assert_eq!(
+        analysis.report.stages,
+        [("parse", 0), ("names", 0), ("types", 0), ("ownership", 1)]
     );
-    let diagnostics = analysis.owned.diagnostics();
+    let diagnostics = &analysis.report.diagnostics;
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code().to_string(), "L0135");
+    assert_eq!(diagnostics[0].0, "ownership");
+    let diagnostic = &diagnostics[0].1;
+    assert_eq!(diagnostic.code().to_string(), "L0135");
+    let source = diagnostic.primary_span().source_id();
+    assert_eq!(
+        analysis.sources.source_name(source).unwrap(),
+        "unit_invalid_source_replacement.ko"
+    );
+    assert_eq!(analysis.sources.source_text(source).unwrap(), text);
     let start = text.find("xs[0]").unwrap();
     let expected = analysis
         .sources
-        .span(analysis.parsed.source_id(), start, start + "xs[0]".len())
+        .span(source, start, start + "xs[0]".len())
         .unwrap();
-    assert_eq!(diagnostics[0].primary_span(), expected);
+    assert_eq!(diagnostic.primary_span(), expected);
     assert_eq!(analysis.sources.slice(expected).unwrap(), "xs[0]");
 }

@@ -1,6 +1,7 @@
-//! Readonly current-receiver field loans keep all parent loans live through a call.
+//! Readonly current-receiver field loans retain their parents through a read or call.
 
 use super::*;
+use crate::ssa::model::PlaceAccess;
 use lang_frontend::{
     ownership_checking::UnitLoanTarget,
     type_checking::{NominalKind, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver},
@@ -53,6 +54,84 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        self.emit_this_field_loans(path, span).map(Some)
+    }
+
+    /// Copy a leaf without materializing any intermediate MoveOnly owner. Unlike a
+    /// Borrow argument, this read creates no call loan and ends only its own children.
+    pub(super) fn read_this_field_path(
+        &mut self,
+        expression: ExpressionId,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<Option<LoweredValue>, LoweringError> {
+        let Some(path) = self.this_field_path(expression, span)? else {
+            return Ok(None);
+        };
+        let current = self
+            .current_receiver
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = self.typed.types().get(current.ty)
+        else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        let nominal = self
+            .typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if nominal.kind() != NominalKind::Class
+            || !arguments.is_empty()
+            || !nominal.type_parameters().is_empty()
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let ty = self
+            .typed
+            .expression_type(UnitExpressionId::new(self.source_unit, expression))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if self.typed.copyability(ty) != Copyability::Copyable {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        if self.type_ids.get(&ty).copied() != Some(target)
+            || path.fields.last().map(|field| field.target) != Some(target)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let (leaf, created) = self.emit_this_field_loans(path, span)?;
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::Read {
+                    source: PlaceAccess::Loan(leaf),
+                },
+                vec![EntityType::Value(target)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        for loan in created.into_iter().rev() {
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::BorrowEnd { loan },
+                    Vec::new(),
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        }
+        Ok(Some(LoweredValue::Value(require_value(results[0], span)?)))
+    }
+
+    fn emit_this_field_loans(
+        &mut self,
+        path: ReceiverFieldPath,
+        span: Span,
+    ) -> Result<(LoanId, Vec<LoanId>), LoweringError> {
         let mut base = path.base;
         let mut created = Vec::new();
         for field in path.fields {
@@ -77,7 +156,7 @@ impl UnitExpressionLowerer<'_> {
             created.push(loan);
             base = loan;
         }
-        Ok(Some((base, created)))
+        Ok((base, created))
     }
 
     fn this_field_path(

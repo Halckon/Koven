@@ -1,5 +1,5 @@
 //! SPEC-0182 owned/Borrow sources: independent native stdout across 72 cells.
-use super::super::{SymbolKind, analyze, boxed_enum_tests, emit_link_and_run, symbol};
+use super::super::{SymbolKind, UnitSource, boxed_enum_tests, emit_link_and_run};
 
 #[test]
 fn owned_and_borrow_sources_cover_three_containers_sizes_and_exits() {
@@ -99,16 +99,12 @@ fn direct_resource_elements_drop_in_reverse_order_and_release_distinct_storage()
                     &emit_link_and_run("resource-elements.ko", &source, "entry"),
                     expected.as_bytes(),
                 );
-                let analysis = analyze("resource-elements.ko", &source);
-                let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-                    &analysis.sources,
-                    &analysis.parsed,
-                    &analysis.names,
-                    &analysis.typed,
-                    &analysis.owned,
-                    symbol(&analysis, "entry", SymbolKind::Function),
-                )
-                .unwrap();
+                let analysis = UnitSource::analyze("resource-elements.ko", &source)
+                    .expect("original source must pass strict Unit admission");
+                analysis.assert_frontend_clean();
+                let (program, entry) = analysis
+                    .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+                    .unwrap();
                 let ir = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
                 let counted =
                     boxed_enum_tests::run_counted_allocations(&ir, size + usize::from(size > 0));

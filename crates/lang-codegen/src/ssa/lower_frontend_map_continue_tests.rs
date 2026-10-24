@@ -205,30 +205,15 @@ fn unit_map_continue_constant_dead_source_red() {
 }
 
 fn assert_source_lowers(text: &str) {
-    let analysis = analyze(text);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap();
-    crate::llvm::render_verified_program(&program).unwrap();
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let (program, analysis) = super::lower_map_unit(text, "main");
     if text == DISTINCT {
-        structure::assert_distinct_owner_backedges(&program);
+        let declaration = analysis.declaration("separateOwners", SymbolKind::Function);
+        structure::assert_distinct_owner_backedges(
+            &program,
+            analysis.declaration_span(declaration),
+        );
     }
 }
 

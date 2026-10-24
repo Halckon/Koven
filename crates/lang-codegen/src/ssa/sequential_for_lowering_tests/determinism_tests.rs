@@ -1,17 +1,8 @@
-use lang_frontend::{
-    lexer::lex,
-    name_resolution::resolve_names,
-    ownership_checking::check_ownership,
-    parser::parse_file,
-    source::{SourceId, SourceMap},
-    type_checking::{check_types, standard_environments},
-};
+use lang_frontend::source::SourceId;
 
 use super::super::{
-    lower_frontend::orchestrate::lower_scalar_file,
     model::{Operation, Origin},
     render::render_program,
-    verify::verify_program,
 };
 use crate::llvm::render_verified_program;
 
@@ -24,50 +15,10 @@ struct Artifacts {
 fn analyze_and_render(case: &str, text: &str, expected_lengths: usize) -> Artifacts {
     // Every call owns a fresh complete frontend chain. The stable input key is the same
     // logical filename, source bytes and one-source registration order, not map identity.
-    let mut sources = SourceMap::new();
-    let source = sources.add_source(case, text).expect("unique case source");
-    let lexed = lex(&sources, source).expect("lexing");
-    let parsed = parse_file(&sources, &lexed).expect("parsing");
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("name resolution");
-    let typed = check_types(&sources, &parsed, &names, &types).expect("type checking");
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership checking");
-    for actual in [
-        parsed.source_id(),
-        names.source_id(),
-        typed.source_id(),
-        owned.source_id(),
-    ] {
-        assert_eq!(actual, source, "{case}: frontend chain source identity");
-    }
-    assert!(
-        lexed.diagnostics().is_empty(),
-        "{case}: {:?}",
-        lexed.diagnostics()
-    );
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{case}: {:?}",
-        parsed.diagnostics()
-    );
-    assert!(
-        names.diagnostics().is_empty(),
-        "{case}: {:?}",
-        names.diagnostics()
-    );
-    assert!(
-        typed.diagnostics().is_empty(),
-        "{case}: {:?}",
-        typed.diagnostics()
-    );
-    assert!(
-        owned.diagnostics().is_empty(),
-        "{case}: {:?}",
-        owned.diagnostics()
-    );
-    let program = lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
-        .unwrap_or_else(|error| panic!("{case}: lowering: {error:?}\n{text}"));
-    verify_program(&program).unwrap_or_else(|error| panic!("{case}: SSA: {error:?}"));
+    let analysis = super::analyze_case(case, text, "scan");
+    let source = analysis.parsed.source_id();
+    let sources = &analysis.sources;
+    let program = &analysis.program;
 
     let mut length_count = 0;
     let check_span = |span: lang_frontend::source::Span| {
@@ -111,8 +62,8 @@ fn analyze_and_render(case: &str, text: &str, expected_lengths: usize) -> Artifa
     // Keep complete renderer output. SourceId's existing Debug contract hides only the
     // SourceMap owner token; source index, byte offsets and synthetic reasons remain.
     // SSA-local type/function/block/entity IDs, operations, operands and order remain too.
-    let ssa = render_program(&program);
-    let llvm = render_verified_program(&program)
+    let ssa = render_program(program);
+    let llvm = render_verified_program(program)
         .unwrap_or_else(|error| panic!("{case}: LLVM: {error:?}\n{text}"));
     Artifacts { source, ssa, llvm }
 }

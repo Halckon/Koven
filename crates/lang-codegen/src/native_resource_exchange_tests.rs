@@ -1,6 +1,6 @@
 //! Resource lexical cleanup composed with owned whole-root replace/swap.
 
-use super::{SymbolKind, analyze, emit_link_and_run, symbol};
+use super::{SymbolKind, UnitSource, emit_link_and_run};
 
 const RESOURCES: &str = r#"
 class Leaf(val name: String) { deinit() { println(this.name) } }
@@ -32,16 +32,12 @@ fun entry(): Unit {{
     let expected = b"evaluate new\nafter replace\nconsume old\nold body\nold second\nold first\nafter swap\nnew body\nnew second\nnew first\nsecond body\nsecond second\nsecond first\n";
     let run = emit_link_and_run("resource-exchange.ko", &source, "entry");
     super::boxed_enum_tests::assert_success(&run, expected);
-    let analysis = analyze("resource-exchange-counted.ko", &source);
-    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-        symbol(&analysis, "entry", SymbolKind::Function),
-    )
-    .expect("resource exchange lowers without introducing an early drop");
+    let analysis = UnitSource::analyze("resource-exchange-counted.ko", &source)
+        .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("resource exchange lowers without introducing an early drop");
     let ir = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     // Three guards each own two leaves. Exchange transfers each allocation unchanged.
     let counted = super::boxed_enum_tests::run_counted_allocations(&ir, 9);
