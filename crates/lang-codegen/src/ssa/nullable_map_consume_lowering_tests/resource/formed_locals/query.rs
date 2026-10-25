@@ -196,7 +196,12 @@ fn matches_lower(expected: &ExpectedLower, actual: &LowerOutcome) -> bool {
 
 #[test]
 fn nullable_map_formed_local_demands_preserve_and_advance_exact_outcomes() {
-    let observations = super::collect(true);
+    let mut batch = super::super::memory::Batch::new(
+        "ssa::nullable_map_consume_lowering_tests::resource::formed_locals::query::nullable_map_formed_local_demands_preserve_and_advance_exact_outcomes",
+        9,
+        11,
+    );
+    let observations = super::collect_observed(&mut batch);
     assert_eq!(observations.len(), EXPECTED.len());
     let mut mismatches = Vec::new();
     for (actual, expected) in observations.iter().zip(EXPECTED) {
@@ -221,4 +226,5 @@ fn nullable_map_formed_local_demands_preserve_and_advance_exact_outcomes() {
         "exact formed-local lower outcome mismatches:\n{}",
         mismatches.join("\n")
     );
+    batch.finish(observations.len());
 }

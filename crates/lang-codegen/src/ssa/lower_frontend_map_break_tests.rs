@@ -2,6 +2,7 @@
 mod structure;
 // Original conditional break source, admitted through the same Unit analysis.
 use super::unit_iteration::{Control, assert_facts};
+use crate::ssa::map_original_observation_test_support as original;
 
 fn source(live: bool) -> String {
     format!(
@@ -119,10 +120,26 @@ fn unit_map_break_constant_dead_has_exit_cleanup() {
 
 #[test]
 fn single_map_break_unconditional_and_multiple_exits_remain_explicit() {
+    let mut sources = Vec::new();
     for body in ["break", "if (key == 1) { break }; if (key == 2) { break }"] {
         let text = source(true).replace("if (key == 1) { break }", body);
-        super::assert_guarded_boundary(&text);
+        sources.push(text);
     }
+    let observation = original::observe(
+        "M12",
+        concat!(
+            module_path!(),
+            "::single_map_break_unconditional_and_multiple_exits_remain_explicit"
+        ),
+        &[
+            original::Input::new("unconditional-break", &sources[0], &["main"]),
+            original::Input::new("two-conditional-breaks", &sources[1], &["main"]),
+        ],
+    );
+    for text in &sources {
+        super::assert_guarded_boundary(text);
+    }
+    observation.finish();
 }
 
 #[test]

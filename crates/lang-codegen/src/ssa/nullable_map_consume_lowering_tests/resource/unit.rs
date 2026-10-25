@@ -339,7 +339,7 @@ fn map_type(
     })
 }
 
-fn inspect(
+pub(super) fn inspect(
     case: &Case,
     sources: &SourceMap,
     file: (SourceUnitId, &ParsedFile),

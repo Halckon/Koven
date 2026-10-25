@@ -45,6 +45,8 @@ mod map_consume_fixture_tests;
 #[cfg(test)]
 mod map_consume_lowering_tests;
 #[cfg(test)]
+pub(crate) mod map_original_observation_test_support;
+#[cfg(test)]
 mod map_promotion_contract_tests;
 #[cfg(test)]
 mod nullable_map_consume_fixture_tests;
