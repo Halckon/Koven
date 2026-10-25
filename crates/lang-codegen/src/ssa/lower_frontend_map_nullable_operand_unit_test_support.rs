@@ -8,7 +8,8 @@ use crate::{
 };
 use lang_frontend::{
     name_resolution::{
-        DeclarationId, SourceUnitId, SourceUnitKey, SymbolKind, UnitReferenceTarget, UnitSymbolId,
+        DeclarationId, SourceUnitId, SourceUnitKey, SymbolId, SymbolKind, UnitReferenceTarget,
+        UnitSymbolId,
     },
     ownership_checking::{
         IterationSource, OwnershipBindingKind, UnitDropFact, UnitDropPoint, UnitDropTarget,
@@ -89,6 +90,30 @@ fn reference_symbol(unit: &UnitSource, expression: UnitExpressionId) -> UnitSymb
         panic!("the original local reference must resolve to its real symbol");
     };
     *symbol
+}
+
+fn qualified_symbol(unit: &UnitSource, local: SymbolId) -> UnitSymbolId {
+    let source = source(unit);
+    let mut symbols = unit
+        .names()
+        .names()
+        .references()
+        .iter()
+        .filter_map(|reference| match reference.target() {
+            UnitReferenceTarget::Symbol(symbol)
+                if reference.source_unit() == source
+                    && symbol.source_unit() == source
+                    && symbol.symbol() == local =>
+            {
+                Some(*symbol)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    // Multiple real uses must identify the same published source-qualified local.
+    symbols.sort_unstable();
+    symbols.dedup();
+    *one(&symbols, "original source-qualified symbol")
 }
 
 fn roots(unit: &UnitSource, supported: bool) -> Vec<DeclarationId> {
@@ -362,6 +387,7 @@ fn assert_no_map(unit: &UnitSource) {
         unit.names().names().source_units(),
         "original no-map resolution",
     );
+    assert_eq!(resolution.source_unit(), source(unit));
     assert!(
         !resolution
             .resolution()
@@ -394,7 +420,7 @@ fn assert_no_map(unit: &UnitSource) {
         ]
     );
     for symbol in values {
-        let symbol = UnitSymbolId::new(source(unit), symbol.id());
+        let symbol = qualified_symbol(unit, symbol.id());
         let ty = typed.symbol_type(symbol).unwrap();
         assert_eq!(
             typed.types().get(ty),
@@ -473,6 +499,7 @@ fn assert_map_drops(
         unit.names().names().source_units(),
         "original Map resolution",
     );
+    assert_eq!(resolution.source_unit(), source(unit));
     let symbols = resolution
         .resolution()
         .symbols()
@@ -481,7 +508,7 @@ fn assert_map_drops(
         .collect::<Vec<_>>();
     let symbol = one(&symbols, "original cache declaration symbol");
     assert!(!symbol.is_synthetic());
-    let cache = UnitSymbolId::new(source(unit), symbol.id());
+    let cache = qualified_symbol(unit, symbol.id());
     assert_eq!(symbol_span(unit, cache), declaration);
     let initializer = UnitExpressionId::new(source(unit), initializer);
     let construction = one(typed.map_constructions(), "actual Map construction");

@@ -672,7 +672,10 @@ fn unit_lambda_formed_nullable_map_preflight_uses_sibling_initializer() {
             assert!(!checkpoint.mapper.type_ids().contains_key(&rejected.storage));
             let error = checkpoint.run(&facts, bad.initializer).unwrap_err();
             facts.rejected(error, rejected.origin, "(null)");
-            let error = lower_owned_unit_with_entry(facts.view, facts.entry).unwrap_err();
+            let error = match lower_owned_unit_with_entry(facts.view, facts.entry) {
+                Ok(_) => panic!("the unsupported sibling nullable Map must be rejected"),
+                Err(error) => error,
+            };
             facts.rejected(error, rejected.origin, "(null)");
         },
     );
@@ -718,7 +721,10 @@ fn unit_lambda_formed_nullable_map_preflight_keeps_nested_scope_boundary() {
             );
             // Nested lambdas remain outside the existing callable-layout capability.
             // No synthetic nested CallablePlan is created to exercise the new preflight.
-            let error = lower_owned_unit_with_entry(facts.view, facts.entry).unwrap_err();
+            let error = match lower_owned_unit_with_entry(facts.view, facts.entry) {
+                Ok(_) => panic!("nested lambdas remain unsupported"),
+                Err(error) => error,
+            };
             facts.rejected(
                 error,
                 inner.origin,
