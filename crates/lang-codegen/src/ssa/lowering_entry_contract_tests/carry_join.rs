@@ -25,6 +25,7 @@ fn paired_zero_and_multiple_normal_exits_preserve_string_return_owners() {
                 &text,
                 constants,
                 &mut failures,
+                paired_in_order_observed_entry,
                 |sources, parsed, program, entry, _, _| {
                     string_returns(sources, parsed, program, entry, direct);
                 },
@@ -42,6 +43,7 @@ fn paired_multiple_normal_exits_keep_zero_column_merge() {
         text,
         false,
         &mut failures,
+        paired_in_order_observed_entry,
         |sources, parsed, program, entry, _, _| {
             let function = program.modules[0].function(entry).unwrap();
             assert_eq!(
@@ -97,6 +99,7 @@ fn paired_pending_value_joins_compare_complete_incoming_signatures() {
             &text,
             false,
             &mut failures,
+            legacy_only::paired_in_order_observed_entry,
             |sources, parsed, program, entry, kind, modes| {
                 scalar_join(sources, parsed, program, entry, kind, modes, same);
             },
@@ -109,6 +112,7 @@ fn observe_products(
     text: &str,
     constants: bool,
     failures: &mut Vec<String>,
+    produce: fn(&str, bool, bool, &products::Observer<'_>) -> Vec<Event>,
     observe: impl Fn(&SourceMap, &ParsedFile, &Program, FunctionId, EntryKind, Option<&[ParameterMode]>),
 ) {
     let observations = std::cell::RefCell::new(Vec::new());
@@ -127,10 +131,10 @@ fn observe_products(
                 },
             )));
     };
-    let first = paired_in_order_observed_entry(text, constants, false, query);
-    let second = paired_in_order_observed_entry(text, constants, true, query);
+    let first = produce(text, constants, false, &query);
+    let second = produce(text, constants, true, &query);
     let observations = observations.into_inner();
-    assert_eq!(observations.len(), 6, "two single and four unit products");
+    assert_eq!(observations.len(), 6, "two baseline and four unit products");
     for (index, result) in observations.into_iter().enumerate() {
         if let Err(payload) = result {
             let message = payload

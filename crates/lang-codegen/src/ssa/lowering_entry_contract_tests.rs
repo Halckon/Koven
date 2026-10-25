@@ -1,29 +1,20 @@
-//! SPEC-0255: 两入口只比较已支持的 String 事实，使用逻辑来源而非 arena ID。
+//! SPEC-0255/0341: 同源单 source Unit 与双 source Unit 比较完整 String 事实。
+//! 四项旧 Single 差分合同仅由显式 legacy_only 测试入口消费。
 
 mod carry_join;
+mod products;
 mod temporary_alias;
 
 use lang_frontend::{
-    name_resolution::{
-        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
-    },
-    ownership_checking::{check_compilation_unit_constant_ownership, check_ownership},
     parser::ParsedFile,
     source::{SourceMap, Span},
-    type_checking::{
-        ParameterMode, check_compilation_unit_types, check_types, standard_environments,
-    },
+    type_checking::ParameterMode,
 };
 
-use super::{
-    LoweringError, LoweringErrorKind, lower_scalar_file_with_entry,
-    model::{
-        Definition, EntityId, Function, FunctionId, Operation, Program, SsaTypeKind, TerminatorKind,
-    },
-    unit_lower::{constant::lower_constant_unit_with_entry, lower_scalar_unit_with_entry},
-    unit_lower_test_support::{analyze, declaration, parsed},
+use super::model::{
+    Definition, EntityId, Function, FunctionId, Operation, Program, SsaTypeKind, TerminatorKind,
 };
+use products::{EntryKind, paired, paired_in_order_observed, paired_in_order_observed_entry};
 
 #[derive(Debug, PartialEq, Eq)]
 struct SourceKey(String, usize, usize);
@@ -73,193 +64,8 @@ fn events(sources: &SourceMap, program: &Program, entry: FunctionId) -> Vec<Even
             events.push(Event::Abort(source_key(sources, terminator.origin.span())));
         }
     }
-    crate::llvm::render_verified_program(program).expect("both entry LLVM paths verify");
+    crate::llvm::render_verified_program(program).expect("all entry LLVM paths verify");
     events
-}
-
-fn paired(text: &str, constants: bool) -> Vec<Event> {
-    let first = paired_in_order(text, constants, false);
-    assert_eq!(first, paired_in_order(text, constants, true));
-    first
-}
-
-fn paired_in_order(text: &str, constants: bool, entry_first: bool) -> Vec<Event> {
-    paired_in_order_observed(text, constants, entry_first, |_, _, _| {})
-}
-
-fn paired_in_order_observed(
-    text: &str,
-    constants: bool,
-    entry_first: bool,
-    observe: impl Fn(&SourceMap, &Program, FunctionId),
-) -> Vec<Event> {
-    paired_in_order_observed_entry(
-        text,
-        constants,
-        entry_first,
-        |sources, _, program, entry, _, _| {
-            observe(sources, program, entry);
-        },
-    )
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum EntryKind {
-    Single,
-    Unit,
-}
-
-fn paired_in_order_observed_entry(
-    text: &str,
-    constants: bool,
-    entry_first: bool,
-    observe: impl Fn(&SourceMap, &ParsedFile, &Program, FunctionId, EntryKind, Option<&[ParameterMode]>),
-) -> Vec<Event> {
-    let mut sources = SourceMap::new();
-    // Identical names in an unrelated logical source must not affect entry facts. Reversed
-    // inputs exercise source-qualified lookup without comparing raw source or type IDs.
-    let other_text = "package other\nfun entry(): String = \"unreachable\"";
-    let ((source, file), (other_source, other)) = if entry_first {
-        let entry = parsed(&mut sources, "pair/entry.ko", text);
-        let other = parsed(&mut sources, "other/entry.ko", other_text);
-        (entry, other)
-    } else {
-        let other = parsed(&mut sources, "other/entry.ko", other_text);
-        let entry = parsed(&mut sources, "pair/entry.ko", text);
-        (entry, other)
-    };
-    let (name_environment, environment) = standard_environments();
-    let names = resolve_names(&sources, &file, &name_environment).unwrap();
-    let typed = check_types(&sources, &file, &names, &environment).unwrap();
-    let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let entry = names
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "entry" && symbol.kind() == SymbolKind::Function)
-        .unwrap()
-        .id();
-    let modes = typed
-        .callables()
-        .iter()
-        .find(|callable| callable.symbol() == entry)
-        .map(|callable| {
-            callable
-                .parameters()
-                .iter()
-                .map(|parameter| parameter.mode)
-                .collect::<Vec<_>>()
-        });
-    let (single, entry) =
-        lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry).unwrap();
-    let expected = events(&sources, &single, entry);
-    let expected_relations = string_relations(&sources, &single, entry);
-    observe(
-        &sources,
-        &file,
-        &single,
-        entry,
-        EntryKind::Single,
-        modes.as_deref(),
-    );
-    let inputs = [
-        SourceUnitInput::new("root", "other/entry.ko", other_source, &other),
-        SourceUnitInput::new("root", "pair/entry.ko", source, &file),
-    ];
-    for inputs in [inputs, [inputs[1], inputs[0]]] {
-        let (unit, entry, modes) = if constants {
-            let index = index_compilation_unit(&sources, &inputs).unwrap();
-            let names =
-                resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
-                    .unwrap()
-                    .validate()
-                    .unwrap();
-            let recovery =
-                check_compilation_unit_types(&sources, &inputs, &names, &environment).unwrap();
-            assert!(
-                recovery.clone().validate().is_err(),
-                "basic capability must reject const input"
-            );
-            let typed = recovery.validate_constants().unwrap();
-            let owned = check_compilation_unit_constant_ownership(
-                &sources,
-                &inputs,
-                &names,
-                &environment,
-                &typed,
-            )
-            .unwrap()
-            .validate()
-            .unwrap();
-            let declaration = declaration(&names, "pair", "entry");
-            let modes = typed
-                .types()
-                .signatures()
-                .declaration(declaration)
-                .and_then(|signature| signature.callable())
-                .map(|callable| {
-                    callable
-                        .parameters()
-                        .iter()
-                        .map(|parameter| parameter.mode())
-                        .collect::<Vec<_>>()
-                });
-            let (program, entry) = lower_constant_unit_with_entry(
-                &sources,
-                &inputs,
-                &names,
-                &environment,
-                &typed,
-                &owned,
-                declaration,
-            )
-            .unwrap();
-            (program, entry, modes)
-        } else {
-            let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
-            let declaration = declaration(&names, "pair", "entry");
-            let modes = typed
-                .types()
-                .signatures()
-                .declaration(declaration)
-                .and_then(|signature| signature.callable())
-                .map(|callable| {
-                    callable
-                        .parameters()
-                        .iter()
-                        .map(|parameter| parameter.mode())
-                        .collect::<Vec<_>>()
-                });
-            let (program, entry) = lower_scalar_unit_with_entry(
-                &sources,
-                &inputs,
-                &names,
-                &environment,
-                &typed,
-                &owned,
-                declaration,
-            )
-            .unwrap();
-            (program, entry, modes)
-        };
-        assert_eq!(events(&sources, &unit, entry), expected, "{text}");
-        assert_eq!(
-            string_relations(&sources, &unit, entry),
-            expected_relations,
-            "{text}"
-        );
-        observe(
-            &sources,
-            &file,
-            &unit,
-            entry,
-            EntryKind::Unit,
-            modes.as_deref(),
-        );
-    }
-    expected
 }
 
 #[test]
@@ -570,154 +376,6 @@ fn paired_const_string_uses_original_specialized_capability() {
     );
 }
 
-fn error_key(sources: &SourceMap, error: LoweringError) -> (LoweringErrorKind, Option<SourceKey>) {
-    (error.kind, error.span.map(|span| source_key(sources, span)))
-}
-
-#[test]
-fn paired_interpolation_rejection_keeps_exact_unsupported_span() {
-    for literal in [r#""${17}""#, r#"(("before${17}after"))"#] {
-        let mut sources = SourceMap::new();
-        let text = format!("package pair\nfun entry(): String = {literal}");
-        let (source, file) = parsed(&mut sources, "pair/entry.ko", &text);
-        let (name_environment, environment) = standard_environments();
-        let names = resolve_names(&sources, &file, &name_environment).unwrap();
-        let typed = check_types(&sources, &file, &names, &environment).unwrap();
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        let entry = names
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.name() == "entry")
-            .unwrap()
-            .id();
-        let single = lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
-            .err()
-            .expect("lowering must reject");
-        let inputs = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
-        let unit = lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &environment,
-            &typed,
-            &owned,
-            declaration(&names, "pair", "entry"),
-        )
-        .err()
-        .expect("lowering must reject");
-        let expected = (
-            LoweringErrorKind::UnsupportedNode,
-            Some(SourceKey(
-                "pair/entry.ko".to_owned(),
-                text.find('"').unwrap(),
-                text.rfind('"').unwrap() + 1,
-            )),
-        );
-        assert_eq!(error_key(&sources, single), expected);
-        assert_eq!(error_key(&sources, unit), expected);
-    }
-}
-
-#[test]
-fn recovery_stops_at_each_original_validation_boundary() {
-    for (body, code) in [("missing", "L0080"), ("17", "L0084")] {
-        let mut sources = SourceMap::new();
-        let text = format!("package pair\nfun entry(): String = {body}");
-        let (source, file) = parsed(&mut sources, "pair/entry.ko", &text);
-        let (name_environment, environment) = standard_environments();
-        let names = resolve_names(&sources, &file, &name_environment).unwrap();
-        let typed = check_types(&sources, &file, &names, &environment).unwrap();
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        let entry = names
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.name() == "entry")
-            .unwrap()
-            .id();
-        let expected_span = SourceKey(
-            "pair/entry.ko".to_owned(),
-            text.len() - body.len(),
-            text.len(),
-        );
-        let diagnostic = if body == "missing" {
-            &names.diagnostics()[0]
-        } else {
-            &typed.diagnostics()[0]
-        };
-        assert_eq!(diagnostic.code().to_string(), code);
-        assert_eq!(
-            source_key(&sources, diagnostic.primary_span()),
-            expected_span
-        );
-        let error = lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
-            .err()
-            .expect("single-file diagnostics gate");
-        assert_eq!(
-            error_key(&sources, error),
-            (LoweringErrorKind::FrontendDiagnostics, None)
-        );
-        // Even when diagnostics are present, mismatched analysis is rejected first.
-        let foreign_names = resolve_names(&sources, &file, &name_environment).unwrap();
-        let error =
-            lower_scalar_file_with_entry(&sources, &file, &foreign_names, &typed, &owned, entry)
-                .err()
-                .expect("analysis mismatch precedes diagnostics");
-        assert_eq!(
-            error_key(&sources, error),
-            (LoweringErrorKind::MismatchedAnalysis, None)
-        );
-        let (foreign_source, foreign_file) = parsed(&mut sources, "foreign.ko", &text);
-        assert_ne!(source, foreign_source);
-        let error = lower_scalar_file_with_entry(
-            &sources,
-            &foreign_file,
-            &foreign_names,
-            &typed,
-            &owned,
-            entry,
-        )
-        .err()
-        .expect("source mismatch precedes analysis and diagnostics");
-        assert_eq!(
-            error_key(&sources, error),
-            (LoweringErrorKind::MismatchedSource, None)
-        );
-        let inputs = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
-        let index = index_compilation_unit(&sources, &inputs).unwrap();
-        let names =
-            resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment).unwrap();
-        if body == "missing" {
-            assert_eq!(names.diagnostics()[0].code().to_string(), code);
-            assert_eq!(
-                source_key(&sources, names.diagnostics()[0].primary_span()),
-                expected_span
-            );
-            assert!(
-                names.validate().is_err(),
-                "unit cannot create names capability"
-            );
-        } else {
-            let names = names.validate().unwrap();
-            let typed =
-                check_compilation_unit_types(&sources, &inputs, &names, &environment).unwrap();
-            assert_eq!(typed.diagnostics()[0].code().to_string(), code);
-            assert_eq!(
-                source_key(&sources, typed.diagnostics()[0].primary_span()),
-                expected_span
-            );
-            assert!(
-                typed.clone().validate().is_err(),
-                "basic cannot create typed capability"
-            );
-            assert!(
-                typed.validate_constants().is_err(),
-                "const cannot create typed capability"
-            );
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq)]
 enum DefinitionKey {
     Instruction(SourceKey, std::mem::Discriminant<Operation>, usize),
@@ -794,50 +452,278 @@ fn string_relations(
     relations
 }
 
-#[test]
-fn receiver_string_borrow_keeps_existing_single_unit_capability_difference() {
-    let text = "package pair\nclass Reader { fun read(text: String): Unit { val printed = println(text) } }\nfun entry(): Unit { val reader = Reader()\nval ignored = reader.read(\"receiver\0\") }";
-    let mut sources = SourceMap::new();
-    let (source, file) = parsed(&mut sources, "pair/entry.ko", text);
-    let (name_environment, environment) = standard_environments();
-    let names = resolve_names(&sources, &file, &name_environment).unwrap();
-    let typed = check_types(&sources, &file, &names, &environment).unwrap();
-    let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-    assert!(typed.diagnostics().is_empty());
-    assert!(owned.diagnostics().is_empty());
-    let entry = names
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "entry")
-        .unwrap()
-        .id();
-    let error = lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
-        .err()
-        .expect("single adapter has not implemented this receiver argument");
-    let start = text.find("reader.read").unwrap();
-    assert_eq!(
-        error_key(&sources, error),
-        (
-            LoweringErrorKind::UnsupportedNode,
-            Some(SourceKey("pair/entry.ko".to_owned(), start, text.len() - 2,))
+// These four old contracts deliberately retain Single analysis/lowering. The
+// migrated positive products never call this entry or fall back to it.
+mod legacy_only {
+    use super::*;
+    use crate::ssa::{
+        LoweringError, LoweringErrorKind, lower_scalar_file_with_entry,
+        unit_lower::lower_scalar_unit_with_entry,
+        unit_lower_test_support::{analyze, declaration, parsed},
+    };
+    use lang_frontend::{
+        name_resolution::{
+            SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
+            resolve_names,
+        },
+        ownership_checking::check_ownership,
+        type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    };
+
+    pub(super) fn paired_in_order_observed_entry(
+        text: &str,
+        constants: bool,
+        entry_first: bool,
+        observe: &products::Observer<'_>,
+    ) -> Vec<Event> {
+        products::compare_in_order(
+            text,
+            constants,
+            entry_first,
+            EntryKind::Single,
+            |sources, input| single_product(sources, input.parsed()),
+            observe,
         )
-    );
-    let inputs = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
-    let (unit, entry) = lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &environment,
-        &typed,
-        &owned,
-        declaration(&names, "pair", "entry"),
-    )
-    .unwrap();
-    let events = events(&sources, &unit, entry);
-    assert!(
-        events
+    }
+
+    fn single_product(
+        sources: &SourceMap,
+        file: &ParsedFile,
+    ) -> (Program, FunctionId, Option<Vec<ParameterMode>>) {
+        let (name_environment, environment) = standard_environments();
+        let names = resolve_names(sources, file, &name_environment).unwrap();
+        let typed = check_types(sources, file, &names, &environment).unwrap();
+        let owned = check_ownership(sources, file, &names, &typed).unwrap();
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        let entry = names
+            .symbols()
             .iter()
-            .any(|event| matches!(event, Event::Literal(_, bytes) if bytes == b"receiver\0"))
-    );
+            .find(|symbol| symbol.name() == "entry" && symbol.kind() == SymbolKind::Function)
+            .unwrap()
+            .id();
+        let modes = typed
+            .callables()
+            .iter()
+            .find(|callable| callable.symbol() == entry)
+            .map(|callable| {
+                callable
+                    .parameters()
+                    .iter()
+                    .map(|parameter| parameter.mode)
+                    .collect::<Vec<_>>()
+            });
+        let (program, entry) =
+            lower_scalar_file_with_entry(sources, file, &names, &typed, &owned, entry).unwrap();
+        (program, entry, modes)
+    }
+
+    fn error_key(
+        sources: &SourceMap,
+        error: LoweringError,
+    ) -> (LoweringErrorKind, Option<SourceKey>) {
+        (error.kind, error.span.map(|span| source_key(sources, span)))
+    }
+
+    #[test]
+    fn paired_interpolation_rejection_keeps_exact_unsupported_span() {
+        for literal in [r#""${17}""#, r#"(("before${17}after"))"#] {
+            let mut sources = SourceMap::new();
+            let text = format!("package pair\nfun entry(): String = {literal}");
+            let (source, file) = parsed(&mut sources, "pair/entry.ko", &text);
+            let (name_environment, environment) = standard_environments();
+            let names = resolve_names(&sources, &file, &name_environment).unwrap();
+            let typed = check_types(&sources, &file, &names, &environment).unwrap();
+            let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
+            let entry = names
+                .symbols()
+                .iter()
+                .find(|symbol| symbol.name() == "entry")
+                .unwrap()
+                .id();
+            let single =
+                lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
+                    .err()
+                    .expect("lowering must reject");
+            let inputs = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
+            let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
+            let unit = lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &environment,
+                &typed,
+                &owned,
+                declaration(&names, "pair", "entry"),
+            )
+            .err()
+            .expect("lowering must reject");
+            let expected = (
+                LoweringErrorKind::UnsupportedNode,
+                Some(SourceKey(
+                    "pair/entry.ko".to_owned(),
+                    text.find('"').unwrap(),
+                    text.rfind('"').unwrap() + 1,
+                )),
+            );
+            assert_eq!(error_key(&sources, single), expected);
+            assert_eq!(error_key(&sources, unit), expected);
+        }
+    }
+
+    #[test]
+    fn recovery_stops_at_each_original_validation_boundary() {
+        for (body, code) in [("missing", "L0080"), ("17", "L0084")] {
+            let mut sources = SourceMap::new();
+            let text = format!("package pair\nfun entry(): String = {body}");
+            let (source, file) = parsed(&mut sources, "pair/entry.ko", &text);
+            let (name_environment, environment) = standard_environments();
+            let names = resolve_names(&sources, &file, &name_environment).unwrap();
+            let typed = check_types(&sources, &file, &names, &environment).unwrap();
+            let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
+            let entry = names
+                .symbols()
+                .iter()
+                .find(|symbol| symbol.name() == "entry")
+                .unwrap()
+                .id();
+            let expected_span = SourceKey(
+                "pair/entry.ko".to_owned(),
+                text.len() - body.len(),
+                text.len(),
+            );
+            let diagnostic = if body == "missing" {
+                &names.diagnostics()[0]
+            } else {
+                &typed.diagnostics()[0]
+            };
+            assert_eq!(diagnostic.code().to_string(), code);
+            assert_eq!(
+                source_key(&sources, diagnostic.primary_span()),
+                expected_span
+            );
+            let error =
+                lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
+                    .err()
+                    .expect("single-file diagnostics gate");
+            assert_eq!(
+                error_key(&sources, error),
+                (LoweringErrorKind::FrontendDiagnostics, None)
+            );
+            // Even when diagnostics are present, mismatched analysis is rejected first.
+            let foreign_names = resolve_names(&sources, &file, &name_environment).unwrap();
+            let error = lower_scalar_file_with_entry(
+                &sources,
+                &file,
+                &foreign_names,
+                &typed,
+                &owned,
+                entry,
+            )
+            .err()
+            .expect("analysis mismatch precedes diagnostics");
+            assert_eq!(
+                error_key(&sources, error),
+                (LoweringErrorKind::MismatchedAnalysis, None)
+            );
+            let (foreign_source, foreign_file) = parsed(&mut sources, "foreign.ko", &text);
+            assert_ne!(source, foreign_source);
+            let error = lower_scalar_file_with_entry(
+                &sources,
+                &foreign_file,
+                &foreign_names,
+                &typed,
+                &owned,
+                entry,
+            )
+            .err()
+            .expect("source mismatch precedes analysis and diagnostics");
+            assert_eq!(
+                error_key(&sources, error),
+                (LoweringErrorKind::MismatchedSource, None)
+            );
+            let inputs = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names =
+                resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+                    .unwrap();
+            if body == "missing" {
+                assert_eq!(names.diagnostics()[0].code().to_string(), code);
+                assert_eq!(
+                    source_key(&sources, names.diagnostics()[0].primary_span()),
+                    expected_span
+                );
+                assert!(
+                    names.validate().is_err(),
+                    "unit cannot create names capability"
+                );
+            } else {
+                let names = names.validate().unwrap();
+                let typed =
+                    check_compilation_unit_types(&sources, &inputs, &names, &environment).unwrap();
+                assert_eq!(typed.diagnostics()[0].code().to_string(), code);
+                assert_eq!(
+                    source_key(&sources, typed.diagnostics()[0].primary_span()),
+                    expected_span
+                );
+                assert!(
+                    typed.clone().validate().is_err(),
+                    "basic cannot create typed capability"
+                );
+                assert!(
+                    typed.validate_constants().is_err(),
+                    "const cannot create typed capability"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn receiver_string_borrow_keeps_existing_single_unit_capability_difference() {
+        let text = "package pair\nclass Reader { fun read(text: String): Unit { val printed = println(text) } }\nfun entry(): Unit { val reader = Reader()\nval ignored = reader.read(\"receiver\0\") }";
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "pair/entry.ko", text);
+        let (name_environment, environment) = standard_environments();
+        let names = resolve_names(&sources, &file, &name_environment).unwrap();
+        let typed = check_types(&sources, &file, &names, &environment).unwrap();
+        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
+        assert!(typed.diagnostics().is_empty());
+        assert!(owned.diagnostics().is_empty());
+        let entry = names
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "entry")
+            .unwrap()
+            .id();
+        let error = lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
+            .err()
+            .expect("single adapter has not implemented this receiver argument");
+        let start = text.find("reader.read").unwrap();
+        assert_eq!(
+            error_key(&sources, error),
+            (
+                LoweringErrorKind::UnsupportedNode,
+                Some(SourceKey("pair/entry.ko".to_owned(), start, text.len() - 2,))
+            )
+        );
+        let inputs = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
+        let (unit, entry) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &environment,
+            &typed,
+            &owned,
+            declaration(&names, "pair", "entry"),
+        )
+        .unwrap();
+        let events = events(&sources, &unit, entry);
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, Event::Literal(_, bytes) if bytes == b"receiver\0"))
+        );
+    }
 }
