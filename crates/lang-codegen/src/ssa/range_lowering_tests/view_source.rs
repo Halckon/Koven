@@ -5,7 +5,7 @@ use super::*;
 fn range_view_source_take_single_and_unit_end_parent_before_child_use() {
     let consumer = "fun metadata(source:View<String>):borrow View<String> from source=source\nfun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun consume(own source:List<String>):Unit{}\nfun main():Unit{val source=listOf(\"first\".clone(),\"second\".clone());borrow val parent=take(source,2);borrow val child=take(parent,1);borrow val alias=metadata(child);read(alias);consume(source)}";
     for program in [
-        single(consumer),
+        memory_unit_llvm(consumer),
         unit(&format!(
             "package app\nimport koven.algorithms.take\n{consumer}"
         )),
@@ -76,7 +76,7 @@ fn range_view_source_native_single_and_unit_preserve_collection_and_element_iden
             "{declaration}\nfun metadata(source:View<{element}>):borrow View<{element}> from source=source\nfun read(view:View<{element}>):Unit{{for(item in view){{{read}}}}}\nfun consume(own source:List<{element}>):Unit{{println(\"consume\")}}\nfun main():Unit{{val source=listOf({values});borrow val parent=take(source,2);borrow val child=take(parent,2);borrow val grandchild=take(child,1);borrow val alias=metadata(grandchild);read(alias);println(\"after\");consume(source);println(\"done\")}}"
         );
         for (program, entry) in [
-            single_with_entry(&consumer),
+            memory_unit_with_entry(&consumer),
             unit_with_entry(&format!(
                 "package app\nimport koven.algorithms.take\n{consumer}"
             )),
@@ -101,7 +101,7 @@ fn range_view_source_offsets_and_forwarded_return_preserve_absolute_root_coordin
             "class Item(val text:String){{deinit(){{println(this.text)}}}}\nfun read(view:View<Item>):Unit{{for(item in view){{println(item.text)}}}}\nfun main():Unit{{val source=listOf(Item(\"first\"),Item(\"second\"));borrow val parent=window(source);borrow val child=forward(parent,{count});read(child);println(\"after\")}}"
         );
         for (program, entry) in [
-            single_with_entry(&format!("{trusted}\n{consumer}")),
+            memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
             unit_with_provider_entry(
                 &format!(
                     "package app\nimport koven.algorithms.window\nimport koven.algorithms.forward\n{consumer}"
@@ -122,7 +122,7 @@ fn range_view_source_parent_child_and_elements_coexist_until_their_own_last_uses
     let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun consume(own source:List<Item>):Unit{}\nfun main():Unit{val source=listOf(Item(\"first\"),Item(\"second\"));{borrow val parent=take(source,2);borrow val child=take(parent,1);for(item in parent){read(child);println(item.text)};read(child)};consume(source)}";
     use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
     for (program, entry) in [
-        single_with_entry(consumer),
+        memory_unit_with_entry(consumer),
         unit_with_entry(&format!(
             "package app\nimport koven.algorithms.take\n{consumer}"
         )),
@@ -136,7 +136,7 @@ fn range_view_source_parent_child_and_elements_coexist_until_their_own_last_uses
 #[test]
 fn range_view_source_nested_temporary_chain_is_consumed_synchronously() {
     let consumer = "fun source():List<String> =listOf(\"a\".clone())\nfun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun main():Unit{read(take(take(source(),1),1));for(item in take(take(source(),1),1)){println(item)}}";
-    single(consumer);
+    memory_unit(consumer);
     unit(&format!(
         "package app\nimport koven.algorithms.take\n{consumer}"
     ));
@@ -146,7 +146,7 @@ fn range_view_source_nested_temporary_chain_is_consumed_synchronously() {
 fn range_view_source_verifier_rejects_premature_collection_release_after_parent_end() {
     let consumer = "fun read(view:View<String>):Unit{}\nfun main():Unit{val source=listOf(\"a\".clone());borrow val parent=take(source,1);borrow val child=take(parent,1);read(child)}";
     for mut program in [
-        single(consumer),
+        memory_unit(consumer),
         unit(&format!(
             "package app\nimport koven.algorithms.take\n{consumer}"
         )),
@@ -210,7 +210,7 @@ fn range_view_source_verifier_rejects_a_forwarded_sibling_root() {
     let trusted = "fun choose(source:View<String>,sibling:View<String>):View<String> from source=take(source,1)";
     let consumer = "fun read(view:View<String>):Unit{}\nfun main():Unit{val left=listOf(\"a\");val right=listOf(\"b\");borrow val parent=take(left,1);borrow val sibling=take(right,1);borrow val child=choose(parent,sibling);read(child)}";
     for mut program in [
-        single(&format!("{trusted}\n{consumer}")),
+        memory_unit(&format!("{trusted}\n{consumer}")),
         unit_with_provider_entry(&format!("package app\nimport koven.algorithms.take\nimport koven.algorithms.choose\n{consumer}"), trusted).0,
     ] {
         let function = program.modules[0].functions.iter_mut().find(|function| {
@@ -267,7 +267,7 @@ fn range_view_source_nested_temporary_native_releases_each_original_collection_o
                 "{declaration}\nfun source():List<{element}>{{println(\"source\");return listOf({values})}}\nfun read(view:View<{element}>):Unit{{for(item in view){{{read}}};println(\"read-end\")}}\nfun main():Unit{{read(take(take(source(),2),{count}));for(item in take(take(source(),2),{count})){{{read};{exit}}};println(\"done\")}}"
             );
             for (program, entry) in [
-                single_with_entry(&consumer),
+                memory_unit_with_entry(&consumer),
                 unit_with_entry(&format!(
                     "package app\nimport koven.algorithms.take\n{consumer}"
                 )),

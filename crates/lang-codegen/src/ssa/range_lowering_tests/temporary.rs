@@ -39,7 +39,7 @@ fn range_temporary_native_single_and_unit_release_string_move_only_and_resource_
                 "{declaration}\nfun source():List<{element}>{{println(\"source\");return listOf({values})}}\nfun scan():Unit{{for(item in take(source(),{count})){{{read};{body}}}}}\nfun main():Unit{{scan();println(\"done\")}}"
             );
             for (program, entry) in [
-                single_with_entry(&consumer),
+                memory_unit_with_entry(&consumer),
                 unit_with_entry(&format!(
                     "package app\nimport koven.algorithms.take\n{consumer}"
                 )),
@@ -55,7 +55,7 @@ fn range_temporary_native_single_and_unit_release_string_move_only_and_resource_
             "{declaration}\nfun source():List<{element}>{{println(\"source\");return listOf({values})}}\nfun read(view:View<{element}>):Unit{{for(item in view){{{read}}};println(\"read-end\")}}\nfun main():Unit{{read(take(source(),1));println(\"done\")}}"
         );
         for (program, entry) in [
-            single_with_entry(&consumer),
+            memory_unit_with_entry(&consumer),
             unit_with_entry(&format!(
                 "package app\nimport koven.algorithms.take\n{consumer}"
             )),
@@ -76,7 +76,7 @@ fn range_temporary_sequential_uses_and_loop_exits_keep_correlated_ssa_facts() {
         let consumer = format!(
             "class Item(val n:Int){{}}\nfun source():List<Item> =listOf(Item(1))\nfun read(view:View<Item>):Unit{{for(item in view){{println(\"visit\")}}}}\nfun scan():Unit{{read(take(source(),1));read(take(source(),1));for(item in take(source(),1)){{println(\"visit\");{body}}};for(item in take(source(),1)){{println(\"visit\")}}}}\nfun main():Unit{{scan()}}"
         );
-        single(&consumer);
+        memory_unit(&consumer);
         unit(&format!(
             "package app\nimport koven.algorithms.take\n{consumer}"
         ));

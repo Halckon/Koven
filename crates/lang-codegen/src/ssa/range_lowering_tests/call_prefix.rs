@@ -42,7 +42,7 @@ fn check_both(named: bool, view: bool) {
         view,
     );
     for program in [
-        single(&source),
+        memory_unit(&source),
         unit(&format!(
             "package app\nimport koven.algorithms.take\n{source}"
         )),
@@ -137,7 +137,7 @@ fn range_call_prefix_native_restores_roots_and_releases_each_identity_on_both_br
         for (named, view) in [(true, false), (false, false), (true, true), (false, true)] {
             let source = consumer(declaration, element, values, read, named, view);
             for (program, entry) in [
-                single_with_entry(&source),
+                memory_unit_with_entry(&source),
                 unit_with_entry(&format!(
                     "package app\nimport koven.algorithms.take\n{source}"
                 )),
@@ -203,7 +203,7 @@ fn range_call_prefix_owned_arguments_transfer_only_after_the_later_argument_comp
                 "{declaration}\nfun source():List<{element}>{{println(\"source\");return listOf({values})}}\nfun sent():List<{element}>{{println(\"sent-source\");return listOf({sent})}}\nfun later():List<{element}>{{println(\"late-source\");return listOf({later})}}\nfun consume(own source:List<{element}>):Unit{{}}\nfun read(view:View<{element}>,own sent:List<{element}>,number:Int,own later:List<{element}>):Unit{{for(item in view){{{read}}};println(\"called\");consume(sent);consume(later)}}\nfun scan(stop:Boolean):Unit{{{prefix};read({operand},sent(),if(stop){{return}}else{{0}},later());{close}println(\"after\");{after}}}\nfun main():Unit{{scan(false);scan(true);println(\"done\")}}"
             );
             for (program, entry) in [
-                single_with_entry(&source),
+                memory_unit_with_entry(&source),
                 unit_with_entry(&format!(
                     "package app\nimport koven.algorithms.take\n{source}"
                 )),
