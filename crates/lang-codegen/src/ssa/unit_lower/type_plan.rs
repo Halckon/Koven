@@ -1,15 +1,19 @@
 //! Reachable compilation-unit body 使用的 scalar storage type 预规划。
 
+#[cfg(test)]
+mod lambda_preflight_tests;
+
 use std::collections::BTreeSet;
 
 use lang_frontend::{
+    ast::ExpressionId,
     name_resolution::{
         NameResolution, ScopeId, ScopeKind, SymbolKind, ValidatedCompilationUnitNames,
     },
     ownership_checking::CompilationUnitOwnership,
     parser::{
-        AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, ParsedFile,
-        PrefixOperator, WhenCondition,
+        AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, NameMarker, ParsedFile,
+        PrefixOperator, Statement, WhenCondition,
     },
     source::Span,
     type_checking::{
@@ -363,6 +367,160 @@ pub(super) fn intern_formed_nullable_map_types(
         types.intern(module, typed, declared, span)?;
     }
     Ok(())
+}
+
+/// Consume only a declared lambda's own normally formed nullable Map locals.
+pub(super) fn intern_lambda_formed_nullable_map_types(
+    module: &mut Module,
+    parsed: &ParsedFile,
+    plan: &super::closure::CallablePlan,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    types: &mut UnitTypeLowering,
+) -> Result<(), LoweringError> {
+    let source = names
+        .names()
+        .source_units()
+        .get(plan.source_unit.index())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
+    let resolution = source.resolution();
+    let lambda = parsed
+        .ast()
+        .expressions()
+        .get(plan.expression.expression())
+        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
+    if source.source_unit() != plan.source_unit
+        || plan.expression.source_unit() != plan.source_unit
+        || resolution.source_id() != parsed.source_id()
+        || lambda.span() != plan.span
+        || !matches!(lambda.payload(), Expression::Lambda { body, .. } if *body == plan.body)
+    {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, plan.span));
+    }
+    for &id in owned.formed_owned_locals() {
+        if id.source_unit() != plan.source_unit {
+            continue;
+        }
+        let symbol = resolution
+            .symbols()
+            .get(id.symbol().index())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
+        let span = symbol.span();
+        if symbol.id() != id.symbol()
+            || symbol.kind() != SymbolKind::Variable
+            || symbol.is_synthetic()
+            || symbol.name() == "_"
+            || span.source_id() != parsed.source_id()
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if !formed_in_lambda(resolution, symbol.scope(), plan.span)? {
+            continue;
+        }
+        let declared = typed
+            .symbol_type(id)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(declared) else {
+            continue;
+        };
+        if !matches!(
+            typed.types().get(*inner),
+            Some(UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+                ..
+            })
+        ) {
+            continue;
+        }
+        let (initializer, origin) = formed_local_initializer(parsed, span)?;
+        let initializer = UnitExpressionId::new(plan.source_unit, initializer);
+        if !span_contains(plan.span, origin)
+            || typed
+                .expression_type(initializer)
+                .and_then(|ty| typed.types().get(ty))
+                .is_none()
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, origin));
+        }
+        let declared = resolve_concrete_type(
+            typed,
+            declared,
+            &plan.substitutions,
+            plan.static_self,
+            origin,
+        )?;
+        // The full mapper retains the K/V gate, even when the type is already cached.
+        types.intern(module, typed, declared, origin)?;
+    }
+    Ok(())
+}
+
+fn formed_local_initializer(
+    parsed: &ParsedFile,
+    name_span: Span,
+) -> Result<(ExpressionId, Span), LoweringError> {
+    let mut found = None;
+    for (_, node) in parsed.ast().statements().iter() {
+        let Statement::LocalVariable { declaration } = node.payload() else {
+            continue;
+        };
+        let item = parsed
+            .ast()
+            .items()
+            .get(*declaration)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, name_span))?;
+        if let Item::Variable {
+            name: NameMarker::Present(name),
+            initializer,
+            ..
+        } = item.payload()
+            && *name == name_span
+            && found.replace(*initializer).is_some()
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, name_span));
+        }
+    }
+    let initializer =
+        found.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, name_span))?;
+    let origin = parsed
+        .ast()
+        .expressions()
+        .get(initializer)
+        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, name_span))?
+        .span();
+    if origin.source_id() != parsed.source_id() {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, name_span));
+    }
+    Ok((initializer, origin))
+}
+
+fn formed_in_lambda(
+    names: &NameResolution,
+    mut id: ScopeId,
+    lambda_span: Span,
+) -> Result<bool, LoweringError> {
+    for _ in 0..names.scopes().len() {
+        let scope = names
+            .scopes()
+            .get(id.index())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, lambda_span))?;
+        match scope.kind() {
+            ScopeKind::Lambda => return Ok(scope.span() == Some(lambda_span)),
+            ScopeKind::Function
+            | ScopeKind::File
+            | ScopeKind::Classifier
+            | ScopeKind::Companion => {
+                return Ok(false);
+            }
+            _ => {
+                id = scope
+                    .parent()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, lambda_span))?;
+            }
+        }
+    }
+    Err(lowering_error(LoweringErrorKind::MissingFact, lambda_span))
 }
 
 fn formed_in_function(

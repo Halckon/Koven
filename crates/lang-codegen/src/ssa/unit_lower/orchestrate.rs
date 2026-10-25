@@ -372,6 +372,17 @@ fn lower_unit_impl(
         )?;
     }
     let callable_plans = closure::declare(module, &plans, callable_layouts)?;
+    for plan in callable_plans.values() {
+        type_plan::intern_lambda_formed_nullable_map_types(
+            module,
+            parsed_by_source[plan.source_unit.index()],
+            plan,
+            names,
+            typed,
+            owned,
+            &mut types,
+        )?;
+    }
     for (ty, demand) in runtime_type_demands {
         let materialized = types.type_ids().contains_key(&ty);
         match demand {

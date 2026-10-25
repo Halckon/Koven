@@ -2,13 +2,12 @@
 
 use lang_frontend::{
     name_resolution::{
-        NameResolution, ReferenceTarget, SourceUnitId, UnitReferenceTarget, UnitSymbolId,
-        ValidatedCompilationUnitNames,
+        SourceUnitId, UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{CompilationUnitOwnership, OwnershipCheckedFile},
+    ownership_checking::CompilationUnitOwnership,
     type_checking::{
-        BuiltinType, CompilationUnitTypes, IntrinsicCallable, IntrinsicTypeConstructor, TypeId,
-        TypeKind, TypedFile, UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
+        BuiltinType, CompilationUnitTypes, IntrinsicCallable, IntrinsicTypeConstructor,
+        UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
     },
 };
 
@@ -17,37 +16,6 @@ use super::{
     sources::{Case, Initializer, Shape},
     syntax,
 };
-
-fn single_shape(typed: &TypedFile, ty: TypeId, shape: Shape) -> bool {
-    let int = typed.types().builtin(BuiltinType::Int);
-    if matches!(shape, Shape::Function) {
-        return matches!(typed.types().get(ty), Some(TypeKind::Function { move_only: false, parameters, return_type })
-            if parameters.is_empty() && Some(*return_type) == typed.types().builtin(BuiltinType::Unit));
-    }
-    let inner = match shape {
-        Shape::Map => ty,
-        _ => match typed.types().get(ty) {
-            Some(TypeKind::Nullable(inner)) => *inner,
-            _ => return false,
-        },
-    };
-    let Some(TypeKind::Intrinsic {
-        constructor: IntrinsicTypeConstructor::MutableMap,
-        arguments,
-    }) = typed.types().get(inner)
-    else {
-        return false;
-    };
-    let [key, value] = arguments.as_slice() else {
-        return false;
-    };
-    Some(*key) == int
-        && if matches!(shape, Shape::NullableMapOfNullableInt) {
-            matches!(typed.types().get(*value), Some(TypeKind::Nullable(value)) if Some(*value) == int)
-        } else {
-            Some(*value) == int
-        }
-}
 
 fn unit_shape(typed: &CompilationUnitTypes, ty: UnitTypeId, shape: Shape) -> bool {
     let int = typed.types().builtin(BuiltinType::Int);
@@ -78,75 +46,6 @@ fn unit_shape(typed: &CompilationUnitTypes, ty: UnitTypeId, shape: Shape) -> boo
         } else {
             Some(*value) == int
         }
-}
-
-pub(super) fn single(
-    case: &Case,
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    trace: &mut Trace,
-) {
-    let locals = syntax::inspect(case, sources, parsed, names, false, trace);
-    let counts = [
-        typed.map_constructions().len(),
-        typed.map_sizes().len(),
-        typed.map_contains_calls().len(),
-        typed.map_gets().len(),
-        typed.map_puts().len(),
-        typed.map_removes().len(),
-        typed.map_with_values().len(),
-        typed.map_consumes().len(),
-        typed.map_require_values().len(),
-        typed.non_null_assertions().len(),
-    ];
-    trace.check(
-        "formation exact descriptor counts, no result pre-registration",
-        counts == [case.constructions, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        counts,
-    );
-    for local in &locals {
-        let storage = typed.symbol_type(local.symbol);
-        let actual = typed.expression_type(local.initializer);
-        let declared = local.type_ref.and_then(|id| typed.type_ref_type(id));
-        trace.check(
-            "exact local symbol storage and declared type",
-            storage.is_some_and(|ty| single_shape(typed, ty, local.expected.shape))
-                && (local.type_ref.is_none() || declared == storage),
-            (local.item, local, storage, declared, actual),
-        );
-        let valid = match local.expected.initializer {
-            Initializer::EmptyMap => actual.is_some_and(|ty| single_shape(typed, ty, Shape::Map))
-                && typed.map_construction(local.initializer).is_some_and(|descriptor| {
-                    descriptor.expression() == local.initializer
-                        && descriptor.callable() == IntrinsicCallable::MutableMapOf
-                        && Some(descriptor.map_type()) == actual
-                        && Some(descriptor.key_type()) == typed.types().builtin(BuiltinType::Int)
-                        && Some(descriptor.value_type()) == typed.types().builtin(BuiltinType::Int)
-                }),
-            Initializer::Null | Initializer::Lambda => actual.is_some() && actual == storage,
-            Initializer::Return => actual == typed.types().builtin(BuiltinType::Nothing),
-            Initializer::Name(index) => locals.get(index).is_some_and(|previous| {
-                let span = parsed.ast().expressions().get(local.initializer).ok().map(|node| node.span());
-                let references: Vec<_> = names.references().iter().filter(|reference| Some(reference.span()) == span).collect();
-                trace.stages.push(format!("actual move source local={local:#?}; references={references:#?}"));
-                actual.is_some() && actual == typed.symbol_type(previous.symbol)
-                    && matches!(references.as_slice(), [reference] if matches!(reference.target(), ReferenceTarget::Symbol(symbol) if *symbol == previous.symbol))
-            }),
-        };
-        trace.check(
-            "initializer has exact typed payload and source identity",
-            valid,
-            (local, actual, typed.map_construction(local.initializer)),
-        );
-    }
-    trace.stages.push(format!(
-        "actual formation-local symbols={locals:#?}; map constructions={:#?}",
-        typed.map_constructions()
-    ));
-    // The shared ordinary pipeline records complete Drop facts after ownership.
-    // P2 deliberately does not assume any missing Drop proves formation.
 }
 
 pub(super) fn unit(
@@ -284,26 +183,6 @@ fn unit_in_layout(
         "actual qualified formation locals={locals:#?}; symbols={symbols:#?}; constructions={:#?}",
         typed.map_constructions()
     ));
-}
-
-pub(super) fn single_formed(
-    case: &Case,
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    owned: &OwnershipCheckedFile,
-    trace: &mut Trace,
-) {
-    let locals = syntax::inspect(case, sources, parsed, names, false, trace);
-    inspect_formed(
-        case,
-        &locals
-            .iter()
-            .map(|local| Some(local.symbol))
-            .collect::<Vec<_>>(),
-        owned.formed_owned_locals(),
-        trace,
-    );
 }
 
 pub(super) fn unit_formed(

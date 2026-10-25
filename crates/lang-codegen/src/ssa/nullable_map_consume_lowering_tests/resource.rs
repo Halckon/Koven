@@ -13,7 +13,6 @@ mod contract;
 mod formed_locals;
 mod memory;
 mod runtime;
-mod single;
 mod sources;
 mod unit;
 mod unreachable_storage;
