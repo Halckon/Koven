@@ -204,7 +204,12 @@ pub(super) fn check(
             assert!(forwards(f, edge.arguments[slot], expected, 0));
         }
         assert!(
-            forwards(f, edge.arguments[length_slot], header.parameters[length_slot], 0),
+            forwards(
+                f,
+                edge.arguments[length_slot],
+                header.parameters[length_slot],
+                0
+            ),
             "same immutable length snapshot"
         );
         let advance = f
