@@ -1,5 +1,7 @@
 //! SPEC-0300: real source owner facts and normal-exhaustion SSA transport.
+// The unmigrated operand children retain their exact Legacy contracts.
 use super::{analyze, lower_map_unit, lower_scalar_file};
+use crate::ssa::map_unit_consumer_test_support::{assert_source, assert_trusted_range};
 #[path = "lower_frontend_map_loop_unit_identity.rs"]
 pub(super) mod unit_identity;
 #[path = "lower_frontend_map_unit_iteration_tests.rs"]
@@ -32,14 +34,17 @@ fn unit_map_loop_normal_source_is_an_independent_control() {
 #[test]
 fn single_map_loop_abort_guard_combination_remains_explicit() {
     let source = include_str!("../../tests/fixtures/map-loop-owner-0300/guarded-abort-boundary.ko");
-    assert_guarded_boundary(source);
+    assert_source(
+        source,
+        &["removeDead", "removeLive", "putDead", "putLive", "main"],
+    );
 }
 
 fn assert_control_exit_boundary(exit: &str) {
     let source = format!(
         "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ cache.put(key, \"value\".clone()); if (key == 1) {{ {exit} }} }}; cache.contains(1) }}"
     );
-    assert_guarded_boundary(&source);
+    assert_source(&source, &["main"]);
 }
 
 #[test]
@@ -56,7 +61,7 @@ fn single_map_continue_unconditional_and_multiple_remain_explicit() {
         let source = format!(
             "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ cache.put(key, \"value\".clone()); {exit} }}; cache.contains(1) }}"
         );
-        assert_guarded_boundary(&source);
+        assert_source(&source, &["main"]);
     }
 }
 
@@ -70,100 +75,41 @@ fn single_map_continue_return_replacement_and_abort_remain_explicit() {
         let source = format!(
             "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ {prefix} cache.put(key, \"value\".clone()); if (key == 1) {{ continue }} }}; cache.contains(1) }}"
         );
-        assert_guarded_boundary(&source);
+        assert_source(&source, &["main"]);
     }
 }
 
 #[test]
 fn single_map_loop_unconditional_return_remains_explicit() {
-    assert_guarded_boundary(
+    assert_source(
         "fun main(): Unit { var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) { cache.put(key, \"value\".clone()); return }; cache.contains(1) }",
+        &["main"],
     );
 }
 
 #[test]
 fn single_map_loop_replaced_seed_remains_explicit() {
     let source = "fun main(): Unit { var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) { cache = mutableMapOf<Int, String>(); cache.put(key, \"value\".clone()) }; cache.contains(1) }";
-    assert_guarded_boundary(source);
+    assert_source(source, &["main"]);
 }
 
 #[test]
 fn single_map_loop_returned_map_seed_remains_explicit() {
-    assert_guarded_boundary(
+    assert_source(
         "fun make(): MutableMap<Int, String> = mutableMapOf<Int, String>()\nfun main(): Unit { var cache = make(); for (key in arrayOf(1)) { cache.put(key, \"value\".clone()) }; cache.contains(1) }",
+        &["make", "main"],
     );
 }
 
 #[test]
 fn single_map_loop_range_provider_remains_explicit() {
-    use lang_frontend::{
-        lexer::lex,
-        name_resolution::resolve_names,
-        ownership_checking::check_ownership,
-        parser::parse_file,
-        source::SourceMap,
-        type_checking::{check_types, standard_environments},
-    };
-    let mut sources = SourceMap::new();
     let text = format!(
         "{}\nfun main(): Unit {{ var cache = mutableMapOf<Int, String>(); val keys = listOf(1, 2); for (key in take(keys, 1)) {{ cache.put(key, \"value\".clone()) }}; cache.contains(1) }}",
         include_str!("../../../lang-std/koven/algorithms/ranges.ko")
             .strip_prefix("package koven.algorithms\n")
             .unwrap()
     );
-    let source = sources.add_source("trusted.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let (environment, mut types) = standard_environments();
-    types.authorize_range_source(&sources, source).unwrap();
-    types
-        .authorize_range_extension_source(&sources, source)
-        .unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let error = lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
-        .err()
-        .expect("RangeView source cleanup is outside the bounded carrier proof");
-    assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
-    assert!(
-        owned
-            .drops()
-            .iter()
-            .any(|fact| { fact.condition().is_some() && Some(fact.value_origin()) == error.span })
-    );
-}
-
-fn assert_guarded_boundary(source: &str) {
-    let analysis = analyze(source);
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let error = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .err()
-    .expect("unproved owner selection must remain explicit");
-    assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
-    assert!(
-        analysis
-            .owned
-            .drops()
-            .iter()
-            .any(|fact| fact.condition().is_some() && Some(fact.value_origin()) == error.span)
-    );
+    assert_trusted_range(&text);
 }
 
 fn assert_unit_lowers(source: &str) {
@@ -219,7 +165,7 @@ fn single_map_loop_multiple_iteration_phi_seeds_remain_explicit() {
         let source = format!(
             "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); {loops}; cache.contains(1) }}"
         );
-        assert_guarded_boundary(&source);
+        assert_source(&source, &["main"]);
     }
 }
 

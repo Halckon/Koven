@@ -121,7 +121,7 @@ fn unit_map_break_constant_dead_has_exit_cleanup() {
 fn single_map_break_unconditional_and_multiple_exits_remain_explicit() {
     for body in ["break", "if (key == 1) { break }; if (key == 2) { break }"] {
         let text = source(true).replace("if (key == 1) { break }", body);
-        super::assert_guarded_boundary(&text);
+        crate::ssa::map_unit_consumer_test_support::assert_source(&text, &["main"]);
     }
 }
 
