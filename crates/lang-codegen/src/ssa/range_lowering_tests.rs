@@ -82,7 +82,7 @@ fn unit_with_provider_order(consumer: &str, trusted: &str, reverse: bool) -> (Pr
 #[test]
 fn range_temporary_for_single_and_unit_preserve_root_until_metadata_ends() {
     let consumer = "class Token(val text:String){deinit(){println(this.text)}}\nfun source():List<Token>{println(\"source\");return listOf(Token(\"first\"),Token(\"second\"))}\nfun main():Unit{for(item in take(source(),1)){println(item.text)}}";
-    single(consumer);
+    memory_unit(consumer);
     unit(&format!(
         "package app\nimport koven.algorithms.take\n{consumer}"
     ));
@@ -91,7 +91,7 @@ fn range_temporary_for_single_and_unit_preserve_root_until_metadata_ends() {
 #[test]
 fn range_temporary_call_single_and_unit_preserve_root_until_metadata_ends() {
     let consumer = "class Token(val text:String){deinit(){println(this.text)}}\nfun source():List<Token>{println(\"source\");return listOf(Token(\"first\"),Token(\"second\"))}\nfun read(view:View<Token>):Unit{for(item in view){println(item.text)}}\nfun main():Unit{read(take(source(),1))}";
-    single(consumer);
+    memory_unit(consumer);
     unit(&format!(
         "package app\nimport koven.algorithms.take\n{consumer}"
     ));
@@ -116,7 +116,7 @@ fn range_list_producer_size_uses_metadata_and_source_loan() {
 fn range_single_and_unit_for_deliver_only_shared_elements() {
     let consumer = "class Item(val text:String){}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun main():Unit{val source=listOf(Item(\"first\"),Item(\"excluded\"));borrow val part=take(source,1);read(part)}";
     for program in [
-        single(consumer),
+        memory_unit_llvm(consumer),
         unit(&format!(
             "package app\nimport koven.algorithms.take\n{consumer}"
         )),
@@ -153,7 +153,7 @@ fn range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans() {
             "class Item(val text:String){{}}\nfun consume(own source:List<Item>):Unit{{}}\nfun main():Unit{{val source=listOf(Item(\"first\"),Item(\"excluded\"));{{borrow val part=take(source,1);for(item in part){{println(item.text);{exit}}}}};consume(source)}}"
         );
         for (entry, program) in [
-            ("single", single(&consumer)),
+            ("single", memory_unit_llvm(&consumer)),
             (
                 "unit",
                 unit(&format!(
@@ -288,58 +288,157 @@ fn range_verifier_preserves_descriptor_root_pairing_through_loop_edges() {
     // Crossed pairs stay within this pure verifier test; no LLVM/native call follows.
 }
 
-fn single(consumer: &str) -> Program {
-    single_with_entry(consumer).0
+// Historical `single` test names and labels identify this original source layout,
+// not a legacy checker. Never replace it with the separate provider/consumer arm.
+fn memory_unit(consumer: &str) -> Program {
+    memory_unit_roots(consumer, false).0
 }
 
-fn single_with_entry(consumer: &str) -> (Program, FunctionId) {
+fn memory_unit_llvm(consumer: &str) -> Program {
+    memory_unit_with_entry(consumer).0
+}
+
+fn memory_unit_with_entry(consumer: &str) -> (Program, FunctionId) {
+    memory_unit_roots(consumer, true)
+}
+
+fn memory_unit_roots(consumer: &str, check_llvm: bool) -> (Program, FunctionId) {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
     use lang_frontend::{
-        lexer::lex, name_resolution::resolve_names, ownership_checking::check_ownership,
-        parser::parse_file, type_checking::check_types,
+        name_resolution::{SourceUnitKey, SymbolKind},
+        parser::{Item, NameMarker},
     };
-    let mut sources = SourceMap::new();
+
     let text = format!(
         "{}\n{consumer}",
         include_str!("../../../lang-std/koven/algorithms/ranges.ko")
             .strip_prefix("package koven.algorithms\n")
             .unwrap()
     );
-    let source = sources.add_source("trusted.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let (environment, mut types) = standard_environments();
-    types.authorize_range_source(&sources, source).unwrap();
-    types
-        .authorize_range_extension_source(&sources, source)
-        .unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let entry = names
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "main")
-        .unwrap()
-        .id();
-    let (program, entry) = super::lower_frontend::orchestrate::lower_scalar_file_with_entry(
-        &sources, &parsed, &names, &typed, &owned, entry,
-    )
-    .unwrap_or_else(|error| {
-        panic!(
-            "{error:?}: {:?}",
-            error.span.and_then(|span| sources.slice(span).ok())
-        )
-    });
-    verify_program(&program).unwrap();
-    (program, entry)
+    let analysis =
+        UnitSource::analyze_with_type_environment("trusted.ko", &text, |sources, source, types| {
+            types.authorize_range_source(sources, source).unwrap();
+            types
+                .authorize_range_extension_source(sources, source)
+                .unwrap();
+        })
+        .unwrap_or_else(|error| panic!("original trusted Range admission: {error:?}"));
+    analysis.assert_frontend_clean();
+    let parsed = analysis.parsed();
+    let index = analysis.names().names().index();
+    let [source] = index.source_units() else {
+        panic!("one original MemoryDocument");
+    };
+    assert_eq!(source.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(source.source_id(), parsed.source_id());
+    assert_eq!(
+        analysis.sources().source_name(source.source_id()).unwrap(),
+        "trusted.ko"
+    );
+    assert_eq!(
+        analysis.sources().source_text(source.source_id()).unwrap(),
+        text
+    );
+    let main = analysis.declaration("main", SymbolKind::Function);
+    let mut main_program = None;
+    let mut function_roots = 0;
+
+    // The old whole-file lowerer admitted every non-generic top-level function,
+    // including uncalled consume/read helpers. Each root keeps that obligation
+    // in an independent Program; these Programs are not one cross-function graph.
+    for root in parsed.roots() {
+        let node = parsed.ast().items().get(*root).unwrap();
+        let mut item = node.payload();
+        while let Item::Modified { declaration, .. } = item {
+            item = parsed.ast().items().get(*declaration).unwrap().payload();
+        }
+        let Item::Function {
+            name: NameMarker::Present(name),
+            type_parameters,
+            ..
+        } = item
+        else {
+            continue;
+        };
+        function_roots += 1;
+        let declarations = index
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.root() == *root
+                    && declaration.source_unit() == source.id()
+                    && declaration.kind() == SymbolKind::Function
+            })
+            .collect::<Vec<_>>();
+        let [declaration] = declarations.as_slice() else {
+            panic!("one actual declaration for original function root {root:?}");
+        };
+        assert_eq!(declaration.package(), source.package());
+        assert_eq!(declaration.name_span(), *name);
+        assert_eq!(name.source_id(), source.source_id());
+        let span = analysis.declaration_span(declaration.id());
+        assert_eq!(span, node.span());
+        let signature = analysis
+            .types()
+            .signatures()
+            .declaration(declaration.id())
+            .and_then(|signature| signature.callable())
+            .expect("original function has a same-analysis callable signature");
+        assert_eq!(signature.name_span(), *name);
+        assert_eq!(signature.type_parameters().len(), type_parameters.len());
+        // Generic library templates stay in complete FE/ownership admission.
+        // Their codegen is witnessed only by real reachable concrete instances.
+        if !signature.type_parameters().is_empty() {
+            assert_ne!(declaration.id(), main);
+            continue;
+        }
+        let (program, entry) = analysis
+            .lower_entry(declaration.id())
+            .unwrap_or_else(|error| {
+                panic!(
+                    "original Range root {}: {error:?}: {:?}",
+                    declaration.name(),
+                    error
+                        .span
+                        .and_then(|span| analysis.sources().slice(span).ok())
+                )
+            });
+        let function = program
+            .module(entry.module())
+            .unwrap()
+            .function(entry)
+            .unwrap();
+        assert_eq!(function.origin, Origin::Source(span));
+        verify_program(&program).unwrap();
+        // Preserve original whole-file LLVM obligations, including uncalled roots,
+        // without widening SSA-only or verifier-negative admission.
+        if check_llvm {
+            crate::llvm::render_verified_program(&program).unwrap();
+        }
+        if declaration.id() == main {
+            assert!(main_program.replace((program, entry)).is_none());
+        }
+    }
+    assert_eq!(
+        function_roots,
+        index
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.source_unit() == source.id()
+                    && declaration.kind() == SymbolKind::Function
+            })
+            .count(),
+        "every original top-level function is accounted for"
+    );
+    main_program.expect("the unique original non-generic main was lowered")
 }
 
 #[test]
 fn range_single_and_unit_keep_the_same_new_descriptor_abi() {
     let consumer = "class Item(val n:Int){}\nfun check(view:View<Item>):Unit{if(view.size!=1){error(\"wrong\")}}\nfun main():Unit{val source=listOf(Item(7));borrow val part=take(source,1);check(part);println(\"done\")}";
     for program in [
-        single(consumer),
+        memory_unit_llvm(consumer),
         unit(&format!(
             "package app\nimport koven.algorithms.take\n{consumer}"
         )),
@@ -355,7 +454,7 @@ fn range_single_and_unit_keep_the_same_new_descriptor_abi() {
 fn range_metadata_borrow_is_separate_from_constructing_a_new_descriptor() {
     let consumer = "fun metadata(source:View<String>):borrow View<String> from source=source\nfun check(source:View<String>):Unit{if(source.size!=1){error(\"size\")}}\nfun consume(own source:List<String>):Unit{}\nfun main():Unit{val source=listOf(\"kept\");borrow val part=take(source,1);borrow val alias=part;borrow val returned=metadata(alias);check(returned);consume(source)}";
     for program in [
-        single(consumer),
+        memory_unit_llvm(consumer),
         unit(&format!(
             "package app\nimport koven.algorithms.take\n{consumer}"
         )),

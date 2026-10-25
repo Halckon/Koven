@@ -5,7 +5,7 @@ const IMPORTS: &str = "package app\nimport koven.algorithms.take\nimport koven.a
 
 fn programs(consumer: &str) -> [(Program, FunctionId); 3] {
     [
-        single_with_entry(consumer),
+        memory_unit_with_entry(consumer),
         unit_with_provider_order(&format!("{IMPORTS}{consumer}"), "", false),
         unit_with_provider_order(&format!("{IMPORTS}{consumer}"), "", true),
     ]

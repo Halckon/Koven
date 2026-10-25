@@ -10,7 +10,7 @@ const EXTENSIONS: &str = "borrow fun <T> List<T>.prefix(count:Int):View<T> from 
 fn range_receiver_source_single_and_unit_keep_root_until_last_child() {
     let consumer = "fun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun consume(own source:List<String>):Unit{}\nfun main():Unit{val source=listOf(\"first\",\"second\");borrow val parent=source.prefix(2);borrow val child=parent.prefix(1);read(child);consume(source)}";
     for program in [
-        single(&format!("{EXTENSIONS}\n{consumer}")),
+        memory_unit_llvm(&format!("{EXTENSIONS}\n{consumer}")),
         unit_with_provider_entry(
             &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
             EXTENSIONS,
@@ -68,7 +68,7 @@ fn range_receiver_source_native_single_and_reversed_unit_clean_exactly_once() {
             "{declaration}\nfun read(view:View<{element}>):Unit{{for(item in view){{{read}}}}}\nfun consume(own source:List<{element}>):Unit{{println(\"consume\")}}\nfun main():Unit{{val source=listOf({values});borrow val parent=(source).prefix(2);borrow val child=(parent).prefix(1);read(child);println(\"after\");consume(source);println(\"done\")}}"
         );
         for (program, entry) in [
-            single_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
+            memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
             unit_with_provider_order(
                 &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
                 EXTENSIONS,
@@ -94,7 +94,7 @@ fn range_receiver_source_native_single_and_reversed_unit_clean_exactly_once() {
 fn range_receiver_source_count_control_flow_ends_receiver_before_early_return() {
     let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun scan(stop:Boolean):Unit{val source=listOf(Item(\"first\"),Item(\"second\"));read(source.prefix(if(stop){return}else{1}))}\nfun main():Unit{scan(false);scan(true)}";
     for (program, entry) in [
-        single_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
+        memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
         unit_with_provider_order(
             &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
             EXTENSIONS,
@@ -118,7 +118,7 @@ fn range_receiver_source_this_size_and_group_size_preserve_actual_view_extent() 
     let trusted = "borrow fun <T> List<T>.all():View<T> from this=rangeView(this,0,this.size)\nborrow fun <T> View<T>.all():View<T> from this=rangeView(this,0,(this).size)";
     let consumer = "fun read(view:View<String>):Unit{if(view.size!=2){error(\"size\")}}\nfun main():Unit{val source=listOf(\"first\",\"second\");borrow val parent=source.all();borrow val child=parent.all();read(child)}";
     for (program, entry) in [
-        single_with_entry(&format!("{trusted}\n{consumer}")),
+        memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
         unit_with_provider_order(
             &format!("package app\nimport koven.algorithms.all\n{consumer}"),
             trusted,
@@ -137,7 +137,7 @@ fn range_receiver_source_temporary_chain_cleans_the_root_once() {
     use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
     let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun source():List<Item>{println(\"source\");return listOf(Item(\"first\"),Item(\"second\"))}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun main():Unit{read(source().prefix(2).prefix(1));println(\"done\")}";
     for (program, entry) in [
-        single_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
+        memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
         unit_with_provider_order(
             &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
             EXTENSIONS,
@@ -158,7 +158,7 @@ fn range_receiver_source_forwarded_nonzero_view_preserves_absolute_offsets() {
     );
     let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun main():Unit{val root=listOf(Item(\"first\"),Item(\"second\"));borrow val parent=root.window();borrow val child=parent.forward(1);read(child);println(\"done\")}";
     for (program, entry) in [
-        single_with_entry(&format!("{trusted}\n{consumer}")),
+        memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
         unit_with_provider_order(
             &format!(
                 "package app\nimport koven.algorithms.window\nimport koven.algorithms.forward\n{consumer}"
@@ -184,7 +184,7 @@ fn range_receiver_source_borrow_parameter_rebinds_across_nonreturn_count_branch(
     let trusted = EXTENSIONS;
     let consumer = "fun read(view:View<String>):Unit{println(\"read\")}\nfun scan(source:List<String>,flag:Boolean):Unit{read((source).prefix(if(flag){1}else{0}))}\nfun scan_view(source:View<String>,flag:Boolean):Unit{read((source).prefix(if(flag){1}else{0}))}\nfun main():Unit{val root=listOf(\"first\");scan(root,true);scan(root,false);borrow val parent=root.prefix(1);scan_view(parent,true);scan_view(parent,false)}";
     for (program, entry) in [
-        single_with_entry(&format!("{trusted}\n{consumer}")),
+        memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
         unit_with_provider_order(
             &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
             trusted,
@@ -411,7 +411,7 @@ fn assert_count_break_products(
 fn range_receiver_source_temporary_for_cleans_the_root_after_elements() {
     let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun source():List<Item>{println(\"source\");return listOf(Item(\"first\"),Item(\"second\"))}\nfun main():Unit{for(item in source().prefix(2).prefix(1)){println(item.text)};println(\"done\")}";
     for (program, entry) in [
-        single_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
+        memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
         unit_with_provider_order(
             &format!("package app\nimport koven.algorithms.prefix\n{consumer}"),
             EXTENSIONS,
@@ -435,7 +435,7 @@ fn real_std_receiver_take_preserves_nonzero_view_offsets_and_top_level_compatibi
     let trusted = "fun window(source:List<String>):View<String> from source=rangeView(source,1,2)";
     let consumer = "fun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun main():Unit{val root=listOf(\"first\".clone(),\"second\".clone());borrow val parent=window(root);borrow val child=parent.take(2147483647);read(child);read(take(child,1));read(child.take(0))}";
     for (program, entry) in [
-        single_with_entry(&format!("{trusted}\n{consumer}")),
+        memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
         unit_with_provider_order(
             &format!(
                 "package app\nimport koven.algorithms.take\nimport koven.algorithms.window\n{consumer}"
@@ -484,7 +484,7 @@ fn range_receiver_named_root_short_borrow_cleans_after_consumer_and_return() {
                     "{declaration}\nfun read(view:View<{element}>,number:Int):Unit{{{reader}}}\nfun scan(stop:Boolean):Unit{{val root=listOf({values});read({operation},if(stop){{return}}else{{0}});println(\"after\")}}\nfun main():Unit{{scan(false);scan(true);println(\"done\")}}"
                 );
                 for (program, entry) in [
-                    single_with_entry(&format!("{provider}\n{consumer}")),
+                    memory_unit_with_entry(&format!("{provider}\n{consumer}")),
                     unit_with_provider_order(
                         &format!(
                             "package app\nimport koven.algorithms.prefix\nimport koven.algorithms.cut\n{consumer}"
