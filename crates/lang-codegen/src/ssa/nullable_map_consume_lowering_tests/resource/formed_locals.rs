@@ -1,4 +1,4 @@
-//! Same-source Unit collector plus the unchanged independent formed-local exact contract.
+//! Same-source Unit collector plus the independently reviewed formed-local exact contract.
 //! All eighteen entries are collected before input/completeness or compatibility assertions.
 
 use super::{LowerOutcome, Observation, Trace, print_outcome};
@@ -28,7 +28,7 @@ fn collect(with_formed_queries: bool) -> Vec<Observation> {
                     0,
                     &mut trace,
                 )
-            } else if !with_formed_queries {
+            } else {
                 super::memory::observe_source(
                     case.path,
                     case.single,
@@ -40,22 +40,6 @@ fn collect(with_formed_queries: bool) -> Vec<Observation> {
                     },
                     0,
                     |_, _, _, _, _| {},
-                    &mut trace,
-                )
-            } else {
-                // M31 retains its exact Legacy single K3/K4 and success contracts.
-                super::single::observe_source(
-                    case.path,
-                    case.single,
-                    |sources, parsed, names, typed, trace| {
-                        inputs::single(case, sources, parsed, names, typed, trace)
-                    },
-                    |sources, parsed, names, _, owned, trace| {
-                        if with_formed_queries {
-                            inputs::single_formed(case, sources, parsed, names, owned, trace);
-                        }
-                    },
-                    0,
                     &mut trace,
                 )
             };

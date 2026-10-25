@@ -2,8 +2,6 @@
 mod structure;
 // Original conditional return source, admitted through the same Unit analysis.
 use super::unit_iteration::{Control, assert_facts};
-// Unchanged mixed and negative children still inspect their original Legacy route.
-use super::{analyze, lower_scalar_file};
 
 fn source(live: bool) -> String {
     format!(

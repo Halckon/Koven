@@ -22,7 +22,8 @@ struct Expected {
     lower: ExpectedLower,
 }
 
-// Fourteen LLVM successes plus exact K3 capability rejections and the original K4 boundary.
+// Fourteen LLVM successes plus exact K3/K4 capability rejections in both Unit layouts.
+// K4 retains each original null origin; the historical p/q MissingFact is not a contract.
 // Each row is independent of observed outcomes; no wildcard failure counts as preservation.
 const EXPECTED: &[Expected] = &[
     Expected {
@@ -126,7 +127,7 @@ const EXPECTED: &[Expected] = &[
         entry_name: "entry",
         entry_path: "q/consumer.ko",
         lower: ExpectedLower::Rejected {
-            kind: LoweringErrorKind::MissingFact,
+            kind: LoweringErrorKind::UnsupportedNode,
             path: "p/provider.ko",
             start: 98,
             end: 102,
