@@ -9,6 +9,17 @@ mod sources;
 mod syntax;
 
 fn collect(with_formed_queries: bool) -> Vec<Observation> {
+    collect_with(with_formed_queries, None)
+}
+
+fn collect_observed(batch: &mut super::memory::Batch) -> Vec<Observation> {
+    collect_with(true, Some(batch))
+}
+
+fn collect_with(
+    with_formed_queries: bool,
+    mut batch: Option<&mut super::memory::Batch>,
+) -> Vec<Observation> {
     let mut observations = Vec::new();
     for case in sources::CASES {
         for unit in [false, true] {
@@ -29,7 +40,7 @@ fn collect(with_formed_queries: bool) -> Vec<Observation> {
                     &mut trace,
                 )
             } else {
-                super::single::observe_source(
+                super::single::observe_source_observed(
                     case.path,
                     case.single,
                     |sources, parsed, names, typed, trace| {
@@ -42,8 +53,42 @@ fn collect(with_formed_queries: bool) -> Vec<Observation> {
                     },
                     0,
                     &mut trace,
+                    |sources, parsed| {
+                        if let Some(batch) = batch.as_deref_mut() {
+                            batch.observe_parsed(
+                                super::memory::Original {
+                                    id: case.id,
+                                    path: case.path,
+                                    text: case.single,
+                                    sources,
+                                    parsed,
+                                },
+                                0,
+                                super::memory::formed_catalog(case.id, case.locals.len()),
+                                |sources, file, names, typed, trace| {
+                                    inputs::unit_with_layout(
+                                        case, sources, file, names, typed, false, trace,
+                                    );
+                                },
+                                |sources, file, names, typed, owned, trace| {
+                                    inputs::unit_formed_with_layout(
+                                        case,
+                                        sources,
+                                        file,
+                                        names,
+                                        (typed, owned),
+                                        false,
+                                        trace,
+                                    );
+                                },
+                            );
+                        }
+                    },
                 )
             };
+            if !unit && let Some(batch) = batch.as_deref_mut() {
+                batch.legacy(case.id, &trace, &outcome);
+            }
             observations.push(Observation {
                 label: format!("{}/{}", case.id, if unit { "unit" } else { "single" }),
                 trace,

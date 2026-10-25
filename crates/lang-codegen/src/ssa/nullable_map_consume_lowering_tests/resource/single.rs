@@ -23,6 +23,38 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservatio
     )
 }
 
+pub(super) fn observe_observed(
+    case: &Case,
+    trace: &mut Trace,
+    batch: &mut super::memory::Batch,
+) -> Outcome<LowerObservation> {
+    observe_source_observed(
+        case.path,
+        case.single,
+        |sources, parsed, names, typed, trace| inspect(case, sources, parsed, names, typed, trace),
+        |_, _, _, _, _, _| {},
+        case.counts[5],
+        trace,
+        |sources, parsed| {
+            batch.observe_parsed(
+                super::memory::Original {
+                    id: case.id,
+                    path: case.path,
+                    text: case.single,
+                    sources,
+                    parsed,
+                },
+                case.counts[5],
+                super::memory::resource_catalog(case.counts[2]),
+                |sources, file, names, typed, trace| {
+                    super::unit::inspect(case, sources, file, names, typed, trace);
+                },
+                |_, _, _, _, _, _| {},
+            );
+        },
+    )
+}
+
 pub(super) fn observe_source(
     path: &str,
     text: &str,
@@ -38,8 +70,36 @@ pub(super) fn observe_source(
     assertion_count: usize,
     trace: &mut Trace,
 ) -> Outcome<LowerObservation> {
+    observe_source_observed(
+        path,
+        text,
+        inspect,
+        inspect_owned,
+        assertion_count,
+        trace,
+        |_, _| {},
+    )
+}
+
+pub(super) fn observe_source_observed(
+    path: &str,
+    text: &str,
+    inspect: impl FnOnce(&SourceMap, &ParsedFile, &NameResolution, &TypedFile, &mut Trace),
+    inspect_owned: impl FnOnce(
+        &SourceMap,
+        &ParsedFile,
+        &NameResolution,
+        &TypedFile,
+        &OwnershipCheckedFile,
+        &mut Trace,
+    ),
+    assertion_count: usize,
+    trace: &mut Trace,
+    after_parse: impl FnOnce(&SourceMap, &ParsedFile),
+) -> Outcome<LowerObservation> {
     let mut sources = SourceMap::new();
     let parsed = parsed(&mut sources, path, text, trace)?;
+    after_parse(&sources, &parsed);
     let (environment, types) = standard_environments();
     let names = step(
         "names",

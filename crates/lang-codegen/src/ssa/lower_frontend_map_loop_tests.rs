@@ -1,5 +1,6 @@
 //! SPEC-0300: real source owner facts and normal-exhaustion SSA transport.
 use super::{analyze, lower_map_unit, lower_scalar_file};
+use crate::ssa::map_original_observation_test_support as original;
 #[path = "lower_frontend_map_loop_unit_identity.rs"]
 pub(super) mod unit_identity;
 #[path = "lower_frontend_map_unit_iteration_tests.rs"]
@@ -32,23 +33,50 @@ fn unit_map_loop_normal_source_is_an_independent_control() {
 #[test]
 fn single_map_loop_abort_guard_combination_remains_explicit() {
     let source = include_str!("../../tests/fixtures/map-loop-owner-0300/guarded-abort-boundary.ko");
+    let observation = original::observe(
+        "M01",
+        concat!(
+            module_path!(),
+            "::single_map_loop_abort_guard_combination_remains_explicit"
+        ),
+        &[original::Input::new(
+            "guarded-abort",
+            source,
+            &["removeDead", "removeLive", "putDead", "putLive", "main"],
+        )],
+    );
     assert_guarded_boundary(source);
+    observation.finish();
 }
 
-fn assert_control_exit_boundary(exit: &str) {
-    let source = format!(
+fn control_exit_source(exit: &str) -> String {
+    format!(
         "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ cache.put(key, \"value\".clone()); if (key == 1) {{ {exit} }} }}; cache.contains(1) }}"
-    );
-    assert_guarded_boundary(&source);
+    )
 }
 
 #[test]
 fn single_map_continue_with_break_remains_explicit() {
-    assert_control_exit_boundary("if (key == 2) { break }; continue");
+    let source = control_exit_source("if (key == 2) { break }; continue");
+    let observation = original::observe(
+        "M02",
+        concat!(
+            module_path!(),
+            "::single_map_continue_with_break_remains_explicit"
+        ),
+        &[original::Input::new(
+            "break-then-continue",
+            &source,
+            &["main"],
+        )],
+    );
+    assert_guarded_boundary(&source);
+    observation.finish();
 }
 
 #[test]
 fn single_map_continue_unconditional_and_multiple_remain_explicit() {
+    let mut sources = Vec::new();
     for exit in [
         "continue",
         "if (key == 1) { continue }; if (key == 2) { continue }",
@@ -56,13 +84,28 @@ fn single_map_continue_unconditional_and_multiple_remain_explicit() {
         let source = format!(
             "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ cache.put(key, \"value\".clone()); {exit} }}; cache.contains(1) }}"
         );
-        assert_guarded_boundary(&source);
+        sources.push(source);
     }
+    let observation = original::observe(
+        "M03",
+        concat!(
+            module_path!(),
+            "::single_map_continue_unconditional_and_multiple_remain_explicit"
+        ),
+        &[
+            original::Input::new("unconditional-continue", &sources[0], &["main"]),
+            original::Input::new("two-conditional-continues", &sources[1], &["main"]),
+        ],
+    );
+    for source in &sources {
+        assert_guarded_boundary(source);
+    }
+    observation.finish();
 }
 
 #[test]
 fn single_map_continue_return_replacement_and_abort_remain_explicit() {
-    assert_control_exit_boundary("if (key == 2) { return }; continue");
+    let mut sources = vec![control_exit_source("if (key == 2) { return }; continue")];
     for prefix in [
         "cache = mutableMapOf<Int, String>();",
         "if (key == 2) { error(\"stop\") };",
@@ -70,28 +113,77 @@ fn single_map_continue_return_replacement_and_abort_remain_explicit() {
         let source = format!(
             "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ {prefix} cache.put(key, \"value\".clone()); if (key == 1) {{ continue }} }}; cache.contains(1) }}"
         );
-        assert_guarded_boundary(&source);
+        sources.push(source);
     }
+    let observation = original::observe(
+        "M04",
+        concat!(
+            module_path!(),
+            "::single_map_continue_return_replacement_and_abort_remain_explicit"
+        ),
+        &[
+            original::Input::new("return-then-continue", &sources[0], &["main"]),
+            original::Input::new("replace-before-continue", &sources[1], &["main"]),
+            original::Input::new("abort-before-continue", &sources[2], &["main"]),
+        ],
+    );
+    for source in &sources {
+        assert_guarded_boundary(source);
+    }
+    observation.finish();
 }
 
 #[test]
 fn single_map_loop_unconditional_return_remains_explicit() {
-    assert_guarded_boundary(
-        "fun main(): Unit { var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) { cache.put(key, \"value\".clone()); return }; cache.contains(1) }",
+    let source = "fun main(): Unit { var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) { cache.put(key, \"value\".clone()); return }; cache.contains(1) }";
+    let observation = original::observe(
+        "M05",
+        concat!(
+            module_path!(),
+            "::single_map_loop_unconditional_return_remains_explicit"
+        ),
+        &[original::Input::new(
+            "unconditional-return",
+            source,
+            &["main"],
+        )],
     );
+    assert_guarded_boundary(source);
+    observation.finish();
 }
 
 #[test]
 fn single_map_loop_replaced_seed_remains_explicit() {
     let source = "fun main(): Unit { var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) { cache = mutableMapOf<Int, String>(); cache.put(key, \"value\".clone()) }; cache.contains(1) }";
+    let observation = original::observe(
+        "M06",
+        concat!(
+            module_path!(),
+            "::single_map_loop_replaced_seed_remains_explicit"
+        ),
+        &[original::Input::new("replaced-seed", source, &["main"])],
+    );
     assert_guarded_boundary(source);
+    observation.finish();
 }
 
 #[test]
 fn single_map_loop_returned_map_seed_remains_explicit() {
-    assert_guarded_boundary(
-        "fun make(): MutableMap<Int, String> = mutableMapOf<Int, String>()\nfun main(): Unit { var cache = make(); for (key in arrayOf(1)) { cache.put(key, \"value\".clone()) }; cache.contains(1) }",
+    let source = "fun make(): MutableMap<Int, String> = mutableMapOf<Int, String>()\nfun main(): Unit { var cache = make(); for (key in arrayOf(1)) { cache.put(key, \"value\".clone()) }; cache.contains(1) }";
+    let observation = original::observe(
+        "M07",
+        concat!(
+            module_path!(),
+            "::single_map_loop_returned_map_seed_remains_explicit"
+        ),
+        &[original::Input::new(
+            "returned-seed",
+            source,
+            &["make", "main"],
+        )],
     );
+    assert_guarded_boundary(source);
+    observation.finish();
 }
 
 #[test]
@@ -110,6 +202,17 @@ fn single_map_loop_range_provider_remains_explicit() {
         include_str!("../../../lang-std/koven/algorithms/ranges.ko")
             .strip_prefix("package koven.algorithms\n")
             .unwrap()
+    );
+    let observation = original::observe(
+        "M08",
+        concat!(
+            module_path!(),
+            "::single_map_loop_range_provider_remains_explicit"
+        ),
+        &[original::Input::trusted_range(
+            "trusted-range-source",
+            &text,
+        )],
     );
     let source = sources.add_source("trusted.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -133,6 +236,7 @@ fn single_map_loop_range_provider_remains_explicit() {
             .iter()
             .any(|fact| { fact.condition().is_some() && Some(fact.value_origin()) == error.span })
     );
+    observation.finish();
 }
 
 fn assert_guarded_boundary(source: &str) {
@@ -212,6 +316,7 @@ fn single_map_loop_resource_payload_keeps_existing_classification() {
 
 #[test]
 fn single_map_loop_multiple_iteration_phi_seeds_remain_explicit() {
+    let mut sources = Vec::new();
     for loops in [
         "for (key in arrayOf(1)) { cache.put(key, \"first\".clone()) }; for (key in arrayOf(2)) { cache.put(key, \"second\".clone()) }",
         "for (key in arrayOf(1)) { for (other in arrayOf(2)) { cache.put(other, \"nested\".clone()) }; cache.put(key, \"outer\".clone()) }",
@@ -219,8 +324,23 @@ fn single_map_loop_multiple_iteration_phi_seeds_remain_explicit() {
         let source = format!(
             "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); {loops}; cache.contains(1) }}"
         );
-        assert_guarded_boundary(&source);
+        sources.push(source);
     }
+    let observation = original::observe(
+        "M09",
+        concat!(
+            module_path!(),
+            "::single_map_loop_multiple_iteration_phi_seeds_remain_explicit"
+        ),
+        &[
+            original::Input::new("sequential-loops", &sources[0], &["main"]),
+            original::Input::new("nested-loops", &sources[1], &["main"]),
+        ],
+    );
+    for source in &sources {
+        assert_guarded_boundary(source);
+    }
+    observation.finish();
 }
 
 fn assert_map_drop_counts(program: &crate::ssa::model::Program, expected: &[(&str, usize)]) {

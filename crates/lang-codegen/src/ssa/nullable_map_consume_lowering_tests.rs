@@ -83,16 +83,31 @@ struct Failure {
 
 type Outcome<T> = Result<T, Failure>;
 
+#[derive(Debug)]
+struct Check {
+    label: String,
+    passed: bool,
+    detail: String,
+}
+
 #[derive(Debug, Default)]
 struct Trace {
     stages: Vec<String>,
     input_failures: Vec<String>,
+    checks: Vec<Check>,
+    admission_steps: Vec<(String, bool)>,
+    program_origins: Option<Vec<resource::ProgramOrigin>>,
 }
 
 impl Trace {
     fn check(&mut self, label: &str, valid: bool, detail: impl std::fmt::Debug) {
         self.stages
             .push(format!("input {label}: valid={valid}; actual={detail:#?}"));
+        self.checks.push(Check {
+            label: label.to_owned(),
+            passed: valid,
+            detail: format!("{detail:#?}"),
+        });
         if !valid {
             self.input_failures.push(label.to_owned());
         }

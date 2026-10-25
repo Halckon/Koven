@@ -9,6 +9,7 @@ use crate::ssa::{LoweringError, LoweringErrorKind};
 use sources::{CASES, Case};
 
 mod formed_locals;
+mod memory;
 mod single;
 mod sources;
 mod unit;
@@ -80,6 +81,46 @@ struct Observation {
     outcome: Outcome<LowerObservation>,
 }
 
+#[derive(Debug)]
+pub(super) struct ProgramOrigin {
+    id: String,
+    name: String,
+    span: Span,
+    synthetic: Option<String>,
+    path: Result<String, String>,
+    direct_calls: Vec<String>,
+}
+
+fn program_origins(sources: &SourceMap, program: &Program) -> Vec<ProgramOrigin> {
+    use crate::ssa::model::{Operation, Origin};
+    program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .map(|function| ProgramOrigin {
+            id: format!("{:?}", function.id),
+            name: function.name.clone(),
+            span: function.origin.span(),
+            synthetic: match &function.origin {
+                Origin::Source(_) => None,
+                Origin::Synthetic { reason, .. } => Some(reason.clone()),
+            },
+            path: sources
+                .source_name(function.origin.span().source_id())
+                .map(str::to_owned)
+                .map_err(|error| format!("{error:?}")),
+            direct_calls: function
+                .instructions
+                .iter()
+                .filter_map(|instruction| match &instruction.operation {
+                    Operation::DirectCall { callee, .. } => Some(format!("{callee:?}")),
+                    _ => None,
+                })
+                .collect(),
+        })
+        .collect()
+}
+
 fn finish_lower(
     sources: &SourceMap,
     result: Result<(Program, FunctionId), LoweringError>,
@@ -104,6 +145,7 @@ fn finish_lower(
             };
         }
     };
+    trace.program_origins = Some(program_origins(sources, &program));
     trace.stages.push("lower SSA: reached".to_owned());
     trace.stages.push(format!(
         "actual selected SSA entry={entry:?}; actual modules={:#?}",
@@ -167,15 +209,24 @@ fn print_outcome(outcome: &Outcome<LowerObservation>) {
 }
 
 fn collect_observations() -> Vec<Observation> {
+    collect_observations_with(None)
+}
+
+fn collect_observations_with(mut batch: Option<&mut memory::Batch>) -> Vec<Observation> {
     let mut observations = Vec::with_capacity(8);
     for case in CASES {
         for unit in [false, true] {
             let mut trace = Trace::default();
             let outcome = if unit {
                 unit::observe(case, &mut trace)
+            } else if let Some(batch) = batch.as_deref_mut() {
+                single::observe_observed(case, &mut trace, batch)
             } else {
                 single::observe(case, &mut trace)
             };
+            if !unit && let Some(batch) = batch.as_deref_mut() {
+                batch.legacy(case.id, &trace, &outcome);
+            }
             observations.push(Observation {
                 label: format!("{}/{}", case.id, if unit { "unit" } else { "single" }),
                 trace,
@@ -341,7 +392,12 @@ fn matches_lower(expected: &ExpectedLower, actual: &LowerOutcome) -> bool {
 
 #[test]
 fn nullable_map_resource_sources_preserve_compatibility() {
-    let observations = collect_observations();
+    let mut batch = memory::Batch::new(
+        "ssa::nullable_map_consume_lowering_tests::resource::nullable_map_resource_sources_preserve_compatibility",
+        4,
+        4,
+    );
+    let observations = collect_observations_with(Some(&mut batch));
     assert_eq!(observations.len(), RESOURCE_COMPATIBILITY.len());
     let mut mismatches = Vec::new();
     for (actual, expected) in observations.iter().zip(RESOURCE_COMPATIBILITY) {
@@ -369,4 +425,5 @@ fn nullable_map_resource_sources_preserve_compatibility() {
         "exact Resource compatibility mismatches:\n{}",
         mismatches.join("\n")
     );
+    batch.finish(observations.len());
 }

@@ -1,5 +1,6 @@
 //! SPEC-0318: real-source last-use baseline; no synthesized ownership facts.
 use super::{analyze, lower_scalar_file};
+use crate::ssa::map_original_observation_test_support as original;
 use lang_frontend::ownership_checking::{DropPoint, DropTarget, IterationExitKind};
 
 #[path = "lower_frontend_map_operand_unit_identity.rs"]
@@ -236,15 +237,48 @@ fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
 
 #[test]
 fn map_operand_last_use_single_baseline() {
+    let mut cases = Vec::new();
     for live in [false, true] {
         for kind in ["remove", "contains", "item", "independent-nullable"] {
-            assert_single(
-                &source(kind, live),
-                &format!("{kind}-live={live}"),
+            cases.push((
+                source(kind, live),
+                format!("{kind}-live={live}"),
                 kind != "independent-nullable",
-            );
+            ));
         }
     }
+    let inputs = cases
+        .iter()
+        .map(|(text, name, _)| {
+            original::Input::new(
+                name,
+                text,
+                if name.starts_with("independent-nullable") {
+                    &["nullableValue", "updatingOperand"]
+                } else {
+                    &["updatingOperand"]
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let observation = original::observe_with(
+        "M16",
+        concat!(module_path!(), "::map_operand_last_use_single_baseline"),
+        &inputs,
+        |cell, analysis, program, root| {
+            if root != "updatingOperand" {
+                return None;
+            }
+            Some(
+                super::operand_structure::assert_source(program, analysis.parsed())
+                    == usize::from(cell.starts_with("remove") || cell.starts_with("contains")),
+            )
+        },
+    );
+    for (text, name, supported) in &cases {
+        assert_single(text, name, *supported);
+    }
+    observation.finish();
 }
 
 #[test]
@@ -289,7 +323,21 @@ fn map_operand_last_use_unit_constant_baseline() {
 
 #[test]
 fn map_operand_last_use_no_map_nullable_control() {
-    assert_single(&source("no-map", false), "no-map-nullable", false);
+    let text = source("no-map", false);
+    let observation = original::observe(
+        "M17",
+        concat!(
+            module_path!(),
+            "::map_operand_last_use_no_map_nullable_control"
+        ),
+        &[original::Input::new(
+            "no-map-nullable",
+            &text,
+            &["nullableValue", "updatingOperand"],
+        )],
+    );
+    assert_single(&text, "no-map-nullable", false);
+    observation.finish();
 }
 
 #[test]
@@ -362,6 +410,18 @@ fn map_operand_last_use_same_guard_outside_return_is_rejected() {
     let text = ORIGINAL.replace(
         "return if (cache.remove(item) != null) { println(\"removed operand\"); item } else { 0 }",
         "cache.contains(item); return item",
+    );
+    let observation = original::observe(
+        "M18",
+        concat!(
+            module_path!(),
+            "::map_operand_last_use_same_guard_outside_return_is_rejected"
+        ),
+        &[original::Input::new(
+            "contains-before-return",
+            &text,
+            &["updatingOperand"],
+        )],
     );
     let a = analyze(&text);
     assert!(a.parsed.diagnostics().is_empty());
@@ -534,17 +594,31 @@ fn map_operand_last_use_same_guard_outside_return_is_rejected() {
     );
     assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
     assert_eq!(error.span, Some(symbol.span()));
+    observation.finish();
 }
 
 #[test]
 fn map_operand_last_use_checked_operand_abort_path_is_rejected() {
     let text = ORIGINAL.replace("cache.remove(item)", "cache.remove(item + 100)");
+    let observation = original::observe(
+        "M19",
+        concat!(
+            module_path!(),
+            "::map_operand_last_use_checked_operand_abort_path_is_rejected"
+        ),
+        &[original::Input::new(
+            "checked-remove-operand",
+            &text,
+            &["updatingOperand"],
+        )],
+    );
     assert_boundary(&text, crate::ssa::LoweringErrorKind::MissingFact, "cache");
+    observation.finish();
 }
 
 #[test]
 fn map_operand_last_use_extended_provider_and_result_shapes_are_rejected() {
-    for text in [
+    let sources = [
         ORIGINAL.replace("arrayOf(1, 2, 3)", "listOf(1, 2, 3)"),
         ORIGINAL.replace(
             "    for (item in arrayOf(1, 2, 3))",
@@ -557,13 +631,27 @@ fn map_operand_last_use_extended_provider_and_result_shapes_are_rejected() {
             )
             .replace("; item } else { 0 }", "; true } else { false }")
             .replace("return 0", "return false"),
-    ] {
+    ];
+    let observation = original::observe(
+        "M20",
+        concat!(
+            module_path!(),
+            "::map_operand_last_use_extended_provider_and_result_shapes_are_rejected"
+        ),
+        &[
+            original::Input::new("list-provider", &sources[0], &["updatingOperand"]),
+            original::Input::new("named-array-provider", &sources[1], &["updatingOperand"]),
+            original::Input::new("boolean-result", &sources[2], &["updatingOperand"]),
+        ],
+    );
+    for text in &sources {
         assert_boundary(
-            &text,
+            text,
             crate::ssa::LoweringErrorKind::UnsupportedNode,
             "cache",
         );
     }
+    observation.finish();
 }
 
 #[test]
@@ -588,13 +676,26 @@ fn map_operand_last_use_two_maps_and_borrowed_array_are_rejected() {
     let borrowed = ORIGINAL
         .replace("stop: Int", "stop: Int, keys: Array<Int>")
         .replace("arrayOf(1, 2, 3)", "keys");
-    for text in [two_maps, borrowed] {
+    let sources = [two_maps, borrowed];
+    let observation = original::observe(
+        "M21",
+        concat!(
+            module_path!(),
+            "::map_operand_last_use_two_maps_and_borrowed_array_are_rejected"
+        ),
+        &[
+            original::Input::new("two-maps", &sources[0], &["updatingOperand"]),
+            original::Input::new("borrowed-array", &sources[1], &["updatingOperand"]),
+        ],
+    );
+    for text in &sources {
         assert_boundary(
-            &text,
+            text,
             crate::ssa::LoweringErrorKind::UnsupportedNode,
             "cache",
         );
     }
+    observation.finish();
 }
 
 #[test]

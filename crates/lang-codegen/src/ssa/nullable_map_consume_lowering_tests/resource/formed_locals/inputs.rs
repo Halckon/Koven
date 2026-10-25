@@ -157,6 +157,18 @@ pub(super) fn unit(
     typed: &CompilationUnitTypes,
     trace: &mut Trace,
 ) {
+    unit_with_layout(case, sources, file, names, typed, true, trace);
+}
+
+pub(super) fn unit_with_layout(
+    case: &Case,
+    sources: &SourceMap,
+    file: (SourceUnitId, &ParsedFile),
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    provider_layout: bool,
+    trace: &mut Trace,
+) {
     let resolutions: Vec<_> = names
         .names()
         .source_units()
@@ -173,7 +185,14 @@ pub(super) fn unit(
     let [resolution] = resolutions.as_slice() else {
         return;
     };
-    let locals = syntax::inspect(case, sources, file.1, resolution.resolution(), true, trace);
+    let locals = syntax::inspect(
+        case,
+        sources,
+        file.1,
+        resolution.resolution(),
+        provider_layout,
+        trace,
+    );
     let symbols: Vec<Option<UnitSymbolId>> = locals
         .iter()
         .map(|local| {
@@ -285,6 +304,19 @@ pub(super) fn unit_formed(
     owned: &CompilationUnitOwnership,
     trace: &mut Trace,
 ) {
+    unit_formed_with_layout(case, sources, file, names, (typed, owned), true, trace);
+}
+
+pub(super) fn unit_formed_with_layout(
+    case: &Case,
+    sources: &SourceMap,
+    file: (SourceUnitId, &ParsedFile),
+    names: &ValidatedCompilationUnitNames,
+    facts: (&CompilationUnitTypes, &CompilationUnitOwnership),
+    provider_layout: bool,
+    trace: &mut Trace,
+) {
+    let (typed, owned) = facts;
     let resolution = names.names().source_units().iter().find(|source| {
         source.source_unit() == file.0 && source.resolution().source_id() == file.1.source_id()
     });
@@ -296,7 +328,14 @@ pub(super) fn unit_formed(
         );
         return;
     };
-    let locals = syntax::inspect(case, sources, file.1, resolution.resolution(), true, trace);
+    let locals = syntax::inspect(
+        case,
+        sources,
+        file.1,
+        resolution.resolution(),
+        provider_layout,
+        trace,
+    );
     let symbols: Vec<_> =
         locals
             .iter()

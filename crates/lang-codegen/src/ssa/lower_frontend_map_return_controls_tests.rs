@@ -1,5 +1,6 @@
 //! Ordinary source observations isolating source and returned-owner boundaries.
 use super::{analyze, lower_scalar_file};
+use crate::ssa::map_original_observation_test_support as original;
 
 fn observe(name: &str, text: &str, supported: bool) {
     let analysis = analyze(text);
@@ -149,6 +150,7 @@ fn ordinary_source_controls_owned_source_return() {
 
 #[test]
 fn ordinary_source_controls_owned_return_operand() {
+    let mut cases = Vec::new();
     for map in [false, true] {
         for grouped in [false, true] {
             for kind in ["string", "value", "removed", "map"] {
@@ -190,21 +192,47 @@ fn ordinary_source_controls_owned_return_operand() {
                 let text = format!(
                     "value class Text(val word: String)\nfun work(): {ty} {{ {before} for (key in arrayOf(1, 2, 3)) {{ {update} {binding} if (key == 2) {{ return {operand} }}; println(\"tail\") }}; return {fallback} }}"
                 );
-                observe(
-                    &format!("operand-{kind}-map={map}-grouped={grouped}"),
-                    &text,
+                cases.push((
+                    format!("operand-{kind}-map={map}-grouped={grouped}"),
+                    text,
                     kind != "removed",
-                );
+                ));
             }
         }
     }
+    let inputs = cases
+        .iter()
+        .map(|(name, text, _)| original::Input::new(name, text, &["work"]))
+        .collect::<Vec<_>>();
+    let observation = original::observe_with(
+        "M24",
+        concat!(
+            module_path!(),
+            "::ordinary_source_controls_owned_return_operand"
+        ),
+        &inputs,
+        |_, _, program, _| {
+            use crate::ssa::model::{Operation, TerminatorKind};
+            Some(program.modules.iter().flat_map(|module| &module.functions).all(|function| {
+            function.blocks.iter().all(|block| match &block.terminator.as_ref().unwrap().kind {
+                TerminatorKind::Return { values } => values.iter().all(|value| {
+                    !function.instructions.iter().any(|instruction| matches!(instruction.operation, Operation::Drop { owner } if owner == *value))
+                }),
+                _ => true,
+            })
+        }))
+        },
+    );
+    for (name, text, supported) in &cases {
+        observe(name, text, *supported);
+    }
+    observation.finish();
 }
 
 #[test]
 fn ordinary_source_controls_outer_resource_and_updating_operand() {
     let outer =
         include_str!("../../tests/fixtures/map-conditional-return-0313/outer-resource-boundary.ko");
-    observe("outer-resource-map", outer, false);
     let without_map = outer
         .replace("    var cache = mutableMapOf<Int, String>()\n", "")
         .replace("        cache.put(1, \"head\".clone())\n", "")
@@ -213,18 +241,45 @@ fn ordinary_source_controls_outer_resource_and_updating_operand() {
             "    if (cache.contains(9)) { println(\"tail kept\") }\n",
             "",
         );
-    observe("outer-resource-no-map", &without_map, false);
-    observe(
-        "updating-return-operand",
-        include_str!(
-            "../../tests/fixtures/map-conditional-return-0313/updating-operand-boundary.ko"
-        ),
-        true,
+    let updating = include_str!(
+        "../../tests/fixtures/map-conditional-return-0313/updating-operand-boundary.ko"
     );
+    let observation = original::observe_with(
+        "M25",
+        concat!(
+            module_path!(),
+            "::ordinary_source_controls_outer_resource_and_updating_operand"
+        ),
+        &[
+            original::Input::new("outer-resource-map", outer, &["operand", "cleanup"]),
+            original::Input::new(
+                "outer-resource-no-map",
+                &without_map,
+                &["operand", "cleanup"],
+            ),
+            original::Input::new("updating-return-operand", updating, &["updatingOperand"]),
+        ],
+        |_, _, program, _| {
+            use crate::ssa::model::{Operation, TerminatorKind};
+            Some(program.modules.iter().flat_map(|module| &module.functions).all(|function| {
+            function.blocks.iter().all(|block| match &block.terminator.as_ref().unwrap().kind {
+                TerminatorKind::Return { values } => values.iter().all(|value| {
+                    !function.instructions.iter().any(|instruction| matches!(instruction.operation, Operation::Drop { owner } if owner == *value))
+                }),
+                _ => true,
+            })
+        }))
+        },
+    );
+    observe("outer-resource-map", outer, false);
+    observe("outer-resource-no-map", &without_map, false);
+    observe("updating-return-operand", updating, true);
+    observation.finish();
 }
 
 #[test]
 fn ordinary_source_controls_return_shapes_remain_bounded() {
+    let mut sources = Vec::new();
     for exit in [
         "return",
         "if (key == 1) { return }; if (key == 2) { return }",
@@ -234,8 +289,25 @@ fn ordinary_source_controls_return_shapes_remain_bounded() {
         let text = format!(
             "fun work(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2, 3)) {{ cache.put(key, \"head\".clone()); {exit} }}; cache.contains(1) }}"
         );
-        observe("unsupported-return-shape", &text, false);
+        sources.push(text);
     }
+    let observation = original::observe(
+        "M26",
+        concat!(
+            module_path!(),
+            "::ordinary_source_controls_return_shapes_remain_bounded"
+        ),
+        &[
+            original::Input::new("unconditional-return", &sources[0], &["work"]),
+            original::Input::new("two-conditional-returns", &sources[1], &["work"]),
+            original::Input::new("return-then-break", &sources[2], &["work"]),
+            original::Input::new("return-then-continue", &sources[3], &["work"]),
+        ],
+    );
+    for text in &sources {
+        observe("unsupported-return-shape", text, false);
+    }
+    observation.finish();
 }
 
 // This FE-only observer keeps the original single source and ownership phase.
