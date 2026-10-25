@@ -146,6 +146,9 @@ mod verify_scalar_tests;
 mod lower_frontend_tests;
 
 #[cfg(test)]
+mod map_unit_consumer_test_support;
+
+#[cfg(test)]
 mod borrow_result_boundary_tests;
 
 #[cfg(test)]

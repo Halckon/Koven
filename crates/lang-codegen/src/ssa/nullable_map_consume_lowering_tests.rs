@@ -1,6 +1,7 @@
 //! SPEC-0291: ordinary nullable Map sources, complete FE, ownership, SSA and LLVM.
-//! Each exact collects its entire layer before asserting. No object emission or native run.
-//! First-red input oracles do not claim SSA owner/proof/cleanup identity coverage.
+//! Collectors gather their entire layer before asserting; input oracles alone do not prove SSA identity.
+//! Resource identity contracts are explicit, and resource::runtime is separate CI-only
+//! object/native/count/Abort coverage rather than part of the ordinary collectors.
 
 use lang_frontend::{
     ast::ExpressionId,

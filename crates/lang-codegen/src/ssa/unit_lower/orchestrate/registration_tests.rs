@@ -400,6 +400,44 @@ fn observe(
                 .module_mut(module_id)
                 .expect("fresh module after planner");
             let mut mapper = type_lower::UnitTypeLowering::new();
+            let parsed_by_source =
+                crate::ssa::unit_source_query::parsed_by_source_unit(&inputs, &names)
+                    .expect("same qualified source objects");
+            let deinits = plan
+                .iter()
+                .filter(|instance| instance.key().deinit_owner().is_some())
+                .collect::<Vec<_>>();
+            assert_eq!(deinits.len(), usize::from(resource));
+            for instance in deinits {
+                let owner = instance.key().deinit_owner().expect("real deinit owner");
+                let nominal = raw
+                    .signatures()
+                    .declaration(owner)
+                    .and_then(|signature| signature.nominal())
+                    .expect("Resource nominal");
+                let descriptor = nominal.deinit().expect("published Resource deinit");
+                assert_eq!(descriptor.owner(), owner);
+                assert_eq!(descriptor.item().source_unit(), p);
+                assert_eq!(instance.item(), descriptor.item().item());
+                assert_eq!(instance.source_unit(), p);
+                let declared = deinit::declare(
+                    module,
+                    &parsed_by_source,
+                    &names,
+                    raw,
+                    &mut mapper,
+                    instance.clone(),
+                )
+                .expect("planner-selected Resource deinit declaration");
+                let receiver = module
+                    .function(declared.id)
+                    .expect("hidden deinit")
+                    .receiver()
+                    .expect("shared Resource receiver")
+                    .semantic_type();
+                assert_eq!(module.deinit(receiver), Some(declared.id));
+                assert_eq!(module.deinits.len(), 1);
+            }
             assert!(module.nullable_maps.is_empty());
             assert!(module.map_results.is_empty());
             for &(_, nullable, inner, _, _) in &frontend_inputs {
@@ -456,26 +494,9 @@ fn observe(
             }
             summaries
         });
-    if resource {
-        let error = result.expect_err("R1 Resource must be rejected by the complete unit planner");
-        assert_eq!(mapper_creations, 0, "Resource must never create a mapper");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-        let span = error
-            .span
-            .expect("source-qualified Resource admission error");
-        assert_eq!(span.source_id(), provider.source_id());
-        assert_eq!(
-            sources.source_name(span.source_id()).expect("source"),
-            "p/provider.ko"
-        );
-        assert_eq!((span.start(), span.end()), (105, 109));
-        assert_eq!(sources.slice(span).expect("error text"), "null");
-        vec!["p/provider.ko:null:105..109:UnsupportedNode:mapper_creations=0".to_owned()]
-    } else {
-        let summaries = result.expect("ordinary complete unit planner succeeds");
-        assert_eq!(mapper_creations, 1);
-        summaries
-    }
+    let summaries = result.expect("complete planner succeeds before either mapper order");
+    assert_eq!(mapper_creations, 1);
+    summaries
 }
 
 #[test]

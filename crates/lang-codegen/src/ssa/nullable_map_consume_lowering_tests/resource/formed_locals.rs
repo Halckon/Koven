@@ -1,4 +1,4 @@
-//! Historical ordinary collector plus an independent formed-local demand contract.
+//! Same-source Unit collector plus the unchanged independent formed-local exact contract.
 //! All eighteen entries are collected before input/completeness or compatibility assertions.
 
 use super::{LowerOutcome, Observation, Trace, print_outcome};
@@ -28,7 +28,22 @@ fn collect(with_formed_queries: bool) -> Vec<Observation> {
                     0,
                     &mut trace,
                 )
+            } else if !with_formed_queries {
+                super::memory::observe_source(
+                    case.path,
+                    case.single,
+                    |sources, file, names, typed, trace| {
+                        inputs::memory(case, sources, file, names, typed, trace)
+                    },
+                    |sources, file, names, typed, owned, trace| {
+                        inputs::memory_formed(case, sources, file, names, typed, owned, trace)
+                    },
+                    0,
+                    |_, _, _, _, _| {},
+                    &mut trace,
+                )
             } else {
+                // M31 retains its exact Legacy single K3/K4 and success contracts.
                 super::single::observe_source(
                     case.path,
                     case.single,
@@ -131,6 +146,6 @@ fn nullable_map_formed_local_sources_collect_baseline_outcomes() {
         "the previously frozen K1 dead-tail LLVM successes must be preserved"
     );
     println!(
-        "COLLECTION ONLY: all eighteen ordinary entries attempted lowering; K1 retains two LLVM successes. Other outcomes are observations only; this collector does not assert formed-local facts."
+        "COLLECTION ONLY: all eighteen ordinary entries attempted lowering; K1 retains two LLVM successes. Other outcomes are observations only; original MemoryDocument facts are checked without freezing other lower outcomes."
     );
 }

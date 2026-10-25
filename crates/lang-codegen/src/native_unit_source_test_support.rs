@@ -1,6 +1,7 @@
 //! Test-only, real single MemoryDocument products shared by native, generated export, and LLVM consumers.
 //! Foreign-fact, fault, counter, calibration, and sanitizer consumers remain CI-only.
-//! No synthetic facts, observer callback, or single-file compatibility path.
+//! No synthetic facts or single-file compatibility path; the test-only environment hook
+//! only reproduces an original trusted-source authorization before admission.
 
 #[path = "native_comma_when_cleanup_tests.rs"]
 mod comma_when_cleanup_tests;
@@ -34,7 +35,7 @@ use lang_frontend::{
         owned_compilation_unit_view,
     },
     parser::{ParsedFile, parse_file},
-    source::{SourceMap, Span},
+    source::{SourceId, SourceMap, Span},
     type_checking::{
         CompilationUnitTypes, ConstEnabledTypedUnit, FinalTypeAdmissionError, TypeEnvironment,
         ValidatedCompilationUnitTypes, check_compilation_unit_types,
@@ -117,6 +118,15 @@ pub(crate) struct UnitSource {
 
 impl UnitSource {
     pub(crate) fn analyze(name: &str, text: &str) -> Result<Self, SourceRejection> {
+        Self::analyze_with_type_environment(name, text, |_, _, _| {})
+    }
+
+    /// Original-source diagnostics may reproduce an existing trusted environment only.
+    pub(crate) fn analyze_with_type_environment(
+        name: &str,
+        text: &str,
+        configure: impl FnOnce(&SourceMap, SourceId, &mut TypeEnvironment),
+    ) -> Result<Self, SourceRejection> {
         let mut sources = SourceMap::new();
         let source = sources.add_source(name, text).expect("unique source");
         let lexed = lex(&sources, source).expect("internal lexing failure");
@@ -132,7 +142,8 @@ impl UnitSource {
             });
         }
         let inputs = [SourceUnitInput::memory_document(source, &parsed)];
-        let (name_environment, environment) = standard_environments();
+        let (name_environment, mut environment) = standard_environments();
+        configure(&sources, source, &mut environment);
         let index = index_compilation_unit(&sources, &inputs).expect("internal index failure");
         let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
             .expect("internal unit name resolution failure");

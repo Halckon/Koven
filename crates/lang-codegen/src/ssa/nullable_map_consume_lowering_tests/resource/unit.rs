@@ -2,11 +2,13 @@
 
 use lang_frontend::{
     name_resolution::{
-        SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget, UnitSymbolId,
-        ValidatedCompilationUnitNames, index_compilation_unit, resolve_compilation_unit_names,
+        DeclarationId, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
+        UnitSymbolId, ValidatedCompilationUnitNames, index_compilation_unit,
+        resolve_compilation_unit_names,
     },
     ownership_checking::{
-        CompilationUnitOwnership, NonNullAssertionTransferKind, check_compilation_unit_ownership,
+        CompilationUnitOwnership, NonNullAssertionTransferKind, OwnedCompilationUnitView,
+        check_compilation_unit_ownership, owned_compilation_unit_view,
     },
     type_checking::{
         BuiltinType, CompilationUnitTypes, Copyability, IntrinsicTypeConstructor, NominalKind,
@@ -17,13 +19,22 @@ use lang_frontend::{
 
 use super::*;
 
-pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservation> {
-    observe_sources(
+pub(super) fn observe(
+    case: &Case,
+    strong_contract: bool,
+    trace: &mut Trace,
+) -> Outcome<LowerObservation> {
+    observe_sources_with_lower(
         case.provider,
         case.consumer,
         |sources, file, names, typed, trace| inspect(case, sources, file, names, typed, trace),
         |_, _, _, _, _, _| {},
         case.counts[5],
+        |view, entry, program, lowered_entry, trace| {
+            if strong_contract {
+                contract::inspect(view, entry, program, lowered_entry, trace);
+            }
+        },
         trace,
     )
 }
@@ -49,6 +60,45 @@ pub(super) fn observe_sources(
     assertion_count: usize,
     trace: &mut Trace,
 ) -> Outcome<LowerObservation> {
+    observe_sources_with_lower(
+        provider_text,
+        consumer_text,
+        inspect,
+        inspect_owned,
+        assertion_count,
+        |_, _, _, _, _| {},
+        trace,
+    )
+}
+
+pub(super) fn observe_sources_with_lower(
+    provider_text: &str,
+    consumer_text: &str,
+    inspect: impl FnOnce(
+        &SourceMap,
+        (SourceUnitId, &ParsedFile),
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &mut Trace,
+    ),
+    inspect_owned: impl FnOnce(
+        &SourceMap,
+        (SourceUnitId, &ParsedFile),
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &CompilationUnitOwnership,
+        &mut Trace,
+    ),
+    assertion_count: usize,
+    inspect_lower: impl FnOnce(
+        &OwnedCompilationUnitView<'_, '_>,
+        DeclarationId,
+        &Program,
+        FunctionId,
+        &mut Trace,
+    ),
+    trace: &mut Trace,
+) -> Outcome<LowerObservation> {
     let mut sources = SourceMap::new();
     let provider = parsed(&mut sources, "p/provider.ko", provider_text, trace);
     let consumer = parsed(&mut sources, "q/consumer.ko", consumer_text, trace);
@@ -59,6 +109,7 @@ pub(super) fn observe_sources(
     ];
     let (environment, types) = standard_environments();
     let index = step("index", index_compilation_unit(&sources, &inputs), trace)?;
+    diagnostics("index diagnostics", &sources, index.diagnostics(), trace)?;
     let names = step(
         "names",
         resolve_compilation_unit_names(&sources, &inputs, &index, &environment),
@@ -257,21 +308,41 @@ pub(super) fn observe_sources(
     trace
         .stages
         .push("attempt lower SSA with real q.entry".to_owned());
+    let view = step(
+        "owned view",
+        owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned),
+        trace,
+    )?;
+    gate(
+        "owned view keeps all rooted references",
+        std::ptr::eq(view.sources(), &sources)
+            && std::ptr::eq(view.inputs(), inputs.as_slice())
+            && std::ptr::eq(view.names(), &names)
+            && std::ptr::eq(view.types(), typed.types())
+            && std::ptr::eq(view.ownership(), owned.ownership()),
+        "sources/inputs/names/types/ownership",
+    )?;
+    let result = crate::ssa::unit_lower::lower_owned_unit_with_entry(&view, entry.id());
+    if let Ok((program, lowered_entry)) = &result {
+        let span = consumer
+            .ast()
+            .items()
+            .get(entry.root())
+            .expect("real q.entry item")
+            .span();
+        trace.check(
+            "selected SSA entry retains exact q.entry Function Item origin",
+            program
+                .module(lowered_entry.module())
+                .and_then(|module| module.function(*lowered_entry))
+                .is_some_and(|function| function.origin == crate::ssa::model::Origin::Source(span)),
+            (entry.id(), lowered_entry, span),
+        );
+        inspect_lower(&view, entry.id(), program, *lowered_entry, trace);
+    }
     Ok(LowerObservation {
         entry: selected_entry(&sources, entry.name(), entry.name_span()),
-        outcome: finish_lower(
-            &sources,
-            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                &sources,
-                &inputs,
-                &names,
-                &types,
-                &typed,
-                &owned,
-                entry.id(),
-            ),
-            trace,
-        ),
+        outcome: finish_lower(&sources, result, trace),
     })
 }
 
@@ -339,7 +410,7 @@ fn map_type(
     })
 }
 
-fn inspect(
+pub(super) fn inspect(
     case: &Case,
     sources: &SourceMap,
     file: (SourceUnitId, &ParsedFile),

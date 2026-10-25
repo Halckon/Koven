@@ -1,5 +1,6 @@
 //! SPEC-0318: real-source last-use baseline; no synthesized ownership facts.
 use super::{analyze, lower_scalar_file};
+use crate::ssa::map_unit_consumer_test_support::assert_source;
 use lang_frontend::ownership_checking::{DropPoint, DropTarget, IterationExitKind};
 
 #[path = "lower_frontend_map_operand_unit_identity.rs"]
@@ -309,47 +310,6 @@ fn map_operand_last_use_contains_dead_red() {
     unit_identity::check(&source("contains", false), "updatingOperand", 1);
 }
 
-fn assert_boundary(text: &str, kind: crate::ssa::LoweringErrorKind, expected: &str) {
-    let a = analyze(text);
-    assert!(
-        a.parsed.diagnostics().is_empty(),
-        "{:?}",
-        a.parsed.diagnostics()
-    );
-    assert!(
-        a.names.diagnostics().is_empty(),
-        "{:?}",
-        a.names.diagnostics()
-    );
-    assert!(
-        a.typed.diagnostics().is_empty(),
-        "{:?}",
-        a.typed.diagnostics()
-    );
-    assert!(
-        a.owned.diagnostics().is_empty(),
-        "{:?}",
-        a.owned.diagnostics()
-    );
-    let error = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned)
-        .err()
-        .expect("bounded source remains rejected");
-    println!("BOUNDARY {expected}: {error:?}");
-    assert_eq!(error.kind, kind);
-    let span = error.span.unwrap();
-    assert_eq!(&text[span.start()..span.end()], expected);
-    let symbols = a
-        .names
-        .symbols()
-        .iter()
-        .filter(|symbol| symbol.name() == expected)
-        .collect::<Vec<_>>();
-    let [symbol] = symbols.as_slice() else {
-        panic!("unique rejected declaration")
-    };
-    assert_eq!(span, symbol.span());
-}
-
 #[test]
 fn map_operand_last_use_same_guard_outside_return_is_rejected() {
     use lang_frontend::{
@@ -539,7 +499,7 @@ fn map_operand_last_use_same_guard_outside_return_is_rejected() {
 #[test]
 fn map_operand_last_use_checked_operand_abort_path_is_rejected() {
     let text = ORIGINAL.replace("cache.remove(item)", "cache.remove(item + 100)");
-    assert_boundary(&text, crate::ssa::LoweringErrorKind::MissingFact, "cache");
+    assert_source(&text, &["updatingOperand"]);
 }
 
 #[test]
@@ -558,11 +518,7 @@ fn map_operand_last_use_extended_provider_and_result_shapes_are_rejected() {
             .replace("; item } else { 0 }", "; true } else { false }")
             .replace("return 0", "return false"),
     ] {
-        assert_boundary(
-            &text,
-            crate::ssa::LoweringErrorKind::UnsupportedNode,
-            "cache",
-        );
+        assert_source(&text, &["updatingOperand"]);
     }
 }
 
@@ -589,11 +545,7 @@ fn map_operand_last_use_two_maps_and_borrowed_array_are_rejected() {
         .replace("stop: Int", "stop: Int, keys: Array<Int>")
         .replace("arrayOf(1, 2, 3)", "keys");
     for text in [two_maps, borrowed] {
-        assert_boundary(
-            &text,
-            crate::ssa::LoweringErrorKind::UnsupportedNode,
-            "cache",
-        );
+        assert_source(&text, &["updatingOperand"]);
     }
 }
 

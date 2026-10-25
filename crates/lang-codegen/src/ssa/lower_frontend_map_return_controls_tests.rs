@@ -1,75 +1,7 @@
 //! Ordinary source observations isolating source and returned-owner boundaries.
-use super::{analyze, lower_scalar_file};
+use crate::ssa::map_unit_consumer_test_support::{assert_outer_resource, assert_return_controls};
 
-fn observe(name: &str, text: &str, supported: bool) {
-    let analysis = analyze(text);
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{name}: {:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{name}: {:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{name}: {:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{name}: {:?}",
-        analysis.owned.diagnostics()
-    );
-    match lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    ) {
-        Ok(program) => {
-            assert!(supported, "{name}: unexpectedly accepted");
-            crate::llvm::render_verified_program(&program).unwrap();
-            use crate::ssa::model::{Operation, TerminatorKind};
-            for function in program.modules.iter().flat_map(|m| &m.functions) {
-                for block in &function.blocks {
-                    if let TerminatorKind::Return { values } =
-                        &block.terminator.as_ref().unwrap().kind
-                    {
-                        for value in values {
-                            assert!(!function.instructions.iter().any(|i| matches!(i.operation, Operation::Drop { owner } if owner == *value)), "returned owner is never also dropped");
-                        }
-                    }
-                }
-            }
-            println!("CONTROL {name}: VERIFIED_LLVM");
-        }
-        Err(error) => {
-            assert!(!supported, "{name}: {error:?}");
-            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-            let span = error.span.unwrap();
-            let expected = if name.starts_with("owned-source") {
-                "keys"
-            } else if name.starts_with("outer-resource") {
-                "outer"
-            } else {
-                "cache"
-            };
-            assert_eq!(
-                &text[span.start()..span.end()],
-                expected,
-                "{name}: precise rejected owner"
-            );
-            println!("CONTROL {name}: {error:?}");
-        }
-    }
-}
-
-// Only this all-success whole uses Unit. Mixed and negative observations keep
-// the original observe path, including their exact rejection owner and phase.
+// The pre-existing all-success whole retains its original Unit oracle.
 fn observe_owned_source_unit(name: &str, text: &str) {
     use crate::{
         native_tests::boxed_enum_tests::unit_source::UnitSource,
@@ -190,10 +122,10 @@ fn ordinary_source_controls_owned_return_operand() {
                 let text = format!(
                     "value class Text(val word: String)\nfun work(): {ty} {{ {before} for (key in arrayOf(1, 2, 3)) {{ {update} {binding} if (key == 2) {{ return {operand} }}; println(\"tail\") }}; return {fallback} }}"
                 );
-                observe(
+                assert_return_controls(
                     &format!("operand-{kind}-map={map}-grouped={grouped}"),
                     &text,
-                    kind != "removed",
+                    &["work"],
                 );
             }
         }
@@ -204,7 +136,7 @@ fn ordinary_source_controls_owned_return_operand() {
 fn ordinary_source_controls_outer_resource_and_updating_operand() {
     let outer =
         include_str!("../../tests/fixtures/map-conditional-return-0313/outer-resource-boundary.ko");
-    observe("outer-resource-map", outer, false);
+    assert_outer_resource("outer-resource-map", outer);
     let without_map = outer
         .replace("    var cache = mutableMapOf<Int, String>()\n", "")
         .replace("        cache.put(1, \"head\".clone())\n", "")
@@ -213,13 +145,13 @@ fn ordinary_source_controls_outer_resource_and_updating_operand() {
             "    if (cache.contains(9)) { println(\"tail kept\") }\n",
             "",
         );
-    observe("outer-resource-no-map", &without_map, false);
-    observe(
+    assert_outer_resource("outer-resource-no-map", &without_map);
+    assert_return_controls(
         "updating-return-operand",
         include_str!(
             "../../tests/fixtures/map-conditional-return-0313/updating-operand-boundary.ko"
         ),
-        true,
+        &["updatingOperand"],
     );
 }
 
@@ -234,7 +166,7 @@ fn ordinary_source_controls_return_shapes_remain_bounded() {
         let text = format!(
             "fun work(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2, 3)) {{ cache.put(key, \"head\".clone()); {exit} }}; cache.contains(1) }}"
         );
-        observe("unsupported-return-shape", &text, false);
+        assert_return_controls("unsupported-return-shape", &text, &["work"]);
     }
 }
 
