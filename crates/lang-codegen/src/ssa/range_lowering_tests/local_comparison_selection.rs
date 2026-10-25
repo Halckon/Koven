@@ -63,20 +63,20 @@ fun main():Unit{{{CALLS}}}
 "#
     );
     let label = format!("0315-{pipeline:?}-{operator:?}-{payload:?}-selection");
-    let lowered = lower(&source, &expression, pipeline);
+    let lowered = lower_positive(&source, &expression, pipeline);
     let condition_span = lowered.expected_span;
     let branch_start = condition_span.start() - "if(".len();
     let branch_span = lowered
-        .sources
+        .sources()
         .span(
             condition_span.source_id(),
             branch_start,
             branch_start + branch.len(),
         )
         .unwrap();
-    assert_eq!(lowered.sources.slice(branch_span).unwrap(), branch);
+    assert_eq!(lowered.sources().slice(branch_span).unwrap(), branch);
     let mark_span = lowered
-        .sources
+        .sources()
         .span(
             condition_span.source_id(),
             condition_span.start(),

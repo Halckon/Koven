@@ -49,7 +49,7 @@ fn run_selection(
     operator: Option<ComparisonOperator>,
 ) {
     let label = format!("{pipeline:?}-{operator:?}-observable-selection");
-    let lowered = lower(source, branch, pipeline);
+    let lowered = lower_positive(source, branch, pipeline);
     let branch_span = lowered.expected_span;
     let condition_start = branch_span.start() + "if(".len();
     let call_expression = if operator.is_some() {
@@ -64,7 +64,7 @@ fn run_selection(
         _ => unreachable!(),
     };
     let condition_span = lowered
-        .sources
+        .sources()
         .span(
             branch_span.source_id(),
             condition_start,
@@ -72,7 +72,7 @@ fn run_selection(
         )
         .unwrap();
     let call_span = lowered
-        .sources
+        .sources()
         .span(
             branch_span.source_id(),
             condition_start,

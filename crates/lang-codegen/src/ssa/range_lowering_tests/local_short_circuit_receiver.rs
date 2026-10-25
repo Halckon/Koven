@@ -37,7 +37,7 @@ fun main():Unit{{scan(true,true);scan(true,false);scan(false,true);scan(false,fa
 "#
                 );
                 let label = format!("0317-receiver-{pipeline:?}-{move_only}-{and}-{site:?}");
-                let lowered = lower(&consumer, &expression, pipeline);
+                let lowered = lower_positive(&consumer, &expression, pipeline);
                 let span = lowered.expected_span;
                 let (program, entry) = lowered.require_success(&label);
                 assertions::short_circuit_receiver_transport(&program, span, and);

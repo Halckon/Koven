@@ -8,8 +8,8 @@ mod selection;
 #[path = "local_comparison_boundary.rs"]
 mod boundary;
 
-// Literal and constant single-file cases use the same constant-aware public
-// analysis chain. Unit constant cases use the distinct validated constant view.
+// Single cases use same-source Unit admission; real constants select its constant
+// capability. Existing Unit constant cases retain their dedicated constant path.
 fn expression(pipeline: Pipeline, operator: ComparisonOperator) -> (&'static str, String) {
     let spelling = match operator {
         ComparisonOperator::NotEqual => "!=",
@@ -137,7 +137,7 @@ fun main():Unit{{{CALLS}}}
 "#
     );
     let label = format!("0315-{pipeline:?}-{position:?}-{operator:?}-last={after_last_read}");
-    let lowered = lower(&source, &expression, pipeline);
+    let lowered = lower_positive(&source, &expression, pipeline);
     let span = lowered.expected_span;
     let (program, entry) = lowered.require_success(&label);
     assert_comparison(&program, span, operator);
