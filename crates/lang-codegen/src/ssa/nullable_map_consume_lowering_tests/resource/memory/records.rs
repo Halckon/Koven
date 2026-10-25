@@ -476,17 +476,17 @@ pub(super) struct AdmissionFailure {
     pub(super) location: Json,
 }
 
-pub(super) type Admission<T> = Result<T, AdmissionFailure>;
+pub(super) type Admission<T> = Result<T, Box<AdmissionFailure>>;
 
-pub(super) fn internal(stage: &'static str, error: impl std::fmt::Debug) -> AdmissionFailure {
-    AdmissionFailure {
+pub(super) fn internal(stage: &'static str, error: impl std::fmt::Debug) -> Box<AdmissionFailure> {
+    Box::new(AdmissionFailure {
         status: "observer_exception",
         kind: "producer_or_observer_internal",
         stage,
         detail: format!("{error:?}"),
         diagnostics: Json::Array(Vec::new()),
         location: Json::Null,
-    }
+    })
 }
 
 pub(super) fn internal_step<T, E: std::fmt::Debug>(
@@ -552,14 +552,14 @@ pub(super) fn clean_diagnostics(
     if values.is_empty() {
         return Ok(());
     }
-    Err(AdmissionFailure {
+    Err(Box::new(AdmissionFailure {
         status: "admission_rejected",
         kind: "source_diagnostics",
         stage,
         detail: "real source diagnostics".to_owned(),
         diagnostics: diagnostic_records(sources, values),
         location: Json::Null,
-    })
+    }))
 }
 
 pub(super) fn identity(
@@ -577,16 +577,16 @@ pub(super) fn identity(
 pub(super) fn complete_error(
     sources: &SourceMap,
     error: FinalTypeAdmissionError,
-) -> AdmissionFailure {
+) -> Box<AdmissionFailure> {
     match error {
-        FinalTypeAdmissionError::Diagnostics(values) => AdmissionFailure {
+        FinalTypeAdmissionError::Diagnostics(values) => Box::new(AdmissionFailure {
             status: "admission_rejected",
             kind: "source_diagnostics",
             stage: "complete types",
             detail: "real final-admission diagnostics".to_owned(),
             diagnostics: diagnostic_records(sources, &values),
             location: Json::Null,
-        },
+        }),
         FinalTypeAdmissionError::Internal(error) => {
             let mut failure = internal("complete types", &error);
             if let FinalTypeAdmissionInternalError::MissingRequiredFact { span, .. } = error {

@@ -204,6 +204,7 @@ impl Batch {
         }
         let failure_stage = failed.as_ref().map(|failure| failure.stage);
         if let Some(failure) = failed {
+            let failure = *failure;
             self.emit(
                 "ADMISSION",
                 &cell,
@@ -516,14 +517,14 @@ impl Batch {
         let complete_ownership = if owned.deferred().is_empty() {
             Ok(())
         } else {
-            Err(AdmissionFailure {
+            Err(Box::new(AdmissionFailure {
                 status: "admission_rejected",
                 kind: "incomplete_capability",
                 stage: "ownership completeness",
                 detail: format!("explicit incomplete capability: {:?}", owned.deferred()),
                 diagnostics: Json::Array(Vec::new()),
                 location: Json::Null,
-            })
+            }))
         };
         trace.admission_steps.push((
             "ownership completeness".to_owned(),
