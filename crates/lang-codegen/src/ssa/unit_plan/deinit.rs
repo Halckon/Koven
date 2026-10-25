@@ -153,7 +153,7 @@ fn schedule_layout(
         return Ok(());
     }
     // Existing nullable class handles own the same inner resource conditionally.
-    // Keep inline nullable and unsupported Rc/Box resource recipes under their old rejection.
+    // Keep unsupported Rc/Box resource recipes under their old rejection.
     if let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(ty)
         && let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(*inner)
         && typed
@@ -161,6 +161,18 @@ fn schedule_layout(
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .is_some_and(|nominal| nominal.kind() == NominalKind::Class)
+    {
+        return schedule_layout(typed, *inner, pending, visited, span);
+    }
+    // Map-only nullable storage conditionally owns the same inner map.
+    // Other inline nullable layouts keep their existing rejection.
+    if let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(ty)
+        && let Some(UnitTypeKind::Intrinsic { constructor, .. }) = typed.types().get(*inner)
+        && matches!(
+            constructor,
+            lang_frontend::type_checking::IntrinsicTypeConstructor::Map
+                | lang_frontend::type_checking::IntrinsicTypeConstructor::MutableMap
+        )
     {
         return schedule_layout(typed, *inner, pending, visited, span);
     }

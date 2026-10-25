@@ -1,5 +1,6 @@
 //! Resource observations plus the reviewed Resource compatibility expectations.
-//! The original collector alone remains insufficient for a compatibility verdict.
+//! The collector alone remains insufficient for a compatibility verdict.
+//! Resource source wholes include real assertion Abort edges and remain CI-only.
 
 use super::{
     Failure, FunctionId, Outcome, ParsedFile, Program, SourceMap, Span, Trace, admission_error,
@@ -8,7 +9,10 @@ use super::{
 use crate::ssa::{LoweringError, LoweringErrorKind};
 use sources::{CASES, Case};
 
+mod contract;
 mod formed_locals;
+mod memory;
+mod runtime;
 mod single;
 mod sources;
 mod unit;
@@ -166,15 +170,15 @@ fn print_outcome(outcome: &Outcome<LowerObservation>) {
     }
 }
 
-fn collect_observations() -> Vec<Observation> {
+fn collect_observations(strong_contract: bool) -> Vec<Observation> {
     let mut observations = Vec::with_capacity(8);
     for case in CASES {
         for unit in [false, true] {
             let mut trace = Trace::default();
             let outcome = if unit {
-                unit::observe(case, &mut trace)
+                unit::observe(case, strong_contract, &mut trace)
             } else {
-                single::observe(case, &mut trace)
+                memory::observe(case, strong_contract, &mut trace)
             };
             observations.push(Observation {
                 label: format!("{}/{}", case.id, if unit { "unit" } else { "single" }),
@@ -205,7 +209,7 @@ fn collect_observations() -> Vec<Observation> {
 
 #[test]
 fn nullable_map_resource_sources_collect_baseline_outcomes() {
-    let _ = collect_observations();
+    let _ = collect_observations(false);
     println!(
         "COLLECTION ONLY: FE/ownership/input gates passed; eight lower outcomes recorded. \
          No per-source success or rejection contract has been accepted by this collector."
@@ -213,135 +217,61 @@ fn nullable_map_resource_sources_collect_baseline_outcomes() {
 }
 
 #[derive(Debug)]
-enum ExpectedLower {
-    VerifiedLlvm,
-    Unsupported {
-        path: &'static str,
-        start: usize,
-        end: usize,
-        text: &'static str,
-    },
-}
-
-#[derive(Debug)]
 struct Baseline {
     label: &'static str,
     entry_name: &'static str,
     entry_path: &'static str,
-    lower: ExpectedLower,
 }
 
-// Preserve the reviewed pre-storage baseline except for the approved R3/single advance.
-// Original 34b15d14/3955c885 receipts and commits retain the old exact rejection.
+// Both original MemoryDocument and rooted p/q layouts now require verified LLVM.
+// Historical exact p/q rejections are retained outside this active contract.
 // Never allow wildcard errors, ignored rows, or skipped entries to hide a regression.
 const RESOURCE_COMPATIBILITY: &[Baseline] = &[
     Baseline {
         label: "R0/single",
         entry_name: "main",
         entry_path: "r0_remove_only.ko",
-        lower: ExpectedLower::VerifiedLlvm,
     },
     Baseline {
         label: "R0/unit",
         entry_name: "entry",
         entry_path: "q/consumer.ko",
-        lower: ExpectedLower::Unsupported {
-            path: "p/provider.ko",
-            start: 226,
-            end: 241,
-            text: "outer.remove(1)",
-        },
     },
     Baseline {
         label: "R1/single",
         entry_name: "main",
         entry_path: "r1_ordinary_source_before_remove.ko",
-        lower: ExpectedLower::VerifiedLlvm,
     },
     Baseline {
         label: "R1/unit",
         entry_name: "entry",
         entry_path: "q/consumer.ko",
-        lower: ExpectedLower::Unsupported {
-            path: "p/provider.ko",
-            start: 105,
-            end: 109,
-            text: "null",
-        },
     },
     Baseline {
         label: "R2/single",
         entry_name: "main",
         entry_path: "r2_ordinary_source_after_remove.ko",
-        lower: ExpectedLower::VerifiedLlvm,
     },
     Baseline {
         label: "R2/unit",
         entry_name: "entry",
         entry_path: "q/consumer.ko",
-        lower: ExpectedLower::Unsupported {
-            path: "p/provider.ko",
-            start: 226,
-            end: 241,
-            text: "outer.remove(1)",
-        },
     },
     Baseline {
         label: "R3/single",
         entry_name: "main",
         entry_path: "r3_ordinary_null_only.ko",
-        lower: ExpectedLower::VerifiedLlvm,
     },
     Baseline {
         label: "R3/unit",
         entry_name: "entry",
         entry_path: "q/consumer.ko",
-        lower: ExpectedLower::Unsupported {
-            path: "p/provider.ko",
-            start: 105,
-            end: 109,
-            text: "null",
-        },
     },
 ];
 
-fn matches_lower(expected: &ExpectedLower, actual: &LowerOutcome) -> bool {
-    match (expected, actual) {
-        (ExpectedLower::VerifiedLlvm, LowerOutcome::VerifiedLlvm) => true,
-        (
-            ExpectedLower::Unsupported {
-                path,
-                start,
-                end,
-                text,
-            },
-            LowerOutcome::LowerRejected {
-                error,
-                location: Some(location),
-                ..
-            },
-        ) => {
-            error.kind == LoweringErrorKind::UnsupportedNode
-                && error
-                    .span
-                    .is_some_and(|span| span.start() == *start && span.end() == *end)
-                && location
-                    .path
-                    .as_ref()
-                    .is_ok_and(|actual| actual.as_str() == *path)
-                && location
-                    .text
-                    .as_ref()
-                    .is_ok_and(|actual| actual.as_str() == *text)
-        }
-        // Wrong stages, missing spans, provenance lookup errors, and other kinds all fail.
-        _ => false,
-    }
-}
-
 #[test]
 fn nullable_map_resource_sources_preserve_compatibility() {
-    let observations = collect_observations();
+    let observations = collect_observations(true);
     assert_eq!(observations.len(), RESOURCE_COMPATIBILITY.len());
     let mut mismatches = Vec::new();
     for (actual, expected) in observations.iter().zip(RESOURCE_COMPATIBILITY) {
@@ -354,7 +284,7 @@ fn nullable_map_resource_sources_preserve_compatibility() {
                         .as_ref()
                         .is_ok_and(|path| path.as_str() == expected.entry_path)
                     && !observed.entry.span.is_empty()
-                    && matches_lower(&expected.lower, &observed.outcome)
+                    && matches!(&observed.outcome, LowerOutcome::VerifiedLlvm)
             });
         println!(
             "RESOURCE COMPATIBILITY {}: matched={matched}",

@@ -157,6 +157,29 @@ pub(super) fn unit(
     typed: &CompilationUnitTypes,
     trace: &mut Trace,
 ) {
+    unit_in_layout(case, sources, file, names, typed, true, trace);
+}
+
+pub(super) fn memory(
+    case: &Case,
+    sources: &SourceMap,
+    file: (SourceUnitId, &ParsedFile),
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    trace: &mut Trace,
+) {
+    unit_in_layout(case, sources, file, names, typed, false, trace);
+}
+
+fn unit_in_layout(
+    case: &Case,
+    sources: &SourceMap,
+    file: (SourceUnitId, &ParsedFile),
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    rooted: bool,
+    trace: &mut Trace,
+) {
     let resolutions: Vec<_> = names
         .names()
         .source_units()
@@ -173,7 +196,14 @@ pub(super) fn unit(
     let [resolution] = resolutions.as_slice() else {
         return;
     };
-    let locals = syntax::inspect(case, sources, file.1, resolution.resolution(), true, trace);
+    let locals = syntax::inspect(
+        case,
+        sources,
+        file.1,
+        resolution.resolution(),
+        rooted,
+        trace,
+    );
     let symbols: Vec<Option<UnitSymbolId>> = locals
         .iter()
         .map(|local| {
@@ -285,6 +315,30 @@ pub(super) fn unit_formed(
     owned: &CompilationUnitOwnership,
     trace: &mut Trace,
 ) {
+    unit_formed_in_layout(case, sources, (file, true), names, typed, owned, trace);
+}
+
+pub(super) fn memory_formed(
+    case: &Case,
+    sources: &SourceMap,
+    file: (SourceUnitId, &ParsedFile),
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    trace: &mut Trace,
+) {
+    unit_formed_in_layout(case, sources, (file, false), names, typed, owned, trace);
+}
+
+fn unit_formed_in_layout(
+    case: &Case,
+    sources: &SourceMap,
+    (file, rooted): ((SourceUnitId, &ParsedFile), bool),
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    trace: &mut Trace,
+) {
     let resolution = names.names().source_units().iter().find(|source| {
         source.source_unit() == file.0 && source.resolution().source_id() == file.1.source_id()
     });
@@ -296,7 +350,14 @@ pub(super) fn unit_formed(
         );
         return;
     };
-    let locals = syntax::inspect(case, sources, file.1, resolution.resolution(), true, trace);
+    let locals = syntax::inspect(
+        case,
+        sources,
+        file.1,
+        resolution.resolution(),
+        rooted,
+        trace,
+    );
     let symbols: Vec<_> =
         locals
             .iter()
