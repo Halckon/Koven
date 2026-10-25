@@ -203,8 +203,13 @@ pub(super) fn check(
         for (slot, expected) in [(owner_slot, body_owner), (source_slot, body_source)] {
             assert!(forwards(f, edge.arguments[slot], expected, 0));
         }
-        assert_eq!(
-            edge.arguments[length_slot], header.parameters[length_slot],
+        assert!(
+            forwards(
+                f,
+                edge.arguments[length_slot],
+                header.parameters[length_slot],
+                0
+            ),
             "same immutable length snapshot"
         );
         let advance = f
