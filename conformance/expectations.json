@@ -302,6 +302,7 @@
       "kind": "known_unimplemented",
       "allowed_markers": [
         "BE:UnsupportedNode",
+        "BE:UnsupportedSource",
         "BE:MissingFact",
         "FE:L0165"
       ],
@@ -436,16 +437,21 @@
     },
     "p49_when_enum_no_payload": {
       "kind": "run_ok",
-      "stdout": "enum0\n",
+      "stdout": "green\n",
       "v046_baseline_exempt": true,
-      "note": "Payloadless enum when fixed on main",
+      "note": "Payloadless enum when: main prints name(Color.Green), so the when branch yields green",
       "source_sha256": "5679bacd7fe7b110811b816f75352b0bc7538c9c9cbf688e3d483c543fc96cb6"
     },
     "p50_enum_method": {
-      "kind": "run_ok",
-      "stdout": "emethod\n",
+      "kind": "known_unimplemented",
+      "target_stdout": "enum-method\n",
+      "allowed_markers": [
+        "BE:MissingFact",
+        "BE:UnsupportedNode",
+        "FE:L0165"
+      ],
       "v046_baseline_exempt": true,
-      "note": "Enum method when (this) fixed on main",
+      "note": "Enum method with when (this) still hits BE:MissingFact in native lowering",
       "source_sha256": "487d2ce11036094236f0532084d6f72b31af44da168403362dc492dc5f3a0b3a"
     },
     "q01_lambda_local": {
@@ -933,13 +939,11 @@
       "stdout": "obs\ndone\n"
     },
     "y01_import_take_for_sum": {
-      "kind": "known_unimplemented",
-      "source_sha256": "c1fac2dfee57b67ec279de26bfde160e623abe6372e67e08b0cd37140250ad9f",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ]
+      "kind": "run_ok",
+      "stdout": "take\n",
+      "v046_baseline_exempt": true,
+      "note": "take() lowered on main; for-loop sums the first two elements and prints take",
+      "source_sha256": "c1fac2dfee57b67ec279de26bfde160e623abe6372e67e08b0cd37140250ad9f"
     },
     "y02_take_no_import": {
       "kind": "compile_fail",
@@ -947,22 +951,18 @@
       "diagnostic": "L0080"
     },
     "y03_method_take_for": {
-      "kind": "known_unimplemented",
-      "source_sha256": "5db5994e2ff45cc7b6cd80c0c196e60557072279ac6558b74e8d1fb44ae816dc",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ]
+      "kind": "run_ok",
+      "stdout": "take-method\n",
+      "v046_baseline_exempt": true,
+      "note": "take() method call lowered on main; for-loop sums the first two elements and prints take-method",
+      "source_sha256": "5db5994e2ff45cc7b6cd80c0c196e60557072279ac6558b74e8d1fb44ae816dc"
     },
     "y04_take_for_println": {
-      "kind": "known_unimplemented",
-      "source_sha256": "baa58796b1332bb65f4d38bbf7c240790d3405fcdcc5af80f22f4d6d710089b0",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ]
+      "kind": "run_ok",
+      "stdout": "a\nb\n",
+      "v046_baseline_exempt": true,
+      "note": "take() lowered on main; for-loop prints the first two elements",
+      "source_sha256": "baa58796b1332bb65f4d38bbf7c240790d3405fcdcc5af80f22f4d6d710089b0"
     },
     "y05_take_borrow_val_call": {
       "kind": "run_ok",

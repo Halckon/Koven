@@ -51,6 +51,7 @@ PROJECT_PACKAGE_HEADER = b"package app\n"
 
 DIAGNOSTIC_RE = re.compile(rb"L[0-9]{4}")
 BACKEND_RE = re.compile(rb"lowering failed with ([A-Za-z]+)")
+BACKEND_OBJECT_RE = re.compile(rb"native object ([A-Za-z]+):")
 OWNERSHIP_ICE_RE = re.compile(rb"ownership checking failed: [a-z -]+")
 SIMPLE_PRINTLN_LITERAL_RE = re.compile(r'println\("([^"\\$]*)"\)')
 
@@ -129,7 +130,7 @@ CONFIRMED_STDOUT_ORACLES: dict[str, str] = {
 V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
     "p28_companion": {
         "kind": "known_unimplemented",
-        "allowed_markers": ["BE:UnsupportedNode", "BE:MissingFact", "FE:L0165"],
+        "allowed_markers": ["BE:UnsupportedNode", "BE:UnsupportedSource", "BE:MissingFact", "FE:L0165"],
         "target_stdout": "companion\n",
         "v046_baseline_exempt": True,
         "note": "Guide v0.46 anonymous companion { } syntax; SPEC-0323 fixed static role, native N06 pending",
@@ -318,6 +319,9 @@ def classify_raw(
         return f"FE:{diag_match.group(0).decode('ascii')}"
     if be_match:
         return f"BE:{be_match.group(1).decode('ascii')}"
+    object_match = BACKEND_OBJECT_RE.search(combined)
+    if object_match:
+        return f"BE:{object_match.group(1).decode('ascii')}"
     if ice_match:
         return "ICE:ownership"
     if not combined:

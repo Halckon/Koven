@@ -218,7 +218,7 @@ time.sleep(5)
             expectations_path=self.expectations_path,
             selected_probes=["p01_ok"],
             include_programs=False,
-            timeout_sec=1.0,
+            timeout_sec=3.0,
             evidence_dir=evidence_dir,
         )
         self.assertFalse(ledger["summary"]["gate_passed"])
@@ -335,6 +335,25 @@ sys.exit(0)
         )
         self.assertEqual(rc_init, 0)
         self.assertTrue(out_exp.is_file())
+
+    def test_9_backend_object_marker_is_not_an_internal_error(self) -> None:
+        marker = gate.classify_raw(
+            2,
+            False,
+            b"",
+            b"error: native build failed: native object UnsupportedSource: companion function calls are not supported\n",
+        )
+        self.assertEqual(marker, "BE:UnsupportedSource")
+        self.assertFalse(gate.is_internal_error_marker(marker))
+        self.assertEqual(
+            gate.classify_raw(
+                2,
+                False,
+                b"",
+                b"error: native build failed: native object InvalidModel: frontend lowering failed with MissingFact\n",
+            ),
+            "BE:MissingFact",
+        )
 
 
 if __name__ == "__main__":
