@@ -24,7 +24,7 @@ fn paired_borrowed_group_temporaries_keep_distinct_current_columns() {
     assert_eq!(
         observations.len(),
         6,
-        "two single and four unit observations"
+        "two rooted unit and four unit observations"
     );
     let mut failures = Vec::new();
     for (index, result) in observations.into_iter().enumerate() {
