@@ -1,10 +1,13 @@
 //! SPEC-0318: real-source last-use baseline; no synthesized ownership facts.
-use super::{analyze, lower_scalar_file};
 use crate::ssa::map_unit_consumer_test_support::assert_source;
-use lang_frontend::ownership_checking::{DropPoint, DropTarget, IterationExitKind};
 
 #[path = "lower_frontend_map_operand_unit_identity.rs"]
 mod unit_identity;
+
+#[path = "lower_frontend_map_nullable_operand_unit_test_support.rs"]
+mod nullable_operand;
+#[path = "lower_frontend_map_same_guard_unit_test_support.rs"]
+mod same_guard;
 
 const ORIGINAL: &str =
     include_str!("../../tests/fixtures/map-conditional-return-0313/updating-operand-boundary.ko");
@@ -39,111 +42,6 @@ fn source(kind: &str, live: bool) -> String {
         )
     } else {
         text
-    }
-}
-
-fn assert_single(text: &str, name: &str, supported: bool) {
-    let a = analyze(text);
-    assert!(
-        a.parsed.diagnostics().is_empty(),
-        "{name}: {:?}",
-        a.parsed.diagnostics()
-    );
-    assert!(
-        a.names.diagnostics().is_empty(),
-        "{name}: {:?}",
-        a.names.diagnostics()
-    );
-    assert!(
-        a.typed.diagnostics().is_empty(),
-        "{name}: {:?}",
-        a.typed.diagnostics()
-    );
-    assert!(
-        a.owned.diagnostics().is_empty(),
-        "{name}: {:?}",
-        a.owned.diagnostics()
-    );
-    let plan = &a.owned.iterations()[0];
-    assert_eq!(plan.exits().len(), 3);
-    if name.starts_with("no-map") {
-        assert!(plan.closure_phis().is_empty());
-        assert!(
-            plan.closure_phi_incomings()
-                .iter()
-                .all(|edge| edge.bindings().is_empty())
-        );
-    } else {
-        assert_eq!(
-            plan.closure_phi_incomings().len(),
-            3,
-            "Return never feeds phi"
-        );
-    }
-    let exit = plan
-        .exits()
-        .iter()
-        .find(|e| matches!(e.kind(), IterationExitKind::Return(_)))
-        .unwrap();
-    let IterationExitKind::Return(return_expression) = exit.kind() else {
-        unreachable!()
-    };
-    let return_node = a.parsed.ast().expressions().get(return_expression).unwrap();
-    println!(
-        "FACTS {name}: return={return_expression:?} {:?} {:?}; plan={plan:#?}; conditions={:#?}",
-        return_node.span(),
-        return_node.payload(),
-        a.owned.cleanup_conditions()
-    );
-    for fact in a.owned.drops() {
-        println!(
-            "DROP {name}: {fact:?}; point_source={}",
-            match fact.point() {
-                DropPoint::CallReturn(id)
-                | DropPoint::AfterExpression(id)
-                | DropPoint::ControlTransfer(id) => {
-                    let span = a.parsed.ast().expressions().get(id).unwrap().span();
-                    &text[span.start()..span.end()]
-                }
-                _ => "other",
-            }
-        );
-    }
-    let result = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned);
-    println!(
-        "RESULT single {name}: {:?}",
-        result.as_ref().map(|_| "VERIFIED")
-    );
-    match result {
-        Ok(program) => {
-            assert!(supported, "{name}: unexpectedly accepted");
-            crate::llvm::render_verified_program(&program).unwrap();
-            assert_eq!(
-                super::operand_structure::assert_source(&program, &a.parsed),
-                usize::from(name.starts_with("remove") || name.starts_with("contains"))
-            );
-        }
-        Err(error) => {
-            assert!(!supported, "{name}: {error:?}");
-            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-            let span = error.span.unwrap();
-            if name.starts_with("no-map") {
-                assert_eq!(span.start(), 0);
-                assert_eq!(
-                    &text[span.start()..span.end()],
-                    text.lines().next().unwrap()
-                );
-            } else {
-                assert_eq!(&text[span.start()..span.end()], "cache");
-                assert!(
-                    a.owned
-                        .drops()
-                        .iter()
-                        .any(|fact| matches!(fact.target(), DropTarget::Named(_))
-                            && fact.value_origin() == span)
-                );
-            }
-        }
     }
 }
 
@@ -239,7 +137,7 @@ fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
 fn map_operand_last_use_single_baseline() {
     for live in [false, true] {
         for kind in ["remove", "contains", "item", "independent-nullable"] {
-            assert_single(
+            nullable_operand::check(
                 &source(kind, live),
                 &format!("{kind}-live={live}"),
                 kind != "independent-nullable",
@@ -290,7 +188,7 @@ fn map_operand_last_use_unit_constant_baseline() {
 
 #[test]
 fn map_operand_last_use_no_map_nullable_control() {
-    assert_single(&source("no-map", false), "no-map-nullable", false);
+    nullable_operand::check(&source("no-map", false), "no-map-nullable", false);
 }
 
 #[test]
@@ -312,188 +210,11 @@ fn map_operand_last_use_contains_dead_red() {
 
 #[test]
 fn map_operand_last_use_same_guard_outside_return_is_rejected() {
-    use lang_frontend::{
-        ownership_checking::{
-            CleanupCondition, CleanupOwnerValue, CleanupSelection, IterationCleanupAction,
-            IterationPhiBoundary, IterationPhiIncomingKind, LoanTarget,
-        },
-        parser::Expression,
-    };
     let text = ORIGINAL.replace(
         "return if (cache.remove(item) != null) { println(\"removed operand\"); item } else { 0 }",
         "cache.contains(item); return item",
     );
-    let a = analyze(&text);
-    assert!(a.parsed.diagnostics().is_empty());
-    assert!(a.names.diagnostics().is_empty());
-    assert!(a.typed.diagnostics().is_empty());
-    assert!(a.owned.diagnostics().is_empty());
-    let symbols = a
-        .names
-        .symbols()
-        .iter()
-        .filter(|s| s.name() == "cache")
-        .collect::<Vec<_>>();
-    let [symbol] = symbols.as_slice() else {
-        panic!("unique cache symbol")
-    };
-    let [plan] = a.owned.iterations() else {
-        panic!("one loop")
-    };
-    assert_eq!(plan.closure_phis().len(), 2);
-    let headers = plan
-        .closure_phis()
-        .iter()
-        .filter(|phi| phi.boundary() == IterationPhiBoundary::Header)
-        .collect::<Vec<_>>();
-    let [header] = headers.as_slice() else {
-        panic!("unique Header owner")
-    };
-    assert_eq!(header.symbol(), symbol.id());
-    let conditions = a.owned.cleanup_conditions();
-    assert!(
-        matches!(conditions.owner_value(header.owner()), Some(CleanupOwnerValue::IterationPhi { statement, symbol: identity, boundary: IterationPhiBoundary::Header, .. })
-        if *statement == plan.descriptor().statement() && *identity == symbol.id())
-    );
-    let returns = plan
-        .exits()
-        .iter()
-        .filter(|exit| matches!(exit.kind(), IterationExitKind::Return(_)))
-        .collect::<Vec<_>>();
-    let [returned] = returns.as_slice() else {
-        panic!("one conditional Return")
-    };
-    let fallthrough = plan
-        .exits()
-        .iter()
-        .find(|exit| exit.kind() == IterationExitKind::Fallthrough)
-        .unwrap();
-    assert_eq!(plan.exits().len(), 3);
-    assert_eq!(plan.closure_phi_incomings().len(), 3);
-    for kind in [
-        IterationPhiIncomingKind::Entry,
-        IterationPhiIncomingKind::Fallthrough,
-        IterationPhiIncomingKind::Exhaustion,
-    ] {
-        assert_eq!(
-            plan.closure_phi_incomings()
-                .iter()
-                .filter(|edge| edge.kind() == kind)
-                .count(),
-            1
-        );
-    }
-    let (
-        Some(CleanupCondition::Choice {
-            selector: return_selector,
-            branches: return_branches,
-        }),
-        Some(CleanupCondition::Choice {
-            selector: fallthrough_selector,
-            branches: fallthrough_branches,
-        }),
-    ) = (
-        conditions.get(returned.condition()),
-        conditions.get(fallthrough.condition()),
-    )
-    else {
-        panic!("conditional exit guards")
-    };
-    assert_eq!(return_selector, fallthrough_selector);
-    let selector = conditions.selector(*return_selector).unwrap();
-    assert!(selector.control().is_some());
-    assert_eq!(selector.selection(), CleanupSelection::Branch);
-    assert_eq!(selector.branch_count(), 2);
-    assert_eq!(return_branches.len(), 2);
-    assert_eq!(fallthrough_branches.len(), 2);
-    assert_eq!(
-        conditions.get(return_branches[0]),
-        Some(&CleanupCondition::Always)
-    );
-    assert_eq!(
-        conditions.get(return_branches[1]),
-        Some(&CleanupCondition::Never)
-    );
-    assert_eq!(
-        conditions.get(fallthrough_branches[0]),
-        Some(&CleanupCondition::Never)
-    );
-    assert_eq!(
-        conditions.get(fallthrough_branches[1]),
-        Some(&CleanupCondition::Always)
-    );
-    let drops = a
-        .owned
-        .drops()
-        .iter()
-        .filter(|drop| {
-            drop.owner() == Some(header.owner()) && matches!(drop.point(), DropPoint::CallReturn(_))
-        })
-        .collect::<Vec<_>>();
-    let [drop] = drops.as_slice() else {
-        panic!("unique Header CallReturn drop")
-    };
-    assert_eq!(drop.target(), DropTarget::Named(symbol.id()));
-    let Some(CleanupCondition::Choice { selector, branches }) =
-        conditions.get(drop.condition().unwrap())
-    else {
-        panic!("presence-guarded drop")
-    };
-    assert_eq!(*selector, header.availability_selector());
-    assert_eq!(branches.len(), 2);
-    assert_eq!(conditions.get(branches[0]), Some(&CleanupCondition::Never));
-    assert_eq!(branches[1], returned.condition());
-    assert!(!returned.actions().iter().any(|action| matches!(action, IterationCleanupAction::Drop(fact) if fact.owner() == Some(header.owner()))));
-    let DropPoint::CallReturn(call) = drop.point() else {
-        unreachable!()
-    };
-    let descriptor = a.typed.map_contains(call).unwrap();
-    assert!(a.typed.map_remove(call).is_none());
-    let loans = a
-        .owned
-        .loans_ending_at(call)
-        .filter(|loan| loan.call() == call && loan.argument() == descriptor.receiver())
-        .collect::<Vec<_>>();
-    let [loan] = loans.as_slice() else {
-        panic!("unique contains receiver loan")
-    };
-    assert!(
-        matches!(loan.target(), LoanTarget::Place(place) if place.is_root() && place.root() == symbol.id())
-    );
-    let IterationExitKind::Return(return_id) = returned.kind() else {
-        unreachable!()
-    };
-    let return_node = a.parsed.ast().expressions().get(return_id).unwrap();
-    let Expression::Return {
-        value: Some(operand),
-        ..
-    } = return_node.payload()
-    else {
-        panic!("owned item Return")
-    };
-    assert!(matches!(
-        a.parsed
-            .ast()
-            .expressions()
-            .get(*operand)
-            .unwrap()
-            .payload(),
-        Expression::Name
-    ));
-    assert_ne!(*operand, call);
-    let call_span = a.parsed.ast().expressions().get(call).unwrap().span();
-    assert!(
-        call_span.end() < return_node.span().start(),
-        "call is before the Return, outside its operand"
-    );
-    let error = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned)
-        .err()
-        .unwrap();
-    println!(
-        "SAME GUARD: symbol={symbol:?}; header={header:?}; drop={drop:?}; return={return_id:?}; result={error:?}"
-    );
-    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-    assert_eq!(error.span, Some(symbol.span()));
+    same_guard::check(&text);
 }
 
 #[test]
