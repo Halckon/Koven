@@ -1,7 +1,12 @@
 //! Source-only setup and execution for the bounded local-control cases.
 use super::super::*;
+use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use crate::ssa::{LoweringError, LoweringErrorKind};
-use lang_frontend::source::{SourceId, Span};
+use lang_frontend::{
+    name_resolution::{DeclarationId, SourceUnitKey, SymbolKind},
+    parser::{Item, NameMarker},
+    source::{SourceId, Span},
+};
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Pipeline {
@@ -17,6 +22,224 @@ pub(super) struct SourceLowering {
     pub(super) sources: SourceMap,
     pub(super) expected_span: Span,
     pub(super) result: Result<(Program, FunctionId), LoweringError>,
+}
+
+pub(super) struct PositiveLowering {
+    pub(super) expected_span: Span,
+    products: PositiveProducts,
+}
+
+enum PositiveProducts {
+    ExistingUnit(SourceLowering),
+    MemoryUnit {
+        // Keep the complete same-round owner, not an extracted or copied SourceMap.
+        analysis: Box<UnitSource>,
+        result: Result<(Program, FunctionId), (DeclarationId, LoweringError)>,
+    },
+}
+
+// This entry is explicit at positive call sites. The old `lower` remains visible
+// to boundary submodules and the receiver differential through `use super::*`.
+pub(super) fn lower_positive(
+    consumer: &str,
+    fragment: &str,
+    pipeline: Pipeline,
+) -> PositiveLowering {
+    if !matches!(pipeline, Pipeline::Single | Pipeline::SingleConstant) {
+        let lowered = lower(consumer, fragment, pipeline);
+        return PositiveLowering {
+            expected_span: lowered.expected_span,
+            products: PositiveProducts::ExistingUnit(lowered),
+        };
+    }
+    let provider = include_str!("../../../../lang-std/koven/algorithms/ranges.ko");
+    let text = format!(
+        "{}\n{consumer}",
+        provider.strip_prefix("package koven.algorithms\n").unwrap()
+    );
+    let mut authorized_source = None;
+    let analysis = UnitSource::analyze_with_type_environment(
+        "range-local-control-single.ko",
+        &text,
+        |sources, source, types| {
+            types.authorize_range_source(sources, source).unwrap();
+            types
+                .authorize_range_extension_source(sources, source)
+                .unwrap();
+            authorized_source = Some(source);
+        },
+    )
+    .unwrap_or_else(|error| panic!("original Range local source admission: {error:?}"));
+    analysis.assert_frontend_clean();
+    let source = analysis.parsed().source_id();
+    assert_eq!(authorized_source, Some(source));
+    let [input] = analysis.names().names().index().source_units() else {
+        panic!("one original Range local MemoryDocument");
+    };
+    assert_eq!(input.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(input.source_id(), source);
+    assert_eq!(
+        analysis.sources().source_name(source).unwrap(),
+        "range-local-control-single.ko"
+    );
+    assert_eq!(analysis.sources().source_text(source).unwrap(), text);
+    let expected_span = fragment_span(analysis.sources(), source, consumer, fragment);
+    let result = lower_positive_roots(&analysis);
+    PositiveLowering {
+        expected_span,
+        products: PositiveProducts::MemoryUnit {
+            analysis: Box::new(analysis),
+            result,
+        },
+    }
+}
+
+fn lower_positive_roots(
+    analysis: &UnitSource,
+) -> Result<(Program, FunctionId), (DeclarationId, LoweringError)> {
+    let parsed = analysis.parsed();
+    let index = analysis.names().names().index();
+    let [source] = index.source_units() else {
+        panic!("one original Range local MemoryDocument");
+    };
+    let mut functions = Vec::new();
+    let mut concrete_roots = Vec::new();
+    // Start from the actual AST, so an omitted index declaration cannot silently
+    // turn the old whole-file obligation into main-only reachability.
+    for root in parsed.roots() {
+        let original = parsed.ast().items().get(*root).unwrap();
+        let mut node = original;
+        while let Item::Modified { declaration, .. } = node.payload() {
+            node = parsed.ast().items().get(*declaration).unwrap();
+        }
+        let Item::Function {
+            name: NameMarker::Present(name),
+            type_parameters,
+            parameters,
+            ..
+        } = node.payload()
+        else {
+            continue;
+        };
+        let declarations = index
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.root() == *root
+                    && declaration.source_unit() == source.id()
+                    && declaration.kind() == SymbolKind::Function
+            })
+            .collect::<Vec<_>>();
+        let [declaration] = declarations.as_slice() else {
+            panic!("each original function root has one real declaration: {declarations:?}");
+        };
+        assert_eq!(declaration.package(), source.package());
+        assert_eq!(declaration.name_span(), *name);
+        assert_eq!(name.source_id(), parsed.source_id());
+        assert_eq!(analysis.sources().slice(*name).unwrap(), declaration.name());
+        assert_eq!(analysis.declaration_span(declaration.id()), original.span());
+        let signature = analysis
+            .types()
+            .signatures()
+            .declaration(declaration.id())
+            .and_then(|signature| signature.callable())
+            .expect("every original function has a same-round callable signature");
+        assert_eq!(signature.type_parameters().len(), type_parameters.len());
+        assert_eq!(signature.parameters().len(), parameters.len());
+        assert!(!functions.contains(&declaration.id()));
+        functions.push(declaration.id());
+        if type_parameters.is_empty() {
+            concrete_roots.push(*declaration);
+        }
+    }
+    assert_eq!(
+        functions.len(),
+        index
+            .declarations()
+            .iter()
+            .filter(|declaration| declaration.kind() == SymbolKind::Function)
+            .count(),
+        "all original function roots and index declarations are reconciled"
+    );
+    let main = analysis.declaration("main", SymbolKind::Function);
+    assert!(concrete_roots.iter().any(|root| root.id() == main));
+    let mut programs = Vec::new();
+    for root in concrete_roots {
+        let (program, entry) = analysis
+            .lower_entry(root.id())
+            .map_err(|error| (root.id(), error))?;
+        let function = program
+            .module(entry.module())
+            .unwrap()
+            .function(entry)
+            .unwrap();
+        assert_eq!(
+            function.origin,
+            Origin::Source(analysis.declaration_span(root.id()))
+        );
+        verify_program(&program)
+            .unwrap_or_else(|error| panic!("Range local root {root:?} SSA: {error:?}"));
+        programs.push((root, program, entry));
+    }
+    // All roots must lower and verify before any LLVM/native work. Each extra
+    // Program retains its own IDs; never merge or compare entities across roots.
+    let mut main_program = None;
+    for (root, program, entry) in programs {
+        if root.id() == main {
+            assert!(main_program.replace((program, entry)).is_none());
+        } else {
+            crate::llvm::render_verified_program(&program)
+                .unwrap_or_else(|error| panic!("Range local root {root:?} LLVM: {error:?}"));
+        }
+    }
+    Ok(main_program.expect("the original main was lowered exactly once"))
+}
+
+impl PositiveLowering {
+    pub(super) fn sources(&self) -> &SourceMap {
+        match &self.products {
+            PositiveProducts::ExistingUnit(lowered) => &lowered.sources,
+            PositiveProducts::MemoryUnit { analysis, .. } => analysis.sources(),
+        }
+    }
+
+    pub(super) fn require_success(self, label: &str) -> (Program, FunctionId) {
+        match self.products {
+            PositiveProducts::ExistingUnit(lowered) => lowered.require_success(label),
+            PositiveProducts::MemoryUnit { analysis, result } => {
+                let (program, entry) = result.unwrap_or_else(|(root, error)| {
+                    let fragment = error.span.and_then(|span| analysis.sources().slice(span).ok());
+                    let declaration = analysis
+                        .names()
+                        .names()
+                        .index()
+                        .declarations()
+                        .iter()
+                        .find(|declaration| declaration.id() == root)
+                        .expect("failed root belongs to the original source");
+                    if root == analysis.declaration("main", SymbolKind::Function) {
+                        assert_eq!(
+                            error.kind,
+                            LoweringErrorKind::UnsupportedNode,
+                            "{label}: unexpected lowering failure: {error:?}; source={fragment:?}"
+                        );
+                        assert_eq!(
+                            error.span,
+                            Some(self.expected_span),
+                            "{label}: wrong rejection span: {error:?}; source={fragment:?}"
+                        );
+                    }
+                    // An auxiliary-root error is not relabeled as the main probe.
+                    panic!(
+                        "{label}: positive source root {root:?} {} must lower successfully: {error:?}; source={fragment:?}; probe={:?}",
+                        declaration.name(), self.expected_span
+                    );
+                });
+                verify_program(&program).unwrap();
+                (program, entry)
+            }
+        }
+    }
 }
 
 // Retain the Result and SourceMap: the initial positive-test failure must identify

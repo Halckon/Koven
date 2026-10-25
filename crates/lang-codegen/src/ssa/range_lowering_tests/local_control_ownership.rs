@@ -55,7 +55,7 @@ fun main():Unit{{scan(true);scan(false)}}
 "#
     );
     let label = format!("{pipeline:?}-{payload:?}-parent-child-sibling");
-    let lowered = lower(&consumer, branch, pipeline);
+    let lowered = lower_positive(&consumer, branch, pipeline);
     let branch_span = lowered.expected_span;
     let (program, entry) = lowered.require_success(&label);
     assertions::if_transport(&program, branch_span, 3);

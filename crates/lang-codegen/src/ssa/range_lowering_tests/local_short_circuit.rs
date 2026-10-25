@@ -99,7 +99,7 @@ fn dynamic(pipeline: Pipeline, and: bool, use_site: Use) {
             "scan(true,true,1);scan(true,false,1);scan(false,true,1);scan(false,false,1)",
         );
         let label = format!("0317-{pipeline:?}-{and}-{use_site:?}-{payload}");
-        let lowered = lower(&consumer, &expression, pipeline);
+        let lowered = lower_positive(&consumer, &expression, pipeline);
         let span = lowered.expected_span;
         let (program, entry) = lowered.require_success(&label);
         assertions::short_circuit_transport(&program, span, and);
@@ -152,7 +152,7 @@ fn fixed(pipeline: Pipeline) {
             "scan(true,true,1);scan(false,false,1)",
         );
         let label = format!("0317-fixed-{pipeline:?}-{and}-{left}");
-        let lowered = lower(&consumer, &expression, pipeline);
+        let lowered = lower_positive(&consumer, &expression, pipeline);
         let (program, entry) = lowered.require_success(&label);
         let mut expected = String::new();
         for right in [true, false] {
@@ -184,7 +184,7 @@ fun main():Unit{{scan(true,true,1);scan(true,false,1);scan(false,true,1);scan(fa
 "#
         );
         let label = format!("0317-scalar-{pipeline:?}-{expression}");
-        let lowered = lower(&consumer, expression, pipeline);
+        let lowered = lower_positive(&consumer, expression, pipeline);
         let (program, entry) = lowered.require_success(&label);
         run_unmodified(&program, entry, &label, expected.as_bytes());
     }
@@ -409,7 +409,8 @@ fn range_short_circuit_migrated_plain_operands() {
                 "fun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun read(view:View<String>):Unit{{}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");{{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
             );
             let label = format!("0317-migrated-{pipeline:?}-{expression}");
-            let (program, entry) = lower(&source, expression, pipeline).require_success(&label);
+            let (program, entry) =
+                lower_positive(&source, expression, pipeline).require_success(&label);
             run_unmodified(&program, entry, &label, b"true\nfalse\n");
         }
     }
@@ -458,8 +459,8 @@ fn range_short_circuit_copyable_value_argument_single() {
     let source = format!(
         "fun identity(own flag:Boolean):Boolean{{println(\"copyable\");return flag}}\nfun read(view:View<String>):Unit{{}}\nfun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");{{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
     );
-    let (program, entry) =
-        lower(&source, expression, Pipeline::Single).require_success("0317-copyable-single");
+    let (program, entry) = lower_positive(&source, expression, Pipeline::Single)
+        .require_success("0317-copyable-single");
     run_unmodified(
         &program,
         entry,

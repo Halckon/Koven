@@ -9,7 +9,7 @@ mod assertions;
 
 #[path = "local_control_ownership.rs"]
 mod ownership;
-use support::{Pipeline, lower, run_unmodified};
+use support::{Pipeline, lower, lower_positive, run_unmodified};
 
 #[path = "local_control_boundary.rs"]
 mod boundary;
@@ -63,7 +63,7 @@ fun main():Unit{{scan(2);scan(4)}}
 "#
     );
     let label = format!("{pipeline:?}-{position:?}-{operator:?}");
-    let lowered = lower(&consumer, expression, pipeline);
+    let lowered = lower_positive(&consumer, expression, pipeline);
     let comparison_span = lowered.expected_span;
     let (program, entry) = lowered.require_success(&label);
     let module = &program.modules[0];
@@ -200,7 +200,7 @@ fun main():Unit{scan(true);scan(false)}
 
 fn if_case(pipeline: Pipeline) {
     let label = format!("{pipeline:?}-if-both-arms");
-    let lowered = lower(IF_SOURCE, "if(flag){read(part)}else{read(part)}", pipeline);
+    let lowered = lower_positive(IF_SOURCE, "if(flag){read(part)}else{read(part)}", pipeline);
     let branch_span = lowered.expected_span;
     let (program, entry) = lowered.require_success(&label);
     assertions::if_transport(&program, branch_span, 1);
