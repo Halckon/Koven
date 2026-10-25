@@ -749,7 +749,7 @@
     },
     "v12_convert_abort": {
       "kind": "runtime_abort",
-      "abort_message": "value out of range for Byte",
+      "abort_message": "value out of range for ULong",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 D12 (SPEC-0355): checked conversion emits structured abort message",
       "source_sha256": "e576f37f7c852e88e7b92dd355bc62d22bd33644f7866aad7220983521229c00"
