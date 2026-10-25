@@ -46,7 +46,7 @@ fn owned_source_return_group_and_same_type_decoy() {
             )
             .replace("if (key == 2)", "val decoy = arrayOf(7, 8); if (key == 2)")
             .replace("println(\"tail\")", "decoy.size; println(\"tail\")");
-        super::single_text(&text, live, true);
+        super::original_text(&text, "work", "Array", false, live, true);
     }
 }
 
@@ -87,9 +87,10 @@ fn owned_source_return_resource_source_remains_bounded() {
 }
 #[test]
 fn owned_source_return_fresh_inner_instance() {
-    observe(
+    super::single_text(
         "fun main(): Unit { for (outer in arrayOf(1, 2)) { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { return } }; keys.size } }",
         true,
+        false,
     );
 }
 #[test]

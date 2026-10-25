@@ -1,8 +1,9 @@
 //! SPEC-0312: real ordinary source, no Map and no synthetic facts.
 #[path = "lower_frontend_owned_source_structure_tests.rs"]
 mod structure;
+use super::owned_source_return_tests::unit_contract::{self, Control, Expected};
 use super::{analyze, lower_scalar_file};
-use lang_frontend::ownership_checking::{CleanupOwnerValue, IterationPhiBoundary};
+use lang_frontend::type_checking::SequentialContainerKind;
 
 fn check(live: bool, factory: &str) {
     check_with_decoy(live, factory, false);
@@ -18,67 +19,28 @@ fn check_with_decoy(live: bool, factory: &str, decoy: bool) {
             String::new()
         }
     );
-    let analysis = analyze(&text);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let fact = analysis.owned.drops().iter().find(|fact| {
-            matches!(fact.owner().and_then(|owner| analysis.owned.cleanup_conditions().owner_value(owner)),
-                Some(CleanupOwnerValue::IterationPhi { boundary, .. })
-                if *boundary == if live { IterationPhiBoundary::Exit } else { IterationPhiBoundary::Header })
-        }).expect("real source phi cleanup");
-    assert!(fact.condition().is_some());
-    let result = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
+    let container = match factory {
+        "arrayOf" => SequentialContainerKind::Array,
+        "listOf" => SequentialContainerKind::List,
+        "mutableListOf" => SequentialContainerKind::MutableList,
+        _ => panic!("original owned-source factory"),
+    };
+    let (program, origins) = unit_contract::observe(
+        &text,
+        "main",
+        &[Expected {
+            function: "main",
+            live,
+            container,
+            own: false,
+        }],
+        Control::Continue,
+        false,
     );
-    if let Err(error) = &result {
-        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-        assert_eq!(analysis.sources.slice(error.span.unwrap()).unwrap(), "keys");
-    }
-    let program = result.unwrap_or_else(|error| panic!("{factory} live={live}: {error:?}"));
-    crate::llvm::render_verified_program(&program).unwrap();
-    let plan = &analysis.owned.iterations()[0];
-    let entry = plan
-        .closure_phi_incomings()
-        .iter()
-        .find(|edge| {
-            edge.kind() == lang_frontend::ownership_checking::IterationPhiIncomingKind::Entry
-        })
-        .unwrap();
-    let source_symbol = match plan.source() {
-        Some(lang_frontend::ownership_checking::LoanTarget::Place(place)) => place.root(),
-        _ => unreachable!(),
+    let [origin] = origins.as_slice() else {
+        panic!("one original provider");
     };
-    let header = plan
-        .closure_phis()
-        .iter()
-        .find(|phi| phi.symbol() == source_symbol && phi.boundary() == IterationPhiBoundary::Header)
-        .unwrap();
-    let seed = entry
-        .bindings()
-        .iter()
-        .find(|binding| binding.target() == header.owner())
-        .unwrap()
-        .values()[0]
-        .source();
-    let Some(CleanupOwnerValue::Expression { expression, .. }) =
-        analysis.owned.cleanup_conditions().owner_value(seed)
-    else {
-        panic!("real source seed")
-    };
-    let seed_span = analysis
-        .parsed
-        .ast()
-        .expressions()
-        .get(*expression)
-        .unwrap()
-        .span();
-    structure::check(&program, live, seed_span);
+    structure::check(&program, live, origin.seed.unwrap());
 }
 
 #[test]
@@ -254,80 +216,31 @@ fn owned_source_continue_same_type_decoy_has_distinct_owner_lineage() {
 
 #[test]
 fn owned_source_continue_fresh_inner_owner_structure() {
-    use lang_frontend::ownership_checking::{DropTarget, IterationPhiIncomingKind, LoanTarget};
     let text = include_str!("../../tests/fixtures/owned-source-continue-0312/fresh-inner.ko");
-    let analysis = analyze(text);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .unwrap();
-    crate::llvm::render_verified_program(&program).unwrap();
-    let mut count = 0;
-    for plan in analysis.owned.iterations() {
-        let Some(LoanTarget::Place(place)) = plan.source() else {
-            continue;
-        };
-        let symbol = place.root();
-        if analysis.names.symbols()[symbol.index()].name() != "keys" {
-            continue;
-        }
-        count += 1;
-        let header = plan
-            .closure_phis()
-            .iter()
-            .find(|phi| phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header)
-            .unwrap();
-        let entry = plan
-            .closure_phi_incomings()
-            .iter()
-            .find(|edge| edge.kind() == IterationPhiIncomingKind::Entry)
-            .unwrap();
-        let seed = entry
-            .bindings()
-            .iter()
-            .find(|binding| binding.target() == header.owner())
-            .unwrap()
-            .values()[0]
-            .source();
-        let Some(CleanupOwnerValue::Expression { expression, .. }) =
-            analysis.owned.cleanup_conditions().owner_value(seed)
-        else {
-            panic!("fresh expression seed, never outer phi")
-        };
-        let span = analysis
-            .parsed
-            .ast()
-            .expressions()
-            .get(*expression)
-            .unwrap()
-            .span();
-        let fact = analysis
-            .owned
-            .drops()
-            .iter()
-            .find(|fact| fact.target() == DropTarget::Named(symbol))
-            .unwrap();
-        let live = matches!(
-            analysis
-                .owned
-                .cleanup_conditions()
-                .owner_value(fact.owner().unwrap()),
-            Some(CleanupOwnerValue::IterationPhi {
-                boundary: IterationPhiBoundary::Exit,
-                ..
-            })
-        );
-        structure::check(&program, live, span);
+    let (program, origins) = unit_contract::observe(
+        text,
+        "main",
+        &[
+            Expected {
+                function: "freshLive",
+                live: true,
+                container: SequentialContainerKind::Array,
+                own: false,
+            },
+            Expected {
+                function: "freshDead",
+                live: false,
+                container: SequentialContainerKind::Array,
+                own: false,
+            },
+        ],
+        Control::Continue,
+        false,
+    );
+    assert_eq!(origins.len(), 2);
+    for (origin, live) in origins.iter().zip([true, false]) {
+        structure::check(&program, live, origin.seed.unwrap());
     }
-    assert_eq!(count, 2);
 }
 
 #[test]

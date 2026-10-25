@@ -2,6 +2,10 @@
 use super::{analyze, lower_scalar_file};
 #[path = "lower_frontend_owned_source_return_structure_tests.rs"]
 mod structure;
+#[path = "lower_frontend_owned_source_unit_contract_tests.rs"]
+pub(super) mod unit_contract;
+use lang_frontend::type_checking::SequentialContainerKind;
+use unit_contract::{Control, Expected};
 
 fn source(factory: &str, ty: &str, own: bool, live: bool, map: bool) -> String {
     let parameter = if own {
@@ -33,113 +37,36 @@ fn source(factory: &str, ty: &str, own: bool, live: bool, map: bool) -> String {
 
 fn single(factory: &str, ty: &str, own: bool, live: bool, map: bool) {
     let text = source(factory, ty, own, live, map);
-    single_text(&text, live, map);
+    original_text(&text, "work", ty, own, live, map);
 }
 
 fn single_text(text: &str, live: bool, map: bool) {
-    let a = analyze(text);
-    assert!(
-        a.parsed.diagnostics().is_empty(),
-        "{:?}",
-        a.parsed.diagnostics()
-    );
-    assert!(
-        a.names.diagnostics().is_empty(),
-        "{:?}",
-        a.names.diagnostics()
-    );
-    assert!(
-        a.typed.diagnostics().is_empty(),
-        "{:?}",
-        a.typed.diagnostics()
-    );
-    assert!(
-        a.owned.diagnostics().is_empty(),
-        "{:?}",
-        a.owned.diagnostics()
-    );
-    use lang_frontend::ownership_checking::{IterationExitKind, IterationPhiIncomingKind};
-    let plan = a.owned.iterations().iter().find(|plan| {
-        matches!(plan.source(), Some(LoanTarget::Place(place)) if a.names.symbols()[place.root().index()].name() == "keys")
-    }).expect("the exact named owned-source iteration, not an outer temporary provider");
-    assert_eq!(plan.exits().len(), 3);
-    assert_eq!(
-        plan.exits()
-            .iter()
-            .filter(|e| matches!(e.kind(), IterationExitKind::Return(_)))
-            .count(),
-        1
-    );
-    assert_eq!(plan.closure_phi_incomings().len(), 3);
-    assert!(plan.closure_phi_incomings().iter().all(|e| matches!(
-        e.kind(),
-        IterationPhiIncomingKind::Entry
-            | IterationPhiIncomingKind::Fallthrough
-            | IterationPhiIncomingKind::Exhaustion
-    )));
-    let lowered = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned);
-    if let Err(error) = &lowered {
-        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-        assert_eq!(a.sources.slice(error.span.unwrap()).unwrap(), "keys");
-        println!("BASELINE live={live} map={map}: {error:?}");
-    }
-    let program = lowered.unwrap();
-    crate::llvm::render_verified_program(&program).unwrap();
-    use lang_frontend::ownership_checking::{CleanupOwnerValue, IterationPhiBoundary, LoanTarget};
-    let symbol = match plan.source() {
-        Some(LoanTarget::Place(place)) => place.root(),
-        _ => panic!("owned source root"),
+    original_text(text, "main", "Array", false, live, map);
+}
+
+fn original_text(text: &str, root: &str, ty: &str, own: bool, live: bool, map: bool) {
+    let container = match ty {
+        "Array" => SequentialContainerKind::Array,
+        "List" => SequentialContainerKind::List,
+        "MutableList" => SequentialContainerKind::MutableList,
+        _ => panic!("original owned-source type"),
     };
-    let header = plan
-        .closure_phis()
-        .iter()
-        .find(|phi| phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header)
-        .unwrap();
-    let entry = plan
-        .closure_phi_incomings()
-        .iter()
-        .find(|edge| edge.kind() == IterationPhiIncomingKind::Entry)
-        .unwrap();
-    let seed = entry
-        .bindings()
-        .iter()
-        .find(|binding| binding.target() == header.owner())
-        .unwrap()
-        .values()[0]
-        .source();
-    let seed_span = match a.owned.cleanup_conditions().owner_value(seed).unwrap() {
-        CleanupOwnerValue::Expression { expression, .. } => Some(
-            a.parsed
-                .ast()
-                .expressions()
-                .get(*expression)
-                .unwrap()
-                .span(),
-        ),
-        CleanupOwnerValue::Parameter {
-            symbol: identity, ..
-        } => {
-            assert_eq!(*identity, symbol);
-            None
-        }
-        other => panic!("unexpected real seed: {other:?}"),
+    let (program, origins) = unit_contract::observe(
+        text,
+        root,
+        &[Expected {
+            function: root,
+            live,
+            container,
+            own,
+        }],
+        Control::Return,
+        map,
+    );
+    let [origin] = origins.as_slice() else {
+        panic!("one original provider");
     };
-    let return_expression = plan
-        .exits()
-        .iter()
-        .find_map(|exit| match exit.kind() {
-            IterationExitKind::Return(expression) => Some(expression),
-            _ => None,
-        })
-        .unwrap();
-    let return_span = a
-        .parsed
-        .ast()
-        .expressions()
-        .get(return_expression)
-        .unwrap()
-        .span();
-    structure::check(&program, live, seed_span, return_span, map);
+    structure::check(&program, live, origin.seed, origin.control, map);
 }
 fn unit(factory: &str, ty: &str, own: bool, live: bool, constants: bool) {
     use crate::ssa::unit_lower_test_support::{declaration, parsed};
