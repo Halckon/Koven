@@ -72,12 +72,15 @@ classify_files() {
     esac
   fi
   c=$(grep -oE "L[0-9]{4}" "$out_file" "$err_file" 2>/dev/null | head -n 1 | sed 's/^.*://')
-  b=$(grep -oE "lowering failed with [A-Za-z]+" "$out_file" "$err_file" 2>/dev/null | head -n 1 | awk '{print $4}')
+  b=$(grep -oE "lowering failed with [A-Za-z]+" "$out_file" "$err_file" 2>/dev/null | head -n 1 | sed 's/^.*lowering failed with //')
+  bo=$(grep -oE "native object [A-Za-z]+:" "$out_file" "$err_file" 2>/dev/null | head -n 1 | sed -e 's/^.*native object //' -e 's/:$//')
   o=$(grep -oE "ownership checking failed: [a-z -]+" "$out_file" "$err_file" 2>/dev/null | head -n 1)
   if [ -n "$c" ]; then
     echo "FE:$c"
   elif [ -n "$b" ]; then
     echo "BE:$b"
+  elif [ -n "$bo" ]; then
+    echo "BE:$bo"
   elif [ -n "$o" ]; then
     echo "ICE:ownership"
   elif [ ! -s "$out_file" ] && [ ! -s "$err_file" ]; then
@@ -94,8 +97,32 @@ run_in() {
   err_file=$3
   status_file=$4
   shift 4
-  (cd "$dir" && timeout "$TIMEOUT" "$@") >"$out_file" 2>"$err_file"
-  RC=$?
+  if command -v timeout >/dev/null 2>&1; then
+    (cd "$dir" && timeout "$TIMEOUT" "$@") >"$out_file" 2>"$err_file"
+    RC=$?
+  elif command -v gtimeout >/dev/null 2>&1; then
+    (cd "$dir" && gtimeout "$TIMEOUT" "$@") >"$out_file" 2>"$err_file"
+    RC=$?
+  else
+    python3 - "$dir" "$TIMEOUT" "$out_file" "$err_file" "$@" <<'PY'
+import os, signal, subprocess, sys
+cwd, timeout_s, out_p, err_p = sys.argv[1], float(sys.argv[2]), sys.argv[3], sys.argv[4]
+argv = sys.argv[5:]
+with open(out_p, "wb") as out_f, open(err_p, "wb") as err_f:
+    proc = subprocess.Popen(argv, cwd=cwd, stdout=out_f, stderr=err_f, start_new_session=True)
+    try:
+        rc = proc.wait(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+        rc = 124
+sys.exit(128 + abs(rc) if rc < 0 else rc)
+PY
+    RC=$?
+  fi
   timed_out=false
   if [ "$RC" -eq 124 ]; then
     timed_out=true

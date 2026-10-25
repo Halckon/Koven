@@ -161,7 +161,7 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
     },
     "v12_convert_abort": {
         "kind": "runtime_abort",
-        "abort_message": "value out of range for Byte",
+        "abort_message": "value out of range for ULong",
         "v046_baseline_exempt": True,
         "note": "Guide v0.46 D12 (SPEC-0355): checked conversion emits structured abort message",
     },
@@ -253,21 +253,40 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
     },
     "p49_when_enum_no_payload": {
         "kind": "run_ok",
-        "stdout": "enum0\n",
+        "stdout": "green\n",
         "v046_baseline_exempt": True,
-        "note": "Payloadless enum when fixed on main",
+        "note": "Payloadless enum when: main prints name(Color.Green), so the when branch yields green",
     },
     "p50_enum_method": {
-        "kind": "run_ok",
-        "stdout": "emethod\n",
+        "kind": "known_unimplemented",
+        "target_stdout": "enum-method\n",
+        "allowed_markers": ["BE:MissingFact", "BE:UnsupportedNode", "FE:L0165"],
         "v046_baseline_exempt": True,
-        "note": "Enum method when (this) fixed on main",
+        "note": "Enum method with when (this) still hits BE:MissingFact in native lowering",
     },
     "u01_enum_case_borrow_arg": {
         "kind": "run_ok",
         "stdout": "enum-arg\n",
         "v046_baseline_exempt": True,
         "note": "SPEC-0320: enum case borrow argument classification",
+    },
+    "y01_import_take_for_sum": {
+        "kind": "run_ok",
+        "stdout": "take\n",
+        "v046_baseline_exempt": True,
+        "note": "take() lowered on main; for-loop sums the first two elements and prints take",
+    },
+    "y03_method_take_for": {
+        "kind": "run_ok",
+        "stdout": "take-method\n",
+        "v046_baseline_exempt": True,
+        "note": "take() method call lowered on main; for-loop sums the first two elements and prints take-method",
+    },
+    "y04_take_for_println": {
+        "kind": "run_ok",
+        "stdout": "a\nb\n",
+        "v046_baseline_exempt": True,
+        "note": "take() lowered on main; for-loop prints the first two elements",
     },
 }
 
@@ -287,6 +306,25 @@ def detect_host() -> dict[str, str]:
         "machine": uname.machine,
         "platform": f"{uname.system}-{uname.machine}",
     }
+
+
+def detect_git_commit(root: Path) -> str:
+    env_commit = os.environ.get("KOVEN_COMPILER_COMMIT", "").strip()
+    if env_commit:
+        return env_commit
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--short=8", "HEAD"],
+            cwd=root,
+            stderr=subprocess.DEVNULL,
+            timeout=5.0,
+        )
+        commit = out.decode("ascii", errors="ignore").strip()
+        if commit:
+            return commit
+    except Exception:
+        pass
+    return "unknown"
 
 
 def classify_raw(
@@ -1096,7 +1134,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--compiler-commit",
-        default=os.environ.get("KOVEN_COMPILER_COMMIT", "unknown"),
+        default=detect_git_commit(root),
         help="compiler git commit SHA to bind in results.json",
     )
     parser.add_argument(

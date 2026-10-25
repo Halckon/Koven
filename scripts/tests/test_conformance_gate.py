@@ -355,6 +355,47 @@ sys.exit(0)
             "BE:MissingFact",
         )
 
+    def test_10_repo_expectations_match_static_derivation_and_matrix_sh_recognizes_object_markers(
+        self,
+    ) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        repo_corpus = repo_root / "conformance"
+        repo_exp_path = repo_corpus / "expectations.json"
+        repo_base_path = repo_corpus / "baseline-aef3f4f8.tsv"
+
+        loaded = gate.load_expectations(repo_exp_path, corpus_root=repo_corpus)
+        self.assertEqual(len(loaded["probes"]), 154)
+        self.assertEqual(len(loaded["programs"]), 6)
+
+        raw_checked_in = json.loads(repo_exp_path.read_text(encoding="utf-8"))
+        derived = gate.derive_static_expectations(repo_corpus, repo_base_path)
+        self.assertEqual(derived, raw_checked_in)
+
+        probe_dir = self.root / "mini_probes"
+        probe_dir.mkdir(parents=True)
+        (probe_dir / "p28_companion.ko").write_text(
+            'fun main(): Unit { println("companion") }\n', encoding="utf-8"
+        )
+        kovenc_obj = _make_mock_compiler(
+            self.root / "kovenc_obj",
+            """
+sys.stderr.buffer.write(b"error: native build failed: native object UnsupportedSource: companion function calls are not supported\\n")
+sys.exit(2)
+""",
+        )
+        env = dict(os.environ)
+        env["KOVENC"] = str(kovenc_obj)
+        out = subprocess.check_output(
+            ["bash", str(repo_root / "scripts" / "conformance_matrix.sh"), str(probe_dir)],
+            cwd=repo_root,
+            env=env,
+            timeout=10.0,
+        ).decode("utf-8")
+        self.assertEqual(
+            out,
+            "p28_companion\tBE:UnsupportedSource\tBE:UnsupportedSource\n",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
