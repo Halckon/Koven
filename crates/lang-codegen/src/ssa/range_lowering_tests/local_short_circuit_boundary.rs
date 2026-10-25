@@ -165,10 +165,7 @@ fn range_short_circuit_boundary_receiver_effects() {
 // These invalid forms stop in frontend, and must not be counted as backend gates.
 #[test]
 fn range_short_circuit_frontend_nothing_and_borrow_result_diagnostics() {
-    use lang_frontend::{
-        name_resolution::resolve_names, ownership_checking::check_ownership,
-        type_checking::check_types,
-    };
+    use crate::native_tests::boxed_enum_tests::unit_source::{SourceRejectionKind, UnitSource};
     for (declaration, expression, fragment, code) in [
         ("", "flag || error(\"stop\")", "||", "L0085"),
         (
@@ -185,32 +182,52 @@ fn range_short_circuit_frontend_nothing_and_borrow_result_diagnostics() {
                 .strip_prefix("package koven.algorithms\n")
                 .unwrap()
         );
-        let mut sources = SourceMap::new();
-        let (source, parsed) =
-            crate::ssa::unit_lower_test_support::parsed(&mut sources, "0317-frontier.ko", &text);
-        let (environment, mut types) = standard_environments();
-        types.authorize_range_source(&sources, source).unwrap();
-        types
-            .authorize_range_extension_source(&sources, source)
-            .unwrap();
-        let names = resolve_names(&sources, &parsed, &environment).unwrap();
-        assert!(names.diagnostics().is_empty());
-        let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-        let diagnostics = if code == "L0085" {
-            typed.diagnostics().to_vec()
+        let mut authorized_source = None;
+        let rejection = UnitSource::analyze_with_type_environment(
+            "0317-frontier.ko",
+            &text,
+            |sources, source, types| {
+                types.authorize_range_source(sources, source).unwrap();
+                types
+                    .authorize_range_extension_source(sources, source)
+                    .unwrap();
+                authorized_source = Some(source);
+            },
+        )
+        .err()
+        .expect("the original source must retain its frontend diagnostic");
+        assert!(matches!(rejection.kind, SourceRejectionKind::Diagnostics));
+        let expected_stage = if code == "L0085" {
+            assert_eq!(
+                rejection.report.stages,
+                [("parse", 0), ("names", 0), ("types", 1)]
+            );
+            "types"
         } else {
-            assert!(typed.diagnostics().is_empty());
-            check_ownership(&sources, &parsed, &names, &typed)
-                .unwrap()
-                .diagnostics()
-                .to_vec()
+            assert_eq!(
+                rejection.report.stages,
+                [("parse", 0), ("names", 0), ("types", 0), ("ownership", 1)]
+            );
+            "ownership"
         };
-        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert_eq!(diagnostics[0].code().to_string(), code);
+        let [(stage, diagnostic)] = rejection.report.diagnostics.as_slice() else {
+            panic!("one exact original diagnostic: {:?}", rejection.report);
+        };
+        assert_eq!(*stage, expected_stage);
+        assert_eq!(diagnostic.code().to_string(), code);
+        let span = diagnostic.primary_span();
+        assert_eq!(Some(span.source_id()), authorized_source);
         assert_eq!(
-            sources.slice(diagnostics[0].primary_span()).unwrap(),
-            fragment
+            rejection.sources.source_name(span.source_id()).unwrap(),
+            "0317-frontier.ko"
         );
+        assert_eq!(
+            rejection.sources.source_text(span.source_id()).unwrap(),
+            text
+        );
+        let start = text.rfind(fragment).unwrap();
+        assert_eq!((span.start(), span.end()), (start, start + fragment.len()));
+        assert_eq!(rejection.sources.slice(span).unwrap(), fragment);
     }
 }
 
