@@ -114,10 +114,20 @@ impl Builder<'_, '_> {
             _ => {}
         }
         if let Some(fact) = self.inputs.typed.null_comparison(self.unit(expression)) {
-            let owner = *self
-                .bindings
-                .get(&fact.symbol())
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let owner = match self.bindings.get(&fact.symbol()) {
+                Some(owner) => *owner,
+                // A Copyable Borrow parameter is tested on a copy read through its loan.
+                None => {
+                    let loan = *self
+                        .borrowed
+                        .get(&fact.symbol())
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                    let EntityType::Loan { target, .. } = self.body.slots[loan.0] else {
+                        return Err(error(LoweringErrorKind::InvalidModel, span));
+                    };
+                    self.value(ROp::ReadLoan { loan }, EntityType::Value(target), span)?
+                }
+            };
             // The operands are read by the branch itself; their drop points follow it on
             // both edges.
             let Expression::Binary { left, right, .. } = payload else {

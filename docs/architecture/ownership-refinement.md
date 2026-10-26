@@ -19,7 +19,7 @@
   边上有归属；产物经完整 verifier。
 
 已接入：Boolean/整数/String 标量与 checked 算术、String 字面量/拼接/比较、`println`、顶层直接调用、
-`if`/`while`/短路、inline nullable、字段只含标量/String 的非泛型 class 及其 pointer-like nullable、
+`if`/`while`/短路、无 subject 的 `when`（Boolean 条件按序测试，命中边消费 `WhenAlternativeMatch`）、`loop` 与 `break`/`continue`（跳转前结束本轮循环打开的 view）、inline nullable、字段只含标量/String 的非泛型 class 及其 pointer-like nullable、
 class 构造、Copyable 字段读取、`!!`（Consume，null 边 Abort）。
 
 ## inline nullable 布局
