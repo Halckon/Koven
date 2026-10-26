@@ -3,7 +3,9 @@ mod llvm_contract;
 
 use super::{
     lower_frontend::orchestrate::lower_scalar_file,
-    model::{EntityId, Operation, Ownership, Program, SsaTypeKind},
+    model::{
+        EntityId, FunctionId, Operation, Origin, Ownership, Program, SsaTypeKind, TerminatorKind,
+    },
     render::render_program,
     unit_lower::lower_owned_unit_with_entry,
     verify::verify_program,
@@ -12,8 +14,8 @@ use lang_frontend::{
     analysis::analyze_basic_unit_ownership,
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
+        DeclarationId, SourceUnitInput, SymbolKind, index_compilation_unit,
+        resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{check_ownership, owned_compilation_unit_view},
     parser::parse_file,
@@ -27,6 +29,9 @@ use lang_frontend::{
 pub(super) struct SourceProgram {
     pub(super) program: Program,
     pub(super) functions: Vec<(String, Span)>,
+    pub(super) entry: FunctionId,
+    entry_span: Span,
+    declaration: DeclarationId,
 }
 
 fn lower_unit_source(text: &str, package_layout: bool) -> Result<SourceProgram, String> {
@@ -78,11 +83,13 @@ fn lower_unit_source(text: &str, package_layout: bool) -> Result<SourceProgram, 
                 && declaration.kind() == SymbolKind::Function
                 && declaration.name_span().source_id() == source
         });
-    let entry = entries.next().expect("one source entry exists").id();
+    let declaration = entries.next().expect("one source entry exists");
+    let entry = declaration.id();
+    let entry_span = file.ast().items().get(declaration.root()).unwrap().span();
     assert!(entries.next().is_none(), "source entry is unique");
     let unit = owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned)
         .map_err(|error| format!("owned unit view: {error:?}"))?;
-    let (program, _) =
+    let (program, entry) =
         lower_owned_unit_with_entry(&unit, entry).map_err(|error| format!("lower: {error:?}"))?;
     let functions = names
         .names()
@@ -98,7 +105,117 @@ fn lower_unit_source(text: &str, package_layout: bool) -> Result<SourceProgram, 
             (declaration.name().to_owned(), span)
         })
         .collect();
-    Ok(SourceProgram { program, functions })
+    Ok(SourceProgram {
+        program,
+        functions,
+        entry,
+        entry_span,
+        declaration: declaration.id(),
+    })
+}
+
+/// Original MemoryDocument layout; collect all lower/verify/render results before oracles.
+/// Only the declared entry and its actual reachable closure are lowering roots.
+pub(super) fn collect_memory_entry_observations(
+    sources: &[String],
+) -> Vec<Result<SourceProgram, String>> {
+    sources
+        .iter()
+        .enumerate()
+        .map(|(case, text)| {
+            println!("SHAPE4 MEMORY case={case} path=range.ko SOURCE {text:?} admission=pending");
+            let result = std::panic::catch_unwind(|| observe_memory_entry(text, case))
+                .unwrap_or_else(|panic| {
+                    let message = panic
+                        .downcast_ref::<String>()
+                        .map(String::as_str)
+                        .or_else(|| panic.downcast_ref::<&str>().copied())
+                        .unwrap_or("non-string panic");
+                    Err(format!(
+                        "unexpected panic (unfinished stage unknown; later stages not passed): {message}"
+                    ))
+                });
+            println!(
+                "SHAPE4 MEMORY case={case} outcome={:?} oracle=pending",
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect()
+}
+
+fn observe_memory_entry(text: &str, case: usize) -> Result<SourceProgram, String> {
+    let source = lower_unit_source(text, false)?;
+    println!(
+        "SHAPE4 MEMORY case={case} admission=ok names=ok types=ok owned=ok lower=ok declaration={:?} entry={:?} span={:?}",
+        source.declaration, source.entry, source.entry_span
+    );
+    let module = source
+        .program
+        .module(source.entry.module())
+        .ok_or_else(|| "identity: returned entry module is absent".to_owned())?;
+    let function = module
+        .function(source.entry)
+        .ok_or_else(|| "identity: returned entry function is absent".to_owned())?;
+    if function.origin != Origin::Source(source.entry_span)
+        || source
+            .functions
+            .iter()
+            .filter(|(name, span)| name == "entry" && *span == source.entry_span)
+            .count()
+            != 1
+    {
+        return Err("identity: same-analysis declaration/entry origin mismatch".to_owned());
+    }
+    // Bind coordinate-based numeric/borrowed queries to this returned entry.
+    let guards = source
+        .program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .flat_map(|function| {
+            function.blocks.iter().filter_map(move |block| {
+                block
+                    .terminator
+                    .as_ref()
+                    .filter(|term| matches!(term.kind, TerminatorKind::NullableBranch { .. }))
+                    .map(|term| (function.id, &term.origin))
+            })
+        })
+        .collect::<Vec<_>>();
+    let [(guard_function, Origin::Source(guard_span))] = guards.as_slice() else {
+        return Err("identity: exactly one source nullable guard required".to_owned());
+    };
+    if *guard_function != source.entry
+        || guard_span.source_id() != source.entry_span.source_id()
+        || guard_span.start() < source.entry_span.start()
+        || guard_span.end() > source.entry_span.end()
+    {
+        return Err(format!("identity: guard outside returned entry {guards:?}"));
+    }
+    let origins = function
+        .instructions
+        .iter()
+        .map(|instruction| &instruction.origin)
+        .chain(
+            function
+                .blocks
+                .iter()
+                .filter_map(|block| block.terminator.as_ref().map(|term| &term.origin)),
+        );
+    for origin in origins {
+        if let Origin::Source(span) = origin
+            && span.source_id() != source.entry_span.source_id()
+        {
+            return Err(format!("identity: foreign entry origin {span:?}"));
+        }
+    }
+    verify_program(&source.program).map_err(|error| format!("SSA verify: {error:?}"))?;
+    println!("SHAPE4 MEMORY case={case} identity=ok SSA=ok");
+    let llvm = crate::llvm::render_verified_program(&source.program)
+        .map_err(|error| format!("LLVM: {error:?}"))?;
+    println!("SHAPE4 MEMORY case={case} LLVM=ok {llvm}");
+    Ok(source)
 }
 
 // Temporary test-only exit boundary, not a fallback from a failed Unit attempt.

@@ -55,7 +55,15 @@ struct Trace {
 }
 
 pub(super) fn assert_numeric_proof(program: &Program, source: &str, unit: bool) {
-    let spans = source_spans(source, unit);
+    assert_layout_proof(program, source, unit, unit);
+}
+
+pub(super) fn assert_memory_unit_numeric_proof(program: &Program, source: &str) {
+    assert_layout_proof(program, source, false, true);
+}
+
+fn assert_layout_proof(program: &Program, source: &str, package_layout: bool, unit: bool) {
+    let spans = source_spans(source, package_layout);
     let module = only(program.modules.iter());
     let function = only(module.functions.iter().filter(|function| {
         function.blocks.iter().any(|block| {

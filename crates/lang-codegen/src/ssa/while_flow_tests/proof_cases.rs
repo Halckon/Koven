@@ -6,7 +6,9 @@ pub(in crate::ssa) mod borrowed_proof_cases;
 mod if_cleanup_observation;
 
 use super::super::{
-    integer_range_value_tests::{collect_shape_boundaries, collect_sources},
+    integer_range_value_tests::{
+        collect_memory_entry_observations, collect_shape_boundaries, collect_sources,
+    },
     verify::verify_program,
 };
 
@@ -222,6 +224,13 @@ fun entry(own initial: Holder?, own other: Holder?): Int {
 #[test]
 fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
     let outcomes = direct_proof_observations();
+    let memory = collect_memory_entry_observations(&direct_proof_sources());
+    assert_eq!(memory.len(), 5);
+    for (case, result) in memory.into_iter().enumerate() {
+        let source = result.expect("original-layout Unit direct proof reaches SSA and LLVM");
+        direct_contract::assert_memory_unit_direct_proof(&source.program, source.entry, case);
+        println!("SHAPE4 MEMORY direct case={case} oracle=ok");
+    }
     for (index, result) in outcomes.into_iter().enumerate() {
         if index % 2 == 0 {
             let program =
@@ -921,6 +930,7 @@ fn numeric_for_preserves_the_outer_nullable_while_proof() {
     let source = numeric_nested_source();
     let grouped = source.replace("in 0..<2", "in ((0..<2))");
     let sources = [source, grouped];
+    let memory = collect_memory_entry_observations(&sources);
     let outcomes = collect_shape_boundaries(&sources)
         .into_iter()
         .enumerate()
@@ -941,6 +951,12 @@ fn numeric_for_preserves_the_outer_nullable_while_proof() {
             result
         })
         .collect::<Vec<_>>();
+    assert_eq!(memory.len(), 2);
+    for (case, result) in memory.into_iter().enumerate() {
+        let source = result.expect("original-layout Unit numeric proof reaches SSA and LLVM");
+        numeric_proof_contract::assert_memory_unit_numeric_proof(&source.program, &sources[case]);
+        println!("SHAPE4 MEMORY numeric case={case} oracle=ok");
+    }
     // Collect every original/Group single/unit verify/render result before identities.
     assert_eq!(outcomes.len(), 4);
     for (index, result) in outcomes.into_iter().enumerate() {
