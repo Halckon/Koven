@@ -255,6 +255,7 @@ fn assert_source_rejected(consumer: &str, fragment: &str) {
     .expect("the unit capability gate must reject this source");
     assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
     assert_eq!(sources.slice(error.span.unwrap()).unwrap(), fragment);
+    assert_memory_source_rejected(&text, fragment);
 }
 
 #[test]
@@ -317,5 +318,140 @@ fn range_scalar_counts_selected_boolean_short_circuit_local() {
         assert_eq!(run.status.code(), Some(0), "{run:?}");
         assert_eq!(run.stdout, b"a\n");
         assert!(run.stderr.is_empty(), "{run:?}");
+    }
+}
+
+// Add the complete original-source Unit contract without retiring either old arm.
+fn assert_memory_source_rejected(text: &str, fragment: &str) {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::{
+        name_resolution::{SourceUnitKey, SymbolKind},
+        parser::{Item, NameMarker},
+    };
+
+    let mut authorized_source = None;
+    let analysis = UnitSource::analyze_with_type_environment(
+        "range-scalar-frontier.ko",
+        text,
+        |sources, source, types| {
+            types.authorize_range_source(sources, source).unwrap();
+            types
+                .authorize_range_extension_source(sources, source)
+                .unwrap();
+            authorized_source = Some(source);
+        },
+    )
+    .unwrap_or_else(|error| panic!("original frontier MemoryDocument admission: {error:?}"));
+    analysis.assert_frontend_clean();
+    assert!(analysis.ownership().deferred().is_empty());
+    let parsed = analysis.parsed();
+    let sources = analysis.sources();
+    let index = analysis.names().names().index();
+    let [source] = index.source_units() else {
+        panic!("one original frontier MemoryDocument");
+    };
+    assert_eq!(source.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(source.source_id(), parsed.source_id());
+    assert_eq!(authorized_source, Some(source.source_id()));
+    assert_eq!(
+        sources.source_name(source.source_id()).unwrap(),
+        "range-scalar-frontier.ko"
+    );
+    assert_eq!(sources.source_text(source.source_id()).unwrap(), text);
+
+    // Reconcile the actual AST/index/signatures before lowering any root. Generic
+    // templates remain in full admission and lower only as real reachable instances.
+    let mut functions = Vec::new();
+    let mut concrete = Vec::new();
+    for root in parsed.roots() {
+        let original = parsed.ast().items().get(*root).unwrap();
+        let mut node = original;
+        while let Item::Modified { declaration, .. } = node.payload() {
+            node = parsed.ast().items().get(*declaration).unwrap();
+        }
+        let Item::Function {
+            name: NameMarker::Present(name),
+            type_parameters,
+            parameters,
+            ..
+        } = node.payload()
+        else {
+            continue;
+        };
+        let declarations = index
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.root() == *root
+                    && declaration.source_unit() == source.id()
+                    && declaration.kind() == SymbolKind::Function
+            })
+            .collect::<Vec<_>>();
+        let [declaration] = declarations.as_slice() else {
+            panic!("one real declaration for every original function root");
+        };
+        assert_eq!(declaration.package(), source.package());
+        assert_eq!(declaration.name_span(), *name);
+        assert_eq!(name.source_id(), source.source_id());
+        assert_eq!(sources.slice(*name).unwrap(), declaration.name());
+        assert_eq!(analysis.declaration_span(declaration.id()), original.span());
+        let signature = analysis
+            .types()
+            .signatures()
+            .declaration(declaration.id())
+            .and_then(|signature| signature.callable())
+            .expect("same-analysis callable signature");
+        assert_eq!(signature.name_span(), *name);
+        assert_eq!(signature.type_parameters().len(), type_parameters.len());
+        assert_eq!(signature.parameters().len(), parameters.len());
+        assert!(!functions.contains(&declaration.id()));
+        functions.push(declaration.id());
+        if type_parameters.is_empty() {
+            concrete.push(*declaration);
+        }
+    }
+    assert_eq!(functions.len(), 15);
+    assert_eq!(
+        functions.len(),
+        index
+            .declarations()
+            .iter()
+            .filter(|declaration| declaration.kind() == SymbolKind::Function)
+            .count()
+    );
+    assert_eq!(
+        concrete.iter().map(|root| root.name()).collect::<Vec<_>>(),
+        ["read", "scan", "main"]
+    );
+    let scan = analysis.declaration("scan", SymbolKind::Function);
+    let main = analysis.declaration("main", SymbolKind::Function);
+    assert_eq!(concrete[1].id(), scan);
+    assert_eq!(concrete[2].id(), main);
+    // Restrict the fragment to the actual scan declaration: stdlib templates also
+    // contain return/binary spellings and must not supply the expected span.
+    let scan_span = analysis.declaration_span(scan);
+    let offsets = sources
+        .slice(scan_span)
+        .unwrap()
+        .match_indices(fragment)
+        .map(|(offset, _)| offset)
+        .collect::<Vec<_>>();
+    let [offset] = offsets.as_slice() else {
+        panic!("one exact original scalar frontier in scan");
+    };
+    let start = scan_span.start() + offset;
+    let expected_span = sources
+        .span(source.source_id(), start, start + fragment.len())
+        .unwrap();
+    // The borrow-binding gate is whole-set and precedes instance planning, so all
+    // actual entries reject at the same source location, not only reachable scan.
+    for root in concrete {
+        let error = analysis
+            .lower_entry(root.id())
+            .err()
+            .expect("original scalar frontier must reject before emission");
+        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+        assert_eq!(error.span, Some(expected_span), "root {}", root.name());
+        assert_eq!(sources.slice(error.span.unwrap()).unwrap(), fragment);
     }
 }
