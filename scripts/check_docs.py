@@ -338,6 +338,7 @@ class DocsChecker:
         self.check_evidence_retention()
         self.check_generated_graph()
         self.check_generated_roadmap()
+        self.check_conformance_corpus()
         return sorted(set(self.errors))
 
     def check_generated_graph(self) -> None:
@@ -353,6 +354,25 @@ class DocsChecker:
 
         for message in roadmap_drift_errors(self.root):
             self.error(message)
+
+    def check_conformance_corpus(self) -> None:
+        """Verify conformance/expectations.json and baseline TSV match the checked-in corpus."""
+        corpus = self.root / "conformance"
+        exp_path = corpus / "expectations.json"
+        base_path = corpus / "baseline-aef3f4f8.tsv"
+        if not exp_path.is_file():
+            return
+        from conformance_gate import load_expectations, parse_tsv_matrix
+
+        try:
+            data = load_expectations(exp_path, corpus_root=corpus)
+            if base_path.is_file():
+                parse_tsv_matrix(
+                    base_path.read_text(encoding="utf-8"),
+                    expected_names=set(data["probes"].keys()),
+                )
+        except Exception as exc:
+            self.error(f"conformance/expectations.json: {exc}")
 
     def check_links(self) -> None:
         for source, links in self.links.items():

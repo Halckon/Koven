@@ -628,6 +628,24 @@ class CheckCiResultsTests(unittest.TestCase):
             self.assertLess(consumer.index('Require the matching producer artifact ID'),
                             consumer.index('actions/download-artifact'))
 
+    def test_conformance_gate_runs_and_preserves_evidence_on_both_hosts(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/ci.yml').read_text()
+        docs_filters = workflow.split("            docs:\n", 1)[1].split("            rust:\n", 1)[0]
+        rust_filters = workflow.split("            rust:\n", 1)[1].split("            editors:\n", 1)[0]
+        self.assertIn("- 'conformance/**'", docs_filters)
+        for item in ("- 'conformance/**'",
+                     "- 'scripts/conformance_gate.py'",
+                     "- 'scripts/conformance_matrix.sh'",
+                     "- 'scripts/tests/test_conformance_gate.py'"):
+            self.assertIn(item, rust_filters)
+        job = re.split(r'^  [a-z][a-z-]+:\s*$', workflow.split('  test:\n', 1)[1], maxsplit=1, flags=re.M)[0]
+        self.assertIn('os: [macos-14, ubuntu-24.04]', job)
+        self.assertIn('python3 scripts/conformance_gate.py', job)
+        self.assertIn('--baseline conformance/baseline-aef3f4f8.tsv', job)
+        self.assertIn('--evidence "$RUNNER_TEMP/koven-conformance"', job)
+        self.assertIn('name: conformance-${{ runner.os }}-${{ github.sha }}', job)
+
 
 if __name__ == "__main__":
     unittest.main()

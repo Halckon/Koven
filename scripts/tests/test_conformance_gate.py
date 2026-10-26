@@ -396,6 +396,72 @@ sys.exit(2)
             "p28_companion\tBE:UnsupportedSource\tBE:UnsupportedSource\n",
         )
 
+    def test_11_parallel_jobs_preserve_deterministic_order_and_docs_checker_validates_corpus(
+        self,
+    ) -> None:
+        from check_docs import DocsChecker
+
+        kovenc = _make_mock_compiler(
+            self.root / "kovenc_parallel",
+            """
+args = sys.argv[1:]
+is_project = "--project" in args
+src = open("src/app/main.ko", "rb").read() if is_project else open(args[-1], "rb").read()
+if b'println("hello")' in src:
+    sys.stdout.buffer.write(b"hello\\n")
+    sys.exit(0)
+if b"val x = 1" in src:
+    sys.stderr.buffer.write(b"error[L0084]: type mismatch\\n")
+    sys.exit(1)
+if b'error("boom")' in src:
+    sys.stderr.buffer.write(b"abort: boom\\n  at main.ko:1:19\\n")
+    sys.exit(134)
+sys.stderr.buffer.write(b"lowering failed with UnsupportedNode\\n")
+sys.exit(1)
+""",
+        )
+        ev_seq = self.root / "ev_seq"
+        ev_par = self.root / "ev_par"
+        ledger_seq = gate.evaluate_suite(
+            kovenc=kovenc,
+            corpus_root=self.corpus,
+            expectations_path=self.expectations_path,
+            baseline_path=self.baseline_path,
+            compiler_commit="655772d8",
+            evidence_dir=ev_seq,
+            jobs=1,
+        )
+        ledger_par = gate.evaluate_suite(
+            kovenc=kovenc,
+            corpus_root=self.corpus,
+            expectations_path=self.expectations_path,
+            baseline_path=self.baseline_path,
+            compiler_commit="655772d8",
+            evidence_dir=ev_par,
+            jobs=4,
+        )
+        self.assertEqual(
+            [p["comparison"] for p in ledger_seq["probes"]],
+            [p["comparison"] for p in ledger_par["probes"]],
+        )
+        self.assertEqual(
+            (ev_seq / "matrix.tsv").read_text(encoding="utf-8"),
+            (ev_par / "matrix.tsv").read_text(encoding="utf-8"),
+        )
+
+        # Verify DocsChecker.check_conformance_corpus detects tampered expectations.json
+        checker = DocsChecker(self.root)
+        checker.check_conformance_corpus()
+        self.assertEqual(checker.errors, [])
+
+        bad_data = json.loads(self.expectations_path.read_text(encoding="utf-8"))
+        bad_data["probes"]["p01_ok"]["source_sha256"] = "0" * 64
+        self.expectations_path.write_text(json.dumps(bad_data), encoding="utf-8")
+        checker_bad = DocsChecker(self.root)
+        checker_bad.check_conformance_corpus()
+        self.assertEqual(len(checker_bad.errors), 1)
+        self.assertIn("source_sha256 mismatch for probes.p01_ok", checker_bad.errors[0])
+
 
 if __name__ == "__main__":
     unittest.main()

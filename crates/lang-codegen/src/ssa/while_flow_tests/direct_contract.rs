@@ -11,8 +11,9 @@ pub(super) fn assert_unit_direct_proof(program: &Program, case: usize) {
     assert_proof(program, case, true);
 }
 
-/// The one direct source whose unit `entry` lies in the SPEC-0350 refinement subset.
-const REFINED_UNIT_CASE: usize = 4;
+/// Direct sources whose unit `entry` lies in the refinement subset: the `return` source
+/// (SPEC-0350) and, since SPEC-0356 admits loop jumps, the `break` source.
+const REFINED_UNIT_CASES: [usize; 2] = [3, 4];
 
 fn assert_proof(program: &Program, case: usize, unit: bool) {
     let module = only(program.modules.iter());
@@ -57,9 +58,8 @@ fn assert_proof(program: &Program, case: usize, unit: bool) {
     assert_eq!(body.parameters.last(), Some(&EntityId::Loan(*view)));
     assert_eq!(absent.parameters.len(), when_null.arguments.len());
     assert!(!when_null.arguments.contains(&EntityId::Loan(*view)));
-    let flag = if unit && case == REFINED_UNIT_CASE {
-        // SPEC-0350: the unit `return current.value` source is inside the refinement
-        // subset. Slot liveness carries only live slots: the unused `flag` loan stays an
+    let flag = if unit && REFINED_UNIT_CASES.contains(&case) {
+        // The refined sources carry only live slots: the unused `flag` loan stays an
         // entry parameter, and the loop header without a backedge folds into the entry.
         let entry = function.block(function.entry_block().unwrap()).unwrap();
         assert_eq!(header.id, entry.id);
