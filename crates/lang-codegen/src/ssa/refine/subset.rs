@@ -684,7 +684,9 @@ impl Checker<'_, '_> {
                 | UnitDropPoint::AfterBinaryOperands(expression) => {
                     !self.branch_form.contains(&expression)
                 }
-                UnitDropPoint::LambdaEntry(_)
+                UnitDropPoint::WhenComparisonCompleted { .. }
+                | UnitDropPoint::WhenAlternativeNoMatch { .. }
+                | UnitDropPoint::LambdaEntry(_)
                 | UnitDropPoint::BeforeReplacement(_)
                 | UnitDropPoint::AfterReplacement(_) => false,
                 _ => true,
