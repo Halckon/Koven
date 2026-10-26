@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：main 6c3aa46e（PR #176 已合并，D10 统一管线 + E3 nullable 试点 + 双宿主 CI Conformance 强 oracle 门禁）· Guide v0.46 · 更新：2026-10-26 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
+基线：main 05b1f3b6（D10 统一管线 + E3 nullable 试点 + 诸多 P0/P3 单点修复）· Guide v0.46 · 更新：2026-10-25 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
 
 ## 总览
 

@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：main 6c3aa46e（PR #176 已合并，D10 统一管线 + E3 nullable 试点 + 双宿主 CI Conformance 强 oracle 门禁）· Guide v0.46 · 更新：2026-10-26 · 其他视图：[按领域](by-area.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
+基线：main 05b1f3b6（D10 统一管线 + E3 nullable 试点 + 诸多 P0/P3 单点修复）· Guide v0.46 · 更新：2026-10-25 · 其他视图：[按领域](by-area.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
 
 **v1 的定义**：能写真实命令行工具的语言：单进程、同步 IO；被接受的程序内存安全、资源确定性释放；合法程序要么正确运行，要么得到明确的“未实现”诊断；AArch64 macOS 与 x86_64 Linux glibc。
 
@@ -25,7 +25,7 @@ v1 范围内 80 项（必做 71，其中已交付 37）；X 阶段只列边界�
 
 ## 最近一次实测
 
-口径：2026-10-26 · main 6c3aa46e · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 实测与双宿主 CI 门禁）
+口径：2026-10-25 · main 05b1f3b6 · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 实测）
 
 | 指标 | 结果 |
 |---|---|
@@ -37,7 +37,7 @@ v1 范围内 80 项（必做 71，其中已交付 37）；X 阶段只列边界�
 | 原 PR #120 enum when 能力回退（5 个 probe） | 1（e01、e02、e03、p49 已恢复运行；仅 p50_enum_method 仍为 BE:MissingFact） |
 | 六个验收程序可运行 | 0 / 6（源码与 expected.txt 已入库并接入强 oracle；当前 6 个均为两模式一致的 known_unimplemented） |
 
-本表由 scripts/conformance_gate.py 对 conformance/expectations.json 强 oracle 的实测结果汇总转录；PR #176（6c3aa46e）已将该强 oracle 门禁接入 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）Targeted Tests。旧 baseline-aef3f4f8.tsv 为 Guide v0.46 启用前的 Linux 记录，通过 v046_baseline_exempt 与 v0.46 修改后的 probe 源码区分判读，不直接混比。
+本表由 scripts/conformance_gate.py 对 conformance/expectations.json 强 oracle 实测生成；旧 baseline-aef3f4f8.tsv 为 Guide v0.46 启用前的 Linux 记录，通过 v046_baseline_exempt 与 v0.46 修改后的 probe 源码区分判读，不直接混比。
 
 ## 决策
 
@@ -109,7 +109,7 @@ D10 统一管线收尾（两模式差异 0、InvalidSsa 0、原成功能力无�
 
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | v1 必做 | 编译器结构 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) | D10 已决：统一 compilation-unit 管线为终态（历史决策见 Guide v0.45、ADR-0031、SPEC-0341；现行基线 Guide v0.46）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0、InvalidSsa 0；原 5 个 enum when 回退已修复 4 个（e01–e03、p49），仅剩 p50_enum_method 与全仓 Legacy 消费者退役/删除旧 checker 与 lower_frontend（含撤除 dead_code 豁免）。 |
+| ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | v1 必做 | 编译器结构 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) | D10 已决：统一 compilation-unit 管线为终态（Guide v0.45、ADR-0031、SPEC-0341）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0、InvalidSsa 0；原 5 个 enum when 回退已修复 4 个（e01–e03、p49），仅剩 p50_enum_method 与全仓 Legacy 消费者退役/删除旧 checker 与 lower_frontend（含撤除 dead_code 豁免）。 |
 | ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | v1 必做 | 编译器结构 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) | 先以 nullable 家族试点（2026-10-23 用户决定不含 Elvis 的 p15，余 7 个）：全部通过且不新增按组合拆分的 lowering 模块；成功后推广到 P2 各家族。SPEC-0350 已归档（2026-10-24）：试点 7 个 probe 在单文件与 project 两种模式均已通过；其余家族由后继 Spec 迁入；ADR-0032（细化层）、ADR-0033（inline nullable：tag + payload，String 与容器用指针 niche）2026-10-23 接受。 |
 
 ## P2 补齐现有 Guide 能力
