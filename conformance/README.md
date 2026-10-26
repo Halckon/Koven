@@ -14,7 +14,7 @@
 | 路径 | 内容 |
 |---|---|
 | `probes/*.ko` | 154 个独立小程序，每个都有 `fun main(): Unit`，成功时打印明确输出 |
-| `expectations.json` | 154 个 probe 与六个验收程序的机器可读期望（强 oracle、源文件 SHA-256 与 v0.46 基线豁免标注） |
+| `expectations.json` | 154 个 probe 与六个验收程序的机器可读期望（强 oracle、`oracle_origin` 溯源标注、`all_diagnostics` 多诊断码列表、源文件 SHA-256 与 v0.46 基线豁免标注） |
 | `baseline-aef3f4f8.tsv` | 154 个 probe 在 PR #120 head `aef3f4f8` 上的结果（来源见下文） |
 | `programs/<name>/main.ko` | 六个验收程序（V1 目标） |
 | `programs/<name>/expected.txt` | 对应程序 stdout 的精确期望 |
@@ -49,7 +49,7 @@ python3 scripts/conformance_gate.py \
 - **元数据与摘要绑定**：`results.json` 绑定编译器二进制路径、SHA-256、Git 提交、宿主平台（`system`/`machine`）、原始源码 SHA-256，以及 project 模式显式变换记录（`prepend_package_header` 头字节、SHA-256 与变换后源码 SHA-256）。
 - **比较器状态分类**：
   - `pass_run`：退出码 0、stderr 为空、`stdout` 与 `expectations.json`（或验收程序的 `expected.txt`）逐字节相等（含尾换行），计入能力通过。
-  - `pass_diagnostic`：非零退出、stdout 为空、命中期望的前端诊断码 `FE:Lxxxx`，计入能力通过。
+  - `pass_diagnostic`：非零退出、stdout 为空、未发生 `ICE`/`BE` 后端错误，`stderr` 行首 `error[Lxxxx]` 序列精确匹配期望的诊断码列表（默认 `[diagnostic]`，多诊断探针如 `p25_linked_iter` 由 `all_diagnostics` 显式列出），计入能力通过。
   - `pass_abort`：SIGABRT（退出码 134）、stdout 为空、stderr 首行精确匹配 `abort: <message>`，计入能力通过。
   - `known_unimplemented`：两模式一致命中允许的未实现记号（如 `BE:UnsupportedNode`、`BE:UnsupportedSource`、`BE:MissingFact`、`FE:L0165`），门禁放行但**绝不计入能力通过**。
   - `unreviewed`：尚未人工确认强 oracle 的条目；严格门禁下直接阻断，禁止把当前编译器输出自动录成正确答案。
@@ -73,8 +73,8 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 |---|---|
 | `OK` | 退出码 0 且有输出 |
 | `OK(silent)` | 退出码 0 但没有任何输出 |
-| `FE:Lxxxx` | 输出中第一个前端诊断码 |
-| `BE:<kind>` | 后端 lowering 或 native object 拒绝（`lowering failed with <kind>` 或 `native object <kind>:`，如 `BE:UnsupportedNode`、`BE:UnsupportedSource`、`BE:MissingFact`） |
+| `FE:Lxxxx` | 未发生 `ICE`/`BE` 错误时，`stderr` 行首 `error[Lxxxx]` 的首个前端诊断码 |
+| `BE:<kind>` | 后端 lowering 或 native object 拒绝（`lowering failed with <kind>` 或 `native object <kind>:`，优先级高于 `FE:Lxxxx`） |
 | `ICE:ownership` | 所有权检查内部错误泄漏 |
 | `abort:<message>` | 程序以 SIGABRT 终止（退出码 134），stderr 第一行为 `abort: <message>`；按 [Abort 输出合同](../docs/guide/09-nullability-errors.md#abort-输出合同) 记录消息文本 |
 | `abort(exit N,no msg)` | 非零退出且没有任何输出 |

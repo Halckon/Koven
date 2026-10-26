@@ -71,18 +71,18 @@ classify_files() {
         ;;
     esac
   fi
-  c=$(grep -oE "L[0-9]{4}" "$out_file" "$err_file" 2>/dev/null | head -n 1 | sed 's/^.*://')
+  c=$(grep -oE "^error\[L[0-9]{4}\]" "$err_file" 2>/dev/null | head -n 1 | grep -oE "L[0-9]{4}")
   b=$(grep -oE "lowering failed with [A-Za-z]+" "$out_file" "$err_file" 2>/dev/null | head -n 1 | sed 's/^.*lowering failed with //')
   bo=$(grep -oE "native object [A-Za-z]+:" "$out_file" "$err_file" 2>/dev/null | head -n 1 | sed -e 's/^.*native object //' -e 's/:$//')
   o=$(grep -oE "ownership checking failed: [a-z -]+" "$out_file" "$err_file" 2>/dev/null | head -n 1)
-  if [ -n "$c" ]; then
-    echo "FE:$c"
+  if [ -n "$o" ]; then
+    echo "ICE:ownership"
   elif [ -n "$b" ]; then
     echo "BE:$b"
   elif [ -n "$bo" ]; then
     echo "BE:$bo"
-  elif [ -n "$o" ]; then
-    echo "ICE:ownership"
+  elif [ -n "$c" ]; then
+    echo "FE:$c"
   elif [ ! -s "$out_file" ] && [ ! -s "$err_file" ]; then
     echo "abort(exit $code,no msg)"
   else
