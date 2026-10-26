@@ -25,6 +25,16 @@ fun main():Unit{{scan(0,true)}}
         Pipeline::UnitConstant,
         Pipeline::UnitConstantReversed,
     ] {
+        if matches!(pipeline, Pipeline::Single | Pipeline::SingleConstant) {
+            observe_original_unit(
+                &source,
+                fragment,
+                pipeline,
+                UnitExpectation::Reject(fragment),
+                "comparison-boundary",
+            );
+            continue;
+        }
         let lowered = lower(&source, fragment, pipeline);
         let error = lowered
             .result
@@ -44,17 +54,6 @@ fun main():Unit{{scan(0,true)}}
             lowered.sources.slice(error.span.unwrap()).unwrap(),
             fragment
         );
-        if matches!(pipeline, Pipeline::Single | Pipeline::SingleConstant) {
-            observe_original_unit(
-                &source,
-                fragment,
-                pipeline,
-                &lowered.sources,
-                lowered.expected_span,
-                UnitExpectation::Reject(fragment),
-                "comparison-boundary",
-            );
-        }
     }
 }
 

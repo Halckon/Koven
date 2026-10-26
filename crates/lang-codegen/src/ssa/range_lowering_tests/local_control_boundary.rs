@@ -8,6 +8,16 @@ fn reject(label: &str, consumer: &str, fragment: &str) {
         // A frontend diagnostic is a fixture failure, not a backend rejection.
         // Print the current source case before the shared frontend setup asserts.
         eprintln!("boundary={label}; pipeline={pipeline:?}; expected={fragment:?}");
+        if matches!(pipeline, Pipeline::Single) {
+            observe_original_unit(
+                consumer,
+                fragment,
+                pipeline,
+                UnitExpectation::Reject(fragment),
+                label,
+            );
+            continue;
+        }
         let lowered = lower(consumer, fragment, pipeline);
         let error = lowered
             .result
@@ -24,17 +34,6 @@ fn reject(label: &str, consumer: &str, fragment: &str) {
             Some(lowered.expected_span),
             "{label}/{pipeline:?}: {error:?}; source={actual:?}"
         );
-        if matches!(pipeline, Pipeline::Single) {
-            observe_original_unit(
-                consumer,
-                fragment,
-                pipeline,
-                &lowered.sources,
-                lowered.expected_span,
-                UnitExpectation::Reject(fragment),
-                label,
-            );
-        }
     }
 }
 

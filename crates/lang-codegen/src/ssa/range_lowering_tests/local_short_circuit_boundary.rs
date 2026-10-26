@@ -22,6 +22,16 @@ fn reject(source: &str, fragment: &str) {
         Pipeline::UnitConstant,
         Pipeline::UnitConstantReversed,
     ] {
+        if matches!(pipeline, Pipeline::Single) {
+            observe_original_unit(
+                source,
+                fragment,
+                pipeline,
+                UnitExpectation::Reject(fragment),
+                "short-circuit-boundary",
+            );
+            continue;
+        }
         let lowered = lower(source, fragment, pipeline);
         let error = lowered
             .result
@@ -37,17 +47,6 @@ fn reject(source: &str, fragment: &str) {
             Some(lowered.expected_span),
             "{pipeline:?}: {error:?}"
         );
-        if matches!(pipeline, Pipeline::Single) {
-            observe_original_unit(
-                source,
-                fragment,
-                pipeline,
-                &lowered.sources,
-                lowered.expected_span,
-                UnitExpectation::Reject(fragment),
-                "short-circuit-boundary",
-            );
-        }
     }
 }
 

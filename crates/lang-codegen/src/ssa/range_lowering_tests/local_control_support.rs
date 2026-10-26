@@ -247,15 +247,13 @@ pub(super) enum UnitExpectation<'a> {
     Success(&'a [u8]),
 }
 
-// Stage A adds one main-entry observation per original legacy label. It neither
-// retires that arm nor upgrades previously unobserved auxiliary roots to success
-// obligations. In particular, do not route these probes through lower_positive_roots.
+// Retain one main-entry contract per original single-layout label. This does not
+// upgrade previously unobserved auxiliary roots to success obligations or claim
+// equivalence with the retired whole-file planner. Do not use lower_positive_roots.
 pub(super) fn observe_original_unit(
     consumer: &str,
     fragment: &str,
     pipeline: Pipeline,
-    legacy_sources: &SourceMap,
-    legacy_probe: Span,
     expected: UnitExpectation<'_>,
     label: &str,
 ) {
@@ -263,28 +261,14 @@ pub(super) fn observe_original_unit(
         pipeline,
         Pipeline::Single | Pipeline::SingleConstant
     ));
-    let label = format!("local24-stage-a-{label}-{pipeline:?}");
+    let label = format!("local24-original-unit-{label}-{pipeline:?}");
     let name = "range-local-control-single.ko";
     let provider = include_str!("../../../../lang-std/koven/algorithms/ranges.ko");
     let text = format!(
         "{}\n{consumer}",
         provider.strip_prefix("package koven.algorithms\n").unwrap()
     );
-    let legacy_source = legacy_probe.source_id();
-    assert_eq!(legacy_sources.source_name(legacy_source).unwrap(), name);
-    assert_eq!(legacy_sources.source_text(legacy_source).unwrap(), text);
-    assert_eq!(
-        fragment_span(legacy_sources, legacy_source, consumer, fragment),
-        legacy_probe
-    );
-    // Read the old SourceMap directly, without cloning it or comparing its IDs
-    // with a new analysis. This parse is identity evidence, not borrowed facts.
-    let legacy_lexed = lang_frontend::lexer::lex(legacy_sources, legacy_source).unwrap();
-    let legacy_parsed = lang_frontend::parser::parse_file(legacy_sources, &legacy_lexed).unwrap();
-    assert!(legacy_parsed.diagnostics().is_empty());
-    eprintln!(
-        "{label}: stage=admission; source={name}; entry=main; probe={legacy_probe:?}; fragment={fragment:?}"
-    );
+    eprintln!("{label}: stage=admission; source={name}; entry=main; fragment={fragment:?}");
     let mut authorized_source = None;
     let analysis =
         UnitSource::analyze_with_type_environment(name, &text, |sources, source, types| {
@@ -308,16 +292,11 @@ pub(super) fn observe_original_unit(
     assert_eq!(analysis.sources().source_name(source).unwrap(), name);
     assert_eq!(analysis.sources().source_text(source).unwrap(), text);
     let probe = fragment_span(analysis.sources(), source, consumer, fragment);
-    assert_eq!(
-        (probe.start(), probe.end()),
-        (legacy_probe.start(), legacy_probe.end())
-    );
     let main = analysis.declaration("main", SymbolKind::Function);
     let scan = analysis.declaration("scan", SymbolKind::Function);
     for (function, declaration) in [("main", main), ("scan", scan)] {
-        let old = original_function_spans(legacy_sources, &legacy_parsed, function);
-        let new = original_function_spans(analysis.sources(), analysis.parsed(), function);
-        assert_eq!(analysis.declaration_span(declaration), new[0]);
+        let spans = original_function_spans(analysis.sources(), analysis.parsed(), function);
+        assert_eq!(analysis.declaration_span(declaration), spans[0]);
         let indexed = analysis
             .names()
             .names()
@@ -326,18 +305,16 @@ pub(super) fn observe_original_unit(
             .iter()
             .find(|candidate| candidate.id() == declaration)
             .unwrap();
-        assert_eq!(indexed.name_span(), new[1]);
-        for (old, new) in old.into_iter().zip(new) {
-            assert_eq!(old.source_id(), legacy_source);
-            assert_eq!(new.source_id(), source);
-            assert_eq!((old.start(), old.end()), (new.start(), new.end()));
+        assert_eq!(indexed.name_span(), spans[1]);
+        for span in spans {
+            assert_eq!(span.source_id(), source);
             assert_eq!(
-                legacy_sources.slice(old).unwrap(),
-                analysis.sources().slice(new).unwrap()
+                analysis.sources().slice(span).unwrap(),
+                &text[span.start()..span.end()]
             );
         }
         if function == "scan" {
-            assert!(new[2].start() <= probe.start() && probe.end() <= new[2].end());
+            assert!(spans[2].start() <= probe.start() && probe.end() <= spans[2].end());
         }
     }
     eprintln!(
@@ -464,41 +441,7 @@ pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> Sourc
     let provider = include_str!("../../../../lang-std/koven/algorithms/ranges.ko");
     let (expected_span, result) = match pipeline {
         Pipeline::Single | Pipeline::SingleConstant => {
-            use lang_frontend::{
-                name_resolution::resolve_names, ownership_checking::check_ownership,
-                type_checking::check_types,
-            };
-            let text = format!(
-                "{}\n{consumer}",
-                provider.strip_prefix("package koven.algorithms\n").unwrap()
-            );
-            let (source, parsed) = crate::ssa::unit_lower_test_support::parsed(
-                &mut sources,
-                "range-local-control-single.ko",
-                &text,
-            );
-            let expected_span = fragment_span(&sources, source, consumer, fragment);
-            let (environment, mut types) = standard_environments();
-            types.authorize_range_source(&sources, source).unwrap();
-            types
-                .authorize_range_extension_source(&sources, source)
-                .unwrap();
-            let names = resolve_names(&sources, &parsed, &environment).unwrap();
-            assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-            let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-            assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-            let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-            let entry = names
-                .symbols()
-                .iter()
-                .find(|symbol| symbol.name() == "main")
-                .unwrap()
-                .id();
-            let result = crate::ssa::lower_frontend::orchestrate::lower_scalar_file_with_entry(
-                &sources, &parsed, &names, &typed, &owned, entry,
-            );
-            (expected_span, result)
+            unreachable!("single-layout labels use their explicit UnitSource adapters")
         }
         Pipeline::Unit
         | Pipeline::UnitReversed
