@@ -6,8 +6,9 @@
 
 `lower_owned_unit_with_entry` 对每个无 receiver、无类型替换、无借用/carrier 返回的函数实例先做
 确定性子集预检（`ssa::refine::subset`），只读 typed/ownership facts 与 AST 构造种类，不试跑 lowering。
-预检通过且函数签名或函数体触及任一 nullable 类型时，函数体由 `ssa::refine` lowering；失败即报错，
-不回退。其余函数仍走 `unit_lower` 的按家族路径。精确子集以 SPEC-0350 §3 的已实现清单为准。
+预检通过且函数签名或函数体触及任一 nullable 类型、或使用已迁入的家族（`when`）时，函数体由
+`ssa::refine` lowering；失败即报错，不回退。其余函数仍走 `unit_lower` 的按家族路径。精确子集以
+SPEC-0350 §3 的已实现清单与 SPEC-0356 为准。
 
 ## 两段 lowering
 
@@ -19,7 +20,7 @@
   边上有归属；产物经完整 verifier。
 
 已接入：Boolean/整数/String 标量与 checked 算术、String 字面量/拼接/比较、`println`、顶层直接调用、
-`if`/`while`/短路、无 subject 的 `when`（Boolean 条件按序测试，命中边消费 `WhenAlternativeMatch`）、`loop` 与 `break`/`continue`（跳转前结束本轮循环打开的 view）、inline nullable、字段只含标量/String 的非泛型 class 及其 pointer-like nullable、
+`if`/`while`/短路、`when`（无 subject 时 Boolean 条件按序测试；标量 subject 按值比较或测整数 Range 成员；命中边消费 `WhenAlternativeMatch`）、`loop` 与 `break`/`continue`（跳转前结束本轮循环打开的 view）、inline nullable、字段只含标量/String 的非泛型 class 及其 pointer-like nullable、
 class 构造、Copyable 字段读取、`!!`（Consume，null 边 Abort）。
 
 ## inline nullable 布局

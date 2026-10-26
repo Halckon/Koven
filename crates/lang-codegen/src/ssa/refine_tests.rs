@@ -316,3 +316,56 @@ fn loop_break_and_continue_keep_the_outer_proof_view() {
     );
     counted(source, 1, b"loop\nsame\n");
 }
+
+#[test]
+fn subject_when_compares_scalars_and_range_membership() {
+    let source = r#"fun name(n: Int): String = when (n) { 1 -> "one"; 2 -> "two"; else -> "many" }
+    fun bucket(x: Int): String = when (x) { in 0..9 -> "small"; !in 0..<100 -> "huge"; else -> "big" }
+    fun main(): Unit {
+        println(name(2)); println(name(5))
+        println(bucket(3)); println(bucket(50)); println(bucket(200))
+        val k = 7
+        val n = when (k > 5) { false -> 1; else -> 2 }
+        if (n == 2) { println("when-bool") }
+        when (n) { 1 -> 1; else -> "s" }
+        println("stmt")
+    }"#;
+    let ((program, _), routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("subject when lowers and verifies")
+    });
+    let rendered = render_program(&program);
+    // `in 0..9` tests `>=` then `<=`; `!in 0..<100` tests `>=` then `<`.
+    for comparison in ["cmp.ge", "cmp.le", "cmp.lt"] {
+        assert!(rendered.contains(comparison), "{comparison}: {rendered}");
+    }
+    for function in ["koven.p.name.d", "koven.p.bucket.d", "koven.p.main.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        run(source),
+        (
+            "two\nmany\nsmall\nbig\nhuge\nwhen-bool\nstmt\n".to_owned(),
+            Some(0)
+        )
+    );
+}

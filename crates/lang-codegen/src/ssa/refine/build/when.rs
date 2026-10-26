@@ -1,17 +1,18 @@
-//! Subjectless `when`: Boolean alternatives tested in source order; the first match
-//! enters its body.
+//! `when`: alternatives tested in source order; the first match enters its body. A scalar
+//! subject is evaluated once and compared by value or by integer Range membership.
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::UnitDropPoint,
     parser::{WhenCondition, WhenEntry},
     source::Span,
+    type_checking::{BuiltinType, IntegerRangeOperationKind},
 };
 
 use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::EntityType,
-    refine::body::ROp,
+    model::{ComparisonOperator, EntityType, SsaTypeId},
+    refine::body::{BlockRef, ROp, RTerm, Slot},
 };
 
 impl Builder<'_, '_> {
@@ -21,6 +22,7 @@ impl Builder<'_, '_> {
     pub(super) fn when_expression(
         &mut self,
         expression: ExpressionId,
+        subject: Option<ExpressionId>,
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<Lowered, LoweringError> {
@@ -30,6 +32,13 @@ impl Builder<'_, '_> {
             None
         } else {
             Some(self.body.slot(EntityType::Value(self.ssa_type(ty, span)?)))
+        };
+        let subject = match subject {
+            Some(subject) => match self.required(subject)? {
+                Some(subject) => Some(subject),
+                None => return Ok(Lowered::Diverged),
+            },
+            None => None,
         };
         let join = self.body.block();
         let mut reached = false;
@@ -41,12 +50,9 @@ impl Builder<'_, '_> {
                 self.goto(body, entry.span)?;
             }
             for (alternative, condition) in entry.conditions.iter().enumerate() {
-                let WhenCondition::Expression(condition) = condition else {
-                    return Err(error(LoweringErrorKind::UnsupportedNode, entry.span));
-                };
                 let matched = self.body.block();
                 let next = self.body.block();
-                self.condition(*condition, matched, next)?;
+                self.when_condition(subject, condition, matched, next, entry.span)?;
                 let mark = self.enter(matched);
                 self.leave_unclaimed(mark, entry.span)?;
                 self.drops(UnitDropPoint::WhenAlternativeMatch {
@@ -102,5 +108,142 @@ impl Builder<'_, '_> {
         }
         self.block = Some(join);
         Ok(result.map_or(Lowered::Unit, Lowered::Value))
+    }
+
+    /// Ends the current block with a branch to `matched` / `next`.
+    fn when_condition(
+        &mut self,
+        subject: Option<Slot>,
+        condition: &WhenCondition,
+        matched: BlockRef,
+        next: BlockRef,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let (subject, condition) = match (subject, condition) {
+            (None, WhenCondition::Expression(condition)) => {
+                return self.condition(*condition, matched, next);
+            }
+            (
+                Some(subject),
+                WhenCondition::Contains {
+                    negated,
+                    expression,
+                    ..
+                },
+            ) => {
+                let (inside, outside) = if *negated {
+                    (next, matched)
+                } else {
+                    (matched, next)
+                };
+                return self.range_condition(subject, *expression, inside, outside);
+            }
+            (Some(subject), WhenCondition::Expression(condition)) => (subject, *condition),
+            _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+        };
+        let condition_span = self.span(condition);
+        let boolean = self.boolean_type(condition_span)?;
+        let candidate = self
+            .required(condition)?
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, condition_span))?;
+        let equal = self.value(
+            ROp::Compare {
+                operator: ComparisonOperator::Equal,
+                left: subject,
+                right: candidate,
+            },
+            EntityType::Value(boolean),
+            condition_span,
+        )?;
+        self.terminate(
+            RTerm::Branch {
+                condition: equal,
+                when_true: matched,
+                when_false: next,
+            },
+            condition_span,
+        )
+    }
+
+    /// `subject in lo..hi` / `lo..<hi`: both endpoints are evaluated in order, then the
+    /// subject is tested against the lower and the upper bound.
+    fn range_condition(
+        &mut self,
+        subject: Slot,
+        range: ExpressionId,
+        inside: BlockRef,
+        outside: BlockRef,
+    ) -> Result<(), LoweringError> {
+        let span = self.span(range);
+        let operation = self
+            .inputs
+            .typed
+            .integer_range_operation(self.unit(range))
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let upper = match operation.kind() {
+            IntegerRangeOperationKind::Inclusive => ComparisonOperator::LessThanOrEqual,
+            IntegerRangeOperationKind::Exclusive => ComparisonOperator::LessThan,
+            _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+        };
+        if operation.left().source_unit() != self.inputs.source_unit
+            || operation.right().source_unit() != self.inputs.source_unit
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let lower_bound = self
+            .required(operation.left().expression())?
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let upper_bound = self
+            .required(operation.right().expression())?
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        self.drops(UnitDropPoint::AfterExpression(self.unit(range)))?;
+        let boolean = self.boolean_type(span)?;
+        let above = self.value(
+            ROp::Compare {
+                operator: ComparisonOperator::GreaterThanOrEqual,
+                left: subject,
+                right: lower_bound,
+            },
+            EntityType::Value(boolean),
+            span,
+        )?;
+        let upper_test = self.body.block();
+        self.terminate(
+            RTerm::Branch {
+                condition: above,
+                when_true: upper_test,
+                when_false: outside,
+            },
+            span,
+        )?;
+        self.block = Some(upper_test);
+        let below = self.value(
+            ROp::Compare {
+                operator: upper,
+                left: subject,
+                right: upper_bound,
+            },
+            EntityType::Value(boolean),
+            span,
+        )?;
+        self.terminate(
+            RTerm::Branch {
+                condition: below,
+                when_true: inside,
+                when_false: outside,
+            },
+            span,
+        )
+    }
+
+    fn boolean_type(&self, span: Span) -> Result<SsaTypeId, LoweringError> {
+        let boolean = self
+            .inputs
+            .typed
+            .types()
+            .builtin(BuiltinType::Boolean)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        self.ssa_type(boolean, span)
     }
 }

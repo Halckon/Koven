@@ -65,8 +65,21 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
     for (reason, source) in [
         ("no nullable", "fun f(own x: Int): Int = x + 1"),
         (
-            "when with a subject",
+            "when with a nullable subject",
             "fun f(own x: Int?): Int = when (x) { null -> 0\n else -> 1 }",
+        ),
+        (
+            "when with a String subject",
+            "fun f(own s: String): Int = when (s) { \"a\" -> 1\n else -> 0 }",
+        ),
+        (
+            "jump out of a call argument past a borrowed temporary",
+            "class Node()\nfun outer(node: Node, own r: Int): Int = r\n\
+             fun f(flag: Boolean): Int = outer(Node(), when (flag) { true -> return 1\n else -> 0 })",
+        ),
+        (
+            "value when without else",
+            "fun f(b: Boolean): Int = when (b) { true -> 1\n false -> 0 }",
         ),
         (
             "lambda",

@@ -31,7 +31,7 @@ v1 范围内 80 项（必做 71，其中已交付 37）；X 阶段只列边界�
 |---|---|
 | 74 个合法基础程序（v0.44 同口径）：project / 单文件 / 两种模式都可 | 46 / 46 / 46（较 aef3f4f8 +6；另 C 组 p37 已通过、p23 已报 L0167） |
 | 应拒绝程序（基础 8 个 / 全集 14 个）：两种模式都得到预期前端诊断 | 8 / 8（全集 14 / 14） |
-| 154 probe：project / 单文件可运行（含 106 pass_run + 3 pass_abort） | 109 / 109（能力门禁通过 123 / 154，其余 31 个为 known_unimplemented） |
+| 154 probe：project / 单文件可运行（含 109 pass_run + 3 pass_abort） | 112 / 112（能力门禁通过 126 / 154，其余 28 个为 known_unimplemented） |
 | 154 probe：两种模式结果不一致（记号或 stdout 字节） | 0 |
 | 154 probe × 2 中的 InvalidSsa / ICE / ERR | 0（原 aef3f4f8 的 p14b、q05、y01、y03、y04 共 10 次已全部修复并运行通过） |
 | 原 PR #120 enum when 能力回退（5 个 probe） | 1（e01、e02、e03、p49 已恢复运行；仅 p50_enum_method 仍为 BE:MissingFact） |
@@ -182,7 +182,7 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
 | ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | v1 必做 | 验收、发布与文档 | — | 6 | — | 源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前两模式一致均为 known_unimplemented（0 / 6 可运行）。另设第七个线程程序验收 T1，不计入 v1.0 硬门槛。 |
-| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | — | V2 首片（PR #170）与第二片已落地：conformance/expectations.json + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁（154 probe 能力通过 123/154，两模式差异 0，内部错误 0）。后续待清零 31 个 known_unimplemented 并补齐每章正反例。 |
+| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | — | V2 首片（PR #170）与第二片已落地：conformance/expectations.json + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁（154 probe 能力通过 126/154，两模式差异 0，内部错误 0）。后续待清零 28 个 known_unimplemented 并补齐每章正反例。 |
 | ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与六个验收程序 | v1 必做 | 安全验证 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) | — |
 | ☐ 未开始 | V4 | M4b 随机生成扩展到 E3 之后的通用 lowering | v1 建议 | 安全验证 | — | 4 | [0269](../archive/specs/0269-generated-resource-programs.md) [native-safety-validation](../proposals/native-safety-validation.md) | — |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | v1 必做 | 验收、发布与文档 | — | — | — | README 与 tour 已于 10-15 按实测改写。 |

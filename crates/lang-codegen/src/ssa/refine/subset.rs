@@ -14,8 +14,8 @@ use lang_frontend::{
         PrefixOperator, Statement, WhenCondition, WhenEntry,
     },
     type_checking::{
-        BuiltinType, Copyability, NominalKind, ParameterMode, UnitCallTarget, UnitExpressionId,
-        UnitNominalSignature, UnitTypeId, UnitTypeKind,
+        BuiltinType, Copyability, IntegerRangeOperationKind, NominalKind, ParameterMode,
+        UnitCallTarget, UnitExpressionId, UnitNominalSignature, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -34,6 +34,8 @@ struct Checker<'i, 'a> {
     nullable: bool,
     /// Enclosing `while`/`loop` statements; `break`/`continue` need one.
     loops: usize,
+    /// Routing gate: the function uses a construct whose family moved to this layer.
+    migrated: bool,
 }
 
 pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
@@ -43,6 +45,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         branch_form: BTreeSet::new(),
         nullable: false,
         loops: 0,
+        migrated: false,
     };
     for ty in inputs
         .parameters
@@ -71,7 +74,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
             RefineBody::Block(statement) => checker.statement(statement),
         }
         && checker.drops_supported()
-        && checker.nullable
+        && (checker.nullable || checker.migrated)
 }
 
 /// Every storage type an accepted body uses, plus nullable inners and Boolean flags.
@@ -82,6 +85,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         branch_form: BTreeSet::new(),
         nullable: false,
         loops: 0,
+        migrated: false,
     };
     let Ok(item) = inputs.parsed.ast().items().get(inputs.function_item) else {
         return Vec::new();
@@ -348,6 +352,11 @@ impl Checker<'_, '_> {
                 entries,
                 ..
             } => self.subjectless_when(ty, &entries),
+            Expression::When {
+                subject: Some(subject),
+                entries,
+                ..
+            } => self.subject_when(ty, subject, &entries),
             Expression::Call { arguments, .. } => {
                 let values: Vec<_> = arguments.iter().map(|argument| argument.value).collect();
                 self.call(expression) && self.arguments(expression, &values)
@@ -491,8 +500,65 @@ impl Checker<'_, '_> {
         }
     }
 
+    /// A scalar subject compared by value, or an integer subject tested for Range
+    /// membership; a value-context `when` needs `else`.
+    fn subject_when(
+        &mut self,
+        ty: UnitTypeId,
+        subject: ExpressionId,
+        entries: &[WhenEntry],
+    ) -> bool {
+        self.migrated = true;
+        let Some(subject_type) = self.expression_type(subject) else {
+            return false;
+        };
+        // A MoveOnly subject (String) stays outside: ownership facts plan neither the
+        // subject's lifetime across the tests nor drops for MoveOnly candidates.
+        let subject_ok = self.scalar(subject_type) && self.expression(subject);
+        let has_else = entries.iter().any(|entry| entry.else_span.is_some());
+        subject_ok
+            && (self.unit(ty) || has_else)
+            && entries.iter().all(|entry| {
+                entry.else_span.is_some() == entry.conditions.is_empty()
+                    && entry.conditions.iter().all(|condition| match condition {
+                        WhenCondition::Expression(condition) => {
+                            self.expression_type(*condition) == Some(subject_type)
+                                && self.expression(*condition)
+                        }
+                        WhenCondition::Contains { expression, .. } => {
+                            self.range_condition(*expression, subject_type)
+                        }
+                        WhenCondition::TypeTest { .. } => false,
+                    })
+                    && self.statement(entry.body)
+            })
+    }
+
+    /// `in lo..hi` / `lo..<hi` over the subject's integer type.
+    fn range_condition(&mut self, range: ExpressionId, subject_type: UnitTypeId) -> bool {
+        let Some(operation) = self
+            .inputs
+            .typed
+            .integer_range_operation(self.id(range))
+            .copied()
+        else {
+            return false;
+        };
+        matches!(
+            operation.kind(),
+            IntegerRangeOperationKind::Inclusive | IntegerRangeOperationKind::Exclusive
+        ) && self.integer_type(subject_type)
+            && operation.left_type() == subject_type
+            && operation.right_type() == subject_type
+            && operation.left().source_unit() == self.inputs.source_unit
+            && operation.right().source_unit() == self.inputs.source_unit
+            && self.expression(operation.left().expression())
+            && self.expression(operation.right().expression())
+    }
+
     /// Boolean alternatives tested in order; a value-context `when` needs `else`.
     fn subjectless_when(&mut self, ty: UnitTypeId, entries: &[WhenEntry]) -> bool {
+        self.migrated = true;
         let has_else = entries.iter().any(|entry| entry.else_span.is_some());
         (self.unit(ty) || has_else)
             && entries.iter().all(|entry| {
@@ -687,6 +753,11 @@ impl Checker<'_, '_> {
                 UnitDropPoint::LambdaEntry(_)
                 | UnitDropPoint::BeforeReplacement(_)
                 | UnitDropPoint::AfterReplacement(_) => false,
+                // A jump out of a call argument abandons the earlier arguments' temporaries
+                // (and their loans) while the normal path still drops them at the call.
+                UnitDropPoint::ControlTransfer(_) => {
+                    !matches!(fact.target(), UnitDropTarget::Temporary(_))
+                }
                 _ => true,
             };
             let target_ok = matches!(

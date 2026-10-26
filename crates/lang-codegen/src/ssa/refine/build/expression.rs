@@ -132,10 +132,8 @@ impl Builder<'_, '_> {
                 ..
             } => self.if_expression(expression, condition, then_branch, else_branch, span),
             Expression::When {
-                subject: None,
-                entries,
-                ..
-            } => self.when_expression(expression, &entries, span),
+                subject, entries, ..
+            } => self.when_expression(expression, subject, &entries, span),
             Expression::Call { arguments, .. } => self.call(expression, &arguments, span),
             Expression::Assignment {
                 target,

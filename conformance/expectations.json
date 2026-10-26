@@ -84,13 +84,11 @@
       "stdout": "while\n"
     },
     "p08_when_int": {
-      "kind": "known_unimplemented",
-      "source_sha256": "56ad55bd6ceacee625ce07448a9890e453fc8d1bb816cd7ac807f87aff265108",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ]
+      "kind": "run_ok",
+      "stdout": "two\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0356: subject when (Int subject equality) in E3 refinement layer",
+      "source_sha256": "56ad55bd6ceacee625ce07448a9890e453fc8d1bb816cd7ac807f87aff265108"
     },
     "p09_enum_payload": {
       "kind": "run_ok",
@@ -778,13 +776,11 @@
       "stdout": "b\na\n"
     },
     "v16_when_in_range": {
-      "kind": "known_unimplemented",
-      "source_sha256": "ecede705d83314c96657d88ed309fdbe527573551bba19152270cca988bf55a1",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ]
+      "kind": "run_ok",
+      "stdout": "small\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0356: subject when (Int subject `in` Range) in E3 refinement layer",
+      "source_sha256": "ecede705d83314c96657d88ed309fdbe527573551bba19152270cca988bf55a1"
     },
     "v17_convert_in_loop": {
       "kind": "run_ok",
@@ -797,14 +793,11 @@
       "stdout": "while-class\n"
     },
     "v19_stmt_when_mixed": {
-      "kind": "known_unimplemented",
-      "source_sha256": "849f24f1e142285ed501e3950031a32b93a77a157ac4f6a352d77378cc19a02c",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "target_stdout": "stmt-when-mixed\n"
+      "kind": "run_ok",
+      "stdout": "stmt-when-mixed\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0356: subject when (statement when with mixed branch types) in E3 refinement layer",
+      "source_sha256": "849f24f1e142285ed501e3950031a32b93a77a157ac4f6a352d77378cc19a02c"
     },
     "v20_range_in_list": {
       "kind": "run_ok",

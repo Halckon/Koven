@@ -234,6 +234,24 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "v046_baseline_exempt": True,
         "note": "SPEC-0350: pointer-niche inline nullable String? return in E3 refinement layer",
     },
+    "p08_when_int": {
+        "kind": "run_ok",
+        "stdout": "two\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0356: subject when (Int subject equality) in E3 refinement layer",
+    },
+    "v16_when_in_range": {
+        "kind": "run_ok",
+        "stdout": "small\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0356: subject when (Int subject `in` Range) in E3 refinement layer",
+    },
+    "v19_stmt_when_mixed": {
+        "kind": "run_ok",
+        "stdout": "stmt-when-mixed\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0356: subject when (statement when with mixed branch types) in E3 refinement layer",
+    },
     "e01_enum_when_bool_return": {
         "kind": "run_ok",
         "stdout": "e1\n",
