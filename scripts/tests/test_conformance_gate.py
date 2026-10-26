@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -462,6 +463,78 @@ sys.exit(1)
         self.assertEqual(len(checker_bad.errors), 1)
         self.assertIn("source_sha256 mismatch for probes.p01_ok", checker_bad.errors[0])
 
+    def test_12_compile_fail_hardening_and_all_154_probe_oracles_cross_checked_against_sources(
+        self,
+    ) -> None:
+        # 1. Non-header Lxxxx in label/help/note or stdout must NEVER classify as FE:Lxxxx
+        self.assertEqual(
+            gate.classify_raw(1, False, b"", b"  label main.ko:1:1: see L0084 for details\n"),
+            "ERR",
+        )
+        self.assertEqual(
+            gate.classify_raw(1, False, b"error[L0084] main.ko:1:1: on stdout\n", b"fatal\n"),
+            "ERR",
+        )
+        # 2. Backend/ICE failure must take precedence over FE:Lxxxx
+        self.assertEqual(
+            gate.classify_raw(
+                2,
+                False,
+                b"",
+                b"error[L0084] main.ko:1:1: diag\nlowering failed with InvalidSsa\n",
+            ),
+            "BE:InvalidSsa",
+        )
+        # 3. Unexpected extra error[Lyyyy] on a single-diagnostic compile_fail probe is rejected
+        verdict, reason = gate.evaluate_mode_against_oracle(
+            {
+                "marker": "FE:L0084",
+                "exit": 1,
+                "stdout_bytes": b"",
+                "stderr_bytes": (
+                    b"error[L0084] main.ko:1:1: first\n"
+                    b"  label main.ko:1:2: L9999 in label is ignored\n"
+                    b"error[L0132] main.ko:2:1: unexpected second error\n"
+                ),
+            },
+            {"kind": "compile_fail", "diagnostic": "L0084"},
+        )
+        self.assertEqual(verdict, "regression")
+        self.assertIn("expected error diagnostics ['L0084'], got ['L0084', 'L0132']", reason or "")
+
+        # 4. Programmatically cross-check all 154 probe expectations against their .ko source files
+        repo_root = Path(__file__).resolve().parents[2]
+        repo_corpus = repo_root / "conformance"
+        loaded = gate.load_expectations(repo_corpus / "expectations.json", corpus_root=repo_corpus)
+        for name, spec in loaded["probes"].items():
+            self.assertIn(
+                spec.get("oracle_origin"),
+                {
+                    "single_println_literal",
+                    "source_trace_audited",
+                    "v046_spec_contract",
+                    "baseline_diagnostic_audited",
+                    "baseline_unimplemented_audited",
+                },
+                f"missing or invalid oracle_origin on {name}",
+            )
+            src_text = (repo_corpus / "probes" / f"{name}.ko").read_text(encoding="utf-8")
+            println_literals = gate.SIMPLE_PRINTLN_LITERAL_RE.findall(src_text)
+            all_string_literals = re.findall(r'"([^"\\$]+)"', src_text)
+            joined_literals = "".join(all_string_literals)
+            if spec["kind"] == "run_ok":
+                expected_lines = [ln for ln in spec["stdout"].splitlines() if ln]
+                self.assertTrue(expected_lines, f"empty stdout oracle for {name}")
+                if spec["oracle_origin"] == "single_println_literal":
+                    self.assertEqual(println_literals, [spec["stdout"].rstrip("\n")])
+                else:
+                    for ln in expected_lines:
+                        self.assertTrue(
+                            ln in all_string_literals or ln in joined_literals,
+                            f"probe {name} oracle line {ln!r} not backed by source string literals {all_string_literals}",
+                        )
+
 
 if __name__ == "__main__":
     unittest.main()
+

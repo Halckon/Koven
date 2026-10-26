@@ -6,31 +6,36 @@
       "stdout": "e1\n",
       "v046_baseline_exempt": true,
       "note": "Enum when regression fixed on main",
-      "source_sha256": "355bad046cc48c43deb3add6cbdc2f0f5653f6d217ccf75f24527f5fd000834f"
+      "source_sha256": "355bad046cc48c43deb3add6cbdc2f0f5653f6d217ccf75f24527f5fd000834f",
+      "oracle_origin": "v046_spec_contract"
     },
     "e02_enum_when_stmt_println": {
       "kind": "run_ok",
       "stdout": "e2\n",
       "v046_baseline_exempt": true,
       "note": "Enum when statement regression fixed on main",
-      "source_sha256": "b763df71709255d7a2f4e01597cda82b9a5b535d71365886a4fd9a1264e49cca"
+      "source_sha256": "b763df71709255d7a2f4e01597cda82b9a5b535d71365886a4fd9a1264e49cca",
+      "oracle_origin": "v046_spec_contract"
     },
     "e03_enum_when_bool_val": {
       "kind": "run_ok",
       "stdout": "e5\n",
       "v046_baseline_exempt": true,
       "note": "Enum when bool val regression fixed on main",
-      "source_sha256": "1169678b39d8b09455ba9b968c4a3031c5e603d290f7dc6827a67dd917321d80"
+      "source_sha256": "1169678b39d8b09455ba9b968c4a3031c5e603d290f7dc6827a67dd917321d80",
+      "oracle_origin": "v046_spec_contract"
     },
     "e04_enum_when_int_return": {
       "kind": "run_ok",
       "source_sha256": "fb6afe6a71784f18947721597b2fcb38c076835b3bc8886350f71bf6f2112255",
-      "stdout": "e6\n"
+      "stdout": "e6\n",
+      "oracle_origin": "single_println_literal"
     },
     "p01_int_print": {
       "kind": "compile_fail",
       "source_sha256": "ffbd9f0b9424eb1947f1c721a3a9ce2ded9c18245b870536cc2366a90204b714",
-      "diagnostic": "L0084"
+      "diagnostic": "L0084",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "p02_interp": {
       "kind": "known_unimplemented",
@@ -39,24 +44,28 @@
         "BE:UnsupportedNode",
         "BE:MissingFact",
         "FE:L0165"
-      ]
+      ],
+      "oracle_origin": "baseline_unimplemented_audited"
     },
     "p03_long_uint": {
       "kind": "run_ok",
       "source_sha256": "d1dc581d6fb58d1cdb61f69cc25cd0044987814a9e73a0cb288c02e8c5a8874a",
-      "stdout": "widths\n"
+      "stdout": "widths\n",
+      "oracle_origin": "single_println_literal"
     },
     "p03b_byte_literal_cmp": {
       "kind": "compile_fail",
       "source_sha256": "9e6616f6a11e9fbdecb1b2a6c1c236cc2847a4c2dbcbce00ff3b31cd239933a8",
-      "diagnostic": "L0085"
+      "diagnostic": "L0085",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "p04_overflow": {
       "kind": "runtime_abort",
       "abort_message": "integer overflow in +",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 D12 (SPEC-0355): checked + overflow emits structured abort message",
-      "source_sha256": "122ff889ace92767946fb3307269c947e157bba25989bcde24c8386751f53684"
+      "source_sha256": "122ff889ace92767946fb3307269c947e157bba25989bcde24c8386751f53684",
+      "oracle_origin": "v046_spec_contract"
     },
     "p05_double": {
       "kind": "known_unimplemented",
@@ -66,6 +75,7 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "double\n"
     },
     "p06_char": {
@@ -76,29 +86,34 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "char\n"
     },
     "p07_while_var": {
       "kind": "run_ok",
       "source_sha256": "499bb13f0a5d09dd7f24a606232b028f716270d61f1ff28340c865bb115dfc1f",
-      "stdout": "while\n"
+      "stdout": "while\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p08_when_int": {
       "kind": "run_ok",
       "stdout": "two\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0356: subject when (Int subject equality) in E3 refinement layer",
-      "source_sha256": "56ad55bd6ceacee625ce07448a9890e453fc8d1bb816cd7ac807f87aff265108"
+      "source_sha256": "56ad55bd6ceacee625ce07448a9890e453fc8d1bb816cd7ac807f87aff265108",
+      "oracle_origin": "v046_spec_contract"
     },
     "p09_enum_payload": {
       "kind": "run_ok",
       "source_sha256": "04cd14e2044c203bd785118c87986312aa0bd7b60ab1a50029c85805e6b7b3af",
-      "stdout": "enum\n"
+      "stdout": "enum\n",
+      "oracle_origin": "single_println_literal"
     },
     "p10_generic_fn": {
       "kind": "run_ok",
       "source_sha256": "b92fa8da08824c5950024066a93dfe63798e8535c7fe48607b427e265aaa0691",
-      "stdout": "generic\nint\n"
+      "stdout": "generic\nint\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p11_interface_bound": {
       "kind": "known_unimplemented",
@@ -107,12 +122,14 @@
         "FE:L0165",
         "BE:UnsupportedNode",
         "BE:MissingFact"
-      ]
+      ],
+      "oracle_origin": "baseline_unimplemented_audited"
     },
     "p12_class_inout": {
       "kind": "run_ok",
       "source_sha256": "7afcd937b2fbe4688487f0367a771d5c68a3182379faf74e80c4709e41f887c3",
-      "stdout": "counter\n"
+      "stdout": "counter\n",
+      "oracle_origin": "single_println_literal"
     },
     "p12b_class_field_assign": {
       "kind": "known_unimplemented",
@@ -122,6 +139,7 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "field-assign\n"
     },
     "p12c_inout_param": {
@@ -132,33 +150,38 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "inout-param\n"
     },
     "p13_value_class_copy": {
       "kind": "run_ok",
       "source_sha256": "485e3876c013a893ee4b7878a5a85aaebdbfa50c76f90befde176b3edd5a7eb0",
-      "stdout": "value\n"
+      "stdout": "value\n",
+      "oracle_origin": "single_println_literal"
     },
     "p14_nullable": {
       "kind": "run_ok",
       "stdout": "smart\nbangbang\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: E3 ownership refinement nullable pilot",
-      "source_sha256": "faa940cc9fb46b5dc5a44a86e27c0f91e95080d7abf093444300bda8c69d03ba"
+      "source_sha256": "faa940cc9fb46b5dc5a44a86e27c0f91e95080d7abf093444300bda8c69d03ba",
+      "oracle_origin": "v046_spec_contract"
     },
     "p14b_nullable_simple": {
       "kind": "run_ok",
       "stdout": "smart\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: E3 ownership refinement nullable pilot",
-      "source_sha256": "cd84ceffbec73254136daecb5bf156452a8a162bd82e693475f86b1d3d0078ce"
+      "source_sha256": "cd84ceffbec73254136daecb5bf156452a8a162bd82e693475f86b1d3d0078ce",
+      "oracle_origin": "v046_spec_contract"
     },
     "p14c_nullable_int": {
       "kind": "run_ok",
       "stdout": "nint\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: inline nullable Int? in E3 refinement layer",
-      "source_sha256": "cbd3efb0c3a497b4adc01800463ed258fbda851482506041b3772d0fe0284b84"
+      "source_sha256": "cbd3efb0c3a497b4adc01800463ed258fbda851482506041b3772d0fe0284b84",
+      "oracle_origin": "v046_spec_contract"
     },
     "p15_elvis": {
       "kind": "known_unimplemented",
@@ -168,6 +191,7 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "elvis\n"
     },
     "p16_result_q": {
@@ -180,7 +204,8 @@
       "target_stdout": "question\n",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 E4 (SPEC-0349): Result in builtin env; ? lowering pending N08",
-      "source_sha256": "1f98ad7148a4842b035b8f1c69996e189991a3b1ffd333794a1c17acb358405b"
+      "source_sha256": "1f98ad7148a4842b035b8f1c69996e189991a3b1ffd333794a1c17acb358405b",
+      "oracle_origin": "v046_spec_contract"
     },
     "p16b_result_string": {
       "kind": "known_unimplemented",
@@ -192,7 +217,8 @@
       "target_stdout": "good\n",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 E4 (SPEC-0349): Result in builtin env; String payload lowering pending N08",
-      "source_sha256": "17fb9700edf35e301f684fdf4f677d0fbc48c90776d355e0c4f06b182f36e4d9"
+      "source_sha256": "17fb9700edf35e301f684fdf4f677d0fbc48c90776d355e0c4f06b182f36e4d9",
+      "oracle_origin": "v046_spec_contract"
     },
     "p17_lambda": {
       "kind": "known_unimplemented",
@@ -202,6 +228,7 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "lambda\n"
     },
     "p17b_lambda_nocapture": {
@@ -212,6 +239,7 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "lambda0\n"
     },
     "p18_move_closure": {
@@ -222,17 +250,20 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "move\n"
     },
     "p19_mutablelist": {
       "kind": "run_ok",
       "source_sha256": "c77be9ccd42f42e4bb55daddcfa400a0560e0a535ed90fd079497741f31e8bb7",
-      "stdout": "list\n"
+      "stdout": "list\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p20_map": {
       "kind": "run_ok",
       "source_sha256": "ecb203e8ee1813306fc98e314076bf81754c5af1b52c5ab1d835289d6d71e5a2",
-      "stdout": "map\n"
+      "stdout": "map\n",
+      "oracle_origin": "single_println_literal"
     },
     "p21_box_enum": {
       "kind": "known_unimplemented",
@@ -242,6 +273,7 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "box\n"
     },
     "p22_rc": {
@@ -252,6 +284,7 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "rc\n"
     },
     "p23_global_var": {
@@ -259,17 +292,24 @@
       "diagnostic": "L0167",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 D4 (SPEC-0343): top-level runtime var rejected with L0167",
-      "source_sha256": "4a102fd5fa059a5bfc2f590713330f82d3c82d370a23d366d4b60770c630de83"
+      "source_sha256": "4a102fd5fa059a5bfc2f590713330f82d3c82d370a23d366d4b60770c630de83",
+      "oracle_origin": "v046_spec_contract"
     },
     "p24_recursion": {
       "kind": "run_ok",
       "source_sha256": "21c32b584f0f0394736b264ce8d58bd4b69db8e55d806759152925e4b75a6e6e",
-      "stdout": "fib\n"
+      "stdout": "fib\n",
+      "oracle_origin": "single_println_literal"
     },
     "p25_linked_iter": {
       "kind": "compile_fail",
       "source_sha256": "dd88a36118e1e8dd71158e54b30b3adf716837d9324580a8e014525987f4850a",
-      "diagnostic": "L0133"
+      "diagnostic": "L0133",
+      "oracle_origin": "baseline_diagnostic_audited",
+      "all_diagnostics": [
+        "L0133",
+        "L0132"
+      ]
     },
     "p25b_linked_recursive": {
       "kind": "known_unimplemented",
@@ -279,12 +319,14 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "rec-list\n"
     },
     "p26_borrow_return": {
       "kind": "run_ok",
       "source_sha256": "c174b6b792d4ed252d6142f64d5e87ad1c443f4ad0d07a844248d0a919620178",
-      "stdout": "borrowed\n"
+      "stdout": "borrowed\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p27_thread": {
       "kind": "known_unimplemented",
@@ -294,6 +336,7 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "thread\n"
     },
     "p28_companion": {
@@ -307,37 +350,44 @@
       "target_stdout": "companion\n",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 anonymous companion { } syntax; SPEC-0323 fixed static role, native N06 pending",
-      "source_sha256": "5ae15f9b431ebf65c8b9fb6fd3c4d80294a4ec7186135e2effbbd9963b1a5b47"
+      "source_sha256": "5ae15f9b431ebf65c8b9fb6fd3c4d80294a4ec7186135e2effbbd9963b1a5b47",
+      "oracle_origin": "v046_spec_contract"
     },
     "p29_default_super": {
       "kind": "run_ok",
       "source_sha256": "ec4f9ae059bb6429214f52af32c0a2bbd0b04d1e6c505334806de34fdbe64006",
-      "stdout": "ab\n"
+      "stdout": "ab\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p30_runtime_array": {
       "kind": "run_ok",
       "source_sha256": "c8e9e0fe86d4d123c3c0dc8f4a8028a2eda34fedf95e996f1d7b8c45598f96f8",
-      "stdout": "array\n"
+      "stdout": "array\n",
+      "oracle_origin": "single_println_literal"
     },
     "p31_string_ops": {
       "kind": "run_ok",
       "source_sha256": "fd53ca29a8ae257c0f259d54453a86979a5559eb548c48d2f35ada32892cfe1a",
-      "stdout": "abc\n"
+      "stdout": "abc\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p32_deinit": {
       "kind": "run_ok",
       "source_sha256": "4a979b94abb9521e588004ebf51563101bbcd4ceee1598e47ad838b1702520ce",
-      "stdout": "body\nb\na\n"
+      "stdout": "body\nb\na\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p33_range_in": {
       "kind": "run_ok",
       "source_sha256": "598031f06cc8fda1f84713a8c8c6c1ec7a490b047a47c0cd7e56ba9aa51944fd",
-      "stdout": "in-range\n"
+      "stdout": "in-range\n",
+      "oracle_origin": "single_println_literal"
     },
     "p34_for_range": {
       "kind": "run_ok",
       "source_sha256": "0b965cd543ad7fbb628f14caaaf898392e3e53c5094fee9532619c63cf45d6bf",
-      "stdout": "for-range\n"
+      "stdout": "for-range\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p35_value_eq": {
       "kind": "known_unimplemented",
@@ -347,29 +397,34 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "veq\n"
     },
     "p36_conversion": {
       "kind": "run_ok",
       "source_sha256": "05202f0c71d431e0b12ae103bd6f7fcb816c8af51656c3d9a07f68a314a4531e",
-      "stdout": "conv\n"
+      "stdout": "conv\n",
+      "oracle_origin": "single_println_literal"
     },
     "p37_is_generic_case": {
       "kind": "run_ok",
       "stdout": "case-noargs\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0349: parameterless is Result.Ok infers root type args from subject",
-      "source_sha256": "ad3b375869bfce8ca5a70556747aa5203db3d5ba7f240be7ecc296553501edb5"
+      "source_sha256": "ad3b375869bfce8ca5a70556747aa5203db3d5ba7f240be7ecc296553501edb5",
+      "oracle_origin": "v046_spec_contract"
     },
     "p38_list_of_strings": {
       "kind": "run_ok",
       "source_sha256": "0a24d6b51b981f082fe2a1f7555202dcb722b809646787f196c5e8c50a550518",
-      "stdout": "x\ny\n"
+      "stdout": "x\ny\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p39_removeAt": {
       "kind": "run_ok",
       "source_sha256": "97bbf15cfa42b19d02c2a327c62c946e223d7e1b9eb6212b5a32a50bc4aa80a4",
-      "stdout": "removeAt\n"
+      "stdout": "removeAt\n",
+      "oracle_origin": "single_println_literal"
     },
     "p40_nested_generic_class": {
       "kind": "known_unimplemented",
@@ -379,6 +434,7 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "stack\n"
     },
     "p41_when_string": {
@@ -389,56 +445,66 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "when-str\n"
     },
     "p42_lambda_mutate": {
       "kind": "compile_fail",
       "source_sha256": "6d99f070206795274701749b4a6cd475c0709882bb8dfb83a567e33fadf58137",
-      "diagnostic": "L0135"
+      "diagnostic": "L0135",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "p43_if_join_any": {
       "kind": "compile_fail",
       "source_sha256": "9b28bd905baa40aa1e910ed5fa94d2bc531d26de849780c4b88b00168653841c",
-      "diagnostic": "L0112"
+      "diagnostic": "L0112",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "p44_method_on_value": {
       "kind": "run_ok",
       "source_sha256": "ae632fe3ec727e41f895d6cf9c0396c7d99895d741172de1cbad312375089ca3",
-      "stdout": "vmethod\n"
+      "stdout": "vmethod\n",
+      "oracle_origin": "single_println_literal"
     },
     "p44b_method_on_class": {
       "kind": "run_ok",
       "source_sha256": "9015e0860bfc4bf971fc62d4c14d68166f28add5e1e994e3173a5f2a4f3ddd47",
-      "stdout": "cmethod\n"
+      "stdout": "cmethod\n",
+      "oracle_origin": "single_println_literal"
     },
     "p45_abort_message": {
       "kind": "runtime_abort",
       "abort_message": "boom",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 D12 (SPEC-0355): error() emits structured abort message",
-      "source_sha256": "517cb41f31db93d36c10cbd1c5c65bfc4123bdbb03f5e3786e2ea6b4bc3e7846"
+      "source_sha256": "517cb41f31db93d36c10cbd1c5c65bfc4123bdbb03f5e3786e2ea6b4bc3e7846",
+      "oracle_origin": "v046_spec_contract"
     },
     "p46_string_field_class": {
       "kind": "run_ok",
       "source_sha256": "db16ab012e6fb9a09369ee33e393bda80ac586361157198deb1d89d3f42ade2b",
-      "stdout": "ann\n"
+      "stdout": "ann\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p47_list_index_string": {
       "kind": "run_ok",
       "source_sha256": "8357325280235c5863e2326481119ec7fb7262743ddae5993c7d9f07c91552fb",
-      "stdout": "b\n"
+      "stdout": "b\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p48_nested_loops_break": {
       "kind": "run_ok",
       "source_sha256": "7f91d38426647f77f25840272f9872957a32a0b6861954ac800d307b241069c4",
-      "stdout": "nested\n"
+      "stdout": "nested\n",
+      "oracle_origin": "source_trace_audited"
     },
     "p49_when_enum_no_payload": {
       "kind": "run_ok",
       "stdout": "green\n",
       "v046_baseline_exempt": true,
       "note": "Payloadless enum when: main prints name(Color.Green), so the when branch yields green",
-      "source_sha256": "5679bacd7fe7b110811b816f75352b0bc7538c9c9cbf688e3d483c543fc96cb6"
+      "source_sha256": "5679bacd7fe7b110811b816f75352b0bc7538c9c9cbf688e3d483c543fc96cb6",
+      "oracle_origin": "v046_spec_contract"
     },
     "p50_enum_method": {
       "kind": "known_unimplemented",
@@ -450,12 +516,14 @@
       ],
       "v046_baseline_exempt": true,
       "note": "Enum method with when (this) still hits BE:MissingFact in native lowering",
-      "source_sha256": "487d2ce11036094236f0532084d6f72b31af44da168403362dc492dc5f3a0b3a"
+      "source_sha256": "487d2ce11036094236f0532084d6f72b31af44da168403362dc492dc5f3a0b3a",
+      "oracle_origin": "v046_spec_contract"
     },
     "q01_lambda_local": {
       "kind": "run_ok",
       "source_sha256": "2aa4965cf0c76ff886b66f4f677d14fbaec58b7177bad9d0f0dac4287cc4c689",
-      "stdout": "lambda-local\n"
+      "stdout": "lambda-local\n",
+      "oracle_origin": "single_println_literal"
     },
     "q02_lambda_arg_inline": {
       "kind": "known_unimplemented",
@@ -465,6 +533,7 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "lambda-arg\n"
     },
     "q03_fn_ref": {
@@ -475,29 +544,34 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "fnref\n"
     },
     "q04_rc_simple": {
       "kind": "run_ok",
       "source_sha256": "3e49310e57899ecdbc6cfff9cc29269d3bc248400bceba5cd3d35fc459157786",
-      "stdout": "rc\n"
+      "stdout": "rc\n",
+      "oracle_origin": "single_println_literal"
     },
     "q05_nullable_param": {
       "kind": "run_ok",
       "stdout": "non-null\nnull\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: E3 ownership refinement nullable pilot",
-      "source_sha256": "0d93bd32ae49bb4bbb2cb34ed293cf04e118377c58e1e8724b534774152dccba"
+      "source_sha256": "0d93bd32ae49bb4bbb2cb34ed293cf04e118377c58e1e8724b534774152dccba",
+      "oracle_origin": "v046_spec_contract"
     },
     "q06_nullable_return_bang": {
       "kind": "run_ok",
       "source_sha256": "592c14fad6ea52c80b57c0adc404107db5d64bba0eb85d6b3cce5b58ce55a5c4",
-      "stdout": "bang\n"
+      "stdout": "bang\n",
+      "oracle_origin": "single_println_literal"
     },
     "q07_result_when_int": {
       "kind": "run_ok",
       "source_sha256": "2e5070b0058172472be610f1a913790469a8e1f822e0f242f0d144528ff2e44d",
-      "stdout": "res-int\n"
+      "stdout": "res-int\n",
+      "oracle_origin": "single_println_literal"
     },
     "q08_enum_string_payload": {
       "kind": "known_unimplemented",
@@ -506,7 +580,8 @@
         "BE:UnsupportedNode",
         "BE:MissingFact",
         "FE:L0165"
-      ]
+      ],
+      "oracle_origin": "baseline_unimplemented_audited"
     },
     "q09_inout_class_param": {
       "kind": "known_unimplemented",
@@ -516,81 +591,96 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "inout-class\n"
     },
     "q10_var_reassign_string": {
       "kind": "run_ok",
       "source_sha256": "377b0a72893d12a500a97eabea2788cec4638846ad9266e3c4573093889c2316",
-      "stdout": "abc\n"
+      "stdout": "abc\n",
+      "oracle_origin": "source_trace_audited"
     },
     "q11_while_list_index": {
       "kind": "run_ok",
       "source_sha256": "80edcfe1eca5f93b58f037064b66f875e3c1c4bcf43675340b098f4d9b779f26",
-      "stdout": "index-loop\n"
+      "stdout": "index-loop\n",
+      "oracle_origin": "source_trace_audited"
     },
     "q12_companion_const": {
       "kind": "run_ok",
       "stdout": "cconst\n",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 anonymous companion { } syntax; associated constant read succeeds",
-      "source_sha256": "72ac935d1afec7659598f91a5e698ddafc7465cdee0b318ead5021598b6ebf54"
+      "source_sha256": "72ac935d1afec7659598f91a5e698ddafc7465cdee0b318ead5021598b6ebf54",
+      "oracle_origin": "v046_spec_contract"
     },
     "q13_if_expr_value": {
       "kind": "run_ok",
       "source_sha256": "1ce6316ba40412b1165966aee5426f6ad780bd7c20cf04e2a81a05a55d16cf47",
-      "stdout": "big\n"
+      "stdout": "big\n",
+      "oracle_origin": "source_trace_audited"
     },
     "q14_when_subjectless": {
       "kind": "run_ok",
       "source_sha256": "28a49053595f537e345f9aea8dfc2696257a0b64de26f68bbf8bea98ee31178f",
-      "stdout": "mid\n"
+      "stdout": "mid\n",
+      "oracle_origin": "source_trace_audited"
     },
     "q15_borrow_param_string_list": {
       "kind": "run_ok",
       "source_sha256": "3d93ac186e117c77657aecd7c3fe536b841d6c36317c3d8ff2f851c59dcc49a3",
-      "stdout": "borrow-list\n"
+      "stdout": "borrow-list\n",
+      "oracle_origin": "source_trace_audited"
     },
     "q16_interface_static": {
       "kind": "run_ok",
       "source_sha256": "0ab007eac4b10d0242d303ca80d27464d1f85b52a7f334e490d2c204fa27a569",
-      "stdout": "dog\n"
+      "stdout": "dog\n",
+      "oracle_origin": "source_trace_audited"
     },
     "q17_generic_class": {
       "kind": "compile_fail",
       "source_sha256": "56706217ae22b7063ed3c9d23d6ecd4505918f8c562866eaab22c8cafe934761",
-      "diagnostic": "L0164"
+      "diagnostic": "L0164",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "q18_value_class_generic": {
       "kind": "run_ok",
       "source_sha256": "87467aca65c2e6f172c676a457b73729ef4d9dc62aa9d164dce6631618fd84ac",
-      "stdout": "vgen\n"
+      "stdout": "vgen\n",
+      "oracle_origin": "single_println_literal"
     },
     "q19_deep_return_cleanup": {
       "kind": "run_ok",
       "source_sha256": "1399b58ee39b014d92f2b9ddb07452f84136b974cf79a0bf2d1b6be130a96757",
-      "stdout": "b\na\na\n"
+      "stdout": "b\na\na\n",
+      "oracle_origin": "source_trace_audited"
     },
     "q20_replace_field": {
       "kind": "run_ok",
       "source_sha256": "f6d815c0a7279efc22183ba9ec7e417703e4d6458bad60e225a0989d2315b53e",
-      "stdout": "old\nnew\n"
+      "stdout": "old\nnew\n",
+      "oracle_origin": "source_trace_audited"
     },
     "r01_bogus_member": {
       "kind": "compile_fail",
       "source_sha256": "6c054514b3c6712b4f6b8664f1d2f8bcbc95b26d47f38d837e250f2e32cc6aa2",
-      "diagnostic": "L0080"
+      "diagnostic": "L0080",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "r02_bogus_member_str": {
       "kind": "compile_fail",
       "source_sha256": "c4820919e33e78b9dd0f9a1afe1dd9d2f0b932c9c6ba1829750fd553e93c1a9d",
-      "diagnostic": "L0080"
+      "diagnostic": "L0080",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "s01_result_builtin": {
       "kind": "run_ok",
       "stdout": "result-builtin\n",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 E4 (SPEC-0349): Result/Ok/Err injected into builtin environment",
-      "source_sha256": "eb4a6943602e189fad9b94df8d24213cda86f43fa2f10cd75359150e7c0fb6a2"
+      "source_sha256": "eb4a6943602e189fad9b94df8d24213cda86f43fa2f10cd75359150e7c0fb6a2",
+      "oracle_origin": "v046_spec_contract"
     },
     "s02_pair_builtin": {
       "kind": "known_unimplemented",
@@ -600,6 +690,7 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "pair\n"
     },
     "s03_to_pair": {
@@ -610,22 +701,26 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "to\n"
     },
     "s04_question_on_nullable": {
       "kind": "compile_fail",
       "source_sha256": "9bc6a61a89737d245f17949b52345e8979f7fb501dfe697c966d59f66b1734b7",
-      "diagnostic": "L0085"
+      "diagnostic": "L0085",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "t01_vmethod_bare_field": {
       "kind": "run_ok",
       "source_sha256": "4c348dc5bbfece6e14560f3ba2b3e96e4d1a0f32c1c61e9cf84f34d13990c7d1",
-      "stdout": "vmethod-bare\n"
+      "stdout": "vmethod-bare\n",
+      "oracle_origin": "single_println_literal"
     },
     "t02_vmethod_bool": {
       "kind": "run_ok",
       "source_sha256": "3e65f27c8407a4905f43ff8f2e1a70f8ad01b7ec263c3c9734b44cdae4f965bf",
-      "stdout": "vmethod-bool\n"
+      "stdout": "vmethod-bool\n",
+      "oracle_origin": "single_println_literal"
     },
     "t03_vmethod_generic": {
       "kind": "known_unimplemented",
@@ -635,337 +730,400 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
+      "oracle_origin": "baseline_unimplemented_audited",
       "target_stdout": "vmethod-generic\n"
     },
     "t04_vmethod_compute_param": {
       "kind": "run_ok",
       "source_sha256": "1162b107c309da0bc129ac83ad46b299ebce1785bb6b1b3a75dd821101e56f55",
-      "stdout": "vmethod-param\n"
+      "stdout": "vmethod-param\n",
+      "oracle_origin": "single_println_literal"
     },
     "t05_map_loop_continue": {
       "kind": "run_ok",
       "source_sha256": "9679da3150e52388f53eb04733b83f118678da4fb0f173406eccbc26a46573f4",
-      "stdout": "map-continue\n"
+      "stdout": "map-continue\n",
+      "oracle_origin": "source_trace_audited"
     },
     "t06_list_loop_return": {
       "kind": "run_ok",
       "source_sha256": "ccf526e7601063b39d5513d27df2e4831edc1e388e214fa133ed39df0ef7212b",
-      "stdout": "loop-return\n"
+      "stdout": "loop-return\n",
+      "oracle_origin": "source_trace_audited"
     },
     "t07_short_circuit_plain": {
       "kind": "run_ok",
       "source_sha256": "0dd7090944494a84623bbf67b1fb92995e98fa33b1dc84744ac9279078628af3",
-      "stdout": "short-circuit\n"
+      "stdout": "short-circuit\n",
+      "oracle_origin": "single_println_literal"
     },
     "t08_vmethod_string": {
       "kind": "run_ok",
       "source_sha256": "c41a3c45a85cf2a55ca71518f3728105159854c861820fb7a00d39618650027c",
-      "stdout": "pos\n"
+      "stdout": "pos\n",
+      "oracle_origin": "source_trace_audited"
     },
     "t09_vmethod_calls_method": {
       "kind": "run_ok",
       "source_sha256": "d39506ab5bad9ba95bb12c2f45afa3534749fa12c0d4d736fc33283d10a4f89a",
-      "stdout": "vmethod-chain\n"
+      "stdout": "vmethod-chain\n",
+      "oracle_origin": "single_println_literal"
     },
     "t10_map_nested_if_break": {
       "kind": "run_ok",
       "source_sha256": "d060c7df5efa6f49855a1aecd0b0232f10daf516458b35f2e64daab88634549b",
-      "stdout": "map-nested-break\n"
+      "stdout": "map-nested-break\n",
+      "oracle_origin": "source_trace_audited"
     },
     "u01_enum_case_borrow_arg": {
       "kind": "run_ok",
       "stdout": "enum-arg\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0320: enum case borrow argument classification",
-      "source_sha256": "11028d4f967e236c356b3b76c98feccb08fe192d96a6346c2825310a4fe729e2"
+      "source_sha256": "11028d4f967e236c356b3b76c98feccb08fe192d96a6346c2825310a4fe729e2",
+      "oracle_origin": "v046_spec_contract"
     },
     "u02_list_add_loop_string": {
       "kind": "run_ok",
       "source_sha256": "6e0aa622dd38a90905c6e0f10c1839f3ed41d8055925fd6480b383c98152fd8a",
-      "stdout": "x\ny\n"
+      "stdout": "x\ny\n",
+      "oracle_origin": "source_trace_audited"
     },
     "u03_list_of_class_add": {
       "kind": "run_ok",
       "source_sha256": "2e7cb58a7d02de9f16812778c4944f8919f0fd29daa2e143377396a1030e696e",
-      "stdout": "class-list\n"
+      "stdout": "class-list\n",
+      "oracle_origin": "single_println_literal"
     },
     "u04_enum_payload_arg_unit": {
       "kind": "run_ok",
       "source_sha256": "cbe84cbd8d1a6d5545be76bd50d67b132f3f43140393e577105a860e4c90f062",
-      "stdout": "enum-payload-arg\n"
+      "stdout": "enum-payload-arg\n",
+      "oracle_origin": "single_println_literal"
     },
     "v01_assign_unit_value": {
       "kind": "run_ok",
       "source_sha256": "a1d2d70dea6f407459f130444e37a52c7c09309130b76042852410e5c5f31704",
-      "stdout": "assign-unit\n"
+      "stdout": "assign-unit\n",
+      "oracle_origin": "single_println_literal"
     },
     "v02_assign_chain": {
       "kind": "compile_fail",
       "source_sha256": "426b2c6dab4b7100b7f910e8bffbef255aeaa0e56a4be4a08bae36a219634db5",
-      "diagnostic": "L0084"
+      "diagnostic": "L0084",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "v03_join_nullable": {
       "kind": "run_ok",
       "stdout": "join-nullable\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: inline nullable Int? return in E3 refinement layer",
-      "source_sha256": "120f3f6866f26d2b5da58a7159914d7a538bf89a4800501d2152937b94e83951"
+      "source_sha256": "120f3f6866f26d2b5da58a7159914d7a538bf89a4800501d2152937b94e83951",
+      "oracle_origin": "v046_spec_contract"
     },
     "v04_stmt_if_mixed": {
       "kind": "compile_fail",
       "source_sha256": "903aec16d2237af3f9ac7f75d8ca20db3efa8df6f7de02728050c515bd7b0b3d",
-      "diagnostic": "L0089"
+      "diagnostic": "L0089",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "v05_range_in": {
       "kind": "run_ok",
       "source_sha256": "296b9403debb0fceb59d3c0e89e117cb592166605d075142c5716c996b578bb9",
-      "stdout": "range-in\n"
+      "stdout": "range-in\n",
+      "oracle_origin": "single_println_literal"
     },
     "v06_for_range_sum": {
       "kind": "run_ok",
       "source_sha256": "2c906ab9e72824c5b567f37ad95eb5b9cff5ea622e44cfe33576aea45f79176a",
-      "stdout": "for-range\n"
+      "stdout": "for-range\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v07_range_max": {
       "kind": "run_ok",
       "source_sha256": "b81322ce545bb564d39d2479c45b8a24b77d06eb24f90ae1e641fc281d6ed2c6",
-      "stdout": "range-max\n"
+      "stdout": "range-max\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v08_long_range": {
       "kind": "run_ok",
       "source_sha256": "8c1a9317a681901c58112cd98746bf327cf55d3aa90ff2e22e13e4fce815de98",
-      "stdout": "long-range\n"
+      "stdout": "long-range\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v09_reverse_empty": {
       "kind": "run_ok",
       "source_sha256": "ef5f836c369b452c1e4cb440901d1e453e87e88bf07636dfa4b2434b42f634ed",
-      "stdout": "reverse-empty\n"
+      "stdout": "reverse-empty\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v10_range_value": {
       "kind": "run_ok",
       "source_sha256": "2762953b5438b2724cbdeac6917cc728b5cebe81a5ab3dfbf4912f8aeae252b2",
-      "stdout": "range-value\n"
+      "stdout": "range-value\n",
+      "oracle_origin": "single_println_literal"
     },
     "v11_convert_ok": {
       "kind": "run_ok",
       "source_sha256": "b2b5d16514018d3b83cacd331a271315d877ad2c93a2d1cb5f362305e8d655ac",
-      "stdout": "convert\n"
+      "stdout": "convert\n",
+      "oracle_origin": "single_println_literal"
     },
     "v12_convert_abort": {
       "kind": "runtime_abort",
       "abort_message": "value out of range for ULong",
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 D12 (SPEC-0355): checked conversion emits structured abort message",
-      "source_sha256": "e576f37f7c852e88e7b92dd355bc62d22bd33644f7866aad7220983521229c00"
+      "source_sha256": "e576f37f7c852e88e7b92dd355bc62d22bd33644f7866aad7220983521229c00",
+      "oracle_origin": "v046_spec_contract"
     },
     "v13_while_nullable_int": {
       "kind": "run_ok",
       "stdout": "while-nullable\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: inline nullable Int? in while loop in E3 refinement layer",
-      "source_sha256": "3a76b664ecaacbd05b5f5e3e46acec3f0d415000bff7bee1d4422c24221af3da"
+      "source_sha256": "3a76b664ecaacbd05b5f5e3e46acec3f0d415000bff7bee1d4422c24221af3da",
+      "oracle_origin": "v046_spec_contract"
     },
     "v14_map_consume": {
       "kind": "run_ok",
       "source_sha256": "a87652640628360b5764f5f8b63edaccc40f631587138eee7e4b4823d6cc905d",
-      "stdout": "consume\n"
+      "stdout": "consume\n",
+      "oracle_origin": "single_println_literal"
     },
     "v15_map_for": {
       "kind": "run_ok",
       "source_sha256": "dbac585a26ce4c17f266480f70484c265e4b6e48be639d20b12246d3866f533e",
-      "stdout": "b\na\n"
+      "stdout": "b\na\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v16_when_in_range": {
       "kind": "run_ok",
       "stdout": "small\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0356: subject when (Int subject `in` Range) in E3 refinement layer",
-      "source_sha256": "ecede705d83314c96657d88ed309fdbe527573551bba19152270cca988bf55a1"
+      "source_sha256": "ecede705d83314c96657d88ed309fdbe527573551bba19152270cca988bf55a1",
+      "oracle_origin": "v046_spec_contract"
     },
     "v17_convert_in_loop": {
       "kind": "run_ok",
       "source_sha256": "a5d4f3be0b438529ce5153fff88f354870426138c6f97fe2cc8aa7abc0e9a6b5",
-      "stdout": "conv-loop\n"
+      "stdout": "conv-loop\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v18_while_nullable_class": {
       "kind": "run_ok",
       "source_sha256": "3df17c989e7347ab9ec53c4ebe8628661192171920bf37ef881934781f632489",
-      "stdout": "while-class\n"
+      "stdout": "while-class\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v19_stmt_when_mixed": {
       "kind": "run_ok",
       "stdout": "stmt-when-mixed\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0356: subject when (statement when with mixed branch types) in E3 refinement layer",
-      "source_sha256": "849f24f1e142285ed501e3950031a32b93a77a157ac4f6a352d77378cc19a02c"
+      "source_sha256": "849f24f1e142285ed501e3950031a32b93a77a157ac4f6a352d77378cc19a02c",
+      "oracle_origin": "v046_spec_contract"
     },
     "v20_range_in_list": {
       "kind": "run_ok",
       "source_sha256": "03d2526275149afb2831297b60b1ddd2f90af5d42bf82fbdcf5f0b8fd049603f",
-      "stdout": "range-in-list\n"
+      "stdout": "range-in-list\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v21_for_range_return": {
       "kind": "run_ok",
       "source_sha256": "6807c14492610087d46777c489d39cb6366ed85a009ed17de93787213833aed3",
-      "stdout": "range-return\n"
+      "stdout": "range-return\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v22_range_with_map": {
       "kind": "run_ok",
       "source_sha256": "fedb4265447362c5c0acfb0b53d901034db3ca6e0be9b6d8c42abc1edf327bc5",
-      "stdout": "range-map\n"
+      "stdout": "range-map\n",
+      "oracle_origin": "source_trace_audited"
     },
     "v23_nested_range_break": {
       "kind": "run_ok",
       "source_sha256": "e3db3188379857da86f19b6abcd03ff781a302b3abf686a638a0307739f42aae",
-      "stdout": "nested-range\n"
+      "stdout": "nested-range\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w01_map_for_sum": {
       "kind": "run_ok",
       "source_sha256": "de3444aacc73a0216c41ea0fda4a6c212a87ede3b03aa8067661b46a21015b2d",
-      "stdout": "map-sum\n"
+      "stdout": "map-sum\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w02_map_for_order": {
       "kind": "run_ok",
       "source_sha256": "d4f3afa84b472422d4e46e17dd360eccd77e1056ba0ac5faaf416b0e1f8b8b29",
-      "stdout": "map-order\n"
+      "stdout": "map-order\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w03_map_overwrite_remove": {
       "kind": "run_ok",
       "source_sha256": "874329869f77e84642872e7d37b4862979bea717dd5a2a083faf42c893e54ec2",
-      "stdout": "map-reorder\n"
+      "stdout": "map-reorder\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w04_map_for_break": {
       "kind": "run_ok",
       "source_sha256": "1fa128f2cf1c48aec19696c2eb4367a218dd3dad0cf46dcb4380ea752e4ecb9e",
-      "stdout": "map-break\n"
+      "stdout": "map-break\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w05_map_for_return": {
       "kind": "run_ok",
       "source_sha256": "8dcf15fcae8a7ad5d20a638f4362996ac4d6475a827d1e91870fb1ea08c2be1f",
-      "stdout": "map-return\n"
+      "stdout": "map-return\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w06_map_mutate_in_loop": {
       "kind": "compile_fail",
       "source_sha256": "c9994d3e6b2904eb39d775a5b2e17a728da5dfce6512b3952cec938bb504a5e2",
-      "diagnostic": "L0135"
+      "diagnostic": "L0135",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "w07_map_nested": {
       "kind": "run_ok",
       "source_sha256": "b5e320b45d05fdda970c67372b72c0f39cafd6a7a1ba65f791dfe3c2c7763b7c",
-      "stdout": "map-nested\n"
+      "stdout": "map-nested\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w08_map_string_values": {
       "kind": "run_ok",
       "source_sha256": "66681b31d630c9045da48ea3e5aeade2accf0992da6f17bf44ea0c0a0e681c50",
-      "stdout": "two\none\n"
+      "stdout": "two\none\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w09_map_temp_source": {
       "kind": "run_ok",
       "source_sha256": "55ce4c7d25c06516cfacd9921fcd16b90c15c63adbd9d44d9133c92c49539007",
-      "stdout": "map-temp\n"
+      "stdout": "map-temp\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w10_map_for_continue_count": {
       "kind": "run_ok",
       "source_sha256": "a862e09947b6ed490c37195b3ce1fbc9c3330e69e1fe93ea2bd951b2d046cff6",
-      "stdout": "map-continue2\n"
+      "stdout": "map-continue2\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w11_word_count": {
       "kind": "run_ok",
       "source_sha256": "604d35b77bb7ae6e8b8843f1ad285399ec8e2de9fbd8fb2b835d18f9fcdd5123",
-      "stdout": "word-count\n"
+      "stdout": "word-count\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w12": {
       "kind": "run_ok",
       "source_sha256": "7920b41f9d5dcd95dc702087a6d73c5087a5155b17f302171a07804391cc11a9",
-      "stdout": "b\nafter\n"
+      "stdout": "b\nafter\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w13": {
       "kind": "run_ok",
       "source_sha256": "fd629cf35b2902c593afbf3b0467957c883d20874ee5da3b48ae2f75ef0995e1",
-      "stdout": "seen\nend\n"
+      "stdout": "seen\nend\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w14": {
       "kind": "run_ok",
       "source_sha256": "1cd5c79c72d6791d1478914a63e61053f4463dc25c976a4a3099078740105c18",
-      "stdout": "end\n"
+      "stdout": "end\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w15": {
       "kind": "run_ok",
       "source_sha256": "3fd3309b545629a7bec0c6f566c7eccc04f024fe4ca42888376e3858a8eb636a",
-      "stdout": "seen\nend\n"
+      "stdout": "seen\nend\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w16": {
       "kind": "run_ok",
       "source_sha256": "43e7a7b68d819883fbe748ab33a5e9f5cbf6c589427018a83658ecb7abc7b7bc",
-      "stdout": "borrow-param-sum\n"
+      "stdout": "borrow-param-sum\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w17": {
       "kind": "run_ok",
       "source_sha256": "97b6d63746323290d6bfae7ac34c2f58d8f6965a47682968edc3d9f373d5691c",
-      "stdout": "b\nend\n"
+      "stdout": "b\nend\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w18": {
       "kind": "run_ok",
       "source_sha256": "6f49aca54b0b3225cc75a7f12d905b55637235e63292c2a33d264085b2139456",
-      "stdout": "end\n"
+      "stdout": "end\n",
+      "oracle_origin": "source_trace_audited"
     },
     "w19": {
       "kind": "run_ok",
       "source_sha256": "c579147b9597c04ad8d7131fbe848da578a3dec5c3eadd101a4752d4883a02c7",
-      "stdout": "b\nend\n"
+      "stdout": "b\nend\n",
+      "oracle_origin": "source_trace_audited"
     },
     "x01_nullable_class_retest": {
       "kind": "run_ok",
       "source_sha256": "b3ef9dad60dd36ca1abf3992a7cc55bfed7865fb9831c97daad8355b134a7342",
-      "stdout": "retest\n"
+      "stdout": "retest\n",
+      "oracle_origin": "single_println_literal"
     },
     "x02_string_nullable_return": {
       "kind": "run_ok",
       "stdout": "hit\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: pointer-niche inline nullable String? return in E3 refinement layer",
-      "source_sha256": "40f2dfda1fcb44cda5a4f4fdf74c65928092b81410bf7424ad33e00da939cc2a"
+      "source_sha256": "40f2dfda1fcb44cda5a4f4fdf74c65928092b81410bf7424ad33e00da939cc2a",
+      "oracle_origin": "v046_spec_contract"
     },
     "x03_if_call_borrow_arg": {
       "kind": "run_ok",
       "source_sha256": "a5564554fa540bb4053434b6ea087e04b3149c192dc7c734e87cbeae1f73c621",
-      "stdout": "obs\ndone\n"
+      "stdout": "obs\ndone\n",
+      "oracle_origin": "source_trace_audited"
     },
     "y01_import_take_for_sum": {
       "kind": "run_ok",
       "stdout": "take\n",
       "v046_baseline_exempt": true,
       "note": "take() lowered on main; for-loop sums the first two elements and prints take",
-      "source_sha256": "c1fac2dfee57b67ec279de26bfde160e623abe6372e67e08b0cd37140250ad9f"
+      "source_sha256": "c1fac2dfee57b67ec279de26bfde160e623abe6372e67e08b0cd37140250ad9f",
+      "oracle_origin": "v046_spec_contract"
     },
     "y02_take_no_import": {
       "kind": "compile_fail",
       "source_sha256": "adacb4afd124d0571f366d2861909b9d880684d458ce029c794dcbdaa74d57fe",
-      "diagnostic": "L0080"
+      "diagnostic": "L0080",
+      "oracle_origin": "baseline_diagnostic_audited"
     },
     "y03_method_take_for": {
       "kind": "run_ok",
       "stdout": "take-method\n",
       "v046_baseline_exempt": true,
       "note": "take() method call lowered on main; for-loop sums the first two elements and prints take-method",
-      "source_sha256": "5db5994e2ff45cc7b6cd80c0c196e60557072279ac6558b74e8d1fb44ae816dc"
+      "source_sha256": "5db5994e2ff45cc7b6cd80c0c196e60557072279ac6558b74e8d1fb44ae816dc",
+      "oracle_origin": "v046_spec_contract"
     },
     "y04_take_for_println": {
       "kind": "run_ok",
       "stdout": "a\nb\n",
       "v046_baseline_exempt": true,
       "note": "take() lowered on main; for-loop prints the first two elements",
-      "source_sha256": "baa58796b1332bb65f4d38bbf7c240790d3405fcdcc5af80f22f4d6d710089b0"
+      "source_sha256": "baa58796b1332bb65f4d38bbf7c240790d3405fcdcc5af80f22f4d6d710089b0",
+      "oracle_origin": "v046_spec_contract"
     },
     "y05_take_borrow_val_call": {
       "kind": "run_ok",
       "source_sha256": "3f45ef425f8520adee6c074458e555974a017f7f76e8b31c1af86c3bba14c802",
-      "stdout": "a\nb\n"
+      "stdout": "a\nb\n",
+      "oracle_origin": "source_trace_audited"
     },
     "y06_take_borrow_val_for": {
       "kind": "run_ok",
       "source_sha256": "6bc8fb147c64bfd6cd5302759952c67b8c550ca1813c046c7fcfaa9e1859eabb",
-      "stdout": "a\nb\n"
+      "stdout": "a\nb\n",
+      "oracle_origin": "source_trace_audited"
     }
   },
   "programs": {
@@ -981,7 +1139,8 @@
         "FE:L0165",
         "BE:UnsupportedNode",
         "BE:MissingFact"
-      ]
+      ],
+      "oracle_origin": "expected_txt_file"
     },
     "expr_eval": {
       "kind": "known_unimplemented",
@@ -995,7 +1154,8 @@
         "FE:L0165",
         "BE:UnsupportedNode",
         "BE:MissingFact"
-      ]
+      ],
+      "oracle_origin": "expected_txt_file"
     },
     "linked_stack": {
       "kind": "known_unimplemented",
@@ -1009,7 +1169,8 @@
         "FE:L0165",
         "BE:UnsupportedNode",
         "BE:MissingFact"
-      ]
+      ],
+      "oracle_origin": "expected_txt_file"
     },
     "raii_state_machine": {
       "kind": "known_unimplemented",
@@ -1023,7 +1184,8 @@
         "FE:L0165",
         "BE:UnsupportedNode",
         "BE:MissingFact"
-      ]
+      ],
+      "oracle_origin": "expected_txt_file"
     },
     "varint_codec": {
       "kind": "known_unimplemented",
@@ -1037,7 +1199,8 @@
         "FE:L0165",
         "BE:UnsupportedNode",
         "BE:MissingFact"
-      ]
+      ],
+      "oracle_origin": "expected_txt_file"
     },
     "word_count": {
       "kind": "known_unimplemented",
@@ -1051,7 +1214,8 @@
         "FE:L0165",
         "BE:UnsupportedNode",
         "BE:MissingFact"
-      ]
+      ],
+      "oracle_origin": "expected_txt_file"
     }
   }
 }

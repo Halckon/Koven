@@ -242,6 +242,198 @@ impl PositiveLowering {
     }
 }
 
+pub(super) enum UnitExpectation<'a> {
+    Reject(&'a str),
+    Success(&'a [u8]),
+}
+
+// Retain one main-entry contract per original single-layout label. This does not
+// upgrade previously unobserved auxiliary roots to success obligations or claim
+// equivalence with the retired whole-file planner. Do not use lower_positive_roots.
+pub(super) fn observe_original_unit(
+    consumer: &str,
+    fragment: &str,
+    pipeline: Pipeline,
+    expected: UnitExpectation<'_>,
+    label: &str,
+) {
+    assert!(matches!(
+        pipeline,
+        Pipeline::Single | Pipeline::SingleConstant
+    ));
+    let label = format!("local24-original-unit-{label}-{pipeline:?}");
+    let name = "range-local-control-single.ko";
+    let provider = include_str!("../../../../lang-std/koven/algorithms/ranges.ko");
+    let text = format!(
+        "{}\n{consumer}",
+        provider.strip_prefix("package koven.algorithms\n").unwrap()
+    );
+    eprintln!("{label}: stage=admission; source={name}; entry=main; fragment={fragment:?}");
+    let mut authorized_source = None;
+    let analysis =
+        UnitSource::analyze_with_type_environment(name, &text, |sources, source, types| {
+            types.authorize_range_source(sources, source).unwrap();
+            types
+                .authorize_range_extension_source(sources, source)
+                .unwrap();
+            authorized_source = Some(source);
+        })
+        .unwrap_or_else(|error| {
+            panic!("{label}: stage=admission, not a backend rejection: {error:?}")
+        });
+    analysis.assert_frontend_clean();
+    let source = analysis.parsed().source_id();
+    assert_eq!(authorized_source, Some(source));
+    let [input] = analysis.names().names().index().source_units() else {
+        panic!("{label}: one original MemoryDocument");
+    };
+    assert_eq!(input.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(input.source_id(), source);
+    assert_eq!(analysis.sources().source_name(source).unwrap(), name);
+    assert_eq!(analysis.sources().source_text(source).unwrap(), text);
+    let probe = fragment_span(analysis.sources(), source, consumer, fragment);
+    let main = analysis.declaration("main", SymbolKind::Function);
+    let scan = analysis.declaration("scan", SymbolKind::Function);
+    for (function, declaration) in [("main", main), ("scan", scan)] {
+        let spans = original_function_spans(analysis.sources(), analysis.parsed(), function);
+        assert_eq!(analysis.declaration_span(declaration), spans[0]);
+        let indexed = analysis
+            .names()
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|candidate| candidate.id() == declaration)
+            .unwrap();
+        assert_eq!(indexed.name_span(), spans[1]);
+        for span in spans {
+            assert_eq!(span.source_id(), source);
+            assert_eq!(
+                analysis.sources().slice(span).unwrap(),
+                &text[span.start()..span.end()]
+            );
+        }
+        if function == "scan" {
+            assert!(spans[2].start() <= probe.start() && probe.end() <= spans[2].end());
+        }
+    }
+    eprintln!(
+        "{label}: stage=lowering; entry=main/{main:?}/{:?}; scan={scan:?}/{:?}; probe={probe:?}",
+        analysis.declaration_span(main),
+        analysis.declaration_span(scan)
+    );
+    // UnitSource chooses basic/constant only from the admitted typed products;
+    // the legacy SingleConstant label does not itself confer const capability.
+    let result = analysis.lower_entry(main);
+    if let Err(error) = &result {
+        let actual = error
+            .span
+            .and_then(|span| analysis.sources().slice(span).ok());
+        let roots = analysis
+            .names()
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .filter(|declaration| analysis.parsed().roots().contains(&declaration.root()))
+            .filter_map(|declaration| {
+                let span = analysis.declaration_span(declaration.id());
+                error
+                    .span
+                    .filter(|error_span| {
+                        error_span.source_id() == span.source_id()
+                            && span.start() <= error_span.start()
+                            && error_span.end() <= span.end()
+                    })
+                    .map(|_| (declaration.name(), declaration.id(), span))
+            })
+            .collect::<Vec<_>>();
+        eprintln!(
+            "{label}: stage=lowering; actual_roots={roots:?}; error={error:?}; source={actual:?}"
+        );
+    }
+    match expected {
+        UnitExpectation::Reject(expected_fragment) => {
+            assert_eq!(expected_fragment, fragment);
+            let error = result.err().unwrap_or_else(|| {
+                panic!("{label}: stage=lowering; main unexpectedly succeeded; frozen rejection retained")
+            });
+            assert_eq!(
+                error.kind,
+                LoweringErrorKind::UnsupportedNode,
+                "{label}: {error:?}"
+            );
+            assert_eq!(error.span, Some(probe), "{label}: {error:?}");
+            assert_eq!(analysis.sources().slice(probe).unwrap(), expected_fragment);
+            eprintln!("{label}: outcome=exact-backend-reject; probe={probe:?}");
+        }
+        UnitExpectation::Success(stdout) => {
+            let (program, entry) = result.unwrap_or_else(|error| {
+                panic!("{label}: stage=lowering; main must succeed: {error:?}")
+            });
+            let function = program
+                .module(entry.module())
+                .unwrap()
+                .function(entry)
+                .unwrap();
+            assert_eq!(
+                function.origin,
+                Origin::Source(analysis.declaration_span(main))
+            );
+            verify_program(&program)
+                .unwrap_or_else(|error| panic!("{label}: stage=SSA: {error:?}"));
+            eprintln!("{label}: stage=LLVM/native; entry={entry:?}");
+            run_unmodified(&program, entry, &label, stdout);
+            eprintln!("{label}: outcome=native-success; exit=0; stderr=empty; stdout={stdout:?}");
+        }
+    }
+}
+
+// Declaration, name, and body spans from each real AST, used only for identity.
+fn original_function_spans(
+    sources: &SourceMap,
+    parsed: &lang_frontend::parser::ParsedFile,
+    function: &str,
+) -> [Span; 3] {
+    use lang_frontend::parser::{FunctionBody, FunctionForm};
+    let mut matches = Vec::new();
+    for root in parsed.roots() {
+        let original = parsed.ast().items().get(*root).unwrap();
+        let mut node = original;
+        while let Item::Modified { declaration, .. } = node.payload() {
+            node = parsed.ast().items().get(*declaration).unwrap();
+        }
+        let Item::Function {
+            name: NameMarker::Present(name),
+            form,
+            ..
+        } = node.payload()
+        else {
+            continue;
+        };
+        if sources.slice(*name).unwrap() != function {
+            continue;
+        }
+        let body = match form {
+            FunctionForm::ImplicitUnitBlock(body)
+            | FunctionForm::Explicit {
+                body: FunctionBody::Block(body),
+                ..
+            } => *body,
+            _ => panic!("original {function} has a block body"),
+        };
+        matches.push([
+            original.span(),
+            *name,
+            parsed.ast().statements().get(body).unwrap().span(),
+        ]);
+    }
+    let [spans] = matches.as_slice() else {
+        panic!("one real original top-level {function}: {matches:?}");
+    };
+    *spans
+}
+
 // Retain the Result and SourceMap: the initial positive-test failure must identify
 // the exact rejected expression, rather than panic inside an unwrap-only harness.
 pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> SourceLowering {
@@ -249,41 +441,7 @@ pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> Sourc
     let provider = include_str!("../../../../lang-std/koven/algorithms/ranges.ko");
     let (expected_span, result) = match pipeline {
         Pipeline::Single | Pipeline::SingleConstant => {
-            use lang_frontend::{
-                name_resolution::resolve_names, ownership_checking::check_ownership,
-                type_checking::check_types,
-            };
-            let text = format!(
-                "{}\n{consumer}",
-                provider.strip_prefix("package koven.algorithms\n").unwrap()
-            );
-            let (source, parsed) = crate::ssa::unit_lower_test_support::parsed(
-                &mut sources,
-                "range-local-control-single.ko",
-                &text,
-            );
-            let expected_span = fragment_span(&sources, source, consumer, fragment);
-            let (environment, mut types) = standard_environments();
-            types.authorize_range_source(&sources, source).unwrap();
-            types
-                .authorize_range_extension_source(&sources, source)
-                .unwrap();
-            let names = resolve_names(&sources, &parsed, &environment).unwrap();
-            assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-            let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-            assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-            let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-            let entry = names
-                .symbols()
-                .iter()
-                .find(|symbol| symbol.name() == "main")
-                .unwrap()
-                .id();
-            let result = crate::ssa::lower_frontend::orchestrate::lower_scalar_file_with_entry(
-                &sources, &parsed, &names, &typed, &owned, entry,
-            );
-            (expected_span, result)
+            unreachable!("single-layout labels use their explicit UnitSource adapters")
         }
         Pipeline::Unit
         | Pipeline::UnitReversed
