@@ -88,27 +88,29 @@ VALID_GUIDE_CHAPTERS = (
 )
 
 PROBE_GUIDE_CHAPTERS: dict[str, str] = {
+    "p02_interp": "01-lexical.md",
+    "p03_long_uint": "01-lexical.md",
+    "p05_double": "01-lexical.md",
+    "p06_char": "01-lexical.md",
     "r01_bogus_member": "02-names-files-packages.md",
     "r02_bogus_member_str": "02-names-files-packages.md",
+    "s01_result_builtin": "02-names-files-packages.md",
+    "s02_pair_builtin": "02-names-files-packages.md",
+    "s03_to_pair": "02-names-files-packages.md",
+    "y01_import_take_for_sum": "02-names-files-packages.md",
     "y02_take_no_import": "02-names-files-packages.md",
-    "p03_long_uint": "03-types-generics.md",
     "p03b_byte_literal_cmp": "03-types-generics.md",
-    "p05_double": "03-types-generics.md",
-    "p06_char": "03-types-generics.md",
     "p10_generic_fn": "03-types-generics.md",
     "p11_interface_bound": "03-types-generics.md",
     "p35_value_eq": "03-types-generics.md",
     "p36_conversion": "03-types-generics.md",
     "p37_is_generic_case": "03-types-generics.md",
     "p40_nested_generic_class": "03-types-generics.md",
-    "q18_value_class_generic": "03-types-generics.md",
     "t03_vmethod_generic": "03-types-generics.md",
     "v11_convert_ok": "03-types-generics.md",
     "v12_convert_abort": "03-types-generics.md",
     "v17_convert_in_loop": "03-types-generics.md",
-    "p02_interp": "04-expressions-operators.md",
     "p04_overflow": "04-expressions-operators.md",
-    "p31_string_ops": "04-expressions-operators.md",
     "q10_var_reassign_string": "04-expressions-operators.md",
     "t07_short_circuit_plain": "04-expressions-operators.md",
     "v01_assign_unit_value": "04-expressions-operators.md",
@@ -146,7 +148,6 @@ PROBE_GUIDE_CHAPTERS: dict[str, str] = {
     "x03_if_call_borrow_arg": "07-calls-lambdas-closures.md",
     "p12_class_inout": "08-class-family-members.md",
     "p12b_class_field_assign": "08-class-family-members.md",
-    "p13_value_class_copy": "08-class-family-members.md",
     "p28_companion": "08-class-family-members.md",
     "p29_default_super": "08-class-family-members.md",
     "p32_deinit": "08-class-family-members.md",
@@ -171,7 +172,6 @@ PROBE_GUIDE_CHAPTERS: dict[str, str] = {
     "q05_nullable_param": "09-nullability-errors.md",
     "q06_nullable_return_bang": "09-nullability-errors.md",
     "q07_result_when_int": "09-nullability-errors.md",
-    "s01_result_builtin": "09-nullability-errors.md",
     "s04_question_on_nullable": "09-nullability-errors.md",
     "v03_join_nullable": "09-nullability-errors.md",
     "v13_while_nullable_int": "09-nullability-errors.md",
@@ -187,10 +187,13 @@ PROBE_GUIDE_CHAPTERS: dict[str, str] = {
     "q17_generic_class": "10-ownership-borrowing-drop.md",
     "q20_replace_field": "10-ownership-borrowing-drop.md",
     "u01_enum_case_borrow_arg": "10-ownership-borrowing-drop.md",
+    "p13_value_class_copy": "11-copyability-layout-construction.md",
     "p21_box_enum": "11-copyability-layout-construction.md",
-    "p22_rc": "11-copyability-layout-construction.md",
-    "q04_rc_simple": "11-copyability-layout-construction.md",
+    "q18_value_class_generic": "11-copyability-layout-construction.md",
+    "p22_rc": "13-program-runtime-standard-library.md",
     "p27_thread": "13-program-runtime-standard-library.md",
+    "p31_string_ops": "13-program-runtime-standard-library.md",
+    "q04_rc_simple": "13-program-runtime-standard-library.md",
 }
 
 PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
@@ -1453,6 +1456,105 @@ def summarize_comparisons(
     }
 
 
+def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
+    """Render deterministic Markdown audit ledger from expectations.json."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+
+    chapter_stats: dict[str, dict[str, int]] = {
+        ch: {
+            "total": 0,
+            "run_ok": 0,
+            "compile_fail": 0,
+            "runtime_abort": 0,
+            "known_unimplemented": 0,
+            "cap_passed": 0,
+        }
+        for ch in VALID_GUIDE_CHAPTERS
+    }
+    for spec in probes.values():
+        ch = spec.get("guide_chapter", "05-declarations-callables.md")
+        row = chapter_stats[ch]
+        row["total"] += 1
+        kind = spec["kind"]
+        row[kind] = row.get(kind, 0) + 1
+        if kind in ("run_ok", "compile_fail", "runtime_abort"):
+            row["cap_passed"] += 1
+
+    lines = [
+        "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
+        "",
+        "> 本文件由 `python3 scripts/conformance_gate.py --init-expectations` 从 `conformance/expectations.json` 确定性生成，并由 `scripts/check_docs.py`（`DocsChecker.check_conformance_corpus`）与 `scripts/tests/test_conformance_gate.py` 自动校验同步。",
+        "",
+        "## 1. Guide v0.46 章节覆盖汇总（154 Probes）",
+        "",
+        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    tot_all = tot_ok = tot_cf = tot_ab = tot_ku = tot_cap = 0
+    for ch in VALID_GUIDE_CHAPTERS:
+        st = chapter_stats[ch]
+        tot_all += st["total"]
+        tot_ok += st["run_ok"]
+        tot_cf += st["compile_fail"]
+        tot_ab += st["runtime_abort"]
+        tot_ku += st["known_unimplemented"]
+        tot_cap += st["cap_passed"]
+        lines.append(
+            f"| [{ch}](../docs/guide/{ch}) | {st['total']} | {st['run_ok']} | {st['compile_fail']} | "
+            f"{st['runtime_abort']} | {st['known_unimplemented']} | {st['cap_passed']} / {st['total']} |"
+        )
+    lines.append(
+        f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** |"
+    )
+
+    lines.extend(
+        [
+            "",
+            "## 2. 六个 V1 验收程序（Acceptance Programs）",
+            "",
+            "| 程序 | 归属章节 | 当前状态 | 期望输出文件 | 允许的未实现记号 |",
+            "|---|---|---|---|---|",
+        ]
+    )
+    for name, spec in sorted(programs.items()):
+        ch = spec.get("guide_chapter", "13-program-runtime-standard-library.md")
+        exp_file = spec["expected_file"]
+        allowed = ", ".join(f"`{m}`" for m in spec.get("allowed_markers", []))
+        lines.append(
+            f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | [{exp_file}]({exp_file}) | {allowed} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## 3. 154 个 Probe 逐项强 Oracle 与语义推导账本",
+            "",
+            "| Probe | Guide 章节 | 类型 (`kind`) | 溯源 (`oracle_origin`) | 期望结果 / 诊断码 | 语义推导 / 规则说明 (`oracle_derivation` / `note`) |",
+            "|---|---|---|---|---|---|",
+        ]
+    )
+    for name, spec in sorted(probes.items()):
+        ch = spec.get("guide_chapter", "")
+        kind = spec["kind"]
+        origin = spec.get("oracle_origin", "")
+        if kind == "run_ok":
+            oracle_repr = f"`{spec['stdout'].encode('unicode_escape').decode('ascii')}`"
+        elif kind == "compile_fail":
+            diags = spec.get("all_diagnostics", [spec["diagnostic"]])
+            oracle_repr = ", ".join(f"`FE:{d}`" for d in diags)
+        elif kind == "runtime_abort":
+            oracle_repr = f"`abort:{spec['abort_message']}`"
+        else:
+            oracle_repr = ", ".join(f"`{m}`" for m in spec.get("allowed_markers", []))
+        deriv = (spec.get("oracle_derivation") or spec.get("note") or "-").replace("|", "\\|")
+        lines.append(
+            f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{kind}` | `{origin}` | {oracle_repr} | {deriv} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1536,6 +1638,11 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(derived, ensure_ascii=True, indent=2) + "\n",
             encoding="utf-8",
         )
+        if (args.corpus / "baseline-aef3f4f8.tsv").is_file():
+            (args.corpus / "ORACLE_AUDIT.md").write_text(
+                render_oracle_audit_markdown(derived),
+                encoding="utf-8",
+            )
         print(
             f"conformance: initialized {len(derived['probes'])} probes and "
             f"{len(derived['programs'])} programs in {args.expectations}"

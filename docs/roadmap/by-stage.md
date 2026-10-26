@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：main 1b0f2aa9（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 细化层 when 首片 + PR #172 + PR #179 local24 Stage A）· Guide v0.46 · 更新：2026-10-26 · 其他视图：[按领域](by-area.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
+基线：main 8b656340（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 + PR #181/#182 强 oracle 审计与章节映射 + PR #183 shape4 Stage A）· Guide v0.46 · 更新：2026-10-27 · 其他视图：[按领域](by-area.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
 
 **v1 的定义**：能写真实命令行工具的语言：单进程、同步 IO；被接受的程序内存安全、资源确定性释放；合法程序要么正确运行，要么得到明确的“未实现”诊断；AArch64 macOS 与 x86_64 Linux glibc。
 
@@ -25,7 +25,7 @@ v1 范围内 80 项（必做 71，其中已交付 37）；X 阶段只列边界�
 
 ## 最近一次实测
 
-口径：2026-10-26 · main 1b0f2aa9 · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 实测与双宿主 CI 门禁）
+口径：2026-10-27 · main 8b656340 · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 实测与双宿主 CI 门禁）
 
 | 指标 | 结果 |
 |---|---|
@@ -182,7 +182,7 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
 | ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | v1 必做 | 验收、发布与文档 | — | 6 | — | 源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前两模式一致均为 known_unimplemented（0 / 6 可运行）。另设第七个线程程序验收 T1，不计入 v1.0 硬门槛。 |
-| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | — | V2 前三片已落地：conformance/expectations.json + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁，并完成 Guide 01–13 章节归属映射（guide_chapter）、逐探针语义推导（oracle_derivation）及前端错误码目录（diagnostic.rs）交叉核验（154 probe 能力通过 123/154，两模式差异 0，内部错误 0）。后续待清零 31 个 known_unimplemented 并补齐每章正反例。 |
+| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | — | V2 前五片已落地：conformance/expectations.json + conformance/ORACLE_AUDIT.md + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁，覆盖 Guide 01–13 全部 13 个规范章节归属映射（guide_chapter）、逐探针语义推导账本（oracle_derivation）及前端错误码目录（diagnostic.rs）交叉核验（154 probe 能力通过 123/154，两模式差异 0，内部错误 0）。后续待清零 31 个 known_unimplemented 并补齐每章正反例。 |
 | ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与六个验收程序 | v1 必做 | 安全验证 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) | — |
 | ☐ 未开始 | V4 | M4b 随机生成扩展到 E3 之后的通用 lowering | v1 建议 | 安全验证 | — | 4 | [0269](../archive/specs/0269-generated-resource-programs.md) [native-safety-validation](../proposals/native-safety-validation.md) | — |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | v1 必做 | 验收、发布与文档 | — | — | — | README 与 tour 已于 10-15 按实测改写。 |

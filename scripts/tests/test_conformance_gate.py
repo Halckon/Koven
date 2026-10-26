@@ -559,6 +559,16 @@ sys.exit(1)
                         f"probe {name} references unregistered frontend diagnostic code {code}",
                     )
 
+        # 6. Verify all 13 normative Guide chapters are covered and ORACLE_AUDIT.md is in sync
+        covered_chapters = {spec["guide_chapter"] for spec in loaded["probes"].values()}
+        self.assertEqual(covered_chapters, set(gate.VALID_GUIDE_CHAPTERS))
+        audit_md_path = repo_corpus / "ORACLE_AUDIT.md"
+        self.assertTrue(audit_md_path.is_file())
+        self.assertEqual(
+            audit_md_path.read_text(encoding="utf-8"),
+            gate.render_oracle_audit_markdown(loaded),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
