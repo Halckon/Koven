@@ -25,6 +25,16 @@ pub(super) enum DropExpressionUse {
 pub(super) enum PlannerDropPoint {
     AfterExpression(ExpressionId),
     AfterBinaryOperands(ExpressionId),
+    WhenComparisonCompleted {
+        control: ExpressionId,
+        entry: usize,
+        alternative: usize,
+    },
+    WhenAlternativeNoMatch {
+        control: ExpressionId,
+        entry: usize,
+        alternative: usize,
+    },
     AfterStatement(StatementId),
     CallReturn(ExpressionId),
     ControlTransfer(ExpressionId),
@@ -51,6 +61,24 @@ impl PlannerDropPoint {
         match self {
             Self::AfterExpression(id) => UnitDropPoint::AfterExpression(expression(id)),
             Self::AfterBinaryOperands(id) => UnitDropPoint::AfterBinaryOperands(expression(id)),
+            Self::WhenComparisonCompleted {
+                control,
+                entry,
+                alternative,
+            } => UnitDropPoint::WhenComparisonCompleted {
+                control: expression(control),
+                entry,
+                alternative,
+            },
+            Self::WhenAlternativeNoMatch {
+                control,
+                entry,
+                alternative,
+            } => UnitDropPoint::WhenAlternativeNoMatch {
+                control: expression(control),
+                entry,
+                alternative,
+            },
             Self::AfterStatement(id) => UnitDropPoint::AfterStatement(statement(id)),
             Self::CallReturn(id) => UnitDropPoint::CallReturn(expression(id)),
             Self::ControlTransfer(id) => UnitDropPoint::ControlTransfer(expression(id)),
@@ -123,6 +151,10 @@ impl PlannerConditionalReceiverDropFact {
 }
 
 impl PlannerDropFact {
+    pub(super) const fn target(self) -> PlannerDropTarget {
+        self.target
+    }
+
     pub(super) const fn point(self) -> PlannerDropPoint {
         self.point
     }

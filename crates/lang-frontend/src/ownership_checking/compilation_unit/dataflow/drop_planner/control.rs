@@ -20,6 +20,11 @@ impl DropPlanner<'_, '_> {
         entries: &[WhenEntry],
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        if let Some(subject) = subject
+            && self.is_string_expression(subject)
+        {
+            return self.string_when(id, subject, entries, state);
+        }
         let usage = self.control_result_usage(id);
         if let Some(subject) = subject {
             if !self.expression(subject, DropExpressionUse::Read, state)? {

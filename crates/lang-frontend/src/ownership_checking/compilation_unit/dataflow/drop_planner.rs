@@ -11,6 +11,7 @@ mod pending_call;
 mod resource;
 mod short_circuit;
 mod string;
+mod string_when;
 
 use std::collections::BTreeMap;
 
@@ -1430,6 +1431,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             | PlannerDropPoint::BeforeReplacement(expression)
             | PlannerDropPoint::AfterReplacement(expression)
             | PlannerDropPoint::BranchExit {
+                control: expression,
+                ..
+            }
+            | PlannerDropPoint::WhenComparisonCompleted {
+                control: expression,
+                ..
+            }
+            | PlannerDropPoint::WhenAlternativeNoMatch {
                 control: expression,
                 ..
             }
