@@ -131,6 +131,11 @@ impl Builder<'_, '_> {
                 else_branch,
                 ..
             } => self.if_expression(expression, condition, then_branch, else_branch, span),
+            Expression::When {
+                subject: None,
+                entries,
+                ..
+            } => self.when_expression(expression, &entries, span),
             Expression::Call { arguments, .. } => self.call(expression, &arguments, span),
             Expression::Assignment {
                 target,
@@ -451,7 +456,7 @@ impl Builder<'_, '_> {
     }
 
     /// Lowers a branch body; `None` when it diverges, else its tail value and expression.
-    fn branch_value(
+    pub(super) fn branch_value(
         &mut self,
         branch: StatementId,
     ) -> Result<Option<Option<(Slot, ExpressionId)>>, LoweringError> {

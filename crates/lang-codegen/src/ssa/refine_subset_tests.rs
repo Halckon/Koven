@@ -42,6 +42,7 @@ fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
 fn nullable_functions_inside_the_subset_are_routed() {
     for source in [
         "fun f(own x: Int?): Int { if (x != null) { return x }; return 0 }",
+        "fun f(own x: Int?): Int = when { x == null -> 0\n else -> 1 }",
         "fun f(c: Boolean): Boolean? = if (c) true else null",
         "fun f(own s: String?): Unit { if (s != null && s == \"a\") { println(s) } }",
         "class Node(val v: Int, val name: String)\n\
@@ -62,8 +63,8 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
     for (reason, source) in [
         ("no nullable", "fun f(own x: Int): Int = x + 1"),
         (
-            "when",
-            "fun f(own x: Int?): Int = when { x == null -> 0\n else -> 1 }",
+            "when with a subject",
+            "fun f(own x: Int?): Int = when (x) { null -> 0\n else -> 1 }",
         ),
         (
             "break",

@@ -1,0 +1,59 @@
+# SPEC-0356: E3 `when` 家族迁入所有权细化层
+
+> **性质**：实施合同 · **状态**：in-progress · **读取时机**：评审或实施路线图 E3/N02 的 `when` lowering 时 · **唯一真源**：本片目标、范围与验收；语义以 Guide 为准，长期决定以 ADR-0032 为准
+
+| 字段 | 值 |
+|---|---|
+| 状态 | in-progress |
+| Goal ID | `KOV-P4-0356` |
+| 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
+| 语言规范 | [Guide v0.46 `when`](../../guide/06-blocks-control-flow.md#when)、[`when` 条件、覆盖域与重复](../../guide/06-blocks-control-flow.md#when-条件覆盖域与重复) |
+| 批准依据 | 2026-10-26 用户选择：E3 下一片为 `when` 家族；PR #172 第 9 个源码的阻塞以“细化层支持无 subject 的 when”解决，#172 依赖本片 |
+| 基线 | main `adddef8d` |
+| 分支 | `feature/spec-0356-refine-when` |
+| 前置 | [SPEC-0350](../../archive/specs/0350-ownership-refinement-nullable-pilot.md)（细化层首片）、[ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md) |
+| 阻塞项 | 无 |
+| 语言语义变更 | 否 |
+
+## 1. Goal
+
+`when` 在细化层里按 Guide 语义 lowering：条件按源码顺序逐个测试，首个命中的 entry 进入 body；
+每个命中边消费 `WhenAlternativeMatch` 析构点，每个 body 消费其 `BranchExit`，语句位置无 `else`
+的 `when` 在落空边消费 `BranchExit(entries.len())`。分步交付：
+
+| 步 | 范围 | 关闭的用例 |
+|---|---|---|
+| 1 | 无 subject、全部条件为 Boolean 表达式的 `when`（语句与值位置，含逗号多条件）；Copyable Borrow nullable 参数的 null 比较 | PR #172 `later_argument_transfer_…` 第 9 个源码 |
+| 2 | 有 subject：整数/Boolean/String 等值条件、`in`/`!in` 整数 Range | p08、p41、v16、v19 |
+| 3 | enum subject 的 `is`/`!is` 与无 payload case 等值，含 enum 方法内 `when (this)` | p50；E2 的 enum when 回退 |
+
+## 2. 设计约束
+
+- 只消费既有事实：条件的 typed 结果、null 比较与非空 use、ownership drop 点；不从 AST 拼写推断。
+- 条件仍走细化层的分支形式（`&&`、`||`、`!`、null 比较）；首步不在 `when` 条件上建立 MoveOnly
+  proof view，含此类条件的函数留在旧路径。
+- 值位置的 `when` 必须有 `else`（首步不做封闭域穷尽）；分支值按 frontend 批准的 `T → T?` 适配后
+  汇入结果槽。
+- 不新增按“类型 × 控制流”拆分的模块；子集外的 `when` 继续由现有路径处理，直到对应步骤完成。
+
+## 3. 验收标准
+
+- [x] 步 1：`ssa/refine_tests.rs` 的两项 native 运行——语句 `when` 后经 proof view 的调用、值位置
+  `when` 的逗号多条件与语句 `when` 落空边；`refine_subset_tests` 把无 subject `when` 列为进入子集、
+  有 subject `when` 列为子集外。
+- [x] 步 1：PR #172 的 `later_argument_transfer_ends_earlier_temporary_borrow_before_drop` 在合入本片后
+  15 个源码、30 个 root 全部通过（本地 Linux）。
+- [ ] 步 2：p08、p41、v16、v19 在单文件与 project 两种模式通过，矩阵无回退、两模式差异为 0。
+- [ ] 步 3：p50 通过；E2 的 enum when 回退项关闭或逐项记录剩余原因。
+- [ ] 受影响目标定向测试、fmt、clippy、尺寸护栏、`check_docs.py` 通过；双宿主 CI 以 PR 为准。
+
+## 4. 非目标
+
+- subject 为 MoveOnly 的消费式匹配（路线图 L7）、`when` 封闭域穷尽之外的新诊断；
+- Elvis、safe call、`as?`；frontend 新事实。若发现事实缺口，停下另开 frontend Spec。
+
+## 5. 实施记录
+
+| 步 | 提交 | 内容 |
+|---|---|---|
+| 1 | 本分支 | `refine/build/when.rs`；子集接受无 subject `when` 并放行 `WhenAlternativeMatch` 析构点；Copyable Borrow nullable 参数的 null 比较先经 loan 读出副本 |

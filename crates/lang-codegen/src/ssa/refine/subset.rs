@@ -11,7 +11,7 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::{
         AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, NameMarker,
-        PrefixOperator, Statement,
+        PrefixOperator, Statement, WhenCondition, WhenEntry,
     },
     type_checking::{
         BuiltinType, Copyability, NominalKind, ParameterMode, UnitCallTarget, UnitExpressionId,
@@ -332,6 +332,11 @@ impl Checker<'_, '_> {
                     && else_branch.is_none_or(|branch| self.statement(branch))
                     && (self.unit(ty) || else_branch.is_some())
             }
+            Expression::When {
+                subject: None,
+                entries,
+                ..
+            } => self.subjectless_when(ty, &entries),
             Expression::Call { arguments, .. } => {
                 let values: Vec<_> = arguments.iter().map(|argument| argument.value).collect();
                 self.call(expression) && self.arguments(expression, &values)
@@ -472,6 +477,20 @@ impl Checker<'_, '_> {
             }
             _ => self.expression(expression),
         }
+    }
+
+    /// Boolean alternatives tested in order; a value-context `when` needs `else`.
+    fn subjectless_when(&mut self, ty: UnitTypeId, entries: &[WhenEntry]) -> bool {
+        let has_else = entries.iter().any(|entry| entry.else_span.is_some());
+        (self.unit(ty) || has_else)
+            && entries.iter().all(|entry| {
+                entry.else_span.is_some() == entry.conditions.is_empty()
+                    && entry.conditions.iter().all(|condition| {
+                        matches!(condition, WhenCondition::Expression(condition)
+                            if self.condition(*condition, false))
+                    })
+                    && self.statement(entry.body)
+            })
     }
 
     fn call(&self, expression: ExpressionId) -> bool {
@@ -645,8 +664,7 @@ impl Checker<'_, '_> {
                 | UnitDropPoint::AfterBinaryOperands(expression) => {
                     !self.branch_form.contains(&expression)
                 }
-                UnitDropPoint::WhenAlternativeMatch { .. }
-                | UnitDropPoint::LambdaEntry(_)
+                UnitDropPoint::LambdaEntry(_)
                 | UnitDropPoint::BeforeReplacement(_)
                 | UnitDropPoint::AfterReplacement(_) => false,
                 _ => true,

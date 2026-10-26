@@ -3,6 +3,7 @@
 mod condition;
 mod expression;
 mod heap;
+mod when;
 
 use std::collections::{BTreeMap, BTreeSet};
 
