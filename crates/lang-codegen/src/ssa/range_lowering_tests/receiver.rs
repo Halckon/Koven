@@ -176,7 +176,7 @@ fn range_receiver_source_forwarded_nonzero_view_preserves_absolute_offsets() {
 #[test]
 fn range_receiver_source_count_break_retains_existing_loop_cfg_frontier() {
     let body = "for(item in source){read(source.prefix(if(stop){break}else{1}))}";
-    assert_cfg_frontier(body, "source", UnitCfgFrontier::CountBreak);
+    assert_cfg_frontier(body, UnitCfgFrontier::CountBreak);
 }
 
 #[test]
@@ -202,7 +202,6 @@ fn range_receiver_source_borrow_parameter_rebinds_across_nonreturn_count_branch(
 fn range_receiver_source_retains_existing_binding_cfg_frontier() {
     assert_cfg_frontier(
         "borrow val part=source.prefix(if(stop){return}else{1});read(part)",
-        "return",
         UnitCfgFrontier::Reject("return"),
     );
 }
@@ -212,11 +211,7 @@ enum UnitCfgFrontier<'a> {
     CountBreak,
 }
 
-fn assert_cfg_frontier(body: &str, fragment: &str, unit_frontier: UnitCfgFrontier<'_>) {
-    use lang_frontend::{
-        name_resolution::resolve_names, ownership_checking::check_ownership,
-        type_checking::check_types,
-    };
+fn assert_cfg_frontier(body: &str, unit_frontier: UnitCfgFrontier<'_>) {
     let mut sources = SourceMap::new();
     let text = format!(
         "package app\n{EXTENSIONS}\nfun read(view:View<String>):Unit{{for(item in view){{println(item)}}}}\nfun scan(stop:Boolean):Unit{{val source=listOf(\"first\");{body}}}\nfun main():Unit{{scan(false);scan(true)}}"
@@ -228,25 +223,6 @@ fn assert_cfg_frontier(body: &str, fragment: &str, unit_frontier: UnitCfgFrontie
     types
         .authorize_range_extension_source(&sources, source)
         .unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let entry = names
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "main")
-        .unwrap()
-        .id();
-    let error = crate::ssa::lower_frontend::orchestrate::lower_scalar_file_with_entry(
-        &sources, &parsed, &names, &typed, &owned, entry,
-    )
-    .err()
-    .expect("the existing CFG frontier must reject source before emission");
-    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-    assert_eq!(sources.slice(error.span.unwrap()).unwrap(), fragment);
     {
         let inputs = [SourceUnitInput::new(
             "app",

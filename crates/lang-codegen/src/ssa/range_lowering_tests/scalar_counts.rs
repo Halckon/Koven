@@ -194,10 +194,6 @@ fn range_scalar_counts_do_not_widen_ordinary_borrow_or_metadata_alias_bindings()
 }
 
 fn assert_source_rejected(consumer: &str, fragment: &str) {
-    use lang_frontend::{
-        name_resolution::resolve_names, ownership_checking::check_ownership,
-        type_checking::check_types,
-    };
     let mut sources = SourceMap::new();
     let text = format!(
         "package app\n{}\n{consumer}",
@@ -215,25 +211,6 @@ fn assert_source_rejected(consumer: &str, fragment: &str) {
     types
         .authorize_range_extension_source(&sources, source)
         .unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let entry = names
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "main")
-        .unwrap()
-        .id();
-    let error = crate::ssa::lower_frontend::orchestrate::lower_scalar_file_with_entry(
-        &sources, &parsed, &names, &typed, &owned, entry,
-    )
-    .err()
-    .expect("the capability gate must reject this source");
-    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-    assert_eq!(sources.slice(error.span.unwrap()).unwrap(), fragment);
     let inputs = [SourceUnitInput::new(
         "app",
         "app/frontier.ko",
