@@ -145,7 +145,7 @@ subject snapshot ABI、旧 checker 修复、大范围模块抽取、无关路线
 
 精确 Draft PR head 发布后执行既有 stage 的 `basic_unit_ownership` 完整 target（本片
 `string_when::` 16 项），及既有 codegen lib 中
-`unit_lower_when_tests::string_when_comparison_facts_are_explicitly_rejected_until_consumed`。
+`ssa::unit_lower_when_tests::string_when_comparison_facts_are_explicitly_rejected_until_consumed`。
 双宿主现有完整 codegen、CLI、所选 frontend gates 继续执行；不得把本片新增事实测试当成
 p41 native 释放次数或 SSA 成功证明。现有 `multifile_constant_ownership`、
 `multifile_ownership_checking`、既有 String 二元事实所在套件

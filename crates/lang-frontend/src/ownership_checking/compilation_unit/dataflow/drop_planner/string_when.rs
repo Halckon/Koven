@@ -2,6 +2,9 @@
 use super::*;
 use crate::parser::{WhenCondition, WhenEntry};
 
+/// Source-order (entry, alternative, normalized expression) candidate inventory.
+type StringWhenCandidates = Vec<(usize, usize, ExpressionId)>;
+
 impl DropPlanner<'_, '_> {
     fn ungroup_string_when(
         &self,
@@ -19,7 +22,7 @@ impl DropPlanner<'_, '_> {
         &self,
         subject: ExpressionId,
         entries: &[WhenEntry],
-    ) -> Result<Option<Vec<(usize, usize, ExpressionId)>>, OwnershipCheckingError> {
+    ) -> Result<Option<StringWhenCandidates>, OwnershipCheckingError> {
         let subject = self.ungroup_string_when(subject)?;
         let node = self.checker.parsed.ast().expressions().get(subject)?;
         let eligible = match node.payload() {
