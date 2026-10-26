@@ -1,6 +1,7 @@
 //! Read-only identity assertions for five direct ordinary nullable while sources.
 use crate::ssa::model::{
-    Definition, EntityId, EntityType, LoanKind, Operation, Program, SsaTypeKind, TerminatorKind,
+    Definition, EntityId, EntityType, Function, FunctionId, LoanKind, Module, Operation, Program,
+    SsaTypeKind, TerminatorKind,
 };
 
 pub(super) fn assert_direct_proof(program: &Program, case: usize) {
@@ -9,6 +10,14 @@ pub(super) fn assert_direct_proof(program: &Program, case: usize) {
 
 pub(super) fn assert_unit_direct_proof(program: &Program, case: usize) {
     assert_proof(program, case, true);
+}
+
+pub(super) fn assert_memory_unit_direct_proof(program: &Program, entry: FunctionId, case: usize) {
+    let module = only(program.modules.iter());
+    let function = module
+        .function(entry)
+        .expect("same-analysis returned entry");
+    assert_function_proof(module, function, case, true);
 }
 
 /// Direct sources whose unit `entry` lies in the refinement subset: the `return` source
@@ -37,6 +46,10 @@ fn assert_proof(program: &Program, case: usize, unit: bool) {
             function.name == "entry"
         }
     }));
+    assert_function_proof(module, function, case, unit);
+}
+
+fn assert_function_proof(module: &Module, function: &Function, case: usize, unit: bool) {
     let header = only(function.blocks.iter().filter(|block| {
         matches!(
             block.terminator.as_ref().map(|term| &term.kind),
