@@ -488,8 +488,8 @@ fn range_receiver_named_root_short_borrow_cleans_after_consumer_and_return() {
     }
 }
 
-// Keep the historical Single/project-key observations until exact-head CI proves
-// this original-source replacement, including all three concrete roots.
+// MemoryDocument Unit preserves the original Single source layout and all three
+// concrete roots; the project-key Unit arm remains above.
 fn assert_memory_cfg_frontier(text: &str, frontier: &UnitCfgFrontier<'_>) {
     use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
     use lang_frontend::{

@@ -298,7 +298,7 @@ fn range_scalar_counts_selected_boolean_short_circuit_local() {
     }
 }
 
-// Add the complete original-source Unit contract without retiring either old arm.
+// MemoryDocument Unit preserves the original Single layout; project-key Unit remains.
 fn assert_memory_source_rejected(text: &str, fragment: &str) {
     use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
     use lang_frontend::{
