@@ -146,7 +146,7 @@ subject snapshot ABI、旧 checker 修复、大范围模块抽取、无关路线
 ## 7. CI 清单与交接
 
 精确 Draft PR head 发布后执行既有 stage 的 `basic_unit_ownership` 完整 target（本片
-`string_when::` 17 项），及既有 codegen lib 中
+`string_when::` 19 项），及既有 codegen lib 中
 `ssa::unit_lower_when_tests::string_when_comparison_facts_are_explicitly_rejected_until_consumed`。
 双宿主现有完整 codegen、CLI、所选 frontend gates 继续执行；不得把本片新增事实测试当成
 p41 native 释放次数或 SSA 成功证明。现有 `multifile_constant_ownership`、
@@ -162,7 +162,7 @@ p41 native 释放次数或 SSA 成功证明。现有 `multifile_constant_ownersh
 | 项目 | 结果 |
 |---|---|
 | main / 分支编号 / open PR 新鲜读取 | 2026-10-26：main 为上述 SHA，远端 035x 最高0356，无0357；open PR 为162/107/64 |
-| 生产实现与测试源码 | 已编写literal首核、17项公开Unit事实/前置拒绝测试、1项真实producer inventory破坏负控与1项consumer拒绝测试；尚未动态验证 |
+| 生产实现与测试源码 | 已编写literal首核、19项公开Unit事实/前置拒绝测试、1项真实producer inventory破坏负控与1项consumer拒绝测试；尚未动态验证 |
 | 本地 Cargo/build/check/clippy/test/native/list | 均未执行；动态证据限发布后 exact Draft PR CI |
 | 静态检查 | 官方定向rustfmt、docs（788文件）、size、diff通过；不证明编译或行为正确 |
 | 发布/Ready/合并 | 未执行；无此阶段授权 |
@@ -193,6 +193,14 @@ constant拒绝与Borrow类型/来源/晚释放断言不变。
 
 第三项矩阵的 `items[0]` 源码原本触发非Copyable容器元素移动的L0136，不能要求无诊断再进入
 String when deferred。原源码逐字保留为独立前置拒绝测试，双source精确核primary55..63、
-label20..25与不可validate；field、borrow-result call、插值仍各自严格要求本片deferred。
+label20..25与不可validate；当轮field、borrow-result call、插值仍组合要求本片deferred。
 首轮矩阵在field之后被index失败打断，后两项当时未到达，不计通过。没有放宽成功helper或
 修改生产检查器；本次测试/Spec修正仍需新exact PR CI。
+
+第四头 `55f7ea1a07ee447796d9bf907910682e6c36759c` 的
+[CI40384594072](https://github.com/Halckon/Koven/actions/runs/40384594072) 两宿主公开17项中
+16项通过，组合测试在borrow-result call被既有L0164拒绝；插值项尚未到达，不计通过。
+现将原三源码逐字拆为独立测试：field与插值保留无诊断、本片deferred及不可validate断言；
+borrow-result call保留为前置L0164负控，双source精确核primary115..128（`view(subject)`）、
+label37..43（`borrow`）、typed无诊断及不可validate。不把尚无caller continuation证明的输入
+声称为已到达planner的deferred覆盖。成功helper与生产检查不变；19项公开测试仍待新头CI。

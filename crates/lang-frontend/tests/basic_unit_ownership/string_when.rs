@@ -489,21 +489,33 @@ fn non_string_and_subjectless_controls_keep_their_existing_facts() {
 }
 
 #[test]
-fn projected_borrow_result_and_interpolating_forms_remain_deferred() {
-    for body in [
+fn projected_subject_remains_deferred() {
+    let (_, owned) = analyze(
         "class Holder(val text: String)\nfun entry(holder: Holder): Unit { when (holder.text) { \"early\" -> {} } }",
-        "fun view(subject: String): borrow String from subject = subject\nfun entry(subject: String): Unit { when (view(subject)) { \"early\" -> {} } }",
+        false,
+    );
+    assert!(
+        owned
+            .deferred()
+            .iter()
+            .any(|fact| fact.reason() == OwnershipDeferredReason::StringWhenComparisonLifetime)
+    );
+    assert!(owned.validate().is_err());
+}
+
+#[test]
+fn interpolating_candidate_remains_deferred() {
+    let (_, owned) = analyze(
         "fun entry(subject: String): Unit { when (subject) { \"${subject}\" -> {} } }",
-    ] {
-        let (_, owned) = analyze(body, false);
-        assert!(
-            owned
-                .deferred()
-                .iter()
-                .any(|fact| fact.reason() == OwnershipDeferredReason::StringWhenComparisonLifetime)
-        );
-        assert!(owned.validate().is_err());
-    }
+        false,
+    );
+    assert!(
+        owned
+            .deferred()
+            .iter()
+            .any(|fact| fact.reason() == OwnershipDeferredReason::StringWhenComparisonLifetime)
+    );
+    assert!(owned.validate().is_err());
 }
 
 #[test]
@@ -873,5 +885,56 @@ fn index_subject_preserves_existing_pre_admission_l0136() {
     assert!(
         owned.validate().is_err(),
         "an illegal element move cannot publish owned capability"
+    );
+}
+
+#[test]
+fn borrow_result_subject_preserves_existing_pre_admission_l0164() {
+    use lang_frontend::diagnostic::DiagnosticDetail;
+    // The unchanged borrow-result input needs a caller continuation proof before
+    // a validated when plan; it is not a no-diagnostic deferred fixture.
+    let (snapshot, types) = fixture_sources(
+        "fun view(subject: String): borrow String from subject = subject\nfun entry(subject: String): Unit { when (view(subject)) { \"early\" -> {} } }",
+        &["a", "b"],
+    );
+    let inputs = snapshot.inputs();
+    let names = snapshot.validated_names().unwrap();
+    let typed = check_compilation_unit_types(snapshot.sources(), &inputs, names, &types).unwrap();
+    assert!(
+        typed.diagnostics().is_empty(),
+        "type admission precedes the ownership diagnostic"
+    );
+    let (_, owned) =
+        analyze_basic_unit_ownership(snapshot.sources(), &inputs, names, &types, typed)
+            .unwrap()
+            .into_result()
+            .unwrap();
+    assert_eq!(owned.diagnostics().len(), 2);
+    for (diagnostic, source) in owned
+        .diagnostics()
+        .iter()
+        .zip(snapshot.names().source_units())
+    {
+        assert_eq!(diagnostic.code().to_string(), "L0164");
+        let span = diagnostic.primary_span();
+        assert_eq!(span.source_id(), source.resolution().source_id());
+        assert_eq!((span.start(), span.end()), (115, 128));
+        assert_eq!(snapshot.sources().slice(span).unwrap(), "view(subject)");
+        let labels: Vec<_> = diagnostic
+            .details()
+            .iter()
+            .filter_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => Some(label.span()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(labels.len(), 1);
+        assert_eq!(labels[0].source_id(), span.source_id());
+        assert_eq!((labels[0].start(), labels[0].end()), (37, 43));
+        assert_eq!(snapshot.sources().slice(labels[0]).unwrap(), "borrow");
+    }
+    assert!(
+        owned.validate().is_err(),
+        "an unproven borrow-result continuation cannot publish owned capability"
     );
 }
