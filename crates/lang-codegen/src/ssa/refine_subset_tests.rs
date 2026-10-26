@@ -43,6 +43,8 @@ fn nullable_functions_inside_the_subset_are_routed() {
     for source in [
         "fun f(own x: Int?): Int { if (x != null) { return x }; return 0 }",
         "fun f(own x: Int?): Int = when { x == null -> 0\n else -> 1 }",
+        "fun f(own x: Int?): Int { while (x != null) { break }; var i = 0\n\
+         loop { i = i + 1; if (i > 2) break else continue }; return i }",
         "fun f(c: Boolean): Boolean? = if (c) true else null",
         "fun f(own s: String?): Unit { if (s != null && s == \"a\") { println(s) } }",
         "class Node(val v: Int, val name: String)\n\
@@ -67,8 +69,8 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "fun f(own x: Int?): Int = when (x) { null -> 0\n else -> 1 }",
         ),
         (
-            "break",
-            "fun f(own x: Int?): Int { while (x != null) { break }; return 0 }",
+            "lambda",
+            "fun f(own x: Int?): Int { val g = { 1 }; return 0 }",
         ),
         (
             "MoveOnly Borrow parameter",

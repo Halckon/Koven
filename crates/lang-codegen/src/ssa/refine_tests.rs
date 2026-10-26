@@ -294,3 +294,25 @@ fn subjectless_when_value_tests_alternatives_in_order() {
         )
     );
 }
+
+#[test]
+fn loop_break_and_continue_keep_the_outer_proof_view() {
+    let source = r#"class Node(val v: Int)
+    fun outer(node: Node, own result: Int): Unit { if (node.v == result) { println("same") } }
+    fun test(own subject: Node?, n: Int): Unit {
+        if (subject != null) {
+            var i = 0
+            loop { i = i + 1; if (i < n) continue else break }
+            println("loop")
+            while (i > 0) { i = i - 1; if (i == 1) { continue }; outer(subject, i) }
+            outer(subject, 5)
+        }
+    }
+    fun main(): Unit { test(Node(5), 3); test(null, 3) }"#;
+    let (_, routed) = super::refine::observe_routing(|| render_branching(source));
+    assert!(
+        routed.iter().any(|name| name.starts_with("koven.p.test.d")),
+        "{routed:?}"
+    );
+    counted(source, 1, b"loop\nsame\n");
+}

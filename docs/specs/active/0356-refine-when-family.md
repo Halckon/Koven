@@ -23,7 +23,7 @@
 
 | 步 | 范围 | 关闭的用例 |
 |---|---|---|
-| 1 | 无 subject、全部条件为 Boolean 表达式的 `when`（语句与值位置，含逗号多条件）；Copyable Borrow nullable 参数的 null 比较 | PR #172 `later_argument_transfer_…` 第 9 个源码 |
+| 1 | 无 subject、全部条件为 Boolean 表达式的 `when`（语句与值位置，含逗号多条件）；同时补齐 #172 需要的 `loop`、`break`、`continue` 与全分支发散的 `if`；Copyable Borrow nullable 参数的 null 比较 | PR #172 `later_argument_transfer_…` 第 9–12 个源码 |
 | 2 | 有 subject：整数/Boolean/String 等值条件、`in`/`!in` 整数 Range | p08、p41、v16、v19 |
 | 3 | enum subject 的 `is`/`!is` 与无 payload case 等值，含 enum 方法内 `when (this)` | p50；E2 的 enum when 回退 |
 
@@ -35,12 +35,14 @@
 - 值位置的 `when` 必须有 `else`（首步不做封闭域穷尽）；分支值按 frontend 批准的 `T → T?` 适配后
   汇入结果槽。
 - 不新增按“类型 × 控制流”拆分的模块；子集外的 `when` 继续由现有路径处理，直到对应步骤完成。
+- `break`/`continue` 先消费其 `ControlTransfer` 析构点，再结束本轮循环里打开的 proof view；外层
+  view 跨越循环保持有效。`loop` 只有经 `break` 才有出口，出口消费 `LoopExit`。
 
 ## 3. 验收标准
 
-- [x] 步 1：`ssa/refine_tests.rs` 的两项 native 运行——语句 `when` 后经 proof view 的调用、值位置
-  `when` 的逗号多条件与语句 `when` 落空边；`refine_subset_tests` 把无 subject `when` 列为进入子集、
-  有 subject `when` 列为子集外。
+- [x] 步 1：`ssa/refine_tests.rs` 的三项 native 运行——语句 `when` 后经 proof view 的调用、值位置
+  `when` 的逗号多条件与语句 `when` 落空边、外层 proof view 下的 `loop`/`while` 与 `break`/`continue`；
+  `refine_subset_tests` 把无 subject `when` 与循环跳转列为进入子集，有 subject `when` 与 lambda 列为子集外。
 - [x] 步 1：PR #172 的 `later_argument_transfer_ends_earlier_temporary_borrow_before_drop` 在合入本片后
   15 个源码、30 个 root 全部通过（本地 Linux）。
 - [ ] 步 2：p08、p41、v16、v19 在单文件与 project 两种模式通过，矩阵无回退、两模式差异为 0。
@@ -56,4 +58,4 @@
 
 | 步 | 提交 | 内容 |
 |---|---|---|
-| 1 | 本分支 | `refine/build/when.rs`；子集接受无 subject `when` 并放行 `WhenAlternativeMatch` 析构点；Copyable Borrow nullable 参数的 null 比较先经 loan 读出副本 |
+| 1 | `4a2e90bf` 与后续提交 | `refine/build/when.rs`；子集接受无 subject `when` 并放行 `WhenAlternativeMatch` 析构点；`loop`、`break`、`continue` 与全分支发散的 `if`；Copyable Borrow nullable 参数的 null 比较先经 loan 读出副本 |

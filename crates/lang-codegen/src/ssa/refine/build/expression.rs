@@ -144,6 +144,8 @@ impl Builder<'_, '_> {
                 ..
             } => self.assignment(target, value, span),
             Expression::Return { value, .. } => self.return_expression(expression, value, span),
+            Expression::Break { .. } => self.loop_jump(expression, true, span),
+            Expression::Continue { .. } => self.loop_jump(expression, false, span),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
@@ -407,7 +409,7 @@ impl Builder<'_, '_> {
     ) -> Result<Lowered, LoweringError> {
         let control = self.unit(expression);
         let ty = self.expression_type(expression)?;
-        let result = if self.is_unit(ty) {
+        let result = if self.is_unit(ty) || self.is_nothing(ty) {
             None
         } else {
             Some(self.body.slot(EntityType::Value(self.ssa_type(ty, span)?)))

@@ -51,6 +51,17 @@ pub(super) struct Builder<'i, 'a> {
     pending_views: Vec<View>,
     /// Views live on the current path, innermost last.
     active_views: Vec<View>,
+    /// Enclosing loops, innermost last.
+    loops: Vec<LoopFrame>,
+}
+
+/// Jump targets of one loop; views above `views` belong to its iteration.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct LoopFrame {
+    pub(super) continue_target: BlockRef,
+    pub(super) exit: BlockRef,
+    pub(super) views: usize,
+    pub(super) broken: bool,
 }
 
 /// A shared proof view of a MoveOnly nullable binding's inner value.
@@ -78,6 +89,7 @@ pub(super) fn build(
         consumed_drops: BTreeSet::new(),
         pending_views: Vec::new(),
         active_views: Vec::new(),
+        loops: Vec::new(),
     };
     let entry = builder.body.block();
     builder.block = Some(entry);
@@ -177,6 +189,15 @@ impl Builder<'_, '_> {
             self.inputs.typed.types().get(ty),
             Some(UnitTypeKind::Builtin(
                 lang_frontend::type_checking::BuiltinType::Unit
+            ))
+        )
+    }
+
+    fn is_nothing(&self, ty: UnitTypeId) -> bool {
+        matches!(
+            self.inputs.typed.types().get(ty),
+            Some(UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::Nothing
             ))
         )
     }
@@ -493,6 +514,7 @@ impl Builder<'_, '_> {
             Statement::While {
                 condition, body, ..
             } => self.while_loop(statement, condition, body, span),
+            Statement::Loop { body, .. } => self.loop_statement(statement, body, span),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
@@ -575,7 +597,14 @@ impl Builder<'_, '_> {
         self.block = Some(header);
         self.condition(condition, body_block, exit)?;
         let mark = self.enter(body_block);
+        self.loops.push(LoopFrame {
+            continue_target: header,
+            exit,
+            views: mark,
+            broken: false,
+        });
         let reached = self.statement(loop_body)? != Lowered::Diverged;
+        self.loops.pop();
         self.leave(mark, span)?;
         if reached {
             self.goto(header, span)?;
@@ -587,5 +616,67 @@ impl Builder<'_, '_> {
             statement,
         )))?;
         Ok(Lowered::Unit)
+    }
+
+    /// `loop { body }`: its exit is reached only through `break`.
+    fn loop_statement(
+        &mut self,
+        statement: StatementId,
+        loop_body: StatementId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let header = self.body.block();
+        let exit = self.body.block();
+        self.goto(header, span)?;
+        let mark = self.enter(header);
+        self.loops.push(LoopFrame {
+            continue_target: header,
+            exit,
+            views: mark,
+            broken: false,
+        });
+        let reached = self.statement(loop_body)? != Lowered::Diverged;
+        let frame = self.loops.pop().expect("loop frame pushed above");
+        self.leave(mark, span)?;
+        if reached {
+            self.goto(header, span)?;
+        }
+        if !frame.broken {
+            self.block = None;
+            return Ok(Lowered::Diverged);
+        }
+        let mark = self.enter(exit);
+        self.leave_unclaimed(mark, span)?;
+        self.drops(UnitDropPoint::LoopExit(UnitStatementId::new(
+            self.inputs.source_unit,
+            statement,
+        )))?;
+        Ok(Lowered::Unit)
+    }
+
+    /// `break` / `continue`: the jump's drops, then the views of the loop's iteration end.
+    pub(super) fn loop_jump(
+        &mut self,
+        expression: ExpressionId,
+        is_break: bool,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
+        let frame = self
+            .loops
+            .last_mut()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        frame.broken |= is_break;
+        let frame = *frame;
+        for view in self.active_views[frame.views..].to_vec().into_iter().rev() {
+            self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
+        }
+        let target = if is_break {
+            frame.exit
+        } else {
+            frame.continue_target
+        };
+        self.terminate(RTerm::Goto(target), span)?;
+        Ok(Lowered::Diverged)
     }
 }

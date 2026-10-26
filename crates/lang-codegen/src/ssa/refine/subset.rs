@@ -32,6 +32,8 @@ struct Checker<'i, 'a> {
     branch_form: BTreeSet<UnitExpressionId>,
     /// Pilot routing gate: the function touches a nullable value.
     nullable: bool,
+    /// Enclosing `while`/`loop` statements; `break`/`continue` need one.
+    loops: usize,
 }
 
 pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
@@ -40,6 +42,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         known: inputs.parameters.iter().copied().collect(),
         branch_form: BTreeSet::new(),
         nullable: false,
+        loops: 0,
     };
     for ty in inputs
         .parameters
@@ -78,6 +81,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         known: BTreeSet::new(),
         branch_form: BTreeSet::new(),
         nullable: false,
+        loops: 0,
     };
     let Ok(item) = inputs.parsed.ast().items().get(inputs.function_item) else {
         return Vec::new();
@@ -275,12 +279,18 @@ impl Checker<'_, '_> {
         let Some(ty) = self.expression_type(expression) else {
             return false;
         };
-        // `return` is typed `Nothing`; its operand carries the value.
-        let returns = matches!(node.payload(), Expression::Return { .. })
-            && matches!(
-                self.kind(ty),
-                Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
-            );
+        // Jumps are typed `Nothing`; a `return` operand carries the value.
+        // A `Nothing`-typed `if` diverges on every branch.
+        let returns = matches!(
+            node.payload(),
+            Expression::Return { .. }
+                | Expression::Break { .. }
+                | Expression::Continue { .. }
+                | Expression::If { .. }
+        ) && matches!(
+            self.kind(ty),
+            Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
+        );
         if !self.unspecialized(expression) || !(returns || self.unit(ty) || self.storage_type(ty)) {
             return false;
         }
@@ -331,6 +341,7 @@ impl Checker<'_, '_> {
                     && self.statement(then_branch)
                     && else_branch.is_none_or(|branch| self.statement(branch))
                     && (self.unit(ty) || else_branch.is_some())
+                    && (!returns || else_branch.is_some())
             }
             Expression::When {
                 subject: None,
@@ -348,6 +359,7 @@ impl Checker<'_, '_> {
                 ..
             } => self.assignment(target) && self.expression(value),
             Expression::Return { value, .. } => value.is_none_or(|value| self.expression(value)),
+            Expression::Break { .. } | Expression::Continue { .. } => self.loops > 0,
             _ => false,
         }
     }
@@ -588,9 +600,17 @@ impl Checker<'_, '_> {
             Statement::LocalVariable { declaration } => self.local_variable(declaration),
             Statement::While {
                 condition, body, ..
-            } => self.condition(condition, true) && self.statement(body),
+            } => self.condition(condition, true) && self.loop_body(body),
+            Statement::Loop { body, .. } => self.loop_body(body),
             _ => false,
         }
+    }
+
+    fn loop_body(&mut self, body: StatementId) -> bool {
+        self.loops += 1;
+        let supported = self.statement(body);
+        self.loops -= 1;
+        supported
     }
 
     fn local_variable(&mut self, declaration: ItemId) -> bool {
