@@ -1,6 +1,7 @@
 //! 后续实参提前退出时，先结束此前实参的借用，再清理 temporary owner。
-use super::*;
+use crate::llvm::render_verified_program;
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+use crate::ssa::{model::Origin, verify::verify_program};
 use lang_frontend::name_resolution::SymbolKind;
 
 #[test]
@@ -22,38 +23,42 @@ fn later_argument_transfer_ends_earlier_temporary_borrow_before_drop() {
         "fun test(own subject: Node?): Unit { loop { outer(Node(), when (subject) { null -> 0; else -> break }) } }",
         "fun test(own subject: Node?): Unit { loop { outer(Node(), when (subject) { null -> 0; else -> continue }) } }",
     ] {
-        let analysis = analyze(&format!(
-            "class Node()\nfun outer(node: Node, own result: Int): Unit {{}}\n{body}"
-        ));
+        let source =
+            format!("class Node()\nfun outer(node: Node, own result: Int): Unit {{}}\n{body}");
+        let analysis = UnitSource::analyze("lowering.ko", &source)
+            .unwrap_or_else(|error| panic!("{body}: strict Unit admission: {error:?}"));
+        analysis.assert_frontend_clean();
         assert!(
-            analysis.parsed.diagnostics().is_empty(),
+            analysis.ownership().deferred().is_empty(),
             "{body}: {:?}",
-            analysis.parsed.diagnostics()
+            analysis.ownership().deferred()
         );
-        assert!(
-            analysis.names.diagnostics().is_empty(),
-            "{body}: {:?}",
-            analysis.names.diagnostics()
-        );
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{:?}",
-            analysis.owned.diagnostics()
-        );
-        let program = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .unwrap_or_else(|error| panic!("{body}: {error:?}"));
-        render_verified_program(&program).expect("loan-end and owner cleanup order must verify");
+        // Both original parameterized functions are roots; test has no caller.
+        for (name, original_declaration) in [
+            ("outer", "fun outer(node: Node, own result: Int): Unit {}"),
+            ("test", body),
+        ] {
+            let declaration = analysis.declaration(name, SymbolKind::Function);
+            let span = analysis.declaration_span(declaration);
+            assert_eq!(analysis.sources().slice(span), Ok(original_declaration));
+            let (program, root) = analysis
+                .lower_entry(declaration)
+                .unwrap_or_else(|error| panic!("{body}: root {name}: lowering: {error:?}"));
+            let function = program
+                .module(root.module())
+                .and_then(|module| module.function(root))
+                .expect("the real root belongs to its own lowered Program");
+            assert_eq!(function.origin, Origin::Source(span));
+            assert!(
+                !function.blocks.is_empty(),
+                "{body}: root {name} has a body"
+            );
+            verify_program(&program)
+                .unwrap_or_else(|error| panic!("{body}: root {name}: SSA: {error:?}"));
+            // Verify the full LLVM module with None native entry, not a wrapper.
+            render_verified_program(&program)
+                .unwrap_or_else(|error| panic!("{body}: root {name}: LLVM: {error:?}"));
+        }
     }
 }
 
