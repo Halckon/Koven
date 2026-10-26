@@ -36,7 +36,9 @@
   汇入结果槽。
 - 不新增按“类型 × 控制流”拆分的模块；子集外的 `when` 继续由现有路径处理，直到对应步骤完成。
 - `break`/`continue` 先消费其 `ControlTransfer` 析构点，再结束本轮循环里打开的 proof view；外层
-  view 跨越循环保持有效。`loop` 只有经 `break` 才有出口，出口消费 `LoopExit`。
+  view 跨越循环保持有效。`LoopExit` 析构在每条出口边上各自发出（条件为假的边与每个 `break`），
+  因为同一绑定可能在循环体内的某条路径上已经析构；构建器按路径记录已析构的命名 owner，
+  同一路径不重复析构。
 
 ## 3. 验收标准
 
@@ -48,6 +50,13 @@
 - [ ] 步 2：p08、p41、v16、v19 在单文件与 project 两种模式通过，矩阵无回退、两模式差异为 0。
 - [ ] 步 3：p50 通过；E2 的 enum when 回退项关闭或逐项记录剩余原因。
 - [ ] 受影响目标定向测试、fmt、clippy、尺寸护栏、`check_docs.py` 通过；双宿主 CI 以 PR 为准。
+
+步 1 更新的既有测试（仅 IR 形状，行为断言不变）：
+
+| 测试 | 原断言 | 更新原因 |
+|---|---|---|
+| `while_flow_tests::readonly_nested_contract` | 内层 `while` 继承外层 proof、只有一个 `NullableBranch` | 两种布局都进入细化层；内层条件重新测试并建立新 view，改为断言外层 view 沿每条出口边带过内层循环并支撑最后一次读取 |
+| `while_flow_tests::direct_contract`（第 3 例 `break`） | Boolean flag loan 沿 header/body/absent 传递 | 该例现由细化层 lowering，同第 4 例：未用的 flag 留在入口，无回边的 header 并入入口块 |
 
 ## 4. 非目标
 

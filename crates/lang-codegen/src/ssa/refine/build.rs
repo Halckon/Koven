@@ -53,11 +53,17 @@ pub(super) struct Builder<'i, 'a> {
     active_views: Vec<View>,
     /// Enclosing loops, innermost last.
     loops: Vec<LoopFrame>,
+    /// Named owners already dropped on the current path, and on entry to each block.
+    /// A binding can die inside a loop on one path and at its `LoopExit` on another.
+    dead: BTreeSet<UnitSymbolId>,
+    dead_block: Option<BlockRef>,
+    entry_dead: BTreeMap<BlockRef, BTreeSet<UnitSymbolId>>,
 }
 
 /// Jump targets of one loop; views above `views` belong to its iteration.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct LoopFrame {
+    pub(super) statement: UnitStatementId,
     pub(super) continue_target: BlockRef,
     pub(super) exit: BlockRef,
     pub(super) views: usize,
@@ -90,6 +96,9 @@ pub(super) fn build(
         pending_views: Vec::new(),
         active_views: Vec::new(),
         loops: Vec::new(),
+        dead: BTreeSet::new(),
+        dead_block: None,
+        entry_dead: BTreeMap::new(),
     };
     let entry = builder.body.block();
     builder.block = Some(entry);
@@ -241,7 +250,19 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))
     }
 
+    /// Loads the dead set of the block now being filled.
+    fn sync_dead(&mut self) {
+        if self.dead_block != self.block {
+            self.dead = self
+                .block
+                .and_then(|block| self.entry_dead.get(&block).cloned())
+                .unwrap_or_default();
+            self.dead_block = self.block;
+        }
+    }
+
     fn push(&mut self, op: ROp, results: Vec<Slot>, span: Span) -> Result<(), LoweringError> {
+        self.sync_dead();
         let block = self.current(span)?;
         self.body.blocks[block.0]
             .statements
@@ -257,7 +278,14 @@ impl Builder<'_, '_> {
     }
 
     fn terminate(&mut self, terminator: RTerm, span: Span) -> Result<(), LoweringError> {
+        self.sync_dead();
         let block = self.current(span)?;
+        for successor in terminator.successors() {
+            self.entry_dead
+                .entry(successor)
+                .or_default()
+                .extend(self.dead.iter().copied());
+        }
         self.body.blocks[block.0].terminator = Some((terminator, span));
         self.block = None;
         Ok(())
@@ -312,9 +340,14 @@ impl Builder<'_, '_> {
         &mut self,
         facts: &[(usize, UnitDropTarget, Span)],
     ) -> Result<(), LoweringError> {
+        self.sync_dead();
         for (_, target, span) in facts {
             let slot = match target {
                 UnitDropTarget::Named(symbol) => {
+                    if !self.dead.insert(*symbol) {
+                        // This path already dropped the owner (inside a loop it left).
+                        continue;
+                    }
                     self.end_views_of(*symbol, *span)?;
                     self.bindings.get(symbol).copied()
                 }
@@ -590,14 +623,17 @@ impl Builder<'_, '_> {
         loop_body: StatementId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        let statement = UnitStatementId::new(self.inputs.source_unit, statement);
         let header = self.body.block();
         let body_block = self.body.block();
+        let finished = self.body.block();
         let exit = self.body.block();
         self.goto(header, span)?;
         self.block = Some(header);
-        self.condition(condition, body_block, exit)?;
+        self.condition(condition, body_block, finished)?;
         let mark = self.enter(body_block);
         self.loops.push(LoopFrame {
+            statement,
             continue_target: header,
             exit,
             views: mark,
@@ -609,12 +645,16 @@ impl Builder<'_, '_> {
         if reached {
             self.goto(header, span)?;
         }
+        // The condition-false edge drops at `LoopExit` on its own path; each `break`
+        // dropped on its path before jumping to `exit`.
+        let facts = self.collect_drops(UnitDropPoint::LoopExit(statement));
+        let mark = self.enter(finished);
+        self.leave_unclaimed(mark, span)?;
+        self.emit_drops(&facts)?;
+        self.goto(exit, span)?;
+        self.finish_drops(&facts);
         let mark = self.enter(exit);
         self.leave_unclaimed(mark, span)?;
-        self.drops(UnitDropPoint::LoopExit(UnitStatementId::new(
-            self.inputs.source_unit,
-            statement,
-        )))?;
         Ok(Lowered::Unit)
     }
 
@@ -625,11 +665,13 @@ impl Builder<'_, '_> {
         loop_body: StatementId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        let statement = UnitStatementId::new(self.inputs.source_unit, statement);
         let header = self.body.block();
         let exit = self.body.block();
         self.goto(header, span)?;
         let mark = self.enter(header);
         self.loops.push(LoopFrame {
+            statement,
             continue_target: header,
             exit,
             views: mark,
@@ -641,16 +683,15 @@ impl Builder<'_, '_> {
         if reached {
             self.goto(header, span)?;
         }
+        // Every `break` already dropped at `LoopExit` on its own path.
+        let facts = self.collect_drops(UnitDropPoint::LoopExit(statement));
+        self.finish_drops(&facts);
         if !frame.broken {
             self.block = None;
             return Ok(Lowered::Diverged);
         }
         let mark = self.enter(exit);
         self.leave_unclaimed(mark, span)?;
-        self.drops(UnitDropPoint::LoopExit(UnitStatementId::new(
-            self.inputs.source_unit,
-            statement,
-        )))?;
         Ok(Lowered::Unit)
     }
 
@@ -668,8 +709,42 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         frame.broken |= is_break;
         let frame = *frame;
-        for view in self.active_views[frame.views..].to_vec().into_iter().rev() {
+        let iteration: Vec<View> = self.active_views[frame.views..]
+            .iter()
+            .rev()
+            .copied()
+            .collect();
+        for view in iteration {
             self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
+        }
+        if is_break {
+            // This path leaves the loop: owners dying at `LoopExit` drop here, ending any
+            // outer view of theirs; the views stay registered for the other paths.
+            for (_, target, fact_span) in
+                self.collect_drops(UnitDropPoint::LoopExit(frame.statement))
+            {
+                let UnitDropTarget::Named(symbol) = target else {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, fact_span));
+                };
+                if !self.dead.insert(symbol) {
+                    continue;
+                }
+                let outer: Vec<View> = self.active_views[..frame.views]
+                    .iter()
+                    .rev()
+                    .copied()
+                    .collect();
+                for view in outer {
+                    if view.symbol == symbol {
+                        self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), fact_span)?;
+                    }
+                }
+                let owner = *self
+                    .bindings
+                    .get(&symbol)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact_span))?;
+                self.push(ROp::Drop { owner }, Vec::new(), fact_span)?;
+            }
         }
         let target = if is_break {
             frame.exit
