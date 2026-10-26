@@ -99,8 +99,16 @@ impl DropPlanner<'_, '_> {
         if !continues {
             return Ok(false);
         }
-        // Required temporary obligations come from the source alternatives, not emit calls.
-        let required = self.required_string_when_drops(id, subject_drop, &candidates)?;
+        // Snapshot source-required obligations before this when adds its own protection.
+        // Literal candidates cannot mutate the subject or these outer protections.
+        let required = self.required_string_when_drops(
+            id,
+            subject,
+            subject_drop,
+            &candidates,
+            entries,
+            state,
+        )?;
         let start = self.facts.len();
         if let Some(StringOperandDrop::Temporary(expression, origin)) = subject_drop {
             self.register_pending_temporary(id, expression, origin, false, state)?;
@@ -210,29 +218,32 @@ impl DropPlanner<'_, '_> {
             self.drop_branch_exit(id, entries.len(), &mut implicit);
             exits.push(implicit);
         }
-        // No candidate can diverge in the admitted literal-only kernel. Check that every
-        // source-required temporary obligation was emitted exactly once, and no other one.
+        // No candidate can diverge in the admitted literal-only kernel. Check every
+        // source-required named/temporary obligation, including forbidden extra targets.
         let actual: Vec<_> = self.facts[start..]
             .iter()
             .copied()
-            .filter(|fact| {
-                matches!(fact.target(), PlannerDropTarget::Temporary(_))
-                    && match fact.point() {
-                        PlannerDropPoint::WhenComparisonCompleted { control, .. }
-                        | PlannerDropPoint::WhenAlternativeMatch { control, .. }
-                        | PlannerDropPoint::WhenAlternativeNoMatch { control, .. } => control == id,
-                        PlannerDropPoint::AfterExpression(expression) => {
-                            candidates.is_empty() && expression == subject
+            .filter(|fact| match fact.point() {
+                PlannerDropPoint::WhenComparisonCompleted { control, .. }
+                | PlannerDropPoint::WhenAlternativeMatch { control, .. }
+                | PlannerDropPoint::WhenAlternativeNoMatch { control, .. } => control == id,
+                PlannerDropPoint::AfterExpression(expression) => {
+                    candidates.is_empty()
+                        && expression == subject
+                        && match subject_drop {
+                            Some(StringOperandDrop::Named(symbol)) => {
+                                fact.target() == PlannerDropTarget::Named(symbol)
+                            }
+                            Some(StringOperandDrop::Temporary(expression, _)) => {
+                                fact.target() == PlannerDropTarget::Temporary(expression)
+                            }
+                            None => false,
                         }
-                        _ => false,
-                    }
+                }
+                _ => false,
             })
             .collect();
-        if actual.len() != required.len()
-            || required
-                .iter()
-                .any(|fact| actual.iter().filter(|actual| *actual == fact).count() != 1)
-        {
+        if !same_cleanup_inventory(&required, &actual) {
             return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
                 source_unit: self.checker.source_unit.index(),
                 expression: id.index(),
@@ -246,8 +257,11 @@ impl DropPlanner<'_, '_> {
     fn required_string_when_drops(
         &self,
         control: ExpressionId,
+        subject_expression: ExpressionId,
         subject: Option<StringOperandDrop>,
         candidates: &[(usize, usize, ExpressionId)],
+        entries: &[WhenEntry],
+        state: &ValueState,
     ) -> Result<Vec<PlannerDropFact>, OwnershipCheckingError> {
         let mut required = Vec::new();
         for &(entry, alternative, candidate) in candidates {
@@ -265,34 +279,84 @@ impl DropPlanner<'_, '_> {
                     .get(candidate)?
                     .span(),
             ));
-            if let Some(StringOperandDrop::Temporary(expression, origin)) = subject {
-                required.push(PlannerDropFact::new(
-                    PlannerDropPoint::WhenAlternativeMatch {
-                        control,
-                        entry,
-                        alternative,
-                    },
-                    PlannerDropTarget::Temporary(expression),
-                    origin,
-                ));
-            }
-        }
-        if let Some(StringOperandDrop::Temporary(expression, origin)) = subject {
-            let point = candidates.last().map_or(
-                PlannerDropPoint::AfterExpression(expression),
-                |&(entry, alternative, _)| PlannerDropPoint::WhenAlternativeNoMatch {
+            let live = &self.liveness.when_entry_live_in[&(control.index(), entry)];
+            if let Some(fact) = self.required_string_when_subject(
+                PlannerDropPoint::WhenAlternativeMatch {
                     control,
                     entry,
                     alternative,
                 },
-            );
-            required.push(PlannerDropFact::new(
+                subject,
+                live,
+                state,
+            ) {
+                required.push(fact);
+            }
+        }
+        let live = entries
+            .iter()
+            .enumerate()
+            .find(|(_, entry)| entry.else_span.is_some())
+            .and_then(|(entry, _)| {
+                self.liveness
+                    .when_entry_live_in
+                    .get(&(control.index(), entry))
+            })
+            .unwrap_or(&self.liveness.expression_after[control.index()]);
+        let point = candidates.last().map_or(
+            PlannerDropPoint::AfterExpression(subject_expression),
+            |&(entry, alternative, _)| PlannerDropPoint::WhenAlternativeNoMatch {
+                control,
+                entry,
+                alternative,
+            },
+        );
+        if let Some(fact) = self.required_string_when_subject(point, subject, live, state) {
+            required.push(fact);
+        }
+        Ok(required)
+    }
+
+    /// Independent expectation from the owner snapshot, continuation liveness and
+    /// existing outer protection guards. Never invokes the emitting drop path.
+    fn required_string_when_subject(
+        &self,
+        point: PlannerDropPoint,
+        subject: Option<StringOperandDrop>,
+        live: &std::collections::BTreeSet<UnitSymbolId>,
+        state: &ValueState,
+    ) -> Option<PlannerDropFact> {
+        match subject? {
+            StringOperandDrop::Temporary(expression, origin) => Some(PlannerDropFact::new(
                 point,
                 PlannerDropTarget::Temporary(expression),
                 origin,
-            ));
+            )),
+            StringOperandDrop::Named(symbol) => {
+                let owner = state.values.get(state.position(symbol)?)?;
+                if live.contains(&symbol)
+                    || !self.is_asap_owner(symbol, state)
+                    || self.borrow_source_protected(symbol, state)
+                    || state
+                        .iterations
+                        .iter()
+                        .any(|frame| frame.source_root == Some(symbol))
+                    || state
+                        .pending_borrows
+                        .iter()
+                        .any(|(_, root)| *root == symbol)
+                    || self.has_live_shared_capture(state, symbol)
+                    || state.replacements.contains(&symbol)
+                {
+                    return None;
+                }
+                Some(PlannerDropFact::new(
+                    point,
+                    PlannerDropTarget::Named(symbol),
+                    owner.origin,
+                ))
+            }
         }
-        Ok(required)
     }
 
     fn end_string_when_subject(
@@ -314,3 +378,14 @@ impl DropPlanner<'_, '_> {
         }
     }
 }
+
+/// Equality as an inventory, including cardinality; ordering remains the producer's contract.
+fn same_cleanup_inventory<T: PartialEq>(required: &[T], actual: &[T]) -> bool {
+    actual.len() == required.len()
+        && required
+            .iter()
+            .all(|fact| actual.iter().filter(|actual| *actual == fact).count() == 1)
+}
+
+#[cfg(test)]
+mod tests;

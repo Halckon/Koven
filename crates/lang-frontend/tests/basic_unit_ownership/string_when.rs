@@ -638,3 +638,179 @@ fn outer_pending_borrow_and_loop_successor_keep_named_subject_alive() {
         }
     }
 }
+
+#[test]
+fn explicit_borrow_binding_subject_preserves_origin_and_backing_owner() {
+    use lang_frontend::ownership_checking::{BorrowBindingStorage, UnitLoanTarget};
+    use lang_frontend::type_checking::{BuiltinType, UnitTypeKind};
+    let (snapshot, owned) = analyze_sources(
+        "fun view(source: String): borrow String from source = source\nfun entry(): Unit { val owner = \"kept\"\nborrow val subject = view(owner)\nwhen (subject) { \"early\" -> { println(subject) } }\nprintln(subject) }",
+        &["a"],
+    );
+    assert!(owned.clone().validate().is_ok());
+    let bindings = owned.borrow_results().bindings();
+    let [binding] = bindings else {
+        panic!("one real explicit borrow binding")
+    };
+    assert_eq!(binding.storage(), BorrowBindingStorage::BorrowedStorage);
+    let names = &snapshot.names().source_units()[0];
+    let subject = names
+        .resolution()
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.name() == "subject")
+        .unwrap();
+    let owner = names
+        .resolution()
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.name() == "owner")
+        .unwrap();
+    assert_eq!(binding.binding().source_unit(), names.source_unit());
+    assert_eq!(binding.binding().symbol(), subject.id());
+    let UnitLoanTarget::Place(origin) = binding.origin() else {
+        panic!("real backing owner place")
+    };
+    assert_eq!(origin.root().source_unit(), names.source_unit());
+    assert_eq!(origin.root().symbol(), owner.id());
+    assert!(binding.source_loan().is_some());
+    let (_, te) = standard_environments();
+    let typed = check_compilation_unit_types(
+        snapshot.sources(),
+        &snapshot.inputs(),
+        snapshot.validated_names().unwrap(),
+        &te,
+    )
+    .unwrap();
+    assert_eq!(
+        typed
+            .symbol_type(binding.binding())
+            .and_then(|ty| typed.types().get(ty)),
+        Some(&UnitTypeKind::Builtin(BuiltinType::String))
+    );
+    assert!(
+        !owned
+            .drops()
+            .iter()
+            .any(|fact| fact.target() == UnitDropTarget::Named(binding.binding()))
+    );
+    assert!(!owned.drops().iter().any(|fact| fact.target()
+        == UnitDropTarget::Named(origin.root())
+        && matches!(
+            fact.point(),
+            UnitDropPoint::WhenAlternativeMatch { .. }
+                | UnitDropPoint::WhenAlternativeNoMatch { .. }
+        )));
+    let backing_drops: Vec<_> = owned
+        .drops()
+        .iter()
+        .filter(|fact| fact.target() == UnitDropTarget::Named(origin.root()))
+        .collect();
+    assert_eq!(backing_drops.len(), 1);
+    let parsed = &snapshot.parsed_files()[0];
+    let when_end = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .find_map(|(_, node)| {
+            matches!(
+                node.payload(),
+                lang_frontend::parser::Expression::When { .. }
+            )
+            .then_some(node.span().end())
+        })
+        .unwrap();
+    let drop_span = match backing_drops[0].point() {
+        UnitDropPoint::AfterExpression(expression) | UnitDropPoint::CallReturn(expression) => {
+            parsed
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .unwrap()
+                .span()
+        }
+        UnitDropPoint::AfterStatement(statement) => parsed
+            .ast()
+            .statements()
+            .get(statement.statement())
+            .unwrap()
+            .span(),
+        other => panic!("backing owner must end at the later use/scope: {other:?}"),
+    };
+    assert!(drop_span.end() > when_end);
+}
+
+#[test]
+fn borrowed_parameter_subject_has_public_shared_binding_identity() {
+    use lang_frontend::ownership_checking::OwnershipBindingKind;
+    let (snapshot, owned) = analyze_sources(
+        "fun entry(subject: String): Unit { when (subject) { \"early\" -> {} } }",
+        &["a"],
+    );
+    let [binding] = owned.bindings() else {
+        panic!("one actual parameter binding")
+    };
+    assert_eq!(binding.kind(), OwnershipBindingKind::Shared);
+    let names = &snapshot.names().source_units()[0];
+    let subject = names
+        .resolution()
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.name() == "subject")
+        .unwrap();
+    assert_eq!(binding.symbol().source_unit(), names.source_unit());
+    assert_eq!(binding.symbol().symbol(), subject.id());
+    assert!(
+        !owned
+            .drops()
+            .iter()
+            .any(|fact| fact.target() == UnitDropTarget::Named(binding.symbol()))
+    );
+    assert!(owned.validate().is_ok());
+}
+
+#[test]
+fn zero_comparison_named_subject_inventory_uses_only_its_real_read_point() {
+    use lang_frontend::{parser::Expression, type_checking::UnitExpressionId};
+    for entries in ["", "else -> {}"] {
+        let (snapshot, owned) = analyze_sources(
+            &format!(
+                "fun entry(): Unit {{ val subject = \"kept\"\nwhen (subject) {{ {entries} }} }}"
+            ),
+            &["a"],
+        );
+        assert!(owned.clone().validate().is_ok());
+        let names = &snapshot.names().source_units()[0];
+        let parsed = &snapshot.parsed_files()[0];
+        let subject_read = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find_map(|(_, node)| match node.payload() {
+                Expression::When { subject, .. } => *subject,
+                _ => None,
+            })
+            .unwrap();
+        let subject = names
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "subject")
+            .unwrap();
+        let [fact] = owned.drops() else {
+            panic!("one actual named obligation, no candidate")
+        };
+        assert_eq!(
+            fact.point(),
+            UnitDropPoint::AfterExpression(UnitExpressionId::new(
+                names.source_unit(),
+                subject_read
+            ))
+        );
+        let UnitDropTarget::Named(symbol) = fact.target() else {
+            panic!("named subject obligation")
+        };
+        assert_eq!(symbol.source_unit(), names.source_unit());
+        assert_eq!(symbol.symbol(), subject.id());
+    }
+}

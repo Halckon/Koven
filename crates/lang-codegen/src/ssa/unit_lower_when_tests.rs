@@ -458,9 +458,12 @@ fn string_when_comparison_facts_are_explicitly_rejected_until_consumed() {
         let (ne, te) = standard_environments();
         let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
         let entry = declaration(&names, "p", "entry");
-        let error =
-            lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
-                .expect_err("new comparison points must not be silently ignored by fallback");
+        let error = match lower_scalar_unit_with_entry(
+            &sources, &inputs, &names, &te, &typed, &owned, entry,
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("new comparison points must not be silently ignored by fallback"),
+        };
         assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
     }
 }

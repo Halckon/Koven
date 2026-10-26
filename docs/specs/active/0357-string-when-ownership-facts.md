@@ -90,7 +90,7 @@ Builtin String。subject 为非constant且有真实绑定的普通 Name，或 ca
 ### 3.3 验证与消费者
 
 在 Unit drop planner 返回 producer 结果前，从真实 control/候选身份和路径需求独立建立
-required cleanup inventory，核实际新点的 source、control、entry/alternative、target 与次数；
+required cleanup inventory（含Named与Temporary），核实际新点的 source、control、entry/alternative、target 与次数；
 不把 required 与 actual 从同一个 push 同步填充。缺失/额外/错身份时返回 ownership error，
 不得产生 validated product。不新增通用验证层或公共 plan 抽象。公开事实字段继续不可伪造。
 unsupported whole when 走既有基础/constant `validate` 的 `!deferred.is_empty()` 拒绝门。
@@ -144,7 +144,7 @@ subject snapshot ABI、旧 checker 修复、大范围模块抽取、无关路线
 ## 7. CI 清单与交接
 
 精确 Draft PR head 发布后执行既有 stage 的 `basic_unit_ownership` 完整 target（本片
-`string_when::` 13 项），及既有 codegen lib 中
+`string_when::` 16 项），及既有 codegen lib 中
 `unit_lower_when_tests::string_when_comparison_facts_are_explicitly_rejected_until_consumed`。
 双宿主现有完整 codegen、CLI、所选 frontend gates 继续执行；不得把本片新增事实测试当成
 p41 native 释放次数或 SSA 成功证明。现有 `multifile_constant_ownership`、
@@ -160,7 +160,22 @@ p41 native 释放次数或 SSA 成功证明。现有 `multifile_constant_ownersh
 | 项目 | 结果 |
 |---|---|
 | main / 分支编号 / open PR 新鲜读取 | 2026-10-26：main 为上述 SHA，远端 035x 最高0356，无0357；open PR 为162/107/64 |
-| 生产实现与测试源码 | 已编写literal首核、13项公开Unit事实测试与1项consumer拒绝测试；尚未动态验证 |
+| 生产实现与测试源码 | 已编写literal首核、16项公开Unit事实测试、1项真实producer inventory破坏负控与1项consumer拒绝测试；尚未动态验证 |
 | Cargo/build/check/clippy/test/native/list | 均未执行；动态证据限发布后 exact Draft PR CI |
 | 静态检查 | 官方定向rustfmt、docs（788文件）、size、diff通过；不证明编译或行为正确 |
 | 发布/Ready/合并 | 未执行；无此阶段授权 |
+
+### 首轮 PR CI 与有界修正
+
+实现提交 `f9ec68a79ef6d4d2d290e67a46153ee0dd45ba74` 的
+[PR184 首轮 CI40377598881](https://github.com/Halckon/Koven/actions/runs/40377598881)
+在双宿主因 consumer 测试的 `expect_err` 要求成功类型 `Program: Debug` 而报 E0277；
+这不是生命周期断言已运行后失败。修正为显式 match，保留意外成功 panic 与精确 UnsupportedNode。
+同时复审确认原完整性inventory仅覆盖Temporary，现从subject初始owner、每边live-in与现有外层
+保护独立导出Named义务（含零比较），emit算法不变；真实producer事实的缺失/错target负控、
+显式borrow val来源/backing owner与Borrow参数公开Shared身份均补充测试。修正尚待exact PR CI，
+不把静态审阅或首轮失败改写为动态通过。
+
+新增内部负控 exact：
+`ownership_checking::compilation_unit::dataflow::drop_planner::string_when::tests::real_named_inventory_rejects_missing_or_wrong_target_match_and_miss`，
+由既有 frontend `--lib` 门禁承接；无workflow变化。
