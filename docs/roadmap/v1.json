@@ -2,11 +2,11 @@
   "meta": {
     "title": "Koven v1",
     "updated": "2026-10-26",
-    "baseline": "main 86f795e0（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 细化层 when 首片 + PR #172）· Guide v0.46",
+    "baseline": "main 1b0f2aa9（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 细化层 when 首片 + PR #172 + PR #179 local24 Stage A）· Guide v0.46",
     "scope_source": "2026-10-13 v1 范围评审（未入库）",
     "v1_definition": "能写真实命令行工具的语言：单进程、同步 IO；被接受的程序内存安全、资源确定性释放；合法程序要么正确运行，要么得到明确的“未实现”诊断；AArch64 macOS 与 x86_64 Linux glibc。",
     "metrics": {
-      "measured": "2026-10-26 · main 86f795e0 · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 实测与双宿主 CI 门禁）",
+      "measured": "2026-10-26 · main 1b0f2aa9 · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 实测与双宿主 CI 门禁）",
       "rows": [
         [
           "74 个合法基础程序（v0.44 同口径）：project / 单文件 / 两种模式都可",

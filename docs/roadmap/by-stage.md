@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：main 86f795e0（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 细化层 when 首片 + PR #172）· Guide v0.46 · 更新：2026-10-26 · 其他视图：[按领域](by-area.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
+基线：main 1b0f2aa9（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 细化层 when 首片 + PR #172 + PR #179 local24 Stage A）· Guide v0.46 · 更新：2026-10-26 · 其他视图：[按领域](by-area.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
 
 **v1 的定义**：能写真实命令行工具的语言：单进程、同步 IO；被接受的程序内存安全、资源确定性释放；合法程序要么正确运行，要么得到明确的“未实现”诊断；AArch64 macOS 与 x86_64 Linux glibc。
 
@@ -25,7 +25,7 @@ v1 范围内 80 项（必做 71，其中已交付 37）；X 阶段只列边界�
 
 ## 最近一次实测
 
-口径：2026-10-26 · main 86f795e0 · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 实测与双宿主 CI 门禁）
+口径：2026-10-26 · main 1b0f2aa9 · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 实测与双宿主 CI 门禁）
 
 | 指标 | 结果 |
 |---|---|
