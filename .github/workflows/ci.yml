@@ -55,6 +55,7 @@ jobs:
           filters: |
             docs:
               - 'docs/**'
+              - 'conformance/**'
               - 'scripts/**'
               - '*.md'
               - 'LICENSE*'
@@ -64,6 +65,7 @@ jobs:
               - '.cargo/**'
               - 'docs/guide/**'
               - 'docs/compiler-specs/**'
+              - 'conformance/**'
               - 'scripts/**'
               - 'crates/**'
               - 'Cargo.*'
@@ -75,6 +77,9 @@ jobs:
               - 'scripts/check_tutorial.py'
               - 'scripts/check_word_frequency.py'
               - 'scripts/tests/test_word_frequency_contracts.py'
+              - 'scripts/conformance_gate.py'
+              - 'scripts/conformance_matrix.sh'
+              - 'scripts/tests/test_conformance_gate.py'
               - 'scripts/check_core.sh'
               - 'scripts/check_integration.sh'
               - 'scripts/check_stage_integration.sh'
@@ -297,6 +302,19 @@ jobs:
         with:
           name: word-frequency-${{ runner.os }}-${{ github.sha }}
           path: ${{ runner.temp }}/koven-word-frequency
+          if-no-files-found: error
+      - name: Public-entry conformance oracle and regression gate
+        timeout-minutes: 15
+        run: |
+          python3 scripts/conformance_gate.py \
+            --baseline conformance/baseline-aef3f4f8.tsv \
+            --evidence "$RUNNER_TEMP/koven-conformance"
+      - name: Preserve conformance gate evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: conformance-${{ runner.os }}-${{ github.sha }}
+          path: ${{ runner.temp }}/koven-conformance
           if-no-files-found: error
       - name: Linux native sanitizer contracts
         if: runner.os == 'Linux'
