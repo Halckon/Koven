@@ -248,3 +248,71 @@ fn nullable_boolean_join_and_smart_cast_run() {
     render(source);
     assert_eq!(run(source), ("false\nnone\n".to_owned(), Some(0)));
 }
+
+#[test]
+fn subjectless_when_statement_keeps_the_proof_view_for_a_later_call() {
+    let source = r#"class Node(val v: Int)
+    fun outer(node: Node, own result: Int): Unit { if (node.v == result) { println("same") } }
+    fun test(own subject: Node?, flag: Boolean): Unit {
+        if (subject != null) {
+            when { flag -> { println("flag") }; else -> {} }
+            outer(subject, 5)
+        }
+    }
+    fun main(): Unit { test(Node(5), true); test(Node(5), false); test(null, true) }"#;
+    let (_, routed) = super::refine::observe_routing(|| render_branching(source));
+    assert!(
+        routed.iter().any(|name| name.starts_with("koven.p.test.d")),
+        "{routed:?}"
+    );
+    counted(source, 2, b"flag\nsame\nsame\n");
+}
+
+#[test]
+fn subjectless_when_value_tests_alternatives_in_order() {
+    let source = r#"fun grade(n: Int?): String =
+        if (n == null) "none" else when { n > 9, n < 0 -> "out"; else -> "digit" }
+    fun note(x: Int?): Unit {
+        if (x != null) { when { x == 1 -> println("one"); x > 1 -> println("many") } } else { println("absent") }
+    }
+    fun main(): Unit {
+        println(grade(null)); println(grade(12)); println(grade(0 - 1)); println(grade(4))
+        note(2); note(null); note(1); note(0)
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| render_branching(source));
+    for function in ["koven.p.grade.d", "koven.p.note.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        run(source),
+        (
+            "none\nout\nout\ndigit\nmany\nabsent\none\n".to_owned(),
+            Some(0)
+        )
+    );
+}
+
+#[test]
+fn loop_break_and_continue_keep_the_outer_proof_view() {
+    let source = r#"class Node(val v: Int)
+    fun outer(node: Node, own result: Int): Unit { if (node.v == result) { println("same") } }
+    fun test(own subject: Node?, n: Int): Unit {
+        if (subject != null) {
+            var i = 0
+            loop { i = i + 1; if (i < n) continue else break }
+            println("loop")
+            while (i > 0) { i = i - 1; if (i == 1) { continue }; outer(subject, i) }
+            outer(subject, 5)
+        }
+    }
+    fun main(): Unit { test(Node(5), 3); test(null, 3) }"#;
+    let (_, routed) = super::refine::observe_routing(|| render_branching(source));
+    assert!(
+        routed.iter().any(|name| name.starts_with("koven.p.test.d")),
+        "{routed:?}"
+    );
+    counted(source, 1, b"loop\nsame\n");
+}

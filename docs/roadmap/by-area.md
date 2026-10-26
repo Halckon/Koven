@@ -55,7 +55,7 @@
 | 状态 | ID | 内容 | 阶段 | 优先级 | Guide | Phase | Spec / 依据 |
 |---|---|---|---|---|---|---|---|
 | ▶ 进行中 | E1b | 声明/函数终止性：val 初始化全分支 return 与 L0088 入口一致 | P0 止血 | v1 必做 | 已定义 | 2 | [0326](../archive/specs/0326-closed-control-branch-join.md) |
-| ◐ 部分 | N02 | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0241](../archive/specs/0241-return-control-operands.md) [0320](../archive/specs/0320-enum-case-borrow-categories.md) [0326](../archive/specs/0326-closed-control-branch-join.md) |
+| ◐ 部分 | N02 | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0241](../archive/specs/0241-return-control-operands.md) [0320](../archive/specs/0320-enum-case-borrow-categories.md) [0326](../archive/specs/0326-closed-control-branch-join.md) [0356](../specs/active/0356-refine-when-family.md) |
 | ☐ 未开始 | L7 | MoveOnly enum 的消费式匹配：owned subject 分支获得 payload owned 绑定 | P3 语言增量 | v1 必做 | 需新增 | 2,3,4 | — |
 | ✅ 已交付 | L9a | 封闭 if/when 结果 join：不再合并到 Any（D3） | P3 语言增量 | v1 必做 | 已定义 | 2 | [0326](../archive/specs/0326-closed-control-branch-join.md) |
 | ✅ 已交付 | L15 | while 保守流事实：条件为真的 body 事实与写入/回边/break 失效 | P3 语言增量 | v1 必做 | 已定义 | 2 | [0330](../archive/specs/0330-while-conservative-flow.md) |
@@ -152,7 +152,7 @@
 | ✅ 已交付 | B12 | M1A 多文件程序贯通：跨文件字段可变性、直接字段 Borrow、unit for | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4,6 | [0263](../archive/specs/0263-unit-field-mutability.md) [0264](../archive/specs/0264-unit-direct-field-borrow.md) [0265](../archive/specs/0265-unit-iteration-facts.md) [0268](../archive/specs/0268-unit-iteration-native.md) |
 | ✅ 已交付 | E1 | 前端硬门禁：Deferred/Error 不进入所有权与 codegen；未知成员报诊断；内部错误结构化；L0165 用户措辞 | P0 止血 | v1 必做 | — | 2 | [0319](../archive/specs/0319-final-type-admission-diagnostics.md) [0323](../archive/specs/0323-final-admission-static-recovery.md) [0324](../archive/specs/0324-final-admission-user-messages.md) |
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | P1 结构 | v1 必做 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) |
-| ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 结构 | v1 必做 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) |
+| ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 结构 | v1 必做 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) [0356](../specs/active/0356-refine-when-family.md) |
 | ⏸ 延后 | X12 | 协程/async 与自举 | X v1 之外 | v3+ | 需新增 | — | — |
 
 ## 工具链

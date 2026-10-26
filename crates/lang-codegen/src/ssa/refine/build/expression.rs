@@ -131,6 +131,11 @@ impl Builder<'_, '_> {
                 else_branch,
                 ..
             } => self.if_expression(expression, condition, then_branch, else_branch, span),
+            Expression::When {
+                subject: None,
+                entries,
+                ..
+            } => self.when_expression(expression, &entries, span),
             Expression::Call { arguments, .. } => self.call(expression, &arguments, span),
             Expression::Assignment {
                 target,
@@ -139,6 +144,8 @@ impl Builder<'_, '_> {
                 ..
             } => self.assignment(target, value, span),
             Expression::Return { value, .. } => self.return_expression(expression, value, span),
+            Expression::Break { .. } => self.loop_jump(expression, true, span),
+            Expression::Continue { .. } => self.loop_jump(expression, false, span),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
@@ -402,7 +409,7 @@ impl Builder<'_, '_> {
     ) -> Result<Lowered, LoweringError> {
         let control = self.unit(expression);
         let ty = self.expression_type(expression)?;
-        let result = if self.is_unit(ty) {
+        let result = if self.is_unit(ty) || self.is_nothing(ty) {
             None
         } else {
             Some(self.body.slot(EntityType::Value(self.ssa_type(ty, span)?)))
@@ -451,7 +458,7 @@ impl Builder<'_, '_> {
     }
 
     /// Lowers a branch body; `None` when it diverges, else its tail value and expression.
-    fn branch_value(
+    pub(super) fn branch_value(
         &mut self,
         branch: StatementId,
     ) -> Result<Option<Option<(Slot, ExpressionId)>>, LoweringError> {
