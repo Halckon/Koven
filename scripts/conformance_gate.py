@@ -71,6 +71,248 @@ VALID_EXPECTATION_KINDS = frozenset(
     }
 )
 
+VALID_GUIDE_CHAPTERS = (
+    "01-lexical.md",
+    "02-names-files-packages.md",
+    "03-types-generics.md",
+    "04-expressions-operators.md",
+    "05-declarations-callables.md",
+    "06-blocks-control-flow.md",
+    "07-calls-lambdas-closures.md",
+    "08-class-family-members.md",
+    "09-nullability-errors.md",
+    "10-ownership-borrowing-drop.md",
+    "11-copyability-layout-construction.md",
+    "12-collections-destructuring.md",
+    "13-program-runtime-standard-library.md",
+)
+
+PROBE_GUIDE_CHAPTERS: dict[str, str] = {
+    "r01_bogus_member": "02-names-files-packages.md",
+    "r02_bogus_member_str": "02-names-files-packages.md",
+    "y02_take_no_import": "02-names-files-packages.md",
+    "p03_long_uint": "03-types-generics.md",
+    "p03b_byte_literal_cmp": "03-types-generics.md",
+    "p05_double": "03-types-generics.md",
+    "p06_char": "03-types-generics.md",
+    "p10_generic_fn": "03-types-generics.md",
+    "p11_interface_bound": "03-types-generics.md",
+    "p35_value_eq": "03-types-generics.md",
+    "p36_conversion": "03-types-generics.md",
+    "p37_is_generic_case": "03-types-generics.md",
+    "p40_nested_generic_class": "03-types-generics.md",
+    "q18_value_class_generic": "03-types-generics.md",
+    "t03_vmethod_generic": "03-types-generics.md",
+    "v11_convert_ok": "03-types-generics.md",
+    "v12_convert_abort": "03-types-generics.md",
+    "v17_convert_in_loop": "03-types-generics.md",
+    "p02_interp": "04-expressions-operators.md",
+    "p04_overflow": "04-expressions-operators.md",
+    "p31_string_ops": "04-expressions-operators.md",
+    "q10_var_reassign_string": "04-expressions-operators.md",
+    "t07_short_circuit_plain": "04-expressions-operators.md",
+    "v01_assign_unit_value": "04-expressions-operators.md",
+    "v02_assign_chain": "04-expressions-operators.md",
+    "p01_int_print": "05-declarations-callables.md",
+    "p23_global_var": "05-declarations-callables.md",
+    "p24_recursion": "05-declarations-callables.md",
+    "q12_companion_const": "05-declarations-callables.md",
+    "e01_enum_when_bool_return": "06-blocks-control-flow.md",
+    "e02_enum_when_stmt_println": "06-blocks-control-flow.md",
+    "e03_enum_when_bool_val": "06-blocks-control-flow.md",
+    "e04_enum_when_int_return": "06-blocks-control-flow.md",
+    "p07_while_var": "06-blocks-control-flow.md",
+    "p08_when_int": "06-blocks-control-flow.md",
+    "p09_enum_payload": "06-blocks-control-flow.md",
+    "p41_when_string": "06-blocks-control-flow.md",
+    "p43_if_join_any": "06-blocks-control-flow.md",
+    "p48_nested_loops_break": "06-blocks-control-flow.md",
+    "p49_when_enum_no_payload": "06-blocks-control-flow.md",
+    "q08_enum_string_payload": "06-blocks-control-flow.md",
+    "q13_if_expr_value": "06-blocks-control-flow.md",
+    "q14_when_subjectless": "06-blocks-control-flow.md",
+    "t06_list_loop_return": "06-blocks-control-flow.md",
+    "u04_enum_payload_arg_unit": "06-blocks-control-flow.md",
+    "v04_stmt_if_mixed": "06-blocks-control-flow.md",
+    "v16_when_in_range": "06-blocks-control-flow.md",
+    "v19_stmt_when_mixed": "06-blocks-control-flow.md",
+    "p17_lambda": "07-calls-lambdas-closures.md",
+    "p17b_lambda_nocapture": "07-calls-lambdas-closures.md",
+    "p18_move_closure": "07-calls-lambdas-closures.md",
+    "p42_lambda_mutate": "07-calls-lambdas-closures.md",
+    "q01_lambda_local": "07-calls-lambdas-closures.md",
+    "q02_lambda_arg_inline": "07-calls-lambdas-closures.md",
+    "q03_fn_ref": "07-calls-lambdas-closures.md",
+    "x03_if_call_borrow_arg": "07-calls-lambdas-closures.md",
+    "p12_class_inout": "08-class-family-members.md",
+    "p12b_class_field_assign": "08-class-family-members.md",
+    "p13_value_class_copy": "08-class-family-members.md",
+    "p28_companion": "08-class-family-members.md",
+    "p29_default_super": "08-class-family-members.md",
+    "p32_deinit": "08-class-family-members.md",
+    "p44_method_on_value": "08-class-family-members.md",
+    "p44b_method_on_class": "08-class-family-members.md",
+    "p46_string_field_class": "08-class-family-members.md",
+    "p50_enum_method": "08-class-family-members.md",
+    "q16_interface_static": "08-class-family-members.md",
+    "q19_deep_return_cleanup": "08-class-family-members.md",
+    "t01_vmethod_bare_field": "08-class-family-members.md",
+    "t02_vmethod_bool": "08-class-family-members.md",
+    "t04_vmethod_compute_param": "08-class-family-members.md",
+    "t08_vmethod_string": "08-class-family-members.md",
+    "t09_vmethod_calls_method": "08-class-family-members.md",
+    "p14_nullable": "09-nullability-errors.md",
+    "p14b_nullable_simple": "09-nullability-errors.md",
+    "p14c_nullable_int": "09-nullability-errors.md",
+    "p15_elvis": "09-nullability-errors.md",
+    "p16_result_q": "09-nullability-errors.md",
+    "p16b_result_string": "09-nullability-errors.md",
+    "p45_abort_message": "09-nullability-errors.md",
+    "q05_nullable_param": "09-nullability-errors.md",
+    "q06_nullable_return_bang": "09-nullability-errors.md",
+    "q07_result_when_int": "09-nullability-errors.md",
+    "s01_result_builtin": "09-nullability-errors.md",
+    "s04_question_on_nullable": "09-nullability-errors.md",
+    "v03_join_nullable": "09-nullability-errors.md",
+    "v13_while_nullable_int": "09-nullability-errors.md",
+    "v18_while_nullable_class": "09-nullability-errors.md",
+    "x01_nullable_class_retest": "09-nullability-errors.md",
+    "x02_string_nullable_return": "09-nullability-errors.md",
+    "p12c_inout_param": "10-ownership-borrowing-drop.md",
+    "p25_linked_iter": "10-ownership-borrowing-drop.md",
+    "p25b_linked_recursive": "10-ownership-borrowing-drop.md",
+    "p26_borrow_return": "10-ownership-borrowing-drop.md",
+    "q09_inout_class_param": "10-ownership-borrowing-drop.md",
+    "q15_borrow_param_string_list": "10-ownership-borrowing-drop.md",
+    "q17_generic_class": "10-ownership-borrowing-drop.md",
+    "q20_replace_field": "10-ownership-borrowing-drop.md",
+    "u01_enum_case_borrow_arg": "10-ownership-borrowing-drop.md",
+    "p21_box_enum": "11-copyability-layout-construction.md",
+    "p22_rc": "11-copyability-layout-construction.md",
+    "q04_rc_simple": "11-copyability-layout-construction.md",
+    "p27_thread": "13-program-runtime-standard-library.md",
+}
+
+PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
+    "word_count": "12-collections-destructuring.md",
+    "config_parse": "09-nullability-errors.md",
+    "expr_eval": "11-copyability-layout-construction.md",
+    "raii_state_machine": "08-class-family-members.md",
+    "varint_codec": "03-types-generics.md",
+    "linked_stack": "10-ownership-borrowing-drop.md",
+}
+
+SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
+    "e01_enum_when_bool_return": "isRed(Color.Red) matches branch Color.Red -> true; if-branch prints 'e1'",
+    "e02_enum_when_stmt_println": "c = Color.Red matches statement when branch Color.Red -> println('e2')",
+    "e03_enum_when_bool_val": "c = Color.Green yields b = false in when expression; if (!b) prints 'e5'",
+    "p01_int_print": "println expects String parameter; passing Int (40 + 2) emits TYPE_MISMATCH L0084",
+    "p03b_byte_literal_cmp": "comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085",
+    "p04_overflow": "Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09",
+    "p07_while_var": "while loop sums i=0..9 into s=45; s == 45 holds and prints 'while'",
+    "p10_generic_fn": "identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int'",
+    "p14_nullable": "pick(true) returns non-null Node(5); smart cast prints 'smart' and pick(true)!!.v == 5 prints 'bangbang'",
+    "p14b_nullable_simple": "a: Node? = Node(5) is non-null with a.v == 5; smart cast branch prints 'smart'",
+    "p14c_nullable_int": "a: Int? = 5 is non-null and equals 5; smart cast branch prints 'nint'",
+    "p19_mutablelist": "xs=[10,2,3] sums to 15 with size 3; condition holds and prints 'list'",
+    "p23_global_var": "top-level runtime var counter violates Guide 05 D4 (SPEC-0343); rejected with UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE L0167",
+    "p25_linked_iter": "cur = cur.next moves non-Copyable Node? field out of borrowed/owned chain, emitting MOVE_FROM_BORROWED_BINDING L0133 and PARTIAL_MOVE L0132",
+    "p26_borrow_return": "nameOf borrows Holder('borrowed').name; println(n) prints 'borrowed'",
+    "p29_default_super": "C.hi() concatenates super<A>.hi() ('a') + super<B>.hi() ('b') = 'ab'",
+    "p31_string_ops": "'ab'.clone() + 'c' equals 'abc'; branch prints 'abc'",
+    "p32_deinit": "main prints 'body' first, then drops locals in reverse lexical order: b ('b') then a ('a')",
+    "p34_for_range": "0..<5 sums 0+1+2+3+4 = 10; s == 10 holds and prints 'for-range'",
+    "p37_is_generic_case": "Result.Ok(1) matches parameterless is Result.Ok with v = 1 (SPEC-0349); prints 'case-noargs'",
+    "p38_list_of_strings": "iterating mutableListOf('x', 'y') prints 'x' then 'y' in insertion order",
+    "p42_lambda_mutate": "mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135",
+    "p43_if_join_any": "when expression mixing Int (1) and String ('s') branches is rejected with WHEN_BRANCH_TYPE L0112 (D3)",
+    "p45_abort_message": "error('boom') aborts with SIGABRT and stderr header 'abort: boom' per Guide 09 D12",
+    "p46_string_field_class": "Person('ann', 3).name is 'ann'; describe(p) prints 'ann'",
+    "p47_list_index_string": "listOf('a', 'b')[1] evaluates to 'b' and prints 'b'",
+    "p48_nested_loops_break": "outer loop runs 5 times, inner loop breaks at j==3 after 3 increments -> hits == 15; prints 'nested'",
+    "p49_when_enum_no_payload": "name(Color.Green) selects Color.Green -> 'green' and prints 'green'",
+    "q05_nullable_param": "show(Node(1)) takes non-null branch ('non-null'); show(null) takes else branch ('null')",
+    "q10_var_reassign_string": "s starts as 'a', appends 'b' then 'c' -> 'abc'",
+    "q11_while_list_index": "while loop sums listOf(1,2,3) by index -> s == 6; prints 'index-loop'",
+    "q12_companion_const": "Cfg.N reads associated const val 3 from anonymous companion { }; Cfg.N == 3 prints 'cconst'",
+    "q13_if_expr_value": "x = 3 satisfies x > 2, so if-expression evaluates to 'big'",
+    "q14_when_subjectless": "x = 5 fails x < 3 and matches second guard x < 7 -> 'mid'",
+    "q15_borrow_param_string_list": "total(listOf('a', 'b')) counts 2 elements; 2 == 2 prints 'borrow-list'",
+    "q16_interface_static": "Dog.name() returns 'dog' via static interface implementation dispatch",
+    "q17_generic_class": "borrow T from this on generic class Holder<T> hits UNSUPPORTED_BORROW_FLOW L0164 (roadmap N09)",
+    "q19_deep_return_cleanup": "f(true) drops inner b ('b') then outer a ('a') on early return; f(false) drops a ('a') -> 'b\\na\\na\\n'",
+    "q20_replace_field": "replace(&b.s, 'new') returns previous field value 'old' and updates b.s to 'new'",
+    "r01_bogus_member": "calling nonexistent method Int.fooBar() emits UNRESOLVED_NAME L0080",
+    "r02_bogus_member_str": "accessing nonexistent property String.length emits UNRESOLVED_NAME L0080",
+    "s01_result_builtin": "builtin Result.Ok(1) is resolved without import (SPEC-0349); main prints 'result-builtin'",
+    "s04_question_on_nullable": "postfix ? applied to nullable Int? (instead of Result) emits INVALID_OPERAND_TYPES L0085",
+    "t05_map_loop_continue": "for-loop skips 'b' via continue and counts 'a' twice -> m.get('a') == 2 prints 'map-continue'",
+    "t06_list_loop_return": "find(listOf(1,2,3), 2) returns true on second element; prints 'loop-return'",
+    "t08_vmethod_string": "Tag(1).label() checks 1 > 0 and returns 'pos'",
+    "t10_map_nested_if_break": "loop inserts 'a' and 'b' (m.size == 2), then breaks at 'c'; prints 'map-nested-break'",
+    "u01_enum_case_borrow_arg": "isRed(Color.Red) borrows enum case argument and matches Color.Red -> true; prints 'enum-arg'",
+    "u02_list_add_loop_string": "clones 'x' and 'y' into MutableList<String> and prints each element in order",
+    "v02_assign_chain": "assignment b = 3 yields Unit, so chaining a = (b = 3) for Int var a emits TYPE_MISMATCH L0084 (SPEC-0325)",
+    "v03_join_nullable": "pick(true) returns Int? = 7; smart cast x != null && x == 7 prints 'join-nullable'",
+    "v04_stmt_if_mixed": "if/else with incompatible Int and String branch types emits NO_COMMON_BRANCH_TYPE L0089 (SPEC-0326)",
+    "v06_for_range_sum": "0..<5 sums to 10 and 1..3 sums to 6 -> s == 16 prints 'for-range'",
+    "v07_range_max": "inclusive range 2147483646..2147483647 iterates exactly 2 times without overflow; prints 'range-max'",
+    "v08_long_range": "1L..4L sums 1+2+3+4 = 10L; prints 'long-range'",
+    "v09_reverse_empty": "ascending range 5..1 is empty (0 iterations, n == 0); prints 'reverse-empty'",
+    "v12_convert_abort": "(-1).toULong() fails range check and aborts with 'abort: value out of range for ULong' (SPEC-0327/0355)",
+    "v13_while_nullable_int": "while (x != null) adds 5 to total and sets x = null; total == 5 prints 'while-nullable'",
+    "v15_map_for": "MutableMap preserves insertion order ('b' then 'a'); loop prints 'b' then 'a'",
+    "v17_convert_in_loop": "0..<3 converts 0,1,2 via toLong() and sums to 3L; prints 'conv-loop'",
+    "v18_while_nullable_class": "while (n != null) reads n.v (4) and sets n = null; t == 4 prints 'while-class'",
+    "v20_range_in_list": "3 is neither in 1..2 nor in 5..6 (n == 0, size == 2); prints 'range-in-list'",
+    "v21_for_range_return": "firstEven(5) returns 2 on i == 2 inside 1..5; prints 'range-return'",
+    "v22_range_with_map": "populates m[i] = i*i for i in 0..<4; m.get(3) == 9 prints 'range-map'",
+    "v23_nested_range_break": "outer 0..<3 runs 3 times, inner breaks at j == 1 after 1 increment -> n == 3 prints 'nested-range'",
+    "w01_map_for_sum": "map entries ('b'->2, 'a'->1) sum to 3; prints 'map-sum'",
+    "w02_map_for_order": "map iterates in insertion order ('b', 'a', 'c'); ok remains true and prints 'map-order'",
+    "w03_map_overwrite_remove": "overwriting 'b'->5, removing 'a', and re-inserting 'a'->7 yields order ('b'->5, 'a'->7); prints 'map-reorder'",
+    "w04_map_for_break": "iterating keys 0..4 breaks at k == 2 after counting 0 and 1 (seen == 2); prints 'map-break'",
+    "w05_map_for_return": "find(m, 'b') returns value 2 from map loop; prints 'map-return'",
+    "w06_map_mutate_in_loop": "calling m.put() while m is borrowed by for-loop iteration emits LOAN_CONFLICT L0135",
+    "w07_map_nested": "nested iteration over {1:1, 2:2} computes (1+2)*(1+2) = 9; prints 'map-nested'",
+    "w08_map_string_values": "map entries (2->'two', 1->'one') print values 'two' then 'one' in insertion order",
+    "w09_map_temp_source": "iterating temporary make() map sums 3 + 4 = 7; prints 'map-temp'",
+    "w10_map_for_continue_count": "map loop skips 'b'->2 via continue and sums 'a'->1 + 'c'->3 = 4; prints 'map-continue2'",
+    "w11_word_count": "word frequency over ['x','y','x','z','x'] yields x=3, y=1, z=1; prints 'word-count'",
+    "w12": "map loop prints key 'b', then post-loop s == 1 prints 'after'",
+    "w13": "map loop with v == 2 prints 'seen', followed by post-loop 'end'",
+    "w14": "map loop sets s = 1 without printing; post-loop prints 'end'",
+    "w15": "map loop with v == 2 prints 'seen', followed by post-loop 'end'",
+    "w16": "count(m) borrows Map parameter and sums 2 + 3 = 5; prints 'borrow-param-sum'",
+    "w17": "map loop prints key 'b', then if (t == 1) prints 'end'",
+    "w18": "map loop accumulates s = 2, then if (s == 2) prints 'end'",
+    "w19": "map loop prints key 'b', followed by post-loop 'end'",
+    "x02_string_nullable_return": "find(true) returns non-null String? 'hit'; smart cast s != null prints 'hit'",
+    "x03_if_call_borrow_arg": "if (true) calls observe('obs') printing 'obs', then prints 'done'",
+    "y01_import_take_for_sum": "take(listOf(1,2,3), 2) yields 1 and 2 (sum 3); prints 'take'",
+    "y02_take_no_import": "calling take() without import koven.algorithms.take emits UNRESOLVED_NAME L0080 (Guide v0.45)",
+    "y03_method_take_for": "xs.take(2) on listOf(1,2,3) sums 1 + 2 = 3; prints 'take-method'",
+    "y04_take_for_println": "take(listOf('a','b','c'), 2) prints first two elements 'a' and 'b'",
+    "y05_take_borrow_val_call": "borrow val v = take(xs, 2) passed to read(v) prints 'a' and 'b'",
+    "y06_take_borrow_val_for": "borrow val v = take(xs, 2) iterated directly in for-loop prints 'a' and 'b'",
+}
+
+
+def classify_probe_guide_chapter(name: str, src_text: str) -> str:
+    """Return the primary Guide v0.46 chapter filename for a probe."""
+    if name in PROBE_GUIDE_CHAPTERS:
+        return PROBE_GUIDE_CHAPTERS[name]
+    if any(
+        name.startswith(prefix)
+        for prefix in ("p19_", "p20_", "p30_", "p33_", "p34_", "p38_", "p39_", "p47_", "q11_", "s02_", "s03_", "t05_", "t10_", "u02_", "u03_", "v05_", "v06_", "v07_", "v08_", "v09_", "v10_", "v14_", "v15_", "v20_", "v21_", "v22_", "v23_", "w", "y01_", "y03_", "y04_", "y05_", "y06_")
+    ):
+        return "12-collections-destructuring.md"
+    if "error(" in src_text:
+        return "09-nullability-errors.md"
+    if "for (" in src_text or "while (" in src_text:
+        return "06-blocks-control-flow.md"
+    return "05-declarations-callables.md"
+
 # Human-audited exact stdout oracles for multi-statement / loop / variable-print probes in conformance/probes
 CONFIRMED_STDOUT_ORACLES: dict[str, str] = {
     "p07_while_var": "while\n",
@@ -679,6 +921,7 @@ def compare_item(
     return {
         "name": execution["name"],
         "expectation_kind": expectation["kind"],
+        "guide_chapter": expectation.get("guide_chapter"),
         "single_marker": single_res["marker"],
         "project_marker": project_res["marker"],
         "single_verdict": single_verdict,
@@ -750,6 +993,21 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                 not isinstance(spec["oracle_origin"], str) or not spec["oracle_origin"].strip()
             ):
                 raise ValueError(f"{section}.{name} has invalid oracle_origin")
+            if "oracle_derivation" in spec and (
+                not isinstance(spec["oracle_derivation"], str)
+                or not spec["oracle_derivation"].strip()
+            ):
+                raise ValueError(f"{section}.{name} has invalid oracle_derivation")
+            if "guide_chapter" in spec:
+                ch = spec["guide_chapter"]
+                if not isinstance(ch, str) or ch not in VALID_GUIDE_CHAPTERS:
+                    raise ValueError(f"{section}.{name} has invalid guide_chapter {ch!r}")
+                if corpus_root is not None:
+                    guide_dir = corpus_root.parent / "docs" / "guide"
+                    if guide_dir.is_dir() and not (guide_dir / ch).is_file():
+                        raise ValueError(
+                            f"{section}.{name} references missing Guide chapter {guide_dir / ch}"
+                        )
 
             if corpus_root is not None:
                 src_file = (
@@ -855,26 +1113,39 @@ def derive_static_expectations(
             if is_single_literal
             else ("source_trace_audited" if single_static_stdout is not None else None)
         )
+        chapter = classify_probe_guide_chapter(name, src_text)
+        derivation = SEMANTIC_ORACLE_DERIVATIONS.get(
+            name,
+            f"single literal println({literals[0]!r})" if is_single_literal else None,
+        )
 
         if name in V046_PROBE_OVERRIDES:
             entry = dict(V046_PROBE_OVERRIDES[name])
             entry["source_sha256"] = src_sha
+            entry["guide_chapter"] = chapter
             entry["oracle_origin"] = "v046_spec_contract"
+            if derivation is not None:
+                entry["oracle_derivation"] = derivation
             probes_out[name] = entry
             continue
 
         if base_single == "OK":
             if single_static_stdout is not None:
-                probes_out[name] = {
+                entry = {
                     "kind": "run_ok",
                     "source_sha256": src_sha,
+                    "guide_chapter": chapter,
                     "stdout": single_static_stdout,
                     "oracle_origin": stdout_origin,
                 }
+                if derivation is not None:
+                    entry["oracle_derivation"] = derivation
+                probes_out[name] = entry
             else:
                 probes_out[name] = {
                     "kind": "unreviewed",
                     "source_sha256": src_sha,
+                    "guide_chapter": chapter,
                     "baseline_marker": "OK",
                     "note": "multi-line or computed println output requires human oracle confirmation",
                 }
@@ -884,6 +1155,7 @@ def derive_static_expectations(
                 entry = {
                     "kind": "known_unimplemented",
                     "source_sha256": src_sha,
+                    "guide_chapter": chapter,
                     "allowed_markers": [
                         base_single,
                         "BE:UnsupportedNode",
@@ -898,16 +1170,20 @@ def derive_static_expectations(
                 entry = {
                     "kind": "compile_fail",
                     "source_sha256": src_sha,
+                    "guide_chapter": chapter,
                     "diagnostic": code,
                     "oracle_origin": "baseline_diagnostic_audited",
                 }
                 if name in EXPECTED_MULTI_DIAGNOSTICS:
                     entry["all_diagnostics"] = list(EXPECTED_MULTI_DIAGNOSTICS[name])
+                if derivation is not None:
+                    entry["oracle_derivation"] = derivation
                 probes_out[name] = entry
         elif base_single.startswith("BE:"):
             entry = {
                 "kind": "known_unimplemented",
                 "source_sha256": src_sha,
+                "guide_chapter": chapter,
                 "allowed_markers": ["BE:UnsupportedNode", "BE:MissingFact", "FE:L0165"],
                 "oracle_origin": "baseline_unimplemented_audited",
             }
@@ -918,6 +1194,7 @@ def derive_static_expectations(
             probes_out[name] = {
                 "kind": "unreviewed",
                 "source_sha256": src_sha,
+                "guide_chapter": chapter,
                 "baseline_marker": base_single,
                 "note": "requires human oracle confirmation",
             }
@@ -933,6 +1210,9 @@ def derive_static_expectations(
         programs_out[prog_dir.name] = {
             "kind": "known_unimplemented",
             "source_sha256": sha256_file(main_ko),
+            "guide_chapter": PROGRAM_GUIDE_CHAPTERS.get(
+                prog_dir.name, "13-program-runtime-standard-library.md"
+            ),
             "expected_file": f"programs/{prog_dir.name}/expected.txt",
             "expected_sha256": sha256_file(expected_txt),
             "allowed_markers": [
@@ -1140,12 +1420,34 @@ def summarize_comparisons(
         1 for item in program_comparisons if item["status"] == "pass_run"
     )
 
+    by_chapter: dict[str, dict[str, int]] = {}
+    for item in probe_comparisons:
+        ch = item.get("guide_chapter") or "unassigned"
+        bucket = by_chapter.setdefault(
+            ch,
+            {
+                "total": 0,
+                "pass_run": 0,
+                "pass_diagnostic": 0,
+                "pass_abort": 0,
+                "known_unimplemented": 0,
+                "capability_passed": 0,
+            },
+        )
+        bucket["total"] += 1
+        st = item["status"]
+        if st in ("pass_run", "pass_diagnostic", "pass_abort", "known_unimplemented"):
+            bucket[st] += 1
+        if item["capability_passed"]:
+            bucket["capability_passed"] += 1
+
     return {
         "total_probes": len(probe_comparisons),
         "probe_capability_passed": probe_cap_passed,
         "total_programs": len(program_comparisons),
         "program_run_passed": program_run_passed,
         "counts": counts,
+        "by_chapter": dict(sorted(by_chapter.items())),
         "gate_passed": len(failures) == 0,
         "failures": failures,
     }
