@@ -94,3 +94,88 @@ fn boxed_enum_mapper_preserves_nonrecursive_value_wrappers() {
             .expect("existing wrapped Box payload must stay fully defined");
     }
 }
+
+#[test]
+fn boxed_enum_signature_only_unit_roots_accept_box_or_enum_first() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use crate::ssa::model::{EntityType, LoanKind, Origin};
+    use lang_frontend::name_resolution::SymbolKind;
+
+    for (first, second) in [("Box<Expr>", "Expr"), ("Expr", "Box<Expr>")] {
+        let source = format!(
+            "enum class Expr {{ Num(item: Int), Add(left: Box<Expr>, right: Box<Expr>) }}\n\
+             fun first(value: {first}): Unit {{}}\n\
+             fun second(value: {second}): Unit {{}}"
+        );
+        // Independent Unit roots supplement, not replace, the shared-mapper legacy observation.
+        let unit = UnitSource::analyze("lowering.ko", &source)
+            .unwrap_or_else(|error| panic!("{first}/{second}: strict Unit admission: {error:?}"));
+        unit.assert_frontend_clean();
+        assert!(unit.ownership().deferred().is_empty());
+        assert!(unit.types().constructions().is_empty());
+        let [document] = unit.names().names().index().source_units() else {
+            panic!("one original memory document");
+        };
+        assert_eq!(document.source_id(), unit.parsed().source_id());
+        assert_eq!(
+            document.key(),
+            &lang_frontend::name_resolution::SourceUnitKey::MemoryDocument
+        );
+        assert_eq!(
+            unit.sources().source_name(document.source_id()),
+            Ok("lowering.ko")
+        );
+        assert_eq!(
+            unit.sources().source_text(document.source_id()),
+            Ok(source.as_str())
+        );
+        for (name, parameter_type) in [("first", first), ("second", second)] {
+            let declaration = unit.declaration(name, SymbolKind::Function);
+            let span = unit.declaration_span(declaration);
+            let original_declaration = format!("fun {name}(value: {parameter_type}): Unit {{}}");
+            assert_eq!(
+                unit.sources().slice(span),
+                Ok(original_declaration.as_str())
+            );
+            let lower_root = || {
+                let (program, root) = unit.lower_entry(declaration).unwrap_or_else(|error| {
+                    panic!("{first}/{second}: {name}: Unit lowering: {error:?}")
+                });
+                let function = program
+                    .module(root.module())
+                    .and_then(|module| module.function(root))
+                    .expect("original root belongs to its own lowered Program");
+                assert_eq!(function.origin, Origin::Source(span));
+                assert!(!function.blocks.is_empty(), "{name} has its original body");
+                assert_eq!(function.blocks[0].parameters.len(), 1);
+                assert!(
+                    matches!(
+                        function
+                            .entity(function.blocks[0].parameters[0])
+                            .map(|parameter| parameter.ty),
+                        Some(EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            ..
+                        })
+                    ),
+                    "{first}/{second}: {name} retains its original Borrow parameter"
+                );
+                crate::ssa::verify::verify_program(&program).unwrap_or_else(|error| {
+                    panic!("{first}/{second}: {name}: full Unit SSA verification: {error:?}")
+                });
+                let rendered = render_program(&program);
+                assert!(rendered.contains("heap_owner"), "{name}: {rendered}");
+                assert!(rendered.contains("tagged_union"), "{name}: {rendered}");
+                render_verified_program(&program).unwrap_or_else(|error| {
+                    panic!("{first}/{second}: {name}: full Unit LLVM verification: {error:?}")
+                });
+                rendered
+            };
+            assert_eq!(
+                lower_root(),
+                lower_root(),
+                "{first}/{second}: {name}: repeated Unit root lowering is deterministic"
+            );
+        }
+    }
+}
