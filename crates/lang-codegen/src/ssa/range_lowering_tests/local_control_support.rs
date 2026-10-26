@@ -242,6 +242,221 @@ impl PositiveLowering {
     }
 }
 
+pub(super) enum UnitExpectation<'a> {
+    Reject(&'a str),
+    Success(&'a [u8]),
+}
+
+// Stage A adds one main-entry observation per original legacy label. It neither
+// retires that arm nor upgrades previously unobserved auxiliary roots to success
+// obligations. In particular, do not route these probes through lower_positive_roots.
+pub(super) fn observe_original_unit(
+    consumer: &str,
+    fragment: &str,
+    pipeline: Pipeline,
+    legacy_sources: &SourceMap,
+    legacy_probe: Span,
+    expected: UnitExpectation<'_>,
+    label: &str,
+) {
+    assert!(matches!(
+        pipeline,
+        Pipeline::Single | Pipeline::SingleConstant
+    ));
+    let label = format!("local24-stage-a-{label}-{pipeline:?}");
+    let name = "range-local-control-single.ko";
+    let provider = include_str!("../../../../lang-std/koven/algorithms/ranges.ko");
+    let text = format!(
+        "{}\n{consumer}",
+        provider.strip_prefix("package koven.algorithms\n").unwrap()
+    );
+    let legacy_source = legacy_probe.source_id();
+    assert_eq!(legacy_sources.source_name(legacy_source).unwrap(), name);
+    assert_eq!(legacy_sources.source_text(legacy_source).unwrap(), text);
+    assert_eq!(
+        fragment_span(legacy_sources, legacy_source, consumer, fragment),
+        legacy_probe
+    );
+    // Read the old SourceMap directly, without cloning it or comparing its IDs
+    // with a new analysis. This parse is identity evidence, not borrowed facts.
+    let legacy_lexed = lang_frontend::lexer::lex(legacy_sources, legacy_source).unwrap();
+    let legacy_parsed = lang_frontend::parser::parse_file(legacy_sources, &legacy_lexed).unwrap();
+    assert!(legacy_parsed.diagnostics().is_empty());
+    eprintln!(
+        "{label}: stage=admission; source={name}; entry=main; probe={legacy_probe:?}; fragment={fragment:?}"
+    );
+    let mut authorized_source = None;
+    let analysis =
+        UnitSource::analyze_with_type_environment(name, &text, |sources, source, types| {
+            types.authorize_range_source(sources, source).unwrap();
+            types
+                .authorize_range_extension_source(sources, source)
+                .unwrap();
+            authorized_source = Some(source);
+        })
+        .unwrap_or_else(|error| {
+            panic!("{label}: stage=admission, not a backend rejection: {error:?}")
+        });
+    analysis.assert_frontend_clean();
+    let source = analysis.parsed().source_id();
+    assert_eq!(authorized_source, Some(source));
+    let [input] = analysis.names().names().index().source_units() else {
+        panic!("{label}: one original MemoryDocument");
+    };
+    assert_eq!(input.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(input.source_id(), source);
+    assert_eq!(analysis.sources().source_name(source).unwrap(), name);
+    assert_eq!(analysis.sources().source_text(source).unwrap(), text);
+    let probe = fragment_span(analysis.sources(), source, consumer, fragment);
+    assert_eq!(
+        (probe.start(), probe.end()),
+        (legacy_probe.start(), legacy_probe.end())
+    );
+    let main = analysis.declaration("main", SymbolKind::Function);
+    let scan = analysis.declaration("scan", SymbolKind::Function);
+    for (function, declaration) in [("main", main), ("scan", scan)] {
+        let old = original_function_spans(legacy_sources, &legacy_parsed, function);
+        let new = original_function_spans(analysis.sources(), analysis.parsed(), function);
+        assert_eq!(analysis.declaration_span(declaration), new[0]);
+        let indexed = analysis
+            .names()
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|candidate| candidate.id() == declaration)
+            .unwrap();
+        assert_eq!(indexed.name_span(), new[1]);
+        for (old, new) in old.into_iter().zip(new) {
+            assert_eq!(old.source_id(), legacy_source);
+            assert_eq!(new.source_id(), source);
+            assert_eq!((old.start(), old.end()), (new.start(), new.end()));
+            assert_eq!(
+                legacy_sources.slice(old).unwrap(),
+                analysis.sources().slice(new).unwrap()
+            );
+        }
+        if function == "scan" {
+            assert!(new[2].start() <= probe.start() && probe.end() <= new[2].end());
+        }
+    }
+    eprintln!(
+        "{label}: stage=lowering; entry=main/{main:?}/{:?}; scan={scan:?}/{:?}; probe={probe:?}",
+        analysis.declaration_span(main),
+        analysis.declaration_span(scan)
+    );
+    // UnitSource chooses basic/constant only from the admitted typed products;
+    // the legacy SingleConstant label does not itself confer const capability.
+    let result = analysis.lower_entry(main);
+    if let Err(error) = &result {
+        let actual = error
+            .span
+            .and_then(|span| analysis.sources().slice(span).ok());
+        let roots = analysis
+            .names()
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .filter(|declaration| analysis.parsed().roots().contains(&declaration.root()))
+            .filter_map(|declaration| {
+                let span = analysis.declaration_span(declaration.id());
+                error
+                    .span
+                    .filter(|error_span| {
+                        error_span.source_id() == span.source_id()
+                            && span.start() <= error_span.start()
+                            && error_span.end() <= span.end()
+                    })
+                    .map(|_| (declaration.name(), declaration.id(), span))
+            })
+            .collect::<Vec<_>>();
+        eprintln!(
+            "{label}: stage=lowering; actual_roots={roots:?}; error={error:?}; source={actual:?}"
+        );
+    }
+    match expected {
+        UnitExpectation::Reject(expected_fragment) => {
+            assert_eq!(expected_fragment, fragment);
+            let error = result.err().unwrap_or_else(|| {
+                panic!("{label}: stage=lowering; main unexpectedly succeeded; frozen rejection retained")
+            });
+            assert_eq!(
+                error.kind,
+                LoweringErrorKind::UnsupportedNode,
+                "{label}: {error:?}"
+            );
+            assert_eq!(error.span, Some(probe), "{label}: {error:?}");
+            assert_eq!(analysis.sources().slice(probe).unwrap(), expected_fragment);
+            eprintln!("{label}: outcome=exact-backend-reject; probe={probe:?}");
+        }
+        UnitExpectation::Success(stdout) => {
+            let (program, entry) = result.unwrap_or_else(|error| {
+                panic!("{label}: stage=lowering; main must succeed: {error:?}")
+            });
+            let function = program
+                .module(entry.module())
+                .unwrap()
+                .function(entry)
+                .unwrap();
+            assert_eq!(
+                function.origin,
+                Origin::Source(analysis.declaration_span(main))
+            );
+            verify_program(&program)
+                .unwrap_or_else(|error| panic!("{label}: stage=SSA: {error:?}"));
+            eprintln!("{label}: stage=LLVM/native; entry={entry:?}");
+            run_unmodified(&program, entry, &label, stdout);
+            eprintln!("{label}: outcome=native-success; exit=0; stderr=empty; stdout={stdout:?}");
+        }
+    }
+}
+
+// Declaration, name, and body spans from each real AST, used only for identity.
+fn original_function_spans(
+    sources: &SourceMap,
+    parsed: &lang_frontend::parser::ParsedFile,
+    function: &str,
+) -> [Span; 3] {
+    use lang_frontend::parser::{FunctionBody, FunctionForm};
+    let mut matches = Vec::new();
+    for root in parsed.roots() {
+        let original = parsed.ast().items().get(*root).unwrap();
+        let mut node = original;
+        while let Item::Modified { declaration, .. } = node.payload() {
+            node = parsed.ast().items().get(*declaration).unwrap();
+        }
+        let Item::Function {
+            name: NameMarker::Present(name),
+            form,
+            ..
+        } = node.payload()
+        else {
+            continue;
+        };
+        if sources.slice(*name).unwrap() != function {
+            continue;
+        }
+        let body = match form {
+            FunctionForm::ImplicitUnitBlock(body)
+            | FunctionForm::Explicit {
+                body: FunctionBody::Block(body),
+                ..
+            } => *body,
+            _ => panic!("original {function} has a block body"),
+        };
+        matches.push([
+            original.span(),
+            *name,
+            parsed.ast().statements().get(body).unwrap().span(),
+        ]);
+    }
+    let [spans] = matches.as_slice() else {
+        panic!("one real original top-level {function}: {matches:?}");
+    };
+    *spans
+}
+
 // Retain the Result and SourceMap: the initial positive-test failure must identify
 // the exact rejected expression, rather than panic inside an unwrap-only harness.
 pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> SourceLowering {

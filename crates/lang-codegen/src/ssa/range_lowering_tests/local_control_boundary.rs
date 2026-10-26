@@ -1,4 +1,5 @@
 //! Ordinary, frontend-valid source probes for the frozen capability boundary.
+use super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 use crate::ssa::LoweringErrorKind;
 
@@ -23,6 +24,17 @@ fn reject(label: &str, consumer: &str, fragment: &str) {
             Some(lowered.expected_span),
             "{label}/{pipeline:?}: {error:?}; source={actual:?}"
         );
+        if matches!(pipeline, Pipeline::Single) {
+            observe_original_unit(
+                consumer,
+                fragment,
+                pipeline,
+                &lowered.sources,
+                lowered.expected_span,
+                UnitExpectation::Reject(fragment),
+                label,
+            );
+        }
     }
 }
 

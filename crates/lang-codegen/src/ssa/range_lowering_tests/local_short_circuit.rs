@@ -1,4 +1,5 @@
 //! SPEC-0317: normal source, exact edge identities and unmodified native LLVM.
+use super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 
 #[path = "local_short_circuit_boundary.rs"]
@@ -440,6 +441,15 @@ fn range_short_circuit_readonly_receiver_and_copyable_value_argument() {
             assert_eq!(
                 lowered.sources.slice(error.span.unwrap()).unwrap(),
                 "gate.test()"
+            );
+            observe_original_unit(
+                &source,
+                expression,
+                pipeline,
+                &lowered.sources,
+                lowered.expected_span,
+                UnitExpectation::Success(b"receiver\nown-copyable\ntrue\nreceiver\nfalse\n"),
+                &label,
             );
         } else {
             let (program, entry) = lowered.require_success(&label);

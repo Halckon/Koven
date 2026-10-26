@@ -1,4 +1,5 @@
 //! Legal source at the still-unsupported boundaries, never mutated facts or IR.
+use super::super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 use crate::ssa::LoweringErrorKind;
 
@@ -36,6 +37,17 @@ fn reject(source: &str, fragment: &str) {
             Some(lowered.expected_span),
             "{pipeline:?}: {error:?}"
         );
+        if matches!(pipeline, Pipeline::Single) {
+            observe_original_unit(
+                source,
+                fragment,
+                pipeline,
+                &lowered.sources,
+                lowered.expected_span,
+                UnitExpectation::Reject(fragment),
+                "short-circuit-boundary",
+            );
+        }
     }
 }
 

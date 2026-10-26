@@ -1,4 +1,5 @@
 //! Ordinary source keeps the non-Int, concat and alias gates closed.
+use super::super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 use crate::ssa::LoweringErrorKind;
 
@@ -43,6 +44,17 @@ fun main():Unit{{scan(0,true)}}
             lowered.sources.slice(error.span.unwrap()).unwrap(),
             fragment
         );
+        if matches!(pipeline, Pipeline::Single | Pipeline::SingleConstant) {
+            observe_original_unit(
+                &source,
+                fragment,
+                pipeline,
+                &lowered.sources,
+                lowered.expected_span,
+                UnitExpectation::Reject(fragment),
+                "comparison-boundary",
+            );
+        }
     }
 }
 
