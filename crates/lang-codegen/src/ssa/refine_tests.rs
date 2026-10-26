@@ -435,3 +435,86 @@ fn enum_case_tests_and_payload_reads_run_in_methods_and_functions() {
         ("area\nround\nside\npoint\nshape\n".to_owned(), Some(0))
     );
 }
+
+#[test]
+fn inout_scalar_parameters_replace_the_callers_binding() {
+    let source = r#"fun bump(inout x: Int): Unit { x = x + 1 }
+    fun add_to(inout total: Int, own amount: Int): Unit {
+        total = total + amount
+        if (total > 5) { total = 0 }
+    }
+    fun main(): Unit {
+        var n = 1
+        bump(&n)
+        add_to(&n, 2)
+        if (n == 4) { println("four") }
+        add_to(&n, 3)
+        if (n == 0) { println("reset") }
+    }"#;
+    let ((program, _), routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("inout lowers and verifies")
+    });
+    let rendered = render_program(&program);
+    assert!(rendered.contains("borrow.exclusive"), "{rendered}");
+    for function in ["koven.p.bump.d", "koven.p.add_to.d", "koven.p.main.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(run(source), ("four\nreset\n".to_owned(), Some(0)));
+}
+
+#[test]
+fn field_replacement_drops_the_old_value_and_keeps_the_owner() {
+    let source = r#"class Counter(var count: Int, var name: String)
+    fun main(): Unit {
+        var c = Counter(0, "a" + "b")
+        c.count = 5
+        c.name = "x" + "y"
+        if (c.count == 5) { println("field-assign") }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("field replacement lowers and verifies")
+    });
+    assert!(
+        routed.iter().any(|name| name.starts_with("koven.p.main.d")),
+        "{routed:?}"
+    );
+    // The Counter and both concatenations are each freed exactly once.
+    counted(source, 3, b"field-assign\n");
+}

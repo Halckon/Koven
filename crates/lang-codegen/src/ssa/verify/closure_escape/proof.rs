@@ -44,7 +44,8 @@ impl<'a> ValueProof<'a> {
             let access = match instruction.operation {
                 Operation::Mutate { place, .. } => EntityId::Place(place),
                 Operation::HeapFieldReplace { receiver, .. }
-                | Operation::InlineFieldReplace { receiver, .. } => EntityId::Loan(receiver),
+                | Operation::InlineFieldReplace { receiver, .. }
+                | Operation::LoanMutate { loan: receiver, .. } => EntityId::Loan(receiver),
                 Operation::HeapFieldExchange { owner, .. }
                 | Operation::ContainerReplace { owner, .. }
                 | Operation::ContainerAppend { owner, .. }
@@ -250,6 +251,10 @@ impl<'a> ValueProof<'a> {
             }
             | Operation::InlineFieldReplace {
                 receiver, value, ..
+            }
+            | Operation::LoanMutate {
+                loan: receiver,
+                value,
             } => Some((EntityId::Loan(receiver), may(value), false)),
             Operation::HeapFieldExchange {
                 owner, replacement, ..

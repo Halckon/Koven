@@ -122,6 +122,17 @@ pub(super) enum ROp {
     ReadPlace {
         place: Slot,
     },
+    /// Replaces the Copyable target of an exclusive loan.
+    LoanMutate {
+        loan: Slot,
+        value: Slot,
+    },
+    /// Replaces one payload field through an exclusive owner loan, dropping the old value.
+    HeapFieldReplace {
+        receiver: Slot,
+        field: usize,
+        value: Slot,
+    },
 }
 
 impl ROp {
@@ -150,7 +161,16 @@ impl ROp {
             Self::Compare { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::StringConcat { left, right }
-            | Self::StringEqual { left, right } => {
+            | Self::StringEqual { left, right }
+            | Self::LoanMutate {
+                loan: left,
+                value: right,
+            }
+            | Self::HeapFieldReplace {
+                receiver: left,
+                value: right,
+                ..
+            } => {
                 vec![*left, *right]
             }
             Self::NullableTake { owner, proof } => vec![*owner, *proof],

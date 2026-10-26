@@ -1327,6 +1327,12 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                         .build_store(self.place(*place)?, self.value(*value)?)?;
                 }
             }
+            Operation::LoanMutate { loan, value } => {
+                if !self.zero_sized_loans.contains_key(loan) {
+                    self.builder
+                        .build_store(self.access(PlaceAccess::Loan(*loan))?, self.value(*value)?)?;
+                }
+            }
         }
         Ok(())
     }

@@ -156,6 +156,14 @@ impl Builder<'_, '_> {
                 operator: AssignmentOperator::Assign,
                 value,
                 ..
+            } if self.is_field_target(target) => {
+                self.field_assignment(expression, target, value, span)
+            }
+            Expression::Assignment {
+                target,
+                operator: AssignmentOperator::Assign,
+                value,
+                ..
             } => self.assignment(target, value, span),
             Expression::Return { value, .. } => self.return_expression(expression, value, span),
             Expression::Break { .. } => self.loop_jump(expression, true, span),
@@ -524,12 +532,20 @@ impl Builder<'_, '_> {
         }
         let mut lowered = Vec::with_capacity(arguments.len());
         let mut loans = Vec::new();
+        let mut writebacks = Vec::new();
         let mut view_reads = Vec::new();
         for argument in descriptor.arguments() {
             let value_expression = arguments
                 .get(argument.argument_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
                 .value;
+            if argument.mode() == ParameterMode::Inout {
+                let (loan, writeback) = self.inout_argument(value_expression)?;
+                loans.push(loan);
+                lowered.push(loan);
+                writebacks.push(writeback);
+                continue;
+            }
             if argument.mode() == ParameterMode::Borrow
                 && let Some(view) = self.narrowed_view(value_expression)?
             {
@@ -575,7 +591,7 @@ impl Builder<'_, '_> {
                     lowered.push(loan);
                 }
                 ParameterMode::Inout => {
-                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
                 }
             }
         }
@@ -616,6 +632,9 @@ impl Builder<'_, '_> {
         };
         for loan in loans.into_iter().rev() {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
+        for writeback in writebacks {
+            self.write_back(writeback)?;
         }
         self.drops(UnitDropPoint::CallReturn(call))?;
         for argument in view_reads {
@@ -658,6 +677,11 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let slot = self.adapt(slot, value, declared)?;
         self.deliver(value);
+        if let Some(loan) = self.inout_loan(symbol) {
+            // The caller's place now holds the new value; nothing is rebound here.
+            self.push(ROp::LoanMutate { loan, value: slot }, Vec::new(), span)?;
+            return Ok(Lowered::Unit);
+        }
         let binding = *self
             .bindings
             .get(&symbol)

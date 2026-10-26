@@ -55,6 +55,9 @@ fn nullable_functions_inside_the_subset_are_routed() {
          fun f(x: Shape): Int = when (x) { is Shape.Circle -> x.r\n Shape.Point -> 0 }",
         "enum class Shape { Circle(r: Int), Point }\n\
          fun f(): Boolean { val x = Shape.Circle(1); return x is Shape.Circle }",
+        "fun f(inout x: Int): Unit { x = x + 1 }",
+        "class Counter(var count: Int)\nfun f(): Int { var c = Counter(0); c.count = 5; return c.count }",
+        "fun g(inout x: Int): Unit { x = 1 }\nfun f(): Int { var n = 0; g(&n); return n }",
     ] {
         let (result, routed) = route(source);
         assert!(routed, "{source}");
@@ -114,6 +117,14 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "generic class",
             "class Cell<T>(val item: T)\n\
              fun f(own c: Cell<Int>?): Int { if (c != null) { return 1 }; return 0 }",
+        ),
+        (
+            "Inout reborrow of an Inout parameter",
+            "fun g(inout x: Int): Unit { x = 1 }\nfun f(inout x: Int): Unit { g(&x) }",
+        ),
+        (
+            "MoveOnly Inout parameter",
+            "fun f(inout s: String): Unit { s = \"a\" }",
         ),
         (
             "MoveOnly enum subject",

@@ -896,6 +896,12 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*value))
         }
+        Operation::LoanMutate { loan, value } => {
+            output.write_str("mutate ")?;
+            write_entity_id(output, EntityId::Loan(*loan))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*value))
+        }
         Operation::Drop { owner } => {
             output.write_str("drop ")?;
             write_entity_id(output, EntityId::Value(*owner))

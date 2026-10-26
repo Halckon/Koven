@@ -304,6 +304,19 @@ impl Emitter<'_> {
                 base: place(self.get(*base, span)?, span)?,
                 field: *field,
             },
+            ROp::HeapFieldReplace {
+                receiver,
+                field,
+                value,
+            } => Operation::HeapFieldReplace {
+                receiver: loan(self.get(*receiver, span)?, span)?,
+                field: *field,
+                value: self.value(*value, span)?,
+            },
+            ROp::LoanMutate { loan: slot, value } => Operation::LoanMutate {
+                loan: loan(self.get(*slot, span)?, span)?,
+                value: self.value(*value, span)?,
+            },
             ROp::ReadPlace { place: slot } => Operation::Read {
                 source: crate::ssa::model::PlaceAccess::Place(place(self.get(*slot, span)?, span)?),
             },
