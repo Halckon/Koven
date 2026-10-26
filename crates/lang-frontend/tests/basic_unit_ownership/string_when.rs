@@ -7,7 +7,7 @@ use lang_frontend::{
         CompilationUnitOwnership, OwnershipDeferredReason, UnitDropPoint, UnitDropTarget,
     },
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, standard_environments},
+    type_checking::{TypeEnvironment, check_compilation_unit_types, standard_environments},
 };
 
 fn analyze(body: &str, reverse: bool) -> (UnitNameSnapshot, CompilationUnitOwnership) {
@@ -16,6 +16,11 @@ fn analyze(body: &str, reverse: bool) -> (UnitNameSnapshot, CompilationUnitOwner
 }
 
 fn analyze_sources(body: &str, packages: &[&str]) -> (UnitNameSnapshot, CompilationUnitOwnership) {
+    let (snapshot, owned, _) = analyze_sources_with_environment(body, packages);
+    (snapshot, owned)
+}
+
+fn fixture_sources(body: &str, packages: &[&str]) -> (UnitNameSnapshot, TypeEnvironment) {
     let mut sources = SourceMap::new();
     let mut descriptors = Vec::new();
     for &package in packages {
@@ -27,6 +32,14 @@ fn analyze_sources(body: &str, packages: &[&str]) -> (UnitNameSnapshot, Compilat
     }
     let (names, types) = standard_environments();
     let snapshot = analyze_unit_names(sources, descriptors, names).unwrap();
+    (snapshot, types)
+}
+
+fn analyze_sources_with_environment(
+    body: &str,
+    packages: &[&str],
+) -> (UnitNameSnapshot, CompilationUnitOwnership, TypeEnvironment) {
+    let (snapshot, types) = fixture_sources(body, packages);
     let inputs = snapshot.inputs();
     let names = snapshot.validated_names().unwrap();
     let typed = check_compilation_unit_types(snapshot.sources(), &inputs, names, &types).unwrap();
@@ -38,7 +51,7 @@ fn analyze_sources(body: &str, packages: &[&str]) -> (UnitNameSnapshot, Compilat
             .unwrap();
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert_source_identities(&snapshot, &owned);
-    (snapshot, owned)
+    (snapshot, owned, types)
 }
 
 #[test]
@@ -256,11 +269,10 @@ fn empty_and_only_else_subjects_have_no_fake_comparison_edge() {
 #[test]
 fn constant_capability_also_rejects_unsupported_string_when() {
     use lang_frontend::ownership_checking::check_compilation_unit_constant_ownership;
-    let (snapshot, _) = analyze(
+    let (snapshot, _, types) = analyze_sources_with_environment(
         "fun entry(): Unit { val subject = \"subject\"\nwhen (subject) { subject -> {} } }",
-        false,
+        &["a", "b"],
     );
-    let (_, types) = standard_environments();
     let inputs = snapshot.inputs();
     let names = snapshot.validated_names().unwrap();
     let typed = check_compilation_unit_types(snapshot.sources(), &inputs, names, &types)
@@ -480,7 +492,6 @@ fn non_string_and_subjectless_controls_keep_their_existing_facts() {
 fn projected_borrow_result_and_interpolating_forms_remain_deferred() {
     for body in [
         "class Holder(val text: String)\nfun entry(holder: Holder): Unit { when (holder.text) { \"early\" -> {} } }",
-        "fun entry(items: List<String>): Unit { when (items[0]) { \"early\" -> {} } }",
         "fun view(subject: String): borrow String from subject = subject\nfun entry(subject: String): Unit { when (view(subject)) { \"early\" -> {} } }",
         "fun entry(subject: String): Unit { when (subject) { \"${subject}\" -> {} } }",
     ] {
@@ -643,7 +654,7 @@ fn outer_pending_borrow_and_loop_successor_keep_named_subject_alive() {
 fn explicit_borrow_binding_subject_preserves_origin_and_backing_owner() {
     use lang_frontend::ownership_checking::{BorrowBindingStorage, UnitLoanTarget};
     use lang_frontend::type_checking::{BuiltinType, UnitTypeKind};
-    let (snapshot, owned) = analyze_sources(
+    let (snapshot, owned, te) = analyze_sources_with_environment(
         "fun view(source: String): borrow String from source = source\nfun entry(): Unit { val owner = \"kept\"\nborrow val subject = view(owner)\nwhen (subject) { \"early\" -> { println(subject) } }\nprintln(subject) }",
         &["a"],
     );
@@ -674,7 +685,6 @@ fn explicit_borrow_binding_subject_preserves_origin_and_backing_owner() {
     assert_eq!(origin.root().source_unit(), names.source_unit());
     assert_eq!(origin.root().symbol(), owner.id());
     assert!(binding.source_loan().is_some());
-    let (_, te) = standard_environments();
     let typed = check_compilation_unit_types(
         snapshot.sources(),
         &snapshot.inputs(),
@@ -813,4 +823,55 @@ fn zero_comparison_named_subject_inventory_uses_only_its_real_read_point() {
         assert_eq!(symbol.source_unit(), names.source_unit());
         assert_eq!(symbol.symbol(), subject.id());
     }
+}
+
+#[test]
+fn index_subject_preserves_existing_pre_admission_l0136() {
+    use lang_frontend::diagnostic::DiagnosticDetail;
+    // This is the unchanged index input from the original deferred matrix. It is
+    // rejected by existing element ownership rules before a validated when plan.
+    let (snapshot, types) = fixture_sources(
+        "fun entry(items: List<String>): Unit { when (items[0]) { \"early\" -> {} } }",
+        &["a", "b"],
+    );
+    let inputs = snapshot.inputs();
+    let names = snapshot.validated_names().unwrap();
+    let typed = check_compilation_unit_types(snapshot.sources(), &inputs, names, &types).unwrap();
+    assert!(
+        typed.diagnostics().is_empty(),
+        "type admission precedes the ownership diagnostic"
+    );
+    let (_, owned) =
+        analyze_basic_unit_ownership(snapshot.sources(), &inputs, names, &types, typed)
+            .unwrap()
+            .into_result()
+            .unwrap();
+    assert_eq!(owned.diagnostics().len(), 2);
+    for (diagnostic, source) in owned
+        .diagnostics()
+        .iter()
+        .zip(snapshot.names().source_units())
+    {
+        assert_eq!(diagnostic.code().to_string(), "L0136");
+        let span = diagnostic.primary_span();
+        assert_eq!(span.source_id(), source.resolution().source_id());
+        assert_eq!((span.start(), span.end()), (55, 63));
+        assert_eq!(snapshot.sources().slice(span).unwrap(), "items[0]");
+        let labels: Vec<_> = diagnostic
+            .details()
+            .iter()
+            .filter_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => Some(label.span()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(labels.len(), 1);
+        assert_eq!(labels[0].source_id(), span.source_id());
+        assert_eq!((labels[0].start(), labels[0].end()), (20, 25));
+        assert_eq!(snapshot.sources().slice(labels[0]).unwrap(), "items");
+    }
+    assert!(
+        owned.validate().is_err(),
+        "an illegal element move cannot publish owned capability"
+    );
 }

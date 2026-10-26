@@ -40,8 +40,10 @@ Group）或已有 owner 描述的 String temporary。候选 literal 无副作用
 不扩展 nullable、enum、MoveOnly 消费式匹配或其他 when 语义；不恢复旧 checker。
 
 候选调用、插值、控制表达式（含条件内 Return/Break/Continue/Abort）、候选 named place、
-field/index subject、borrow-result subject 暂不准入，必须明确 deferred，不发布完整计划。
-这些不是非法语言；它们缺少本片已冻结的稳定性/owner/路径证明。不得将此有限核称为全部
+field/index subject、borrow-result subject 暂不准入；通过既有检查但缺少本片证明的形状明确
+ deferred，不发布完整计划。既有非法源码保留原诊断：本片的 `List<String>` 下标 subject fixture
+在取得 validated ownership 前已有 L0136，不作为 planner-deferred 的到达覆盖。
+其他未准入形状不因此变成非法语言；不得将此有限核称为全部
 String when 前置完成。后继如扩大候选形状，须先证明 pending owner 的真实提前退出路径。
 
 ## 3. 事实合同（首核已编写，动态验收待执行）
@@ -144,7 +146,7 @@ subject snapshot ABI、旧 checker 修复、大范围模块抽取、无关路线
 ## 7. CI 清单与交接
 
 精确 Draft PR head 发布后执行既有 stage 的 `basic_unit_ownership` 完整 target（本片
-`string_when::` 16 项），及既有 codegen lib 中
+`string_when::` 17 项），及既有 codegen lib 中
 `ssa::unit_lower_when_tests::string_when_comparison_facts_are_explicitly_rejected_until_consumed`。
 双宿主现有完整 codegen、CLI、所选 frontend gates 继续执行；不得把本片新增事实测试当成
 p41 native 释放次数或 SSA 成功证明。现有 `multifile_constant_ownership`、
@@ -160,8 +162,8 @@ p41 native 释放次数或 SSA 成功证明。现有 `multifile_constant_ownersh
 | 项目 | 结果 |
 |---|---|
 | main / 分支编号 / open PR 新鲜读取 | 2026-10-26：main 为上述 SHA，远端 035x 最高0356，无0357；open PR 为162/107/64 |
-| 生产实现与测试源码 | 已编写literal首核、16项公开Unit事实测试、1项真实producer inventory破坏负控与1项consumer拒绝测试；尚未动态验证 |
-| Cargo/build/check/clippy/test/native/list | 均未执行；动态证据限发布后 exact Draft PR CI |
+| 生产实现与测试源码 | 已编写literal首核、17项公开Unit事实/前置拒绝测试、1项真实producer inventory破坏负控与1项consumer拒绝测试；尚未动态验证 |
+| 本地 Cargo/build/check/clippy/test/native/list | 均未执行；动态证据限发布后 exact Draft PR CI |
 | 静态检查 | 官方定向rustfmt、docs（788文件）、size、diff通过；不证明编译或行为正确 |
 | 发布/Ready/合并 | 未执行；无此阶段授权 |
 
@@ -179,3 +181,18 @@ p41 native 释放次数或 SSA 成功证明。现有 `multifile_constant_ownersh
 新增内部负控 exact：
 `ownership_checking::compilation_unit::dataflow::drop_planner::string_when::tests::real_named_inventory_rejects_missing_or_wrong_target_match_and_miss`，
 由既有 frontend `--lib` 门禁承接；无workflow变化。
+
+### 真实行为 CI 的测试构造修正
+
+`b866e144e303cef134db7899212d6aeb015037df` 的
+[CI40381257098](https://github.com/Halckon/Koven/actions/runs/40381257098) Linux
+job121779798087 显示本片公开16项中13项通过、3项失败；这不是修正提交的通过证据。
+两项在测试内重新调用 `standard_environments`，用新TypeEnvironment核旧snapshot，触发
+`MismatchedNameEnvironment`。现由fixture返回同轮TypeEnvironment，原identity guard、
+constant拒绝与Borrow类型/来源/晚释放断言不变。
+
+第三项矩阵的 `items[0]` 源码原本触发非Copyable容器元素移动的L0136，不能要求无诊断再进入
+String when deferred。原源码逐字保留为独立前置拒绝测试，双source精确核primary55..63、
+label20..25与不可validate；field、borrow-result call、插值仍各自严格要求本片deferred。
+首轮矩阵在field之后被index失败打断，后两项当时未到达，不计通过。没有放宽成功helper或
+修改生产检查器；本次测试/Spec修正仍需新exact PR CI。
