@@ -1,4 +1,5 @@
 //! SPEC-0317: normal source, exact edge identities and unmodified native LLVM.
+use super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 
 #[path = "local_short_circuit_boundary.rs"]
@@ -430,18 +431,16 @@ fn range_short_circuit_readonly_receiver_and_copyable_value_argument() {
             "class Gate(val flag:Boolean){{fun test():Boolean{{println(\"receiver\");return flag}}}}\nfun identity(own flag:Boolean):Boolean{{println(\"own-copyable\");return flag}}\nfun read(view:View<String>):Unit{{}}\nfun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");val gate=Gate(flag);{{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
         );
         let label = format!("0317-receiver-{pipeline:?}");
-        let lowered = lower(&source, expression, pipeline);
         if matches!(pipeline, Pipeline::Single) {
-            let error = lowered
-                .result
-                .err()
-                .expect("single's existing ordinary receiver boundary remains independent");
-            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-            assert_eq!(
-                lowered.sources.slice(error.span.unwrap()).unwrap(),
-                "gate.test()"
+            observe_original_unit(
+                &source,
+                expression,
+                pipeline,
+                UnitExpectation::Success(b"receiver\nown-copyable\ntrue\nreceiver\nfalse\n"),
+                &label,
             );
         } else {
+            let lowered = lower(&source, expression, pipeline);
             let (program, entry) = lowered.require_success(&label);
             run_unmodified(
                 &program,

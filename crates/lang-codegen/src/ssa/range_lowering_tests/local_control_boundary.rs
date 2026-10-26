@@ -1,4 +1,5 @@
 //! Ordinary, frontend-valid source probes for the frozen capability boundary.
+use super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 use crate::ssa::LoweringErrorKind;
 
@@ -7,6 +8,16 @@ fn reject(label: &str, consumer: &str, fragment: &str) {
         // A frontend diagnostic is a fixture failure, not a backend rejection.
         // Print the current source case before the shared frontend setup asserts.
         eprintln!("boundary={label}; pipeline={pipeline:?}; expected={fragment:?}");
+        if matches!(pipeline, Pipeline::Single) {
+            observe_original_unit(
+                consumer,
+                fragment,
+                pipeline,
+                UnitExpectation::Reject(fragment),
+                label,
+            );
+            continue;
+        }
         let lowered = lower(consumer, fragment, pipeline);
         let error = lowered
             .result

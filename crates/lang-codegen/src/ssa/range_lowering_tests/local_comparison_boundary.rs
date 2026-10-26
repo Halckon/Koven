@@ -1,4 +1,5 @@
 //! Ordinary source keeps the non-Int, concat and alias gates closed.
+use super::super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 use crate::ssa::LoweringErrorKind;
 
@@ -24,6 +25,16 @@ fun main():Unit{{scan(0,true)}}
         Pipeline::UnitConstant,
         Pipeline::UnitConstantReversed,
     ] {
+        if matches!(pipeline, Pipeline::Single | Pipeline::SingleConstant) {
+            observe_original_unit(
+                &source,
+                fragment,
+                pipeline,
+                UnitExpectation::Reject(fragment),
+                "comparison-boundary",
+            );
+            continue;
+        }
         let lowered = lower(&source, fragment, pipeline);
         let error = lowered
             .result
