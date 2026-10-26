@@ -1,17 +1,17 @@
 # SPEC-0356: E3 `when` 家族迁入所有权细化层
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：评审或实施路线图 E3/N02 的 `when` lowering 时 · **唯一真源**：本片目标、范围与验收；语义以 Guide 为准，长期决定以 ADR-0032 为准
+> **性质**：实施合同 · **状态**：done · **读取时机**：评审或实施路线图 E3/N02 的 `when` lowering 时 · **唯一真源**：本片目标、范围与验收；语义以 Guide 为准，长期决定以 ADR-0032 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0356` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.46 `when`](../../guide/06-blocks-control-flow.md#when)、[`when` 条件、覆盖域与重复](../../guide/06-blocks-control-flow.md#when-条件覆盖域与重复) |
 | 批准依据 | 2026-10-26 用户选择：E3 下一片为 `when` 家族；PR #172 第 9 个源码的阻塞以“细化层支持无 subject 的 when”解决，#172 依赖本片 |
 | 基线 | main `adddef8d` |
 | 分支 | `feature/spec-0356-refine-when`（步 1）、`feature/spec-0356-when-subject`（步 2，基线 main `86f795e0`） |
-| 前置 | [SPEC-0350](../../archive/specs/0350-ownership-refinement-nullable-pilot.md)（细化层首片）、[ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md) |
+| 前置 | [SPEC-0350](0350-ownership-refinement-nullable-pilot.md)（细化层首片）、[ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -58,8 +58,11 @@
   `refine_tests` 的有 subject `when` native 运行（整数等值、`in`/`!in`、Boolean subject、语句位置
   混合分支类型），`refine_subset_tests` 把 nullable/String subject 与无 `else` 的值位置 `when`
   列为子集外。
-- [ ] 步 3：p50 通过；E2 的 enum when 回退项关闭或逐项记录剩余原因。
-- [ ] 受影响目标定向测试、fmt、clippy、尺寸护栏、`check_docs.py` 通过；双宿主 CI 以 PR 为准。
+- [x] 步 3：p50 在单文件与 project 两种模式通过，E2 的 enum when 回退项（原 5 个中最后的 p50）关闭；
+  `refine_tests` 的 enum native 运行（方法内 `when (this)` 的 `is` 与隐式 `this` payload 读取、
+  `this is C`、外部函数的 `is`/`!is` 与窄化名的 payload 读取、无 payload case 等值、无 `else` 的
+  值位置 `when` 落空边为不可达 Abort），`refine_subset_tests` 把 MoveOnly 与泛型 enum subject 列为子集外。
+- [x] 受影响目标定向测试、fmt、clippy、尺寸护栏、`check_docs.py` 通过（本地 Linux）；双宿主 CI 以 PR 为准。
 
 步 1 更新的既有测试（仅 IR 形状，行为断言不变）：
 
@@ -76,6 +79,8 @@
 | `comma_when_cleanup_tests::comma_when_real_facts_and_ssa_preserve_common_owner_and_clean_first_match` | 首个条件与 `probe` 结果的分支 origin 为整个 entry 的 span | 细化层的条件分支以条件自身 span 为 origin；单次析构、析构所在边、owner 沿各边的传递与调用参数断言不变 |
 | `direct_call_prefix_tests` 两项矩阵（Commit 列） | Boolean `when` 的判定分支 origin 等于整个 `when` 的 span | Commit 列现由细化层 lowering，判定分支 origin 为其中的 `true` 条件；改为在 `when` span 内查找唯一的条件分支，各边上 owner/loan 的传递与路径断言不变 |
 
+步 3 不更新既有测试。
+
 步 2 同时收紧子集：析构点为 `ControlTransfer`、目标为临时值的事实（跳转跳出调用参数，放弃前面
 参数的临时值及其 loan）留在旧路径；`direct_call_prefix_tests` 的 TemporaryBorrow-Return 计划红因此保持不变。
 
@@ -89,4 +94,12 @@
 | 步 | 提交 | 内容 |
 |---|---|---|
 | 1 | `4a2e90bf` 与后续提交 | `refine/build/when.rs`；子集接受无 subject `when` 并放行 `WhenAlternativeMatch` 析构点；`loop`、`break`、`continue` 与全分支发散的 `if`；Copyable Borrow nullable 参数的 null 比较先经 loan 读出副本 |
-| 2 | 本分支提交 | 有 subject `when`：整数/Boolean 等值与 `in`/`!in` 整数 Range；路由门加入 `migrated`；`ControlTransfer` 临时值析构留在旧路径；String subject 记为 frontend 事实缺口 |
+| 2 | `7247ab26` | 有 subject `when`：整数/Boolean 等值与 `in`/`!in` 整数 Range；路由门加入 `migrated`；`ControlTransfer` 临时值析构留在旧路径；String subject 记为 frontend 事实缺口 |
+| 3 | 本分支提交 | `refine/build/tagged.rs` 与 `refine/subset/tagged.rs`：Copyable、非泛型、payload 全为标量的 enum 进入槽位类型；case 构造、判别值比较（`is`/`!is`、无 payload case 等值、`is` 作 Boolean 值，后者也计入路由门）、按流事实窄化的 payload 读取（窄化名、`this` 与隐式 `this`）；enum 方法的 receiver（Value 或 Borrow）进入细化层；enum subject 的值位置 `when` 无 `else` 时落空边为不可达 Abort |
+
+## 6. 剩余项
+
+- p41（String subject）：ownership 事实既未规划 subject 跨各条件测试的生命周期，也未规划 MoveOnly
+  候选值的析构；需另开 frontend Spec 补事实后再迁入，见步 2 记录。
+- MoveOnly enum subject 的消费式匹配属于路线图 L7；泛型 enum 与 payload 含非标量的 enum 随 N06/
+  泛型家族迁入，不在本片。

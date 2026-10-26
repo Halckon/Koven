@@ -1,18 +1,19 @@
 //! `when`: alternatives tested in source order; the first match enters its body. A scalar
-//! subject is evaluated once and compared by value or by integer Range membership.
+//! subject is evaluated once and compared by value or by integer Range membership; a
+//! Copyable enum subject is tested by case.
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::UnitDropPoint,
     parser::{WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{BuiltinType, IntegerRangeOperationKind},
+    type_checking::{BuiltinType, IntegerRangeOperationKind, UnitTypeId},
 };
 
 use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{ComparisonOperator, EntityType, SsaTypeId},
-    refine::body::{BlockRef, ROp, RTerm, Slot},
+    refine::body::{BlockRef, RAbort, ROp, RTerm, Slot},
 };
 
 impl Builder<'_, '_> {
@@ -33,6 +34,14 @@ impl Builder<'_, '_> {
         } else {
             Some(self.body.slot(EntityType::Value(self.ssa_type(ty, span)?)))
         };
+        // A Copyable enum subject is tested by case; its domain is closed.
+        let root = match subject {
+            Some(subject) => {
+                let ty = self.expression_type(subject)?;
+                self.is_enum(ty).then_some(ty)
+            }
+            None => None,
+        };
         let subject = match subject {
             Some(subject) => match self.required(subject)? {
                 Some(subject) => Some(subject),
@@ -41,6 +50,7 @@ impl Builder<'_, '_> {
             None => None,
         };
         let join = self.body.block();
+        self.body.blocks[join.0].origin = Some(span);
         let mut reached = false;
         let mut falls_through = true;
         for (index, entry) in entries.iter().enumerate() {
@@ -52,7 +62,7 @@ impl Builder<'_, '_> {
             for (alternative, condition) in entry.conditions.iter().enumerate() {
                 let matched = self.body.block();
                 let next = self.body.block();
-                self.when_condition(subject, condition, matched, next, entry.span)?;
+                self.when_condition(subject, root, condition, matched, next, entry.span)?;
                 let mark = self.enter(matched);
                 self.leave_unclaimed(mark, entry.span)?;
                 self.drops(UnitDropPoint::WhenAlternativeMatch {
@@ -88,7 +98,10 @@ impl Builder<'_, '_> {
                 break;
             }
         }
-        if falls_through {
+        if falls_through && result.is_some() && root.is_some() {
+            // The frontend proved the enum cases covered: no value reaches this edge.
+            self.terminate(RTerm::Abort(RAbort::UnmatchedWhen), span)?;
+        } else if falls_through {
             if result.is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
@@ -114,6 +127,7 @@ impl Builder<'_, '_> {
     fn when_condition(
         &mut self,
         subject: Option<Slot>,
+        root: Option<UnitTypeId>,
         condition: &WhenCondition,
         matched: BlockRef,
         next: BlockRef,
@@ -137,6 +151,35 @@ impl Builder<'_, '_> {
                     (matched, next)
                 };
                 return self.range_condition(subject, *expression, inside, outside);
+            }
+            (
+                Some(subject),
+                WhenCondition::TypeTest {
+                    negated, type_ref, ..
+                },
+            ) => {
+                let root = root.ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+                let matches = self.type_test(subject, root, *type_ref, *negated, span)?;
+                return self.terminate(
+                    RTerm::Branch {
+                        condition: matches,
+                        when_true: matched,
+                        when_false: next,
+                    },
+                    span,
+                );
+            }
+            (Some(subject), WhenCondition::Expression(condition)) if root.is_some() => {
+                let root = root.ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+                let matches = self.case_value_test(subject, root, *condition, span)?;
+                return self.terminate(
+                    RTerm::Branch {
+                        condition: matches,
+                        when_true: matched,
+                        when_false: next,
+                    },
+                    span,
+                );
             }
             (Some(subject), WhenCondition::Expression(condition)) => (subject, *condition),
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),

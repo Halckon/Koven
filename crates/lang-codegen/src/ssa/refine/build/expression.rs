@@ -79,10 +79,19 @@ impl Builder<'_, '_> {
         let (payload, span) = self.node(expression)?;
         let id = self.unit(expression);
         let typed = self.inputs.typed;
-        if typed.construction(id).is_some() {
+        if let Some(descriptor) = typed.construction(id) {
+            if matches!(
+                descriptor.target(),
+                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_)
+            ) {
+                return self.enum_construction(expression, span);
+            }
             return self.construction(expression, span);
         }
         if typed.aggregate_projection(id).is_some() {
+            if self.is_enum_projection(expression) {
+                return self.enum_projection(expression, span);
+            }
             return self.projection(expression, span);
         }
         if typed.non_null_assertion(id).is_some() {
@@ -107,6 +116,13 @@ impl Builder<'_, '_> {
                 )?))
             }
             Expression::Name => self.name(expression, span).map(Lowered::Value),
+            Expression::This => self.this_value(expression, span).map(Lowered::Value),
+            Expression::TypeTest {
+                expression: operand,
+                negated,
+                type_ref,
+                ..
+            } => self.type_test_expression(operand, type_ref, negated, span),
             Expression::Prefix {
                 operator: PrefixOperator::Not,
                 operand,

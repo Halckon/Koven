@@ -99,6 +99,29 @@ pub(super) enum ROp {
         receiver: Slot,
         field: usize,
     },
+    /// Consumes `payload` into the `variant` of a tagged union.
+    TaggedConstruct {
+        tagged: SsaTypeId,
+        variant: usize,
+        payload: Slot,
+    },
+    /// The `Int` discriminant of a tagged value.
+    TaggedDiscriminant {
+        owner: Slot,
+    },
+    /// The payload place of `variant`; the flow facts proved the owner holds it.
+    TaggedPayloadPlace {
+        owner: Slot,
+        variant: usize,
+    },
+    FieldPlace {
+        base: Slot,
+        field: usize,
+    },
+    /// Copies a Copyable value out of a place.
+    ReadPlace {
+        place: Slot,
+    },
 }
 
 impl ROp {
@@ -118,7 +141,12 @@ impl ROp {
             | Self::NullableWrap { owner: slot, .. }
             | Self::NullableIsNull { owner: slot }
             | Self::HeapAllocate { payload: slot, .. }
-            | Self::HeapFieldRead { receiver: slot, .. } => vec![*slot],
+            | Self::HeapFieldRead { receiver: slot, .. }
+            | Self::TaggedConstruct { payload: slot, .. }
+            | Self::TaggedDiscriminant { owner: slot }
+            | Self::TaggedPayloadPlace { owner: slot, .. }
+            | Self::FieldPlace { base: slot, .. }
+            | Self::ReadPlace { place: slot } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::StringConcat { left, right }
@@ -149,6 +177,9 @@ pub(super) enum RAbort {
     },
     /// `!!` on a null value.
     NullAssertion,
+    /// The fall-through of a value `when` over a closed domain the frontend proved
+    /// covered; unreachable at run time.
+    UnmatchedWhen,
 }
 
 #[derive(Clone, Debug)]
@@ -177,7 +208,7 @@ impl RTerm {
             Self::NullBranch { owner, .. } => vec![*owner],
             Self::Return(Some(value)) => vec![*value],
             Self::Abort(RAbort::CheckedArithmetic { divisor, .. }) => vec![*divisor],
-            Self::Abort(RAbort::NullAssertion) => Vec::new(),
+            Self::Abort(RAbort::NullAssertion | RAbort::UnmatchedWhen) => Vec::new(),
         }
     }
 
@@ -205,6 +236,8 @@ pub(super) struct RBlock {
     pub(super) terminator: Option<(RTerm, Span)>,
     /// Set for a `NullBranch` non-null target: the proof view defined on entry.
     pub(super) view: Option<Slot>,
+    /// Source of the construct this block joins; the function span when unset.
+    pub(super) origin: Option<Span>,
 }
 
 /// Block 0 is the function entry; `parameters` are defined there.

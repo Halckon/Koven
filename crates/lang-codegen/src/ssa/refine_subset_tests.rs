@@ -51,6 +51,10 @@ fn nullable_functions_inside_the_subset_are_routed() {
          fun f(own n: Node?): Int { if (n != null) { return n.v }; return 0 }",
         "class Node(val v: Int)\nfun g(c: Boolean): Node? = if (c) Node(1) else null\n\
          fun f(c: Boolean): Int { val n = g(c)!!; return n.v }",
+        "enum class Shape { Circle(r: Int), Point }\n\
+         fun f(x: Shape): Int = when (x) { is Shape.Circle -> x.r\n Shape.Point -> 0 }",
+        "enum class Shape { Circle(r: Int), Point }\n\
+         fun f(): Boolean { val x = Shape.Circle(1); return x is Shape.Circle }",
     ] {
         let (result, routed) = route(source);
         assert!(routed, "{source}");
@@ -110,6 +114,16 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "generic class",
             "class Cell<T>(val item: T)\n\
              fun f(own c: Cell<Int>?): Int { if (c != null) { return 1 }; return 0 }",
+        ),
+        (
+            "MoveOnly enum subject",
+            "enum class Tag { Named(n: String), Empty }\n\
+             fun f(own t: Tag): Int = when (t) { is Tag.Named -> 1\n else -> 0 }",
+        ),
+        (
+            "generic enum subject",
+            "enum class Opt<T> { Some(v: T), None }\n\
+             fun f(o: Opt<Int>): Int = when (o) { is Opt.Some -> 1\n else -> 0 }",
         ),
         (
             "non-scalar class field",

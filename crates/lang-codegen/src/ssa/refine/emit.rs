@@ -284,6 +284,29 @@ impl Emitter<'_> {
                 receiver: loan(self.get(*receiver, span)?, span)?,
                 field: *field,
             },
+            ROp::TaggedConstruct {
+                tagged,
+                variant,
+                payload,
+            } => Operation::TaggedConstruct {
+                tagged: *tagged,
+                variant: *variant,
+                payload: self.value(*payload, span)?,
+            },
+            ROp::TaggedDiscriminant { owner } => Operation::TaggedDiscriminant {
+                owner: self.value(*owner, span)?,
+            },
+            ROp::TaggedPayloadPlace { owner, variant } => Operation::TaggedPayloadPlace {
+                owner: self.value(*owner, span)?,
+                variant: *variant,
+            },
+            ROp::FieldPlace { base, field } => Operation::FieldPlace {
+                base: place(self.get(*base, span)?, span)?,
+                field: *field,
+            },
+            ROp::ReadPlace { place: slot } => Operation::Read {
+                source: crate::ssa::model::PlaceAccess::Place(place(self.get(*slot, span)?, span)?),
+            },
         })
     }
 }
@@ -322,8 +345,9 @@ pub(super) fn emit(
             .collect();
         slots.extend(view);
         let types = slots.iter().map(|slot| body.slots[slot.0]).collect();
+        let origin = body.blocks[block.0].origin.unwrap_or(span);
         let id = function
-            .add_block(types, Origin::Source(span))
+            .add_block(types, Origin::Source(origin))
             .map_err(invalid)?;
         let block_parameters = function
             .block(id)
@@ -395,14 +419,14 @@ pub(super) fn emit(
                     .map_err(model_error)?;
                 continue;
             }
-            RTerm::Abort(RAbort::NullAssertion) => {
+            RTerm::Abort(reason @ (RAbort::NullAssertion | RAbort::UnmatchedWhen)) => {
+                let text = match reason {
+                    RAbort::NullAssertion => "null assertion failed",
+                    _ => "internal error: when subject matched no branch",
+                };
                 emitter
                     .function
-                    .set_abort_terminator(
-                        target,
-                        AbortReason::Text("null assertion failed".to_owned()),
-                        origin,
-                    )
+                    .set_abort_terminator(target, AbortReason::Text(text.to_owned()), origin)
                     .map_err(model_error)?;
                 continue;
             }

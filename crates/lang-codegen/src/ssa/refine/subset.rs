@@ -2,6 +2,7 @@
 //! ownership facts plus AST construct kinds; it never runs lowering. Anything outside
 //! the subset keeps the existing per-family path.
 mod heap;
+mod tagged;
 
 use std::collections::BTreeSet;
 
@@ -67,7 +68,11 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                         && (!borrowed || inputs.typed.copyability(ty) == Copyability::Copyable)
                 })
             })
-        && (checker.unit(inputs.return_type) || checker.storage_type(inputs.return_type));
+        && (checker.unit(inputs.return_type) || checker.storage_type(inputs.return_type))
+        // Only enum methods take a receiver in the subset (SPEC-0356 step 3).
+        && inputs
+            .receiver
+            .is_none_or(|receiver| checker.enum_type(receiver.ty));
     signature
         && match inputs.body {
             RefineBody::Expression(expression) => checker.expression(expression),
@@ -97,6 +102,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         .iter()
         .filter_map(|symbol| typed.symbol_type(*symbol))
         .chain([inputs.return_type])
+        .chain(inputs.receiver.map(|receiver| receiver.ty))
         .collect();
     for (expression, node) in inputs.parsed.ast().expressions().iter() {
         let span = node.span();
@@ -112,6 +118,10 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
             .flatten()
     }));
     demands.extend(typed.types().builtin(BuiltinType::Boolean));
+    // Case tests compare the `Int` discriminant.
+    if demands.iter().any(|ty| checker.enum_type(*ty)) {
+        demands.extend(typed.types().builtin(BuiltinType::Int));
+    }
     let mut seen = BTreeSet::new();
     let mut ordered = Vec::new();
     for ty in demands {
@@ -216,7 +226,7 @@ impl Checker<'_, '_> {
         match self.kind(ty) {
             Some(UnitTypeKind::Builtin(BuiltinType::String)) => true,
             Some(UnitTypeKind::Nullable(inner)) => self.scalar(*inner) || self.view_inner(*inner),
-            _ => self.scalar(ty) || self.class(ty),
+            _ => self.scalar(ty) || self.class(ty) || self.enum_type(ty),
         }
     }
 
@@ -300,11 +310,17 @@ impl Checker<'_, '_> {
         }
         self.note_nullable(ty);
         let id = self.id(expression);
-        if self.inputs.typed.construction(id).is_some() {
+        if let Some(descriptor) = self.inputs.typed.construction(id) {
+            if matches!(
+                descriptor.target(),
+                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_)
+            ) {
+                return self.enum_construction(expression);
+            }
             return self.construction(expression);
         }
         if self.inputs.typed.aggregate_projection(id).is_some() {
-            return self.projection(expression);
+            return self.projection(expression) || self.enum_projection(expression);
         }
         if self.inputs.typed.non_null_assertion(id).is_some() {
             return self.non_null_assertion(expression);
@@ -324,6 +340,12 @@ impl Checker<'_, '_> {
                 .flatten()
                 .is_some(),
             Expression::Name => self.name(expression),
+            Expression::This => self.this_expression(expression),
+            Expression::TypeTest {
+                expression: operand,
+                type_ref,
+                ..
+            } => self.type_test_expression(operand, type_ref),
             Expression::Prefix {
                 operator: PrefixOperator::Not,
                 operand,
@@ -500,8 +522,9 @@ impl Checker<'_, '_> {
         }
     }
 
-    /// A scalar subject compared by value, or an integer subject tested for Range
-    /// membership; a value-context `when` needs `else`.
+    /// A scalar subject compared by value, an integer subject tested for Range membership,
+    /// or a Copyable enum subject tested for its case. A value-context `when` needs `else`
+    /// unless the subject is an enum, whose closed domain the frontend proved covered.
     fn subject_when(
         &mut self,
         ty: UnitTypeId,
@@ -512,23 +535,29 @@ impl Checker<'_, '_> {
         let Some(subject_type) = self.expression_type(subject) else {
             return false;
         };
+        let tagged = self.enum_type(subject_type);
         // A MoveOnly subject (String) stays outside: ownership facts plan neither the
         // subject's lifetime across the tests nor drops for MoveOnly candidates.
-        let subject_ok = self.scalar(subject_type) && self.expression(subject);
+        let subject_ok = (self.scalar(subject_type) || tagged) && self.expression(subject);
         let has_else = entries.iter().any(|entry| entry.else_span.is_some());
         subject_ok
-            && (self.unit(ty) || has_else)
+            && (self.unit(ty) || has_else || tagged)
             && entries.iter().all(|entry| {
                 entry.else_span.is_some() == entry.conditions.is_empty()
                     && entry.conditions.iter().all(|condition| match condition {
+                        WhenCondition::Expression(condition) if tagged => {
+                            self.case_value_condition(*condition, subject_type)
+                        }
                         WhenCondition::Expression(condition) => {
                             self.expression_type(*condition) == Some(subject_type)
                                 && self.expression(*condition)
                         }
                         WhenCondition::Contains { expression, .. } => {
-                            self.range_condition(*expression, subject_type)
+                            !tagged && self.range_condition(*expression, subject_type)
                         }
-                        WhenCondition::TypeTest { .. } => false,
+                        WhenCondition::TypeTest { type_ref, .. } => {
+                            tagged && self.type_test_target(*type_ref, subject_type)
+                        }
                     })
                     && self.statement(entry.body)
             })

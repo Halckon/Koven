@@ -507,15 +507,10 @@
       "oracle_origin": "v046_spec_contract"
     },
     "p50_enum_method": {
-      "kind": "known_unimplemented",
-      "target_stdout": "enum-method\n",
-      "allowed_markers": [
-        "BE:MissingFact",
-        "BE:UnsupportedNode",
-        "FE:L0165"
-      ],
+      "kind": "run_ok",
+      "stdout": "enum-method\n",
       "v046_baseline_exempt": true,
-      "note": "Enum method with when (this) still hits BE:MissingFact in native lowering",
+      "note": "SPEC-0356: enum method when (this) with is-tests and implicit-this payload reads in E3 refinement layer",
       "source_sha256": "487d2ce11036094236f0532084d6f72b31af44da168403362dc492dc5f3a0b3a",
       "oracle_origin": "v046_spec_contract"
     },

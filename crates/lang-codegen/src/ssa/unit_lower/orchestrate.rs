@@ -427,12 +427,14 @@ fn lower_unit_impl(
                 .expect("entry block exists")
                 .parameters
                 .clone();
-            (plan.receiver.is_none()
-                && plan.instance.substitutions().is_empty()
+            let receiver = plan.receiver.as_ref();
+            (receiver.is_none_or(|receiver| {
+                matches!(receiver.mode, ParameterMode::Value | ParameterMode::Borrow)
+            }) && plan.instance.substitutions().is_empty()
                 && plan.instance.key().static_self().is_none()
                 && function.borrow_return.is_none()
                 && function.carrier_return.is_none()
-                && entities.len() == plan.parameter_symbols.len()
+                && entities.len() == plan.parameter_symbols.len() + usize::from(receiver.is_some())
                 && entities
                     .iter()
                     .all(|entity| matches!(entity, EntityId::Value(_) | EntityId::Loan(_))))
@@ -462,9 +464,17 @@ fn lower_unit_impl(
                 function_item: plan.function_item,
                 body: refine_body,
                 return_type: plan.return_type,
+                receiver: plan.receiver.as_ref().map(|receiver| {
+                    crate::ssa::refine::RefineReceiver {
+                        owner: receiver.owner,
+                        ty: receiver.ty,
+                        borrowed: receiver.mode == ParameterMode::Borrow,
+                    }
+                }),
                 parameters: plan.parameter_symbols.clone(),
                 borrowed: entities
                     .iter()
+                    .skip(usize::from(plan.receiver.is_some()))
                     .map(|entity| matches!(entity, EntityId::Loan(_)))
                     .collect(),
                 span: plan.instance.span(),
@@ -481,6 +491,7 @@ fn lower_unit_impl(
                     type_ids: types.type_ids(),
                     heap_payloads: types.heap_payloads(),
                     field_indices: types.field_indices(),
+                    enum_payloads: types.enum_payloads(),
                 };
                 crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
                 continue;

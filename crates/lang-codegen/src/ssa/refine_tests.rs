@@ -369,3 +369,69 @@ fn subject_when_compares_scalars_and_range_membership() {
         )
     );
 }
+
+#[test]
+fn enum_case_tests_and_payload_reads_run_in_methods_and_functions() {
+    let source = r#"enum class Shape { Circle(r: Int), Square(s: Int), Point;
+        fun area(): Int = when (this) { is Circle -> 3 * r * r; is Square -> s * s; is Point -> 0 }
+        fun round(): Boolean = this is Circle
+    }
+    fun side(x: Shape): Int = when (x) { is Shape.Square -> x.s; !is Shape.Circle -> 100; else -> 0 }
+    fun point(x: Shape): String = when (x) { Shape.Point -> "point"; else -> "shape" }
+    fun main(): Unit {
+        val c = Shape.Circle(2)
+        val q = Shape.Square(3)
+        val p = Shape.Point
+        if (c.area() == 12 && q.area() == 9 && p.area() == 0) { println("area") }
+        if (c.round() && !q.round()) { println("round") }
+        if (side(q) == 3 && side(p) == 100 && side(c) == 0) { println("side") }
+        println(point(p))
+        println(point(c))
+    }"#;
+    let ((program, _), routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("enum when lowers and verifies")
+    });
+    // The exhaustive value `when` over the enum has an unreachable fall-through abort.
+    let area = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name.contains(".area."))
+        .expect("area is lowered");
+    assert!(
+        area.blocks.iter().any(|block| matches!(
+            block.terminator.as_ref().and_then(|terminator| terminator.abort.as_ref()),
+            Some(super::model::AbortReason::Text(text)) if text.contains("matched no branch")
+        )),
+        "{}",
+        render_program(&program)
+    );
+    for function in ["area", "side", "point"] {
+        assert!(
+            routed
+                .iter()
+                .any(|name| name.contains(&format!(".{function}."))),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        run(source),
+        ("area\nround\nside\npoint\nshape\n".to_owned(), Some(0))
+    );
+}

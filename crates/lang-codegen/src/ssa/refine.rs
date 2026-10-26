@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
-    name_resolution::{SourceUnitId, UnitSymbolId, ValidatedCompilationUnitNames},
+    name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId, ValidatedCompilationUnitNames},
     ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit},
     parser::ParsedFile,
     source::{SourceMap, Span},
@@ -30,6 +30,16 @@ use super::{
 pub(in crate::ssa) enum RefineBody {
     Expression(ExpressionId),
     Block(StatementId),
+}
+
+/// The current receiver of a method instance; its entity precedes the parameters.
+#[derive(Clone, Copy, Debug)]
+pub(in crate::ssa) struct RefineReceiver {
+    /// The classifier whose member this is; implicit-`this` projections name it.
+    pub(in crate::ssa) owner: DeclarationId,
+    pub(in crate::ssa) ty: UnitTypeId,
+    /// Whether the caller passes a shared loan (Borrow mode) instead of the value.
+    pub(in crate::ssa) borrowed: bool,
 }
 
 /// Everything one function instance needs; all facts come from the same validated unit.
@@ -49,6 +59,7 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) function_item: ItemId,
     pub(in crate::ssa) body: RefineBody,
     pub(in crate::ssa) return_type: UnitTypeId,
+    pub(in crate::ssa) receiver: Option<RefineReceiver>,
     /// Parameters in declaration order.
     pub(in crate::ssa) parameters: Vec<UnitSymbolId>,
     /// Per parameter: whether the caller passes a shared loan (Borrow mode).
@@ -101,12 +112,14 @@ pub(in crate::ssa) struct RefineTypes<'t> {
     pub(in crate::ssa) type_ids: &'t BTreeMap<UnitTypeId, SsaTypeId>,
     /// Class owner type to its payload aggregate.
     pub(in crate::ssa) heap_payloads: &'t BTreeMap<SsaTypeId, SsaTypeId>,
-    /// (owner type, field symbol) to payload field index.
+    /// (owner type, field symbol) to payload field index; enum roots index case payloads.
     pub(in crate::ssa) field_indices: &'t BTreeMap<(UnitTypeId, UnitSymbolId), usize>,
+    /// (tagged union type, case value or type symbol) to (variant, payload aggregate).
+    pub(in crate::ssa) enum_payloads: &'t BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
 }
 
 /// Lowers an accepted function body into `function`, whose `entry` block holds
-/// `parameters` (one entity per `inputs.parameters` symbol).
+/// `parameters` (the receiver entity, if any, then one per `inputs.parameters` symbol).
 pub(in crate::ssa) fn lower(
     inputs: &RefineInputs<'_>,
     function: &mut Function,

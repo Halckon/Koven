@@ -282,11 +282,10 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "note": "Payloadless enum when: main prints name(Color.Green), so the when branch yields green",
     },
     "p50_enum_method": {
-        "kind": "known_unimplemented",
-        "target_stdout": "enum-method\n",
-        "allowed_markers": ["BE:MissingFact", "BE:UnsupportedNode", "FE:L0165"],
+        "kind": "run_ok",
+        "stdout": "enum-method\n",
         "v046_baseline_exempt": True,
-        "note": "Enum method with when (this) still hits BE:MissingFact in native lowering",
+        "note": "SPEC-0356: enum method when (this) with is-tests and implicit-this payload reads in E3 refinement layer",
     },
     "u01_enum_case_borrow_arg": {
         "kind": "run_ok",
