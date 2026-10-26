@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -902,6 +903,19 @@ def derive_static_expectations(
     }
 
 
+def resolve_default_cli(root: Path) -> Path:
+    env_cli = os.environ.get("KOVENC", "").strip()
+    if env_cli:
+        return Path(env_cli)
+    release_cli = root / "target/release/kovenc"
+    debug_cli = root / "target/debug/kovenc"
+    if release_cli.is_file():
+        return release_cli
+    if debug_cli.is_file():
+        return debug_cli
+    return release_cli
+
+
 def evaluate_suite(
     kovenc: Path,
     corpus_root: Path,
@@ -913,8 +927,11 @@ def evaluate_suite(
     strict_unreviewed: bool = True,
     compiler_commit: str = "unknown",
     evidence_dir: Path | None = None,
+    jobs: int = 1,
 ) -> dict[str, Any]:
     """Run selected probes/programs, compare against expectations & baseline, and return full ledger."""
+    if jobs < 1:
+        raise ValueError(f"jobs must be >= 1, got {jobs}")
     kovenc = kovenc.resolve(strict=True)
     corpus_root = corpus_root.resolve(strict=True)
     expectations = load_expectations(expectations_path, corpus_root=corpus_root)
@@ -940,8 +957,8 @@ def evaluate_suite(
         evidence_dir.mkdir(parents=True, exist_ok=True)
 
     initial_compiler_sha = sha256_file(kovenc)
-    probe_results: list[dict[str, Any]] = []
-    for name in probe_names:
+
+    def _run_probe(name: str) -> dict[str, Any]:
         src_path = corpus_root / "probes" / f"{name}.ko"
         exec_record = execute_item(
             kovenc,
@@ -955,28 +972,35 @@ def evaluate_suite(
             expectations["probes"][name],
             baseline_row=baseline.get(name),
         )
-        probe_results.append(
-            {"execution": _strip_raw_bytes(exec_record), "comparison": comp}
-        )
+        return {"execution": _strip_raw_bytes(exec_record), "comparison": comp}
 
-    program_results: list[dict[str, Any]] = []
-    if include_programs:
-        for name in sorted(expectations["programs"].keys()):
-            src_path = corpus_root / "programs" / name / "main.ko"
-            exec_record = execute_item(
-                kovenc,
-                f"program_{name}",
-                src_path,
-                timeout_sec=timeout_sec,
-                evidence_dir=evidence_dir,
-            )
-            exec_record["name"] = name
-            comp = compare_item(
-                exec_record, expectations["programs"][name], baseline_row=None
-            )
-            program_results.append(
-                {"execution": _strip_raw_bytes(exec_record), "comparison": comp}
-            )
+    def _run_program(name: str) -> dict[str, Any]:
+        src_path = corpus_root / "programs" / name / "main.ko"
+        exec_record = execute_item(
+            kovenc,
+            f"program_{name}",
+            src_path,
+            timeout_sec=timeout_sec,
+            evidence_dir=evidence_dir,
+        )
+        exec_record["name"] = name
+        comp = compare_item(
+            exec_record, expectations["programs"][name], baseline_row=None
+        )
+        return {"execution": _strip_raw_bytes(exec_record), "comparison": comp}
+
+    program_names = sorted(expectations["programs"].keys()) if include_programs else []
+    if jobs == 1:
+        probe_results = [_run_probe(name) for name in probe_names]
+        program_results = [_run_program(name) for name in program_names]
+    else:
+        with ThreadPoolExecutor(max_workers=jobs) as pool:
+            probe_futures = [(name, pool.submit(_run_probe, name)) for name in probe_names]
+            program_futures = [
+                (name, pool.submit(_run_program, name)) for name in program_names
+            ]
+            probe_results = [fut.result() for _, fut in probe_futures]
+            program_results = [fut.result() for _, fut in program_futures]
 
     if sha256_file(kovenc) != initial_compiler_sha:
         raise RuntimeError("compiler binary changed during conformance run")
@@ -1083,8 +1107,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--cli",
         type=Path,
-        default=Path(os.environ.get("KOVENC", root / "target/release/kovenc")),
-        help="path to kovenc binary",
+        default=resolve_default_cli(root),
+        help="path to kovenc binary (auto-detects KOVENC, target/release/kovenc, or target/debug/kovenc)",
     )
     parser.add_argument(
         "--corpus",
@@ -1128,6 +1152,15 @@ def main(argv: list[str] | None = None) -> int:
         help="per-invocation timeout in seconds",
     )
     parser.add_argument(
+        "--jobs",
+        "-j",
+        type=int,
+        default=int(
+            os.environ.get("KOVEN_CONFORMANCE_JOBS", str(min(os.cpu_count() or 4, 4)))
+        ),
+        help="number of parallel worker threads (deterministic output order)",
+    )
+    parser.add_argument(
         "--allow-unreviewed",
         action="store_true",
         help="do not fail the gate on unreviewed items (observation mode)",
@@ -1168,6 +1201,7 @@ def main(argv: list[str] | None = None) -> int:
         strict_unreviewed=not args.allow_unreviewed,
         compiler_commit=args.compiler_commit,
         evidence_dir=args.evidence,
+        jobs=args.jobs,
     )
     summary = ledger["summary"]
     print(

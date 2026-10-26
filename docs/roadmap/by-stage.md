@@ -182,7 +182,7 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
 | ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | v1 必做 | 验收、发布与文档 | — | 6 | — | 源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前两模式一致均为 known_unimplemented（0 / 6 可运行）。另设第七个线程程序验收 T1，不计入 v1.0 硬门槛。 |
-| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | — | V2 首片已落地：conformance/expectations.json + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py（分离保存原始 stdout/stderr、强 oracle 与基线回归门禁；154 probe 能力通过 123/154，两模式差异 0，内部错误 0）。后续待清零 31 个 known_unimplemented 并补齐每章正反例。 |
+| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | — | V2 首片（PR #170）与第二片已落地：conformance/expectations.json + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁（154 probe 能力通过 123/154，两模式差异 0，内部错误 0）。后续待清零 31 个 known_unimplemented 并补齐每章正反例。 |
 | ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与六个验收程序 | v1 必做 | 安全验证 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) | — |
 | ☐ 未开始 | V4 | M4b 随机生成扩展到 E3 之后的通用 lowering | v1 建议 | 安全验证 | — | 4 | [0269](../archive/specs/0269-generated-resource-programs.md) [native-safety-validation](../proposals/native-safety-validation.md) | — |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | v1 必做 | 验收、发布与文档 | — | — | — | README 与 tour 已于 10-15 按实测改写。 |
