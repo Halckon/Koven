@@ -13,24 +13,55 @@
 
 | 路径 | 内容 |
 |---|---|
-| `probes/*.ko` | 154 个独立小程序，每个都有 `fun main(): Unit`，成功时打印一行 |
+| `probes/*.ko` | 154 个独立小程序，每个都有 `fun main(): Unit`，成功时打印明确输出 |
+| `expectations.json` | 154 个 probe 与六个验收程序的机器可读期望（强 oracle、源文件 SHA-256 与 v0.46 基线豁免标注） |
 | `baseline-aef3f4f8.tsv` | 154 个 probe 在 PR #120 head `aef3f4f8` 上的结果（来源见下文） |
 | `programs/<name>/main.ko` | 六个验收程序（V1 目标） |
 | `programs/<name>/expected.txt` | 对应程序 stdout 的精确期望 |
-| `../scripts/conformance_matrix.sh` | 矩阵 runner |
+| `../scripts/conformance_matrix.sh` | 矩阵 runner（支持 TSV 模式与 `--gate` 门禁转发） |
+| `../scripts/conformance_gate.py` | 公开入口强 oracle 回归验收门禁与比较器 |
+| `../scripts/tests/test_conformance_gate.py` | 验收门禁工具自测（由 `scripts/check_docs.py` 自动发现运行） |
 
 ## 运行
 
+### 1. 强 oracle 回归验收门禁（推荐）
+
+```sh
+scripts/conformance_matrix.sh --gate \
+  --cli target/release/kovenc \
+  --baseline conformance/baseline-aef3f4f8.tsv \
+  --evidence .local-artifacts/conformance-gate
+```
+
+也可以按单个或若干个 probe 局部采样：
+
+```sh
+python3 scripts/conformance_gate.py \
+  --cli target/release/kovenc \
+  --probe p04_overflow --probe p28_companion --no-programs
+```
+
+门禁行为与产物（`--evidence <dir>`）：
+
+- **分离保存原始字节**：每个目标在单文件（`kovenc run <file>.ko`）和单文件 project（自动前置 `package app\n` 写入 `src/app/main.ko`，以 `kovenc run --project project.toml --entry app.main` 运行）两种模式下，分别将 `stdout` 与 `stderr` 原始字节写入 `raw/<name>.<mode>.stdout` / `.stderr`，不合并流、不截断尾换行，并在 `.status.json` 记录退出码与 `timed_out` 状态。
+- **元数据与摘要绑定**：`results.json` 绑定编译器二进制路径、SHA-256、Git 提交、宿主平台（`system`/`machine`）、原始源码 SHA-256，以及 project 模式显式变换记录（`prepend_package_header` 头字节、SHA-256 与变换后源码 SHA-256）。
+- **比较器状态分类**：
+  - `pass_run`：退出码 0、stderr 为空、`stdout` 与 `expectations.json`（或验收程序的 `expected.txt`）逐字节相等（含尾换行），计入能力通过。
+  - `pass_diagnostic`：非零退出、stdout 为空、命中期望的前端诊断码 `FE:Lxxxx`，计入能力通过。
+  - `pass_abort`：SIGABRT（退出码 134）、stdout 为空、stderr 首行精确匹配 `abort: <message>`，计入能力通过。
+  - `known_unimplemented`：两模式一致命中允许的未实现记号（如 `BE:UnsupportedNode`、`BE:UnsupportedSource`、`BE:MissingFact`、`FE:L0165`），门禁放行但**绝不计入能力通过**。
+  - `unreviewed`：尚未人工确认强 oracle 的条目；严格门禁下直接阻断，禁止把当前编译器输出自动录成正确答案。
+  - `wrong_output` / `mode_mismatch` / `regression` / `internal_error` / `unexpected_pass`：任何退出码 0 但输出不符、缺尾换行、两模式记号或字节不一致、期望通过或历史基线 `OK` 退化为失败（含“两模式都拒绝”）、或出现 `BE:InvalidSsa` / `ICE:ownership` / `timeout` / `ERR`，门禁一律以非零状态失败。
+
+### 2. 三列 TSV 矩阵兼容模式
+
 ```sh
 KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
-diff conformance/baseline-aef3f4f8.tsv matrix.tsv
 ```
 
 - 脚本可在任意目录执行，相对路径一律按仓库根解释。`KOVENC` 默认 `target/release/kovenc`；
   第一个参数可替换 probe 目录，默认 `conformance/probes`；`PROBE_TIMEOUT` 设置单次运行秒数，
-  默认 60。
-- 每个 probe 运行两次：单文件模式 `kovenc run <probe>.ko`，以及把源码放进
-  `src/app/main.ko`（前置 `package app`）的单文件 project，以 `--entry app.main` 运行。
+  默认 60；若设置 `KOVEN_CONFORMANCE_EVIDENCE=<dir>` 则同时落盘保存原始 `.stdout`/`.stderr`/`.status.json`。
 - 输出三列 TSV：名称、单文件结果、project 结果。结果文件放在仓库外或 `.local-artifacts/`，
   不提交；只有经确认的基线才以 `baseline-<commit>.tsv` 入库。
 
@@ -41,7 +72,7 @@ diff conformance/baseline-aef3f4f8.tsv matrix.tsv
 | `OK` | 退出码 0 且有输出 |
 | `OK(silent)` | 退出码 0 但没有任何输出 |
 | `FE:Lxxxx` | 输出中第一个前端诊断码 |
-| `BE:<kind>` | 后端 lowering 拒绝（`lowering failed with <kind>`） |
+| `BE:<kind>` | 后端 lowering 或 native object 拒绝（`lowering failed with <kind>` 或 `native object <kind>:`，如 `BE:UnsupportedNode`、`BE:UnsupportedSource`、`BE:MissingFact`） |
 | `ICE:ownership` | 所有权检查内部错误泄漏 |
 | `abort:<message>` | 程序以 SIGABRT 终止（退出码 134），stderr 第一行为 `abort: <message>`；按 [Abort 输出合同](../docs/guide/09-nullability-errors.md#abort-输出合同) 记录消息文本 |
 | `abort(exit N,no msg)` | 非零退出且没有任何输出 |
@@ -76,21 +107,21 @@ diff conformance/baseline-aef3f4f8.tsv matrix.tsv
 - 编译器：PR #120（SPEC-0341，统一 compilation-unit 管线）head `aef3f4f8`；
 - 环境：Linux x86_64，LLVM 21.1.8；
 - 日期：2026-10-22；
-- 汇总：单文件与 project 各 89 个 `OK`，两模式结果逐行一致。
+- 汇总：单文件与 project 各 89 个 `OK`（另 3 个无消息 abort），两模式结果逐行一致。
 
-该基线在 Guide v0.46 启用前产生，运行的是下一节改动**之前**的 probe 源码；与改动后的源码
-比较时，下一节列出的 probe 应按“期望”一列判读。
+该基线在 Guide v0.46 启用前产生，运行的是下一节改动**之前**的 probe 源码；不能把 `baseline-aef3f4f8.tsv` 与 Guide v0.46 修改后的源码直接做裸 `diff` 混比。`expectations.json` 中已对下节条目及后续合入能力标记 `v046_baseline_exempt: true`，由 `scripts/conformance_gate.py` 按强 oracle 判读。
 
 ## v0.46 带来的 probe 变化
 
 | Probe | 处理 | 原因 | 期望 |
 |---|---|---|---|
-| `p28_companion` | `companion object {` 改为 `companion {` | Guide v0.46 只接受匿名 `companion { }`，`companion object` 由 Parser 以 L0077 拒绝 | 关联函数调用成功 |
-| `q12_companion_const` | 同上 | 同上 | 关联常量读取成功 |
+| `p28_companion` | `companion object {` 改为 `companion {` | Guide v0.46 只接受匿名 `companion { }`，`companion object` 由 Parser 以 L0077 拒绝 | 关联函数调用（当前 `BE:UnsupportedSource`，待 N06） |
+| `q12_companion_const` | 同上 | 同上 | 关联常量读取成功（`cconst\n`） |
 | `p23_global_var` | 源码不变 | v0.46 顶层只允许 `const val`，顶层 `var counter` 由 Phase 2 以 L0167 拒绝（SPEC-0343） | 两模式均为 `FE:L0167` |
+| `p04_overflow` / `p45_abort_message` / `v12_convert_abort` | 源码不变 | v0.46 D12（SPEC-0355）实现 Abort 输出合同 | 两模式分别输出 `abort:integer overflow in +`、`abort:boom`、`abort:value out of range for ULong` |
 | `p16_result_q` | 删除自声明的 `enum class Result<T, E>`，其余不变 | v0.46 起 `Result`/`Ok`/`Err` 属于内建环境（SPEC-0349）；用户任一 package 的同名顶层声明以 L0150 拒绝 | 不再因声明冲突失败；`?` 仍待 N08 |
 | `p16b_result_string` | 同上 | 同上 | 不再因声明冲突失败；String 载荷 lowering 另计 |
-| `p37_is_generic_case` | 同上 | 同上；无实参 `is Result.Ok` 从 subject 推断 root 实参（SPEC-0349） | 前端不再报 L0111 |
+| `p37_is_generic_case` | 同上 | 同上；无实参 `is Result.Ok` 从 subject 推断 root 实参（SPEC-0349） | 前端不再报 L0111，运行输出 `case-noargs\n` |
 
 以下 probe 未改动，但含义受 v0.46 影响，判读时留意：
 
