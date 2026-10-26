@@ -1,12 +1,12 @@
 {
   "meta": {
     "title": "Koven v1",
-    "updated": "2026-10-25",
-    "baseline": "main 2c9c6bfe（PR #166 已合并，D10 统一管线 + E3 nullable 试点）· Guide v0.46",
+    "updated": "2026-10-26",
+    "baseline": "main 6c3aa46e（PR #176 已合并，D10 统一管线 + E3 nullable 试点 + 双宿主 CI Conformance 强 oracle 门禁）· Guide v0.46",
     "scope_source": "2026-10-13 v1 范围评审（未入库）",
     "v1_definition": "能写真实命令行工具的语言：单进程、同步 IO；被接受的程序内存安全、资源确定性释放；合法程序要么正确运行，要么得到明确的“未实现”诊断；AArch64 macOS 与 x86_64 Linux glibc。",
     "metrics": {
-      "measured": "2026-10-25 · main 2c9c6bfe · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 复测，Darwin-arm64）",
+      "measured": "2026-10-26 · main 6c3aa46e · 154 probe + 6 验收程序（scripts/conformance_gate.py 强 oracle 实测与双宿主 CI 门禁）",
       "rows": [
         [
           "74 个合法基础程序（v0.44 同口径）：project / 单文件 / 两种模式都可",
@@ -37,7 +37,7 @@
           "0 / 6（源码与 expected.txt 已入库并接入强 oracle；当前 6 个均为两模式一致的 known_unimplemented）"
         ]
       ],
-      "note": "本表由 scripts/conformance_gate.py 对 conformance/expectations.json 强 oracle 实测生成；旧 baseline-aef3f4f8.tsv 为 Guide v0.46 启用前的 Linux 记录，已通过 v046_baseline_exempt 与 v0.46 修改后的 probe 源码区分判读，不直接混比。"
+      "note": "本表由 scripts/conformance_gate.py 对 conformance/expectations.json 强 oracle 的实测结果汇总转录；PR #176（6c3aa46e）已将该强 oracle 门禁接入 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）Targeted Tests。旧 baseline-aef3f4f8.tsv 为 Guide v0.46 启用前的 Linux 记录，通过 v046_baseline_exempt 与 v0.46 修改后的 probe 源码区分判读，不直接混比。"
     }
   },
   "stages": [
@@ -114,7 +114,7 @@
     {"id": "L12", "stage": "P0", "area": "errors", "priority": "must", "status": "done", "specs": ["0355"], "guide": "enabled", "phases": [4, 5], "title": "error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置", "decision": "D12", "note": "D12 已决：stderr 输出 `abort: <message>` 与 `at <file>:<line>:<col>`；!!、越界、溢出、转换失败使用固定消息；写失败忽略；随后 SIGABRT。规则进 Guide v0.46。"},
     {"id": "V0", "stage": "P0", "area": "release", "priority": "must", "status": "done", "specs": ["0354"], "guide": "none", "phases": [6], "title": "154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合", "note": "已入库 conformance/，runner 为 scripts/conformance_matrix.sh；此前 SPEC-0341 因缺源码只能用 22 个附件与 39 场景验证。"},
     {"id": "G46", "stage": "P0", "area": "release", "priority": "must", "status": "done", "guide": "needed", "phases": [], "title": "Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型", "links": ["proposals/v0.46-language-decisions.md"], "note": "已启用（迁移账本 archive/migrations/v0.46-enablement.md）；各规则的实现按条目推进。"},
-    {"id": "E2", "stage": "P1", "area": "pipeline", "priority": "must", "status": "active", "specs": ["0341"], "guide": "none", "phases": [2, 3, 4], "title": "管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend", "decision": "D10", "note": "D10 已决：统一 compilation-unit 管线为终态（Guide v0.45、ADR-0031、SPEC-0341）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0、InvalidSsa 0；原 5 个 enum when 回退已修复 4 个（e01–e03、p49），仅剩 p50_enum_method 与全仓 Legacy 消费者退役/删除旧 checker 与 lower_frontend（含撤除 dead_code 豁免）。"},
+    {"id": "E2", "stage": "P1", "area": "pipeline", "priority": "must", "status": "active", "specs": ["0341"], "guide": "none", "phases": [2, 3, 4], "title": "管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend", "decision": "D10", "note": "D10 已决：统一 compilation-unit 管线为终态（历史决策见 Guide v0.45、ADR-0031、SPEC-0341；现行基线 Guide v0.46）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0、InvalidSsa 0；原 5 个 enum when 回退已修复 4 个（e01–e03、p49），仅剩 p50_enum_method 与全仓 Legacy 消费者退役/删除旧 checker 与 lower_frontend（含撤除 dead_code 豁免）。"},
     {"id": "E3", "stage": "P1", "area": "pipeline", "priority": "must", "status": "active", "specs": ["0350"], "guide": "none", "phases": [3, 4], "title": "通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA", "decision": "D10", "note": "先以 nullable 家族试点（2026-10-23 用户决定不含 Elvis 的 p15，余 7 个）：全部通过且不新增按组合拆分的 lowering 模块；成功后推广到 P2 各家族。SPEC-0350 已归档（2026-10-24）：试点 7 个 probe 在单文件与 project 两种模式均已通过；其余家族由后继 Spec 迁入；ADR-0032（细化层）、ADR-0033（inline nullable：tag + payload，String 与容器用指针 niche）2026-10-23 接受。"},
     {"id": "N01", "stage": "P2", "area": "ownership", "priority": "must", "status": "todo", "guide": "enabled", "phases": [2, 3, 4], "title": "赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法", "specs": ["0325"], "note": "0325 只覆盖简单变量赋值的类型。"},
     {"id": "N02", "stage": "P2", "area": "control", "priority": "must", "status": "partial", "guide": "enabled", "phases": [2, 3, 4], "title": "when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件", "specs": ["0241", "0320", "0326"], "note": "普通 enum subject 的 when（e01–e04、p49、u01）已恢复通过；enum 方法内 when (this)（p50_enum_method）仍报 BE:MissingFact；Int/String subject、in range、语句位置混型仍为 BE:UnsupportedNode。"},

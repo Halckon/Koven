@@ -50,11 +50,16 @@ PROJECT_TOML_BYTES = (
 )
 PROJECT_PACKAGE_HEADER = b"package app\n"
 
-DIAGNOSTIC_RE = re.compile(rb"L[0-9]{4}")
+DIAGNOSTIC_RE = re.compile(rb"(?m)^error\[(L[0-9]{4})\](?:\s|:)")
 BACKEND_RE = re.compile(rb"lowering failed with ([A-Za-z]+)")
 BACKEND_OBJECT_RE = re.compile(rb"native object ([A-Za-z]+):")
 OWNERSHIP_ICE_RE = re.compile(rb"ownership checking failed: [a-z -]+")
 SIMPLE_PRINTLN_LITERAL_RE = re.compile(r'println\("([^"\\$]*)"\)')
+
+# Multi-diagnostic compile_fail probes where more than one distinct error[Lxxxx] code is emitted on stderr
+EXPECTED_MULTI_DIAGNOSTICS: dict[str, list[str]] = {
+    "p25_linked_iter": ["L0133", "L0132"],
+}
 
 VALID_EXPECTATION_KINDS = frozenset(
     {
@@ -328,6 +333,11 @@ def detect_git_commit(root: Path) -> str:
     return "unknown"
 
 
+def extract_diagnostic_codes(stderr: bytes) -> list[str]:
+    """Return distinct error[Lxxxx] codes emitted on stderr in order of appearance."""
+    return list(dict.fromkeys(m.decode("ascii") for m in DIAGNOSTIC_RE.findall(stderr)))
+
+
 def classify_raw(
     returncode: int | None,
     timed_out: bool,
@@ -351,18 +361,18 @@ def classify_raw(
             return f"abort:{msg}"
 
     combined = stdout + stderr
-    diag_match = DIAGNOSTIC_RE.search(combined)
-    be_match = BACKEND_RE.search(combined)
     ice_match = OWNERSHIP_ICE_RE.search(combined)
-    if diag_match:
-        return f"FE:{diag_match.group(0).decode('ascii')}"
+    if ice_match:
+        return "ICE:ownership"
+    be_match = BACKEND_RE.search(combined)
     if be_match:
         return f"BE:{be_match.group(1).decode('ascii')}"
     object_match = BACKEND_OBJECT_RE.search(combined)
     if object_match:
         return f"BE:{object_match.group(1).decode('ascii')}"
-    if ice_match:
-        return "ICE:ownership"
+    diag_match = DIAGNOSTIC_RE.search(stderr)
+    if diag_match:
+        return f"FE:{diag_match.group(1).decode('ascii')}"
     if not combined:
         return f"abort(exit {returncode},no msg)"
     return "ERR"
@@ -552,6 +562,13 @@ def evaluate_mode_against_oracle(
             return "wrong_output", f"compile_fail produced unexpected stdout: {stdout!r}"
         if marker != expected_marker:
             return "regression", f"expected {expected_marker}, got {marker}"
+        expected_codes = expectation.get("all_diagnostics", [expected_code])
+        emitted_codes = extract_diagnostic_codes(stderr)
+        if emitted_codes != expected_codes:
+            return (
+                "regression",
+                f"expected error diagnostics {expected_codes}, got {emitted_codes}",
+            )
         return "pass_diagnostic", None
 
     if kind == "runtime_abort":
@@ -710,11 +727,29 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"{section}.{name} with compile_fail requires diagnostic Lxxxx"
                     )
+                if "all_diagnostics" in spec:
+                    all_diags = spec["all_diagnostics"]
+                    if (
+                        not isinstance(all_diags, list)
+                        or not all_diags
+                        or not all(
+                            isinstance(c, str) and re.fullmatch(r"L[0-9]{4}", c)
+                            for c in all_diags
+                        )
+                        or all_diags[0] != spec["diagnostic"]
+                    ):
+                        raise ValueError(
+                            f"{section}.{name} has invalid all_diagnostics {all_diags!r}"
+                        )
             elif kind == "runtime_abort":
                 if not isinstance(spec.get("abort_message"), str) or not spec["abort_message"]:
                     raise ValueError(
                         f"{section}.{name} with runtime_abort requires abort_message"
                     )
+            if "oracle_origin" in spec and (
+                not isinstance(spec["oracle_origin"], str) or not spec["oracle_origin"].strip()
+            ):
+                raise ValueError(f"{section}.{name} has invalid oracle_origin")
 
             if corpus_root is not None:
                 src_file = (
@@ -805,19 +840,26 @@ def derive_static_expectations(
             token in src_text
             for token in ("for (", "for(", "while (", "while(", "deinit(")
         )
+        is_single_literal = (
+            len(literals) == 1
+            and total_printlns == 1
+            and not has_repeated_print_risk
+        )
         single_static_stdout = (
             f"{literals[0]}\n"
-            if (
-                len(literals) == 1
-                and total_printlns == 1
-                and not has_repeated_print_risk
-            )
+            if is_single_literal
             else (CONFIRMED_STDOUT_ORACLES.get(name) if use_confirmed_oracles else None)
+        )
+        stdout_origin = (
+            "single_println_literal"
+            if is_single_literal
+            else ("source_trace_audited" if single_static_stdout is not None else None)
         )
 
         if name in V046_PROBE_OVERRIDES:
             entry = dict(V046_PROBE_OVERRIDES[name])
             entry["source_sha256"] = src_sha
+            entry["oracle_origin"] = "v046_spec_contract"
             probes_out[name] = entry
             continue
 
@@ -827,6 +869,7 @@ def derive_static_expectations(
                     "kind": "run_ok",
                     "source_sha256": src_sha,
                     "stdout": single_static_stdout,
+                    "oracle_origin": stdout_origin,
                 }
             else:
                 probes_out[name] = {
@@ -846,21 +889,27 @@ def derive_static_expectations(
                         "BE:UnsupportedNode",
                         "BE:MissingFact",
                     ],
+                    "oracle_origin": "baseline_unimplemented_audited",
                 }
                 if single_static_stdout is not None:
                     entry["target_stdout"] = single_static_stdout
                 probes_out[name] = entry
             else:
-                probes_out[name] = {
+                entry = {
                     "kind": "compile_fail",
                     "source_sha256": src_sha,
                     "diagnostic": code,
+                    "oracle_origin": "baseline_diagnostic_audited",
                 }
+                if name in EXPECTED_MULTI_DIAGNOSTICS:
+                    entry["all_diagnostics"] = list(EXPECTED_MULTI_DIAGNOSTICS[name])
+                probes_out[name] = entry
         elif base_single.startswith("BE:"):
             entry = {
                 "kind": "known_unimplemented",
                 "source_sha256": src_sha,
                 "allowed_markers": ["BE:UnsupportedNode", "BE:MissingFact", "FE:L0165"],
+                "oracle_origin": "baseline_unimplemented_audited",
             }
             if single_static_stdout is not None:
                 entry["target_stdout"] = single_static_stdout
@@ -894,6 +943,7 @@ def derive_static_expectations(
                 "BE:UnsupportedNode",
                 "BE:MissingFact",
             ],
+            "oracle_origin": "expected_txt_file",
         }
 
     return {
