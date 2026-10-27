@@ -452,6 +452,44 @@ fn string_relations(
     relations
 }
 
+#[test]
+fn memory_document_interpolation_rejection_keeps_exact_unsupported_span() {
+    use lang_frontend::name_resolution::SymbolKind;
+
+    use crate::{native_tests::boxed_enum_tests::unit_source::UnitSource, ssa::LoweringErrorKind};
+
+    // Keep the legacy two-arm oracle intact while independently checking MemoryDocument.
+    for literal in [r#""${17}""#, r#"(("before${17}after"))"#] {
+        let text = format!("package pair\nfun entry(): String = {literal}");
+        let unit = UnitSource::analyze("pair/entry.ko", &text)
+            .expect("original interpolation source passes strict Unit frontend admission");
+        unit.assert_frontend_clean();
+        let source = unit.parsed().source_id();
+        assert_eq!(unit.sources().source_name(source), Ok("pair/entry.ko"));
+        assert_eq!(unit.sources().source_text(source), Ok(text.as_str()));
+        let entry = unit.declaration("entry", SymbolKind::Function);
+        let entry_span = unit.declaration_span(entry);
+        assert_eq!(entry_span.source_id(), source);
+        let error = unit
+            .lower_entry(entry)
+            .err()
+            .expect("MemoryDocument lowering must reject the original interpolation");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        let span = error
+            .span
+            .expect("interpolation rejection retains its source span");
+        assert_eq!(span.source_id(), source);
+        let start = text.find('"').unwrap();
+        let end = text.rfind('"').unwrap() + 1;
+        assert_eq!(
+            source_key(unit.sources(), span),
+            SourceKey("pair/entry.ko".to_owned(), start, end)
+        );
+        assert_eq!(unit.sources().slice(span), Ok(&text[start..end]));
+        assert!(entry_span.start() <= span.start() && span.end() <= entry_span.end());
+    }
+}
+
 // These four old contracts deliberately retain Single analysis/lowering. The
 // migrated positive products never call this entry or fall back to it.
 mod legacy_only {
