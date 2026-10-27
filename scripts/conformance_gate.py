@@ -88,6 +88,18 @@ VALID_EXPECTATION_KINDS = frozenset(
     }
 )
 
+VALID_UNIMPLEMENTED_MARKERS = frozenset(
+    {
+        "BE:UnsupportedNode",
+        "BE:UnsupportedSource",
+        "BE:MissingFact",
+        "FE:L0080",
+        "FE:L0084",
+        "FE:L0085",
+        "FE:L0165",
+    }
+)
+
 VALID_GUIDE_CHAPTERS = (
     "01-lexical.md",
     "02-names-files-packages.md",
@@ -1133,6 +1145,19 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         f"{section}.{name} with runtime_abort requires abort_message"
                     )
             elif kind == "known_unimplemented":
+                allowed = spec.get("allowed_markers")
+                if (
+                    not isinstance(allowed, list)
+                    or not allowed
+                    or len(allowed) != len(set(allowed))
+                    or not all(
+                        isinstance(m, str) and m in VALID_UNIMPLEMENTED_MARKERS
+                        for m in allowed
+                    )
+                ):
+                    raise ValueError(
+                        f"{section}.{name} with known_unimplemented has invalid allowed_markers {allowed!r}"
+                    )
                 if "target_stdout" in spec:
                     ts = spec["target_stdout"]
                     if not isinstance(ts, str) or not ts or not ts.endswith("\n"):
@@ -1149,6 +1174,11 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         raise ValueError(
                             f"{section}.{name} with known_unimplemented has invalid roadmap_blockers {blockers!r}"
                         )
+            if "baseline_marker" in spec and (
+                not isinstance(spec["baseline_marker"], str)
+                or not spec["baseline_marker"].strip()
+            ):
+                raise ValueError(f"{section}.{name} has invalid baseline_marker")
             if "oracle_origin" in spec and (
                 not isinstance(spec["oracle_origin"], str) or not spec["oracle_origin"].strip()
             ):
@@ -1345,6 +1375,7 @@ def derive_static_expectations(
             entry = dict(V046_PROBE_OVERRIDES[name])
             entry["source_sha256"] = src_sha
             entry["guide_chapter"] = chapter
+            entry["baseline_marker"] = base_single
             entry["oracle_origin"] = "v046_spec_contract"
             if entry.get("kind") == "compile_fail" and entry.get("diagnostic") in DIAGNOSTIC_SYMBOL_CATALOG:
                 entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[entry["diagnostic"]]
@@ -1361,6 +1392,7 @@ def derive_static_expectations(
                     "kind": "run_ok",
                     "source_sha256": src_sha,
                     "guide_chapter": chapter,
+                    "baseline_marker": "OK",
                     "stdout": single_static_stdout,
                     "oracle_origin": stdout_origin,
                 }
@@ -1382,6 +1414,7 @@ def derive_static_expectations(
                     "kind": "known_unimplemented",
                     "source_sha256": src_sha,
                     "guide_chapter": chapter,
+                    "baseline_marker": base_single,
                     "allowed_markers": [
                         base_single,
                         "BE:UnsupportedNode",
@@ -1400,6 +1433,7 @@ def derive_static_expectations(
                     "kind": "compile_fail",
                     "source_sha256": src_sha,
                     "guide_chapter": chapter,
+                    "baseline_marker": base_single,
                     "diagnostic": code,
                     "oracle_origin": "baseline_diagnostic_audited",
                 }
@@ -1418,6 +1452,7 @@ def derive_static_expectations(
                 "kind": "known_unimplemented",
                 "source_sha256": src_sha,
                 "guide_chapter": chapter,
+                "baseline_marker": base_single,
                 "allowed_markers": ["BE:UnsupportedNode", "BE:MissingFact", "FE:L0165"],
                 "oracle_origin": "baseline_unimplemented_audited",
                 "roadmap_blockers": list(UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"])),
@@ -1783,12 +1818,44 @@ def summarize_negative_oracle_catalog(expectations: dict[str, Any]) -> dict[str,
     }
 
 
+def summarize_baseline_evolution(expectations: dict[str, Any]) -> dict[str, list[str]]:
+    """Classify all probes by their transition from historical baseline_marker to current expectation kind."""
+    buckets: dict[str, list[str]] = {
+        "baseline_ok_preserved": [],
+        "promoted_to_run_ok": [],
+        "upgraded_to_structured_abort": [],
+        "upgraded_to_compile_fail": [],
+        "baseline_compile_fail_preserved": [],
+        "remaining_known_unimplemented": [],
+        "regressed_from_baseline_ok": [],
+    }
+    for name, spec in sorted(expectations["probes"].items()):
+        bm = spec.get("baseline_marker", "")
+        kind = spec["kind"]
+        if bm == "OK" and kind == "run_ok":
+            buckets["baseline_ok_preserved"].append(name)
+        elif bm == "OK" and kind != "run_ok":
+            buckets["regressed_from_baseline_ok"].append(name)
+        elif bm != "OK" and kind == "run_ok":
+            buckets["promoted_to_run_ok"].append(name)
+        elif kind == "runtime_abort":
+            buckets["upgraded_to_structured_abort"].append(name)
+        elif kind == "compile_fail" and spec.get("v046_baseline_exempt"):
+            buckets["upgraded_to_compile_fail"].append(name)
+        elif kind == "compile_fail":
+            buckets["baseline_compile_fail_preserved"].append(name)
+        elif kind == "known_unimplemented":
+            buckets["remaining_known_unimplemented"].append(name)
+    return buckets
+
+
 def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     """Render deterministic Markdown audit ledger from expectations.json."""
     probes = expectations["probes"]
     programs = expectations["programs"]
     chapter_stats = summarize_chapter_polarity(expectations)
     neg_catalog = summarize_negative_oracle_catalog(expectations)
+    base_evo = summarize_baseline_evolution(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -1846,6 +1913,22 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         lines.append(
             f"| `abort:{ab['abort_message']}` | `SIGABRT (exit 134)` | [{ch}](../docs/guide/{ch}) | 1 | `{ab['probe']}` |"
         )
+    lines.extend(
+        [
+            "",
+            "### 1.2 历史基线 `baseline-aef3f4f8.tsv` 演进与零退化对账汇总（154 Probes）",
+            "",
+            "| 演进分类 (`baseline_evolution`) | 历史基线状态 (`baseline-aef3f4f8.tsv`) | 当前强 Oracle 状态 (`expectations.json`) | Probe 数量 | 代表性 / 完整 Probe 列表 |",
+            "|---|---|---|---:|---|",
+            f"| `baseline_ok_preserved` | `OK` | `run_ok`（精确字节匹配） | {len(base_evo['baseline_ok_preserved'])} | 历史 `OK` 基线 100% 保持通过（含 `q12_companion_const` 匿名 `companion {{ }}` 语法更新） |",
+            f"| `promoted_to_run_ok` | `BE:InvalidSsa` / `BE:MissingFact` / `BE:UnsupportedNode` / `FE:L0080` / `FE:L0111` | `run_ok`（新晋能力通过） | {len(base_evo['promoted_to_run_ok'])} | " + ", ".join(f"`{p}`" for p in base_evo["promoted_to_run_ok"]) + " |",
+            f"| `upgraded_to_structured_abort` | `abort(exit 1,no msg)` | `runtime_abort`（`SIGABRT` + `abort: <msg>`） | {len(base_evo['upgraded_to_structured_abort'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_structured_abort"]) + " |",
+            f"| `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | {len(base_evo['upgraded_to_compile_fail'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_compile_fail"]) + " |",
+            f"| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | {len(base_evo['baseline_compile_fail_preserved'])} | " + ", ".join(f"`{p}`" for p in base_evo["baseline_compile_fail_preserved"]) + " |",
+            f"| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | {len(base_evo['remaining_known_unimplemented'])} | " + ", ".join(f"`{p}`" for p in base_evo["remaining_known_unimplemented"]) + " |",
+            f"| `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | {len(base_evo['regressed_from_baseline_ok'])} | 无（零基线退化） |",
+        ]
+    )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"

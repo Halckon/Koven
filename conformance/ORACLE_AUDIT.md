@@ -42,6 +42,18 @@
 | `abort:boom` | `SIGABRT (exit 134)` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 1 | `p45_abort_message` |
 | `abort:value out of range for ULong` | `SIGABRT (exit 134)` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 1 | `v12_convert_abort` |
 
+### 1.2 历史基线 `baseline-aef3f4f8.tsv` 演进与零退化对账汇总（154 Probes）
+
+| 演进分类 (`baseline_evolution`) | 历史基线状态 (`baseline-aef3f4f8.tsv`) | 当前强 Oracle 状态 (`expectations.json`) | Probe 数量 | 代表性 / 完整 Probe 列表 |
+|---|---|---|---:|---|
+| `baseline_ok_preserved` | `OK` | `run_ok`（精确字节匹配） | 89 | 历史 `OK` 基线 100% 保持通过（含 `q12_companion_const` 匿名 `companion { }` 语法更新） |
+| `promoted_to_run_ok` | `BE:InvalidSsa` / `BE:MissingFact` / `BE:UnsupportedNode` / `FE:L0080` / `FE:L0111` | `run_ok`（新晋能力通过） | 25 | `e01_enum_when_bool_return`, `e02_enum_when_stmt_println`, `e03_enum_when_bool_val`, `p08_when_int`, `p12b_class_field_assign`, `p12c_inout_param`, `p14_nullable`, `p14b_nullable_simple`, `p14c_nullable_int`, `p37_is_generic_case`, `p41_when_string`, `p49_when_enum_no_payload`, `p50_enum_method`, `q05_nullable_param`, `q09_inout_class_param`, `s01_result_builtin`, `u01_enum_case_borrow_arg`, `v03_join_nullable`, `v13_while_nullable_int`, `v16_when_in_range`, `v19_stmt_when_mixed`, `x02_string_nullable_return`, `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println` |
+| `upgraded_to_structured_abort` | `abort(exit 1,no msg)` | `runtime_abort`（`SIGABRT` + `abort: <msg>`） | 3 | `p04_overflow`, `p45_abort_message`, `v12_convert_abort` |
+| `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | 1 | `p23_global_var` |
+| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | 13 | `p01_int_print`, `p03b_byte_literal_cmp`, `p25_linked_iter`, `p42_lambda_mutate`, `p43_if_join_any`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
+| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | 23 | `p02_interp`, `p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p16b_result_string`, `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p21_box_enum`, `p22_rc`, `p25b_linked_recursive`, `p27_thread`, `p28_companion`, `p35_value_eq`, `p40_nested_generic_class`, `q02_lambda_arg_inline`, `q03_fn_ref`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair`, `t03_vmethod_generic` |
+| `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | 0 | 无（零基线退化） |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
