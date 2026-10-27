@@ -702,56 +702,7 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
 
 #[test]
 fn lowers_real_scalar_expression_functions_through_verified_ssa() {
-    let analysis = analyze(
-        "fun add(left: Int, right: Int): Int = left + right\n\
-         fun negate(input: Int): Int = -input\n\
-         fun ordered(left: Int, right: Int): Boolean = !(left >= right)\n\
-         fun constantOrder(): Boolean = 1 < 2\n\
-         fun invoke(first: Int, second: Int): Int = add(right = second, left = first)",
-    );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("closed scalar subset must lower");
-    let first = render_program(&program);
-    let second = render_program(&program);
-    assert_eq!(first, second);
-    assert!(first.contains("func \"add\""));
-    assert!(first.contains("func \"negate\""));
-    assert!(first.contains("func \"ordered\""));
-    assert!(first.contains("func \"constantOrder\""));
-    assert!(first.contains("func \"invoke\""));
-    assert!(first.contains("checked.add"));
-    assert!(first.contains("checked.sub"));
-    assert!(first.contains("cmp.ge"));
-    assert!(first.contains("not %v"));
-    assert!(first.contains("call @f0("));
-    assert_eq!(first.matches("abort @source").count(), 2);
+    super::unit_lower_scalar_tests::assert_real_scalar_expression_roots_through_verified_unit_ssa_and_llvm();
 }
 
 #[test]
