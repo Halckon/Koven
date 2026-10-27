@@ -785,3 +785,125 @@ fn mixed_value_borrow_grouped_return_unit_keeps_source_qualified_outer_identity(
         check(&program, &case);
     }
 }
+
+#[test]
+fn mixed_value_borrow_grouped_return_memory_document_keeps_outer_control_transfer_identity() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::{
+        name_resolution::{SourceUnitKey, SymbolKind},
+        ownership_checking::UnitDropPoint,
+        parser::Expression,
+        type_checking::UnitExpressionId,
+    };
+
+    // Parallel same-byte comparison; the package/root matrix above remains independent.
+    for name in [
+        "owned_resource_grouped_return",
+        "owned_resource_grouped_wrapper",
+    ] {
+        let cases = crate::native_mixed_borrow_cases::cases();
+        let matching = cases
+            .iter()
+            .filter(|case| case.name == name)
+            .collect::<Vec<_>>();
+        let [case] = matching.as_slice() else {
+            panic!("one exact original grouped-return fixture: {name}");
+        };
+        let unit = UnitSource::analyze(case.name, case.source)
+            .unwrap_or_else(|error| panic!("{}: {error:?}", case.name));
+        unit.assert_frontend_clean();
+        assert!(unit.ownership().deferred().is_empty());
+        let [source] = unit.names().names().index().source_units() else {
+            panic!("one original MemoryDocument, without package or source splitting");
+        };
+        assert_eq!(source.key(), &SourceUnitKey::MemoryDocument);
+        assert_eq!(source.source_id(), unit.parsed().source_id());
+        assert_eq!(
+            unit.sources().source_name(source.source_id()),
+            Ok(case.name)
+        );
+        assert_eq!(
+            unit.sources().source_text(source.source_id()),
+            Ok(case.source)
+        );
+
+        let grouped = unit
+            .ownership()
+            .borrow_return_origins()
+            .iter()
+            .filter(|fact| {
+                assert_eq!(fact.expression().source_unit(), source.id());
+                let node = unit
+                    .parsed()
+                    .ast()
+                    .expressions()
+                    .get(fact.expression().expression())
+                    .unwrap();
+                assert_eq!(node.span().source_id(), source.source_id());
+                matches!(node.payload(), Expression::Group { .. })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            grouped.len(),
+            1,
+            "one original grouped borrow-return origin"
+        );
+        let outer = grouped[0].expression();
+        let Expression::Group { expression: inner } = unit
+            .parsed()
+            .ast()
+            .expressions()
+            .get(outer.expression())
+            .unwrap()
+            .payload()
+        else {
+            unreachable!()
+        };
+        let inner = UnitExpressionId::new(source.id(), *inner);
+        assert_ne!(outer, inner);
+        let drops = unit
+            .ownership()
+            .drops()
+            .iter()
+            .filter(|fact| fact.point() == UnitDropPoint::ControlTransfer(outer))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            drops.len(),
+            1,
+            "cleanup uses actual source-qualified outer Group"
+        );
+        assert!(
+            !unit
+                .ownership()
+                .drops()
+                .iter()
+                .any(|fact| fact.point() == UnitDropPoint::ControlTransfer(inner))
+        );
+        let value_origin = drops[0].value_origin();
+        assert_eq!(value_origin.source_id(), source.source_id());
+
+        let declaration = unit.declaration("entry", SymbolKind::Function);
+        let entry_origin = Origin::Source(unit.declaration_span(declaration));
+        let (program, entry) = unit
+            .lower_entry(declaration)
+            .unwrap_or_else(|error| panic!("{}: {error:?}", case.name));
+        let module = program
+            .module(entry.module())
+            .expect("returned entry module");
+        let function = module.function(entry).expect("returned real source entry");
+        assert_eq!(function.origin, entry_origin);
+        assert_eq!(
+            module
+                .functions
+                .iter()
+                .filter(|function| function.origin == entry_origin)
+                .count(),
+            1,
+            "one exact original entry function"
+        );
+        check_group_drop(&program, value_origin);
+        check(&program, case);
+        crate::llvm::render_verified_program_with_entry(&program, entry)
+            .expect("original MemoryDocument entry verifies through LLVM");
+    }
+}
