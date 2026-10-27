@@ -203,6 +203,29 @@ sys.exit(1)
         finally:
             extra_file.unlink()
 
+        extra_prog_dir = self.corpus / "programs" / "unlisted_prog"
+        extra_prog_dir.mkdir(parents=True)
+        (extra_prog_dir / "main.ko").write_text(self.prog_src, encoding="utf-8")
+        (extra_prog_dir / "expected.txt").write_text("ok\n", encoding="utf-8")
+        try:
+            with self.assertRaisesRegex(ValueError, "program inventory mismatch"):
+                gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+        finally:
+            (extra_prog_dir / "main.ko").unlink()
+            (extra_prog_dir / "expected.txt").unlink()
+            extra_prog_dir.rmdir()
+
+        # Verify expected.txt without trailing newline is rejected
+        exp_txt_path = self.corpus / "programs" / "word_count" / "expected.txt"
+        exp_txt_path.write_text("word\t1", encoding="utf-8")
+        try:
+            with self.assertRaisesRegex(
+                ValueError, "must be non-empty and end with trailing newline"
+            ):
+                gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+        finally:
+            exp_txt_path.write_text(self.prog_expected, encoding="utf-8")
+
     def test_4_timeout_is_caught_and_preserves_partial_bytes(self) -> None:
         kovenc_slow = _make_mock_compiler(
             self.root / "kovenc_slow",
@@ -610,6 +633,32 @@ sys.exit(1)
                     any(roadmap_items[b]["status"] != "done" for b in blockers),
                     f"program {name} has all blockers done: must transition out of known_unimplemented",
                 )
+            self.assertGreater(spec.get("expected_lines", 0), 0, f"program {name} missing expected_lines")
+            self.assertGreater(spec.get("expected_bytes", 0), 0, f"program {name} missing expected_bytes")
+
+        # 8. Verify per-chapter positive vs negative polarity matrix across all 13 chapters
+        polarity = gate.summarize_chapter_polarity(loaded)
+        self.assertEqual(set(polarity.keys()), set(gate.VALID_GUIDE_CHAPTERS))
+        for ch, st in polarity.items():
+            self.assertTrue(st["has_positive"], f"chapter {ch} lacks positive run_ok probes")
+        pos_only = sorted(
+            ch for ch, st in polarity.items() if st["polarity_status"] == "positive_only"
+        )
+        both_pol = sorted(
+            ch
+            for ch, st in polarity.items()
+            if st["polarity_status"] == "both_positive_and_negative"
+        )
+        self.assertEqual(
+            pos_only,
+            [
+                "01-lexical.md",
+                "08-class-family-members.md",
+                "11-copyability-layout-construction.md",
+                "13-program-runtime-standard-library.md",
+            ],
+        )
+        self.assertEqual(len(both_pol), 9)
 
 
 if __name__ == "__main__":
