@@ -7,6 +7,7 @@ mod inout;
 mod rc;
 mod receiver;
 mod tagged;
+mod value;
 
 use std::collections::BTreeSet;
 
@@ -56,12 +57,13 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         migrated: false,
         replacements: BTreeSet::new(),
     };
-    for ty in inputs
+    let signature_types: Vec<_> = inputs
         .parameters
         .iter()
-        .filter_map(|symbol| inputs.typed.symbol_type(*symbol))
+        .filter_map(|symbol| checker.symbol_type(*symbol))
         .chain([inputs.return_type])
-    {
+        .collect();
+    for ty in signature_types {
         checker.note_nullable(ty);
     }
     // Copyable Borrow parameters are read by copy; Inout parameters are scalars or plain
@@ -72,14 +74,14 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
             .iter()
             .zip(&inputs.modes)
             .all(|(symbol, mode)| {
-                inputs.typed.symbol_type(*symbol).is_some_and(|ty| {
+                checker.symbol_type(*symbol).is_some_and(|ty| {
                     checker.storage_type(ty)
                         && match mode {
                             ParameterMode::Value => true,
                             // A MoveOnly Borrow parameter is only lent on (a plain class
                             // through its loan), never read by copy.
                             ParameterMode::Borrow => {
-                                inputs.typed.copyability(ty) == Copyability::Copyable
+                                checker.copyability_of(ty) == Copyability::Copyable
                                     || checker.class(ty)
                             }
                             ParameterMode::Inout => checker.scalar(ty) || checker.class(ty),
@@ -90,8 +92,14 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         // Receivers: Copyable enums by value or shared loan (SPEC-0356), plain classes by
         // shared or exclusive loan (SPEC-0358).
         && inputs.receiver.is_none_or(|receiver| match receiver.mode {
-            ParameterMode::Value => checker.enum_type(receiver.ty),
-            ParameterMode::Borrow => checker.enum_type(receiver.ty) || checker.class(receiver.ty),
+            ParameterMode::Value => {
+                checker.enum_type(receiver.ty) || checker.value_class(receiver.ty)
+            }
+            ParameterMode::Borrow => {
+                checker.enum_type(receiver.ty)
+                    || checker.class(receiver.ty)
+                    || checker.value_class(receiver.ty)
+            }
             ParameterMode::Inout => checker.class(receiver.ty),
         });
     // An Inout parameter or receiver belongs to the migrated Inout family.
@@ -127,7 +135,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
     let mut demands: Vec<UnitTypeId> = inputs
         .parameters
         .iter()
-        .filter_map(|symbol| typed.symbol_type(*symbol))
+        .filter_map(|symbol| checker.symbol_type(*symbol))
         .chain([inputs.return_type])
         .chain(inputs.receiver.map(|receiver| receiver.ty))
         .collect();
@@ -135,13 +143,13 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         let span = node.span();
         if item.start() <= span.start() && span.end() <= item.end() {
             demands.extend(
-                typed.expression_type(UnitExpressionId::new(inputs.source_unit, expression)),
+                checker.expression_type_of(UnitExpressionId::new(inputs.source_unit, expression)),
             );
         }
     }
     demands.extend(typed.body_symbol_types().keys().filter_map(|symbol| {
         (symbol.source_unit() == inputs.source_unit)
-            .then(|| typed.symbol_type(*symbol))
+            .then(|| checker.symbol_type(*symbol))
             .flatten()
     }));
     demands.extend(typed.types().builtin(BuiltinType::Boolean));
@@ -258,6 +266,7 @@ impl Checker<'_, '_> {
                     || self.class(ty)
                     || self.enum_type(ty)
                     || self.rc_payload(ty).is_some()
+                    || self.value_class(ty)
             }
         }
     }
@@ -270,7 +279,32 @@ impl Checker<'_, '_> {
     }
 
     fn expression_type(&self, expression: ExpressionId) -> Option<UnitTypeId> {
-        self.inputs.typed.expression_type(self.id(expression))
+        self.expression_type_of(self.id(expression))
+    }
+
+    /// Typed facts carry template types; a generic instance reads them concretely.
+    fn expression_type_of(&self, id: UnitExpressionId) -> Option<UnitTypeId> {
+        self.inputs
+            .typed
+            .expression_type(id)
+            .and_then(|ty| self.inputs.concrete(ty))
+    }
+
+    fn symbol_type(&self, symbol: UnitSymbolId) -> Option<UnitTypeId> {
+        self.inputs
+            .typed
+            .symbol_type(symbol)
+            .and_then(|ty| self.inputs.concrete(ty))
+    }
+
+    /// The concrete identity of a type carried by a typed descriptor; unresolvable types
+    /// stay as they are and match no concrete rule.
+    fn c(&self, ty: UnitTypeId) -> UnitTypeId {
+        self.inputs.concrete(ty).unwrap_or(ty)
+    }
+
+    fn copyability_of(&self, ty: UnitTypeId) -> Copyability {
+        self.inputs.typed.copyability(self.c(ty))
     }
 
     fn id(&self, expression: ExpressionId) -> UnitExpressionId {
@@ -354,12 +388,17 @@ impl Checker<'_, '_> {
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
                     return self.rc_construction(expression);
                 }
+                _ if self.value_class(self.c(descriptor.result_type())) => {
+                    return self.value_construction(expression);
+                }
                 _ => {}
             }
             return self.construction(expression);
         }
         if self.inputs.typed.aggregate_projection(id).is_some() {
-            return self.projection(expression) || self.enum_projection(expression);
+            return self.projection(expression)
+                || self.enum_projection(expression)
+                || self.value_projection(expression);
         }
         if self.inputs.typed.non_null_assertion(id).is_some() {
             return self.non_null_assertion(expression);
@@ -452,10 +491,8 @@ impl Checker<'_, '_> {
             self.parameter_mode(symbol),
             Some(ParameterMode::Borrow | ParameterMode::Inout)
         ) && self
-            .inputs
-            .typed
             .symbol_type(symbol)
-            .is_none_or(|ty| self.inputs.typed.copyability(ty) != Copyability::Copyable)
+            .is_none_or(|ty| self.copyability_of(ty) != Copyability::Copyable)
         {
             return false;
         }
@@ -463,7 +500,7 @@ impl Checker<'_, '_> {
             // Only Copyable inners are narrowed by value in the migrated subset.
             Some(fact) => {
                 fact.symbol() == symbol
-                    && self.inputs.typed.copyability(fact.narrowed_type()) == Copyability::Copyable
+                    && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::Copyable
             }
             None => true,
         }
@@ -514,7 +551,7 @@ impl Checker<'_, '_> {
     fn operand(&mut self, expression: ExpressionId, string: bool) -> bool {
         if string
             && let Some(fact) = self.inputs.typed.non_null_use(self.id(expression))
-            && self.inputs.typed.copyability(fact.narrowed_type()) == Copyability::MoveOnly
+            && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
         {
             return self.reference(expression) == Some(fact.symbol())
                 && self.known.contains(&fact.symbol());
@@ -539,8 +576,8 @@ impl Checker<'_, '_> {
         });
         if let Some(fact) = self.inputs.typed.null_comparison(id) {
             self.branch_form.insert(id);
-            self.note_nullable(fact.nullable_type());
-            let inner_ok = match self.kind(fact.nullable_type()) {
+            self.note_nullable(self.c(fact.nullable_type()));
+            let inner_ok = match self.kind(self.c(fact.nullable_type())) {
                 Some(UnitTypeKind::Nullable(inner)) if self.scalar(*inner) => true,
                 Some(UnitTypeKind::Nullable(inner)) if self.view_inner(*inner) => {
                     views && fact.non_null_when_true()
@@ -634,8 +671,8 @@ impl Checker<'_, '_> {
             operation.kind(),
             IntegerRangeOperationKind::Inclusive | IntegerRangeOperationKind::Exclusive
         ) && self.integer_type(subject_type)
-            && operation.left_type() == subject_type
-            && operation.right_type() == subject_type
+            && self.c(operation.left_type()) == subject_type
+            && self.c(operation.right_type()) == subject_type
             && operation.left().source_unit() == self.inputs.source_unit
             && operation.right().source_unit() == self.inputs.source_unit
             && self.expression(operation.left().expression())
@@ -671,11 +708,11 @@ impl Checker<'_, '_> {
                 .iter()
                 .all(|argument| match argument.mode() {
                     ParameterMode::Value | ParameterMode::Borrow => {
-                        self.storage_type(argument.parameter_type())
+                        self.storage_type(self.c(argument.parameter_type()))
                     }
                     ParameterMode::Inout => {
-                        self.scalar(argument.parameter_type())
-                            || self.class(argument.parameter_type())
+                        self.scalar(self.c(argument.parameter_type()))
+                            || self.class(self.c(argument.parameter_type()))
                     }
                 });
         let target = descriptor.prints_line()
@@ -703,7 +740,7 @@ impl Checker<'_, '_> {
                 (
                     argument.argument_index(),
                     argument.mode(),
-                    argument.parameter_type(),
+                    self.c(argument.parameter_type()),
                 )
             })
             .collect();
@@ -718,8 +755,7 @@ impl Checker<'_, '_> {
             // a temporary whose drop obligation can move to the wrapper.
             if mode == ParameterMode::Borrow
                 && self.expression_type(value).is_some_and(|actual| {
-                    actual != parameter
-                        && self.inputs.typed.copyability(actual) != Copyability::Copyable
+                    actual != parameter && self.copyability_of(actual) != Copyability::Copyable
                 })
                 && self.inputs.typed.expression_category(self.id(value))
                     != Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
@@ -728,7 +764,7 @@ impl Checker<'_, '_> {
             }
             if mode == ParameterMode::Borrow
                 && let Some(fact) = self.inputs.typed.non_null_use(self.id(value))
-                && self.inputs.typed.copyability(fact.narrowed_type()) == Copyability::MoveOnly
+                && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
             {
                 return self.reference(value) == Some(fact.symbol())
                     && self.known.contains(&fact.symbol());
@@ -747,10 +783,8 @@ impl Checker<'_, '_> {
         }
         self.known.contains(&symbol)
             && self
-                .inputs
-                .typed
                 .symbol_type(symbol)
-                .is_some_and(|ty| self.inputs.typed.copyability(ty) == Copyability::Copyable)
+                .is_some_and(|ty| self.copyability_of(ty) == Copyability::Copyable)
     }
 
     fn statement(&mut self, statement: StatementId) -> bool {
@@ -832,7 +866,7 @@ impl Checker<'_, '_> {
         let Some(symbol) = symbol else {
             return false;
         };
-        let declared = self.inputs.typed.symbol_type(symbol);
+        let declared = self.symbol_type(symbol);
         if let Some(ty) = declared {
             self.note_nullable(ty);
         }

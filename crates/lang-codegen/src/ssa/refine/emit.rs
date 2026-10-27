@@ -308,6 +308,14 @@ impl Emitter<'_> {
                 base: place(self.get(*base, span)?, span)?,
                 field: *field,
             },
+            ROp::SharedFieldLoan { base, field } => Operation::SharedFieldLoan {
+                base: loan(self.get(*base, span)?, span)?,
+                field: *field,
+            },
+            ROp::AggregateProject { aggregate, field } => Operation::AggregateProject {
+                aggregate: self.value(*aggregate, span)?,
+                field: *field,
+            },
             ROp::SharedAllocate { owner, payload } => Operation::SharedAllocate {
                 owner: *owner,
                 payload: self.value(*payload, span)?,

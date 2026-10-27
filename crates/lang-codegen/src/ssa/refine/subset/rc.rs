@@ -41,7 +41,7 @@ impl Checker<'_, '_> {
         else {
             return false;
         };
-        let result = descriptor.result_type();
+        let result = self.c(descriptor.result_type());
         let (Some(payload), [argument], [type_argument]) = (
             self.rc_payload(result),
             descriptor.arguments(),
@@ -61,8 +61,8 @@ impl Checker<'_, '_> {
         let value = argument.argument();
         descriptor.target() == UnitConstructionTarget::IntrinsicRc
             && self.expression_type(expression) == Some(result)
-            && *type_argument == payload
-            && argument.parameter_type() == payload
+            && self.c(*type_argument) == payload
+            && self.c(argument.parameter_type()) == payload
             && value.source_unit() == self.inputs.source_unit
             && plan.target() == descriptor.target()
             && plan.terminating_operand().is_none()
@@ -70,7 +70,7 @@ impl Checker<'_, '_> {
             && plan.deliveries()[0].argument() == value
             && plan.root_obligation().is_some_and(|root| {
                 root.construction() == id
-                    && root.result_type() == result
+                    && self.c(root.result_type()) == result
                     && root.kind() == ConstructionRootKind::SharedOwner
             })
             && self.expression_type(value.expression()) == Some(payload)
@@ -101,7 +101,7 @@ impl Checker<'_, '_> {
         let shape = descriptor.expression() == id
             && effects.next().is_none()
             && effect.receiver() == receiver
-            && effect.payload_type() == descriptor.payload_type()
+            && self.c(effect.payload_type()) == self.c(descriptor.payload_type())
             && effect.kind() == expected
             && receiver.source_unit() == self.inputs.source_unit
             && self.inputs.typed.expression_category(receiver) == Some(ExpressionCategory::Place);
@@ -112,19 +112,18 @@ impl Checker<'_, '_> {
             .expressions()
             .get(receiver.expression())
             .ok()?;
-        let owner =
-            matches!(node.payload(), Expression::Name)
-                && self.reference(receiver.expression()).is_some_and(|symbol| {
-                    self.known.contains(&symbol)
-                        && matches!(
-                            self.parameter_mode(symbol),
-                            None | Some(ParameterMode::Value)
-                        )
-                        && self.inputs.typed.non_null_use(receiver).is_none()
-                        && self.inputs.typed.symbol_type(symbol).is_some_and(|ty| {
-                            self.rc_payload(ty) == Some(descriptor.payload_type())
-                        })
-                });
+        let owner = matches!(node.payload(), Expression::Name)
+            && self.reference(receiver.expression()).is_some_and(|symbol| {
+                self.known.contains(&symbol)
+                    && matches!(
+                        self.parameter_mode(symbol),
+                        None | Some(ParameterMode::Value)
+                    )
+                    && self.inputs.typed.non_null_use(receiver).is_none()
+                    && self.symbol_type(symbol).is_some_and(|ty| {
+                        self.rc_payload(ty) == Some(self.c(descriptor.payload_type()))
+                    })
+            });
         (shape && owner).then_some(descriptor)
     }
 
@@ -135,8 +134,8 @@ impl Checker<'_, '_> {
             .is_some_and(|descriptor| match descriptor.kind() {
                 RcOperationKind::Share => true,
                 RcOperationKind::Value => {
-                    self.scalar(descriptor.payload_type())
-                        && self.inputs.typed.copyability(descriptor.payload_type())
+                    self.scalar(self.c(descriptor.payload_type()))
+                        && self.copyability_of(self.c(descriptor.payload_type()))
                             == Copyability::Copyable
                 }
             })
@@ -146,7 +145,8 @@ impl Checker<'_, '_> {
     pub(super) fn rc_value_owner(&mut self, receiver: ExpressionId) -> Option<UnitTypeId> {
         self.migrated = true;
         let descriptor = self.rc_operation_on_owner(receiver)?;
-        (descriptor.kind() == RcOperationKind::Value && self.class(descriptor.payload_type()))
-            .then(|| descriptor.payload_type())
+        (descriptor.kind() == RcOperationKind::Value
+            && self.class(self.c(descriptor.payload_type())))
+        .then(|| self.c(descriptor.payload_type()))
     }
 }

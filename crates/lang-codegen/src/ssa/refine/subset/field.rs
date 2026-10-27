@@ -34,11 +34,11 @@ impl Checker<'_, '_> {
         ) else {
             return false;
         };
-        let field_type = projection.ty();
+        let field_type = self.c(projection.ty());
         if descriptor.target() != target_id
             || descriptor.value() != self.id(value)
             || descriptor.operator() != AssignmentOperator::Assign
-            || descriptor.target_type() != field_type
+            || self.c(descriptor.target_type()) != field_type
             || projection.kind() != UnitAggregateProjectionKind::Field
             || !(self.scalar(field_type) || self.string(field_type))
         {

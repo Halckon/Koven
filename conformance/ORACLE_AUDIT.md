@@ -8,7 +8,7 @@
 |---|---:|---:|---:|---:|---:|---:|
 | [01-lexical.md](../docs/guide/01-lexical.md) | 4 | 1 | 0 | 0 | 3 | 1 / 4 |
 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 7 | 2 | 3 | 0 | 2 | 5 / 7 |
-| [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 5 | 1 | 1 | 4 | 7 / 11 |
+| [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 6 | 1 | 1 | 3 | 8 / 11 |
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 15 | 2 | 0 | 2 | 17 / 19 |
@@ -19,7 +19,7 @@
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 3 | 0 | 0 | 1 | 3 / 4 |
-| **合计** | **154** | **114** | **14** | **3** | **23** | **131 / 154** |
+| **合计** | **154** | **115** | **14** | **3** | **22** | **132 / 154** |
 
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
@@ -127,7 +127,7 @@
 | `s04_question_on_nullable` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0085` | postfix ? applied to nullable Int? (instead of Result) emits INVALID_OPERAND_TYPES L0085 |
 | `t01_vmethod_bare_field` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `vmethod-bare\n` | single literal println('vmethod-bare') |
 | `t02_vmethod_bool` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `vmethod-bool\n` | single literal println('vmethod-bool') |
-| `t03_vmethod_generic` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `t03_vmethod_generic` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `v046_spec_contract` | `vmethod-generic\n` | single literal println('vmethod-generic') |
 | `t04_vmethod_compute_param` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `vmethod-param\n` | single literal println('vmethod-param') |
 | `t05_map_loop_continue` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `map-continue\n` | for-loop skips 'b' via continue and counts 'a' twice -> m.get('a') == 2 prints 'map-continue' |
 | `t06_list_loop_return` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `source_trace_audited` | `loop-return\n` | find(listOf(1,2,3), 2) returns true on second element; prints 'loop-return' |

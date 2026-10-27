@@ -90,12 +90,18 @@ impl Builder<'_, '_> {
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
                     self.rc_construction(expression, span)
                 }
+                _ if self.is_value_class(self.c(descriptor.result_type())) => {
+                    self.value_construction(expression, span)
+                }
                 _ => self.construction(expression, span),
             };
         }
         if typed.aggregate_projection(id).is_some() {
             if self.is_enum_projection(expression) {
                 return self.enum_projection(expression, span);
+            }
+            if self.is_value_projection(expression) {
+                return self.value_projection(expression, span);
             }
             return self.projection(expression, span);
         }
@@ -247,7 +253,7 @@ impl Builder<'_, '_> {
         let Some(fact) = self.inputs.typed.non_null_use(self.unit(expression)) else {
             return Ok(None);
         };
-        if !self.move_only(fact.narrowed_type()) {
+        if !self.move_only(self.c(fact.narrowed_type())) {
             return Ok(None);
         }
         self.active_view(fact.symbol())
@@ -567,7 +573,8 @@ impl Builder<'_, '_> {
             };
             match argument.mode() {
                 ParameterMode::Value => {
-                    let value = self.adapt(value, value_expression, argument.parameter_type())?;
+                    let value =
+                        self.adapt(value, value_expression, self.c(argument.parameter_type()))?;
                     self.deliver(value_expression);
                     lowered.push(value);
                 }
@@ -641,7 +648,7 @@ impl Builder<'_, '_> {
                 receiver,
                 arguments: lowered,
             };
-            if self.is_unit(descriptor.return_type()) {
+            if self.is_unit(self.c(descriptor.return_type())) {
                 self.push(op, Vec::new(), span)?;
                 Lowered::Unit
             } else {
@@ -674,7 +681,7 @@ impl Builder<'_, '_> {
     ) -> Result<Slot, LoweringError> {
         let id = self.unit(expression);
         let temporary = self.temporaries.contains_key(&id);
-        let adapted = self.adapt(value, expression, argument.parameter_type())?;
+        let adapted = self.adapt(value, expression, self.c(argument.parameter_type()))?;
         if adapted != value && temporary {
             self.temporaries.insert(id, adapted);
         }
@@ -692,8 +699,6 @@ impl Builder<'_, '_> {
             return Ok(Lowered::Diverged);
         };
         let declared = self
-            .inputs
-            .typed
             .symbol_type(symbol)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let slot = self.adapt(slot, value, declared)?;

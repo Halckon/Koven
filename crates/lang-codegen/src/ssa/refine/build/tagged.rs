@@ -108,7 +108,8 @@ impl Builder<'_, '_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let (tagged, variant, aggregate) = self.variant(descriptor.result_type(), case, span)?;
+        let (tagged, variant, aggregate) =
+            self.variant(self.c(descriptor.result_type()), case, span)?;
         let payload = self.value(
             ROp::AggregateConstruct { aggregate, fields },
             EntityType::Value(aggregate),
@@ -219,7 +220,7 @@ impl Builder<'_, '_> {
             .filter(|descriptor| {
                 descriptor.expression() == id
                     && descriptor.arguments().is_empty()
-                    && descriptor.result_type() == root
+                    && self.c(descriptor.result_type()) == root
             })
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let UnitConstructionTarget::EnumCase(case) = descriptor.target() else {
@@ -261,9 +262,7 @@ impl Builder<'_, '_> {
                 .receiver
                 .is_some_and(|receiver| self.is_enum(receiver.ty)),
             UnitAggregateProjectionReceiver::Expression(receiver) => matches!(
-                self.inputs
-                    .typed
-                    .expression_type(receiver)
+                self.expression_type_of(receiver)
                     .and_then(|ty| self.inputs.typed.types().get(ty)),
                 Some(UnitTypeKind::EnumCase { .. })
             ),

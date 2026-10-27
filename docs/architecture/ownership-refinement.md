@@ -35,7 +35,9 @@ receiver 的 loan）、`!!`（Consume，null 边 Abort）；赋值与 `Inout`（
 消费 `BeforeReplacement` 析构；receiver 调用中 Borrow receiver 在实参前借出，`Inout` receiver 的
 exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`（SPEC-0359）：构造为 `SharedAllocate`、`share()` 为
 `SharedRetain`，Copyable payload 的 `value` 经 `SharedPayloadPlace` 读取，`rc.value.f` 经 payload place 的
-临时 shared loan 读取字段。
+临时 shared loan 读取字段。泛型函数实例（SPEC-0360）：typed 事实中的模板类型经 `RefineInputs::concrete`
+（实例替换与 static `Self`）具体化后再使用；Copyable、字段全为标量的 `value class` 构造为聚合值，字段读取
+对 owned 值做 `AggregateProject`，对 loan 经 `SharedFieldLoan` 读出，receiver 可为 Value 或 Borrow。
 
 ## inline nullable 布局
 

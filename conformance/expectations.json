@@ -868,16 +868,14 @@
       "oracle_derivation": "single literal println('vmethod-bool')"
     },
     "t03_vmethod_generic": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "vmethod-generic\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0360: generic value-class instance method in E3 refinement layer",
       "source_sha256": "b9de2a3839d431048688b8cde57d426882324d719ac3edec6faeb6e6121f0c2a",
       "guide_chapter": "03-types-generics.md",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "target_stdout": "vmethod-generic\n"
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('vmethod-generic')"
     },
     "t04_vmethod_compute_param": {
       "kind": "run_ok",

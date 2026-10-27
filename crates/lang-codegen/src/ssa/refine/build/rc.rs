@@ -40,7 +40,7 @@ impl Builder<'_, '_> {
             return Ok(Lowered::Diverged);
         };
         self.deliver(value);
-        let owner = self.ssa_type(descriptor.result_type(), span)?;
+        let owner = self.ssa_type(self.c(descriptor.result_type()), span)?;
         Ok(Lowered::Value(self.value(
             ROp::SharedAllocate { owner, payload },
             EntityType::Value(owner),
@@ -109,7 +109,7 @@ impl Builder<'_, '_> {
             .filter(|descriptor| descriptor.kind() == RcOperationKind::Value)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let owner = self.rc_owner(descriptor.receiver().expression())?;
-        let target = self.ssa_type(descriptor.payload_type(), span)?;
+        let target = self.ssa_type(self.c(descriptor.payload_type()), span)?;
         let place = self.value(
             ROp::SharedPayloadPlace { owner },
             EntityType::Place(target),

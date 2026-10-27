@@ -23,7 +23,7 @@ impl Checker<'_, '_> {
         else {
             return false;
         };
-        let result = descriptor.result_type();
+        let result = self.c(descriptor.result_type());
         let UnitConstructionTarget::Nominal(declaration) = descriptor.target() else {
             return false;
         };
@@ -57,7 +57,7 @@ impl Checker<'_, '_> {
             && plan.deliveries().len() == fields.len()
             && plan.root_obligation().is_some_and(|root| {
                 root.construction() == id
-                    && root.result_type() == result
+                    && self.c(root.result_type()) == result
                     && root.kind() == ConstructionRootKind::HeapOwner
             });
         if !identity {
@@ -71,7 +71,7 @@ impl Checker<'_, '_> {
             .enumerate()
             .all(|(index, (argument, delivery))| {
                 let value = argument.argument();
-                let parameter = argument.parameter_type();
+                let parameter = self.c(argument.parameter_type());
                 argument.evaluation_index() == index
                     && value.source_unit() == self.inputs.source_unit
                     && fields.get(argument.parameter_index()) == Some(&parameter)
@@ -107,9 +107,9 @@ impl Checker<'_, '_> {
             return false;
         };
         if projection.kind() != UnitAggregateProjectionKind::Field
-            || typed.expression_type(id) != Some(projection.ty())
-            || !self.scalar(projection.ty())
-            || typed.copyability(projection.ty()) != Copyability::Copyable
+            || self.expression_type_of(id) != Some(self.c(projection.ty()))
+            || !self.scalar(self.c(projection.ty()))
+            || self.copyability_of(self.c(projection.ty())) != Copyability::Copyable
         {
             return false;
         }
@@ -143,7 +143,7 @@ impl Checker<'_, '_> {
                         (named
                             && self.reference(receiver_expression) == Some(fact.symbol())
                             && self.known.contains(&fact.symbol()))
-                        .then(|| fact.narrowed_type())
+                        .then(|| self.c(fact.narrowed_type()))
                     }
                     None => self.owner_type(
                         Owner::Expression(receiver_expression),
@@ -183,13 +183,13 @@ impl Checker<'_, '_> {
             return false;
         };
         let operand = descriptor.operand();
-        let inner = descriptor.inner_type();
-        self.note_nullable(descriptor.nullable_type());
+        let inner = self.c(descriptor.inner_type());
+        self.note_nullable(self.c(descriptor.nullable_type()));
         let shape = plan.descriptor() == &descriptor
             && operand.source_unit() == self.inputs.source_unit
             && plan.non_null_transfer() == NonNullAssertionTransferKind::Consume
             && matches!(
-                self.kind(descriptor.nullable_type()),
+                self.kind(self.c(descriptor.nullable_type())),
                 Some(UnitTypeKind::Nullable(nullable_inner)) if *nullable_inner == inner
             )
             && self.view_inner(inner)

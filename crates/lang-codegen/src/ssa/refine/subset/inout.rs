@@ -39,8 +39,8 @@ impl Checker<'_, '_> {
                 None | Some(ParameterMode::Inout)
             )
             && typed.non_null_use(value_id).is_none()
-            && typed.symbol_type(symbol).is_some_and(|ty| {
-                (self.scalar(ty) || self.class(ty)) && typed.expression_type(value_id) == Some(ty)
+            && self.symbol_type(symbol).is_some_and(|ty| {
+                (self.scalar(ty) || self.class(ty)) && self.expression_type_of(value_id) == Some(ty)
             })
             && self.inputs.owned.loans().iter().any(|loan| {
                 loan.call() == call

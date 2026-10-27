@@ -65,6 +65,25 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     /// Per parameter: Value, Borrow (a shared loan) or Inout (an exclusive loan).
     pub(in crate::ssa) modes: Vec<ParameterMode>,
     pub(in crate::ssa) span: Span,
+    /// The instance's type-parameter substitutions; empty for a non-generic function.
+    pub(in crate::ssa) substitutions: &'a BTreeMap<UnitSymbolId, UnitTypeId>,
+    /// The concrete `Self` of a static-self instance.
+    pub(in crate::ssa) static_self: Option<UnitTypeId>,
+}
+
+impl RefineInputs<'_> {
+    /// The concrete identity of a type read from the (template) typed facts; the identity
+    /// itself for a non-generic function.
+    pub(in crate::ssa) fn concrete(&self, ty: UnitTypeId) -> Option<UnitTypeId> {
+        super::unit_plan::resolve_concrete_type(
+            self.typed,
+            ty,
+            self.substitutions,
+            self.static_self,
+            self.span,
+        )
+        .ok()
+    }
 }
 
 /// Deterministic subset precheck; reads typed facts and AST construct kinds only.

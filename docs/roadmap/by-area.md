@@ -152,7 +152,7 @@
 | ✅ 已交付 | B12 | M1A 多文件程序贯通：跨文件字段可变性、直接字段 Borrow、unit for | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4,6 | [0263](../archive/specs/0263-unit-field-mutability.md) [0264](../archive/specs/0264-unit-direct-field-borrow.md) [0265](../archive/specs/0265-unit-iteration-facts.md) [0268](../archive/specs/0268-unit-iteration-native.md) |
 | ✅ 已交付 | E1 | 前端硬门禁：Deferred/Error 不进入所有权与 codegen；未知成员报诊断；内部错误结构化；L0165 用户措辞 | P0 止血 | v1 必做 | — | 2 | [0319](../archive/specs/0319-final-type-admission-diagnostics.md) [0323](../archive/specs/0323-final-admission-static-recovery.md) [0324](../archive/specs/0324-final-admission-user-messages.md) |
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | P1 结构 | v1 必做 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) |
-| ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 结构 | v1 必做 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) [0356](../archive/specs/0356-refine-when-family.md) [0358](../archive/specs/0358-refine-assignment-inout.md) [0359](../archive/specs/0359-refine-rc.md) |
+| ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 结构 | v1 必做 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) [0356](../archive/specs/0356-refine-when-family.md) [0358](../archive/specs/0358-refine-assignment-inout.md) [0359](../archive/specs/0359-refine-rc.md) [0360](../archive/specs/0360-refine-generic-value-class.md) |
 | ⏸ 延后 | X12 | 协程/async 与自举 | X v1 之外 | v3+ | 需新增 | — | — |
 
 ## 工具链

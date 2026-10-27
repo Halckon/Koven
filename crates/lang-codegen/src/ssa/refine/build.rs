@@ -9,6 +9,7 @@ mod place;
 mod rc;
 mod receiver;
 mod tagged;
+mod value;
 mod when;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -199,10 +200,33 @@ impl Builder<'_, '_> {
     }
 
     fn expression_type(&self, expression: ExpressionId) -> Result<UnitTypeId, LoweringError> {
+        self.expression_type_of(self.unit(expression))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, self.span(expression)))
+    }
+
+    /// Typed facts carry template types; a generic instance reads them concretely.
+    pub(super) fn expression_type_of(&self, id: UnitExpressionId) -> Option<UnitTypeId> {
         self.inputs
             .typed
-            .expression_type(self.unit(expression))
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, self.span(expression)))
+            .expression_type(id)
+            .and_then(|ty| self.inputs.concrete(ty))
+    }
+
+    pub(super) fn symbol_type(&self, symbol: UnitSymbolId) -> Option<UnitTypeId> {
+        self.inputs
+            .typed
+            .symbol_type(symbol)
+            .and_then(|ty| self.inputs.concrete(ty))
+    }
+
+    /// The concrete identity of a type carried by a typed descriptor; an unresolvable type
+    /// stays as it is and has no SSA identity, so its use fails loudly.
+    pub(super) fn c(&self, ty: UnitTypeId) -> UnitTypeId {
+        self.inputs.concrete(ty).unwrap_or(ty)
+    }
+
+    pub(super) fn copyability_of(&self, ty: UnitTypeId) -> Copyability {
+        self.inputs.typed.copyability(self.c(ty))
     }
 
     fn ssa_type(&self, ty: UnitTypeId, span: Span) -> Result<SsaTypeId, LoweringError> {
@@ -219,8 +243,6 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<SsaTypeId, LoweringError> {
         let ty = self
-            .inputs
-            .typed
             .symbol_type(symbol)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         self.ssa_type(ty, span)
@@ -245,7 +267,7 @@ impl Builder<'_, '_> {
     }
 
     fn move_only(&self, ty: UnitTypeId) -> bool {
-        self.inputs.typed.copyability(ty) == Copyability::MoveOnly
+        self.copyability_of(ty) == Copyability::MoveOnly
     }
 
     fn span(&self, expression: ExpressionId) -> Span {
@@ -619,8 +641,6 @@ impl Builder<'_, '_> {
             return Ok(Lowered::Diverged);
         };
         let declared = self
-            .inputs
-            .typed
             .symbol_type(symbol)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let value = self.adapt(value, initializer, declared)?;

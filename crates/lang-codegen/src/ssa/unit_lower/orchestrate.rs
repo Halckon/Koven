@@ -433,9 +433,7 @@ fn lower_unit_impl(
                 .parameters
                 .clone();
             let receiver = plan.receiver.as_ref();
-            (plan.instance.substitutions().is_empty()
-                && plan.instance.key().static_self().is_none()
-                && function.borrow_return.is_none()
+            (function.borrow_return.is_none()
                 && function.carrier_return.is_none()
                 && entities.len() == plan.parameter_symbols.len() + usize::from(receiver.is_some())
                 && entities
@@ -493,6 +491,8 @@ fn lower_unit_impl(
                 parameters: plan.parameter_symbols.clone(),
                 modes,
                 span: plan.instance.span(),
+                substitutions: plan.instance.substitutions(),
+                static_self: plan.instance.key().static_self(),
             };
             if crate::ssa::refine::routes(&inputs) {
                 for ty in crate::ssa::refine::type_demands(&inputs) {
