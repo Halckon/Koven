@@ -462,6 +462,16 @@ pub(super) fn verify_operation(
                 && entity_type(function, EntityId::Place(*place)).semantic_type()
                     == value_type(function, *value).expect("valid value")
         }
+        Operation::LoanMutate { loan, value } => {
+            results.is_empty()
+                && matches!(
+                    entity_type(function, EntityId::Loan(*loan)),
+                    EntityType::Loan { kind: LoanKind::Exclusive, target }
+                        if value_type(function, *value) == Some(target)
+                            && is_first_class(module, target)
+                            && module.type_ownership(target) == Some(super::model::Ownership::Copyable)
+                )
+        }
     };
     if !valid {
         errors.push(VerifyError {

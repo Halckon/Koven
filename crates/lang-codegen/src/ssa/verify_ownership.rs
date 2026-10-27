@@ -1186,6 +1186,27 @@ fn apply_operation(
                 ));
             }
         }
+        Operation::LoanMutate { loan, value } => {
+            if !state.loans.contains(loan) {
+                errors.push(error(
+                    VerifyErrorKind::LoanInactive { loan: *loan },
+                    location.clone(),
+                    origin,
+                ));
+            }
+            consume_value(
+                module,
+                function,
+                *value,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::Mutate { place, value } => {
             if require_place(*place, state, location.clone(), origin, errors)
                 && has_any_loan(*place, aliases, state)

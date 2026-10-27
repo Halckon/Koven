@@ -4,12 +4,12 @@ use lang_frontend::{
     ownership_checking::{ConstructionRootKind, NonNullAssertionTransferKind},
     parser::Expression,
     type_checking::{
-        Copyability, NullableWhenSubjectCategory, UnitAggregateProjectionKind,
+        Copyability, NullableWhenSubjectCategory, ParameterMode, UnitAggregateProjectionKind,
         UnitAggregateProjectionReceiver, UnitConstructionTarget, UnitTypeKind,
     },
 };
 
-use super::Checker;
+use super::{Checker, receiver::Owner};
 
 impl Checker<'_, '_> {
     /// A plain-class construction whose single plan delivers every field in order.
@@ -98,55 +98,69 @@ impl Checker<'_, '_> {
         })
     }
 
-    /// A Copyable scalar field read from a named class owner or its proof view.
+    /// A Copyable scalar field read from a class owner: a narrowed name through its proof
+    /// view, a known local, a Borrow/Inout parameter or the current receiver.
     pub(super) fn projection(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         let typed = self.inputs.typed;
         let Some(projection) = typed.aggregate_projection(id) else {
             return false;
         };
-        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
-            return false;
-        };
-        let receiver_expression = receiver.expression();
         if projection.kind() != UnitAggregateProjectionKind::Field
-            || receiver.source_unit() != self.inputs.source_unit
             || typed.expression_type(id) != Some(projection.ty())
             || !self.scalar(projection.ty())
             || typed.copyability(projection.ty()) != Copyability::Copyable
-            || !self.plain(receiver_expression)
         {
             return false;
         }
-        let Ok(node) = self
-            .inputs
-            .parsed
-            .ast()
-            .expressions()
-            .get(receiver_expression)
-        else {
-            return false;
+        let owner = match projection.receiver() {
+            UnitAggregateProjectionReceiver::Expression(receiver) => {
+                let receiver_expression = receiver.expression();
+                if receiver.source_unit() != self.inputs.source_unit
+                    || !self.plain(receiver_expression)
+                {
+                    return false;
+                }
+                match typed.non_null_use(receiver) {
+                    // A smart-cast receiver is read through the condition's proof view.
+                    Some(fact) => {
+                        let named = self
+                            .inputs
+                            .parsed
+                            .ast()
+                            .expressions()
+                            .get(receiver_expression)
+                            .is_ok_and(|node| matches!(node.payload(), Expression::Name));
+                        (named
+                            && self.reference(receiver_expression) == Some(fact.symbol())
+                            && self.known.contains(&fact.symbol()))
+                        .then(|| fact.narrowed_type())
+                    }
+                    None => self.owner_type(
+                        Owner::Expression(receiver_expression),
+                        ParameterMode::Borrow,
+                    ),
+                }
+            }
+            UnitAggregateProjectionReceiver::This(declaration) => {
+                self.owner_type(Owner::This(declaration), ParameterMode::Borrow)
+            }
         };
-        let Expression::Name = node.payload() else {
-            return false;
-        };
-        let Some(symbol) = self.reference(receiver_expression) else {
-            return false;
-        };
-        let owner = match typed.non_null_use(receiver) {
-            // A smart-cast receiver is read through the condition's proof view.
-            Some(fact) => (fact.symbol() == symbol).then(|| fact.narrowed_type()),
-            None => self.expression_type(receiver_expression),
-        };
-        self.known.contains(&symbol)
-            && owner.is_some_and(|owner| {
-                self.class(owner)
-                    && self.class_signature(owner).is_some_and(|nominal| {
-                        nominal
-                            .fields()
-                            .iter()
-                            .any(|field| field.symbol() == projection.field())
-                    })
+        owner.is_some_and(|owner| self.class_field(owner, projection.field()))
+    }
+
+    /// `field` is a field of the plain class `owner`.
+    pub(super) fn class_field(
+        &self,
+        owner: lang_frontend::type_checking::UnitTypeId,
+        field: lang_frontend::name_resolution::UnitSymbolId,
+    ) -> bool {
+        self.class(owner)
+            && self.class_signature(owner).is_some_and(|nominal| {
+                nominal
+                    .fields()
+                    .iter()
+                    .any(|candidate| candidate.symbol() == field)
             })
     }
 

@@ -1,7 +1,10 @@
 //! Deterministic precheck for the migrated subset (SPEC-0350 §3). It reads typed and
 //! ownership facts plus AST construct kinds; it never runs lowering. Anything outside
 //! the subset keeps the existing per-family path.
+mod field;
 mod heap;
+mod inout;
+mod receiver;
 mod tagged;
 
 use std::collections::BTreeSet;
@@ -37,6 +40,9 @@ struct Checker<'i, 'a> {
     loops: usize,
     /// Routing gate: the function uses a construct whose family moved to this layer.
     migrated: bool,
+    /// Field replacements in the subset; their `BeforeReplacement` drops are consumed by
+    /// the replacement itself.
+    replacements: BTreeSet<UnitExpressionId>,
 }
 
 pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
@@ -47,6 +53,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         nullable: false,
         loops: 0,
         migrated: false,
+        replacements: BTreeSet::new(),
     };
     for ty in inputs
         .parameters
@@ -56,23 +63,38 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     {
         checker.note_nullable(ty);
     }
-    // Borrow parameters are read by copy, so only Copyable ones are in the subset.
-    let signature = inputs.parameters.len() == inputs.borrowed.len()
+    // Borrow parameters are read by copy, so only Copyable ones are in the subset; Inout
+    // parameters are scalars, read through and replaced under the caller's exclusive loan.
+    let signature = inputs.parameters.len() == inputs.modes.len()
         && inputs
             .parameters
             .iter()
-            .zip(&inputs.borrowed)
-            .all(|(symbol, borrowed)| {
+            .zip(&inputs.modes)
+            .all(|(symbol, mode)| {
                 inputs.typed.symbol_type(*symbol).is_some_and(|ty| {
                     checker.storage_type(ty)
-                        && (!borrowed || inputs.typed.copyability(ty) == Copyability::Copyable)
+                        && match mode {
+                            ParameterMode::Value => true,
+                            ParameterMode::Borrow => {
+                                inputs.typed.copyability(ty) == Copyability::Copyable
+                            }
+                            ParameterMode::Inout => checker.scalar(ty) || checker.class(ty),
+                        }
                 })
             })
         && (checker.unit(inputs.return_type) || checker.storage_type(inputs.return_type))
-        // Only enum methods take a receiver in the subset (SPEC-0356 step 3).
-        && inputs
+        // Receivers: Copyable enums by value or shared loan (SPEC-0356), plain classes by
+        // shared or exclusive loan (SPEC-0358).
+        && inputs.receiver.is_none_or(|receiver| match receiver.mode {
+            ParameterMode::Value => checker.enum_type(receiver.ty),
+            ParameterMode::Borrow => checker.enum_type(receiver.ty) || checker.class(receiver.ty),
+            ParameterMode::Inout => checker.class(receiver.ty),
+        });
+    // An Inout parameter or receiver belongs to the migrated Inout family.
+    checker.migrated |= inputs.modes.contains(&ParameterMode::Inout)
+        || inputs
             .receiver
-            .is_none_or(|receiver| checker.enum_type(receiver.ty));
+            .is_some_and(|receiver| receiver.mode == ParameterMode::Inout);
     signature
         && match inputs.body {
             RefineBody::Expression(expression) => checker.expression(expression),
@@ -91,6 +113,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         nullable: false,
         loops: 0,
         migrated: false,
+        replacements: BTreeSet::new(),
     };
     let Ok(item) = inputs.parsed.ast().items().get(inputs.function_item) else {
         return Vec::new();
@@ -388,6 +411,12 @@ impl Checker<'_, '_> {
                 operator: AssignmentOperator::Assign,
                 value,
                 ..
+            } if self.is_field_target(target) => self.field_assignment(expression, target, value),
+            Expression::Assignment {
+                target,
+                operator: AssignmentOperator::Assign,
+                value,
+                ..
             } => self.assignment(target) && self.expression(value),
             Expression::Return { value, .. } => value.is_none_or(|value| self.expression(value)),
             Expression::Break { .. } | Expression::Continue { .. } => self.loops > 0,
@@ -400,6 +429,18 @@ impl Checker<'_, '_> {
             return false;
         };
         if !self.known.contains(&symbol) {
+            return false;
+        }
+        // A loan parameter is read by copy, so only a Copyable one is a value here.
+        if matches!(
+            self.parameter_mode(symbol),
+            Some(ParameterMode::Borrow | ParameterMode::Inout)
+        ) && self
+            .inputs
+            .typed
+            .symbol_type(symbol)
+            .is_none_or(|ty| self.inputs.typed.copyability(ty) != Copyability::Copyable)
+        {
             return false;
         }
         match self.inputs.typed.non_null_use(self.id(expression)) {
@@ -605,16 +646,22 @@ impl Checker<'_, '_> {
         let Some(descriptor) = self.inputs.typed.call(id) else {
             return false;
         };
-        let simple = descriptor.receiver().is_none()
+        let simple = (descriptor.receiver().is_none() || self.receiver_call(expression))
             && !descriptor.aborts()
             && descriptor.range_construction().is_none()
             && descriptor.borrow_return().is_none()
-            && descriptor.arguments().iter().all(|argument| {
-                matches!(
-                    argument.mode(),
-                    ParameterMode::Value | ParameterMode::Borrow
-                ) && self.storage_type(argument.parameter_type())
-            });
+            && descriptor
+                .arguments()
+                .iter()
+                .all(|argument| match argument.mode() {
+                    ParameterMode::Value | ParameterMode::Borrow => {
+                        self.storage_type(argument.parameter_type())
+                    }
+                    ParameterMode::Inout => {
+                        self.scalar(argument.parameter_type())
+                            || self.class(argument.parameter_type())
+                    }
+                });
         let target = descriptor.prints_line()
             || (matches!(
                 descriptor.target(),
@@ -648,6 +695,9 @@ impl Checker<'_, '_> {
             let Some(value) = values.get(index).copied() else {
                 return false;
             };
+            if mode == ParameterMode::Inout {
+                return self.inout_argument(call, value);
+            }
             // A borrowed MoveOnly value is wrapped for a nullable parameter only when it is
             // a temporary whose drop obligation can move to the wrapper.
             if mode == ParameterMode::Borrow
@@ -671,10 +721,14 @@ impl Checker<'_, '_> {
         })
     }
 
-    fn assignment(&self, target: ExpressionId) -> bool {
+    fn assignment(&mut self, target: ExpressionId) -> bool {
         let Some(symbol) = self.reference(target) else {
             return false;
         };
+        // Replacing an Inout parameter's target is part of the migrated Inout family.
+        if self.parameter_mode(symbol) == Some(ParameterMode::Inout) {
+            self.migrated = true;
+        }
         self.known.contains(&symbol)
             && self
                 .inputs
@@ -779,10 +833,13 @@ impl Checker<'_, '_> {
                 | UnitDropPoint::AfterBinaryOperands(expression) => {
                     !self.branch_form.contains(&expression)
                 }
+                UnitDropPoint::BeforeReplacement(assignment) => {
+                    self.replacements.contains(&assignment)
+                        && matches!(fact.target(), UnitDropTarget::ReplacedField { .. })
+                }
                 UnitDropPoint::WhenComparisonCompleted { .. }
                 | UnitDropPoint::WhenAlternativeNoMatch { .. }
                 | UnitDropPoint::LambdaEntry(_)
-                | UnitDropPoint::BeforeReplacement(_)
                 | UnitDropPoint::AfterReplacement(_) => false,
                 // A jump out of a call argument abandons the earlier arguments' temporaries
                 // (and their loans) while the normal path still drops them at the call.
@@ -793,7 +850,9 @@ impl Checker<'_, '_> {
             };
             let target_ok = matches!(
                 fact.target(),
-                UnitDropTarget::Named(_) | UnitDropTarget::Temporary(_)
+                UnitDropTarget::Named(_)
+                    | UnitDropTarget::Temporary(_)
+                    | UnitDropTarget::ReplacedField { .. }
             );
             !self.fact_in_function(fact.value_origin()) || (point_ok && target_ok)
         }) && self

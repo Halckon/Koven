@@ -197,6 +197,7 @@ fn lower_unit_impl(
             }
         };
         let mut parameter_symbols = Vec::with_capacity(callable.parameters().len());
+        let mut inout_parameter = None;
         let mut parameter_types =
             Vec::with_capacity(callable.parameters().len() + usize::from(receiver.is_some()));
         if let Some(receiver) = receiver {
@@ -248,18 +249,21 @@ fn lower_unit_impl(
                 types.intern(module, typed, concrete, parameter.span())?
             };
             parameter_symbols.push(symbol);
+            if parameter.mode() == ParameterMode::Inout {
+                inout_parameter.get_or_insert(parameter.span());
+            }
             parameter_types.push(match parameter.mode() {
                 ParameterMode::Value => EntityType::Value(ty),
                 ParameterMode::Borrow => EntityType::Loan {
                     kind: LoanKind::Shared,
                     target: ty,
                 },
-                ParameterMode::Inout => {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        parameter.span(),
-                    ));
-                }
+                // Only the refinement layer lowers Inout parameters (SPEC-0358); a body left on
+                // the per-family path is rejected below.
+                ParameterMode::Inout => EntityType::Loan {
+                    kind: LoanKind::Exclusive,
+                    target: ty,
+                },
             });
         }
         let return_type = resolve_concrete_type(
@@ -348,6 +352,7 @@ fn lower_unit_impl(
             body,
             receiver,
             parameter_symbols,
+            inout_parameter,
             return_type,
         });
     }
@@ -428,9 +433,7 @@ fn lower_unit_impl(
                 .parameters
                 .clone();
             let receiver = plan.receiver.as_ref();
-            (receiver.is_none_or(|receiver| {
-                matches!(receiver.mode, ParameterMode::Value | ParameterMode::Borrow)
-            }) && plan.instance.substitutions().is_empty()
+            (plan.instance.substitutions().is_empty()
                 && plan.instance.key().static_self().is_none()
                 && function.borrow_return.is_none()
                 && function.carrier_return.is_none()
@@ -438,9 +441,25 @@ fn lower_unit_impl(
                 && entities
                     .iter()
                     .all(|entity| matches!(entity, EntityId::Value(_) | EntityId::Loan(_))))
-            .then_some((entry, entities))
+            .then(|| {
+                let modes = entities
+                    .iter()
+                    .skip(usize::from(receiver.is_some()))
+                    .map(
+                        |entity| match function.entity(*entity).map(|data| data.ty) {
+                            Some(EntityType::Loan {
+                                kind: LoanKind::Exclusive,
+                                ..
+                            }) => ParameterMode::Inout,
+                            Some(EntityType::Loan { .. }) => ParameterMode::Borrow,
+                            _ => ParameterMode::Value,
+                        },
+                    )
+                    .collect::<Vec<_>>();
+                (entry, entities, modes)
+            })
         };
-        if let Some((entry, entities)) = refine_entry {
+        if let Some((entry, entities, modes)) = refine_entry {
             let refine_body = match &plan.body {
                 FunctionPlanBody::Expression(expression) => {
                     crate::ssa::refine::RefineBody::Expression(*expression)
@@ -468,15 +487,11 @@ fn lower_unit_impl(
                     crate::ssa::refine::RefineReceiver {
                         owner: receiver.owner,
                         ty: receiver.ty,
-                        borrowed: receiver.mode == ParameterMode::Borrow,
+                        mode: receiver.mode,
                     }
                 }),
                 parameters: plan.parameter_symbols.clone(),
-                borrowed: entities
-                    .iter()
-                    .skip(usize::from(plan.receiver.is_some()))
-                    .map(|entity| matches!(entity, EntityId::Loan(_)))
-                    .collect(),
+                modes,
                 span: plan.instance.span(),
             };
             if crate::ssa::refine::routes(&inputs) {
@@ -513,6 +528,13 @@ fn lower_unit_impl(
             return Err(lowering_error(
                 LoweringErrorKind::InvalidModel,
                 plan.instance.span(),
+            ));
+        }
+        // Inout parameters are lowered only by the refinement layer (SPEC-0358).
+        if let Some(parameter) = plan.inout_parameter {
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                parameter,
             ));
         }
         let (current_receiver, parameters) = match (plan.receiver, parameters.split_first()) {

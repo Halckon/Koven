@@ -17,7 +17,7 @@ use lang_frontend::{
     ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit},
     parser::ParsedFile,
     source::{SourceMap, Span},
-    type_checking::{CompilationUnitTypes, UnitTypeId},
+    type_checking::{CompilationUnitTypes, ParameterMode, UnitTypeId},
 };
 
 use super::{
@@ -38,8 +38,8 @@ pub(in crate::ssa) struct RefineReceiver {
     /// The classifier whose member this is; implicit-`this` projections name it.
     pub(in crate::ssa) owner: DeclarationId,
     pub(in crate::ssa) ty: UnitTypeId,
-    /// Whether the caller passes a shared loan (Borrow mode) instead of the value.
-    pub(in crate::ssa) borrowed: bool,
+    /// Value, Borrow (a shared loan) or Inout (an exclusive loan).
+    pub(in crate::ssa) mode: ParameterMode,
 }
 
 /// Everything one function instance needs; all facts come from the same validated unit.
@@ -62,8 +62,8 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) receiver: Option<RefineReceiver>,
     /// Parameters in declaration order.
     pub(in crate::ssa) parameters: Vec<UnitSymbolId>,
-    /// Per parameter: whether the caller passes a shared loan (Borrow mode).
-    pub(in crate::ssa) borrowed: Vec<bool>,
+    /// Per parameter: Value, Borrow (a shared loan) or Inout (an exclusive loan).
+    pub(in crate::ssa) modes: Vec<ParameterMode>,
     pub(in crate::ssa) span: Span,
 }
 

@@ -504,6 +504,24 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "v046_baseline_exempt": True,
         "note": "SPEC-0356: subject when (statement when with mixed branch types) in E3 refinement layer",
     },
+    "p12b_class_field_assign": {
+        "kind": "run_ok",
+        "stdout": "field-assign\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0358: class field replacement in E3 refinement layer",
+    },
+    "p12c_inout_param": {
+        "kind": "run_ok",
+        "stdout": "inout-param\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0358: Inout scalar parameter replacement and caller read-back in E3 refinement layer",
+    },
+    "q09_inout_class_param": {
+        "kind": "run_ok",
+        "stdout": "inout-class\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0358: Inout class parameter, Inout receiver call and field replacement in E3 refinement layer",
+    },
     "e01_enum_when_bool_return": {
         "kind": "run_ok",
         "stdout": "e1\n",
