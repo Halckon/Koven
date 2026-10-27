@@ -569,6 +569,48 @@ sys.exit(1)
             gate.render_oracle_audit_markdown(loaded),
         )
 
+        # 7. Cross-check all 31 known_unimplemented probes and 6 programs against docs/roadmap/v1.json
+        roadmap_items = {
+            it["id"]: it
+            for it in json.loads(
+                (repo_root / "docs" / "roadmap" / "v1.json").read_text(encoding="utf-8")
+            )["items"]
+        }
+        for name, spec in loaded["probes"].items():
+            if spec["kind"] == "known_unimplemented":
+                blockers = spec.get("roadmap_blockers")
+                self.assertTrue(
+                    isinstance(blockers, list) and len(blockers) > 0,
+                    f"probe {name} missing or empty roadmap_blockers",
+                )
+                for b in blockers:
+                    self.assertIn(
+                        b,
+                        roadmap_items,
+                        f"probe {name} references unknown roadmap blocker {b}",
+                    )
+                self.assertTrue(
+                    any(roadmap_items[b]["status"] != "done" for b in blockers),
+                    f"probe {name} has all blockers done: must transition out of known_unimplemented",
+                )
+        for name, spec in loaded["programs"].items():
+            if spec["kind"] == "known_unimplemented":
+                blockers = spec.get("roadmap_blockers")
+                self.assertTrue(
+                    isinstance(blockers, list) and len(blockers) > 0,
+                    f"program {name} missing or empty roadmap_blockers",
+                )
+                for b in blockers:
+                    self.assertIn(
+                        b,
+                        roadmap_items,
+                        f"program {name} references unknown roadmap blocker {b}",
+                    )
+                self.assertTrue(
+                    any(roadmap_items[b]["status"] != "done" for b in blockers),
+                    f"program {name} has all blockers done: must transition out of known_unimplemented",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
