@@ -11,7 +11,7 @@
 | [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 5 | 1 | 1 | 4 | 7 / 11 |
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 |
-| [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 15 | 2 | 0 | 2 | 17 / 19 |
+| [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 16 | 2 | 0 | 1 | 18 / 19 |
 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 2 | 1 | 0 | 5 | 3 / 8 |
 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 11 | 1 | 1 | 3 | 13 / 16 |
@@ -19,7 +19,7 @@
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 2 | 0 | 0 | 2 | 2 / 4 |
-| **合计** | **154** | **113** | **14** | **3** | **24** | **130 / 154** |
+| **合计** | **154** | **114** | **14** | **3** | **23** | **131 / 154** |
 
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
@@ -88,7 +88,7 @@
 | `p38_list_of_strings` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `x\ny\n` | iterating mutableListOf('x', 'y') prints 'x' then 'y' in insertion order |
 | `p39_removeAt` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `removeAt\n` | single literal println('removeAt') |
 | `p40_nested_generic_class` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
-| `p41_when_string` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p41_when_string` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `when-str\n` | single literal println('when-str') |
 | `p42_lambda_mutate` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0135` | mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135 |
 | `p43_if_join_any` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0112` | when expression mixing Int (1) and String ('s') branches is rejected with WHEN_BRANCH_TYPE L0112 (D3) |
 | `p44_method_on_value` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `vmethod\n` | single literal println('vmethod') |

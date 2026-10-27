@@ -4,9 +4,11 @@
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::UnitDropPoint,
-    parser::{WhenCondition, WhenEntry},
+    parser::{Expression, WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{BuiltinType, IntegerRangeOperationKind, UnitTypeId},
+    type_checking::{
+        BuiltinType, IntegerRangeOperationKind, UnitExpressionId, UnitTypeId, UnitTypeKind,
+    },
 };
 
 use super::{Builder, Lowered};
@@ -42,13 +44,36 @@ impl Builder<'_, '_> {
             }
             None => None,
         };
-        let subject = match subject {
-            Some(subject) => match self.required(subject)? {
+        let string = subject.is_some_and(|subject| {
+            self.expression_type(subject).is_ok_and(|ty| {
+                matches!(
+                    self.inputs.typed.types().get(ty),
+                    Some(UnitTypeKind::Builtin(BuiltinType::String))
+                )
+            })
+        });
+        let subject_expression = subject
+            .map(|subject| {
+                if string {
+                    self.ungroup_when(subject)
+                } else {
+                    Ok(subject)
+                }
+            })
+            .transpose()?;
+        let subject = match subject_expression {
+            Some(subject) => match self.when_subject(subject, string)? {
                 Some(subject) => Some(subject),
                 None => return Ok(Lowered::Diverged),
             },
             None => None,
         };
+        // One temporary is shared by mutually exclusive outgoing paths. Retain its
+        // source identity/slot for the unmatched continuation while constructing a match.
+        let subject_temporary = subject_expression.and_then(|expression| {
+            let id = self.unit(expression);
+            self.temporaries.get(&id).copied().map(|slot| (id, slot))
+        });
         let join = self.body.block();
         self.body.blocks[join.0].origin = Some(span);
         let mut reached = false;
@@ -62,7 +87,18 @@ impl Builder<'_, '_> {
             for (alternative, condition) in entry.conditions.iter().enumerate() {
                 let matched = self.body.block();
                 let next = self.body.block();
-                self.when_condition(subject, root, condition, matched, next, entry.span)?;
+                self.when_condition(
+                    subject,
+                    root,
+                    condition,
+                    (matched, next),
+                    entry.span,
+                    string.then_some(UnitDropPoint::WhenComparisonCompleted {
+                        control,
+                        entry: index,
+                        alternative,
+                    }),
+                )?;
                 let mark = self.enter(matched);
                 self.leave_unclaimed(mark, entry.span)?;
                 self.drops(UnitDropPoint::WhenAlternativeMatch {
@@ -73,6 +109,14 @@ impl Builder<'_, '_> {
                 self.goto(body, entry.span)?;
                 let mark = self.enter(next);
                 self.leave_unclaimed(mark, entry.span)?;
+                if let Some((id, slot)) = subject_temporary {
+                    self.temporaries.insert(id, slot);
+                }
+                self.drops(UnitDropPoint::WhenAlternativeNoMatch {
+                    control,
+                    entry: index,
+                    alternative,
+                })?;
             }
             let unmatched = self.block;
             let mark = self.enter(body);
@@ -129,10 +173,11 @@ impl Builder<'_, '_> {
         subject: Option<Slot>,
         root: Option<UnitTypeId>,
         condition: &WhenCondition,
-        matched: BlockRef,
-        next: BlockRef,
+        edges: (BlockRef, BlockRef),
         span: Span,
+        completed: Option<UnitDropPoint>,
     ) -> Result<(), LoweringError> {
+        let (matched, next) = edges;
         let (subject, condition) = match (subject, condition) {
             (None, WhenCondition::Expression(condition)) => {
                 return self.condition(*condition, matched, next);
@@ -184,20 +229,32 @@ impl Builder<'_, '_> {
             (Some(subject), WhenCondition::Expression(condition)) => (subject, *condition),
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
         };
+        let condition = if completed.is_some() {
+            self.ungroup_when(condition)?
+        } else {
+            condition
+        };
         let condition_span = self.span(condition);
         let boolean = self.boolean_type(condition_span)?;
         let candidate = self
             .required(condition)?
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, condition_span))?;
-        let equal = self.value(
+        let operation = if completed.is_some() {
+            ROp::StringEqual {
+                left: subject,
+                right: candidate,
+            }
+        } else {
             ROp::Compare {
                 operator: ComparisonOperator::Equal,
                 left: subject,
                 right: candidate,
-            },
-            EntityType::Value(boolean),
-            condition_span,
-        )?;
+            }
+        };
+        let equal = self.value(operation, EntityType::Value(boolean), condition_span)?;
+        if let Some(completed) = completed {
+            self.drops(completed)?;
+        }
         self.terminate(
             RTerm::Branch {
                 condition: equal,
@@ -206,6 +263,36 @@ impl Builder<'_, '_> {
             },
             condition_span,
         )
+    }
+
+    fn ungroup_when(&self, mut expression: ExpressionId) -> Result<ExpressionId, LoweringError> {
+        while let (Expression::Group { expression: inner }, _) = self.node(expression)? {
+            expression = inner;
+        }
+        Ok(expression)
+    }
+
+    fn when_subject(
+        &mut self,
+        expression: ExpressionId,
+        string: bool,
+    ) -> Result<Option<Slot>, LoweringError> {
+        if string {
+            let (payload, span) = self.node(expression)?;
+            if matches!(payload, Expression::Name) {
+                let symbol = self.reference(span)?;
+                if let Some(loan) = self.borrowed.get(&symbol).copied() {
+                    // The shared parameter remains owned by the caller. StringEqual can
+                    // observe its loan directly; never materialize an owned String read.
+                    self.drops(UnitDropPoint::AfterExpression(UnitExpressionId::new(
+                        self.inputs.source_unit,
+                        expression,
+                    )))?;
+                    return Ok(Some(loan));
+                }
+            }
+        }
+        self.required(expression)
     }
 
     /// `subject in lo..hi` / `lo..<hi`: both endpoints are evaluated in order, then the

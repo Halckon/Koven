@@ -521,16 +521,14 @@
       "target_stdout": "stack\n"
     },
     "p41_when_string": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "when-str\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0360: literal String when consumes SPEC-0357 cleanup facts in refinement",
       "source_sha256": "2973072d55b36b6739ef8c5c5a8438efc78cfd768e3fee8f813a99577342cda5",
       "guide_chapter": "06-blocks-control-flow.md",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "target_stdout": "when-str\n"
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('when-str')"
     },
     "p42_lambda_mutate": {
       "kind": "compile_fail",

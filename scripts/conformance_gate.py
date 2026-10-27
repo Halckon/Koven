@@ -486,6 +486,12 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "v046_baseline_exempt": True,
         "note": "SPEC-0350: pointer-niche inline nullable String? return in E3 refinement layer",
     },
+    "p41_when_string": {
+        "kind": "run_ok",
+        "stdout": "when-str\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0360: literal String when consumes SPEC-0357 cleanup facts in refinement",
+    },
     "p08_when_int": {
         "kind": "run_ok",
         "stdout": "two\n",
