@@ -205,7 +205,7 @@ PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
     "linked_stack": "10-ownership-borrowing-drop.md",
 }
 
-# Explicit mapping from all 24 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
+# Explicit mapping from all 23 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
 UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p02_interp": ["L1", "L2"],
     "p05_double": ["N05"],
@@ -224,7 +224,6 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p28_companion": ["N06"],
     "p35_value_eq": ["L1"],
     "p40_nested_generic_class": ["N01"],
-    "p41_when_string": ["N02"],
     "q02_lambda_arg_inline": ["N04"],
     "q03_fn_ref": ["N04"],
     "q08_enum_string_payload": ["N02", "L7"],
@@ -523,6 +522,12 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "stdout": "hit\n",
         "v046_baseline_exempt": True,
         "note": "SPEC-0350: pointer-niche inline nullable String? return in E3 refinement layer",
+    },
+    "p41_when_string": {
+        "kind": "run_ok",
+        "stdout": "when-str\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0360: literal String when consumes SPEC-0357 cleanup facts in refinement",
     },
     "p08_when_int": {
         "kind": "run_ok",
