@@ -226,6 +226,23 @@ sys.exit(1)
         finally:
             exp_txt_path.write_text(self.prog_expected, encoding="utf-8")
 
+        # Verify probe with top-level package directive or missing fun main is rejected
+        p01_path = self.corpus / "probes" / "p01_ok.ko"
+        for bad_src, err_re in [
+            ('package custom\nfun main(): Unit { println("hello") }\n', "must not contain a package directive"),
+            ('fun helper(): Unit { println("hello") }\n', "must declare a fun main"),
+        ]:
+            p01_path.write_text(bad_src, encoding="utf-8")
+            self._write_default_expectations(
+                {"p01_ok": {"kind": "run_ok", "source_sha256": _sha256(bad_src), "stdout": "hello\n"}}
+            )
+            try:
+                with self.assertRaisesRegex(ValueError, err_re):
+                    gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+            finally:
+                p01_path.write_text(self.probe_ok_src, encoding="utf-8")
+                self._write_default_expectations()
+
     def test_4_timeout_is_caught_and_preserves_partial_bytes(self) -> None:
         kovenc_slow = _make_mock_compiler(
             self.root / "kovenc_slow",
@@ -659,6 +676,23 @@ sys.exit(1)
             ],
         )
         self.assertEqual(len(both_pol), 9)
+
+        # 9. Verify DIAGNOSTIC_SYMBOL_CATALOG against diagnostic.rs::codes and summarize_negative_oracle_catalog
+        for code, sym in gate.DIAGNOSTIC_SYMBOL_CATALOG.items():
+            self.assertRegex(
+                diag_rs,
+                rf"const\s+{re.escape(sym)}\s*:\s*&str\s*=\s*\"{re.escape(code)}\";",
+                f"DIAGNOSTIC_SYMBOL_CATALOG mismatch for {code} -> {sym}",
+            )
+        neg_catalog = gate.summarize_negative_oracle_catalog(loaded)
+        self.assertEqual(len(neg_catalog["diagnostics"]), 10)
+        self.assertEqual(len(neg_catalog["runtime_aborts"]), 3)
+        for name, spec in loaded["probes"].items():
+            if spec["kind"] == "compile_fail":
+                self.assertEqual(
+                    spec.get("diagnostic_symbol"),
+                    gate.DIAGNOSTIC_SYMBOL_CATALOG[spec["diagnostic"]],
+                )
 
 
 if __name__ == "__main__":

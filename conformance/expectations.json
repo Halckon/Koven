@@ -45,6 +45,7 @@
       "guide_chapter": "05-declarations-callables.md",
       "diagnostic": "L0084",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "TYPE_MISMATCH",
       "oracle_derivation": "println expects String parameter; passing Int (40 + 2) emits TYPE_MISMATCH L0084"
     },
     "p02_interp": {
@@ -76,6 +77,7 @@
       "guide_chapter": "03-types-generics.md",
       "diagnostic": "L0085",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "INVALID_OPERAND_TYPES",
       "oracle_derivation": "comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085"
     },
     "p04_overflow": {
@@ -382,6 +384,7 @@
       "source_sha256": "4a102fd5fa059a5bfc2f590713330f82d3c82d370a23d366d4b60770c630de83",
       "guide_chapter": "05-declarations-callables.md",
       "oracle_origin": "v046_spec_contract",
+      "diagnostic_symbol": "UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE",
       "oracle_derivation": "top-level runtime var counter violates Guide 05 D4 (SPEC-0343); rejected with UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE L0167"
     },
     "p24_recursion": {
@@ -398,9 +401,14 @@
       "guide_chapter": "10-ownership-borrowing-drop.md",
       "diagnostic": "L0133",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "MOVE_FROM_BORROWED_BINDING",
       "all_diagnostics": [
         "L0133",
         "L0132"
+      ],
+      "all_diagnostic_symbols": [
+        "MOVE_FROM_BORROWED_BINDING",
+        "PARTIAL_MOVE"
       ],
       "oracle_derivation": "cur = cur.next moves non-Copyable Node? field out of borrowed/owned chain, emitting MOVE_FROM_BORROWED_BINDING L0133 and PARTIAL_MOVE L0132"
     },
@@ -590,6 +598,7 @@
       "guide_chapter": "07-calls-lambdas-closures.md",
       "diagnostic": "L0135",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "LOAN_CONFLICT",
       "oracle_derivation": "mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135"
     },
     "p43_if_join_any": {
@@ -598,6 +607,7 @@
       "guide_chapter": "06-blocks-control-flow.md",
       "diagnostic": "L0112",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "WHEN_BRANCH_TYPE",
       "oracle_derivation": "when expression mixing Int (1) and String ('s') branches is rejected with WHEN_BRANCH_TYPE L0112 (D3)"
     },
     "p44_method_on_value": {
@@ -831,6 +841,7 @@
       "guide_chapter": "10-ownership-borrowing-drop.md",
       "diagnostic": "L0164",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "UNSUPPORTED_BORROW_FLOW",
       "oracle_derivation": "borrow T from this on generic class Holder<T> hits UNSUPPORTED_BORROW_FLOW L0164 (roadmap N09)"
     },
     "q18_value_class_generic": {
@@ -863,6 +874,7 @@
       "guide_chapter": "02-names-files-packages.md",
       "diagnostic": "L0080",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "UNRESOLVED_NAME",
       "oracle_derivation": "calling nonexistent method Int.fooBar() emits UNRESOLVED_NAME L0080"
     },
     "r02_bogus_member_str": {
@@ -871,6 +883,7 @@
       "guide_chapter": "02-names-files-packages.md",
       "diagnostic": "L0080",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "UNRESOLVED_NAME",
       "oracle_derivation": "accessing nonexistent property String.length emits UNRESOLVED_NAME L0080"
     },
     "s01_result_builtin": {
@@ -919,6 +932,7 @@
       "guide_chapter": "09-nullability-errors.md",
       "diagnostic": "L0085",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "INVALID_OPERAND_TYPES",
       "oracle_derivation": "postfix ? applied to nullable Int? (instead of Result) emits INVALID_OPERAND_TYPES L0085"
     },
     "t01_vmethod_bare_field": {
@@ -1056,6 +1070,7 @@
       "guide_chapter": "04-expressions-operators.md",
       "diagnostic": "L0084",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "TYPE_MISMATCH",
       "oracle_derivation": "assignment b = 3 yields Unit, so chaining a = (b = 3) for Int var a emits TYPE_MISMATCH L0084 (SPEC-0325)"
     },
     "v03_join_nullable": {
@@ -1074,6 +1089,7 @@
       "guide_chapter": "06-blocks-control-flow.md",
       "diagnostic": "L0089",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "NO_COMMON_BRANCH_TYPE",
       "oracle_derivation": "if/else with incompatible Int and String branch types emits NO_COMMON_BRANCH_TYPE L0089 (SPEC-0326)"
     },
     "v05_range_in": {
@@ -1282,6 +1298,7 @@
       "guide_chapter": "12-collections-destructuring.md",
       "diagnostic": "L0135",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "LOAN_CONFLICT",
       "oracle_derivation": "calling m.put() while m is borrowed by for-loop iteration emits LOAN_CONFLICT L0135"
     },
     "w07_map_nested": {
@@ -1430,6 +1447,7 @@
       "guide_chapter": "02-names-files-packages.md",
       "diagnostic": "L0080",
       "oracle_origin": "baseline_diagnostic_audited",
+      "diagnostic_symbol": "UNRESOLVED_NAME",
       "oracle_derivation": "calling take() without import koven.algorithms.take emits UNRESOLVED_NAME L0080 (Guide v0.45)"
     },
     "y03_method_take_for": {
