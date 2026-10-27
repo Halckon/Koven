@@ -66,8 +66,9 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     for ty in signature_types {
         checker.note_nullable(ty);
     }
-    // Copyable Borrow parameters are read by copy; Inout parameters are scalars or plain
-    // classes, read through and replaced under the caller's exclusive loan.
+    // Copyable Borrow parameters are read by copy, except String when subjects read the
+    // loan; Inout parameters are scalars or plain classes, read through and replaced under
+    // the caller's exclusive loan.
     let signature = inputs.parameters.len() == inputs.modes.len()
         && inputs
             .parameters
@@ -83,6 +84,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                             ParameterMode::Borrow => {
                                 checker.copyability_of(ty) == Copyability::Copyable
                                     || checker.class(ty)
+                                    || checker.string(ty)
                             }
                             ParameterMode::Inout => checker.scalar(ty) || checker.class(ty),
                         }
@@ -630,15 +632,23 @@ impl Checker<'_, '_> {
             return false;
         };
         let tagged = self.enum_type(subject_type);
-        // A MoveOnly subject (String) stays outside: ownership facts plan neither the
-        // subject's lifetime across the tests nor drops for MoveOnly candidates.
-        let subject_ok = (self.scalar(subject_type) || tagged) && self.expression(subject);
+        // SPEC-0357 already validated lifetime and candidate inventory. Keep the backend
+        // subset bounded to that literal kernel and its existing expression support.
+        let string = self.string(subject_type);
+        let subject_ok = if string {
+            self.string_when_subject(subject)
+        } else {
+            (self.scalar(subject_type) || tagged) && self.expression(subject)
+        };
         let has_else = entries.iter().any(|entry| entry.else_span.is_some());
         subject_ok
             && (self.unit(ty) || has_else || tagged)
             && entries.iter().all(|entry| {
                 entry.else_span.is_some() == entry.conditions.is_empty()
                     && entry.conditions.iter().all(|condition| match condition {
+                        WhenCondition::Expression(condition) if string => {
+                            self.string_when_literal(*condition)
+                        }
                         WhenCondition::Expression(condition) if tagged => {
                             self.case_value_condition(*condition, subject_type)
                         }
@@ -647,7 +657,7 @@ impl Checker<'_, '_> {
                                 && self.expression(*condition)
                         }
                         WhenCondition::Contains { expression, .. } => {
-                            !tagged && self.range_condition(*expression, subject_type)
+                            !tagged && !string && self.range_condition(*expression, subject_type)
                         }
                         WhenCondition::TypeTest { type_ref, .. } => {
                             tagged && self.type_test_target(*type_ref, subject_type)
@@ -655,6 +665,36 @@ impl Checker<'_, '_> {
                     })
                     && self.statement(entry.body)
             })
+    }
+
+    fn string_when_subject(&mut self, expression: ExpressionId) -> bool {
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
+            return false;
+        };
+        match node.payload() {
+            Expression::Group { expression } => self.string_when_subject(*expression),
+            Expression::Name
+                if self.reference(expression).is_some_and(|symbol| {
+                    self.known.contains(&symbol)
+                        && self.parameter_mode(symbol) == Some(ParameterMode::Borrow)
+                }) =>
+            {
+                true
+            }
+            Expression::Member { .. } | Expression::Index { .. } => false,
+            _ => self.expression(expression),
+        }
+    }
+
+    fn string_when_literal(&mut self, expression: ExpressionId) -> bool {
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
+            return false;
+        };
+        match node.payload() {
+            Expression::Group { expression } => self.string_when_literal(*expression),
+            Expression::String { .. } => self.expression(expression),
+            _ => false,
+        }
     }
 
     /// `in lo..hi` / `lo..<hi` over the subject's integer type.
@@ -887,10 +927,7 @@ impl Checker<'_, '_> {
                     self.replacements.contains(&assignment)
                         && matches!(fact.target(), UnitDropTarget::ReplacedField { .. })
                 }
-                UnitDropPoint::WhenComparisonCompleted { .. }
-                | UnitDropPoint::WhenAlternativeNoMatch { .. }
-                | UnitDropPoint::LambdaEntry(_)
-                | UnitDropPoint::AfterReplacement(_) => false,
+                UnitDropPoint::LambdaEntry(_) | UnitDropPoint::AfterReplacement(_) => false,
                 // A jump out of a call argument abandons the earlier arguments' temporaries
                 // (and their loans) while the normal path still drops them at the call.
                 UnitDropPoint::ControlTransfer(_) => {

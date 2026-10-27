@@ -25,7 +25,10 @@ SPEC-0350 §3 的已实现清单与 SPEC-0356 为准。
 
 已接入：Boolean/整数/String 标量与 checked 算术、String 字面量/拼接/比较、`println`、顶层直接调用、
 `if`/`while`/短路、`when`（无 subject 时 Boolean 条件按序测试；标量 subject 按值比较或测整数 Range 成员；enum subject
-比较判别值，值位置无 `else` 时落空边为不可达 Abort；命中边消费 `WhenAlternativeMatch`）、
+比较判别值，值位置无 `else` 时落空边为不可达 Abort；命中边消费 `WhenAlternativeMatch`；String subject 的无插值 literal/Group 首核
+消费 0357 的 `WhenComparisonCompleted` 与 `WhenAlternativeNoMatch`，比较先于候选清理，
+直接 Borrow String 参数通过 caller loan 比较，未扩展 borrow-result binding/field/index/复杂候选；
+新增真实源/计数测试的官方 CI 结果见 [0360](../specs/active/0360-string-when-refinement.md)）、
 Copyable 非泛型且 payload 全为标量的 enum（case 构造、`is`/`!is`、无 payload case 等值、经
 `TaggedPayloadPlace` 读取窄化名、`this` 或隐式 `this` 的 payload）及 enum 方法的 receiver、`loop` 与 `break`/`continue`（跳转前结束本轮循环打开的 view）、inline nullable、字段只含标量/String 的非泛型 class 及其 pointer-like nullable、
 class 构造、Copyable 字段读取（经窄化 view、局部 owner 的临时 shared loan、Borrow/Inout 参数或当前
@@ -35,7 +38,7 @@ receiver 的 loan）、`!!`（Consume，null 边 Abort）；赋值与 `Inout`（
 消费 `BeforeReplacement` 析构；receiver 调用中 Borrow receiver 在实参前借出，`Inout` receiver 的
 exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`（SPEC-0359）：构造为 `SharedAllocate`、`share()` 为
 `SharedRetain`，Copyable payload 的 `value` 经 `SharedPayloadPlace` 读取，`rc.value.f` 经 payload place 的
-临时 shared loan 读取字段。泛型函数实例（SPEC-0360）：typed 事实中的模板类型经 `RefineInputs::concrete`
+临时 shared loan 读取字段。泛型函数实例（SPEC-0361）：typed 事实中的模板类型经 `RefineInputs::concrete`
 （实例替换与 static `Self`）具体化后再使用；Copyable、字段全为标量的 `value class` 构造为聚合值，字段读取
 对 owned 值做 `AggregateProject`，对 loan 经 `SharedFieldLoan` 读出，receiver 可为 Value 或 Borrow。
 

@@ -342,13 +342,14 @@ subgraph Garchive["已完成（archive，334 份）"]
   S0356["S0356<br/>E3 when 家族迁入所有权细化层"]
   S0358["S0358<br/>E3 赋值与 inout 家族迁入所有权细化层"]
   S0359["S0359<br/>E3 Rc 构造、share() 与 Rc.value 投影迁入所有权细化层"]
-  S0360["S0360<br/>E3 泛型实例与 value class 迁入所有权细化层"]
+  S0361["S0361<br/>E3 泛型实例与 value class 迁入所有权细化层"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
   S0341["S0341<br/>D10 统一 compilation-unit 检查与代码生成管线"]
   S0357["S0357<br/>String subject when 的 Unit 清理事实"]
+  S0360["S0360<br/>String when 清理事实的 refinement 消费"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1763,11 +1764,12 @@ S0354 --> S0349
 | SPEC-0356 | archive | [0356-refine-when-family.md](0356-refine-when-family.md) |
 | SPEC-0358 | archive | [0358-refine-assignment-inout.md](0358-refine-assignment-inout.md) |
 | SPEC-0359 | archive | [0359-refine-rc.md](0359-refine-rc.md) |
-| SPEC-0360 | archive | [0360-refine-generic-value-class.md](0360-refine-generic-value-class.md) |
+| SPEC-0361 | archive | [0361-refine-generic-value-class.md](0361-refine-generic-value-class.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
 | SPEC-0357 | active | [0357-string-when-ownership-facts.md](../../specs/active/0357-string-when-ownership-facts.md) |
+| SPEC-0360 | active | [0360-string-when-refinement.md](../../specs/active/0360-string-when-refinement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

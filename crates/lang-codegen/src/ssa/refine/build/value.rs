@@ -1,4 +1,4 @@
-//! Copyable `value class` in the refined CFG (SPEC-0360): construction builds the inline
+//! Copyable `value class` in the refined CFG (SPEC-0361): construction builds the inline
 //! aggregate and a field read projects a copy out of the owner's value.
 use lang_frontend::{
     ast::ExpressionId,

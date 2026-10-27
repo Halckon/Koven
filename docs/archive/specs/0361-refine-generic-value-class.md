@@ -1,18 +1,19 @@
-# SPEC-0360: E3 泛型实例与 value class 迁入所有权细化层
+# SPEC-0361: E3 泛型实例与 value class 迁入所有权细化层
 
 > **性质**：实施合同 · **状态**：done · **读取时机**：评审或实施路线图 E3 的泛型实例与 value class lowering 时 · **唯一真源**：本片目标、范围与验收；语义以 Guide 为准，长期决定以 ADR-0028/0032 为准
 
 | 字段 | 值 |
 |---|---|
 | 状态 | done |
-| Goal ID | `KOV-P4-0360` |
+| Goal ID | `KOV-P4-0361` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.46 类型与泛型](../../guide/03-types-generics.md)、[布局与构造](../../guide/11-copyability-layout-construction.md) |
 | 批准依据 | 2026-10-27 用户排定 E3 后续顺序：第 4 项为“泛型 / value class（p40、t03）” |
 | 基线 | `feature/spec-0359-refine-rc` `44d1e11c` |
-| 分支 | `feature/spec-0360-refine-generic-value-class` |
+| 分支 | `feature/spec-0361-refine-generic-value-class` |
 | 前置 | [SPEC-0359](0359-refine-rc.md)、[ADR-0028](../../adr/accepted/0028-frontend-generic-body-type-normalization.md)、[ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md) |
 | 阻塞项 | 无 |
+| 编号 | 原在分支内编号 0360，合并 main 时与 [SPEC-0360 String when refinement](../../specs/active/0360-string-when-refinement.md) 冲突，改为 0361 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
@@ -48,3 +49,4 @@ frontend 已发布的具体身份后再使用；并迁入 Copyable、字段全�
 | 提交 | 内容 |
 |---|---|
 | 本分支首提交 | 具体化 typed 事实、Copyable 标量字段 value class（构造、`AggregateProject`/`SharedFieldLoan` 字段读取、Value/Borrow receiver）；t03 晋升 run_ok（132/154，0 回退） |
+| 合并 main `56116922` | 编号由 0360 改为 0361；与 main 的 String when refinement（Borrow String 参数）合并后门禁 133/154、0 回退，lang-codegen 全量测试与 clippy 通过 |

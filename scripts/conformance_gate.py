@@ -55,10 +55,27 @@ BACKEND_RE = re.compile(rb"lowering failed with ([A-Za-z]+)")
 BACKEND_OBJECT_RE = re.compile(rb"native object ([A-Za-z]+):")
 OWNERSHIP_ICE_RE = re.compile(rb"ownership checking failed: [a-z -]+")
 SIMPLE_PRINTLN_LITERAL_RE = re.compile(r'println\("([^"\\$]*)"\)')
+PACKAGE_DIRECTIVE_RE = re.compile(r"(?m)^\s*package\s+")
+MAIN_ENTRY_RE = re.compile(r"(?m)\bfun\s+main\s*\(")
 
 # Multi-diagnostic compile_fail probes where more than one distinct error[Lxxxx] code is emitted on stderr
 EXPECTED_MULTI_DIAGNOSTICS: dict[str, list[str]] = {
     "p25_linked_iter": ["L0133", "L0132"],
+}
+
+# Canonical frontend diagnostic code symbols from crates/lang-frontend/src/diagnostic.rs::codes
+DIAGNOSTIC_SYMBOL_CATALOG: dict[str, str] = {
+    "L0080": "UNRESOLVED_NAME",
+    "L0084": "TYPE_MISMATCH",
+    "L0085": "INVALID_OPERAND_TYPES",
+    "L0089": "NO_COMMON_BRANCH_TYPE",
+    "L0112": "WHEN_BRANCH_TYPE",
+    "L0132": "PARTIAL_MOVE",
+    "L0133": "MOVE_FROM_BORROWED_BINDING",
+    "L0135": "LOAN_CONFLICT",
+    "L0164": "UNSUPPORTED_BORROW_FLOW",
+    "L0165": "FINAL_TYPE_ANALYSIS_INCOMPLETE",
+    "L0167": "UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE",
 }
 
 VALID_EXPECTATION_KINDS = frozenset(
@@ -203,6 +220,41 @@ PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
     "raii_state_machine": "08-class-family-members.md",
     "varint_codec": "03-types-generics.md",
     "linked_stack": "10-ownership-borrowing-drop.md",
+}
+
+# Explicit mapping from all 21 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
+UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
+    "p02_interp": ["L1", "L2"],
+    "p05_double": ["N05"],
+    "p06_char": ["N05"],
+    "p11_interface_bound": ["N06"],
+    "p15_elvis": ["N03"],
+    "p16_result_q": ["N08"],
+    "p16b_result_string": ["N08"],
+    "p17_lambda": ["N04"],
+    "p17b_lambda_nocapture": ["N04"],
+    "p18_move_closure": ["N04"],
+    "p21_box_enum": ["N07", "L7"],
+    "p25b_linked_recursive": ["N03"],
+    "p27_thread": ["T1", "N04"],
+    "p28_companion": ["N06"],
+    "p35_value_eq": ["L1"],
+    "p40_nested_generic_class": ["N01"],
+    "q02_lambda_arg_inline": ["N04"],
+    "q03_fn_ref": ["N04"],
+    "q08_enum_string_payload": ["N02", "L7"],
+    "s02_pair_builtin": ["S6"],
+    "s03_to_pair": ["S6"],
+}
+
+# Explicit mapping from all 6 V1 acceptance programs to blocking item IDs in docs/roadmap/v1.json.
+PROGRAM_ROADMAP_BLOCKERS: dict[str, list[str]] = {
+    "config_parse": ["N02", "N08", "L1", "L2"],
+    "expr_eval": ["N02", "N05", "N07", "N08", "L7"],
+    "linked_stack": ["N01", "N03", "N07", "L7"],
+    "raii_state_machine": ["N01", "N02"],
+    "varint_codec": ["N01", "N08", "L3b"],
+    "word_count": ["N02", "N03"],
 }
 
 SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
@@ -486,6 +538,12 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "v046_baseline_exempt": True,
         "note": "SPEC-0350: pointer-niche inline nullable String? return in E3 refinement layer",
     },
+    "p41_when_string": {
+        "kind": "run_ok",
+        "stdout": "when-str\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0360: literal String when consumes SPEC-0357 cleanup facts in refinement",
+    },
     "p08_when_int": {
         "kind": "run_ok",
         "stdout": "two\n",
@@ -532,7 +590,7 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "kind": "run_ok",
         "stdout": "vmethod-generic\n",
         "v046_baseline_exempt": True,
-        "note": "SPEC-0360: generic value-class instance method in E3 refinement layer",
+        "note": "SPEC-0361: generic value-class instance method in E3 refinement layer",
     },
     "e01_enum_when_bool_return": {
         "kind": "run_ok",
@@ -1022,6 +1080,14 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"{section}.{name} with compile_fail requires diagnostic Lxxxx"
                     )
+                if "diagnostic_symbol" in spec:
+                    expected_sym = DIAGNOSTIC_SYMBOL_CATALOG.get(spec["diagnostic"])
+                    if not isinstance(spec["diagnostic_symbol"], str) or (
+                        expected_sym is not None and spec["diagnostic_symbol"] != expected_sym
+                    ):
+                        raise ValueError(
+                            f"{section}.{name} has invalid diagnostic_symbol {spec['diagnostic_symbol']!r} for {spec['diagnostic']}"
+                        )
                 if "all_diagnostics" in spec:
                     all_diags = spec["all_diagnostics"]
                     if (
@@ -1041,6 +1107,17 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"{section}.{name} with runtime_abort requires abort_message"
                     )
+            elif kind == "known_unimplemented":
+                if "roadmap_blockers" in spec:
+                    blockers = spec["roadmap_blockers"]
+                    if (
+                        not isinstance(blockers, list)
+                        or not blockers
+                        or not all(isinstance(b, str) and b.strip() for b in blockers)
+                    ):
+                        raise ValueError(
+                            f"{section}.{name} with known_unimplemented has invalid roadmap_blockers {blockers!r}"
+                        )
             if "oracle_origin" in spec and (
                 not isinstance(spec["oracle_origin"], str) or not spec["oracle_origin"].strip()
             ):
@@ -1069,10 +1146,20 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                 )
                 if not src_file.is_file():
                     raise ValueError(f"missing source file for {section}.{name}: {src_file}")
-                actual_sha = sha256_file(src_file)
+                src_bytes = src_file.read_bytes()
+                actual_sha = sha256_bytes(src_bytes)
                 if actual_sha != spec["source_sha256"]:
                     raise ValueError(
                         f"source_sha256 mismatch for {section}.{name}: expected {spec['source_sha256']}, got {actual_sha}"
+                    )
+                src_text = src_bytes.decode("utf-8")
+                if PACKAGE_DIRECTIVE_RE.search(src_text):
+                    raise ValueError(
+                        f"{section}.{name} must not contain a package directive (collides with project-mode package app header)"
+                    )
+                if not MAIN_ENTRY_RE.search(src_text):
+                    raise ValueError(
+                        f"{section}.{name} must declare a fun main(...) entry point"
                     )
                 if section == "programs" and "expected_file" in spec:
                     exp_file = corpus_root / spec["expected_file"]
@@ -1080,10 +1167,24 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         raise ValueError(
                             f"missing expected_file for programs.{name}: {exp_file}"
                         )
-                    if sha256_file(exp_file) != spec["expected_sha256"]:
+                    exp_bytes = exp_file.read_bytes()
+                    if not exp_bytes or not exp_bytes.endswith(b"\n"):
+                        raise ValueError(
+                            f"expected_file for programs.{name} must be non-empty and end with trailing newline"
+                        )
+                    if sha256_bytes(exp_bytes) != spec["expected_sha256"]:
                         raise ValueError(f"expected_sha256 mismatch for programs.{name}")
-                    spec["stdout"] = exp_file.read_text(encoding="utf-8")
-                    spec["target_stdout"] = spec["stdout"]
+                    exp_text = exp_bytes.decode("utf-8")
+                    if "expected_bytes" in spec and spec["expected_bytes"] != len(exp_bytes):
+                        raise ValueError(
+                            f"expected_bytes mismatch for programs.{name}: expected {spec['expected_bytes']}, got {len(exp_bytes)}"
+                        )
+                    if "expected_lines" in spec and spec["expected_lines"] != len(exp_text.splitlines()):
+                        raise ValueError(
+                            f"expected_lines mismatch for programs.{name}: expected {spec['expected_lines']}, got {len(exp_text.splitlines())}"
+                        )
+                    spec["stdout"] = exp_text
+                    spec["target_stdout"] = exp_text
 
     if corpus_root is not None:
         actual_probes = {p.stem for p in (corpus_root / "probes").glob("*.ko")}
@@ -1094,6 +1195,44 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
             raise ValueError(
                 f"probe inventory mismatch: missing_in_expectations={missing}, extra_in_expectations={extra}"
             )
+        programs_dir = corpus_root / "programs"
+        if programs_dir.is_dir():
+            actual_progs = {
+                d.name
+                for d in programs_dir.iterdir()
+                if d.is_dir() and (d / "main.ko").is_file() and (d / "expected.txt").is_file()
+            }
+            expected_progs = set(data["programs"].keys())
+            missing_progs = sorted(actual_progs - expected_progs)
+            extra_progs = sorted(expected_progs - actual_progs)
+            if missing_progs or extra_progs:
+                raise ValueError(
+                    f"program inventory mismatch: missing_in_expectations={missing_progs}, extra_in_expectations={extra_progs}"
+                )
+
+    # Validate that every roadmap_blocker exists in docs/roadmap/v1.json and is not prematurely all done
+    if corpus_root is not None:
+        v1_json_path = corpus_root.parent / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+            for section in ("probes", "programs"):
+                for name, spec in data[section].items():
+                    if spec["kind"] == "known_unimplemented":
+                        blockers = spec.get("roadmap_blockers")
+                        if not blockers or not isinstance(blockers, list):
+                            raise ValueError(
+                                f"{section}.{name} with known_unimplemented missing roadmap_blockers in production corpus"
+                            )
+                        for b in blockers:
+                            if b not in roadmap_items:
+                                raise ValueError(
+                                    f"{section}.{name} references unknown roadmap blocker {b!r} not found in {v1_json_path.name}"
+                                )
+                        if not any(roadmap_items[b].get("status") != "done" for b in blockers):
+                            raise ValueError(
+                                f"{section}.{name} has all roadmap_blockers marked done in {v1_json_path.name}: must transition out of known_unimplemented"
+                            )
     return data
 
 
@@ -1176,6 +1315,10 @@ def derive_static_expectations(
             entry["source_sha256"] = src_sha
             entry["guide_chapter"] = chapter
             entry["oracle_origin"] = "v046_spec_contract"
+            if entry.get("kind") == "compile_fail" and entry.get("diagnostic") in DIAGNOSTIC_SYMBOL_CATALOG:
+                entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[entry["diagnostic"]]
+            if entry.get("kind") == "known_unimplemented":
+                entry["roadmap_blockers"] = list(UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"]))
             if derivation is not None:
                 entry["oracle_derivation"] = derivation
             probes_out[name] = entry
@@ -1214,6 +1357,7 @@ def derive_static_expectations(
                         "BE:MissingFact",
                     ],
                     "oracle_origin": "baseline_unimplemented_audited",
+                    "roadmap_blockers": list(UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"])),
                 }
                 if single_static_stdout is not None:
                     entry["target_stdout"] = single_static_stdout
@@ -1226,8 +1370,13 @@ def derive_static_expectations(
                     "diagnostic": code,
                     "oracle_origin": "baseline_diagnostic_audited",
                 }
+                if code in DIAGNOSTIC_SYMBOL_CATALOG:
+                    entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[code]
                 if name in EXPECTED_MULTI_DIAGNOSTICS:
                     entry["all_diagnostics"] = list(EXPECTED_MULTI_DIAGNOSTICS[name])
+                    entry["all_diagnostic_symbols"] = [
+                        DIAGNOSTIC_SYMBOL_CATALOG[c] for c in EXPECTED_MULTI_DIAGNOSTICS[name]
+                    ]
                 if derivation is not None:
                     entry["oracle_derivation"] = derivation
                 probes_out[name] = entry
@@ -1238,6 +1387,7 @@ def derive_static_expectations(
                 "guide_chapter": chapter,
                 "allowed_markers": ["BE:UnsupportedNode", "BE:MissingFact", "FE:L0165"],
                 "oracle_origin": "baseline_unimplemented_audited",
+                "roadmap_blockers": list(UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"])),
             }
             if single_static_stdout is not None:
                 entry["target_stdout"] = single_static_stdout
@@ -1259,6 +1409,8 @@ def derive_static_expectations(
         expected_txt = prog_dir / "expected.txt"
         if not main_ko.is_file() or not expected_txt.is_file():
             continue
+        exp_bytes = expected_txt.read_bytes()
+        exp_text = exp_bytes.decode("utf-8")
         programs_out[prog_dir.name] = {
             "kind": "known_unimplemented",
             "source_sha256": sha256_file(main_ko),
@@ -1266,7 +1418,9 @@ def derive_static_expectations(
                 prog_dir.name, "13-program-runtime-standard-library.md"
             ),
             "expected_file": f"programs/{prog_dir.name}/expected.txt",
-            "expected_sha256": sha256_file(expected_txt),
+            "expected_sha256": sha256_bytes(exp_bytes),
+            "expected_lines": len(exp_text.splitlines()),
+            "expected_bytes": len(exp_bytes),
             "allowed_markers": [
                 "FE:L0080",
                 "FE:L0084",
@@ -1276,6 +1430,7 @@ def derive_static_expectations(
                 "BE:MissingFact",
             ],
             "oracle_origin": "expected_txt_file",
+            "roadmap_blockers": list(PROGRAM_ROADMAP_BLOCKERS.get(prog_dir.name, ["N02"])),
         }
 
     return {
@@ -1505,12 +1660,10 @@ def summarize_comparisons(
     }
 
 
-def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
-    """Render deterministic Markdown audit ledger from expectations.json."""
+def summarize_chapter_polarity(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Compute per-chapter positive (run_ok) vs negative (compile_fail + runtime_abort) polarity coverage."""
     probes = expectations["probes"]
-    programs = expectations["programs"]
-
-    chapter_stats: dict[str, dict[str, int]] = {
+    chapter_stats: dict[str, dict[str, Any]] = {
         ch: {
             "total": 0,
             "run_ok": 0,
@@ -1518,6 +1671,11 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             "runtime_abort": 0,
             "known_unimplemented": 0,
             "cap_passed": 0,
+            "positive_active": 0,
+            "negative_active": 0,
+            "has_positive": False,
+            "has_negative": False,
+            "polarity_status": "unimplemented_only",
         }
         for ch in VALID_GUIDE_CHAPTERS
     }
@@ -1530,17 +1688,83 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         if kind in ("run_ok", "compile_fail", "runtime_abort"):
             row["cap_passed"] += 1
 
+    for ch, row in chapter_stats.items():
+        pos = row["run_ok"]
+        neg = row["compile_fail"] + row["runtime_abort"]
+        row["positive_active"] = pos
+        row["negative_active"] = neg
+        row["has_positive"] = pos > 0
+        row["has_negative"] = neg > 0
+        if pos > 0 and neg > 0:
+            row["polarity_status"] = "both_positive_and_negative"
+        elif pos > 0:
+            row["polarity_status"] = "positive_only"
+        elif neg > 0:
+            row["polarity_status"] = "negative_only"
+        else:
+            row["polarity_status"] = "unimplemented_only"
+    return chapter_stats
+
+
+def summarize_negative_oracle_catalog(expectations: dict[str, Any]) -> dict[str, Any]:
+    """Aggregate compile_fail diagnostic codes and runtime_abort contracts across the probe corpus."""
+    probes = expectations["probes"]
+    by_diagnostic: dict[str, dict[str, Any]] = {}
+    by_abort: list[dict[str, Any]] = []
+
+    for name, spec in sorted(probes.items()):
+        ch = spec.get("guide_chapter", "05-declarations-callables.md")
+        if spec["kind"] == "compile_fail":
+            codes = spec.get("all_diagnostics", [spec["diagnostic"]])
+            for code in codes:
+                bucket = by_diagnostic.setdefault(
+                    code,
+                    {
+                        "code": code,
+                        "symbol": DIAGNOSTIC_SYMBOL_CATALOG.get(code, "UNKNOWN"),
+                        "chapters": [],
+                        "probes": [],
+                    },
+                )
+                if ch not in bucket["chapters"]:
+                    bucket["chapters"].append(ch)
+                bucket["probes"].append(name)
+        elif spec["kind"] == "runtime_abort":
+            by_abort.append(
+                {
+                    "probe": name,
+                    "abort_message": spec["abort_message"],
+                    "guide_chapter": ch,
+                    "derivation": spec.get("oracle_derivation", ""),
+                }
+            )
+
+    return {
+        "diagnostics": dict(sorted(by_diagnostic.items())),
+        "runtime_aborts": by_abort,
+    }
+
+
+def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
+    """Render deterministic Markdown audit ledger from expectations.json."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    chapter_stats = summarize_chapter_polarity(expectations)
+    neg_catalog = summarize_negative_oracle_catalog(expectations)
+
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
         "",
         "> 本文件由 `python3 scripts/conformance_gate.py --init-expectations` 从 `conformance/expectations.json` 确定性生成，并由 `scripts/check_docs.py`（`DocsChecker.check_conformance_corpus`）与 `scripts/tests/test_conformance_gate.py` 自动校验同步。",
         "",
-        "## 1. Guide v0.46 章节覆盖汇总（154 Probes）",
+        "## 1. Guide v0.46 章节覆盖与正/负向极性汇总（154 Probes）",
         "",
-        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |",
+        "|---|---:|---:|---:|---:|---:|---:|---|",
     ]
     tot_all = tot_ok = tot_cf = tot_ab = tot_ku = tot_cap = 0
+    both_chapters: list[str] = []
+    pos_only_chapters: list[str] = []
     for ch in VALID_GUIDE_CHAPTERS:
         st = chapter_stats[ch]
         tot_all += st["total"]
@@ -1549,35 +1773,105 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         tot_ab += st["runtime_abort"]
         tot_ku += st["known_unimplemented"]
         tot_cap += st["cap_passed"]
+        pol = st["polarity_status"]
+        if pol == "both_positive_and_negative":
+            both_chapters.append(ch)
+        elif pol == "positive_only":
+            pos_only_chapters.append(ch)
         lines.append(
             f"| [{ch}](../docs/guide/{ch}) | {st['total']} | {st['run_ok']} | {st['compile_fail']} | "
-            f"{st['runtime_abort']} | {st['known_unimplemented']} | {st['cap_passed']} / {st['total']} |"
+            f"{st['runtime_abort']} | {st['known_unimplemented']} | {st['cap_passed']} / {st['total']} | `{pol}` |"
         )
     lines.append(
-        f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** |"
+        f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** | **{len(both_chapters)} 双极性 / {len(pos_only_chapters)} 仅正向** |"
     )
+    lines.extend(
+        [
+            "",
+            f"- **正/负向双极性覆盖章节（{len(both_chapters)} / {len(VALID_GUIDE_CHAPTERS)}）**：" + ", ".join(f"`{c}`" for c in both_chapters) + "（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。",
+            f"- **仅正向覆盖章节（{len(pos_only_chapters)} / {len(VALID_GUIDE_CHAPTERS)}，待后续补充独立负向诊断探针）**：" + ", ".join(f"`{c}`" for c in pos_only_chapters) + "（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。",
+            "",
+            "### 1.1 负向诊断码与运行时中止契约矩阵（14 `compile_fail` + 3 `runtime_abort`）",
+            "",
+            "| 负向契约标识 | `diagnostic.rs` 符号常量 / 中止类别 | 覆盖 Guide 章节 | 关联 Probe 数量 | 绑定 Probe 列表 |",
+            "|---|---|---|---:|---|",
+        ]
+    )
+    for code, info in neg_catalog["diagnostics"].items():
+        ch_links = ", ".join(f"[{c}](../docs/guide/{c})" for c in info["chapters"])
+        p_list = ", ".join(f"`{p}`" for p in info["probes"])
+        lines.append(
+            f"| `FE:{code}` | `{info['symbol']}` | {ch_links} | {len(info['probes'])} | {p_list} |"
+        )
+    for ab in neg_catalog["runtime_aborts"]:
+        ch = ab["guide_chapter"]
+        lines.append(
+            f"| `abort:{ab['abort_message']}` | `SIGABRT (exit 134)` | [{ch}](../docs/guide/{ch}) | 1 | `{ab['probe']}` |"
+        )
+
+    # Load v1.json roadmap metadata for blocker names and titles if available
+    v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+    roadmap_items: dict[str, dict[str, Any]] = {}
+    if v1_json_path.is_file():
+        v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+        roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
 
     lines.extend(
         [
             "",
             "## 2. 六个 V1 验收程序（Acceptance Programs）",
             "",
-            "| 程序 | 归属章节 | 当前状态 | 期望输出文件 | 允许的未实现记号 |",
-            "|---|---|---|---|---|",
+            "| 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |",
+            "|---|---|---|---|---|---|---|",
         ]
     )
     for name, spec in sorted(programs.items()):
         ch = spec.get("guide_chapter", "13-program-runtime-standard-library.md")
         exp_file = spec["expected_file"]
+        exp_size = (
+            f"{spec['expected_lines']} 行 / {spec['expected_bytes']} B"
+            if "expected_lines" in spec and "expected_bytes" in spec
+            else "-"
+        )
         allowed = ", ".join(f"`{m}`" for m in spec.get("allowed_markers", []))
+        blockers = ", ".join(f"`{b}`" for b in spec.get("roadmap_blockers", []))
         lines.append(
-            f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | [{exp_file}]({exp_file}) | {allowed} |"
+            f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | {blockers} | [{exp_file}]({exp_file}) | {exp_size} | {allowed} |"
+        )
+
+    # 3. Aggregate every known_unimplemented probe by roadmap blocker
+    blocker_probes: dict[str, list[str]] = {}
+    for name, spec in sorted(probes.items()):
+        if spec["kind"] == "known_unimplemented":
+            for b in spec.get("roadmap_blockers", []):
+                blocker_probes.setdefault(b, []).append(name)
+    unimplemented_total = sum(
+        1 for spec in probes.values() if spec["kind"] == "known_unimplemented"
+    )
+
+    lines.extend(
+        [
+            "",
+            f"## 3. {unimplemented_total} 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账",
+            "",
+            "| 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |",
+            "|---|---|---|---:|---|",
+        ]
+    )
+    for b_id in sorted(blocker_probes.keys()):
+        item = roadmap_items.get(b_id, {})
+        title = item.get("title", "").replace("|", "\\|")
+        status = item.get("status", "unknown")
+        plist = blocker_probes[b_id]
+        pnames = ", ".join(f"`{p}`" for p in plist)
+        lines.append(
+            f"| `{b_id}` | {title} | `{status}` | {len(plist)} | {pnames} |"
         )
 
     lines.extend(
         [
             "",
-            "## 3. 154 个 Probe 逐项强 Oracle 与语义推导账本",
+            "## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本",
             "",
             "| Probe | Guide 章节 | 类型 (`kind`) | 溯源 (`oracle_origin`) | 期望结果 / 诊断码 | 语义推导 / 规则说明 (`oracle_derivation` / `note`) |",
             "|---|---|---|---|---|---|",

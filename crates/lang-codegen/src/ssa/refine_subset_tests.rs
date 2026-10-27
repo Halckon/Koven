@@ -41,6 +41,8 @@ fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
 #[test]
 fn nullable_functions_inside_the_subset_are_routed() {
     for source in [
+        "fun f(own s: String): Int = when (s) { \"a\" -> 1\n else -> 0 }",
+        "fun f(s: String): Int = when ((s)) { (\"a\") -> 1\n else -> 0 }",
         "fun f(own x: Int?): Int { if (x != null) { return x }; return 0 }",
         "fun f(own x: Int?): Int = when { x == null -> 0\n else -> 1 }",
         "fun f(own x: Int?): Int { while (x != null) { break }; var i = 0\n\
@@ -74,14 +76,15 @@ fn nullable_functions_inside_the_subset_are_routed() {
 #[test]
 fn functions_outside_the_subset_keep_the_per_family_path() {
     for (reason, source) in [
+        (
+            "explicit String borrow-result binding",
+            "fun view(s: String): borrow String from s = s\n\
+             fun f(): Int { val owner = \"a\"; borrow val s = view(owner); return when (s) { \"a\" -> 1; else -> 0 } }",
+        ),
         ("no nullable", "fun f(own x: Int): Int = x + 1"),
         (
             "when with a nullable subject",
             "fun f(own x: Int?): Int = when (x) { null -> 0\n else -> 1 }",
-        ),
-        (
-            "when with a String subject",
-            "fun f(own s: String): Int = when (s) { \"a\" -> 1\n else -> 0 }",
         ),
         (
             "jump out of a call argument past a borrowed temporary",

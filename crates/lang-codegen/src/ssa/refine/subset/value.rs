@@ -1,4 +1,4 @@
-//! Subset rules for Copyable `value class` (SPEC-0360): inline construction, field reads by
+//! Subset rules for Copyable `value class` (SPEC-0361): inline construction, field reads by
 //! copy and value-class receivers. They mirror `build/value.rs`.
 use lang_frontend::{
     ast::ExpressionId,

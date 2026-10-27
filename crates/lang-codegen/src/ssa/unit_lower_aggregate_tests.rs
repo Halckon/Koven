@@ -740,7 +740,7 @@ fn generic_value_current_receiver_fields_lower_through_the_refinement_layer() {
         let (name_environment, type_environment) = standard_environments();
         let (names, typed, owned) =
             analyze(&sources, &inputs, &name_environment, &type_environment);
-        // SPEC-0360: generic value-class instances lower through the refinement layer,
+        // SPEC-0361: generic value-class instances lower through the refinement layer,
         // which reads the current receiver's field through a shared field loan.
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,

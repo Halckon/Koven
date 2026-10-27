@@ -521,4 +521,4 @@
 - [SPEC-0356](0356-refine-when-family.md)：E3 `when` 家族迁入细化层（无 subject、标量 subject 等值与整数 Range、Copyable enum 的 `is`/`!is` 与 enum 方法内 `when (this)`）；p08、v16、v19、p50 两模式通过，p41（String subject）待 frontend 事实。
 - [SPEC-0358](0358-refine-assignment-inout.md)：E3 赋值与 `Inout` 迁入细化层（新 SSA 操作 `LoanMutate`、字段替换、`Inout` 标量与 class 参数、receiver 调用）；p12b、p12c、q09 两模式通过，p40 随泛型家族。
 - [SPEC-0359](0359-refine-rc.md)：E3 `Rc` 迁入细化层（构造、`share()`、`Rc.value` 与 `rc.value.f`）；p22 两模式通过，Box 待 L8。
-- [SPEC-0360](0360-refine-generic-value-class.md)：E3 泛型函数实例具体化与 Copyable 标量字段 value class 迁入细化层；t03 两模式通过，p40 待容器家族。
+- [SPEC-0361](0361-refine-generic-value-class.md)：E3 泛型函数实例具体化与 Copyable 标量字段 value class 迁入细化层；t03 两模式通过，p40 待容器家族。
