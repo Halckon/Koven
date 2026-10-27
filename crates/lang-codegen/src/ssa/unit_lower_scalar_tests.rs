@@ -75,7 +75,7 @@ fn lowers_same_source_scalar_expression_roots_through_verified_unit_ssa_and_llvm
         };
         assert_eq!(checked, expected_checked, "{name}: {ssa}");
         assert_eq!(
-            assert_checked_failure_edges(function),
+            assert_borrowed_root_checked_failure_edges(function),
             expected_checked.len()
         );
         let aborts = function
@@ -165,7 +165,7 @@ fn lowers_same_source_scalar_expression_roots_through_verified_unit_ssa_and_llvm
                     arguments.as_slice(),
                     function.blocks[0].parameters.as_slice()
                 );
-                assert_eq!(assert_checked_failure_edges(add), 1);
+                assert_eq!(assert_borrowed_root_checked_failure_edges(add), 1);
             }
             "constantOrder" => {}
             _ => unreachable!("fixed original root list"),
@@ -400,6 +400,96 @@ fn assert_checked_failure_edges(function: &Function) -> usize {
         assert_eq!(condition, failure, "the failure result is the condition");
         assert!(when_true.arguments.is_empty());
         assert!(when_false.arguments.is_empty());
+        assert!(
+            function
+                .block(when_true.target)
+                .and_then(|block| block.terminator.as_ref())
+                .is_some_and(|terminator| matches!(&terminator.kind, TerminatorKind::Abort)),
+            "failure=true must enter Abort"
+        );
+        assert!(
+            function
+                .block(when_false.target)
+                .and_then(|block| block.terminator.as_ref())
+                .is_some_and(|terminator| !matches!(&terminator.kind, TerminatorKind::Abort)),
+            "failure=false must continue"
+        );
+    }
+    count
+}
+
+fn assert_borrowed_root_checked_failure_edges(function: &Function) -> usize {
+    let mut count = 0;
+    for instruction in &function.instructions {
+        if !matches!(instruction.operation, Operation::CheckedArithmetic { .. }) {
+            continue;
+        }
+        count += 1;
+        let [_, EntityId::Value(failure)] = instruction.results.as_slice() else {
+            panic!("checked arithmetic must expose value plus failure flag");
+        };
+        let block = function
+            .block(instruction.block)
+            .expect("checked instruction block exists");
+        assert_eq!(
+            block.instructions.last(),
+            Some(&instruction.id),
+            "the checked result is consumed by its immediately following terminator"
+        );
+        let Some(terminator) = &block.terminator else {
+            panic!("checked instruction block has a terminator");
+        };
+        let TerminatorKind::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } = &terminator.kind
+        else {
+            panic!("checked instruction must end in a conditional");
+        };
+        assert_eq!(condition, failure, "the failure result is the condition");
+        // The unchanged source uses default Borrow parameters. Unlike the existing
+        // explicit-own fixtures, Unit must carry these exact entry loans on both edges.
+        let parameters = &function.blocks[0].parameters;
+        assert!(
+            parameters
+                .iter()
+                .all(|parameter| matches!(parameter, EntityId::Loan(_)))
+        );
+        assert_eq!(when_true.arguments, when_false.arguments);
+        let mut expected_loans = parameters.clone();
+        expected_loans.sort();
+        let mut actual_loans = when_true.arguments.clone();
+        actual_loans.sort();
+        assert_eq!(
+            actual_loans, expected_loans,
+            "carry each original loan exactly once"
+        );
+        assert_ne!(when_true.target, when_false.target);
+        for edge in [when_true, when_false] {
+            let target = function
+                .block(edge.target)
+                .expect("checked edge target exists");
+            assert_eq!(edge.arguments.len(), target.parameters.len());
+            for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
+                let argument_type = function.entity(*argument).expect("original loan exists").ty;
+                let parameter_type = function
+                    .entity(*parameter)
+                    .expect("target parameter exists")
+                    .ty;
+                assert!(matches!(
+                    argument_type,
+                    super::model::EntityType::Loan {
+                        kind: super::model::LoanKind::Shared,
+                        ..
+                    }
+                ));
+                assert_eq!(
+                    argument_type, parameter_type,
+                    "edge preserves the loan type"
+                );
+            }
+        }
         assert!(
             function
                 .block(when_true.target)
