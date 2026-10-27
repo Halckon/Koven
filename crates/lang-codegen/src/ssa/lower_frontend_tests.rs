@@ -1086,51 +1086,7 @@ fn rejects_mixed_analysis_chains_before_constructing_ssa() {
 
 #[test]
 fn lowers_straight_line_blocks_locals_assignments_and_returns() {
-    let analysis = analyze(
-        "fun compute(input: Int): Int {\n\
-             val doubled: Int = input + input\n\
-             var total: Int = doubled\n\
-             { total += 1 }\n\
-             return total\n\
-         }\n\
-         fun observe(input: Int): Unit {\n\
-             val local: Int = input\n\
-         }",
-    );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("straight-line scalar blocks must lower");
-    let rendered = render_program(&program);
-    assert!(rendered.contains("func \"compute\""));
-    assert!(rendered.contains("func \"observe\""));
-    assert_eq!(rendered.matches("checked.add").count(), 2);
-    assert_eq!(rendered.matches("abort @source").count(), 2);
+    super::unit_lower_straight_line_tests::assert_original_straight_line_roots_through_strict_memory_document_unit();
 }
 
 #[test]

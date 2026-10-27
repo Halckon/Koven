@@ -1,15 +1,7 @@
-//! E2 Stage A: retain the original single-file oracle and compare its exact source via Unit.
-use lang_frontend::{
-    lexer::lex,
-    name_resolution::{SymbolKind, resolve_names},
-    ownership_checking::check_ownership,
-    parser::parse_file,
-    source::SourceMap,
-    type_checking::{check_types, standard_environments},
-};
+//! E2 Stage B: original straight-line test delegated to the verified Unit contract.
+use lang_frontend::name_resolution::SymbolKind;
 
 use super::{
-    lower_frontend::orchestrate::lower_scalar_file,
     model::{
         CheckedArithmeticOperator, EntityId, EntityType, Function, LoanKind, Operation, Origin,
         PlaceAccess, ScalarConstant, TerminatorKind, ValueId,
@@ -33,31 +25,7 @@ const SOURCE: &str = "fun compute(input: Int): Int {\n\
              val local: Int = input\n\
          }";
 
-#[test]
-fn compares_original_straight_line_roots_through_strict_memory_document_unit() {
-    // Run the preserved legacy route with the same bytes, not a rewritten fixture.
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("lowering.ko", SOURCE).expect("source");
-    let lexed = lex(&sources, source).expect("lexing");
-    let parsed = parse_file(&sources, &lexed).expect("parsing");
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
-    assert!(parsed.diagnostics().is_empty());
-    assert!(names.diagnostics().is_empty());
-    assert!(typed.diagnostics().is_empty());
-    assert!(owned.diagnostics().is_empty());
-    let legacy = lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
-        .expect("original straight-line scalar blocks lower");
-    verify_program(&legacy).expect("legacy SSA and ownership verify");
-    let rendered = render_program(&legacy);
-    assert!(rendered.contains("func \"compute\""));
-    assert!(rendered.contains("func \"observe\""));
-    assert_eq!(rendered.matches("checked.add").count(), 2);
-    assert_eq!(rendered.matches("abort @source").count(), 2);
-    render_verified_program(&legacy).expect("legacy LLVM verifies");
-
+pub(super) fn assert_original_straight_line_roots_through_strict_memory_document_unit() {
     // UnitSource uses MemoryDocument, strict final admission, and real ownership products.
     let unit = UnitSource::analyze("lowering.ko", SOURCE).expect("strict original Unit source");
     unit.assert_frontend_clean();
@@ -65,7 +33,6 @@ fn compares_original_straight_line_roots_through_strict_memory_document_unit() {
         unit.sources().source_text(unit.parsed().source_id()),
         Ok(SOURCE)
     );
-    assert_eq!(sources.source_text(source), Ok(SOURCE));
     let mut counts = Vec::new();
     for (name, expected) in [("compute", 2), ("observe", 0)] {
         let declaration = unit.declaration(name, SymbolKind::Function);
@@ -86,14 +53,6 @@ fn compares_original_straight_line_roots_through_strict_memory_document_unit() {
                 .count(),
             1
         );
-        let original = legacy
-            .modules
-            .iter()
-            .flat_map(|m| &m.functions)
-            .find(|f| f.name == name)
-            .expect("original named declaration");
-        assert_eq!(checked_count(original), expected);
-        assert_eq!(abort_count(original), expected);
         assert_eq!(checked_count(function), expected);
         assert_eq!(abort_count(function), expected);
         counts.push(abort_count(function));
@@ -130,6 +89,8 @@ fn compares_original_straight_line_roots_through_strict_memory_document_unit() {
             assert_eq!(returns(function), [Vec::<ValueId>::new()]);
         }
         let ssa = render_program(&program);
+        assert_eq!(ssa.matches("checked.add").count(), expected);
+        assert_eq!(ssa.matches("abort @source").count(), expected);
         let llvm = render_verified_program(&program).expect("original Unit root LLVM verifies");
         let (repeated, repeated_entry) = unit.lower_entry(declaration).expect("repeat same root");
         verify_program(&repeated).expect("repeated SSA and ownership verify");
