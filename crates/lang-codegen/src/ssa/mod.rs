@@ -119,6 +119,8 @@ mod unit_lower_scalar_tests;
 #[cfg(test)]
 mod unit_lower_short_circuit_tests;
 #[cfg(test)]
+mod unit_lower_straight_line_tests;
+#[cfg(test)]
 mod unit_lower_string_tests;
 #[cfg(test)]
 mod unit_lower_test_support;
