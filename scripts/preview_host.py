@@ -889,12 +889,46 @@ def _libxml_difference_allowed(producer, consumer):
         return False
 
 
+def _libz_comparison_host(producer, consumer):
+    """Ignore only Noble x86_64 libz bytes in a comparison copy, not evidence.
+
+    This is a deliberate trust relaxation, not an ABI/provenance attestation.
+    Keep the measured loading name, exact canonical path and SHA256 evidence;
+    all other dependencies (including the existing libxml policy) stay checked.
+    """
+    rows = []
+    for host in (producer, consumer):
+        if (host.get('system'), host.get('arch'), host.get('os_version')) != (
+                'Linux', 'x86_64', '24.04'):
+            return consumer
+        libraries = host.get('libraries', [])
+        names = [row.get('name') for row in libraries]
+        if len(names) != len(set(names)):
+            return consumer
+        selected = [row for row in libraries if row.get('name') == 'libz.so.1']
+        if len(selected) != 1:
+            return consumer
+        row = selected[0]
+        if (row.get('resolved') != '/usr/lib/x86_64-linux-gnu/libz.so.1.3'
+                or not isinstance(row.get('sha256'), str)
+                or not re.fullmatch('[0-9a-f]{64}', row['sha256'])):
+            return consumer
+        rows.append(row)
+    left, right = rows
+    if {**right, 'sha256': left['sha256']} != left:
+        return consumer
+    return {**consumer, 'libraries': [
+        {**row, 'sha256': left['sha256']} if row['name'] == 'libz.so.1' else row
+        for row in consumer['libraries']]}
+
+
 def compare_hosts(producer, consumer):
     """Match the actual closure, rather than trusting an installed package name."""
     errors = []
     for key in ('system', 'arch', 'llvm_version', 'llvm_prefix', 'c_driver', 'sdk', 'sdk_path', 'glibc'):
         if producer.get(key) != consumer.get(key):
             errors.append(f'host {key} differs from the candidate')
+    consumer = _libz_comparison_host(producer, consumer)
     expected = [(row['name'], row.get('resolved'), row['sha256']) for row in producer.get('libraries', [])]
     actual = [(row['name'], row.get('resolved'), row['sha256']) for row in consumer.get('libraries', [])]
     if not expected or sorted(expected) != sorted(actual):
