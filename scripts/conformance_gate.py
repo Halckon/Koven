@@ -55,10 +55,27 @@ BACKEND_RE = re.compile(rb"lowering failed with ([A-Za-z]+)")
 BACKEND_OBJECT_RE = re.compile(rb"native object ([A-Za-z]+):")
 OWNERSHIP_ICE_RE = re.compile(rb"ownership checking failed: [a-z -]+")
 SIMPLE_PRINTLN_LITERAL_RE = re.compile(r'println\("([^"\\$]*)"\)')
+PACKAGE_DIRECTIVE_RE = re.compile(r"(?m)^\s*package\s+")
+MAIN_ENTRY_RE = re.compile(r"(?m)\bfun\s+main\s*\(")
 
 # Multi-diagnostic compile_fail probes where more than one distinct error[Lxxxx] code is emitted on stderr
 EXPECTED_MULTI_DIAGNOSTICS: dict[str, list[str]] = {
     "p25_linked_iter": ["L0133", "L0132"],
+}
+
+# Canonical frontend diagnostic code symbols from crates/lang-frontend/src/diagnostic.rs::codes
+DIAGNOSTIC_SYMBOL_CATALOG: dict[str, str] = {
+    "L0080": "UNRESOLVED_NAME",
+    "L0084": "TYPE_MISMATCH",
+    "L0085": "INVALID_OPERAND_TYPES",
+    "L0089": "NO_COMMON_BRANCH_TYPE",
+    "L0112": "WHEN_BRANCH_TYPE",
+    "L0132": "PARTIAL_MOVE",
+    "L0133": "MOVE_FROM_BORROWED_BINDING",
+    "L0135": "LOAN_CONFLICT",
+    "L0164": "UNSUPPORTED_BORROW_FLOW",
+    "L0165": "FINAL_TYPE_ANALYSIS_INCOMPLETE",
+    "L0167": "UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE",
 }
 
 VALID_EXPECTATION_KINDS = frozenset(
@@ -1053,6 +1070,14 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"{section}.{name} with compile_fail requires diagnostic Lxxxx"
                     )
+                if "diagnostic_symbol" in spec:
+                    expected_sym = DIAGNOSTIC_SYMBOL_CATALOG.get(spec["diagnostic"])
+                    if not isinstance(spec["diagnostic_symbol"], str) or (
+                        expected_sym is not None and spec["diagnostic_symbol"] != expected_sym
+                    ):
+                        raise ValueError(
+                            f"{section}.{name} has invalid diagnostic_symbol {spec['diagnostic_symbol']!r} for {spec['diagnostic']}"
+                        )
                 if "all_diagnostics" in spec:
                     all_diags = spec["all_diagnostics"]
                     if (
@@ -1111,10 +1136,20 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                 )
                 if not src_file.is_file():
                     raise ValueError(f"missing source file for {section}.{name}: {src_file}")
-                actual_sha = sha256_file(src_file)
+                src_bytes = src_file.read_bytes()
+                actual_sha = sha256_bytes(src_bytes)
                 if actual_sha != spec["source_sha256"]:
                     raise ValueError(
                         f"source_sha256 mismatch for {section}.{name}: expected {spec['source_sha256']}, got {actual_sha}"
+                    )
+                src_text = src_bytes.decode("utf-8")
+                if PACKAGE_DIRECTIVE_RE.search(src_text):
+                    raise ValueError(
+                        f"{section}.{name} must not contain a package directive (collides with project-mode package app header)"
+                    )
+                if not MAIN_ENTRY_RE.search(src_text):
+                    raise ValueError(
+                        f"{section}.{name} must declare a fun main(...) entry point"
                     )
                 if section == "programs" and "expected_file" in spec:
                     exp_file = corpus_root / spec["expected_file"]
@@ -1270,6 +1305,8 @@ def derive_static_expectations(
             entry["source_sha256"] = src_sha
             entry["guide_chapter"] = chapter
             entry["oracle_origin"] = "v046_spec_contract"
+            if entry.get("kind") == "compile_fail" and entry.get("diagnostic") in DIAGNOSTIC_SYMBOL_CATALOG:
+                entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[entry["diagnostic"]]
             if entry.get("kind") == "known_unimplemented":
                 entry["roadmap_blockers"] = list(UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"]))
             if derivation is not None:
@@ -1323,8 +1360,13 @@ def derive_static_expectations(
                     "diagnostic": code,
                     "oracle_origin": "baseline_diagnostic_audited",
                 }
+                if code in DIAGNOSTIC_SYMBOL_CATALOG:
+                    entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[code]
                 if name in EXPECTED_MULTI_DIAGNOSTICS:
                     entry["all_diagnostics"] = list(EXPECTED_MULTI_DIAGNOSTICS[name])
+                    entry["all_diagnostic_symbols"] = [
+                        DIAGNOSTIC_SYMBOL_CATALOG[c] for c in EXPECTED_MULTI_DIAGNOSTICS[name]
+                    ]
                 if derivation is not None:
                     entry["oracle_derivation"] = derivation
                 probes_out[name] = entry
@@ -1654,11 +1696,51 @@ def summarize_chapter_polarity(expectations: dict[str, Any]) -> dict[str, dict[s
     return chapter_stats
 
 
+def summarize_negative_oracle_catalog(expectations: dict[str, Any]) -> dict[str, Any]:
+    """Aggregate compile_fail diagnostic codes and runtime_abort contracts across the probe corpus."""
+    probes = expectations["probes"]
+    by_diagnostic: dict[str, dict[str, Any]] = {}
+    by_abort: list[dict[str, Any]] = []
+
+    for name, spec in sorted(probes.items()):
+        ch = spec.get("guide_chapter", "05-declarations-callables.md")
+        if spec["kind"] == "compile_fail":
+            codes = spec.get("all_diagnostics", [spec["diagnostic"]])
+            for code in codes:
+                bucket = by_diagnostic.setdefault(
+                    code,
+                    {
+                        "code": code,
+                        "symbol": DIAGNOSTIC_SYMBOL_CATALOG.get(code, "UNKNOWN"),
+                        "chapters": [],
+                        "probes": [],
+                    },
+                )
+                if ch not in bucket["chapters"]:
+                    bucket["chapters"].append(ch)
+                bucket["probes"].append(name)
+        elif spec["kind"] == "runtime_abort":
+            by_abort.append(
+                {
+                    "probe": name,
+                    "abort_message": spec["abort_message"],
+                    "guide_chapter": ch,
+                    "derivation": spec.get("oracle_derivation", ""),
+                }
+            )
+
+    return {
+        "diagnostics": dict(sorted(by_diagnostic.items())),
+        "runtime_aborts": by_abort,
+    }
+
+
 def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     """Render deterministic Markdown audit ledger from expectations.json."""
     probes = expectations["probes"]
     programs = expectations["programs"]
     chapter_stats = summarize_chapter_polarity(expectations)
+    neg_catalog = summarize_negative_oracle_catalog(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -1698,8 +1780,24 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             "",
             f"- **正/负向双极性覆盖章节（{len(both_chapters)} / {len(VALID_GUIDE_CHAPTERS)}）**：" + ", ".join(f"`{c}`" for c in both_chapters) + "（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。",
             f"- **仅正向覆盖章节（{len(pos_only_chapters)} / {len(VALID_GUIDE_CHAPTERS)}，待后续补充独立负向诊断探针）**：" + ", ".join(f"`{c}`" for c in pos_only_chapters) + "（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。",
+            "",
+            "### 1.1 负向诊断码与运行时中止契约矩阵（14 `compile_fail` + 3 `runtime_abort`）",
+            "",
+            "| 负向契约标识 | `diagnostic.rs` 符号常量 / 中止类别 | 覆盖 Guide 章节 | 关联 Probe 数量 | 绑定 Probe 列表 |",
+            "|---|---|---|---:|---|",
         ]
     )
+    for code, info in neg_catalog["diagnostics"].items():
+        ch_links = ", ".join(f"[{c}](../docs/guide/{c})" for c in info["chapters"])
+        p_list = ", ".join(f"`{p}`" for p in info["probes"])
+        lines.append(
+            f"| `FE:{code}` | `{info['symbol']}` | {ch_links} | {len(info['probes'])} | {p_list} |"
+        )
+    for ab in neg_catalog["runtime_aborts"]:
+        ch = ab["guide_chapter"]
+        lines.append(
+            f"| `abort:{ab['abort_message']}` | `SIGABRT (exit 134)` | [{ch}](../docs/guide/{ch}) | 1 | `{ab['probe']}` |"
+        )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"

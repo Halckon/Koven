@@ -24,6 +24,24 @@
 - **正/负向双极性覆盖章节（9 / 13）**：`02-names-files-packages.md`, `03-types-generics.md`, `04-expressions-operators.md`, `05-declarations-callables.md`, `06-blocks-control-flow.md`, `07-calls-lambdas-closures.md`, `09-nullability-errors.md`, `10-ownership-borrowing-drop.md`, `12-collections-destructuring.md`（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。
 - **仅正向覆盖章节（4 / 13，待后续补充独立负向诊断探针）**：`01-lexical.md`, `08-class-family-members.md`, `11-copyability-layout-construction.md`, `13-program-runtime-standard-library.md`（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。
 
+### 1.1 负向诊断码与运行时中止契约矩阵（14 `compile_fail` + 3 `runtime_abort`）
+
+| 负向契约标识 | `diagnostic.rs` 符号常量 / 中止类别 | 覆盖 Guide 章节 | 关联 Probe 数量 | 绑定 Probe 列表 |
+|---|---|---|---:|---|
+| `FE:L0080` | `UNRESOLVED_NAME` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 3 | `r01_bogus_member`, `r02_bogus_member_str`, `y02_take_no_import` |
+| `FE:L0084` | `TYPE_MISMATCH` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md), [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 2 | `p01_int_print`, `v02_assign_chain` |
+| `FE:L0085` | `INVALID_OPERAND_TYPES` | [03-types-generics.md](../docs/guide/03-types-generics.md), [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 2 | `p03b_byte_literal_cmp`, `s04_question_on_nullable` |
+| `FE:L0089` | `NO_COMMON_BRANCH_TYPE` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 1 | `v04_stmt_if_mixed` |
+| `FE:L0112` | `WHEN_BRANCH_TYPE` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 1 | `p43_if_join_any` |
+| `FE:L0132` | `PARTIAL_MOVE` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `p25_linked_iter` |
+| `FE:L0133` | `MOVE_FROM_BORROWED_BINDING` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `p25_linked_iter` |
+| `FE:L0135` | `LOAN_CONFLICT` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md), [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 2 | `p42_lambda_mutate`, `w06_map_mutate_in_loop` |
+| `FE:L0164` | `UNSUPPORTED_BORROW_FLOW` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `q17_generic_class` |
+| `FE:L0167` | `UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 1 | `p23_global_var` |
+| `abort:integer overflow in +` | `SIGABRT (exit 134)` | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 1 | `p04_overflow` |
+| `abort:boom` | `SIGABRT (exit 134)` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 1 | `p45_abort_message` |
+| `abort:value out of range for ULong` | `SIGABRT (exit 134)` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 1 | `v12_convert_abort` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
