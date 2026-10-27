@@ -48,7 +48,7 @@
 | `p05_double` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
 | `p06_char` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
 | `p07_while_var` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `source_trace_audited` | `while\n` | while loop sums i=0..9 into s=45; s == 45 holds and prints 'while' |
-| `p08_when_int` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `two\n` | SPEC-0356: subject when (Int subject equality) in E3 refinement layer |
+| `p08_when_int` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `two\n` | name(2) matches the subject equality branch 2 -> 'two' and prints 'two' |
 | `p09_enum_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `single_println_literal` | `enum\n` | single literal println('enum') |
 | `p10_generic_fn` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `source_trace_audited` | `generic\nint\n` | identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int' |
 | `p11_interface_bound` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
@@ -154,7 +154,7 @@
 | `v13_while_nullable_int` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `while-nullable\n` | while (x != null) adds 5 to total and sets x = null; total == 5 prints 'while-nullable' |
 | `v14_map_consume` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `consume\n` | single literal println('consume') |
 | `v15_map_for` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `b\na\n` | MutableMap preserves insertion order ('b' then 'a'); loop prints 'b' then 'a' |
-| `v16_when_in_range` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `small\n` | SPEC-0356: subject when (Int subject `in` Range) in E3 refinement layer |
+| `v16_when_in_range` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `small\n` | bucket(3) satisfies the `in 0..9` arm -> 'small' and prints 'small' |
 | `v17_convert_in_loop` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `source_trace_audited` | `conv-loop\n` | 0..<3 converts 0,1,2 via toLong() and sums to 3L; prints 'conv-loop' |
 | `v18_while_nullable_class` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `source_trace_audited` | `while-class\n` | while (n != null) reads n.v (4) and sets n = null; t == 4 prints 'while-class' |
 | `v19_stmt_when_mixed` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `stmt-when-mixed\n` | single literal println('stmt-when-mixed') |

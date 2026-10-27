@@ -123,7 +123,8 @@
       "note": "SPEC-0356: subject when (Int subject equality) in E3 refinement layer",
       "source_sha256": "56ad55bd6ceacee625ce07448a9890e453fc8d1bb816cd7ac807f87aff265108",
       "guide_chapter": "06-blocks-control-flow.md",
-      "oracle_origin": "v046_spec_contract"
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "name(2) matches the subject equality branch 2 -> 'two' and prints 'two'"
     },
     "p09_enum_payload": {
       "kind": "run_ok",
@@ -1103,7 +1104,8 @@
       "note": "SPEC-0356: subject when (Int subject `in` Range) in E3 refinement layer",
       "source_sha256": "ecede705d83314c96657d88ed309fdbe527573551bba19152270cca988bf55a1",
       "guide_chapter": "06-blocks-control-flow.md",
-      "oracle_origin": "v046_spec_contract"
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "bucket(3) satisfies the `in 0..9` arm -> 'small' and prints 'small'"
     },
     "v17_convert_in_loop": {
       "kind": "run_ok",
