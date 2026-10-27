@@ -447,7 +447,7 @@ fn direct_call_names_in_block<'a>(
 }
 
 #[test]
-fn original_string_when_fact_gate_sources_now_lower_and_verify() {
+fn string_when_comparison_facts_are_explicitly_rejected_until_consumed() {
     for source in [
         "package p\nfun entry(): Int { when (\"subject\") { \"first\", \"second\" -> {} }\nreturn 0 }",
         "package p\nfun entry(): Int { when (\"subject\") { else -> {} }\nreturn 0 }",
@@ -458,10 +458,14 @@ fn original_string_when_fact_gate_sources_now_lower_and_verify() {
         let (ne, te) = standard_environments();
         let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
         let entry = declaration(&names, "p", "entry");
-        let (program, entry) =
+        // The legacy path still must reject these facts. Public routing now admits the
+        // bounded String kernel; use the existing test-only pin to retain this guard.
+        let error = match super::refine::with_per_family_lowering(|| {
             lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
-                .expect("SPEC-0360 consumes the original SPEC-0357 gate sources");
-        crate::llvm::render_verified_program_with_entry(&program, entry)
-            .expect("original comparison and zero-comparison sources verify");
+        }) {
+            Err(error) => error,
+            Ok(_) => panic!("new comparison points must not be silently ignored by fallback"),
+        };
+        assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
     }
 }

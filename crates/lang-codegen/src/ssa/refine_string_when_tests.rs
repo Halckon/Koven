@@ -301,3 +301,15 @@ fn borrowed_subject_cross_source_call_verifies_and_preserves_caller_owner() {
         crate::native_tests::boxed_enum_tests::assert_success(&run, b"b!\nb!\n");
     }
 }
+
+#[test]
+fn original_fact_gate_sources_succeed_on_public_routing() {
+    for source in [
+        "fun entry(): Int { when (\"subject\") { \"first\", \"second\" -> {} }\nreturn 0 }",
+        "fun entry(): Int { when (\"subject\") { else -> {} }\nreturn 0 }",
+    ] {
+        lower(&format!(
+            "{source}\nfun main(): Unit {{ if (entry() != 0) {{ println(\"bad\") }} }}"
+        ));
+    }
+}

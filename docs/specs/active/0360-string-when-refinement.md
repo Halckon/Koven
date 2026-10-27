@@ -44,8 +44,9 @@
 body/后续使用、既有 Return/Break/Continue。非 String MoveOnly、复杂 candidate、field/index、
 borrow-result call、显式 borrow-result binding、一般 Abort call 不扩展。
 
-0357 两条 consumer 拒绝 fixture 与 subset 的原 String 源码原字节保留，消费落地后升级为
-refinement/SSA/LLVM 成功断言；这是阶段能力门的迁移，不删除原语义源码或其他负控。
+0357 两条 consumer 拒绝 fixture 原源码与 UnsupportedNode 断言保留，使用既有 test-only
+`with_per_family_lowering` 钉住仍拒绝新事实的旧路径；公开路径另加同源成功测试。subset 原
+String 源码原字节移入成功准入矩阵。这是阶段能力门的迁移，不删除原语义观察或其他负控。
 旧 per-family 对未消费事实的拒绝门保留，防止其他未迁入构造落入漏清理路径。
 
 ## 4. 验收矩阵
