@@ -56,7 +56,11 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
-      "oracle_origin": "baseline_unimplemented_audited"
+      "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "L1",
+        "L2"
+      ]
     },
     "p03_long_uint": {
       "kind": "run_ok",
@@ -94,6 +98,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N05"
+      ],
       "target_stdout": "double\n"
     },
     "p06_char": {
@@ -106,6 +113,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N05"
+      ],
       "target_stdout": "char\n"
     },
     "p07_while_var": {
@@ -151,7 +161,10 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
-      "oracle_origin": "baseline_unimplemented_audited"
+      "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N06"
+      ]
     },
     "p12_class_inout": {
       "kind": "run_ok",
@@ -229,6 +242,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N03"
+      ],
       "target_stdout": "elvis\n"
     },
     "p16_result_q": {
@@ -244,6 +260,9 @@
       "source_sha256": "1f98ad7148a4842b035b8f1c69996e189991a3b1ffd333794a1c17acb358405b",
       "guide_chapter": "09-nullability-errors.md",
       "oracle_origin": "v046_spec_contract",
+      "roadmap_blockers": [
+        "N08"
+      ],
       "oracle_derivation": "single literal println('question')"
     },
     "p16b_result_string": {
@@ -258,7 +277,10 @@
       "note": "Guide v0.46 E4 (SPEC-0349): Result in builtin env; String payload lowering pending N08",
       "source_sha256": "17fb9700edf35e301f684fdf4f677d0fbc48c90776d355e0c4f06b182f36e4d9",
       "guide_chapter": "09-nullability-errors.md",
-      "oracle_origin": "v046_spec_contract"
+      "oracle_origin": "v046_spec_contract",
+      "roadmap_blockers": [
+        "N08"
+      ]
     },
     "p17_lambda": {
       "kind": "known_unimplemented",
@@ -270,6 +292,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N04"
+      ],
       "target_stdout": "lambda\n"
     },
     "p17b_lambda_nocapture": {
@@ -282,6 +307,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N04"
+      ],
       "target_stdout": "lambda0\n"
     },
     "p18_move_closure": {
@@ -294,6 +322,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N04"
+      ],
       "target_stdout": "move\n"
     },
     "p19_mutablelist": {
@@ -322,6 +353,10 @@
         "BE:MissingFact"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N07",
+        "L7"
+      ],
       "target_stdout": "box\n"
     },
     "p22_rc": {
@@ -334,6 +369,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N07"
+      ],
       "target_stdout": "rc\n"
     },
     "p23_global_var": {
@@ -376,6 +414,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N03"
+      ],
       "target_stdout": "rec-list\n"
     },
     "p26_borrow_return": {
@@ -396,6 +437,10 @@
         "BE:MissingFact"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "T1",
+        "N04"
+      ],
       "target_stdout": "thread\n"
     },
     "p28_companion": {
@@ -412,6 +457,9 @@
       "source_sha256": "5ae15f9b431ebf65c8b9fb6fd3c4d80294a4ec7186135e2effbbd9963b1a5b47",
       "guide_chapter": "08-class-family-members.md",
       "oracle_origin": "v046_spec_contract",
+      "roadmap_blockers": [
+        "N06"
+      ],
       "oracle_derivation": "single literal println('companion')"
     },
     "p29_default_super": {
@@ -472,6 +520,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "L1"
+      ],
       "target_stdout": "veq\n"
     },
     "p36_conversion": {
@@ -518,6 +569,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N01"
+      ],
       "target_stdout": "stack\n"
     },
     "p41_when_string": {
@@ -530,6 +584,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N02"
+      ],
       "target_stdout": "when-str\n"
     },
     "p42_lambda_mutate": {
@@ -636,6 +693,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N04"
+      ],
       "target_stdout": "lambda-arg\n"
     },
     "q03_fn_ref": {
@@ -648,6 +708,9 @@
         "BE:MissingFact"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N04"
+      ],
       "target_stdout": "fnref\n"
     },
     "q04_rc_simple": {
@@ -693,7 +756,11 @@
         "BE:MissingFact",
         "FE:L0165"
       ],
-      "oracle_origin": "baseline_unimplemented_audited"
+      "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N02",
+        "L7"
+      ]
     },
     "q09_inout_class_param": {
       "kind": "run_ok",
@@ -831,6 +898,9 @@
         "BE:MissingFact"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "S6"
+      ],
       "target_stdout": "pair\n"
     },
     "s03_to_pair": {
@@ -843,6 +913,9 @@
         "BE:MissingFact"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "S6"
+      ],
       "target_stdout": "to\n"
     },
     "s04_question_on_nullable": {
@@ -879,6 +952,9 @@
         "FE:L0165"
       ],
       "oracle_origin": "baseline_unimplemented_audited",
+      "roadmap_blockers": [
+        "N06"
+      ],
       "target_stdout": "vmethod-generic\n"
     },
     "t04_vmethod_compute_param": {
@@ -1413,7 +1489,13 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
-      "oracle_origin": "expected_txt_file"
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "N02",
+        "N08",
+        "L1",
+        "L2"
+      ]
     },
     "expr_eval": {
       "kind": "known_unimplemented",
@@ -1429,7 +1511,14 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
-      "oracle_origin": "expected_txt_file"
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "N02",
+        "N05",
+        "N07",
+        "N08",
+        "L7"
+      ]
     },
     "linked_stack": {
       "kind": "known_unimplemented",
@@ -1445,7 +1534,13 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
-      "oracle_origin": "expected_txt_file"
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "N01",
+        "N03",
+        "N07",
+        "L7"
+      ]
     },
     "raii_state_machine": {
       "kind": "known_unimplemented",
@@ -1461,7 +1556,11 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
-      "oracle_origin": "expected_txt_file"
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "N01",
+        "N02"
+      ]
     },
     "varint_codec": {
       "kind": "known_unimplemented",
@@ -1477,7 +1576,12 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
-      "oracle_origin": "expected_txt_file"
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "N01",
+        "N08",
+        "L3b"
+      ]
     },
     "word_count": {
       "kind": "known_unimplemented",
@@ -1493,7 +1597,11 @@
         "BE:UnsupportedNode",
         "BE:MissingFact"
       ],
-      "oracle_origin": "expected_txt_file"
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "N02",
+        "N03"
+      ]
     }
   }
 }
