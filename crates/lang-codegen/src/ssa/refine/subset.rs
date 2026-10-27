@@ -928,11 +928,12 @@ impl Checker<'_, '_> {
                         && matches!(fact.target(), UnitDropTarget::ReplacedField { .. })
                 }
                 UnitDropPoint::LambdaEntry(_) | UnitDropPoint::AfterReplacement(_) => false,
-                // A jump out of a call argument abandons the earlier arguments' temporaries
-                // (and their loans) while the normal path still drops them at the call.
-                UnitDropPoint::ControlTransfer(_) => {
-                    !matches!(fact.target(), UnitDropTarget::Temporary(_))
-                }
+                // A jump out of a call argument drops the earlier MoveOnly arguments it
+                // abandons; temporaries holding loans stay outside.
+                UnitDropPoint::ControlTransfer(_) => match fact.target() {
+                    UnitDropTarget::Temporary(expression) => self.pending_owner(expression),
+                    _ => true,
+                },
                 _ => true,
             };
             let target_ok = matches!(
@@ -948,6 +949,22 @@ impl Checker<'_, '_> {
             .conditional_receiver_drops()
             .iter()
             .all(|fact| !self.fact_in_function(fact.value_origin()))
+    }
+
+    /// A pending argument a jump may abandon: a MoveOnly named owner moved into a Value
+    /// argument (borrowed temporaries stay outside: their loan would be abandoned too).
+    fn pending_owner(&self, expression: UnitExpressionId) -> bool {
+        expression.source_unit() == self.inputs.source_unit
+            && self
+                .inputs
+                .parsed
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+            && self
+                .expression_type(expression.expression())
+                .is_some_and(|ty| self.copyability_of(ty) == Copyability::MoveOnly)
     }
 
     fn fact_in_function(&self, origin: lang_frontend::source::Span) -> bool {

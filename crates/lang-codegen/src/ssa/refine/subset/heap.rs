@@ -173,7 +173,8 @@ impl Checker<'_, '_> {
             })
     }
 
-    /// `operand!!` consuming a MoveOnly nullable owner: a named root or a temporary.
+    /// `operand!!` consuming a MoveOnly nullable owner: a (grouped) named root or a temporary
+    /// call or `if` result.
     pub(super) fn non_null_assertion(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.non_null_assertion(id) else {
@@ -198,15 +199,18 @@ impl Checker<'_, '_> {
             return false;
         }
         let operand = operand.expression();
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(operand) else {
+        let root = self.ungrouped(operand);
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
             return false;
         };
         let source = match node.payload() {
             Expression::Name => {
                 descriptor.source_category() == NullableWhenSubjectCategory::OwnedRoot
-                    && self.inputs.typed.non_null_use(self.id(operand)).is_none()
+                    && self.inputs.typed.non_null_use(self.id(root)).is_none()
             }
-            Expression::Call { .. } => {
+            // Temporaries, including branch results whose other branches leave the
+            // enclosing call, loop or function before the assertion.
+            Expression::Call { .. } | Expression::If { .. } => {
                 descriptor.source_category() == NullableWhenSubjectCategory::Temporary
             }
             _ => false,

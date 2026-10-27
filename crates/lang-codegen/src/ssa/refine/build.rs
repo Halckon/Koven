@@ -373,7 +373,14 @@ impl Builder<'_, '_> {
     fn drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
         let facts = self.collect_drops(point);
         self.emit_drops(&facts)?;
-        self.finish_drops(&facts);
+        if let UnitDropPoint::ControlTransfer(_) = point {
+            // A jump abandons the pending temporaries of the call it leaves; the normal
+            // path still delivers them to that call.
+            self.consumed_drops
+                .extend(facts.iter().map(|(index, _, _)| *index));
+        } else {
+            self.finish_drops(&facts);
+        }
         Ok(())
     }
 
@@ -406,7 +413,13 @@ impl Builder<'_, '_> {
                     self.end_views_of(*symbol, *span)?;
                     self.bindings.get(symbol).copied()
                 }
-                UnitDropTarget::Temporary(expression) => self.temporaries.get(expression).copied(),
+                UnitDropTarget::Temporary(expression) => {
+                    // A moved named argument: its owner is gone on this path.
+                    if let Some(symbol) = self.pending_symbol(*expression) {
+                        self.dead.insert(symbol);
+                    }
+                    self.temporaries.get(expression).copied()
+                }
                 _ => None,
             }
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, *span))?;
@@ -549,25 +562,64 @@ impl Builder<'_, '_> {
         }
     }
 
-    /// Records a MoveOnly temporary so its published drop or delivery can find it.
+    /// The named owner a pending argument value was moved out of.
+    fn pending_symbol(&self, expression: UnitExpressionId) -> Option<UnitSymbolId> {
+        if expression.source_unit() != self.inputs.source_unit {
+            return None;
+        }
+        let (payload, span) = self.node(expression.expression()).ok()?;
+        matches!(payload, Expression::Name)
+            .then(|| self.reference(span).ok())
+            .flatten()
+    }
+
+    /// Records a MoveOnly temporary so its published drop or delivery can find it; a
+    /// value a jump may abandon before its call (a pending argument) is recorded too.
     fn register_temporary(
         &mut self,
         expression: ExpressionId,
         slot: Slot,
     ) -> Result<(), LoweringError> {
         let ty = self.expression_type(expression)?;
+        let unit = self.unit(expression);
+        let pending = self.inputs.owned.drops().iter().any(|fact| {
+            matches!(fact.point(), UnitDropPoint::ControlTransfer(_))
+                && fact.target() == UnitDropTarget::Temporary(unit)
+        });
         if self.move_only(ty)
-            && self.inputs.typed.expression_category(self.unit(expression))
-                == Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+            && (pending
+                || self.inputs.typed.expression_category(unit)
+                    == Some(lang_frontend::type_checking::ExpressionCategory::Temporary))
         {
             self.temporaries.insert(self.unit(expression), slot);
         }
         Ok(())
     }
 
-    /// The temporary is delivered by value; its owner obligation moves with it.
+    /// A recorded temporary now lives in `slot` (its adapted value).
+    fn repoint_temporary(&mut self, expression: ExpressionId, slot: Slot) {
+        if let Some(recorded) = self.temporaries.get_mut(&self.unit(expression)) {
+            *recorded = slot;
+        }
+    }
+
+    /// The temporary is delivered by value; its owner obligation moves with it. A
+    /// delivered MoveOnly named owner is gone on this path: a later exit drop skips it.
     fn deliver(&mut self, expression: ExpressionId) {
         self.temporaries.remove(&self.unit(expression));
+        let mut root = expression;
+        while let Ok((Expression::Group { expression: inner }, _)) = self.node(root) {
+            root = inner;
+        }
+        if let Some(symbol) = self.pending_symbol(self.unit(root))
+            && self.bindings.contains_key(&symbol)
+            && self
+                .expression_type(root)
+                .is_ok_and(|ty| self.move_only(ty))
+        {
+            self.sync_dead();
+            self.dead.insert(symbol);
+        }
     }
 }
 

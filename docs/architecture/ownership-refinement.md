@@ -41,6 +41,8 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 临时 shared loan 读取字段。泛型函数实例（SPEC-0361）：typed 事实中的模板类型经 `RefineInputs::concrete`
 （实例替换与 static `Self`）具体化后再使用；Copyable、字段全为标量的 `value class` 构造为聚合值，字段读取
 对 owned 值做 `AggregateProject`，对 loan 经 `SharedFieldLoan` 读出，receiver 可为 Value 或 Borrow。
+`!!`（SPEC-0362）也接受括号名称与 `if` 临时 operand；Value 实参在调用点统一交付，实参中途的
+`return`/`break`/`continue` 在跳转边释放已求值的命名 owner 实参（`ControlTransfer` 的 `Temporary` 事实）。
 
 ## inline nullable 布局
 

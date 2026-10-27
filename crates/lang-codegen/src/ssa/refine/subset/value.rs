@@ -14,7 +14,7 @@ use crate::ssa::unit_plan::resolve_nominal_runtime_field_types;
 
 impl Checker<'_, '_> {
     /// The expression inside any number of grouping parentheses.
-    fn ungrouped(&self, mut expression: ExpressionId) -> ExpressionId {
+    pub(super) fn ungrouped(&self, mut expression: ExpressionId) -> ExpressionId {
         while let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) {
             let Expression::Group { expression: inner } = node.payload() else {
                 break;

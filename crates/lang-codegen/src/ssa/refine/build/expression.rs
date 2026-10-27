@@ -546,6 +546,7 @@ impl Builder<'_, '_> {
         let mut loans = Vec::new();
         let mut writebacks = Vec::new();
         let mut view_reads = Vec::new();
+        let mut delivered = Vec::new();
         for argument in descriptor.arguments() {
             let value_expression = arguments
                 .get(argument.argument_index())
@@ -575,7 +576,9 @@ impl Builder<'_, '_> {
                 ParameterMode::Value => {
                     let value =
                         self.adapt(value, value_expression, self.c(argument.parameter_type()))?;
-                    self.deliver(value_expression);
+                    // Delivered at the call: a later argument's jump still drops it.
+                    self.repoint_temporary(value_expression, value);
+                    delivered.push(value_expression);
                     lowered.push(value);
                 }
                 ParameterMode::Borrow => {
@@ -609,6 +612,9 @@ impl Builder<'_, '_> {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 }
             }
+        }
+        for value_expression in delivered {
+            self.deliver(value_expression);
         }
         let mut receiver_end = None;
         let result = if descriptor.prints_line() {

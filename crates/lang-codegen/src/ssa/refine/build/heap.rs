@@ -203,7 +203,11 @@ impl Builder<'_, '_> {
             Lowered::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
         };
         self.register_temporary(operand, owner)?;
-        let (payload, operand_span) = self.node(operand)?;
+        let mut root = operand;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let (payload, operand_span) = self.node(root)?;
         if let Expression::Name = payload {
             // The owner is consumed: no proof view of it may stay live.
             let symbol = self.reference(operand_span)?;
