@@ -245,7 +245,7 @@ fn assert_original_borrow(program: &Program, entry: FunctionId, use_span: Span) 
 // Stage A: retain all three original whole-file tests. Ten unchanged lowering.ko
 // sources require sixteen independent Unit roots, including unreachable helpers.
 fn verify_original_assertion_roots(text: &str, roots: &[&str], callees: &[&str]) {
-    use crate::native_unit_source_test_support::UnitSource;
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 
     let source = UnitSource::analyze("lowering.ko", text)
         .unwrap_or_else(|error| panic!("original assertion source admission: {error:?}\n{text}"));
