@@ -619,71 +619,6 @@ fn check_group_drop(program: &Program, value_origin: lang_frontend::source::Span
 }
 
 #[test]
-fn mixed_value_borrow_grouped_return_single_keeps_outer_control_transfer_identity() {
-    use lang_frontend::{
-        lexer::lex,
-        name_resolution::resolve_names,
-        ownership_checking::{DropPoint, check_ownership},
-        parser::{Expression, parse_file},
-        source::SourceMap,
-        type_checking::{check_types, standard_environments},
-    };
-    for case in crate::native_mixed_borrow_cases::cases()
-        .into_iter()
-        .filter(|case| case.name.contains("grouped"))
-    {
-        let mut sources = SourceMap::new();
-        let source = sources.add_source(case.name, case.source).unwrap();
-        let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-        let (environment, types) = standard_environments();
-        let names = resolve_names(&sources, &file, &environment).unwrap();
-        let typed = check_types(&sources, &file, &names, &types).unwrap();
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        let grouped = owned
-            .borrow_return_origins()
-            .iter()
-            .filter(|fact| {
-                matches!(
-                    file.ast()
-                        .expressions()
-                        .get(fact.expression())
-                        .unwrap()
-                        .payload(),
-                    Expression::Group { .. }
-                )
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(grouped.len(), 1);
-        let outer = grouped[0].expression();
-        let Expression::Group { expression: inner } =
-            file.ast().expressions().get(outer).unwrap().payload()
-        else {
-            unreachable!()
-        };
-        assert_ne!(outer, *inner);
-        let drops = owned
-            .drops()
-            .iter()
-            .filter(|fact| fact.point() == DropPoint::ControlTransfer(outer))
-            .collect::<Vec<_>>();
-        assert_eq!(drops.len(), 1, "cleanup uses actual outer Group identity");
-        assert!(
-            !owned
-                .drops()
-                .iter()
-                .any(|fact| fact.point() == DropPoint::ControlTransfer(*inner))
-        );
-        let program = super::lower_frontend::orchestrate::lower_scalar_file(
-            &sources, &file, &names, &typed, &owned,
-        )
-        .unwrap();
-        check_group_drop(&program, drops[0].value_origin());
-        check(&program, &case);
-    }
-}
-
-#[test]
 fn mixed_value_borrow_grouped_return_unit_keeps_source_qualified_outer_identity() {
     use lang_frontend::{
         name_resolution::SourceUnitInput,
@@ -796,12 +731,23 @@ fn mixed_value_borrow_grouped_return_memory_document_keeps_outer_control_transfe
         type_checking::UnitExpressionId,
     };
 
-    // Parallel same-byte comparison; the package/root matrix above remains independent.
-    for name in [
+    // Same-byte replacement for the retired single consumer; keep the package/root matrix.
+    let names = [
         "owned_resource_grouped_return",
         "owned_resource_grouped_wrapper",
-    ] {
-        let cases = crate::native_mixed_borrow_cases::cases();
+    ];
+    let cases = crate::native_mixed_borrow_cases::cases();
+    let grouped_names = cases
+        .iter()
+        .filter(|case| case.name.contains("grouped"))
+        .map(|case| case.name)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        grouped_names,
+        BTreeSet::from(names),
+        "the replacement covers exactly the retired consumer's grouped fixture set"
+    );
+    for name in names {
         let matching = cases
             .iter()
             .filter(|case| case.name == name)
@@ -900,6 +846,11 @@ fn mixed_value_borrow_grouped_return_memory_document_keeps_outer_control_transfe
                 .count(),
             1,
             "one exact original entry function"
+        );
+        assert_eq!(
+            program.modules.len(),
+            1,
+            "shared grouped-return oracles inspect the sole returned entry module"
         );
         check_group_drop(&program, value_origin);
         check(&program, case);
