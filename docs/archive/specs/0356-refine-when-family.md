@@ -99,7 +99,7 @@
 
 ## 6. 剩余项
 
-- p41（String subject）：ownership 事实既未规划 subject 跨各条件测试的生命周期，也未规划 MoveOnly
-  候选值的析构；需另开 frontend Spec 补事实后再迁入，见步 2 记录。
+- p41（String subject）：ownership 事实缺口由 [SPEC-0357](../../specs/active/0357-string-when-ownership-facts.md)
+  （String when Unit 清理事实）补齐；细化层消费这些事实另开后继 Spec，见步 2 记录。
 - MoveOnly enum subject 的消费式匹配属于路线图 L7；泛型 enum 与 payload 含非标量的 enum 随 N06/
   泛型家族迁入，不在本片。

@@ -571,6 +571,8 @@ impl DropFact {
 /// SPEC-0029 明确保留到后续 Goal 的 place 类别。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OwnershipDeferredReason {
+    /// String when 的比较存活期尚未具有完整的稳定 subject/候选清理证明。
+    StringWhenComparisonLifetime,
     /// 资源 owner 的条件或循环实例尚无可执行的词法清理运输。
     ResourceLifetime,
     /// 原子 root 置换尚不能运输 closure 或包含 closure 的来源图。

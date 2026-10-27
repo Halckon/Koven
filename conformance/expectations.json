@@ -7,7 +7,9 @@
       "v046_baseline_exempt": true,
       "note": "Enum when regression fixed on main",
       "source_sha256": "355bad046cc48c43deb3add6cbdc2f0f5653f6d217ccf75f24527f5fd000834f",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "06-blocks-control-flow.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "isRed(Color.Red) matches branch Color.Red -> true; if-branch prints 'e1'"
     },
     "e02_enum_when_stmt_println": {
       "kind": "run_ok",
@@ -15,7 +17,9 @@
       "v046_baseline_exempt": true,
       "note": "Enum when statement regression fixed on main",
       "source_sha256": "b763df71709255d7a2f4e01597cda82b9a5b535d71365886a4fd9a1264e49cca",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "06-blocks-control-flow.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "c = Color.Red matches statement when branch Color.Red -> println('e2')"
     },
     "e03_enum_when_bool_val": {
       "kind": "run_ok",
@@ -23,23 +27,30 @@
       "v046_baseline_exempt": true,
       "note": "Enum when bool val regression fixed on main",
       "source_sha256": "1169678b39d8b09455ba9b968c4a3031c5e603d290f7dc6827a67dd917321d80",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "06-blocks-control-flow.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "c = Color.Green yields b = false in when expression; if (!b) prints 'e5'"
     },
     "e04_enum_when_int_return": {
       "kind": "run_ok",
       "source_sha256": "fb6afe6a71784f18947721597b2fcb38c076835b3bc8886350f71bf6f2112255",
+      "guide_chapter": "06-blocks-control-flow.md",
       "stdout": "e6\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('e6')"
     },
     "p01_int_print": {
       "kind": "compile_fail",
       "source_sha256": "ffbd9f0b9424eb1947f1c721a3a9ce2ded9c18245b870536cc2366a90204b714",
+      "guide_chapter": "05-declarations-callables.md",
       "diagnostic": "L0084",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "println expects String parameter; passing Int (40 + 2) emits TYPE_MISMATCH L0084"
     },
     "p02_interp": {
       "kind": "known_unimplemented",
       "source_sha256": "0bc0fcb02d54d4fc800c22656bde9770bdce5ce8429f0c997528863809f6500e",
+      "guide_chapter": "01-lexical.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -50,14 +61,18 @@
     "p03_long_uint": {
       "kind": "run_ok",
       "source_sha256": "d1dc581d6fb58d1cdb61f69cc25cd0044987814a9e73a0cb288c02e8c5a8874a",
+      "guide_chapter": "01-lexical.md",
       "stdout": "widths\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('widths')"
     },
     "p03b_byte_literal_cmp": {
       "kind": "compile_fail",
       "source_sha256": "9e6616f6a11e9fbdecb1b2a6c1c236cc2847a4c2dbcbce00ff3b31cd239933a8",
+      "guide_chapter": "03-types-generics.md",
       "diagnostic": "L0085",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085"
     },
     "p04_overflow": {
       "kind": "runtime_abort",
@@ -65,11 +80,14 @@
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 D12 (SPEC-0355): checked + overflow emits structured abort message",
       "source_sha256": "122ff889ace92767946fb3307269c947e157bba25989bcde24c8386751f53684",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "04-expressions-operators.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09"
     },
     "p05_double": {
       "kind": "known_unimplemented",
       "source_sha256": "bb24d0cd45462074f6724ef8edc529182faffdd18f61953d71fcfe01db18626c",
+      "guide_chapter": "01-lexical.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -81,6 +99,7 @@
     "p06_char": {
       "kind": "known_unimplemented",
       "source_sha256": "8752de821b6d2fef5730c23f3e06cf8544a38115777ed648adcc7ff06b49d142",
+      "guide_chapter": "01-lexical.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -92,8 +111,10 @@
     "p07_while_var": {
       "kind": "run_ok",
       "source_sha256": "499bb13f0a5d09dd7f24a606232b028f716270d61f1ff28340c865bb115dfc1f",
+      "guide_chapter": "06-blocks-control-flow.md",
       "stdout": "while\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "while loop sums i=0..9 into s=45; s == 45 holds and prints 'while'"
     },
     "p08_when_int": {
       "kind": "run_ok",
@@ -101,23 +122,29 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0356: subject when (Int subject equality) in E3 refinement layer",
       "source_sha256": "56ad55bd6ceacee625ce07448a9890e453fc8d1bb816cd7ac807f87aff265108",
+      "guide_chapter": "06-blocks-control-flow.md",
       "oracle_origin": "v046_spec_contract"
     },
     "p09_enum_payload": {
       "kind": "run_ok",
       "source_sha256": "04cd14e2044c203bd785118c87986312aa0bd7b60ab1a50029c85805e6b7b3af",
+      "guide_chapter": "06-blocks-control-flow.md",
       "stdout": "enum\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('enum')"
     },
     "p10_generic_fn": {
       "kind": "run_ok",
       "source_sha256": "b92fa8da08824c5950024066a93dfe63798e8535c7fe48607b427e265aaa0691",
+      "guide_chapter": "03-types-generics.md",
       "stdout": "generic\nint\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int'"
     },
     "p11_interface_bound": {
       "kind": "known_unimplemented",
       "source_sha256": "83ef8519c40728ec5d4fba0f41e0bf18f4ae24370226f2ef49d7feb37b1925d4",
+      "guide_chapter": "03-types-generics.md",
       "allowed_markers": [
         "FE:L0165",
         "BE:UnsupportedNode",
@@ -128,12 +155,15 @@
     "p12_class_inout": {
       "kind": "run_ok",
       "source_sha256": "7afcd937b2fbe4688487f0367a771d5c68a3182379faf74e80c4709e41f887c3",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "counter\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('counter')"
     },
     "p12b_class_field_assign": {
       "kind": "known_unimplemented",
       "source_sha256": "345592840be8acb216d9d0bc40f4d7f02de70bba7c1a8447fbc5ff3d0bed87d5",
+      "guide_chapter": "08-class-family-members.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -145,6 +175,7 @@
     "p12c_inout_param": {
       "kind": "known_unimplemented",
       "source_sha256": "74ec6417a933cf0091595ed1e894f78aceab4f7177f2b66cf990874d2766d8f8",
+      "guide_chapter": "10-ownership-borrowing-drop.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -156,8 +187,10 @@
     "p13_value_class_copy": {
       "kind": "run_ok",
       "source_sha256": "485e3876c013a893ee4b7878a5a85aaebdbfa50c76f90befde176b3edd5a7eb0",
+      "guide_chapter": "11-copyability-layout-construction.md",
       "stdout": "value\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('value')"
     },
     "p14_nullable": {
       "kind": "run_ok",
@@ -165,7 +198,9 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: E3 ownership refinement nullable pilot",
       "source_sha256": "faa940cc9fb46b5dc5a44a86e27c0f91e95080d7abf093444300bda8c69d03ba",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "09-nullability-errors.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "pick(true) returns non-null Node(5); smart cast prints 'smart' and pick(true)!!.v == 5 prints 'bangbang'"
     },
     "p14b_nullable_simple": {
       "kind": "run_ok",
@@ -173,7 +208,9 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: E3 ownership refinement nullable pilot",
       "source_sha256": "cd84ceffbec73254136daecb5bf156452a8a162bd82e693475f86b1d3d0078ce",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "09-nullability-errors.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "a: Node? = Node(5) is non-null with a.v == 5; smart cast branch prints 'smart'"
     },
     "p14c_nullable_int": {
       "kind": "run_ok",
@@ -181,11 +218,14 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: inline nullable Int? in E3 refinement layer",
       "source_sha256": "cbd3efb0c3a497b4adc01800463ed258fbda851482506041b3772d0fe0284b84",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "09-nullability-errors.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "a: Int? = 5 is non-null and equals 5; smart cast branch prints 'nint'"
     },
     "p15_elvis": {
       "kind": "known_unimplemented",
       "source_sha256": "75f1d8ac0260d541281d432ded22837644618f0c8e8c9ac2cb3fb2995ccc4d5e",
+      "guide_chapter": "09-nullability-errors.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -205,7 +245,9 @@
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 E4 (SPEC-0349): Result in builtin env; ? lowering pending N08",
       "source_sha256": "1f98ad7148a4842b035b8f1c69996e189991a3b1ffd333794a1c17acb358405b",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "09-nullability-errors.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('question')"
     },
     "p16b_result_string": {
       "kind": "known_unimplemented",
@@ -218,11 +260,13 @@
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 E4 (SPEC-0349): Result in builtin env; String payload lowering pending N08",
       "source_sha256": "17fb9700edf35e301f684fdf4f677d0fbc48c90776d355e0c4f06b182f36e4d9",
+      "guide_chapter": "09-nullability-errors.md",
       "oracle_origin": "v046_spec_contract"
     },
     "p17_lambda": {
       "kind": "known_unimplemented",
       "source_sha256": "fed68fe307f5c6fb5afbe74bc4e2ebf09eab65d4a6fb8a95dec137dd3abb0bc5",
+      "guide_chapter": "07-calls-lambdas-closures.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -234,6 +278,7 @@
     "p17b_lambda_nocapture": {
       "kind": "known_unimplemented",
       "source_sha256": "d79332e22329580e90312f4f57935faf5b5243917842cdc81dbad9d56e1c1879",
+      "guide_chapter": "07-calls-lambdas-closures.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -245,6 +290,7 @@
     "p18_move_closure": {
       "kind": "known_unimplemented",
       "source_sha256": "eca9faed954fe8c0becc6db67475e41f8d5612f1e96edaaa604c137febde2568",
+      "guide_chapter": "07-calls-lambdas-closures.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -256,18 +302,23 @@
     "p19_mutablelist": {
       "kind": "run_ok",
       "source_sha256": "c77be9ccd42f42e4bb55daddcfa400a0560e0a535ed90fd079497741f31e8bb7",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "list\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "xs=[10,2,3] sums to 15 with size 3; condition holds and prints 'list'"
     },
     "p20_map": {
       "kind": "run_ok",
       "source_sha256": "ecb203e8ee1813306fc98e314076bf81754c5af1b52c5ab1d835289d6d71e5a2",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('map')"
     },
     "p21_box_enum": {
       "kind": "known_unimplemented",
       "source_sha256": "35abad7024279d668f4f6f030262fc854e925dd88a408a019c078160a44e05d4",
+      "guide_chapter": "11-copyability-layout-construction.md",
       "allowed_markers": [
         "FE:L0165",
         "BE:UnsupportedNode",
@@ -279,6 +330,7 @@
     "p22_rc": {
       "kind": "known_unimplemented",
       "source_sha256": "79295b27744c3012b57e7a0d85151bcbb7e1eea615cd9572c49bcf1c66db00b9",
+      "guide_chapter": "13-program-runtime-standard-library.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -293,27 +345,34 @@
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 D4 (SPEC-0343): top-level runtime var rejected with L0167",
       "source_sha256": "4a102fd5fa059a5bfc2f590713330f82d3c82d370a23d366d4b60770c630de83",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "05-declarations-callables.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "top-level runtime var counter violates Guide 05 D4 (SPEC-0343); rejected with UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE L0167"
     },
     "p24_recursion": {
       "kind": "run_ok",
       "source_sha256": "21c32b584f0f0394736b264ce8d58bd4b69db8e55d806759152925e4b75a6e6e",
+      "guide_chapter": "05-declarations-callables.md",
       "stdout": "fib\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('fib')"
     },
     "p25_linked_iter": {
       "kind": "compile_fail",
       "source_sha256": "dd88a36118e1e8dd71158e54b30b3adf716837d9324580a8e014525987f4850a",
+      "guide_chapter": "10-ownership-borrowing-drop.md",
       "diagnostic": "L0133",
       "oracle_origin": "baseline_diagnostic_audited",
       "all_diagnostics": [
         "L0133",
         "L0132"
-      ]
+      ],
+      "oracle_derivation": "cur = cur.next moves non-Copyable Node? field out of borrowed/owned chain, emitting MOVE_FROM_BORROWED_BINDING L0133 and PARTIAL_MOVE L0132"
     },
     "p25b_linked_recursive": {
       "kind": "known_unimplemented",
       "source_sha256": "3f634d4d7ad886274a65cb04a49a39304fcd55d7f6d9944d0b13e103f29728f0",
+      "guide_chapter": "10-ownership-borrowing-drop.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -325,12 +384,15 @@
     "p26_borrow_return": {
       "kind": "run_ok",
       "source_sha256": "c174b6b792d4ed252d6142f64d5e87ad1c443f4ad0d07a844248d0a919620178",
+      "guide_chapter": "10-ownership-borrowing-drop.md",
       "stdout": "borrowed\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "nameOf borrows Holder('borrowed').name; println(n) prints 'borrowed'"
     },
     "p27_thread": {
       "kind": "known_unimplemented",
       "source_sha256": "8956c8e5921d6b0e9b91ab2d63bc0f1a8597cd3c90aca8d906cb8e2b7ea76d99",
+      "guide_chapter": "13-program-runtime-standard-library.md",
       "allowed_markers": [
         "FE:L0080",
         "BE:UnsupportedNode",
@@ -351,47 +413,62 @@
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 anonymous companion { } syntax; SPEC-0323 fixed static role, native N06 pending",
       "source_sha256": "5ae15f9b431ebf65c8b9fb6fd3c4d80294a4ec7186135e2effbbd9963b1a5b47",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "08-class-family-members.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('companion')"
     },
     "p29_default_super": {
       "kind": "run_ok",
       "source_sha256": "ec4f9ae059bb6429214f52af32c0a2bbd0b04d1e6c505334806de34fdbe64006",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "ab\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "C.hi() concatenates super<A>.hi() ('a') + super<B>.hi() ('b') = 'ab'"
     },
     "p30_runtime_array": {
       "kind": "run_ok",
       "source_sha256": "c8e9e0fe86d4d123c3c0dc8f4a8028a2eda34fedf95e996f1d7b8c45598f96f8",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "array\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('array')"
     },
     "p31_string_ops": {
       "kind": "run_ok",
       "source_sha256": "fd53ca29a8ae257c0f259d54453a86979a5559eb548c48d2f35ada32892cfe1a",
+      "guide_chapter": "13-program-runtime-standard-library.md",
       "stdout": "abc\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "'ab'.clone() + 'c' equals 'abc'; branch prints 'abc'"
     },
     "p32_deinit": {
       "kind": "run_ok",
       "source_sha256": "4a979b94abb9521e588004ebf51563101bbcd4ceee1598e47ad838b1702520ce",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "body\nb\na\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "main prints 'body' first, then drops locals in reverse lexical order: b ('b') then a ('a')"
     },
     "p33_range_in": {
       "kind": "run_ok",
       "source_sha256": "598031f06cc8fda1f84713a8c8c6c1ec7a490b047a47c0cd7e56ba9aa51944fd",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "in-range\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('in-range')"
     },
     "p34_for_range": {
       "kind": "run_ok",
       "source_sha256": "0b965cd543ad7fbb628f14caaaf898392e3e53c5094fee9532619c63cf45d6bf",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "for-range\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "0..<5 sums 0+1+2+3+4 = 10; s == 10 holds and prints 'for-range'"
     },
     "p35_value_eq": {
       "kind": "known_unimplemented",
       "source_sha256": "182ca40d58f50a800ba3e3cbf99f3616a53165bf703e96dca478f4c14519b435",
+      "guide_chapter": "03-types-generics.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -403,8 +480,10 @@
     "p36_conversion": {
       "kind": "run_ok",
       "source_sha256": "05202f0c71d431e0b12ae103bd6f7fcb816c8af51656c3d9a07f68a314a4531e",
+      "guide_chapter": "03-types-generics.md",
       "stdout": "conv\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('conv')"
     },
     "p37_is_generic_case": {
       "kind": "run_ok",
@@ -412,23 +491,30 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0349: parameterless is Result.Ok infers root type args from subject",
       "source_sha256": "ad3b375869bfce8ca5a70556747aa5203db3d5ba7f240be7ecc296553501edb5",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "03-types-generics.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "Result.Ok(1) matches parameterless is Result.Ok with v = 1 (SPEC-0349); prints 'case-noargs'"
     },
     "p38_list_of_strings": {
       "kind": "run_ok",
       "source_sha256": "0a24d6b51b981f082fe2a1f7555202dcb722b809646787f196c5e8c50a550518",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "x\ny\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "iterating mutableListOf('x', 'y') prints 'x' then 'y' in insertion order"
     },
     "p39_removeAt": {
       "kind": "run_ok",
       "source_sha256": "97bbf15cfa42b19d02c2a327c62c946e223d7e1b9eb6212b5a32a50bc4aa80a4",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "removeAt\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('removeAt')"
     },
     "p40_nested_generic_class": {
       "kind": "known_unimplemented",
       "source_sha256": "14c59512f54ed7bcf38ec0e92d5a103ed73d5d70a9289022cb9e690d51724bb1",
+      "guide_chapter": "03-types-generics.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -440,6 +526,7 @@
     "p41_when_string": {
       "kind": "known_unimplemented",
       "source_sha256": "2973072d55b36b6739ef8c5c5a8438efc78cfd768e3fee8f813a99577342cda5",
+      "guide_chapter": "06-blocks-control-flow.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -451,26 +538,34 @@
     "p42_lambda_mutate": {
       "kind": "compile_fail",
       "source_sha256": "6d99f070206795274701749b4a6cd475c0709882bb8dfb83a567e33fadf58137",
+      "guide_chapter": "07-calls-lambdas-closures.md",
       "diagnostic": "L0135",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135"
     },
     "p43_if_join_any": {
       "kind": "compile_fail",
       "source_sha256": "9b28bd905baa40aa1e910ed5fa94d2bc531d26de849780c4b88b00168653841c",
+      "guide_chapter": "06-blocks-control-flow.md",
       "diagnostic": "L0112",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "when expression mixing Int (1) and String ('s') branches is rejected with WHEN_BRANCH_TYPE L0112 (D3)"
     },
     "p44_method_on_value": {
       "kind": "run_ok",
       "source_sha256": "ae632fe3ec727e41f895d6cf9c0396c7d99895d741172de1cbad312375089ca3",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "vmethod\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('vmethod')"
     },
     "p44b_method_on_class": {
       "kind": "run_ok",
       "source_sha256": "9015e0860bfc4bf971fc62d4c14d68166f28add5e1e994e3173a5f2a4f3ddd47",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "cmethod\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('cmethod')"
     },
     "p45_abort_message": {
       "kind": "runtime_abort",
@@ -478,25 +573,33 @@
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 D12 (SPEC-0355): error() emits structured abort message",
       "source_sha256": "517cb41f31db93d36c10cbd1c5c65bfc4123bdbb03f5e3786e2ea6b4bc3e7846",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "09-nullability-errors.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "error('boom') aborts with SIGABRT and stderr header 'abort: boom' per Guide 09 D12"
     },
     "p46_string_field_class": {
       "kind": "run_ok",
       "source_sha256": "db16ab012e6fb9a09369ee33e393bda80ac586361157198deb1d89d3f42ade2b",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "ann\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "Person('ann', 3).name is 'ann'; describe(p) prints 'ann'"
     },
     "p47_list_index_string": {
       "kind": "run_ok",
       "source_sha256": "8357325280235c5863e2326481119ec7fb7262743ddae5993c7d9f07c91552fb",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "b\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "listOf('a', 'b')[1] evaluates to 'b' and prints 'b'"
     },
     "p48_nested_loops_break": {
       "kind": "run_ok",
       "source_sha256": "7f91d38426647f77f25840272f9872957a32a0b6861954ac800d307b241069c4",
+      "guide_chapter": "06-blocks-control-flow.md",
       "stdout": "nested\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "outer loop runs 5 times, inner loop breaks at j==3 after 3 increments -> hits == 15; prints 'nested'"
     },
     "p49_when_enum_no_payload": {
       "kind": "run_ok",
@@ -504,7 +607,9 @@
       "v046_baseline_exempt": true,
       "note": "Payloadless enum when: main prints name(Color.Green), so the when branch yields green",
       "source_sha256": "5679bacd7fe7b110811b816f75352b0bc7538c9c9cbf688e3d483c543fc96cb6",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "06-blocks-control-flow.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "name(Color.Green) selects Color.Green -> 'green' and prints 'green'"
     },
     "p50_enum_method": {
       "kind": "run_ok",
@@ -512,17 +617,22 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0356: enum method when (this) with is-tests and implicit-this payload reads in E3 refinement layer",
       "source_sha256": "487d2ce11036094236f0532084d6f72b31af44da168403362dc492dc5f3a0b3a",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "08-class-family-members.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('enum-method')"
     },
     "q01_lambda_local": {
       "kind": "run_ok",
       "source_sha256": "2aa4965cf0c76ff886b66f4f677d14fbaec58b7177bad9d0f0dac4287cc4c689",
+      "guide_chapter": "07-calls-lambdas-closures.md",
       "stdout": "lambda-local\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('lambda-local')"
     },
     "q02_lambda_arg_inline": {
       "kind": "known_unimplemented",
       "source_sha256": "d058d457677dbc5ea360b8264a1ee04396e82d04590fd95dea90199ffc533b7d",
+      "guide_chapter": "07-calls-lambdas-closures.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -534,6 +644,7 @@
     "q03_fn_ref": {
       "kind": "known_unimplemented",
       "source_sha256": "d196edd105977d8231d300f78633d1b0fd431f4c67ec81009ba3c8fbdf67eccb",
+      "guide_chapter": "07-calls-lambdas-closures.md",
       "allowed_markers": [
         "FE:L0165",
         "BE:UnsupportedNode",
@@ -545,8 +656,10 @@
     "q04_rc_simple": {
       "kind": "run_ok",
       "source_sha256": "3e49310e57899ecdbc6cfff9cc29269d3bc248400bceba5cd3d35fc459157786",
+      "guide_chapter": "13-program-runtime-standard-library.md",
       "stdout": "rc\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('rc')"
     },
     "q05_nullable_param": {
       "kind": "run_ok",
@@ -554,23 +667,30 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: E3 ownership refinement nullable pilot",
       "source_sha256": "0d93bd32ae49bb4bbb2cb34ed293cf04e118377c58e1e8724b534774152dccba",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "09-nullability-errors.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "show(Node(1)) takes non-null branch ('non-null'); show(null) takes else branch ('null')"
     },
     "q06_nullable_return_bang": {
       "kind": "run_ok",
       "source_sha256": "592c14fad6ea52c80b57c0adc404107db5d64bba0eb85d6b3cce5b58ce55a5c4",
+      "guide_chapter": "09-nullability-errors.md",
       "stdout": "bang\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('bang')"
     },
     "q07_result_when_int": {
       "kind": "run_ok",
       "source_sha256": "2e5070b0058172472be610f1a913790469a8e1f822e0f242f0d144528ff2e44d",
+      "guide_chapter": "09-nullability-errors.md",
       "stdout": "res-int\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('res-int')"
     },
     "q08_enum_string_payload": {
       "kind": "known_unimplemented",
       "source_sha256": "4a9c35ed04b945fd9dc0b144ca8c8e90aa5c0174b194a0d22827fa5fb984f12e",
+      "guide_chapter": "06-blocks-control-flow.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -581,6 +701,7 @@
     "q09_inout_class_param": {
       "kind": "known_unimplemented",
       "source_sha256": "29ec5eb1f9d0e9b268f4ce30b65ed5061fdb12524c02f6903768948fd2535ac3",
+      "guide_chapter": "10-ownership-borrowing-drop.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -592,14 +713,18 @@
     "q10_var_reassign_string": {
       "kind": "run_ok",
       "source_sha256": "377b0a72893d12a500a97eabea2788cec4638846ad9266e3c4573093889c2316",
+      "guide_chapter": "04-expressions-operators.md",
       "stdout": "abc\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "s starts as 'a', appends 'b' then 'c' -> 'abc'"
     },
     "q11_while_list_index": {
       "kind": "run_ok",
       "source_sha256": "80edcfe1eca5f93b58f037064b66f875e3c1c4bcf43675340b098f4d9b779f26",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "index-loop\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "while loop sums listOf(1,2,3) by index -> s == 6; prints 'index-loop'"
     },
     "q12_companion_const": {
       "kind": "run_ok",
@@ -607,67 +732,89 @@
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 anonymous companion { } syntax; associated constant read succeeds",
       "source_sha256": "72ac935d1afec7659598f91a5e698ddafc7465cdee0b318ead5021598b6ebf54",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "05-declarations-callables.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "Cfg.N reads associated const val 3 from anonymous companion { }; Cfg.N == 3 prints 'cconst'"
     },
     "q13_if_expr_value": {
       "kind": "run_ok",
       "source_sha256": "1ce6316ba40412b1165966aee5426f6ad780bd7c20cf04e2a81a05a55d16cf47",
+      "guide_chapter": "06-blocks-control-flow.md",
       "stdout": "big\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "x = 3 satisfies x > 2, so if-expression evaluates to 'big'"
     },
     "q14_when_subjectless": {
       "kind": "run_ok",
       "source_sha256": "28a49053595f537e345f9aea8dfc2696257a0b64de26f68bbf8bea98ee31178f",
+      "guide_chapter": "06-blocks-control-flow.md",
       "stdout": "mid\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "x = 5 fails x < 3 and matches second guard x < 7 -> 'mid'"
     },
     "q15_borrow_param_string_list": {
       "kind": "run_ok",
       "source_sha256": "3d93ac186e117c77657aecd7c3fe536b841d6c36317c3d8ff2f851c59dcc49a3",
+      "guide_chapter": "10-ownership-borrowing-drop.md",
       "stdout": "borrow-list\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "total(listOf('a', 'b')) counts 2 elements; 2 == 2 prints 'borrow-list'"
     },
     "q16_interface_static": {
       "kind": "run_ok",
       "source_sha256": "0ab007eac4b10d0242d303ca80d27464d1f85b52a7f334e490d2c204fa27a569",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "dog\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "Dog.name() returns 'dog' via static interface implementation dispatch"
     },
     "q17_generic_class": {
       "kind": "compile_fail",
       "source_sha256": "56706217ae22b7063ed3c9d23d6ecd4505918f8c562866eaab22c8cafe934761",
+      "guide_chapter": "10-ownership-borrowing-drop.md",
       "diagnostic": "L0164",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "borrow T from this on generic class Holder<T> hits UNSUPPORTED_BORROW_FLOW L0164 (roadmap N09)"
     },
     "q18_value_class_generic": {
       "kind": "run_ok",
       "source_sha256": "87467aca65c2e6f172c676a457b73729ef4d9dc62aa9d164dce6631618fd84ac",
+      "guide_chapter": "11-copyability-layout-construction.md",
       "stdout": "vgen\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('vgen')"
     },
     "q19_deep_return_cleanup": {
       "kind": "run_ok",
       "source_sha256": "1399b58ee39b014d92f2b9ddb07452f84136b974cf79a0bf2d1b6be130a96757",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "b\na\na\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "f(true) drops inner b ('b') then outer a ('a') on early return; f(false) drops a ('a') -> 'b\\na\\na\\n'"
     },
     "q20_replace_field": {
       "kind": "run_ok",
       "source_sha256": "f6d815c0a7279efc22183ba9ec7e417703e4d6458bad60e225a0989d2315b53e",
+      "guide_chapter": "10-ownership-borrowing-drop.md",
       "stdout": "old\nnew\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "replace(&b.s, 'new') returns previous field value 'old' and updates b.s to 'new'"
     },
     "r01_bogus_member": {
       "kind": "compile_fail",
       "source_sha256": "6c054514b3c6712b4f6b8664f1d2f8bcbc95b26d47f38d837e250f2e32cc6aa2",
+      "guide_chapter": "02-names-files-packages.md",
       "diagnostic": "L0080",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "calling nonexistent method Int.fooBar() emits UNRESOLVED_NAME L0080"
     },
     "r02_bogus_member_str": {
       "kind": "compile_fail",
       "source_sha256": "c4820919e33e78b9dd0f9a1afe1dd9d2f0b932c9c6ba1829750fd553e93c1a9d",
+      "guide_chapter": "02-names-files-packages.md",
       "diagnostic": "L0080",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "accessing nonexistent property String.length emits UNRESOLVED_NAME L0080"
     },
     "s01_result_builtin": {
       "kind": "run_ok",
@@ -675,11 +822,14 @@
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 E4 (SPEC-0349): Result/Ok/Err injected into builtin environment",
       "source_sha256": "eb4a6943602e189fad9b94df8d24213cda86f43fa2f10cd75359150e7c0fb6a2",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "02-names-files-packages.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "builtin Result.Ok(1) is resolved without import (SPEC-0349); main prints 'result-builtin'"
     },
     "s02_pair_builtin": {
       "kind": "known_unimplemented",
       "source_sha256": "da2b12054c8606f0ff0198b05d0c473b7ee0e5e7ddbbafe959218cf0d0260ff2",
+      "guide_chapter": "02-names-files-packages.md",
       "allowed_markers": [
         "FE:L0080",
         "BE:UnsupportedNode",
@@ -691,6 +841,7 @@
     "s03_to_pair": {
       "kind": "known_unimplemented",
       "source_sha256": "cadaf2fa0ece1c1960205d827d080b139f9c3e3db1c3db27a1844ece99780ed1",
+      "guide_chapter": "02-names-files-packages.md",
       "allowed_markers": [
         "FE:L0165",
         "BE:UnsupportedNode",
@@ -702,24 +853,31 @@
     "s04_question_on_nullable": {
       "kind": "compile_fail",
       "source_sha256": "9bc6a61a89737d245f17949b52345e8979f7fb501dfe697c966d59f66b1734b7",
+      "guide_chapter": "09-nullability-errors.md",
       "diagnostic": "L0085",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "postfix ? applied to nullable Int? (instead of Result) emits INVALID_OPERAND_TYPES L0085"
     },
     "t01_vmethod_bare_field": {
       "kind": "run_ok",
       "source_sha256": "4c348dc5bbfece6e14560f3ba2b3e96e4d1a0f32c1c61e9cf84f34d13990c7d1",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "vmethod-bare\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('vmethod-bare')"
     },
     "t02_vmethod_bool": {
       "kind": "run_ok",
       "source_sha256": "3e65f27c8407a4905f43ff8f2e1a70f8ad01b7ec263c3c9734b44cdae4f965bf",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "vmethod-bool\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('vmethod-bool')"
     },
     "t03_vmethod_generic": {
       "kind": "known_unimplemented",
       "source_sha256": "b9de2a3839d431048688b8cde57d426882324d719ac3edec6faeb6e6121f0c2a",
+      "guide_chapter": "03-types-generics.md",
       "allowed_markers": [
         "BE:UnsupportedNode",
         "BE:MissingFact",
@@ -731,44 +889,58 @@
     "t04_vmethod_compute_param": {
       "kind": "run_ok",
       "source_sha256": "1162b107c309da0bc129ac83ad46b299ebce1785bb6b1b3a75dd821101e56f55",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "vmethod-param\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('vmethod-param')"
     },
     "t05_map_loop_continue": {
       "kind": "run_ok",
       "source_sha256": "9679da3150e52388f53eb04733b83f118678da4fb0f173406eccbc26a46573f4",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-continue\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "for-loop skips 'b' via continue and counts 'a' twice -> m.get('a') == 2 prints 'map-continue'"
     },
     "t06_list_loop_return": {
       "kind": "run_ok",
       "source_sha256": "ccf526e7601063b39d5513d27df2e4831edc1e388e214fa133ed39df0ef7212b",
+      "guide_chapter": "06-blocks-control-flow.md",
       "stdout": "loop-return\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "find(listOf(1,2,3), 2) returns true on second element; prints 'loop-return'"
     },
     "t07_short_circuit_plain": {
       "kind": "run_ok",
       "source_sha256": "0dd7090944494a84623bbf67b1fb92995e98fa33b1dc84744ac9279078628af3",
+      "guide_chapter": "04-expressions-operators.md",
       "stdout": "short-circuit\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('short-circuit')"
     },
     "t08_vmethod_string": {
       "kind": "run_ok",
       "source_sha256": "c41a3c45a85cf2a55ca71518f3728105159854c861820fb7a00d39618650027c",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "pos\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "Tag(1).label() checks 1 > 0 and returns 'pos'"
     },
     "t09_vmethod_calls_method": {
       "kind": "run_ok",
       "source_sha256": "d39506ab5bad9ba95bb12c2f45afa3534749fa12c0d4d736fc33283d10a4f89a",
+      "guide_chapter": "08-class-family-members.md",
       "stdout": "vmethod-chain\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('vmethod-chain')"
     },
     "t10_map_nested_if_break": {
       "kind": "run_ok",
       "source_sha256": "d060c7df5efa6f49855a1aecd0b0232f10daf516458b35f2e64daab88634549b",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-nested-break\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "loop inserts 'a' and 'b' (m.size == 2), then breaks at 'c'; prints 'map-nested-break'"
     },
     "u01_enum_case_borrow_arg": {
       "kind": "run_ok",
@@ -776,37 +948,49 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0320: enum case borrow argument classification",
       "source_sha256": "11028d4f967e236c356b3b76c98feccb08fe192d96a6346c2825310a4fe729e2",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "10-ownership-borrowing-drop.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "isRed(Color.Red) borrows enum case argument and matches Color.Red -> true; prints 'enum-arg'"
     },
     "u02_list_add_loop_string": {
       "kind": "run_ok",
       "source_sha256": "6e0aa622dd38a90905c6e0f10c1839f3ed41d8055925fd6480b383c98152fd8a",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "x\ny\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "clones 'x' and 'y' into MutableList<String> and prints each element in order"
     },
     "u03_list_of_class_add": {
       "kind": "run_ok",
       "source_sha256": "2e7cb58a7d02de9f16812778c4944f8919f0fd29daa2e143377396a1030e696e",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "class-list\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('class-list')"
     },
     "u04_enum_payload_arg_unit": {
       "kind": "run_ok",
       "source_sha256": "cbe84cbd8d1a6d5545be76bd50d67b132f3f43140393e577105a860e4c90f062",
+      "guide_chapter": "06-blocks-control-flow.md",
       "stdout": "enum-payload-arg\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('enum-payload-arg')"
     },
     "v01_assign_unit_value": {
       "kind": "run_ok",
       "source_sha256": "a1d2d70dea6f407459f130444e37a52c7c09309130b76042852410e5c5f31704",
+      "guide_chapter": "04-expressions-operators.md",
       "stdout": "assign-unit\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('assign-unit')"
     },
     "v02_assign_chain": {
       "kind": "compile_fail",
       "source_sha256": "426b2c6dab4b7100b7f910e8bffbef255aeaa0e56a4be4a08bae36a219634db5",
+      "guide_chapter": "04-expressions-operators.md",
       "diagnostic": "L0084",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "assignment b = 3 yields Unit, so chaining a = (b = 3) for Int var a emits TYPE_MISMATCH L0084 (SPEC-0325)"
     },
     "v03_join_nullable": {
       "kind": "run_ok",
@@ -814,55 +998,73 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: inline nullable Int? return in E3 refinement layer",
       "source_sha256": "120f3f6866f26d2b5da58a7159914d7a538bf89a4800501d2152937b94e83951",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "09-nullability-errors.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "pick(true) returns Int? = 7; smart cast x != null && x == 7 prints 'join-nullable'"
     },
     "v04_stmt_if_mixed": {
       "kind": "compile_fail",
       "source_sha256": "903aec16d2237af3f9ac7f75d8ca20db3efa8df6f7de02728050c515bd7b0b3d",
+      "guide_chapter": "06-blocks-control-flow.md",
       "diagnostic": "L0089",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "if/else with incompatible Int and String branch types emits NO_COMMON_BRANCH_TYPE L0089 (SPEC-0326)"
     },
     "v05_range_in": {
       "kind": "run_ok",
       "source_sha256": "296b9403debb0fceb59d3c0e89e117cb592166605d075142c5716c996b578bb9",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "range-in\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('range-in')"
     },
     "v06_for_range_sum": {
       "kind": "run_ok",
       "source_sha256": "2c906ab9e72824c5b567f37ad95eb5b9cff5ea622e44cfe33576aea45f79176a",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "for-range\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "0..<5 sums to 10 and 1..3 sums to 6 -> s == 16 prints 'for-range'"
     },
     "v07_range_max": {
       "kind": "run_ok",
       "source_sha256": "b81322ce545bb564d39d2479c45b8a24b77d06eb24f90ae1e641fc281d6ed2c6",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "range-max\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "inclusive range 2147483646..2147483647 iterates exactly 2 times without overflow; prints 'range-max'"
     },
     "v08_long_range": {
       "kind": "run_ok",
       "source_sha256": "8c1a9317a681901c58112cd98746bf327cf55d3aa90ff2e22e13e4fce815de98",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "long-range\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "1L..4L sums 1+2+3+4 = 10L; prints 'long-range'"
     },
     "v09_reverse_empty": {
       "kind": "run_ok",
       "source_sha256": "ef5f836c369b452c1e4cb440901d1e453e87e88bf07636dfa4b2434b42f634ed",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "reverse-empty\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "ascending range 5..1 is empty (0 iterations, n == 0); prints 'reverse-empty'"
     },
     "v10_range_value": {
       "kind": "run_ok",
       "source_sha256": "2762953b5438b2724cbdeac6917cc728b5cebe81a5ab3dfbf4912f8aeae252b2",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "range-value\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('range-value')"
     },
     "v11_convert_ok": {
       "kind": "run_ok",
       "source_sha256": "b2b5d16514018d3b83cacd331a271315d877ad2c93a2d1cb5f362305e8d655ac",
+      "guide_chapter": "03-types-generics.md",
       "stdout": "convert\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('convert')"
     },
     "v12_convert_abort": {
       "kind": "runtime_abort",
@@ -870,7 +1072,9 @@
       "v046_baseline_exempt": true,
       "note": "Guide v0.46 D12 (SPEC-0355): checked conversion emits structured abort message",
       "source_sha256": "e576f37f7c852e88e7b92dd355bc62d22bd33644f7866aad7220983521229c00",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "03-types-generics.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "(-1).toULong() fails range check and aborts with 'abort: value out of range for ULong' (SPEC-0327/0355)"
     },
     "v13_while_nullable_int": {
       "kind": "run_ok",
@@ -878,19 +1082,25 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: inline nullable Int? in while loop in E3 refinement layer",
       "source_sha256": "3a76b664ecaacbd05b5f5e3e46acec3f0d415000bff7bee1d4422c24221af3da",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "09-nullability-errors.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "while (x != null) adds 5 to total and sets x = null; total == 5 prints 'while-nullable'"
     },
     "v14_map_consume": {
       "kind": "run_ok",
       "source_sha256": "a87652640628360b5764f5f8b63edaccc40f631587138eee7e4b4823d6cc905d",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "consume\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('consume')"
     },
     "v15_map_for": {
       "kind": "run_ok",
       "source_sha256": "dbac585a26ce4c17f266480f70484c265e4b6e48be639d20b12246d3866f533e",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "b\na\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "MutableMap preserves insertion order ('b' then 'a'); loop prints 'b' then 'a'"
     },
     "v16_when_in_range": {
       "kind": "run_ok",
@@ -898,19 +1108,24 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0356: subject when (Int subject `in` Range) in E3 refinement layer",
       "source_sha256": "ecede705d83314c96657d88ed309fdbe527573551bba19152270cca988bf55a1",
+      "guide_chapter": "06-blocks-control-flow.md",
       "oracle_origin": "v046_spec_contract"
     },
     "v17_convert_in_loop": {
       "kind": "run_ok",
       "source_sha256": "a5d4f3be0b438529ce5153fff88f354870426138c6f97fe2cc8aa7abc0e9a6b5",
+      "guide_chapter": "03-types-generics.md",
       "stdout": "conv-loop\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "0..<3 converts 0,1,2 via toLong() and sums to 3L; prints 'conv-loop'"
     },
     "v18_while_nullable_class": {
       "kind": "run_ok",
       "source_sha256": "3df17c989e7347ab9ec53c4ebe8628661192171920bf37ef881934781f632489",
+      "guide_chapter": "09-nullability-errors.md",
       "stdout": "while-class\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "while (n != null) reads n.v (4) and sets n = null; t == 4 prints 'while-class'"
     },
     "v19_stmt_when_mixed": {
       "kind": "run_ok",
@@ -918,151 +1133,201 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0356: subject when (statement when with mixed branch types) in E3 refinement layer",
       "source_sha256": "849f24f1e142285ed501e3950031a32b93a77a157ac4f6a352d77378cc19a02c",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "06-blocks-control-flow.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('stmt-when-mixed')"
     },
     "v20_range_in_list": {
       "kind": "run_ok",
       "source_sha256": "03d2526275149afb2831297b60b1ddd2f90af5d42bf82fbdcf5f0b8fd049603f",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "range-in-list\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "3 is neither in 1..2 nor in 5..6 (n == 0, size == 2); prints 'range-in-list'"
     },
     "v21_for_range_return": {
       "kind": "run_ok",
       "source_sha256": "6807c14492610087d46777c489d39cb6366ed85a009ed17de93787213833aed3",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "range-return\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "firstEven(5) returns 2 on i == 2 inside 1..5; prints 'range-return'"
     },
     "v22_range_with_map": {
       "kind": "run_ok",
       "source_sha256": "fedb4265447362c5c0acfb0b53d901034db3ca6e0be9b6d8c42abc1edf327bc5",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "range-map\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "populates m[i] = i*i for i in 0..<4; m.get(3) == 9 prints 'range-map'"
     },
     "v23_nested_range_break": {
       "kind": "run_ok",
       "source_sha256": "e3db3188379857da86f19b6abcd03ff781a302b3abf686a638a0307739f42aae",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "nested-range\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "outer 0..<3 runs 3 times, inner breaks at j == 1 after 1 increment -> n == 3 prints 'nested-range'"
     },
     "w01_map_for_sum": {
       "kind": "run_ok",
       "source_sha256": "de3444aacc73a0216c41ea0fda4a6c212a87ede3b03aa8067661b46a21015b2d",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-sum\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map entries ('b'->2, 'a'->1) sum to 3; prints 'map-sum'"
     },
     "w02_map_for_order": {
       "kind": "run_ok",
       "source_sha256": "d4f3afa84b472422d4e46e17dd360eccd77e1056ba0ac5faaf416b0e1f8b8b29",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-order\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map iterates in insertion order ('b', 'a', 'c'); ok remains true and prints 'map-order'"
     },
     "w03_map_overwrite_remove": {
       "kind": "run_ok",
       "source_sha256": "874329869f77e84642872e7d37b4862979bea717dd5a2a083faf42c893e54ec2",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-reorder\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "overwriting 'b'->5, removing 'a', and re-inserting 'a'->7 yields order ('b'->5, 'a'->7); prints 'map-reorder'"
     },
     "w04_map_for_break": {
       "kind": "run_ok",
       "source_sha256": "1fa128f2cf1c48aec19696c2eb4367a218dd3dad0cf46dcb4380ea752e4ecb9e",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-break\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "iterating keys 0..4 breaks at k == 2 after counting 0 and 1 (seen == 2); prints 'map-break'"
     },
     "w05_map_for_return": {
       "kind": "run_ok",
       "source_sha256": "8dcf15fcae8a7ad5d20a638f4362996ac4d6475a827d1e91870fb1ea08c2be1f",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-return\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "find(m, 'b') returns value 2 from map loop; prints 'map-return'"
     },
     "w06_map_mutate_in_loop": {
       "kind": "compile_fail",
       "source_sha256": "c9994d3e6b2904eb39d775a5b2e17a728da5dfce6512b3952cec938bb504a5e2",
+      "guide_chapter": "12-collections-destructuring.md",
       "diagnostic": "L0135",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "calling m.put() while m is borrowed by for-loop iteration emits LOAN_CONFLICT L0135"
     },
     "w07_map_nested": {
       "kind": "run_ok",
       "source_sha256": "b5e320b45d05fdda970c67372b72c0f39cafd6a7a1ba65f791dfe3c2c7763b7c",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-nested\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "nested iteration over {1:1, 2:2} computes (1+2)*(1+2) = 9; prints 'map-nested'"
     },
     "w08_map_string_values": {
       "kind": "run_ok",
       "source_sha256": "66681b31d630c9045da48ea3e5aeade2accf0992da6f17bf44ea0c0a0e681c50",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "two\none\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map entries (2->'two', 1->'one') print values 'two' then 'one' in insertion order"
     },
     "w09_map_temp_source": {
       "kind": "run_ok",
       "source_sha256": "55ce4c7d25c06516cfacd9921fcd16b90c15c63adbd9d44d9133c92c49539007",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-temp\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "iterating temporary make() map sums 3 + 4 = 7; prints 'map-temp'"
     },
     "w10_map_for_continue_count": {
       "kind": "run_ok",
       "source_sha256": "a862e09947b6ed490c37195b3ce1fbc9c3330e69e1fe93ea2bd951b2d046cff6",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "map-continue2\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map loop skips 'b'->2 via continue and sums 'a'->1 + 'c'->3 = 4; prints 'map-continue2'"
     },
     "w11_word_count": {
       "kind": "run_ok",
       "source_sha256": "604d35b77bb7ae6e8b8843f1ad285399ec8e2de9fbd8fb2b835d18f9fcdd5123",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "word-count\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "word frequency over ['x','y','x','z','x'] yields x=3, y=1, z=1; prints 'word-count'"
     },
     "w12": {
       "kind": "run_ok",
       "source_sha256": "7920b41f9d5dcd95dc702087a6d73c5087a5155b17f302171a07804391cc11a9",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "b\nafter\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map loop prints key 'b', then post-loop s == 1 prints 'after'"
     },
     "w13": {
       "kind": "run_ok",
       "source_sha256": "fd629cf35b2902c593afbf3b0467957c883d20874ee5da3b48ae2f75ef0995e1",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "seen\nend\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map loop with v == 2 prints 'seen', followed by post-loop 'end'"
     },
     "w14": {
       "kind": "run_ok",
       "source_sha256": "1cd5c79c72d6791d1478914a63e61053f4463dc25c976a4a3099078740105c18",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "end\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map loop sets s = 1 without printing; post-loop prints 'end'"
     },
     "w15": {
       "kind": "run_ok",
       "source_sha256": "3fd3309b545629a7bec0c6f566c7eccc04f024fe4ca42888376e3858a8eb636a",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "seen\nend\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map loop with v == 2 prints 'seen', followed by post-loop 'end'"
     },
     "w16": {
       "kind": "run_ok",
       "source_sha256": "43e7a7b68d819883fbe748ab33a5e9f5cbf6c589427018a83658ecb7abc7b7bc",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "borrow-param-sum\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "count(m) borrows Map parameter and sums 2 + 3 = 5; prints 'borrow-param-sum'"
     },
     "w17": {
       "kind": "run_ok",
       "source_sha256": "97b6d63746323290d6bfae7ac34c2f58d8f6965a47682968edc3d9f373d5691c",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "b\nend\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map loop prints key 'b', then if (t == 1) prints 'end'"
     },
     "w18": {
       "kind": "run_ok",
       "source_sha256": "6f49aca54b0b3225cc75a7f12d905b55637235e63292c2a33d264085b2139456",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "end\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map loop accumulates s = 2, then if (s == 2) prints 'end'"
     },
     "w19": {
       "kind": "run_ok",
       "source_sha256": "c579147b9597c04ad8d7131fbe848da578a3dec5c3eadd101a4752d4883a02c7",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "b\nend\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "map loop prints key 'b', followed by post-loop 'end'"
     },
     "x01_nullable_class_retest": {
       "kind": "run_ok",
       "source_sha256": "b3ef9dad60dd36ca1abf3992a7cc55bfed7865fb9831c97daad8355b134a7342",
+      "guide_chapter": "09-nullability-errors.md",
       "stdout": "retest\n",
-      "oracle_origin": "single_println_literal"
+      "oracle_origin": "single_println_literal",
+      "oracle_derivation": "single literal println('retest')"
     },
     "x02_string_nullable_return": {
       "kind": "run_ok",
@@ -1070,13 +1335,17 @@
       "v046_baseline_exempt": true,
       "note": "SPEC-0350: pointer-niche inline nullable String? return in E3 refinement layer",
       "source_sha256": "40f2dfda1fcb44cda5a4f4fdf74c65928092b81410bf7424ad33e00da939cc2a",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "09-nullability-errors.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "find(true) returns non-null String? 'hit'; smart cast s != null prints 'hit'"
     },
     "x03_if_call_borrow_arg": {
       "kind": "run_ok",
       "source_sha256": "a5564554fa540bb4053434b6ea087e04b3149c192dc7c734e87cbeae1f73c621",
+      "guide_chapter": "07-calls-lambdas-closures.md",
       "stdout": "obs\ndone\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "if (true) calls observe('obs') printing 'obs', then prints 'done'"
     },
     "y01_import_take_for_sum": {
       "kind": "run_ok",
@@ -1084,13 +1353,17 @@
       "v046_baseline_exempt": true,
       "note": "take() lowered on main; for-loop sums the first two elements and prints take",
       "source_sha256": "c1fac2dfee57b67ec279de26bfde160e623abe6372e67e08b0cd37140250ad9f",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "02-names-files-packages.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "take(listOf(1,2,3), 2) yields 1 and 2 (sum 3); prints 'take'"
     },
     "y02_take_no_import": {
       "kind": "compile_fail",
       "source_sha256": "adacb4afd124d0571f366d2861909b9d880684d458ce029c794dcbdaa74d57fe",
+      "guide_chapter": "02-names-files-packages.md",
       "diagnostic": "L0080",
-      "oracle_origin": "baseline_diagnostic_audited"
+      "oracle_origin": "baseline_diagnostic_audited",
+      "oracle_derivation": "calling take() without import koven.algorithms.take emits UNRESOLVED_NAME L0080 (Guide v0.45)"
     },
     "y03_method_take_for": {
       "kind": "run_ok",
@@ -1098,7 +1371,9 @@
       "v046_baseline_exempt": true,
       "note": "take() method call lowered on main; for-loop sums the first two elements and prints take-method",
       "source_sha256": "5db5994e2ff45cc7b6cd80c0c196e60557072279ac6558b74e8d1fb44ae816dc",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "12-collections-destructuring.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "xs.take(2) on listOf(1,2,3) sums 1 + 2 = 3; prints 'take-method'"
     },
     "y04_take_for_println": {
       "kind": "run_ok",
@@ -1106,25 +1381,32 @@
       "v046_baseline_exempt": true,
       "note": "take() lowered on main; for-loop prints the first two elements",
       "source_sha256": "baa58796b1332bb65f4d38bbf7c240790d3405fcdcc5af80f22f4d6d710089b0",
-      "oracle_origin": "v046_spec_contract"
+      "guide_chapter": "12-collections-destructuring.md",
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "take(listOf('a','b','c'), 2) prints first two elements 'a' and 'b'"
     },
     "y05_take_borrow_val_call": {
       "kind": "run_ok",
       "source_sha256": "3f45ef425f8520adee6c074458e555974a017f7f76e8b31c1af86c3bba14c802",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "a\nb\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "borrow val v = take(xs, 2) passed to read(v) prints 'a' and 'b'"
     },
     "y06_take_borrow_val_for": {
       "kind": "run_ok",
       "source_sha256": "6bc8fb147c64bfd6cd5302759952c67b8c550ca1813c046c7fcfaa9e1859eabb",
+      "guide_chapter": "12-collections-destructuring.md",
       "stdout": "a\nb\n",
-      "oracle_origin": "source_trace_audited"
+      "oracle_origin": "source_trace_audited",
+      "oracle_derivation": "borrow val v = take(xs, 2) iterated directly in for-loop prints 'a' and 'b'"
     }
   },
   "programs": {
     "config_parse": {
       "kind": "known_unimplemented",
       "source_sha256": "dc1410aa94f4bb8b76682710241a74a70a34f950dd9b6f4b1016b32b11252816",
+      "guide_chapter": "09-nullability-errors.md",
       "expected_file": "programs/config_parse/expected.txt",
       "expected_sha256": "4fff2827a336c190aa7d862a09ec9ecdbe58349b61463ef16bdd5c36aaa14e17",
       "allowed_markers": [
@@ -1140,6 +1422,7 @@
     "expr_eval": {
       "kind": "known_unimplemented",
       "source_sha256": "4e21f2c3832f6d793fc6aa9be1afaab8a3136bc11eeeab285699c49f32be18a6",
+      "guide_chapter": "11-copyability-layout-construction.md",
       "expected_file": "programs/expr_eval/expected.txt",
       "expected_sha256": "c9530ec173624a9c9d229b8e219e089412bef9da707ac12b4929bbf310a28b79",
       "allowed_markers": [
@@ -1155,6 +1438,7 @@
     "linked_stack": {
       "kind": "known_unimplemented",
       "source_sha256": "f3feff593d199bcac7f24dd05e56a227574d1cc35efa3dcd77a5355a2cf5e255",
+      "guide_chapter": "10-ownership-borrowing-drop.md",
       "expected_file": "programs/linked_stack/expected.txt",
       "expected_sha256": "bebcbde32ea8dd5a716c5e26cacefdc85a2642c8b822c9076e88ca8fb4057c17",
       "allowed_markers": [
@@ -1170,6 +1454,7 @@
     "raii_state_machine": {
       "kind": "known_unimplemented",
       "source_sha256": "034389765de013a6cc45c18cca45eebfd002bf50765a4989d462c4415e4de718",
+      "guide_chapter": "08-class-family-members.md",
       "expected_file": "programs/raii_state_machine/expected.txt",
       "expected_sha256": "0de6a3667bc60c77d3aa2afac93e4daa1562589c8194037a9c294708b57979c7",
       "allowed_markers": [
@@ -1185,6 +1470,7 @@
     "varint_codec": {
       "kind": "known_unimplemented",
       "source_sha256": "d12cc3b0618a9bf784ec6cf8d56f78c660c32e1d96f6e791603981a3cabab1f7",
+      "guide_chapter": "03-types-generics.md",
       "expected_file": "programs/varint_codec/expected.txt",
       "expected_sha256": "7566e6b5cdb3d9c3d8bf557eebf03baa72211ef889beba1b8c4d6d070eece571",
       "allowed_markers": [
@@ -1200,6 +1486,7 @@
     "word_count": {
       "kind": "known_unimplemented",
       "source_sha256": "e0acd2673ee5ce051246067fb593f7fd4bb6da759aa60ccd0e031629149fb5de",
+      "guide_chapter": "12-collections-destructuring.md",
       "expected_file": "programs/word_count/expected.txt",
       "expected_sha256": "3b1a26f04983fb6bb189548492f1e9e766ed3de2b03f2a658e4f7a3f1c780adc",
       "allowed_markers": [

@@ -337,3 +337,6 @@ fn cloned_chain_and_rechecked_ownership_keep_view_identity_but_fresh_typed_does_
         .is_err()
     );
 }
+
+#[path = "basic_unit_ownership/string_when.rs"]
+mod string_when;

@@ -533,8 +533,44 @@ sys.exit(1)
                             ln in all_string_literals or ln in joined_literals,
                             f"probe {name} oracle line {ln!r} not backed by source string literals {all_string_literals}",
                         )
+            self.assertIn(
+                spec.get("guide_chapter"),
+                gate.VALID_GUIDE_CHAPTERS,
+                f"missing or invalid guide_chapter on {name}",
+            )
+            if spec["kind"] in ("run_ok", "compile_fail", "runtime_abort"):
+                self.assertTrue(
+                    isinstance(spec.get("oracle_derivation"), str)
+                    and len(spec["oracle_derivation"].strip()) > 0,
+                    f"missing oracle_derivation on active probe {name}",
+                )
+
+        # 5. Cross-check all compile_fail diagnostic codes against crates/lang-frontend/src/diagnostic.rs
+        diag_rs = (
+            repo_root / "crates" / "lang-frontend" / "src" / "diagnostic.rs"
+        ).read_text(encoding="utf-8")
+        registered_codes = set(re.findall(r'"(L[0-9]{4})"', diag_rs))
+        for name, spec in loaded["probes"].items():
+            if spec["kind"] == "compile_fail":
+                for code in spec.get("all_diagnostics", [spec["diagnostic"]]):
+                    self.assertIn(
+                        code,
+                        registered_codes,
+                        f"probe {name} references unregistered frontend diagnostic code {code}",
+                    )
+
+        # 6. Verify all 13 normative Guide chapters are covered and ORACLE_AUDIT.md is in sync
+        covered_chapters = {spec["guide_chapter"] for spec in loaded["probes"].values()}
+        self.assertEqual(covered_chapters, set(gate.VALID_GUIDE_CHAPTERS))
+        audit_md_path = repo_corpus / "ORACLE_AUDIT.md"
+        self.assertTrue(audit_md_path.is_file())
+        self.assertEqual(
+            audit_md_path.read_text(encoding="utf-8"),
+            gate.render_oracle_audit_markdown(loaded),
+        )
 
 
 if __name__ == "__main__":
     unittest.main()
+
 
