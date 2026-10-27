@@ -3,6 +3,7 @@
 mod condition;
 mod expression;
 mod heap;
+mod tagged;
 mod when;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -43,6 +44,8 @@ pub(super) struct Builder<'i, 'a> {
     bindings: BTreeMap<UnitSymbolId, Slot>,
     /// Borrow-mode parameters: the shared loan the caller passed.
     borrowed: BTreeMap<UnitSymbolId, Slot>,
+    /// The current receiver's value, or the shared loan of a Borrow receiver.
+    receiver: Option<Slot>,
     /// Copyable inner values proven non-null on the current edge.
     narrowed: BTreeMap<UnitSymbolId, Slot>,
     temporaries: BTreeMap<UnitExpressionId, Slot>,
@@ -90,6 +93,7 @@ pub(super) fn build(
         block: None,
         bindings: BTreeMap::new(),
         borrowed: BTreeMap::new(),
+        receiver: None,
         narrowed: BTreeMap::new(),
         temporaries: BTreeMap::new(),
         consumed_drops: BTreeSet::new(),
@@ -102,8 +106,25 @@ pub(super) fn build(
     };
     let entry = builder.body.block();
     builder.block = Some(entry);
-    if entities.len() != inputs.parameters.len() {
+    let receivers = usize::from(inputs.receiver.is_some());
+    if entities.len() != inputs.parameters.len() + receivers {
         return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
+    }
+    let (receiver_entities, entities) = entities.split_at(receivers);
+    if let (Some(receiver), [entity]) = (inputs.receiver, receiver_entities) {
+        let ty = builder.ssa_type(receiver.ty, inputs.span)?;
+        let slot = match (entity, receiver.borrowed) {
+            (crate::ssa::model::EntityId::Value(_), false) => {
+                builder.body.slot(EntityType::Value(ty))
+            }
+            (crate::ssa::model::EntityId::Loan(_), true) => builder.body.slot(EntityType::Loan {
+                kind: crate::ssa::model::LoanKind::Shared,
+                target: ty,
+            }),
+            _ => return Err(error(LoweringErrorKind::InvalidModel, inputs.span)),
+        };
+        builder.body.parameters.push(slot);
+        builder.receiver = Some(slot);
     }
     for (symbol, entity) in inputs.parameters.iter().zip(entities) {
         let ty = builder.symbol_ssa_type(*symbol, inputs.span)?;

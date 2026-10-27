@@ -234,9 +234,10 @@ fn comma_when_real_facts_and_ssa_preserve_common_owner_and_clean_first_match() {
     else {
         panic!("the first condition branches before evaluating probe")
     };
+    // Each alternative's test branches at its own condition (SPEC-0356 refinement layer).
     assert_eq!(
         entry_block.terminator.as_ref().unwrap().origin,
-        Origin::Source(match_span)
+        Origin::Source(expression(&source, "flag").1)
     );
     let matched_node = forwarded(function, first_match, node);
     let matched_common = forwarded(function, first_match, common);
@@ -295,7 +296,7 @@ fn comma_when_real_facts_and_ssa_preserve_common_owner_and_clean_first_match() {
             .as_ref()
             .unwrap()
             .origin,
-        Origin::Source(match_span)
+        Origin::Source(expression(&source, "probe(node)").1)
     );
 
     let first_to_body = branch(function, first_match.target);
