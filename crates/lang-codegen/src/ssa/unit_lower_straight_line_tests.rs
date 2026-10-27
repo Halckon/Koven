@@ -36,6 +36,17 @@ pub(super) fn assert_original_straight_line_roots_through_strict_memory_document
     let mut counts = Vec::new();
     for (name, expected) in [("compute", 2), ("observe", 0)] {
         let declaration = unit.declaration(name, SymbolKind::Function);
+        let index = unit.names().names().index();
+        let declared = &index.declarations()[declaration.index()];
+        assert_eq!(declared.id(), declaration);
+        assert_eq!(declared.name(), name);
+        let package = index.packages()[declared.package().index()]
+            .name()
+            .expect("original memory document has a valid default package");
+        assert!(package.segments().is_empty());
+        // Unit declaration roots use koven.<name>.d<declaration index>; these roots
+        // have no package, generic arguments, static Self, or callable specialization.
+        let expected_name = format!("koven.{}.d{}", declared.name(), declaration.index());
         let span = unit.declaration_span(declaration);
         let origin = Origin::Source(span);
         let (program, entry) = unit
@@ -45,6 +56,7 @@ pub(super) fn assert_original_straight_line_roots_through_strict_memory_document
         let module = program.module(entry.module()).expect("entry module");
         let function = module.function(entry).expect("selected source function");
         assert_eq!(function.origin, origin);
+        assert_eq!(function.name, expected_name);
         assert_eq!(
             module
                 .functions
@@ -89,6 +101,12 @@ pub(super) fn assert_original_straight_line_roots_through_strict_memory_document
             assert_eq!(returns(function), [Vec::<ValueId>::new()]);
         }
         let ssa = render_program(&program);
+        // Restore the original named-function renderer oracle per selected root,
+        // not a claim of whole-file Program equivalence across lowering routes.
+        assert_eq!(
+            ssa.matches(&format!("  func {expected_name:?}(")).count(),
+            1
+        );
         assert_eq!(ssa.matches("checked.add").count(), expected);
         assert_eq!(ssa.matches("abort @source").count(), expected);
         let llvm = render_verified_program(&program).expect("original Unit root LLVM verifies");
