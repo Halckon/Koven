@@ -5,7 +5,10 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 
-use super::{collect_shape_boundaries, collect_sources, holder, verify_program};
+use super::{
+    collect_memory_entry_observations, collect_shape_boundaries, collect_sources, holder,
+    verify_program,
+};
 
 #[path = "borrowed_proof_contract.rs"]
 mod borrowed_proof_contract;
@@ -60,7 +63,16 @@ pub(in crate::ssa) fn while_inside_borrowed_for_sources() -> [String; 2] {
 
 #[test]
 fn borrowed_for_preserves_the_outer_nullable_while_proof() {
+    let sources = borrowed_for_inside_while_sources();
+    let memory = collect_memory_entry_observations(&sources);
     observe_borrowed_sources("for-inside-while", &borrowed_for_inside_while_sources());
+    assert_eq!(memory.len(), 2);
+    for (case, result) in memory.into_iter().enumerate() {
+        let source = result.expect("original-layout Unit borrowed proof reaches SSA and LLVM");
+        let spans = source_spans(&sources[case], false);
+        borrowed_proof_contract::assert_borrowed_proof(&source.program, &spans, true);
+        println!("SHAPE4 MEMORY borrowed case={case} oracle=ok");
+    }
 }
 
 #[test]

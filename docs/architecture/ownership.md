@@ -10,7 +10,7 @@
 公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
 清理顺序不变。独立 `check_compilation_unit_constant_ownership` 消费 `ConstEnabledTypedUnit`，
 返回 `CompilationUnitConstantOwnership`；其 `validate` 仅在完整物化与短路事实存在时产生
-`ConstEnabledOwnedUnit`。`is_compatible_with` 核对 typed 分析的 Arc 身份，等值重新分析不兼容。
+`ConstEnabledOwnedUnit`。`is_compatible_with` 核对 typed 分析的 Arc 身份，等值重新分析不兼容。 [0357](../specs/active/0357-string-when-ownership-facts.md)新增 String when literal 首核的比较后清理事实，其他形状deferred；codegen尚未消费，仍明确拒绝。
 
 私有 driver 已消费 unit typed constant use，跳过常量 initializer 与读取路径的 namespace/
 declaration flow；String 二元操作数按每次读取的 temporary 生成析构事实。此路径的 recovery

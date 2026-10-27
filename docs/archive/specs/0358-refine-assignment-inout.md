@@ -1,16 +1,16 @@
-# SPEC-0357: E3 赋值与 inout 家族迁入所有权细化层
+# SPEC-0358: E3 赋值与 inout 家族迁入所有权细化层
 
 > **性质**：实施合同 · **状态**：done · **读取时机**：评审或实施路线图 E3/N01 的赋值、字段替换与 `Inout` lowering 时 · **唯一真源**：本片目标、范围与验收；语义以 Guide 为准，长期决定以 ADR-0016/0032 为准
 
 | 字段 | 值 |
 |---|---|
 | 状态 | done |
-| Goal ID | `KOV-P4-0357` |
+| Goal ID | `KOV-P4-0358` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.46 参数体内能力](../../guide/10-ownership-borrowing-drop.md#value--borrow--inout-参数体内能力)、[mutable place 与冲突规则](../../guide/10-ownership-borrowing-drop.md)、[成员 receiver mode](../../guide/08-class-family-members.md) |
 | 批准依据 | 2026-10-27 用户排定 E3 后续顺序：SPEC-0356 步 3 之后为“赋值 / inout（N01）” |
-| 基线 | `feature/spec-0356-when-subject` `9cc9fd8a`（SPEC-0356 已归档） |
-| 分支 | `feature/spec-0357-refine-assignment-inout` |
+| 基线 | `feature/spec-0356-when-subject` `9cc9fd8a`（SPEC-0356 已归档）；起草时编号 0357，与 main 上的 [SPEC-0357](../../specs/active/0357-string-when-ownership-facts.md) 冲突后改为 0358 |
+| 分支 | `feature/spec-0358-refine-assignment-inout` |
 | 前置 | [SPEC-0356](0356-refine-when-family.md)（细化层 receiver 与 enum）、[ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |

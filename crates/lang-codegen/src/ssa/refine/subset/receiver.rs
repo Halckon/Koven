@@ -1,4 +1,4 @@
-//! Subset rules for class owners and member-call receivers (SPEC-0357 step 3). They mirror
+//! Subset rules for class owners and member-call receivers (SPEC-0358 step 3). They mirror
 //! `build/place.rs` and `build/receiver.rs`.
 use lang_frontend::{
     ast::ExpressionId,

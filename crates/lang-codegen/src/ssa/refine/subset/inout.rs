@@ -1,4 +1,4 @@
-//! Subset rules for `Inout` (SPEC-0357): scalar `Inout` parameters read and replaced in
+//! Subset rules for `Inout` (SPEC-0358): scalar `Inout` parameters read and replaced in
 //! the callee, and `&local` arguments at the call site. They mirror `build/inout.rs`.
 use lang_frontend::{
     ast::ExpressionId, name_resolution::UnitSymbolId, ownership_checking::LoanKind,

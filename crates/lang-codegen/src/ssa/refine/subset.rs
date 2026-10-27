@@ -84,7 +84,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
             })
         && (checker.unit(inputs.return_type) || checker.storage_type(inputs.return_type))
         // Receivers: Copyable enums by value or shared loan (SPEC-0356), plain classes by
-        // shared or exclusive loan (SPEC-0357).
+        // shared or exclusive loan (SPEC-0358).
         && inputs.receiver.is_none_or(|receiver| match receiver.mode {
             ParameterMode::Value => checker.enum_type(receiver.ty),
             ParameterMode::Borrow => checker.enum_type(receiver.ty) || checker.class(receiver.ty),
@@ -837,7 +837,10 @@ impl Checker<'_, '_> {
                     self.replacements.contains(&assignment)
                         && matches!(fact.target(), UnitDropTarget::ReplacedField { .. })
                 }
-                UnitDropPoint::LambdaEntry(_) | UnitDropPoint::AfterReplacement(_) => false,
+                UnitDropPoint::WhenComparisonCompleted { .. }
+                | UnitDropPoint::WhenAlternativeNoMatch { .. }
+                | UnitDropPoint::LambdaEntry(_)
+                | UnitDropPoint::AfterReplacement(_) => false,
                 // A jump out of a call argument abandons the earlier arguments' temporaries
                 // (and their loans) while the normal path still drops them at the call.
                 UnitDropPoint::ControlTransfer(_) => {

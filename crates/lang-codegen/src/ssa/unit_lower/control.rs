@@ -231,6 +231,14 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let control = UnitExpressionId::new(self.source_unit, expression);
+        // SPEC-0357 publishes comparison-completed facts; this consumer cannot place them yet.
+        if self.owned.drops().iter().any(|fact| {
+            matches!(fact.point(),
+            UnitDropPoint::WhenComparisonCompleted { control: owner, .. }
+            | UnitDropPoint::WhenAlternativeNoMatch { control: owner, .. } if owner == control)
+        }) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if self.typed.nullable_when(control).is_some() {
             return self.lower_nullable_when(control, span);
         }

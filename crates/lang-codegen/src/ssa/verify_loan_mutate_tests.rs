@@ -1,4 +1,4 @@
-//! SPEC-0357 `LoanMutate`: replacing the Copyable target of an `Inout` loan parameter.
+//! SPEC-0358 `LoanMutate`: replacing the Copyable target of an `Inout` loan parameter.
 use lang_frontend::source::SourceMap;
 
 use super::{

@@ -1,4 +1,4 @@
-//! Loans of class owners for field access and receivers (SPEC-0357 step 3): a local owner
+//! Loans of class owners for field access and receivers (SPEC-0358 step 3): a local owner
 //! is lent for the access only; a Borrow/Inout parameter or the current receiver already
 //! arrives as a loan of the right kind.
 use lang_frontend::{

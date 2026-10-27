@@ -258,7 +258,7 @@ fn lower_unit_impl(
                     kind: LoanKind::Shared,
                     target: ty,
                 },
-                // Only the refinement layer lowers Inout parameters (SPEC-0357); a body left on
+                // Only the refinement layer lowers Inout parameters (SPEC-0358); a body left on
                 // the per-family path is rejected below.
                 ParameterMode::Inout => EntityType::Loan {
                     kind: LoanKind::Exclusive,
@@ -530,7 +530,7 @@ fn lower_unit_impl(
                 plan.instance.span(),
             ));
         }
-        // Inout parameters are lowered only by the refinement layer (SPEC-0357).
+        // Inout parameters are lowered only by the refinement layer (SPEC-0358).
         if let Some(parameter) = plan.inout_parameter {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,

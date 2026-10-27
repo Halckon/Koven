@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：main c64b9d8a（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 细化层 when 首片）· Guide v0.46 · 更新：2026-10-26 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
+基线：main 8b656340（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 + PR #181/#182 强 oracle 审计与章节映射 + PR #183 shape4 Stage A）· Guide v0.46 · 更新：2026-10-27 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
 
 ## 总览
 
@@ -89,7 +89,7 @@
 | ✅ 已交付 | B09 | deinit 双轨析构：body→字段逆序、控制退出与唯一回收 | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | [0245](../archive/specs/0245-resource-deinit.md) [0273](../archive/specs/0273-control-body-resource-cleanup.md) [resource-deinit](../architecture/resource-deinit.md) |
 | ✅ 已交付 | B10 | receiver 两阶段借用 | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | [0243](../archive/specs/0243-receiver-two-phase-borrows.md) [receiver-borrows](../architecture/receiver-borrows.md) |
 | ✅ 已交付 | B13 | M2B 普通借用返回：borrow T from param、多参数、混合 Value、同步 Borrow 实参、value class 字段/只读方法 | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | [0305](../archive/specs/0305-multi-parameter-borrow-result.md) [0306](../archive/specs/0306-mixed-value-borrow-result.md) [0307](../archive/specs/0307-synchronous-borrow-result-arguments.md) [0309](../archive/specs/0309-borrow-value-class-fields.md) [0316](../archive/specs/0316-single-readonly-value-methods.md) |
-| ◐ 部分 | N01 | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0325](../archive/specs/0325-simple-variable-assignment-types.md) [0357](../archive/specs/0357-refine-assignment-inout.md) |
+| ◐ 部分 | N01 | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0325](../archive/specs/0325-simple-variable-assignment-types.md) [0358](../archive/specs/0358-refine-assignment-inout.md) |
 | ☐ 未开始 | N09 | borrow T from this（泛型类 receiver 来源） | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | — |
 | ☐ 未开始 | L11 | 泛型体内未约束 T 的析构轨道（按资源轨道词法作用域析构） | P3 语言增量 | v1 必做 | 需新增 | 2,3 | — |
 | ☐ 未开始 | S7 | 只读 borrow var 游标（链表/树的迭代遍历） | P3 语言增量 | v1 建议 | 需新增 | 2,3 | — |
@@ -152,7 +152,7 @@
 | ✅ 已交付 | B12 | M1A 多文件程序贯通：跨文件字段可变性、直接字段 Borrow、unit for | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4,6 | [0263](../archive/specs/0263-unit-field-mutability.md) [0264](../archive/specs/0264-unit-direct-field-borrow.md) [0265](../archive/specs/0265-unit-iteration-facts.md) [0268](../archive/specs/0268-unit-iteration-native.md) |
 | ✅ 已交付 | E1 | 前端硬门禁：Deferred/Error 不进入所有权与 codegen；未知成员报诊断；内部错误结构化；L0165 用户措辞 | P0 止血 | v1 必做 | — | 2 | [0319](../archive/specs/0319-final-type-admission-diagnostics.md) [0323](../archive/specs/0323-final-admission-static-recovery.md) [0324](../archive/specs/0324-final-admission-user-messages.md) |
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | P1 结构 | v1 必做 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) |
-| ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 结构 | v1 必做 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) [0356](../archive/specs/0356-refine-when-family.md) [0357](../archive/specs/0357-refine-assignment-inout.md) |
+| ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 结构 | v1 必做 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) [0356](../archive/specs/0356-refine-when-family.md) [0358](../archive/specs/0358-refine-assignment-inout.md) |
 | ⏸ 延后 | X12 | 协程/async 与自举 | X v1 之外 | v3+ | 需新增 | — | — |
 
 ## 工具链

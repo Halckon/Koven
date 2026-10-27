@@ -507,6 +507,14 @@ impl Builder<'_, '_> {
                 control: expression,
                 ..
             }
+            | UnitDropPoint::WhenComparisonCompleted {
+                control: expression,
+                ..
+            }
+            | UnitDropPoint::WhenAlternativeNoMatch {
+                control: expression,
+                ..
+            }
             | UnitDropPoint::WhenAlternativeMatch {
                 control: expression,
                 ..

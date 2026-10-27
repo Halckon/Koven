@@ -519,4 +519,4 @@
 - [SPEC-0349](0349-builtin-result-and-check.md)：`koven/core/result.ko` 经宿主授权成为内建环境 `Result`/`Ok`/`Err`，用户顶层同名声明报 L0150；无实参 `is Case` 从 subject 推断实参；新增 `kovenc check` 与 `--help`，单文件诊断退出码改为 1。
 - [SPEC-0350](0350-ownership-refinement-nullable-pilot.md)：ADR-0032 所有权细化层与 ADR-0033 inline nullable 首片；nullable 家族 7 个 probe 在单文件与 project 两种模式通过，子集外函数仍走按家族路径。
 - [SPEC-0356](0356-refine-when-family.md)：E3 `when` 家族迁入细化层（无 subject、标量 subject 等值与整数 Range、Copyable enum 的 `is`/`!is` 与 enum 方法内 `when (this)`）；p08、v16、v19、p50 两模式通过，p41（String subject）待 frontend 事实。
-- [SPEC-0357](0357-refine-assignment-inout.md)：E3 赋值与 `Inout` 迁入细化层（新 SSA 操作 `LoanMutate`、字段替换、`Inout` 标量与 class 参数、receiver 调用）；p12b、p12c、q09 两模式通过，p40 随泛型家族。
+- [SPEC-0358](0358-refine-assignment-inout.md)：E3 赋值与 `Inout` 迁入细化层（新 SSA 操作 `LoanMutate`、字段替换、`Inout` 标量与 class 参数、receiver 调用）；p12b、p12c、q09 两模式通过，p40 随泛型家族。

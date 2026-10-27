@@ -18,6 +18,7 @@ type LiveSet = BTreeSet<UnitSymbolId>;
 
 pub(super) struct Liveness {
     pub(super) expression_after: Vec<LiveSet>,
+    pub(super) when_entry_live_in: BTreeMap<(usize, usize), LiveSet>,
     pub(super) statement_after: Vec<LiveSet>,
     pub(super) skipped_functions: BTreeSet<usize>,
     pub(super) function_live_in: BTreeMap<usize, LiveSet>,
@@ -28,6 +29,7 @@ pub(super) struct Liveness {
 struct Builder<'a, 'checker> {
     checker: &'a Checker<'checker>,
     expression_after: Vec<LiveSet>,
+    when_entry_live_in: BTreeMap<(usize, usize), LiveSet>,
     statement_after: Vec<LiveSet>,
     loop_stack: Vec<(LiveSet, LiveSet)>,
     skipped_functions: BTreeSet<usize>,
@@ -43,6 +45,7 @@ pub(super) fn build(
     let mut builder = Builder {
         checker,
         expression_after: vec![LiveSet::new(); checker.parsed.ast().expressions().len()],
+        when_entry_live_in: BTreeMap::new(),
         statement_after: vec![LiveSet::new(); checker.parsed.ast().statements().len()],
         loop_stack: Vec::new(),
         skipped_functions: BTreeSet::new(),
@@ -66,6 +69,7 @@ pub(super) fn build(
     }
     Ok(Liveness {
         expression_after: builder.expression_after,
+        when_entry_live_in: builder.when_entry_live_in,
         statement_after: builder.statement_after,
         skipped_functions: builder.skipped_functions,
         function_live_in: builder.function_live_in,
@@ -417,8 +421,41 @@ impl Builder<'_, '_> {
                 subject, entries, ..
             } => {
                 let mut live = live_after.clone();
-                for entry in &entries {
-                    live.extend(self.statement(entry.body, live_after.clone())?);
+                for (index, entry) in entries.iter().enumerate() {
+                    let incoming = self.statement(entry.body, live_after.clone())?;
+                    live.extend(incoming.iter().copied());
+                    self.when_entry_live_in
+                        .insert((id.index(), index), incoming);
+                }
+                // An implicit String comparison reads the subject after each candidate.
+                if let Some(subject) = subject
+                    && self
+                        .checker
+                        .typed
+                        .expression_type(self.checker.unit_expression(subject))
+                        .and_then(|ty| self.checker.typed.types().get(ty))
+                        == Some(&crate::type_checking::UnitTypeKind::Builtin(
+                            crate::type_checking::BuiltinType::String,
+                        ))
+                {
+                    let mut subject = subject;
+                    while let Expression::Group { expression } = self
+                        .checker
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(subject)?
+                        .payload()
+                    {
+                        subject = *expression;
+                    }
+                    let node = self.checker.parsed.ast().expressions().get(subject)?;
+                    if matches!(node.payload(), Expression::Name)
+                        && let Some(symbol) = self.checker.reference_symbol(node.span())
+                        && self.checker.is_move_only_variable(symbol)
+                    {
+                        live.insert(symbol);
+                    }
                 }
                 for entry in entries.into_iter().rev() {
                     for condition in entry.conditions.into_iter().rev() {

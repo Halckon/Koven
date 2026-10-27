@@ -362,7 +362,11 @@ class DocsChecker:
         base_path = corpus / "baseline-aef3f4f8.tsv"
         if not exp_path.is_file():
             return
-        from conformance_gate import load_expectations, parse_tsv_matrix
+        from conformance_gate import (
+            load_expectations,
+            parse_tsv_matrix,
+            render_oracle_audit_markdown,
+        )
 
         try:
             data = load_expectations(exp_path, corpus_root=corpus)
@@ -371,6 +375,14 @@ class DocsChecker:
                     base_path.read_text(encoding="utf-8"),
                     expected_names=set(data["probes"].keys()),
                 )
+            audit_md_path = corpus / "ORACLE_AUDIT.md"
+            if audit_md_path.is_file():
+                expected_md = render_oracle_audit_markdown(data)
+                actual_md = audit_md_path.read_text(encoding="utf-8")
+                if actual_md != expected_md:
+                    self.error(
+                        "conformance/ORACLE_AUDIT.md is out of sync with expectations.json (run `python3 scripts/conformance_gate.py --init-expectations`)"
+                    )
         except Exception as exc:
             self.error(f"conformance/expectations.json: {exc}")
 

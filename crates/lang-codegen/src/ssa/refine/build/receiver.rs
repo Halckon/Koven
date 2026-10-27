@@ -1,4 +1,4 @@
-//! Member-call receivers in the refined CFG (SPEC-0357 step 3). A Borrow receiver is lent
+//! Member-call receivers in the refined CFG (SPEC-0358 step 3). A Borrow receiver is lent
 //! before the arguments are evaluated; a Copyable Value receiver is copied; an Inout
 //! receiver's exclusive loan is reserved during the arguments and activates at the call.
 use lang_frontend::{

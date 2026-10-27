@@ -1,4 +1,4 @@
-//! Field replacement in the refined CFG (SPEC-0357): the RHS is evaluated first, then the
+//! Field replacement in the refined CFG (SPEC-0358): the RHS is evaluated first, then the
 //! field is replaced under an exclusive loan of the owner; the replacement drops
 //! the old MoveOnly value, so the published `BeforeReplacement` drop is consumed by it.
 use lang_frontend::{ast::ExpressionId, ownership_checking::UnitDropPoint, source::Span};

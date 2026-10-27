@@ -1,4 +1,4 @@
-//! Subset rules for field replacement (SPEC-0357): `owner.f = v` on a plain class owner held
+//! Subset rules for field replacement (SPEC-0358): `owner.f = v` on a plain class owner held
 //! by a known local, an Inout parameter or the Inout receiver. They mirror `build/field.rs`.
 use lang_frontend::{
     ast::ExpressionId,

@@ -1,4 +1,4 @@
-//! `Inout` in the refined CFG (SPEC-0357): `&local` arguments lend the binding's root place
+//! `Inout` in the refined CFG (SPEC-0358): `&local` arguments lend the binding's root place
 //! exclusively and read the replaced value back after the call; an `Inout` parameter's
 //! target is replaced through the caller's loan.
 use lang_frontend::{
