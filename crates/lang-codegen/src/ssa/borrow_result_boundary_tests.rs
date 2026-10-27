@@ -33,6 +33,47 @@ fn non_source_inout_borrow_return_single_lowering_remains_unsupported() {
 }
 
 #[test]
+fn non_source_inout_borrow_return_memory_document_lowering_remains_unsupported() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let analysis = UnitSource::analyze(
+        "borrow_result.ko",
+        "fun view(source: Int, inout other: Int): borrow Int from source = source\nfun entry() {}",
+    )
+    .unwrap();
+    analysis.assert_frontend_clean();
+    assert!(analysis.ownership().diagnostics().is_empty());
+    assert_eq!(analysis.ownership().borrow_return_origins().len(), 1);
+    let marker = analysis.ownership().borrow_return_origins()[0].declaration_span();
+    let view = analysis.declaration("view", SymbolKind::Function);
+    assert_eq!(
+        marker.source_id(),
+        analysis.declaration_span(view).source_id()
+    );
+    let entry = analysis.declaration("entry", SymbolKind::Function);
+    assert_eq!(
+        analysis
+            .sources()
+            .slice(analysis.declaration_span(entry))
+            .unwrap(),
+        "fun entry() {}"
+    );
+    // The unchanged single source still contains an uncalled view. Unit's whole-source
+    // ABI preflight must reject it before entry reachability can discard the declaration.
+    let error = analysis
+        .lower_entry(entry)
+        .err()
+        .expect("ordinary borrow ABI remains unsupported");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(marker));
+    assert_eq!(
+        analysis.sources().slice(error.span.unwrap()).unwrap(),
+        "borrow"
+    );
+}
+
+#[test]
 fn non_source_inout_borrow_return_unit_lowering_remains_unsupported() {
     use super::{
         unit_lower::lower_scalar_unit_with_entry,
