@@ -23,16 +23,34 @@
 
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
-| 程序 | 归属章节 | 当前状态 | 期望输出文件 | 允许的未实现记号 |
-|---|---|---|---|---|
-| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | [programs/config_parse/expected.txt](programs/config_parse/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | [programs/expr_eval/expected.txt](programs/expr_eval/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | [programs/linked_stack/expected.txt](programs/linked_stack/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 允许的未实现记号 |
+|---|---|---|---|---|---|
+| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `N02`, `N08`, `L1`, `L2` | [programs/config_parse/expected.txt](programs/config_parse/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `N02`, `N05`, `N07`, `N08`, `L7` | [programs/expr_eval/expected.txt](programs/expr_eval/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `N01`, `N03`, `N07`, `L7` | [programs/linked_stack/expected.txt](programs/linked_stack/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `N01`, `N02` | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `N01`, `N08`, `L3b` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
 
-## 3. 154 个 Probe 逐项强 Oracle 与语义推导账本
+## 3. 23 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
+
+| 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |
+|---|---|---|---:|---|
+| `L1` | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable | `todo` | 2 | `p02_interp`, `p35_value_eq` |
+| `L2` | 字符串插值降级："${x}" 要求 x : Display | `todo` | 1 | `p02_interp` |
+| `L7` | MoveOnly enum 的消费式匹配：owned subject 分支获得 payload owned 绑定 | `todo` | 2 | `p21_box_enum`, `q08_enum_string_payload` |
+| `N01` | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | `partial` | 1 | `p40_nested_generic_class` |
+| `N02` | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | `partial` | 1 | `q08_enum_string_payload` |
+| `N03` | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | `partial` | 2 | `p15_elvis`, `p25b_linked_recursive` |
+| `N04` | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | `partial` | 6 | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p27_thread`, `q02_lambda_arg_inline`, `q03_fn_ref` |
+| `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 2 | `p05_double`, `p06_char` |
+| `N06` | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | `partial` | 3 | `p11_interface_bound`, `p28_companion`, `t03_vmethod_generic` |
+| `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `todo` | 2 | `p21_box_enum`, `p22_rc` |
+| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 2 | `p16_result_q`, `p16b_result_string` |
+| `S6` | Map 带初值构造 mapOf("a" to 1) | `todo` | 2 | `s02_pair_builtin`, `s03_to_pair` |
+| `T1` | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权 | `todo` | 1 | `p27_thread` |
+
+## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本
 
 | Probe | Guide 章节 | 类型 (`kind`) | 溯源 (`oracle_origin`) | 期望结果 / 诊断码 | 语义推导 / 规则说明 (`oracle_derivation` / `note`) |
 |---|---|---|---|---|---|

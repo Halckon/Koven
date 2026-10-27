@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：main 8b656340（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 + PR #181/#182 强 oracle 审计与章节映射 + PR #183 shape4 Stage A）· Guide v0.46 · 更新：2026-10-27 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
+基线：main 5b7f3e97（PR #185 强 Oracle 审计账本与 13 章覆盖 + PR #186 SPEC-0356 when 家族 + PR #187 SPEC-0358 赋值与 inout + V2 Slice 6 未实现 Probe 路线图阻塞项对账）· Guide v0.46 · 更新：2026-10-27 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
 
 ## 总览
 
