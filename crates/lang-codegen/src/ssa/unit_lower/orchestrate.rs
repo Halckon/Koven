@@ -197,6 +197,7 @@ fn lower_unit_impl(
             }
         };
         let mut parameter_symbols = Vec::with_capacity(callable.parameters().len());
+        let mut inout_parameter = None;
         let mut parameter_types =
             Vec::with_capacity(callable.parameters().len() + usize::from(receiver.is_some()));
         if let Some(receiver) = receiver {
@@ -248,6 +249,9 @@ fn lower_unit_impl(
                 types.intern(module, typed, concrete, parameter.span())?
             };
             parameter_symbols.push(symbol);
+            if parameter.mode() == ParameterMode::Inout {
+                inout_parameter.get_or_insert(parameter.span());
+            }
             parameter_types.push(match parameter.mode() {
                 ParameterMode::Value => EntityType::Value(ty),
                 ParameterMode::Borrow => EntityType::Loan {
@@ -348,6 +352,7 @@ fn lower_unit_impl(
             body,
             receiver,
             parameter_symbols,
+            inout_parameter,
             return_type,
         });
     }
@@ -428,9 +433,7 @@ fn lower_unit_impl(
                 .parameters
                 .clone();
             let receiver = plan.receiver.as_ref();
-            (receiver.is_none_or(|receiver| {
-                matches!(receiver.mode, ParameterMode::Value | ParameterMode::Borrow)
-            }) && plan.instance.substitutions().is_empty()
+            (plan.instance.substitutions().is_empty()
                 && plan.instance.key().static_self().is_none()
                 && function.borrow_return.is_none()
                 && function.carrier_return.is_none()
@@ -528,22 +531,10 @@ fn lower_unit_impl(
             ));
         }
         // Inout parameters are lowered only by the refinement layer (SPEC-0357).
-        if parameters
-            .iter()
-            .skip(usize::from(plan.receiver.is_some()))
-            .any(|entity| {
-                matches!(
-                    function.entity(*entity).map(|data| data.ty),
-                    Some(EntityType::Loan {
-                        kind: LoanKind::Exclusive,
-                        ..
-                    })
-                )
-            })
-        {
+        if let Some(parameter) = plan.inout_parameter {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,
-                plan.instance.span(),
+                parameter,
             ));
         }
         let (current_receiver, parameters) = match (plan.receiver, parameters.split_first()) {

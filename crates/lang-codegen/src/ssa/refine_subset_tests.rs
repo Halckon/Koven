@@ -56,7 +56,10 @@ fn nullable_functions_inside_the_subset_are_routed() {
         "enum class Shape { Circle(r: Int), Point }\n\
          fun f(): Boolean { val x = Shape.Circle(1); return x is Shape.Circle }",
         "fun f(inout x: Int): Unit { x = x + 1 }",
+        "fun g(inout x: Int): Unit { x = 1 }\nfun f(inout x: Int): Unit { g(&x) }",
         "class Counter(var count: Int)\nfun f(): Int { var c = Counter(0); c.count = 5; return c.count }",
+        "class Counter(var n: Int) { inout fun inc(): Unit { n = n + 1 } }\n\
+         fun f(inout c: Counter): Unit { c.inc() }",
         "fun g(inout x: Int): Unit { x = 1 }\nfun f(): Int { var n = 0; g(&n); return n }",
     ] {
         let (result, routed) = route(source);
@@ -105,7 +108,7 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "fun f(own s: String?): Boolean { val present = s != null; return present }",
         ),
         (
-            "receiver call",
+            "receiver call on a smart-cast nullable",
             "class Node(val v: Int) { fun get(): Int = v }\n\
              fun f(own n: Node?): Int { if (n != null) { return n.get() }; return 0 }",
         ),
@@ -119,12 +122,12 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
              fun f(own c: Cell<Int>?): Int { if (c != null) { return 1 }; return 0 }",
         ),
         (
-            "Inout reborrow of an Inout parameter",
-            "fun g(inout x: Int): Unit { x = 1 }\nfun f(inout x: Int): Unit { g(&x) }",
-        ),
-        (
             "MoveOnly Inout parameter",
             "fun f(inout s: String): Unit { s = \"a\" }",
+        ),
+        (
+            "whole replacement of a MoveOnly Inout target",
+            "class Counter(var n: Int)\nfun f(inout c: Counter): Unit { c = Counter(1) }",
         ),
         (
             "MoveOnly enum subject",

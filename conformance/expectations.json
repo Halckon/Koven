@@ -132,26 +132,20 @@
       "oracle_origin": "single_println_literal"
     },
     "p12b_class_field_assign": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "field-assign\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0357: class field replacement in E3 refinement layer",
       "source_sha256": "345592840be8acb216d9d0bc40f4d7f02de70bba7c1a8447fbc5ff3d0bed87d5",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "target_stdout": "field-assign\n"
+      "oracle_origin": "v046_spec_contract"
     },
     "p12c_inout_param": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "inout-param\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0357: Inout scalar parameter replacement and caller read-back in E3 refinement layer",
       "source_sha256": "74ec6417a933cf0091595ed1e894f78aceab4f7177f2b66cf990874d2766d8f8",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "target_stdout": "inout-param\n"
+      "oracle_origin": "v046_spec_contract"
     },
     "p13_value_class_copy": {
       "kind": "run_ok",
@@ -579,15 +573,12 @@
       "oracle_origin": "baseline_unimplemented_audited"
     },
     "q09_inout_class_param": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "inout-class\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0357: Inout class parameter, Inout receiver call and field replacement in E3 refinement layer",
       "source_sha256": "29ec5eb1f9d0e9b268f4ce30b65ed5061fdb12524c02f6903768948fd2535ac3",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "target_stdout": "inout-class\n"
+      "oracle_origin": "v046_spec_contract"
     },
     "q10_var_reassign_string": {
       "kind": "run_ok",

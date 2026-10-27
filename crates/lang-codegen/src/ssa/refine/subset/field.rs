@@ -1,12 +1,12 @@
-//! Subset rules for field replacement (SPEC-0357 step 2): `local.f = v` on a plain class
-//! owner held by a known local. They mirror `build/field.rs`.
+//! Subset rules for field replacement (SPEC-0357): `owner.f = v` on a plain class owner held
+//! by a known local, an Inout parameter or the Inout receiver. They mirror `build/field.rs`.
 use lang_frontend::{
     ast::ExpressionId,
-    parser::{AssignmentOperator, Expression},
-    type_checking::{UnitAggregateProjectionKind, UnitAggregateProjectionReceiver},
+    parser::AssignmentOperator,
+    type_checking::{ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver},
 };
 
-use super::Checker;
+use super::{Checker, receiver::Owner};
 
 impl Checker<'_, '_> {
     /// Whether the assignment target is a field projection (not a binding).
@@ -17,8 +17,8 @@ impl Checker<'_, '_> {
             .is_some()
     }
 
-    /// `owner.f = v`: the owner is a known local plain class, `f` one of its scalar or
-    /// String fields; the RHS is in the subset.
+    /// `owner.f = v`: `f` is a scalar or String field of the owner's plain class; the RHS is
+    /// in the subset.
     pub(super) fn field_assignment(
         &mut self,
         assignment: ExpressionId,
@@ -34,48 +34,28 @@ impl Checker<'_, '_> {
         ) else {
             return false;
         };
-        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
-            return false;
-        };
         let field_type = projection.ty();
         if descriptor.target() != target_id
             || descriptor.value() != self.id(value)
             || descriptor.operator() != AssignmentOperator::Assign
             || descriptor.target_type() != field_type
             || projection.kind() != UnitAggregateProjectionKind::Field
-            || receiver.source_unit() != self.inputs.source_unit
             || !(self.scalar(field_type) || self.string(field_type))
         {
             return false;
         }
-        let Ok(node) = self
-            .inputs
-            .parsed
-            .ast()
-            .expressions()
-            .get(receiver.expression())
-        else {
-            return false;
+        let owner = match projection.receiver() {
+            UnitAggregateProjectionReceiver::Expression(receiver) => {
+                if receiver.source_unit() != self.inputs.source_unit {
+                    return false;
+                }
+                Owner::Expression(receiver.expression())
+            }
+            UnitAggregateProjectionReceiver::This(declaration) => Owner::This(declaration),
         };
-        let Expression::Name = node.payload() else {
-            return false;
-        };
-        let Some(symbol) = self.reference(receiver.expression()) else {
-            return false;
-        };
-        let owner_ok = self.known.contains(&symbol)
-            && self.parameter_mode(symbol).is_none()
-            && typed.non_null_use(receiver).is_none()
-            && typed.symbol_type(symbol).is_some_and(|owner| {
-                typed.expression_type(receiver) == Some(owner)
-                    && self.class(owner)
-                    && self.class_signature(owner).is_some_and(|nominal| {
-                        nominal
-                            .fields()
-                            .iter()
-                            .any(|field| field.symbol() == projection.field())
-                    })
-            });
+        let owner_ok = self
+            .owner_type(owner, ParameterMode::Inout)
+            .is_some_and(|owner| self.class_field(owner, projection.field()));
         if !owner_ok || !self.expression(value) {
             return false;
         }

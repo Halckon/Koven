@@ -109,6 +109,8 @@ struct FunctionPlan {
     body: FunctionPlanBody,
     receiver: Option<ReceiverPlan>,
     parameter_symbols: Vec<UnitSymbolId>,
+    /// The first Inout parameter's declaration; only the refinement layer lowers it.
+    inout_parameter: Option<Span>,
     return_type: UnitTypeId,
 }
 

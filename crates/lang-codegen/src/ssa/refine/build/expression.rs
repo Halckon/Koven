@@ -527,9 +527,10 @@ impl Builder<'_, '_> {
             .call(call)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
             .clone();
-        if descriptor.receiver().is_some() || descriptor.arguments().len() != arguments.len() {
+        if descriptor.arguments().len() != arguments.len() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let receiver = self.receiver_before_arguments(&descriptor, span)?;
         let mut lowered = Vec::with_capacity(arguments.len());
         let mut loans = Vec::new();
         let mut writebacks = Vec::new();
@@ -541,9 +542,11 @@ impl Builder<'_, '_> {
                 .value;
             if argument.mode() == ParameterMode::Inout {
                 let (loan, writeback) = self.inout_argument(value_expression)?;
-                loans.push(loan);
                 lowered.push(loan);
-                writebacks.push(writeback);
+                if let Some(writeback) = writeback {
+                    loans.push(loan);
+                    writebacks.push(writeback);
+                }
                 continue;
             }
             if argument.mode() == ParameterMode::Borrow
@@ -595,6 +598,7 @@ impl Builder<'_, '_> {
                 }
             }
         }
+        let mut receiver_end = None;
         let result = if descriptor.prints_line() {
             let [loan] = lowered.as_slice() else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
@@ -619,8 +623,17 @@ impl Builder<'_, '_> {
                 .get(resolved.key())
                 .copied()
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let (receiver, receiver_loan) = match receiver {
+                Some(receiver) => {
+                    let (operand, loan) = self.receiver_at_call(receiver, span)?;
+                    (Some(operand), loan)
+                }
+                None => (None, None),
+            };
+            receiver_end = receiver_loan;
             let op = ROp::DirectCall {
                 callee,
+                receiver,
                 arguments: lowered,
             };
             if self.is_unit(descriptor.return_type()) {
@@ -632,6 +645,9 @@ impl Builder<'_, '_> {
         };
         for loan in loans.into_iter().rev() {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
+        if let Some(loan) = receiver_end {
+            self.end_owner_loan(loan, span)?;
         }
         for writeback in writebacks {
             self.write_back(writeback)?;

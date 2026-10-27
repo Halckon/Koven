@@ -69,6 +69,8 @@ pub(super) enum ROp {
     },
     DirectCall {
         callee: FunctionId,
+        /// The hidden zeroth operand of a member call.
+        receiver: Option<Slot>,
         arguments: Vec<Slot>,
     },
     NullableWrap {
@@ -127,6 +129,15 @@ pub(super) enum ROp {
         loan: Slot,
         value: Slot,
     },
+    /// Narrows an active exclusive loan to a call-scoped shared loan.
+    SharedReborrow {
+        source: Slot,
+    },
+    /// Takes a MoveOnly owner back from its root place after its loans ended.
+    RootPlaceTake {
+        owner: Slot,
+        place: Slot,
+    },
     /// Replaces one payload field through an exclusive owner loan, dropping the old value.
     HeapFieldReplace {
         receiver: Slot,
@@ -157,7 +168,8 @@ impl ROp {
             | Self::TaggedDiscriminant { owner: slot }
             | Self::TaggedPayloadPlace { owner: slot, .. }
             | Self::FieldPlace { base: slot, .. }
-            | Self::ReadPlace { place: slot } => vec![*slot],
+            | Self::ReadPlace { place: slot }
+            | Self::SharedReborrow { source: slot } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::StringConcat { left, right }
@@ -170,12 +182,20 @@ impl ROp {
                 receiver: left,
                 value: right,
                 ..
+            }
+            | Self::RootPlaceTake {
+                owner: left,
+                place: right,
             } => {
                 vec![*left, *right]
             }
             Self::NullableTake { owner, proof } => vec![*owner, *proof],
-            Self::DirectCall { arguments, .. }
-            | Self::AggregateConstruct {
+            Self::DirectCall {
+                receiver,
+                arguments,
+                ..
+            } => receiver.iter().chain(arguments).copied().collect(),
+            Self::AggregateConstruct {
                 fields: arguments, ..
             } => arguments.clone(),
         }

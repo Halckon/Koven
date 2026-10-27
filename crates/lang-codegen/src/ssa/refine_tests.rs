@@ -518,3 +518,49 @@ fn field_replacement_drops_the_old_value_and_keeps_the_owner() {
     // The Counter and both concatenations are each freed exactly once.
     counted(source, 3, b"field-assign\n");
 }
+
+#[test]
+fn inout_class_parameters_and_receivers_mutate_the_callers_owner() {
+    let source = r#"class Counter(var n: Int) {
+        inout fun inc(): Unit { this.n = this.n + 1 }
+        inout fun add(own k: Int): Unit { n = n + k }
+        fun get(): Int = n
+    }
+    fun bump(inout c: Counter): Unit { c.inc(); c.add(10) }
+    fun main(): Unit {
+        var c = Counter(0)
+        bump(&c)
+        if (c.n == 11 && c.get() == 11) { println("inout-class") }
+        c.inc()
+        if (c.get() == 12) { println("receiver") }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("inout class lowers and verifies")
+    });
+    // `get` touches no migrated family and keeps the per-family path.
+    for function in ["koven.p.bump.d", "koven.p.main.d", ".inc.", ".add."] {
+        assert!(
+            routed.iter().any(|name| name.contains(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    // One Counter, freed once.
+    counted(source, 1, b"inout-class\nreceiver\n");
+}

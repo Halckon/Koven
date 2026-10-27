@@ -355,7 +355,11 @@ impl Builder<'_, '_> {
     }
 
     /// The receiver value when its type is `root`; a Borrow receiver is copied out.
-    fn this_value_of(&mut self, root: UnitTypeId, span: Span) -> Result<Slot, LoweringError> {
+    pub(super) fn this_value_of(
+        &mut self,
+        root: UnitTypeId,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
         if self.inputs.receiver.map(|receiver| receiver.ty) != Some(root) {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }

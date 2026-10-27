@@ -5,6 +5,8 @@ mod expression;
 mod field;
 mod heap;
 mod inout;
+mod place;
+mod receiver;
 mod tagged;
 mod when;
 

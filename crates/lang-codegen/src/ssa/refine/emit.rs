@@ -247,9 +247,13 @@ impl Emitter<'_> {
                 left: self.value(*left, span)?,
                 right: self.value(*right, span)?,
             },
-            ROp::DirectCall { callee, arguments } => Operation::DirectCall {
+            ROp::DirectCall {
+                callee,
+                receiver,
+                arguments,
+            } => Operation::DirectCall {
                 callee: *callee,
-                receiver: None,
+                receiver: receiver.map(|slot| self.get(slot, span)).transpose()?,
                 arguments: arguments
                     .iter()
                     .map(|slot| self.get(*slot, span))
@@ -303,6 +307,13 @@ impl Emitter<'_> {
             ROp::FieldPlace { base, field } => Operation::FieldPlace {
                 base: place(self.get(*base, span)?, span)?,
                 field: *field,
+            },
+            ROp::SharedReborrow { source } => Operation::SharedReborrow {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::RootPlaceTake { owner, place: slot } => Operation::RootPlaceTake {
+                owner: self.value(*owner, span)?,
+                place: place(self.get(*slot, span)?, span)?,
             },
             ROp::HeapFieldReplace {
                 receiver,

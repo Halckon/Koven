@@ -174,7 +174,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 当前 ABI 要点：
 
 - Borrow/Inout 以 pointer-like loan operand 传递，Value 按具体表示传递；instance receiver 位于显式
-  argument 之前。
+  argument 之前；`LoanMutate`（细化层 `Inout` 替换）向 exclusive loan 指针 store Copyable target。
 - ordinary class、Box、Rc 和 String 使用明确的 owner/runtime 表示；value class 和 enum 使用 concrete
   aggregate/tagged 表示。HeapOwner payload 已接受 tagged union；单文件 Box 延迟定义 payload，与 unit 路径一样打断非 nullable enum 递归。两入口的具体非泛型 Box enum 已验证构造/运输/递归释放：简单 cases 2 次、四层树与 inline root 共 45 次分配/释放，逐指针计数；不证明解引用、generic 或 nullable 递归。
 - drop glue 由 concrete type 递归生成；Rc retain/release、String allocation/free、container buffer、

@@ -14,9 +14,9 @@
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Phase 0 骨架 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | Phase 1 Parser | 2 | 0 | 0 | 2 | 0 | 0 | 4 |
-| Phase 2 名称/类型 | 24 | 6 | 2 | 26 | 0 | 0 | 58 |
-| Phase 3 所有权 | 18 | 5 | 2 | 12 | 0 | 0 | 37 |
-| Phase 4 SSA/native | 21 | 6 | 2 | 21 | 0 | 0 | 50 |
+| Phase 2 名称/类型 | 24 | 7 | 2 | 25 | 0 | 0 | 58 |
+| Phase 3 所有权 | 18 | 6 | 2 | 11 | 0 | 0 | 37 |
+| Phase 4 SSA/native | 21 | 7 | 2 | 20 | 0 | 0 | 50 |
 | Phase 5 标准库 | 2 | 0 | 0 | 9 | 0 | 0 | 11 |
 | Phase 6 工具 | 7 | 1 | 0 | 1 | 0 | 0 | 9 |
 
@@ -56,7 +56,7 @@
 | ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | P0 | 需新增 |  |  |  |  |  |  |  |
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | P1 | — |  |  | ● | ● | ● |  |  |
 | ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 | — |  |  |  | ● | ● |  |  |
-| ☐ 未开始 | N01 | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
+| ◐ 部分 | N01 | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ◐ 部分 | N02 | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ◐ 部分 | N03 | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ◐ 部分 | N04 | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | P2 | 已定义 |  |  | ● | ● | ● |  |  |

@@ -18,8 +18,8 @@ impl Checker<'_, '_> {
         self.inputs.modes.get(index).copied()
     }
 
-    /// `&local` for a scalar `Inout` parameter: a known local (not a parameter) whose
-    /// exclusive loan the ownership facts publish for this argument.
+    /// `&x` for an `Inout` parameter: a known scalar or plain-class local, or an `Inout`
+    /// parameter passed on, whose exclusive loan the ownership facts publish.
     pub(super) fn inout_argument(&mut self, call: ExpressionId, value: ExpressionId) -> bool {
         self.migrated = true;
         let Ok(node) = self.inputs.parsed.ast().expressions().get(value) else {
@@ -34,11 +34,14 @@ impl Checker<'_, '_> {
         let (call, value_id) = (self.id(call), self.id(value));
         let typed = self.inputs.typed;
         self.known.contains(&symbol)
-            && self.parameter_mode(symbol).is_none()
+            && matches!(
+                self.parameter_mode(symbol),
+                None | Some(ParameterMode::Inout)
+            )
             && typed.non_null_use(value_id).is_none()
-            && typed
-                .symbol_type(symbol)
-                .is_some_and(|ty| self.scalar(ty) && typed.expression_type(value_id) == Some(ty))
+            && typed.symbol_type(symbol).is_some_and(|ty| {
+                (self.scalar(ty) || self.class(ty)) && typed.expression_type(value_id) == Some(ty)
+            })
             && self.inputs.owned.loans().iter().any(|loan| {
                 loan.call() == call
                     && loan.argument() == value_id

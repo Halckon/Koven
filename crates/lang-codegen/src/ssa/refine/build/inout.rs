@@ -16,20 +16,25 @@ use crate::ssa::{
 pub(super) struct Writeback {
     symbol: UnitSymbolId,
     place: Slot,
+    move_only: bool,
     span: Span,
 }
 
 impl Builder<'_, '_> {
-    /// `&local`: an exclusive loan of the binding's root place, live until the call returns.
+    /// `&local`: an exclusive loan of the binding's root place, live until the call returns;
+    /// `&p` for an `Inout` parameter passes its loan on (a reborrow, nothing to write back).
     pub(super) fn inout_argument(
         &mut self,
         expression: ExpressionId,
-    ) -> Result<(Slot, Writeback), LoweringError> {
+    ) -> Result<(Slot, Option<Writeback>), LoweringError> {
         let (payload, span) = self.node(expression)?;
         let Expression::Name = payload else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
         let symbol = self.reference(span)?;
+        if let Some(loan) = self.inout_loan(symbol) {
+            return Ok((loan, None));
+        }
         let owner = *self
             .bindings
             .get(&symbol)
@@ -49,17 +54,20 @@ impl Builder<'_, '_> {
             },
             span,
         )?;
+        let move_only = self.move_only(self.expression_type(expression)?);
         Ok((
             loan,
-            Writeback {
+            Some(Writeback {
                 symbol,
                 place,
+                move_only,
                 span,
-            },
+            }),
         ))
     }
 
-    /// After the loan ended: the binding now names the value the callee left in its place.
+    /// After the loan ended: the binding now names the value the callee left in its place;
+    /// a MoveOnly owner is taken back from the place.
     pub(super) fn write_back(&mut self, writeback: Writeback) -> Result<(), LoweringError> {
         let binding = *self
             .bindings
@@ -68,13 +76,17 @@ impl Builder<'_, '_> {
         let EntityType::Place(target) = self.body.slots[writeback.place.0] else {
             return Err(error(LoweringErrorKind::InvalidModel, writeback.span));
         };
-        let value = self.value(
+        let op = if writeback.move_only {
+            ROp::RootPlaceTake {
+                owner: binding,
+                place: writeback.place,
+            }
+        } else {
             ROp::ReadPlace {
                 place: writeback.place,
-            },
-            EntityType::Value(target),
-            writeback.span,
-        )?;
+            }
+        };
+        let value = self.value(op, EntityType::Value(target), writeback.span)?;
         self.push(ROp::Alias { source: value }, vec![binding], writeback.span)?;
         self.narrowed.remove(&writeback.symbol);
         Ok(())

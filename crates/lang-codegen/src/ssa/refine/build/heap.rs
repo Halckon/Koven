@@ -4,10 +4,15 @@ use lang_frontend::{
     ownership_checking::{NonNullAssertionTransferKind, UnitDropPoint},
     parser::Expression,
     source::Span,
-    type_checking::{UnitAggregateProjectionReceiver, UnitConstructionTarget, UnitTypeKind},
+    type_checking::{
+        UnitAggregateProjectionReceiver, UnitConstructionTarget, UnitTypeId, UnitTypeKind,
+    },
 };
 
-use super::{Builder, Lowered};
+use super::{
+    Builder, Lowered,
+    place::{OwnerLoan, OwnerRef},
+};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind},
@@ -76,8 +81,9 @@ impl Builder<'_, '_> {
         )?))
     }
 
-    /// A Copyable field read through a shared loan: the receiver's proof view, or a loan
-    /// of the owned binding that ends right after the read.
+    /// A Copyable field read through a shared loan: the receiver's proof view, the loan a
+    /// parameter or the current receiver arrived as, or a loan of the owned binding that
+    /// ends right after the read.
     pub(super) fn projection(
         &mut self,
         expression: ExpressionId,
@@ -89,17 +95,7 @@ impl Builder<'_, '_> {
             .typed
             .aggregate_projection(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        if receiver.source_unit() != self.inputs.source_unit {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        }
-        let receiver = receiver.expression();
-        let owner_type = match self.inputs.typed.non_null_use(self.unit(receiver)) {
-            Some(fact) => fact.narrowed_type(),
-            None => self.expression_type(receiver)?,
-        };
+        let (owner, owner_type, receiver) = self.projection_owner(projection.receiver(), span)?;
         let field = self
             .types
             .field_indices
@@ -107,47 +103,61 @@ impl Builder<'_, '_> {
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let result_type = self.ssa_type(self.expression_type(expression)?, span)?;
-        let (loan, scoped) = if let Some(view) = self.narrowed_view(receiver)? {
-            (view, false)
-        } else {
-            let (payload, receiver_span) = self.node(receiver)?;
-            let Expression::Name = payload else {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            };
-            let symbol = self.reference(receiver_span)?;
-            let owner = *self
-                .bindings
-                .get(&symbol)
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, receiver_span))?;
-            let target = self.ssa_type(owner_type, span)?;
-            let place = self.value(ROp::RootPlace { owner }, EntityType::Place(target), span)?;
-            let loan = self.value(
-                ROp::BorrowBegin {
-                    place,
-                    kind: LoanKind::Shared,
-                },
-                EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target,
-                },
-                span,
-            )?;
-            (loan, true)
+        let view = match receiver {
+            Some(receiver) => self.narrowed_view(receiver)?,
+            None => None,
+        };
+        let loan = match view {
+            Some(view) => OwnerLoan {
+                loan: view,
+                scoped: false,
+            },
+            None => self.owner_loan(owner, LoanKind::Shared, span)?,
         };
         let result = self.value(
             ROp::HeapFieldRead {
-                receiver: loan,
+                receiver: loan.loan,
                 field,
             },
             EntityType::Value(result_type),
             span,
         )?;
-        if scoped {
-            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
-        }
+        self.end_owner_loan(loan, span)?;
         // The receiver is read in place; its own drop point follows the read.
-        self.drops(UnitDropPoint::AfterExpression(self.unit(receiver)))?;
+        if let Some(receiver) = receiver {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(receiver)))?;
+        }
         Ok(Lowered::Value(result))
+    }
+
+    /// The owner a class field projection goes through, its (narrowed) class type and the
+    /// explicit receiver expression, if any.
+    pub(super) fn projection_owner(
+        &self,
+        receiver: UnitAggregateProjectionReceiver,
+        span: Span,
+    ) -> Result<(OwnerRef, UnitTypeId, Option<ExpressionId>), LoweringError> {
+        match receiver {
+            UnitAggregateProjectionReceiver::Expression(receiver) => {
+                if receiver.source_unit() != self.inputs.source_unit {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                let receiver = receiver.expression();
+                let owner_type = match self.inputs.typed.non_null_use(self.unit(receiver)) {
+                    Some(fact) => fact.narrowed_type(),
+                    None => self.expression_type(receiver)?,
+                };
+                Ok((OwnerRef::Expression(receiver), owner_type, Some(receiver)))
+            }
+            UnitAggregateProjectionReceiver::This(declaration) => {
+                let receiver = self
+                    .inputs
+                    .receiver
+                    .filter(|receiver| receiver.owner == declaration)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                Ok((OwnerRef::This(declaration), receiver.ty, None))
+            }
+        }
     }
 
     /// `operand!!`: one evaluation, a null edge that aborts and a non-null edge that takes
