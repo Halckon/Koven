@@ -205,6 +205,51 @@ PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
     "linked_stack": "10-ownership-borrowing-drop.md",
 }
 
+# Explicit mapping from all 31 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
+UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
+    "p02_interp": ["L1", "L2"],
+    "p05_double": ["N05"],
+    "p06_char": ["N05"],
+    "p08_when_int": ["N02"],
+    "p11_interface_bound": ["N06"],
+    "p12b_class_field_assign": ["N01"],
+    "p12c_inout_param": ["N01"],
+    "p15_elvis": ["N03"],
+    "p16_result_q": ["N08"],
+    "p16b_result_string": ["N08"],
+    "p17_lambda": ["N04"],
+    "p17b_lambda_nocapture": ["N04"],
+    "p18_move_closure": ["N04"],
+    "p21_box_enum": ["N07", "L7"],
+    "p22_rc": ["N07"],
+    "p25b_linked_recursive": ["N03"],
+    "p27_thread": ["T1", "N04"],
+    "p28_companion": ["N06"],
+    "p35_value_eq": ["L1"],
+    "p40_nested_generic_class": ["N01"],
+    "p41_when_string": ["N02"],
+    "p50_enum_method": ["N02"],
+    "q02_lambda_arg_inline": ["N04"],
+    "q03_fn_ref": ["N04"],
+    "q08_enum_string_payload": ["N02", "L7"],
+    "q09_inout_class_param": ["N01"],
+    "s02_pair_builtin": ["S6"],
+    "s03_to_pair": ["S6"],
+    "t03_vmethod_generic": ["N06"],
+    "v16_when_in_range": ["N02"],
+    "v19_stmt_when_mixed": ["N02"],
+}
+
+# Explicit mapping from all 6 V1 acceptance programs to blocking item IDs in docs/roadmap/v1.json.
+PROGRAM_ROADMAP_BLOCKERS: dict[str, list[str]] = {
+    "config_parse": ["N02", "N08", "L1", "L2"],
+    "expr_eval": ["N02", "N05", "N07", "N08", "L7"],
+    "linked_stack": ["N01", "N03", "N07", "L7"],
+    "raii_state_machine": ["N01", "N02"],
+    "varint_codec": ["N01", "N08", "L3b"],
+    "word_count": ["N02", "N03"],
+}
+
 SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "e01_enum_when_bool_return": "isRed(Color.Red) matches branch Color.Red -> true; if-branch prints 'e1'",
     "e02_enum_when_stmt_println": "c = Color.Red matches statement when branch Color.Red -> println('e2')",
@@ -992,6 +1037,17 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"{section}.{name} with runtime_abort requires abort_message"
                     )
+            elif kind == "known_unimplemented":
+                if "roadmap_blockers" in spec:
+                    blockers = spec["roadmap_blockers"]
+                    if (
+                        not isinstance(blockers, list)
+                        or not blockers
+                        or not all(isinstance(b, str) and b.strip() for b in blockers)
+                    ):
+                        raise ValueError(
+                            f"{section}.{name} with known_unimplemented has invalid roadmap_blockers {blockers!r}"
+                        )
             if "oracle_origin" in spec and (
                 not isinstance(spec["oracle_origin"], str) or not spec["oracle_origin"].strip()
             ):
@@ -1045,6 +1101,30 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
             raise ValueError(
                 f"probe inventory mismatch: missing_in_expectations={missing}, extra_in_expectations={extra}"
             )
+
+    # Validate that every roadmap_blocker exists in docs/roadmap/v1.json and is not prematurely all done
+    if corpus_root is not None:
+        v1_json_path = corpus_root.parent / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+            for section in ("probes", "programs"):
+                for name, spec in data[section].items():
+                    if spec["kind"] == "known_unimplemented":
+                        blockers = spec.get("roadmap_blockers")
+                        if not blockers or not isinstance(blockers, list):
+                            raise ValueError(
+                                f"{section}.{name} with known_unimplemented missing roadmap_blockers in production corpus"
+                            )
+                        for b in blockers:
+                            if b not in roadmap_items:
+                                raise ValueError(
+                                    f"{section}.{name} references unknown roadmap blocker {b!r} not found in {v1_json_path.name}"
+                                )
+                        if not any(roadmap_items[b].get("status") != "done" for b in blockers):
+                            raise ValueError(
+                                f"{section}.{name} has all roadmap_blockers marked done in {v1_json_path.name}: must transition out of known_unimplemented"
+                            )
     return data
 
 
@@ -1127,6 +1207,8 @@ def derive_static_expectations(
             entry["source_sha256"] = src_sha
             entry["guide_chapter"] = chapter
             entry["oracle_origin"] = "v046_spec_contract"
+            if entry.get("kind") == "known_unimplemented":
+                entry["roadmap_blockers"] = list(UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"]))
             if derivation is not None:
                 entry["oracle_derivation"] = derivation
             probes_out[name] = entry
@@ -1165,6 +1247,7 @@ def derive_static_expectations(
                         "BE:MissingFact",
                     ],
                     "oracle_origin": "baseline_unimplemented_audited",
+                    "roadmap_blockers": list(UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"])),
                 }
                 if single_static_stdout is not None:
                     entry["target_stdout"] = single_static_stdout
@@ -1189,6 +1272,7 @@ def derive_static_expectations(
                 "guide_chapter": chapter,
                 "allowed_markers": ["BE:UnsupportedNode", "BE:MissingFact", "FE:L0165"],
                 "oracle_origin": "baseline_unimplemented_audited",
+                "roadmap_blockers": list(UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"])),
             }
             if single_static_stdout is not None:
                 entry["target_stdout"] = single_static_stdout
@@ -1227,6 +1311,7 @@ def derive_static_expectations(
                 "BE:MissingFact",
             ],
             "oracle_origin": "expected_txt_file",
+            "roadmap_blockers": list(PROGRAM_ROADMAP_BLOCKERS.get(prog_dir.name, ["N02"])),
         }
 
     return {
@@ -1508,27 +1593,61 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** |"
     )
 
+    # Load v1.json roadmap metadata for blocker names and titles if available
+    v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+    roadmap_items: dict[str, dict[str, Any]] = {}
+    if v1_json_path.is_file():
+        v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+        roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+
     lines.extend(
         [
             "",
             "## 2. 六个 V1 验收程序（Acceptance Programs）",
             "",
-            "| 程序 | 归属章节 | 当前状态 | 期望输出文件 | 允许的未实现记号 |",
-            "|---|---|---|---|---|",
+            "| 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 允许的未实现记号 |",
+            "|---|---|---|---|---|---|",
         ]
     )
     for name, spec in sorted(programs.items()):
         ch = spec.get("guide_chapter", "13-program-runtime-standard-library.md")
         exp_file = spec["expected_file"]
         allowed = ", ".join(f"`{m}`" for m in spec.get("allowed_markers", []))
+        blockers = ", ".join(f"`{b}`" for b in spec.get("roadmap_blockers", []))
         lines.append(
-            f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | [{exp_file}]({exp_file}) | {allowed} |"
+            f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | {blockers} | [{exp_file}]({exp_file}) | {allowed} |"
+        )
+
+    # 3. Aggregate all 31 known_unimplemented probes by roadmap blocker
+    blocker_probes: dict[str, list[str]] = {}
+    for name, spec in sorted(probes.items()):
+        if spec["kind"] == "known_unimplemented":
+            for b in spec.get("roadmap_blockers", []):
+                blocker_probes.setdefault(b, []).append(name)
+
+    lines.extend(
+        [
+            "",
+            "## 3. 31 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账",
+            "",
+            "| 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |",
+            "|---|---|---|---:|---|",
+        ]
+    )
+    for b_id in sorted(blocker_probes.keys()):
+        item = roadmap_items.get(b_id, {})
+        title = item.get("title", "").replace("|", "\\|")
+        status = item.get("status", "unknown")
+        plist = blocker_probes[b_id]
+        pnames = ", ".join(f"`{p}`" for p in plist)
+        lines.append(
+            f"| `{b_id}` | {title} | `{status}` | {len(plist)} | {pnames} |"
         )
 
     lines.extend(
         [
             "",
-            "## 3. 154 个 Probe 逐项强 Oracle 与语义推导账本",
+            "## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本",
             "",
             "| Probe | Guide 章节 | 类型 (`kind`) | 溯源 (`oracle_origin`) | 期望结果 / 诊断码 | 语义推导 / 规则说明 (`oracle_derivation` / `note`) |",
             "|---|---|---|---|---|---|",
