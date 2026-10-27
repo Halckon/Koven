@@ -146,24 +146,25 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 逐字节相同、退出码 0 为准，V1/V3 另要求双宿主运行与 ASan/LSan 干净。现行 `String` 没有字符
 访问 API，因此需要逐字符处理的程序把输入以 `Char` 字面量序列内嵌。
 
-## Guide v0.46 章节覆盖矩阵（V2 对账）
+## Guide v0.46 章节覆盖矩阵与语义推导对账（V2）
 
-`expectations.json` 中每个 probe 与验收程序均通过 `guide_chapter` 绑定到对应的 Guide v0.46 规范章节（并由 `oracle_derivation` 记录逐条语义推导、前端诊断码 `crates/lang-frontend/src/diagnostic.rs` 常量或 Guide 09 abort 合同出处），`scripts/conformance_gate.py` 在 `results.json` 的 `summary.by_chapter` 中自动汇总各章通过情况：
+`expectations.json` 中每个 probe 与验收程序均通过 `guide_chapter` 绑定到对应的 Guide v0.46 规范章节，并由 `oracle_derivation` 记录逐条语义推导、前端诊断码 `crates/lang-frontend/src/diagnostic.rs` 常量或 Guide 09 abort 合同出处。完整 154 个 probe 与 6 个验收程序的逐项推导表见自动生成并受 `scripts/check_docs.py` 门禁保护的 [ORACLE_AUDIT.md](ORACLE_AUDIT.md)：
 
 | Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |
 |---|---:|---:|---:|---:|---:|---:|
-| `01-lexical.md` | 0 | 0 | 0 | 0 | 0 | 0 / 0（当前由前端词法单测与 `guide_litmus` 覆盖，待补 CLI 正反例） |
-| `02-names-files-packages.md` | 3 | 0 | 3 | 0 | 0 | 3 / 3 |
-| `03-types-generics.md` | 15 | 7 | 1 | 1 | 6 | 9 / 15 |
-| `04-expressions-operators.md` | 7 | 4 | 1 | 1 | 1 | 6 / 7 |
-| `05-declarations-callables.md` | 4 | 2 | 2 | 0 | 0 | 4 / 4 |
-| `06-blocks-control-flow.md` | 19 | 12 | 2 | 0 | 5 | 14 / 19 |
-| `07-calls-lambdas-closures.md` | 8 | 2 | 1 | 0 | 5 | 3 / 8 |
-| `08-class-family-members.md` | 17 | 14 | 0 | 0 | 3 | 14 / 17 |
-| `09-nullability-errors.md` | 17 | 12 | 1 | 1 | 3 | 14 / 17 |
-| `10-ownership-borrowing-drop.md` | 9 | 4 | 2 | 0 | 3 | 6 / 9 |
-| `11-copyability-layout-construction.md` | 3 | 1 | 0 | 0 | 2 | 1 / 3 |
-| `12-collections-destructuring.md` | 51 | 48 | 1 | 0 | 2 | 49 / 51 |
-| `13-program-runtime-standard-library.md` | 1 | 0 | 0 | 0 | 1 | 0 / 1 |
+| [01-lexical.md](../docs/guide/01-lexical.md) | 4 | 1 | 0 | 0 | 3 | 1 / 4 |
+| [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 7 | 2 | 3 | 0 | 2 | 5 / 7 |
+| [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 5 | 1 | 1 | 4 | 7 / 11 |
+| [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 |
+| [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 |
+| [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 12 | 2 | 0 | 5 | 14 / 19 |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 2 | 1 | 0 | 5 | 3 / 8 |
+| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 13 | 0 | 0 | 3 | 13 / 16 |
+| [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 11 | 1 | 1 | 3 | 13 / 16 |
+| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 4 | 2 | 0 | 3 | 6 / 9 |
+| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 |
+| [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 2 | 0 | 0 | 2 | 2 / 4 |
 | **合计** | **154** | **106** | **14** | **3** | **31** | **123 / 154** |
+
 
