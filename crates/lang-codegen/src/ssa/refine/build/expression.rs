@@ -79,14 +79,19 @@ impl Builder<'_, '_> {
         let (payload, span) = self.node(expression)?;
         let id = self.unit(expression);
         let typed = self.inputs.typed;
+        if typed.rc_operation(id).is_some() {
+            return self.rc_operation(expression, span);
+        }
         if let Some(descriptor) = typed.construction(id) {
-            if matches!(
-                descriptor.target(),
-                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_)
-            ) {
-                return self.enum_construction(expression, span);
-            }
-            return self.construction(expression, span);
+            return match descriptor.target() {
+                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
+                    self.enum_construction(expression, span)
+                }
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
+                    self.rc_construction(expression, span)
+                }
+                _ => self.construction(expression, span),
+            };
         }
         if typed.aggregate_projection(id).is_some() {
             if self.is_enum_projection(expression) {

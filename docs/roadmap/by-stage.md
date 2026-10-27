@@ -15,7 +15,7 @@
 | S0 已交付基线 | 23 | 0 | 0 | 0 | 0 | 0 | 23 |
 | P0 止血 | 6 | 0 | 1 | 0 | 0 | 0 | 7 |
 | P1 结构 | 0 | 0 | 2 | 0 | 0 | 0 | 2 |
-| P2 补齐现有 Guide 能力 | 1 | 5 | 0 | 4 | 0 | 0 | 10 |
+| P2 补齐现有 Guide 能力 | 1 | 6 | 0 | 3 | 0 | 0 | 10 |
 | P3 语言增量 | 8 | 1 | 0 | 18 | 0 | 0 | 27 |
 | P4 文本与 IO | 0 | 0 | 0 | 5 | 0 | 0 | 5 |
 | P5 验收与发布 | 0 | 4 | 0 | 2 | 0 | 0 | 6 |
@@ -31,7 +31,7 @@ v1 范围内 80 项（必做 71，其中已交付 37）；X 阶段只列边界�
 |---|---|
 | 74 个合法基础程序（v0.44 同口径）：project / 单文件 / 两种模式都可 | 46 / 46 / 46（较 aef3f4f8 +6；另 C 组 p37 已通过、p23 已报 L0167） |
 | 应拒绝程序（基础 8 个 / 全集 14 个）：两种模式都得到预期前端诊断 | 8 / 8（全集 14 / 14） |
-| 154 probe：project / 单文件可运行（含 113 pass_run + 3 pass_abort） | 116 / 116（能力门禁通过 130 / 154，其余 24 个为 known_unimplemented） |
+| 154 probe：project / 单文件可运行（含 114 pass_run + 3 pass_abort） | 117 / 117（能力门禁通过 131 / 154，其余 23 个为 known_unimplemented） |
 | 154 probe：两种模式结果不一致（记号或 stdout 字节） | 0 |
 | 154 probe × 2 中的 InvalidSsa / ICE / ERR | 0（原 aef3f4f8 的 p14b、q05、y01、y03、y04 共 10 次已全部修复并运行通过） |
 | 原 PR #120 enum when 能力回退（5 个 probe） | 0（e01、e02、e03、p49 已恢复运行；p50_enum_method 由 SPEC-0356 步 3 迁入细化层后通过） |
@@ -110,7 +110,7 @@ D10 统一管线收尾（两模式差异 0、InvalidSsa 0、原成功能力无�
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | v1 必做 | 编译器结构 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) | D10 已决：统一 compilation-unit 管线为终态（历史决策见 Guide v0.45、ADR-0031、SPEC-0341；现行基线 Guide v0.46）。单文件 CLI 与 LSP 已切换，154 probe 两模式差异 0、InvalidSsa 0；原 5 个 enum when 回退已全部修复（e01–e03、p49；p50_enum_method 由 SPEC-0356 步 3 关闭），剩全仓 Legacy 消费者退役/删除旧 checker 与 lower_frontend（含撤除 dead_code 豁免）。 |
-| ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | v1 必做 | 编译器结构 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) [0356](../archive/specs/0356-refine-when-family.md) [0358](../archive/specs/0358-refine-assignment-inout.md) | 先以 nullable 家族试点（2026-10-23 用户决定不含 Elvis 的 p15，余 7 个）：全部通过且不新增按组合拆分的 lowering 模块；成功后推广到 P2 各家族。SPEC-0350 已归档（2026-10-24）：试点 7 个 probe 在单文件与 project 两种模式均已通过；其余家族由后继 Spec 迁入；`when` 家族与 Copyable enum `is` 由 SPEC-0356 三步迁入并归档（2026-10-27，p41 String subject 待 frontend 事实）；赋值与 Inout 由 SPEC-0358 迁入并归档（新 SSA 操作 LoanMutate）；ADR-0032（细化层）、ADR-0033（inline nullable：tag + payload，String 与容器用指针 niche）2026-10-23 接受。 |
+| ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | v1 必做 | 编译器结构 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) [0356](../archive/specs/0356-refine-when-family.md) [0358](../archive/specs/0358-refine-assignment-inout.md) [0359](../archive/specs/0359-refine-rc.md) | 先以 nullable 家族试点（2026-10-23 用户决定不含 Elvis 的 p15，余 7 个）：全部通过且不新增按组合拆分的 lowering 模块；成功后推广到 P2 各家族。SPEC-0350 已归档（2026-10-24）：试点 7 个 probe 在单文件与 project 两种模式均已通过；其余家族由后继 Spec 迁入；`when` 家族与 Copyable enum `is` 由 SPEC-0356 三步迁入并归档（2026-10-27，p41 String subject 待 frontend 事实）；赋值与 Inout 由 SPEC-0358 迁入并归档（新 SSA 操作 LoanMutate）；Rc 由 SPEC-0359 迁入并归档；ADR-0032（细化层）、ADR-0033（inline nullable：tag + payload，String 与容器用指针 niche）2026-10-23 接受。 |
 
 ## P2 补齐现有 Guide 能力
 
@@ -124,7 +124,7 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 | ◐ 部分 | N04 | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | v1 必做 | 函数类型与闭包 | 已定义 | 2,3,4 | [0278](../archive/specs/0278-borrowed-closure-escape-verification.md) [borrowed-closure-escape](../architecture/borrowed-closure-escape.md) | 闭包家族 5 个 probe 失败；move 闭包（p18）是受限线程 T1 的前置。 |
 | ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | v1 必做 | 类型、泛型与声明 | 已定义 | 4 | — | — |
 | ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | v1 必做 | 类、接口与成员 | 已定义 | 2,3,4 | [0323](../archive/specs/0323-final-admission-static-recovery.md) | companion 调用已由 0323 转为正确的静态角色；native 仍报 BE:UnsupportedSource。 |
-| ☐ 未开始 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | v1 必做 | 标准库与运行时 | 已定义 | 2,3,4 | — | — |
+| ◐ 部分 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | v1 必做 | 标准库与运行时 | 已定义 | 2,3,4 | [0359](../archive/specs/0359-refine-rc.md) | SPEC-0359 在细化层交付 Rc 构造、share() 与 Rc.value 投影（p22）；Box.value / unbox() 待 L8 的 Guide 措辞确定后另开 Spec（2026-10-27 用户决定）。 |
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | v1 必做 | 空安全与错误值 | 已定义 | 2,3,4 | [09-nullability-errors](../guide/09-nullability-errors.md) | 文件 IO（L6）的硬前置。 |
 | ☐ 未开始 | N09 | borrow T from this（泛型类 receiver 来源） | v1 必做 | 所有权、借用与析构 | 已定义 | 2,3,4 | — | 当前报 L0164。 |
 | ✅ 已交付 | N10 | 单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值 | v1 必做 | 类、接口与成员 | 已定义 | 4 | [0316](../archive/specs/0316-single-readonly-value-methods.md) | 单文件独有缺口随 E2 入口切换消失（PR #120 已合并，实测两模式一致）；泛型 value class 方法（t03）两模式仍失败，归 N06。 |
@@ -182,7 +182,7 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
 | ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | v1 必做 | 验收、发布与文档 | — | 6 | — | 源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前两模式一致均为 known_unimplemented（0 / 6 可运行）。另设第七个线程程序验收 T1，不计入 v1.0 硬门槛。 |
-| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | — | V2 前五片已落地：conformance/expectations.json + conformance/ORACLE_AUDIT.md + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁，覆盖 Guide 01–13 全部 13 个规范章节归属映射（guide_chapter）、逐探针语义推导账本（oracle_derivation）及前端错误码目录（diagnostic.rs）交叉核验（154 probe 能力通过 130/154，两模式差异 0，内部错误 0）。后续待清零 24 个 known_unimplemented 并补齐每章正反例。 |
+| ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | — | V2 前五片已落地：conformance/expectations.json + conformance/ORACLE_AUDIT.md + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁，覆盖 Guide 01–13 全部 13 个规范章节归属映射（guide_chapter）、逐探针语义推导账本（oracle_derivation）及前端错误码目录（diagnostic.rs）交叉核验（154 probe 能力通过 131/154，两模式差异 0，内部错误 0）。后续待清零 23 个 known_unimplemented 并补齐每章正反例。 |
 | ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与六个验收程序 | v1 必做 | 安全验证 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) | — |
 | ☐ 未开始 | V4 | M4b 随机生成扩展到 E3 之后的通用 lowering | v1 建议 | 安全验证 | — | 4 | [0269](../archive/specs/0269-generated-resource-programs.md) [native-safety-validation](../proposals/native-safety-validation.md) | — |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | v1 必做 | 验收、发布与文档 | — | — | — | README 与 tour 已于 10-15 按实测改写。 |

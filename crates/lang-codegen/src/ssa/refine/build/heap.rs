@@ -103,16 +103,24 @@ impl Builder<'_, '_> {
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let result_type = self.ssa_type(self.expression_type(expression)?, span)?;
+        let rc_payload = receiver.is_some_and(|receiver| {
+            self.inputs
+                .typed
+                .rc_operation(self.unit(receiver))
+                .is_some()
+        });
         let view = match receiver {
-            Some(receiver) => self.narrowed_view(receiver)?,
-            None => None,
+            Some(receiver) if !rc_payload => self.narrowed_view(receiver)?,
+            _ => None,
         };
-        let loan = match view {
-            Some(view) => OwnerLoan {
+        let loan = match (view, receiver) {
+            (Some(view), _) => OwnerLoan {
                 loan: view,
                 scoped: false,
             },
-            None => self.owner_loan(owner, LoanKind::Shared, span)?,
+            // `rc.value.f`: a shared loan of the payload place (SPEC-0359).
+            (None, Some(receiver)) if rc_payload => self.rc_payload_loan(receiver, span)?,
+            (None, _) => self.owner_loan(owner, LoanKind::Shared, span)?,
         };
         let result = self.value(
             ROp::HeapFieldRead {

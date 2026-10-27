@@ -324,16 +324,14 @@
       "target_stdout": "box\n"
     },
     "p22_rc": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "rc\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0359: Rc construction, share() and rc.value field projection in E3 refinement layer",
       "source_sha256": "79295b27744c3012b57e7a0d85151bcbb7e1eea615cd9572c49bcf1c66db00b9",
       "guide_chapter": "13-program-runtime-standard-library.md",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "target_stdout": "rc\n"
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('rc')"
     },
     "p23_global_var": {
       "kind": "compile_fail",

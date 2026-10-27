@@ -18,8 +18,8 @@
 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 |
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
-| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 2 | 0 | 0 | 2 | 2 / 4 |
-| **合计** | **154** | **113** | **14** | **3** | **24** | **130 / 154** |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 3 | 0 | 0 | 1 | 3 / 4 |
+| **合计** | **154** | **114** | **14** | **3** | **23** | **131 / 154** |
 
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
@@ -68,7 +68,7 @@
 | `p19_mutablelist` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `list\n` | xs=[10,2,3] sums to 15 with size 3; condition holds and prints 'list' |
 | `p20_map` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `map\n` | single literal println('map') |
 | `p21_box_enum` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
-| `p22_rc` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p22_rc` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `run_ok` | `v046_spec_contract` | `rc\n` | single literal println('rc') |
 | `p23_global_var` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | `compile_fail` | `v046_spec_contract` | `FE:L0167` | top-level runtime var counter violates Guide 05 D4 (SPEC-0343); rejected with UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE L0167 |
 | `p24_recursion` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | `run_ok` | `single_println_literal` | `fib\n` | single literal println('fib') |
 | `p25_linked_iter` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0133`, `FE:L0132` | cur = cur.next moves non-Copyable Node? field out of borrowed/owned chain, emitting MOVE_FROM_BORROWED_BINDING L0133 and PARTIAL_MOVE L0132 |

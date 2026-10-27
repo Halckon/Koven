@@ -520,6 +520,12 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "v046_baseline_exempt": True,
         "note": "SPEC-0358: Inout class parameter, Inout receiver call and field replacement in E3 refinement layer",
     },
+    "p22_rc": {
+        "kind": "run_ok",
+        "stdout": "rc\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0359: Rc construction, share() and rc.value field projection in E3 refinement layer",
+    },
     "e01_enum_when_bool_return": {
         "kind": "run_ok",
         "stdout": "e1\n",

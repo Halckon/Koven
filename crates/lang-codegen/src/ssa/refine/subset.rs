@@ -4,6 +4,7 @@
 mod field;
 mod heap;
 mod inout;
+mod rc;
 mod receiver;
 mod tagged;
 
@@ -63,8 +64,8 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     {
         checker.note_nullable(ty);
     }
-    // Borrow parameters are read by copy, so only Copyable ones are in the subset; Inout
-    // parameters are scalars, read through and replaced under the caller's exclusive loan.
+    // Copyable Borrow parameters are read by copy; Inout parameters are scalars or plain
+    // classes, read through and replaced under the caller's exclusive loan.
     let signature = inputs.parameters.len() == inputs.modes.len()
         && inputs
             .parameters
@@ -75,8 +76,11 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                     checker.storage_type(ty)
                         && match mode {
                             ParameterMode::Value => true,
+                            // A MoveOnly Borrow parameter is only lent on (a plain class
+                            // through its loan), never read by copy.
                             ParameterMode::Borrow => {
                                 inputs.typed.copyability(ty) == Copyability::Copyable
+                                    || checker.class(ty)
                             }
                             ParameterMode::Inout => checker.scalar(ty) || checker.class(ty),
                         }
@@ -249,7 +253,12 @@ impl Checker<'_, '_> {
         match self.kind(ty) {
             Some(UnitTypeKind::Builtin(BuiltinType::String)) => true,
             Some(UnitTypeKind::Nullable(inner)) => self.scalar(*inner) || self.view_inner(*inner),
-            _ => self.scalar(ty) || self.class(ty) || self.enum_type(ty),
+            _ => {
+                self.scalar(ty)
+                    || self.class(ty)
+                    || self.enum_type(ty)
+                    || self.rc_payload(ty).is_some()
+            }
         }
     }
 
@@ -328,17 +337,24 @@ impl Checker<'_, '_> {
             self.kind(ty),
             Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
         );
+        let id = self.id(expression);
+        // `Rc` operations carry their own typed fact (SPEC-0359).
+        if self.inputs.typed.rc_operation(id).is_some() {
+            return self.storage_type(ty) && self.rc_operation(expression);
+        }
         if !self.unspecialized(expression) || !(returns || self.unit(ty) || self.storage_type(ty)) {
             return false;
         }
         self.note_nullable(ty);
-        let id = self.id(expression);
         if let Some(descriptor) = self.inputs.typed.construction(id) {
-            if matches!(
-                descriptor.target(),
-                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_)
-            ) {
-                return self.enum_construction(expression);
+            match descriptor.target() {
+                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
+                    return self.enum_construction(expression);
+                }
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
+                    return self.rc_construction(expression);
+                }
+                _ => {}
             }
             return self.construction(expression);
         }

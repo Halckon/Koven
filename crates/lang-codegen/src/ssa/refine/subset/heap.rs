@@ -114,6 +114,15 @@ impl Checker<'_, '_> {
             return false;
         }
         let owner = match projection.receiver() {
+            UnitAggregateProjectionReceiver::Expression(receiver)
+                if typed.rc_operation(receiver).is_some() =>
+            {
+                // `rc.value.f`: the payload is read through its place (SPEC-0359).
+                if receiver.source_unit() != self.inputs.source_unit {
+                    return false;
+                }
+                self.rc_value_owner(receiver.expression())
+            }
             UnitAggregateProjectionReceiver::Expression(receiver) => {
                 let receiver_expression = receiver.expression();
                 if receiver.source_unit() != self.inputs.source_unit

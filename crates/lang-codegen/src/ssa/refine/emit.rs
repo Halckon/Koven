@@ -308,6 +308,16 @@ impl Emitter<'_> {
                 base: place(self.get(*base, span)?, span)?,
                 field: *field,
             },
+            ROp::SharedAllocate { owner, payload } => Operation::SharedAllocate {
+                owner: *owner,
+                payload: self.value(*payload, span)?,
+            },
+            ROp::SharedRetain { owner } => Operation::SharedRetain {
+                owner: self.get(*owner, span)?,
+            },
+            ROp::SharedPayloadPlace { owner } => Operation::SharedPayloadPlace {
+                owner: self.get(*owner, span)?,
+            },
             ROp::SharedReborrow { source } => Operation::SharedReborrow {
                 source: loan(self.get(*source, span)?, span)?,
             },

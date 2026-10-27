@@ -6,6 +6,7 @@ mod field;
 mod heap;
 mod inout;
 mod place;
+mod rc;
 mod receiver;
 mod tagged;
 mod when;

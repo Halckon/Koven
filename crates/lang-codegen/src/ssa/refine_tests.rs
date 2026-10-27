@@ -564,3 +564,45 @@ fn inout_class_parameters_and_receivers_mutate_the_callers_owner() {
     // One Counter, freed once.
     counted(source, 1, b"inout-class\nreceiver\n");
 }
+
+#[test]
+fn rc_construction_share_and_value_projections_release_once() {
+    let source = r#"class Data(val n: Int)
+    fun peek(own rc: Rc<Data>): Int = rc.value.n
+    fun main(): Unit {
+        val a = Rc(Data(4))
+        val b = a.share()
+        if (b.value.n == 4 && peek(a.share()) == 4) { println("rc") }
+        val c = Rc(7)
+        val d = c.share()
+        if (d.value == 7) { println("copy") }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("Rc lowers and verifies")
+    });
+    for function in ["koven.p.main.d", "koven.p.peek.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    // Two shared owners and one Data payload, each freed exactly once.
+    counted(source, 3, b"rc\ncopy\n");
+}
