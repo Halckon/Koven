@@ -1117,10 +1117,24 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         raise ValueError(
                             f"missing expected_file for programs.{name}: {exp_file}"
                         )
-                    if sha256_file(exp_file) != spec["expected_sha256"]:
+                    exp_bytes = exp_file.read_bytes()
+                    if not exp_bytes or not exp_bytes.endswith(b"\n"):
+                        raise ValueError(
+                            f"expected_file for programs.{name} must be non-empty and end with trailing newline"
+                        )
+                    if sha256_bytes(exp_bytes) != spec["expected_sha256"]:
                         raise ValueError(f"expected_sha256 mismatch for programs.{name}")
-                    spec["stdout"] = exp_file.read_text(encoding="utf-8")
-                    spec["target_stdout"] = spec["stdout"]
+                    exp_text = exp_bytes.decode("utf-8")
+                    if "expected_bytes" in spec and spec["expected_bytes"] != len(exp_bytes):
+                        raise ValueError(
+                            f"expected_bytes mismatch for programs.{name}: expected {spec['expected_bytes']}, got {len(exp_bytes)}"
+                        )
+                    if "expected_lines" in spec and spec["expected_lines"] != len(exp_text.splitlines()):
+                        raise ValueError(
+                            f"expected_lines mismatch for programs.{name}: expected {spec['expected_lines']}, got {len(exp_text.splitlines())}"
+                        )
+                    spec["stdout"] = exp_text
+                    spec["target_stdout"] = exp_text
 
     if corpus_root is not None:
         actual_probes = {p.stem for p in (corpus_root / "probes").glob("*.ko")}
@@ -1131,6 +1145,20 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
             raise ValueError(
                 f"probe inventory mismatch: missing_in_expectations={missing}, extra_in_expectations={extra}"
             )
+        programs_dir = corpus_root / "programs"
+        if programs_dir.is_dir():
+            actual_progs = {
+                d.name
+                for d in programs_dir.iterdir()
+                if d.is_dir() and (d / "main.ko").is_file() and (d / "expected.txt").is_file()
+            }
+            expected_progs = set(data["programs"].keys())
+            missing_progs = sorted(actual_progs - expected_progs)
+            extra_progs = sorted(expected_progs - actual_progs)
+            if missing_progs or extra_progs:
+                raise ValueError(
+                    f"program inventory mismatch: missing_in_expectations={missing_progs}, extra_in_expectations={extra_progs}"
+                )
 
     # Validate that every roadmap_blocker exists in docs/roadmap/v1.json and is not prematurely all done
     if corpus_root is not None:
@@ -1324,6 +1352,8 @@ def derive_static_expectations(
         expected_txt = prog_dir / "expected.txt"
         if not main_ko.is_file() or not expected_txt.is_file():
             continue
+        exp_bytes = expected_txt.read_bytes()
+        exp_text = exp_bytes.decode("utf-8")
         programs_out[prog_dir.name] = {
             "kind": "known_unimplemented",
             "source_sha256": sha256_file(main_ko),
@@ -1331,7 +1361,9 @@ def derive_static_expectations(
                 prog_dir.name, "13-program-runtime-standard-library.md"
             ),
             "expected_file": f"programs/{prog_dir.name}/expected.txt",
-            "expected_sha256": sha256_file(expected_txt),
+            "expected_sha256": sha256_bytes(exp_bytes),
+            "expected_lines": len(exp_text.splitlines()),
+            "expected_bytes": len(exp_bytes),
             "allowed_markers": [
                 "FE:L0080",
                 "FE:L0084",
@@ -1571,12 +1603,10 @@ def summarize_comparisons(
     }
 
 
-def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
-    """Render deterministic Markdown audit ledger from expectations.json."""
+def summarize_chapter_polarity(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Compute per-chapter positive (run_ok) vs negative (compile_fail + runtime_abort) polarity coverage."""
     probes = expectations["probes"]
-    programs = expectations["programs"]
-
-    chapter_stats: dict[str, dict[str, int]] = {
+    chapter_stats: dict[str, dict[str, Any]] = {
         ch: {
             "total": 0,
             "run_ok": 0,
@@ -1584,6 +1614,11 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             "runtime_abort": 0,
             "known_unimplemented": 0,
             "cap_passed": 0,
+            "positive_active": 0,
+            "negative_active": 0,
+            "has_positive": False,
+            "has_negative": False,
+            "polarity_status": "unimplemented_only",
         }
         for ch in VALID_GUIDE_CHAPTERS
     }
@@ -1596,17 +1631,43 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         if kind in ("run_ok", "compile_fail", "runtime_abort"):
             row["cap_passed"] += 1
 
+    for ch, row in chapter_stats.items():
+        pos = row["run_ok"]
+        neg = row["compile_fail"] + row["runtime_abort"]
+        row["positive_active"] = pos
+        row["negative_active"] = neg
+        row["has_positive"] = pos > 0
+        row["has_negative"] = neg > 0
+        if pos > 0 and neg > 0:
+            row["polarity_status"] = "both_positive_and_negative"
+        elif pos > 0:
+            row["polarity_status"] = "positive_only"
+        elif neg > 0:
+            row["polarity_status"] = "negative_only"
+        else:
+            row["polarity_status"] = "unimplemented_only"
+    return chapter_stats
+
+
+def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
+    """Render deterministic Markdown audit ledger from expectations.json."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    chapter_stats = summarize_chapter_polarity(expectations)
+
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
         "",
         "> 本文件由 `python3 scripts/conformance_gate.py --init-expectations` 从 `conformance/expectations.json` 确定性生成，并由 `scripts/check_docs.py`（`DocsChecker.check_conformance_corpus`）与 `scripts/tests/test_conformance_gate.py` 自动校验同步。",
         "",
-        "## 1. Guide v0.46 章节覆盖汇总（154 Probes）",
+        "## 1. Guide v0.46 章节覆盖与正/负向极性汇总（154 Probes）",
         "",
-        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |",
+        "|---|---:|---:|---:|---:|---:|---:|---|",
     ]
     tot_all = tot_ok = tot_cf = tot_ab = tot_ku = tot_cap = 0
+    both_chapters: list[str] = []
+    pos_only_chapters: list[str] = []
     for ch in VALID_GUIDE_CHAPTERS:
         st = chapter_stats[ch]
         tot_all += st["total"]
@@ -1615,12 +1676,24 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         tot_ab += st["runtime_abort"]
         tot_ku += st["known_unimplemented"]
         tot_cap += st["cap_passed"]
+        pol = st["polarity_status"]
+        if pol == "both_positive_and_negative":
+            both_chapters.append(ch)
+        elif pol == "positive_only":
+            pos_only_chapters.append(ch)
         lines.append(
             f"| [{ch}](../docs/guide/{ch}) | {st['total']} | {st['run_ok']} | {st['compile_fail']} | "
-            f"{st['runtime_abort']} | {st['known_unimplemented']} | {st['cap_passed']} / {st['total']} |"
+            f"{st['runtime_abort']} | {st['known_unimplemented']} | {st['cap_passed']} / {st['total']} | `{pol}` |"
         )
     lines.append(
-        f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** |"
+        f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** | **{len(both_chapters)} 双极性 / {len(pos_only_chapters)} 仅正向** |"
+    )
+    lines.extend(
+        [
+            "",
+            f"- **正/负向双极性覆盖章节（{len(both_chapters)} / {len(VALID_GUIDE_CHAPTERS)}）**：" + ", ".join(f"`{c}`" for c in both_chapters) + "（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。",
+            f"- **仅正向覆盖章节（{len(pos_only_chapters)} / {len(VALID_GUIDE_CHAPTERS)}，待后续补充独立负向诊断探针）**：" + ", ".join(f"`{c}`" for c in pos_only_chapters) + "（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。",
+        ]
     )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
@@ -1635,17 +1708,22 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             "",
             "## 2. 六个 V1 验收程序（Acceptance Programs）",
             "",
-            "| 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 允许的未实现记号 |",
-            "|---|---|---|---|---|---|",
+            "| 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |",
+            "|---|---|---|---|---|---|---|",
         ]
     )
     for name, spec in sorted(programs.items()):
         ch = spec.get("guide_chapter", "13-program-runtime-standard-library.md")
         exp_file = spec["expected_file"]
+        exp_size = (
+            f"{spec['expected_lines']} 行 / {spec['expected_bytes']} B"
+            if "expected_lines" in spec and "expected_bytes" in spec
+            else "-"
+        )
         allowed = ", ".join(f"`{m}`" for m in spec.get("allowed_markers", []))
         blockers = ", ".join(f"`{b}`" for b in spec.get("roadmap_blockers", []))
         lines.append(
-            f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | {blockers} | [{exp_file}]({exp_file}) | {allowed} |"
+            f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | {blockers} | [{exp_file}]({exp_file}) | {exp_size} | {allowed} |"
         )
 
     # 3. Aggregate every known_unimplemented probe by roadmap blocker

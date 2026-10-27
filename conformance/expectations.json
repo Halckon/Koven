@@ -1481,6 +1481,8 @@
       "guide_chapter": "09-nullability-errors.md",
       "expected_file": "programs/config_parse/expected.txt",
       "expected_sha256": "4fff2827a336c190aa7d862a09ec9ecdbe58349b61463ef16bdd5c36aaa14e17",
+      "expected_lines": 10,
+      "expected_bytes": 190,
       "allowed_markers": [
         "FE:L0080",
         "FE:L0084",
@@ -1503,6 +1505,8 @@
       "guide_chapter": "11-copyability-layout-construction.md",
       "expected_file": "programs/expr_eval/expected.txt",
       "expected_sha256": "c9530ec173624a9c9d229b8e219e089412bef9da707ac12b4929bbf310a28b79",
+      "expected_lines": 6,
+      "expected_bytes": 174,
       "allowed_markers": [
         "FE:L0080",
         "FE:L0084",
@@ -1526,6 +1530,8 @@
       "guide_chapter": "10-ownership-borrowing-drop.md",
       "expected_file": "programs/linked_stack/expected.txt",
       "expected_sha256": "bebcbde32ea8dd5a716c5e26cacefdc85a2642c8b822c9076e88ca8fb4057c17",
+      "expected_lines": 8,
+      "expected_bytes": 242,
       "allowed_markers": [
         "FE:L0080",
         "FE:L0084",
@@ -1548,6 +1554,8 @@
       "guide_chapter": "08-class-family-members.md",
       "expected_file": "programs/raii_state_machine/expected.txt",
       "expected_sha256": "0de6a3667bc60c77d3aa2afac93e4daa1562589c8194037a9c294708b57979c7",
+      "expected_lines": 28,
+      "expected_bytes": 369,
       "allowed_markers": [
         "FE:L0080",
         "FE:L0084",
@@ -1568,6 +1576,8 @@
       "guide_chapter": "03-types-generics.md",
       "expected_file": "programs/varint_codec/expected.txt",
       "expected_sha256": "7566e6b5cdb3d9c3d8bf557eebf03baa72211ef889beba1b8c4d6d070eece571",
+      "expected_lines": 17,
+      "expected_bytes": 375,
       "allowed_markers": [
         "FE:L0080",
         "FE:L0084",
@@ -1589,6 +1599,8 @@
       "guide_chapter": "12-collections-destructuring.md",
       "expected_file": "programs/word_count/expected.txt",
       "expected_sha256": "3b1a26f04983fb6bb189548492f1e9e766ed3de2b03f2a658e4f7a3f1c780adc",
+      "expected_lines": 16,
+      "expected_bytes": 187,
       "allowed_markers": [
         "FE:L0080",
         "FE:L0084",
