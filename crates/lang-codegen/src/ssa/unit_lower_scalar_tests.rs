@@ -12,8 +12,7 @@ use super::{
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 
-#[test]
-fn lowers_same_source_scalar_expression_roots_through_verified_unit_ssa_and_llvm() {
+pub(super) fn assert_real_scalar_expression_roots_through_verified_unit_ssa_and_llvm() {
     use lang_frontend::name_resolution::SymbolKind;
 
     use crate::{
@@ -22,7 +21,7 @@ fn lowers_same_source_scalar_expression_roots_through_verified_unit_ssa_and_llvm
         ssa::{model::Origin, verify::verify_program},
     };
 
-    // Keep the original lower_frontend_tests fixture and its legacy oracle unchanged.
+    // Preserve the original fixture and its semantic assertions through Unit lowering.
     let text = "fun add(left: Int, right: Int): Int = left + right\n\
          fun negate(input: Int): Int = -input\n\
          fun ordered(left: Int, right: Int): Boolean = !(left >= right)\n\
