@@ -693,6 +693,23 @@ sys.exit(1)
                     spec.get("diagnostic_symbol"),
                     gate.DIAGNOSTIC_SYMBOL_CATALOG[spec["diagnostic"]],
                 )
+            elif spec["kind"] == "known_unimplemented":
+                ts = spec.get("target_stdout")
+                self.assertTrue(
+                    isinstance(ts, str) and len(ts) > 0 and ts.endswith("\n"),
+                    f"known_unimplemented probe {name} missing valid target_stdout",
+                )
+            self.assertTrue(
+                isinstance(spec.get("oracle_derivation"), str)
+                and len(spec["oracle_derivation"].strip()) > 0,
+                f"probe {name} missing oracle_derivation",
+            )
+        for name, spec in loaded["programs"].items():
+            self.assertTrue(
+                isinstance(spec.get("oracle_derivation"), str)
+                and len(spec["oracle_derivation"].strip()) > 0,
+                f"program {name} missing oracle_derivation",
+            )
 
 
 if __name__ == "__main__":

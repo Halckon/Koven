@@ -259,11 +259,43 @@ PROGRAM_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "word_count": ["N02", "N03"],
 }
 
+PROGRAM_ORACLE_DERIVATIONS: dict[str, str] = {
+    "config_parse": "parses key=value config lines via Result<Int, String> and ? propagation, printing host/port/retries/missing/bad-int outcomes",
+    "expr_eval": "evaluates recursive Box<Expr> AST with Char/Double/Result error propagation, printing formatted evaluation lines",
+    "linked_stack": "pushes and pops generic Node<T>? linked stack with ownership transfer, printing popped elements and remaining depth",
+    "raii_state_machine": "runs deterministic deinit state transitions across normal, early-return, and nested scopes, printing ordered lifecycle trace",
+    "varint_codec": "encodes and decodes ULong/UInt varints over MutableList<Byte> with bitwise shifts and Result checks, printing roundtrip values",
+    "word_count": "counts word frequencies in insertion order over MutableMap<String, Int> and prints 'word\tcount' lines",
+}
+
 SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "e01_enum_when_bool_return": "isRed(Color.Red) matches branch Color.Red -> true; if-branch prints 'e1'",
     "e02_enum_when_stmt_println": "c = Color.Red matches statement when branch Color.Red -> println('e2')",
     "e03_enum_when_bool_val": "c = Color.Green yields b = false in when expression; if (!b) prints 'e5'",
     "p01_int_print": "println expects String parameter; passing Int (40 + 2) emits TYPE_MISMATCH L0084",
+    "p02_interp": "string interpolation 'hello ${n}' with n = 'k' evaluates to 'hello k' (blocked by L1/L2)",
+    "p05_double": "Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' (blocked by N05)",
+    "p06_char": "Char comparison 'a' < 'b' holds and prints 'char' (blocked by N05)",
+    "p11_interface_bound": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06)",
+    "p15_elvis": "f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03)",
+    "p16_result_q": "Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08)",
+    "p16b_result_string": "parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08)",
+    "p17_lambda": "capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda' (blocked by N04)",
+    "p17b_lambda_nocapture": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' (blocked by N04)",
+    "p18_move_closure": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' (blocked by N04)",
+    "p21_box_enum": "recursive Expr.Add(Box(Num(1)), Box(Num(2))) evaluates to 3 and prints 'box' (blocked by N07/L7)",
+    "p22_rc": "Rc(Data(4)).share().value.n == 4 holds and prints 'rc' (blocked by N07)",
+    "p25b_linked_recursive": "recursive sum(Node(1, Node(2, null))) returns 3 and prints 'rec-list' (blocked by N03)",
+    "p27_thread": "thread(move { println('thread') }).join() runs worker closure and prints 'thread' (blocked by T1/N04)",
+    "p28_companion": "anonymous companion function C.make() returns 7 and prints 'companion' (blocked by N06)",
+    "p35_value_eq": "structural equality Point(1, 2) == Point(1, 2) holds and prints 'veq' (blocked by L1)",
+    "p40_nested_generic_class": "Stack<Int>.push(1) mutates generic field items; size == 1 prints 'stack' (blocked by N01)",
+    "q02_lambda_arg_inline": "twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg' (blocked by N04)",
+    "q03_fn_ref": "callable reference ::inc applied to 1 yields 2 and prints 'fnref' (blocked by N04)",
+    "q08_enum_string_payload": "show(Msg.Text('hi')) prints payload 'hi'; show(Msg.Quit) prints 'quit' (blocked by N02/L7)",
+    "s02_pair_builtin": "builtin Pair(1, 2).first == 1 holds and prints 'pair' (blocked by S6)",
+    "s03_to_pair": "infix 1 to 2 constructs Pair(1, 2); p.first == 1 prints 'to' (blocked by S6)",
+    "t03_vmethod_generic": "generic value class W<Int>(4).get() returns 4 and prints 'vmethod-generic' (blocked by N06)",
     "p03b_byte_literal_cmp": "comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085",
     "p04_overflow": "Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09",
     "p07_while_var": "while loop sums i=0..9 into s=45; s == 45 holds and prints 'while'",
@@ -374,8 +406,10 @@ def classify_probe_guide_chapter(name: str, src_text: str) -> str:
 
 # Human-audited exact stdout oracles for multi-statement / loop / variable-print probes in conformance/probes
 CONFIRMED_STDOUT_ORACLES: dict[str, str] = {
+    "p02_interp": "hello k\n",
     "p07_while_var": "while\n",
     "p10_generic_fn": "generic\nint\n",
+    "p11_interface_bound": "dog\n",
     "p19_mutablelist": "list\n",
     "p26_borrow_return": "borrowed\n",
     "p29_default_super": "ab\n",
@@ -386,6 +420,7 @@ CONFIRMED_STDOUT_ORACLES: dict[str, str] = {
     "p46_string_field_class": "ann\n",
     "p47_list_index_string": "b\n",
     "p48_nested_loops_break": "nested\n",
+    "q08_enum_string_payload": "hi\nquit\n",
     "q10_var_reassign_string": "abc\n",
     "q11_while_list_index": "index-loop\n",
     "q13_if_expr_value": "big\n",
@@ -1098,6 +1133,12 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         f"{section}.{name} with runtime_abort requires abort_message"
                     )
             elif kind == "known_unimplemented":
+                if "target_stdout" in spec:
+                    ts = spec["target_stdout"]
+                    if not isinstance(ts, str) or not ts or not ts.endswith("\n"):
+                        raise ValueError(
+                            f"{section}.{name} with known_unimplemented has invalid target_stdout {ts!r} (must be non-empty and end with newline)"
+                        )
                 if "roadmap_blockers" in spec:
                     blockers = spec["roadmap_blockers"]
                     if (
@@ -1351,6 +1392,8 @@ def derive_static_expectations(
                 }
                 if single_static_stdout is not None:
                     entry["target_stdout"] = single_static_stdout
+                if derivation is not None:
+                    entry["oracle_derivation"] = derivation
                 probes_out[name] = entry
             else:
                 entry = {
@@ -1381,6 +1424,8 @@ def derive_static_expectations(
             }
             if single_static_stdout is not None:
                 entry["target_stdout"] = single_static_stdout
+            if derivation is not None:
+                entry["oracle_derivation"] = derivation
             probes_out[name] = entry
         else:
             probes_out[name] = {
@@ -1401,7 +1446,7 @@ def derive_static_expectations(
             continue
         exp_bytes = expected_txt.read_bytes()
         exp_text = exp_bytes.decode("utf-8")
-        programs_out[prog_dir.name] = {
+        prog_entry: dict[str, Any] = {
             "kind": "known_unimplemented",
             "source_sha256": sha256_file(main_ko),
             "guide_chapter": PROGRAM_GUIDE_CHAPTERS.get(
@@ -1422,6 +1467,9 @@ def derive_static_expectations(
             "oracle_origin": "expected_txt_file",
             "roadmap_blockers": list(PROGRAM_ROADMAP_BLOCKERS.get(prog_dir.name, ["N02"])),
         }
+        if prog_dir.name in PROGRAM_ORACLE_DERIVATIONS:
+            prog_entry["oracle_derivation"] = PROGRAM_ORACLE_DERIVATIONS[prog_dir.name]
+        programs_out[prog_dir.name] = prog_entry
 
     return {
         "schema": SCHEMA_EXPECTATIONS,
@@ -1879,7 +1927,13 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         elif kind == "runtime_abort":
             oracle_repr = f"`abort:{spec['abort_message']}`"
         else:
-            oracle_repr = ", ".join(f"`{m}`" for m in spec.get("allowed_markers", []))
+            markers_repr = ", ".join(f"`{m}`" for m in spec.get("allowed_markers", []))
+            target_out = spec.get("target_stdout")
+            if target_out is not None:
+                escaped_target = target_out.encode("unicode_escape").decode("ascii")
+                oracle_repr = f"{markers_repr} → target `{escaped_target}`"
+            else:
+                oracle_repr = markers_repr
         deriv = (spec.get("oracle_derivation") or spec.get("note") or "-").replace("|", "\\|")
         lines.append(
             f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{kind}` | `{origin}` | {oracle_repr} | {deriv} |"
