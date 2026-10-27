@@ -69,6 +69,8 @@ pub(super) enum ROp {
     },
     DirectCall {
         callee: FunctionId,
+        /// The hidden zeroth operand of a member call.
+        receiver: Option<Slot>,
         arguments: Vec<Slot>,
     },
     NullableWrap {
@@ -99,6 +101,49 @@ pub(super) enum ROp {
         receiver: Slot,
         field: usize,
     },
+    /// Consumes `payload` into the `variant` of a tagged union.
+    TaggedConstruct {
+        tagged: SsaTypeId,
+        variant: usize,
+        payload: Slot,
+    },
+    /// The `Int` discriminant of a tagged value.
+    TaggedDiscriminant {
+        owner: Slot,
+    },
+    /// The payload place of `variant`; the flow facts proved the owner holds it.
+    TaggedPayloadPlace {
+        owner: Slot,
+        variant: usize,
+    },
+    FieldPlace {
+        base: Slot,
+        field: usize,
+    },
+    /// Copies a Copyable value out of a place.
+    ReadPlace {
+        place: Slot,
+    },
+    /// Replaces the Copyable target of an exclusive loan.
+    LoanMutate {
+        loan: Slot,
+        value: Slot,
+    },
+    /// Narrows an active exclusive loan to a call-scoped shared loan.
+    SharedReborrow {
+        source: Slot,
+    },
+    /// Takes a MoveOnly owner back from its root place after its loans ended.
+    RootPlaceTake {
+        owner: Slot,
+        place: Slot,
+    },
+    /// Replaces one payload field through an exclusive owner loan, dropping the old value.
+    HeapFieldReplace {
+        receiver: Slot,
+        field: usize,
+        value: Slot,
+    },
 }
 
 impl ROp {
@@ -118,16 +163,39 @@ impl ROp {
             | Self::NullableWrap { owner: slot, .. }
             | Self::NullableIsNull { owner: slot }
             | Self::HeapAllocate { payload: slot, .. }
-            | Self::HeapFieldRead { receiver: slot, .. } => vec![*slot],
+            | Self::HeapFieldRead { receiver: slot, .. }
+            | Self::TaggedConstruct { payload: slot, .. }
+            | Self::TaggedDiscriminant { owner: slot }
+            | Self::TaggedPayloadPlace { owner: slot, .. }
+            | Self::FieldPlace { base: slot, .. }
+            | Self::ReadPlace { place: slot }
+            | Self::SharedReborrow { source: slot } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::StringConcat { left, right }
-            | Self::StringEqual { left, right } => {
+            | Self::StringEqual { left, right }
+            | Self::LoanMutate {
+                loan: left,
+                value: right,
+            }
+            | Self::HeapFieldReplace {
+                receiver: left,
+                value: right,
+                ..
+            }
+            | Self::RootPlaceTake {
+                owner: left,
+                place: right,
+            } => {
                 vec![*left, *right]
             }
             Self::NullableTake { owner, proof } => vec![*owner, *proof],
-            Self::DirectCall { arguments, .. }
-            | Self::AggregateConstruct {
+            Self::DirectCall {
+                receiver,
+                arguments,
+                ..
+            } => receiver.iter().chain(arguments).copied().collect(),
+            Self::AggregateConstruct {
                 fields: arguments, ..
             } => arguments.clone(),
         }
@@ -149,6 +217,9 @@ pub(super) enum RAbort {
     },
     /// `!!` on a null value.
     NullAssertion,
+    /// The fall-through of a value `when` over a closed domain the frontend proved
+    /// covered; unreachable at run time.
+    UnmatchedWhen,
 }
 
 #[derive(Clone, Debug)]
@@ -177,7 +248,7 @@ impl RTerm {
             Self::NullBranch { owner, .. } => vec![*owner],
             Self::Return(Some(value)) => vec![*value],
             Self::Abort(RAbort::CheckedArithmetic { divisor, .. }) => vec![*divisor],
-            Self::Abort(RAbort::NullAssertion) => Vec::new(),
+            Self::Abort(RAbort::NullAssertion | RAbort::UnmatchedWhen) => Vec::new(),
         }
     }
 
@@ -205,6 +276,8 @@ pub(super) struct RBlock {
     pub(super) terminator: Option<(RTerm, Span)>,
     /// Set for a `NullBranch` non-null target: the proof view defined on entry.
     pub(super) view: Option<Slot>,
+    /// Source of the construct this block joins; the function span when unset.
+    pub(super) origin: Option<Span>,
 }
 
 /// Block 0 is the function entry; `parameters` are defined there.

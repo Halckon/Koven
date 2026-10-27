@@ -127,18 +127,14 @@
       "oracle_derivation": "while loop sums i=0..9 into s=45; s == 45 holds and prints 'while'"
     },
     "p08_when_int": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "two\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0356: subject when (Int subject equality) in E3 refinement layer",
       "source_sha256": "56ad55bd6ceacee625ce07448a9890e453fc8d1bb816cd7ac807f87aff265108",
       "guide_chapter": "06-blocks-control-flow.md",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N02"
-      ]
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "name(2) matches the subject equality branch 2 -> 'two' and prints 'two'"
     },
     "p09_enum_payload": {
       "kind": "run_ok",
@@ -179,34 +175,24 @@
       "oracle_derivation": "single literal println('counter')"
     },
     "p12b_class_field_assign": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "field-assign\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0358: class field replacement in E3 refinement layer",
       "source_sha256": "345592840be8acb216d9d0bc40f4d7f02de70bba7c1a8447fbc5ff3d0bed87d5",
       "guide_chapter": "08-class-family-members.md",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N01"
-      ],
-      "target_stdout": "field-assign\n"
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('field-assign')"
     },
     "p12c_inout_param": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "inout-param\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0358: Inout scalar parameter replacement and caller read-back in E3 refinement layer",
       "source_sha256": "74ec6417a933cf0091595ed1e894f78aceab4f7177f2b66cf990874d2766d8f8",
       "guide_chapter": "10-ownership-borrowing-drop.md",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N01"
-      ],
-      "target_stdout": "inout-param\n"
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('inout-param')"
     },
     "p13_value_class_copy": {
       "kind": "run_ok",
@@ -680,21 +666,13 @@
       "oracle_derivation": "name(Color.Green) selects Color.Green -> 'green' and prints 'green'"
     },
     "p50_enum_method": {
-      "kind": "known_unimplemented",
-      "target_stdout": "enum-method\n",
-      "allowed_markers": [
-        "BE:MissingFact",
-        "BE:UnsupportedNode",
-        "FE:L0165"
-      ],
+      "kind": "run_ok",
+      "stdout": "enum-method\n",
       "v046_baseline_exempt": true,
-      "note": "Enum method with when (this) still hits BE:MissingFact in native lowering",
+      "note": "SPEC-0356: enum method when (this) with is-tests and implicit-this payload reads in E3 refinement layer",
       "source_sha256": "487d2ce11036094236f0532084d6f72b31af44da168403362dc492dc5f3a0b3a",
       "guide_chapter": "08-class-family-members.md",
       "oracle_origin": "v046_spec_contract",
-      "roadmap_blockers": [
-        "N02"
-      ],
       "oracle_derivation": "single literal println('enum-method')"
     },
     "q01_lambda_local": {
@@ -785,19 +763,14 @@
       ]
     },
     "q09_inout_class_param": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "inout-class\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0358: Inout class parameter, Inout receiver call and field replacement in E3 refinement layer",
       "source_sha256": "29ec5eb1f9d0e9b268f4ce30b65ed5061fdb12524c02f6903768948fd2535ac3",
       "guide_chapter": "10-ownership-borrowing-drop.md",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N01"
-      ],
-      "target_stdout": "inout-class\n"
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('inout-class')"
     },
     "q10_var_reassign_string": {
       "kind": "run_ok",
@@ -1201,18 +1174,14 @@
       "oracle_derivation": "MutableMap preserves insertion order ('b' then 'a'); loop prints 'b' then 'a'"
     },
     "v16_when_in_range": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "small\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0356: subject when (Int subject `in` Range) in E3 refinement layer",
       "source_sha256": "ecede705d83314c96657d88ed309fdbe527573551bba19152270cca988bf55a1",
       "guide_chapter": "06-blocks-control-flow.md",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N02"
-      ]
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "bucket(3) satisfies the `in 0..9` arm -> 'small' and prints 'small'"
     },
     "v17_convert_in_loop": {
       "kind": "run_ok",
@@ -1231,19 +1200,14 @@
       "oracle_derivation": "while (n != null) reads n.v (4) and sets n = null; t == 4 prints 'while-class'"
     },
     "v19_stmt_when_mixed": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "stmt-when-mixed\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0356: subject when (statement when with mixed branch types) in E3 refinement layer",
       "source_sha256": "849f24f1e142285ed501e3950031a32b93a77a157ac4f6a352d77378cc19a02c",
       "guide_chapter": "06-blocks-control-flow.md",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N02"
-      ],
-      "target_stdout": "stmt-when-mixed\n"
+      "oracle_origin": "v046_spec_contract",
+      "oracle_derivation": "single literal println('stmt-when-mixed')"
     },
     "v20_range_in_list": {
       "kind": "run_ok",

@@ -392,6 +392,12 @@ pub(crate) enum Operation {
         place: PlaceId,
         value: ValueId,
     },
+    /// Replace the whole Copyable target of an active exclusive loan (an `Inout` binding);
+    /// ADR-0016 lets the loan holder modify the target through `PlaceAccess::Loan`.
+    LoanMutate {
+        loan: LoanId,
+        value: ValueId,
+    },
     Drop {
         owner: ValueId,
     },
@@ -621,6 +627,9 @@ impl Operation {
             }],
             Self::Mutate { place, value } => {
                 vec![EntityId::Place(*place), EntityId::Value(*value)]
+            }
+            Self::LoanMutate { loan, value } => {
+                vec![EntityId::Loan(*loan), EntityId::Value(*value)]
             }
         }
     }

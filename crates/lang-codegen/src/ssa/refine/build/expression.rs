@@ -79,10 +79,19 @@ impl Builder<'_, '_> {
         let (payload, span) = self.node(expression)?;
         let id = self.unit(expression);
         let typed = self.inputs.typed;
-        if typed.construction(id).is_some() {
+        if let Some(descriptor) = typed.construction(id) {
+            if matches!(
+                descriptor.target(),
+                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_)
+            ) {
+                return self.enum_construction(expression, span);
+            }
             return self.construction(expression, span);
         }
         if typed.aggregate_projection(id).is_some() {
+            if self.is_enum_projection(expression) {
+                return self.enum_projection(expression, span);
+            }
             return self.projection(expression, span);
         }
         if typed.non_null_assertion(id).is_some() {
@@ -107,6 +116,13 @@ impl Builder<'_, '_> {
                 )?))
             }
             Expression::Name => self.name(expression, span).map(Lowered::Value),
+            Expression::This => self.this_value(expression, span).map(Lowered::Value),
+            Expression::TypeTest {
+                expression: operand,
+                negated,
+                type_ref,
+                ..
+            } => self.type_test_expression(operand, type_ref, negated, span),
             Expression::Prefix {
                 operator: PrefixOperator::Not,
                 operand,
@@ -132,11 +148,17 @@ impl Builder<'_, '_> {
                 ..
             } => self.if_expression(expression, condition, then_branch, else_branch, span),
             Expression::When {
-                subject: None,
-                entries,
-                ..
-            } => self.when_expression(expression, &entries, span),
+                subject, entries, ..
+            } => self.when_expression(expression, subject, &entries, span),
             Expression::Call { arguments, .. } => self.call(expression, &arguments, span),
+            Expression::Assignment {
+                target,
+                operator: AssignmentOperator::Assign,
+                value,
+                ..
+            } if self.is_field_target(target) => {
+                self.field_assignment(expression, target, value, span)
+            }
             Expression::Assignment {
                 target,
                 operator: AssignmentOperator::Assign,
@@ -505,17 +527,28 @@ impl Builder<'_, '_> {
             .call(call)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
             .clone();
-        if descriptor.receiver().is_some() || descriptor.arguments().len() != arguments.len() {
+        if descriptor.arguments().len() != arguments.len() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let receiver = self.receiver_before_arguments(&descriptor, span)?;
         let mut lowered = Vec::with_capacity(arguments.len());
         let mut loans = Vec::new();
+        let mut writebacks = Vec::new();
         let mut view_reads = Vec::new();
         for argument in descriptor.arguments() {
             let value_expression = arguments
                 .get(argument.argument_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
                 .value;
+            if argument.mode() == ParameterMode::Inout {
+                let (loan, writeback) = self.inout_argument(value_expression)?;
+                lowered.push(loan);
+                if let Some(writeback) = writeback {
+                    loans.push(loan);
+                    writebacks.push(writeback);
+                }
+                continue;
+            }
             if argument.mode() == ParameterMode::Borrow
                 && let Some(view) = self.narrowed_view(value_expression)?
             {
@@ -561,10 +594,11 @@ impl Builder<'_, '_> {
                     lowered.push(loan);
                 }
                 ParameterMode::Inout => {
-                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
                 }
             }
         }
+        let mut receiver_end = None;
         let result = if descriptor.prints_line() {
             let [loan] = lowered.as_slice() else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
@@ -589,8 +623,17 @@ impl Builder<'_, '_> {
                 .get(resolved.key())
                 .copied()
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let (receiver, receiver_loan) = match receiver {
+                Some(receiver) => {
+                    let (operand, loan) = self.receiver_at_call(receiver, span)?;
+                    (Some(operand), loan)
+                }
+                None => (None, None),
+            };
+            receiver_end = receiver_loan;
             let op = ROp::DirectCall {
                 callee,
+                receiver,
                 arguments: lowered,
             };
             if self.is_unit(descriptor.return_type()) {
@@ -602,6 +645,12 @@ impl Builder<'_, '_> {
         };
         for loan in loans.into_iter().rev() {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
+        if let Some(loan) = receiver_end {
+            self.end_owner_loan(loan, span)?;
+        }
+        for writeback in writebacks {
+            self.write_back(writeback)?;
         }
         self.drops(UnitDropPoint::CallReturn(call))?;
         for argument in view_reads {
@@ -644,6 +693,11 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let slot = self.adapt(slot, value, declared)?;
         self.deliver(value);
+        if let Some(loan) = self.inout_loan(symbol) {
+            // The caller's place now holds the new value; nothing is rebound here.
+            self.push(ROp::LoanMutate { loan, value: slot }, Vec::new(), span)?;
+            return Ok(Lowered::Unit);
+        }
         let binding = *self
             .bindings
             .get(&symbol)

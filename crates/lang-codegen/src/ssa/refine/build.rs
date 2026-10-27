@@ -2,7 +2,12 @@
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
 mod condition;
 mod expression;
+mod field;
 mod heap;
+mod inout;
+mod place;
+mod receiver;
+mod tagged;
 mod when;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -14,7 +19,8 @@ use lang_frontend::{
     parser::{Expression, Item, Statement},
     source::Span,
     type_checking::{
-        Copyability, UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeId, UnitTypeKind,
+        Copyability, ParameterMode, UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeId,
+        UnitTypeKind,
     },
 };
 
@@ -41,8 +47,10 @@ pub(super) struct Builder<'i, 'a> {
     /// `None` after a terminator: the rest of the sequence is unreachable.
     block: Option<BlockRef>,
     bindings: BTreeMap<UnitSymbolId, Slot>,
-    /// Borrow-mode parameters: the shared loan the caller passed.
+    /// Borrow and Inout parameters: the shared or exclusive loan the caller passed.
     borrowed: BTreeMap<UnitSymbolId, Slot>,
+    /// The current receiver's value, or the shared loan of a Borrow receiver.
+    receiver: Option<Slot>,
     /// Copyable inner values proven non-null on the current edge.
     narrowed: BTreeMap<UnitSymbolId, Slot>,
     temporaries: BTreeMap<UnitExpressionId, Slot>,
@@ -90,6 +98,7 @@ pub(super) fn build(
         block: None,
         bindings: BTreeMap::new(),
         borrowed: BTreeMap::new(),
+        receiver: None,
         narrowed: BTreeMap::new(),
         temporaries: BTreeMap::new(),
         consumed_drops: BTreeSet::new(),
@@ -102,28 +111,42 @@ pub(super) fn build(
     };
     let entry = builder.body.block();
     builder.block = Some(entry);
-    if entities.len() != inputs.parameters.len() {
+    let receivers = usize::from(inputs.receiver.is_some());
+    if entities.len() != inputs.parameters.len() + receivers {
         return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
     }
-    for (symbol, entity) in inputs.parameters.iter().zip(entities) {
+    let (receiver_entities, entities) = entities.split_at(receivers);
+    if let (Some(receiver), [entity]) = (inputs.receiver, receiver_entities) {
+        let ty = builder.ssa_type(receiver.ty, inputs.span)?;
+        let slot = match (entity, loan_kind(receiver.mode)) {
+            (crate::ssa::model::EntityId::Value(_), None) => {
+                builder.body.slot(EntityType::Value(ty))
+            }
+            (crate::ssa::model::EntityId::Loan(_), Some(kind)) => {
+                builder.body.slot(EntityType::Loan { kind, target: ty })
+            }
+            _ => return Err(error(LoweringErrorKind::InvalidModel, inputs.span)),
+        };
+        builder.body.parameters.push(slot);
+        builder.receiver = Some(slot);
+    }
+    if inputs.modes.len() != inputs.parameters.len() {
+        return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
+    }
+    for ((symbol, entity), mode) in inputs.parameters.iter().zip(entities).zip(&inputs.modes) {
         let ty = builder.symbol_ssa_type(*symbol, inputs.span)?;
-        match entity {
-            crate::ssa::model::EntityId::Value(_) => {
+        match (entity, loan_kind(*mode)) {
+            (crate::ssa::model::EntityId::Value(_), None) => {
                 let slot = builder.body.slot(EntityType::Value(ty));
                 builder.body.parameters.push(slot);
                 builder.bindings.insert(*symbol, slot);
             }
-            crate::ssa::model::EntityId::Loan(_) => {
-                let slot = builder.body.slot(EntityType::Loan {
-                    kind: crate::ssa::model::LoanKind::Shared,
-                    target: ty,
-                });
+            (crate::ssa::model::EntityId::Loan(_), Some(kind)) => {
+                let slot = builder.body.slot(EntityType::Loan { kind, target: ty });
                 builder.body.parameters.push(slot);
                 builder.borrowed.insert(*symbol, slot);
             }
-            crate::ssa::model::EntityId::Place(_) => {
-                return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
-            }
+            _ => return Err(error(LoweringErrorKind::InvalidModel, inputs.span)),
         }
     }
     builder.drops(UnitDropPoint::FunctionEntry(UnitItemId::new(
@@ -156,6 +179,15 @@ pub(super) fn build(
     }
     builder.check_all_drops_consumed()?;
     Ok(builder.body)
+}
+
+/// The loan a parameter of `mode` arrives as; `None` for a Value parameter.
+const fn loan_kind(mode: ParameterMode) -> Option<crate::ssa::model::LoanKind> {
+    match mode {
+        ParameterMode::Value => None,
+        ParameterMode::Borrow => Some(crate::ssa::model::LoanKind::Shared),
+        ParameterMode::Inout => Some(crate::ssa::model::LoanKind::Exclusive),
+    }
 }
 
 impl Builder<'_, '_> {

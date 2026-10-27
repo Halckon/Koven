@@ -9,7 +9,7 @@
 | 所属 Phase | Phase 3；Phase 4 仅未消费事实的拒绝边界 |
 | 语言规范 | [Guide v0.46](../../guide/README.md) |
 | 批准依据 | 2026-10-26 用户批准在 #183 合并后独立修复 String subject 存活期与条件临时清理事实 |
-| 前置 Spec | [0356](0356-refine-when-family.md) 的 String subject 消费缺口 |
+| 前置 Spec | [0356](../../archive/specs/0356-refine-when-family.md) 的 String subject 消费缺口 |
 | 关联 ADR | [0032](../../adr/accepted/0032-ownership-refinement-layer.md) |
 | 阻塞项 | 设计已条件性审结；生产实现与 exact PR CI 尚未完成 |
 | 影响范围 | Unit ownership liveness/drop planner、公开事实及最小 consumer 拒绝、真实源码事实测试 |

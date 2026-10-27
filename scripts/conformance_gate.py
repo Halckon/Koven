@@ -205,15 +205,12 @@ PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
     "linked_stack": "10-ownership-borrowing-drop.md",
 }
 
-# Explicit mapping from all 31 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
+# Explicit mapping from all 24 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
 UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p02_interp": ["L1", "L2"],
     "p05_double": ["N05"],
     "p06_char": ["N05"],
-    "p08_when_int": ["N02"],
     "p11_interface_bound": ["N06"],
-    "p12b_class_field_assign": ["N01"],
-    "p12c_inout_param": ["N01"],
     "p15_elvis": ["N03"],
     "p16_result_q": ["N08"],
     "p16b_result_string": ["N08"],
@@ -228,16 +225,12 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p35_value_eq": ["L1"],
     "p40_nested_generic_class": ["N01"],
     "p41_when_string": ["N02"],
-    "p50_enum_method": ["N02"],
     "q02_lambda_arg_inline": ["N04"],
     "q03_fn_ref": ["N04"],
     "q08_enum_string_payload": ["N02", "L7"],
-    "q09_inout_class_param": ["N01"],
     "s02_pair_builtin": ["S6"],
     "s03_to_pair": ["S6"],
     "t03_vmethod_generic": ["N06"],
-    "v16_when_in_range": ["N02"],
-    "v19_stmt_when_mixed": ["N02"],
 }
 
 # Explicit mapping from all 6 V1 acceptance programs to blocking item IDs in docs/roadmap/v1.json.
@@ -258,6 +251,7 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "p03b_byte_literal_cmp": "comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085",
     "p04_overflow": "Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09",
     "p07_while_var": "while loop sums i=0..9 into s=45; s == 45 holds and prints 'while'",
+    "p08_when_int": "name(2) matches the subject equality branch 2 -> 'two' and prints 'two'",
     "p10_generic_fn": "identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int'",
     "p14_nullable": "pick(true) returns non-null Node(5); smart cast prints 'smart' and pick(true)!!.v == 5 prints 'bangbang'",
     "p14b_nullable_simple": "a: Node? = Node(5) is non-null with a.v == 5; smart cast branch prints 'smart'",
@@ -310,6 +304,7 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "v12_convert_abort": "(-1).toULong() fails range check and aborts with 'abort: value out of range for ULong' (SPEC-0327/0355)",
     "v13_while_nullable_int": "while (x != null) adds 5 to total and sets x = null; total == 5 prints 'while-nullable'",
     "v15_map_for": "MutableMap preserves insertion order ('b' then 'a'); loop prints 'b' then 'a'",
+    "v16_when_in_range": "bucket(3) satisfies the `in 0..9` arm -> 'small' and prints 'small'",
     "v17_convert_in_loop": "0..<3 converts 0,1,2 via toLong() and sums to 3L; prints 'conv-loop'",
     "v18_while_nullable_class": "while (n != null) reads n.v (4) and sets n = null; t == 4 prints 'while-class'",
     "v20_range_in_list": "3 is neither in 1..2 nor in 5..6 (n == 0, size == 2); prints 'range-in-list'",
@@ -529,6 +524,42 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "v046_baseline_exempt": True,
         "note": "SPEC-0350: pointer-niche inline nullable String? return in E3 refinement layer",
     },
+    "p08_when_int": {
+        "kind": "run_ok",
+        "stdout": "two\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0356: subject when (Int subject equality) in E3 refinement layer",
+    },
+    "v16_when_in_range": {
+        "kind": "run_ok",
+        "stdout": "small\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0356: subject when (Int subject `in` Range) in E3 refinement layer",
+    },
+    "v19_stmt_when_mixed": {
+        "kind": "run_ok",
+        "stdout": "stmt-when-mixed\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0356: subject when (statement when with mixed branch types) in E3 refinement layer",
+    },
+    "p12b_class_field_assign": {
+        "kind": "run_ok",
+        "stdout": "field-assign\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0358: class field replacement in E3 refinement layer",
+    },
+    "p12c_inout_param": {
+        "kind": "run_ok",
+        "stdout": "inout-param\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0358: Inout scalar parameter replacement and caller read-back in E3 refinement layer",
+    },
+    "q09_inout_class_param": {
+        "kind": "run_ok",
+        "stdout": "inout-class\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0358: Inout class parameter, Inout receiver call and field replacement in E3 refinement layer",
+    },
     "e01_enum_when_bool_return": {
         "kind": "run_ok",
         "stdout": "e1\n",
@@ -554,11 +585,10 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "note": "Payloadless enum when: main prints name(Color.Green), so the when branch yields green",
     },
     "p50_enum_method": {
-        "kind": "known_unimplemented",
-        "target_stdout": "enum-method\n",
-        "allowed_markers": ["BE:MissingFact", "BE:UnsupportedNode", "FE:L0165"],
+        "kind": "run_ok",
+        "stdout": "enum-method\n",
         "v046_baseline_exempt": True,
-        "note": "Enum method with when (this) still hits BE:MissingFact in native lowering",
+        "note": "SPEC-0356: enum method when (this) with is-tests and implicit-this payload reads in E3 refinement layer",
     },
     "u01_enum_case_borrow_arg": {
         "kind": "run_ok",
@@ -1618,17 +1648,20 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | {blockers} | [{exp_file}]({exp_file}) | {allowed} |"
         )
 
-    # 3. Aggregate all 31 known_unimplemented probes by roadmap blocker
+    # 3. Aggregate every known_unimplemented probe by roadmap blocker
     blocker_probes: dict[str, list[str]] = {}
     for name, spec in sorted(probes.items()):
         if spec["kind"] == "known_unimplemented":
             for b in spec.get("roadmap_blockers", []):
                 blocker_probes.setdefault(b, []).append(name)
+    unimplemented_total = sum(
+        1 for spec in probes.values() if spec["kind"] == "known_unimplemented"
+    )
 
     lines.extend(
         [
             "",
-            "## 3. 31 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账",
+            f"## 3. {unimplemented_total} 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账",
             "",
             "| 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |",
             "|---|---|---|---:|---|",

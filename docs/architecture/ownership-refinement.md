@@ -4,10 +4,14 @@
 
 ## 分流
 
-`lower_owned_unit_with_entry` 对每个无 receiver、无类型替换、无借用/carrier 返回的函数实例先做
+`lower_owned_unit_with_entry` 对每个无类型替换、无借用/carrier 返回的函数实例先做
 确定性子集预检（`ssa::refine::subset`），只读 typed/ownership facts 与 AST 构造种类，不试跑 lowering。
-预检通过且函数签名或函数体触及任一 nullable 类型时，函数体由 `ssa::refine` lowering；失败即报错，
-不回退。其余函数仍走 `unit_lower` 的按家族路径。精确子集以 SPEC-0350 §3 的已实现清单为准。
+receiver 只接受 Copyable enum（Value/Borrow）与普通 class（Borrow/Inout）。预检通过且函数签名或函数体
+触及任一 nullable 类型、或使用已迁入的家族（`when`、enum `is`、字段替换、`Inout` 参数或 receiver、
+`&` 实参）时，函数体由
+`ssa::refine` lowering；失败即报错，不回退。其余函数仍走 `unit_lower` 的按家族路径；带 `Inout` 参数的函数若未进入细化层，以 UnsupportedNode
+拒绝（unit planning 已为 `Inout` 参数分配 exclusive loan 实体）。精确子集以
+SPEC-0350 §3 的已实现清单与 SPEC-0356 为准。
 
 ## 两段 lowering
 
@@ -19,8 +23,16 @@
   边上有归属；产物经完整 verifier。
 
 已接入：Boolean/整数/String 标量与 checked 算术、String 字面量/拼接/比较、`println`、顶层直接调用、
-`if`/`while`/短路、无 subject 的 `when`（Boolean 条件按序测试，命中边消费 `WhenAlternativeMatch`）、`loop` 与 `break`/`continue`（跳转前结束本轮循环打开的 view）、inline nullable、字段只含标量/String 的非泛型 class 及其 pointer-like nullable、
-class 构造、Copyable 字段读取、`!!`（Consume，null 边 Abort）。
+`if`/`while`/短路、`when`（无 subject 时 Boolean 条件按序测试；标量 subject 按值比较或测整数 Range 成员；enum subject
+比较判别值，值位置无 `else` 时落空边为不可达 Abort；命中边消费 `WhenAlternativeMatch`）、
+Copyable 非泛型且 payload 全为标量的 enum（case 构造、`is`/`!is`、无 payload case 等值、经
+`TaggedPayloadPlace` 读取窄化名、`this` 或隐式 `this` 的 payload）及 enum 方法的 receiver、`loop` 与 `break`/`continue`（跳转前结束本轮循环打开的 view）、inline nullable、字段只含标量/String 的非泛型 class 及其 pointer-like nullable、
+class 构造、Copyable 字段读取（经窄化 view、局部 owner 的临时 shared loan、Borrow/Inout 参数或当前
+receiver 的 loan）、`!!`（Consume，null 边 Abort）；赋值与 `Inout`（SPEC-0358）：标量 `Inout` 参数经
+`LoanMutate` 整体替换，`&local` 借出 root place 并在调用后读回（MoveOnly 经 `RootPlaceTake`），`&p` 继续
+传递 `Inout` 参数的 loan；`owner.f = v` 先求值 RHS，再经 exclusive loan `HeapFieldReplace`，并由替换
+消费 `BeforeReplacement` 析构；receiver 调用中 Borrow receiver 在实参前借出，`Inout` receiver 的
+exclusive loan 在调用点激活。
 
 ## inline nullable 布局
 

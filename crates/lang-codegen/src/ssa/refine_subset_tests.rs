@@ -51,6 +51,16 @@ fn nullable_functions_inside_the_subset_are_routed() {
          fun f(own n: Node?): Int { if (n != null) { return n.v }; return 0 }",
         "class Node(val v: Int)\nfun g(c: Boolean): Node? = if (c) Node(1) else null\n\
          fun f(c: Boolean): Int { val n = g(c)!!; return n.v }",
+        "enum class Shape { Circle(r: Int), Point }\n\
+         fun f(x: Shape): Int = when (x) { is Shape.Circle -> x.r\n Shape.Point -> 0 }",
+        "enum class Shape { Circle(r: Int), Point }\n\
+         fun f(): Boolean { val x = Shape.Circle(1); return x is Shape.Circle }",
+        "fun f(inout x: Int): Unit { x = x + 1 }",
+        "fun g(inout x: Int): Unit { x = 1 }\nfun f(inout x: Int): Unit { g(&x) }",
+        "class Counter(var count: Int)\nfun f(): Int { var c = Counter(0); c.count = 5; return c.count }",
+        "class Counter(var n: Int) { inout fun inc(): Unit { n = n + 1 } }\n\
+         fun f(inout c: Counter): Unit { c.inc() }",
+        "fun g(inout x: Int): Unit { x = 1 }\nfun f(): Int { var n = 0; g(&n); return n }",
     ] {
         let (result, routed) = route(source);
         assert!(routed, "{source}");
@@ -65,8 +75,21 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
     for (reason, source) in [
         ("no nullable", "fun f(own x: Int): Int = x + 1"),
         (
-            "when with a subject",
+            "when with a nullable subject",
             "fun f(own x: Int?): Int = when (x) { null -> 0\n else -> 1 }",
+        ),
+        (
+            "when with a String subject",
+            "fun f(own s: String): Int = when (s) { \"a\" -> 1\n else -> 0 }",
+        ),
+        (
+            "jump out of a call argument past a borrowed temporary",
+            "class Node()\nfun outer(node: Node, own r: Int): Int = r\n\
+             fun f(flag: Boolean): Int = outer(Node(), when (flag) { true -> return 1\n else -> 0 })",
+        ),
+        (
+            "value when without else",
+            "fun f(b: Boolean): Int = when (b) { true -> 1\n false -> 0 }",
         ),
         (
             "lambda",
@@ -85,7 +108,7 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "fun f(own s: String?): Boolean { val present = s != null; return present }",
         ),
         (
-            "receiver call",
+            "receiver call on a smart-cast nullable",
             "class Node(val v: Int) { fun get(): Int = v }\n\
              fun f(own n: Node?): Int { if (n != null) { return n.get() }; return 0 }",
         ),
@@ -97,6 +120,24 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "generic class",
             "class Cell<T>(val item: T)\n\
              fun f(own c: Cell<Int>?): Int { if (c != null) { return 1 }; return 0 }",
+        ),
+        (
+            "MoveOnly Inout parameter",
+            "fun f(inout s: String): Unit { s = \"a\" }",
+        ),
+        (
+            "whole replacement of a MoveOnly Inout target",
+            "class Counter(var n: Int)\nfun f(inout c: Counter): Unit { c = Counter(1) }",
+        ),
+        (
+            "MoveOnly enum subject",
+            "enum class Tag { Named(n: String), Empty }\n\
+             fun f(own t: Tag): Int = when (t) { is Tag.Named -> 1\n else -> 0 }",
+        ),
+        (
+            "generic enum subject",
+            "enum class Opt<T> { Some(v: T), None }\n\
+             fun f(o: Opt<Int>): Int = when (o) { is Opt.Some -> 1\n else -> 0 }",
         ),
         (
             "non-scalar class field",

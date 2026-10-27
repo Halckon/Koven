@@ -83,6 +83,7 @@ pub(super) fn declare(
         body: FunctionPlanBody::Block(body),
         receiver,
         parameter_symbols: Vec::new(),
+        inout_parameter: None,
         return_type,
     })
 }

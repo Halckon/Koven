@@ -329,6 +329,7 @@ impl Facts<'_, '_> {
             body: FunctionPlanBody::Block(*body),
             receiver: None,
             parameter_symbols: Vec::new(),
+            inout_parameter: None,
             return_type,
         };
         intern_body_scalar_types(module, self.parsed, instance, typed, &mut mapper)

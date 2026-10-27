@@ -316,3 +316,251 @@ fn loop_break_and_continue_keep_the_outer_proof_view() {
     );
     counted(source, 1, b"loop\nsame\n");
 }
+
+#[test]
+fn subject_when_compares_scalars_and_range_membership() {
+    let source = r#"fun name(n: Int): String = when (n) { 1 -> "one"; 2 -> "two"; else -> "many" }
+    fun bucket(x: Int): String = when (x) { in 0..9 -> "small"; !in 0..<100 -> "huge"; else -> "big" }
+    fun main(): Unit {
+        println(name(2)); println(name(5))
+        println(bucket(3)); println(bucket(50)); println(bucket(200))
+        val k = 7
+        val n = when (k > 5) { false -> 1; else -> 2 }
+        if (n == 2) { println("when-bool") }
+        when (n) { 1 -> 1; else -> "s" }
+        println("stmt")
+    }"#;
+    let ((program, _), routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("subject when lowers and verifies")
+    });
+    let rendered = render_program(&program);
+    // `in 0..9` tests `>=` then `<=`; `!in 0..<100` tests `>=` then `<`.
+    for comparison in ["cmp.ge", "cmp.le", "cmp.lt"] {
+        assert!(rendered.contains(comparison), "{comparison}: {rendered}");
+    }
+    for function in ["koven.p.name.d", "koven.p.bucket.d", "koven.p.main.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        run(source),
+        (
+            "two\nmany\nsmall\nbig\nhuge\nwhen-bool\nstmt\n".to_owned(),
+            Some(0)
+        )
+    );
+}
+
+#[test]
+fn enum_case_tests_and_payload_reads_run_in_methods_and_functions() {
+    let source = r#"enum class Shape { Circle(r: Int), Square(s: Int), Point;
+        fun area(): Int = when (this) { is Circle -> 3 * r * r; is Square -> s * s; is Point -> 0 }
+        fun round(): Boolean = this is Circle
+    }
+    fun side(x: Shape): Int = when (x) { is Shape.Square -> x.s; !is Shape.Circle -> 100; else -> 0 }
+    fun point(x: Shape): String = when (x) { Shape.Point -> "point"; else -> "shape" }
+    fun main(): Unit {
+        val c = Shape.Circle(2)
+        val q = Shape.Square(3)
+        val p = Shape.Point
+        if (c.area() == 12 && q.area() == 9 && p.area() == 0) { println("area") }
+        if (c.round() && !q.round()) { println("round") }
+        if (side(q) == 3 && side(p) == 100 && side(c) == 0) { println("side") }
+        println(point(p))
+        println(point(c))
+    }"#;
+    let ((program, _), routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("enum when lowers and verifies")
+    });
+    // The exhaustive value `when` over the enum has an unreachable fall-through abort.
+    let area = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name.contains(".area."))
+        .expect("area is lowered");
+    assert!(
+        area.blocks.iter().any(|block| matches!(
+            block.terminator.as_ref().and_then(|terminator| terminator.abort.as_ref()),
+            Some(super::model::AbortReason::Text(text)) if text.contains("matched no branch")
+        )),
+        "{}",
+        render_program(&program)
+    );
+    for function in ["area", "side", "point"] {
+        assert!(
+            routed
+                .iter()
+                .any(|name| name.contains(&format!(".{function}."))),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        run(source),
+        ("area\nround\nside\npoint\nshape\n".to_owned(), Some(0))
+    );
+}
+
+#[test]
+fn inout_scalar_parameters_replace_the_callers_binding() {
+    let source = r#"fun bump(inout x: Int): Unit { x = x + 1 }
+    fun add_to(inout total: Int, own amount: Int): Unit {
+        total = total + amount
+        if (total > 5) { total = 0 }
+    }
+    fun main(): Unit {
+        var n = 1
+        bump(&n)
+        add_to(&n, 2)
+        if (n == 4) { println("four") }
+        add_to(&n, 3)
+        if (n == 0) { println("reset") }
+    }"#;
+    let ((program, _), routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("inout lowers and verifies")
+    });
+    let rendered = render_program(&program);
+    assert!(rendered.contains("borrow.exclusive"), "{rendered}");
+    for function in ["koven.p.bump.d", "koven.p.add_to.d", "koven.p.main.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(run(source), ("four\nreset\n".to_owned(), Some(0)));
+}
+
+#[test]
+fn field_replacement_drops_the_old_value_and_keeps_the_owner() {
+    let source = r#"class Counter(var count: Int, var name: String)
+    fun main(): Unit {
+        var c = Counter(0, "a" + "b")
+        c.count = 5
+        c.name = "x" + "y"
+        if (c.count == 5) { println("field-assign") }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("field replacement lowers and verifies")
+    });
+    assert!(
+        routed.iter().any(|name| name.starts_with("koven.p.main.d")),
+        "{routed:?}"
+    );
+    // The Counter and both concatenations are each freed exactly once.
+    counted(source, 3, b"field-assign\n");
+}
+
+#[test]
+fn inout_class_parameters_and_receivers_mutate_the_callers_owner() {
+    let source = r#"class Counter(var n: Int) {
+        inout fun inc(): Unit { this.n = this.n + 1 }
+        inout fun add(own k: Int): Unit { n = n + k }
+        fun get(): Int = n
+    }
+    fun bump(inout c: Counter): Unit { c.inc(); c.add(10) }
+    fun main(): Unit {
+        var c = Counter(0)
+        bump(&c)
+        if (c.n == 11 && c.get() == 11) { println("inout-class") }
+        c.inc()
+        if (c.get() == 12) { println("receiver") }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("inout class lowers and verifies")
+    });
+    // `get` touches no migrated family and keeps the per-family path.
+    for function in ["koven.p.bump.d", "koven.p.main.d", ".inc.", ".add."] {
+        assert!(
+            routed.iter().any(|name| name.contains(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    // One Counter, freed once.
+    counted(source, 1, b"inout-class\nreceiver\n");
+}

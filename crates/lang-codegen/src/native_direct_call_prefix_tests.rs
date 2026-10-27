@@ -726,8 +726,10 @@ fn assert_paths(source: &UnitSource, fixture: &Fixture, program: &Program) {
         .blocks
         .iter()
         .filter(|block| {
+            // The refinement layer (SPEC-0356) branches at the `true` condition inside it.
             block.terminator.as_ref().is_some_and(|terminator| {
-                terminator.origin == Origin::Source(control)
+                matches!(terminator.origin, Origin::Source(origin)
+                    if control.start() <= origin.start() && origin.end() <= control.end())
                     && matches!(terminator.kind, TerminatorKind::Conditional { .. })
             })
         })

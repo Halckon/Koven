@@ -49,6 +49,7 @@ pub(super) fn verify(function: &Function, types: &TypeCaptures, errors: &mut Vec
                 | Operation::ContainerInsertAt { element: value, .. } => may(*value),
                 Operation::HeapFieldExchange { replacement, .. } => may(*replacement),
                 Operation::Mutate { place, value } => proof.is_projected(*place) && may(*value),
+                Operation::LoanMutate { value, .. } => may(*value),
                 _ => false,
             };
             if escapes {

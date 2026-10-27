@@ -11,15 +11,15 @@
 | [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 5 | 1 | 1 | 4 | 7 / 11 |
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 |
-| [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 12 | 2 | 0 | 5 | 14 / 19 |
+| [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 15 | 2 | 0 | 2 | 17 / 19 |
 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 2 | 1 | 0 | 5 | 3 / 8 |
-| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 13 | 0 | 0 | 3 | 13 / 16 |
+| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 11 | 1 | 1 | 3 | 13 / 16 |
-| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 4 | 2 | 0 | 3 | 6 / 9 |
+| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 |
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 2 | 0 | 0 | 2 | 2 / 4 |
-| **合计** | **154** | **106** | **14** | **3** | **31** | **123 / 154** |
+| **合计** | **154** | **113** | **14** | **3** | **24** | **130 / 154** |
 
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
@@ -32,15 +32,15 @@
 | `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `N01`, `N08`, `L3b` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
 | `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
 
-## 3. 31 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
+## 3. 24 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
 
 | 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |
 |---|---|---|---:|---|
 | `L1` | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable | `todo` | 2 | `p02_interp`, `p35_value_eq` |
 | `L2` | 字符串插值降级："${x}" 要求 x : Display | `todo` | 1 | `p02_interp` |
 | `L7` | MoveOnly enum 的消费式匹配：owned subject 分支获得 payload owned 绑定 | `todo` | 2 | `p21_box_enum`, `q08_enum_string_payload` |
-| `N01` | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | `todo` | 4 | `p12b_class_field_assign`, `p12c_inout_param`, `p40_nested_generic_class`, `q09_inout_class_param` |
-| `N02` | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | `partial` | 6 | `p08_when_int`, `p41_when_string`, `p50_enum_method`, `q08_enum_string_payload`, `v16_when_in_range`, `v19_stmt_when_mixed` |
+| `N01` | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | `partial` | 1 | `p40_nested_generic_class` |
+| `N02` | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | `partial` | 2 | `p41_when_string`, `q08_enum_string_payload` |
 | `N03` | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | `partial` | 2 | `p15_elvis`, `p25b_linked_recursive` |
 | `N04` | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | `partial` | 6 | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p27_thread`, `q02_lambda_arg_inline`, `q03_fn_ref` |
 | `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 2 | `p05_double`, `p06_char` |
@@ -66,13 +66,13 @@
 | `p05_double` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
 | `p06_char` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
 | `p07_while_var` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `source_trace_audited` | `while\n` | while loop sums i=0..9 into s=45; s == 45 holds and prints 'while' |
-| `p08_when_int` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p08_when_int` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `two\n` | name(2) matches the subject equality branch 2 -> 'two' and prints 'two' |
 | `p09_enum_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `single_println_literal` | `enum\n` | single literal println('enum') |
 | `p10_generic_fn` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `source_trace_audited` | `generic\nint\n` | identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int' |
 | `p11_interface_bound` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
 | `p12_class_inout` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `counter\n` | single literal println('counter') |
-| `p12b_class_field_assign` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
-| `p12c_inout_param` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p12b_class_field_assign` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `v046_spec_contract` | `field-assign\n` | single literal println('field-assign') |
+| `p12c_inout_param` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `run_ok` | `v046_spec_contract` | `inout-param\n` | single literal println('inout-param') |
 | `p13_value_class_copy` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `run_ok` | `single_println_literal` | `value\n` | single literal println('value') |
 | `p14_nullable` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `smart\nbangbang\n` | pick(true) returns non-null Node(5); smart cast prints 'smart' and pick(true)!!.v == 5 prints 'bangbang' |
 | `p14b_nullable_simple` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `smart\n` | a: Node? = Node(5) is non-null with a.v == 5; smart cast branch prints 'smart' |
@@ -116,7 +116,7 @@
 | `p47_list_index_string` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `b\n` | listOf('a', 'b')[1] evaluates to 'b' and prints 'b' |
 | `p48_nested_loops_break` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `source_trace_audited` | `nested\n` | outer loop runs 5 times, inner loop breaks at j==3 after 3 increments -> hits == 15; prints 'nested' |
 | `p49_when_enum_no_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `green\n` | name(Color.Green) selects Color.Green -> 'green' and prints 'green' |
-| `p50_enum_method` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `v046_spec_contract` | `BE:MissingFact`, `BE:UnsupportedNode`, `FE:L0165` | single literal println('enum-method') |
+| `p50_enum_method` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `v046_spec_contract` | `enum-method\n` | single literal println('enum-method') |
 | `q01_lambda_local` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `single_println_literal` | `lambda-local\n` | single literal println('lambda-local') |
 | `q02_lambda_arg_inline` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
 | `q03_fn_ref` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
@@ -125,7 +125,7 @@
 | `q06_nullable_return_bang` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `single_println_literal` | `bang\n` | single literal println('bang') |
 | `q07_result_when_int` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `single_println_literal` | `res-int\n` | single literal println('res-int') |
 | `q08_enum_string_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
-| `q09_inout_class_param` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `q09_inout_class_param` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `run_ok` | `v046_spec_contract` | `inout-class\n` | single literal println('inout-class') |
 | `q10_var_reassign_string` | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | `run_ok` | `source_trace_audited` | `abc\n` | s starts as 'a', appends 'b' then 'c' -> 'abc' |
 | `q11_while_list_index` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `index-loop\n` | while loop sums listOf(1,2,3) by index -> s == 6; prints 'index-loop' |
 | `q12_companion_const` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | `run_ok` | `v046_spec_contract` | `cconst\n` | Cfg.N reads associated const val 3 from anonymous companion { }; Cfg.N == 3 prints 'cconst' |
@@ -172,10 +172,10 @@
 | `v13_while_nullable_int` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `while-nullable\n` | while (x != null) adds 5 to total and sets x = null; total == 5 prints 'while-nullable' |
 | `v14_map_consume` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `consume\n` | single literal println('consume') |
 | `v15_map_for` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `b\na\n` | MutableMap preserves insertion order ('b' then 'a'); loop prints 'b' then 'a' |
-| `v16_when_in_range` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `v16_when_in_range` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `small\n` | bucket(3) satisfies the `in 0..9` arm -> 'small' and prints 'small' |
 | `v17_convert_in_loop` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `source_trace_audited` | `conv-loop\n` | 0..<3 converts 0,1,2 via toLong() and sums to 3L; prints 'conv-loop' |
 | `v18_while_nullable_class` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `source_trace_audited` | `while-class\n` | while (n != null) reads n.v (4) and sets n = null; t == 4 prints 'while-class' |
-| `v19_stmt_when_mixed` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `v19_stmt_when_mixed` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `stmt-when-mixed\n` | single literal println('stmt-when-mixed') |
 | `v20_range_in_list` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `range-in-list\n` | 3 is neither in 1..2 nor in 5..6 (n == 0, size == 2); prints 'range-in-list' |
 | `v21_for_range_return` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `range-return\n` | firstEven(5) returns 2 on i == 2 inside 1..5; prints 'range-return' |
 | `v22_range_with_map` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `range-map\n` | populates m[i] = i*i for i in 0..<4; m.get(3) == 9 prints 'range-map' |
