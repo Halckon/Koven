@@ -216,12 +216,18 @@ impl Checker<'_> {
         let Some((&tail, prefix)) = elements.split_last() else {
             return Ok(Flows::next(state));
         };
+        let locals = self.scope_locals(&elements)?;
         let mut flows = self.check_elements(prefix, state)?;
         let Some(next) = flows.next.take() else {
+            self.check_scope_exit_loans(&locals, None, &mut flows)?;
             self.restore_borrow_scope(&parents, &mut flows);
             return Ok(flows);
         };
         let tail_payload = self.parsed.ast().statements().get(tail)?.payload().clone();
+        let tail_expression = match tail_payload {
+            Statement::Expression { expression } => Some(expression),
+            _ => None,
+        };
         let tail_flows = match tail_payload {
             Statement::Expression { expression } => {
                 if escaping {
@@ -233,6 +239,7 @@ impl Checker<'_> {
             _ => self.check_statement(tail, next)?,
         };
         flows.merge(tail_flows);
+        self.check_scope_exit_loans(&locals, tail_expression, &mut flows)?;
         self.restore_borrow_scope(&parents, &mut flows);
         Ok(flows)
     }

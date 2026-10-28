@@ -25,6 +25,10 @@
 [0032 所有权细化层](accepted/0032-ownership-refinement-layer.md)与[0033 inline nullable 表示](accepted/0033-inline-nullable-representation.md)
 按 2026-10-23 用户明确确认接受（0033 局部扩展 0018）；实施与验收由 0350 维护。
 
+[0034 细化层闭包与 callable view](accepted/0034-refine-closures-and-callable-views.md)按 2026-10-28 用户明确确认接受（局部扩展 0009）：
+lambda 体为细化层 thunk，Borrow 函数参数使用不拥有的 callable view，逃逸分析分 frontend / 细化层 / SSA verifier 三层；
+scope 逃逸修复由 0363 维护，闭包家族实施由 0364 维护。
+
 [0031 单文件 Unit driver 适配](accepted/0031-single-file-compilation-unit-adapter.md)按 2026-10-19 用户
 对 Guide v0.45 的明确批准接受，局部扩展 0005；project 原显式 root 与发现政策保持。
 
