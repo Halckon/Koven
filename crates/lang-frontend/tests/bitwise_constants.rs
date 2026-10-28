@@ -1,16 +1,14 @@
-//! Integer named bit operations share exact constant values across both Phase 2 entry points.
+//! Integer named bit operations keep exact constants in MemoryDocument and rooted Units.
 
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::{ParsedFile, parse_file},
     source::SourceMap,
     type_checking::{
-        BuiltinType, CompilationUnitTypes, ConstValue, TypeKind, TypedFile, UnitTypeKind,
-        check_compilation_unit_types, check_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, ConstValue, UnitTypeKind, check_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -35,14 +33,17 @@ fn parse(sources: &SourceMap, source: lang_frontend::source::SourceId) -> Parsed
     parsed
 }
 
-fn checked_single(text: &str) -> (SourceMap, TypedFile) {
+fn checked_memory_document(text: &str) -> (SourceMap, CompilationUnitTypes) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("bitwise.ko", text).unwrap();
     let parsed = parse(&sources, source);
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
     let (ne, te) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &ne).unwrap();
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne).unwrap();
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &te).unwrap();
+    let names = names.validate().unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &te).unwrap();
     (sources, typed)
 }
 
@@ -142,16 +143,17 @@ fn matrix_source(ty: BuiltinType, width: u32, signed: bool) -> (String, Vec<Cons
 }
 
 #[test]
-fn single_file_bitwise_constants_cover_all_widths_and_masked_counts() {
+fn memory_document_bitwise_constants_cover_all_widths_and_masked_counts() {
     for (ty, width, signed) in INTEGER_TYPES {
         let (source, expected) = matrix_source(ty, width, signed);
-        let (sources, typed) = checked_single(&source);
+        let (sources, typed) = checked_memory_document(&source);
         assert!(
             typed.diagnostics().is_empty(),
             "{ty:?}: {:?}",
             typed.diagnostics()
         );
-        let facts = typed.constants().unwrap();
+        let enabled = typed.validate_constants().unwrap();
+        let facts = enabled.constants();
         let mut actual = 0;
         for declaration in facts.declarations() {
             let name = sources.slice(declaration.declaration_span()).unwrap();
@@ -162,8 +164,8 @@ fn single_file_bitwise_constants_cover_all_widths_and_masked_counts() {
                     "{ty:?} {name}"
                 );
                 assert_eq!(
-                    typed.types().get(declaration.ty()),
-                    Some(&TypeKind::Builtin(ty))
+                    enabled.types().types().get(declaration.ty()),
+                    Some(&UnitTypeKind::Builtin(ty))
                 );
                 assert_eq!(declaration.dependencies().len(), 2);
                 actual += 1;
@@ -262,12 +264,12 @@ fn bitwise_constants_retain_operand_type_errors_without_evaluation_failures() {
         let source = format!(
             "const val left: Int = 1\nconst val right: Long = 1L\nconst val result = left {operator} right"
         );
-        let (_, single) = checked_single(&source);
+        let (_, memory) = checked_memory_document(&source);
         let (_, unit) = checked_unit(&source);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        for diagnostics in [memory.diagnostics(), unit.diagnostics()] {
             assert_eq!(codes(diagnostics), ["L0085"], "{operator}: {diagnostics:?}");
         }
-        assert!(single.constants().is_none());
+        assert!(memory.constants().is_none());
         assert!(unit.constants().is_none());
     }
 }
@@ -289,16 +291,16 @@ fn bitwise_constant_qualification_still_rejects_calls_and_checked_overflow() {
         ("const val result = (1 shl 31) / -1", "L0158", "/"),
         ("const val result = 1 shl (1 / 0)", "L0158", "/"),
     ] {
-        let (single_sources, single) = checked_single(source);
+        let (memory_sources, memory) = checked_memory_document(source);
         let (unit_sources, unit) = checked_unit(source);
         for (sources, diagnostics) in [
-            (&single_sources, single.diagnostics()),
+            (&memory_sources, memory.diagnostics()),
             (&unit_sources, unit.diagnostics()),
         ] {
             assert_eq!(codes(diagnostics), [code], "{source}: {diagnostics:?}");
             assert_eq!(sources.slice(diagnostics[0].primary_span()).unwrap(), span);
         }
-        assert!(single.constants().is_none());
+        assert!(memory.constants().is_none());
         assert!(unit.constants().is_none());
     }
 }
@@ -306,23 +308,23 @@ fn bitwise_constant_qualification_still_rejects_calls_and_checked_overflow() {
 #[test]
 fn bitwise_constant_short_circuit_preserves_syntax_dependency_cycles() {
     let source = "const val result: Boolean = false && ((1 shl count) == 0)\nconst val count: Int = 1 shl count";
-    let (_, single) = checked_single(source);
+    let (_, memory) = checked_memory_document(source);
     let (_, unit) = checked_unit(source);
-    assert_eq!(codes(single.diagnostics()), ["L0157"]);
+    assert_eq!(codes(memory.diagnostics()), ["L0157"]);
     assert_eq!(codes(unit.diagnostics()), ["L0157"]);
-    assert!(single.constants().is_none());
+    assert!(memory.constants().is_none());
     assert!(unit.constants().is_none());
     let source = "const val result = false && ((1 shl (1 / 0)) == 0)";
-    let (_, single) = checked_single(source);
+    let (_, memory) = checked_memory_document(source);
     let (_, unit) = checked_unit(source);
     assert!(
-        single.diagnostics().is_empty(),
+        memory.diagnostics().is_empty(),
         "{:?}",
-        single.diagnostics()
+        memory.diagnostics()
     );
     assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
     assert_eq!(
-        single.constants().unwrap().declarations()[0].value(),
+        memory.constants().unwrap().declarations()[0].value(),
         &ConstValue::Boolean(false)
     );
     assert_eq!(

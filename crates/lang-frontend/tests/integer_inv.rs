@@ -1,13 +1,11 @@
-//! 整数 inv 的类型、静态身份与所有权合同。
+//! MemoryDocument 与 rooted Unit 中整数 inv 的类型、静态身份与所有权合同。
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
-    ownership_checking::{check_compilation_unit_ownership, check_ownership},
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+    ownership_checking::check_compilation_unit_ownership,
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 
 fn check_both(text: &str, expected: &[&str], ownership: &[&str]) {
@@ -30,9 +28,12 @@ fn check_both_with_count(
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    let names = names.validate().unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     assert_eq!(
         typed
             .diagnostics()
@@ -40,7 +41,7 @@ fn check_both_with_count(
             .map(|d| d.code().to_string())
             .collect::<Vec<_>>(),
         expected,
-        "single: {text}"
+        "memory document: {text}"
     );
     if !expected.is_empty() {
         assert!(typed.integer_operations().is_empty());
@@ -52,7 +53,7 @@ fn check_both_with_count(
         typed
             .integer_operations()
             .windows(2)
-            .all(|pair| pair[0].expression().index() < pair[1].expression().index())
+            .all(|pair| pair[0].expression() < pair[1].expression())
     );
     for operation in typed.integer_operations() {
         assert_eq!(
@@ -69,11 +70,13 @@ fn check_both_with_count(
         );
         assert_eq!(
             typed.copyability(operation.result_type()),
-            Some(lang_frontend::type_checking::Copyability::Copyable)
+            lang_frontend::type_checking::Copyability::Copyable
         );
     }
     if expected.is_empty() {
-        let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
+        let typed = typed.validate().unwrap();
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
         assert_eq!(
             owned
                 .diagnostics()
@@ -81,9 +84,12 @@ fn check_both_with_count(
                 .map(|d| d.code().to_string())
                 .collect::<Vec<_>>(),
             ownership,
-            "single ownership: {text}"
+            "memory document ownership: {text}"
         );
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+        if ownership.is_empty() {
+            assert!(owned.validate().is_ok());
+        }
     }
     let inputs = [SourceUnitInput::new("root", "inv.ko", source, &parsed)];
     let index = index_compilation_unit(&sources, &inputs).unwrap();

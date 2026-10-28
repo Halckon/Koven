@@ -1,0 +1,89 @@
+// New joint Unit fixture, not an unchanged legacy-source equivalence oracle.
+fun identityByte(input: Byte): Byte = input
+fun identityUByte(input: UByte): UByte = input
+fun identityShort(input: Short): Short = input
+fun identityUShort(input: UShort): UShort = input
+fun identityInt(input: Int): Int = input
+fun identityUInt(input: UInt): UInt = input
+fun identityLong(input: Long): Long = input
+fun identityULong(input: ULong): ULong = input
+fun negateBoolean(input: Boolean): Boolean = !input
+fun signedAdd(left: Int, right: Int): Int = left + right
+fun unsignedAdd(left: UInt, right: UInt): UInt = left + right
+fun unsignedSubtract(left: UInt, right: UInt): UInt = left - right
+fun unsignedMultiply(left: UInt, right: UInt): UInt = left * right
+fun signedSubtract(left: Int, right: Int): Int = left - right
+fun signedMultiply(left: Int, right: Int): Int = left * right
+fun signedDivide(left: Int, right: Int): Int = left / right
+fun signedRemainder(left: Int, right: Int): Int = left % right
+fun unsignedDivide(left: UInt, right: UInt): UInt = left / right
+fun unsignedRemainder(left: UInt, right: UInt): UInt = left % right
+fun choose(flag: Boolean, left: Int, right: Int): Int =
+    if (flag) { left } else { right }
+fun countTo(limit: Int): Int {
+    var current: Int = 0
+    while (current < limit) { current += 1 }
+    return current
+}
+fun invoke(left: Int, right: Int): Int = signedAdd(right = right, left = left)
+fun consumeUnit(flag: Boolean): Unit {
+    if (flag) { println("scalar-joint-unit") }
+}
+
+// Every helper above is reachable from this one entry in the same SSA/LLVM module.
+fun main(): Unit {
+    val expectedByte: Byte = -128
+    val expectedUByte: UByte = 255u
+    val expectedShort: Short = -32768
+    val expectedUShort: UShort = 65535u
+    if (identityByte(-128) != expectedByte) { error("Byte") }
+    if (identityUByte(255u) != expectedUByte) { error("UByte") }
+    if (identityShort(-32768) != expectedShort) { error("Short") }
+    if (identityUShort(65535u) != expectedUShort) { error("UShort") }
+    if (identityInt(-2147483648) != -2147483648) { error("Int") }
+    if (identityUInt(4294967295u) != 4294967295u) { error("UInt") }
+    if (identityLong(-9223372036854775808L) != -9223372036854775808L) { error("Long") }
+    if (identityULong(18446744073709551615uL) != 18446744073709551615uL) { error("ULong") }
+    if (negateBoolean(false) != true) { error("Boolean false") }
+    if (negateBoolean(true) != false) { error("Boolean true") }
+    if (signedAdd(-17, 59) != 42) { error("signed add") }
+    if (unsignedAdd(4294967294u, 1u) != 4294967295u) { error("unsigned add") }
+    if (unsignedSubtract(4294967295u, 1u) != 4294967294u) { error("unsigned subtract") }
+    if (unsignedMultiply(2147483647u, 2u) != 4294967294u) { error("unsigned multiply") }
+    if (signedSubtract(-17, 25) != -42) { error("signed subtract") }
+    if (signedMultiply(-7, 6) != -42) { error("signed multiply") }
+    if (signedDivide(-43, 6) != -7) { error("signed divide") }
+    if (signedRemainder(-43, 6) != -1) { error("signed remainder") }
+    if (unsignedDivide(4294967295u, 2u) != 2147483647u) { error("unsigned divide") }
+    if (unsignedRemainder(4294967295u, 2u) != 1u) { error("unsigned remainder") }
+    if (choose(true, 37, 91) != 37) { error("choose true") }
+    if (choose(false, 37, 91) != 91) { error("choose false") }
+    if (countTo(0) != 0) { error("empty loop") }
+    if (countTo(3) != 3) { error("loop") }
+    if (invoke(19, 23) != 42) { error("invoke") }
+    consumeUnit(false)
+    consumeUnit(true)
+    println("scalar-joint-ok")
+}
+
+// Each abort entry first executes the same complete joint success graph.
+fun abortSignedOverflow(): Unit {
+    main()
+    signedAdd(2147483647, 1)
+    println("unreachable")
+}
+fun abortUnsignedUnderflow(): Unit {
+    main()
+    unsignedSubtract(0u, 1u)
+    println("unreachable")
+}
+fun abortSignedDivision(): Unit {
+    main()
+    signedDivide(-2147483648, -1)
+    println("unreachable")
+}
+fun abortUnsignedDivision(): Unit {
+    main()
+    unsignedDivide(1u, 0u)
+    println("unreachable")
+}

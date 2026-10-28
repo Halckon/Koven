@@ -2,15 +2,12 @@
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::{Expression, parse_file},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, FinalTypeAdmissionError, IntegerOperationKind, TypeKind, UnitExpressionId,
-        UnitTypeKind, check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        BuiltinType, FinalTypeAdmissionError, IntegerOperationKind, UnitExpressionId, UnitTypeKind,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -43,13 +40,6 @@ struct Observation {
     operation: Option<Operation>,
     ordinary_call: bool,
     complete: Result<(), FinalTypeAdmissionError>,
-}
-
-fn single_builtin(kind: Option<&TypeKind>) -> Option<BuiltinType> {
-    match kind {
-        Some(TypeKind::Builtin(builtin)) => Some(*builtin),
-        _ => None,
-    }
 }
 
 fn unit_builtin(kind: Option<&UnitTypeKind>) -> Option<BuiltinType> {
@@ -86,66 +76,51 @@ fn observe(text: &str, root_text: &str) -> Vec<Observation> {
     };
     let receiver = *receiver;
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &file, &environment).expect("single names");
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &file, &names, &types).expect("single raw types");
-    let raw = typed.diagnostics().to_vec();
-    let kind = typed
-        .expression_type(root_id)
-        .and_then(|ty| typed.types().get(ty));
-    let operation = typed.integer_operation(root_id).map(|op| Operation {
-        kind: op.kind(),
-        source: single_builtin(typed.types().get(op.receiver_type())),
-        target: single_builtin(typed.types().get(op.result_type())),
-        ast_identity_matches: op.expression() == root_id && op.receiver() == receiver,
-    });
-    let complete = complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ());
-    assert_eq!(typed.diagnostics(), raw);
-    let single = Observation {
-        mode: "single",
-        root: root_node.span(),
-        root_shape: format!("{kind:?}"),
-        result: single_builtin(kind),
-        raw,
-        operation,
-        ordinary_call: typed.call(root_id).is_some(),
-        complete,
-    };
-    let inputs = [SourceUnitInput::new("root", "conversion.ko", source, &file)];
-    let index = index_compilation_unit(&sources, &inputs).expect("unit index");
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .expect("unit names")
-        .validate()
-        .expect("valid unit names");
-    let unit = names.names().index().source_units()[0].id();
-    let typed =
-        check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit raw types");
-    let id = UnitExpressionId::new(unit, root_id);
-    let raw = typed.diagnostics().to_vec();
-    let kind = typed
-        .expression_type(id)
-        .and_then(|ty| typed.types().get(ty));
-    let operation = typed.integer_operation(id).map(|op| Operation {
-        kind: op.kind(),
-        source: unit_builtin(typed.types().get(op.receiver_type())),
-        target: unit_builtin(typed.types().get(op.result_type())),
-        ast_identity_matches: op.expression() == id
-            && op.receiver() == UnitExpressionId::new(unit, receiver),
-    });
-    let complete =
-        complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).map(|_| ());
-    assert_eq!(typed.diagnostics(), raw);
-    let unit = Observation {
-        mode: "unit",
-        root: root_node.span(),
-        root_shape: format!("{kind:?}"),
-        result: unit_builtin(kind),
-        raw,
-        operation,
-        ordinary_call: typed.call(id).is_some(),
-        complete,
-    };
-    let result = vec![single, unit];
+    let result = [
+        ("memory", SourceUnitInput::memory_document(source, &file)),
+        (
+            "rooted",
+            SourceUnitInput::new("root", "conversion.ko", source, &file),
+        ),
+    ]
+    .map(|(mode, input)| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).expect("unit index");
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .expect("unit names")
+            .validate()
+            .expect("valid unit names");
+        let unit = names.names().index().source_units()[0].id();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .expect("unit raw types");
+        let id = UnitExpressionId::new(unit, root_id);
+        let raw = typed.diagnostics().to_vec();
+        let kind = typed
+            .expression_type(id)
+            .and_then(|ty| typed.types().get(ty));
+        let operation = typed.integer_operation(id).map(|op| Operation {
+            kind: op.kind(),
+            source: unit_builtin(typed.types().get(op.receiver_type())),
+            target: unit_builtin(typed.types().get(op.result_type())),
+            ast_identity_matches: op.expression() == id
+                && op.receiver() == UnitExpressionId::new(unit, receiver),
+        });
+        let complete =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).map(|_| ());
+        assert_eq!(typed.diagnostics(), raw);
+        Observation {
+            mode,
+            root: root_node.span(),
+            root_shape: format!("{kind:?}"),
+            result: unit_builtin(kind),
+            raw,
+            operation,
+            ordinary_call: typed.call(id).is_some(),
+            complete,
+        }
+    })
+    .into_iter()
+    .collect::<Vec<_>>();
     for observation in &result {
         println!(
             "SOURCE {text:?} ROOT {root_text:?} MODE {} SPAN {:?} SHAPE {} OBS {observation:?}",
