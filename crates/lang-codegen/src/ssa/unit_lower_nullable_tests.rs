@@ -241,3 +241,102 @@ fn assert_original_borrow(program: &Program, entry: FunctionId, use_span: Span) 
         "use consumes the original non-null successor view"
     );
 }
+
+// Stage A: retain all three original whole-file tests. Ten unchanged lowering.ko
+// sources require sixteen independent Unit roots, including unreachable helpers.
+fn verify_original_assertion_roots(text: &str, roots: &[&str], callees: &[&str]) {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+
+    let source = UnitSource::analyze("lowering.ko", text)
+        .unwrap_or_else(|error| panic!("original assertion source admission: {error:?}\n{text}"));
+    source.assert_frontend_clean();
+    for &root in roots {
+        let declaration = source.declaration(root, SymbolKind::Function);
+        let span = source.declaration_span(declaration);
+        let (program, entry) = source.lower_entry(declaration).unwrap_or_else(|error| {
+            panic!("original assertion root {root} lowering: {error:?}\n{text}")
+        });
+        let module = program.module(entry.module()).expect("entry's own Program");
+        let function = module.function(entry).expect("real root function");
+        assert_eq!(function.origin.span(), span, "original root {root}");
+        if root == "inspect" {
+            for &callee in callees {
+                let declaration = source.declaration(callee, SymbolKind::Function);
+                let span = source.declaration_span(declaration);
+                let emitted = program
+                    .modules
+                    .iter()
+                    .flat_map(|module| &module.functions)
+                    .filter(|function| function.origin.span() == span)
+                    .collect::<Vec<_>>();
+                let [target] = emitted.as_slice() else {
+                    panic!("original callee {callee} must be emitted exactly once: {text}");
+                };
+                assert!(
+                    function.instructions.iter().any(|instruction| matches!(
+                        instruction.operation,
+                        Operation::DirectCall { callee: id, .. } if id == target.id
+                    )),
+                    "inspect must call the original {callee} in its own Program: {text}"
+                );
+            }
+        }
+        super::verify::verify_program(&program).unwrap_or_else(|error| {
+            panic!("original assertion root {root} SSA verification: {error:?}\n{text}")
+        });
+        // Parameterized roots remain real functions; no fabricated no-argument native entry.
+        crate::llvm::render_verified_program(&program).unwrap_or_else(|error| {
+            panic!("original assertion root {root} complete LLVM: {error:?}\n{text}")
+        });
+    }
+}
+
+#[test]
+fn non_null_assertion_preserves_pending_value_arguments_across_its_branch() {
+    // The first owner has been evaluated, but only the eventual call consumes it.
+    let analysis = String::from(
+        "class Node()\nfun take(own first: Node, own second: Node): Node = first\nfun inspect(own first: Node, own second: Node?): Node = take(first, second!!)",
+    );
+    verify_original_assertion_roots(&analysis, &["inspect"], &["take"]);
+}
+
+#[test]
+fn non_null_assertion_temporary_group_and_borrowed_call_results_keep_one_owner() {
+    for (case, body) in [
+        "fun inspect(): Node = make()!!",
+        "fun inspect(own node: Node?): Node = ((node))!!",
+        "fun inspect(own node: Node?): Unit = observe(Node(), node!!)",
+        "fun inspect(own node: Node?, flag: Boolean): Node = (if (flag) { node } else { make() })!!",
+        "fun inspect(own probe: Node?, own node: Node?): Node = (if (probe == null) { node } else { make() })!!",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let analysis = format!(
+            "class Node()\nfun make(): Node? {{ val result: Node? = Node()\nreturn result }}\nfun observe(first: Node, second: Node): Unit {{}}\n{body}"
+        );
+        // The old whole-file planner also emitted helpers not called by inspect.
+        let (roots, callees): (&[&str], &[&str]) = match case {
+            0 | 3 | 4 => (&["inspect", "observe"], &["make"]),
+            1 => (&["inspect", "make", "observe"], &[]),
+            2 => (&["inspect", "make"], &["observe"]),
+            _ => unreachable!("five original bodies"),
+        };
+        verify_original_assertion_roots(&analysis, roots, callees);
+    }
+}
+
+#[test]
+fn non_null_assertion_later_transfer_cleans_pending_value_owner() {
+    for body in [
+        "fun inspect(own first: Node, own second: Node?, flag: Boolean): Node = take(first, (if (flag) { return Node() } else { second })!!)",
+        "fun inspect(own first: Node, own second: Node?, flag: Boolean): Node { loop { val result = take(first, (if (flag) { break } else { second })!!)\nbreak }\nreturn Node() }",
+        "fun inspect(flag: Boolean): Node { loop { val first = Node()\nval second: Node? = Node()\nval result = take(first, (if (flag) { continue } else { second })!!)\nbreak }\nreturn Node() }",
+        "fun inspect(own first: Node, own second: Node?, flag: Boolean): Node = take(first, (if (flag) { loop { break }\nsecond } else { second })!!)",
+    ] {
+        let analysis = format!(
+            "class Node()\nfun take(own first: Node, own second: Node): Node = first\n{body}"
+        );
+        verify_original_assertion_roots(&analysis, &["inspect"], &["take"]);
+    }
+}
