@@ -61,7 +61,9 @@
       "roadmap_blockers": [
         "L1",
         "L2"
-      ]
+      ],
+      "target_stdout": "hello k\n",
+      "oracle_derivation": "string interpolation 'hello ${n}' with n = 'k' evaluates to 'hello k' (blocked by L1/L2)"
     },
     "p03_long_uint": {
       "kind": "run_ok",
@@ -103,7 +105,8 @@
       "roadmap_blockers": [
         "N05"
       ],
-      "target_stdout": "double\n"
+      "target_stdout": "double\n",
+      "oracle_derivation": "Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' (blocked by N05)"
     },
     "p06_char": {
       "kind": "known_unimplemented",
@@ -118,7 +121,8 @@
       "roadmap_blockers": [
         "N05"
       ],
-      "target_stdout": "char\n"
+      "target_stdout": "char\n",
+      "oracle_derivation": "Char comparison 'a' < 'b' holds and prints 'char' (blocked by N05)"
     },
     "p07_while_var": {
       "kind": "run_ok",
@@ -166,7 +170,9 @@
       "oracle_origin": "baseline_unimplemented_audited",
       "roadmap_blockers": [
         "N06"
-      ]
+      ],
+      "target_stdout": "dog\n",
+      "oracle_derivation": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06)"
     },
     "p12_class_inout": {
       "kind": "run_ok",
@@ -247,7 +253,8 @@
       "roadmap_blockers": [
         "N03"
       ],
-      "target_stdout": "elvis\n"
+      "target_stdout": "elvis\n",
+      "oracle_derivation": "f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03)"
     },
     "p16_result_q": {
       "kind": "known_unimplemented",
@@ -265,7 +272,7 @@
       "roadmap_blockers": [
         "N08"
       ],
-      "oracle_derivation": "single literal println('question')"
+      "oracle_derivation": "Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08)"
     },
     "p16b_result_string": {
       "kind": "known_unimplemented",
@@ -282,7 +289,8 @@
       "oracle_origin": "v046_spec_contract",
       "roadmap_blockers": [
         "N08"
-      ]
+      ],
+      "oracle_derivation": "parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08)"
     },
     "p17_lambda": {
       "kind": "known_unimplemented",
@@ -297,7 +305,8 @@
       "roadmap_blockers": [
         "N04"
       ],
-      "target_stdout": "lambda\n"
+      "target_stdout": "lambda\n",
+      "oracle_derivation": "capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda' (blocked by N04)"
     },
     "p17b_lambda_nocapture": {
       "kind": "known_unimplemented",
@@ -312,7 +321,8 @@
       "roadmap_blockers": [
         "N04"
       ],
-      "target_stdout": "lambda0\n"
+      "target_stdout": "lambda0\n",
+      "oracle_derivation": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' (blocked by N04)"
     },
     "p18_move_closure": {
       "kind": "known_unimplemented",
@@ -327,7 +337,8 @@
       "roadmap_blockers": [
         "N04"
       ],
-      "target_stdout": "move\n"
+      "target_stdout": "move\n",
+      "oracle_derivation": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' (blocked by N04)"
     },
     "p19_mutablelist": {
       "kind": "run_ok",
@@ -359,7 +370,8 @@
         "N07",
         "L7"
       ],
-      "target_stdout": "box\n"
+      "target_stdout": "box\n",
+      "oracle_derivation": "recursive Expr.Add(Box(Num(1)), Box(Num(2))) evaluates to 3 and prints 'box' (blocked by N07/L7)"
     },
     "p22_rc": {
       "kind": "run_ok",
@@ -369,7 +381,7 @@
       "source_sha256": "79295b27744c3012b57e7a0d85151bcbb7e1eea615cd9572c49bcf1c66db00b9",
       "guide_chapter": "13-program-runtime-standard-library.md",
       "oracle_origin": "v046_spec_contract",
-      "oracle_derivation": "single literal println('rc')"
+      "oracle_derivation": "Rc(Data(4)).share().value.n == 4 holds and prints 'rc'"
     },
     "p23_global_var": {
       "kind": "compile_fail",
@@ -420,7 +432,8 @@
       "roadmap_blockers": [
         "N03"
       ],
-      "target_stdout": "rec-list\n"
+      "target_stdout": "rec-list\n",
+      "oracle_derivation": "recursive sum(Node(1, Node(2, null))) returns 3 and prints 'rec-list' (blocked by N03)"
     },
     "p26_borrow_return": {
       "kind": "run_ok",
@@ -444,7 +457,8 @@
         "T1",
         "N04"
       ],
-      "target_stdout": "thread\n"
+      "target_stdout": "thread\n",
+      "oracle_derivation": "thread(move { println('thread') }).join() runs worker closure and prints 'thread' (blocked by T1/N04)"
     },
     "p28_companion": {
       "kind": "known_unimplemented",
@@ -463,7 +477,7 @@
       "roadmap_blockers": [
         "N06"
       ],
-      "oracle_derivation": "single literal println('companion')"
+      "oracle_derivation": "anonymous companion function C.make() returns 7 and prints 'companion' (blocked by N06)"
     },
     "p29_default_super": {
       "kind": "run_ok",
@@ -526,7 +540,8 @@
       "roadmap_blockers": [
         "L1"
       ],
-      "target_stdout": "veq\n"
+      "target_stdout": "veq\n",
+      "oracle_derivation": "structural equality Point(1, 2) == Point(1, 2) holds and prints 'veq' (blocked by L1)"
     },
     "p36_conversion": {
       "kind": "run_ok",
@@ -575,7 +590,8 @@
       "roadmap_blockers": [
         "N01"
       ],
-      "target_stdout": "stack\n"
+      "target_stdout": "stack\n",
+      "oracle_derivation": "Stack<Int>.push(1) mutates generic field items; size == 1 prints 'stack' (blocked by N01)"
     },
     "p41_when_string": {
       "kind": "run_ok",
@@ -696,7 +712,8 @@
       "roadmap_blockers": [
         "N04"
       ],
-      "target_stdout": "lambda-arg\n"
+      "target_stdout": "lambda-arg\n",
+      "oracle_derivation": "twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg' (blocked by N04)"
     },
     "q03_fn_ref": {
       "kind": "known_unimplemented",
@@ -711,7 +728,8 @@
       "roadmap_blockers": [
         "N04"
       ],
-      "target_stdout": "fnref\n"
+      "target_stdout": "fnref\n",
+      "oracle_derivation": "callable reference ::inc applied to 1 yields 2 and prints 'fnref' (blocked by N04)"
     },
     "q04_rc_simple": {
       "kind": "run_ok",
@@ -760,7 +778,9 @@
       "roadmap_blockers": [
         "N02",
         "L7"
-      ]
+      ],
+      "target_stdout": "hi\nquit\n",
+      "oracle_derivation": "show(Msg.Text('hi')) prints payload 'hi'; show(Msg.Quit) prints 'quit' (blocked by N02/L7)"
     },
     "q09_inout_class_param": {
       "kind": "run_ok",
@@ -904,7 +924,8 @@
       "roadmap_blockers": [
         "S6"
       ],
-      "target_stdout": "pair\n"
+      "target_stdout": "pair\n",
+      "oracle_derivation": "builtin Pair(1, 2).first == 1 holds and prints 'pair' (blocked by S6)"
     },
     "s03_to_pair": {
       "kind": "known_unimplemented",
@@ -919,7 +940,8 @@
       "roadmap_blockers": [
         "S6"
       ],
-      "target_stdout": "to\n"
+      "target_stdout": "to\n",
+      "oracle_derivation": "infix 1 to 2 constructs Pair(1, 2); p.first == 1 prints 'to' (blocked by S6)"
     },
     "s04_question_on_nullable": {
       "kind": "compile_fail",
@@ -954,7 +976,7 @@
       "source_sha256": "b9de2a3839d431048688b8cde57d426882324d719ac3edec6faeb6e6121f0c2a",
       "guide_chapter": "03-types-generics.md",
       "oracle_origin": "v046_spec_contract",
-      "oracle_derivation": "single literal println('vmethod-generic')"
+      "oracle_derivation": "generic value class W<Int>(4).get() returns 4 and prints 'vmethod-generic'"
     },
     "t04_vmethod_compute_param": {
       "kind": "run_ok",
@@ -1500,7 +1522,8 @@
         "N08",
         "L1",
         "L2"
-      ]
+      ],
+      "oracle_derivation": "parses key=value config lines via Result<Int, String> and ? propagation, printing host/port/retries/missing/bad-int outcomes"
     },
     "expr_eval": {
       "kind": "known_unimplemented",
@@ -1525,7 +1548,8 @@
         "N07",
         "N08",
         "L7"
-      ]
+      ],
+      "oracle_derivation": "evaluates recursive Box<Expr> AST with Char/Double/Result error propagation, printing formatted evaluation lines"
     },
     "linked_stack": {
       "kind": "known_unimplemented",
@@ -1549,7 +1573,8 @@
         "N03",
         "N07",
         "L7"
-      ]
+      ],
+      "oracle_derivation": "pushes and pops generic Node<T>? linked stack with ownership transfer, printing popped elements and remaining depth"
     },
     "raii_state_machine": {
       "kind": "known_unimplemented",
@@ -1571,7 +1596,8 @@
       "roadmap_blockers": [
         "N01",
         "N02"
-      ]
+      ],
+      "oracle_derivation": "runs deterministic deinit state transitions across normal, early-return, and nested scopes, printing ordered lifecycle trace"
     },
     "varint_codec": {
       "kind": "known_unimplemented",
@@ -1594,7 +1620,8 @@
         "N01",
         "N08",
         "L3b"
-      ]
+      ],
+      "oracle_derivation": "encodes and decodes ULong/UInt varints over MutableList<Byte> with bitwise shifts and Result checks, printing roundtrip values"
     },
     "word_count": {
       "kind": "known_unimplemented",
@@ -1616,7 +1643,8 @@
       "roadmap_blockers": [
         "N02",
         "N03"
-      ]
+      ],
+      "oracle_derivation": "counts word frequencies in insertion order over MutableMap<String, Int> and prints 'word\tcount' lines"
     }
   }
 }

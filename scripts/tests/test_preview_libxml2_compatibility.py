@@ -80,6 +80,27 @@ class Libxml2CompatibilityTests(unittest.TestCase):
     def test_reversed_measured_revisions_with_complete_policy_are_allowed(self):
         self.assertEqual([], self.module.compare_hosts(self.consumer, self.producer))
 
+    def test_libz_drift_can_coexist_but_does_not_bypass_libxml_policy(self):
+        library = next(row for row in self.consumer['libraries'] if row['name'] == 'libz.so.1')
+        library['sha256'] = 'b' * 64
+        original = copy.deepcopy((self.producer, self.consumer))
+        self.assertEqual([], self.module.compare_hosts(self.producer, self.consumer))
+        self.assertEqual([], self.module.compare_hosts(self.consumer, self.producer))
+        self.assertEqual(original, (self.producer, self.consumer))
+        for field in ('package', 'file_md5', 'elf', 'requesters', 'definitions'):
+            consumer = copy.deepcopy(self.consumer)
+            consumer['libxml2_policy'].pop(field)
+            with self.subTest(field=field):
+                self.assert_rejected(consumer=consumer)
+        for side in (0, 1):
+            for section, field, value in [
+                    ('package', 'version', '2.9.14+dfsg-1.3ubuntu3.11'),
+                    ('file_md5', 'actual', '0' * 32)]:
+                pair = copy.deepcopy([self.producer, self.consumer])
+                pair[side]['libxml2_policy'][section][field] = value
+                with self.subTest(side=side, section=section, field=field):
+                    self.assert_rejected(*pair)
+
     def test_same_hash_uses_strict_path_without_policy_or_with_unknown_policy(self):
         for policy in (None, {'policy': 'unknown'}):
             with self.subTest(policy=policy):
