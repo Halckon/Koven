@@ -243,8 +243,9 @@ fn assert_original_borrow(program: &Program, entry: FunctionId, use_span: Span) 
     );
 }
 
-// Stage A: retain all three original whole-file tests. Ten unchanged lowering.ko
-// sources require sixteen independent Unit roots, including unreachable helpers.
+// Ten unchanged lowering.ko sources retain the historical compiler-success oracle
+// through sixteen independent Unit roots, including unreachable helpers.
+// This does not assert whole-file/native or exact CFG equivalence.
 fn verify_original_assertion_roots(case: &str, text: &str, roots: &[&str], callees: &[&str]) {
     use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 

@@ -1,5 +1,5 @@
-//! Stage A: original String I/O sources through strict MemoryDocument Unit admission.
-//! Keep both legacy tests until these exact-source oracles have dual-platform CI evidence.
+//! Original String I/O sources through strict MemoryDocument Unit admission.
+//! Legacy whole-file interpolation rejections remain independent boundary tests.
 //! Every original root is selected separately; this is not whole-file/native equivalence.
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 
