@@ -261,6 +261,25 @@ sys.exit(1)
             finally:
                 self._write_default_expectations()
 
+        # Verify invalid spec_refs format or duplicate entries are rejected
+        for bad_srefs in ([], ["0355"], ["SPEC-0355", "SPEC-0355"]):
+            self._write_default_expectations(
+                {
+                    "p03_abort": {
+                        "kind": "runtime_abort",
+                        "source_sha256": _sha256(self.probe_abort_src),
+                        "abort_message": "boom",
+                        "v046_baseline_exempt": True,
+                        "spec_refs": bad_srefs,
+                    }
+                }
+            )
+            try:
+                with self.assertRaisesRegex(ValueError, "invalid spec_refs"):
+                    gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+            finally:
+                self._write_default_expectations()
+
     def test_4_timeout_is_caught_and_preserves_partial_bytes(self) -> None:
         kovenc_slow = _make_mock_compiler(
             self.root / "kovenc_slow",
@@ -761,6 +780,28 @@ sys.exit(1)
             sum(len(v) for v in base_evo.values()),
             len(loaded["probes"]),
         )
+
+        # 11. Verify all 35 v046_baseline_exempt probes have resolved spec_refs in docs/specs or docs/archive/specs
+        exempt_probes = [
+            name for name, spec in loaded["probes"].items() if spec.get("v046_baseline_exempt")
+        ]
+        self.assertEqual(len(exempt_probes), 35)
+        for name in exempt_probes:
+            spec = loaded["probes"][name]
+            srefs = spec.get("spec_refs", [])
+            self.assertTrue(len(srefs) > 0, f"exempt probe {name} missing spec_refs")
+            for sref in srefs:
+                resolved = gate.resolve_spec_doc_relpath(sref, repo_root)
+                self.assertIsNotNone(resolved, f"exempt probe {name} references missing {sref}")
+                relpath, status = resolved
+                self.assertTrue((repo_root / relpath).is_file())
+                self.assertIn(status, ("active", "archived"))
+        spec_trace = gate.summarize_v046_spec_traceability(loaded, repo_root)
+        self.assertEqual(len(spec_trace), 14)
+        covered_by_specs = {
+            p for info in spec_trace.values() for p in info["probes"]
+        }
+        self.assertEqual(covered_by_specs, set(exempt_probes))
 
 
 if __name__ == "__main__":
