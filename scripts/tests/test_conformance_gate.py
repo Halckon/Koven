@@ -243,6 +243,24 @@ sys.exit(1)
                 p01_path.write_text(self.probe_ok_src, encoding="utf-8")
                 self._write_default_expectations()
 
+        # Verify known_unimplemented with invalid or internal-error allowed_markers is rejected
+        for bad_markers in ([], ["BE:InvalidSsa"], ["ICE:ownership"], ["BE:UnsupportedNode", "BE:UnsupportedNode"]):
+            self._write_default_expectations(
+                {
+                    "p04_unimpl": {
+                        "kind": "known_unimplemented",
+                        "source_sha256": _sha256(self.probe_unimpl_src),
+                        "allowed_markers": bad_markers,
+                        "target_stdout": "3.0\n",
+                    }
+                }
+            )
+            try:
+                with self.assertRaisesRegex(ValueError, "invalid allowed_markers"):
+                    gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+            finally:
+                self._write_default_expectations()
+
     def test_4_timeout_is_caught_and_preserves_partial_bytes(self) -> None:
         kovenc_slow = _make_mock_compiler(
             self.root / "kovenc_slow",
@@ -699,6 +717,11 @@ sys.exit(1)
                     isinstance(ts, str) and len(ts) > 0 and ts.endswith("\n"),
                     f"known_unimplemented probe {name} missing valid target_stdout",
                 )
+                allowed = spec.get("allowed_markers", [])
+                self.assertTrue(
+                    len(allowed) > 0 and set(allowed).issubset(gate.VALID_UNIMPLEMENTED_MARKERS),
+                    f"known_unimplemented probe {name} has invalid allowed_markers {allowed}",
+                )
             self.assertTrue(
                 isinstance(spec.get("oracle_derivation"), str)
                 and len(spec["oracle_derivation"].strip()) > 0,
@@ -710,6 +733,34 @@ sys.exit(1)
                 and len(spec["oracle_derivation"].strip()) > 0,
                 f"program {name} missing oracle_derivation",
             )
+            allowed = spec.get("allowed_markers", [])
+            self.assertTrue(
+                len(allowed) > 0 and set(allowed).issubset(gate.VALID_UNIMPLEMENTED_MARKERS),
+                f"program {name} has invalid allowed_markers {allowed}",
+            )
+
+        # 10. Verify baseline_marker parity with baseline-aef3f4f8.tsv and summarize_baseline_evolution
+        baseline_rows = gate.parse_tsv_matrix(
+            (repo_corpus / "baseline-aef3f4f8.tsv").read_text(encoding="utf-8")
+        )
+        for name, spec in loaded["probes"].items():
+            self.assertEqual(
+                spec.get("baseline_marker"),
+                baseline_rows[name][0],
+                f"probe {name} baseline_marker mismatch against baseline-aef3f4f8.tsv",
+            )
+        base_evo = gate.summarize_baseline_evolution(loaded)
+        self.assertEqual(base_evo["regressed_from_baseline_ok"], [])
+        self.assertEqual(len(base_evo["baseline_ok_preserved"]), 89)
+        self.assertEqual(len(base_evo["promoted_to_run_ok"]), 27)
+        self.assertEqual(len(base_evo["upgraded_to_structured_abort"]), 3)
+        self.assertEqual(len(base_evo["upgraded_to_compile_fail"]), 1)
+        self.assertEqual(len(base_evo["baseline_compile_fail_preserved"]), 13)
+        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 21)
+        self.assertEqual(
+            sum(len(v) for v in base_evo.values()),
+            len(loaded["probes"]),
+        )
 
 
 if __name__ == "__main__":
