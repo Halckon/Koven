@@ -193,7 +193,7 @@ project 模式下跨文件的同一 callee 也会让实例数膨胀。而且 Bor
 
 ## 关联
 
-- 相关 Spec：[SPEC-0363](../../archive/specs/0363-closure-scope-escape.md)（frontend scope 逃逸）；SPEC-0364（E3 闭包家族，进行中）；q03 的 frontend overload Spec（待开）
+- 相关 Spec：[SPEC-0363](../../archive/specs/0363-closure-scope-escape.md)（frontend scope 逃逸）；[SPEC-0364](../../specs/active/0364-refine-closures.md)（E3 闭包家族，进行中）；q03 的 frontend overload Spec（待开）
 - 相关 ADR：[ADR-0009](0009-concrete-closure-internal-abi.md)（局部扩展：借用边界的 view）、[ADR-0025](../proposed/0025-recursive-closure-environment-handles.md)、[ADR-0032](0032-ownership-refinement-layer.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无

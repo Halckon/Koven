@@ -198,6 +198,7 @@ impl<'a> ValueProof<'a> {
                 Some(state[content_index(self.function, EntityId::Place(*place))])
             }
             Operation::SharedReborrow { source }
+            | Operation::CallableViewOf { source }
             | Operation::RangeElementPlace { view: source, .. }
             | Operation::SharedFieldLoan { base: source, .. }
             | Operation::SharedHeapFieldLoan { base: source, .. } => {

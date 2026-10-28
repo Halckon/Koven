@@ -28,6 +28,7 @@ impl ReborrowDependencies {
                     (source, true)
                 }
                 Operation::SharedReborrow { source }
+                | Operation::CallableViewOf { source }
                 | Operation::SharedHeapFieldLoan { base: source, .. }
                 | Operation::BorrowCall { source, .. }
                 | Operation::MapIterationKeyLoan { source, .. }

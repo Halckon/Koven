@@ -34,7 +34,8 @@ pub(super) fn verify(function: &Function, types: &TypeCaptures, errors: &mut Vec
                     .iter()
                     .chain(arguments)
                     .any(|argument| matches!(argument, EntityId::Value(value) if may(*value))),
-                Operation::CallableInvoke { arguments, .. } => arguments
+                Operation::CallableInvoke { arguments, .. }
+                | Operation::CallableInvokeView { arguments, .. } => arguments
                     .iter()
                     .any(|argument| matches!(argument, EntityId::Value(value) if may(*value))),
                 Operation::AggregateConstruct { fields, .. } => fields.iter().copied().any(may),

@@ -104,6 +104,37 @@ fn verify_type_definition(
     kind: &SsaTypeKind,
     errors: &mut Vec<VerifyError>,
 ) {
+    let is_view = |ty| matches!(module.type_kind(ty), Some(SsaTypeKind::CallableView { .. }));
+    let embeds_view = match kind {
+        SsaTypeKind::Aggregate { fields, .. } => fields.iter().copied().any(is_view),
+        SsaTypeKind::TaggedUnion { variants, .. } => variants.iter().copied().any(is_view),
+        SsaTypeKind::SequentialContainer { element, .. } => is_view(*element),
+        SsaTypeKind::MapContainer { key, value, .. } => is_view(*key) || is_view(*value),
+        SsaTypeKind::NullableHandle { inner } | SsaTypeKind::InlineNullable { inner, .. } => {
+            is_view(*inner)
+        }
+        SsaTypeKind::HeapOwner {
+            payload: Some(target),
+            ..
+        }
+        | SsaTypeKind::SharedOwner {
+            payload: Some(target),
+            ..
+        } => is_view(*target),
+        // A borrowed closure may share-capture a view (its environment holds a reference to the
+        // descriptor); only owned captures would store the view itself.
+        SsaTypeKind::ConcreteClosure { captures, .. } => captures.iter().any(|capture| {
+            capture.mode == super::model::ClosureCaptureMode::Owned && is_view(capture.ty)
+        }),
+        _ => false,
+    };
+    if embeds_view {
+        push_type_error(
+            errors,
+            id,
+            "a callable view cannot be stored in a field, payload, container or capture",
+        );
+    }
     let is_range = |ty| matches!(module.type_kind(ty), Some(SsaTypeKind::RangeView { .. }));
     let embeds_range = match kind {
         SsaTypeKind::Aggregate { fields, .. } => fields.iter().copied().any(is_range),
@@ -327,7 +358,7 @@ fn verify_type_definition(
                 );
             }
         }
-        SsaTypeKind::FunctionPointer { signature } => {
+        SsaTypeKind::FunctionPointer { signature } | SsaTypeKind::CallableView { signature } => {
             verify_callable_signature(module, id, signature, errors);
         }
         SsaTypeKind::ConcreteClosure {
@@ -388,6 +419,28 @@ fn verify_callable_signature(
     errors: &mut Vec<VerifyError>,
 ) {
     if signature.returns.iter().any(|ty|matches!(module.type_kind(*ty),Some(SsaTypeKind::RangeView {..}))) || signature.parameters.iter().any(|p|matches!(p,super::model::EntityType::Value(ty) if matches!(module.type_kind(*ty),Some(SsaTypeKind::RangeView {..})))) {push_type_error(errors,id,"range ABI cannot be erased into an owned callable signature");}
+    if signature
+        .returns
+        .iter()
+        .any(|ty| module.callable_view_signature(*ty).is_some())
+        || signature.parameters.iter().any(|parameter| {
+            !matches!(
+                parameter,
+                super::model::EntityType::Loan {
+                    kind: super::model::LoanKind::Shared,
+                    ..
+                }
+            ) && module
+                .callable_view_signature(parameter.semantic_type())
+                .is_some()
+        })
+    {
+        push_type_error(
+            errors,
+            id,
+            "a callable view crosses a signature only as a shared loan parameter",
+        );
+    }
     if signature.returns.len() > 1 {
         push_type_error(
             errors,

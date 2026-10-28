@@ -128,6 +128,16 @@ pub(crate) enum Operation {
         callable: ValueId,
         arguments: Vec<EntityId>,
     },
+    /// Re-borrows a shared loan of a function pointer or concrete closure as a callable view
+    /// loan (ADR-0034); the view depends on `source` like a shared reborrow.
+    CallableViewOf {
+        source: LoanId,
+    },
+    /// Calls through a callable view loan; reads, never consumes, the borrowed callable.
+    CallableInvokeView {
+        view: LoanId,
+        arguments: Vec<EntityId>,
+    },
     AggregateConstruct {
         aggregate: SsaTypeId,
         fields: Vec<ValueId>,
@@ -476,6 +486,12 @@ impl Operation {
                 arguments,
             } => {
                 let mut entities = vec![EntityId::Value(*callable)];
+                entities.extend(arguments.iter().copied());
+                entities
+            }
+            Self::CallableViewOf { source } => vec![EntityId::Loan(*source)],
+            Self::CallableInvokeView { view, arguments } => {
+                let mut entities = vec![EntityId::Loan(*view)];
                 entities.extend(arguments.iter().copied());
                 entities
             }

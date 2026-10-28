@@ -123,6 +123,12 @@ impl<'ctx> TypeMap<'ctx> {
                 SsaTypeKind::SharedReference { .. } | SsaTypeKind::FunctionPointer { .. } => {
                     Some(pointer.into())
                 }
+                // ADR-0034 view descriptor `{code, environment}`; loans of it are pointers.
+                SsaTypeKind::CallableView { .. } => Some(
+                    context
+                        .struct_type(&[pointer.into(), pointer.into()], false)
+                        .into(),
+                ),
                 SsaTypeKind::SequentialContainer { kind, .. } => {
                     let container =
                         context.opaque_struct_type(&format!("koven.container.t{index}"));

@@ -192,7 +192,9 @@ impl Module {
             | SsaTypeKind::Boolean
             | SsaTypeKind::Char
             | SsaTypeKind::Integer { .. } => Some(Ownership::Copyable),
-            SsaTypeKind::SharedReference { .. } => Some(Ownership::Copyable),
+            SsaTypeKind::SharedReference { .. } | SsaTypeKind::CallableView { .. } => {
+                Some(Ownership::Copyable)
+            }
             SsaTypeKind::Opaque { ownership, .. }
             | SsaTypeKind::ZeroSized { ownership, .. }
             | SsaTypeKind::Aggregate { ownership, .. }

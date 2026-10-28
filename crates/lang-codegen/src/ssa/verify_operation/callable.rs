@@ -1,5 +1,6 @@
 //! callable 参数、结果、formation 与签名的一致性合同。
 use super::*;
+use crate::ssa::model::LoanId;
 
 pub(super) fn direct_call_contract(
     module: &Module,
@@ -128,6 +129,72 @@ pub(super) fn callable_invoke_contract(
     let Some(signature) =
         value_type(function, callable).and_then(|ty| module.callable_signature(ty))
     else {
+        return false;
+    };
+    arguments.len() == signature.parameters.len()
+        && arguments
+            .iter()
+            .zip(&signature.parameters)
+            .all(|(argument, expected)| {
+                !matches!(argument, EntityId::Place(_))
+                    && function.entity(*argument).map(|entity| entity.ty) == Some(*expected)
+            })
+        && results
+            == signature
+                .returns
+                .iter()
+                .copied()
+                .map(EntityType::Value)
+                .collect::<Vec<_>>()
+}
+
+/// ADR-0034: a shared loan of a function pointer or concrete closure re-borrowed as a shared
+/// loan of the callable view with the same signature.
+pub(super) fn view_of_contract(
+    module: &Module,
+    function: &Function,
+    source: LoanId,
+    results: &[EntityType],
+) -> bool {
+    let Some(EntityType::Loan {
+        kind: LoanKind::Shared,
+        target,
+    }) = function
+        .entity(EntityId::Loan(source))
+        .map(|entity| entity.ty)
+    else {
+        return false;
+    };
+    let Some(signature) = module.callable_signature(target) else {
+        return false;
+    };
+    matches!(
+        results,
+        [EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: view,
+        }] if module.callable_view_signature(*view) == Some(signature)
+    )
+}
+
+/// ADR-0034: a call through a shared callable view loan.
+pub(super) fn invoke_view_contract(
+    module: &Module,
+    function: &Function,
+    view: LoanId,
+    arguments: &[EntityId],
+    results: &[EntityType],
+) -> bool {
+    let Some(EntityType::Loan {
+        kind: LoanKind::Shared,
+        target,
+    }) = function
+        .entity(EntityId::Loan(view))
+        .map(|entity| entity.ty)
+    else {
+        return false;
+    };
+    let Some(signature) = module.callable_view_signature(target) else {
         return false;
     };
     arguments.len() == signature.parameters.len()

@@ -101,6 +101,10 @@ pub(super) fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::R
             output.write_str("function_pointer ")?;
             write_callable_signature(output, signature)
         }
+        SsaTypeKind::CallableView { signature } => {
+            output.write_str("callable_view ")?;
+            write_callable_signature(output, signature)
+        }
         SsaTypeKind::ConcreteClosure {
             name,
             signature,

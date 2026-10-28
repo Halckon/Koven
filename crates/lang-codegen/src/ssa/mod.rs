@@ -144,6 +144,8 @@ mod verify_tests;
 mod verify_ownership_tests;
 
 #[cfg(test)]
+mod verify_callable_view_tests;
+#[cfg(test)]
 mod verify_loan_mutate_tests;
 
 #[cfg(test)]
