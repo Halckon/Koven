@@ -58,7 +58,7 @@ impl Builder<'_, '_> {
                     OwnerRef::Expression(expression) => self
                         .required(expression)?
                         .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?,
-                    OwnerRef::This(_) => self.this_value_of(receiver.ty(), span)?,
+                    OwnerRef::This(_) => self.this_value_of(self.c(receiver.ty()), span)?,
                 };
                 Receiver::Ready {
                     operand,

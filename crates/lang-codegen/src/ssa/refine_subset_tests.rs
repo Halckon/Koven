@@ -59,6 +59,7 @@ fn nullable_functions_inside_the_subset_are_routed() {
          fun f(): Boolean { val x = Shape.Circle(1); return x is Shape.Circle }",
         "fun f(inout x: Int): Unit { x = x + 1 }",
         "fun g(inout x: Int): Unit { x = 1 }\nfun f(inout x: Int): Unit { g(&x) }",
+        "class Data(val n: Int)\nfun f(): Int { val a = Rc(Data(1)); val b = a.share(); return b.value.n }",
         "class Counter(var count: Int)\nfun f(): Int { var c = Counter(0); c.count = 5; return c.count }",
         "class Counter(var n: Int) { inout fun inc(): Unit { n = n + 1 } }\n\
          fun f(inout c: Counter): Unit { c.inc() }",
@@ -131,6 +132,18 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
         (
             "whole replacement of a MoveOnly Inout target",
             "class Counter(var n: Int)\nfun f(inout c: Counter): Unit { c = Counter(1) }",
+        ),
+        (
+            "Rc with a String payload",
+            "fun f(): Int { val a = Rc(\"s\"); val b = a.share(); return 0 }",
+        ),
+        (
+            "Borrow Rc parameter",
+            "class Data(val n: Int)\nfun f(r: Rc<Data>): Int = r.value.n",
+        ),
+        (
+            "nullable Rc",
+            "class Data(val n: Int)\nfun f(own r: Rc<Data>?): Int { if (r != null) { return r.value.n }; return 0 }",
         ),
         (
             "MoveOnly enum subject",

@@ -6,9 +6,10 @@
 
 `lower_owned_unit_with_entry` 对每个无类型替换、无借用/carrier 返回的函数实例先做
 确定性子集预检（`ssa::refine::subset`），只读 typed/ownership facts 与 AST 构造种类，不试跑 lowering。
-receiver 只接受 Copyable enum（Value/Borrow）与普通 class（Borrow/Inout）。预检通过且函数签名或函数体
+receiver 只接受 Copyable enum（Value/Borrow）与普通 class（Borrow/Inout）；Borrow 参数接受 Copyable 类型与
+普通 class（后者只经 loan 借出）。预检通过且函数签名或函数体
 触及任一 nullable 类型、或使用已迁入的家族（`when`、enum `is`、字段替换、`Inout` 参数或 receiver、
-`&` 实参）时，函数体由
+`&` 实参、`Rc` 构造与操作）时，函数体由
 `ssa::refine` lowering；失败即报错，不回退。其余函数仍走 `unit_lower` 的按家族路径；带 `Inout` 参数的函数若未进入细化层，以 UnsupportedNode
 拒绝（unit planning 已为 `Inout` 参数分配 exclusive loan 实体）。精确子集以
 SPEC-0350 §3 的已实现清单与 SPEC-0356 为准。
@@ -35,7 +36,13 @@ receiver 的 loan）、`!!`（Consume，null 边 Abort）；赋值与 `Inout`（
 `LoanMutate` 整体替换，`&local` 借出 root place 并在调用后读回（MoveOnly 经 `RootPlaceTake`），`&p` 继续
 传递 `Inout` 参数的 loan；`owner.f = v` 先求值 RHS，再经 exclusive loan `HeapFieldReplace`，并由替换
 消费 `BeforeReplacement` 析构；receiver 调用中 Borrow receiver 在实参前借出，`Inout` receiver 的
-exclusive loan 在调用点激活。
+exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`（SPEC-0359）：构造为 `SharedAllocate`、`share()` 为
+`SharedRetain`，Copyable payload 的 `value` 经 `SharedPayloadPlace` 读取，`rc.value.f` 经 payload place 的
+临时 shared loan 读取字段。泛型函数实例（SPEC-0361）：typed 事实中的模板类型经 `RefineInputs::concrete`
+（实例替换与 static `Self`）具体化后再使用；Copyable、字段全为标量的 `value class` 构造为聚合值，字段读取
+对 owned 值做 `AggregateProject`，对 loan 经 `SharedFieldLoan` 读出，receiver 可为 Value 或 Borrow。
+`!!`（SPEC-0362）也接受括号名称与 `if` 临时 operand；Value 实参在调用点统一交付，实参中途的
+`return`/`break`/`continue` 在跳转边释放已求值的命名 owner 实参（`ControlTransfer` 的 `Temporary` 事实）。
 
 ## inline nullable 布局
 

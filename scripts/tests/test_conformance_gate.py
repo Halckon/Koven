@@ -752,11 +752,11 @@ sys.exit(1)
         base_evo = gate.summarize_baseline_evolution(loaded)
         self.assertEqual(base_evo["regressed_from_baseline_ok"], [])
         self.assertEqual(len(base_evo["baseline_ok_preserved"]), 89)
-        self.assertEqual(len(base_evo["promoted_to_run_ok"]), 25)
+        self.assertEqual(len(base_evo["promoted_to_run_ok"]), 27)
         self.assertEqual(len(base_evo["upgraded_to_structured_abort"]), 3)
         self.assertEqual(len(base_evo["upgraded_to_compile_fail"]), 1)
         self.assertEqual(len(base_evo["baseline_compile_fail_preserved"]), 13)
-        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 23)
+        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 21)
         self.assertEqual(
             sum(len(v) for v in base_evo.values()),
             len(loaded["probes"]),
