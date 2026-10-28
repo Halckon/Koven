@@ -4,16 +4,13 @@ use lang_frontend::{
     ast::ExpressionId,
     diagnostic::Diagnostic,
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::{Expression, ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, CallableTarget, CompilationUnitTypes, Copyability, DeferredReason,
-        ExpressionCategory, OwnershipPrimitiveKind, ParameterMode, StringOperationKind, TypeKind,
-        TypedFile, UnitCallTarget, UnitExpressionId, UnitTypeKind, check_compilation_unit_types,
-        check_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, Copyability, DeferredReason, ExpressionCategory,
+        OwnershipPrimitiveKind, ParameterMode, StringOperationKind, UnitCallTarget,
+        UnitExpressionId, UnitTypeKind, check_compilation_unit_types, standard_environments,
     },
 };
 
@@ -44,14 +41,34 @@ fn parse(sources: &mut SourceMap, path: &str, text: &str) -> (SourceId, ParsedFi
     (source, file)
 }
 
-fn single(text: &str) -> (ParsedFile, TypedFile) {
+// `single` preserves the original one-document source shape, not the retired checker.
+fn single(text: &str) -> (ParsedFile, CompilationUnitTypes) {
     let mut sources = SourceMap::new();
-    let (_, file) = parse(&mut sources, "integration.ko", text);
-    let (names, environment) = standard_environments();
-    let names = resolve_names(&sources, &file, &names).expect("names");
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &file, &names, &environment).expect("types");
-    let repeated = check_types(&sources, &file, &names, &environment).expect("repeated types");
+    let (source, file) = parse(&mut sources, "integration.ko", text);
+    let (environment, types) = standard_environments();
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let index = index_compilation_unit(&sources, &inputs).expect("memory index");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .expect("memory names")
+        .validate()
+        .expect("valid memory names");
+    let [document] = names.names().index().source_units() else {
+        panic!("one original MemoryDocument");
+    };
+    assert_eq!(document.source_id(), file.source_id());
+    assert_eq!(
+        document.key(),
+        &lang_frontend::name_resolution::SourceUnitKey::MemoryDocument
+    );
+    assert_eq!(
+        sources.source_name(document.source_id()),
+        Ok("integration.ko")
+    );
+    assert_eq!(sources.source_text(document.source_id()), Ok(text));
+    let typed =
+        check_compilation_unit_types(&sources, &inputs, &names, &types).expect("memory types");
+    let repeated = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .expect("repeated memory types");
     assert_eq!(typed.diagnostics(), repeated.diagnostics());
     assert_eq!(typed.string_operations(), repeated.string_operations());
     assert_eq!(
@@ -166,21 +183,27 @@ fn modes(kind: OwnershipPrimitiveKind) -> [ParameterMode; 2] {
     }
 }
 
-fn assert_single_contracts(file: &ParsedFile, typed: &TypedFile) {
+fn assert_single_contracts(file: &ParsedFile, typed: &CompilationUnitTypes) {
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let clones = typed.string_operations();
     let primitives = typed.ownership_primitives();
     assert_eq!(clones.len(), 2);
     assert_eq!(primitives.len(), 2);
-    assert!(clones[0].expression().index() < clones[1].expression().index());
-    assert!(primitives[0].expression().index() < primitives[1].expression().index());
+    assert!(clones[0].expression() < clones[1].expression());
+    assert!(primitives[0].expression() < primitives[1].expression());
     assert_eq!(primitives[0].kind(), OwnershipPrimitiveKind::Replace);
     assert_eq!(primitives[1].kind(), OwnershipPrimitiveKind::Swap);
     assert_eq!(primitives[0].operands()[1], clones[0].expression());
 
     for fact in clones {
         assert_eq!(typed.string_operation(fact.expression()), Some(*fact));
-        assert_eq!(fact.receiver(), receiver(file, fact.expression()));
+        assert_eq!(
+            fact.receiver(),
+            UnitExpressionId::new(
+                fact.expression().source_unit(),
+                receiver(file, fact.expression().expression())
+            )
+        );
         assert_eq!(fact.kind(), StringOperationKind::Clone);
         assert_eq!(fact.receiver_mode(), ParameterMode::Borrow);
         assert_eq!(fact.result_mode(), ParameterMode::Value);
@@ -194,12 +217,9 @@ fn assert_single_contracts(file: &ParsedFile, typed: &TypedFile) {
         );
         assert_eq!(
             typed.types().get(fact.result_type()),
-            Some(&TypeKind::Builtin(BuiltinType::String))
+            Some(&UnitTypeKind::Builtin(BuiltinType::String))
         );
-        assert_eq!(
-            typed.copyability(fact.result_type()),
-            Some(Copyability::MoveOnly)
-        );
+        assert_eq!(typed.copyability(fact.result_type()), Copyability::MoveOnly);
         assert_eq!(
             typed.expression_category(fact.expression()),
             Some(ExpressionCategory::Temporary)
@@ -207,14 +227,18 @@ fn assert_single_contracts(file: &ParsedFile, typed: &TypedFile) {
     }
     for fact in primitives {
         assert_eq!(typed.ownership_primitive(fact.expression()), Some(*fact));
-        assert_eq!(fact.operands(), operands(file, fact.expression()));
+        assert_eq!(
+            fact.operands(),
+            operands(file, fact.expression().expression())
+                .map(|operand| UnitExpressionId::new(fact.expression().source_unit(), operand))
+        );
         assert_eq!(fact.value_type(), clones[0].result_type());
         let call = typed
             .call(fact.expression())
             .expect("primitive call contract");
         assert!(matches!(
             call.instance().target(),
-            CallableTarget::External(_)
+            UnitCallTarget::External(_)
         ));
         assert_eq!(call.instance().type_arguments(), &[fact.value_type()]);
         assert_eq!(
