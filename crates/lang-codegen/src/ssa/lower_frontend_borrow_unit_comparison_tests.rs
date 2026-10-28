@@ -1,5 +1,5 @@
-//! Stage A: unchanged original sources through strict MemoryDocument Unit admission.
-//! Legacy tests remain intact. Selected-root programs are not whole-file equivalence;
+//! Same-source Unit coverage for the retired class/Box and String binary legacy tests.
+//! Selected-root programs are not whole-file equivalence;
 //! LLVM verification below is not native execution or allocation/free evidence.
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 
