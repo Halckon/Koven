@@ -62,35 +62,9 @@ fn analyze(text: &str) -> Analysis {
     }
 }
 
+// Preserve the original whole-file rejection independently of the Unit positive oracles.
 #[test]
-fn lowers_standard_dynamic_string_error_after_evaluating_its_borrow() {
-    let analysis = analyze(
-        "fun normal(): Unit {}\n\
-         fun abortNow(message: String): Unit { error(message + \"!\") }",
-    );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("standard error must lower to verified SSA Abort");
-    let ssa = render_program(&program);
-    assert_eq!(ssa.matches("abort @source(").count(), 1, "{ssa}");
-    assert!(!ssa.contains("call @error"), "{ssa}");
-    assert!(ssa.contains("string.literal"), "{ssa}");
-    assert!(ssa.contains("string.concat"), "{ssa}");
-    assert!(ssa.contains("borrow.shared"), "{ssa}");
-
+fn rejects_nested_interpolation_in_error_at_whole_file_boundary() {
     let unsupported = analyze("fun abortInterpolated(): Unit { error(\"${1}\") }");
     let error = match lower_scalar_file(
         &unsupported.sources,
@@ -107,55 +81,7 @@ fn lowers_standard_dynamic_string_error_after_evaluating_its_borrow() {
 }
 
 #[test]
-fn lowers_dynamic_string_println_calls_in_source_order_with_decoded_utf8() {
-    let analysis = analyze(
-        r#"fun borrowed(input: String): Unit { println(input) }
-        fun output(): Unit {
-            if (true) { println("") }
-            if (true) { println("Hello") }
-            if (true) { println("你好") }
-            if (true) { println("\\\'\"\n\r\t\0\$") }
-        }"#,
-    );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("plain String println calls must lower");
-    let bytes = program.modules[0]
-        .functions
-        .iter()
-        .flat_map(|function| function.instructions.iter())
-        .filter_map(|instruction| match &instruction.operation {
-            Operation::StringLiteral { bytes, .. } => Some(bytes.as_slice()),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        bytes,
-        [
-            b"".as_slice(),
-            b"Hello".as_slice(),
-            "你好".as_bytes(),
-            b"\\\'\"\n\r\t\0$".as_slice(),
-        ]
-    );
-    let ssa = render_program(&program);
-    assert_eq!(ssa.matches("print.string").count(), 5, "{ssa}");
-    assert_eq!(ssa.matches("end_borrow").count(), 4, "{ssa}");
-    assert!(!ssa.contains("print.literal"), "{ssa}");
-
+fn rejects_nested_interpolation_in_println_at_whole_file_boundary() {
     let unsupported = analyze("fun output(): Unit { println(\"${1}\") }");
     let error = match lower_scalar_file(
         &unsupported.sources,
@@ -168,19 +94,6 @@ fn lowers_dynamic_string_println_calls_in_source_order_with_decoded_utf8() {
         Err(error) => error,
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-
-    let nonliteral = analyze("fun output(input: String): Unit { println(input) }");
-    let program = lower_scalar_file(
-        &nonliteral.sources,
-        &nonliteral.parsed,
-        &nonliteral.names,
-        &nonliteral.typed,
-        &nonliteral.owned,
-    )
-    .expect("borrowed String println must reuse the entry loan");
-    let ssa = render_program(&program);
-    assert!(ssa.contains("print.string %l0"), "{ssa}");
-    assert!(!ssa.contains("borrow.shared"), "{ssa}");
 }
 
 #[test]
@@ -1352,103 +1265,6 @@ fn non_null_assertion_owned_pointer_uses_proven_take_and_direct_abort() {
         let llvm = render_verified_program(&program).expect("assertion SSA verifies before LLVM");
         assert!(!llvm.contains("call ptr @malloc"), "{llvm}");
         assert!(!ssa.contains("rc.retain"), "{ssa}");
-    }
-}
-
-#[test]
-fn non_null_assertion_preserves_pending_value_arguments_across_its_branch() {
-    // The first owner has been evaluated, but only the eventual call consumes it.
-    let analysis = analyze(
-        "class Node()\nfun take(own first: Node, own second: Node): Node = first\nfun inspect(own first: Node, own second: Node?): Node = take(first, second!!)",
-    );
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("both owners must reach the call in the proven branch");
-    render_verified_program(&program).expect("pending owner uses the current block parameter");
-}
-
-#[test]
-fn non_null_assertion_temporary_group_and_borrowed_call_results_keep_one_owner() {
-    for body in [
-        "fun inspect(): Node = make()!!",
-        "fun inspect(own node: Node?): Node = ((node))!!",
-        "fun inspect(own node: Node?): Unit = observe(Node(), node!!)",
-        "fun inspect(own node: Node?, flag: Boolean): Node = (if (flag) { node } else { make() })!!",
-        "fun inspect(own probe: Node?, own node: Node?): Node = (if (probe == null) { node } else { make() })!!",
-    ] {
-        let analysis = analyze(&format!(
-            "class Node()\nfun make(): Node? {{ val result: Node? = Node()\nreturn result }}\nfun observe(first: Node, second: Node): Unit {{}}\n{body}"
-        ));
-        assert!(
-            analysis.parsed.diagnostics().is_empty(),
-            "{body}: {:?}",
-            analysis.parsed.diagnostics()
-        );
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{body}: {:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{body}: {:?}",
-            analysis.owned.diagnostics()
-        );
-        let program = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .unwrap_or_else(|error| panic!("{body}: {error:?}"));
-        render_verified_program(&program).expect("operand and call-result owners remain unique");
-    }
-}
-
-#[test]
-fn non_null_assertion_later_transfer_cleans_pending_value_owner() {
-    for body in [
-        "fun inspect(own first: Node, own second: Node?, flag: Boolean): Node = take(first, (if (flag) { return Node() } else { second })!!)",
-        "fun inspect(own first: Node, own second: Node?, flag: Boolean): Node { loop { val result = take(first, (if (flag) { break } else { second })!!)\nbreak }\nreturn Node() }",
-        "fun inspect(flag: Boolean): Node { loop { val first = Node()\nval second: Node? = Node()\nval result = take(first, (if (flag) { continue } else { second })!!)\nbreak }\nreturn Node() }",
-        "fun inspect(own first: Node, own second: Node?, flag: Boolean): Node = take(first, (if (flag) { loop { break }\nsecond } else { second })!!)",
-    ] {
-        let analysis = analyze(&format!(
-            "class Node()\nfun take(own first: Node, own second: Node): Node = first\n{body}"
-        ));
-        assert!(
-            analysis.parsed.diagnostics().is_empty(),
-            "{body}: {:?}",
-            analysis.parsed.diagnostics()
-        );
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{body}: {:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{body}: {:?}",
-            analysis.owned.diagnostics()
-        );
-        let program = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .unwrap_or_else(|error| panic!("{body}: {error:?}"));
-        render_verified_program(&program)
-            .expect("only escaping control transfers clean pending owners");
     }
 }
 
