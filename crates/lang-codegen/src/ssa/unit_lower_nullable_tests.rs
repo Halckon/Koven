@@ -441,16 +441,15 @@ fn assert_original_assertion_semantics(case: &str, text: &str, function: &super:
         .filter_map(|block| {
             let terminator = block.terminator.as_ref().unwrap();
             let span = terminator.origin.span();
-            if text[span.start()..span.end()].ends_with("!!") {
-                if let TerminatorKind::NullableBranch {
+            if text[span.start()..span.end()].ends_with("!!")
+                && let TerminatorKind::NullableBranch {
                     owner,
                     when_null,
                     when_non_null,
                     view,
                 } = &terminator.kind
-                {
-                    return Some((span, *owner, when_null, when_non_null, *view));
-                }
+            {
+                return Some((span, *owner, when_null, when_non_null, *view));
             }
             None
         })
