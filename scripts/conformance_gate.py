@@ -485,13 +485,13 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "allowed_markers": ["BE:UnsupportedNode", "BE:UnsupportedSource", "BE:MissingFact", "FE:L0165"],
         "target_stdout": "companion\n",
         "v046_baseline_exempt": True,
-        "note": "Guide v0.46 anonymous companion { } syntax; SPEC-0323 fixed static role, native N06 pending",
+        "note": "Guide v0.46 anonymous companion { } syntax (SPEC-0342); SPEC-0323 fixed static role, native N06 pending",
     },
     "q12_companion_const": {
         "kind": "run_ok",
         "stdout": "cconst\n",
         "v046_baseline_exempt": True,
-        "note": "Guide v0.46 anonymous companion { } syntax; associated constant read succeeds",
+        "note": "Guide v0.46 anonymous companion { } syntax (SPEC-0342); associated constant read succeeds",
     },
     "p23_global_var": {
         "kind": "compile_fail",
@@ -643,25 +643,25 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "kind": "run_ok",
         "stdout": "e1\n",
         "v046_baseline_exempt": True,
-        "note": "Enum when regression fixed on main",
+        "note": "SPEC-0320 / SPEC-0356: enum when bool return regression fixed on main",
     },
     "e02_enum_when_stmt_println": {
         "kind": "run_ok",
         "stdout": "e2\n",
         "v046_baseline_exempt": True,
-        "note": "Enum when statement regression fixed on main",
+        "note": "SPEC-0320 / SPEC-0356: enum when statement regression fixed on main",
     },
     "e03_enum_when_bool_val": {
         "kind": "run_ok",
         "stdout": "e5\n",
         "v046_baseline_exempt": True,
-        "note": "Enum when bool val regression fixed on main",
+        "note": "SPEC-0320 / SPEC-0356: enum when bool val regression fixed on main",
     },
     "p49_when_enum_no_payload": {
         "kind": "run_ok",
         "stdout": "green\n",
         "v046_baseline_exempt": True,
-        "note": "Payloadless enum when: main prints name(Color.Green), so the when branch yields green",
+        "note": "SPEC-0320 / SPEC-0356: payloadless enum when prints name(Color.Green) -> green",
     },
     "p50_enum_method": {
         "kind": "run_ok",
@@ -679,19 +679,19 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "kind": "run_ok",
         "stdout": "take\n",
         "v046_baseline_exempt": True,
-        "note": "take() lowered on main; for-loop sums the first two elements and prints take",
+        "note": "SPEC-0341: take() lowered on main; for-loop sums the first two elements and prints take",
     },
     "y03_method_take_for": {
         "kind": "run_ok",
         "stdout": "take-method\n",
         "v046_baseline_exempt": True,
-        "note": "take() method call lowered on main; for-loop sums the first two elements and prints take-method",
+        "note": "SPEC-0341: take() method call lowered on main; for-loop sums the first two elements and prints take-method",
     },
     "y04_take_for_println": {
         "kind": "run_ok",
         "stdout": "a\nb\n",
         "v046_baseline_exempt": True,
-        "note": "take() lowered on main; for-loop prints the first two elements",
+        "note": "SPEC-0341: take() lowered on main; for-loop prints the first two elements",
     },
 }
 
@@ -1193,6 +1193,34 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                 not isinstance(spec["oracle_origin"], str) or not spec["oracle_origin"].strip()
             ):
                 raise ValueError(f"{section}.{name} has invalid oracle_origin")
+            if "spec_refs" in spec:
+                srefs = spec["spec_refs"]
+                if (
+                    not isinstance(srefs, list)
+                    or not srefs
+                    or len(srefs) != len(set(srefs))
+                    or not all(
+                        isinstance(s, str) and re.fullmatch(r"SPEC-[0-9]{4}", s)
+                        for s in srefs
+                    )
+                ):
+                    raise ValueError(f"{section}.{name} has invalid spec_refs {srefs!r}")
+                if corpus_root is not None:
+                    docs_root = corpus_root.parent / "docs"
+                    if (docs_root / "specs").is_dir():
+                        for sref in srefs:
+                            if resolve_spec_doc_relpath(sref, corpus_root.parent) is None:
+                                raise ValueError(
+                                    f"{section}.{name} references missing spec document for {sref}"
+                                )
+            elif (
+                spec.get("v046_baseline_exempt")
+                and corpus_root is not None
+                and (corpus_root.parent / "docs" / "specs").is_dir()
+            ):
+                raise ValueError(
+                    f"{section}.{name} with v046_baseline_exempt requires non-empty spec_refs"
+                )
             if "oracle_derivation" in spec and (
                 not isinstance(spec["oracle_derivation"], str)
                 or not spec["oracle_derivation"].strip()
@@ -1387,6 +1415,11 @@ def derive_static_expectations(
             entry["guide_chapter"] = chapter
             entry["baseline_marker"] = base_single
             entry["oracle_origin"] = "v046_spec_contract"
+            spec_refs = list(
+                dict.fromkeys(re.findall(r"SPEC-[0-9]{4}", entry.get("note", "")))
+            )
+            if spec_refs:
+                entry["spec_refs"] = spec_refs
             if entry.get("kind") == "compile_fail" and entry.get("diagnostic") in DIAGNOSTIC_SYMBOL_CATALOG:
                 entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[entry["diagnostic"]]
             if entry.get("kind") == "known_unimplemented":
@@ -1859,6 +1892,52 @@ def summarize_baseline_evolution(expectations: dict[str, Any]) -> dict[str, list
     return buckets
 
 
+def resolve_spec_doc_relpath(spec_id: str, repo_root: Path) -> tuple[str, str] | None:
+    """Locate SPEC-xxxx in docs/specs/active or docs/archive/specs and return (relpath, status)."""
+    if not re.fullmatch(r"SPEC-[0-9]{4}", spec_id):
+        return None
+    num = spec_id.split("-", 1)[1]
+    active_dir = repo_root / "docs" / "specs" / "active"
+    archive_dir = repo_root / "docs" / "archive" / "specs"
+    if active_dir.is_dir():
+        matches = sorted(active_dir.glob(f"{num}-*.md"))
+        if matches:
+            return f"docs/specs/active/{matches[0].name}", "active"
+    if archive_dir.is_dir():
+        matches = sorted(archive_dir.glob(f"{num}-*.md"))
+        if matches:
+            return f"docs/archive/specs/{matches[0].name}", "archived"
+    return None
+
+
+def summarize_v046_spec_traceability(
+    expectations: dict[str, Any], repo_root: Path | None = None
+) -> dict[str, dict[str, Any]]:
+    """Aggregate all v046_baseline_exempt probes by their governing SPEC-xxxx contract IDs."""
+    root = repo_root or Path(__file__).resolve().parents[1]
+    by_spec: dict[str, dict[str, Any]] = {}
+    for name, spec in sorted(expectations["probes"].items()):
+        if not spec.get("v046_baseline_exempt"):
+            continue
+        for sref in spec.get("spec_refs", []):
+            resolved = resolve_spec_doc_relpath(sref, root)
+            relpath, status = resolved if resolved is not None else ("", "unknown")
+            bucket = by_spec.setdefault(
+                sref,
+                {
+                    "spec_id": sref,
+                    "doc_relpath": relpath,
+                    "status": status,
+                    "probes": [],
+                    "kinds": {},
+                },
+            )
+            bucket["probes"].append(name)
+            k = spec["kind"]
+            bucket["kinds"][k] = bucket["kinds"].get(k, 0) + 1
+    return dict(sorted(by_spec.items()))
+
+
 def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     """Render deterministic Markdown audit ledger from expectations.json."""
     probes = expectations["probes"]
@@ -1866,6 +1945,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     chapter_stats = summarize_chapter_polarity(expectations)
     neg_catalog = summarize_negative_oracle_catalog(expectations)
     base_evo = summarize_baseline_evolution(expectations)
+    spec_trace = summarize_v046_spec_traceability(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -1937,8 +2017,26 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | {len(base_evo['baseline_compile_fail_preserved'])} | " + ", ".join(f"`{p}`" for p in base_evo["baseline_compile_fail_preserved"]) + " |",
             f"| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | {len(base_evo['remaining_known_unimplemented'])} | " + ", ".join(f"`{p}`" for p in base_evo["remaining_known_unimplemented"]) + " |",
             f"| `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | {len(base_evo['regressed_from_baseline_ok'])} | 无（零基线退化） |",
+            "",
+            "### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（35 Probes）",
+            "",
+            "| Spec 合同编号 | 规范文档路径 | 合同状态 | 关联豁免 Probe 数 | 交付后分布 | 绑定的 Probe 列表 |",
+            "|---|---|---|---:|---|---|",
         ]
     )
+    for sref, info in spec_trace.items():
+        doc_link = (
+            f"[{info['doc_relpath'].split('/')[-1]}](../{info['doc_relpath']})"
+            if info["doc_relpath"]
+            else "-"
+        )
+        kinds_summary = ", ".join(
+            f"`{k}`: {cnt}" for k, cnt in sorted(info["kinds"].items())
+        )
+        plist = ", ".join(f"`{p}`" for p in info["probes"])
+        lines.append(
+            f"| `{sref}` | {doc_link} | `{info['status']}` | {len(info['probes'])} | {kinds_summary} | {plist} |"
+        )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"

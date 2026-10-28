@@ -5,33 +5,45 @@
       "kind": "run_ok",
       "stdout": "e1\n",
       "v046_baseline_exempt": true,
-      "note": "Enum when regression fixed on main",
+      "note": "SPEC-0320 / SPEC-0356: enum when bool return regression fixed on main",
       "source_sha256": "355bad046cc48c43deb3add6cbdc2f0f5653f6d217ccf75f24527f5fd000834f",
       "guide_chapter": "06-blocks-control-flow.md",
       "baseline_marker": "BE:MissingFact",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0320",
+        "SPEC-0356"
+      ],
       "oracle_derivation": "isRed(Color.Red) matches branch Color.Red -> true; if-branch prints 'e1'"
     },
     "e02_enum_when_stmt_println": {
       "kind": "run_ok",
       "stdout": "e2\n",
       "v046_baseline_exempt": true,
-      "note": "Enum when statement regression fixed on main",
+      "note": "SPEC-0320 / SPEC-0356: enum when statement regression fixed on main",
       "source_sha256": "b763df71709255d7a2f4e01597cda82b9a5b535d71365886a4fd9a1264e49cca",
       "guide_chapter": "06-blocks-control-flow.md",
       "baseline_marker": "BE:MissingFact",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0320",
+        "SPEC-0356"
+      ],
       "oracle_derivation": "c = Color.Red matches statement when branch Color.Red -> println('e2')"
     },
     "e03_enum_when_bool_val": {
       "kind": "run_ok",
       "stdout": "e5\n",
       "v046_baseline_exempt": true,
-      "note": "Enum when bool val regression fixed on main",
+      "note": "SPEC-0320 / SPEC-0356: enum when bool val regression fixed on main",
       "source_sha256": "1169678b39d8b09455ba9b968c4a3031c5e603d290f7dc6827a67dd917321d80",
       "guide_chapter": "06-blocks-control-flow.md",
       "baseline_marker": "BE:MissingFact",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0320",
+        "SPEC-0356"
+      ],
       "oracle_derivation": "c = Color.Green yields b = false in when expression; if (!b) prints 'e5'"
     },
     "e04_enum_when_int_return": {
@@ -99,6 +111,9 @@
       "guide_chapter": "04-expressions-operators.md",
       "baseline_marker": "abort(exit 1,no msg)",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0355"
+      ],
       "oracle_derivation": "Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09"
     },
     "p05_double": {
@@ -153,6 +168,9 @@
       "guide_chapter": "06-blocks-control-flow.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0356"
+      ],
       "oracle_derivation": "name(2) matches the subject equality branch 2 -> 'two' and prints 'two'"
     },
     "p09_enum_payload": {
@@ -208,6 +226,9 @@
       "guide_chapter": "08-class-family-members.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0358"
+      ],
       "oracle_derivation": "single literal println('field-assign')"
     },
     "p12c_inout_param": {
@@ -219,6 +240,9 @@
       "guide_chapter": "10-ownership-borrowing-drop.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0358"
+      ],
       "oracle_derivation": "single literal println('inout-param')"
     },
     "p13_value_class_copy": {
@@ -239,6 +263,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "BE:MissingFact",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0350"
+      ],
       "oracle_derivation": "pick(true) returns non-null Node(5); smart cast prints 'smart' and pick(true)!!.v == 5 prints 'bangbang'"
     },
     "p14b_nullable_simple": {
@@ -250,6 +277,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "BE:InvalidSsa",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0350"
+      ],
       "oracle_derivation": "a: Node? = Node(5) is non-null with a.v == 5; smart cast branch prints 'smart'"
     },
     "p14c_nullable_int": {
@@ -261,6 +291,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "BE:MissingFact",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0350"
+      ],
       "oracle_derivation": "a: Int? = 5 is non-null and equals 5; smart cast branch prints 'nint'"
     },
     "p15_elvis": {
@@ -294,6 +327,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "FE:L0165",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0349"
+      ],
       "roadmap_blockers": [
         "N08"
       ],
@@ -313,6 +349,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0349"
+      ],
       "roadmap_blockers": [
         "N08"
       ],
@@ -414,6 +453,9 @@
       "guide_chapter": "13-program-runtime-standard-library.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0359"
+      ],
       "oracle_derivation": "Rc(Data(4)).share().value.n == 4 holds and prints 'rc'"
     },
     "p23_global_var": {
@@ -425,6 +467,9 @@
       "guide_chapter": "05-declarations-callables.md",
       "baseline_marker": "FE:L0165",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0343"
+      ],
       "diagnostic_symbol": "UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE",
       "oracle_derivation": "top-level runtime var counter violates Guide 05 D4 (SPEC-0343); rejected with UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE L0167"
     },
@@ -509,11 +554,15 @@
       ],
       "target_stdout": "companion\n",
       "v046_baseline_exempt": true,
-      "note": "Guide v0.46 anonymous companion { } syntax; SPEC-0323 fixed static role, native N06 pending",
+      "note": "Guide v0.46 anonymous companion { } syntax (SPEC-0342); SPEC-0323 fixed static role, native N06 pending",
       "source_sha256": "5ae15f9b431ebf65c8b9fb6fd3c4d80294a4ec7186135e2effbbd9963b1a5b47",
       "guide_chapter": "08-class-family-members.md",
       "baseline_marker": "ERR",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0342",
+        "SPEC-0323"
+      ],
       "roadmap_blockers": [
         "N06"
       ],
@@ -608,6 +657,9 @@
       "guide_chapter": "03-types-generics.md",
       "baseline_marker": "FE:L0111",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0349"
+      ],
       "oracle_derivation": "Result.Ok(1) matches parameterless is Result.Ok with v = 1 (SPEC-0349); prints 'case-noargs'"
     },
     "p38_list_of_strings": {
@@ -654,6 +706,10 @@
       "guide_chapter": "06-blocks-control-flow.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0360",
+        "SPEC-0357"
+      ],
       "oracle_derivation": "single literal println('when-str')"
     },
     "p42_lambda_mutate": {
@@ -703,6 +759,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "abort(exit 1,no msg)",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0355"
+      ],
       "oracle_derivation": "error('boom') aborts with SIGABRT and stderr header 'abort: boom' per Guide 09 D12"
     },
     "p46_string_field_class": {
@@ -736,11 +795,15 @@
       "kind": "run_ok",
       "stdout": "green\n",
       "v046_baseline_exempt": true,
-      "note": "Payloadless enum when: main prints name(Color.Green), so the when branch yields green",
+      "note": "SPEC-0320 / SPEC-0356: payloadless enum when prints name(Color.Green) -> green",
       "source_sha256": "5679bacd7fe7b110811b816f75352b0bc7538c9c9cbf688e3d483c543fc96cb6",
       "guide_chapter": "06-blocks-control-flow.md",
       "baseline_marker": "BE:MissingFact",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0320",
+        "SPEC-0356"
+      ],
       "oracle_derivation": "name(Color.Green) selects Color.Green -> 'green' and prints 'green'"
     },
     "p50_enum_method": {
@@ -752,6 +815,9 @@
       "guide_chapter": "08-class-family-members.md",
       "baseline_marker": "BE:MissingFact",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0356"
+      ],
       "oracle_derivation": "single literal println('enum-method')"
     },
     "q01_lambda_local": {
@@ -815,6 +881,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "BE:InvalidSsa",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0350"
+      ],
       "oracle_derivation": "show(Node(1)) takes non-null branch ('non-null'); show(null) takes else branch ('null')"
     },
     "q06_nullable_return_bang": {
@@ -862,6 +931,9 @@
       "guide_chapter": "10-ownership-borrowing-drop.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0358"
+      ],
       "oracle_derivation": "single literal println('inout-class')"
     },
     "q10_var_reassign_string": {
@@ -886,11 +958,14 @@
       "kind": "run_ok",
       "stdout": "cconst\n",
       "v046_baseline_exempt": true,
-      "note": "Guide v0.46 anonymous companion { } syntax; associated constant read succeeds",
+      "note": "Guide v0.46 anonymous companion { } syntax (SPEC-0342); associated constant read succeeds",
       "source_sha256": "72ac935d1afec7659598f91a5e698ddafc7465cdee0b318ead5021598b6ebf54",
       "guide_chapter": "05-declarations-callables.md",
       "baseline_marker": "OK",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0342"
+      ],
       "oracle_derivation": "Cfg.N reads associated const val 3 from anonymous companion { }; Cfg.N == 3 prints 'cconst'"
     },
     "q13_if_expr_value": {
@@ -995,6 +1070,9 @@
       "guide_chapter": "02-names-files-packages.md",
       "baseline_marker": "FE:L0080",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0349"
+      ],
       "oracle_derivation": "builtin Result.Ok(1) is resolved without import (SPEC-0349); main prints 'result-builtin'"
     },
     "s02_pair_builtin": {
@@ -1068,6 +1146,9 @@
       "guide_chapter": "03-types-generics.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0361"
+      ],
       "oracle_derivation": "generic value class W<Int>(4).get() returns 4 and prints 'vmethod-generic'"
     },
     "t04_vmethod_compute_param": {
@@ -1142,6 +1223,9 @@
       "guide_chapter": "10-ownership-borrowing-drop.md",
       "baseline_marker": "BE:MissingFact",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0320"
+      ],
       "oracle_derivation": "isRed(Color.Red) borrows enum case argument and matches Color.Red -> true; prints 'enum-arg'"
     },
     "u02_list_add_loop_string": {
@@ -1199,6 +1283,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0350"
+      ],
       "oracle_derivation": "pick(true) returns Int? = 7; smart cast x != null && x == 7 prints 'join-nullable'"
     },
     "v04_stmt_if_mixed": {
@@ -1283,6 +1370,9 @@
       "guide_chapter": "03-types-generics.md",
       "baseline_marker": "abort(exit 1,no msg)",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0355"
+      ],
       "oracle_derivation": "(-1).toULong() fails range check and aborts with 'abort: value out of range for ULong' (SPEC-0327/0355)"
     },
     "v13_while_nullable_int": {
@@ -1294,6 +1384,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "BE:MissingFact",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0350"
+      ],
       "oracle_derivation": "while (x != null) adds 5 to total and sets x = null; total == 5 prints 'while-nullable'"
     },
     "v14_map_consume": {
@@ -1323,6 +1416,9 @@
       "guide_chapter": "06-blocks-control-flow.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0356"
+      ],
       "oracle_derivation": "bucket(3) satisfies the `in 0..9` arm -> 'small' and prints 'small'"
     },
     "v17_convert_in_loop": {
@@ -1352,6 +1448,9 @@
       "guide_chapter": "06-blocks-control-flow.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0356"
+      ],
       "oracle_derivation": "single literal println('stmt-when-mixed')"
     },
     "v20_range_in_list": {
@@ -1580,6 +1679,9 @@
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0350"
+      ],
       "oracle_derivation": "find(true) returns non-null String? 'hit'; smart cast s != null prints 'hit'"
     },
     "x03_if_call_borrow_arg": {
@@ -1595,11 +1697,14 @@
       "kind": "run_ok",
       "stdout": "take\n",
       "v046_baseline_exempt": true,
-      "note": "take() lowered on main; for-loop sums the first two elements and prints take",
+      "note": "SPEC-0341: take() lowered on main; for-loop sums the first two elements and prints take",
       "source_sha256": "c1fac2dfee57b67ec279de26bfde160e623abe6372e67e08b0cd37140250ad9f",
       "guide_chapter": "02-names-files-packages.md",
       "baseline_marker": "BE:InvalidSsa",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0341"
+      ],
       "oracle_derivation": "take(listOf(1,2,3), 2) yields 1 and 2 (sum 3); prints 'take'"
     },
     "y02_take_no_import": {
@@ -1616,22 +1721,28 @@
       "kind": "run_ok",
       "stdout": "take-method\n",
       "v046_baseline_exempt": true,
-      "note": "take() method call lowered on main; for-loop sums the first two elements and prints take-method",
+      "note": "SPEC-0341: take() method call lowered on main; for-loop sums the first two elements and prints take-method",
       "source_sha256": "5db5994e2ff45cc7b6cd80c0c196e60557072279ac6558b74e8d1fb44ae816dc",
       "guide_chapter": "12-collections-destructuring.md",
       "baseline_marker": "BE:InvalidSsa",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0341"
+      ],
       "oracle_derivation": "xs.take(2) on listOf(1,2,3) sums 1 + 2 = 3; prints 'take-method'"
     },
     "y04_take_for_println": {
       "kind": "run_ok",
       "stdout": "a\nb\n",
       "v046_baseline_exempt": true,
-      "note": "take() lowered on main; for-loop prints the first two elements",
+      "note": "SPEC-0341: take() lowered on main; for-loop prints the first two elements",
       "source_sha256": "baa58796b1332bb65f4d38bbf7c240790d3405fcdcc5af80f22f4d6d710089b0",
       "guide_chapter": "12-collections-destructuring.md",
       "baseline_marker": "BE:InvalidSsa",
       "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0341"
+      ],
       "oracle_derivation": "take(listOf('a','b','c'), 2) prints first two elements 'a' and 'b'"
     },
     "y05_take_borrow_val_call": {

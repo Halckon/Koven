@@ -54,6 +54,25 @@
 | `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | 21 | `p02_interp`, `p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p16b_result_string`, `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p21_box_enum`, `p25b_linked_recursive`, `p27_thread`, `p28_companion`, `p35_value_eq`, `p40_nested_generic_class`, `q02_lambda_arg_inline`, `q03_fn_ref`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair` |
 | `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | 0 | 无（零基线退化） |
 
+### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（35 Probes）
+
+| Spec 合同编号 | 规范文档路径 | 合同状态 | 关联豁免 Probe 数 | 交付后分布 | 绑定的 Probe 列表 |
+|---|---|---|---:|---|---|
+| `SPEC-0320` | [0320-enum-case-borrow-categories.md](../docs/archive/specs/0320-enum-case-borrow-categories.md) | `archived` | 5 | `run_ok`: 5 | `e01_enum_when_bool_return`, `e02_enum_when_stmt_println`, `e03_enum_when_bool_val`, `p49_when_enum_no_payload`, `u01_enum_case_borrow_arg` |
+| `SPEC-0323` | [0323-final-admission-static-recovery.md](../docs/archive/specs/0323-final-admission-static-recovery.md) | `archived` | 1 | `known_unimplemented`: 1 | `p28_companion` |
+| `SPEC-0341` | [0341-shared-lowering-core.md](../docs/specs/active/0341-shared-lowering-core.md) | `active` | 3 | `run_ok`: 3 | `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println` |
+| `SPEC-0342` | [0342-companion-block-syntax.md](../docs/archive/specs/0342-companion-block-syntax.md) | `archived` | 2 | `known_unimplemented`: 1, `run_ok`: 1 | `p28_companion`, `q12_companion_const` |
+| `SPEC-0343` | [0343-top-level-const-only.md](../docs/archive/specs/0343-top-level-const-only.md) | `archived` | 1 | `compile_fail`: 1 | `p23_global_var` |
+| `SPEC-0349` | [0349-builtin-result-and-check.md](../docs/archive/specs/0349-builtin-result-and-check.md) | `archived` | 4 | `known_unimplemented`: 2, `run_ok`: 2 | `p16_result_q`, `p16b_result_string`, `p37_is_generic_case`, `s01_result_builtin` |
+| `SPEC-0350` | [0350-ownership-refinement-nullable-pilot.md](../docs/archive/specs/0350-ownership-refinement-nullable-pilot.md) | `archived` | 7 | `run_ok`: 7 | `p14_nullable`, `p14b_nullable_simple`, `p14c_nullable_int`, `q05_nullable_param`, `v03_join_nullable`, `v13_while_nullable_int`, `x02_string_nullable_return` |
+| `SPEC-0355` | [0355-abort-output.md](../docs/archive/specs/0355-abort-output.md) | `archived` | 3 | `runtime_abort`: 3 | `p04_overflow`, `p45_abort_message`, `v12_convert_abort` |
+| `SPEC-0356` | [0356-refine-when-family.md](../docs/archive/specs/0356-refine-when-family.md) | `archived` | 8 | `run_ok`: 8 | `e01_enum_when_bool_return`, `e02_enum_when_stmt_println`, `e03_enum_when_bool_val`, `p08_when_int`, `p49_when_enum_no_payload`, `p50_enum_method`, `v16_when_in_range`, `v19_stmt_when_mixed` |
+| `SPEC-0357` | [0357-string-when-ownership-facts.md](../docs/specs/active/0357-string-when-ownership-facts.md) | `active` | 1 | `run_ok`: 1 | `p41_when_string` |
+| `SPEC-0358` | [0358-refine-assignment-inout.md](../docs/archive/specs/0358-refine-assignment-inout.md) | `archived` | 3 | `run_ok`: 3 | `p12b_class_field_assign`, `p12c_inout_param`, `q09_inout_class_param` |
+| `SPEC-0359` | [0359-refine-rc.md](../docs/archive/specs/0359-refine-rc.md) | `archived` | 1 | `run_ok`: 1 | `p22_rc` |
+| `SPEC-0360` | [0360-string-when-refinement.md](../docs/specs/active/0360-string-when-refinement.md) | `active` | 1 | `run_ok`: 1 | `p41_when_string` |
+| `SPEC-0361` | [0361-refine-generic-value-class.md](../docs/archive/specs/0361-refine-generic-value-class.md) | `archived` | 1 | `run_ok`: 1 | `t03_vmethod_generic` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
