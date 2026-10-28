@@ -213,6 +213,46 @@ fn lowers_nullable_rc_operations_through_the_proven_non_null_view_unit_compariso
         analysis.ownership().diagnostics()
     );
     let program = lower_roots(&analysis, &["inspect"], 0);
+    let span = analysis.declaration_span(analysis.declaration("inspect", SymbolKind::Function));
+    let functions = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .filter(|function| function.origin == Origin::Source(span))
+        .collect::<Vec<_>>();
+    let [function] = functions.as_slice() else {
+        panic!("one original Rc inspect function")
+    };
+    let views = function
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator.as_ref().unwrap().kind {
+            TerminatorKind::NullableBranch { view, .. } => Some(*view),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [view] = views.as_slice() else {
+        panic!("one original Rc non-null proof")
+    };
+    // Presence and identity are structural: rendered text alone cannot witness either use.
+    for expected in [
+        Operation::SharedRetain {
+            owner: EntityId::Loan(*view),
+        },
+        Operation::SharedPayloadPlace {
+            owner: EntityId::Loan(*view),
+        },
+    ] {
+        assert_eq!(
+            function
+                .instructions
+                .iter()
+                .filter(|instruction| instruction.operation == expected)
+                .count(),
+            1,
+            "the original Rc source must perform {expected:?} once through its proof"
+        );
+    }
     let ssa = render_program(&program);
     assert!(ssa.contains("shared.retain %l"), "{ssa}");
     assert!(ssa.contains("shared.payload_place %l"), "{ssa}");
