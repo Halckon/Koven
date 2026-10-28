@@ -39,7 +39,9 @@ fn intrinsic_rc_construction_share_and_copyable_payload_read_unit_comparison() {
     let declaration = unit.declaration("shared", SymbolKind::Function);
     let span = unit.declaration_span(declaration);
     assert_eq!(unit.sources().slice(span), Ok(text));
-    let (program, root) = unit.lower_entry(declaration).expect("original shared Unit root");
+    let (program, root) = unit
+        .lower_entry(declaration)
+        .expect("original shared Unit root");
     let module = program.module(root.module()).expect("root module");
     let function = module.function(root).expect("root function");
     assert_eq!(function.origin, Origin::Source(span));
@@ -96,9 +98,13 @@ fn move_only_rc_payload_borrow_call_unit_comparison() {
     let unit = analyze(text);
     let declaration = unit.declaration("exercise", SymbolKind::Function);
     let span = unit.declaration_span(declaration);
-    let original_root = &text[text.find("fun exercise").expect("original exercise declaration")..];
+    let original_root = &text[text
+        .find("fun exercise")
+        .expect("original exercise declaration")..];
     assert_eq!(unit.sources().slice(span), Ok(original_root));
-    let (program, root) = unit.lower_entry(declaration).expect("original exercise Unit root");
+    let (program, root) = unit
+        .lower_entry(declaration)
+        .expect("original exercise Unit root");
     let module = program.module(root.module()).expect("root module");
     let function = module.function(root).expect("root function");
     assert_eq!(function.origin, Origin::Source(span));
