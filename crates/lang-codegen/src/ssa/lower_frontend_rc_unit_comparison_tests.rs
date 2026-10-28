@@ -1,4 +1,5 @@
-//! Stage A same-source observations: the legacy tests remain unchanged.
+//! Same-source Unit coverage for the two retired nonnullable Rc legacy tests.
+//! Preserves their explicit SSA/LLVM oracles, not whole-file or native equivalence.
 use lang_frontend::{
     name_resolution::{SourceUnitKey, SymbolKind},
     type_checking::UnitConstructionTarget,

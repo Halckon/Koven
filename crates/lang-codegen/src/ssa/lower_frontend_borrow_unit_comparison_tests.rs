@@ -4,7 +4,7 @@
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 
 use super::{
-    model::{EntityId, EntityType, LoanKind, Operation, Origin},
+    model::{EntityId, EntityType, LoanKind, Operation, Origin, TerminatorKind},
     render::render_program,
     verify::verify_program,
 };
@@ -97,6 +97,82 @@ fn repeated_class_and_box_root_borrows_unit_comparison() {
         })
         .collect::<Vec<_>>();
     assert_eq!(calls, [targets[0], targets[0], targets[1], targets[1]]);
+    let [block] = function.blocks.as_slice() else {
+        panic!("straight-line root borrows stay in one execution block");
+    };
+    let operations = block
+        .instructions
+        .iter()
+        .map(|id| function.instruction(*id).expect("block instruction"))
+        .collect::<Vec<_>>();
+    let allocations = operations
+        .iter()
+        .enumerate()
+        .filter_map(|(index, instruction)| match instruction.operation {
+            Operation::HeapAllocate { .. } => Some((index, instruction.results[0])),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [
+        (resource_at, EntityId::Value(resource)),
+        (boxed_at, EntityId::Value(boxed)),
+    ] = allocations.as_slice()
+    else {
+        panic!("Resource and Box each allocate one distinct root owner");
+    };
+    assert_ne!(resource, boxed);
+    let mut call_index = 0;
+    for (call_at, instruction) in operations.iter().enumerate() {
+        let Operation::DirectCall {
+            callee, arguments, ..
+        } = &instruction.operation
+        else {
+            continue;
+        };
+        let [EntityId::Loan(loan)] = arguments.as_slice() else {
+            panic!("root loan")
+        };
+        assert_eq!(
+            *callee,
+            targets[call_index / 2],
+            "callee order in execution block"
+        );
+        let (allocation_at, owner) = if call_index < 2 {
+            (*resource_at, *resource)
+        } else {
+            (*boxed_at, *boxed)
+        };
+        let (borrow_at, place) = operations
+            .iter()
+            .enumerate()
+            .find_map(|(index, instruction)| match instruction.operation {
+                Operation::BorrowBegin {
+                    place,
+                    kind: LoanKind::Shared,
+                } if instruction.results == [EntityId::Loan(*loan)] => Some((index, place)),
+                _ => None,
+            })
+            .expect("exact call loan is defined by a shared root borrow");
+        let root_at = operations
+            .iter()
+            .position(|instruction| {
+                instruction.operation == Operation::RootPlace { owner }
+                    && instruction.results == [EntityId::Place(place)]
+            })
+            .expect("both calls borrow their actual Resource or Box owner");
+        let end_at = operations
+            .iter()
+            .position(|instruction| instruction.operation == Operation::BorrowEnd { loan: *loan })
+            .expect("exact loan ends in the same block");
+        assert!(allocation_at < root_at && root_at < borrow_at && borrow_at < call_at);
+        assert_eq!(
+            end_at,
+            call_at + 1,
+            "call ends its own loan before later work"
+        );
+        call_index += 1;
+    }
+    assert_eq!(call_index, 4);
     verify_program(&program).expect("complete original Unit SSA verifies");
     let ssa = render_program(&program);
     for operation in ["root_place", "borrow.shared", "end_borrow"] {
@@ -130,7 +206,8 @@ fn string_binary_views_value_calls_and_returns_unit_comparison() {
     let module = program.module(root.module()).expect("root module");
     let combine = module.function(root).expect("exact combine function");
     assert_eq!(combine.origin, Origin::Source(span));
-    let [left @ EntityId::Loan(_), EntityId::Value(_)] = combine.blocks[0].parameters.as_slice()
+    let [left @ EntityId::Loan(left_loan), right @ EntityId::Value(_)] =
+        combine.blocks[0].parameters.as_slice()
     else {
         panic!("original left Borrow and own right Value parameters");
     };
@@ -169,18 +246,94 @@ fn string_binary_views_value_calls_and_returns_unit_comparison() {
     };
     assert!(receiver.is_none());
     assert!(matches!(arguments.as_slice(), [EntityId::Value(_)]));
-    let concat = combine.instructions.iter().position(|instruction| {
-        matches!(instruction.operation, Operation::StringConcat { left: operand, .. } if operand == *left)
-    }).expect("concat reads actual left entry loan");
-    let first_drop = combine
+    assert_eq!(
+        arguments.as_slice(),
+        &[*right],
+        "identity receives the original owned right"
+    );
+    let [block] = combine.blocks.as_slice() else {
+        panic!("straight-line String fixture stays in one execution block");
+    };
+    let operations = block
         .instructions
         .iter()
+        .map(|id| combine.instruction(*id).expect("block instruction"))
+        .collect::<Vec<_>>();
+    let (literal_at, literal) = operations.iter().enumerate().find(|(_, instruction)| {
+        matches!(&instruction.operation, Operation::StringLiteral { bytes, .. } if bytes == b"!")
+    }).expect("original suffix literal");
+    let [EntityId::Value(suffix)] = literal.results.as_slice() else {
+        panic!("owned literal")
+    };
+    let (concat_at, concat) = operations
+        .iter()
+        .enumerate()
+        .find(|(_, instruction)| {
+            instruction.operation
+                == Operation::StringConcat {
+                    left: *left,
+                    right: EntityId::Value(*suffix),
+                }
+        })
+        .expect("concat reads the actual entry loan and literal result");
+    let drop_at = operations
+        .iter()
+        .position(|instruction| instruction.operation == Operation::Drop { owner: *suffix })
+        .expect("exact suffix owner is dropped");
+    assert!(literal_at < concat_at && concat_at < drop_at);
+    let first_drop = operations
+        .iter()
         .position(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
-        .expect("operand drop");
-    assert!(concat < first_drop, "{:?}", combine.instructions);
+        .unwrap();
+    assert!(concat_at < first_drop);
+    let (equal_at, equal) = operations
+        .iter()
+        .enumerate()
+        .find(|(_, instruction)| {
+            instruction.operation
+                == Operation::StringEqual {
+                    left: concat.results[0],
+                    right: *right,
+                }
+        })
+        .expect("comparison reads the concat result and original right");
+    let EntityId::Value(equal_result) = equal.results[0] else {
+        panic!("Boolean result")
+    };
+    let not_at = operations
+        .iter()
+        .position(|instruction| {
+            instruction.operation
+                == Operation::BooleanNot {
+                    operand: equal_result,
+                }
+        })
+        .expect("inequality negates the exact comparison result");
+    let (call_at, call) = operations
+        .iter()
+        .enumerate()
+        .find(|(_, instruction)| {
+            matches!(&instruction.operation, Operation::DirectCall { callee: target, arguments, .. }
+            if *target == callee.id && arguments == &[*right])
+        })
+        .expect("identity receives the same owned right after comparison");
+    assert!(drop_at < equal_at && equal_at < not_at && not_at < call_at);
+    let [EntityId::Value(result)] = call.results.as_slice() else {
+        panic!("identity result")
+    };
+    assert!(matches!(&block.terminator.as_ref().expect("return").kind,
+        TerminatorKind::Return { values } if values == &[*result]));
     verify_program(&program).expect("complete original Unit SSA verifies");
     let ssa = render_program(&program);
-    // The legacy %l0 oracle is retained above by actual entry-loan identity instead.
+    assert!(
+        ssa.contains(&format!(
+            "string.concat %l{}, %v{}",
+            left_loan.index(),
+            suffix.index()
+        )),
+        "{ssa}"
+    );
+    // Bind the rendered concat to the actual entry loan, never a legacy %l0 assumption.
     for operation in ["string.concat", "string.equal", "not ", "call @"] {
         assert!(ssa.contains(operation), "{operation}: {ssa}");
     }
