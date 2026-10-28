@@ -17,7 +17,7 @@ impl Checker<'_, '_> {
     /// A concrete, non-generic, Copyable `enum class` whose payloads are all scalars.
     pub(super) fn enum_type(&self, ty: UnitTypeId) -> bool {
         self.enum_signature(ty).is_some()
-            && self.inputs.typed.copyability(ty) == Copyability::Copyable
+            && self.copyability_of(ty) == Copyability::Copyable
             && self
                 .enum_payload_types(ty)
                 .is_some_and(|cases| cases.iter().flatten().all(|payload| self.scalar(*payload)))
@@ -83,7 +83,7 @@ impl Checker<'_, '_> {
         else {
             return false;
         };
-        let result = descriptor.result_type();
+        let result = self.c(descriptor.result_type());
         let UnitConstructionTarget::EnumCase(target) = descriptor.target() else {
             return false;
         };
@@ -135,14 +135,16 @@ impl Checker<'_, '_> {
                 let value = argument.argument();
                 argument.evaluation_index() == index
                     && value.source_unit() == self.inputs.source_unit
-                    && payloads.get(argument.parameter_index()) == Some(&argument.parameter_type())
+                    && payloads.get(argument.parameter_index())
+                        == Some(&self.c(argument.parameter_type()))
                     && payload_symbols.get(argument.parameter_index()).copied()
                         == argument.parameter_symbol()
                     && delivery.construction() == id
                     && delivery.argument() == value
                     && delivery.parameter_index() == argument.parameter_index()
                     && delivery.evaluation_index() == index
-                    && self.expression_type(value.expression()) == Some(argument.parameter_type())
+                    && self.expression_type(value.expression())
+                        == Some(self.c(argument.parameter_type()))
                     && self.expression(value.expression())
             })
     }
@@ -161,7 +163,7 @@ impl Checker<'_, '_> {
             .is_some_and(|descriptor| {
                 matches!(descriptor.target(), UnitConstructionTarget::EnumCase(_))
                     && descriptor.arguments().is_empty()
-                    && descriptor.result_type() == subject
+                    && self.c(descriptor.result_type()) == subject
                     && self.expression_type(expression) == Some(subject)
             })
     }
@@ -210,8 +212,8 @@ impl Checker<'_, '_> {
             return false;
         };
         if projection.kind() != UnitAggregateProjectionKind::Field
-            || typed.expression_type(id) != Some(projection.ty())
-            || !self.scalar(projection.ty())
+            || self.expression_type_of(id) != Some(self.c(projection.ty()))
+            || !self.scalar(self.c(projection.ty()))
         {
             return false;
         }
@@ -255,7 +257,7 @@ impl Checker<'_, '_> {
                         .is_some_and(|this| this.ty == root && self.enum_type(root)),
                     Expression::Name => {
                         self.reference(receiver.expression()).is_some_and(|symbol| {
-                            self.known.contains(&symbol) && typed.symbol_type(symbol) == Some(root)
+                            self.known.contains(&symbol) && self.symbol_type(symbol) == Some(root)
                         })
                     }
                     _ => false,

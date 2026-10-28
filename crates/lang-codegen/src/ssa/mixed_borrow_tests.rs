@@ -619,71 +619,6 @@ fn check_group_drop(program: &Program, value_origin: lang_frontend::source::Span
 }
 
 #[test]
-fn mixed_value_borrow_grouped_return_single_keeps_outer_control_transfer_identity() {
-    use lang_frontend::{
-        lexer::lex,
-        name_resolution::resolve_names,
-        ownership_checking::{DropPoint, check_ownership},
-        parser::{Expression, parse_file},
-        source::SourceMap,
-        type_checking::{check_types, standard_environments},
-    };
-    for case in crate::native_mixed_borrow_cases::cases()
-        .into_iter()
-        .filter(|case| case.name.contains("grouped"))
-    {
-        let mut sources = SourceMap::new();
-        let source = sources.add_source(case.name, case.source).unwrap();
-        let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-        let (environment, types) = standard_environments();
-        let names = resolve_names(&sources, &file, &environment).unwrap();
-        let typed = check_types(&sources, &file, &names, &types).unwrap();
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        let grouped = owned
-            .borrow_return_origins()
-            .iter()
-            .filter(|fact| {
-                matches!(
-                    file.ast()
-                        .expressions()
-                        .get(fact.expression())
-                        .unwrap()
-                        .payload(),
-                    Expression::Group { .. }
-                )
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(grouped.len(), 1);
-        let outer = grouped[0].expression();
-        let Expression::Group { expression: inner } =
-            file.ast().expressions().get(outer).unwrap().payload()
-        else {
-            unreachable!()
-        };
-        assert_ne!(outer, *inner);
-        let drops = owned
-            .drops()
-            .iter()
-            .filter(|fact| fact.point() == DropPoint::ControlTransfer(outer))
-            .collect::<Vec<_>>();
-        assert_eq!(drops.len(), 1, "cleanup uses actual outer Group identity");
-        assert!(
-            !owned
-                .drops()
-                .iter()
-                .any(|fact| fact.point() == DropPoint::ControlTransfer(*inner))
-        );
-        let program = super::lower_frontend::orchestrate::lower_scalar_file(
-            &sources, &file, &names, &typed, &owned,
-        )
-        .unwrap();
-        check_group_drop(&program, drops[0].value_origin());
-        check(&program, &case);
-    }
-}
-
-#[test]
 fn mixed_value_borrow_grouped_return_unit_keeps_source_qualified_outer_identity() {
     use lang_frontend::{
         name_resolution::SourceUnitInput,
@@ -783,5 +718,143 @@ fn mixed_value_borrow_grouped_return_unit_keeps_source_qualified_outer_identity(
         .unwrap();
         check_group_drop(&program, drops[0].value_origin());
         check(&program, &case);
+    }
+}
+
+#[test]
+fn mixed_value_borrow_grouped_return_memory_document_keeps_outer_control_transfer_identity() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::{
+        name_resolution::{SourceUnitKey, SymbolKind},
+        ownership_checking::UnitDropPoint,
+        parser::Expression,
+        type_checking::UnitExpressionId,
+    };
+
+    // Same-byte replacement for the retired single consumer; keep the package/root matrix.
+    let names = [
+        "owned_resource_grouped_return",
+        "owned_resource_grouped_wrapper",
+    ];
+    let cases = crate::native_mixed_borrow_cases::cases();
+    let grouped_names = cases
+        .iter()
+        .filter(|case| case.name.contains("grouped"))
+        .map(|case| case.name)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        grouped_names,
+        BTreeSet::from(names),
+        "the replacement covers exactly the retired consumer's grouped fixture set"
+    );
+    for name in names {
+        let matching = cases
+            .iter()
+            .filter(|case| case.name == name)
+            .collect::<Vec<_>>();
+        let [case] = matching.as_slice() else {
+            panic!("one exact original grouped-return fixture: {name}");
+        };
+        let unit = UnitSource::analyze(case.name, case.source)
+            .unwrap_or_else(|error| panic!("{}: {error:?}", case.name));
+        unit.assert_frontend_clean();
+        assert!(unit.ownership().deferred().is_empty());
+        let [source] = unit.names().names().index().source_units() else {
+            panic!("one original MemoryDocument, without package or source splitting");
+        };
+        assert_eq!(source.key(), &SourceUnitKey::MemoryDocument);
+        assert_eq!(source.source_id(), unit.parsed().source_id());
+        assert_eq!(
+            unit.sources().source_name(source.source_id()),
+            Ok(case.name)
+        );
+        assert_eq!(
+            unit.sources().source_text(source.source_id()),
+            Ok(case.source)
+        );
+
+        let grouped = unit
+            .ownership()
+            .borrow_return_origins()
+            .iter()
+            .filter(|fact| {
+                assert_eq!(fact.expression().source_unit(), source.id());
+                let node = unit
+                    .parsed()
+                    .ast()
+                    .expressions()
+                    .get(fact.expression().expression())
+                    .unwrap();
+                assert_eq!(node.span().source_id(), source.source_id());
+                matches!(node.payload(), Expression::Group { .. })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            grouped.len(),
+            1,
+            "one original grouped borrow-return origin"
+        );
+        let outer = grouped[0].expression();
+        let Expression::Group { expression: inner } = unit
+            .parsed()
+            .ast()
+            .expressions()
+            .get(outer.expression())
+            .unwrap()
+            .payload()
+        else {
+            unreachable!()
+        };
+        let inner = UnitExpressionId::new(source.id(), *inner);
+        assert_ne!(outer, inner);
+        let drops = unit
+            .ownership()
+            .drops()
+            .iter()
+            .filter(|fact| fact.point() == UnitDropPoint::ControlTransfer(outer))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            drops.len(),
+            1,
+            "cleanup uses actual source-qualified outer Group"
+        );
+        assert!(
+            !unit
+                .ownership()
+                .drops()
+                .iter()
+                .any(|fact| fact.point() == UnitDropPoint::ControlTransfer(inner))
+        );
+        let value_origin = drops[0].value_origin();
+        assert_eq!(value_origin.source_id(), source.source_id());
+
+        let declaration = unit.declaration("entry", SymbolKind::Function);
+        let entry_origin = Origin::Source(unit.declaration_span(declaration));
+        let (program, entry) = unit
+            .lower_entry(declaration)
+            .unwrap_or_else(|error| panic!("{}: {error:?}", case.name));
+        let module = program
+            .module(entry.module())
+            .expect("returned entry module");
+        let function = module.function(entry).expect("returned real source entry");
+        assert_eq!(function.origin, entry_origin);
+        assert_eq!(
+            module
+                .functions
+                .iter()
+                .filter(|function| function.origin == entry_origin)
+                .count(),
+            1,
+            "one exact original entry function"
+        );
+        assert_eq!(
+            program.modules.len(),
+            1,
+            "shared grouped-return oracles inspect the sole returned entry module"
+        );
+        check_group_drop(&program, value_origin);
+        check(&program, case);
+        crate::llvm::render_verified_program_with_entry(&program, entry)
+            .expect("original MemoryDocument entry verifies through LLVM");
     }
 }

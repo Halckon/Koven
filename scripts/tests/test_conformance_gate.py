@@ -203,6 +203,46 @@ sys.exit(1)
         finally:
             extra_file.unlink()
 
+        extra_prog_dir = self.corpus / "programs" / "unlisted_prog"
+        extra_prog_dir.mkdir(parents=True)
+        (extra_prog_dir / "main.ko").write_text(self.prog_src, encoding="utf-8")
+        (extra_prog_dir / "expected.txt").write_text("ok\n", encoding="utf-8")
+        try:
+            with self.assertRaisesRegex(ValueError, "program inventory mismatch"):
+                gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+        finally:
+            (extra_prog_dir / "main.ko").unlink()
+            (extra_prog_dir / "expected.txt").unlink()
+            extra_prog_dir.rmdir()
+
+        # Verify expected.txt without trailing newline is rejected
+        exp_txt_path = self.corpus / "programs" / "word_count" / "expected.txt"
+        exp_txt_path.write_text("word\t1", encoding="utf-8")
+        try:
+            with self.assertRaisesRegex(
+                ValueError, "must be non-empty and end with trailing newline"
+            ):
+                gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+        finally:
+            exp_txt_path.write_text(self.prog_expected, encoding="utf-8")
+
+        # Verify probe with top-level package directive or missing fun main is rejected
+        p01_path = self.corpus / "probes" / "p01_ok.ko"
+        for bad_src, err_re in [
+            ('package custom\nfun main(): Unit { println("hello") }\n', "must not contain a package directive"),
+            ('fun helper(): Unit { println("hello") }\n', "must declare a fun main"),
+        ]:
+            p01_path.write_text(bad_src, encoding="utf-8")
+            self._write_default_expectations(
+                {"p01_ok": {"kind": "run_ok", "source_sha256": _sha256(bad_src), "stdout": "hello\n"}}
+            )
+            try:
+                with self.assertRaisesRegex(ValueError, err_re):
+                    gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+            finally:
+                p01_path.write_text(self.probe_ok_src, encoding="utf-8")
+                self._write_default_expectations()
+
     def test_4_timeout_is_caught_and_preserves_partial_bytes(self) -> None:
         kovenc_slow = _make_mock_compiler(
             self.root / "kovenc_slow",
@@ -568,6 +608,108 @@ sys.exit(1)
             audit_md_path.read_text(encoding="utf-8"),
             gate.render_oracle_audit_markdown(loaded),
         )
+
+        # 7. Cross-check all 31 known_unimplemented probes and 6 programs against docs/roadmap/v1.json
+        roadmap_items = {
+            it["id"]: it
+            for it in json.loads(
+                (repo_root / "docs" / "roadmap" / "v1.json").read_text(encoding="utf-8")
+            )["items"]
+        }
+        for name, spec in loaded["probes"].items():
+            if spec["kind"] == "known_unimplemented":
+                blockers = spec.get("roadmap_blockers")
+                self.assertTrue(
+                    isinstance(blockers, list) and len(blockers) > 0,
+                    f"probe {name} missing or empty roadmap_blockers",
+                )
+                for b in blockers:
+                    self.assertIn(
+                        b,
+                        roadmap_items,
+                        f"probe {name} references unknown roadmap blocker {b}",
+                    )
+                self.assertTrue(
+                    any(roadmap_items[b]["status"] != "done" for b in blockers),
+                    f"probe {name} has all blockers done: must transition out of known_unimplemented",
+                )
+        for name, spec in loaded["programs"].items():
+            if spec["kind"] == "known_unimplemented":
+                blockers = spec.get("roadmap_blockers")
+                self.assertTrue(
+                    isinstance(blockers, list) and len(blockers) > 0,
+                    f"program {name} missing or empty roadmap_blockers",
+                )
+                for b in blockers:
+                    self.assertIn(
+                        b,
+                        roadmap_items,
+                        f"program {name} references unknown roadmap blocker {b}",
+                    )
+                self.assertTrue(
+                    any(roadmap_items[b]["status"] != "done" for b in blockers),
+                    f"program {name} has all blockers done: must transition out of known_unimplemented",
+                )
+            self.assertGreater(spec.get("expected_lines", 0), 0, f"program {name} missing expected_lines")
+            self.assertGreater(spec.get("expected_bytes", 0), 0, f"program {name} missing expected_bytes")
+
+        # 8. Verify per-chapter positive vs negative polarity matrix across all 13 chapters
+        polarity = gate.summarize_chapter_polarity(loaded)
+        self.assertEqual(set(polarity.keys()), set(gate.VALID_GUIDE_CHAPTERS))
+        for ch, st in polarity.items():
+            self.assertTrue(st["has_positive"], f"chapter {ch} lacks positive run_ok probes")
+        pos_only = sorted(
+            ch for ch, st in polarity.items() if st["polarity_status"] == "positive_only"
+        )
+        both_pol = sorted(
+            ch
+            for ch, st in polarity.items()
+            if st["polarity_status"] == "both_positive_and_negative"
+        )
+        self.assertEqual(
+            pos_only,
+            [
+                "01-lexical.md",
+                "08-class-family-members.md",
+                "11-copyability-layout-construction.md",
+                "13-program-runtime-standard-library.md",
+            ],
+        )
+        self.assertEqual(len(both_pol), 9)
+
+        # 9. Verify DIAGNOSTIC_SYMBOL_CATALOG against diagnostic.rs::codes and summarize_negative_oracle_catalog
+        for code, sym in gate.DIAGNOSTIC_SYMBOL_CATALOG.items():
+            self.assertRegex(
+                diag_rs,
+                rf"const\s+{re.escape(sym)}\s*:\s*&str\s*=\s*\"{re.escape(code)}\";",
+                f"DIAGNOSTIC_SYMBOL_CATALOG mismatch for {code} -> {sym}",
+            )
+        neg_catalog = gate.summarize_negative_oracle_catalog(loaded)
+        self.assertEqual(len(neg_catalog["diagnostics"]), 10)
+        self.assertEqual(len(neg_catalog["runtime_aborts"]), 3)
+        for name, spec in loaded["probes"].items():
+            if spec["kind"] == "compile_fail":
+                self.assertEqual(
+                    spec.get("diagnostic_symbol"),
+                    gate.DIAGNOSTIC_SYMBOL_CATALOG[spec["diagnostic"]],
+                )
+            elif spec["kind"] == "known_unimplemented":
+                ts = spec.get("target_stdout")
+                self.assertTrue(
+                    isinstance(ts, str) and len(ts) > 0 and ts.endswith("\n"),
+                    f"known_unimplemented probe {name} missing valid target_stdout",
+                )
+            self.assertTrue(
+                isinstance(spec.get("oracle_derivation"), str)
+                and len(spec["oracle_derivation"].strip()) > 0,
+                f"probe {name} missing oracle_derivation",
+            )
+        for name, spec in loaded["programs"].items():
+            self.assertTrue(
+                isinstance(spec.get("oracle_derivation"), str)
+                and len(spec["oracle_derivation"].strip()) > 0,
+                f"program {name} missing oracle_derivation",
+            )
 
 
 if __name__ == "__main__":

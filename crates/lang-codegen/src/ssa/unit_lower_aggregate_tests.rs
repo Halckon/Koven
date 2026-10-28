@@ -711,7 +711,7 @@ fn lowers_concrete_generic_nominal_but_rejects_move_only_field_reads() {
 }
 
 #[test]
-fn generic_value_current_receiver_fields_keep_the_existing_lowering_boundary() {
+fn generic_value_current_receiver_fields_lower_through_the_refinement_layer() {
     for (parameter, field_type, expression) in [
         ("T", "Int", "stamp"),
         ("T", "Int", "this.stamp"),
@@ -740,7 +740,9 @@ fn generic_value_current_receiver_fields_keep_the_existing_lowering_boundary() {
         let (name_environment, type_environment) = standard_environments();
         let (names, typed, owned) =
             analyze(&sources, &inputs, &name_environment, &type_environment);
-        let error = match lower_scalar_unit_with_entry(
+        // SPEC-0361: generic value-class instances lower through the refinement layer,
+        // which reads the current receiver's field through a shared field loan.
+        let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
             &names,
@@ -748,20 +750,22 @@ fn generic_value_current_receiver_fields_keep_the_existing_lowering_boundary() {
             &typed,
             &owned,
             declaration(&names, "test", "entry"),
-        ) {
-            Ok(_) => panic!("generic current-receiver field support is not part of this repair"),
-            Err(error) => error,
-        };
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{text}");
-        let span = error
-            .span
-            .expect("the actual field use remains the source origin");
-        let prefix = format!("fun read(): {field_type} = ");
-        let expected_start = text.find(&prefix).unwrap() + prefix.len();
-        assert_eq!(span.source_id(), source);
-        assert_eq!(span.start(), expected_start, "{text}");
-        assert_eq!(span.end(), expected_start + expression.len(), "{text}");
-        assert_eq!(sources.slice(span).unwrap(), expression, "{text}");
+        )
+        .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+        let read = program.modules[0]
+            .functions
+            .iter()
+            .find(|function| function.name.contains(".Holder.read."))
+            .expect("read is lowered");
+        assert!(
+            read.instructions.iter().any(|instruction| matches!(
+                instruction.operation,
+                Operation::SharedFieldLoan { .. }
+            )),
+            "{text}"
+        );
+        crate::llvm::render_verified_program(&program)
+            .unwrap_or_else(|error| panic!("{text}: {error:?}"));
     }
 }
 

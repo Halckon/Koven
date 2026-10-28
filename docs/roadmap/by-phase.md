@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：main 8b656340（PR #176 双宿主 CI Conformance 门禁 + PR #180 SPEC-0356 + PR #181/#182 强 oracle 审计与章节映射 + PR #183 shape4 Stage A）· Guide v0.46 · 更新：2026-10-27 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
+基线：main 5b7f3e97（PR #185 强 Oracle 审计账本与 13 章覆盖 + PR #186 SPEC-0356 when 家族 + PR #187 SPEC-0358 赋值与 inout + V2 Slice 6 未实现 Probe 路线图阻塞项对账）· Guide v0.46 · 更新：2026-10-27 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
 
 只列 v1 范围内条目；● 表示该条目需要在对应 Phase 产出或验收。Phase 定义见 [一致性与实施边界](../guide/15-conformance-and-staging.md)。
 
@@ -14,9 +14,9 @@
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Phase 0 骨架 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | Phase 1 Parser | 2 | 0 | 0 | 2 | 0 | 0 | 4 |
-| Phase 2 名称/类型 | 24 | 7 | 2 | 25 | 0 | 0 | 58 |
-| Phase 3 所有权 | 18 | 6 | 2 | 11 | 0 | 0 | 37 |
-| Phase 4 SSA/native | 21 | 7 | 2 | 20 | 0 | 0 | 50 |
+| Phase 2 名称/类型 | 24 | 8 | 2 | 24 | 0 | 0 | 58 |
+| Phase 3 所有权 | 18 | 7 | 2 | 10 | 0 | 0 | 37 |
+| Phase 4 SSA/native | 21 | 8 | 2 | 19 | 0 | 0 | 50 |
 | Phase 5 标准库 | 2 | 0 | 0 | 9 | 0 | 0 | 11 |
 | Phase 6 工具 | 7 | 1 | 0 | 1 | 0 | 0 | 9 |
 
@@ -62,7 +62,7 @@
 | ◐ 部分 | N04 | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 | 已定义 |  |  |  |  | ● |  |  |
 | ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | P2 | 已定义 |  |  | ● | ● | ● |  |  |
-| ☐ 未开始 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
+| ◐ 部分 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | N09 | borrow T from this（泛型类 receiver 来源） | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ✅ 已交付 | N10 | 单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值 | P2 | 已定义 |  |  |  |  | ● |  |  |

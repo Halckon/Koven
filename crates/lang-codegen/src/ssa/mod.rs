@@ -14,6 +14,8 @@ mod map_result;
 mod map_source;
 mod refine;
 #[cfg(test)]
+mod refine_string_when_tests;
+#[cfg(test)]
 mod refine_subset_tests;
 #[cfg(test)]
 mod refine_tests;
@@ -117,6 +119,8 @@ mod unit_lower_scalar_tests;
 #[cfg(test)]
 mod unit_lower_short_circuit_tests;
 #[cfg(test)]
+mod unit_lower_straight_line_tests;
+#[cfg(test)]
 mod unit_lower_string_tests;
 #[cfg(test)]
 mod unit_lower_test_support;
@@ -147,6 +151,12 @@ mod verify_scalar_tests;
 
 #[cfg(test)]
 mod lower_frontend_tests;
+
+#[cfg(test)]
+mod lower_frontend_rc_unit_comparison_tests;
+
+#[cfg(test)]
+mod lower_frontend_borrow_unit_comparison_tests;
 
 #[cfg(test)]
 mod map_unit_consumer_test_support;

@@ -1,5 +1,5 @@
 //! SPEC-0255/0341: 同源单 source Unit 与双 source Unit 比较完整 String 事实。
-//! 四项旧 Single 差分合同仅由显式 legacy_only 测试入口消费。
+//! 其余旧 Single 差分合同仅由显式 legacy_only 测试入口消费；插值合同保留原测试身份。
 
 mod carry_join;
 mod products;
@@ -452,8 +452,9 @@ fn string_relations(
     relations
 }
 
-// These four old contracts deliberately retain Single analysis/lowering. The
-// migrated positive products never call this entry or fall back to it.
+// Remaining old contracts retain Single analysis/lowering; interpolation keeps its
+// original test identity here but compares only MemoryDocument and package/root Unit.
+// Migrated products never call the Single entry or fall back to it.
 mod legacy_only {
     use super::*;
     use crate::ssa::{
@@ -528,24 +529,39 @@ mod legacy_only {
 
     #[test]
     fn paired_interpolation_rejection_keeps_exact_unsupported_span() {
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+
         for literal in [r#""${17}""#, r#"(("before${17}after"))"#] {
             let mut sources = SourceMap::new();
             let text = format!("package pair\nfun entry(): String = {literal}");
+            let unit = UnitSource::analyze("pair/entry.ko", &text)
+                .expect("original interpolation source passes strict Unit frontend admission");
+            unit.assert_frontend_clean();
+            let source = unit.parsed().source_id();
+            assert_eq!(unit.sources().source_name(source), Ok("pair/entry.ko"));
+            assert_eq!(unit.sources().source_text(source), Ok(text.as_str()));
+            let entry = unit.declaration("entry", SymbolKind::Function);
+            let entry_span = unit.declaration_span(entry);
+            assert_eq!(entry_span.source_id(), source);
+            let error = unit
+                .lower_entry(entry)
+                .err()
+                .expect("MemoryDocument lowering must reject the original interpolation");
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+            let span = error
+                .span
+                .expect("interpolation rejection retains its source span");
+            assert_eq!(span.source_id(), source);
+            let start = text.find('"').unwrap();
+            let end = text.rfind('"').unwrap() + 1;
+            assert_eq!(
+                source_key(unit.sources(), span),
+                SourceKey("pair/entry.ko".to_owned(), start, end)
+            );
+            assert_eq!(unit.sources().slice(span), Ok(&text[start..end]));
+            assert!(entry_span.start() <= span.start() && span.end() <= entry_span.end());
             let (source, file) = parsed(&mut sources, "pair/entry.ko", &text);
             let (name_environment, environment) = standard_environments();
-            let names = resolve_names(&sources, &file, &name_environment).unwrap();
-            let typed = check_types(&sources, &file, &names, &environment).unwrap();
-            let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-            let entry = names
-                .symbols()
-                .iter()
-                .find(|symbol| symbol.name() == "entry")
-                .unwrap()
-                .id();
-            let single =
-                lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
-                    .err()
-                    .expect("lowering must reject");
             let inputs = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
             let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
             let unit = lower_scalar_unit_with_entry(
@@ -567,7 +583,6 @@ mod legacy_only {
                     text.rfind('"').unwrap() + 1,
                 )),
             );
-            assert_eq!(error_key(&sources, single), expected);
             assert_eq!(error_key(&sources, unit), expected);
         }
     }

@@ -564,3 +564,92 @@ fn inout_class_parameters_and_receivers_mutate_the_callers_owner() {
     // One Counter, freed once.
     counted(source, 1, b"inout-class\nreceiver\n");
 }
+
+#[test]
+fn rc_construction_share_and_value_projections_release_once() {
+    let source = r#"class Data(val n: Int)
+    fun peek(own rc: Rc<Data>): Int = rc.value.n
+    fun main(): Unit {
+        val a = Rc(Data(4))
+        val b = a.share()
+        if (b.value.n == 4 && peek(a.share()) == 4) { println("rc") }
+        val c = Rc(7)
+        val d = c.share()
+        if (d.value == 7) { println("copy") }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("Rc lowers and verifies")
+    });
+    for function in ["koven.p.main.d", "koven.p.peek.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    // Two shared owners and one Data payload, each freed exactly once.
+    counted(source, 3, b"rc\ncopy\n");
+}
+
+#[test]
+fn generic_instances_and_value_classes_lower_concretely() {
+    let source = r#"value class W<T>(val n: Int) {
+        fun get(): Int = this.n
+        fun clamp(): Int = when { n > 9 -> 9; else -> n }
+    }
+    value class P(val x: Int, val y: Int) { fun sum(): Int = x + y }
+    fun main(): Unit {
+        val w = W<Int>(4)
+        if (w.get() == 4) { println("vmethod-generic") }
+        val p = P(2, 3)
+        if (p.sum() == 5 && p.x == 2) { println("value") }
+        val v = W<Boolean>(12)
+        if (v.clamp() == 9 && w.clamp() == 4) { println("generic") }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("generic instances and value classes lower and verify")
+    });
+    for function in ["koven.p.main.d", ".get.", ".sum.", ".clamp."] {
+        assert!(
+            routed.iter().any(|name| name.contains(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        run(source),
+        ("vmethod-generic\nvalue\ngeneric\n".to_owned(), Some(0))
+    );
+}

@@ -143,7 +143,7 @@ impl Builder<'_, '_> {
                 *target == lang_frontend::ownership_checking::UnitDropTarget::Named(fact.symbol())
             });
             let Some(UnitTypeKind::Nullable(inner)) =
-                self.inputs.typed.types().get(fact.nullable_type())
+                self.inputs.typed.types().get(self.c(fact.nullable_type()))
             else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };

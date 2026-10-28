@@ -1,35 +1,45 @@
 //! 合法普通借用声明在结果 ABI 接通前必须结构化拒绝；不生成故障 IR。
-use super::{LoweringErrorKind, lower_frontend::orchestrate::lower_scalar_file};
+use super::LoweringErrorKind;
 
 #[test]
 fn non_source_inout_borrow_return_single_lowering_remains_unsupported() {
-    use lang_frontend::{
-        lexer::lex,
-        name_resolution::resolve_names,
-        ownership_checking::check_ownership,
-        parser::parse_file,
-        source::SourceMap,
-        type_checking::{check_types, standard_environments},
-    };
-    let mut sources = SourceMap::new();
-    let source = sources
-        .add_source(
-            "borrow_result.ko",
-            "fun view(source: Int, inout other: Int): borrow Int from source = source\nfun entry() {}",
-        )
-        .unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty());
-    assert_eq!(owned.borrow_return_origins().len(), 1);
-    let error = lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let analysis = UnitSource::analyze(
+        "borrow_result.ko",
+        "fun view(source: Int, inout other: Int): borrow Int from source = source\nfun entry() {}",
+    )
+    .unwrap();
+    analysis.assert_frontend_clean();
+    assert!(analysis.ownership().diagnostics().is_empty());
+    assert_eq!(analysis.ownership().borrow_return_origins().len(), 1);
+    let marker = analysis.ownership().borrow_return_origins()[0].declaration_span();
+    let view = analysis.declaration("view", SymbolKind::Function);
+    assert_eq!(
+        marker.source_id(),
+        analysis.declaration_span(view).source_id()
+    );
+    let entry = analysis.declaration("entry", SymbolKind::Function);
+    assert_eq!(
+        analysis
+            .sources()
+            .slice(analysis.declaration_span(entry))
+            .unwrap(),
+        "fun entry() {}"
+    );
+    // The unchanged single source still contains an uncalled view. Unit's whole-source
+    // ABI preflight must reject it before entry reachability can discard the declaration.
+    let error = analysis
+        .lower_entry(entry)
         .err()
         .expect("ordinary borrow ABI remains unsupported");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert_eq!(sources.slice(error.span.unwrap()).unwrap(), "borrow");
+    assert_eq!(error.span, Some(marker));
+    assert_eq!(
+        analysis.sources().slice(error.span.unwrap()).unwrap(),
+        "borrow"
+    );
 }
 
 #[test]

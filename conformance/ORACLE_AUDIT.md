@@ -2,37 +2,76 @@
 
 > 本文件由 `python3 scripts/conformance_gate.py --init-expectations` 从 `conformance/expectations.json` 确定性生成，并由 `scripts/check_docs.py`（`DocsChecker.check_conformance_corpus`）与 `scripts/tests/test_conformance_gate.py` 自动校验同步。
 
-## 1. Guide v0.46 章节覆盖汇总（154 Probes）
+## 1. Guide v0.46 章节覆盖与正/负向极性汇总（154 Probes）
 
-| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |
-|---|---:|---:|---:|---:|---:|---:|
-| [01-lexical.md](../docs/guide/01-lexical.md) | 4 | 1 | 0 | 0 | 3 | 1 / 4 |
-| [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 7 | 2 | 3 | 0 | 2 | 5 / 7 |
-| [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 5 | 1 | 1 | 4 | 7 / 11 |
-| [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 |
-| [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 |
-| [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 15 | 2 | 0 | 2 | 17 / 19 |
-| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 2 | 1 | 0 | 5 | 3 / 8 |
-| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 |
-| [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 11 | 1 | 1 | 3 | 13 / 16 |
-| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 |
-| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 |
-| [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
-| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 2 | 0 | 0 | 2 | 2 / 4 |
-| **合计** | **154** | **113** | **14** | **3** | **24** | **130 / 154** |
+| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |
+|---|---:|---:|---:|---:|---:|---:|---|
+| [01-lexical.md](../docs/guide/01-lexical.md) | 4 | 1 | 0 | 0 | 3 | 1 / 4 | `positive_only` |
+| [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 7 | 2 | 3 | 0 | 2 | 5 / 7 | `both_positive_and_negative` |
+| [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 6 | 1 | 1 | 3 | 8 / 11 | `both_positive_and_negative` |
+| [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 | `both_positive_and_negative` |
+| [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 | `both_positive_and_negative` |
+| [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 16 | 2 | 0 | 1 | 18 / 19 | `both_positive_and_negative` |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 2 | 1 | 0 | 5 | 3 / 8 | `both_positive_and_negative` |
+| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 | `positive_only` |
+| [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 11 | 1 | 1 | 3 | 13 / 16 | `both_positive_and_negative` |
+| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 | `both_positive_and_negative` |
+| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 | `positive_only` |
+| [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 | `both_positive_and_negative` |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 3 | 0 | 0 | 1 | 3 / 4 | `positive_only` |
+| **合计** | **154** | **116** | **14** | **3** | **21** | **133 / 154** | **9 双极性 / 4 仅正向** |
+
+- **正/负向双极性覆盖章节（9 / 13）**：`02-names-files-packages.md`, `03-types-generics.md`, `04-expressions-operators.md`, `05-declarations-callables.md`, `06-blocks-control-flow.md`, `07-calls-lambdas-closures.md`, `09-nullability-errors.md`, `10-ownership-borrowing-drop.md`, `12-collections-destructuring.md`（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。
+- **仅正向覆盖章节（4 / 13，待后续补充独立负向诊断探针）**：`01-lexical.md`, `08-class-family-members.md`, `11-copyability-layout-construction.md`, `13-program-runtime-standard-library.md`（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。
+
+### 1.1 负向诊断码与运行时中止契约矩阵（14 `compile_fail` + 3 `runtime_abort`）
+
+| 负向契约标识 | `diagnostic.rs` 符号常量 / 中止类别 | 覆盖 Guide 章节 | 关联 Probe 数量 | 绑定 Probe 列表 |
+|---|---|---|---:|---|
+| `FE:L0080` | `UNRESOLVED_NAME` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 3 | `r01_bogus_member`, `r02_bogus_member_str`, `y02_take_no_import` |
+| `FE:L0084` | `TYPE_MISMATCH` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md), [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 2 | `p01_int_print`, `v02_assign_chain` |
+| `FE:L0085` | `INVALID_OPERAND_TYPES` | [03-types-generics.md](../docs/guide/03-types-generics.md), [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 2 | `p03b_byte_literal_cmp`, `s04_question_on_nullable` |
+| `FE:L0089` | `NO_COMMON_BRANCH_TYPE` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 1 | `v04_stmt_if_mixed` |
+| `FE:L0112` | `WHEN_BRANCH_TYPE` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 1 | `p43_if_join_any` |
+| `FE:L0132` | `PARTIAL_MOVE` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `p25_linked_iter` |
+| `FE:L0133` | `MOVE_FROM_BORROWED_BINDING` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `p25_linked_iter` |
+| `FE:L0135` | `LOAN_CONFLICT` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md), [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 2 | `p42_lambda_mutate`, `w06_map_mutate_in_loop` |
+| `FE:L0164` | `UNSUPPORTED_BORROW_FLOW` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `q17_generic_class` |
+| `FE:L0167` | `UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 1 | `p23_global_var` |
+| `abort:integer overflow in +` | `SIGABRT (exit 134)` | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 1 | `p04_overflow` |
+| `abort:boom` | `SIGABRT (exit 134)` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 1 | `p45_abort_message` |
+| `abort:value out of range for ULong` | `SIGABRT (exit 134)` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 1 | `v12_convert_abort` |
 
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
-| 程序 | 归属章节 | 当前状态 | 期望输出文件 | 允许的未实现记号 |
-|---|---|---|---|---|
-| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | [programs/config_parse/expected.txt](programs/config_parse/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | [programs/expr_eval/expected.txt](programs/expr_eval/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | [programs/linked_stack/expected.txt](programs/linked_stack/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
-| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
+|---|---|---|---|---|---|---|
+| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `N02`, `N08`, `L1`, `L2` | [programs/config_parse/expected.txt](programs/config_parse/expected.txt) | 10 行 / 190 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `N02`, `N05`, `N07`, `N08`, `L7` | [programs/expr_eval/expected.txt](programs/expr_eval/expected.txt) | 6 行 / 174 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `N01`, `N03`, `N07`, `L7` | [programs/linked_stack/expected.txt](programs/linked_stack/expected.txt) | 8 行 / 242 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `N01`, `N02` | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | 28 行 / 369 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `N01`, `N08`, `L3b` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | 17 行 / 375 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | 16 行 / 187 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
 
-## 3. 154 个 Probe 逐项强 Oracle 与语义推导账本
+## 3. 21 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
+
+| 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |
+|---|---|---|---:|---|
+| `L1` | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable | `todo` | 2 | `p02_interp`, `p35_value_eq` |
+| `L2` | 字符串插值降级："${x}" 要求 x : Display | `todo` | 1 | `p02_interp` |
+| `L7` | MoveOnly enum 的消费式匹配：owned subject 分支获得 payload owned 绑定 | `todo` | 2 | `p21_box_enum`, `q08_enum_string_payload` |
+| `N01` | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | `partial` | 1 | `p40_nested_generic_class` |
+| `N02` | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | `partial` | 1 | `q08_enum_string_payload` |
+| `N03` | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | `partial` | 2 | `p15_elvis`, `p25b_linked_recursive` |
+| `N04` | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | `partial` | 6 | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p27_thread`, `q02_lambda_arg_inline`, `q03_fn_ref` |
+| `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 2 | `p05_double`, `p06_char` |
+| `N06` | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | `partial` | 2 | `p11_interface_bound`, `p28_companion` |
+| `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 1 | `p21_box_enum` |
+| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 2 | `p16_result_q`, `p16b_result_string` |
+| `S6` | Map 带初值构造 mapOf("a" to 1) | `todo` | 2 | `s02_pair_builtin`, `s03_to_pair` |
+| `T1` | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权 | `todo` | 1 | `p27_thread` |
+
+## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本
 
 | Probe | Guide 章节 | 类型 (`kind`) | 溯源 (`oracle_origin`) | 期望结果 / 诊断码 | 语义推导 / 规则说明 (`oracle_derivation` / `note`) |
 |---|---|---|---|---|---|
@@ -41,17 +80,17 @@
 | `e03_enum_when_bool_val` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `e5\n` | c = Color.Green yields b = false in when expression; if (!b) prints 'e5' |
 | `e04_enum_when_int_return` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `single_println_literal` | `e6\n` | single literal println('e6') |
 | `p01_int_print` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0084` | println expects String parameter; passing Int (40 + 2) emits TYPE_MISMATCH L0084 |
-| `p02_interp` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p02_interp` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `hello k\n` | string interpolation 'hello ${n}' with n = 'k' evaluates to 'hello k' (blocked by L1/L2) |
 | `p03_long_uint` | [01-lexical.md](../docs/guide/01-lexical.md) | `run_ok` | `single_println_literal` | `widths\n` | single literal println('widths') |
 | `p03b_byte_literal_cmp` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0085` | comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085 |
 | `p04_overflow` | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | `runtime_abort` | `v046_spec_contract` | `abort:integer overflow in +` | Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09 |
-| `p05_double` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
-| `p06_char` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p05_double` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `double\n` | Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' (blocked by N05) |
+| `p06_char` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `char\n` | Char comparison 'a' < 'b' holds and prints 'char' (blocked by N05) |
 | `p07_while_var` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `source_trace_audited` | `while\n` | while loop sums i=0..9 into s=45; s == 45 holds and prints 'while' |
 | `p08_when_int` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `two\n` | name(2) matches the subject equality branch 2 -> 'two' and prints 'two' |
 | `p09_enum_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `single_println_literal` | `enum\n` | single literal println('enum') |
 | `p10_generic_fn` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `source_trace_audited` | `generic\nint\n` | identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int' |
-| `p11_interface_bound` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
+| `p11_interface_bound` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `dog\n` | generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06) |
 | `p12_class_inout` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `counter\n` | single literal println('counter') |
 | `p12b_class_field_assign` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `v046_spec_contract` | `field-assign\n` | single literal println('field-assign') |
 | `p12c_inout_param` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `run_ok` | `v046_spec_contract` | `inout-param\n` | single literal println('inout-param') |
@@ -59,36 +98,36 @@
 | `p14_nullable` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `smart\nbangbang\n` | pick(true) returns non-null Node(5); smart cast prints 'smart' and pick(true)!!.v == 5 prints 'bangbang' |
 | `p14b_nullable_simple` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `smart\n` | a: Node? = Node(5) is non-null with a.v == 5; smart cast branch prints 'smart' |
 | `p14c_nullable_int` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `nint\n` | a: Int? = 5 is non-null and equals 5; smart cast branch prints 'nint' |
-| `p15_elvis` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
-| `p16_result_q` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `v046_spec_contract` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | single literal println('question') |
-| `p16b_result_string` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `v046_spec_contract` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | Guide v0.46 E4 (SPEC-0349): Result in builtin env; String payload lowering pending N08 |
-| `p17_lambda` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
-| `p17b_lambda_nocapture` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
-| `p18_move_closure` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p15_elvis` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `elvis\n` | f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03) |
+| `p16_result_q` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `v046_spec_contract` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `question\n` | Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08) |
+| `p16b_result_string` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `v046_spec_contract` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `good\n` | parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08) |
+| `p17_lambda` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `lambda\n` | capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda' (blocked by N04) |
+| `p17b_lambda_nocapture` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `lambda0\n` | non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' (blocked by N04) |
+| `p18_move_closure` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `move\n` | move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' (blocked by N04) |
 | `p19_mutablelist` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `list\n` | xs=[10,2,3] sums to 15 with size 3; condition holds and prints 'list' |
 | `p20_map` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `map\n` | single literal println('map') |
-| `p21_box_enum` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
-| `p22_rc` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p21_box_enum` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `box\n` | recursive Expr.Add(Box(Num(1)), Box(Num(2))) evaluates to 3 and prints 'box' (blocked by N07/L7) |
+| `p22_rc` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `run_ok` | `v046_spec_contract` | `rc\n` | Rc(Data(4)).share().value.n == 4 holds and prints 'rc' |
 | `p23_global_var` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | `compile_fail` | `v046_spec_contract` | `FE:L0167` | top-level runtime var counter violates Guide 05 D4 (SPEC-0343); rejected with UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE L0167 |
 | `p24_recursion` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | `run_ok` | `single_println_literal` | `fib\n` | single literal println('fib') |
 | `p25_linked_iter` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0133`, `FE:L0132` | cur = cur.next moves non-Copyable Node? field out of borrowed/owned chain, emitting MOVE_FROM_BORROWED_BINDING L0133 and PARTIAL_MOVE L0132 |
-| `p25b_linked_recursive` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p25b_linked_recursive` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `rec-list\n` | recursive sum(Node(1, Node(2, null))) returns 3 and prints 'rec-list' (blocked by N03) |
 | `p26_borrow_return` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `run_ok` | `source_trace_audited` | `borrowed\n` | nameOf borrows Holder('borrowed').name; println(n) prints 'borrowed' |
-| `p27_thread` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
-| `p28_companion` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `v046_spec_contract` | `BE:UnsupportedNode`, `BE:UnsupportedSource`, `BE:MissingFact`, `FE:L0165` | single literal println('companion') |
+| `p27_thread` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` → target `thread\n` | thread(move { println('thread') }).join() runs worker closure and prints 'thread' (blocked by T1/N04) |
+| `p28_companion` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `v046_spec_contract` | `BE:UnsupportedNode`, `BE:UnsupportedSource`, `BE:MissingFact`, `FE:L0165` → target `companion\n` | anonymous companion function C.make() returns 7 and prints 'companion' (blocked by N06) |
 | `p29_default_super` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `source_trace_audited` | `ab\n` | C.hi() concatenates super<A>.hi() ('a') + super<B>.hi() ('b') = 'ab' |
 | `p30_runtime_array` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `array\n` | single literal println('array') |
 | `p31_string_ops` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `run_ok` | `source_trace_audited` | `abc\n` | 'ab'.clone() + 'c' equals 'abc'; branch prints 'abc' |
 | `p32_deinit` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `source_trace_audited` | `body\nb\na\n` | main prints 'body' first, then drops locals in reverse lexical order: b ('b') then a ('a') |
 | `p33_range_in` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `in-range\n` | single literal println('in-range') |
 | `p34_for_range` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `for-range\n` | 0..<5 sums 0+1+2+3+4 = 10; s == 10 holds and prints 'for-range' |
-| `p35_value_eq` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p35_value_eq` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `veq\n` | structural equality Point(1, 2) == Point(1, 2) holds and prints 'veq' (blocked by L1) |
 | `p36_conversion` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `single_println_literal` | `conv\n` | single literal println('conv') |
 | `p37_is_generic_case` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `v046_spec_contract` | `case-noargs\n` | Result.Ok(1) matches parameterless is Result.Ok with v = 1 (SPEC-0349); prints 'case-noargs' |
 | `p38_list_of_strings` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `x\ny\n` | iterating mutableListOf('x', 'y') prints 'x' then 'y' in insertion order |
 | `p39_removeAt` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `removeAt\n` | single literal println('removeAt') |
-| `p40_nested_generic_class` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
-| `p41_when_string` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `p40_nested_generic_class` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `stack\n` | Stack<Int>.push(1) mutates generic field items; size == 1 prints 'stack' (blocked by N01) |
+| `p41_when_string` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `when-str\n` | single literal println('when-str') |
 | `p42_lambda_mutate` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0135` | mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135 |
 | `p43_if_join_any` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0112` | when expression mixing Int (1) and String ('s') branches is rejected with WHEN_BRANCH_TYPE L0112 (D3) |
 | `p44_method_on_value` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `vmethod\n` | single literal println('vmethod') |
@@ -100,13 +139,13 @@
 | `p49_when_enum_no_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `green\n` | name(Color.Green) selects Color.Green -> 'green' and prints 'green' |
 | `p50_enum_method` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `v046_spec_contract` | `enum-method\n` | single literal println('enum-method') |
 | `q01_lambda_local` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `single_println_literal` | `lambda-local\n` | single literal println('lambda-local') |
-| `q02_lambda_arg_inline` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
-| `q03_fn_ref` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
+| `q02_lambda_arg_inline` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `lambda-arg\n` | twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg' (blocked by N04) |
+| `q03_fn_ref` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `fnref\n` | callable reference ::inc applied to 1 yields 2 and prints 'fnref' (blocked by N04) |
 | `q04_rc_simple` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `run_ok` | `single_println_literal` | `rc\n` | single literal println('rc') |
 | `q05_nullable_param` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `non-null\nnull\n` | show(Node(1)) takes non-null branch ('non-null'); show(null) takes else branch ('null') |
 | `q06_nullable_return_bang` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `single_println_literal` | `bang\n` | single literal println('bang') |
 | `q07_result_when_int` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `single_println_literal` | `res-int\n` | single literal println('res-int') |
-| `q08_enum_string_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `q08_enum_string_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `hi\nquit\n` | show(Msg.Text('hi')) prints payload 'hi'; show(Msg.Quit) prints 'quit' (blocked by N02/L7) |
 | `q09_inout_class_param` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `run_ok` | `v046_spec_contract` | `inout-class\n` | single literal println('inout-class') |
 | `q10_var_reassign_string` | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | `run_ok` | `source_trace_audited` | `abc\n` | s starts as 'a', appends 'b' then 'c' -> 'abc' |
 | `q11_while_list_index` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `index-loop\n` | while loop sums listOf(1,2,3) by index -> s == 6; prints 'index-loop' |
@@ -122,12 +161,12 @@
 | `r01_bogus_member` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0080` | calling nonexistent method Int.fooBar() emits UNRESOLVED_NAME L0080 |
 | `r02_bogus_member_str` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0080` | accessing nonexistent property String.length emits UNRESOLVED_NAME L0080 |
 | `s01_result_builtin` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `run_ok` | `v046_spec_contract` | `result-builtin\n` | builtin Result.Ok(1) is resolved without import (SPEC-0349); main prints 'result-builtin' |
-| `s02_pair_builtin` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
-| `s03_to_pair` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | - |
+| `s02_pair_builtin` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` → target `pair\n` | builtin Pair(1, 2).first == 1 holds and prints 'pair' (blocked by S6) |
+| `s03_to_pair` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `to\n` | infix 1 to 2 constructs Pair(1, 2); p.first == 1 prints 'to' (blocked by S6) |
 | `s04_question_on_nullable` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0085` | postfix ? applied to nullable Int? (instead of Result) emits INVALID_OPERAND_TYPES L0085 |
 | `t01_vmethod_bare_field` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `vmethod-bare\n` | single literal println('vmethod-bare') |
 | `t02_vmethod_bool` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `vmethod-bool\n` | single literal println('vmethod-bool') |
-| `t03_vmethod_generic` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | - |
+| `t03_vmethod_generic` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `v046_spec_contract` | `vmethod-generic\n` | generic value class W<Int>(4).get() returns 4 and prints 'vmethod-generic' |
 | `t04_vmethod_compute_param` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `vmethod-param\n` | single literal println('vmethod-param') |
 | `t05_map_loop_continue` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `map-continue\n` | for-loop skips 'b' via continue and counts 'a' twice -> m.get('a') == 2 prints 'map-continue' |
 | `t06_list_loop_return` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `source_trace_audited` | `loop-return\n` | find(listOf(1,2,3), 2) returns true on second element; prints 'loop-return' |
