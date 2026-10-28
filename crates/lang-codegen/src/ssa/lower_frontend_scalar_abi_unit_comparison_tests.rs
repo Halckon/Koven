@@ -1,5 +1,5 @@
-//! E2 Stage A: two unchanged scalar fixtures, twelve literal and twenty-three ABI roots.
-//! Both legacy tests, including the L0090 rejection, remain independent and unchanged.
+//! E2 Unit migration: two unchanged scalar fixtures, twelve literal and twenty-three ABI roots.
+//! Stage B retires the legacy positives; the whole-file L0090 rejection stays independent.
 //! Selected-root verification and full LLVM determinism are not whole-file equivalence
 //! or native execution. Strict admission failures are failures, never filtered coverage.
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};

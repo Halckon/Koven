@@ -1,5 +1,5 @@
-//! E2 Stage A: five unchanged sources, twenty independently selected Unit roots.
-//! The paired legacy tests remain live; this is not whole-file or native equivalence.
+//! E2 Unit migration: five unchanged sources, twenty independently selected Unit roots.
+//! Stage B retires the paired legacy positives; this is not whole-file or native equivalence.
 //! Admission, ownership, SSA and LLVM failures are hard failures, never skips.
 
 use std::collections::BTreeSet;
