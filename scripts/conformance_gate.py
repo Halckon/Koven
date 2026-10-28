@@ -88,6 +88,38 @@ VALID_EXPECTATION_KINDS = frozenset(
     }
 )
 
+VALID_UNIMPLEMENTED_MARKERS = frozenset(
+    {
+        "BE:UnsupportedNode",
+        "BE:UnsupportedSource",
+        "BE:MissingFact",
+        "FE:L0080",
+        "FE:L0084",
+        "FE:L0085",
+        "FE:L0165",
+    }
+)
+
+VALID_ORACLE_ORIGINS = frozenset(
+    {
+        "single_println_literal",
+        "source_trace_audited",
+        "v046_spec_contract",
+        "baseline_diagnostic_audited",
+        "baseline_unimplemented_audited",
+        "expected_txt_file",
+    }
+)
+
+ORACLE_ORIGIN_DESCRIPTIONS: dict[str, str] = {
+    "single_println_literal": "单条无循环/无插值 `println(\"...\")` 静态字面量精确推导",
+    "source_trace_audited": "控制流、循环、集合或 `deinit` 多语句源码级人工追踪确认（`CONFIRMED_STDOUT_ORACLES`）",
+    "v046_spec_contract": "Guide v0.46 语法/语义变更或 `baseline-aef3f4f8.tsv` 之后合入的 Spec 合同覆盖（`V046_PROBE_OVERRIDES`）",
+    "baseline_diagnostic_audited": "前端负向诊断码契约确认（`error[Lxxxx]` + `diagnostic.rs::codes` 符号匹配）",
+    "baseline_unimplemented_audited": "已知未实现特性边界确认（绑定 `target_stdout` 与 `v1.json` 路线图阻塞项）",
+    "expected_txt_file": "V1 验收程序独立 `expected.txt` 黄金标准输出文件绑定（SHA-256 + 行数/字节数校验）",
+}
+
 VALID_GUIDE_CHAPTERS = (
     "01-lexical.md",
     "02-names-files-packages.md",
@@ -473,13 +505,13 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "allowed_markers": ["BE:UnsupportedNode", "BE:UnsupportedSource", "BE:MissingFact", "FE:L0165"],
         "target_stdout": "companion\n",
         "v046_baseline_exempt": True,
-        "note": "Guide v0.46 anonymous companion { } syntax; SPEC-0323 fixed static role, native N06 pending",
+        "note": "Guide v0.46 anonymous companion { } syntax (SPEC-0342); SPEC-0323 fixed static role, native N06 pending",
     },
     "q12_companion_const": {
         "kind": "run_ok",
         "stdout": "cconst\n",
         "v046_baseline_exempt": True,
-        "note": "Guide v0.46 anonymous companion { } syntax; associated constant read succeeds",
+        "note": "Guide v0.46 anonymous companion { } syntax (SPEC-0342); associated constant read succeeds",
     },
     "p23_global_var": {
         "kind": "compile_fail",
@@ -631,25 +663,25 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "kind": "run_ok",
         "stdout": "e1\n",
         "v046_baseline_exempt": True,
-        "note": "Enum when regression fixed on main",
+        "note": "SPEC-0320 / SPEC-0356: enum when bool return regression fixed on main",
     },
     "e02_enum_when_stmt_println": {
         "kind": "run_ok",
         "stdout": "e2\n",
         "v046_baseline_exempt": True,
-        "note": "Enum when statement regression fixed on main",
+        "note": "SPEC-0320 / SPEC-0356: enum when statement regression fixed on main",
     },
     "e03_enum_when_bool_val": {
         "kind": "run_ok",
         "stdout": "e5\n",
         "v046_baseline_exempt": True,
-        "note": "Enum when bool val regression fixed on main",
+        "note": "SPEC-0320 / SPEC-0356: enum when bool val regression fixed on main",
     },
     "p49_when_enum_no_payload": {
         "kind": "run_ok",
         "stdout": "green\n",
         "v046_baseline_exempt": True,
-        "note": "Payloadless enum when: main prints name(Color.Green), so the when branch yields green",
+        "note": "SPEC-0320 / SPEC-0356: payloadless enum when prints name(Color.Green) -> green",
     },
     "p50_enum_method": {
         "kind": "run_ok",
@@ -667,19 +699,19 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "kind": "run_ok",
         "stdout": "take\n",
         "v046_baseline_exempt": True,
-        "note": "take() lowered on main; for-loop sums the first two elements and prints take",
+        "note": "SPEC-0341: take() lowered on main; for-loop sums the first two elements and prints take",
     },
     "y03_method_take_for": {
         "kind": "run_ok",
         "stdout": "take-method\n",
         "v046_baseline_exempt": True,
-        "note": "take() method call lowered on main; for-loop sums the first two elements and prints take-method",
+        "note": "SPEC-0341: take() method call lowered on main; for-loop sums the first two elements and prints take-method",
     },
     "y04_take_for_println": {
         "kind": "run_ok",
         "stdout": "a\nb\n",
         "v046_baseline_exempt": True,
-        "note": "take() lowered on main; for-loop prints the first two elements",
+        "note": "SPEC-0341: take() lowered on main; for-loop prints the first two elements",
     },
 }
 
@@ -1106,8 +1138,14 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         raise ValueError(
                             f"programs.{name} requires expected_file and expected_sha256"
                         )
-                elif not isinstance(spec.get("stdout"), str) or not spec["stdout"]:
-                    raise ValueError(f"probes.{name} with run_ok requires non-empty stdout")
+                elif (
+                    not isinstance(spec.get("stdout"), str)
+                    or not spec["stdout"]
+                    or not spec["stdout"].endswith("\n")
+                ):
+                    raise ValueError(
+                        f"probes.{name} with run_ok requires non-empty stdout ending with newline"
+                    )
             elif kind == "compile_fail":
                 if not isinstance(spec.get("diagnostic"), str) or not re.fullmatch(
                     r"L[0-9]{4}", spec["diagnostic"]
@@ -1143,6 +1181,19 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         f"{section}.{name} with runtime_abort requires abort_message"
                     )
             elif kind == "known_unimplemented":
+                allowed = spec.get("allowed_markers")
+                if (
+                    not isinstance(allowed, list)
+                    or not allowed
+                    or len(allowed) != len(set(allowed))
+                    or not all(
+                        isinstance(m, str) and m in VALID_UNIMPLEMENTED_MARKERS
+                        for m in allowed
+                    )
+                ):
+                    raise ValueError(
+                        f"{section}.{name} with known_unimplemented has invalid allowed_markers {allowed!r}"
+                    )
                 if "target_stdout" in spec:
                     ts = spec["target_stdout"]
                     if not isinstance(ts, str) or not ts or not ts.endswith("\n"):
@@ -1159,10 +1210,46 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         raise ValueError(
                             f"{section}.{name} with known_unimplemented has invalid roadmap_blockers {blockers!r}"
                         )
-            if "oracle_origin" in spec and (
-                not isinstance(spec["oracle_origin"], str) or not spec["oracle_origin"].strip()
+            if "baseline_marker" in spec and (
+                not isinstance(spec["baseline_marker"], str)
+                or not spec["baseline_marker"].strip()
             ):
-                raise ValueError(f"{section}.{name} has invalid oracle_origin")
+                raise ValueError(f"{section}.{name} has invalid baseline_marker")
+            if "oracle_origin" in spec and (
+                not isinstance(spec["oracle_origin"], str)
+                or spec["oracle_origin"] not in VALID_ORACLE_ORIGINS
+            ):
+                raise ValueError(
+                    f"{section}.{name} has invalid oracle_origin {spec.get('oracle_origin')!r}"
+                )
+            if "spec_refs" in spec:
+                srefs = spec["spec_refs"]
+                if (
+                    not isinstance(srefs, list)
+                    or not srefs
+                    or len(srefs) != len(set(srefs))
+                    or not all(
+                        isinstance(s, str) and re.fullmatch(r"SPEC-[0-9]{4}", s)
+                        for s in srefs
+                    )
+                ):
+                    raise ValueError(f"{section}.{name} has invalid spec_refs {srefs!r}")
+                if corpus_root is not None:
+                    docs_root = corpus_root.parent / "docs"
+                    if (docs_root / "specs").is_dir():
+                        for sref in srefs:
+                            if resolve_spec_doc_relpath(sref, corpus_root.parent) is None:
+                                raise ValueError(
+                                    f"{section}.{name} references missing spec document for {sref}"
+                                )
+            elif (
+                spec.get("v046_baseline_exempt")
+                and corpus_root is not None
+                and (corpus_root.parent / "docs" / "specs").is_dir()
+            ):
+                raise ValueError(
+                    f"{section}.{name} with v046_baseline_exempt requires non-empty spec_refs"
+                )
             if "oracle_derivation" in spec and (
                 not isinstance(spec["oracle_derivation"], str)
                 or not spec["oracle_derivation"].strip()
@@ -1355,7 +1442,13 @@ def derive_static_expectations(
             entry = dict(V046_PROBE_OVERRIDES[name])
             entry["source_sha256"] = src_sha
             entry["guide_chapter"] = chapter
+            entry["baseline_marker"] = base_single
             entry["oracle_origin"] = "v046_spec_contract"
+            spec_refs = list(
+                dict.fromkeys(re.findall(r"SPEC-[0-9]{4}", entry.get("note", "")))
+            )
+            if spec_refs:
+                entry["spec_refs"] = spec_refs
             if entry.get("kind") == "compile_fail" and entry.get("diagnostic") in DIAGNOSTIC_SYMBOL_CATALOG:
                 entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[entry["diagnostic"]]
             if entry.get("kind") == "known_unimplemented":
@@ -1371,6 +1464,7 @@ def derive_static_expectations(
                     "kind": "run_ok",
                     "source_sha256": src_sha,
                     "guide_chapter": chapter,
+                    "baseline_marker": "OK",
                     "stdout": single_static_stdout,
                     "oracle_origin": stdout_origin,
                 }
@@ -1392,6 +1486,7 @@ def derive_static_expectations(
                     "kind": "known_unimplemented",
                     "source_sha256": src_sha,
                     "guide_chapter": chapter,
+                    "baseline_marker": base_single,
                     "allowed_markers": [
                         base_single,
                         "BE:UnsupportedNode",
@@ -1410,6 +1505,7 @@ def derive_static_expectations(
                     "kind": "compile_fail",
                     "source_sha256": src_sha,
                     "guide_chapter": chapter,
+                    "baseline_marker": base_single,
                     "diagnostic": code,
                     "oracle_origin": "baseline_diagnostic_audited",
                 }
@@ -1428,6 +1524,7 @@ def derive_static_expectations(
                 "kind": "known_unimplemented",
                 "source_sha256": src_sha,
                 "guide_chapter": chapter,
+                "baseline_marker": base_single,
                 "allowed_markers": ["BE:UnsupportedNode", "BE:MissingFact", "FE:L0165"],
                 "oracle_origin": "baseline_unimplemented_audited",
                 "roadmap_blockers": list(UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"])),
@@ -1793,12 +1890,124 @@ def summarize_negative_oracle_catalog(expectations: dict[str, Any]) -> dict[str,
     }
 
 
+def summarize_baseline_evolution(expectations: dict[str, Any]) -> dict[str, list[str]]:
+    """Classify all probes by their transition from historical baseline_marker to current expectation kind."""
+    buckets: dict[str, list[str]] = {
+        "baseline_ok_preserved": [],
+        "promoted_to_run_ok": [],
+        "upgraded_to_structured_abort": [],
+        "upgraded_to_compile_fail": [],
+        "baseline_compile_fail_preserved": [],
+        "remaining_known_unimplemented": [],
+        "regressed_from_baseline_ok": [],
+    }
+    for name, spec in sorted(expectations["probes"].items()):
+        bm = spec.get("baseline_marker", "")
+        kind = spec["kind"]
+        if bm == "OK" and kind == "run_ok":
+            buckets["baseline_ok_preserved"].append(name)
+        elif bm == "OK" and kind != "run_ok":
+            buckets["regressed_from_baseline_ok"].append(name)
+        elif bm != "OK" and kind == "run_ok":
+            buckets["promoted_to_run_ok"].append(name)
+        elif kind == "runtime_abort":
+            buckets["upgraded_to_structured_abort"].append(name)
+        elif kind == "compile_fail" and spec.get("v046_baseline_exempt"):
+            buckets["upgraded_to_compile_fail"].append(name)
+        elif kind == "compile_fail":
+            buckets["baseline_compile_fail_preserved"].append(name)
+        elif kind == "known_unimplemented":
+            buckets["remaining_known_unimplemented"].append(name)
+    return buckets
+
+
+def resolve_spec_doc_relpath(spec_id: str, repo_root: Path) -> tuple[str, str] | None:
+    """Locate SPEC-xxxx in docs/specs/active or docs/archive/specs and return (relpath, status)."""
+    if not re.fullmatch(r"SPEC-[0-9]{4}", spec_id):
+        return None
+    num = spec_id.split("-", 1)[1]
+    active_dir = repo_root / "docs" / "specs" / "active"
+    archive_dir = repo_root / "docs" / "archive" / "specs"
+    if active_dir.is_dir():
+        matches = sorted(active_dir.glob(f"{num}-*.md"))
+        if matches:
+            return f"docs/specs/active/{matches[0].name}", "active"
+    if archive_dir.is_dir():
+        matches = sorted(archive_dir.glob(f"{num}-*.md"))
+        if matches:
+            return f"docs/archive/specs/{matches[0].name}", "archived"
+    return None
+
+
+def summarize_v046_spec_traceability(
+    expectations: dict[str, Any], repo_root: Path | None = None
+) -> dict[str, dict[str, Any]]:
+    """Aggregate all v046_baseline_exempt probes by their governing SPEC-xxxx contract IDs."""
+    root = repo_root or Path(__file__).resolve().parents[1]
+    by_spec: dict[str, dict[str, Any]] = {}
+    for name, spec in sorted(expectations["probes"].items()):
+        if not spec.get("v046_baseline_exempt"):
+            continue
+        for sref in spec.get("spec_refs", []):
+            resolved = resolve_spec_doc_relpath(sref, root)
+            relpath, status = resolved if resolved is not None else ("", "unknown")
+            bucket = by_spec.setdefault(
+                sref,
+                {
+                    "spec_id": sref,
+                    "doc_relpath": relpath,
+                    "status": status,
+                    "probes": [],
+                    "kinds": {},
+                },
+            )
+            bucket["probes"].append(name)
+            k = spec["kind"]
+            bucket["kinds"][k] = bucket["kinds"].get(k, 0) + 1
+    return dict(sorted(by_spec.items()))
+
+
+def summarize_oracle_origins(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Aggregate probes and programs by their canonical oracle_origin classification."""
+    order = (
+        "single_println_literal",
+        "source_trace_audited",
+        "v046_spec_contract",
+        "baseline_diagnostic_audited",
+        "baseline_unimplemented_audited",
+        "expected_txt_file",
+    )
+    summary: dict[str, dict[str, Any]] = {
+        origin: {
+            "origin": origin,
+            "description": ORACLE_ORIGIN_DESCRIPTIONS[origin],
+            "probes": 0,
+            "programs": 0,
+            "kinds": {},
+        }
+        for origin in order
+    }
+    for section, key in (("probes", "probes"), ("programs", "programs")):
+        for spec in expectations[section].values():
+            origin = spec.get("oracle_origin")
+            if origin not in summary:
+                continue
+            bucket = summary[origin]
+            bucket[key] += 1
+            k = spec["kind"]
+            bucket["kinds"][k] = bucket["kinds"].get(k, 0) + 1
+    return summary
+
+
 def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     """Render deterministic Markdown audit ledger from expectations.json."""
     probes = expectations["probes"]
     programs = expectations["programs"]
     chapter_stats = summarize_chapter_polarity(expectations)
     neg_catalog = summarize_negative_oracle_catalog(expectations)
+    base_evo = summarize_baseline_evolution(expectations)
+    spec_trace = summarize_v046_spec_traceability(expectations)
+    origin_stats = summarize_oracle_origins(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -1855,6 +2064,57 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         ch = ab["guide_chapter"]
         lines.append(
             f"| `abort:{ab['abort_message']}` | `SIGABRT (exit 134)` | [{ch}](../docs/guide/{ch}) | 1 | `{ab['probe']}` |"
+        )
+    lines.extend(
+        [
+            "",
+            "### 1.2 历史基线 `baseline-aef3f4f8.tsv` 演进与零退化对账汇总（154 Probes）",
+            "",
+            "| 演进分类 (`baseline_evolution`) | 历史基线状态 (`baseline-aef3f4f8.tsv`) | 当前强 Oracle 状态 (`expectations.json`) | Probe 数量 | 代表性 / 完整 Probe 列表 |",
+            "|---|---|---|---:|---|",
+            f"| `baseline_ok_preserved` | `OK` | `run_ok`（精确字节匹配） | {len(base_evo['baseline_ok_preserved'])} | 历史 `OK` 基线 100% 保持通过（含 `q12_companion_const` 匿名 `companion {{ }}` 语法更新） |",
+            f"| `promoted_to_run_ok` | `BE:InvalidSsa` / `BE:MissingFact` / `BE:UnsupportedNode` / `FE:L0080` / `FE:L0111` | `run_ok`（新晋能力通过） | {len(base_evo['promoted_to_run_ok'])} | " + ", ".join(f"`{p}`" for p in base_evo["promoted_to_run_ok"]) + " |",
+            f"| `upgraded_to_structured_abort` | `abort(exit 1,no msg)` | `runtime_abort`（`SIGABRT` + `abort: <msg>`） | {len(base_evo['upgraded_to_structured_abort'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_structured_abort"]) + " |",
+            f"| `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | {len(base_evo['upgraded_to_compile_fail'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_compile_fail"]) + " |",
+            f"| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | {len(base_evo['baseline_compile_fail_preserved'])} | " + ", ".join(f"`{p}`" for p in base_evo["baseline_compile_fail_preserved"]) + " |",
+            f"| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | {len(base_evo['remaining_known_unimplemented'])} | " + ", ".join(f"`{p}`" for p in base_evo["remaining_known_unimplemented"]) + " |",
+            f"| `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | {len(base_evo['regressed_from_baseline_ok'])} | 无（零基线退化） |",
+            "",
+            "### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（35 Probes）",
+            "",
+            "| Spec 合同编号 | 规范文档路径 | 合同状态 | 关联豁免 Probe 数 | 交付后分布 | 绑定的 Probe 列表 |",
+            "|---|---|---|---:|---|---|",
+        ]
+    )
+    for sref, info in spec_trace.items():
+        doc_link = (
+            f"[{info['doc_relpath'].split('/')[-1]}](../{info['doc_relpath']})"
+            if info["doc_relpath"]
+            else "-"
+        )
+        kinds_summary = ", ".join(
+            f"`{k}`: {cnt}" for k, cnt in sorted(info["kinds"].items())
+        )
+        plist = ", ".join(f"`{p}`" for p in info["probes"])
+        lines.append(
+            f"| `{sref}` | {doc_link} | `{info['status']}` | {len(info['probes'])} | {kinds_summary} | {plist} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，154 Probes + 6 Programs）",
+            "",
+            "| 溯源分类 (`oracle_origin`) | 审计验证契约说明 | Probe 数 | Program 数 | 期望类型分布 (`kind`) |",
+            "|---|---|---:|---:|---|",
+        ]
+    )
+    for origin, info in origin_stats.items():
+        kinds_repr = ", ".join(
+            f"`{k}`: {cnt}" for k, cnt in sorted(info["kinds"].items())
+        )
+        lines.append(
+            f"| `{origin}` | {info['description']} | {info['probes']} | {info['programs']} | {kinds_repr} |"
         )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
