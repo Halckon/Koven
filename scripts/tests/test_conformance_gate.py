@@ -280,6 +280,38 @@ sys.exit(1)
             finally:
                 self._write_default_expectations()
 
+        # Verify run_ok without trailing newline in stdout or invalid oracle_origin is rejected
+        self._write_default_expectations(
+            {
+                "p01_ok": {
+                    "kind": "run_ok",
+                    "source_sha256": _sha256(self.probe_ok_src),
+                    "stdout": "hello",
+                }
+            }
+        )
+        try:
+            with self.assertRaisesRegex(ValueError, "ending with newline"):
+                gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+        finally:
+            self._write_default_expectations()
+
+        self._write_default_expectations(
+            {
+                "p01_ok": {
+                    "kind": "run_ok",
+                    "source_sha256": _sha256(self.probe_ok_src),
+                    "stdout": "hello\n",
+                    "oracle_origin": "bogus_origin",
+                }
+            }
+        )
+        try:
+            with self.assertRaisesRegex(ValueError, "invalid oracle_origin"):
+                gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+        finally:
+            self._write_default_expectations()
+
     def test_4_timeout_is_caught_and_preserves_partial_bytes(self) -> None:
         kovenc_slow = _make_mock_compiler(
             self.root / "kovenc_slow",
@@ -802,6 +834,24 @@ sys.exit(1)
             p for info in spec_trace.values() for p in info["probes"]
         }
         self.assertEqual(covered_by_specs, set(exempt_probes))
+
+        # 12. Verify summarize_oracle_origins covers all 154 probes and 6 programs
+        origin_stats = gate.summarize_oracle_origins(loaded)
+        self.assertEqual(set(origin_stats.keys()), set(gate.VALID_ORACLE_ORIGINS))
+        self.assertEqual(
+            sum(info["probes"] for info in origin_stats.values()),
+            len(loaded["probes"]),
+        )
+        self.assertEqual(
+            sum(info["programs"] for info in origin_stats.values()),
+            len(loaded["programs"]),
+        )
+        self.assertEqual(origin_stats["single_println_literal"]["probes"], 31)
+        self.assertEqual(origin_stats["source_trace_audited"]["probes"], 57)
+        self.assertEqual(origin_stats["v046_spec_contract"]["probes"], 35)
+        self.assertEqual(origin_stats["baseline_diagnostic_audited"]["probes"], 13)
+        self.assertEqual(origin_stats["baseline_unimplemented_audited"]["probes"], 18)
+        self.assertEqual(origin_stats["expected_txt_file"]["programs"], 6)
 
 
 if __name__ == "__main__":

@@ -100,6 +100,26 @@ VALID_UNIMPLEMENTED_MARKERS = frozenset(
     }
 )
 
+VALID_ORACLE_ORIGINS = frozenset(
+    {
+        "single_println_literal",
+        "source_trace_audited",
+        "v046_spec_contract",
+        "baseline_diagnostic_audited",
+        "baseline_unimplemented_audited",
+        "expected_txt_file",
+    }
+)
+
+ORACLE_ORIGIN_DESCRIPTIONS: dict[str, str] = {
+    "single_println_literal": "单条无循环/无插值 `println(\"...\")` 静态字面量精确推导",
+    "source_trace_audited": "控制流、循环、集合或 `deinit` 多语句源码级人工追踪确认（`CONFIRMED_STDOUT_ORACLES`）",
+    "v046_spec_contract": "Guide v0.46 语法/语义变更或 `baseline-aef3f4f8.tsv` 之后合入的 Spec 合同覆盖（`V046_PROBE_OVERRIDES`）",
+    "baseline_diagnostic_audited": "前端负向诊断码契约确认（`error[Lxxxx]` + `diagnostic.rs::codes` 符号匹配）",
+    "baseline_unimplemented_audited": "已知未实现特性边界确认（绑定 `target_stdout` 与 `v1.json` 路线图阻塞项）",
+    "expected_txt_file": "V1 验收程序独立 `expected.txt` 黄金标准输出文件绑定（SHA-256 + 行数/字节数校验）",
+}
+
 VALID_GUIDE_CHAPTERS = (
     "01-lexical.md",
     "02-names-files-packages.md",
@@ -1118,8 +1138,14 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         raise ValueError(
                             f"programs.{name} requires expected_file and expected_sha256"
                         )
-                elif not isinstance(spec.get("stdout"), str) or not spec["stdout"]:
-                    raise ValueError(f"probes.{name} with run_ok requires non-empty stdout")
+                elif (
+                    not isinstance(spec.get("stdout"), str)
+                    or not spec["stdout"]
+                    or not spec["stdout"].endswith("\n")
+                ):
+                    raise ValueError(
+                        f"probes.{name} with run_ok requires non-empty stdout ending with newline"
+                    )
             elif kind == "compile_fail":
                 if not isinstance(spec.get("diagnostic"), str) or not re.fullmatch(
                     r"L[0-9]{4}", spec["diagnostic"]
@@ -1190,9 +1216,12 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
             ):
                 raise ValueError(f"{section}.{name} has invalid baseline_marker")
             if "oracle_origin" in spec and (
-                not isinstance(spec["oracle_origin"], str) or not spec["oracle_origin"].strip()
+                not isinstance(spec["oracle_origin"], str)
+                or spec["oracle_origin"] not in VALID_ORACLE_ORIGINS
             ):
-                raise ValueError(f"{section}.{name} has invalid oracle_origin")
+                raise ValueError(
+                    f"{section}.{name} has invalid oracle_origin {spec.get('oracle_origin')!r}"
+                )
             if "spec_refs" in spec:
                 srefs = spec["spec_refs"]
                 if (
@@ -1938,6 +1967,38 @@ def summarize_v046_spec_traceability(
     return dict(sorted(by_spec.items()))
 
 
+def summarize_oracle_origins(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Aggregate probes and programs by their canonical oracle_origin classification."""
+    order = (
+        "single_println_literal",
+        "source_trace_audited",
+        "v046_spec_contract",
+        "baseline_diagnostic_audited",
+        "baseline_unimplemented_audited",
+        "expected_txt_file",
+    )
+    summary: dict[str, dict[str, Any]] = {
+        origin: {
+            "origin": origin,
+            "description": ORACLE_ORIGIN_DESCRIPTIONS[origin],
+            "probes": 0,
+            "programs": 0,
+            "kinds": {},
+        }
+        for origin in order
+    }
+    for section, key in (("probes", "probes"), ("programs", "programs")):
+        for spec in expectations[section].values():
+            origin = spec.get("oracle_origin")
+            if origin not in summary:
+                continue
+            bucket = summary[origin]
+            bucket[key] += 1
+            k = spec["kind"]
+            bucket["kinds"][k] = bucket["kinds"].get(k, 0) + 1
+    return summary
+
+
 def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     """Render deterministic Markdown audit ledger from expectations.json."""
     probes = expectations["probes"]
@@ -1946,6 +2007,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     neg_catalog = summarize_negative_oracle_catalog(expectations)
     base_evo = summarize_baseline_evolution(expectations)
     spec_trace = summarize_v046_spec_traceability(expectations)
+    origin_stats = summarize_oracle_origins(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -2036,6 +2098,23 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         plist = ", ".join(f"`{p}`" for p in info["probes"])
         lines.append(
             f"| `{sref}` | {doc_link} | `{info['status']}` | {len(info['probes'])} | {kinds_summary} | {plist} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，154 Probes + 6 Programs）",
+            "",
+            "| 溯源分类 (`oracle_origin`) | 审计验证契约说明 | Probe 数 | Program 数 | 期望类型分布 (`kind`) |",
+            "|---|---|---:|---:|---|",
+        ]
+    )
+    for origin, info in origin_stats.items():
+        kinds_repr = ", ".join(
+            f"`{k}`: {cnt}" for k, cnt in sorted(info["kinds"].items())
+        )
+        lines.append(
+            f"| `{origin}` | {info['description']} | {info['probes']} | {info['programs']} | {kinds_repr} |"
         )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
