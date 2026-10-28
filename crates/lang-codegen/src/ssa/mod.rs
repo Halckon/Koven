@@ -156,6 +156,9 @@ mod lower_frontend_tests;
 mod lower_frontend_rc_unit_comparison_tests;
 
 #[cfg(test)]
+mod lower_frontend_borrow_unit_comparison_tests;
+
+#[cfg(test)]
 mod map_unit_consumer_test_support;
 
 #[cfg(test)]
