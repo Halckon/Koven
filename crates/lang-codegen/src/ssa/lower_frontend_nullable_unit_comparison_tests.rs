@@ -1,6 +1,10 @@
-//! Stage A: eleven unchanged legacy source instances, eighteen independent Unit roots.
-//! Legacy tests remain intact. These selected-root SSA/LLVM oracles do not claim
-//! whole-file, exact CFG, or native equivalence; admission failures are hard failures.
+//! Stage B: eleven unchanged source instances, eighteen independent Unit roots.
+//! The five paired legacy positives are retired after Stage A dual-platform evidence:
+//! https://github.com/Halckon/Koven/actions/runs/40667339899 (PR #208).
+//! This removes their eleven-source whole-file positive coverage; these selected-root
+//! SSA/LLVM oracles do not establish whole-file, exact CFG, or native equivalence.
+//! Unreachable-inline registration and inline/borrowed nullable rejections remain legacy.
+//! Admission failures are hard failures.
 use super::{
     model::{
         EntityId, EntityType, LoanKind, Operation, Origin, Program, SsaTypeKind, TerminatorKind,
