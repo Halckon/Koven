@@ -262,7 +262,9 @@ impl Checker<'_> {
             .keys()
             .copied()
             .collect::<std::collections::BTreeSet<_>>();
+        let locals = self.scope_locals(elements)?;
         let mut flows = self.check_elements(elements, state)?;
+        self.check_scope_exit_loans(&locals, None, &mut flows)?;
         self.restore_borrow_scope(&parents, &mut flows);
         Ok(flows)
     }

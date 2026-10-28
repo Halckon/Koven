@@ -26,6 +26,7 @@ mod places;
 mod range_construction;
 mod rc;
 mod receiver;
+mod scope_escape;
 use receiver::ReceiverContext;
 mod short_circuit;
 mod string;

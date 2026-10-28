@@ -523,3 +523,4 @@
 - [SPEC-0359](0359-refine-rc.md)：E3 `Rc` 迁入细化层（构造、`share()`、`Rc.value` 与 `rc.value.f`）；p22 两模式通过，Box 待 L8。
 - [SPEC-0361](0361-refine-generic-value-class.md)：E3 泛型函数实例具体化与 Copyable 标量字段 value class 迁入细化层；t03 两模式通过，p40 待容器家族。
 - [SPEC-0362](0362-refine-pending-arguments.md)：E3 `!!` 的括号名称与 `if` 临时 operand、实参内跳转释放待交付命名实参；补足 PR #191 的 Unit 对照。
+- [SPEC-0363](0363-closure-scope-escape.md)：borrowed closure 经赋值或 block 结果被外层持有、而所借 binding 的 scope 已结束时报 L0135（ADR-0034 逃逸分析第一层的漏报修复）。

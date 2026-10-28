@@ -125,6 +125,6 @@ Koven 的所有权和确定性布局交给未授权的外部约定。
 - 相关 Spec：SPEC-0032、SPEC-0033、SPEC-0034、SPEC-0035、SPEC-0038、SPEC-0039
 - 相关 ADR：[ADR-0006](./0006-typed-ssa-block-parameters.md)、
   [ADR-0007](./0007-llvm-toolchain-and-first-target.md)、
-  [ADR-0008](./0008-internal-value-and-allocation-abi.md)
+  [ADR-0008](./0008-internal-value-and-allocation-abi.md)；局部扩展：[ADR-0034](./0034-refine-closures-and-callable-views.md)（借用边界上的不拥有 callable view）
 - 取代的 ADR：无
 - 被以下 ADR 取代：无
