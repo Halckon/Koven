@@ -339,5 +339,19 @@ fn non_null_assertion_owned_pointer_uses_proven_take_and_direct_abort_unit_compa
         let llvm = render_verified_program(&program).expect("assertion SSA verifies before LLVM");
         assert!(!llvm.contains("call ptr @malloc"), "{llvm}");
         assert!(!ssa.contains("rc.retain"), "{ssa}");
+        // Preserve the legacy spelling above, but actually forbid the current retain opcode.
+        assert!(
+            program
+                .modules
+                .iter()
+                .all(|module| module.functions.iter().all(|function| function
+                    .instructions
+                    .iter()
+                    .all(|instruction| !matches!(
+                        instruction.operation,
+                        Operation::SharedRetain { .. }
+                    )))),
+            "owned assertion must not retain: {ssa}"
+        );
     }
 }
