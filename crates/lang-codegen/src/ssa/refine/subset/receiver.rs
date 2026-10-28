@@ -27,9 +27,7 @@ impl Checker<'_, '_> {
                 matches!(receiver.mode, ParameterMode::Borrow | ParameterMode::Inout)
             }
             ParameterMode::Inout => receiver.mode == ParameterMode::Inout,
-            ParameterMode::Value => {
-                self.inputs.typed.copyability(receiver.ty) == Copyability::Copyable
-            }
+            ParameterMode::Value => self.copyability_of(receiver.ty) == Copyability::Copyable,
         };
         serves.then_some(receiver.ty)
     }
@@ -64,14 +62,15 @@ impl Checker<'_, '_> {
                         {
                             return None;
                         }
-                        let ty = self.inputs.typed.symbol_type(symbol)?;
+                        let ty = self.symbol_type(symbol)?;
                         let serves = match (self.parameter_mode(symbol), mode) {
                             // A local is lent for the access; a Copyable one is copied.
                             (None, ParameterMode::Borrow | ParameterMode::Inout)
                             | (Some(ParameterMode::Value), ParameterMode::Borrow) => true,
-                            (None | Some(ParameterMode::Value), ParameterMode::Value) => {
-                                self.inputs.typed.copyability(ty) == Copyability::Copyable
-                            }
+                            (
+                                None | Some(ParameterMode::Value | ParameterMode::Borrow),
+                                ParameterMode::Value,
+                            ) => self.copyability_of(ty) == Copyability::Copyable,
                             (Some(ParameterMode::Borrow), ParameterMode::Borrow) => true,
                             (
                                 Some(ParameterMode::Inout),
@@ -109,15 +108,21 @@ impl Checker<'_, '_> {
             .conditional_receiver_delivery(id)
             .is_none()
             && fact.source() == receiver.origin()
-            && fact.receiver_type() == receiver.ty()
+            && self.c(fact.receiver_type()) == self.c(receiver.ty())
             && fact.kind() == kind
             && fact.is_receiver_reservation() == (receiver.mode() == ParameterMode::Inout)
             && fact.activation_point().is_none_or(|point| point == id)
             && !matches!(fact.target(), UnitReceiverOwnershipTarget::Temporary(_));
         let kind_ok = match receiver.mode() {
-            ParameterMode::Borrow => self.class(receiver.ty()) || self.enum_type(receiver.ty()),
-            ParameterMode::Inout => self.class(receiver.ty()),
-            ParameterMode::Value => self.enum_type(receiver.ty()),
+            ParameterMode::Borrow => {
+                self.class(self.c(receiver.ty()))
+                    || self.enum_type(self.c(receiver.ty()))
+                    || self.value_class(self.c(receiver.ty()))
+            }
+            ParameterMode::Inout => self.class(self.c(receiver.ty())),
+            ParameterMode::Value => {
+                self.enum_type(self.c(receiver.ty())) || self.value_class(self.c(receiver.ty()))
+            }
         };
         let owner = match receiver.origin() {
             UnitCallReceiverOrigin::Expression(expression) => {
@@ -128,6 +133,6 @@ impl Checker<'_, '_> {
             }
             UnitCallReceiverOrigin::ImplicitThis(declaration) => Owner::This(declaration),
         };
-        shape && kind_ok && self.owner_type(owner, receiver.mode()) == Some(receiver.ty())
+        shape && kind_ok && self.owner_type(owner, receiver.mode()) == Some(self.c(receiver.ty()))
     }
 }

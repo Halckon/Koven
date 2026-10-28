@@ -222,7 +222,7 @@ PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
     "linked_stack": "10-ownership-borrowing-drop.md",
 }
 
-# Explicit mapping from all 23 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
+# Explicit mapping from all 21 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
 UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p02_interp": ["L1", "L2"],
     "p05_double": ["N05"],
@@ -235,7 +235,6 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p17b_lambda_nocapture": ["N04"],
     "p18_move_closure": ["N04"],
     "p21_box_enum": ["N07", "L7"],
-    "p22_rc": ["N07"],
     "p25b_linked_recursive": ["N03"],
     "p27_thread": ["T1", "N04"],
     "p28_companion": ["N06"],
@@ -246,7 +245,6 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "q08_enum_string_payload": ["N02", "L7"],
     "s02_pair_builtin": ["S6"],
     "s03_to_pair": ["S6"],
-    "t03_vmethod_generic": ["N06"],
 }
 
 # Explicit mapping from all 6 V1 acceptance programs to blocking item IDs in docs/roadmap/v1.json.
@@ -284,7 +282,7 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "p17b_lambda_nocapture": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' (blocked by N04)",
     "p18_move_closure": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' (blocked by N04)",
     "p21_box_enum": "recursive Expr.Add(Box(Num(1)), Box(Num(2))) evaluates to 3 and prints 'box' (blocked by N07/L7)",
-    "p22_rc": "Rc(Data(4)).share().value.n == 4 holds and prints 'rc' (blocked by N07)",
+    "p22_rc": "Rc(Data(4)).share().value.n == 4 holds and prints 'rc'",
     "p25b_linked_recursive": "recursive sum(Node(1, Node(2, null))) returns 3 and prints 'rec-list' (blocked by N03)",
     "p27_thread": "thread(move { println('thread') }).join() runs worker closure and prints 'thread' (blocked by T1/N04)",
     "p28_companion": "anonymous companion function C.make() returns 7 and prints 'companion' (blocked by N06)",
@@ -295,7 +293,7 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "q08_enum_string_payload": "show(Msg.Text('hi')) prints payload 'hi'; show(Msg.Quit) prints 'quit' (blocked by N02/L7)",
     "s02_pair_builtin": "builtin Pair(1, 2).first == 1 holds and prints 'pair' (blocked by S6)",
     "s03_to_pair": "infix 1 to 2 constructs Pair(1, 2); p.first == 1 prints 'to' (blocked by S6)",
-    "t03_vmethod_generic": "generic value class W<Int>(4).get() returns 4 and prints 'vmethod-generic' (blocked by N06)",
+    "t03_vmethod_generic": "generic value class W<Int>(4).get() returns 4 and prints 'vmethod-generic'",
     "p03b_byte_literal_cmp": "comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085",
     "p04_overflow": "Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09",
     "p07_while_var": "while loop sums i=0..9 into s=45; s == 45 holds and prints 'while'",
@@ -616,6 +614,18 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "stdout": "inout-class\n",
         "v046_baseline_exempt": True,
         "note": "SPEC-0358: Inout class parameter, Inout receiver call and field replacement in E3 refinement layer",
+    },
+    "p22_rc": {
+        "kind": "run_ok",
+        "stdout": "rc\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0359: Rc construction, share() and rc.value field projection in E3 refinement layer",
+    },
+    "t03_vmethod_generic": {
+        "kind": "run_ok",
+        "stdout": "vmethod-generic\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0361: generic value-class instance method in E3 refinement layer",
     },
     "e01_enum_when_bool_return": {
         "kind": "run_ok",

@@ -129,6 +129,29 @@ pub(super) enum ROp {
         loan: Slot,
         value: Slot,
     },
+    /// Projects an active shared loan of an inline aggregate to one field's shared loan.
+    SharedFieldLoan {
+        base: Slot,
+        field: usize,
+    },
+    /// Copies a Copyable field out of an inline aggregate value.
+    AggregateProject {
+        aggregate: Slot,
+        field: usize,
+    },
+    /// Moves `payload` into a fresh `Rc` shared owner.
+    SharedAllocate {
+        owner: SsaTypeId,
+        payload: Slot,
+    },
+    /// Retains a new strong owner of a shared owner (a value or a loan of one).
+    SharedRetain {
+        owner: Slot,
+    },
+    /// The payload place of a shared owner, valid while the owner lives.
+    SharedPayloadPlace {
+        owner: Slot,
+    },
     /// Narrows an active exclusive loan to a call-scoped shared loan.
     SharedReborrow {
         source: Slot,
@@ -169,7 +192,14 @@ impl ROp {
             | Self::TaggedPayloadPlace { owner: slot, .. }
             | Self::FieldPlace { base: slot, .. }
             | Self::ReadPlace { place: slot }
-            | Self::SharedReborrow { source: slot } => vec![*slot],
+            | Self::SharedReborrow { source: slot }
+            | Self::SharedAllocate { payload: slot, .. }
+            | Self::SharedRetain { owner: slot }
+            | Self::SharedPayloadPlace { owner: slot }
+            | Self::AggregateProject {
+                aggregate: slot, ..
+            }
+            | Self::SharedFieldLoan { base: slot, .. } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::StringConcat { left, right }

@@ -43,7 +43,7 @@ impl Builder<'_, '_> {
         let Some(replacement) = self.required(value)? else {
             return Ok(Lowered::Diverged);
         };
-        let replacement = self.adapt(replacement, value, projection.ty())?;
+        let replacement = self.adapt(replacement, value, self.c(projection.ty()))?;
         self.deliver(value);
         let loan = self.owner_loan(owner, LoanKind::Exclusive, span)?;
         self.push(

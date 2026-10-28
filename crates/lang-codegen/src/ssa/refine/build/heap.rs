@@ -49,7 +49,7 @@ impl Builder<'_, '_> {
             let Some(value) = self.required(value_expression)? else {
                 return Ok(Lowered::Diverged);
             };
-            let value = self.adapt(value, value_expression, argument.parameter_type())?;
+            let value = self.adapt(value, value_expression, self.c(argument.parameter_type()))?;
             self.deliver(value_expression);
             let slot = fields
                 .get_mut(argument.parameter_index())
@@ -62,7 +62,7 @@ impl Builder<'_, '_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let owner = self.ssa_type(descriptor.result_type(), span)?;
+        let owner = self.ssa_type(self.c(descriptor.result_type()), span)?;
         let aggregate = self
             .types
             .heap_payloads
@@ -103,16 +103,24 @@ impl Builder<'_, '_> {
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let result_type = self.ssa_type(self.expression_type(expression)?, span)?;
+        let rc_payload = receiver.is_some_and(|receiver| {
+            self.inputs
+                .typed
+                .rc_operation(self.unit(receiver))
+                .is_some()
+        });
         let view = match receiver {
-            Some(receiver) => self.narrowed_view(receiver)?,
-            None => None,
+            Some(receiver) if !rc_payload => self.narrowed_view(receiver)?,
+            _ => None,
         };
-        let loan = match view {
-            Some(view) => OwnerLoan {
+        let loan = match (view, receiver) {
+            (Some(view), _) => OwnerLoan {
                 loan: view,
                 scoped: false,
             },
-            None => self.owner_loan(owner, LoanKind::Shared, span)?,
+            // `rc.value.f`: a shared loan of the payload place (SPEC-0359).
+            (None, Some(receiver)) if rc_payload => self.rc_payload_loan(receiver, span)?,
+            (None, _) => self.owner_loan(owner, LoanKind::Shared, span)?,
         };
         let result = self.value(
             ROp::HeapFieldRead {
@@ -144,7 +152,7 @@ impl Builder<'_, '_> {
                 }
                 let receiver = receiver.expression();
                 let owner_type = match self.inputs.typed.non_null_use(self.unit(receiver)) {
-                    Some(fact) => fact.narrowed_type(),
+                    Some(fact) => self.c(fact.narrowed_type()),
                     None => self.expression_type(receiver)?,
                 };
                 Ok((OwnerRef::Expression(receiver), owner_type, Some(receiver)))
@@ -182,8 +190,8 @@ impl Builder<'_, '_> {
             || descriptor.operand().source_unit() != self.inputs.source_unit
             || plan.non_null_transfer() != NonNullAssertionTransferKind::Consume
             || !matches!(
-                self.inputs.typed.types().get(descriptor.nullable_type()),
-                Some(UnitTypeKind::Nullable(inner)) if *inner == descriptor.inner_type()
+                self.inputs.typed.types().get(self.c(descriptor.nullable_type())),
+                Some(UnitTypeKind::Nullable(inner)) if *inner == self.c(descriptor.inner_type())
             )
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
@@ -195,13 +203,17 @@ impl Builder<'_, '_> {
             Lowered::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
         };
         self.register_temporary(operand, owner)?;
-        let (payload, operand_span) = self.node(operand)?;
+        let mut root = operand;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let (payload, operand_span) = self.node(root)?;
         if let Expression::Name = payload {
             // The owner is consumed: no proof view of it may stay live.
             let symbol = self.reference(operand_span)?;
             self.end_views_of(symbol, span)?;
         }
-        let inner = self.ssa_type(descriptor.inner_type(), span)?;
+        let inner = self.ssa_type(self.c(descriptor.inner_type()), span)?;
         let null_block = self.body.block();
         let non_null_block = self.body.block();
         let view = self.body.slot(EntityType::Loan {

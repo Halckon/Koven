@@ -458,6 +458,8 @@ fn lowers_cross_file_rc_retain_copyable_read_transfer_and_drop_deterministically
 
     let copied = function(module, "p.copied");
     let source = value(copied.blocks[0].parameters[0]);
+    // The per-family path copies the Copyable parameter first; the refinement layer
+    // (SPEC-0359) delivers the immutable SSA value itself.
     let independent = copied
         .instructions
         .iter()
@@ -467,7 +469,7 @@ fn lowers_cross_file_rc_retain_copyable_read_transfer_and_drop_deterministically
             }
             _ => None,
         })
-        .expect("Copyable place construction creates an independent payload value");
+        .unwrap_or(source);
     assert!(copied.instructions.iter().any(|instruction| matches!(
         instruction.operation,
         Operation::SharedAllocate { payload, .. } if payload == independent
