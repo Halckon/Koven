@@ -244,17 +244,10 @@ fun main(): Unit {
 }
 
 #[test]
-fn per_family_nullable_string_if_keeps_unimplemented_transfer_and_nested_carriers_rejected() {
+fn per_family_nullable_string_if_keeps_nested_and_prefix_carriers_rejected() {
     use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
     use lang_frontend::name_resolution::SymbolKind;
     for (name, text) in [
-        (
-            "return",
-            r#"fun entry(own text: String?): String {
-    if (text != null) { println(text); return text }
-    return "fallback"
-}"#,
-        ),
         (
             "nested",
             r#"fun entry(own text: String?, own other: String?): Unit {
@@ -292,4 +285,36 @@ fun entry(own text: String?): Unit {
             "{name}: {error:?}"
         );
     }
+}
+
+#[test]
+fn per_family_nullable_string_if_returns_the_owned_parameter_after_borrow() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+    let source = UnitSource::analyze(
+        "nullable-owned-return.ko",
+        r#"fun entry(own text: String?): String {
+    if (text != null) { println(text); return text }
+    return "fallback"
+}
+fun make(flag: Boolean): String? {
+    if (flag) { return "value".clone() }
+    return null
+}
+fun main(): Unit {
+    val present = make(true)
+    println(entry(present))
+    val absent = make(false)
+    println(entry(absent))
+}"#,
+    )
+    .unwrap();
+    let (program, entry) = super::refine::with_per_family_lowering(|| {
+        source.lower_entry(source.declaration("main", SymbolKind::Function))
+    })
+    .unwrap();
+    super::verify::verify_program(&program).unwrap();
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 1);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"value\nvalue\nfallback\n");
 }

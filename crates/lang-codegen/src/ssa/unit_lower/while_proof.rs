@@ -1,6 +1,7 @@
 //! Bounded retirement, owner returns and direct Int reads for a real nullable while view.
 use super::*;
 use crate::ssa::model::{Definition, SsaTypeKind};
+use lang_frontend::ownership_checking::UnitDropTarget;
 
 use lang_frontend::type_checking::{
     NominalKind, UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
@@ -9,12 +10,15 @@ use lang_frontend::type_checking::{
 
 #[cfg(test)]
 mod retirement_tests;
+#[cfg(test)]
+mod string_return_tests;
 
 impl UnitExpressionLowerer<'_> {
-    /// The true flag qualifies only an unchanged nullable owner for this return.
+    /// The true flag preserves nullable storage; false uses the normal result adapter.
     /// The caller must still perform its original transfer_owned_expression once.
-    pub(super) fn lower_while_owner_return(
+    pub(super) fn lower_proven_owner_return(
         &mut self,
+        returning: ExpressionId,
         expression: ExpressionId,
         span: Span,
     ) -> Result<(LoweredValue, bool), LoweringError> {
@@ -26,7 +30,9 @@ impl UnitExpressionLowerer<'_> {
         let Some(proof) = self.nullable_proofs.get(&root).copied() else {
             return self.lower(expression).map(|result| (result, false));
         };
-        if proof.while_scope().is_none() {
+        let string_if = proof.if_scope().is_some()
+            && self.ssa_types.get(proof.inner.index()) == Some(&SsaTypeKind::StringOwner);
+        if !string_if && proof.while_scope().is_none() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let storage = self
@@ -36,10 +42,12 @@ impl UnitExpressionLowerer<'_> {
         let concrete =
             |ty| resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span);
         let declared = concrete(storage)?;
-        if concrete(self.return_type)? != declared {
+        let narrowed = concrete(use_fact.narrowed_type())?;
+        let target = concrete(self.return_type)?;
+        let take_inner = string_if && target == narrowed;
+        if target != declared && !take_inner {
             return self.lower(expression).map(|result| (result, false));
         }
-        let narrowed = concrete(use_fact.narrowed_type())?;
         let nullable = self
             .type_ids
             .get(&declared)
@@ -48,8 +56,14 @@ impl UnitExpressionLowerer<'_> {
         self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
         if !matches!(self.typed.types().get(declared), Some(UnitTypeKind::Nullable(inner)) if *inner == narrowed)
             || self.type_ids.get(&narrowed) != Some(&proof.inner)
-            || self.ssa_types.get(nullable.index())
-                != Some(&SsaTypeKind::NullableHandle { inner: proof.inner })
+            || !(self.ssa_types.get(nullable.index())
+                == Some(&SsaTypeKind::NullableHandle { inner: proof.inner })
+                || (string_if
+                    && self.ssa_types.get(nullable.index())
+                        == Some(&SsaTypeKind::InlineNullable {
+                            inner: proof.inner,
+                            niche: true,
+                        })))
             || self
                 .function
                 .entity(EntityId::Value(proof.owner))
@@ -61,10 +75,11 @@ impl UnitExpressionLowerer<'_> {
         if self.borrow_bindings.contains_key(&root)
             || self.typed.copyability(declared) != Copyability::MoveOnly
             || self.typed.copyability(narrowed) != Copyability::MoveOnly
-            || !matches!(
-                self.ssa_types.get(proof.inner.index()),
-                Some(SsaTypeKind::HeapOwner { .. })
-            )
+            || (!string_if
+                && !matches!(
+                    self.ssa_types.get(proof.inner.index()),
+                    Some(SsaTypeKind::HeapOwner { .. })
+                ))
             || self.nullable_proofs.iter().any(|(&other, candidate)| {
                 other != root && (candidate.loan == proof.loan || candidate.owner == proof.owner)
             })
@@ -72,6 +87,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let mut operand = expression;
+        let mut operands = Vec::new();
         loop {
             let node = self
                 .parsed
@@ -83,6 +99,7 @@ impl UnitExpressionLowerer<'_> {
                 return self.lower(expression).map(|result| (result, false));
             }
             let operand_id = UnitExpressionId::new(self.source_unit, operand);
+            operands.push(operand_id);
             let fact = self
                 .typed
                 .non_null_use(operand_id)
@@ -107,21 +124,70 @@ impl UnitExpressionLowerer<'_> {
                 _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
             }
         }
-        self.ensure_no_while_proof_carriers(span)?;
-        self.end_nullable_proof(root, span)?;
+        let returning = UnitExpressionId::new(self.source_unit, returning);
+        if string_if {
+            if !self.can_return_from_nullable_string_if(returning, Some(expression), span)? {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let owned_root = self.owned.binding_kind(root)
+                == Some(lang_frontend::ownership_checking::OwnershipBindingKind::Owned)
+                || (self.owned.binding_kind(root).is_none()
+                    && self.owned.formed_owned_locals().contains(&root));
+            if !owned_root
+                || self.bindings.iter().any(|(&other, value)| {
+                    other != root && *value == LoweredValue::Value(proof.owner)
+                })
+                || self.temporaries.values().any(|owner| *owner == proof.owner)
+                || self.owned.drops().iter().any(|fact| {
+                    fact.point() == UnitDropPoint::ControlTransfer(returning)
+                        && fact.target() == UnitDropTarget::Named(root)
+                })
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            // A returned proof owner cannot still occupy a pending call slot.
+            // Its pure Name/Group cleanup must be empty before Take or BorrowEnd.
+            self.ensure_string_if_proof_carriers(span)?;
+            self.preflight_nullable_take_drops(&operands, span)?;
+        } else {
+            self.ensure_no_while_proof_carriers(span)?;
+        }
+        let (returned_owner, returned_type) = if take_inner {
+            self.validate_nullable_proof_retirement(root, span)?;
+            let (_, values) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::NullableTake {
+                        owner: proof.owner,
+                        proof: proof.loan,
+                    },
+                    vec![EntityType::Value(proof.inner)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let inner = require_value(values[0], span)?;
+            self.nullable_proofs.remove(&root);
+            // Keep only the delivered inner binding until the existing transfer removes it.
+            self.bindings.insert(root, LoweredValue::Value(inner));
+            (inner, proof.inner)
+        } else {
+            self.end_nullable_proof(root, span)?;
+            (proof.owner, nullable)
+        };
         // Preserve Name/Group AfterExpression facts before the existing transfer.
         let result = self.lower(expression)?;
-        if result != LoweredValue::Value(proof.owner)
+        if result != LoweredValue::Value(returned_owner)
             || self.bindings.get(&root) != Some(&result)
             || self
                 .function
-                .entity(EntityId::Value(proof.owner))
+                .entity(EntityId::Value(returned_owner))
                 .map(|data| data.ty)
-                != Some(EntityType::Value(nullable))
+                != Some(EntityType::Value(returned_type))
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        Ok((result, true))
+        Ok((result, !take_inner))
     }
 
     pub(super) fn reject_nested_while_proof(&self, span: Span) -> Result<(), LoweringError> {

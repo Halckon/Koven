@@ -33,7 +33,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         // Independent owners use the existing transfer path. Returning a narrowed
-        // proof owner is still checked separately by lower_while_owner_return.
+        // proof owner is still checked separately by lower_proven_owner_return.
         if let Some(value) = value {
             let ty = self
                 .typed

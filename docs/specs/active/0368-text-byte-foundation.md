@@ -517,7 +517,7 @@ text／用户源四个身份及顺序，保留后续原用户入口选择断言�
 | 严格解码与错误偏移 | CLI 同一矩阵的17类非法输入与独立 Rust oracle；`utf8_error_offset_native_matches_strict_sequence_boundaries` | 已有局部动态通过；不以字符数替代字节偏移 |
 | 字节切片 | CLI 同一矩阵的205组端点组合，核范围优先级、scalar 边界及空切片 | 已有局部动态通过 |
 | 可恢复连接 | `standard_checked_plus_returns_null_only_for_length_overflow_and_aborts_on_oom`；公开 CLI 左右各一次求值与结果输出 | 合成上限／OOM 与正常小输入分别验证；不声称 GB 成功复制 |
-| 所有权与控制流 | codegen `text_` 46项与 CLI `text_bytes` 14项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果及直接返回记录 | 已覆盖记录中的具体形状；String If 的独立owner返回已有动态证据，收窄proof根交付／其他 If 退出仍未开放 |
+| 所有权与控制流 | codegen `text_` 47项与 CLI `text_bytes` 15项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果及直接返回记录 | 已覆盖记录中的具体形状；String If 的独立owner与已有proof根交付已有动态证据；无借用witness的纯根return、pending调用内根交付及其他If退出仍未开放 |
 | 公共入口 | `native_cli text_bytes` 对单文件／project 各执行 check、build 后直接运行及 CLI run | 10项通过、无忽略；不替代旧 raw API 的跨源合同 |
 | 回归与平台 | 历史输入完整 codegen 库测试、官方双宿主 CI、独立复核、Clippy／尺寸／文档门禁 | 独立复核及局部门禁已通过；修复后的最终双宿主 CI 待完成，暂不归档 |
 
@@ -620,3 +620,33 @@ Array夹具初次因UByte与UInt字面量比较类型不符而失败，已改成
 codegen／CLI all-targets严格Clippy、Rustfmt、821篇文档结构与diff检查通过；尺寸门禁
 2021文件、39项历史超限通过，未新增例外。最终head双宿主CI尚待新提交触发与验收；
 收窄proof根的owner交付与旧raw前端合同仍未关闭，不归档。
+
+
+### String If 已有 proof 根的 owner return（2026-10-30）
+
+基于 `b2d3c30aac2604fcc171ac92d2dd99284558ae68`，将原根返回拒绝用例改为真实标准源
+native成功条件，先取得UnsupportedNode，再复用原owner返回协议。无pending槽／调用帧时，
+核对当前binding、非空事实、nullable表示与原ControlTransfer drop；Name／Group的原清理点
+复用既有take preflight。返回String消费NullableTake，返回String?结束view并保留nullable
+owner，随后由原transfer移除binding，不生成第二份owner或额外drop事实。
+
+原NullableTake operation只识别birth LoanId，拒绝真实CFG运输后的view。新增配对追溯同时
+沿每条前驱回溯owner与proof，要求所有分支保持配对，且每项循环义务可到达真实birth；不能
+用相同origin集合代替逐边配对。固定配对diamond／有锚定循环走完整verifier；同时置换正例
+仅证明local operation合同，不声称现有全局alias分析接受。交叉配对负例两侧确有相同origins，
+另以无birth的独立SCC连入合法join，验证不能借相邻birth蒙混通过。
+
+已有native用例通过：Name／Group、String／String?、动态null／非空及两条return边，共4次
+分配，调用方实际读取返回内容并逐指针验证释放。新增private guard在真实own String?参数
+baseline上注入9类错误，1项测试通过、0 failed、0 ignored，确认失败前无Take／BorrowEnd或
+状态突变。原guard源码只println另一个参数，没有根借用witness，先在SSA ReturnType失败；
+这揭示无先行借用的纯根return尚未接入，不能作为本片成功证据。最终baseline保留根的真实
+借用和动态返回边；AST遍历初次误选嵌套If，修正为实际外层nullable控制后通过。
+独立full-pass已核验配对、SCC与最终guard测试，未发现阻塞问题。扩展text_首次45通过、
+1失败：旧owned参数return拒绝用例已获支持。保留其原entry源码，改为完整SSA/native正例，
+动态clone／null两路返回共1次分配，核对完整stdout；nested／prefix拒绝保持。独立复核确认
+替代范围，更新后的text_ 47项通过，无失败或忽略。公开CLI文本15项与operation合同10项
+也通过、无忽略；共享nullable 187项、while_proof 4项及codegen／CLI all-targets严格
+Clippy通过，0 failed、0 ignored（过滤集合有重叠）。Rustfmt、821篇文档结构、diff检查与
+尺寸门禁通过；2024个Rust文件、39项历史超限，未新增例外。pending文本实参内
+返回借用根仍拒绝，旧raw前端合同与最终双宿主CI亦待关闭，Spec不归档。

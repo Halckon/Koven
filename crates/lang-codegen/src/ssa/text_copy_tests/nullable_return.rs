@@ -72,32 +72,6 @@ fun main(): Unit {
 }
 
 #[test]
-fn public_text_nullable_if_keeps_narrowed_owner_returns_rejected() {
-    for result_type in ["String", "String?"] {
-        let source = format!(
-            r#"package app
-import koven.text.checkedPlus
-fun observe(stop: Boolean): {result_type} {{
-    val joined = "a".checkedPlus("b")
-    if (joined != null) {{
-        if (stop) {{ return joined }}
-        println(joined)
-    }}
-    return "late"
-}}
-fun main(): Unit {{ val result = observe(true) }}
-"#
-        );
-        let Err(error) = try_lower_public_text_program(&source) else {
-            panic!("narrowed owner return unexpectedly lowered");
-        };
-        assert_eq!(error.kind, super::super::LoweringErrorKind::UnsupportedNode);
-        let span = error.span.unwrap();
-        assert_eq!(&source[span.start()..span.end()], "return joined");
-    }
-}
-
-#[test]
 fn public_text_nullable_if_both_returns_preserve_the_null_edge() {
     let (program, entry) = lower_public_text_program(
         r#"package app
@@ -327,5 +301,53 @@ fun main(): Unit {
     crate::native_tests::boxed_enum_tests::assert_success(
         &run,
         b"direct\nab\ndirect\nargument\nargument\n",
+    );
+}
+
+#[test]
+fn public_text_nullable_if_delivers_its_narrowed_owner_on_each_return_edge() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.checkedPlus
+fun direct(present: Boolean, stop: Boolean): String {
+    val joined = if (present) { "a".checkedPlus("b") } else { null }
+    if (joined != null) {
+        if (stop) { return ((joined)) }
+        println(joined)
+        return joined
+    }
+    return "absent"
+}
+fun wrapped(present: Boolean, stop: Boolean): String? {
+    val joined = if (present) { "c".checkedPlus("d") } else { null }
+    if (joined != null) {
+        if (stop) { return ((joined)) }
+        println(joined)
+        return joined
+    }
+    return joined
+}
+fun main(): Unit {
+    println(direct(true, true))
+    println(direct(true, false))
+    println(direct(false, true))
+    println(direct(false, false))
+    val first = wrapped(true, true)
+    if (first != null) { println(first) } else { error("missing first") }
+    val second = wrapped(true, false)
+    if (second != null) { println(second) } else { error("missing second") }
+    val third = wrapped(false, true)
+    if (third != null) { error("unexpected third") }
+    val fourth = wrapped(false, false)
+    if (fourth != null) { error("unexpected fourth") }
+    println("null")
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 4);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"ab\nab\nab\nabsent\nabsent\ncd\ncd\ncd\nnull\n",
     );
 }

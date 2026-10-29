@@ -471,7 +471,7 @@ impl UnitExpressionLowerer<'_> {
             );
         }
         let (mut result, nullable_owner_return) = match value {
-            Some(value) => self.lower_while_owner_return(value, span)?,
+            Some(value) => self.lower_proven_owner_return(expression, value, span)?,
             None => (LoweredValue::Unit, false),
         };
         if result == LoweredValue::Diverged {

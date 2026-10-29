@@ -566,3 +566,42 @@ fun main(): Unit {
 "#;
     check_build_run_both_modes(program, b"ab\nslice\nslice\n");
 }
+
+#[test]
+fn public_text_nullable_if_narrowed_owner_returns_work_in_both_modes() {
+    let program = r#"fun direct(present: Boolean, stop: Boolean): String {
+    val joined = if (present) { "a".checkedPlus("b") } else { null }
+    if (joined != null) {
+        if (stop) { return ((joined)) }
+        println(joined)
+        return joined
+    }
+    return "absent"
+}
+fun wrapped(present: Boolean, stop: Boolean): String? {
+    val joined = if (present) { "c".checkedPlus("d") } else { null }
+    if (joined != null) {
+        if (stop) { return ((joined)) }
+        println(joined)
+        return joined
+    }
+    return joined
+}
+fun main(): Unit {
+    println(direct(true, true))
+    println(direct(true, false))
+    println(direct(false, true))
+    println(direct(false, false))
+    val first = wrapped(true, true)
+    if (first != null) { println(first) } else { error("missing first") }
+    val second = wrapped(true, false)
+    if (second != null) { println(second) } else { error("missing second") }
+    val third = wrapped(false, true)
+    if (third != null) { error("unexpected third") }
+    val fourth = wrapped(false, false)
+    if (fourth != null) { error("unexpected fourth") }
+    println("null")
+}
+"#;
+    check_build_run_both_modes(program, b"ab\nab\nab\nabsent\nabsent\ncd\ncd\ncd\nnull\n");
+}

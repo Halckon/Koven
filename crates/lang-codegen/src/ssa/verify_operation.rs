@@ -2,6 +2,7 @@
 
 mod integer;
 mod integer_range;
+mod nullable;
 mod range;
 mod text;
 pub(super) use range::{
@@ -656,18 +657,12 @@ fn nullable_take_contract(
     let Some(inner) = module.nullable_inner(nullable) else {
         return false;
     };
-    let is_branch_proof = function.blocks.iter().any(|block| {
-        matches!(
-            block.terminator.as_ref().map(|terminator| &terminator.kind),
-            Some(super::model::TerminatorKind::NullableBranch { view, .. }) if *view == proof
-        )
-    });
     entity_type(function, EntityId::Loan(proof))
         == EntityType::Loan {
             kind: LoanKind::Shared,
             target: inner,
         }
-        && is_branch_proof
+        && nullable::has_exact_branch_proof(function, owner, proof)
         && single_value_result(results) == Some(inner)
 }
 
