@@ -168,18 +168,18 @@ impl BuildArtifacts {
         #[cfg(target_os = "macos")]
         publish_directory(&self.debug_bundle, &debug_bundle_path(output))?;
         // hard_link 是最终单路径 no-clobber commit，不能由事先的 exists 检查替代。
-        if let Err(error) = fs::hard_link(&self.executable, output) {
-            #[cfg(target_os = "macos")]
-            return Err(io::Error::new(
+        let publication = fs::hard_link(&self.executable, output);
+        #[cfg(target_os = "macos")]
+        let publication = publication.map_err(|error| {
+            io::Error::new(
                 error.kind(),
                 format!(
                     "cannot publish executable: {error}; published debug bundle retained at {}",
                     debug_bundle_path(output).display()
                 ),
-            ));
-            #[cfg(not(target_os = "macos"))]
-            return Err(error);
-        }
+            )
+        });
+        publication?;
         cleanup(self).map_err(|error| io::Error::new(error.kind(), format!(
             "final build artifacts already published at {}; private staging cleanup failed: {error}",
             output.display(),

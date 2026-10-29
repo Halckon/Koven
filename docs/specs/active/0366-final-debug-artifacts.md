@@ -402,3 +402,24 @@ LLVM 安装边界自测 4 项、preview setup 2 项、preview dependencies 11 �
 因精确包列表未同步失败，更新为上述固定包后重跑通过。脚本 bash -n、CLI all-targets
 严格 clippy 通过。最终输入提交身份及 Linux 证据由随后 PR/CI 记录，不以未提交树的本地
 结果代替实际 CI。Spec 仍保持 in-progress。
+
+## 22. 首次 PR CI 与 Linux clippy 修正
+
+Draft [PR #228](https://github.com/Halckon/Koven/pull/228) 输入 head
+`fad9d7cf9ad62a934e4136a30d3322fd1a6a3fc5`，base
+`0e1c33c58b72d0ec33fcc191a9752ea39dc8973a`；实际 CI merge 输入
+`d133a652edb3a8906283c36bb0b79fc467b546eb`。
+[首次 run 40883508294](https://github.com/Halckon/Koven/actions/runs/40883508294)
+失败，不计通过。依赖、尺寸、fmt、docs 及 macOS workspace check/clippy 通过；
+Linux 安装精确 LLDB/Python 绑定并实际得到 SB API 成功 marker，workspace check 通过
+（37.17 秒），随后严格 clippy 在 build_artifacts 的条件编译错误传播处报 question_mark。
+下游测试/preview 被门禁阻止，不能当作已执行；未重试同一失败输入。
+
+将 hard_link 的结果先保存，仅在 macOS 添加原部分发布上下文，再共同用 `?` 传播。
+发布顺序、原 ErrorKind、dSYM 保留位置及成功后 cleanup 均不变；独立只读复核确认等价。
+修正后本地共享发布 7 passed / 0 failed / 0 ignored / 69 filtered（7.90 秒），
+CLI all-targets 严格 clippy 通过。Linux 修正后实际结果等待新提交 CI，不凭 macOS 推断。
+
+在上述固定 head 上另跑 source_span：10 passed / 0 ignored；codegen debug 常规
+4 passed / 1 ignored，随后显式 `--ignored` 的真实 LLDB 项 1 passed / 0 ignored，
+分别保留选择范围，不把默认忽略隐瞒为已执行。Spec 仍待双宿主完整门禁及交付闭环。
