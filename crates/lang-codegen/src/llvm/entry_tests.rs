@@ -140,7 +140,7 @@ fn borrowed_arguments_plan_builds_checked_argv_owner_wrapper() {
     )
     .expect("verified borrowed argv plan");
     assert!(llvm.contains("define i32 @main(i32 %0, ptr %1)"), "{llvm}");
-    assert!(llvm.contains("@koven.entry.valid_utf8"), "{llvm}");
+    assert!(llvm.contains("@koven.utf8.error_offset"), "{llvm}");
     assert!(llvm.contains("argv.preflight"), "{llvm}");
     assert!(llvm.contains("argv.construct"), "{llvm}");
     assert!(

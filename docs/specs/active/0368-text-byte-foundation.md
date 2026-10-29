@@ -102,3 +102,9 @@ unit SSA 现已接入文本 receiver 首个共享借用参数，DirectCall 按�
 未发现 owner=None 的额外阻断。`text_extension_tests` 新增 SSA／LLVM／native ABI 夹具，
 断言非 carrier 的 owned 结果、两次分配的逆序释放及输入后续可用；尚未执行。
 夹具的常量 byteLength 仅隔离验证 receiver ABI，不作为真实字节长度算法或公共 API 证据。
+
+已将 argv 的严格 UTF-8 扫描提取为共享 `llvm/utf8.rs`，以 target-usize MAX 表示成功，
+否则返回首个非法序列的起始字节；argv 仍比较成功标记后走原 operational failure 路径。
+新增 native 夹具以 Rust `valid_up_to()` 为独立 oracle，覆盖30组序列／边界及全部256个
+单字节输入。独立静态审查核对 PHI、受长度支配的读取、续字节范围及错误起点，未发现确认缺陷；
+LLVM verifier 与 native 测试尚未执行，decodeUtf8 公共函数仍待接线。
