@@ -39,7 +39,7 @@ fn utf8_error_offset_native_matches_strict_sequence_boundaries() {
     let context = Context::create();
     let module = context.create_module("utf8-offset-probe");
     let scanner = super::utf8::define_error_offset(&context, &module, context.i64_type()).unwrap();
-    scanner.set_name("test_utf8_error_offset");
+    scanner.as_global_value().set_name("test_utf8_error_offset");
     scanner.set_linkage(Linkage::External);
     module.verify().unwrap();
     let mut harness = String::from(
