@@ -3,6 +3,7 @@
 mod guard_tests;
 mod heap;
 mod rc;
+mod string;
 
 use super::super::unwrap_modified;
 use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key};
@@ -35,6 +36,9 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<NullableIfEntry>, LoweringError> {
         if result_required || !self.nullable_proofs.is_empty() {
             return Ok(None);
+        }
+        if let Some(entry) = self.prepare_string_nullable_if_entry(control, condition, span)? {
+            return Ok(Some(entry));
         }
         if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
             return Ok(Some(entry));
@@ -271,7 +275,7 @@ impl UnitExpressionLowerer<'_> {
         }))) {
             return Ok(None);
         }
-        if !self.is_direct_function_body_map_if(control, span)? {
+        if !self.is_direct_function_body_if(control, span)? {
             return Ok(None);
         }
         let node = self
@@ -441,7 +445,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     /// Follow the actual current source instance to its own top-level block elements.
-    pub(in crate::ssa::unit_lower) fn is_direct_function_body_map_if(
+    pub(in crate::ssa::unit_lower) fn is_direct_function_body_if(
         &self,
         control: UnitExpressionId,
         span: Span,

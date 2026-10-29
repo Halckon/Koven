@@ -35,7 +35,7 @@ impl UnitExpressionLowerer<'_> {
         }
         if !descriptor.non_null_when_true()
             || self.thunk_expression.is_some()
-            || !self.is_direct_function_body_map_if(control, span)?
+            || !self.is_direct_function_body_if(control, span)?
         {
             return Ok(None);
         }

@@ -77,10 +77,14 @@ fn trusted_text_storage_reads_preserve_utf8_bytes_and_the_source_owner() {
 borrow fun String.byteLength(): Int = textByteLength(this)
 fun inspect(text: String): Unit {
     if (textByteLength(text) != 4) { error("length") }
-    if (textByteAt(text, 0) != 65) { error("ascii") }
-    if (textByteAt(text, 1) != 0) { error("nul") }
-    if (textByteAt(text, 2) != 195) { error("lead") }
-    if (textByteAt(text, 3) != 169) { error("continuation") }
+    val ascii: UByte = 65u
+    if (textByteAt(text, 0) != ascii) { error("ascii") }
+    val nul: UByte = 0u
+    if (textByteAt(text, 1) != nul) { error("nul") }
+    val lead: UByte = 195u
+    if (textByteAt(text, 2) != lead) { error("lead") }
+    val continuation: UByte = 169u
+    if (textByteAt(text, 3) != continuation) { error("continuation") }
 }
 "#,
     );
@@ -152,11 +156,11 @@ fn trusted_utf8_scan_reports_sequence_start_and_preserves_byte_array() {
         "text.ko",
         r#"package koven.text
 fun checkBytes(): Unit {
-    val bytes = Array<UByte>(3, { index -> if (index == 0) 65 else if (index == 1) 226 else 130 })
+    val bytes = Array<UByte>(3, { index -> if (index == 0) 65u else if (index == 1) 226u else 130u })
     if (textUtf8ErrorOffset(bytes) != 1) { error("truncated sequence start") }
     if (bytes.size != 3) { error("source retained") }
-    if (textUtf8ErrorOffset(Array<UByte>(0, { index -> 0 })) != -1) { error("empty") }
-    if (textUtf8ErrorOffset(Array<UByte>(1, { index -> 0 })) != -1) { error("nul") }
+    if (textUtf8ErrorOffset(Array<UByte>(0, { index -> 0u })) != -1) { error("empty") }
+    if (textUtf8ErrorOffset(Array<UByte>(1, { index -> 0u })) != -1) { error("nul") }
     println("utf8")
 }
 "#,
@@ -201,4 +205,91 @@ fun checkBytes(): Unit {
     );
     let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 2);
     crate::native_tests::boxed_enum_tests::assert_success(&run, b"utf8\n");
+}
+
+#[test]
+fn nullable_string_if_borrows_retest_the_current_owner_and_distinguish_empty_from_null() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+    let source = UnitSource::analyze(
+        "nullable-string.ko",
+        r#"fun make(flag: Boolean): String? {
+    if (flag) { return "value".clone() }
+    return null
+}
+fun show(flag: Boolean): Unit {
+    val text = make(flag)
+    if (text != null) { println(text); println(text) } else { println("null") }
+    if (text == null) { println("absent") } else { println((text)) }
+}
+fun main(): Unit {
+    show(true)
+    show(false)
+    val empty: String? = ""
+    if (empty != null) { println(empty) }
+}"#,
+    )
+    .expect("actual nullable String source passes admission");
+    let (program, entry) = super::refine::with_per_family_lowering(|| {
+        source.lower_entry(source.declaration("main", SymbolKind::Function))
+    })
+    .expect("each non-null branch borrows its current String owner");
+    super::verify::verify_program(&program).unwrap();
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 1);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"value\nvalue\nvalue\nnull\nabsent\n\n",
+    );
+}
+
+#[test]
+fn per_family_nullable_string_if_keeps_unimplemented_transfer_and_nested_carriers_rejected() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+    for (name, text) in [
+        (
+            "return",
+            r#"fun entry(own text: String?): String {
+    if (text != null) { println(text); return text }
+    return "fallback"
+}"#,
+        ),
+        (
+            "nested",
+            r#"fun entry(own text: String?, own other: String?): Unit {
+    if (text != null) {
+        println(text)
+        if (other != null) { println(other) }
+        println(text)
+    }
+}"#,
+        ),
+        (
+            "prefix",
+            r#"fun consume(marker: Int, value: Int): Unit {}
+fun entry(own text: String?): Unit {
+    consume(1, if (true) { if (text != null) { println(text) }; 2 } else { 3 })
+}"#,
+        ),
+    ] {
+        let source =
+            UnitSource::analyze(name, text).expect("rejection begins after actual admission");
+        // The general refinement entry can support additional source shapes. These
+        // negative cases check only the per-family proof path changed in this slice.
+        let result = super::refine::with_per_family_lowering(|| {
+            source.lower_entry(source.declaration("entry", SymbolKind::Function))
+        });
+        let error = match result {
+            Ok(_) => panic!("{name} must not bypass the existing proof transfer boundary"),
+            Err(error) => error,
+        };
+        assert!(
+            matches!(
+                error.kind,
+                super::LoweringErrorKind::MissingFact | super::LoweringErrorKind::UnsupportedNode
+            ),
+            "{name}: {error:?}"
+        );
+    }
 }

@@ -117,6 +117,7 @@ fn public_text_byte_apis_check_build_and_run_in_single_and_project_modes() {
         manifest.as_os_str(),
     ]);
     assert!(checked.status.success(), "{checked:?}");
+    let executable = directory.join("project-text");
     let built = run([
         OsStr::new("build"),
         OsStr::new("--project"),

@@ -38,13 +38,13 @@ fn lower_probe(body: &str) -> (Program, FunctionId) {
 fn text_copies_own_their_bytes_and_keep_input_storage_alive() {
     let (program, entry) = lower_probe(
         r#"
-        val bytes = Array<UByte>(3, { index -> if (index == 0) 195 else if (index == 1) 169 else 0 })
+        val bytes = Array<UByte>(3, { index -> if (index == 0) 195u else if (index == 1) 169u else 0u })
         val text = textCopyBytes(bytes)
         val slice = textCopySlice(text, 0, 2)
         println(slice)
         println(text)
         if (bytes.size != 3) { error("array consumed") }
-        println(textCopyBytes(Array<UByte>(0, { index -> 0 })))
+        println(textCopyBytes(Array<UByte>(0, { index -> 0u })))
         println(textCopySlice("é", 2, 2))
     "#,
     );
@@ -59,7 +59,7 @@ fn text_copy_primitives_abort_before_publishing_invalid_strings() {
     use std::os::unix::process::ExitStatusExt;
     for (body, message, source_allocations) in [
         (
-            "println(textCopyBytes(Array<UByte>(1, { index -> 128 })))",
+            "println(textCopyBytes(Array<UByte>(1, { index -> 128u })))",
             "invalid UTF-8",
             1,
         ),

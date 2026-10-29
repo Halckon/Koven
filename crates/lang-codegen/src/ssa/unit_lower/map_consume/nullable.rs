@@ -36,7 +36,7 @@ impl UnitExpressionLowerer<'_> {
         control: UnitExpressionId,
         span: Span,
     ) -> Result<Option<NullableMapConsumeWitness>, LoweringError> {
-        if !self.is_direct_function_body_map_if(control, span)?
+        if !self.is_direct_function_body_if(control, span)?
             || self.expression_builtin_type(control.expression(), span)? != Some(BuiltinType::Unit)
         {
             return Ok(None);

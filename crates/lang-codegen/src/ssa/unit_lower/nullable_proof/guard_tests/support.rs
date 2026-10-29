@@ -372,9 +372,14 @@ fn map_type(
             BuiltinType::Unit => SsaTypeKind::Unit,
             _ => return None,
         },
-        UnitTypeKind::Nullable(inner) => SsaTypeKind::NullableHandle {
-            inner: map_type(module, typed, *inner, mapped)?,
-        },
+        UnitTypeKind::Nullable(inner) => {
+            let inner = map_type(module, typed, *inner, mapped)?;
+            if module.type_kind(inner) == Some(&SsaTypeKind::StringOwner) {
+                SsaTypeKind::InlineNullable { inner, niche: true }
+            } else {
+                SsaTypeKind::NullableHandle { inner }
+            }
+        }
         UnitTypeKind::Nominal {
             declaration,
             arguments,

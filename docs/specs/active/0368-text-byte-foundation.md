@@ -211,3 +211,40 @@ when、相反分支顺序、一个分支提前返回与另一分支正常借用�
 远端 `4fad95e6` 的上述 CI 后续结束：macOS Check／Clippy 作业为 cancelled（未执行步骤），
 Targeted Tests 与 preview 均跳过，CI 汇总失败。Linux Check／Clippy 成功不能替代缺失宿主及
 行为验收；本地补片结果也不覆盖该次远端输入。取消原因未在作业结果中说明。
+
+### nullable String 读取补片（2026-10-30）
+
+新增真实源码回归先重现非空 String 读取的 MissingFact（0 passed、1 failed、0 ignored），
+随后在 unit per-family 路径复用 NullableBranch／If proof／既有清理协议，不新增 LLVM 表示。
+仅接受函数体直接 statement-if、named owned String?、精确 niche 布局及真实非空借用事实；
+普通源函数与绑定的 String println 共享 owner／loan 身份校验。再次判断重新取当前 owner，
+不沿合流复活旧 proof。修正文本夹具的 UByte 字面量，以及 project build 与单文件 build
+复用同一输出路径导致的测试失败，未放宽前端类型或输出覆盖规则。
+
+本地使用 LLVM 21、独立 target 和 `--offline` 串行运行下列检查：
+
+| 命令（省略环境与 target 参数） | 实际结果 |
+|---|---|
+| `cargo test -p lang-codegen --lib nullable_string` | 5 passed、0 failed、0 ignored |
+| `cargo test -p lang-codegen --lib text_` | 16 passed、0 failed、0 ignored |
+| `cargo test -p lang-cli --test native_cli text_bytes` | 2 passed、0 failed、0 ignored |
+| `cargo test -p lang-codegen --lib unit_lower::control::nullable_if` | 6 passed、0 failed、0 ignored |
+| `cargo test -p lang-codegen --lib unit_lower::nullable_proof` | 1 passed、0 failed、0 ignored |
+| `cargo test -p lang-codegen --lib utf8_error_offset_native` | 1 passed、0 failed、0 ignored |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings` | 通过 |
+
+公开 CLI 正向测试现已实际通过单文件和 project 的 import／check／build／直接运行及 CLI run，
+包括 checkedPlus 返回值读取、左右输入各求值一次、字节往返与错误分类；另一项覆盖导入／
+宿主授权拒绝。共享 scanner 的动态矩阵覆盖30组序列和全部256个单字节输入，不代替公共
+decodeUtf8 全矩阵。nullable native 回归覆盖重复读取、反向条件、合流后再次判断及空串非 null。
+内部 fault tests 核对错误 binding／owner／inner／niche／scope 与 pending operand／frame；
+独立审查发现 pending 拒绝可能被已结束基本块掩盖，已改为精确 UnsupportedNode 和状态不变
+断言，并复核通过。per-family 的未实现控制转移拒绝不作为所有入口均不支持的结论。
+
+本补片尚未取得最终 head 双宿主 CI；字段／临时借用、容器持有结果、公共完整 scalar／错误
+矩阵和所有分支直接 return 等剩余范围仍需逐项验收。保持 in-progress，不归档或宣称完整完成。
+Rustfmt、文档结构（821 篇）、diff 及尺寸门禁通过；2012 个手写 Rust 文件中仍有39个历史
+超限文件，本补片未增加尺寸例外。旧输入 `8db23df7` 的双宿主 Check／Clippy 已通过，
+[Linux 行为作业](https://github.com/Halckon/Koven/actions/runs/40936020064/job/123672278781)
+为2486 passed、5 failed、0 ignored：四项 UByte 夹具类型错误和一项 nullable String 读取
+MissingFact，均对应本补片本地已通过的用例。后续集成门禁被跳过，不能据此声称远端通过。
