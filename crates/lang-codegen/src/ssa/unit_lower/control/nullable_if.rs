@@ -34,11 +34,21 @@ impl UnitExpressionLowerer<'_> {
         result_required: bool,
         span: Span,
     ) -> Result<Option<NullableIfEntry>, LoweringError> {
-        if result_required || !self.nullable_proofs.is_empty() {
+        if !self.nullable_proofs.is_empty() {
             return Ok(None);
         }
-        if let Some(entry) = self.prepare_string_nullable_if_entry(control, condition, span)? {
+        let diverges = self
+            .typed
+            .expression_type(control)
+            .is_some_and(|ty| builtin_type(self.typed, ty) == Some(BuiltinType::Nothing));
+        // Nothing has no normal result to deliver, but its return arms still need proofs.
+        if (!result_required || diverges)
+            && let Some(entry) = self.prepare_string_nullable_if_entry(control, condition, span)?
+        {
             return Ok(Some(entry));
+        }
+        if result_required {
+            return Ok(None);
         }
         if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
             return Ok(Some(entry));

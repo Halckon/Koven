@@ -517,8 +517,8 @@ text／用户源四个身份及顺序，保留后续原用户入口选择断言�
 | 严格解码与错误偏移 | CLI 同一矩阵的17类非法输入与独立 Rust oracle；`utf8_error_offset_native_matches_strict_sequence_boundaries` | 已有局部动态通过；不以字符数替代字节偏移 |
 | 字节切片 | CLI 同一矩阵的205组端点组合，核范围优先级、scalar 边界及空切片 | 已有局部动态通过 |
 | 可恢复连接 | `standard_checked_plus_returns_null_only_for_length_overflow_and_aborts_on_oom`；公开 CLI 左右各一次求值与结果输出 | 合成上限／OOM 与正常小输入分别验证；不声称 GB 成功复制 |
-| 所有权与控制流 | codegen `text_` 47项与 CLI `text_bytes` 15项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果及直接返回记录 | 已覆盖记录中的具体形状；String If 的独立owner与已有proof根交付已有动态证据；无借用witness的纯根return、pending调用内根交付及其他If退出仍未开放 |
-| 公共入口 | `native_cli text_bytes` 对单文件／project 各执行 check、build 后直接运行及 CLI run | 10项通过、无忽略；不替代旧 raw API 的跨源合同 |
+| 所有权与控制流 | codegen `text_` 48项与 CLI `text_bytes` 16项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果及直接返回记录 | 已覆盖记录中的具体形状；String If 的独立owner与已有proof根交付已有动态证据；纯根return已接入原非空事实；实参内移动已借用receiver根由L0135拒绝，其他If退出仍限已记录形状 |
+| 公共入口 | `native_cli text_bytes` 对单文件／project 各执行 check、build 后直接运行及 CLI run | 16项通过、无忽略；不替代旧 raw API 的跨源合同 |
 | 回归与平台 | 历史输入完整 codegen 库测试、官方双宿主 CI、独立复核、Clippy／尺寸／文档门禁 | 独立复核及局部门禁已通过；修复后的最终双宿主 CI 待完成，暂不归档 |
 
 Guide02 与 accepted ADR-0031 已要求生产单文件／project 共用 unit 管线。第2节“两前端
@@ -671,3 +671,30 @@ hash与历史baseline，要求精确输出；N08与后缀?探针仍未完成。
 能力通过（121 run、14 diagnostic、3 abort），其余16探针及6验收程序为已知未实现，
 不是成功覆盖。regression／unexpected_pass／wrong_output／mode_mismatch／internal_error
 均为0。此结果绑定930bdbad生产输入与上述binary；最终提交的双宿主CI仍须另行验收。
+
+
+### 无先行借用的 String 根 return（2026-10-30）
+
+基于 `6ca8925aea6a208c1cd0440f2831e4d08048cd1a`，真实标准源正例先复现InvalidSsa：
+非空分支没有loan／receiver使用时未建立String proof，直接返回不能正确交付。现在以分支
+内实际Name／Group Return的source-qualified非空使用事实作为另一witness，要求同一根及
+declared／narrowed类型；复用既有enclosing_lambda排除嵌套callable。实际take、transfer、
+drop仍走上片原协议，没有增加第二套清理。
+
+初步接入后，双臂直接return的If仍被result_required gate跳过，产生对nullable owner再次
+NullableWrap的operation合同错误。其typed类型为Nothing，没有正常结果；仅为String在
+该类型时准入proof，保留原ControlResult及两臂Diverged处理。Rc／Heap／Map的gate未放宽。
+初始native正例1项通过，0 failed、0 ignored：own参数／局部checkedPlus、String／String?、
+反向null条件else与真实返回内容共3次分配。随后加入非空分支内nested If双返回、null与stop
+四组合，最终1项native测试通过、无失败或忽略；5次分配、完整stdout／逐指针释放均通过。
+独立full-pass两轮核对源码身份、Nothing准入、lambda边界及新增组合，未发现阻断问题。
+公开CLI 16项、text_ 48项、nullable 188项、while_proof 4项均通过，0 failed、0 ignored
+（过滤集合有重叠）；codegen／CLI all-targets严格Clippy、Rustfmt、821篇文档结构、diff
+与尺寸门禁通过。2024个Rust文件、39项历史超限，未新增例外。最终双宿主CI仍待验收。
+
+
+本轮另更正前文对pending receiver根返回的待办分类：实际公共源码
+`joined.checkedPlus(if (stop) { return joined } else { "!" })` 在single／project两种
+`check`均以L0135拒绝，span精确指向被移动的joined并标出receiver loan起点，未进入native。
+这符合Guide10调用期loan在后续实参求值期间已有效的合同，应保留拒绝而非实现绕过；
+前文“未接入”的表述不能当作已批准扩展清单。本片不修改前端或放宽活动借用冲突。

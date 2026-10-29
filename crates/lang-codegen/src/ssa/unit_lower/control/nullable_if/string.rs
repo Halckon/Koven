@@ -53,7 +53,7 @@ impl UnitExpressionLowerer<'_> {
         let body = self.statement_span(non_null)?;
         let root = comparison.symbol();
         // Do not mint an unused proof for ordinary null-status checks. The witness
-        // must be an actual narrowed root loan within this non-null arm.
+        // must be an actual narrowed root loan or direct owner return in this arm.
         let argument_witness = self.owned.loans().iter().any(|fact| {
             fact.kind() == FrontendLoanKind::Shared
                 && fact.call().source_unit() == self.source_unit
@@ -80,7 +80,32 @@ impl UnitExpressionLowerer<'_> {
                         && use_fact.declared_type() == declared && use_fact.narrowed_type() == *narrowed
                 })
         });
-        if !argument_witness && !receiver_witness {
+        let return_witness = self.parsed.ast().expressions().iter().any(|(_, node)| {
+            let Expression::Return {
+                value: Some(value), ..
+            } = node.payload()
+            else {
+                return false;
+            };
+            let returned = node.span();
+            returned.source_id() == body.source_id()
+                && body.start() <= returned.start()
+                && returned.end() <= body.end()
+                && super::super::super::map_iteration::enclosing_lambda(self.parsed, returned)
+                    .is_none()
+                && self
+                    .direct_place_symbol(*value, returned)
+                    .is_ok_and(|symbol| symbol == root)
+                && self
+                    .typed
+                    .non_null_use(UnitExpressionId::new(self.source_unit, *value))
+                    .is_some_and(|use_fact| {
+                        use_fact.symbol() == root
+                            && use_fact.declared_type() == declared
+                            && use_fact.narrowed_type() == *narrowed
+                    })
+        });
+        if !argument_witness && !receiver_witness && !return_witness {
             return Ok(None);
         }
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {

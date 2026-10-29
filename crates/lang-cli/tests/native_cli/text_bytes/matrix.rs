@@ -605,3 +605,52 @@ fun main(): Unit {
 "#;
     check_build_run_both_modes(program, b"ab\nab\nab\nabsent\nabsent\ncd\ncd\ncd\nnull\n");
 }
+
+#[test]
+fn public_text_nullable_roots_return_without_borrows_in_both_modes() {
+    let program = r#"fun owned(own text: String?): String {
+    if (text != null) { return ((text)) }
+    return "absent"
+}
+fun preserved(own text: String?): String? {
+    if (text == null) { return text } else { return ((text)) }
+}
+fun local(present: Boolean): String {
+    val text = if (present) { "a".checkedPlus("b") } else { null }
+    if (text != null) { return text }
+    return "missing"
+}
+fun forked(own text: String?, stop: Boolean): String {
+    if (text != null) {
+        if (stop) { return text } else { return ((text)) }
+    }
+    return "empty"
+}
+fun main(): Unit {
+    val first: String? = "owned".clone()
+    println(owned(first))
+    val absent: String? = null
+    println(owned(absent))
+    val second: String? = "wrapped".clone()
+    val result = preserved(second)
+    if (result != null) { println(result) }
+    val none: String? = null
+    val empty = preserved(none)
+    if (empty != null) { error("unexpected") }
+    println(local(true))
+    println(local(false))
+    val left: String? = "branch".clone()
+    println(forked(left, true))
+    val right: String? = "branch".clone()
+    println(forked(right, false))
+    val nullLeft: String? = null
+    println(forked(nullLeft, true))
+    val nullRight: String? = null
+    println(forked(nullRight, false))
+}
+"#;
+    check_build_run_both_modes(
+        program,
+        b"owned\nabsent\nwrapped\nab\nmissing\nbranch\nbranch\nempty\nempty\n",
+    );
+}
