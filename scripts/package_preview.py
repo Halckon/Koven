@@ -246,7 +246,6 @@ def material(source, destination, package, label, mapping=None):
 
 
 def crate_materials(components, root, package):
-    by_identity = {(row['name'], row['version']): row for row in components}
     records = []
     for original in components:
         row = {key: (sorted(value) if key == 'roles' else value)
@@ -268,10 +267,13 @@ def crate_materials(components, root, package):
                     raise ValueError('crate license-file escapes the packaged registry source')
                 if file not in paths:
                     paths.append(file)
-            if not paths and (name, version) == ('inkwell_internals', '0.15.0'):
-                upstream = by_identity.get(('inkwell', '0.10.0'))
-                if upstream is None:
-                    raise ValueError('inkwell macro license requires actual inkwell root artifact')
+            if not paths and name == 'inkwell_internals':
+                # The proc-macro crate ships no license file of its own; attribute the root
+                # crate's LICENSE by matching crate name, never by pinned version.
+                roots = [candidate for candidate in components if candidate['name'] == 'inkwell']
+                if len(roots) != 1:
+                    raise ValueError('inkwell macro license requires exactly one inkwell root artifact')
+                upstream = roots[0]
                 vcs = json.loads((directory / '.cargo_vcs_info.json').read_text(encoding='utf-8'))
                 root_vcs = json.loads((upstream['_directory'] / '.cargo_vcs_info.json').read_text(encoding='utf-8'))
                 commit = vcs.get('git', {}).get('sha1')
@@ -281,7 +283,7 @@ def crate_materials(components, root, package):
                     raise ValueError('inkwell root/macro license VCS mapping mismatch')
                 destination = f'licenses/crates/{name}-{version}/LICENSE'
                 materials.append(material(upstream['_directory'] / 'LICENSE', destination, package,
-                                          'inkwell-0.10.0/LICENSE',
+                                          f"inkwell-{upstream['version']}/LICENSE",
                                           f'same VCS commit {commit}; root license applies to internal_macros'))
             else:
                 for path in paths:

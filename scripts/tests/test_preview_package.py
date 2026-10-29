@@ -249,6 +249,23 @@ class PreviewPackageProtocol(unittest.TestCase):
         self.output = self.base / 'mismatched-commit'
         self.assertEqual(self.package(), 1)
 
+    def test_macro_root_license_fallback_follows_current_crate_versions(self):
+        # The macro crate never ships a license file; the fallback must key on the crate name,
+        # not on the inkwell versions that happened to be current when it was introduced.
+        self.artifacts.pop(2)
+        self.packages.pop(2)
+        root = self.add_package('inkwell', '0.11.0', license_text=False)
+        (root / 'LICENSE').write_text('mock Apache 2.0')
+        (root / '.cargo_vcs_info.json').write_text(json.dumps({'git': {'sha1': 'e' * 40}, 'path_in_vcs': ''}))
+        macro = self.add_package('inkwell_internals', '0.16.0', kind='proc-macro', opt='0', license_text=False)
+        (macro / '.cargo_vcs_info.json').write_text(json.dumps({'git': {'sha1': 'e' * 40}, 'path_in_vcs': 'internal_macros'}))
+        self.normal += 'inkwell v0.11.0\n'
+        self.write_lock()
+        self.assertEqual(self.package(), 0)
+        internals = next(row for row in self.manifest()['components']['crates'] if row['name'] == 'inkwell_internals')
+        self.assertEqual(internals['materials'][0]['path'], 'licenses/crates/inkwell_internals-0.16.0/LICENSE')
+        self.assertEqual(internals['materials'][0]['source'], 'inkwell-0.11.0/LICENSE')
+
     def test_produced_mock_package_satisfies_external_consumer_preflight(self):
         self.assertEqual(self.package(), 0)
         spec = importlib.util.spec_from_file_location('preview_consumer_package_test', ROOT / 'scripts/check_preview_install.py')
