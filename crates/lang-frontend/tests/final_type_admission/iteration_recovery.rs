@@ -389,20 +389,19 @@ fn assert_unit_trial(
         })
         .collect::<Vec<_>>();
     assert_eq!(parameters.len(), 1);
-    let parameter = UnitSymbolId::new(source, parameters[0].id());
+    let is_parameter = |candidate: &UnitSymbolId| {
+        candidate.source_unit() == source && candidate.symbol() == parameters[0].id()
+    };
     let id = |local| UnitExpressionId::new(source, local);
     if !selected {
-        assert_eq!(
-            typed.body_parameter_mode(parameter),
-            None,
-            "trial mode rolled back"
+        assert!(
+            !typed.body_parameter_modes().keys().any(is_parameter),
+            "trial mode not published for the actual source-qualified lambda parameter"
         );
-        assert_eq!(
-            typed.symbol_type(parameter),
-            None,
+        assert!(
+            !typed.body_symbol_types().keys().any(is_parameter),
             "trial parameter type not published"
         );
-        assert!(!typed.body_symbol_types().contains_key(&parameter));
         assert_eq!(
             typed.expression_type(id(lambda)),
             None,
@@ -447,6 +446,11 @@ fn assert_unit_trial(
         }));
         return;
     }
+    let parameter = *typed
+        .body_parameter_modes()
+        .keys()
+        .find(|candidate| is_parameter(candidate))
+        .expect("committed parameter identity comes from the actual Unit producer");
     let int = typed.types().builtin(BuiltinType::Int).unwrap();
     assert_eq!(typed.symbol_type(parameter), Some(int));
     assert_eq!(
