@@ -174,3 +174,11 @@ InvalidRange 优先级、非法 continuation／截断起始偏移、checkedPlus�
 SSA 或 sanitizer 证据。标准资产存在测试与 loader 身份／完整类型所有权测试已同步。
 公共源码与新测试已经过独立静态复核，尚未编译和运行；Result<String, TextError> 的完整
 native 使用与所有验收矩阵仍需实际验证，保持 in-progress。
+
+新增 checkedPlus 受控 native 探针直接读取标准源码中的实际函数体：合成合法输入长度
+Int.MAX_VALUE + 0 必须到达分配器，+1 必须不分配并返回 null；小合法长度模拟 malloc
+失败必须产生 allocation-failed Abort。不可读 bytes 用于暴露提前访问，不证明 GB 成功复制或
+析构。公共 CLI 场景增加 left／right 标记与 xy 输出，要求左右各求值一次及真实小输入结果。
+独立静态审阅已核对源选择、ABI、守卫／分配顺序和预期输出，无确认缺陷；新增用例尚未运行。
+当前远端 `4fad95e6` 的 Linux Check／Clippy 已通过，macOS Check／Clippy 仍排队，继续跟踪
+[同一 CI](https://github.com/Halckon/Koven/actions/runs/40932966990)，不将排队记作通过。

@@ -22,7 +22,11 @@ fun invalidUtf8(bytes: Array<UByte>, expected: Int): Unit {
         }
     }
 }
+fun leftText(): String { println("left"); return "x".clone() }
+fun rightText(): String { println("right"); return "y".clone() }
 fun main(): Unit {
+    val ordered = leftText().checkedPlus(rightText())
+    if (ordered != null) { println(ordered) } else { error("small ordered concatenation failed") }
     val source = "A\u{0}é".clone()
     if (source.byteLength() != 4) { error("byte length") }
     val bytes = source.toBytes()
@@ -72,7 +76,7 @@ fun main(): Unit {
 }
 "#;
 const EXPECTED: &[u8] =
-    b"A\0\xc3\xa9\n\xc3\xa9\nboundary\nrange\nA\0\xc3\xa9!\nA\0\xc3\xa9\nA\0\xc3\xa9\n";
+    b"left\nright\nxy\nA\0\xc3\xa9\n\xc3\xa9\nboundary\nrange\nA\0\xc3\xa9!\nA\0\xc3\xa9\nA\0\xc3\xa9\n";
 
 #[test]
 fn public_text_byte_apis_check_build_and_run_in_single_and_project_modes() {
