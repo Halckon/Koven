@@ -1,5 +1,5 @@
 //! SPEC-0331：完整 for pattern 恢复必须继续访问独立 body，且不级联污染 binding。
-//! 三个真实源的 single/unit 六次观察先全部收齐，再比较完整有序 Diagnostic。
+//! 三个真实源的 rooted/MemoryDocument Unit 六次观察先全部收齐，再比较完整有序 Diagnostic。
 
 use crate::map_binding_analysis as analysis;
 #[path = "pattern_recovery_neighbors/facts.rs"]
@@ -12,7 +12,7 @@ use lang_frontend::{
     type_checking::{FinalTypeAdmissionError, FinalTypeAdmissionInternalError},
 };
 
-use analysis::{Analysis, Blocked, Entry, Observation, blocked, diagnostics, observe};
+use analysis::{Blocked, Entry, Observation, blocked, diagnostics, observe};
 use facts::facts;
 use sites::{Body, Sites, sites};
 
@@ -122,10 +122,8 @@ fn assess(case: Case, observation: &Observation) -> (bool, String) {
             return (false, report);
         }
     };
-    let (raw, complete) = match &observed.analysis {
-        Analysis::Single(analysis) => (analysis.raw.diagnostics(), &analysis.complete),
-        Analysis::Unit(analysis) => (analysis.raw.diagnostics(), &analysis.complete),
-    };
+    let raw = observed.analysis.raw.diagnostics();
+    let complete = &observed.analysis.complete;
     // 原始顺序和完整 payload 先保留；AST/facts oracle 失败不能吞 complete 的 Internal。
     match complete {
         Err(FinalTypeAdmissionError::Diagnostics(items)) => {
@@ -190,11 +188,11 @@ fn for_pattern_recovery_preserves_independent_body_roots_in_both_entries() {
         Case::SequentialArity,
         Case::PoisonedBinding,
     ] {
-        for entry in [Entry::Single, Entry::Unit, Entry::MemoryUnit] {
+        for entry in [Entry::Unit, Entry::MemoryUnit] {
             observations.push((case, observe(case.text(), entry)));
         }
     }
-    // 九次真实流水线全部返回之后，才评估全部 oracle、打印完整集合并统一断言。
+    // 六次 Unit 流水线全部返回之后，才评估全部 oracle、打印完整集合并统一断言。
     let assessments = observations
         .iter()
         .map(|(case, observation)| assess(*case, observation))
@@ -203,8 +201,8 @@ fn for_pattern_recovery_preserves_independent_body_roots_in_both_entries() {
         println!("{report}");
     }
     assert!(
-        assessments.len() == 9 && assessments.iter().all(|(passed, _)| *passed),
-        "SPEC-0331: all nine ordinary observations must preserve complete ordered diagnostics; independent body adds exactly AST fooBar L0080 beside original L0160, arity and poisoned uses retain their original full diagnostic without cascades.\n{}",
+        assessments.len() == 6 && assessments.iter().all(|(passed, _)| *passed),
+        "SPEC-0331: all six Unit observations must preserve complete ordered diagnostics; independent body adds exactly AST fooBar L0080 beside original L0160, arity and poisoned uses retain their original full diagnostic without cascades.\n{}",
         assessments
             .iter()
             .map(|(_, report)| report.as_str())
