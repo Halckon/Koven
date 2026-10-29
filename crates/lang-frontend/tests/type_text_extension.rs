@@ -112,7 +112,7 @@ fn trusted_text_receiver_uses_the_canonical_callable_and_owned_result() {
 fn owned_text_results_keep_receiver_identity_inside_the_body() {
     for (declaration, call, kind) in [
         (
-            "borrow fun String.toBytes(): Array<UByte> = Array<UByte>(0, { index -> 0 })",
+            "borrow fun String.toBytes(): Array<UByte> = Array<UByte>(0, { index -> 0u })",
             "fun run(text: String): Array<UByte> = text.toBytes()",
             TextExtensionKind::ToBytes,
         ),
