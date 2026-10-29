@@ -1,19 +1,20 @@
 //! SPEC-0331：六个 clean 非法 Map pattern 与一个 nominal 同名邻控。
-//! 单个普通 exact 先采齐 single/rooted Unit/MemoryDocument Unit 二十一路，再核完整原始诊断和 AST 身份。
+//! 单个普通 exact 先采齐 rooted/MemoryDocument Unit 十四路，再核完整原始诊断和 AST 身份。
 
 use crate::map_binding_analysis as analysis;
 #[path = "map_binding_controls/facts.rs"]
 mod facts;
 
 use lang_frontend::{
-    diagnostic::{Diagnostic, DiagnosticDetail, Severity},
+    diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
     type_checking::{
         FinalTypeAdmissionError, FinalTypeAdmissionInternalError, IntrinsicTypeConstructor,
     },
 };
 
-use analysis::{Analysis, Entry, Observation, diagnostics, observe};
+use analysis::{Entry, Observation, diagnostics, observe};
 use facts::{Sites, facts, sites};
+use lang_frontend::source::SourceMap;
 
 struct Case {
     id: &'static str,
@@ -83,23 +84,36 @@ const CASES: [Case; 7] = [
     },
 ];
 
-fn raw_matches(case: &Case, sites: &Sites, raw: &[Diagnostic]) -> bool {
-    let [diagnostic] = raw else { return false };
-    let (code, primary) = if case.constructor.is_some() {
-        ("L0160", sites.binding_span)
+fn raw_matches(case: &Case, sites: &Sites, sources: &SourceMap, raw: &[Diagnostic]) -> bool {
+    let catalog = DiagnosticCodeCatalog::try_new(&["L0159", "L0160"]).unwrap();
+    let (code, message, primary) = if case.constructor.is_some() {
+        (
+            "L0160",
+            "Map iteration requires exactly two named bindings (key, value)",
+            sites.binding_span,
+        )
     } else {
-        ("L0159", sites.source_span)
+        (
+            "L0159",
+            "for source requires a compiler-bound sequential container, View, IntRange or LongRange",
+            sites.source_span,
+        )
     };
-    let label_matches = match sites.nominal {
-        Some((_, declaration_span)) => {
-            matches!(diagnostic.details(), [DiagnosticDetail::Label(label)] if label.span() == declaration_span)
-        }
-        None => true,
-    };
-    diagnostic.severity() == Severity::Error
-        && diagnostic.code().to_string() == code
-        && diagnostic.primary_span() == primary
-        && label_matches
+    let mut expected = Diagnostic::new(
+        sources,
+        Severity::Error,
+        catalog.resolve(code).unwrap(),
+        message,
+        primary,
+    )
+    .unwrap();
+    if let Some((_, declaration_span)) = sites.nominal {
+        expected
+            .add_label(sources, declaration_span, "type declared here")
+            .unwrap();
+    }
+    // Freeze the full historical diagnostic before dropping the compatibility branch.
+    raw == std::slice::from_ref(&expected)
 }
 
 fn assess(case: &Case, observation: &Observation) -> (bool, String) {
@@ -119,10 +133,8 @@ fn assess(case: &Case, observation: &Observation) -> (bool, String) {
             return (false, report);
         }
     };
-    let (raw, complete) = match &observed.analysis {
-        Analysis::Single(analysis) => (analysis.raw.diagnostics(), &analysis.complete),
-        Analysis::Unit(analysis) => (analysis.raw.diagnostics(), &analysis.complete),
-    };
+    let raw = observed.analysis.raw.diagnostics();
+    let complete = &observed.analysis.complete;
     // 在任何 AST/facts oracle 前保存完整 complete 结果，后续失败不能吞掉 Internal。
     match complete {
         Err(FinalTypeAdmissionError::Diagnostics(items)) => {
@@ -163,7 +175,7 @@ fn assess(case: &Case, observation: &Observation) -> (bool, String) {
         }
     };
     let retained = observed.fixture.lexed.source_id() == observed.fixture.file.source_id();
-    let exact_raw = raw_matches(case, &sites, raw);
+    let exact_raw = raw_matches(case, &sites, &observed.fixture.sources, raw);
     // Diagnostic 的全值相等包含 severity、message、完整 primary 和有序 details。
     let same_diagnostics = matches!(complete, Err(FinalTypeAdmissionError::Diagnostics(items)) if items.as_slice() == raw);
     let passed = retained
@@ -183,11 +195,11 @@ fn assess(case: &Case, observation: &Observation) -> (bool, String) {
 fn invalid_map_bindings_and_nominal_lookalike_preserve_diagnostics_in_both_entries() {
     let mut observations = Vec::new();
     for case in &CASES {
-        for entry in [Entry::Single, Entry::Unit, Entry::MemoryUnit] {
+        for entry in [Entry::Unit, Entry::MemoryUnit] {
             observations.push((case, observe(case.text, entry)));
         }
     }
-    // 二十一次真实分析全部结束后才评估、完整输出，再作唯一的集合目标断言。
+    // 十四次 Unit 分析全部结束后才评估、完整输出，再作唯一的集合目标断言。
     let assessments = observations
         .iter()
         .map(|(case, observation)| assess(case, observation))
@@ -197,8 +209,8 @@ fn invalid_map_bindings_and_nominal_lookalike_preserve_diagnostics_in_both_entri
     }
     assert_eq!(
         assessments.len(),
-        21,
-        "seven source fixtures × three entries"
+        14,
+        "seven source fixtures × two Unit entries"
     );
     assert!(
         assessments.iter().all(|(passed, _)| *passed),

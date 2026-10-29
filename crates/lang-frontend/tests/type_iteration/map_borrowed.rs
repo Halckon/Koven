@@ -1,4 +1,4 @@
-//! SPEC-0331：普通源码 Map 借用迭代的四路 Phase 2 成功目标。
+//! SPEC-0331：普通源码 Map 借用迭代的 rooted/MemoryDocument Unit Phase 2 成功目标。
 //! 只消费真实 AST/name/raw/complete 产物；不假造 provider、Pair、field 或 ownership facts。
 
 use lang_frontend::{
@@ -6,17 +6,16 @@ use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::{LexedFile, lex},
     name_resolution::{
-        NameResolution, ReferenceTarget, SourceUnitInput, Symbol, SymbolKind, UnitReferenceTarget,
+        NameResolution, SourceUnitInput, SourceUnitKey, Symbol, SymbolKind, UnitReferenceTarget,
         UnitSymbolId, ValidatedCompilationUnitNames, index_compilation_unit,
-        resolve_compilation_unit_names, resolve_names,
+        resolve_compilation_unit_names,
     },
     parser::{Expression, ForBinding, Item, NameMarker, ParsedFile, Statement, parse_file},
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitTypes, FinalTypeAdmissionError, IntrinsicTypeConstructor,
-        TypeEnvironment, TypeKind, TypedFile, UnitExpressionId, UnitTypeKind,
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        TypeEnvironment, UnitExpressionId, UnitTypeKind, check_compilation_unit_types,
+        complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -24,7 +23,6 @@ const LOGICAL_PATH: &str = "iteration.ko";
 
 #[derive(Clone, Copy, Debug)]
 enum Entry {
-    Single,
     Unit,
     MemoryUnit,
 }
@@ -79,26 +77,15 @@ struct Fixture {
     types: TypeEnvironment,
 }
 
-struct SingleAnalysis {
-    names: NameResolution,
-    raw: TypedFile,
-    complete: Result<bool, FinalTypeAdmissionError>,
-}
-
 struct UnitAnalysis {
     names: ValidatedCompilationUnitNames,
     raw: CompilationUnitTypes,
     complete: Result<bool, FinalTypeAdmissionError>,
 }
 
-enum Analysis {
-    Single(Box<SingleAnalysis>),
-    Unit(Box<UnitAnalysis>),
-}
-
 struct Observed {
     fixture: Fixture,
-    analysis: Analysis,
+    analysis: UnitAnalysis,
 }
 
 struct Observation {
@@ -141,47 +128,44 @@ fn analyze(text: &str, entry: Entry) -> Result<Observed, Blocked> {
     let sources = &fixture.sources;
     let file = &fixture.file;
     let types = &fixture.types;
-    let analysis = match entry {
-        Entry::Single => {
-            let names = resolve_names(sources, file, &environment)
-                .map_err(|error| blocked("single names infrastructure", error))?;
-            require_clean(sources, "single names", names.diagnostics())?;
-            let raw = check_types(sources, file, &names, types)
-                .map_err(|error| blocked("single raw types infrastructure", error))?;
-            // 即使 raw 有诊断，也调用 complete；保留原分析身份，不重新分析或改写 facts。
-            let complete = complete_file_types(sources, file, &names, types, &raw)
-                .map(|final_types| final_types.is_same_analysis(&raw));
-            Analysis::Single(Box::new(SingleAnalysis {
-                names,
-                raw,
-                complete,
-            }))
+    let analysis = {
+        // rooted 路径仍与无 package 源匹配；MemoryDocument 不伪造路径身份。
+        let inputs = [if matches!(entry, Entry::MemoryUnit) {
+            SourceUnitInput::memory_document(file.source_id(), file)
+        } else {
+            SourceUnitInput::new("root", LOGICAL_PATH, source, file)
+        }];
+        let index = index_compilation_unit(sources, &inputs)
+            .map_err(|error| blocked("unit index infrastructure", error))?;
+        require_clean(sources, "unit index", index.diagnostics())?;
+        let names = resolve_compilation_unit_names(sources, &inputs, &index, &environment)
+            .map_err(|error| blocked("unit names infrastructure", error))?;
+        require_clean(sources, "unit names", names.diagnostics())?;
+        let names = names
+            .validate()
+            .map_err(|error| blocked("unit names qualification", error.diagnostics()))?;
+        let [indexed] = names.names().index().source_units() else {
+            return Err(blocked("unit identity", "one actual indexed source"));
+        };
+        let key_matches = match (entry, indexed.key()) {
+            (Entry::Unit, SourceUnitKey::Rooted { root, logical_path }) => {
+                root.as_str() == "root" && logical_path.as_str() == LOGICAL_PATH
+            }
+            (Entry::MemoryUnit, SourceUnitKey::MemoryDocument) => true,
+            _ => false,
+        };
+        if indexed.source_id() != source || !key_matches {
+            return Err(blocked("unit identity", indexed));
         }
-        Entry::Unit | Entry::MemoryUnit => {
-            // rooted 路径仍与无 package 源匹配；MemoryDocument 不伪造路径身份。
-            let inputs = [if matches!(entry, Entry::MemoryUnit) {
-                SourceUnitInput::memory_document(file.source_id(), file)
-            } else {
-                SourceUnitInput::new("root", LOGICAL_PATH, source, file)
-            }];
-            let index = index_compilation_unit(sources, &inputs)
-                .map_err(|error| blocked("unit index infrastructure", error))?;
-            require_clean(sources, "unit index", index.diagnostics())?;
-            let names = resolve_compilation_unit_names(sources, &inputs, &index, &environment)
-                .map_err(|error| blocked("unit names infrastructure", error))?;
-            require_clean(sources, "unit names", names.diagnostics())?;
-            let names = names
-                .validate()
-                .map_err(|error| blocked("unit names qualification", error.diagnostics()))?;
-            let raw = check_compilation_unit_types(sources, &inputs, &names, types)
-                .map_err(|error| blocked("unit raw types infrastructure", error))?;
-            let complete = complete_compilation_unit_types(sources, &inputs, &names, types, &raw)
-                .map(|final_types| final_types.is_same_analysis(&raw));
-            Analysis::Unit(Box::new(UnitAnalysis {
-                names,
-                raw,
-                complete,
-            }))
+
+        let raw = check_compilation_unit_types(sources, &inputs, &names, types)
+            .map_err(|error| blocked("unit raw types infrastructure", error))?;
+        let complete = complete_compilation_unit_types(sources, &inputs, &names, types, &raw)
+            .map(|final_types| final_types.is_same_analysis(&raw));
+        UnitAnalysis {
+            names,
+            raw,
+            complete,
         }
     };
     Ok(Observed { fixture, analysis })
@@ -340,78 +324,6 @@ struct Facts {
     existing_sequential_plan_count: usize,
 }
 
-fn single_facts(
-    names: &NameResolution,
-    raw: &TypedFile,
-    sites: &Sites,
-    constructor: IntrinsicTypeConstructor,
-) -> Facts {
-    let source_kind = raw
-        .expression_type(sites.source)
-        .and_then(|ty| raw.types().get(ty));
-    let source_matches = match source_kind {
-        Some(TypeKind::Intrinsic {
-            constructor: actual,
-            arguments,
-        }) => {
-            *actual == constructor
-                && arguments.len() == 2
-                && raw.types().get(arguments[0]) == Some(&TypeKind::Builtin(BuiltinType::Int))
-                && raw.types().get(arguments[1]) == Some(&TypeKind::Builtin(BuiltinType::String))
-        }
-        _ => false,
-    };
-    let mut facts = Facts {
-        source_kind: format!("{source_kind:?}"),
-        source_kv: match source_kind {
-            Some(TypeKind::Intrinsic { arguments, .. }) => arguments
-                .iter()
-                .map(|ty| format!("{:?}", raw.types().get(*ty)))
-                .collect(),
-            _ => Vec::new(),
-        },
-        source_matches,
-        binding_symbols: Vec::new(),
-        binding_types: Vec::new(),
-        read_types: Vec::new(),
-        binding_matches: [false; 2],
-        print_selected: raw.call(sites.print).is_some_and(|call| call.prints_line())
-            && raw
-                .expression_type(sites.print)
-                .and_then(|ty| raw.types().get(ty))
-                == Some(&TypeKind::Builtin(BuiltinType::Unit)),
-        existing_sequential_plan_count: raw.sequential_iterations().len(),
-    };
-    for (index, builtin) in [BuiltinType::Int, BuiltinType::String]
-        .into_iter()
-        .enumerate()
-    {
-        let symbol = binding(names, sites.binding_spans[index]);
-        let symbol_type = symbol.and_then(|symbol| raw.symbol_type(symbol.id()));
-        let read_type = raw.expression_type(sites.reads[index]);
-        let references = names
-            .references()
-            .iter()
-            .filter(|reference| reference.span() == sites.read_spans[index])
-            .collect::<Vec<_>>();
-        facts.binding_matches[index] = symbol.is_some_and(|symbol| {
-            matches!(references.as_slice(), [reference]
-                if reference.target() == &ReferenceTarget::Symbol(symbol.id()))
-        }) && symbol_type == read_type
-            && symbol_type.and_then(|ty| raw.types().get(ty)) == Some(&TypeKind::Builtin(builtin));
-        facts.binding_symbols.push(format!("{symbol:?}"));
-        facts.binding_types.push(format!(
-            "{:?}",
-            symbol_type.and_then(|ty| raw.types().get(ty))
-        ));
-        facts.read_types.push(format!(
-            "{:?}",
-            read_type.and_then(|ty| raw.types().get(ty))
-        ));
-    }
-    facts
-}
-
 fn unit_facts(
     names: &ValidatedCompilationUnitNames,
     raw: &CompilationUnitTypes,
@@ -422,6 +334,15 @@ fn unit_facts(
         return Err(blocked("unit identity", "expected one source unit"));
     };
     let unit = source_names.source_unit();
+    let [indexed] = names.names().index().source_units() else {
+        return Err(blocked("unit identity", "one indexed source"));
+    };
+    if indexed.id() != unit
+        || indexed.source_id() != sites.source_span.source_id()
+        || source_names.resolution().source_id() != sites.source_span.source_id()
+    {
+        return Err(blocked("unit identity", indexed));
+    }
     let expression = |id| UnitExpressionId::new(unit, id);
     let source_kind = raw
         .expression_type(expression(sites.source))
@@ -512,28 +433,17 @@ fn assess(observation: &Observation) -> (bool, String) {
             );
         }
     };
-    let (facts, raw_diagnostics, complete) = match &observed.analysis {
-        Analysis::Single(analysis) => (
-            Ok(single_facts(
-                &analysis.names,
-                &analysis.raw,
-                &sites,
-                observation.constructor,
-            )),
-            analysis.raw.diagnostics(),
-            &analysis.complete,
+    let analysis = &observed.analysis;
+    let (facts, raw_diagnostics, complete) = (
+        unit_facts(
+            &analysis.names,
+            &analysis.raw,
+            &sites,
+            observation.constructor,
         ),
-        Analysis::Unit(analysis) => (
-            unit_facts(
-                &analysis.names,
-                &analysis.raw,
-                &sites,
-                observation.constructor,
-            ),
-            analysis.raw.diagnostics(),
-            &analysis.complete,
-        ),
-    };
+        analysis.raw.diagnostics(),
+        &analysis.complete,
+    );
     let facts = match facts {
         Ok(facts) => facts,
         Err(error) => {
@@ -555,7 +465,7 @@ fn assess(observation: &Observation) -> (bool, String) {
             "complete types accepted; same_analysis={same_analysis}"
         )),
     }
-    // 所有四路完成之后才检查成功目标；现有 plan 数只观察，不硬定新 Map 的表示。
+    // 所有 Unit 观察完成之后才检查成功目标；现有 plan 数只观察，不硬定新 Map 的表示。
     let accepted = raw_diagnostics.is_empty()
         && matches!(complete, Ok(true))
         && facts.source_matches
@@ -592,23 +502,23 @@ fn map_and_mutable_map_named_borrowed_iteration_complete_in_both_entries() {
         (IntrinsicTypeConstructor::Map, "Map"),
         (IntrinsicTypeConstructor::MutableMap, "MutableMap"),
     ] {
-        for entry in [Entry::Single, Entry::Unit, Entry::MemoryUnit] {
+        for entry in [Entry::Unit, Entry::MemoryUnit] {
             observations.push(observe(constructor, spelling, entry));
         }
     }
     let assessments = observations.iter().map(assess).collect::<Vec<_>>();
-    // 先完整输出四次普通分析，再统一断言；首个 RED 不会掩盖其余三次结果。
+    // 先完整输出四次 Unit 分析，再统一断言；首个 RED 不会掩盖其余结果。
     for (_, report) in &assessments {
         println!("{report}");
     }
     assert_eq!(
         assessments.len(),
-        6,
-        "Map/MutableMap × single/rooted Unit/MemoryDocument Unit"
+        4,
+        "Map/MutableMap × rooted Unit/MemoryDocument Unit"
     );
     assert!(
         assessments.iter().all(|(accepted, _)| *accepted),
-        "SPEC-0331 Phase 2 success target: all six ordinary analyses must accept, retain intrinsic K/V and real body binding types, and complete with original identity. BLOCKED/INTERNAL is not feature RED.\n{}",
+        "SPEC-0331 Phase 2 success target: all four ordinary analyses must accept, retain intrinsic K/V and real body binding types, and complete with original identity. BLOCKED/INTERNAL is not feature RED.\n{}",
         assessments
             .iter()
             .map(|(_, report)| report.as_str())

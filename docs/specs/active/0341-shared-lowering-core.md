@@ -733,3 +733,83 @@ x02 双 UnsupportedNode，w06 双前端 L0135 但主诊断文本不同。两份 
 
 上述仅为实现及静态核验候选，不宣称已通过编译或行为验收，不恢复 #220 已撤下的两个 Unit 对照。
 没有本地 cargo/build/check/test/clippy/native 执行，没有推送、创建或合并 PR。
+
+
+## 52. 迭代 Single 测试入口有界退休候选（2026-10-29）
+
+基线 `8a0b336cf6d8f29b0a7c8bbf74a36520017679af`（#220/#223 均已合入）；独立本地分支
+`fix/spec-0341-iteration-single-retirement`。本节记录静态候选，不是已执行/已合入的退休验收。
+仅修改六个既有 Phase 2 测试/helper 文件；无 production、Guide、fixture、target/runner、ownership
+或其他工作树变化，不推送、不创建 PR。Architecture 所述生产事实无变化；本批不改写其历史验收。
+
+### 52.1 27 个现有对照逐项审计
+
+A01–A03 位于 `integer_range_iteration.rs`，A04–A05 位于 `integer_range_iteration_ownership.rs`；
+A06–A12 位于 `ownership_iteration/map_borrowed` 家族，A13–A15 位于 `type_iteration` 家族。
+B01–B12 对应 `type_iteration.rs` 原测试和 `type_iteration_unit.rs` 的 12 个 counterpart；
+后者仍真实运行旧 Single producer 并比较完整 raw/final diagnostics，不能算已退休。
+P2 行 cleanup/独立 loan-end 为不适用，不由本批新增能力；所有 P3 行及原独立 ledger 查询保留。
+“保留”不等于已证明不等价：本批优先把完整 producer caller 文件归零，不拆成隐藏旧调用的新 helper。
+
+| ID | 原测试（名字保持不变） | 候选处置 | 诊断、身份、cleanup/loan-end 审计 |
+|---|---|---|---|
+| A01 | `range_sources_publish_owned_endpoint_delivery` | 保留 | P2；空 names/raw + complete 成功、Int/Long provider/value/source 身份相当；与 A03 共用 producer，本批不拆 helper。 |
+| A02 | `range_iteration_accepts_existing_control_exit_syntax` | 保留 | P2；N/C/B/R、discard 结构与 A01 同 oracle；不以语法接受证明 cleanup，仍与 A03 共用 producer。 |
+| A03 | `invalid_numeric_sources_preserve_borrow_provider_controls` | 保留 | P2；拒绝仅核 L0159/code/span，未固定完整 message/details；Borrow provider 正控保留，不把 code-only 当全诊断等价。 |
+| A04 | `numeric_snapshots_allow_owned_items_source_reassignment_and_local_cleanup` | 保留 | P2/P3；两侧核 OwnedSnapshot/Owned binding/无 EndSource；Single 独立 validate_iteration_facts 保留，producer 与 A05 共用。 |
+| A05 | `numeric_inner_loop_preserves_outer_container_borrow` | 保留：不等价 | 完整 L0135 文案和有序 labels 已知不同：Single active iteration source loan；Unit move/active loan 并含 parameter label。两套整值 oracle 均保留。 |
+| A06 | `owned_borrowed_and_temporary_sources_preserve_bindings_and_cleanup` | 保留 | P1–P4；实际 root/temporary、K/V Shared 与 owner/cleanup/phi；保留 Single flat cleanup 观察及独立 A09，不以 Unit plan 投影替代全局 ledger。 |
+| A07 | `borrowed_move_only_key_and_value_reject_owned_delivery` | 保留 | N1/N2；当前 rejection predicate 只核唯一 L0133/code，不证明完整诊断等价；真实 binding/call 身份及错误原子性保留。 |
+| A08 | `active_sources_reject_consume_and_owned_return` | 保留 | N3/N4；当前 predicate 只核唯一 L0135/code；不外推与 Unit 的消息/labels 等价，来源 active-loan 保护仍保留。 |
+| A09 | `public_map_facts_preserve_exact_identity_and_cleanup_in_both_entries` | 保留：独立证据 | Single 对 flat cleanup_steps 做全表 orphan/点位核验；Unit 按出口点查 iteration_cleanup_at。保留全局查询、Drop owner/order 与 EndBinding→FinishProvider→EndSource。 |
+| A10 | `direct_borrow_return_source_keeps_unproven_continuation_boundary` | 保留 | L0164 只核 code、call primary 与存在 borrow label，未固定完整有序 payload；borrow_results bindings/ends/call_uses/forwarded_source_loans 的错误原子性均保留。 |
+| A11 | `source_return_and_dead_tail_do_not_acquire_map_providers` | 保留 | D1/D2；source-return/dead-tail 的 raw typed 描述符与无 Acquire ownership/cleanup 边界；独立 validation 及 A12 query 不改。 |
+| A12 | `public_unacquired_map_facts_preserve_typed_identity_without_owned_plans` | 保留：独立证据 | Single 查询完整 flat cleanup_steps；Unit 核实际 For/return/body 的有限点无 cleanup。不能把有限点缺席代替全表无 orphan/未 Acquire。 |
+| A13 | `map_and_mutable_map_named_borrowed_iteration_complete_in_both_entries` | 转换为 Unit-only | P2；原 source 字节、K:Int/V:String、ForBinding/read 同一 symbol/type、println 已选 Unit 返回、空 raw/complete 原身份成功全保；真实 key/source/index 身份加强。 |
+| A14 | `invalid_map_bindings_and_nominal_lookalike_preserve_diagnostics_in_both_entries` | 转换为 Unit-only | P2；7 源的 intrinsic/nominal 身份、真实 markers、无 partial plan 保留；将原部分 raw predicate 加强为完整 L0160/L0159 文案/primary/有序 label 整值 oracle，再保 complete==raw。 |
+| A15 | `for_pattern_recovery_preserves_independent_body_roots_in_both_entries` | 转换为 Unit-only | P2；3 源原完整有序 raw/complete Diagnostic constructor 不变；保 L0160+独立 fooBar L0080、L0118 label、Error binding/derived、原 Deferred member/无 call 与真实 source key。 |
+| B01 | `non_provider_source_is_rejected_at_the_complete_source_span` | 保留 | 12 项 Unit counterpart 共用严格完整 Single raw/final 对照；本项保原 source-span/L0159。删除 comparator 前须冻结逐源完整 golden。 |
+| B02 | `binding_type_is_available_before_the_body_is_checked` | 保留 | binding-before-body 单诊断与完整 comparator；不把“仍有一条错误”当作完整 payload 等价证明。 |
+| B03 | `range_view_publishes_a_distinct_shared_provider_without_owned_container_identity` | 保留 | RangeView/Borrow 身份与完整 comparator；单删旧测试只属去重，不使共用 Single caller 文件退休。 |
+| B04 | `three_providers_publish_name_discard_and_ordered_borrowed_components` | 保留 | Array/List/MutableList、name/discard/ordered K/V projection、repeatability 与完整 comparator；不转移/重建 Single 观察。 |
+| B05 | `invalid_patterns_do_not_publish_partial_plans` | 保留 | 逐 pattern 的码/完整 span/原子无 plan；完整 raw/final equality 仍依赖共用 Single comparator。 |
+| B06 | `move_only_element_is_typed_without_phase_three_rejections` | 保留 | 类型阶段成功不代表所有权成功；保 P2 comparator，未借它删除 P3 witness。 |
+| B07 | `user_named_types_and_methods_do_not_acquire_provider_identity` | 保留 | 同名 nominal List/Iterable/Iterator 拒绝及无 provider plan；完整诊断仍由 comparator 锁住。 |
+| B08 | `body_errors_and_poisoned_source_do_not_publish_plans` | 保留 | body/poisoned-source recovery 及错误原子性；不按“双方拒绝”简化精确诊断对照。 |
+| B09 | `late_generic_bound_failure_invalidates_iteration_plans` | 保留 | 后置 bound failure 原子撤销计划与完整 comparator；不以有错误替代逐值相等。 |
+| B10 | `declaration_and_fixture_order_preserve_projected_types_and_diagnostics` | 保留：ordering | declaration/fixture 反序、field/binding 类型、labels 顺序及 repeated source 顺序独立要求均保留。 |
+| B11 | `nominal_rejections_label_the_source_or_element_declaration` | 保留：labels | nominal source/element 的完整原始 label、span/order 与 comparator 保留，未降为 label 存在或 code-only。 |
+| B12 | `source_modes_and_nested_loops_preserve_unique_source_identities` | 保留：identity | own/Borrow/inout source、nested Statement/Expression 的 source-qualified 身份和有序唯一计划；完整 comparator 保留。 |
+
+### 52.2 实际净减少与保留边界
+
+- 本次清单的 27 个对照测试定义仍保留 27 个（B01–B12 指 Unit counterpart；其原 Single 定义另保持不变）。
+  仅 A13–A15 从三入口转换成 rooted/MemoryDocument 两入口，
+  **转换 3 个旧 Single 测试路径，删除 Rust 测试定义 0 个**。三组 fixture 原字节不变，
+  原 2+7+3=12 个 Single 源码展开观察移除；Unit 观察 4+14+6=24 个保留（36→24 是静态展开，非实跑数）。
+- frontend tests 中实际调用 `check_types` 或 `check_ownership` 的文件 **65→63，净少 2 个**：
+  `type_iteration/map_borrowed.rs`、`type_iteration/map_binding_controls/analysis.rs`。
+  两文件的 `resolve_names`、`check_types`、`complete_file_types` 调用各 2→0；旧 ownership 调用未改，
+  没有把旧调用搬到新文件、通用 mode 或兼容 adapter。另两份只读 Single facts 分支删除，原 Unit query 保留。
+- A13 成功 oracle 仍要求空 names/raw 和 complete 原分析身份成功；A14 由静态核对两 producer 的
+  `check_map_iteration` / `emit_iteration_error` 固定原 L0160 文案、nominal L0159 文案及 `type declared here`
+  label，加入整值 Diagnostic 后再退休 Single 观察。A15 原完整 expected constructor 不变。
+- #223 修复的是有界 final admission，不把 Single raw Error 与 Unit 未发布事实强行等同。
+  原 overload/deferred 两个 raw witness、上游 names L0080 后继续 raw-check 的独有 recovery 测试、
+  `final_type_admission/iteration_recovery.rs` 9 项及 `type_iteration_unit.rs` 的完整 Single comparator 均不改。
+  后者文件头保留 #220 原失败历史，不把旧注释当作 #223 尚未修复的现状证据。
+- 独立 cleanup/loan-end 不由 drops/plan 或“双方拒绝”投影代替；Single flat ledger 的全表 orphan 检查、
+  Unit 按点查询、普通 borrow-results ends 空表、source-return/dead-tail 无 Acquire 及 numeric outer-loan
+  两套不同完整 L0135 oracle 均保持原文件字节。真实 multi-source 与其他 ordering witness 不变。
+
+### 52.3 静态核验与未执行项
+
+| 项目 | 候选结果 |
+|---|---|
+| 27 项名字/路径清单、旧调用文件/API site 与测试定义计数 | 静态核对；无新旧调用文件，净少 2 caller / 3 Single 测试路径 |
+| 原 fixture 字节、两份 Unit facts query token、保留 witness blobs | 静态核对；Unit query 不删 oracle，A13 只加强真实 key/source/index 核验 |
+| `rustfmt --edition 2024 --check`、`git diff --check`、`python3 scripts/check_docs.py` | 静态通过；不是 Rust 编译或行为证据 |
+| 本地 cargo/build/check/test/clippy/native | 用户禁止，未运行 |
+| 新候选官方 CI、独立复核、发布 | 均未执行；候选未提交/推送，既有 #220/#223 CI 不冒充本 patch 验收 |
+
+D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交付的削减不计作 main 已退休。
