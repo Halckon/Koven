@@ -88,6 +88,38 @@ impl Checker<'_, '_> {
         supported
     }
 
+    /// A lambda returned by this function (its body or a `return` operand), whose closure
+    /// return provenance the planner froze (SPEC-0365).
+    pub(super) fn returned_lambda(&mut self, lambda: ExpressionId) -> bool {
+        let supported = self.callable_return()
+            && self
+                .inputs
+                .callables
+                .get(&self.id(lambda))
+                .is_some_and(|callable| {
+                    callable
+                        .captures
+                        .iter()
+                        .all(|capture| self.capture_supported(capture))
+                });
+        self.migrated |= supported;
+        supported
+    }
+
+    /// The function returns a callable whose provenance the planner froze.
+    pub(super) fn callable_return(&self) -> bool {
+        self.view_or_function(self.inputs.return_type)
+            && self
+                .inputs
+                .source_plan
+                .callable_return(self.inputs.source_token)
+                .is_some()
+    }
+
+    fn view_or_function(&self, ty: UnitTypeId) -> bool {
+        matches!(self.kind(ty), Some(UnitTypeKind::Function { .. }))
+    }
+
     /// Shared captures borrow a known binding; owned captures copy a Copyable one or move
     /// an owned one.
     fn capture_supported(&self, capture: &RefineCapture) -> bool {

@@ -105,7 +105,11 @@ impl Builder<'_, '_> {
 
     /// Forms a lambda literal of this instance; the closure temporary's published drop
     /// releases it (and, in SSA, its shared capture loans).
-    fn form_callable(&mut self, lambda: ExpressionId, span: Span) -> Result<Slot, LoweringError> {
+    pub(super) fn form_callable(
+        &mut self,
+        lambda: ExpressionId,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
         let callable = self
             .inputs
             .callables

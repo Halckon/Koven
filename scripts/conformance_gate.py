@@ -254,7 +254,7 @@ PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
     "linked_stack": "10-ownership-borrowing-drop.md",
 }
 
-# Explicit mapping from all 18 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
+# Explicit mapping from all 17 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
 UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p02_interp": ["L1", "L2"],
     "p05_double": ["N05"],
@@ -263,7 +263,6 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p15_elvis": ["N03"],
     "p16_result_q": ["N08"],
     "p16b_result_string": ["N08"],
-    "p18_move_closure": ["N04"],
     "p21_box_enum": ["N07", "L7"],
     "p25b_linked_recursive": ["N03"],
     "p27_thread": ["T1", "N04"],
@@ -673,6 +672,12 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "stdout": "lambda-arg\n",
         "v046_baseline_exempt": True,
         "note": "SPEC-0364: nested calls through a Borrow callable view (ADR-0034)",
+    },
+    "p18_move_closure": {
+        "kind": "run_ok",
+        "stdout": "move\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0364/0365: a factory returns a move closure with its concrete layout (ADR-0034 section 4)",
     },
     "e01_enum_when_bool_return": {
         "kind": "run_ok",

@@ -127,6 +127,8 @@ impl Builder<'_, '_> {
                 )?))
             }
             Expression::Name => self.name(expression, span).map(Lowered::Value),
+            // ADR-0034 §4: a returned lambda keeps its concrete callable identity.
+            Expression::Lambda { .. } => self.form_callable(expression, span).map(Lowered::Value),
             Expression::This => self.this_value(expression, span).map(Lowered::Value),
             Expression::TypeTest {
                 expression: operand,

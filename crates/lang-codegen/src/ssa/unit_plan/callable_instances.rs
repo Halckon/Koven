@@ -682,6 +682,10 @@ impl<'a> CallablePlanner<'a> {
             .cloned()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let Some(summary) = self.owned.pointer_callable_return(key.target()) else {
+            // SPEC-0365: a capturing (move) closure return keeps its concrete identity.
+            if let Some(summary) = self.owned.closure_callable_return(key.target()).copied() {
+                return self.freeze_closure_return(factory, &key, summary, span);
+            }
             return Ok(());
         };
         let signature = unit_callable_signature(self.typed, key.target())
@@ -754,6 +758,75 @@ impl<'a> CallablePlanner<'a> {
                 self.known_function(target, pending, summary.span())?
             }
         };
+        self.plan.returns.insert(
+            factory,
+            UnitPlannedCallableReturn {
+                callable,
+                function_type,
+            },
+        );
+        Ok(())
+    }
+
+    /// ADR-0034 §4: the returned move closure's concrete layout is the factory's return ABI.
+    fn freeze_closure_return(
+        &mut self,
+        factory: SourceToken,
+        key: &UnitFunctionInstanceKey,
+        summary: lang_frontend::ownership_checking::UnitClosureCallableReturnSummary,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let signature = unit_callable_signature(self.typed, key.target())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if summary.function_type() != signature.return_type() {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                summary.span(),
+            ));
+        }
+        let factory_substitutions = self.substitutions(key, span)?;
+        let function_type = resolve_concrete_type(
+            self.typed,
+            summary.function_type(),
+            &factory_substitutions,
+            key.static_self(),
+            summary.span(),
+        )?;
+        let lambda = summary.origin();
+        let template = &self.templates[*self
+            .by_target
+            .get(&key.target())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?];
+        let node = self
+            .parsed
+            .get(lambda.source_unit().index())
+            .and_then(|parsed| parsed.ast().expressions().get(lambda.expression()).ok())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, summary.span()))?;
+        if lambda.source_unit() != template.source_unit
+            || !span_contains(template.span, node.span())
+            || self
+                .owned
+                .closure(lambda)
+                .is_none_or(|closure| !closure.move_owned())
+            || self.owned.captures_of(lambda).next().is_none()
+            || !matches!(
+                self.typed.types().get(function_type),
+                Some(UnitTypeKind::Function { .. })
+            )
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                summary.span(),
+            ));
+        }
+        let callable = self
+            .plan
+            .arena
+            .intern_callable(CallableKey::Lambda {
+                owner: factory,
+                expression: lambda,
+            })
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, summary.span()))?;
         self.plan.returns.insert(
             factory,
             UnitPlannedCallableReturn {

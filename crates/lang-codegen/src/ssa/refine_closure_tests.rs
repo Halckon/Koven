@@ -101,3 +101,41 @@ fn lambda_arguments_reach_callees_as_views() {
     // `d` and the moved `e` are each freed exactly once.
     run_counted(&program, entry, 2, b"views\nforward\nshared\nowned\n");
 }
+
+#[test]
+fn a_factory_returns_a_move_closure_with_its_concrete_layout() {
+    let source = r#"class Data(val v: Int)
+    fun make(own s: String): () -> Boolean = move { s == "x" }
+    fun adder(own d: Data): (Int) -> Int = move { n -> n + d.v }
+    fun main(): Unit {
+        val f = make("x")
+        if (f()) { println("move") }
+        val g = adder(Data(4))
+        if (g(1) == 5) { println("data") }
+    }"#;
+    let (program, routed, entry) = lower(source);
+    for function in ["koven.p.make.d", "koven.p.adder.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    let module = &program.modules[0];
+    for name in ["koven.p.make.d", "koven.p.adder.d"] {
+        let function = module
+            .functions
+            .iter()
+            .find(|function| function.name.starts_with(name))
+            .expect("factory");
+        assert!(
+            matches!(
+                function.return_types.as_slice(),
+                [ty] if module.concrete_closure(*ty).is_some()
+            ),
+            "{name} returns its concrete closure"
+        );
+    }
+    // String literals do not allocate; the Data captured by `g` is freed exactly once, with
+    // its closure.
+    run_counted(&program, entry, 1, b"move\ndata\n");
+}

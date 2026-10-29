@@ -386,20 +386,17 @@
       "oracle_derivation": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' (blocked by N04)"
     },
     "p18_move_closure": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "move\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0364/0365: a factory returns a move closure with its concrete layout (ADR-0034 section 4)",
       "source_sha256": "eca9faed954fe8c0becc6db67475e41f8d5612f1e96edaaa604c137febde2568",
       "guide_chapter": "07-calls-lambdas-closures.md",
       "baseline_marker": "BE:UnsupportedNode",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
+      "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0364"
       ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N04"
-      ],
-      "target_stdout": "move\n",
       "oracle_derivation": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' (blocked by N04)"
     },
     "p19_mutablelist": {

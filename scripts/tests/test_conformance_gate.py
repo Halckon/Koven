@@ -803,21 +803,21 @@ sys.exit(1)
         base_evo = gate.summarize_baseline_evolution(loaded)
         self.assertEqual(base_evo["regressed_from_baseline_ok"], [])
         self.assertEqual(len(base_evo["baseline_ok_preserved"]), 89)
-        self.assertEqual(len(base_evo["promoted_to_run_ok"]), 30)
+        self.assertEqual(len(base_evo["promoted_to_run_ok"]), 31)
         self.assertEqual(len(base_evo["upgraded_to_structured_abort"]), 3)
         self.assertEqual(len(base_evo["upgraded_to_compile_fail"]), 1)
         self.assertEqual(len(base_evo["baseline_compile_fail_preserved"]), 13)
-        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 18)
+        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 17)
         self.assertEqual(
             sum(len(v) for v in base_evo.values()),
             len(loaded["probes"]),
         )
 
-        # 11. Verify all 38 v046_baseline_exempt probes have resolved spec_refs in docs/specs or docs/archive/specs
+        # 11. Verify all 39 v046_baseline_exempt probes have resolved spec_refs in docs/specs or docs/archive/specs
         exempt_probes = [
             name for name, spec in loaded["probes"].items() if spec.get("v046_baseline_exempt")
         ]
-        self.assertEqual(len(exempt_probes), 38)
+        self.assertEqual(len(exempt_probes), 39)
         for name in exempt_probes:
             spec = loaded["probes"][name]
             srefs = spec.get("spec_refs", [])
@@ -848,9 +848,9 @@ sys.exit(1)
         )
         self.assertEqual(origin_stats["single_println_literal"]["probes"], 31)
         self.assertEqual(origin_stats["source_trace_audited"]["probes"], 57)
-        self.assertEqual(origin_stats["v046_spec_contract"]["probes"], 38)
+        self.assertEqual(origin_stats["v046_spec_contract"]["probes"], 39)
         self.assertEqual(origin_stats["baseline_diagnostic_audited"]["probes"], 13)
-        self.assertEqual(origin_stats["baseline_unimplemented_audited"]["probes"], 15)
+        self.assertEqual(origin_stats["baseline_unimplemented_audited"]["probes"], 14)
         self.assertEqual(origin_stats["expected_txt_file"]["programs"], 6)
 
 

@@ -43,8 +43,10 @@ closure 形成显式化，Borrow 函数参数使用 callable view，函数可返
   `CallableViewOf` 传 view，运行时长度构造器可直接调用 view 参数。`refine_closure_tests` native 运行覆盖
   无捕获/shared/owned 捕获的直接实参 lambda、view 转发与嵌套调用，分配计数确认 owned capture 随
   closure 析构恰好释放一次。
-- [ ] 步 3：p18（返回带捕获的 move closure）。缺 frontend 的闭包返回来源事实（现有返回摘要只覆盖
-  无捕获 pointer），另开 frontend Spec 后实施。
+- [x] 步 3：p18 两模式通过（门禁 137/154，0 回退）。frontend 闭包返回来源事实由
+  [SPEC-0365](../../archive/specs/0365-closure-return-facts.md) 提供；规划器把返回的 move closure 冻结为
+  工厂的返回 ABI（concrete closure 类型），细化层直接返回 lambda 形成的 closure。`refine_closure_tests`
+  native 运行覆盖返回捕获 String 与 class 的 move closure，分配计数确认 class 捕获随 closure 析构恰好释放一次。
 - [ ] 受影响目标定向测试、fmt、clippy、尺寸护栏、`check_docs.py` 通过；双宿主 CI 以 PR 为准。
 
 ### 改动的既有测试（步 2）
@@ -65,3 +67,4 @@ ADR-0034 取消 Borrow 回调单态化后，下列测试原先断言“每种回
 |---|---|
 | 步 1 | SSA/LLVM callable view 与 verifier 反例 |
 | 步 2 | 规划器 view 化、旧路径调用点 view 实参、细化层 view 调用与 lambda 形成；p17/p17b/q02 |
+| 步 3 | 合并 SPEC-0365；规划器冻结闭包返回 ABI；细化层返回 lambda；p18 |

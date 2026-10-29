@@ -93,7 +93,9 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                         }
                 })
             })
-        && (checker.unit(inputs.return_type) || checker.storage_type(inputs.return_type))
+        && (checker.unit(inputs.return_type)
+            || checker.storage_type(inputs.return_type)
+            || checker.callable_return())
         // Receivers: Copyable enums by value or shared loan (SPEC-0356), plain classes by
         // shared or exclusive loan (SPEC-0358).
         && inputs.receiver.is_none_or(|receiver| match receiver.mode {
@@ -377,6 +379,9 @@ impl Checker<'_, '_> {
             Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
         );
         let id = self.id(expression);
+        if let Expression::Lambda { .. } = node.payload() {
+            return self.returned_lambda(expression);
+        }
         // `Rc` operations carry their own typed fact (SPEC-0359).
         if self.inputs.typed.rc_operation(id).is_some() {
             return self.storage_type(ty) && self.rc_operation(expression);
