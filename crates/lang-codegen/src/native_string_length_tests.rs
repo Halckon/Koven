@@ -32,21 +32,23 @@ fn string_concat_native_length_guard_precedes_allocation_and_reads() {
         "fun combine(left: String, right: String): Unit { println(left + right) }",
     )
     .expect("source must pass Unit admission");
-    let (program, _) = analysis
+    let (program, entry) = analysis
         .lower_entry(analysis.declaration("combine", SymbolKind::Function))
         .expect("borrowed String function lowers");
     let llvm = crate::llvm::render_verified_program(&program).unwrap();
-    let definition = llvm
-        .lines()
-        .find(|line| line.starts_with("define internal void @") && line.contains(".combine("))
-        .expect("unique combine function");
-    let symbol = definition
-        .split('@')
-        .nth(1)
+    let function = program
+        .module(entry.module())
         .unwrap()
-        .split('(')
-        .next()
+        .function(entry)
         .unwrap();
+    // Unit names include declaration/instance suffixes; use the actual lowered identity.
+    let symbol = format!("f{}.{}", entry.index(), function.name);
+    assert_eq!(
+        llvm.matches(&format!("define internal void @{symbol}("))
+            .count(),
+        1,
+        "the selected SSA entry must identify exactly one LLVM function"
+    );
     // Export only the test entry; leave its production body and checks untouched.
     let llvm = llvm
         .replace(&format!("@{symbol}("), "@test_concat(")

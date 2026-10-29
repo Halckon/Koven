@@ -76,3 +76,13 @@ LLVM 常量折叠，以及 SSA literal 缺少上限。前者改为动态借用�
 尺寸门禁 `python3 scripts/check_rust_sizes.py --base origin/main` 通过：保留 39 份超千行旧欠账；
 两个 checker 各 +5 行、native 注册 +3 行、verifier +1 行均经独立审阅，沿用既有额度，
 新 helper／native 探针独立成短文件。首次文档检查发现入口页超限，已改为独立专题并补索引。
+
+### 首轮官方 CI 与夹具修复
+
+实现 head `64e8877993dd1b97cbfbf5361d22d4cc6a077d60` 的
+[PR CI 40903473887](https://github.com/Halckon/Koven/actions/runs/40903473887)
+中 Linux frontend lib 为 229 passed / 0 failed / 0 ignored，包含本片 3 个 helper 测试。
+codegen 为 2477 passed / 1 failed / 0 ignored；argv 超限 native 探针通过，concat 探针在查找
+函数定义时失败，尚未执行其长度断言。原因是 Unit 函数包含 declaration/instance 后缀，测试
+错误地依赖 `.combine(`。修复改用返回的 FunctionId 与实际 SSA 名称，并断言唯一 LLVM 定义；
+生产守卫和原有边界断言保持不变。该修复仍须由后续官方 CI 验证，首轮失败不记为通过。
