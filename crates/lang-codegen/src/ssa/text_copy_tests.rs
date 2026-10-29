@@ -213,23 +213,150 @@ fun main(): Unit {
 }
 
 #[test]
-fn public_text_field_receiver_retains_existing_argument_return_boundary() {
+fn public_text_field_receiver_releases_its_loan_on_argument_return() {
     let source = r#"package app
 import koven.text.checkedPlus
 class Holder(val text: String)
-fun main(): Unit {
+fun field(stop: Boolean): Unit {
     val holder = Holder("field".clone())
-    val joined = holder.text.checkedPlus(if (true) { return } else { "!" })
+    val joined = holder.text.checkedPlus(if (stop) { println("stop"); return } else { "!" })
+    if (joined != null) { println(joined) }
+    println(holder.text)
 }
+fun main(): Unit {
+    field(true)
+    field(false)
+}
+"#;
+    let (program, entry) = lower_public_text_program(source);
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Both calls own a field and holder; only the completed call allocates a join.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 5);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"stop\nfield!\nfield\n");
+}
+
+#[test]
+fn public_text_receiver_prefixes_preserve_named_temporary_and_incoming_owners() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.checkedPlus
+fun named(stop: Boolean): Unit {
+    val input = "named".clone()
+    val joined = input.checkedPlus(if (stop) { println("named-stop"); return } else { "!" })
+    if (joined != null) { println(joined) }
+    println(input)
+}
+fun temporary(stop: Boolean): Unit {
+    val joined = "temporary".clone().checkedPlus(if (stop) { println("temporary-stop"); return } else { "!" })
+    if (joined != null) { println(joined) }
+}
+fun incoming(input: String, stop: Boolean): Unit {
+    val joined = input.checkedPlus(if (stop) { println("incoming-stop"); return } else { "!" })
+    if (joined == null) { error("small join must succeed") }
+    println(input)
+}
+fun main(): Unit {
+    named(true)
+    named(false)
+    temporary(true)
+    temporary(false)
+    val source = "incoming".clone()
+    incoming(source, true)
+    println(source)
+    incoming(source, false)
+    println(source)
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Named and temporary pairs allocate three each; the incoming pair shares
+    // its caller's clone and allocates just one completed join.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 8);
+    crate::native_tests::boxed_enum_tests::assert_success(&run,
+        b"named-stop\nnamed!\nnamed\ntemporary-stop\ntemporary!\nincoming-stop\nincoming\nincoming\nincoming\n");
+}
+
+#[test]
+fn public_text_incoming_borrow_keeps_the_existing_nullable_payload_boundary() {
+    let source = r#"package app
+import koven.text.checkedPlus
+fun observe(input: String): Unit {
+    val joined = input.checkedPlus("!")
+    if (joined != null) { println(joined) }
+}
+fun main(): Unit { observe("input") }
 "#;
     let error = try_lower_public_text_program(source)
         .err()
-        .expect("receiver control prefix remains closed");
+        .expect("incoming String loan is outside the current nullable proof carrier gate");
     assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
     let span = error.span.unwrap();
     assert_eq!(
         &source[span.start()..span.end()],
-        "holder.text.checkedPlus(if (true) { return } else { \"!\" })"
+        "if (joined != null) { println(joined) }"
+    );
+}
+
+#[test]
+fn public_text_receiver_prefixes_end_field_loans_before_break_and_continue_cleanup() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.checkedPlus
+class Holder(val text: String)
+fun exercise(stop: Boolean, again: Boolean): Unit {
+    var once = true
+    while (once) {
+        once = false
+        val holder = Holder("loop".clone())
+        val joined = holder.text.checkedPlus(if (stop) {
+            if (again) { continue } else { break }
+        } else { "!" })
+        println("completed")
+        println(holder.text)
+    }
+    println("tail")
+}
+fun main(): Unit {
+    exercise(true, true)
+    exercise(true, false)
+    exercise(false, true)
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Three holders and field clones, but only the ordinary path allocates a join.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 7);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"tail\ntail\ncompleted\nloop\ntail\n",
+    );
+}
+
+#[test]
+fn public_text_receiver_prefixes_retire_receiver_and_prior_argument_on_return() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.*
+class Holder(val text: String)
+fun first(): Int { println("first"); return 0 }
+fun slice(stop: Boolean): Unit {
+    val holder = Holder("slice".clone())
+    val part = holder.text.sliceBytes(first(), if (stop) { println("slice-stop"); return } else { 5 })
+    when (part) {
+        is Ok -> println(part.success)
+        is Err -> error("slice failed")
+    }
+    println(holder.text)
+}
+fun main(): Unit { slice(true); slice(false) }
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Receiver storage survives first(), but only the completed call copies the slice.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 5);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"first\nslice-stop\nfirst\nslice\nslice\n",
     );
 }
 

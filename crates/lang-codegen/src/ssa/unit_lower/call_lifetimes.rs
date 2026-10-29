@@ -62,8 +62,8 @@ impl UnitExpressionLowerer<'_> {
             })
     }
 
-    /// 普通无 receiver 的声明调用仅复用已封闭的 root/temporary 前缀事务。
-    /// 不授予 receiver、字段/元素、函数值或借用结果新的控制流能力。
+    /// 声明调用复用已封闭的 root/temporary 实参前缀事务；可信文本的 Borrow receiver
+    /// 另复用既有 receiver 帧。不授予普通 receiver、字段实参或借用结果新能力。
     pub(super) fn supports_direct_control_prefix(
         &self,
         call: UnitExpressionId,
@@ -75,12 +75,29 @@ impl UnitExpressionLowerer<'_> {
             LoanKind as FrontendLoanKind, UnitCallArgumentOwnershipKind, UnitLoanTarget,
             UnitValueDeliveryKind, UnitValueDeliverySource,
         };
-        use lang_frontend::type_checking::{CallableResultSource, UnitCallTarget};
+        use lang_frontend::type_checking::{
+            CallableResultSource, UnitCallReceiverOrigin, UnitCallTarget,
+        };
 
         let UnitCallTarget::Declaration(target) = descriptor.target() else {
             return Ok(false);
         };
-        if descriptor.receiver().is_some()
+        let supported_receiver = descriptor.receiver().is_none_or(|receiver| {
+            receiver.mode() == ParameterMode::Borrow
+                && matches!(receiver.origin(), UnitCallReceiverOrigin::Expression(_))
+                && builtin_type(self.typed, receiver.ty()) == Some(BuiltinType::String)
+                && self
+                    .typed
+                    .signatures()
+                    .declaration(target)
+                    .and_then(|declaration| declaration.callable())
+                    .and_then(|callable| callable.text_extension())
+                    .is_some_and(|binding| {
+                        binding.callable() == UnitCallableTarget::Declaration(target)
+                            && binding.receiver_type() == receiver.ty()
+                    })
+        });
+        if !supported_receiver
             || descriptor.result_source() != CallableResultSource::Owned
             || descriptor.aborts()
             || descriptor.prints_line()

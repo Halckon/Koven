@@ -380,3 +380,33 @@ enum subject 及非静态条件不因此开放，不重算前端 liveness，不�
 独立 type-test 最后使用清理1项与共享 when 邻接7项通过，均0 failed、0 ignored。
 codegen／CLI all-targets 严格 Clippy、Rustfmt、文档与 diff 检查通过；本片仍不替代最终
 head 官方双宿主 CI，也未关闭前述旧 raw 前端入口合同待决项。
+
+### 文本 Borrow receiver 的实参控制退出（2026-10-30）
+
+此前登记的 `holder.text.checkedPlus(if (...) return else ...)` 拒绝回归改为真实动态
+true／false 正向测试，先取得调用处 UnsupportedNode，再仅为 canonical text_extension
+绑定的 String Borrow expression receiver 开放现有 direct-prefix 路径；绑定 declaration
+与 receiver 类型必须一致，Owned 结果、普通实参合同和已规划调用路由检查继续执行。
+实际 receiver 仍经原事实检查／loan 建立／pending 帧登记，控制退出结束本次创建的 loan
+后消费原 owner 清理事实；不新增 loan 或析构算法，不授予普通 receiver／Inout／borrow
+结果或字段实参新的资格。独立静态审查核对完整帧链，未发现确认的生产缺陷。
+
+| 实际标准 API native 用例 | 动态证据 |
+|---|---|
+| 字段 receiver 的正常调用与实参 return | 2个Holder、2个字段clone、1个成功连接，共5次分配／逐指针释放 |
+| 命名值／临时值／incoming Borrow 的取消与提交 | 两组各3次，caller共享clone与一次成功连接2次，共8次分配／释放，caller后续可读 |
+| 字段 receiver 的 break／continue／正常路径 | 3个Holder及clone、1个成功连接，共7次分配／释放 |
+| sliceBytes 第一实参先求值、第二实参 return／正常 | 第一实参每次恰执行一次；receiver存储4次与成功slice1次，共5次分配／释放 |
+
+这些计数及既有公开 API 回归合计 `public_text_` 11 passed、0 failed、0 ignored。
+公开 CLI text_bytes6项通过且无忽略，含单文件／project 的真实check、build、直接运行及
+CLI run；新用例覆盖 return、break、continue、正常提交和先前实参求值。
+
+incoming 用例初版在后续 `if (joined != null) println(joined)` 失败，已隔离为无控制前缀
+也会发生的旧 nullable-proof carrier 边界：当前只接受入口 Boolean loan，额外 String
+入参借用使 payload view 准入拒绝。保留精确 nullable-if UnsupportedNode 的独立反例；
+本片用非空状态、callee／caller输入后续读取和分配释放核对前缀职责，不把 payload view
+标记为通过，不放宽 while-proof 门槛。该能力仍需后续处理，Spec不因此宣称整体完成。
+最终邻接验证：ordinary_direct_prefix3项通过（含12种取消／提交组合与普通receiver等精确
+拒绝）；text_27项通过，均无失败或忽略。codegen／CLI all-targets严格Clippy、Rustfmt、
+821篇文档结构与diff检查通过；最终双宿主CI尚待完成。

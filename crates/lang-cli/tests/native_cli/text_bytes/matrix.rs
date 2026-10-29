@@ -233,3 +233,49 @@ fun main(): Unit {
 "#;
     check_build_run_both_modes(program, b"A\xc3\xa9\0\nX\xc3\xa9\0\nY\xc3\xa9\0\nreturns\n");
 }
+
+#[test]
+fn public_text_receiver_argument_transfers_work_in_both_modes() {
+    let program = r#"class Holder(val text: String)
+fun join(stop: Boolean): Unit {
+    val holder = Holder("field".clone())
+    val result = holder.text.checkedPlus(if (stop) { println("join-stop"); return } else { "!" })
+    if (result != null) { println(result) }
+    println(holder.text)
+}
+fun first(): Int { println("first"); return 0 }
+fun slice(stop: Boolean): Unit {
+    val holder = Holder("slice".clone())
+    val part = holder.text.sliceBytes(first(), if (stop) { println("slice-stop"); return } else { 5 })
+    when (part) {
+        is Ok -> println(part.success)
+        is Err -> error("slice failed")
+    }
+    println(holder.text)
+}
+fun cycle(stop: Boolean, again: Boolean): Unit {
+    var once = true
+    while (once) {
+        once = false
+        val holder = Holder("loop".clone())
+        val joined = holder.text.checkedPlus(if (stop) {
+            if (again) { continue } else { break }
+        } else { "!" })
+        println("completed")
+        println(holder.text)
+    }
+    println("tail")
+}
+fun main(): Unit {
+    join(true)
+    join(false)
+    slice(true)
+    slice(false)
+    cycle(true, true)
+    cycle(true, false)
+    cycle(false, true)
+}
+"#;
+    check_build_run_both_modes(program,
+        b"join-stop\nfield!\nfield\nfirst\nslice-stop\nfirst\nslice\nslice\ntail\ntail\ncompleted\nloop\ntail\n");
+}
