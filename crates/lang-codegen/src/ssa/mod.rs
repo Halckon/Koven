@@ -155,6 +155,12 @@ mod verify_scalar_tests;
 mod lower_frontend_tests;
 
 #[cfg(test)]
+mod lower_frontend_scalar_abi_unit_comparison_tests;
+
+#[cfg(test)]
+mod lower_frontend_cfg_ownership_unit_comparison_tests;
+
+#[cfg(test)]
 mod lower_frontend_nullable_unit_comparison_tests;
 
 #[cfg(test)]

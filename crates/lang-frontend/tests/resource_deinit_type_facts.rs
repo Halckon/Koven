@@ -4,14 +4,14 @@ use lang_frontend::{
     diagnostic::DiagnosticDetail,
     lexer::lex,
     name_resolution::{
-        NameResolution, SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
+        SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit,
+        resolve_compilation_unit_names,
     },
     parser::{Item, ParsedFile, parse_file},
     source::SourceMap,
     type_checking::{
-        CompilationUnitTypes, ParameterMode, TypeKind, TypedFile, check_compilation_unit_types,
-        check_types, standard_environments,
+        CompilationUnitTypes, ParameterMode, UnitTypeKind, check_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -23,13 +23,22 @@ fn parse(sources: &mut SourceMap, path: &str, text: &str) -> ParsedFile {
     file
 }
 
-fn single(text: &str) -> (ParsedFile, NameResolution, TypedFile) {
+fn memory_document(
+    text: &str,
+) -> (
+    ParsedFile,
+    ValidatedCompilationUnitNames,
+    CompilationUnitTypes,
+) {
     let mut sources = SourceMap::new();
     let file = parse(&mut sources, "resource.ko", text);
     let (names, types) = standard_environments();
-    let names = resolve_names(&sources, &file, &names).expect("names");
+    let inputs = [SourceUnitInput::memory_document(file.source_id(), &file)];
+    let index = index_compilation_unit(&sources, &inputs).expect("index");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &names).expect("names");
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &file, &names, &types).expect("types");
+    let names = names.validate().expect("valid names");
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).expect("types");
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     (file, names, typed)
 }
@@ -67,24 +76,27 @@ fn unit(files: &[(&str, &str)]) -> (Vec<ParsedFile>, CompilationUnitTypes) {
 
 #[test]
 fn single_deinit_descriptor_preserves_owner_body_and_readonly_receiver() {
-    let (file, _, typed) = single(
+    let (file, _, typed) = memory_document(
         "fun inspect(borrow item: Resource): Unit {}\n\
          class Resource(val label: String) { deinit() { println(label)\ninspect(this) } }",
     );
     let nominal = typed
-        .nominals()
+        .signatures()
+        .declarations()
         .iter()
+        .filter_map(|declaration| declaration.nominal())
         .find(|nominal| nominal.has_deinit())
         .unwrap();
     let deinit = nominal.deinit().expect("trusted deinit descriptor");
-    assert_eq!(deinit.owner(), nominal.id());
+    assert_eq!(deinit.owner(), nominal.declaration());
     assert_eq!(deinit.receiver_mode(), ParameterMode::Borrow);
     assert!(matches!(typed.types().get(deinit.receiver_type()),
-        Some(TypeKind::Nominal { nominal: owner, .. }) if *owner == nominal.id()));
+        Some(UnitTypeKind::Nominal { declaration: owner, .. }) if *owner == nominal.declaration()));
     assert!(
-        matches!(file.ast().items().get(deinit.item()).unwrap().payload(),
-        Item::Deinit { body, .. } if *body == deinit.body())
+        matches!(file.ast().items().get(deinit.item().item()).unwrap().payload(),
+        Item::Deinit { body, .. } if *body == deinit.body().statement())
     );
+    assert_eq!(deinit.item().source_unit(), deinit.body().source_unit());
     assert_eq!(typed.is_resource_type(deinit.receiver_type()), Some(true));
 }
 
@@ -166,15 +178,21 @@ const EXPECTED: &[(&str, Option<bool>)] = &[
 
 #[test]
 fn single_resource_classification_follows_fields_payloads_and_cycles() {
-    let (_, names, typed) = single(CLASSIFICATIONS);
+    let (_, names, typed) = memory_document(CLASSIFICATIONS);
     for &(name, expected) in EXPECTED {
-        let symbol = names
-            .symbols()
+        let declaration = names
+            .names()
+            .index()
+            .declarations()
             .iter()
-            .find(|symbol| symbol.name() == name)
+            .find(|declaration| declaration.name() == name)
             .unwrap()
             .id();
-        let ty = typed.symbol_type(symbol).expect("nominal type");
+        let ty = typed
+            .signatures()
+            .declaration(declaration)
+            .expect("nominal type")
+            .ty();
         assert_eq!(typed.is_resource_type(ty), expected, "{name}");
     }
 }
@@ -246,16 +264,18 @@ const GENERIC_EXPECTED: &[(&str, Option<bool>)] = &[
 
 #[test]
 fn single_resource_classification_substitutes_concrete_recursive_generics() {
-    let (_, names, typed) = single(GENERIC_CLASSIFICATIONS);
+    let (_, names, typed) = memory_document(GENERIC_CLASSIFICATIONS);
     for &(name, expected) in GENERIC_EXPECTED {
-        let symbol = names
-            .symbols()
+        let declaration = names
+            .names()
+            .index()
+            .declarations()
             .iter()
-            .find(|symbol| symbol.name() == name)
+            .find(|declaration| declaration.name() == name)
             .unwrap()
             .id();
         assert_eq!(
-            typed.is_resource_type(typed.symbol_type(symbol).unwrap()),
+            typed.is_resource_type(typed.signatures().declaration(declaration).unwrap().ty()),
             expected,
             "{name}"
         );

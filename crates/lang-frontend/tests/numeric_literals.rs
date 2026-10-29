@@ -1,21 +1,19 @@
-//! SPEC-0229: radix/separator literals keep identical single-file and unit semantics.
+//! SPEC-0229: radix/separator literals keep identical memory-document and rooted Unit semantics.
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
-    ownership_checking::{check_compilation_unit_ownership, check_ownership},
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+    ownership_checking::check_compilation_unit_ownership,
     parser::parse_file,
     source::SourceMap,
     type_checking::{
-        BuiltinType, CompilationUnitTypes, ConstValue, TypedFile, check_compilation_unit_types,
-        check_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, ConstValue, check_compilation_unit_types,
+        standard_environments,
     },
 };
 
-fn checked(text: &str) -> (SourceMap, TypedFile, CompilationUnitTypes) {
+fn checked(text: &str) -> (SourceMap, CompilationUnitTypes, CompilationUnitTypes) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("literals.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -25,21 +23,21 @@ fn checked(text: &str) -> (SourceMap, TypedFile, CompilationUnitTypes) {
         parsed.diagnostics()
     );
     let (names, types) = standard_environments();
-    let single_names = resolve_names(&sources, &parsed, &names).unwrap();
-    assert!(
-        single_names.diagnostics().is_empty(),
-        "{text}: {:?}",
-        single_names.diagnostics()
-    );
-    let single = check_types(&sources, &parsed, &single_names, &types).unwrap();
-    let inputs = [SourceUnitInput::new("root", "literals.ko", source, &parsed)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let unit_names = resolve_compilation_unit_names(&sources, &inputs, &index, &names)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit = check_compilation_unit_types(&sources, &inputs, &unit_names, &types).unwrap();
-    (sources, single, unit)
+    let [memory, unit] = [
+        SourceUnitInput::memory_document(source, &parsed),
+        SourceUnitInput::new("root", "literals.ko", source, &parsed),
+    ]
+    .map(|input| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let unit_names = resolve_compilation_unit_names(&sources, &inputs, &index, &names)
+            .unwrap()
+            .validate()
+            .unwrap();
+        // Keep real raw products for the negative diagnostic oracles below.
+        check_compilation_unit_types(&sources, &inputs, &unit_names, &types).unwrap()
+    });
+    (sources, memory, unit)
 }
 
 #[test]
@@ -81,11 +79,11 @@ fn radix_and_separator_constants_preserve_exact_values_and_types() {
             "const val VALUE: {} = {literal}\nconst val COPY = VALUE",
             ty.name()
         );
-        let (_, single, unit) = checked(&text);
+        let (_, memory, unit) = checked(&text);
         assert!(
-            single.diagnostics().is_empty(),
+            memory.diagnostics().is_empty(),
             "{text}: {:?}",
-            single.diagnostics()
+            memory.diagnostics()
         );
         assert!(
             unit.diagnostics().is_empty(),
@@ -93,11 +91,13 @@ fn radix_and_separator_constants_preserve_exact_values_and_types() {
             unit.diagnostics()
         );
         let expected = ConstValue::Integer { ty, value };
-        let single = single.constants().expect("single-file constants");
+        let memory = memory
+            .validate_constants()
+            .expect("memory-document constants");
         let unit = unit.validate_constants().expect("unit constants");
-        assert_eq!(single.declarations().len(), 2);
+        assert_eq!(memory.constants().declarations().len(), 2);
         assert_eq!(unit.constants().declarations().len(), 2);
-        for declaration in single.declarations() {
+        for declaration in memory.constants().declarations() {
             assert_eq!(declaration.value(), &expected, "{text}");
         }
         for declaration in unit.constants().declarations() {
@@ -120,17 +120,18 @@ fn radix_and_separator_runtime_literals_keep_expected_and_default_types() {
         ("Double", "1_234.5_625"),
     ] {
         let text = format!("fun value(): {ty} {{ val inferred = {literal}\nreturn inferred }}");
-        let (_, single, unit) = checked(&text);
+        let (_, memory, unit) = checked(&text);
         assert!(
-            single.diagnostics().is_empty(),
+            memory.diagnostics().is_empty(),
             "{text}: {:?}",
-            single.diagnostics()
+            memory.diagnostics()
         );
         assert!(
             unit.diagnostics().is_empty(),
             "{text}: {:?}",
             unit.diagnostics()
         );
+        assert!(memory.validate().is_ok(), "{text}");
         assert!(unit.validate().is_ok(), "{text}");
     }
 }
@@ -151,8 +152,8 @@ fn extended_literal_overflow_keeps_numeric_diagnostics_and_source_spans() {
         ),
     ] {
         let text = format!("fun value(): {ty} = {literal}");
-        let (sources, single, unit) = checked(&text);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        let (sources, memory, unit) = checked(&text);
+        for diagnostics in [memory.diagnostics(), unit.diagnostics()] {
             assert_eq!(diagnostics.len(), 1, "{text}: {diagnostics:?}");
             assert_eq!(diagnostics[0].code().to_string(), "L0090");
             assert_eq!(
@@ -172,8 +173,8 @@ fn extended_literal_range_errors_keep_expected_type_labels() {
     let double_overflow = format!("{}.0", ["999"; 110].join("_"));
     for (ty, literal) in [("Byte", "0x80"), ("Double", double_overflow.as_str())] {
         let text = format!("fun value(): {ty} = {literal}");
-        let (sources, single, unit) = checked(&text);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        let (sources, memory, unit) = checked(&text);
+        for diagnostics in [memory.diagnostics(), unit.diagnostics()] {
             assert_eq!(diagnostics.len(), 1, "{text}: {diagnostics:?}");
             assert_eq!(diagnostics[0].code().to_string(), "L0090");
             assert_eq!(
@@ -251,8 +252,8 @@ fn extended_constants_are_exact_across_files_and_source_order() {
 fn negative_unsigned_extended_literals_keep_operator_diagnostics() {
     for literal in ["0x1u", "0B1U", "1_0uL", "0xFFUL"] {
         let text = format!("fun value(): Unit {{ val invalid = -{literal} }}");
-        let (sources, single, unit) = checked(&text);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        let (sources, memory, unit) = checked(&text);
+        for diagnostics in [memory.diagnostics(), unit.diagnostics()] {
             assert_eq!(diagnostics.len(), 1, "{text}: {diagnostics:?}");
             assert_eq!(diagnostics[0].code().to_string(), "L0085");
             assert_eq!(sources.slice(diagnostics[0].primary_span()).unwrap(), "-");
@@ -289,29 +290,26 @@ fn ownership_diagnostics(text: &str) -> [Vec<Diagnostic>; 2] {
         parsed.diagnostics()
     );
     let (names, types) = standard_environments();
-    let single_names = resolve_names(&sources, &parsed, &names).unwrap();
-    assert!(single_names.diagnostics().is_empty());
-    let single_types = check_types(&sources, &parsed, &single_names, &types).unwrap();
-    assert!(
-        single_types.diagnostics().is_empty(),
-        "{:?}",
-        single_types.diagnostics()
-    );
-    let single = check_ownership(&sources, &parsed, &single_names, &single_types).unwrap();
-    let inputs = [SourceUnitInput::new("root", "indices.ko", source, &parsed)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let unit_names = resolve_compilation_unit_names(&sources, &inputs, &index, &names)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit_types = check_compilation_unit_types(&sources, &inputs, &unit_names, &types)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit =
-        check_compilation_unit_ownership(&sources, &inputs, &unit_names, &types, &unit_types)
+    [
+        SourceUnitInput::memory_document(source, &parsed),
+        SourceUnitInput::new("root", "indices.ko", source, &parsed),
+    ]
+    .map(|input| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let unit_names = resolve_compilation_unit_names(&sources, &inputs, &index, &names)
+            .unwrap()
+            .validate()
             .unwrap();
-    [single.diagnostics().to_vec(), unit.diagnostics().to_vec()]
+        let unit_types = check_compilation_unit_types(&sources, &inputs, &unit_names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let unit =
+            check_compilation_unit_ownership(&sources, &inputs, &unit_names, &types, &unit_types)
+                .unwrap();
+        unit.diagnostics().to_vec()
+    })
 }
 
 #[test]

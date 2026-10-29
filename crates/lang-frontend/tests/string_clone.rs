@@ -74,27 +74,35 @@ fn check_both(
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).expect("memory index");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .expect("memory names");
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
+    let names = names.validate().expect("valid memory names");
+    let typed =
+        check_compilation_unit_types(&sources, &inputs, &names, &types).expect("memory types");
     assert_diagnostics(
         &sources,
         source,
         typed.diagnostics(),
         type_diagnostics,
-        "single-file types",
+        "memory-document types",
     );
     if !type_diagnostics.is_empty() {
         assert!(typed.string_operations().is_empty());
     }
     if type_diagnostics.is_empty() {
-        let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
+        let validated = typed.validate().expect("valid memory types");
+        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &validated)
+            .expect("memory ownership");
+        let typed = validated.types();
         assert_diagnostics(
             &sources,
             source,
             owned.diagnostics(),
             ownership_diagnostics,
-            "single-file ownership",
+            "memory-document ownership",
         );
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
         if ownership_diagnostics.is_empty() {
@@ -112,7 +120,7 @@ fn check_both(
                 );
                 assert_eq!(
                     typed.copyability(operation.result_type()),
-                    Some(Copyability::MoveOnly)
+                    Copyability::MoveOnly
                 );
                 let effect = owned
                     .string_effect(operation.expression())
@@ -124,10 +132,10 @@ fn check_both(
                     .iter()
                     .filter(|loan| loan.call() == operation.expression())
                 {
-                    if let lang_frontend::ownership_checking::LoanTarget::Place(place) =
+                    if let lang_frontend::ownership_checking::UnitLoanTarget::Place(place) =
                         loan.target()
                     {
-                        assert!(!owned.drops().iter().any(|drop| drop.target() == lang_frontend::ownership_checking::DropTarget::Named(place.root()) && drop.point() == lang_frontend::ownership_checking::DropPoint::AfterExpression(operation.receiver())), "receiver owner dropped before clone: {:?}", owned.drops());
+                        assert!(!owned.drops().iter().any(|drop| drop.target() == lang_frontend::ownership_checking::UnitDropTarget::Named(place.root()) && drop.point() == lang_frontend::ownership_checking::UnitDropPoint::AfterExpression(operation.receiver())), "receiver owner dropped before clone: {:?}", owned.drops());
                     }
                 }
                 assert!(
@@ -138,12 +146,19 @@ fn check_both(
                             && loan.argument() == operation.receiver()
                             && loan.kind() == LoanKind::Shared)
                 );
-                assert!(
-                    owned
-                        .loan_ends()
-                        .iter()
-                        .any(|end| end.point() == LoanEndPoint::CallReturn(operation.expression()))
-                );
+                // This checks the Unit loan descriptor, not an independent end event.
+                // The legacy CallReturn event oracle is retained below.
+                let call_span = parsed
+                    .ast()
+                    .expressions()
+                    .get(operation.expression().expression())
+                    .expect("clone call")
+                    .span();
+                assert!(owned.loans_ending_at(operation.expression()).any(|loan| {
+                    loan.argument() == operation.receiver()
+                        && loan.kind() == LoanKind::Shared
+                        && loan.end_span() == call_span
+                }));
             }
         } else {
             assert!(owned.string_effects().is_empty());
@@ -218,6 +233,40 @@ fn check_both(
         } else {
             assert!(owned.string_effects().is_empty());
         }
+    }
+    if type_diagnostics.is_empty() && ownership_diagnostics.is_empty() {
+        assert_legacy_clone_call_return(text);
+    }
+}
+
+// Unit exposes synchronous loan descriptors, not the independent legacy loan-end table.
+// Keep the original CallReturn event oracle on the same successful source programs;
+// the MemoryDocument descriptor checks above do not retire this coverage.
+fn assert_legacy_clone_call_return(text: &str) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("string-clone.ko", text).expect("source");
+    let lexed = lex(&sources, source).expect("lex");
+    let parsed = parse_file(&sources, &lexed).expect("parse");
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&sources, &parsed, &environment).expect("names");
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    for operation in typed.string_operations() {
+        assert!(
+            owned
+                .loan_ends()
+                .iter()
+                .any(|end| end.point() == LoanEndPoint::CallReturn(operation.expression()))
+        );
     }
 }
 
@@ -362,8 +411,14 @@ fn safe_clone_preserves_the_existing_nullable_deferred_boundary() {
     let parsed = parse_file(&sources, &lexed).expect("parse");
     assert!(parsed.diagnostics().is_empty());
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).expect("memory index");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .expect("memory names")
+        .validate()
+        .expect("valid memory names");
+    let typed =
+        check_compilation_unit_types(&sources, &inputs, &names, &types).expect("memory types");
     assert!(typed.diagnostics().is_empty());
     assert!(typed.string_operations().is_empty());
     let inputs = [SourceUnitInput::new("root", "safe.ko", source, &parsed)];
