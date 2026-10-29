@@ -253,3 +253,61 @@ fun main(): Unit {
         crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[1, 0]);
     crate::native_tests::boxed_enum_tests::assert_success(&run, b"\xc3\xa9\0\n");
 }
+
+#[test]
+fn public_text_copies_survive_source_drop_and_input_mutation() {
+    use std::{fs, process::Command};
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.*
+fun bytes(): Array<UByte> {
+    val source = "Aé\0".clone()
+    val data = source.toBytes()
+    data[0] = 88u
+    println(source)
+    return data
+}
+fun main(): Unit {
+    val data = bytes()
+    val decoded = decodeUtf8(data)
+    data[0] = 89u
+    when (decoded) {
+        is Ok -> println(decoded.success)
+        is Err -> error("copy failed")
+    }
+    val after = decodeUtf8(data)
+    when (after) {
+        is Ok -> println(after.success)
+        is Err -> error("mutated input failed")
+    }
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let directory = crate::native_tests::TestDirectory::create();
+    let ir = directory.join("copy.ll");
+    let counter = directory.join("counter.c");
+    let executable = directory.join("copy");
+    crate::native_tests::boxed_enum_tests::write_counted_allocations(&llvm, 4, None, &ir, &counter);
+    // Allocation 0 is the source clone, 1 its byte copy, and 2 the first decoded
+    // String. Relative free order alone cannot prove the source died before decode.
+    let guard = "assert(allocations < EXPECTED_ALLOCATIONS);";
+    let code = fs::read_to_string(&counter).unwrap();
+    assert_eq!(code.matches(guard).count(), 1);
+    fs::write(&counter, code.replace(guard,
+        "assert(allocations < EXPECTED_ALLOCATIONS); if (allocations == 2) assert(live[0] == 0 && live[1] != 0);"
+    )).unwrap();
+    let linked = Command::new(crate::test_support::ir_clang())
+        .arg(&ir)
+        .arg(&counter)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .unwrap();
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(executable).output().unwrap();
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"A\xc3\xa9\0\nX\xc3\xa9\0\nY\xc3\xa9\0\n",
+    );
+}
