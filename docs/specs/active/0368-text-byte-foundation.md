@@ -248,3 +248,44 @@ Rustfmt、文档结构（821 篇）、diff 及尺寸门禁通过；2012 个手�
 [Linux 行为作业](https://github.com/Halckon/Koven/actions/runs/40936020064/job/123672278781)
 为2486 passed、5 failed、0 ignored：四项 UByte 夹具类型错误和一项 nullable String 读取
 MissingFact，均对应本补片本地已通过的用例。后续集成门禁被跳过，不能据此声称远端通过。
+
+### 公开矩阵与 String 字段 receiver（2026-10-30）
+
+公开 CLI 复用真实标准源，在两种模式各执行 check、build、直接运行及 CLI run：新增5组合法
+输入逐字节核对（空串、ASCII、中文、多字节／NUL、编码宽度边界及 Unicode 上界），17组
+非法序列以 Rust `valid_up_to()` 独立计算首错起点；空串与11字节混合串的205对切片端点，
+以 Rust scalar 边界及字节区间核对成功输出、InvalidRange 优先级和 NotScalarBoundary。
+该矩阵不是全部 Unicode scalar／全部字节序列的穷举。
+
+另一条公开用例先取得真实 check 成功、build UnsupportedNode 的失败；隔离后确认
+`holder.text.toBytes()` 是缺口，临时输入、Result 的函数提前返回和容器持有已经可运行。
+修复复用已有 owned 单层字段 projection／place 校验，对 String shared receiver 生成 loan，
+避免 MoveOnly 字段 Read；receiver 帧在参数求值前登记父 root，保留 sibling replacement
+拒绝。字段借用 helper 抽取后，原实参路径仍登记同一 root。未增加字段布局或语言语义。
+
+| 本地检查（LLVM 21、独立 target、offline、串行） | 实际结果 |
+|---|---|
+| `cargo test -p lang-cli --test native_cli text_bytes` | 4 passed、0 failed、0 ignored；两模式公开矩阵及所有权可达性 |
+| `cargo test -p lang-frontend --test type_text_extension` | 首次9 passed、1 failed；修正旧 UByte 夹具 `0`→`0u` 后10 passed、0 failed、0 ignored |
+| `cargo test -p lang-codegen --lib public_text_field_receiver` | 3 passed、0 failed、0 ignored；计数、精确冲突与既有参数 return 拒绝 |
+| `cargo test -p lang-codegen --lib unit_field` | 25 passed、0 failed、0 ignored |
+| `cargo test -p lang-codegen --lib unit_lower_enum_tests` | 14 passed、0 failed、0 ignored |
+| `cargo test -p lang-codegen --lib text_` | 19 passed、0 failed、0 ignored |
+| `cargo clippy -p lang-codegen -p lang-cli --all-targets -- -D warnings` | 通过 |
+
+计数用例覆盖两次 Group 字段 receiver 与后续普通 if 实参、两条 Result 返回路径、Array
+持有两个成功 String payload：11次分配、11次逐活跃指针释放、无残留；未指定精确释放顺序。
+旧 decode 的独立副本 `[1,0]` 释放顺序仍保留。独立复审核对实现、205对端点 oracle、
+11次分配构成与 helper 抽取，未发现确认的生产缺陷。
+
+计数试验也暴露原 receiver control-prefix 门禁：后续实参直接 return 仍在整个 call 处拒绝，
+未进入字段借用逻辑；已保留精确拒绝回归，不能把普通 if 实参或 Result 函数返回混称为这项
+能力通过。泛型／嵌套字段、Borrow 参数字段及所有分支直接 return 等剩余边界未由本片解决。
+双宿主最终 head CI、完整生命周期矩阵与其余 Spec 验收仍未完成，不归档。
+
+针对独立复审指出的 guard 假阳性风险，差分试验仅临时清空新 receiver frame 的父 root
+登记：原精确拒绝测试变为失败，实际错误由 UnsupportedNode 变为 InvalidSsa，说明没有被
+其他同 span 的准入门槛掩盖。试验后逐字节恢复生产文件；突变版本不提交、不作为通过证据。
+恢复后同一 guard 复跑1 passed、0 failed、0 ignored，独立复审核对恢复文件摘要及文档边界。
+Rustfmt、diff、文档结构（821篇）和尺寸门禁通过；2014个手写 Rust 文件中39个历史超限，
+本片未增加尺寸例外。

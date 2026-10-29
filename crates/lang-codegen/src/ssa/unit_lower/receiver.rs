@@ -1,4 +1,5 @@
 //! Instance receiver entry binding 与 `this` 的基础 lowering。
+mod string_field;
 
 use lang_frontend::{
     ast::ExpressionId,
@@ -253,6 +254,9 @@ impl UnitExpressionLowerer<'_> {
                 created_loans: Vec::new(),
                 writeback: None,
             }));
+        }
+        if let Some(receiver) = self.lower_string_field_receiver(fact, expression, target)? {
+            return Ok(Some(receiver));
         }
         let object_value = if fact.kind() == UnitReceiverOwnershipKind::SharedLoan
             && matches!(

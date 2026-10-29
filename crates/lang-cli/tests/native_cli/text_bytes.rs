@@ -1,7 +1,10 @@
 //! Both public CLI modes must load the real trusted text source and execute its owned results.
 use super::*;
 
-const PROGRAM: &str = r#"import koven.text.byteLength
+#[path = "text_bytes/matrix.rs"]
+mod matrix;
+
+const PREFIX: &str = r#"import koven.text.byteLength
 import koven.text.toBytes
 import koven.text.decodeUtf8
 import koven.text.sliceBytes
@@ -22,7 +25,9 @@ fun invalidUtf8(bytes: Array<UByte>, expected: Int): Unit {
         }
     }
 }
-fun leftText(): String { println("left"); return "x".clone() }
+"#;
+
+const PROGRAM: &str = r#"fun leftText(): String { println("left"); return "x".clone() }
 fun rightText(): String { println("right"); return "y".clone() }
 fun main(): Unit {
     val ordered = leftText().checkedPlus(rightText())
@@ -80,9 +85,14 @@ const EXPECTED: &[u8] =
 
 #[test]
 fn public_text_byte_apis_check_build_and_run_in_single_and_project_modes() {
+    check_build_run_both_modes(PROGRAM, EXPECTED);
+}
+
+fn check_build_run_both_modes(body: &str, expected: &[u8]) {
+    let program = format!("{PREFIX}{body}");
     let directory = TestDirectory::create();
     let source = directory.join("text.ko");
-    fs::write(&source, PROGRAM).unwrap();
+    fs::write(&source, &program).unwrap();
     let checked = run([OsStr::new("check"), source.as_os_str()]);
     assert!(checked.status.success(), "{checked:?}");
     let executable = directory.join("text");
@@ -95,18 +105,18 @@ fn public_text_byte_apis_check_build_and_run_in_single_and_project_modes() {
     assert!(built.status.success(), "{built:?}");
     let direct = Command::new(&executable).output().unwrap();
     assert!(direct.status.success(), "{direct:?}");
-    assert_eq!(direct.stdout, EXPECTED);
+    assert_eq!(direct.stdout, expected);
     assert!(direct.stderr.is_empty(), "{direct:?}");
     let executed = run([OsStr::new("run"), source.as_os_str()]);
     assert!(executed.status.success(), "{executed:?}");
-    assert_eq!(executed.stdout, EXPECTED);
+    assert_eq!(executed.stdout, expected);
     assert!(executed.stderr.is_empty(), "{executed:?}");
 
     let root = directory.join("project");
     fs::create_dir_all(root.join("src/app")).unwrap();
     fs::write(
         root.join("src/app/Main.ko"),
-        format!("package app\n{PROGRAM}"),
+        format!("package app\n{program}"),
     )
     .unwrap();
     let manifest = root.join("project.toml");
@@ -130,7 +140,7 @@ fn public_text_byte_apis_check_build_and_run_in_single_and_project_modes() {
     assert!(built.status.success(), "{built:?}");
     let direct = Command::new(&executable).output().unwrap();
     assert!(direct.status.success(), "{direct:?}");
-    assert_eq!(direct.stdout, EXPECTED);
+    assert_eq!(direct.stdout, expected);
     assert!(direct.stderr.is_empty(), "{direct:?}");
     let executed = run([
         OsStr::new("run"),
@@ -140,7 +150,7 @@ fn public_text_byte_apis_check_build_and_run_in_single_and_project_modes() {
         OsStr::new("app.main"),
     ]);
     assert!(executed.status.success(), "{executed:?}");
-    assert_eq!(executed.stdout, EXPECTED);
+    assert_eq!(executed.stdout, expected);
     assert!(executed.stderr.is_empty(), "{executed:?}");
 }
 

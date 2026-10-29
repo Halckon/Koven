@@ -108,8 +108,14 @@ fn text_copy_primitives_abort_before_publishing_invalid_strings() {
     }
 }
 
-#[test]
-fn public_decode_result_borrows_payload_and_releases_independent_copy() {
+fn lower_public_text_program(source: &str) -> (Program, FunctionId) {
+    try_lower_public_text_program(source)
+        .unwrap_or_else(|error| panic!("public text lowering: {error:?}; source={source}"))
+}
+
+fn try_lower_public_text_program(
+    source: &str,
+) -> Result<(Program, FunctionId), super::LoweringError> {
     let mut sources = SourceMap::new();
     let (result_id, result) = support::parsed(
         &mut sources,
@@ -121,9 +127,115 @@ fn public_decode_result_borrows_payload_and_releases_independent_copy() {
         "text.ko",
         include_str!("../../../lang-std/koven/text/text.ko"),
     );
-    let (app_id, app) = support::parsed(
-        &mut sources,
-        "app.ko",
+    let (app_id, app) = support::parsed(&mut sources, "app.ko", source);
+    let inputs = [
+        SourceUnitInput::new("std", "koven/core/result.ko", result_id, &result),
+        SourceUnitInput::new("std", "koven/text/text.ko", text_id, &text),
+        SourceUnitInput::new("app", "app/Main.ko", app_id, &app),
+    ];
+    let (mut names, mut types) = standard_environments();
+    names.authorize_builtin_source(&sources, result_id).unwrap();
+    types.authorize_text_source(&sources, text_id).unwrap();
+    let (names, typed, owned) = support::analyze(&sources, &inputs, &names, &types);
+    super::unit_lower::lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &types,
+        &typed,
+        &owned,
+        support::declaration(&names, "app", "main"),
+    )
+}
+
+#[test]
+fn public_text_field_receiver_cleanup_and_result_storage_are_counted() {
+    let source = r#"package app
+import koven.text.*
+class Holder(val text: String)
+fun field(flag: Boolean): Unit {
+    val holder = Holder("field".clone())
+    val joined = (holder.text).checkedPlus(if (flag) { "!" } else { "?" })
+    if (joined != null) { println(joined) }
+    println(holder.text)
+}
+fun transfer(flag: Boolean): Result<String, TextError> {
+    val result = "early".sliceBytes(0, 5)
+    if (flag) { return result }
+    return result
+}
+fun transferred(flag: Boolean): Unit {
+    val result = transfer(flag)
+    when (result) {
+        is Ok -> println(result.success)
+        is Err -> error("transfer failed")
+    }
+}
+fun main(): Unit {
+    field(true)
+    field(false)
+    transferred(true)
+    transferred(false)
+    val results = Array<Result<String, TextError>>(2, { index -> "stored".sliceBytes(0, 6) })
+    if (results.size != 2) { error("container size") }
+    println("container")
+}
+"#;
+    let (program, entry) = lower_public_text_program(source);
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Two field owners + two class allocations + two joined strings, two returned
+    // strings, one array and two stored strings: every live pointer must be freed once.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 11);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"field!\nfield\nfield?\nfield\nearly\nearly\ncontainer\n",
+    );
+}
+
+#[test]
+fn public_text_field_receiver_keeps_sibling_replacement_guard() {
+    let source = r#"package app
+import koven.text.checkedPlus
+class Holder(val text: String, var other: String)
+fun main(): Unit {
+    val holder = Holder("field".clone(), "old".clone())
+    val joined = holder.text.checkedPlus(replace(&holder.other, "new".clone()))
+    if (joined != null) { println(joined) }
+}
+
+"#;
+    let error = try_lower_public_text_program(source)
+        .err()
+        .expect("shared field conflict");
+    assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
+    let span = error.span.unwrap();
+    assert_eq!(&source[span.start()..span.end()], "&holder.other");
+}
+
+#[test]
+fn public_text_field_receiver_retains_existing_argument_return_boundary() {
+    let source = r#"package app
+import koven.text.checkedPlus
+class Holder(val text: String)
+fun main(): Unit {
+    val holder = Holder("field".clone())
+    val joined = holder.text.checkedPlus(if (true) { return } else { "!" })
+}
+"#;
+    let error = try_lower_public_text_program(source)
+        .err()
+        .expect("receiver control prefix remains closed");
+    assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
+    let span = error.span.unwrap();
+    assert_eq!(
+        &source[span.start()..span.end()],
+        "holder.text.checkedPlus(if (true) { return } else { \"!\" })"
+    );
+}
+
+#[test]
+fn public_decode_result_borrows_payload_and_releases_independent_copy() {
+    let (program, entry) = lower_public_text_program(
         r#"package app
 import koven.text.decodeUtf8
 fun main(): Unit {
@@ -136,30 +248,6 @@ fun main(): Unit {
     if (bytes.size != 3) { error("input array consumed") }
 }"#,
     );
-    let inputs = [
-        SourceUnitInput::new("std", "koven/core/result.ko", result_id, &result),
-        SourceUnitInput::new("std", "koven/text/text.ko", text_id, &text),
-        SourceUnitInput::new("app", "app/Main.ko", app_id, &app),
-    ];
-    let (mut names, mut types) = standard_environments();
-    names.authorize_builtin_source(&sources, result_id).unwrap();
-    types.authorize_text_source(&sources, text_id).unwrap();
-    let (names, typed, owned) = support::analyze(&sources, &inputs, &names, &types);
-    let (program, entry) = super::unit_lower::lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &types,
-        &typed,
-        &owned,
-        support::declaration(&names, "app", "main"),
-    )
-    .unwrap_or_else(|error| {
-        panic!(
-            "public decode lowering: {error:?}; source={:?}",
-            error.span.and_then(|span| sources.slice(span).ok())
-        )
-    });
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     let run =
         crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[1, 0]);

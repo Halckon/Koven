@@ -284,7 +284,25 @@ impl UnitExpressionLowerer<'_> {
                     pending_start: receiver_start,
                     exclusive_root_owners: Vec::new(),
                     field_replace_owner: None,
-                    shared_field_roots: Vec::new(),
+                    shared_field_roots: self
+                        .owned
+                        .receiver_fact(call)
+                        .into_iter()
+                        .filter_map(|fact| {
+                            use lang_frontend::ownership_checking::{
+                                UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+                            };
+                            match fact.target() {
+                                UnitReceiverOwnershipTarget::Place(place)
+                                    if fact.kind() == UnitReceiverOwnershipKind::SharedLoan
+                                        && !place.is_root() =>
+                                {
+                                    Some(place.root())
+                                }
+                                _ => None,
+                            }
+                        })
+                        .collect(),
                     abi_slots: Vec::new(),
                     created_loans: (receiver_start + 1
                         ..receiver_start + 1 + receiver.created_loans.len())
