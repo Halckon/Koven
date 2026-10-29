@@ -131,12 +131,44 @@ fn assert_source_breakpoint(executable: &Path, source: &Path, line: u32, functio
         "{stdout}\n{stderr}"
     );
     let stopped_function = frame["function"].as_str().expect("stopped Koven function");
-    let declaration = stopped_function.strip_prefix(&format!("koven.{function}.d"));
     assert!(
-        declaration
-            .is_some_and(|id| !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit())),
+        is_koven_frame_function(stopped_function, function),
         "must stop in Koven function {function}: {frame:?}\n{stdout}\n{stderr}"
     );
+}
+
+// LLDB may expose the DI source name or the adapter's f<id> linkage name.
+// Keep both forms exact so a different function cannot satisfy the frame check.
+fn is_koven_frame_function(name: &str, function: &str) -> bool {
+    let numeric = |id: &str| !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit());
+    let name = match name.split_once('.') {
+        Some((prefix, rest)) if prefix.strip_prefix('f').is_some_and(numeric) => rest,
+        _ => name,
+    };
+    name.strip_prefix(&format!("koven.{function}.d"))
+        .is_some_and(numeric)
+}
+
+#[test]
+fn frame_function_identity_rejects_other_or_malformed_declarations() {
+    for (name, expected) in [
+        ("koven.app.show.d13", true),
+        ("f0.koven.app.show.d13", true),
+        ("f21.koven.app.show.d987", true),
+        ("f.koven.app.show.d13", false),
+        ("f-1.koven.app.show.d13", false),
+        ("f0.f1.koven.app.show.d13", false),
+        ("f0.koven.other.show.d13", false),
+        ("f0.koven.app.showcase.d13", false),
+        ("f0.koven.app.show.d", false),
+        ("f0.koven.app.show.d13suffix", false),
+    ] {
+        assert_eq!(
+            is_koven_frame_function(name, "app.show"),
+            expected,
+            "{name}"
+        );
+    }
 }
 
 // Inspect the final published artifact, after the build has deleted its .o staging.

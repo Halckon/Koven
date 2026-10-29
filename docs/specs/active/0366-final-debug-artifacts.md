@@ -423,3 +423,40 @@ CLI all-targets 严格 clippy 通过。Linux 修正后实际结果等待新提�
 在上述固定 head 上另跑 source_span：10 passed / 0 ignored；codegen debug 常规
 4 passed / 1 ignored，随后显式 `--ignored` 的真实 LLDB 项 1 passed / 0 ignored，
 分别保留选择范围，不把默认忽略隐瞒为已执行。Spec 仍待双宿主完整门禁及交付闭环。
+
+## 23. Linux 实际断点命中与 frame 名称断言修正
+
+[run 40884417348](https://github.com/Halckon/Koven/actions/runs/40884417348) 的双宿主
+workspace check/clippy 均通过。Linux targeted job
+[123487885715](https://github.com/Halckon/Koven/actions/runs/40884417348/job/123487885715)
+在 CLI native target 失败：34 passed / 3 failed / 0 ignored（3.96 秒）。三项新的调试用例
+实际均命中 breakpoint，选中 frame 的 canonical 源路径与行号正确，最终 ELF 行表检查
+亦已通过；仅函数名断言错误地只接受 macOS 展示的 DI 名称。
+Linux LLDB 返回 `f0.koven.main.d13` / `f0.koven.app.show.d13`，与 LLVM adapter 的
+`f<FunctionId>.<function.name>` linkage 名称一致，不是生产来源映射或断点失败。
+
+仅修正测试接受源码 DI 名称及单层 `f<非空数字>.` linkage 前缀；qualified 函数名和
+`.d<非空数字>` 仍精确匹配。新增反例拒绝其他函数、相似名、重复前缀和损坏 ID，
+未退回 substring 判断。相同实际 frame 的完整路径/行号和真实 breakpoint stop 保持。
+独立只读复核确认强身份检查未被弱化，生产代码不变。macOS 定向目标
+4 passed / 0 failed / 0 ignored / 34 filtered（7.17 秒）：其中 3 项真实 LLDB、1 项名称
+正反例；CLI all-targets 严格 clippy 通过。修正后 Linux 结果等待新提交 CI。
+
+该 Linux 失败输入上，codegen 2477 项、CLI 单元 74 项、project_cli 39 项和真实取消
+integration 2 项实际通过，均零忽略；这不表示完整组合通过。主步骤失败导致后续证据
+目录未生成，artifact 上传错误为下游缺材料，未将其当作独立业务故障。macOS 仍在运行时
+不提前报告其通过；该轮失败不能以局部通过追认为整轮通过。
+
+## 24. 合法夹具的事后基线核验
+
+为补核早期 project 自动红测夹具无效的边界，等待 CI 时在仓库外使用 `git archive`
+原基线 `48adcfab59e3d32be305e0f9a6d1127c157bbe71` 建立隔离快照与独立 Cargo target。
+复制固定 head `3b1a5bba3e940649141ab464d5091e78d6d187a9` 的最终调试测试主体，
+仅用等价 standalone 目录/run helper 替代父模块导入。三个合法夹具均先构建成功，
+随后因最终 dSYM 不存在失败：0 passed / 3 failed / 0 ignored（2.29 秒）。
+
+第二个基线探针只移除已知失败的最终行表前置调用，独立执行相同 LLDB 查询与断言，
+single/project/多根三项均实际报告 `Breakpoint 1: no locations (pending)`，程序结束后
+没有停止 frame；0 passed / 3 failed / 0 ignored（6.62 秒）。没有修改实际分支或基线
+编译器代码。此为实施后的缺口佐证，不追认为实施前红测、Linux 证据或当前实现结果。
+当前正向命中继续由前述最终产物测试与随后真实 CI 验证。
