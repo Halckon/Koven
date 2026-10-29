@@ -61,7 +61,8 @@ fn observe(root: &str) -> Vec<Observation> {
     observe_text(&text, root)
 }
 
-fn observe_text(text: &str, root: &str) -> Vec<Observation> {
+// Keep the two entry-specific diagnostic differentials on their real legacy chain.
+fn observe_legacy_text(text: &str, root: &str) -> Vec<Observation> {
     let mut sources = SourceMap::new();
     let source = sources.add_source("main.ko", text).expect("source");
     let lexed = lex(&sources, source).expect("lex");
@@ -207,6 +208,117 @@ fn observe_text(text: &str, root: &str) -> Vec<Observation> {
     vec![single, unit]
 }
 
+// The other seven whole tests compare the same source under memory and rooted Unit inputs.
+fn observe_text(text: &str, root: &str) -> Vec<Observation> {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("main.ko", text).expect("source");
+    let lexed = lex(&sources, source).expect("lex");
+    assert!(lexed.diagnostics().is_empty(), "{:?}", lexed.diagnostics());
+    let file = parse_file(&sources, &lexed).expect("parse");
+    assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
+    let ids: Vec<_> = file
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| (sources.slice(node.span()) == Ok(root)).then_some(id))
+        .collect();
+    assert_eq!(ids.len(), 1, "unique root {root}");
+    let id = ids[0];
+    let (environment, types) = standard_environments();
+    [
+        ("memory", SourceUnitInput::memory_document(source, &file)),
+        (
+            "unit",
+            SourceUnitInput::new("root", "main.ko", source, &file),
+        ),
+    ]
+    .map(|(mode, input)| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).expect("unit index");
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .expect("unit names")
+            .validate()
+            .expect("valid unit names");
+        let unit = names.names().index().source_units()[0].id();
+        let typed =
+            check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit types");
+        let raw = typed.diagnostics().to_vec();
+        eprintln!(
+            "SPEC-0326 unit type refs: {:?}",
+            file.ast()
+                .type_refs()
+                .iter()
+                .map(|(id, node)| (
+                    sources.slice(node.span()).unwrap(),
+                    typed
+                        .type_ref_type(UnitTypeRefId::new(unit, id))
+                        .map(|ty| unit_shape(&typed, ty))
+                ))
+                .collect::<Vec<_>>()
+        );
+        let unit = Observation {
+            mode,
+            root: root.to_owned(),
+            shape: unit_shape(
+                &typed,
+                typed
+                    .expression_type(UnitExpressionId::new(unit, id))
+                    .expect("unit root type"),
+            ),
+            primary_text: raw
+                .iter()
+                .map(|d| sources.slice(d.primary_span()).unwrap().to_owned())
+                .collect(),
+            complete: complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+                .map(|_| ()),
+            nodes: file
+                .ast()
+                .expressions()
+                .iter()
+                .filter_map(|(id, node)| {
+                    typed
+                        .expression_type(UnitExpressionId::new(unit, id))
+                        .map(|ty| {
+                            (
+                                sources.slice(node.span()).unwrap().to_owned(),
+                                unit_shape(&typed, ty),
+                            )
+                        })
+                })
+                .collect(),
+            matches_type_refs: file
+                .ast()
+                .type_refs()
+                .iter()
+                .filter(|&(type_ref, _)| {
+                    typed.type_ref_type(UnitTypeRefId::new(unit, type_ref))
+                        == typed.expression_type(UnitExpressionId::new(unit, id))
+                })
+                .map(|(_, node)| sources.slice(node.span()).unwrap().to_owned())
+                .collect(),
+            node_spans: file
+                .ast()
+                .expressions()
+                .iter()
+                .map(|(_, node)| (sources.slice(node.span()).unwrap().to_owned(), node.span()))
+                .collect(),
+            raw: raw.clone(),
+        };
+        assert_eq!(typed.diagnostics(), raw);
+        eprintln!("SPEC-0326 {unit:?}");
+        unit
+    })
+    .into_iter()
+    .collect()
+}
+
+fn observe_legacy(root: &str) -> Vec<Observation> {
+    let text = format!(
+        "fun test(flag: Boolean, optional: Int?, wide: Long): Unit {{ val result = {root} }}"
+    );
+    observe_legacy_text(&text, root)
+}
+
 fn roots(left: &str, right: &str) -> [String; 2] {
     [
         format!("if (flag) {left} else {right}"),
@@ -277,19 +389,19 @@ fn same_type_and_bottom_branches_keep_exact_result() {
     ]
     .into_iter()
     .flat_map(|(left, right)| roots(left, right))
-    .flat_map(|root| observe(&root))
+    .flat_map(|root| observe_legacy(&root))
     .map(|o| (BuiltinType::Int, o))
     .collect();
     for root in roots("error(\"left\")", "error(\"right\")") {
         observations.extend(
-            observe(&root)
+            observe_legacy(&root)
                 .into_iter()
                 .map(|o| (BuiltinType::Nothing, o)),
         );
     }
     for root in roots("return 1", "return 2") {
         observations.extend(
-            observe_text(
+            observe_legacy_text(
                 &format!("fun test(flag: Boolean): Int {{ return {root} }}"),
                 &root,
             )
@@ -300,7 +412,7 @@ fn same_type_and_bottom_branches_keep_exact_result() {
     let declaration_boundary: Vec<_> = roots("return 1", "return 2")
         .into_iter()
         .flat_map(|root| {
-            observe_text(
+            observe_legacy_text(
                 &format!("fun test(flag: Boolean): Int {{ val result = {root} }}"),
                 &root,
             )
@@ -486,18 +598,18 @@ fn expected_types_keep_original_mismatch_diagnostics() {
     let mut observations: Vec<_> = roots("1", "\"text\"")
         .into_iter()
         .flat_map(|root| {
-            observe_text(
+            observe_legacy_text(
                 &format!("fun test(flag: Boolean): Unit {{ val result: Int = {root} }}"),
                 &root,
             )
         })
         .collect();
     for root in roots("1", "\"text\"") {
-        observations.extend(observe_text(
+        observations.extend(observe_legacy_text(
             &format!("fun test(flag: Boolean): Int {{ return {root} }}"),
             &root,
         ));
-        observations.extend(observe_text(
+        observations.extend(observe_legacy_text(
             &format!(
                 "fun take(value: Int): Unit {{}}\nfun test(flag: Boolean): Unit {{ take({root}) }}"
             ),
@@ -783,7 +895,9 @@ fn assert_runtime_any_annotations_remain_rejected() {
     let observations: Vec<_> = roots("1", "\"text\"")
         .into_iter()
         .chain(roots("1", "2"))
-        .flat_map(|root| observe_text(&format!("fun mixed(flag: Boolean): Any = {root}"), &root))
+        .flat_map(|root| {
+            observe_legacy_text(&format!("fun mixed(flag: Boolean): Any = {root}"), &root)
+        })
         .collect();
     for o in observations {
         let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = &o.complete else {
