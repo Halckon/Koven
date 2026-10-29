@@ -24,6 +24,7 @@ pub struct UnitCallableSignature {
 }
 
 impl UnitCallableSignature {
+    /// 返回经宿主来源及精确签名验证的文本扩展身份。
     pub const fn text_extension(
         &self,
     ) -> Option<crate::type_checking::TextExtensionBinding<UnitCallableTarget, UnitTypeId>> {

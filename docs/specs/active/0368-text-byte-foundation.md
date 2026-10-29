@@ -90,3 +90,8 @@ ownership 至 native 链路均未完成，不能据此宣称公开 API 可用。
 新增 `type_text_extension` 后精确选择数量应从126变为127，旧清单断言未同步。
 464项规则测试中该项失败；Rust 编译与运行作业被跳过，不能视作前端通过。
 已同步精确数量并增加新目标只出现一次的断言，等待修复提交的官方验证。
+
+`1c753cdf97ad721f777b18e8d6c9e2f9c186dba8` 的
+[Linux Check／Clippy](https://github.com/Halckon/Koven/actions/runs/40926568205/job/123634034551)
+在 Clippy 将11项缺失公开 API 文档告警提升为错误后失败；已补齐对应枚举与查询方法的说明，
+未放宽 lint。行为测试仍未执行，macOS 尚未形成验收证据。

@@ -16,6 +16,7 @@ impl TypeEnvironment {
         Ok(())
     }
 
+    /// 查询实际 SourceId 的文本能力，不从路径或包名推断。
     pub fn is_authorized_text_source(&self, source: SourceId) -> bool {
         self.text_sources.contains(&source)
     }
