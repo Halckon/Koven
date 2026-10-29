@@ -10,7 +10,7 @@
 | 语言规范 | [Guide v0.46](../../../guide/README.md) |
 | 授权范围 | 持续推进编辑器里程碑，补齐消费方 SPEC-0011 的 debug build 前置；草案不授权未审结方案实施 |
 | 前置合同 | [ADR-0010](../../../adr/accepted/0010-first-native-object-and-linker-contract.md)、[ADR-0011](../../../adr/accepted/0011-first-dwarf-line-mapping.md)、[ADR-0026](../../../adr/accepted/0026-linux-x86-64-native-host.md) |
-| 阻塞项 | macOS 多产物发布/清理合同待审结；当前 main 的失败复现及双宿主验证待执行 |
+| 阻塞项 | macOS 多产物发布/清理及项目源码路径合同待审结；当前 main 的失败复现及双宿主验证待执行 |
 | 影响范围 | lang-cli linker、single/project 构建产物生命周期及真实 CLI 测试 |
 | 语言语义变更 | 否 |
 
@@ -46,6 +46,19 @@ macOS executable 与 dSYM 是多路径产物，不能把两个 rename 宣称为�
 并发创建或替换时的所有权识别，以及回滚失败的结构化 operational error。
 优先复用现有 BuildArtifacts 与临时目录设施；不得为方便清理而删除用户旧输出。
 方案若改变 accepted ADR 的决定，须先新增 ADR，不能改写历史决定。
+
+### 项目源码位置待决
+
+独立只读复核确认 `prepare_project_unit` 目前以 `{root_identity}/{logical_path}`
+作为 SourceMap source name，ADR-0011 又要求 codegen 原样写入 DIFile。
+生成 dSYM 本身不保证 LLDB 能定位项目实际磁盘文件。
+实施合同必须区分稳定诊断/项目逻辑身份与调试器磁盘来源，验证多 source-root、
+Unicode/空格路径及从不同 cwd 启动 LLDB；不得为方便调试悄悄改写诊断协议或名称解析。
+需要改变 ADR 的来源模型时先形成相应决策，不在 codegen 中猜测磁盘路径。
+
+普通 build 新增调试伴随物与显式 debug 入口两种方案尚待审结；Guide 已固定 CLI 参数形状，
+不能仅以实现配置为由增加参数。现有 native_cli 的首个输出残留断言只计 `.o`，
+不能把它误读为禁止所有伴随产物的证据。
 
 ## 4. 验证与完成条件
 
