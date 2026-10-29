@@ -42,6 +42,7 @@ pub(super) fn verify_operation(
         Operation::PrintLiteral { bytes } => results.is_empty() && bytes.last() == Some(&b'\n'),
         Operation::StringLiteral { string, bytes } => {
             is_string_owner(module, *string)
+                && bytes.len() as u64 <= lang_frontend::type_checking::MAX_STRING_BYTE_LENGTH
                 && std::str::from_utf8(bytes).is_ok()
                 && single_value_result(&results) == Some(*string)
         }

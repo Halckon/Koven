@@ -182,6 +182,8 @@ pub mod codes {
     pub(crate) const THIS_WITHOUT_RECEIVER: &str = "L0166";
     pub(crate) const UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE: &str = "L0167";
 
+    pub(crate) const STRING_LITERAL_TOO_LONG: &str = "L0168";
+
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
         UNEXPECTED_CHARACTER,
@@ -351,6 +353,7 @@ pub mod codes {
         FINAL_TYPE_ANALYSIS_INCOMPLETE,
         THIS_WITHOUT_RECEIVER,
         UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE,
+        STRING_LITERAL_TOO_LONG,
     ];
 
     /// 由集中定义创建生产错误码目录。

@@ -1075,6 +1075,7 @@
   <path d="M 2028 276 C 2028 308, 1236 344, 1236 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 276 C 2028 308, 1500 344, 1500 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 450 C 1236 482, 972 500, 972 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 13764 92 C 13816 92, 13816 257, 13868 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2545,4 +2546,8 @@
   <rect x="13524" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="13644" y="87" text-anchor="middle" font-size="13">SPEC-0366</text>
   <text x="13644" y="105" text-anchor="middle" font-size="13">文本与同步 IO 规范启用</text>
+  <rect x="13868" y="220" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="13988" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0367</text>
+  <text x="13988" y="261" text-anchor="middle" font-size="13">String 创建入口的 I</text>
+  <text x="13988" y="279" text-anchor="middle" font-size="13">nt 字节长度不变量</text>
 </svg>

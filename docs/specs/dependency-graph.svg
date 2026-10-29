@@ -23,6 +23,7 @@
   <path d="M 300 92 C 1620 92, 1620 257, 2940 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 1752 92, 1752 266, 3204 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 484 92, 484 266, 668 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 92 C 616 92, 616 257, 932 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="404" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="524" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0291</text>
   <text x="524" y="105" text-anchor="middle" font-size="13">非空只读 Map 构造与插入</text>
@@ -81,6 +82,10 @@
   <text x="1052" y="105" text-anchor="middle" font-size="13">String when 清理</text>
   <text x="1052" y="123" text-anchor="middle" font-size="13">事实的 refinement</text>
   <text x="1052" y="141" text-anchor="middle" font-size="13"> 消费</text>
+  <rect x="932" y="220" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="1052" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0367</text>
+  <text x="1052" y="261" text-anchor="middle" font-size="13">String 创建入口的 I</text>
+  <text x="1052" y="279" text-anchor="middle" font-size="13">nt 字节长度不变量</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">archive，339 份</text>
