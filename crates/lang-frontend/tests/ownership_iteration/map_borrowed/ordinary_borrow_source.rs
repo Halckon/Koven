@@ -170,13 +170,12 @@ fn analyze(entry: Entry) -> Result<Observed, Blocked> {
                 owned,
             }))
         }
-        Entry::Unit => {
-            let inputs = [SourceUnitInput::new(
-                "root",
-                LOGICAL_PATH,
-                file.source_id(),
-                file,
-            )];
+        Entry::Unit | Entry::MemoryUnit => {
+            let inputs = [if matches!(entry, Entry::MemoryUnit) {
+                SourceUnitInput::memory_document(file.source_id(), file)
+            } else {
+                SourceUnitInput::new("root", LOGICAL_PATH, file.source_id(), file)
+            }];
             let index = index_compilation_unit(sources, &inputs)
                 .map_err(|error| blocked("unit index infrastructure", error))?;
             require_clean(sources, "unit index", index.diagnostics())?;
@@ -338,12 +337,16 @@ impl Observation {
                 matches!(product.owned, Ok(Some(_))),
             ),
             Products::Unit(product) => {
-                let inputs = [SourceUnitInput::new(
-                    "root",
-                    LOGICAL_PATH,
-                    fixture.file.source_id(),
-                    &fixture.file,
-                )];
+                let inputs = [if matches!(self.entry, Entry::MemoryUnit) {
+                    SourceUnitInput::memory_document(fixture.file.source_id(), &fixture.file)
+                } else {
+                    SourceUnitInput::new(
+                        "root",
+                        LOGICAL_PATH,
+                        fixture.file.source_id(),
+                        &fixture.file,
+                    )
+                }];
                 (
                     product.raw.is_compatible_with(
                         &fixture.sources,
@@ -384,7 +387,7 @@ impl Observation {
 
 #[test]
 fn direct_borrow_return_source_keeps_unproven_continuation_boundary() {
-    let observations = [Entry::Single, Entry::Unit].map(|entry| Observation {
+    let observations = [Entry::Single, Entry::Unit, Entry::MemoryUnit].map(|entry| Observation {
         entry,
         result: analyze(entry),
     });
@@ -395,10 +398,10 @@ fn direct_borrow_return_source_keeps_unproven_continuation_boundary() {
     for (_, report) in &assessments {
         println!("{report}");
     }
-    assert_eq!(assessments.len(), 2);
+    assert_eq!(assessments.len(), 3);
     assert!(
         assessments.iter().all(|(passed, _)| *passed),
-        "SPEC-0331: both ordinary pipelines must complete P2 before ownership rejects the actual borrow-return source call with L0164 and its real declaration marker label. Earlier rejection is not ownership evidence.\n{}",
+        "SPEC-0331: all three ordinary pipelines must complete P2 before ownership rejects the actual borrow-return source call with L0164 and its real declaration marker label. Earlier rejection is not ownership evidence.\n{}",
         assessments
             .iter()
             .map(|(_, report)| report.as_str())

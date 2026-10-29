@@ -26,6 +26,7 @@ const LOGICAL_PATH: &str = "iteration.ko";
 enum Entry {
     Single,
     Unit,
+    MemoryUnit,
 }
 
 /// 前置失败单列，不能冒充预期的语言能力 RED。
@@ -156,9 +157,13 @@ fn analyze(text: &str, entry: Entry) -> Result<Observed, Blocked> {
                 complete,
             }))
         }
-        Entry::Unit => {
-            // 无 package 的源码必须位于 source-root 根目录，两个路径精确一致。
-            let inputs = [SourceUnitInput::new("root", LOGICAL_PATH, source, file)];
+        Entry::Unit | Entry::MemoryUnit => {
+            // rooted 路径仍与无 package 源匹配；MemoryDocument 不伪造路径身份。
+            let inputs = [if matches!(entry, Entry::MemoryUnit) {
+                SourceUnitInput::memory_document(file.source_id(), file)
+            } else {
+                SourceUnitInput::new("root", LOGICAL_PATH, source, file)
+            }];
             let index = index_compilation_unit(sources, &inputs)
                 .map_err(|error| blocked("unit index infrastructure", error))?;
             require_clean(sources, "unit index", index.diagnostics())?;
@@ -587,7 +592,7 @@ fn map_and_mutable_map_named_borrowed_iteration_complete_in_both_entries() {
         (IntrinsicTypeConstructor::Map, "Map"),
         (IntrinsicTypeConstructor::MutableMap, "MutableMap"),
     ] {
-        for entry in [Entry::Single, Entry::Unit] {
+        for entry in [Entry::Single, Entry::Unit, Entry::MemoryUnit] {
             observations.push(observe(constructor, spelling, entry));
         }
     }
@@ -596,10 +601,14 @@ fn map_and_mutable_map_named_borrowed_iteration_complete_in_both_entries() {
     for (_, report) in &assessments {
         println!("{report}");
     }
-    assert_eq!(assessments.len(), 4, "Map/MutableMap × single/unit");
+    assert_eq!(
+        assessments.len(),
+        6,
+        "Map/MutableMap × single/rooted Unit/MemoryDocument Unit"
+    );
     assert!(
         assessments.iter().all(|(accepted, _)| *accepted),
-        "SPEC-0331 Phase 2 success target: all four ordinary analyses must accept, retain intrinsic K/V and real body binding types, and complete with original identity. BLOCKED/INTERNAL is not feature RED.\n{}",
+        "SPEC-0331 Phase 2 success target: all six ordinary analyses must accept, retain intrinsic K/V and real body binding types, and complete with original identity. BLOCKED/INTERNAL is not feature RED.\n{}",
         assessments
             .iter()
             .map(|(_, report)| report.as_str())

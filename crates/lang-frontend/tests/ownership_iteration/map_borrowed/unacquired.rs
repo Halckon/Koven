@@ -335,13 +335,12 @@ fn analyze(case: Case, entry: Entry) -> Result<Observed, Blocked> {
                 owned,
             }))
         }
-        Entry::Unit => {
-            let inputs = [SourceUnitInput::new(
-                "root",
-                LOGICAL_PATH,
-                file.source_id(),
-                file,
-            )];
+        Entry::Unit | Entry::MemoryUnit => {
+            let inputs = [if matches!(entry, Entry::MemoryUnit) {
+                SourceUnitInput::memory_document(file.source_id(), file)
+            } else {
+                SourceUnitInput::new("root", LOGICAL_PATH, file.source_id(), file)
+            }];
             let index = index_compilation_unit(sources, &inputs)
                 .map_err(|error| blocked("unit index infrastructure", error))?;
             require_clean(sources, "unit index", index.diagnostics())?;
@@ -523,12 +522,16 @@ impl Observation {
                 matches!(product.owned, Ok(Some(_))),
             ),
             Products::Unit(product) => {
-                let inputs = [SourceUnitInput::new(
-                    "root",
-                    LOGICAL_PATH,
-                    fixture.file.source_id(),
-                    &fixture.file,
-                )];
+                let inputs = [if matches!(self.entry, Entry::MemoryUnit) {
+                    SourceUnitInput::memory_document(fixture.file.source_id(), &fixture.file)
+                } else {
+                    SourceUnitInput::new(
+                        "root",
+                        LOGICAL_PATH,
+                        fixture.file.source_id(),
+                        &fixture.file,
+                    )
+                }];
                 (
                     product.raw.is_compatible_with(
                         &fixture.sources,
@@ -572,7 +575,7 @@ fn source_return_and_dead_tail_do_not_acquire_map_providers() {
     let observations = [Case::SourceReturn, Case::DeadTail]
         .into_iter()
         .flat_map(|case| {
-            [Entry::Single, Entry::Unit].map(|entry| Observation {
+            [Entry::Single, Entry::Unit, Entry::MemoryUnit].map(|entry| Observation {
                 case,
                 entry,
                 result: analyze(case, entry),
@@ -586,7 +589,7 @@ fn source_return_and_dead_tail_do_not_acquire_map_providers() {
     for (_, report) in &assessments {
         println!("{report}");
     }
-    assert_eq!(assessments.len(), 4);
+    assert_eq!(assessments.len(), 6);
     assert!(
         assessments.iter().all(|(passed, _)| *passed),
         "SPEC-0331 source-before-acquire/dead-tail success target: ordinary raw/complete then ownership must accept without forming or cleaning an unevaluated source owner. Phase 2 failure is not ownership evidence. New Map plan absence requires the later real API.\n{}",

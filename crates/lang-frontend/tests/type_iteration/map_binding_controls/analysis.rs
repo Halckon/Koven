@@ -1,4 +1,5 @@
-//! 只读保存一次真实 Phase 2 分析链；前置失败与最终准入失败分开记录。
+//! 原 Single witness 与 rooted/MemoryDocument Unit 使用同源、同 oracle。
+//! 前置失败与最终准入失败分开记录；本批不退役旧 API。
 
 use lang_frontend::{
     diagnostic::Diagnostic,
@@ -22,6 +23,7 @@ const LOGICAL_PATH: &str = "iteration.ko";
 pub(super) enum Entry {
     Single,
     Unit,
+    MemoryUnit,
 }
 
 #[derive(Debug)]
@@ -142,8 +144,12 @@ fn analyze(text: &str, entry: Entry, trace: &mut Vec<String>) -> Result<Observed
                 complete,
             }))
         }
-        Entry::Unit => {
-            let inputs = [SourceUnitInput::new("root", LOGICAL_PATH, source, file)];
+        Entry::Unit | Entry::MemoryUnit => {
+            let inputs = [if matches!(entry, Entry::MemoryUnit) {
+                SourceUnitInput::memory_document(file.source_id(), file)
+            } else {
+                SourceUnitInput::new("root", LOGICAL_PATH, source, file)
+            }];
             let index = index_compilation_unit(sources, &inputs)
                 .map_err(|error| blocked("unit index infrastructure", error))?;
             clean(sources, trace, "unit index", index.diagnostics())?;

@@ -190,11 +190,11 @@ fn for_pattern_recovery_preserves_independent_body_roots_in_both_entries() {
         Case::SequentialArity,
         Case::PoisonedBinding,
     ] {
-        for entry in [Entry::Single, Entry::Unit] {
+        for entry in [Entry::Single, Entry::Unit, Entry::MemoryUnit] {
             observations.push((case, observe(case.text(), entry)));
         }
     }
-    // 六次真实流水线全部返回之后，才评估全部 oracle、打印完整集合并统一断言。
+    // 九次真实流水线全部返回之后，才评估全部 oracle、打印完整集合并统一断言。
     let assessments = observations
         .iter()
         .map(|(case, observation)| assess(*case, observation))
@@ -203,8 +203,8 @@ fn for_pattern_recovery_preserves_independent_body_roots_in_both_entries() {
         println!("{report}");
     }
     assert!(
-        assessments.len() == 6 && assessments.iter().all(|(passed, _)| *passed),
-        "SPEC-0331: all six ordinary observations must preserve complete ordered diagnostics; independent body adds exactly AST fooBar L0080 beside original L0160, arity and poisoned uses retain their original full diagnostic without cascades.\n{}",
+        assessments.len() == 9 && assessments.iter().all(|(passed, _)| *passed),
+        "SPEC-0331: all nine ordinary observations must preserve complete ordered diagnostics; independent body adds exactly AST fooBar L0080 beside original L0160, arity and poisoned uses retain their original full diagnostic without cascades.\n{}",
         assessments
             .iter()
             .map(|(_, report)| report.as_str())

@@ -17,7 +17,7 @@ use lang_frontend::{
     },
 };
 
-fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
+fn checked(text: &str) -> (OwnershipCheckedFile, Vec<CompilationUnitOwnership>) {
     println!("SOURCE {text}");
     let mut sources = SourceMap::new();
     let source = sources.add_source("iteration.ko", text).unwrap();
@@ -39,42 +39,52 @@ fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
     if single.diagnostics().is_empty() && single.deferred().is_empty() {
         validate_iteration_facts(&file, &names, &typed, &single).unwrap();
     }
-    let inputs = [SourceUnitInput::new("root", "iteration.ko", source, &file)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
-    complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).unwrap();
-    let typed = typed.validate().unwrap();
-    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    println!(
-        "UNIT diagnostics={:?} plans={:?}",
-        unit.diagnostics(),
-        unit.iterations()
-    );
-    if unit.diagnostics().is_empty() {
-        unit.clone().validate().unwrap();
+    // Preserve the old loan/ownership witness and run both real Unit input kinds.
+    let mut units = Vec::new();
+    for (mode, input) in [
+        (
+            "rooted",
+            SourceUnitInput::new("root", "iteration.ko", source, &file),
+        ),
+        ("memory", SourceUnitInput::memory_document(source, &file)),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).unwrap();
+        let typed = typed.validate().unwrap();
+        let unit =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+        println!(
+            "UNIT {mode} diagnostics={:?} plans={:?}",
+            unit.diagnostics(),
+            unit.iterations()
+        );
+        if unit.diagnostics().is_empty() {
+            unit.clone().validate().unwrap();
+        }
+        units.push(unit);
     }
-    (single, unit)
+    (single, units)
 }
 
 fn assert_numeric(
     single: &OwnershipCheckedFile,
-    unit: &CompilationUnitOwnership,
+    units: &[CompilationUnitOwnership],
     endpoint: BuiltinType,
     bindings: usize,
 ) {
     assert_eq!(single.iterations().len(), 1);
-    assert_eq!(unit.iterations().len(), 1);
     assert!(
         single.diagnostics().is_empty(),
         "{:?}",
         single.diagnostics()
     );
     assert!(single.deferred().is_empty(), "{:?}", single.deferred());
-    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
     for plan in single.iterations().iter() {
         assert_eq!(plan.descriptor().delivery(), ParameterMode::Value);
         assert_eq!(
@@ -97,27 +107,32 @@ fn assert_numeric(
         )));
         assert!(!plan.exits().is_empty());
     }
-    for plan in unit.iterations().iter() {
-        assert_eq!(plan.descriptor().delivery(), ParameterMode::Value);
-        assert_eq!(
-            plan.descriptor().provider(),
-            IterationProvider::NumericRange(endpoint)
-        );
-        assert_eq!(plan.bindings().len(), bindings);
-        assert_eq!(
-            plan.source_kind(),
-            &IterationSource::OwnedSnapshot(plan.descriptor().source())
-        );
-        assert!(plan.source().is_none());
-        assert!(
-            plan.bindings()
-                .iter()
-                .all(|b| b.kind() == OwnershipBindingKind::Owned)
-        );
-        assert!(plan.exits().iter().all(|e| !e.actions().contains(
-            &UnitIterationCleanupAction::EndSource(plan.descriptor().statement())
-        )));
-        assert!(!plan.exits().is_empty());
+    assert_eq!(units.len(), 2, "rooted and MemoryDocument Unit");
+    for unit in units {
+        assert_eq!(unit.iterations().len(), 1);
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        for plan in unit.iterations().iter() {
+            assert_eq!(plan.descriptor().delivery(), ParameterMode::Value);
+            assert_eq!(
+                plan.descriptor().provider(),
+                IterationProvider::NumericRange(endpoint)
+            );
+            assert_eq!(plan.bindings().len(), bindings);
+            assert_eq!(
+                plan.source_kind(),
+                &IterationSource::OwnedSnapshot(plan.descriptor().source())
+            );
+            assert!(plan.source().is_none());
+            assert!(
+                plan.bindings()
+                    .iter()
+                    .all(|b| b.kind() == OwnershipBindingKind::Owned)
+            );
+            assert!(plan.exits().iter().all(|e| !e.actions().contains(
+                &UnitIterationCleanupAction::EndSource(plan.descriptor().statement())
+            )));
+            assert!(!plan.exits().is_empty());
+        }
     }
 }
 
@@ -157,7 +172,13 @@ fn numeric_inner_loop_preserves_outer_container_borrow() {
     let text = "fun consume(own values: Array<Int>): Unit {}\nfun entry(values: Array<Int>, range: IntRange): Unit { for (outer in values) { for (inner in range) { consume(values) } } }";
     let (single, unit) = checked(text);
     assert_eq!(single.diagnostics().len(), 1, "{:?}", single.diagnostics());
-    assert_eq!(unit.diagnostics().len(), 1, "{:?}", unit.diagnostics());
     assert_eq!(single.diagnostics()[0].code().to_string(), "L0135");
-    assert_eq!(unit.diagnostics()[0].code().to_string(), "L0135");
+    assert_eq!(unit.len(), 2);
+    for unit in &unit {
+        assert_eq!(
+            unit.diagnostics(),
+            single.diagnostics(),
+            "full source diagnostics"
+        );
+    }
 }
