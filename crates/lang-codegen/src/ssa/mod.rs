@@ -232,6 +232,8 @@ mod lowering_dependency_tests;
 mod range_lowering_tests;
 
 #[cfg(test)]
+mod text_copy_tests;
+#[cfg(test)]
 mod text_extension_tests;
 
 #[cfg(test)]

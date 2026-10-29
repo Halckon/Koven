@@ -146,9 +146,9 @@ fn byte_read_native_checks_negative_end_and_empty_before_dereferencing() {
 }
 
 #[test]
-fn utf8_scan_requires_exact_array_ubyte_active_shared_loan_and_int_result() {
+fn utf8_scan_and_copy_require_exact_array_ubyte_active_shared_loan_and_result() {
     use crate::ssa::model::SequentialContainerKind;
-    for case in [
+    for (case, copying) in [
         "valid",
         "list",
         "int-element",
@@ -156,11 +156,15 @@ fn utf8_scan_requires_exact_array_ubyte_active_shared_loan_and_int_result() {
         "exclusive",
         "ended",
         "result",
-    ] {
+    ]
+    .into_iter()
+    .flat_map(|case| [false, true].map(|copying| (case, copying)))
+    {
         let origin = origin();
         let mut program = Program::default();
         let module_id = program.add_module("utf8-contract");
         let module = program.module_mut(module_id).unwrap();
+        let string = module.add_string_owner_type();
         let int = module.intern_type(SsaTypeKind::Integer {
             bits: 32,
             signed: true,
@@ -227,14 +231,37 @@ fn utf8_scan_requires_exact_array_ubyte_active_shared_loan_and_int_result() {
                 &origin,
             );
         }
-        let (instruction, _) = function
+        let result_type = if case == "result" {
+            byte
+        } else if copying {
+            string
+        } else {
+            int
+        };
+        let operation = if copying {
+            Operation::StringCopyBytes { source }
+        } else {
+            Operation::Utf8ErrorOffset { source }
+        };
+        let (instruction, results) = function
             .append_instruction(
                 block,
-                Operation::Utf8ErrorOffset { source },
-                vec![EntityType::Value(if case == "result" { byte } else { int })],
+                operation,
+                vec![EntityType::Value(result_type)],
                 origin.clone(),
             )
             .unwrap();
+        if result_type == string {
+            append(
+                function,
+                block,
+                Operation::Drop {
+                    owner: value(results[0]),
+                },
+                vec![],
+                &origin,
+            );
+        }
         if case != "ended" {
             append(
                 function,
@@ -260,7 +287,7 @@ fn utf8_scan_requires_exact_array_ubyte_active_shared_loan_and_int_result() {
                     } else {
                         matches!(error.kind, VerifyErrorKind::OperationContract { .. })
                     }),
-                "{case}: {errors:?}"
+                "{case}, copying={copying}: {errors:?}"
             );
         }
     }

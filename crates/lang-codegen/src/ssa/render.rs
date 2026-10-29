@@ -272,6 +272,18 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("utf8.error_offset ")?;
             write_entity_id(output, EntityId::Loan(*source))
         }
+        Operation::StringCopyBytes { source } => {
+            output.write_str("string.copy_bytes ")?;
+            write_entity_id(output, EntityId::Loan(*source))
+        }
+        Operation::StringCopySlice { source, start, end } => {
+            output.write_str("string.copy_slice ")?;
+            write_entity_id(output, EntityId::Loan(*source))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*start))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*end))
+        }
         Operation::StringEqual { left, right } => {
             output.write_str("string.equal ")?;
             write_entity_id(output, *left)?;

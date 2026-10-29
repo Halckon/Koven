@@ -384,7 +384,8 @@ fn apply_operation(
         }
         Operation::StringClone { source }
         | Operation::StringByteLength { source }
-        | Operation::StringByteAt { source, .. } => {
+        | Operation::StringByteAt { source, .. }
+        | Operation::StringCopySlice { source, .. } => {
             require_string_view(
                 module,
                 function,
@@ -396,7 +397,9 @@ fn apply_operation(
                 errors,
             );
         }
-        Operation::PrintString { value } | Operation::Utf8ErrorOffset { source: value } => {
+        Operation::PrintString { value }
+        | Operation::Utf8ErrorOffset { source: value }
+        | Operation::StringCopyBytes { source: value } => {
             if !state.loans.contains(value) {
                 errors.push(error(
                     VerifyErrorKind::LoanInactive { loan: *value },

@@ -28,6 +28,25 @@ impl UnitExpressionLowerer<'_> {
             return Ok(LoweredValue::Diverged);
         };
         let operation = match (kind, lowered.arguments.as_slice()) {
+            (TextPrimitiveKind::CopyBytes, [EntityId::Loan(source)]) => {
+                Operation::StringCopyBytes { source: *source }
+            }
+            (
+                TextPrimitiveKind::CopySlice,
+                [
+                    EntityId::Loan(source),
+                    EntityId::Loan(start),
+                    EntityId::Loan(end),
+                ],
+            ) => {
+                let start = self.text_index_value(*start, span)?;
+                let end = self.text_index_value(*end, span)?;
+                Operation::StringCopySlice {
+                    source: *source,
+                    start,
+                    end,
+                }
+            }
             (TextPrimitiveKind::Utf8ErrorOffset, [EntityId::Loan(source)]) => {
                 Operation::Utf8ErrorOffset { source: *source }
             }
@@ -35,23 +54,7 @@ impl UnitExpressionLowerer<'_> {
                 Operation::StringByteLength { source: *source }
             }
             (TextPrimitiveKind::ByteAt, [EntityId::Loan(source), EntityId::Loan(index)]) => {
-                let Some(EntityType::Loan { target, .. }) = self
-                    .function
-                    .entity(EntityId::Loan(*index))
-                    .map(|entity| entity.ty)
-                else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                };
-                let index = self.append_scalar(
-                    Operation::Read {
-                        source: PlaceAccess::Loan(*index),
-                    },
-                    target,
-                    span,
-                )?;
-                let LoweredValue::Value(index) = index else {
-                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-                };
+                let index = self.text_index_value(*index, span)?;
                 Operation::StringByteAt {
                     source: *source,
                     index,
@@ -84,5 +87,32 @@ impl UnitExpressionLowerer<'_> {
         self.emit_borrow_argument_expression_drops(call)?;
         self.emit_drops(UnitDropPoint::CallReturn(call))?;
         Ok(LoweredValue::Value(result))
+    }
+}
+
+impl UnitExpressionLowerer<'_> {
+    fn text_index_value(
+        &mut self,
+        index: crate::ssa::model::LoanId,
+        span: Span,
+    ) -> Result<crate::ssa::model::ValueId, LoweringError> {
+        let Some(EntityType::Loan { target, .. }) = self
+            .function
+            .entity(EntityId::Loan(index))
+            .map(|entity| entity.ty)
+        else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let value = self.append_scalar(
+            Operation::Read {
+                source: PlaceAccess::Loan(index),
+            },
+            target,
+            span,
+        )?;
+        let LoweredValue::Value(value) = value else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        Ok(value)
     }
 }

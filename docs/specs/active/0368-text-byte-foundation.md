@@ -146,3 +146,16 @@ LLDB 断点用例，不能算通过。当前字节读取片的尺寸门禁通过
 输入数组继续可用，以及 List／Int 元素／signed Byte／exclusive／ended／错误返回类型的精确
 instruction 拒绝矩阵。独立静态审查确认构造、header、Int 映射、分配计数和错误定位，无确认
 缺陷；这些新增用例仍未编译执行，不代表 decodeUtf8 公共 API 已交付。
+
+输入 `c6cf4166ee8d205b2688d08b9ae146f9b7231505` 的
+[官方 CI](https://github.com/Halckon/Koven/actions/runs/40931185019) 双宿主 Check／Clippy
+已通过；两个 Targeted Tests 作业仍在运行，尚不记为行为验证通过。
+
+新增 StringCopyBytes／StringCopySlice 的 shared-loan SSA 和 unit 调用接线。数组复制先做严格
+UTF-8 检验；区间复制先做 Int 范围与顺序检验，再检查两端 scalar 边界，末端不读越界字节。
+两者复用既有 String.clone 的独立分配与空串路径，底层非法输入 Abort；公开 Result 分类仍须
+由后续 Koven 标准源码完成。测试覆盖独立 owner／逆序释放、NUL／空复制、非法 UTF-8、
+负数／反向／越界与非 scalar 边界；CopyBytes 复用精确 Array<UByte> verifier 拒绝矩阵。
+独立审阅发现非法 UTF-8 fixture 的零分配计数会提前 Abort，已修为只允许源数组的一次分配并
+复核，错误文案断言保留；Abort 用例不作为释放计数证据。文档、diff、尺寸门禁通过，未扩大
+尺寸例外；本复制片尚未经过 Rust 编译和 native 执行。

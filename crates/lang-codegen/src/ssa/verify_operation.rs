@@ -73,6 +73,17 @@ pub(super) fn verify_operation(
             text::shared_byte_array(module, function, *source)
                 && single_value_result(&results).is_some_and(|ty| is_koven_int(module, ty))
         }
+        Operation::StringCopyBytes { source } => {
+            text::shared_byte_array(module, function, *source)
+                && single_value_result(&results).is_some_and(|ty| is_string_owner(module, ty))
+        }
+        Operation::StringCopySlice { source, start, end } => {
+            shared_string_loan_type(module, function, *source)
+                .is_some_and(|ty| single_value_result(&results) == Some(ty))
+                && [start, end].iter().all(|index| {
+                    value_type(function, **index).is_some_and(|ty| is_koven_int(module, ty))
+                })
+        }
         Operation::StringEqual { left, right } => {
             string_binary_contract(module, function, *left, *right, &results, true)
         }

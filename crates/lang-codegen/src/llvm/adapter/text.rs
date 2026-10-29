@@ -86,6 +86,25 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             return Err(invalid_result_count("utf8 error offset", 1, results.len()));
         };
         let name = value_name(*result);
+        let (bytes, length) = self.byte_array_parts(source, &name)?;
+        let offset = self.utf8_offset(bytes, length, &name)?;
+        // Array length is bounded by Int.MAX_VALUE; all-ones success becomes Int -1.
+        let value = self
+            .builder
+            .build_int_cast(offset, self.context.i32_type(), &name)?;
+        self.values.insert(*result, value.into());
+        Ok(())
+    }
+}
+
+impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+    FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+{
+    pub(super) fn byte_array_parts(
+        &self,
+        source: LoanId,
+        name: &str,
+    ) -> Result<(PointerValue<'ctx>, IntValue<'ctx>), LlvmAdapterError> {
         let ty = access_type(self.function, PlaceAccess::Loan(source))?;
         let header = self
             .builder
@@ -103,6 +122,15 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             .builder
             .build_extract_value(header, 1, &format!("{name}.length"))?
             .into_int_value();
+        Ok((bytes, length))
+    }
+
+    pub(super) fn utf8_offset(
+        &self,
+        bytes: PointerValue<'ctx>,
+        length: IntValue<'ctx>,
+        name: &str,
+    ) -> Result<IntValue<'ctx>, LlvmAdapterError> {
         let scanner = crate::llvm::utf8::define_error_offset(
             self.context,
             self.llvm,
@@ -124,11 +152,6 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 ));
             }
         };
-        // Array length is bounded by Int.MAX_VALUE; all-ones success becomes Int -1.
-        let value = self
-            .builder
-            .build_int_cast(offset, self.context.i32_type(), &name)?;
-        self.values.insert(*result, value.into());
-        Ok(())
+        Ok(offset)
     }
 }
