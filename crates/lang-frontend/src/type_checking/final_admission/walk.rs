@@ -540,7 +540,11 @@ impl<F: Facts> Checker<'_, F> {
             }
         }
     }
-    fn rejected_type_arguments(&self, call: ExpressionId, callee: ExpressionId) -> Result<bool> {
+    fn rejected_type_arguments(
+        &self,
+        call: ExpressionId,
+        callee: ExpressionId,
+    ) -> Result<Option<usize>> {
         if self.facts.selection(call).is_some()
             || !matches!(
                 self.facts
@@ -549,27 +553,49 @@ impl<F: Facts> Checker<'_, F> {
                 Some(Shape::Error)
             )
         {
-            return Ok(false);
+            return Ok(None);
         }
-        let callee = self
+        let callee_node = self
             .parsed
             .ast()
             .expressions()
             .get(callee)
             .map_err(TypeCheckingError::from)?;
-        let primary = match callee.payload() {
-            Expression::Name => callee.span(),
+        let primary = match callee_node.payload() {
+            Expression::Name => callee_node.span(),
             Expression::Member { name_span, .. } => *name_span,
-            _ => return Ok(false),
+            _ => return Ok(None),
         };
         let code = codes::catalog()
             .and_then(|catalog| catalog.resolve(codes::TYPE_ARGUMENT_ARITY))
             .map_err(TypeCheckingError::from)?;
-        Ok(self.diagnostics.iter().any(|diagnostic| {
-            diagnostic.severity() == Severity::Error
-                && diagnostic.code() == code
-                && diagnostic.primary_span() == primary
-        }))
+        let rejected_at = |primary| {
+            self.diagnostics.iter().any(|diagnostic| {
+                diagnostic.severity() == Severity::Error
+                    && diagnostic.code() == code
+                    && diagnostic.primary_span() == primary
+            })
+        };
+        if rejected_at(primary) {
+            return Ok(Some(0));
+        }
+        let call_node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(call)
+            .map_err(TypeCheckingError::from)?;
+        // The primitive producer resolves the first explicit type and rejects the
+        // excess at the whole call. Preserve that exact diagnostic contract, not spelling.
+        if matches!(callee_node.payload(), Expression::Name)
+            && self.facts.ownership_primitive_candidate(primary)
+            && matches!(call_node.payload(), Expression::Call { type_arguments, arguments, .. }
+                if type_arguments.len() > 1 && arguments.len() == 2)
+            && rejected_at(call_node.span())
+        {
+            return Ok(Some(1));
+        }
+        Ok(None)
     }
     fn call_type_ref(&mut self, id: TypeRefId, rejected: bool) -> Result<bool> {
         // 只有本 call 的原 L0091 及 Error 产物证明早拒，才允许尚未遍历的类型实参缺值。
@@ -849,8 +875,9 @@ impl<F: Facts> Checker<'_, F> {
                     }
                 }
                 let rejected_type_arguments = self.rejected_type_arguments(id, *callee)?;
-                for type_ref in type_arguments {
-                    complete &= self.call_type_ref(*type_ref, rejected_type_arguments)?;
+                for (index, type_ref) in type_arguments.iter().enumerate() {
+                    let rejected = rejected_type_arguments.is_some_and(|first| index >= first);
+                    complete &= self.call_type_ref(*type_ref, rejected)?;
                 }
                 // 参数已失败时，真实静态候选只是选择器，不消费其恢复值类型。
                 // Single 的容器 callee 可带 Deferred(Call)，Unit 可没有值事实；
