@@ -21,6 +21,8 @@ pub enum IntrinsicCallable {
     Swap,
     /// 来源受检的内联 View 构造，仅授权的标准来源可调用。
     RangeView,
+    /// 受宿主来源能力限制的文本存储操作。
+    Text(super::TextPrimitiveKind),
 }
 
 /// v1 封闭的顺序容器种类。

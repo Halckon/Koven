@@ -1,5 +1,6 @@
 //! 在泛型候选选择前分派构造与 compiler-bound 内建调用，保持原有顺序。
 use super::*;
+mod text_primitive;
 
 impl Checker<'_> {
     pub(super) fn check_special_call(
@@ -11,6 +12,15 @@ impl Checker<'_> {
         arguments: &[CallArgument],
         expected: Option<TypeId>,
     ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        if let Some(result) = self.check_text_primitive_call(
+            expression,
+            call_span,
+            callee,
+            type_arguments,
+            arguments,
+        )? {
+            return Ok(Some(result));
+        }
         if let Some(result) = self.check_range_construction_call(
             expression,
             call_span,

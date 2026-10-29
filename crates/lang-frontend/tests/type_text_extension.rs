@@ -368,3 +368,103 @@ fn slice_result_requires_builtin_result_and_authorized_error_identity() {
         }
     }
 }
+
+#[test]
+fn storage_primitives_require_the_host_source_and_exact_borrow_shapes() {
+    use lang_frontend::type_checking::{ParameterMode, TextPrimitiveKind};
+    for (source, kind) in [
+        (
+            "fun run(text: String): Int = textByteLength(text)",
+            TextPrimitiveKind::ByteLength,
+        ),
+        (
+            "fun run(text: String, index: Int): UByte = textByteAt(text, index)",
+            TextPrimitiveKind::ByteAt,
+        ),
+        (
+            "fun run(bytes: Array<UByte>): Int = textUtf8ErrorOffset(bytes)",
+            TextPrimitiveKind::Utf8ErrorOffset,
+        ),
+        (
+            "fun run(bytes: Array<UByte>): String = textCopyBytes(bytes)",
+            TextPrimitiveKind::CopyBytes,
+        ),
+        (
+            "fun run(text: String, start: Int, end: Int): String = textCopySlice(text, start, end)",
+            TextPrimitiveKind::CopySlice,
+        ),
+    ] {
+        for authorized in [false, true] {
+            let (single, unit) = checked(source, authorized);
+            if authorized {
+                assert!(
+                    single.diagnostics().is_empty(),
+                    "{source}: {:?}",
+                    single.diagnostics()
+                );
+                assert!(
+                    unit.diagnostics().is_empty(),
+                    "{source}: {:?}",
+                    unit.diagnostics()
+                );
+                let call = single
+                    .calls()
+                    .iter()
+                    .find(|c| c.text_primitive().is_some())
+                    .unwrap();
+                assert_eq!(call.text_primitive(), Some(kind));
+                assert!(
+                    call.arguments()
+                        .iter()
+                        .all(|a| a.mode() == ParameterMode::Borrow)
+                );
+                let call = unit
+                    .calls()
+                    .iter()
+                    .find(|c| c.text_primitive().is_some())
+                    .unwrap();
+                assert_eq!(call.text_primitive(), Some(kind));
+                assert!(
+                    call.arguments()
+                        .iter()
+                        .all(|a| a.mode() == ParameterMode::Borrow)
+                );
+            } else {
+                assert!(!single.diagnostics().is_empty());
+                assert!(!unit.diagnostics().is_empty());
+                assert!(single.calls().iter().all(|c| c.text_primitive().is_none()));
+                assert!(unit.calls().iter().all(|c| c.text_primitive().is_none()));
+            }
+        }
+    }
+}
+
+#[test]
+fn text_storage_rejects_bad_operands_and_does_not_hijack_source_names() {
+    for source in [
+        "fun run(): Int = textByteLength(1)",
+        "fun run(bytes: Array<Int>): String = textCopyBytes(bytes)",
+        "fun run(text: String): UByte = textByteAt(text)",
+        "fun run(text: String): Int = textByteLength(&text)",
+        "fun run(text: String): Int = textByteLength<Int>(text)",
+        "fun run(text: String): Int = textByteLength(value = text)",
+    ] {
+        let (single, unit) = checked(source, true);
+        assert!(!single.diagnostics().is_empty(), "{source}");
+        assert!(!unit.diagnostics().is_empty(), "{source}");
+        assert!(single.calls().iter().all(|c| c.text_primitive().is_none()));
+        assert!(unit.calls().iter().all(|c| c.text_primitive().is_none()));
+    }
+    let (single, unit) = checked(
+        "fun textByteLength(value: Int): Int = value\nfun run(): Int = textByteLength(7)",
+        false,
+    );
+    assert!(
+        single.diagnostics().is_empty(),
+        "{:?}",
+        single.diagnostics()
+    );
+    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+    assert!(single.calls().iter().all(|c| c.text_primitive().is_none()));
+    assert!(unit.calls().iter().all(|c| c.text_primitive().is_none()));
+}

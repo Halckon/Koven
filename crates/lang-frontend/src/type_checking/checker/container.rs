@@ -140,7 +140,8 @@ impl Checker<'_> {
                 }
                 IntrinsicCallable::Replace
                 | IntrinsicCallable::Swap
-                | IntrinsicCallable::RangeView => return Ok(None),
+                | IntrinsicCallable::RangeView
+                | IntrinsicCallable::Text(_) => return Ok(None),
             };
             return self
                 .check_list_form_construction(call, kind, expected)

@@ -468,6 +468,7 @@ impl BodyChecker<'_> {
             .expression_categories
             .insert(callee, ExpressionCategory::Temporary);
         self.parts.calls.push(UnitCallDescriptor {
+            text_primitive: None,
             expression: UnitExpressionId::new(source, expression),
             instance: UnitCallableInstanceKey {
                 target: UnitCallTarget::StructuralComponent(field.symbol()),

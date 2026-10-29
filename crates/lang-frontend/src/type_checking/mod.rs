@@ -44,7 +44,9 @@ mod resource;
 mod string;
 mod string_length;
 mod text_extension;
+mod text_primitive;
 pub use text_extension::{TextExtensionBinding, TextExtensionKind};
+pub use text_primitive::TextPrimitiveKind;
 
 use std::{sync::Arc, thread};
 
@@ -155,6 +157,26 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
         ("replace", IntrinsicCallable::Replace),
         ("swap", IntrinsicCallable::Swap),
         ("rangeView", IntrinsicCallable::RangeView),
+        (
+            "textByteLength",
+            IntrinsicCallable::Text(TextPrimitiveKind::ByteLength),
+        ),
+        (
+            "textByteAt",
+            IntrinsicCallable::Text(TextPrimitiveKind::ByteAt),
+        ),
+        (
+            "textUtf8ErrorOffset",
+            IntrinsicCallable::Text(TextPrimitiveKind::Utf8ErrorOffset),
+        ),
+        (
+            "textCopyBytes",
+            IntrinsicCallable::Text(TextPrimitiveKind::CopyBytes),
+        ),
+        (
+            "textCopySlice",
+            IntrinsicCallable::Text(TextPrimitiveKind::CopySlice),
+        ),
     ]
     .map(|(name, callable)| {
         (

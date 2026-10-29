@@ -176,6 +176,7 @@ impl BodyChecker<'_> {
             source_span,
         };
         self.parts.calls.push(UnitCallDescriptor {
+            text_primitive: None,
             expression: UnitExpressionId::new(source, expression),
             instance: UnitCallableInstanceKey {
                 target: UnitCallTarget::External(external),
