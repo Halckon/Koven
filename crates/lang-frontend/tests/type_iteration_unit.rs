@@ -5,6 +5,7 @@
 //!   completion returns Internal MissingRequiredFact in both APIs with different kinds.
 //! - deferred_source_suppresses_provider_and_pattern_cascades: completion emits two
 //!   Single L0165 diagnostics but only one Unit diagnostic.
+//!
 //! Their original raw Single witnesses remain unchanged in type_iteration.rs.
 //! These two Unit counterparts are deferred, not equivalent or repaired; do not
 //! accept Internal errors or relax the strict completion oracle below to retire them.
