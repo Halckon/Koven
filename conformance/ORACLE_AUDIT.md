@@ -84,6 +84,15 @@
 | `baseline_unimplemented_audited` | 已知未实现特性边界确认（绑定 `target_stdout` 与 `v1.json` 路线图阻塞项） | 18 | 0 | `known_unimplemented`: 18 |
 | `expected_txt_file` | V1 验收程序独立 `expected.txt` 黄金标准输出文件绑定（SHA-256 + 行数/字节数校验） | 0 | 6 | `known_unimplemented`: 6 |
 
+### 1.5 标准输出规模与多行形态分布矩阵（`expected_lines` / `expected_bytes`）
+
+| 输出形态分类 | 适用范围 | 条目数量 | 累计期望行数 | 累计期望字节数 | 代表性 / 完整条目明细 |
+|---|---|---:|---:|---:|---|
+| `single_line_stdout` | 1 行输出 Probe (`run_ok` + `known_unimplemented`) | 117 | 117 | 992 B | 单行精确字节匹配（全部以 `\n` 结尾） |
+| `multi_line_stdout` | ≥2 行输出 Probe (`run_ok` + `known_unimplemented`) | 20 | 42 | 151 B | `p10_generic_fn` (2L/12B), `p14_nullable` (2L/15B), `p32_deinit` (3L/9B), `p38_list_of_strings` (2L/4B), `q05_nullable_param` (2L/14B), `q08_enum_string_payload` (2L/8B), `q19_deep_return_cleanup` (3L/6B), `q20_replace_field` (2L/8B), `u02_list_add_loop_string` (2L/4B), `v15_map_for` (2L/4B), `w08_map_string_values` (2L/8B), `w12` (2L/8B), `w13` (2L/9B), `w15` (2L/9B), `w17` (2L/6B), `w19` (2L/6B), `x03_if_call_borrow_arg` (2L/9B), `y04_take_for_println` (2L/4B), `y05_take_borrow_val_call` (2L/4B), `y06_take_borrow_val_for` (2L/4B) |
+| `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | 17 | 0 | 0 B | `p01_int_print`, `p03b_byte_literal_cmp`, `p04_overflow`, `p23_global_var`, `p25_linked_iter`, `p42_lambda_mutate`, `p43_if_join_any`, `p45_abort_message`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `v12_convert_abort`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
+| `acceptance_programs` | V1 验收程序 (`expected.txt`) | 6 | 85 | 1537 B | `config_parse` (10L/190B), `expr_eval` (6L/174B), `linked_stack` (8L/242B), `raii_state_machine` (28L/369B), `varint_codec` (17L/375B), `word_count` (16L/187B) |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
