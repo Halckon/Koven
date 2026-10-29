@@ -66,8 +66,8 @@
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | N09 | borrow T from this（泛型类 receiver 来源） | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ✅ 已交付 | N10 | 单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值 | P2 | 已定义 |  |  |  |  | ● |  |  |
-| ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | P3 | 需新增 |  |  | ● |  | ● | ● |  |
-| ☐ 未开始 | L2 | 字符串插值降级："${x}" 要求 x : Display（D2） | P3 | 需新增 |  |  | ● |  | ● |  |  |
+| ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | P3 | 已定义 |  |  | ● |  | ● | ● |  |
+| ☐ 未开始 | L2 | 字符串插值降级："${x}" 要求 x : Display（D2） | P3 | 已定义 |  |  | ● |  | ● |  |  |
 | ✅ 已交付 | L3 | 八种整数之间的 checked 转换（越界 Abort） | P3 | 已定义 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | L3b | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | P3 | 需新增 |  |  | ● |  | ● |  |  |
 | ✅ 已交付 | L4 | IntRange/LongRange 可存储 Copyable 值、in / not in、升序基本 for | P3 | 已定义 |  |  | ● | ● | ● |  |  |
@@ -93,9 +93,9 @@
 | ☐ 未开始 | S5 | while/for 循环标签 | P3 | 需新增 |  | ● | ● |  | ● |  |  |
 | ☐ 未开始 | S6 | Map 带初值构造 mapOf("a" to 1) | P3 | 需新增 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | S7 | 只读 borrow var 游标（链表/树的迭代遍历） | P3 | 需新增 |  |  | ● | ● |  |  |  |
-| ☐ 未开始 | L5 | 文本 API：size、Char 迭代、byteAt、substring、indexOf、split、trim、lines、startsWith、toInt(): Int?、StringBuilder | P4 | 需新增 |  |  | ● |  | ● | ● |  |
-| ☐ 未开始 | L6 | IO 与进程：readLine(): String?、File.readText/writeText: Result、eprintln、exitProcess(code): Nothing（D9） | P4 | 需新增 |  |  | ● |  | ● | ● |  |
-| ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | P4 | 需新增 |  |  | ● |  | ● | ● |  |
+| ☐ 未开始 | L5 | 文本 API：已启用字节长度、复制/严格UTF-8、字节切片、split/lines、parseLong与checkedPlus；Char迭代、trim、StringBuilder等仍待后继合同 | P4 | 已定义 |  |  | ● |  | ● | ● |  |
+| ☐ 未开始 | L6 | 同步 IO：显式上限文件读写、目录路径、标准流Result合同；exitProcess与显式流owner另行定义（D9） | P4 | 已定义 |  |  | ● |  | ● | ● |  |
+| ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | P4 | 已定义 |  |  | ● |  | ● | ● |  |
 | ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | P4 | 需新增 |  |  | ● | ● | ● | ● |  |
 | ☐ 未开始 | L6b | time/sleep/math 基础 API | P4 | 需新增 |  |  | ● |  | ● | ● |  |
 | ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | P5 | — |  |  |  |  |  |  | ● |
