@@ -307,3 +307,34 @@ fun main(): Unit {
         b"input!\ninput!\ninput\nflag\nvalue\nvalue\ninput\nnull\nabsent\ninput\ninput\n",
     );
 }
+
+#[test]
+fn public_text_nullable_control_results_work_in_both_modes() {
+    let program = r#"fun observe(input: String, present: Boolean, stop: Boolean): Unit {
+    val joined = if (present) { input.checkedPlus("!") } else { ((null)) }
+    if (joined != null) { println(joined) } else { println("null") }
+    val text = when {
+        present -> input.clone()
+        else -> {
+            val discarded = "discarded".clone()
+            println(discarded)
+            if (stop) { return }
+            ((null))
+        }
+    }
+    if (text != null) { println(text) } else { println("null") }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input, true, false)
+    observe(input, false, false)
+    observe(input, false, true)
+    println(input)
+}
+"#;
+    check_build_run_both_modes(
+        program,
+        b"input!\ninput\ninput\nnull\ndiscarded\nnull\ninput\nnull\ndiscarded\ninput\n",
+    );
+}

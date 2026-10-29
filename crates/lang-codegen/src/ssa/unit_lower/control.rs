@@ -855,6 +855,24 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
+    /// Exact existing String? storage, without widening pointer-only storage recipes.
+    fn string_nullable_storage(
+        &self,
+        ty: lang_frontend::type_checking::UnitTypeId,
+    ) -> Option<SsaTypeId> {
+        let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().get(ty) else {
+            return None;
+        };
+        if builtin_type(self.typed, *inner) != Some(BuiltinType::String) {
+            return None;
+        }
+        self.type_ids.get(&ty).copied().filter(|storage| {
+            matches!(self.ssa_types.get(storage.index()),
+                Some(crate::ssa::model::SsaTypeKind::InlineNullable { inner, niche: true })
+                if self.ssa_types.get(inner.index()) == Some(&crate::ssa::model::SsaTypeKind::StringOwner))
+        })
+    }
+
     pub(super) fn control_result_required(
         &self,
         expression: ExpressionId,
@@ -875,6 +893,7 @@ impl UnitExpressionLowerer<'_> {
         if result_required
             && builtin_type(self.typed, concrete_type) != Some(BuiltinType::Nothing)
             && !is_supported_storage_type(self.typed, concrete_type)
+            && self.string_nullable_storage(concrete_type).is_none()
             && !self
                 .type_ids
                 .get(&concrete_type)

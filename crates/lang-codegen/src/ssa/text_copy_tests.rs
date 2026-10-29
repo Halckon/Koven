@@ -304,6 +304,114 @@ fun main(): Unit {
 }
 
 #[test]
+fn public_text_nullable_value_if_merges_owned_results_and_null() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.checkedPlus
+fun observe(input: String, present: Boolean): Unit {
+    val joined = if (present) { input.checkedPlus("!") } else {
+        val discarded = "discarded".clone()
+        println(discarded)
+        ((null))
+    }
+    if (joined != null) { println(joined) } else { println("null") }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input, true)
+    observe(input, false)
+    println(input)
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 3);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"input!\ninput\ndiscarded\nnull\ninput\ninput\n",
+    );
+}
+
+#[test]
+fn public_text_nullable_control_results_transfer_each_owner_once() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.checkedPlus
+fun choose(input: String, flag: Boolean): String? {
+    val first = input.checkedPlus("1")
+    val second = input.checkedPlus("2")
+    return if (flag) { first } else { second }
+}
+fun chooseWhen(input: String, flag: Boolean): String? {
+    val first = input.checkedPlus("3")
+    val second = input.checkedPlus("4")
+    return when (flag) { true -> first; false -> second }
+}
+fun early(input: String, flag: Boolean): String? {
+    val local = input.checkedPlus("?")
+    val result: String? = if (flag) { return local } else { null }
+    return result
+}
+fun show(own value: String?): Unit {
+    if (value != null) { println(value) } else { println("null") }
+}
+fun main(): Unit {
+    val input = "input".clone()
+    show(choose(input, true))
+    show(choose(input, false))
+    show(chooseWhen(input, true))
+    show(chooseWhen(input, false))
+    show(early(input, true))
+    show(early(input, false))
+    println(input)
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // One caller owner, eight alternatives (selected or discarded), and two early results.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 11);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"input1\ninput2\ninput3\ninput4\ninput?\nnull\ninput\n",
+    );
+}
+
+#[test]
+fn public_text_nullable_when_wraps_strings_and_preserves_null_prefix_exits() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+fun observe(input: String, present: Boolean, stop: Boolean): Unit {
+    val text = when {
+        present -> input.clone()
+        else -> {
+            val discarded = "discarded".clone()
+            println(discarded)
+            if (stop) { return }
+            ((null))
+        }
+    }
+    if (text != null) { println(text) } else { println("null") }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input, true, false)
+    observe(input, false, false)
+    observe(input, false, true)
+    println(input)
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 4);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"input\ninput\ndiscarded\nnull\ninput\ndiscarded\ninput\n",
+    );
+}
+
+#[test]
 fn public_text_incoming_borrow_crosses_nullable_null_and_source_call_edges() {
     let (program, entry) = lower_public_text_program(
         r#"package app

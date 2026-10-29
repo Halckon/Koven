@@ -218,8 +218,13 @@ pub(super) fn intern_body_scalar_types(
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             types.intern(module, typed, boolean, span)?;
         }
+        // Joined String? results may have no nullable signature or call result
+        // to register their existing inline representation beforehand.
+        let nullable_string = matches!(typed.types().get(concrete),
+            Some(lang_frontend::type_checking::UnitTypeKind::Nullable(inner))
+                if builtin_type(typed, *inner) == Some(BuiltinType::String));
         if builtin_type(typed, concrete) != Some(BuiltinType::Unit)
-            && is_supported_storage_type(typed, concrete)
+            && (is_supported_storage_type(typed, concrete) || nullable_string)
         {
             types.intern(module, typed, concrete, span)?;
         }

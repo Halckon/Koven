@@ -434,3 +434,37 @@ SSA／proof；另断言原 While gate 仍拒绝 incoming String。独立静态�
 计作通过。null 路径由 owned String? 参数的独立用例验证。该 value-if 缺口、旧 raw
 前端入口合同与最终 head 双宿主 CI 继续开放，Spec 保持 in-progress。
 codegen／CLI all-targets 严格 Clippy、Rustfmt、手写 Rust 尺寸与821篇文档结构门禁通过。
+
+### String? 控制表达式结果交付（2026-10-30）
+
+基于 `2cb47e0aeb4fb652ff56577fec865ec65efcc517`，动态
+`val joined = if (present) { input.checkedPlus("!") } else { null }` 首先在控制结果
+准入处 UnsupportedNode；开放精确 String? niche 表示后，null 尾部又因已发布的 Nothing?
+没有运行时存储而 MissingFact。修复消费前端已经确定的控制结果类型，不重新计算 join：
+普通 String? owner 复用原 transfer，String→String? 复用既有 owned 适配并防止双转移，
+literal／Group Nothing? null 在最终 String? 表示中物化。局部尾语句适配器复用共享
+statement core，保留 prefix 求值／退出、Group 内到外 AfterExpression、tail／body
+AfterStatement 及 BranchExit 顺序。已有具体 String? null 仍走原 lowering 与 temporary 转移。
+
+仅靠 String 与 null 推导、没有 nullable 签名或调用的 when 另暴露类型未注册的拒绝；
+body planning 现为真实出现的具体 String? 注册既有 inline 表示。已注册 Map result 身份
+优先复用，不改变表示选择顺序，不宣称解决 Map 与普通 String? 的表示组合边界。
+三个真实标准源 native 用例分别核对3、11、4次分配的逐指针释放，覆盖动态 if 两边、
+带局部 clone 的 Group null、已有 owner 的 if／when 选择与未选结果清理、String 包装、
+正常／提前返回，以及 null 分支 prefix return。初版 early 探针仅有 return／null、没有
+类型注解时推导 Nothing?，在 return 类型匹配即失败；已显式标注 String?，不伪称该原形状通过。
+独立审查核对资格、类型注册顺序、交付、单／多出口合流及清理顺序，未发现新增缺陷。
+
+literal／Group null 的适配不覆盖尾部为内层 Nothing? 控制表达式的组合；该边界仍开放。
+本片也不关闭旧 raw 前端入口合同与最终 head 双宿主 CI，Spec 保持 in-progress。
+
+本机 LLVM21.1.8／offline target 的 text_31项、共享 control-result 1项及 when 7项通过，
+均无失败或忽略。扩大到 nullable 的首轮为167 passed、1 failed、0 ignored：旧
+no-map nullable-control 夹具要求独立 nullableValue 工厂在 value-if 拒绝，本片使其成功。
+逐根核对后，工厂现要求原函数身份、SSA与LLVM成功；updatingOperand 仍精确拒绝
+`nullableValue(item) != null`，该临时比较与迭代组合能力未开放。basic／constant 两条
+路径同步将旧 factory 行范围拒绝改为实际比较的精确span，保留所有原frontend/provider/
+drop/exit action断言。相关 map_operand_last_use_ 全套最终16 passed、0 failed、0 ignored；
+其余167项的生产输入未再改变，复用原通过结果，不将旧失败批次改写为168项一次全绿。
+公开CLI text_bytes最终8项通过，0 failed、0 ignored；codegen／CLI all-targets严格Clippy、
+Rustfmt、手写Rust尺寸、821篇文档结构与diff检查通过。架构入口保留能力摘要与详细记录链接。

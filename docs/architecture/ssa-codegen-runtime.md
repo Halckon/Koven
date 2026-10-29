@@ -32,7 +32,7 @@ Unit pointer-like nullable `when` 现消费真实 typed/owned 的 `null/else` de
 对 owned whole-root/temporary class、Box、Rc建立实际 `NullableBranch` proof，消费提取走 `NullableTake`。
 view/owner、来源generation、pending槽与分支cleanup逐实体绑定；替换与join结束旧proof，不沿旧generation恢复别名。
 有界 fresh owned HeapOwner `If` 支持一侧直接root-Borrow调用、另一侧为空；按当前根和真实null比较重新证明，
-不复活旧When view，也不扩展Rc/While、nested proof或live-If控制转移。Borrow/Inout/field/element边界保留。[文本补片](../specs/active/0368-text-byte-foundation.md#nullable-string-读取补片2026-10-30)另接入函数体直接 statement-if 的 named owned String? 借用：精确核对 niche 布局、当前 owner 与非空 loan witness，支持源函数及绑定 println；仅该 String If 路径允许已由真实入口 Shared(String) 登记且当前 loan 类型仍匹配的入参借用随 CFG 重绑定，While 与其他 proof 保持原资格。合流结束 proof，再次判断重新建立。其余 inline nullable 边界保留。
+不复活旧When view，也不扩展Rc/While、nested proof或live-If控制转移。String? 已支持直接statement-if的owned根借用，以及if/when的owned结果交付；仅String If允许有入口资格的Shared(String)随CFG重绑定。新增类型身份复用niche表示，已有身份不变；结果使用原transfer/wrap，literal/Group Nothing?按typed结果物化并保留原清理顺序。内层Nothing?控制尾值仍未接纳，精确身份与范围见[文本补片](../specs/active/0368-text-byte-foundation.md#string-控制表达式结果交付2026-10-30)。
 原single路径及其三类owner 8alloc/8free、Rc retain/release计数属于历史验收；当前Unit普通SSA/LLVM/native输出
 证据不替代原mixed whole的计数/Abort验收，当前范围与待验结果见 [0341检查点](../specs/active/0341-shared-lowering-core.md#50-post054-修复与有限收尾检查点)。
 
