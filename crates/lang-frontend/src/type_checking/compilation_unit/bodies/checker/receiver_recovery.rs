@@ -16,7 +16,10 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         callable: &UnitCallableSignature,
     ) -> Result<bool, CompilationUnitTypeError> {
-        if self.current_receiver.is_some() || callable.range_extension().is_some() {
+        if self.current_receiver.is_some()
+            || callable.range_extension().is_some()
+            || callable.text_extension().is_some()
+        {
             return Ok(false);
         }
         let Some(receiver) = callable.receiver() else {

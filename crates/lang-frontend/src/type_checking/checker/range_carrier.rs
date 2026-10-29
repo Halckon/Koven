@@ -121,7 +121,9 @@ impl Checker<'_> {
         };
         let symbol = self.symbol_at(span)?;
         let callable = self.typed_callables.iter().find(|c| c.symbol() == symbol)?;
-        callable.range_extension()?;
+        if callable.range_extension().is_none() && callable.text_extension().is_none() {
+            return None;
+        }
         callable.receiver()
     }
 }

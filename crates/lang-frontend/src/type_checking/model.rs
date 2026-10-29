@@ -715,6 +715,7 @@ pub struct TypeEnvironment {
     bindings: BTreeMap<ExternalSymbolId, ExternalTypeBinding>,
     pub(super) range_sources: Vec<SourceId>,
     pub(super) range_extension_sources: Vec<SourceId>,
+    pub(super) text_sources: Vec<SourceId>,
 }
 
 impl TypeEnvironment {
@@ -727,6 +728,7 @@ impl TypeEnvironment {
             bindings: BTreeMap::new(),
             range_sources: Vec::new(),
             range_extension_sources: Vec::new(),
+            text_sources: Vec::new(),
         }
     }
 

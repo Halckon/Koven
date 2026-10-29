@@ -133,11 +133,25 @@ impl SignatureCollector<'_> {
         let range_extension = receiver
             .filter(|_| receiver_owner.is_none())
             .and_then(|r| self.bind_range_extension(source, target, r, return_type, result_source));
+        let text_extension = receiver.filter(|_| receiver_owner.is_none()).and_then(|r| {
+            self.bind_text_extension(
+                source,
+                target,
+                name_span,
+                !type_parameters.is_empty(),
+                r,
+                &parameters,
+                return_type,
+                result_source,
+            )
+        });
         let extension_receiver_symbol = range_extension
-            .and_then(|binding| {
+            .map(|binding| binding.receiver_span())
+            .or_else(|| text_extension.map(|binding| binding.receiver_span()))
+            .and_then(|span| {
                 self.names.source_units()[source.index()]
                     .resolution()
-                    .receiver_symbol(binding.receiver_span())
+                    .receiver_symbol(span)
             })
             .map(|symbol| UnitSymbolId::new(source, symbol));
         if let Some(symbol) = extension_receiver_symbol
@@ -147,10 +161,11 @@ impl SignatureCollector<'_> {
         }
         if let Some(extension) = extension_receiver
             && range_extension.is_none()
+            && text_extension.is_none()
         {
             self.emit(
                 codes::UNSUPPORTED_BORROW_FLOW,
-                "extension receiver lacks a trusted canonical Borrow List/View binding",
+                "extension receiver lacks a trusted canonical standard Borrow binding",
                 extension.dot_span,
             )?;
         }
@@ -174,6 +189,7 @@ impl SignatureCollector<'_> {
         )
         .with_result_source(result_source)
         .with_range_extension(range_extension)
+        .with_text_extension(text_extension)
         .with_extension_receiver_symbol(extension_receiver_symbol))
     }
 

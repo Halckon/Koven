@@ -93,7 +93,7 @@ impl Checker<'_> {
                     if let NameMarker::Present(span) = name
                         && let Some(symbol) = self.symbol_at(span)
                     {
-                        let type_parameters = type_parameters
+                        let type_parameters: Vec<_> = type_parameters
                             .iter()
                             .filter_map(|parameter| match parameter.name {
                                 NameMarker::Present(span) => self.symbol_at(span),
@@ -192,15 +192,31 @@ impl Checker<'_> {
                         let range_extension = receiver.filter(|_| owner.is_none()).and_then(|r| {
                             self.bind_range_extension(symbol, r, return_type, result_source)
                         });
+                        let text_extension = receiver.filter(|_| owner.is_none()).and_then(|r| {
+                            self.bind_text_extension(
+                                symbol,
+                                span,
+                                !type_parameters.is_empty(),
+                                r,
+                                &function_parameters,
+                                return_type,
+                                result_source,
+                            )
+                        });
                         let extension_receiver_symbol = range_extension
-                            .and_then(|binding| self.symbol_at(binding.receiver_span()));
+                            .map(|binding| binding.receiver_span())
+                            .or_else(|| text_extension.map(|binding| binding.receiver_span()))
+                            .and_then(|span| self.symbol_at(span));
                         if let Some(symbol) = extension_receiver_symbol {
                             self.symbol_types[symbol.index()] = receiver.map(|r| r.ty());
                             self.set_parameter_mode(symbol, ParameterMode::Borrow);
                         }
-                        if extension_receiver.is_some() && range_extension.is_none() {
+                        if extension_receiver.is_some()
+                            && range_extension.is_none()
+                            && text_extension.is_none()
+                        {
                             self.emit(codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
-                                "extension receiver lacks a trusted canonical Borrow List/View binding", extension_receiver.map(|r| r.dot_span).unwrap_or(span))?;
+                                "extension receiver lacks a trusted canonical standard Borrow binding", extension_receiver.map(|r| r.dot_span).unwrap_or(span))?;
                         }
                         self.typed_callables.push(CallableDescriptor {
                             symbol,
@@ -213,6 +229,7 @@ impl Checker<'_> {
                             return_type,
                             result_source,
                             range_extension,
+                            text_extension,
                         });
                     }
                 }

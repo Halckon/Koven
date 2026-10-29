@@ -15,7 +15,7 @@ impl BodyChecker<'_> {
         );
         let previous_receiver = self.current_receiver;
         let previous_mode = self.current_receiver_mode;
-        if callable.range_extension().is_some() {
+        if callable.range_extension().is_some() || callable.text_extension().is_some() {
             self.current_receiver = callable.receiver().map(|r| r.ty());
             self.current_receiver_mode = Some(ParameterMode::Borrow);
         }

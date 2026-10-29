@@ -194,6 +194,11 @@ impl BodyChecker<'_> {
         let receiver_type = self
             .check_expression(source, receiver, None, None, return_type)?
             .ty;
+        if self.signatures.types().get(receiver_type)
+            == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        {
+            return self.text_extension_candidates(source, receiver_type, name_span);
+        }
         let Some((owner_declaration, owner_arguments)) = self.nominal_type_parts(receiver_type)
         else {
             return self.range_extension_candidates(source, receiver_type, name_span);

@@ -3,6 +3,23 @@ use super::{TypeCheckingError, TypeEnvironment};
 use crate::source::{SourceId, SourceMap};
 
 impl TypeEnvironment {
+    /// Authorize only the actual host-loaded text source; package and path grant no access.
+    pub fn authorize_text_source(
+        &mut self,
+        sources: &SourceMap,
+        source: SourceId,
+    ) -> Result<(), TypeCheckingError> {
+        sources.source_text(source)?;
+        if !self.text_sources.contains(&source) {
+            self.text_sources.push(source);
+        }
+        Ok(())
+    }
+
+    pub fn is_authorized_text_source(&self, source: SourceId) -> bool {
+        self.text_sources.contains(&source)
+    }
+
     /// 单独授权宿主加载的标准来源登记受限 Borrow List/View 扩展签名。
     /// 不授予 producer/构造权限，也不代表实际来源或后端交付已证明。
     pub fn authorize_range_extension_source(

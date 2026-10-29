@@ -26,6 +26,7 @@ use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
 mod generic;
 mod member;
 mod range_extension;
+mod text_extension;
 
 impl BodyChecker<'_> {
     pub(super) fn check_call(

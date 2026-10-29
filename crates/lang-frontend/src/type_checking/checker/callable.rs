@@ -1,6 +1,7 @@
 mod candidate;
 mod range_extension;
 mod special_call;
+mod text_extension;
 use candidate::CallCandidate;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -555,6 +556,14 @@ impl Checker<'_> {
     ) -> Result<Vec<CallCandidate>, TypeCheckingError> {
         let receiver_type = self.check_expression(receiver, None, None)?.ty;
         let receiver_category = self.expression_categories[receiver.index()];
+        if self.kind(receiver_type) == &TypeKind::Builtin(BuiltinType::String) {
+            return self.text_extension_candidates(
+                receiver,
+                receiver_type,
+                receiver_category,
+                name_span,
+            );
+        }
         let TypeKind::Nominal { nominal, arguments } = self.kind(receiver_type).clone() else {
             return self.range_extension_candidates(
                 receiver,

@@ -43,6 +43,8 @@ mod rc;
 mod resource;
 mod string;
 mod string_length;
+mod text_extension;
+pub use text_extension::{TextExtensionBinding, TextExtensionKind};
 
 use std::{sync::Arc, thread};
 
