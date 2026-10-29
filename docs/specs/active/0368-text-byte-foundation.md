@@ -650,3 +650,24 @@ baseline上注入9类错误，1项测试通过、0 failed、0 ignored，确认�
 Clippy通过，0 failed、0 ignored（过滤集合有重叠）。Rustfmt、821篇文档结构、diff检查与
 尺寸门禁通过；2024个Rust文件、39项历史超限，未新增例外。pending文本实参内
 返回借用根仍拒绝，旧raw前端合同与最终双宿主CI亦待关闭，Spec不归档。
+
+### Result String 探针预期升级（2026-10-30）
+
+官方 [CI 40960664748](https://github.com/Halckon/Koven/actions/runs/40960664748)
+在head `b2d3c30aac2604fcc171ac92d2dd99284558ae68` 的双宿主Check／Clippy通过后，
+Targeted Tests均在conformance阶段因 `p16b_result_string` unexpected_pass失败；后续
+sanitizer／generated-resource／preview未取得成功证据，不能将push工作流成功替代全套验收。
+
+探针源码未变：`parse(1)`选择 `Result.Ok("good")`，穷尽when读取success并输出一次。
+本地先复现旧预期unexpected_pass；single／project均退出0、stderr为空、stdout严格为
+5字节 `good\n`。该本地证据使用本片构建的binary（SHA-256
+`5d43db09a6c07e95ac5f8e6454684c56501e36e80bdf9db52f25c16f92413404`），
+不冒称原b2提交的本地验证。独立复核确认语义推导后，仅将此探针升级为run_ok，保持原源码
+hash与历史baseline，要求精确输出；N08与后缀?探针仍未完成。
+
+同步初始化override、推导与blocker映射，并由现有renderer重生ORACLE_AUDIT；未改通用
+判定算法。脚本自检初次因新增通过项的旧统计断言失败，仅同步32项升级、16项未实现与
+16类Spec溯源后，12项全部通过。单项公开门禁1/1通过；完整公开门禁通过：138/154探针
+能力通过（121 run、14 diagnostic、3 abort），其余16探针及6验收程序为已知未实现，
+不是成功覆盖。regression／unexpected_pass／wrong_output／mode_mismatch／internal_error
+均为0。此结果绑定930bdbad生产输入与上述binary；最终提交的双宿主CI仍须另行验收。

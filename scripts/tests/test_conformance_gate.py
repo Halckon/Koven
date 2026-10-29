@@ -825,11 +825,11 @@ sys.exit(1)
         base_evo = gate.summarize_baseline_evolution(loaded)
         self.assertEqual(base_evo["regressed_from_baseline_ok"], [])
         self.assertEqual(len(base_evo["baseline_ok_preserved"]), 89)
-        self.assertEqual(len(base_evo["promoted_to_run_ok"]), 31)
+        self.assertEqual(len(base_evo["promoted_to_run_ok"]), 32)
         self.assertEqual(len(base_evo["upgraded_to_structured_abort"]), 3)
         self.assertEqual(len(base_evo["upgraded_to_compile_fail"]), 1)
         self.assertEqual(len(base_evo["baseline_compile_fail_preserved"]), 13)
-        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 17)
+        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 16)
         self.assertEqual(
             sum(len(v) for v in base_evo.values()),
             len(loaded["probes"]),
@@ -851,7 +851,7 @@ sys.exit(1)
                 self.assertTrue((repo_root / relpath).is_file())
                 self.assertIn(status, ("active", "archived"))
         spec_trace = gate.summarize_v046_spec_traceability(loaded, repo_root)
-        self.assertEqual(len(spec_trace), 15)
+        self.assertEqual(len(spec_trace), 16)
         covered_by_specs = {
             p for info in spec_trace.values() for p in info["probes"]
         }
