@@ -377,13 +377,36 @@ impl UnitExpressionLowerer<'_> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
             )]
         };
+        // Trusted text extensions have no nominal owner. Their shared receiver is
+        // the first static ABI argument, while its existing cleanup frame stays intact.
+        let text_extension = match descriptor.target() {
+            UnitCallTarget::Declaration(id) => self
+                .typed
+                .signatures()
+                .declaration(id)
+                .and_then(|signature| signature.callable())
+                .is_some_and(|signature| signature.text_extension().is_some()),
+            _ => false,
+        };
+        let mut arguments = arguments;
+        let call_receiver = receiver.as_ref().map(|receiver| receiver.entity);
+        let call_receiver = if text_extension {
+            arguments.insert(
+                0,
+                call_receiver
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
+            );
+            None
+        } else {
+            call_receiver
+        };
         let (_, results) = self
             .function
             .append_instruction(
                 self.block,
                 Operation::DirectCall {
                     callee,
-                    receiver: receiver.as_ref().map(|receiver| receiver.entity),
+                    receiver: call_receiver,
                     arguments,
                 },
                 result_types,

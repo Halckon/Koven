@@ -225,6 +225,19 @@ impl UnitExpressionLowerer<'_> {
         }
         match node.payload() {
             Expression::Group { expression } => self.lower_string_view(*expression, span),
+            Expression::This => {
+                // A trusted extension's synthetic receiver is an ordinary entry loan.
+                // Nominal this retains the existing receiver path when no such binding exists.
+                match self
+                    .references
+                    .get(&super::span_key(node.span()))
+                    .and_then(|symbol| self.borrow_bindings.get(symbol))
+                    .copied()
+                {
+                    Some(loan) => Ok(Some(EntityId::Loan(loan))),
+                    None => self.lower_string_temporary_view(expression, span),
+                }
+            }
             Expression::Name => {
                 let symbol = self
                     .references

@@ -182,7 +182,11 @@ fn lower_unit_impl(
                 })
             }
             (None, None) => None,
-            (Some(_), None) if callable.range_extension().is_some() => None,
+            (Some(_), None)
+                if callable.range_extension().is_some() || callable.text_extension().is_some() =>
+            {
+                None
+            }
             (Some(receiver), None) => {
                 return Err(lowering_error(
                     LoweringErrorKind::MissingFact,
@@ -203,18 +207,26 @@ fn lower_unit_impl(
         if let Some(receiver) = receiver {
             parameter_types.push(receiver.entity_type);
         }
-        if let Some(binding) = callable.range_extension() {
+        let extension = callable
+            .range_extension()
+            .map(|binding| (binding.receiver_type(), binding.receiver_span()))
+            .or_else(|| {
+                callable
+                    .text_extension()
+                    .map(|binding| (binding.receiver_type(), binding.receiver_span()))
+            });
+        if let Some((receiver_type, receiver_span)) = extension {
             let symbol = callable
                 .extension_receiver_symbol()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
             let concrete = resolve_concrete_type(
                 typed,
-                binding.receiver_type(),
+                receiver_type,
                 instance.substitutions(),
                 instance.key().static_self(),
-                binding.receiver_span(),
+                receiver_span,
             )?;
-            let target = types.intern(module, typed, concrete, binding.receiver_span())?;
+            let target = types.intern(module, typed, concrete, receiver_span)?;
             parameter_symbols.push(symbol);
             parameter_types.push(EntityType::Loan {
                 kind: LoanKind::Shared,

@@ -95,3 +95,10 @@ ownership 至 native 链路均未完成，不能据此宣称公开 API 可用。
 [Linux Check／Clippy](https://github.com/Halckon/Koven/actions/runs/40926568205/job/123634034551)
 在 Clippy 将11项缺失公开 API 文档告警提升为错误后失败；已补齐对应枚举与查询方法的说明，
 未放宽 lint。行为测试仍未执行，macOS 尚未形成验收证据。
+
+unit SSA 现已接入文本 receiver 首个共享借用参数，DirectCall 按相同顺序前置该实参，
+保留原调用求值与清理帧；String 运算从扩展 this 的真实引用读取 entry Borrow binding。
+独立审查发现并闭合 this 原先误入 nominal receiver 路径的问题，继续核查 instance planner
+未发现 owner=None 的额外阻断。`text_extension_tests` 新增 SSA／LLVM／native ABI 夹具，
+断言非 carrier 的 owned 结果、两次分配的逆序释放及输入后续可用；尚未执行。
+夹具的常量 byteLength 仅隔离验证 receiver ABI，不作为真实字节长度算法或公共 API 证据。

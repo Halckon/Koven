@@ -232,6 +232,9 @@ mod lowering_dependency_tests;
 mod range_lowering_tests;
 
 #[cfg(test)]
+mod text_extension_tests;
+
+#[cfg(test)]
 mod owned_null_cleanup_tests;
 
 #[cfg(test)]
