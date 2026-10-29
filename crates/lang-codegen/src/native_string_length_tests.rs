@@ -10,7 +10,7 @@ fn run_probe(llvm: &str, c: &str, argument: &str) -> std::process::Output {
     let executable = directory.join("probe");
     fs::write(&ir, llvm).unwrap();
     fs::write(&shim, c).unwrap();
-    let linked = Command::new(crate::test_support::clang())
+    let linked = Command::new(crate::test_support::ir_clang())
         .args(["-Wno-override-module", "-fno-builtin"])
         .arg(&ir)
         .arg(&shim)

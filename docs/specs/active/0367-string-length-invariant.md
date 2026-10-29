@@ -86,3 +86,10 @@ codegen 为 2477 passed / 1 failed / 0 ignored；argv 超限 native 探针通过
 函数定义时失败，尚未执行其长度断言。原因是 Unit 函数包含 declaration/instance 后缀，测试
 错误地依赖 `.combine(`。修复改用返回的 FunctionId 与实际 SSA 名称，并断言唯一 LLVM 定义；
 生产守卫和原有边界断言保持不变。该修复仍须由后续官方 CI 验证，首轮失败不记为通过。
+
+
+修复 head `39a22bcd7205fdcc315a6058c939923e302252da` 的
+[CI 40906179616](https://github.com/Halckon/Koven/actions/runs/40906179616) 中，macOS codegen
+为 2475 passed / 2 failed / 1 ignored；两个新探针都在系统 Clang 解析 LLVM 21 的
+`captures(none)` 时失败，未执行行为断言。测试改用已有 `test_support::ir_clang()`，与相邻
+String clone 插桩测试一致；不修改 IR 内容或生产逻辑。既有 ignored 项不计通过。
