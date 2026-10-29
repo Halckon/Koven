@@ -28,6 +28,9 @@ subgraph Gdrafts_v044["v0.44（draft）"]
   S0339["S0339<br/>Unit 值实参与待决调用求值"]
   S0340["S0340<br/>名义类型 nullable retest view 的普通读取"]
 end
+subgraph Gdrafts_v046["v0.46（draft）"]
+  S0366["S0366<br/>CLI 最终调试产物与源码断点"]
+end
 ARCH --> S0292
 ARCH --> S0333
 ARCH --> S0334
@@ -57,4 +60,5 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
+| SPEC-0366 | drafts/v0.46 | [0366-final-debug-artifacts.md](drafts/v0.46/0366-final-debug-artifacts.md) |
 | 已完成 Spec（338 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

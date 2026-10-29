@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="3528" height="400" viewBox="0 0 3528 400" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="3872" height="400" viewBox="0 0 3872 400" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="3528" height="400" fill="#ffffff"/>
+  <rect width="3872" height="400" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，338 份）</text>
   <rect x="384" y="30" width="808" height="298" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -13,6 +13,8 @@
   <text x="1396" y="206" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="1600" y="186" width="1864" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="2532" y="206" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
+  <rect x="3528" y="30" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3668" y="50" text-anchor="middle" font-size="13" fill="#64748b">v0.46（draft）</text>
   <path d="M 300 92 C 788 92, 788 257, 1276 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 352 92, 352 257, 404 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 960 92, 960 266, 1620 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -81,6 +83,10 @@
   <text x="1052" y="105" text-anchor="middle" font-size="13">String when 清理</text>
   <text x="1052" y="123" text-anchor="middle" font-size="13">事实的 refinement</text>
   <text x="1052" y="141" text-anchor="middle" font-size="13"> 消费</text>
+  <rect x="3548" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="3668" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0366</text>
+  <text x="3668" y="105" text-anchor="middle" font-size="13">CLI 最终调试产物与源码断</text>
+  <text x="3668" y="123" text-anchor="middle" font-size="13">点</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">archive，338 份</text>
