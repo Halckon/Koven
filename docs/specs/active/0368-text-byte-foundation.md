@@ -321,3 +321,22 @@ Rustfmt、diff、文档结构（821篇）和尺寸门禁通过；2014个手写 R
 | `cargo clippy -p lang-frontend -p lang-codegen -p lang-cli --all-targets -- -D warnings` | 通过 |
 
 本片不替代最终 head 双宿主 CI 和 Spec 逐项完成审计，状态保持 in-progress。
+
+### 错误返回与混合容器清理补验（2026-10-30）
+
+真实标准源的错误返回计数用例覆盖临时 String→toBytes、修改字节后 decodeUtf8 返回 Err，
+以及临时 String 的非法 scalar 边界 sliceBytes 返回 Err：两次 clone 加一个 Array 共3次
+分配，错误分类／offset／输出准确，逐活跃指针释放且无残留，没有成功 String 的额外分配。
+该证据未指定释放时刻／顺序，不代替直接临时 Array 实参或用户 when Err→return 的覆盖。
+混合容器用例由合法／非法 slice 生成 Array<Result<String, TextError>>，核对一个数组、
+两个临时 clone 和一个成功 slice 共4次分配与释放；它只检查容器 size 和析构，不宣称
+已读取容器元素的 tag／payload。slice 内容与错误分类由前述公开矩阵另行核对。
+两条定向 native 测试分别1 passed、0 failed、0 ignored，使用同一 LLVM 21／offline target。
+独立静态复核确认分配构成、计数器约束及上述边界，未发现本补测的阻断问题。
+
+验收审计确认第2节的“两前端入口不得出现准入分歧”仍未满足：旧 check_types 只有一个
+ParsedFile／NameResolution，名称入口不展开 import；外部类型环境没有跨源 nominal 身份，
+旧 text_signature_type 不产生 TextResult，故不能授权 sliceBytes 的真实 Result 结果。
+unit 的 canonical Result／授权 TextError 路径及两种 CLI 已有运行证据，但不替代旧接口。
+不能用同名 enum、拼接源码或按名称识别绕过此边界；需要明确的跨源输入适配／共用前端
+方案后继续实现，本 Spec 保持 in-progress，未降低双入口验收要求。

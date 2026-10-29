@@ -255,6 +255,76 @@ fun main(): Unit {
 }
 
 #[test]
+fn public_text_error_returns_release_temporary_inputs_without_success_allocations() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.*
+fun invalidBytes(): Result<String, TextError> {
+    val bytes = "A".clone().toBytes()
+    bytes[0] = 255u
+    return decodeUtf8(bytes)
+}
+fun invalidSlice(): Result<String, TextError> {
+    return "é".clone().sliceBytes(1, 2)
+}
+fun main(): Unit {
+    val decoded = invalidBytes()
+    when (decoded) {
+        is Ok -> error("invalid bytes accepted")
+        is Err -> {
+            val problem = decoded.error
+            when (problem) {
+                is TextError.InvalidUtf8 -> {
+                    if (problem.offset != 0) { error("wrong offset") }
+                    println("decode error")
+                }
+                else -> error("wrong decode error")
+            }
+        }
+    }
+    val sliced = invalidSlice()
+    when (sliced) {
+        is Ok -> error("invalid boundary accepted")
+        is Err -> {
+            val problem = sliced.error
+            when (problem) {
+                is TextError.NotScalarBoundary -> println("slice error")
+                else -> error("wrong slice error")
+            }
+        }
+    }
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Two temporary String clones and one byte array; neither Err may allocate
+    // a successful String payload, and returning Err must release every input.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 3);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"decode error\nslice error\n");
+}
+
+#[test]
+fn public_text_mixed_results_release_only_the_success_payload() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.*
+fun main(): Unit {
+    val results = Array<Result<String, TextError>>(2, { index ->
+        if (index == 0) { "é".clone().sliceBytes(0, 2) }
+        else { "é".clone().sliceBytes(1, 2) }
+    })
+    if (results.size != 2) { error("wrong size") }
+    println("mixed results")
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // One array, two temporary receiver clones, and only one successful slice.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 4);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"mixed results\n");
+}
+
+#[test]
 fn public_text_copies_survive_source_drop_and_input_mutation() {
     use std::{fs, process::Command};
     let (program, entry) = lower_public_text_program(
