@@ -41,17 +41,17 @@ CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`�
 ## 最终类型消费准入
 
 frontend `final_admission` 共享分类器检查所选source-set的声明/body/initializer及必需类型图，
-不只检查entry可达函数，也不扫描整个TypeArena。成功资格只借出原typed分析，不能放行另一次分析。
-已选call/construction/intrinsic与真实Package/Type身份仅豁免对应静态语法角色；runtime receiver、
-实参、function-value callee和返回值仍检查。普通assignment效果检查target/value，不要求结果值。
+不只检查entry可达函数，也不扫描整个TypeArena；资格绑定原typed分析，不证明ownership/SSA/native，raw、基础/常量validate及LSP recovery合同不变。
+已选call/construction/intrinsic与真实Package/Type身份仅豁免对应静态角色；参数已失败的真实静态callee仅检查selector壳，不消费恢复Deferred。
+runtime receiver、实参、function-value callee和返回值仍检查。普通assignment效果检查target/value，不要求结果值。
 真实SymbolId/UnitSymbolId把已诊断根因传到引用，保留独立错误；initializer依赖排序不重新推导类型，
 健康ForwardValueType和cycle仍拒绝。ordinary `_`有声明身份，只有真实for discard不要求binding类型。
 已知Int/String不存在成员沿有界查找用L0080，已证非Result的`?`用L0085；Nothing不新增非法判定。
 L0165以私有穷尽映射呈现18项真实Deferred原因，不显示Debug名或扩成功资格；成功描述符缺事实或身份错配仍是内部错误。
 未选Member的失败recovery、Deferred或本name精确L0080错误，只在真实静态限定符身份下恢复非值壳；
 Member本身的最终类型仍检查，动态receiver及实参不会因该恢复被跳过。
-raw API、基础/常量validate及LSP recovery保持原合同；此资格不证明ownership、SSA或native能力。
-直接覆盖在frontend `final_type_admission` 与CLI同名测试模块，原能力回归保留原oracle。
+源函数overload的原typed L0123/L0124、Error和无selection证明失败trial，未提交lambda body不作消费root；独立错误仍检查。
+直接覆盖在frontend `final_type_admission`（含`iteration_recovery`）与CLI同名测试模块，原能力回归保留原oracle。
 
 ## LSP
 

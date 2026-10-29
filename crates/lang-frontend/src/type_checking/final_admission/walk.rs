@@ -437,7 +437,8 @@ impl<F: Facts> Checker<'_, F> {
         }
         Ok(complete)
     }
-    // 真实选中事实或精确原 typed 诊断证明的失败静态壳才能调用 selector。
+    // 真实选中事实、精确原 typed 诊断，或 child 已失败且具有真实静态候选身份，
+    // 才能调用 selector 恢复非值壳。
     // 仅豁免静态壳，仍检查运行时 receiver/子表达式，失败节点不获得完整资格。
     fn selector(&mut self, id: ExpressionId) -> Result<bool> {
         let parsed = self.parsed;
@@ -504,14 +505,19 @@ impl<F: Facts> Checker<'_, F> {
             .expressions()
             .get(callee)
             .map_err(TypeCheckingError::from)?;
-        // 只认真实源函数 overload 名称与其原 typed L0123；静态候选或祖先错误不足以授权。
+        // 只认真实源函数 overload 名称与其原 typed L0123/L0124；
+        // 两者都会回滚 contextual trial，静态候选或祖先错误不足以授权。
         if !matches!(callee.payload(), Expression::Name) {
             return Ok(false);
         }
-        let code = codes::catalog()
-            .and_then(|catalog| catalog.resolve(codes::NO_MATCHING_OVERLOAD))
-            .map_err(TypeCheckingError::from)?;
-        Ok(self.facts.rejected_function_overload(callee.span(), code))
+        let catalog = codes::catalog().map_err(TypeCheckingError::from)?;
+        for code in [codes::NO_MATCHING_OVERLOAD, codes::AMBIGUOUS_CALL] {
+            let code = catalog.resolve(code).map_err(TypeCheckingError::from)?;
+            if self.facts.rejected_function_overload(callee.span(), code) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
     fn uncommitted_lambda_argument(&self, mut id: ExpressionId) -> Result<bool> {
         loop {
@@ -846,7 +852,12 @@ impl<F: Facts> Checker<'_, F> {
                 for type_ref in type_arguments {
                     complete &= self.call_type_ref(*type_ref, rejected_type_arguments)?;
                 }
-                if selection.as_ref().is_some_and(|s| s.static_callee) {
+                // 参数已失败时，真实静态候选只是选择器，不消费其恢复值类型。
+                // Single 的容器 callee 可带 Deferred(Call)，Unit 可没有值事实；
+                // 两者都不能在同一 child 根因之后制造静态壳级联。运行时 callee 仍遍历。
+                let failed_static_callee =
+                    selection.is_none() && !complete && self.static_candidate(*callee)?;
+                if selection.as_ref().is_some_and(|s| s.static_callee) || failed_static_callee {
                     complete &= self.selector(*callee)?;
                 } else {
                     let deferred_call = matches!(
