@@ -5,8 +5,8 @@ use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::{LexedFile, lex},
     name_resolution::{
-        NameResolution, SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit,
-        resolve_compilation_unit_names, resolve_names,
+        NameResolution, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     parser::{ParsedFile, parse_file},
     source::SourceMap,
@@ -24,6 +24,18 @@ pub(super) enum Entry {
     Single,
     Unit,
     MemoryUnit,
+}
+
+impl Entry {
+    pub(super) fn matches_key(self, key: &SourceUnitKey) -> bool {
+        match (self, key) {
+            (Self::Unit, SourceUnitKey::Rooted { root, logical_path }) => {
+                root.as_str() == "root" && logical_path.as_str() == LOGICAL_PATH
+            }
+            (Self::MemoryUnit, SourceUnitKey::MemoryDocument) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -87,6 +99,7 @@ pub(super) enum Analysis {
 }
 
 pub(super) struct Observed {
+    pub(super) entry: Entry,
     pub(super) fixture: Fixture,
     pub(super) analysis: Analysis,
 }
@@ -172,5 +185,9 @@ fn analyze(text: &str, entry: Entry, trace: &mut Vec<String>) -> Result<Observed
             }))
         }
     };
-    Ok(Observed { fixture, analysis })
+    Ok(Observed {
+        entry,
+        fixture,
+        analysis,
+    })
 }

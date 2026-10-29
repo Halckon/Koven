@@ -20,7 +20,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test ownership_map --test ownership_map_require --test ownership_map_with \
   --test ownership_range_carrier --test ownership_range_construction \
   --test ownership_range_producer --test ownership_range_receiver \
-  --test type_borrow_result --test type_declaration_frontier --test type_iteration \
+  --test type_borrow_result --test type_declaration_frontier --test type_iteration --test type_iteration_unit \
   --test type_map --test type_range_carrier --test type_range_construction \
   --test type_range_extension --test type_range_source_authority \
   --test type_checking --test while_flow_facts --test control_branch_join --test type_callable --test type_copyability --test multifile_type_checking \

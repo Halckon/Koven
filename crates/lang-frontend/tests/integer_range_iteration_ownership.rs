@@ -1,5 +1,6 @@
 //! Ordinary source through complete admission and ownership; no program execution.
 use lang_frontend::{
+    diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
     lexer::lex,
     name_resolution::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
@@ -17,7 +18,13 @@ use lang_frontend::{
     },
 };
 
-fn checked(text: &str) -> (OwnershipCheckedFile, Vec<CompilationUnitOwnership>) {
+fn checked(
+    text: &str,
+) -> (
+    SourceMap,
+    OwnershipCheckedFile,
+    Vec<CompilationUnitOwnership>,
+) {
     println!("SOURCE {text}");
     let mut sources = SourceMap::new();
     let source = sources.add_source("iteration.ko", text).unwrap();
@@ -69,7 +76,7 @@ fn checked(text: &str) -> (OwnershipCheckedFile, Vec<CompilationUnitOwnership>) 
         }
         units.push(unit);
     }
-    (single, units)
+    (sources, single, units)
 }
 
 fn assert_numeric(
@@ -162,7 +169,7 @@ fn numeric_snapshots_allow_owned_items_source_reassignment_and_local_cleanup() {
             0,
         ));
     }
-    for ((single, unit), endpoint, bindings) in observed {
+    for ((_, single, unit), endpoint, bindings) in observed {
         assert_numeric(&single, &unit, endpoint, bindings);
     }
 }
@@ -170,15 +177,65 @@ fn numeric_snapshots_allow_owned_items_source_reassignment_and_local_cleanup() {
 #[test]
 fn numeric_inner_loop_preserves_outer_container_borrow() {
     let text = "fun consume(own values: Array<Int>): Unit {}\nfun entry(values: Array<Int>, range: IntRange): Unit { for (outer in values) { for (inner in range) { consume(values) } } }";
-    let (single, unit) = checked(text);
+    let (sources, single, unit) = checked(text);
     assert_eq!(single.diagnostics().len(), 1, "{:?}", single.diagnostics());
     assert_eq!(single.diagnostics()[0].code().to_string(), "L0135");
     assert_eq!(unit.len(), 2);
-    for unit in &unit {
-        assert_eq!(
-            unit.diagnostics(),
-            single.diagnostics(),
-            "full source diagnostics"
-        );
+    let source = single.diagnostics()[0].primary_span().source_id();
+    assert_eq!(sources.source_text(source), Ok(text));
+    let primary_start = text.rfind("values").unwrap();
+    let primary = sources
+        .span(source, primary_start, primary_start + "values".len())
+        .unwrap();
+    let loan_start = text.find("in values").unwrap() + "in ".len();
+    let loan = sources
+        .span(source, loan_start, loan_start + "values".len())
+        .unwrap();
+    let parameter_text = "own values: Array<Int>";
+    let parameter_start = text.find(parameter_text).unwrap();
+    let parameter = sources
+        .span(
+            source,
+            parameter_start,
+            parameter_start + parameter_text.len(),
+        )
+        .unwrap();
+    let catalog = DiagnosticCodeCatalog::try_new(&["L0135"]).unwrap();
+    let mut expected_single = Diagnostic::new(
+        &sources,
+        Severity::Error,
+        catalog.resolve("L0135").unwrap(),
+        "access conflicts with the active iteration source loan",
+        primary,
+    )
+    .unwrap();
+    expected_single
+        .add_label(&sources, loan, "conflicting loan starts here")
+        .unwrap();
+    let mut expected_unit = Diagnostic::new(
+        &sources,
+        Severity::Error,
+        catalog.resolve("L0135").unwrap(),
+        "move conflicts with an active loan",
+        primary,
+    )
+    .unwrap();
+    expected_unit
+        .add_label(&sources, loan, "conflicting loan starts here")
+        .unwrap();
+    expected_unit
+        .add_label(&sources, parameter, "selected parameter declared here")
+        .unwrap();
+    // Legacy and Unit retain their distinct complete diagnostic contracts.
+    assert_eq!(single.diagnostics(), &[expected_single]);
+    for owned in &unit {
+        assert_eq!(owned.diagnostics().len(), 1);
+        assert_eq!(owned.diagnostics()[0].code().to_string(), "L0135");
+        assert_eq!(owned.diagnostics(), std::slice::from_ref(&expected_unit));
     }
+    assert_eq!(
+        unit[0].diagnostics(),
+        unit[1].diagnostics(),
+        "rooted and MemoryDocument Unit"
+    );
 }
