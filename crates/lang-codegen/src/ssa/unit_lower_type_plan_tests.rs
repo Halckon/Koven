@@ -167,3 +167,7 @@ fn reachable_body_only_string_type_preserves_owner_drop() {
         1
     );
 }
+
+// Stage A only: legacy whole-file/shared-instance witnesses remain unchanged.
+#[path = "unit_legacy_instance_witness_tests.rs"]
+mod legacy_instance_witnesses;
