@@ -27,7 +27,7 @@ fun rightText(): String { println("right"); return "y".clone() }
 fun main(): Unit {
     val ordered = leftText().checkedPlus(rightText())
     if (ordered != null) { println(ordered) } else { error("small ordered concatenation failed") }
-    val source = "A\u{0}é".clone()
+    val source = "A\0é".clone()
     if (source.byteLength() != 4) { error("byte length") }
     val bytes = source.toBytes()
     val decoded = decodeUtf8(bytes)
@@ -62,8 +62,8 @@ fun main(): Unit {
             }
         }
     }
-    invalidUtf8(Array<UByte>(4, { index -> if (index == 0) 65 else if (index == 1) 226 else if (index == 2) 40 else 161 }), 1)
-    invalidUtf8(Array<UByte>(3, { index -> if (index == 0) 65 else if (index == 1) 226 else 130 }), 1)
+    invalidUtf8(Array<UByte>(4, { index -> if (index == 0) 65u else if (index == 1) 226u else if (index == 2) 40u else 161u }), 1)
+    invalidUtf8(Array<UByte>(3, { index -> if (index == 0) 65u else if (index == 1) 226u else 130u }), 1)
     val joined = source.checkedPlus("!")
     if (joined != null) { println(joined) } else { error("small concatenation failed") }
     println(source)

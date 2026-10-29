@@ -91,7 +91,7 @@ fun inspect(text: String): Unit {
 import koven.text.inspect
 import koven.text.byteLength
 fun main(): Unit {
-    val text = "A\u{0}é".clone()
+    val text = "A\0é".clone()
     inspect(text)
     if (text.byteLength() != 4) { error("length") }
     println("4")

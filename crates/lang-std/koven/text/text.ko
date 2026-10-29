@@ -25,7 +25,9 @@ fun decodeUtf8(bytes: Array<UByte>): Result<String, TextError> {
 private fun scalarBoundary(text: String, offset: Int, length: Int): Boolean {
     if (offset == length) { return true }
     val byte = textByteAt(text, offset)
-    return byte < 128 || byte >= 192
+    val continuationStart: UByte = 128u
+    val continuationEnd: UByte = 192u
+    return byte < continuationStart || byte >= continuationEnd
 }
 
 borrow fun String.sliceBytes(start: Int, end: Int): Result<String, TextError> {
