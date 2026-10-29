@@ -188,3 +188,19 @@ fn public_text_extension_requires_import_and_storage_intrinsics_require_host_aut
         );
     }
 }
+
+#[test]
+fn public_text_field_receiver_allows_disjoint_sibling_replace() {
+    check_build_run_both_modes(
+        r#"class Holder(val text: String, var other: String)
+fun main(): Unit {
+    val holder = Holder("field".clone(), "old".clone())
+    val joined = holder.text.checkedPlus(replace(&holder.other, "new".clone()))
+    if (joined != null) { println(joined) }
+    println(holder.text)
+    println(holder.other)
+}
+"#,
+        b"fieldold\nfield\nnew\n",
+    );
+}

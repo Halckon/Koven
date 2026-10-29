@@ -175,8 +175,6 @@ fn unit_field_borrow_keeps_nested_generic_inline_and_owned_parameter_boundaries(
         "class Holder<T>(val text: T)\nfun entry(): Unit {\nval holder = Holder(\"text\")\nprintln(holder.text)\n}",
         "value class Holder(val text: String)\nfun entry(): Unit {\nval holder = Holder(\"text\")\nprintln(holder.text)\n}",
         "class Holder(val text: String)\nfun inspect(own holder: Holder): Unit { println(holder.text) }\nfun entry(): Unit { inspect(Holder(\"text\")) }",
-        "class Holder(var first: String, val second: String)\nfun inspect(text: String): String { println(text)\nreturn \"next\" }\nfun entry(): Unit {\nval holder = Holder(\"first\", \"second\")\nval old = replace(&holder.first, inspect(holder.second))\n}",
-        "class Holder(val first: String, var second: String)\nfun inspect(text: String, own other: String): Unit { println(text)\nprintln(other) }\nfun entry(): Unit {\nval holder = Holder(\"first\", \"second\")\ninspect(holder.first, replace(&holder.second, \"next\"))\n}",
     ] {
         for constants in [false, true] {
             assert_eq!(
@@ -386,5 +384,29 @@ fn unit_field_borrow_parameter_projects_child_without_consuming_parent() {
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
             .expect("field loan LLVM");
         link_and_run(&llvm, "", b"text\n");
+    }
+}
+
+#[test]
+fn unit_field_borrow_sibling_replace_preserves_both_evaluation_orders() {
+    for constants in [false, true] {
+        run_native(
+            r#"
+            class Holder(var first: String, var second: String)
+            fun inspect(text: String): String { println(text); return "next" }
+            fun finish(text: String, own old: String): Unit { println(text); println(old) }
+            fun entry(): Unit {
+                val holder = Holder("first" + "!", "second" + "!")
+                val old = replace(&holder.first, inspect(holder.second))
+                println(old)
+                finish(holder.first, replace(&holder.second, "last"))
+                println(holder.first)
+                println(holder.second)
+            }
+            "#,
+            constants,
+            3,
+            b"second!\nfirst!\nnext\nsecond!\nnext\nlast\n",
+        );
     }
 }

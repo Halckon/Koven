@@ -195,7 +195,7 @@ fun main(): Unit {
 }
 
 #[test]
-fn public_text_field_receiver_keeps_sibling_replacement_guard() {
+fn public_text_field_receiver_preserves_sibling_replacement_owners() {
     let source = r#"package app
 import koven.text.checkedPlus
 class Holder(val text: String, var other: String)
@@ -203,15 +203,15 @@ fun main(): Unit {
     val holder = Holder("field".clone(), "old".clone())
     val joined = holder.text.checkedPlus(replace(&holder.other, "new".clone()))
     if (joined != null) { println(joined) }
+    println(holder.text)
+    println(holder.other)
 }
-
 "#;
-    let error = try_lower_public_text_program(source)
-        .err()
-        .expect("shared field conflict");
-    assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
-    let span = error.span.unwrap();
-    assert_eq!(&source[span.start()..span.end()], "&holder.other");
+    let (program, entry) = lower_public_text_program(source);
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Holder, two original fields, replacement and joined bytes each retain one owner.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 5);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"fieldold\nfield\nnew\n");
 }
 
 #[test]
@@ -862,4 +862,27 @@ fun main(): Unit {
     // normal unmatched continuations must retire the correct payload once.
     let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 6);
     crate::native_tests::boxed_enum_tests::assert_success(&run, b"temporary decode\n");
+}
+
+#[test]
+fn public_text_sibling_replace_rebinds_loans_and_cleans_argument_return() {
+    let source = r#"package app
+import koven.text.checkedPlus
+class Holder(val text: String, var other: String)
+fun inspect(stop: Boolean): Unit {
+    val holder = Holder("field".clone(), "old".clone())
+    val joined = holder.text.checkedPlus(replace(&holder.other,
+        if (stop) { println("stop"); return } else { "new".clone() }))
+    if (joined != null) { println(joined) }
+    println(holder.text)
+    println(holder.other)
+}
+fun main(): Unit { inspect(true); inspect(false) }
+"#;
+    let (program, entry) = lower_public_text_program(source);
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // The early path drops both original fields and parent after cancelling both loans.
+    // The normal path also owns replacement and joined bytes after CFG rebinding.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 8);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"stop\nfieldold\nfield\nnew\n");
 }

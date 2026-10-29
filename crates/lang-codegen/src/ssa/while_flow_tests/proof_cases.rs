@@ -625,7 +625,7 @@ println(outer.text)
 mod owned_field_contract;
 
 #[test]
-fn owned_local_field_borrow_preserves_unclosed_projection_boundaries() {
+fn owned_local_field_borrow_distinguishes_siblings_from_unclosed_projections() {
     let sources = [
         "class Inner(val text: String)\nclass Outer(val inner: Inner)\nfun entry(): Unit {\nval outer = Outer(Inner(\"text\"))\nprintln(outer.inner.text)\n}",
         "class Holder<T>(val text: T)\nfun entry(): Unit {\nval holder = Holder(\"text\")\nprintln(holder.text)\n}",
@@ -649,14 +649,20 @@ fn owned_local_field_borrow_preserves_unclosed_projection_boundaries() {
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 12);
-    for result in outcomes {
-        let error = result
-            .err()
-            .expect("nested/generic/inline/parameter/sibling boundaries remain rejected");
-        assert!(
-            error.starts_with("lower: LoweringError { kind: UnsupportedNode,"),
-            "{error}"
-        );
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if index / 2 >= 4 {
+            let program = result.expect("direct sibling fields may coexist with replacement");
+            verify_program(&program).expect("sibling field ownership verifies");
+            crate::llvm::render_verified_program(&program).expect("sibling field LLVM verifies");
+        } else {
+            let error = result
+                .err()
+                .expect("nested/generic/inline/parameter boundaries remain rejected");
+            assert!(
+                error.starts_with("lower: LoweringError { kind: UnsupportedNode,"),
+                "{error}"
+            );
+        }
     }
 }
 

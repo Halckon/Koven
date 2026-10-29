@@ -64,10 +64,10 @@ TextError 按现行合同保持完整分类；EmptySeparator 的实际产生路�
 
 ## 5. 实施顺序
 
-1. [ ] 盘点可信来源、扩展选择、ownership 与 native 接入点及直接调用者，确认既有能力和缺口。
+1. [x] 盘点可信来源、扩展选择、ownership 与 native 接入点及直接调用者，确认既有能力和缺口。
 2. [ ] 建立失败用例；接通标准源／TextError 和精确 String 扩展事实，验证防冒充及原有扩展回归。
-3. [ ] 补充最小字节读取、严格 UTF-8 与复制边界；用 Koven 标准源组合公共接口，验证字节往返与错误偏移。
-4. [ ] 验证切片和 checkedPlus 的边界、求值次数、OOM 与 owner 生命周期，补齐两种公开 CLI 入口。
+3. [x] 补充最小字节读取、严格 UTF-8 与复制边界；用 Koven 标准源组合公共接口，验证字节往返与错误偏移。
+4. [x] 验证切片和 checkedPlus 的边界、求值次数、OOM 与 owner 生命周期，补齐两种公开 CLI 入口。
 5. [ ] 独立审查共享逻辑与最大剩余风险，修复并复核；同步实现事实、官方 CI 与验收账本。
 6. [ ] 验收通过后归档、同步库存和里程碑；最终 head 全部适用检查结束后合并 PR。
 
@@ -517,8 +517,8 @@ text／用户源四个身份及顺序，保留后续原用户入口选择断言�
 | 严格解码与错误偏移 | CLI 同一矩阵的17类非法输入与独立 Rust oracle；`utf8_error_offset_native_matches_strict_sequence_boundaries` | 已有局部动态通过；不以字符数替代字节偏移 |
 | 字节切片 | CLI 同一矩阵的205组端点组合，核范围优先级、scalar 边界及空切片 | 已有局部动态通过 |
 | 可恢复连接 | `standard_checked_plus_returns_null_only_for_length_overflow_and_aborts_on_oom`；公开 CLI 左右各一次求值与结果输出 | 合成上限／OOM 与正常小输入分别验证；不声称 GB 成功复制 |
-| 所有权与控制流 | codegen `text_` 48项与 CLI `text_bytes` 16项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果及直接返回记录 | 已覆盖记录中的具体形状；String If 的独立owner与已有proof根交付已有动态证据；纯根return已接入原非空事实；实参内移动已借用receiver根由L0135拒绝，其他If退出仍限已记录形状 |
-| 公共入口 | `native_cli text_bytes` 对单文件／project 各执行 check、build 后直接运行及 CLI run | 16项通过、无忽略；不替代旧 raw API 的跨源合同 |
+| 所有权与控制流 | codegen `text_` 49项与 CLI `text_bytes` 17项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果及直接返回记录 | 已覆盖记录中的具体形状；String If 的独立owner与已有proof根交付已有动态证据；纯根return已接入原非空事实；实参内移动已借用receiver根由L0135拒绝，其他If退出仍限已记录形状 |
+| 公共入口 | `native_cli text_bytes` 对单文件／project 各执行 check、build 后直接运行及 CLI run | 17项通过、无忽略；不替代旧 raw API 的跨源合同 |
 | 回归与平台 | 历史输入完整 codegen 库测试、官方双宿主 CI、独立复核、Clippy／尺寸／文档门禁 | 独立复核及局部门禁已通过；修复后的最终双宿主 CI 待完成，暂不归档 |
 
 Guide02 与 accepted ADR-0031 已要求生产单文件／project 共用 unit 管线。第2节“两前端
@@ -698,3 +698,38 @@ NullableWrap的operation合同错误。其typed类型为Nothing，没有正常�
 `check`均以L0135拒绝，span精确指向被移动的joined并标出receiver loan起点，未进入native。
 这符合Guide10调用期loan在后续实参求值期间已有效的合同，应保留拒绝而非实现绕过；
 前文“未接入”的表述不能当作已批准扩展清单。本片不修改前端或放宽活动借用冲突。
+
+### 直接兄弟字段 loan 的验收缺口（2026-10-30）
+
+独立终轮复核发现，`holder.text.checkedPlus(replace(&holder.other, "new".clone()))`
+此前被负例锁定为 UnsupportedNode，但 Guide10 允许同根不同字段的不重叠借用。当前
+`81aafa58` 公开 CLI 的原样源码已通过 check，build 在 lowering 拒绝；这与上节移动
+活动 receiver 根的 L0135 不同，属于待修实现缺口，不能据负例通过宣称字段组合完成。
+
+已将该负例改为 native 正例，要求输出旧字段连接结果、保留 text、更新 other，并逐指针
+验证五个分配的释放；实际红测仍在 `&holder.other` 处报 UnsupportedNode。另补同父嵌套
+replace、共享／独占两种求值方向和两种公开 CLI 模式验收。实现、复核与最终验证待完成。
+
+实现新增独立的直接字段来源证明：从真实 HeapPayloadPlace 出发，经单层 FieldPlace、
+BorrowBegin／SharedReborrow 及 CFG 参数传播；必须得到唯一 root、同一父类型和不同字段。
+未知入边与无来源循环注入 Unknown 并传播，不能以其它已知入边覆盖。仅 BorrowBegin 和
+HeapFieldExchange 的 sibling 冲突使用该证明，全局 overlap、父 owner move/drop、root
+exchange 和精确 field exchange 合同不放宽。lowering 移除普通 class 直接字段的旧整父
+拦截；enum、nested/generic、whole-root clone、Copyable field read 等既有边界保留。
+
+verifier 红测实际同时报 BorrowConflict 与 OwnerLoanConflict；另三项源码红测均为
+UnsupportedNode。初轮 field_exchange 15项与 sibling 31项通过，无失败或忽略；后者包括
+共享／独占两顺序、嵌套 exchange、文本 receiver 和参数分支 return 的真实 native，分别
+核对原值／新值输出及逐指针释放。直接文本5次分配，分支 true／false 合计8次分配。
+
+扩大的 field_ 回归初轮132项中130通过、2失败、0忽略：两处旧边界矩阵仍期望合法 sibling
+组合拒绝。已将三段原样源码转为 SSA／LLVM 正例，其余 nested／generic／inline／参数、
+field swap／read／clone 拒绝断言保留。独立 full-pass 两轮核对来源不动点、未知／循环、
+父 owner 安全、原样源码迁移及尺寸接线，未发现阻断问题。verify_ownership.rs 从1836至
+1841行，仅增5行接线，保持既有1860额度与拆分计划；没有新增尺寸例外。
+最终定向验证：`field_` 133项、`verify_ownership` 61项、`text_` 49项、CLI
+`native_cli text_bytes` 17项均通过，0 failed、0 ignored；过滤集合有重叠，不相加为唯一
+用例数。命令均为 `cargo test --locked --offline -j 2`，codegen 使用 `--lib`，CLI 使用
+`--test native_cli`。codegen／CLI `--all-targets -- -D warnings` 严格 Clippy、Rustfmt、
+821篇文档结构、diff与尺寸门禁通过；2026个Rust文件中39项历史超限，未新增例外。
+本机使用LLVM21；官方最终 head CI 尚待完成，旧raw入口合同仍待决定，不归档。

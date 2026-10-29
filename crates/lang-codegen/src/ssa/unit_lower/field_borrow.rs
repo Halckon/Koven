@@ -448,14 +448,6 @@ impl UnitExpressionLowerer<'_> {
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        // SSA currently aliases sibling fields through their parent. Preserve the existing gate.
-        if self.pending_call_frames.iter().any(|frame| {
-            frame.field_replace_owner.is_some_and(|slot| {
-                self.pending_operands.get(slot) == Some(&EntityId::Value(owner))
-            })
-        }) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let owner_ssa = self
             .type_ids
             .get(&owner_type)

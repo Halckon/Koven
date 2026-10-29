@@ -15,9 +15,9 @@ pub(super) struct PendingCallFrame {
     pub(super) created_loans: Vec<usize>,
     /// (owner, shared-loan) slots for sealed source addresses with no user storage LoanFact.
     pub(super) abi_slots: Vec<(usize, usize)>,
-    /// 同一父 owner 的并行字段 loan 尚无 projection-aware alias 合同。
+    /// 字段置换的父 owner 槽位；整体借用与控制退出仍核对其身份。
     pub(super) field_replace_owner: Option<usize>,
-    /// 保留共享字段 loan 的稳定 root，使后续 sibling exclusive loan 明确拒绝。
+    /// 保留共享字段 loan 的稳定 root，供跨控制流 cleanup 与 proof guard 使用。
     pub(super) shared_field_roots: Vec<UnitSymbolId>,
     /// 独占 root 的 owner 槽位须与 binding 保持同一 CFG identity。
     pub(super) exclusive_root_owners: Vec<usize>,

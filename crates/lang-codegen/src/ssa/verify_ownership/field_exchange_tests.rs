@@ -542,8 +542,15 @@ fn field_exchange_rejects_nested_field_with_same_type_and_overlap_root() {
         )[0],
     );
     let l = f.borrow(nested, LoanKind::Exclusive);
+    let direct = f.field_place(owner, 0);
     f.exchange(f.entry, owner, 0, l, replacement);
     f.abort();
+    let aliases = AliasRoots::compute(f.function());
+    assert!(
+        !aliases
+            .direct_fields
+            .disjoint(EntityId::Place(direct), EntityId::Loan(l))
+    );
     f.assert_rejected();
 }
 
@@ -694,21 +701,24 @@ fn field_exchange_accepts_payload_projection_and_loan_across_cfg_loop() {
 }
 
 #[test]
-fn field_exchange_retains_conservative_sibling_loan_backend_boundary() {
-    let mut f = Fixture::new(false);
-    let [owner, replacement] = [f.arg(0), f.arg(2)];
-    let l = f.field_loan(owner, 0, LoanKind::Exclusive);
-    // Language-level disjoint fields are legal, but this backend's existing AliasRoots
-    // intentionally remains conservative. This test does not make the source illegal.
-    f.field_loan(owner, 1, LoanKind::Shared);
-    f.exchange(f.entry, owner, 0, l, replacement);
-    f.abort();
-    let errors = verify_program(&f.program).unwrap_err().errors;
-    assert!(
-        errors
-            .iter()
-            .any(|error| matches!(error.kind, VerifyErrorKind::BorrowConflict { .. }))
-    );
+fn field_exchange_allows_direct_sibling_loans_in_either_order() {
+    for sibling_first in [false, true] {
+        for kind in [LoanKind::Shared, LoanKind::Exclusive] {
+            let mut f = Fixture::new(false);
+            let [owner, replacement] = [f.arg(0), f.arg(2)];
+            let l = if sibling_first {
+                f.field_loan(owner, 1, kind);
+                f.field_loan(owner, 0, LoanKind::Exclusive)
+            } else {
+                let l = f.field_loan(owner, 0, LoanKind::Exclusive);
+                f.field_loan(owner, 1, kind);
+                l
+            };
+            f.exchange(f.entry, owner, 0, l, replacement);
+            f.abort();
+            assert_eq!(verify_program(&f.program), Ok(()));
+        }
+    }
 }
 
 #[test]
@@ -823,3 +833,6 @@ fn field_exchange_cfg_rejects_same_typed_other_field_on_one_incoming_edge() {
         }
     }
 }
+
+#[path = "direct_field_tests.rs"]
+mod direct_field_tests;
