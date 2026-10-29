@@ -107,3 +107,61 @@ fn text_copy_primitives_abort_before_publishing_invalid_strings() {
         );
     }
 }
+
+#[test]
+fn public_decode_result_borrows_payload_and_releases_independent_copy() {
+    let mut sources = SourceMap::new();
+    let (result_id, result) = support::parsed(
+        &mut sources,
+        "result.ko",
+        include_str!("../../../lang-std/koven/core/result.ko"),
+    );
+    let (text_id, text) = support::parsed(
+        &mut sources,
+        "text.ko",
+        include_str!("../../../lang-std/koven/text/text.ko"),
+    );
+    let (app_id, app) = support::parsed(
+        &mut sources,
+        "app.ko",
+        r#"package app
+import koven.text.decodeUtf8
+fun main(): Unit {
+    val bytes = Array<UByte>(3, { index -> if (index == 0) 195u else if (index == 1) 169u else 0u })
+    val decoded = decodeUtf8(bytes)
+    when (decoded) {
+        is Ok -> println(decoded.success)
+        is Err -> error("valid UTF-8 rejected")
+    }
+    if (bytes.size != 3) { error("input array consumed") }
+}"#,
+    );
+    let inputs = [
+        SourceUnitInput::new("std", "koven/core/result.ko", result_id, &result),
+        SourceUnitInput::new("std", "koven/text/text.ko", text_id, &text),
+        SourceUnitInput::new("app", "app/Main.ko", app_id, &app),
+    ];
+    let (mut names, mut types) = standard_environments();
+    names.authorize_builtin_source(&sources, result_id).unwrap();
+    types.authorize_text_source(&sources, text_id).unwrap();
+    let (names, typed, owned) = support::analyze(&sources, &inputs, &names, &types);
+    let (program, entry) = super::unit_lower::lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &types,
+        &typed,
+        &owned,
+        support::declaration(&names, "app", "main"),
+    )
+    .unwrap_or_else(|error| {
+        panic!(
+            "public decode lowering: {error:?}; source={:?}",
+            error.span.and_then(|span| sources.slice(span).ok())
+        )
+    });
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run =
+        crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[1, 0]);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"\xc3\xa9\0\n");
+}

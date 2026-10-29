@@ -372,6 +372,37 @@ impl UnitExpressionLowerer<'_> {
             .symbols()
             .get(root.symbol().index())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if let Some(receiver_type) = self.typed.expression_type(receiver)
+            && let Some(UnitTypeKind::EnumCase {
+                root: owner_type, ..
+            }) = self.typed.types().get(receiver_type)
+        {
+            if !matches!(
+                root_symbol.kind(),
+                SymbolKind::Variable | SymbolKind::ValueParameter
+            ) || self.typed.symbol_type(root) != Some(*owner_type)
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            if self.pending_call_frames.iter().any(|frame| {
+                frame.field_replace_owner.is_some_and(|slot| {
+                    self.pending_operands.get(slot) == Some(&EntityId::Value(owner))
+                })
+            }) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let field =
+                self.lower_enum_field_place(projection, receiver_type, owner, target, span)?;
+            self.pending_call_frames
+                .last_mut()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+                .shared_field_roots
+                .push(root);
+            return Ok(field);
+        }
         if root_symbol.kind() != SymbolKind::Variable {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }

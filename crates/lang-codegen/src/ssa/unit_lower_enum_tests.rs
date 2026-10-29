@@ -735,3 +735,76 @@ fn original_generic_nominal_source_runs_natively() {
         },
     );
 }
+
+#[test]
+fn owned_generic_enum_when_rebinds_subject_and_borrows_string_payload() {
+    let source = r#"enum class Reply<T> { Full(value: T), Empty }
+fun show(own item: Reply<String>): Unit {
+    when (item) {
+        is Reply.Full -> println(item.value)
+        is Reply.Empty -> println("empty")
+    }
+    when (item) {
+        is Reply.Empty -> println("empty again")
+        is Reply.Full -> println(item.value)
+    }
+}
+fun local(): Unit {
+    val item: Reply<String> = Reply.Full("local".clone())
+    when ((item)) {
+        is Reply.Empty -> error("wrong local case")
+        is Reply.Full -> println(item.value)
+    }
+}
+fun early(own item: Reply<String>): Int {
+    when (item) {
+        is Reply.Empty -> return 8
+        is Reply.Full -> println(item.value)
+    }
+    return 7
+}
+fun main(): Unit {
+    val full: Reply<String> = Reply.Full("payload".clone())
+    val empty: Reply<String> = Reply.Empty
+    show(full)
+    show(empty)
+    local()
+    val earlyFull: Reply<String> = Reply.Full("early".clone())
+    val earlyEmpty: Reply<String> = Reply.Empty
+    if (early(earlyFull) != 7) { error("wrong full return") }
+    if (early(earlyEmpty) != 8) { error("wrong empty return") }
+}"#;
+    with_generic_enum_source("owned-when.ko", source, "main", |view, entry| {
+        let (program, entry) = super::unit_lower::lower_owned_unit_with_entry(view, entry)
+            .expect("owned enum subject survives each condition edge and both when joins");
+        super::verify::verify_program(&program).expect("no stale or duplicated enum owner");
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
+            .expect("borrowed String payload has the ordinary String ABI");
+        let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 3);
+        crate::native_tests::boxed_enum_tests::assert_success(
+            &run,
+            b"payload\npayload\nempty\nempty again\nlocal\nearly\n",
+        );
+    });
+}
+
+#[test]
+fn owned_enum_when_keeps_unplanned_subject_cleanup_rejected() {
+    for subject in ["((item))", "make()"] {
+        let source = format!(
+            "enum class Owned {{ Full(value: String), Empty }}\n\
+             fun make(): Owned = Owned.Full(\"value\")\n\
+             fun entry(own item: Owned): Int = when ({subject}) {{\n\
+                 is Owned.Full -> 1\n\
+                 is Owned.Empty -> 0\n\
+             }}"
+        );
+        with_generic_enum_source("rejected-when.ko", &source, "entry", |view, entry| {
+            let error = match super::unit_lower::lower_owned_unit_with_entry(view, entry) {
+                Ok(_) => panic!("subject-local drops and temporary owners need an explicit plan"),
+                Err(error) => error,
+            };
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{subject}");
+        });
+    }
+}

@@ -182,3 +182,32 @@ Int.MAX_VALUE + 0 必须到达分配器，+1 必须不分配并返回 null；小
 独立静态审阅已核对源选择、ABI、守卫／分配顺序和预期输出，无确认缺陷；新增用例尚未运行。
 当前远端 `4fad95e6` 的 Linux Check／Clippy 已通过，macOS Check／Clippy 仍排队，继续跟踪
 [同一 CI](https://github.com/Halckon/Koven/actions/runs/40932966990)，不将排队记作通过。
+
+本地真实 CLI 首次执行暴露标准源码 scalarBoundary 将 UByte 与默认 Int 字面量比较的
+L0085；仅补注解仍产生 L0084，最终使用明确 UByte 变量和 `128u`／`192u`。公共夹具的
+NUL 改为 Guide 定义的 `\0`，Array<UByte> 的返回字面量使用无符号后缀。修正后真实 CLI
+前端检查与未导入／非授权原语拒绝测试通过；完整正向 build 仍报 lowering MissingFact。
+逐项真实 CLI 隔离已确认 toBytes、sliceBytes 成功与 NotScalarBoundary 错误路径可运行，
+失败定位为 checkedPlus 返回的非 null String 读取；只判断其非 null 并输出固定 marker 的
+真实 CLI 已成功。实际标准函数体的 overflow／分配边界／OOM 探针 1 passed、0 ignored，
+不能将返回值的 smart-cast 读取缺口归因为长度策略。这些结果不构成整个公开 API 的完成验收。
+
+MoveOnly enum 消费补片先以真实泛型 String payload 用例取得失败：0 passed、1 failed、
+0 ignored，失败发生于首个 when lowering。现仅为 Name／透明 Group 的既有 owned binding、
+且主体链无该 owner 的 AfterExpression 析构事实，开放普通分支传递；每次判别读取当前
+重绑定 owner。共享 enum payload place 校验用于借用，保留具体泛型类型／case／field 身份，
+不以 MoveOnly Read 复制 payload。独立审阅发现字段借用漏登 shared_field_roots，已修复并复核。
+完整 enum 定向组 14 passed、0 failed、0 ignored，包含局部变量、own 参数、Group、连续
+when、相反分支顺序、一个分支提前返回与另一分支正常借用，以及真实 3 次分配／3 次释放。
+原主体 ASAP-drop 拒绝保留，补充 Group 与 temporary subject 拒绝。所有分支都直接 return
+的 statement when 仍在 callable lowering 报 MissingFact；未将该形态纳入通过范围。
+代码生成 crate 的 all-targets strict Clippy、diff 与尺寸门禁通过，未扩大尺寸例外。
+
+另以真实 Result／text 标准资产和宿主 SourceId 授权验证 decodeUtf8：1 passed、0 ignored，
+精确输出 é／NUL，动态核对两份独立分配按 decoded→bytes 释放（分配顺序
+0=array、1=String，释放顺序 1、0）。源码后续仍读取 bytes.size，但此计数不证明 decoded
+在 size 求值之前释放。该证据补充 Result payload 借用，不代替双平台完整矩阵。
+
+远端 `4fad95e6` 的上述 CI 后续结束：macOS Check／Clippy 作业为 cancelled（未执行步骤），
+Targeted Tests 与 preview 均跳过，CI 汇总失败。Linux Check／Clippy 成功不能替代缺失宿主及
+行为验收；本地补片结果也不覆盖该次远端输入。取消原因未在作业结果中说明。

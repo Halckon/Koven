@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
-    ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
+    ownership_checking::{UnitDropPoint, UnitDropTarget, UnitShortCircuitRhs},
     parser::{Expression, LiteralKind, TypeRef, WhenCondition, WhenEntry},
     source::Span,
     type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitTypeKind, UnitTypeRefId},
@@ -271,12 +271,16 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             if is_tagged {
-                if self.typed.copyability(subject_type) == Copyability::MoveOnly {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
+                let subject_root = if self.typed.copyability(subject_type) == Copyability::MoveOnly
+                {
+                    Some(self.owned_when_subject(subject, span)?)
+                } else {
+                    None
+                };
                 return self.lower_when_chain(
                     expression,
                     Some((subject, Some(subject_ssa))),
+                    subject_root,
                     entries,
                     span,
                 );
@@ -307,15 +311,20 @@ impl UnitExpressionLowerer<'_> {
                         entries.len(),
                         span,
                     ),
-                    (None, Some(_)) | (None, None) => {
-                        self.lower_when_chain(expression, Some((subject, None)), entries, span)
-                    }
+                    (None, Some(_)) | (None, None) => self.lower_when_chain(
+                        expression,
+                        Some((subject, None)),
+                        None,
+                        entries,
+                        span,
+                    ),
                 };
             }
         }
         self.lower_when_chain(
             expression,
             subject.map(|subject| (subject, None)),
+            None,
             entries,
             span,
         )
@@ -400,10 +409,49 @@ impl UnitExpressionLowerer<'_> {
         self.merge_unit_exits(exit.into_iter().collect(), span)
     }
 
+    /// Only existing named owners whose subject evaluation preserves their lifetime can
+    /// use the ordinary branch carry. A subject-local ASAP drop needs a separate plan.
+    fn owned_when_subject(
+        &self,
+        mut subject: ExpressionId,
+        span: Span,
+    ) -> Result<UnitSymbolId, LoweringError> {
+        let root = self
+            .direct_name_symbol(subject, span)?
+            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+        if !matches!(self.bindings.get(&root), Some(LoweredValue::Value(_))) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        loop {
+            let point =
+                UnitDropPoint::AfterExpression(UnitExpressionId::new(self.source_unit, subject));
+            if self
+                .owned
+                .drops()
+                .iter()
+                .any(|fact| fact.point() == point && fact.target() == UnitDropTarget::Named(root))
+            {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(subject)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            match node.payload() {
+                Expression::Group { expression } => subject = *expression,
+                Expression::Name => return Ok(root),
+                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            }
+        }
+    }
+
     fn lower_when_chain(
         &mut self,
         expression: ExpressionId,
         subject: Option<(ExpressionId, Option<SsaTypeId>)>,
+        subject_root: Option<UnitSymbolId>,
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
@@ -505,7 +553,17 @@ impl UnitExpressionLowerer<'_> {
                 self.pending_call_frames = next_frames;
                 let entry_temporaries = next_temporaries.keys().copied().collect::<Vec<_>>();
                 self.temporaries = next_temporaries;
-                let condition = self.lower_when_condition(subject, condition, entry.span)?;
+                // Owned subjects cross each condition edge through the ordinary binding carry.
+                let current_subject = if let Some(root) = subject_root {
+                    let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, entry.span));
+                    };
+                    subject.map(|(_, tagged)| (owner, tagged))
+                } else {
+                    subject
+                };
+                let condition =
+                    self.lower_when_condition(current_subject, condition, entry.span)?;
                 if self.temporaries.keys().copied().ne(entry_temporaries) {
                     return Err(lowering_error(
                         LoweringErrorKind::UnsupportedNode,
