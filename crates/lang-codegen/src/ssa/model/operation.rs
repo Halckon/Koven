@@ -22,6 +22,15 @@ pub(crate) enum Operation {
     StringClone {
         source: LoanId,
     },
+    /// Read the byte count from an active shared String loan as a Koven Int.
+    StringByteLength {
+        source: LoanId,
+    },
+    /// Read one byte after checking the signed Int index; invalid indices Abort.
+    StringByteAt {
+        source: LoanId,
+        index: ValueId,
+    },
     /// 按 UTF-8 bytes 比较两个 String view，不进行 Unicode normalization。
     StringEqual {
         left: EntityId,
@@ -424,7 +433,12 @@ impl Operation {
                 vec![*left, *right]
             }
             Self::PrintString { value } => vec![EntityId::Loan(*value)],
-            Self::StringClone { source } => vec![EntityId::Loan(*source)],
+            Self::StringClone { source } | Self::StringByteLength { source } => {
+                vec![EntityId::Loan(*source)]
+            }
+            Self::StringByteAt { source, index } => {
+                vec![EntityId::Loan(*source), EntityId::Value(*index)]
+            }
             Self::Binary { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::IntegerBitwise { left, right, .. }

@@ -117,6 +117,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if descriptor.text_primitive().is_some() {
+            return self.lower_text_primitive(expression, arguments, descriptor, span);
+        }
         if descriptor.aborts() {
             let Some(lowered) = self.lower_call_arguments(call, arguments, descriptor, span)?
             else {

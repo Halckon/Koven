@@ -117,7 +117,7 @@ impl RuntimeRequirements {
                         requirements.needs_abort = true;
                         requirements.container_allocations.insert(container);
                     }
-                    Operation::RangeConstruct { .. } => {
+                    Operation::StringByteAt { .. } | Operation::RangeConstruct { .. } => {
                         requirements.needs_abort = true;
                     }
                     Operation::ContainerElementPlace { .. }

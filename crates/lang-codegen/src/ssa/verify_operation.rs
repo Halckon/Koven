@@ -51,6 +51,23 @@ pub(super) fn verify_operation(
         }
         Operation::StringClone { source } => shared_string_loan_type(module, function, *source)
             .is_some_and(|ty| single_value_result(&results) == Some(ty)),
+        Operation::StringByteLength { source } => {
+            shared_string_loan_type(module, function, *source).is_some()
+                && single_value_result(&results).is_some_and(|ty| is_koven_int(module, ty))
+        }
+        Operation::StringByteAt { source, index } => {
+            shared_string_loan_type(module, function, *source).is_some()
+                && value_type(function, *index).is_some_and(|ty| is_koven_int(module, ty))
+                && single_value_result(&results).is_some_and(|ty| {
+                    matches!(
+                        module.type_kind(ty),
+                        Some(SsaTypeKind::Integer {
+                            bits: 8,
+                            signed: false
+                        })
+                    )
+                })
+        }
         Operation::StringEqual { left, right } => {
             string_binary_contract(module, function, *left, *right, &results, true)
         }

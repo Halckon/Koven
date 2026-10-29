@@ -114,3 +114,23 @@ LLVM verifier 与 native 测试尚未执行，decodeUtf8 公共函数仍待接�
 新增来源、参数类型／数量／模式、具名／泛型误用和普通同名函数测试；独立复核修正两处候选
 集合类型错误，并核对错误原子性、嵌套调用定位及 trial 回滚，未发现其他确认缺陷。
 原语事实尚未接入 SSA／LLVM，测试未执行，不能据此声称字节读写已可运行。
+
+
+远端输入 `719957bc1e703afa363bd3b7db6ec423735f5c08` 的双宿主 Check／Clippy 通过。
+[Linux 首轮行为测试](https://github.com/Halckon/Koven/actions/runs/40927257708/job/123640764286)
+中 frontend lib 229 passed、0 failed、0 ignored；codegen 2478 passed、1 failed、0 ignored。
+新增 receiver fixture 在类型阶段失败：把 Int 结果直接传入当前只接受 String 的 println。
+已改为先断言数值再输出 String 标记；此失败未进入该用例的 SSA/native 断言，后续 stage
+integration 未运行，不能把新增 type_text_extension 目标记为通过。
+
+当前继续增加 StringByteLength／StringByteAt 的 IR-local 操作、严格 Int/UByte/shared-loan
+verifier、unit typed-call 消费与 LLVM 字节读取；复用现有参数 loan／cleanup 和 String view。
+新增 UTF-8／NUL／owner 保留、空串长度、负索引／末端／空串 Abort 与错误结果／已结束
+loan 的用例。独立静态审查未发现确认实现缺陷；指出 ended-loan 测试互相掩盖的风险后，
+已改为分别检查两条操作的错误位置。上述新增代码尚未经过 Rust 编译或 native 动态执行；
+其余 UTF-8／复制原语的 SSA 接入和公开标准源码仍未完成。
+
+同一输入的 [macOS 测试](https://github.com/Halckon/Koven/actions/runs/40927257708/job/123640764153)
+也在该 receiver fixture 的 L0084 类型检查处失败；frontend lib 229 passed、0 failed、
+0 ignored，codegen 2477 passed、1 failed、1 ignored。忽略项仍为需要 debugserver 权限的
+LLDB 断点用例，不能算通过。当前字节读取片的尺寸门禁通过，未增加尺寸例外。

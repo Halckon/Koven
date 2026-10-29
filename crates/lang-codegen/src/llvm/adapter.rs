@@ -17,6 +17,7 @@ mod root_exchange;
 #[cfg(test)]
 mod root_exchange_tests;
 mod storage;
+mod text;
 
 use std::collections::BTreeMap;
 
@@ -413,6 +414,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     &value_name(*result),
                 )?;
                 self.values.insert(*result, value.into());
+            }
+            Operation::StringByteLength { .. } | Operation::StringByteAt { .. } => {
+                self.lower_text_read(instruction, &results)?;
             }
             Operation::StringEqual { left, right } => {
                 let [result] = results.as_slice() else {

@@ -46,6 +46,7 @@ mod receiver;
 mod scalar;
 mod statement;
 mod string_clone;
+mod text_primitive;
 mod type_lower;
 mod type_plan;
 mod while_proof;

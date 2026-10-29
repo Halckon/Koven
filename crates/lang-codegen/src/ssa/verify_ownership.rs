@@ -382,7 +382,9 @@ fn apply_operation(
                 module, function, *right, aliases, state, location, origin, errors,
             );
         }
-        Operation::StringClone { source } => {
+        Operation::StringClone { source }
+        | Operation::StringByteLength { source }
+        | Operation::StringByteAt { source, .. } => {
             require_string_view(
                 module,
                 function,
