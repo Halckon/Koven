@@ -1,10 +1,10 @@
 # SPEC-0366: 文本与同步 IO 规范启用
 
-> **性质**：规范迁移合同 · **状态**：in-progress · **读取时机**：核验 v0.47 启用边界时 · **唯一真源**：本次迁移与验收；语言语义以 Guide 为准
+> **性质**：规范迁移合同 · **状态**：done · **读取时机**：核验 v0.47 启用边界时 · **唯一真源**：本次迁移与验收；语言语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | ECO-V1-M0-S5-0366 |
 | 所属 Phase | 跨 Phase 规范前置；不交付生产实现 |
 | 基线 | main 72b0414e1f4cc2d9f7dc251c96947bfc18bd6ce3 |
@@ -32,4 +32,8 @@
 迁移已落地；独立语义复核发现并闭合标准 String 扩展的旧禁令与旧 toString 延后文案，无剩余阻断。
 41 项 checker、1 项 DAG、4 项 roadmap 测试及 818 篇文档结构检查、diff 检查通过；16 页旧规范反向还原逐字节一致。
 除删除 Guide13 未带上限的旧文件示例外，既有 Kotlin fences 完全不变；未运行新 API native 测试，因为未新增实现。
-PR 适用 CI 与最终归档闭环待完成；实现 Spec 在规范交付后逐 Goal 建立。
+PR #230 的实现 head `5faf31c835ce44ee485effd01b6775d499b64923` 已通过
+[完整 CI 第 2 次尝试](https://github.com/Halckon/Koven/actions/runs/40885536785/attempts/2)：
+12 项成功，包含双宿主 Check/Clippy、定向测试及汇总证据；4 项 preview 产销作业按改动条件跳过，
+不记为安装验收。第一次 macOS 测试因托管 runner 未能接单而取消，按 GitHub 容量故障注释仅重跑该作业及依赖门禁。
+本次归档不修改生产代码；归档提交仍须最终 head 门禁成功后合并。实现 Spec 在规范交付后逐 Goal 建立。

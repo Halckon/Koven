@@ -72,6 +72,6 @@ Result 主入口／Display 等不得另造冲突签名；文本与 IO 的具体�
 
 三份使用草案及[文本／IO具体建议](../../archive/migrations/text-io-approved-contract.md#eco-v1-m0-使用合同建议2026-10-22未启用)已可审阅；
 具体建议包含签名、编码／错误／路径／CSV 合同和确定性 oracle，已于 2026-10-22 获用户批准及 Guide 启用授权。
-Guide 协调迁移已由 [SPEC-0366](../../specs/active/0366-text-io-guide.md)承接；前置矩阵与生产实现分别核验，不能因此提前关闭 M0-S5。
+Guide 协调迁移已由 [SPEC-0366](../../archive/specs/0366-text-io-guide.md)承接；前置矩阵与生产实现分别核验，不能因此提前关闭 M0-S5。
 下一片须先对照当前 main 的实际能力选定最小合同，标出需要 Guide 启用的项，
 再绑定一个或多个有单一 Goal 的正式 Spec。成功／失败 oracle 必须随合同固定，不能按实现输出倒推。

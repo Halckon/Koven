@@ -135,5 +135,3 @@ actual-main CI [38150175528](https://github.com/Halckon/Koven/actions/runs/38150
 
 - [演进实施账本](../evolution-status.md)：语言能力与独立缺口
 - [完成 Spec Archive](../../archive/specs/README.md)：只按需追溯原验收
-
-- [SPEC-0366 文本与同步 IO 规范启用](0366-text-io-guide.md)：已批准合同的 v0.47 迁移；生产实现另验。

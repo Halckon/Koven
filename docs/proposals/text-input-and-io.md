@@ -6,7 +6,7 @@
 [Guide13](../guide/13-program-runtime-standard-library.md#文本字节与严格解析)。
 2026-10-29 用户补选的三个错误 oracle 一并启用；详见
 [启用账本](../archive/migrations/v0.47-enablement.md)与[原批准材料](../archive/migrations/text-io-approved-contract.md)。
-规范启用不证明任何生产 API 已实现；实现入口见 [SPEC-0366](../specs/active/0366-text-io-guide.md)。
+规范启用不证明任何生产 API 已实现；实现入口见 [SPEC-0366](../archive/specs/0366-text-io-guide.md)。
 
 ## 仍待后继合同
 

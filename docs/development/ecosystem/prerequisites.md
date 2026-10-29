@@ -12,7 +12,7 @@
 2026-10-23 的 v0.45 前置判断已由本次核查取代；原冻结观察仍见 [baseline](baseline.md)。
 “已有有界证据”仅表示所列入口和场景；不得外推到所有泛型、所有权模式或新 API。
 用户已批准 [文本／IO 合同](../../archive/migrations/text-io-approved-contract.md#eco-v1-m0-使用合同建议2026-10-22未启用)
-及后续 Guide 启用；[SPEC-0366](../../specs/active/0366-text-io-guide.md)在 v0.47 写入文本／IO 与用户补选错误规则。
+及后续 Guide 启用；[SPEC-0366](../../archive/specs/0366-text-io-guide.md)在 v0.47 写入文本／IO 与用户补选错误规则。
 上列 v0.46 输入身份保留为核查基线；规范迁移不改变下列生产实现观察。
 
 ## M0-S5：能力、入口与后继
