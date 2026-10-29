@@ -698,3 +698,38 @@ x02 双 UnsupportedNode，w06 双前端 L0135 但主诊断文本不同。两份 
 - 当前673身份账按已审最小附录 `510edaac` 修订为139 ordinary＋153 legacy未授权＋57 explicit CI-only＋324 helper未授权；唯一修正为带allocator计数的field-resource whole从helper325转入CI-only57，总673/139、原25及identity顺序不变。原resource-field完整计数、nullableWhen三源8+8/Rc1+9与Abort、Atomic原2源×absent/present四格fault whole均仍只留CI，不能拿普通局部成功替代。静态673不是已执行覆盖。
 - SPEC-0332原bounded done/archive与冻结历史不变；§5四Unit normal/break/continue/return payload-reader及其中体内原owner返回包装债仍OPEN，presence或expected reject不消账。SPEC-0341/D10继续active/in-progress，旧checker及私有lower_frontend真实消费者的迁移/删除仍未结清；原x02边界、历史失败与历史未知终态矩阵、源与仓外raw/绑定均保留，不自动清理或外推依赖/sysroot重建。
 - 56条GitData前缀导出已获静态独审 `f9ba3935`：165 blob、每条完整message/父映射及全部中间tree与最终tree一致；这不是远端发布结果，也不含后续实际docs提交。五docs仅作事实同步，原Rust/依赖/feature/工具及受验产物闭包不因此改变；六个新docs-only结构/两尺寸/三diff门按独立384MiB/4GiB合同在安装后、提交前另取实际收据，旧light8/build的1GiB门不变，无Cargo/test重复或自动清理。随后仅追加真实docs source/tree，发布前fresh核原PR head/base及actual remote commit/tree/message/有序parent；054/main c0c只是旧预期，不预造SHA。新头双宿主CI的原25/673身份、tutorial/resource/preview/consumer/aggregate仍待实证，本地绿、静态导出或aggregate单项不能替代。
+
+
+## 51. 迭代 final admission 两处阻塞修复候选（2026-10-29）
+
+- 基线 main `981760459c33bf9b10416cadbc7c168d97b7525c`；独立本地分支
+  `fix/spec-0341-iteration-final-admission`。不修改 PR #220 的 Unit counterpart、runner 或策略测试；
+  原 `type_iteration.rs` Single raw witness 保留。旧入口净退休 0，D10/E2 继续开放。
+- 原失败证据为 [PR #220 run 40825988901](https://github.com/Halckon/Koven/actions/runs/40825988901)，
+  head `34b55e58d6279ed6fd043f467add9302b87ea440`，Ubuntu targeted job `123290381660`：
+  deferred fixture 在 Single 多出静态 `listOf` 名称 80..86 的 L0165；ambiguous fixture 两入口
+  在回滚 lambda 的 243..249 上分别缺 Error 原诊断/表达式类型。历史失败不追认通过。
+- 根因与修复：共享 walker 的 contextual recovery 仅识别 L0123，现同样识别真实源函数 overload
+  callee 上的原 typed L0124，仍要求 Error、无 selection 及未提交 lambda；不为任意祖先错误授权。
+  Single 容器恢复给静态 callee 写 Deferred(Call)，Unit 可不发布该值；参数已失败时，两者按真实
+  静态候选身份恢复 selector，不再把该非值壳作为独立 L0165 root。普通 runtime callee 仍遍历。
+- 新增 `final_type_admission/iteration_recovery.rs` 九项 source-only 回归，使用相同 SourceMap/ParsedFile
+  比较 Single、rooted Unit、MemoryDocument Unit 的完整诊断；断言 deferred 唯一根因的精确文案/
+  Span/details、原 L0123/L0124 整值保留、无 Internal、失败计划与 nested call/实参类型及 lambda
+  参数类型/mode 回滚；成功控制核唯一 source call、List provider、Borrow 交付、Int element/binding、
+  lambda 参数与 nested argument 的 Int/Borrow 契约和原分析身份。另保独立声明及同一歧义调用普通
+  实参里的 final-only L0080（AST 核实位于该普通实参内、回滚 lambda 外），分组 lambda 的
+  L0123/L0124/成功三邻控，同名局部 callee 及两个独立 Deferred 实参各自根因、真实 FunctionValue
+  callee 与普通实参错误。回归范围仅直接源函数 overload 与上述局部/函数值边界，不宣称扩展
+  qualified/member/external overload 的 contextual recovery。已有 `final_type_admission` target 全量被
+  bounded runner 选择，无需新增 target 或改接线。生产不改 raw checker、事实产物或 Guide。
+
+| 验收项 | 目标/命令 | 本片结果 |
+|---|---|---|
+| 静态格式与空白 | `rustfmt --edition 2024 --check`（改动 Rust 入口）、`git diff --check` | 已通过 |
+| 文档结构 | `python3 scripts/check_docs.py` | 已通过 |
+| 直接行为及既有邻控 | 官方 CI 的 `final_type_admission` 与 `type_iteration` 完整 target | 待执行；本地禁止动态测试 |
+| 编译与 lint、双平台完整门禁 | 官方 CI workspace check/clippy、Linux/macOS targeted | 待明确发布授权后由官方 CI 执行 |
+
+上述仅为实现及静态核验候选，不宣称已通过编译或行为验收，不恢复 #220 已撤下的两个 Unit 对照。
+没有本地 cargo/build/check/test/clippy/native 执行，没有推送、创建或合并 PR。
