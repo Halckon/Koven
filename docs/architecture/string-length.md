@@ -10,7 +10,7 @@ String owner 保留 target usize 长度字段；SSA verifier 拒绝超出 Int �
 动态 concat 在分配和复制前合并机器溢出与 Int 上限检查，超限 Abort。argv 在 UTF-8 遍历和
 owner 分配前拒绝超限参数并返回 operational failure。clone 不扩大已有长度。
 
-[SPEC-0367](../specs/active/0367-string-length-invariant.md)记录验收状态；新增 native 探针使用
+[SPEC-0367](../archive/specs/0367-string-length-invariant.md)记录验收状态；新增 native 探针使用
 合成 owner 长度及 strlen／allocator shim，检查失败先于读取、分配及调用 main，不能当作
 真实 GB 字符串解析或分配证据。正常内容与 owner 生命周期复用已有 native String/clone/argv 测试。
 插值仍保留既有未接入边界；公开文本及 IO API 尚未在本片实现。

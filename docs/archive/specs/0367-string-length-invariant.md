@@ -1,10 +1,10 @@
 # SPEC-0367: String 创建入口的 Int 字节长度不变量
 
-> **性质**：实现合同 · **状态**：in-progress · **读取时机**：实现或验收 String 长度边界时 · **唯一真源**：本 Spec
+> **性质**：实现合同 · **状态**：done · **读取时机**：实现或验收 String 长度边界时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0367` |
 | 所属 Phase | Phase 2、4、5 |
 | 语言规范 | [Guide v0.47](../../guide/13-program-runtime-standard-library.md#string-长度与可恢复连接) |
@@ -12,7 +12,7 @@
 | 主里程碑 | CORE-V1-M1 / ECO-V1-M1，M1-S1 前置切片 |
 | 前置 Spec | [SPEC-0366](../../archive/specs/0366-text-io-guide.md) |
 | 关联 ADR | [0018](../../adr/accepted/0018-string-owner-runtime-abi.md)、[0019](../../adr/accepted/0019-parameterized-process-entry-bridge.md) |
-| 阻塞项 | 无语义阻塞；生产验收待执行 |
+| 阻塞项 | 无；归档提交仍须最终 head 门禁成功后合并 |
 | 影响范围 | frontend 字面量检查、LLVM String 创建与 argv bridge、对应测试与事实文档 |
 | 语言语义变更 | 否 |
 
@@ -38,20 +38,20 @@
 
 ## 4. 验收标准
 
-- [ ] 生产谓词的 0、Int.MAX_VALUE、Int.MAX_VALUE + 1 边界；不靠真实巨型分配造用例。
-- [ ] 字面量超限诊断身份与 Span，经实际生产检查入口测试；普通 Unicode／转义字面量保持通过。
-- [ ] 动态连接超限先 Abort，覆盖 target-width 溢出；正常空串、中文、内嵌 NUL 内容与 owner 保持。
-- [ ] argv 超限走非零返回，且发生在 UTF-8 遍历、owner 分配和 Koven main 之前。
-- [ ] 合成长度测试只证明守卫行为；与真实小输入 native build/run 分别记账，不冒充真实 GB 输入验收。
-- [ ] single 与 compilation-unit 入口无遗漏；clone、插值与当前创建点均有明确覆盖或既有证据。
-- [ ] 独立审查、定向测试、双宿主官方 CI、文档门禁通过后归档并完成 PR。
+- [x] 生产谓词的 0、Int.MAX_VALUE、Int.MAX_VALUE + 1 边界；不靠真实巨型分配造用例。
+- [x] 字面量超限诊断身份与 Span，经实际生产检查入口测试；普通 Unicode／转义字面量保持通过。
+- [x] 动态连接超限先 Abort，覆盖 target-width 溢出；正常空串、中文、内嵌 NUL 内容与 owner 保持。
+- [x] argv 超限走非零返回，且发生在 UTF-8 遍历、owner 分配和 Koven main 之前。
+- [x] 合成长度测试只证明守卫行为；与真实小输入 native build/run 分别记账，不冒充真实 GB 输入验收。
+- [x] single 与 compilation-unit 入口无遗漏；clone、插值与当前创建点均有明确覆盖或既有证据。
+- [x] 独立审查、定向测试、双宿主官方 CI、文档门禁通过后归档并完成 PR。
 
 ## 5. 实施计划
 
 1. [x] 盘点生产创建点、共享常量与现有测试 → 确定最小复用点和失败回归。
-2. [ ] 先增加失败测试，再实施字面量、concat、argv 的最小守卫 → 验证边界及正常路径。
-3. [ ] 独立审查并修复实际发现 → 复核单一最大剩余风险。
-4. [ ] 同步 Architecture 与验收账本 → 运行文档门禁、官方 CI，归档、合并。
+2. [x] 先增加失败测试，再实施字面量、concat、argv 的最小守卫 → 验证边界及正常路径。
+3. [x] 独立审查并修复实际发现 → 复核单一最大剩余风险。
+4. [x] 同步 Architecture 与验收账本 → 运行文档门禁、官方 CI，归档、合并。
 
 ## 6. 验证与交付记录
 
@@ -61,8 +61,8 @@ Rust/native 动态验收先使用官方 CI；本地文档检查不能替代运�
 | 验收项 | 结果 | 边界 |
 |---|---|---|
 | 创建点源码盘点 | 已完成 | 两 checker、常量求值／连接、SSA literal、concat、argv 已接线；clone 不扩大长度；插值未接入 |
-| Rust/native 测试 | 未执行 | 新增 3 个 frontend helper 测试、2 个 native 合成长度探针及 argv IR 断言，待官方 CI |
-| `python3 scripts/check_docs.py`、`git diff --check` | 820 Markdown 文件通过；diff 无错误 | 仅合同建立，不证明生产行为 |
+| Rust/native 测试 | 最新实现 head 的双宿主定向测试、preview 与汇总已通过 | 3 个 frontend helper、2 个 native 合成长度探针及既有 String/argv 回归，详见下文 |
+| `python3 scripts/check_docs.py`、`git diff --check` | 820 Markdown 文件通过；diff 无错误 | 仅文档结构，不替代生产行为验收 |
 
 提交按单一逻辑分片，消息包含 SPEC-0367；实现、测试与事实保持一致，归档单独记录最终 CI 身份。
 
@@ -70,7 +70,7 @@ Rust/native 动态验收先使用官方 CI；本地文档检查不能替代运�
 
 独立上下文检查两 checker、常量路径、concat/argv 顺序和 clone：发现纯字面量 IR 断言会被
 LLVM 常量折叠，以及 SSA literal 缺少上限。前者改为动态借用参数 native 探针，后者已补 verifier
-守卫；复核 native C ABI、函数导出及 argv 注入路径未发现阻塞，运行验证尚未执行。
+守卫；复核 native C ABI、函数导出及 argv 注入路径未发现阻塞；后续运行结果及夹具修复见下文。
 前端 helper 的合成长度测试证明上限谓词与诊断 Span，不声称实际解析了 GB 级源码。
 
 尺寸门禁 `python3 scripts/check_rust_sizes.py --base origin/main` 通过：保留 39 份超千行旧欠账；
@@ -93,3 +93,27 @@ codegen 为 2477 passed / 1 failed / 0 ignored；argv 超限 native 探针通过
 为 2475 passed / 2 failed / 1 ignored；两个新探针都在系统 Clang 解析 LLVM 21 的
 `captures(none)` 时失败，未执行行为断言。测试改用已有 `test_support::ir_clang()`，与相邻
 String clone 插桩测试一致；不修改 IR 内容或生产逻辑。既有 ignored 项不计通过。
+
+
+### 最新实现 head 的验收
+
+输入 `2980077a1aafa1b820d29c490ebe1ccc0e73083e` 的
+[Linux 作业 123574915551](https://github.com/Halckon/Koven/actions/runs/40908388793/job/123574915551)
+全部成功：frontend lib 229 passed / 0 failed / 0 ignored，codegen 2478 passed / 0 failed / 0 ignored。
+三个长度 helper 测试与两个 native 合成长度探针均实际通过；既有 String clone 的 UTF-8、NUL、
+空串、owner 独立和 OOM 回归同样通过。合成长度探针只证明守卫及操作顺序，不声称分配 GB 级对象。
+[macOS 作业 123574915480](https://github.com/Halckon/Koven/actions/runs/40908388793/job/123574915480)
+全部步骤结束：frontend lib 229 passed / 0 failed / 0 ignored，codegen 2477 passed / 0 failed /
+1 ignored。新增三个 helper 与两个 native 探针均通过；既有 LLDB source breakpoint 测试因
+CI 缺少 debugserver task-port 权限忽略，不记通过。双宿主 Check/Clippy、词频、公共入口及
+生成式资源合同均成功，Linux sanitizer 也成功；macOS 的 Linux sanitizer 步骤按平台跳过。
+Linux preview [生产者](https://github.com/Halckon/Koven/actions/runs/40908388793/job/123589222418)
+与[独立消费者](https://github.com/Halckon/Koven/actions/runs/40908388793/job/123590791780)已通过，
+后者实际完成匹配产物下载、安装运行、版本管理与证据留存。
+macOS [生产者](https://github.com/Halckon/Koven/actions/runs/40908388793/job/123589222507)
+与[独立消费者](https://github.com/Halckon/Koven/actions/runs/40908388793/job/123593935192)同样成功，
+安装运行和版本管理步骤实际执行。完整 [CI 40908388793](https://github.com/Halckon/Koven/actions/runs/40908388793)
+最终 success；Editor lexical contracts 按改动范围跳过，不计编辑器验收。未在本地重复运行 Cargo/native 门禁。
+
+本次归档只改验收、生命周期、链接和规划摘要，不改生产代码。PR #233 仍须归档 head 的全部
+适用门禁成功后合并；本片完成不代表 M1-S1 或整个生态里程碑完成。
