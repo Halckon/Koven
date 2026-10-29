@@ -111,7 +111,7 @@ Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接�
 MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回。
 常量入口的 named function-value callee pending frame 保留原规则：先移除alias，再按frontend owner事实清理，Abort不展开。
 lambda Borrow storage仍复用Shared Loan ABI；普通Unit direct declaration call为无receiver及canonical文本String Borrow receiver开放已证root/temporary实参前缀的控制退出，
-逐项核真实typed/owned/call route与frame身份；String非空If中的Unit／Copyable return允许空调用帧，或先结束文本实参调用loan、取消两帧，再按原ControlTransfer drop退休父proof。live-If Owned返回仍拒绝；函数值、普通receiver、field/element实参或借用结果不由此获得新能力，Borrow Unit/Inout callback仍拒绝。
+逐项核真实typed/owned/call route与frame身份；String非空If中的Unit／Copyable及独立owner return允许空调用帧，或先结束文本实参调用loan、取消两帧，再按原ControlTransfer drop退休父proof；独立owner先走原transfer／nullable wrap。收窄proof根的owner返回仍拒绝；函数值、普通receiver、field/element实参或借用结果不由此获得新能力，Borrow Unit/Inout callback仍拒绝。
 Map callback通用storage与capture见 [Map当前边界](map-native-execution.md)；contains/get/put/remove在后续参数CFG后读取重绑定owner/loan，
 MapPut自行收集K/V drop glue，MapRemove收集K并交付owned V，不依赖scope Drop。已证ownership primitive优先于普通prefix gate分派。
 常量入口允许外层pending temporary穿过内层loop/while，header、回边和break/false出口携完整owner/loan/pending状态；

@@ -32,7 +32,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        // Owned return delivery while an If view is live remains a separate contract.
+        // Independent owners use the existing transfer path. Returning a narrowed
+        // proof owner is still checked separately by lower_while_owner_return.
         if let Some(value) = value {
             let ty = self
                 .typed
@@ -40,7 +41,10 @@ impl UnitExpressionLowerer<'_> {
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             let concrete =
                 resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
-            if self.typed.copyability(concrete) != Copyability::Copyable {
+            if !matches!(
+                self.typed.copyability(concrete),
+                Copyability::Copyable | Copyability::MoveOnly
+            ) {
                 return Ok(false);
             }
         }

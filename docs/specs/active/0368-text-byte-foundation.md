@@ -517,7 +517,7 @@ text／用户源四个身份及顺序，保留后续原用户入口选择断言�
 | 严格解码与错误偏移 | CLI 同一矩阵的17类非法输入与独立 Rust oracle；`utf8_error_offset_native_matches_strict_sequence_boundaries` | 已有局部动态通过；不以字符数替代字节偏移 |
 | 字节切片 | CLI 同一矩阵的205组端点组合，核范围优先级、scalar 边界及空切片 | 已有局部动态通过 |
 | 可恢复连接 | `standard_checked_plus_returns_null_only_for_length_overflow_and_aborts_on_oom`；公开 CLI 左右各一次求值与结果输出 | 合成上限／OOM 与正常小输入分别验证；不声称 GB 成功复制 |
-| 所有权与控制流 | codegen `text_` 42项与 CLI `text_bytes` 12项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果及直接返回记录 | 已覆盖记录中的具体形状；String If 的 Unit／Copyable 返回已有动态证据，live-proof Owned／其他 If 退出仍未开放 |
+| 所有权与控制流 | codegen `text_` 46项与 CLI `text_bytes` 14项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果及直接返回记录 | 已覆盖记录中的具体形状；String If 的独立owner返回已有动态证据，收窄proof根交付／其他 If 退出仍未开放 |
 | 公共入口 | `native_cli text_bytes` 对单文件／project 各执行 check、build 后直接运行及 CLI run | 10项通过、无忽略；不替代旧 raw API 的跨源合同 |
 | 回归与平台 | 历史输入完整 codegen 库测试、官方双宿主 CI、独立复核、Clippy／尺寸／文档门禁 | 独立复核及局部门禁已通过；修复后的最终双宿主 CI 待完成，暂不归档 |
 
@@ -598,3 +598,25 @@ Unit提前退出与正常继续、Copyable返回值、caller输入继续使用�
 codegen／CLI all-targets严格Clippy、Rustfmt、821篇文档结构与diff检查通过；尺寸门禁
 2021文件、39项历史超限通过，未新增例外。官方最终head双宿主CI尚待新提交触发与验收，
 live-proof Owned返回及旧raw前端合同仍未关闭，不归档。
+
+### String If 的独立 owner return（2026-10-30）
+
+基于 `91e6bc667ca6bb2e5b463eb80ee10d3bac60d064`，实际分配的独立String在直接return与
+文本实参return处先复现UnsupportedNode（首个span 196..209）。原返回流水线已经负责
+owner转移、nullable wrap、调用loan取消及ControlTransfer drop，因此只将共同返回资格
+扩展到具体类型已知的MoveOnly，不新增transfer、drop或loan事实；Unknown／Error不放行。
+返回操作数继续逐节点接受原gate，收窄proof根的直接String／String?返回仍精确拒绝，
+嵌套返回也不能绕过take_owned_binding对live proof根的保护。
+
+独立full-pass未发现确认缺陷，覆盖泛型具体类型、绑定／临时owner交付、wrap单次消费、
+pending帧取消顺序及嵌套表达式门禁。按复核补充动态String返回String?的直接／参数两路，
+由调用方实际读取内容并逐指针验证释放；4次clone、4次joined、1次正常调用结果共9次分配。
+另有exact String返回9次、literal nullable wrap 5次，以及Array／Result独立owner返回9次
+分配（2个Array buffer、2个slice buffer、4个joined、1个正常调用结果），均核完整输出。
+Array夹具初次因UByte与UInt字面量比较类型不符而失败，已改成显式UByte常量后重跑，
+未改生产语义。`text_copy_tests::nullable_return` 10 passed、0 failed、0 ignored。
+公开CLI `native_cli text_bytes` 14项、codegen `text_` 46项、`ordinary_direct_prefix` 3项、
+`nullable` 182项、`while_proof` 3项全部通过，0 failed、0 ignored（过滤集合有重叠）。
+codegen／CLI all-targets严格Clippy、Rustfmt、821篇文档结构与diff检查通过；尺寸门禁
+2021文件、39项历史超限通过，未新增例外。最终head双宿主CI尚待新提交触发与验收；
+收窄proof根的owner交付与旧raw前端合同仍未关闭，不归档。

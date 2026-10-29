@@ -490,3 +490,79 @@ fun main(): Unit {
 "#;
     check_build_run_both_modes(program, b"ab\ncompleted\nab\na\n");
 }
+
+#[test]
+fn public_text_nullable_if_owned_returns_wrap_in_both_modes() {
+    let program = r#"fun direct(stop: Boolean): String? {
+    val result = "direct".clone()
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        if (stop) { return result }
+        println(joined)
+    }
+    return result
+}
+fun argument(stop: Boolean): String? {
+    val result = "argument".clone()
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus(if (stop) { return result } else { "!" })
+        if (copy == null) { error("overflow") }
+    }
+    return result
+}
+fun main(): Unit {
+    val first = direct(true)
+    if (first != null) { println(first) }
+    val second = direct(false)
+    if (second != null) { println(second) }
+    val third = argument(true)
+    if (third != null) { println(third) }
+    val fourth = argument(false)
+    if (fourth != null) { println(fourth) }
+}
+"#;
+    check_build_run_both_modes(program, b"direct\nab\ndirect\nargument\nargument\n");
+}
+
+#[test]
+fn public_text_nullable_if_array_and_result_returns_work_in_both_modes() {
+    let program = r#"fun bytes(stop: Boolean): Array<UByte> {
+    val result = "é".toBytes()
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        if (stop) { return result }
+        println(joined)
+    }
+    return result
+}
+fun sliced(stop: Boolean): Result<String, TextError> {
+    val result = "slice".sliceBytes(0, 5)
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus(if (stop) { return result } else { "!" })
+        if (copy == null) { error("overflow") }
+    }
+    return result
+}
+fun main(): Unit {
+    val first = bytes(true)
+    val second = bytes(false)
+    val lead: UByte = 195u
+    val continuation: UByte = 169u
+    if (first.size != 2 || first[0] != lead || first[1] != continuation ||
+        second.size != 2 || second[0] != lead || second[1] != continuation) { error("bytes") }
+    val third = sliced(true)
+    when (third) {
+        is Ok -> println(third.success)
+        is Err -> error("slice")
+    }
+    val fourth = sliced(false)
+    when (fourth) {
+        is Ok -> println(fourth.success)
+        is Err -> error("slice")
+    }
+}
+"#;
+    check_build_run_both_modes(program, b"ab\nslice\nslice\n");
+}
