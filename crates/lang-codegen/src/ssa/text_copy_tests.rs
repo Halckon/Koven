@@ -277,6 +277,105 @@ fun main(): Unit {
 }
 
 #[test]
+fn public_text_nullable_result_remains_a_text_receiver() {
+    let (program, entry) = lower_public_text_program(
+        r#"
+package app
+import koven.text.checkedPlus
+import koven.text.byteLength
+fun main(): Unit {
+    val joined = "a".checkedPlus("b")
+    var length = 0
+    var groupedLength = 0
+    if (joined != null) {
+        length = joined.byteLength()
+        groupedLength = (joined).byteLength()
+        println(joined)
+    }
+    if (length != 2 || groupedLength != 2) { error("bad length") }
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 1);
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"ab\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
+fn public_text_nullable_receiver_last_use_retires_the_payload_view() {
+    let (program, entry) = lower_public_text_program(
+        r#"
+package app
+import koven.text.checkedPlus
+import koven.text.byteLength
+fun main(): Unit {
+    val joined = "a".checkedPlus("b")
+    var length = 0
+    if (joined != null) { length = joined.byteLength() }
+    if (length != 2) { error("bad length") }
+    println("ok")
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 1);
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"ok\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
+fn public_text_nullable_receivers_return_independent_owned_results() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.checkedPlus
+import koven.text.toBytes
+import koven.text.sliceBytes
+import koven.text.TextError
+fun bytes(): Unit {
+    val joined = "a".checkedPlus("b")
+    var size = 0
+    if (joined != null) {
+        val copy = joined.toBytes()
+        size = copy.size
+    }
+    if (size != 2) { error("bad byte copy") }
+}
+fun slice(): Unit {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.sliceBytes(0, 1)
+        when (copy) {
+            is Ok -> println(copy.success)
+            is Err -> error("bad slice")
+        }
+    }
+}
+fun again(): String? {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus("!")
+        return copy
+    }
+    return null
+}
+fun main(): Unit {
+    bytes()
+    slice()
+    val copy = again()
+    if (copy != null) { println(copy) }
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Each call creates its joined input and one independent result owner.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 6);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"a\nab!\n");
+}
+
+#[test]
 fn public_text_incoming_borrow_survives_nullable_payload_reads() {
     let (program, entry) = lower_public_text_program(
         r#"package app

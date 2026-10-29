@@ -369,3 +369,54 @@ fun main(): Unit {
     check_build_run_both_modes(program,
         b"input!\ninput\ncondition\nnull\ninput\ncondition\nstop\ncondition\ncondition\nnull\ninput\ncondition\ncondition\nnull\ninput\ninput\n");
 }
+
+#[test]
+fn public_text_nullable_receivers_work_in_both_modes() {
+    let program = r#"fun read(): Unit {
+    val joined = "a".checkedPlus("b")
+    var length = 0
+    var groupedLength = 0
+    if (joined != null) {
+        length = joined.byteLength()
+        groupedLength = (joined).byteLength()
+        println(joined)
+    }
+    if (length != 2 || groupedLength != 2) { error("bad length") }
+}
+fun copyBytes(): Unit {
+    val joined = "a".checkedPlus("b")
+    var size = 0
+    if (joined != null) {
+        val copy = joined.toBytes()
+        size = copy.size
+    }
+    if (size != 2) { error("bad bytes") }
+}
+fun slice(): Unit {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.sliceBytes(0, 1)
+        when (copy) {
+            is Ok -> println(copy.success)
+            is Err -> error("bad slice")
+        }
+    }
+}
+fun again(): String? {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus("!")
+        return copy
+    }
+    return null
+}
+fun main(): Unit {
+    read()
+    copyBytes()
+    slice()
+    val copy = again()
+    if (copy != null) { println(copy) }
+}
+"#;
+    check_build_run_both_modes(program, b"ab\na\nab!\n");
+}

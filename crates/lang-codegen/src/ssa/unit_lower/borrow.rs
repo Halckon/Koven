@@ -243,6 +243,13 @@ impl UnitExpressionLowerer<'_> {
         let Some(descriptor) = self.typed.call(call) else {
             return Ok(false);
         };
+        if self.has_only_string_if_proofs()
+            && self
+                .nullable_string_receiver_loan(call, descriptor, span)?
+                .is_some()
+        {
+            return self.supports_direct_control_prefix(call, arguments, descriptor, span);
+        }
         let print = descriptor.prints_line();
         if descriptor.receiver().is_some()
             || descriptor.aborts()
@@ -367,6 +374,17 @@ impl UnitExpressionLowerer<'_> {
         let UnitLoanTarget::Place(path) = loan_target else {
             return Ok(None);
         };
+        self.lower_nullable_root_place_borrow(argument, path, target, span)
+    }
+
+    /// Arguments and receivers use the same published non-null root proof.
+    pub(super) fn lower_nullable_root_place_borrow(
+        &self,
+        argument: ExpressionId,
+        path: &lang_frontend::ownership_checking::UnitOwnershipPlace,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<Option<LoanId>, LoweringError> {
         if !path.is_root() {
             return Ok(None);
         }

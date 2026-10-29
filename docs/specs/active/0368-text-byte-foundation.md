@@ -494,3 +494,59 @@ Function全量相等证明该身份错误不发出指令。两项native及该gua
 nullable 169项全部通过，均0 failed、0 ignored；本轮nullable是完整新批次，不复用前片失败批次。
 公开CLI `native_cli text_bytes` 9项通过，0 failed、0 ignored；codegen／CLI all-targets
 严格Clippy通过，手写Rust尺寸门禁通过（2018文件、39项既有超限，无例外增长）。
+
+## 7. 最终验收索引（进行中）
+
+以下按第4节核对当前源码与已有动态记录；历史小节保留当时失败，不用后续修复改写。
+下述历史 CI 输入为 `14eb8dbb487a621086d236e65ddd8ff0888b836c`。局部通过不等于本 Spec
+完成；本地同输入的完整 codegen 库测试在取得下述双宿主结果后主动取消（exit130），
+不计作通过，保留独立 target 验证后续 receiver 修复。
+[该输入双宿主 CI](https://github.com/Halckon/Koven/actions/runs/40951958115)的 Check & Clippy
+均通过；codegen 库测试 Linux 2513 passed／0 ignored，macOS 2512 passed／1 ignored，
+均无失败。两宿主随后在 CLI `unit_single_entry_uses_original_user_source_after_standard_sorting`
+失败：已加载 text 标准源，旧断言仍要求总数3，实际为4。测试改为精确核对 ranges／result／
+text／用户源四个身份及顺序，保留后续原用户入口选择断言；本地 `unit_build::tests` 两项
+通过、无忽略，修复独立提交为 `06e80e65`。
+因此该轮 CI 整体失败，下游集成／sanitizer／preview 未完成；editor lexical 按文件过滤跳过。
+
+| 验收项 | 对应测试目标／过滤器与证据 | 当前判定 |
+|---|---|---|
+| 来源与导入 | frontend `type_text_extension`：精确 SourceMap 身份、伪造 package/path、alias、遮蔽；CLI `text_bytes` 的未导入／非授权原语拒绝 | 已有局部动态通过；最终 CI 待完成 |
+| 扩展签名 | `type_text_extension`：receiver、Borrow、Owned、carrier/from 拒绝及 canonical Result／TextError 身份 | unit 路径已有证据；旧 raw API 的合同待决定 |
+| 字节长度与复制 | CLI `public_text_roundtrips_every_byte_and_classifies_utf8_and_slice_boundaries`；codegen `public_text_copies_survive_source_drop_and_input_mutation` | 真实字节、源释放后使用及修改独立性已有动态证据 |
+| 严格解码与错误偏移 | CLI 同一矩阵的17类非法输入与独立 Rust oracle；`utf8_error_offset_native_matches_strict_sequence_boundaries` | 已有局部动态通过；不以字符数替代字节偏移 |
+| 字节切片 | CLI 同一矩阵的205组端点组合，核范围优先级、scalar 边界及空切片 | 已有局部动态通过 |
+| 可恢复连接 | `standard_checked_plus_returns_null_only_for_length_overflow_and_aborts_on_oom`；公开 CLI 左右各一次求值与结果输出 | 合成上限／OOM 与正常小输入分别验证；不声称 GB 成功复制 |
+| 所有权与控制流 | codegen `text_` 36项与 CLI `text_bytes` 10项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果记录 | 已覆盖记录中的具体形状；live String If proof 的参数控制退出仍待处理 |
+| 公共入口 | `native_cli text_bytes` 对单文件／project 各执行 check、build 后直接运行及 CLI run | 10项通过、无忽略；不替代旧 raw API 的跨源合同 |
+| 回归与平台 | 历史输入完整 codegen 库测试、官方双宿主 CI、独立复核、Clippy／尺寸／文档门禁 | 独立复核及局部门禁已通过；修复后的最终双宿主 CI 待完成，暂不归档 |
+
+Guide02 与 accepted ADR-0031 已要求生产单文件／project 共用 unit 管线。第2节“两前端
+入口”的旧 raw API 解读与该生产入口范围不同，已请求明确合同；决定前保持原要求，
+不新增第二套生产 fallback，也不以两种 CLI 通过推定旧 raw API 已支持跨源 Result。
+
+整体独立复核另发现实际公开组合缺口：`checkedPlus` 结果在 `if (joined != null)` 内继续
+调用 `joined.byteLength()`，当前 CLI check 成功但 build 报 InvalidSsa。首次探针误用
+`println(Int)` 而在前端失败；改为长度比较后才确认此 lowering 失败。receiver facts 尚未
+参与 String nullable proof 的 witness，receiver consumer 也未使用已证明非空的 payload loan。
+修复令 receiver witness 与普通参数共同复用原根 proof 验证；仅 canonical 文本扩展的
+Borrow String receiver 取得当前 If loan，调用不把父 proof 登记为新建 loan。准入复用原
+source-call route／实参合同，纯文本 StringLiteral 可在 String If proof 内求值，插值仍拒绝。
+普通 Result／Heap／While proof 的原 gate 不因此放宽。
+
+独立 target 的 `public_text_nullable_` 为6 passed、0 failed、0 ignored：新增重复／Group
+receiver 读取与仅一次最后使用各1次分配／释放；toBytes、sliceBytes 和再次 checkedPlus
+组合共6次分配／逐指针释放，并验证 slice 与连接内容。计数不单独证明释放时点或顺序，
+CallReturn 退休由独立静态审查核对。夹具曾漏 package／native entry、误用 Result.value，
+均已按真实资产与相邻 helper 修正；这些中间失败不计作生产行为反例。正确组合夹具曾在
+checkedPlus 的纯文本实参处 UnsupportedNode，放行上述静态字面量后通过。
+独立复核覆盖 canonical 身份、NonNullUse／Group 链、父 proof 归属、receiver 最后使用
+的 CallReturn 清理与字面量限制，未发现新增确认缺陷。
+
+公开 CLI `native_cli text_bytes` 10项通过、0 failed、0 ignored，覆盖两模式的实际check、
+build后直接运行及CLI run。nullable 172项、while-proof 3项、text_ 36项全部通过且无忽略；
+codegen／CLI all-targets严格Clippy、Rustfmt、尺寸门禁（2019文件、39项历史超限）通过。
+实参控制退出的 live If proof 路径尚未开放，
+必须继续验证／处理，不能将正常调用与调用后 return 的成功冒充参数求值期间 return。
+修复后的现有CLI探针 `joined.checkedPlus(if (stop) { return } else { "!" })` 在真实非空
+分支内 check 成功、build 仍为 UnsupportedNode；尚未将这一路径纳入通过计数。

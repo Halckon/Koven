@@ -281,7 +281,12 @@ impl UnitExpressionLowerer<'_> {
             };
             let rc_share = matches!(node.payload(), Expression::Call { .. })
                 && self.can_share_with_nullable_rc_proof(unit_expression, span)?;
-            if !root_borrow_call && !rc_share {
+            // A plain literal owns static bytes and cannot invalidate a String If view.
+            // Interpolation still uses the ordinary carrier/transfer gate.
+            let plain_string = self.has_only_string_if_proofs()
+                && matches!(node.payload(), Expression::String { parts, .. }
+                    if parts.iter().all(|part| matches!(part, lang_frontend::parser::StringPart::Text(_))));
+            if !root_borrow_call && !rc_share && !plain_string {
                 self.reject_live_if_proof(span)?;
             }
         }

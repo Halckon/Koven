@@ -1,4 +1,5 @@
 //! Instance receiver entry binding 与 `this` 的基础 lowering。
+mod nullable_string;
 mod string_field;
 
 use lang_frontend::{
@@ -249,6 +250,13 @@ impl UnitExpressionLowerer<'_> {
                     fact.begin_span(),
                 ));
             }
+            return Ok(Some(LoweredReceiver {
+                entity: EntityId::Loan(loan),
+                created_loans: Vec::new(),
+                writeback: None,
+            }));
+        }
+        if let Some(loan) = self.nullable_string_receiver_loan(call, descriptor, span)? {
             return Ok(Some(LoweredReceiver {
                 entity: EntityId::Loan(loan),
                 created_loans: Vec::new(),

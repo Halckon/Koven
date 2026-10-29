@@ -1,5 +1,7 @@
 //! Named owned String? views reuse the ordinary If proof and retirement protocol.
 use super::{heap::NamedNullableIfRoot, *};
+use lang_frontend::ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget};
+use lang_frontend::type_checking::UnitCallReceiverOrigin;
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn prepare_string_nullable_if_entry(
@@ -52,7 +54,7 @@ impl UnitExpressionLowerer<'_> {
         let root = comparison.symbol();
         // Do not mint an unused proof for ordinary null-status checks. The witness
         // must be an actual narrowed root loan within this non-null arm.
-        if !self.owned.loans().iter().any(|fact| {
+        let argument_witness = self.owned.loans().iter().any(|fact| {
             fact.kind() == FrontendLoanKind::Shared
                 && fact.call().source_unit() == self.source_unit
                 && fact.argument().source_unit() == self.source_unit
@@ -64,7 +66,21 @@ impl UnitExpressionLowerer<'_> {
                         && use_fact.symbol() == root && use_fact.declared_type() == declared
                         && use_fact.narrowed_type() == *narrowed
                 })
-        }) {
+        });
+        let receiver_witness = self.owned.receiver_facts().iter().any(|fact| {
+            let UnitCallReceiverOrigin::Expression(expression) = fact.source() else { return false; };
+            fact.kind() == UnitReceiverOwnershipKind::SharedLoan
+                && fact.call().source_unit() == self.source_unit
+                && expression.source_unit() == self.source_unit
+                && fact.end_span().source_id() == body.source_id()
+                && body.start() <= fact.end_span().start() && fact.end_span().end() <= body.end()
+                && matches!(fact.target(), UnitReceiverOwnershipTarget::Place(place) if place.is_root() && place.root() == root)
+                && self.typed.non_null_use(expression).is_some_and(|use_fact| {
+                    use_fact.expression() == expression && use_fact.symbol() == root
+                        && use_fact.declared_type() == declared && use_fact.narrowed_type() == *narrowed
+                })
+        });
+        if !argument_witness && !receiver_witness {
             return Ok(None);
         }
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
