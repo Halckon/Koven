@@ -85,6 +85,15 @@
 | `baseline_unimplemented_audited` | 已知未实现特性边界确认（绑定 `target_stdout` 与 `v1.json` 路线图阻塞项） | 14 | 0 | `known_unimplemented`: 14 |
 | `expected_txt_file` | V1 验收程序独立 `expected.txt` 黄金标准输出文件绑定（SHA-256 + 行数/字节数校验） | 0 | 6 | `known_unimplemented`: 6 |
 
+### 1.5 标准输出规模与多行形态分布矩阵（`expected_lines` / `expected_bytes`）
+
+| 输出形态分类 | 适用范围 | 条目数量 | 累计期望行数 | 累计期望字节数 | 代表性 / 完整条目明细 |
+|---|---|---:|---:|---:|---|
+| `single_line_stdout` | 1 行输出 Probe (`run_ok` + `known_unimplemented`) | 117 | 117 | 992 B | 单行精确字节匹配（全部以 `\n` 结尾） |
+| `multi_line_stdout` | ≥2 行输出 Probe (`run_ok` + `known_unimplemented`) | 20 | 42 | 151 B | `p10_generic_fn` (2L/12B), `p14_nullable` (2L/15B), `p32_deinit` (3L/9B), `p38_list_of_strings` (2L/4B), `q05_nullable_param` (2L/14B), `q08_enum_string_payload` (2L/8B), `q19_deep_return_cleanup` (3L/6B), `q20_replace_field` (2L/8B), `u02_list_add_loop_string` (2L/4B), `v15_map_for` (2L/4B), `w08_map_string_values` (2L/8B), `w12` (2L/8B), `w13` (2L/9B), `w15` (2L/9B), `w17` (2L/6B), `w19` (2L/6B), `x03_if_call_borrow_arg` (2L/9B), `y04_take_for_println` (2L/4B), `y05_take_borrow_val_call` (2L/4B), `y06_take_borrow_val_for` (2L/4B) |
+| `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | 17 | 0 | 0 B | `p01_int_print`, `p03b_byte_literal_cmp`, `p04_overflow`, `p23_global_var`, `p25_linked_iter`, `p42_lambda_mutate`, `p43_if_join_any`, `p45_abort_message`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `v12_convert_abort`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
+| `acceptance_programs` | V1 验收程序 (`expected.txt`) | 6 | 85 | 1537 B | `config_parse` (10L/190B), `expr_eval` (6L/174B), `linked_stack` (8L/242B), `raii_state_machine` (28L/369B), `varint_codec` (17L/375B), `word_count` (16L/187B) |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
@@ -144,9 +153,9 @@
 | `p15_elvis` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `elvis\n` | f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03) |
 | `p16_result_q` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `v046_spec_contract` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `question\n` | Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08) |
 | `p16b_result_string` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `v046_spec_contract` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `good\n` | parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08) |
-| `p17_lambda` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `lambda\n` | capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda' (blocked by N04) |
-| `p17b_lambda_nocapture` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `lambda0\n` | non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' (blocked by N04) |
-| `p18_move_closure` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `move\n` | move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' (blocked by N04) |
+| `p17_lambda` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `lambda\n` | capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda' |
+| `p17b_lambda_nocapture` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `lambda0\n` | non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' |
+| `p18_move_closure` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `move\n` | move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' |
 | `p19_mutablelist` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `list\n` | xs=[10,2,3] sums to 15 with size 3; condition holds and prints 'list' |
 | `p20_map` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `single_println_literal` | `map\n` | single literal println('map') |
 | `p21_box_enum` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `box\n` | recursive Expr.Add(Box(Num(1)), Box(Num(2))) evaluates to 3 and prints 'box' (blocked by N07/L7) |
@@ -182,7 +191,7 @@
 | `p49_when_enum_no_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `green\n` | name(Color.Green) selects Color.Green -> 'green' and prints 'green' |
 | `p50_enum_method` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `v046_spec_contract` | `enum-method\n` | single literal println('enum-method') |
 | `q01_lambda_local` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `single_println_literal` | `lambda-local\n` | single literal println('lambda-local') |
-| `q02_lambda_arg_inline` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `lambda-arg\n` | twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg' (blocked by N04) |
+| `q02_lambda_arg_inline` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `lambda-arg\n` | twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg' |
 | `q03_fn_ref` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `fnref\n` | callable reference ::inc applied to 1 yields 2 and prints 'fnref' (blocked by N04) |
 | `q04_rc_simple` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `run_ok` | `single_println_literal` | `rc\n` | single literal println('rc') |
 | `q05_nullable_param` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `non-null\nnull\n` | show(Node(1)) takes non-null branch ('non-null'); show(null) takes else branch ('null') |

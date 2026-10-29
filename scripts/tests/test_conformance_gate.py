@@ -312,6 +312,28 @@ sys.exit(1)
         finally:
             self._write_default_expectations()
 
+        # Verify expected_lines/expected_bytes mismatch or stdout on negative probes is rejected
+        for bad_spec, err_re in [
+            (
+                {"p01_ok": {"kind": "run_ok", "source_sha256": _sha256(self.probe_ok_src), "stdout": "hello\n", "expected_lines": 2}},
+                "expected_lines mismatch",
+            ),
+            (
+                {"p01_ok": {"kind": "run_ok", "source_sha256": _sha256(self.probe_ok_src), "stdout": "hello\n", "expected_bytes": 99}},
+                "expected_bytes mismatch",
+            ),
+            (
+                {"p02_diag": {"kind": "compile_fail", "source_sha256": _sha256(self.probe_diag_src), "diagnostic": "L0084", "stdout": "x\n"}},
+                "must not define stdout",
+            ),
+        ]:
+            self._write_default_expectations(bad_spec)
+            try:
+                with self.assertRaisesRegex(ValueError, err_re):
+                    gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+            finally:
+                self._write_default_expectations()
+
     def test_4_timeout_is_caught_and_preserves_partial_bytes(self) -> None:
         kovenc_slow = _make_mock_compiler(
             self.root / "kovenc_slow",
@@ -852,6 +874,25 @@ sys.exit(1)
         self.assertEqual(origin_stats["baseline_diagnostic_audited"]["probes"], 13)
         self.assertEqual(origin_stats["baseline_unimplemented_audited"]["probes"], 14)
         self.assertEqual(origin_stats["expected_txt_file"]["programs"], 6)
+
+        # 13. Verify expected_lines/expected_bytes across all 137 output-bearing probes and summarize_output_shape_distribution
+        shape_stats = gate.summarize_output_shape_distribution(loaded)
+        self.assertEqual(len(shape_stats["single_line_probes"]), 117)
+        self.assertEqual(len(shape_stats["multi_line_probes"]), 20)
+        self.assertEqual(len(shape_stats["zero_stdout_probes"]), 17)
+        self.assertEqual(
+            len(shape_stats["single_line_probes"])
+            + len(shape_stats["multi_line_probes"])
+            + len(shape_stats["zero_stdout_probes"]),
+            len(loaded["probes"]),
+        )
+        for name, spec in loaded["probes"].items():
+            if spec["kind"] in ("run_ok", "known_unimplemented"):
+                self.assertGreater(spec.get("expected_lines", 0), 0, f"probe {name} missing expected_lines")
+                self.assertGreater(spec.get("expected_bytes", 0), 0, f"probe {name} missing expected_bytes")
+            else:
+                self.assertNotIn("expected_lines", spec)
+                self.assertNotIn("expected_bytes", spec)
 
 
 if __name__ == "__main__":

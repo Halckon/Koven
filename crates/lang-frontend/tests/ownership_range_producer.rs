@@ -1,19 +1,23 @@
 //! producer 必须证明实际新 descriptor 返回，caller 继承根 loan 而非借用 callee 局部。
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
-        BorrowBindingStorage, CompilationUnitOwnership, OwnershipCheckedFile,
-        check_compilation_unit_ownership, check_ownership,
+        BorrowBindingStorage, CompilationUnitOwnership, check_compilation_unit_ownership,
     },
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 
-fn checked(text: &str) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwnership) {
+// Primary single-document consumer uses source-qualified Unit facts.
+fn checked(
+    text: &str,
+) -> (
+    SourceMap,
+    CompilationUnitOwnership,
+    CompilationUnitOwnership,
+) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("producer.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -24,11 +28,16 @@ fn checked(text: &str) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwner
     );
     let (environment, mut types) = standard_environments();
     types.authorize_range_source(&sources, source).unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    let names = names.validate().unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let single = check_ownership(&sources, &parsed, &names, &typed).unwrap();
+    let typed = typed.validate().unwrap();
+    let single =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
     let inputs = [SourceUnitInput::new("std", "producer.ko", source, &parsed)];
     let index = index_compilation_unit(&sources, &inputs).unwrap();
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)

@@ -14,7 +14,9 @@
         "SPEC-0320",
         "SPEC-0356"
       ],
-      "oracle_derivation": "isRed(Color.Red) matches branch Color.Red -> true; if-branch prints 'e1'"
+      "oracle_derivation": "isRed(Color.Red) matches branch Color.Red -> true; if-branch prints 'e1'",
+      "expected_lines": 1,
+      "expected_bytes": 3
     },
     "e02_enum_when_stmt_println": {
       "kind": "run_ok",
@@ -29,7 +31,9 @@
         "SPEC-0320",
         "SPEC-0356"
       ],
-      "oracle_derivation": "c = Color.Red matches statement when branch Color.Red -> println('e2')"
+      "oracle_derivation": "c = Color.Red matches statement when branch Color.Red -> println('e2')",
+      "expected_lines": 1,
+      "expected_bytes": 3
     },
     "e03_enum_when_bool_val": {
       "kind": "run_ok",
@@ -44,7 +48,9 @@
         "SPEC-0320",
         "SPEC-0356"
       ],
-      "oracle_derivation": "c = Color.Green yields b = false in when expression; if (!b) prints 'e5'"
+      "oracle_derivation": "c = Color.Green yields b = false in when expression; if (!b) prints 'e5'",
+      "expected_lines": 1,
+      "expected_bytes": 3
     },
     "e04_enum_when_int_return": {
       "kind": "run_ok",
@@ -53,7 +59,9 @@
       "baseline_marker": "OK",
       "stdout": "e6\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('e6')"
+      "oracle_derivation": "single literal println('e6')",
+      "expected_lines": 1,
+      "expected_bytes": 3
     },
     "p01_int_print": {
       "kind": "compile_fail",
@@ -81,7 +89,9 @@
         "L2"
       ],
       "target_stdout": "hello k\n",
-      "oracle_derivation": "string interpolation 'hello ${n}' with n = 'k' evaluates to 'hello k' (blocked by L1/L2)"
+      "oracle_derivation": "string interpolation 'hello ${n}' with n = 'k' evaluates to 'hello k' (blocked by L1/L2)",
+      "expected_lines": 1,
+      "expected_bytes": 8
     },
     "p03_long_uint": {
       "kind": "run_ok",
@@ -90,7 +100,9 @@
       "baseline_marker": "OK",
       "stdout": "widths\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('widths')"
+      "oracle_derivation": "single literal println('widths')",
+      "expected_lines": 1,
+      "expected_bytes": 7
     },
     "p03b_byte_literal_cmp": {
       "kind": "compile_fail",
@@ -131,7 +143,9 @@
         "N05"
       ],
       "target_stdout": "double\n",
-      "oracle_derivation": "Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' (blocked by N05)"
+      "oracle_derivation": "Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' (blocked by N05)",
+      "expected_lines": 1,
+      "expected_bytes": 7
     },
     "p06_char": {
       "kind": "known_unimplemented",
@@ -148,7 +162,9 @@
         "N05"
       ],
       "target_stdout": "char\n",
-      "oracle_derivation": "Char comparison 'a' < 'b' holds and prints 'char' (blocked by N05)"
+      "oracle_derivation": "Char comparison 'a' < 'b' holds and prints 'char' (blocked by N05)",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "p07_while_var": {
       "kind": "run_ok",
@@ -157,7 +173,9 @@
       "baseline_marker": "OK",
       "stdout": "while\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "while loop sums i=0..9 into s=45; s == 45 holds and prints 'while'"
+      "oracle_derivation": "while loop sums i=0..9 into s=45; s == 45 holds and prints 'while'",
+      "expected_lines": 1,
+      "expected_bytes": 6
     },
     "p08_when_int": {
       "kind": "run_ok",
@@ -171,7 +189,9 @@
       "spec_refs": [
         "SPEC-0356"
       ],
-      "oracle_derivation": "name(2) matches the subject equality branch 2 -> 'two' and prints 'two'"
+      "oracle_derivation": "name(2) matches the subject equality branch 2 -> 'two' and prints 'two'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "p09_enum_payload": {
       "kind": "run_ok",
@@ -180,7 +200,9 @@
       "baseline_marker": "OK",
       "stdout": "enum\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('enum')"
+      "oracle_derivation": "single literal println('enum')",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "p10_generic_fn": {
       "kind": "run_ok",
@@ -189,7 +211,9 @@
       "baseline_marker": "OK",
       "stdout": "generic\nint\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int'"
+      "oracle_derivation": "identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int'",
+      "expected_lines": 2,
+      "expected_bytes": 12
     },
     "p11_interface_bound": {
       "kind": "known_unimplemented",
@@ -206,7 +230,9 @@
         "N06"
       ],
       "target_stdout": "dog\n",
-      "oracle_derivation": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06)"
+      "oracle_derivation": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06)",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "p12_class_inout": {
       "kind": "run_ok",
@@ -215,7 +241,9 @@
       "baseline_marker": "OK",
       "stdout": "counter\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('counter')"
+      "oracle_derivation": "single literal println('counter')",
+      "expected_lines": 1,
+      "expected_bytes": 8
     },
     "p12b_class_field_assign": {
       "kind": "run_ok",
@@ -229,7 +257,9 @@
       "spec_refs": [
         "SPEC-0358"
       ],
-      "oracle_derivation": "single literal println('field-assign')"
+      "oracle_derivation": "single literal println('field-assign')",
+      "expected_lines": 1,
+      "expected_bytes": 13
     },
     "p12c_inout_param": {
       "kind": "run_ok",
@@ -243,7 +273,9 @@
       "spec_refs": [
         "SPEC-0358"
       ],
-      "oracle_derivation": "single literal println('inout-param')"
+      "oracle_derivation": "single literal println('inout-param')",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "p13_value_class_copy": {
       "kind": "run_ok",
@@ -252,7 +284,9 @@
       "baseline_marker": "OK",
       "stdout": "value\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('value')"
+      "oracle_derivation": "single literal println('value')",
+      "expected_lines": 1,
+      "expected_bytes": 6
     },
     "p14_nullable": {
       "kind": "run_ok",
@@ -266,7 +300,9 @@
       "spec_refs": [
         "SPEC-0350"
       ],
-      "oracle_derivation": "pick(true) returns non-null Node(5); smart cast prints 'smart' and pick(true)!!.v == 5 prints 'bangbang'"
+      "oracle_derivation": "pick(true) returns non-null Node(5); smart cast prints 'smart' and pick(true)!!.v == 5 prints 'bangbang'",
+      "expected_lines": 2,
+      "expected_bytes": 15
     },
     "p14b_nullable_simple": {
       "kind": "run_ok",
@@ -280,7 +316,9 @@
       "spec_refs": [
         "SPEC-0350"
       ],
-      "oracle_derivation": "a: Node? = Node(5) is non-null with a.v == 5; smart cast branch prints 'smart'"
+      "oracle_derivation": "a: Node? = Node(5) is non-null with a.v == 5; smart cast branch prints 'smart'",
+      "expected_lines": 1,
+      "expected_bytes": 6
     },
     "p14c_nullable_int": {
       "kind": "run_ok",
@@ -294,7 +332,9 @@
       "spec_refs": [
         "SPEC-0350"
       ],
-      "oracle_derivation": "a: Int? = 5 is non-null and equals 5; smart cast branch prints 'nint'"
+      "oracle_derivation": "a: Int? = 5 is non-null and equals 5; smart cast branch prints 'nint'",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "p15_elvis": {
       "kind": "known_unimplemented",
@@ -311,7 +351,9 @@
         "N03"
       ],
       "target_stdout": "elvis\n",
-      "oracle_derivation": "f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03)"
+      "oracle_derivation": "f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03)",
+      "expected_lines": 1,
+      "expected_bytes": 6
     },
     "p16_result_q": {
       "kind": "known_unimplemented",
@@ -333,7 +375,9 @@
       "roadmap_blockers": [
         "N08"
       ],
-      "oracle_derivation": "Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08)"
+      "oracle_derivation": "Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08)",
+      "expected_lines": 1,
+      "expected_bytes": 9
     },
     "p16b_result_string": {
       "kind": "known_unimplemented",
@@ -355,7 +399,9 @@
       "roadmap_blockers": [
         "N08"
       ],
-      "oracle_derivation": "parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08)"
+      "oracle_derivation": "parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08)",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "p17_lambda": {
       "kind": "run_ok",
@@ -369,7 +415,9 @@
       "spec_refs": [
         "SPEC-0364"
       ],
-      "oracle_derivation": "capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda' (blocked by N04)"
+      "oracle_derivation": "capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda'",
+      "expected_lines": 1,
+      "expected_bytes": 7
     },
     "p17b_lambda_nocapture": {
       "kind": "run_ok",
@@ -383,7 +431,9 @@
       "spec_refs": [
         "SPEC-0364"
       ],
-      "oracle_derivation": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' (blocked by N04)"
+      "oracle_derivation": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0'",
+      "expected_lines": 1,
+      "expected_bytes": 8
     },
     "p18_move_closure": {
       "kind": "run_ok",
@@ -397,7 +447,9 @@
       "spec_refs": [
         "SPEC-0364"
       ],
-      "oracle_derivation": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' (blocked by N04)"
+      "oracle_derivation": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move'",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "p19_mutablelist": {
       "kind": "run_ok",
@@ -406,7 +458,9 @@
       "baseline_marker": "OK",
       "stdout": "list\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "xs=[10,2,3] sums to 15 with size 3; condition holds and prints 'list'"
+      "oracle_derivation": "xs=[10,2,3] sums to 15 with size 3; condition holds and prints 'list'",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "p20_map": {
       "kind": "run_ok",
@@ -415,7 +469,9 @@
       "baseline_marker": "OK",
       "stdout": "map\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('map')"
+      "oracle_derivation": "single literal println('map')",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "p21_box_enum": {
       "kind": "known_unimplemented",
@@ -433,7 +489,9 @@
         "L7"
       ],
       "target_stdout": "box\n",
-      "oracle_derivation": "recursive Expr.Add(Box(Num(1)), Box(Num(2))) evaluates to 3 and prints 'box' (blocked by N07/L7)"
+      "oracle_derivation": "recursive Expr.Add(Box(Num(1)), Box(Num(2))) evaluates to 3 and prints 'box' (blocked by N07/L7)",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "p22_rc": {
       "kind": "run_ok",
@@ -447,7 +505,9 @@
       "spec_refs": [
         "SPEC-0359"
       ],
-      "oracle_derivation": "Rc(Data(4)).share().value.n == 4 holds and prints 'rc'"
+      "oracle_derivation": "Rc(Data(4)).share().value.n == 4 holds and prints 'rc'",
+      "expected_lines": 1,
+      "expected_bytes": 3
     },
     "p23_global_var": {
       "kind": "compile_fail",
@@ -471,7 +531,9 @@
       "baseline_marker": "OK",
       "stdout": "fib\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('fib')"
+      "oracle_derivation": "single literal println('fib')",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "p25_linked_iter": {
       "kind": "compile_fail",
@@ -506,7 +568,9 @@
         "N03"
       ],
       "target_stdout": "rec-list\n",
-      "oracle_derivation": "recursive sum(Node(1, Node(2, null))) returns 3 and prints 'rec-list' (blocked by N03)"
+      "oracle_derivation": "recursive sum(Node(1, Node(2, null))) returns 3 and prints 'rec-list' (blocked by N03)",
+      "expected_lines": 1,
+      "expected_bytes": 9
     },
     "p26_borrow_return": {
       "kind": "run_ok",
@@ -515,7 +579,9 @@
       "baseline_marker": "OK",
       "stdout": "borrowed\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "nameOf borrows Holder('borrowed').name; println(n) prints 'borrowed'"
+      "oracle_derivation": "nameOf borrows Holder('borrowed').name; println(n) prints 'borrowed'",
+      "expected_lines": 1,
+      "expected_bytes": 9
     },
     "p27_thread": {
       "kind": "known_unimplemented",
@@ -533,7 +599,9 @@
         "N04"
       ],
       "target_stdout": "thread\n",
-      "oracle_derivation": "thread(move { println('thread') }).join() runs worker closure and prints 'thread' (blocked by T1/N04)"
+      "oracle_derivation": "thread(move { println('thread') }).join() runs worker closure and prints 'thread' (blocked by T1/N04)",
+      "expected_lines": 1,
+      "expected_bytes": 7
     },
     "p28_companion": {
       "kind": "known_unimplemented",
@@ -557,7 +625,9 @@
       "roadmap_blockers": [
         "N06"
       ],
-      "oracle_derivation": "anonymous companion function C.make() returns 7 and prints 'companion' (blocked by N06)"
+      "oracle_derivation": "anonymous companion function C.make() returns 7 and prints 'companion' (blocked by N06)",
+      "expected_lines": 1,
+      "expected_bytes": 10
     },
     "p29_default_super": {
       "kind": "run_ok",
@@ -566,7 +636,9 @@
       "baseline_marker": "OK",
       "stdout": "ab\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "C.hi() concatenates super<A>.hi() ('a') + super<B>.hi() ('b') = 'ab'"
+      "oracle_derivation": "C.hi() concatenates super<A>.hi() ('a') + super<B>.hi() ('b') = 'ab'",
+      "expected_lines": 1,
+      "expected_bytes": 3
     },
     "p30_runtime_array": {
       "kind": "run_ok",
@@ -575,7 +647,9 @@
       "baseline_marker": "OK",
       "stdout": "array\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('array')"
+      "oracle_derivation": "single literal println('array')",
+      "expected_lines": 1,
+      "expected_bytes": 6
     },
     "p31_string_ops": {
       "kind": "run_ok",
@@ -584,7 +658,9 @@
       "baseline_marker": "OK",
       "stdout": "abc\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "'ab'.clone() + 'c' equals 'abc'; branch prints 'abc'"
+      "oracle_derivation": "'ab'.clone() + 'c' equals 'abc'; branch prints 'abc'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "p32_deinit": {
       "kind": "run_ok",
@@ -593,7 +669,9 @@
       "baseline_marker": "OK",
       "stdout": "body\nb\na\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "main prints 'body' first, then drops locals in reverse lexical order: b ('b') then a ('a')"
+      "oracle_derivation": "main prints 'body' first, then drops locals in reverse lexical order: b ('b') then a ('a')",
+      "expected_lines": 3,
+      "expected_bytes": 9
     },
     "p33_range_in": {
       "kind": "run_ok",
@@ -602,7 +680,9 @@
       "baseline_marker": "OK",
       "stdout": "in-range\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('in-range')"
+      "oracle_derivation": "single literal println('in-range')",
+      "expected_lines": 1,
+      "expected_bytes": 9
     },
     "p34_for_range": {
       "kind": "run_ok",
@@ -611,7 +691,9 @@
       "baseline_marker": "OK",
       "stdout": "for-range\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "0..<5 sums 0+1+2+3+4 = 10; s == 10 holds and prints 'for-range'"
+      "oracle_derivation": "0..<5 sums 0+1+2+3+4 = 10; s == 10 holds and prints 'for-range'",
+      "expected_lines": 1,
+      "expected_bytes": 10
     },
     "p35_value_eq": {
       "kind": "known_unimplemented",
@@ -628,7 +710,9 @@
         "L1"
       ],
       "target_stdout": "veq\n",
-      "oracle_derivation": "structural equality Point(1, 2) == Point(1, 2) holds and prints 'veq' (blocked by L1)"
+      "oracle_derivation": "structural equality Point(1, 2) == Point(1, 2) holds and prints 'veq' (blocked by L1)",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "p36_conversion": {
       "kind": "run_ok",
@@ -637,7 +721,9 @@
       "baseline_marker": "OK",
       "stdout": "conv\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('conv')"
+      "oracle_derivation": "single literal println('conv')",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "p37_is_generic_case": {
       "kind": "run_ok",
@@ -651,7 +737,9 @@
       "spec_refs": [
         "SPEC-0349"
       ],
-      "oracle_derivation": "Result.Ok(1) matches parameterless is Result.Ok with v = 1 (SPEC-0349); prints 'case-noargs'"
+      "oracle_derivation": "Result.Ok(1) matches parameterless is Result.Ok with v = 1 (SPEC-0349); prints 'case-noargs'",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "p38_list_of_strings": {
       "kind": "run_ok",
@@ -660,7 +748,9 @@
       "baseline_marker": "OK",
       "stdout": "x\ny\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "iterating mutableListOf('x', 'y') prints 'x' then 'y' in insertion order"
+      "oracle_derivation": "iterating mutableListOf('x', 'y') prints 'x' then 'y' in insertion order",
+      "expected_lines": 2,
+      "expected_bytes": 4
     },
     "p39_removeAt": {
       "kind": "run_ok",
@@ -669,7 +759,9 @@
       "baseline_marker": "OK",
       "stdout": "removeAt\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('removeAt')"
+      "oracle_derivation": "single literal println('removeAt')",
+      "expected_lines": 1,
+      "expected_bytes": 9
     },
     "p40_nested_generic_class": {
       "kind": "known_unimplemented",
@@ -686,7 +778,9 @@
         "N01"
       ],
       "target_stdout": "stack\n",
-      "oracle_derivation": "Stack<Int>.push(1) mutates generic field items; size == 1 prints 'stack' (blocked by N01)"
+      "oracle_derivation": "Stack<Int>.push(1) mutates generic field items; size == 1 prints 'stack' (blocked by N01)",
+      "expected_lines": 1,
+      "expected_bytes": 6
     },
     "p41_when_string": {
       "kind": "run_ok",
@@ -701,7 +795,9 @@
         "SPEC-0360",
         "SPEC-0357"
       ],
-      "oracle_derivation": "single literal println('when-str')"
+      "oracle_derivation": "single literal println('when-str')",
+      "expected_lines": 1,
+      "expected_bytes": 9
     },
     "p42_lambda_mutate": {
       "kind": "compile_fail",
@@ -730,7 +826,9 @@
       "baseline_marker": "OK",
       "stdout": "vmethod\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('vmethod')"
+      "oracle_derivation": "single literal println('vmethod')",
+      "expected_lines": 1,
+      "expected_bytes": 8
     },
     "p44b_method_on_class": {
       "kind": "run_ok",
@@ -739,7 +837,9 @@
       "baseline_marker": "OK",
       "stdout": "cmethod\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('cmethod')"
+      "oracle_derivation": "single literal println('cmethod')",
+      "expected_lines": 1,
+      "expected_bytes": 8
     },
     "p45_abort_message": {
       "kind": "runtime_abort",
@@ -762,7 +862,9 @@
       "baseline_marker": "OK",
       "stdout": "ann\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "Person('ann', 3).name is 'ann'; describe(p) prints 'ann'"
+      "oracle_derivation": "Person('ann', 3).name is 'ann'; describe(p) prints 'ann'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "p47_list_index_string": {
       "kind": "run_ok",
@@ -771,7 +873,9 @@
       "baseline_marker": "OK",
       "stdout": "b\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "listOf('a', 'b')[1] evaluates to 'b' and prints 'b'"
+      "oracle_derivation": "listOf('a', 'b')[1] evaluates to 'b' and prints 'b'",
+      "expected_lines": 1,
+      "expected_bytes": 2
     },
     "p48_nested_loops_break": {
       "kind": "run_ok",
@@ -780,7 +884,9 @@
       "baseline_marker": "OK",
       "stdout": "nested\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "outer loop runs 5 times, inner loop breaks at j==3 after 3 increments -> hits == 15; prints 'nested'"
+      "oracle_derivation": "outer loop runs 5 times, inner loop breaks at j==3 after 3 increments -> hits == 15; prints 'nested'",
+      "expected_lines": 1,
+      "expected_bytes": 7
     },
     "p49_when_enum_no_payload": {
       "kind": "run_ok",
@@ -795,7 +901,9 @@
         "SPEC-0320",
         "SPEC-0356"
       ],
-      "oracle_derivation": "name(Color.Green) selects Color.Green -> 'green' and prints 'green'"
+      "oracle_derivation": "name(Color.Green) selects Color.Green -> 'green' and prints 'green'",
+      "expected_lines": 1,
+      "expected_bytes": 6
     },
     "p50_enum_method": {
       "kind": "run_ok",
@@ -809,7 +917,9 @@
       "spec_refs": [
         "SPEC-0356"
       ],
-      "oracle_derivation": "single literal println('enum-method')"
+      "oracle_derivation": "single literal println('enum-method')",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "q01_lambda_local": {
       "kind": "run_ok",
@@ -818,7 +928,9 @@
       "baseline_marker": "OK",
       "stdout": "lambda-local\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('lambda-local')"
+      "oracle_derivation": "single literal println('lambda-local')",
+      "expected_lines": 1,
+      "expected_bytes": 13
     },
     "q02_lambda_arg_inline": {
       "kind": "run_ok",
@@ -832,7 +944,9 @@
       "spec_refs": [
         "SPEC-0364"
       ],
-      "oracle_derivation": "twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg' (blocked by N04)"
+      "oracle_derivation": "twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg'",
+      "expected_lines": 1,
+      "expected_bytes": 11
     },
     "q03_fn_ref": {
       "kind": "known_unimplemented",
@@ -849,7 +963,9 @@
         "N04"
       ],
       "target_stdout": "fnref\n",
-      "oracle_derivation": "callable reference ::inc applied to 1 yields 2 and prints 'fnref' (blocked by N04)"
+      "oracle_derivation": "callable reference ::inc applied to 1 yields 2 and prints 'fnref' (blocked by N04)",
+      "expected_lines": 1,
+      "expected_bytes": 6
     },
     "q04_rc_simple": {
       "kind": "run_ok",
@@ -858,7 +974,9 @@
       "baseline_marker": "OK",
       "stdout": "rc\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('rc')"
+      "oracle_derivation": "single literal println('rc')",
+      "expected_lines": 1,
+      "expected_bytes": 3
     },
     "q05_nullable_param": {
       "kind": "run_ok",
@@ -872,7 +990,9 @@
       "spec_refs": [
         "SPEC-0350"
       ],
-      "oracle_derivation": "show(Node(1)) takes non-null branch ('non-null'); show(null) takes else branch ('null')"
+      "oracle_derivation": "show(Node(1)) takes non-null branch ('non-null'); show(null) takes else branch ('null')",
+      "expected_lines": 2,
+      "expected_bytes": 14
     },
     "q06_nullable_return_bang": {
       "kind": "run_ok",
@@ -881,7 +1001,9 @@
       "baseline_marker": "OK",
       "stdout": "bang\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('bang')"
+      "oracle_derivation": "single literal println('bang')",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "q07_result_when_int": {
       "kind": "run_ok",
@@ -890,7 +1012,9 @@
       "baseline_marker": "OK",
       "stdout": "res-int\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('res-int')"
+      "oracle_derivation": "single literal println('res-int')",
+      "expected_lines": 1,
+      "expected_bytes": 8
     },
     "q08_enum_string_payload": {
       "kind": "known_unimplemented",
@@ -908,7 +1032,9 @@
         "L7"
       ],
       "target_stdout": "hi\nquit\n",
-      "oracle_derivation": "show(Msg.Text('hi')) prints payload 'hi'; show(Msg.Quit) prints 'quit' (blocked by N02/L7)"
+      "oracle_derivation": "show(Msg.Text('hi')) prints payload 'hi'; show(Msg.Quit) prints 'quit' (blocked by N02/L7)",
+      "expected_lines": 2,
+      "expected_bytes": 8
     },
     "q09_inout_class_param": {
       "kind": "run_ok",
@@ -922,7 +1048,9 @@
       "spec_refs": [
         "SPEC-0358"
       ],
-      "oracle_derivation": "single literal println('inout-class')"
+      "oracle_derivation": "single literal println('inout-class')",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "q10_var_reassign_string": {
       "kind": "run_ok",
@@ -931,7 +1059,9 @@
       "baseline_marker": "OK",
       "stdout": "abc\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "s starts as 'a', appends 'b' then 'c' -> 'abc'"
+      "oracle_derivation": "s starts as 'a', appends 'b' then 'c' -> 'abc'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "q11_while_list_index": {
       "kind": "run_ok",
@@ -940,7 +1070,9 @@
       "baseline_marker": "OK",
       "stdout": "index-loop\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "while loop sums listOf(1,2,3) by index -> s == 6; prints 'index-loop'"
+      "oracle_derivation": "while loop sums listOf(1,2,3) by index -> s == 6; prints 'index-loop'",
+      "expected_lines": 1,
+      "expected_bytes": 11
     },
     "q12_companion_const": {
       "kind": "run_ok",
@@ -954,7 +1086,9 @@
       "spec_refs": [
         "SPEC-0342"
       ],
-      "oracle_derivation": "Cfg.N reads associated const val 3 from anonymous companion { }; Cfg.N == 3 prints 'cconst'"
+      "oracle_derivation": "Cfg.N reads associated const val 3 from anonymous companion { }; Cfg.N == 3 prints 'cconst'",
+      "expected_lines": 1,
+      "expected_bytes": 7
     },
     "q13_if_expr_value": {
       "kind": "run_ok",
@@ -963,7 +1097,9 @@
       "baseline_marker": "OK",
       "stdout": "big\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "x = 3 satisfies x > 2, so if-expression evaluates to 'big'"
+      "oracle_derivation": "x = 3 satisfies x > 2, so if-expression evaluates to 'big'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "q14_when_subjectless": {
       "kind": "run_ok",
@@ -972,7 +1108,9 @@
       "baseline_marker": "OK",
       "stdout": "mid\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "x = 5 fails x < 3 and matches second guard x < 7 -> 'mid'"
+      "oracle_derivation": "x = 5 fails x < 3 and matches second guard x < 7 -> 'mid'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "q15_borrow_param_string_list": {
       "kind": "run_ok",
@@ -981,7 +1119,9 @@
       "baseline_marker": "OK",
       "stdout": "borrow-list\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "total(listOf('a', 'b')) counts 2 elements; 2 == 2 prints 'borrow-list'"
+      "oracle_derivation": "total(listOf('a', 'b')) counts 2 elements; 2 == 2 prints 'borrow-list'",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "q16_interface_static": {
       "kind": "run_ok",
@@ -990,7 +1130,9 @@
       "baseline_marker": "OK",
       "stdout": "dog\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "Dog.name() returns 'dog' via static interface implementation dispatch"
+      "oracle_derivation": "Dog.name() returns 'dog' via static interface implementation dispatch",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "q17_generic_class": {
       "kind": "compile_fail",
@@ -1009,7 +1151,9 @@
       "baseline_marker": "OK",
       "stdout": "vgen\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('vgen')"
+      "oracle_derivation": "single literal println('vgen')",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "q19_deep_return_cleanup": {
       "kind": "run_ok",
@@ -1018,7 +1162,9 @@
       "baseline_marker": "OK",
       "stdout": "b\na\na\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "f(true) drops inner b ('b') then outer a ('a') on early return; f(false) drops a ('a') -> 'b\\na\\na\\n'"
+      "oracle_derivation": "f(true) drops inner b ('b') then outer a ('a') on early return; f(false) drops a ('a') -> 'b\\na\\na\\n'",
+      "expected_lines": 3,
+      "expected_bytes": 6
     },
     "q20_replace_field": {
       "kind": "run_ok",
@@ -1027,7 +1173,9 @@
       "baseline_marker": "OK",
       "stdout": "old\nnew\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "replace(&b.s, 'new') returns previous field value 'old' and updates b.s to 'new'"
+      "oracle_derivation": "replace(&b.s, 'new') returns previous field value 'old' and updates b.s to 'new'",
+      "expected_lines": 2,
+      "expected_bytes": 8
     },
     "r01_bogus_member": {
       "kind": "compile_fail",
@@ -1061,7 +1209,9 @@
       "spec_refs": [
         "SPEC-0349"
       ],
-      "oracle_derivation": "builtin Result.Ok(1) is resolved without import (SPEC-0349); main prints 'result-builtin'"
+      "oracle_derivation": "builtin Result.Ok(1) is resolved without import (SPEC-0349); main prints 'result-builtin'",
+      "expected_lines": 1,
+      "expected_bytes": 15
     },
     "s02_pair_builtin": {
       "kind": "known_unimplemented",
@@ -1078,7 +1228,9 @@
         "S6"
       ],
       "target_stdout": "pair\n",
-      "oracle_derivation": "builtin Pair(1, 2).first == 1 holds and prints 'pair' (blocked by S6)"
+      "oracle_derivation": "builtin Pair(1, 2).first == 1 holds and prints 'pair' (blocked by S6)",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "s03_to_pair": {
       "kind": "known_unimplemented",
@@ -1095,7 +1247,9 @@
         "S6"
       ],
       "target_stdout": "to\n",
-      "oracle_derivation": "infix 1 to 2 constructs Pair(1, 2); p.first == 1 prints 'to' (blocked by S6)"
+      "oracle_derivation": "infix 1 to 2 constructs Pair(1, 2); p.first == 1 prints 'to' (blocked by S6)",
+      "expected_lines": 1,
+      "expected_bytes": 3
     },
     "s04_question_on_nullable": {
       "kind": "compile_fail",
@@ -1114,7 +1268,9 @@
       "baseline_marker": "OK",
       "stdout": "vmethod-bare\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('vmethod-bare')"
+      "oracle_derivation": "single literal println('vmethod-bare')",
+      "expected_lines": 1,
+      "expected_bytes": 13
     },
     "t02_vmethod_bool": {
       "kind": "run_ok",
@@ -1123,7 +1279,9 @@
       "baseline_marker": "OK",
       "stdout": "vmethod-bool\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('vmethod-bool')"
+      "oracle_derivation": "single literal println('vmethod-bool')",
+      "expected_lines": 1,
+      "expected_bytes": 13
     },
     "t03_vmethod_generic": {
       "kind": "run_ok",
@@ -1137,7 +1295,9 @@
       "spec_refs": [
         "SPEC-0361"
       ],
-      "oracle_derivation": "generic value class W<Int>(4).get() returns 4 and prints 'vmethod-generic'"
+      "oracle_derivation": "generic value class W<Int>(4).get() returns 4 and prints 'vmethod-generic'",
+      "expected_lines": 1,
+      "expected_bytes": 16
     },
     "t04_vmethod_compute_param": {
       "kind": "run_ok",
@@ -1146,7 +1306,9 @@
       "baseline_marker": "OK",
       "stdout": "vmethod-param\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('vmethod-param')"
+      "oracle_derivation": "single literal println('vmethod-param')",
+      "expected_lines": 1,
+      "expected_bytes": 14
     },
     "t05_map_loop_continue": {
       "kind": "run_ok",
@@ -1155,7 +1317,9 @@
       "baseline_marker": "OK",
       "stdout": "map-continue\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "for-loop skips 'b' via continue and counts 'a' twice -> m.get('a') == 2 prints 'map-continue'"
+      "oracle_derivation": "for-loop skips 'b' via continue and counts 'a' twice -> m.get('a') == 2 prints 'map-continue'",
+      "expected_lines": 1,
+      "expected_bytes": 13
     },
     "t06_list_loop_return": {
       "kind": "run_ok",
@@ -1164,7 +1328,9 @@
       "baseline_marker": "OK",
       "stdout": "loop-return\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "find(listOf(1,2,3), 2) returns true on second element; prints 'loop-return'"
+      "oracle_derivation": "find(listOf(1,2,3), 2) returns true on second element; prints 'loop-return'",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "t07_short_circuit_plain": {
       "kind": "run_ok",
@@ -1173,7 +1339,9 @@
       "baseline_marker": "OK",
       "stdout": "short-circuit\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('short-circuit')"
+      "oracle_derivation": "single literal println('short-circuit')",
+      "expected_lines": 1,
+      "expected_bytes": 14
     },
     "t08_vmethod_string": {
       "kind": "run_ok",
@@ -1182,7 +1350,9 @@
       "baseline_marker": "OK",
       "stdout": "pos\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "Tag(1).label() checks 1 > 0 and returns 'pos'"
+      "oracle_derivation": "Tag(1).label() checks 1 > 0 and returns 'pos'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "t09_vmethod_calls_method": {
       "kind": "run_ok",
@@ -1191,7 +1361,9 @@
       "baseline_marker": "OK",
       "stdout": "vmethod-chain\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('vmethod-chain')"
+      "oracle_derivation": "single literal println('vmethod-chain')",
+      "expected_lines": 1,
+      "expected_bytes": 14
     },
     "t10_map_nested_if_break": {
       "kind": "run_ok",
@@ -1200,7 +1372,9 @@
       "baseline_marker": "OK",
       "stdout": "map-nested-break\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "loop inserts 'a' and 'b' (m.size == 2), then breaks at 'c'; prints 'map-nested-break'"
+      "oracle_derivation": "loop inserts 'a' and 'b' (m.size == 2), then breaks at 'c'; prints 'map-nested-break'",
+      "expected_lines": 1,
+      "expected_bytes": 17
     },
     "u01_enum_case_borrow_arg": {
       "kind": "run_ok",
@@ -1214,7 +1388,9 @@
       "spec_refs": [
         "SPEC-0320"
       ],
-      "oracle_derivation": "isRed(Color.Red) borrows enum case argument and matches Color.Red -> true; prints 'enum-arg'"
+      "oracle_derivation": "isRed(Color.Red) borrows enum case argument and matches Color.Red -> true; prints 'enum-arg'",
+      "expected_lines": 1,
+      "expected_bytes": 9
     },
     "u02_list_add_loop_string": {
       "kind": "run_ok",
@@ -1223,7 +1399,9 @@
       "baseline_marker": "OK",
       "stdout": "x\ny\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "clones 'x' and 'y' into MutableList<String> and prints each element in order"
+      "oracle_derivation": "clones 'x' and 'y' into MutableList<String> and prints each element in order",
+      "expected_lines": 2,
+      "expected_bytes": 4
     },
     "u03_list_of_class_add": {
       "kind": "run_ok",
@@ -1232,7 +1410,9 @@
       "baseline_marker": "OK",
       "stdout": "class-list\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('class-list')"
+      "oracle_derivation": "single literal println('class-list')",
+      "expected_lines": 1,
+      "expected_bytes": 11
     },
     "u04_enum_payload_arg_unit": {
       "kind": "run_ok",
@@ -1241,7 +1421,9 @@
       "baseline_marker": "OK",
       "stdout": "enum-payload-arg\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('enum-payload-arg')"
+      "oracle_derivation": "single literal println('enum-payload-arg')",
+      "expected_lines": 1,
+      "expected_bytes": 17
     },
     "v01_assign_unit_value": {
       "kind": "run_ok",
@@ -1250,7 +1432,9 @@
       "baseline_marker": "OK",
       "stdout": "assign-unit\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('assign-unit')"
+      "oracle_derivation": "single literal println('assign-unit')",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "v02_assign_chain": {
       "kind": "compile_fail",
@@ -1274,7 +1458,9 @@
       "spec_refs": [
         "SPEC-0350"
       ],
-      "oracle_derivation": "pick(true) returns Int? = 7; smart cast x != null && x == 7 prints 'join-nullable'"
+      "oracle_derivation": "pick(true) returns Int? = 7; smart cast x != null && x == 7 prints 'join-nullable'",
+      "expected_lines": 1,
+      "expected_bytes": 14
     },
     "v04_stmt_if_mixed": {
       "kind": "compile_fail",
@@ -1293,7 +1479,9 @@
       "baseline_marker": "OK",
       "stdout": "range-in\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('range-in')"
+      "oracle_derivation": "single literal println('range-in')",
+      "expected_lines": 1,
+      "expected_bytes": 9
     },
     "v06_for_range_sum": {
       "kind": "run_ok",
@@ -1302,7 +1490,9 @@
       "baseline_marker": "OK",
       "stdout": "for-range\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "0..<5 sums to 10 and 1..3 sums to 6 -> s == 16 prints 'for-range'"
+      "oracle_derivation": "0..<5 sums to 10 and 1..3 sums to 6 -> s == 16 prints 'for-range'",
+      "expected_lines": 1,
+      "expected_bytes": 10
     },
     "v07_range_max": {
       "kind": "run_ok",
@@ -1311,7 +1501,9 @@
       "baseline_marker": "OK",
       "stdout": "range-max\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "inclusive range 2147483646..2147483647 iterates exactly 2 times without overflow; prints 'range-max'"
+      "oracle_derivation": "inclusive range 2147483646..2147483647 iterates exactly 2 times without overflow; prints 'range-max'",
+      "expected_lines": 1,
+      "expected_bytes": 10
     },
     "v08_long_range": {
       "kind": "run_ok",
@@ -1320,7 +1512,9 @@
       "baseline_marker": "OK",
       "stdout": "long-range\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "1L..4L sums 1+2+3+4 = 10L; prints 'long-range'"
+      "oracle_derivation": "1L..4L sums 1+2+3+4 = 10L; prints 'long-range'",
+      "expected_lines": 1,
+      "expected_bytes": 11
     },
     "v09_reverse_empty": {
       "kind": "run_ok",
@@ -1329,7 +1523,9 @@
       "baseline_marker": "OK",
       "stdout": "reverse-empty\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "ascending range 5..1 is empty (0 iterations, n == 0); prints 'reverse-empty'"
+      "oracle_derivation": "ascending range 5..1 is empty (0 iterations, n == 0); prints 'reverse-empty'",
+      "expected_lines": 1,
+      "expected_bytes": 14
     },
     "v10_range_value": {
       "kind": "run_ok",
@@ -1338,7 +1534,9 @@
       "baseline_marker": "OK",
       "stdout": "range-value\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('range-value')"
+      "oracle_derivation": "single literal println('range-value')",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "v11_convert_ok": {
       "kind": "run_ok",
@@ -1347,7 +1545,9 @@
       "baseline_marker": "OK",
       "stdout": "convert\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('convert')"
+      "oracle_derivation": "single literal println('convert')",
+      "expected_lines": 1,
+      "expected_bytes": 8
     },
     "v12_convert_abort": {
       "kind": "runtime_abort",
@@ -1375,7 +1575,9 @@
       "spec_refs": [
         "SPEC-0350"
       ],
-      "oracle_derivation": "while (x != null) adds 5 to total and sets x = null; total == 5 prints 'while-nullable'"
+      "oracle_derivation": "while (x != null) adds 5 to total and sets x = null; total == 5 prints 'while-nullable'",
+      "expected_lines": 1,
+      "expected_bytes": 15
     },
     "v14_map_consume": {
       "kind": "run_ok",
@@ -1384,7 +1586,9 @@
       "baseline_marker": "OK",
       "stdout": "consume\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('consume')"
+      "oracle_derivation": "single literal println('consume')",
+      "expected_lines": 1,
+      "expected_bytes": 8
     },
     "v15_map_for": {
       "kind": "run_ok",
@@ -1393,7 +1597,9 @@
       "baseline_marker": "OK",
       "stdout": "b\na\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "MutableMap preserves insertion order ('b' then 'a'); loop prints 'b' then 'a'"
+      "oracle_derivation": "MutableMap preserves insertion order ('b' then 'a'); loop prints 'b' then 'a'",
+      "expected_lines": 2,
+      "expected_bytes": 4
     },
     "v16_when_in_range": {
       "kind": "run_ok",
@@ -1407,7 +1613,9 @@
       "spec_refs": [
         "SPEC-0356"
       ],
-      "oracle_derivation": "bucket(3) satisfies the `in 0..9` arm -> 'small' and prints 'small'"
+      "oracle_derivation": "bucket(3) satisfies the `in 0..9` arm -> 'small' and prints 'small'",
+      "expected_lines": 1,
+      "expected_bytes": 6
     },
     "v17_convert_in_loop": {
       "kind": "run_ok",
@@ -1416,7 +1624,9 @@
       "baseline_marker": "OK",
       "stdout": "conv-loop\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "0..<3 converts 0,1,2 via toLong() and sums to 3L; prints 'conv-loop'"
+      "oracle_derivation": "0..<3 converts 0,1,2 via toLong() and sums to 3L; prints 'conv-loop'",
+      "expected_lines": 1,
+      "expected_bytes": 10
     },
     "v18_while_nullable_class": {
       "kind": "run_ok",
@@ -1425,7 +1635,9 @@
       "baseline_marker": "OK",
       "stdout": "while-class\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "while (n != null) reads n.v (4) and sets n = null; t == 4 prints 'while-class'"
+      "oracle_derivation": "while (n != null) reads n.v (4) and sets n = null; t == 4 prints 'while-class'",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "v19_stmt_when_mixed": {
       "kind": "run_ok",
@@ -1439,7 +1651,9 @@
       "spec_refs": [
         "SPEC-0356"
       ],
-      "oracle_derivation": "single literal println('stmt-when-mixed')"
+      "oracle_derivation": "single literal println('stmt-when-mixed')",
+      "expected_lines": 1,
+      "expected_bytes": 16
     },
     "v20_range_in_list": {
       "kind": "run_ok",
@@ -1448,7 +1662,9 @@
       "baseline_marker": "OK",
       "stdout": "range-in-list\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "3 is neither in 1..2 nor in 5..6 (n == 0, size == 2); prints 'range-in-list'"
+      "oracle_derivation": "3 is neither in 1..2 nor in 5..6 (n == 0, size == 2); prints 'range-in-list'",
+      "expected_lines": 1,
+      "expected_bytes": 14
     },
     "v21_for_range_return": {
       "kind": "run_ok",
@@ -1457,7 +1673,9 @@
       "baseline_marker": "OK",
       "stdout": "range-return\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "firstEven(5) returns 2 on i == 2 inside 1..5; prints 'range-return'"
+      "oracle_derivation": "firstEven(5) returns 2 on i == 2 inside 1..5; prints 'range-return'",
+      "expected_lines": 1,
+      "expected_bytes": 13
     },
     "v22_range_with_map": {
       "kind": "run_ok",
@@ -1466,7 +1684,9 @@
       "baseline_marker": "OK",
       "stdout": "range-map\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "populates m[i] = i*i for i in 0..<4; m.get(3) == 9 prints 'range-map'"
+      "oracle_derivation": "populates m[i] = i*i for i in 0..<4; m.get(3) == 9 prints 'range-map'",
+      "expected_lines": 1,
+      "expected_bytes": 10
     },
     "v23_nested_range_break": {
       "kind": "run_ok",
@@ -1475,7 +1695,9 @@
       "baseline_marker": "OK",
       "stdout": "nested-range\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "outer 0..<3 runs 3 times, inner breaks at j == 1 after 1 increment -> n == 3 prints 'nested-range'"
+      "oracle_derivation": "outer 0..<3 runs 3 times, inner breaks at j == 1 after 1 increment -> n == 3 prints 'nested-range'",
+      "expected_lines": 1,
+      "expected_bytes": 13
     },
     "w01_map_for_sum": {
       "kind": "run_ok",
@@ -1484,7 +1706,9 @@
       "baseline_marker": "OK",
       "stdout": "map-sum\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map entries ('b'->2, 'a'->1) sum to 3; prints 'map-sum'"
+      "oracle_derivation": "map entries ('b'->2, 'a'->1) sum to 3; prints 'map-sum'",
+      "expected_lines": 1,
+      "expected_bytes": 8
     },
     "w02_map_for_order": {
       "kind": "run_ok",
@@ -1493,7 +1717,9 @@
       "baseline_marker": "OK",
       "stdout": "map-order\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map iterates in insertion order ('b', 'a', 'c'); ok remains true and prints 'map-order'"
+      "oracle_derivation": "map iterates in insertion order ('b', 'a', 'c'); ok remains true and prints 'map-order'",
+      "expected_lines": 1,
+      "expected_bytes": 10
     },
     "w03_map_overwrite_remove": {
       "kind": "run_ok",
@@ -1502,7 +1728,9 @@
       "baseline_marker": "OK",
       "stdout": "map-reorder\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "overwriting 'b'->5, removing 'a', and re-inserting 'a'->7 yields order ('b'->5, 'a'->7); prints 'map-reorder'"
+      "oracle_derivation": "overwriting 'b'->5, removing 'a', and re-inserting 'a'->7 yields order ('b'->5, 'a'->7); prints 'map-reorder'",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "w04_map_for_break": {
       "kind": "run_ok",
@@ -1511,7 +1739,9 @@
       "baseline_marker": "OK",
       "stdout": "map-break\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "iterating keys 0..4 breaks at k == 2 after counting 0 and 1 (seen == 2); prints 'map-break'"
+      "oracle_derivation": "iterating keys 0..4 breaks at k == 2 after counting 0 and 1 (seen == 2); prints 'map-break'",
+      "expected_lines": 1,
+      "expected_bytes": 10
     },
     "w05_map_for_return": {
       "kind": "run_ok",
@@ -1520,7 +1750,9 @@
       "baseline_marker": "OK",
       "stdout": "map-return\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "find(m, 'b') returns value 2 from map loop; prints 'map-return'"
+      "oracle_derivation": "find(m, 'b') returns value 2 from map loop; prints 'map-return'",
+      "expected_lines": 1,
+      "expected_bytes": 11
     },
     "w06_map_mutate_in_loop": {
       "kind": "compile_fail",
@@ -1539,7 +1771,9 @@
       "baseline_marker": "OK",
       "stdout": "map-nested\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "nested iteration over {1:1, 2:2} computes (1+2)*(1+2) = 9; prints 'map-nested'"
+      "oracle_derivation": "nested iteration over {1:1, 2:2} computes (1+2)*(1+2) = 9; prints 'map-nested'",
+      "expected_lines": 1,
+      "expected_bytes": 11
     },
     "w08_map_string_values": {
       "kind": "run_ok",
@@ -1548,7 +1782,9 @@
       "baseline_marker": "OK",
       "stdout": "two\none\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map entries (2->'two', 1->'one') print values 'two' then 'one' in insertion order"
+      "oracle_derivation": "map entries (2->'two', 1->'one') print values 'two' then 'one' in insertion order",
+      "expected_lines": 2,
+      "expected_bytes": 8
     },
     "w09_map_temp_source": {
       "kind": "run_ok",
@@ -1557,7 +1793,9 @@
       "baseline_marker": "OK",
       "stdout": "map-temp\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "iterating temporary make() map sums 3 + 4 = 7; prints 'map-temp'"
+      "oracle_derivation": "iterating temporary make() map sums 3 + 4 = 7; prints 'map-temp'",
+      "expected_lines": 1,
+      "expected_bytes": 9
     },
     "w10_map_for_continue_count": {
       "kind": "run_ok",
@@ -1566,7 +1804,9 @@
       "baseline_marker": "OK",
       "stdout": "map-continue2\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map loop skips 'b'->2 via continue and sums 'a'->1 + 'c'->3 = 4; prints 'map-continue2'"
+      "oracle_derivation": "map loop skips 'b'->2 via continue and sums 'a'->1 + 'c'->3 = 4; prints 'map-continue2'",
+      "expected_lines": 1,
+      "expected_bytes": 14
     },
     "w11_word_count": {
       "kind": "run_ok",
@@ -1575,7 +1815,9 @@
       "baseline_marker": "OK",
       "stdout": "word-count\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "word frequency over ['x','y','x','z','x'] yields x=3, y=1, z=1; prints 'word-count'"
+      "oracle_derivation": "word frequency over ['x','y','x','z','x'] yields x=3, y=1, z=1; prints 'word-count'",
+      "expected_lines": 1,
+      "expected_bytes": 11
     },
     "w12": {
       "kind": "run_ok",
@@ -1584,7 +1826,9 @@
       "baseline_marker": "OK",
       "stdout": "b\nafter\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map loop prints key 'b', then post-loop s == 1 prints 'after'"
+      "oracle_derivation": "map loop prints key 'b', then post-loop s == 1 prints 'after'",
+      "expected_lines": 2,
+      "expected_bytes": 8
     },
     "w13": {
       "kind": "run_ok",
@@ -1593,7 +1837,9 @@
       "baseline_marker": "OK",
       "stdout": "seen\nend\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map loop with v == 2 prints 'seen', followed by post-loop 'end'"
+      "oracle_derivation": "map loop with v == 2 prints 'seen', followed by post-loop 'end'",
+      "expected_lines": 2,
+      "expected_bytes": 9
     },
     "w14": {
       "kind": "run_ok",
@@ -1602,7 +1848,9 @@
       "baseline_marker": "OK",
       "stdout": "end\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map loop sets s = 1 without printing; post-loop prints 'end'"
+      "oracle_derivation": "map loop sets s = 1 without printing; post-loop prints 'end'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "w15": {
       "kind": "run_ok",
@@ -1611,7 +1859,9 @@
       "baseline_marker": "OK",
       "stdout": "seen\nend\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map loop with v == 2 prints 'seen', followed by post-loop 'end'"
+      "oracle_derivation": "map loop with v == 2 prints 'seen', followed by post-loop 'end'",
+      "expected_lines": 2,
+      "expected_bytes": 9
     },
     "w16": {
       "kind": "run_ok",
@@ -1620,7 +1870,9 @@
       "baseline_marker": "OK",
       "stdout": "borrow-param-sum\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "count(m) borrows Map parameter and sums 2 + 3 = 5; prints 'borrow-param-sum'"
+      "oracle_derivation": "count(m) borrows Map parameter and sums 2 + 3 = 5; prints 'borrow-param-sum'",
+      "expected_lines": 1,
+      "expected_bytes": 17
     },
     "w17": {
       "kind": "run_ok",
@@ -1629,7 +1881,9 @@
       "baseline_marker": "OK",
       "stdout": "b\nend\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map loop prints key 'b', then if (t == 1) prints 'end'"
+      "oracle_derivation": "map loop prints key 'b', then if (t == 1) prints 'end'",
+      "expected_lines": 2,
+      "expected_bytes": 6
     },
     "w18": {
       "kind": "run_ok",
@@ -1638,7 +1892,9 @@
       "baseline_marker": "OK",
       "stdout": "end\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map loop accumulates s = 2, then if (s == 2) prints 'end'"
+      "oracle_derivation": "map loop accumulates s = 2, then if (s == 2) prints 'end'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "w19": {
       "kind": "run_ok",
@@ -1647,7 +1903,9 @@
       "baseline_marker": "OK",
       "stdout": "b\nend\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "map loop prints key 'b', followed by post-loop 'end'"
+      "oracle_derivation": "map loop prints key 'b', followed by post-loop 'end'",
+      "expected_lines": 2,
+      "expected_bytes": 6
     },
     "x01_nullable_class_retest": {
       "kind": "run_ok",
@@ -1656,7 +1914,9 @@
       "baseline_marker": "OK",
       "stdout": "retest\n",
       "oracle_origin": "single_println_literal",
-      "oracle_derivation": "single literal println('retest')"
+      "oracle_derivation": "single literal println('retest')",
+      "expected_lines": 1,
+      "expected_bytes": 7
     },
     "x02_string_nullable_return": {
       "kind": "run_ok",
@@ -1670,7 +1930,9 @@
       "spec_refs": [
         "SPEC-0350"
       ],
-      "oracle_derivation": "find(true) returns non-null String? 'hit'; smart cast s != null prints 'hit'"
+      "oracle_derivation": "find(true) returns non-null String? 'hit'; smart cast s != null prints 'hit'",
+      "expected_lines": 1,
+      "expected_bytes": 4
     },
     "x03_if_call_borrow_arg": {
       "kind": "run_ok",
@@ -1679,7 +1941,9 @@
       "baseline_marker": "OK",
       "stdout": "obs\ndone\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "if (true) calls observe('obs') printing 'obs', then prints 'done'"
+      "oracle_derivation": "if (true) calls observe('obs') printing 'obs', then prints 'done'",
+      "expected_lines": 2,
+      "expected_bytes": 9
     },
     "y01_import_take_for_sum": {
       "kind": "run_ok",
@@ -1693,7 +1957,9 @@
       "spec_refs": [
         "SPEC-0341"
       ],
-      "oracle_derivation": "take(listOf(1,2,3), 2) yields 1 and 2 (sum 3); prints 'take'"
+      "oracle_derivation": "take(listOf(1,2,3), 2) yields 1 and 2 (sum 3); prints 'take'",
+      "expected_lines": 1,
+      "expected_bytes": 5
     },
     "y02_take_no_import": {
       "kind": "compile_fail",
@@ -1717,7 +1983,9 @@
       "spec_refs": [
         "SPEC-0341"
       ],
-      "oracle_derivation": "xs.take(2) on listOf(1,2,3) sums 1 + 2 = 3; prints 'take-method'"
+      "oracle_derivation": "xs.take(2) on listOf(1,2,3) sums 1 + 2 = 3; prints 'take-method'",
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "y04_take_for_println": {
       "kind": "run_ok",
@@ -1731,7 +1999,9 @@
       "spec_refs": [
         "SPEC-0341"
       ],
-      "oracle_derivation": "take(listOf('a','b','c'), 2) prints first two elements 'a' and 'b'"
+      "oracle_derivation": "take(listOf('a','b','c'), 2) prints first two elements 'a' and 'b'",
+      "expected_lines": 2,
+      "expected_bytes": 4
     },
     "y05_take_borrow_val_call": {
       "kind": "run_ok",
@@ -1740,7 +2010,9 @@
       "baseline_marker": "OK",
       "stdout": "a\nb\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "borrow val v = take(xs, 2) passed to read(v) prints 'a' and 'b'"
+      "oracle_derivation": "borrow val v = take(xs, 2) passed to read(v) prints 'a' and 'b'",
+      "expected_lines": 2,
+      "expected_bytes": 4
     },
     "y06_take_borrow_val_for": {
       "kind": "run_ok",
@@ -1749,7 +2021,9 @@
       "baseline_marker": "OK",
       "stdout": "a\nb\n",
       "oracle_origin": "source_trace_audited",
-      "oracle_derivation": "borrow val v = take(xs, 2) iterated directly in for-loop prints 'a' and 'b'"
+      "oracle_derivation": "borrow val v = take(xs, 2) iterated directly in for-loop prints 'a' and 'b'",
+      "expected_lines": 2,
+      "expected_bytes": 4
     }
   },
   "programs": {

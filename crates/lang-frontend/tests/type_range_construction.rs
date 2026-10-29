@@ -1,18 +1,19 @@
 //! 受限来源中可复用范围原语的真实 typed 操作数；不执行 runtime。
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::parse_file,
     source::SourceMap,
     type_checking::{
         CallableResultSource, CarrierSourceMarker, CompilationUnitTypes, RangeSourceKind,
-        TypedFile, check_compilation_unit_types, check_types, standard_environments,
+        check_compilation_unit_types, standard_environments,
     },
 };
 
-fn checked(text: &str, authorized: bool) -> (SourceMap, TypedFile, CompilationUnitTypes) {
+fn checked(
+    text: &str,
+    authorized: bool,
+) -> (SourceMap, CompilationUnitTypes, CompilationUnitTypes) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("algorithms.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -25,9 +26,12 @@ fn checked(text: &str, authorized: bool) -> (SourceMap, TypedFile, CompilationUn
     if authorized {
         types.authorize_range_source(&sources, source).unwrap();
     }
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let single = check_types(&sources, &parsed, &names, &types).unwrap();
+    let names = names.validate().unwrap();
+    let single = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     let inputs = [SourceUnitInput::new(
         "std",
         "algorithms.ko",

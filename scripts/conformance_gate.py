@@ -306,9 +306,9 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "p15_elvis": "f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03)",
     "p16_result_q": "Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08)",
     "p16b_result_string": "parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08)",
-    "p17_lambda": "capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda' (blocked by N04)",
-    "p17b_lambda_nocapture": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' (blocked by N04)",
-    "p18_move_closure": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' (blocked by N04)",
+    "p17_lambda": "capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda'",
+    "p17b_lambda_nocapture": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0'",
+    "p18_move_closure": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move'",
     "p21_box_enum": "recursive Expr.Add(Box(Num(1)), Box(Num(2))) evaluates to 3 and prints 'box' (blocked by N07/L7)",
     "p22_rc": "Rc(Data(4)).share().value.n == 4 holds and prints 'rc'",
     "p25b_linked_recursive": "recursive sum(Node(1, Node(2, null))) returns 3 and prints 'rec-list' (blocked by N03)",
@@ -316,7 +316,7 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "p28_companion": "anonymous companion function C.make() returns 7 and prints 'companion' (blocked by N06)",
     "p35_value_eq": "structural equality Point(1, 2) == Point(1, 2) holds and prints 'veq' (blocked by L1)",
     "p40_nested_generic_class": "Stack<Int>.push(1) mutates generic field items; size == 1 prints 'stack' (blocked by N01)",
-    "q02_lambda_arg_inline": "twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg' (blocked by N04)",
+    "q02_lambda_arg_inline": "twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg'",
     "q03_fn_ref": "callable reference ::inc applied to 1 yields 2 and prints 'fnref' (blocked by N04)",
     "q08_enum_string_payload": "show(Msg.Text('hi')) prints payload 'hi'; show(Msg.Quit) prints 'quit' (blocked by N02/L7)",
     "s02_pair_builtin": "builtin Pair(1, 2).first == 1 holds and prints 'pair' (blocked by S6)",
@@ -1166,7 +1166,25 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"probes.{name} with run_ok requires non-empty stdout ending with newline"
                     )
+                if section == "probes":
+                    out_text = spec["stdout"]
+                    out_bytes = out_text.encode("utf-8")
+                    if "expected_lines" in spec and spec["expected_lines"] != len(out_text.splitlines()):
+                        raise ValueError(
+                            f"expected_lines mismatch for probes.{name}: expected {spec['expected_lines']}, got {len(out_text.splitlines())}"
+                        )
+                    if "expected_bytes" in spec and spec["expected_bytes"] != len(out_bytes):
+                        raise ValueError(
+                            f"expected_bytes mismatch for probes.{name}: expected {spec['expected_bytes']}, got {len(out_bytes)}"
+                        )
             elif kind == "compile_fail":
+                if any(
+                    k in spec
+                    for k in ("stdout", "target_stdout", "expected_lines", "expected_bytes")
+                ):
+                    raise ValueError(
+                        f"{section}.{name} with compile_fail must not define stdout/expected_lines/expected_bytes"
+                    )
                 if not isinstance(spec.get("diagnostic"), str) or not re.fullmatch(
                     r"L[0-9]{4}", spec["diagnostic"]
                 ):
@@ -1196,6 +1214,13 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                             f"{section}.{name} has invalid all_diagnostics {all_diags!r}"
                         )
             elif kind == "runtime_abort":
+                if any(
+                    k in spec
+                    for k in ("stdout", "target_stdout", "expected_lines", "expected_bytes")
+                ):
+                    raise ValueError(
+                        f"{section}.{name} with runtime_abort must not define stdout/expected_lines/expected_bytes"
+                    )
                 if not isinstance(spec.get("abort_message"), str) or not spec["abort_message"]:
                     raise ValueError(
                         f"{section}.{name} with runtime_abort requires abort_message"
@@ -1220,6 +1245,16 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         raise ValueError(
                             f"{section}.{name} with known_unimplemented has invalid target_stdout {ts!r} (must be non-empty and end with newline)"
                         )
+                    if section == "probes":
+                        ts_bytes = ts.encode("utf-8")
+                        if "expected_lines" in spec and spec["expected_lines"] != len(ts.splitlines()):
+                            raise ValueError(
+                                f"expected_lines mismatch for probes.{name}: expected {spec['expected_lines']}, got {len(ts.splitlines())}"
+                            )
+                        if "expected_bytes" in spec and spec["expected_bytes"] != len(ts_bytes):
+                            raise ValueError(
+                                f"expected_bytes mismatch for probes.{name}: expected {spec['expected_bytes']}, got {len(ts_bytes)}"
+                            )
                 if "roadmap_blockers" in spec:
                     blockers = spec["roadmap_blockers"]
                     if (
@@ -1562,6 +1597,12 @@ def derive_static_expectations(
                 "baseline_marker": base_single,
                 "note": "requires human oracle confirmation",
             }
+
+    for entry in probes_out.values():
+        out_text = entry.get("stdout") or entry.get("target_stdout")
+        if isinstance(out_text, str) and out_text:
+            entry["expected_lines"] = len(out_text.splitlines())
+            entry["expected_bytes"] = len(out_text.encode("utf-8"))
 
     programs_out: dict[str, Any] = {}
     for prog_dir in sorted(programs_dir.iterdir()):
@@ -2019,6 +2060,52 @@ def summarize_oracle_origins(expectations: dict[str, Any]) -> dict[str, dict[str
     return summary
 
 
+def summarize_output_shape_distribution(expectations: dict[str, Any]) -> dict[str, Any]:
+    """Classify all 154 probes and 6 programs by their stdout line/byte shape."""
+    single_line_probes: list[str] = []
+    multi_line_probes: list[dict[str, Any]] = []
+    zero_stdout_probes: list[str] = []
+    total_probe_lines = 0
+    total_probe_bytes = 0
+
+    for name, spec in sorted(expectations["probes"].items()):
+        out_text = spec.get("stdout") or spec.get("target_stdout")
+        if isinstance(out_text, str) and out_text:
+            ln_cnt = spec.get("expected_lines", len(out_text.splitlines()))
+            by_cnt = spec.get("expected_bytes", len(out_text.encode("utf-8")))
+            total_probe_lines += ln_cnt
+            total_probe_bytes += by_cnt
+            if ln_cnt == 1:
+                single_line_probes.append(name)
+            else:
+                multi_line_probes.append(
+                    {
+                        "name": name,
+                        "kind": spec["kind"],
+                        "lines": ln_cnt,
+                        "bytes": by_cnt,
+                    }
+                )
+        else:
+            zero_stdout_probes.append(name)
+
+    total_prog_lines = sum(
+        spec.get("expected_lines", 0) for spec in expectations["programs"].values()
+    )
+    total_prog_bytes = sum(
+        spec.get("expected_bytes", 0) for spec in expectations["programs"].values()
+    )
+    return {
+        "single_line_probes": single_line_probes,
+        "multi_line_probes": multi_line_probes,
+        "zero_stdout_probes": zero_stdout_probes,
+        "total_probe_lines": total_probe_lines,
+        "total_probe_bytes": total_probe_bytes,
+        "total_program_lines": total_prog_lines,
+        "total_program_bytes": total_prog_bytes,
+    }
+
+
 def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     """Render deterministic Markdown audit ledger from expectations.json."""
     probes = expectations["probes"]
@@ -2028,6 +2115,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     base_evo = summarize_baseline_evolution(expectations)
     spec_trace = summarize_v046_spec_traceability(expectations)
     origin_stats = summarize_oracle_origins(expectations)
+    shape_stats = summarize_output_shape_distribution(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -2136,6 +2224,23 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         lines.append(
             f"| `{origin}` | {info['description']} | {info['probes']} | {info['programs']} | {kinds_repr} |"
         )
+
+    ml_summary = ", ".join(
+        f"`{m['name']}` ({m['lines']}L/{m['bytes']}B)" for m in shape_stats["multi_line_probes"]
+    )
+    lines.extend(
+        [
+            "",
+            "### 1.5 标准输出规模与多行形态分布矩阵（`expected_lines` / `expected_bytes`）",
+            "",
+            "| 输出形态分类 | 适用范围 | 条目数量 | 累计期望行数 | 累计期望字节数 | 代表性 / 完整条目明细 |",
+            "|---|---|---:|---:|---:|---|",
+            f"| `single_line_stdout` | 1 行输出 Probe (`run_ok` + `known_unimplemented`) | {len(shape_stats['single_line_probes'])} | {len(shape_stats['single_line_probes'])} | {shape_stats['total_probe_bytes'] - sum(m['bytes'] for m in shape_stats['multi_line_probes'])} B | 单行精确字节匹配（全部以 `\\n` 结尾） |",
+            f"| `multi_line_stdout` | ≥2 行输出 Probe (`run_ok` + `known_unimplemented`) | {len(shape_stats['multi_line_probes'])} | {sum(m['lines'] for m in shape_stats['multi_line_probes'])} | {sum(m['bytes'] for m in shape_stats['multi_line_probes'])} B | {ml_summary} |",
+            f"| `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | {len(shape_stats['zero_stdout_probes'])} | 0 | 0 B | " + ", ".join(f"`{p}`" for p in shape_stats["zero_stdout_probes"]) + " |",
+            f"| `acceptance_programs` | V1 验收程序 (`expected.txt`) | {len(programs)} | {shape_stats['total_program_lines']} | {shape_stats['total_program_bytes']} B | " + ", ".join(f"`{k}` ({v['expected_lines']}L/{v['expected_bytes']}B)" for k, v in sorted(programs.items())) + " |",
+        ]
+    )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"

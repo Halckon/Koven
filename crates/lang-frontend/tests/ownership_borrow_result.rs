@@ -2,24 +2,29 @@
 
 use lang_frontend::{
     lexer::lex,
-    name_resolution::resolve_names,
-    ownership_checking::{OwnershipCheckedFile, check_ownership},
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+    ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_types, standard_environments},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 
-fn checked(text: &str) -> OwnershipCheckedFile {
+fn checked(text: &str) -> CompilationUnitOwnership {
     let mut sources = SourceMap::new();
     let source = sources.add_source("borrow_result.ko", text).unwrap();
     let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
     assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &file, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &file, &names, &types).unwrap();
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    check_ownership(&sources, &file, &names, &typed).unwrap()
+    let typed = typed.validate().unwrap();
+    check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap()
 }
 
 #[test]
