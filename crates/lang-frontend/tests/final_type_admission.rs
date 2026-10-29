@@ -392,3 +392,6 @@ mod failed_overload_trials;
 
 #[path = "final_type_admission/unit_statement_map_write.rs"]
 mod unit_statement_map_write;
+
+#[path = "final_type_admission/iteration_recovery.rs"]
+mod iteration_recovery;
