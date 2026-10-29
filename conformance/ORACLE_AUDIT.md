@@ -72,7 +72,7 @@
 | `SPEC-0359` | [0359-refine-rc.md](../docs/archive/specs/0359-refine-rc.md) | `archived` | 1 | `run_ok`: 1 | `p22_rc` |
 | `SPEC-0360` | [0360-string-when-refinement.md](../docs/specs/active/0360-string-when-refinement.md) | `active` | 1 | `run_ok`: 1 | `p41_when_string` |
 | `SPEC-0361` | [0361-refine-generic-value-class.md](../docs/archive/specs/0361-refine-generic-value-class.md) | `archived` | 1 | `run_ok`: 1 | `t03_vmethod_generic` |
-| `SPEC-0364` | [0364-refine-closures.md](../docs/specs/active/0364-refine-closures.md) | `active` | 4 | `run_ok`: 4 | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `q02_lambda_arg_inline` |
+| `SPEC-0364` | [0364-refine-closures.md](../docs/archive/specs/0364-refine-closures.md) | `archived` | 4 | `run_ok`: 4 | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `q02_lambda_arg_inline` |
 
 ### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，154 Probes + 6 Programs）
 
