@@ -9,15 +9,16 @@ use lang_frontend::{
     parser::ParsedFile,
     source::SourceMap,
     type_checking::{
-        BuiltinType, CompilationUnitTypes, ExpressionCategory, TypedFile, UnitExpressionId,
-        UnitTypeKind, check_compilation_unit_types, check_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, ExpressionCategory, TypeKind, TypedFile,
+        UnitExpressionId, UnitTypeKind, check_compilation_unit_types, check_types,
+        standard_environments,
     },
 };
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-// MemoryDocument is the default consumer; legacy-only identity/recovery witnesses remain below.
+// MemoryDocument is the default consumer; non-equivalent legacy witnesses remain below.
 fn checked(text: &str) -> (SourceMap, CompilationUnitTypes) {
     let (sources, _, _, typed) = analyzed(text);
     (sources, typed)
@@ -45,6 +46,9 @@ fn analyzed(text: &str) -> (SourceMap, ParsedFile, SourceUnitId, CompilationUnit
 
 // Unit facts do not expose legacy owner matches/use_at/use-category, and the Unit
 // type entry requires validated names. Keep those original witnesses without weakening them.
+// Six complete tests also retain this entry: Unit adds L0167 for top-level runtime values,
+// differs on Any/Any? admission, and does not share legacy invalid-dependency suppression.
+// Their original sources and exact diagnostics are not rewritten to fit the Unit boundary.
 fn legacy_checked(text: &str) -> (SourceMap, TypedFile) {
     let (sources, _, typed) = legacy_analyzed(text);
     (sources, typed)
@@ -85,13 +89,14 @@ fn constant_types_are_closed_without_restricting_ordinary_variables() {
         ("enum class Color { Red }\n", "Color", "Color.Red"),
         ("", "() -> Int", "{ 1 }"),
     ] {
-        let (_, variable) = checked(&format!("{prefix}val sample: {ty} = {value}"));
+        let (_, variable) = legacy_checked(&format!("{prefix}val sample: {ty} = {value}"));
         assert!(
             variable.diagnostics().is_empty(),
             "{ty}: {:?}",
             variable.diagnostics()
         );
-        let (sources, constant) = checked(&format!("{prefix}const val sample: {ty} = {value}"));
+        let (sources, constant) =
+            legacy_checked(&format!("{prefix}const val sample: {ty} = {value}"));
         assert_eq!(codes(constant.diagnostics()), ["L0155"], "{ty}");
         assert_eq!(
             sources
@@ -150,7 +155,7 @@ fn constant_type_gate_applies_inside_object_and_companion_namespaces() {
         "object Config { const val sample: Any = 1 }",
         "class Config { companion { const val sample: Any? = 1 } }",
     ] {
-        let (_, typed) = checked(source);
+        let (_, typed) = legacy_checked(source);
         assert_eq!(codes(typed.diagnostics()), ["L0155"], "{source}");
     }
 }
@@ -169,7 +174,7 @@ fn associated_constant_selection_uses_declaration_namespace_and_concrete_type() 
             format!("{declaration}\nval selected = Config.LIMIT"),
             format!("val selected = Config.LIMIT\n{declaration}"),
         ] {
-            let (sources, parsed, source_unit, typed) = analyzed(&source);
+            let (sources, parsed, typed) = legacy_analyzed(&source);
             assert!(
                 typed.diagnostics().is_empty(),
                 "{source}: {:?}",
@@ -181,17 +186,11 @@ fn associated_constant_selection_uses_declaration_namespace_and_concrete_type() 
                 .iter()
                 .find(|(_, node)| sources.slice(node.span()).unwrap() == "Config.LIMIT")
                 .expect("member expression");
-            let expression = UnitExpressionId::new(source_unit, expression);
             let facts = typed
                 .constants()
                 .expect("all classifier kinds publish constants");
             assert_eq!(
-                facts
-                    .uses()
-                    .iter()
-                    .find(|usage| usage.expression() == expression)
-                    .unwrap()
-                    .value(),
+                facts.use_at(expression).unwrap().value(),
                 &lang_frontend::type_checking::ConstValue::Integer {
                     ty: BuiltinType::Int,
                     value: 7
@@ -207,7 +206,7 @@ fn associated_constant_selection_uses_declaration_namespace_and_concrete_type() 
                 typed
                     .types()
                     .get(typed.expression_type(expression).unwrap()),
-                Some(&UnitTypeKind::Builtin(BuiltinType::Int)),
+                Some(&TypeKind::Builtin(BuiltinType::Int)),
                 "{source}"
             );
         }
@@ -234,7 +233,7 @@ fn associated_constant_visibility_and_missing_member_are_precise() {
             "L0080",
         ),
     ] {
-        let (sources, typed) = checked(&format!("{declaration}\nval selected = {target}"));
+        let (sources, typed) = legacy_checked(&format!("{declaration}\nval selected = {target}"));
         assert_eq!(codes(typed.diagnostics()), [code], "{target}");
         assert_eq!(
             sources
@@ -243,7 +242,7 @@ fn associated_constant_visibility_and_missing_member_are_precise() {
             target.split('.').next_back().unwrap()
         );
     }
-    let (_, typed) = checked(
+    let (_, typed) = legacy_checked(
         "class Config { companion { private const val LIMIT: Int = 7\nconst val COPY: Int = Config.LIMIT } }",
     );
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
@@ -307,7 +306,7 @@ fn constant_expressions_reject_runtime_work_even_in_a_short_circuit_rhs() {
         ("", "\"answer ${1}\"", "\"answer ${1}\""),
         ("", "1.0 == 2.0", "1.0 == 2.0"),
     ] {
-        let (sources, typed) = checked(&format!("{prefix}const val sample = {expression}"));
+        let (sources, typed) = legacy_checked(&format!("{prefix}const val sample = {expression}"));
         assert_eq!(codes(typed.diagnostics()), ["L0156"], "{expression}");
         assert_eq!(
             sources
@@ -360,11 +359,11 @@ fn constant_expression_type_errors_and_invalid_dependencies_do_not_cascade() {
             vec!["L0157", "L0157"],
         ),
     ] {
-        let (_, typed) = checked(source);
+        let (_, typed) = legacy_checked(source);
         assert_eq!(codes(typed.diagnostics()), expected, "{source}");
     }
     // Eligibility checks both operands but must not eagerly evaluate a short-circuited division.
-    let (_, typed) = checked(
+    let (_, typed) = legacy_checked(
         "const val first: Boolean = false && (1 / 0 == 0)\nconst val second: Int = 1 + 2 * 3",
     );
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
