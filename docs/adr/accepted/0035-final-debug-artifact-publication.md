@@ -34,3 +34,12 @@ accepted
 局部扩展 [ADR-0010](0010-first-native-object-and-linker-contract.md) 的编排产物生命周期；
 系统 driver、参数数组与 object emission 决定保持。
 [ADR-0011](0011-first-dwarf-line-mapping.md) 的行表范围不变。
+
+
+## 源码文件名的有界适配
+
+局部扩展 ADR-0011 的 DIFile 文件名来源：SourceMap 可保存由宿主明确提供的不可变文件名，
+未提供则使用原逻辑名称。SourceMap 不读文件系统、不规范化路径；SourceId、Span、唯一性、
+诊断及 abort 文案仍使用原逻辑身份。DIFile 创建时按 SourceId 取文件名，DebugPlan 继续按
+逻辑名选文件和排序，不以物理别名合并来源。CLI 为已加载的用户源码提供绝对 presentation
+path；嵌入标准源没有可保证存在的宿主路径，保持逻辑 fallback，不伪造编译机路径。

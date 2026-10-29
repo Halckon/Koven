@@ -116,7 +116,8 @@ fn assert_numeric_range_project(prefix: &str) {
             assert_eq!(executable.exists(), command == "build");
             let mut after = directory_snapshot(project.path());
             if command == "build" {
-                after.retain(|(path, _)| path != std::path::Path::new("numeric-range"));
+                super::build_outputs::assert_debug_bundle(&executable);
+                after.retain(|(path, _)| !super::build_outputs::is_final_output(&executable, path));
             }
             assert_eq!(after, before, "source bytes and temporary output cleanup");
         }

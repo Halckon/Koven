@@ -16,9 +16,9 @@
 | Phase 1 Parser | 2 | 0 | 0 | 2 | 0 | 0 | 4 |
 | Phase 2 名称/类型 | 24 | 8 | 2 | 24 | 0 | 0 | 58 |
 | Phase 3 所有权 | 18 | 7 | 2 | 10 | 0 | 0 | 37 |
-| Phase 4 SSA/native | 21 | 8 | 2 | 20 | 0 | 0 | 51 |
+| Phase 4 SSA/native | 21 | 8 | 3 | 19 | 0 | 0 | 51 |
 | Phase 5 标准库 | 2 | 0 | 0 | 9 | 0 | 0 | 11 |
-| Phase 6 工具 | 7 | 1 | 0 | 2 | 0 | 0 | 10 |
+| Phase 6 工具 | 7 | 1 | 1 | 1 | 0 | 0 | 10 |
 
 ## 矩阵
 
@@ -42,7 +42,7 @@
 | ✅ 已交付 | B16 | N1a 连续范围 carrier：take/drop/dropLast 与范围绑定局部控制流 | S0 | 已定义 |  |  | ● | ● | ● |  |  |
 | ✅ 已交付 | B17 | Rc<T> 核心路径与 Koven prelude（error、Pair、Result 源码） | S0 | 已定义 |  |  | ● | ● | ● |  |  |
 | ✅ 已交付 | B18 | kovenc build/run、本地 project、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter | S0 | 已定义 |  |  |  |  |  |  | ● |
-| ☐ 未开始 | B18d | CLI 最终调试产物与双宿主源码断点 | P0 | 已定义 |  |  |  |  | ● |  | ● |
+| ▶ 进行中 | B18d | CLI 最终调试产物与双宿主源码断点 | P0 | 已定义 |  |  |  |  | ● |  | ● |
 | ✅ 已交付 | B19 | 可执行 tour 与 Guide Litmus 门禁 | S0 | — |  |  |  |  |  |  | ● |
 | ✅ 已交付 | B20 | Linux ASan/LSan 有界接线与资源程序随机生成首片（M4b） | S0 | — |  |  |  |  | ● |  |  |
 | ✅ 已交付 | B21 | 双宿主 preview 包与独立安装验收 | S0 | — |  |  |  |  |  |  | ● |

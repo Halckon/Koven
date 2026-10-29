@@ -3,6 +3,9 @@
 #[path = "support/numeric_iteration_run.rs"]
 mod bounded_iteration_run;
 
+#[path = "support/build_outputs.rs"]
+mod build_outputs;
+
 #[path = "native_cli/enum_case_borrow.rs"]
 mod enum_case_borrow;
 
@@ -29,6 +32,9 @@ mod readonly_methods;
 
 #[path = "native_cli/builtin_result.rs"]
 mod builtin_result;
+
+#[path = "native_cli/final_debug_artifacts.rs"]
+mod final_debug_artifacts;
 
 use std::{
     ffi::OsStr,
@@ -549,4 +555,17 @@ fun main(): Unit {
     let executed = run([OsStr::new("run"), source.as_os_str()]);
     assert!(executed.status.success(), "{executed:?}");
     assert_eq!(executed.stdout, launched.stdout);
+}
+
+fn assert_build_entry_count(
+    root: &std::path::Path,
+    executable: &std::path::Path,
+    without_bundle: usize,
+) {
+    build_outputs::assert_debug_bundle(executable);
+    assert_eq!(
+        fs::read_dir(root).expect("build output directory").count(),
+        without_bundle + usize::from(cfg!(target_os = "macos")),
+        "only expected final outputs may remain"
+    );
 }

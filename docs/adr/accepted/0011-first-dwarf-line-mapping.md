@@ -125,3 +125,8 @@ backtrace 的可解释性。
 - 相关 ADR：ADR-0004、ADR-0007、ADR-0010
 - 取代的 ADR：无
 - 被以下 ADR 取代：无
+
+
+## 后续局部扩展
+
+[ADR-0035](0035-final-debug-artifact-publication.md)允许宿主显式提供 DIFile 文件名；逻辑身份、排序及运行时错误路径保持。其他决定不变。

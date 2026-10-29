@@ -31,5 +31,5 @@ fn single_numeric_range_iteration_executes_bounded_extremes_and_cleanup() {
         include_bytes!("../fixtures/integer-range-iteration-0329/success.stdout")
     );
     assert!(launched.stderr.is_empty(), "{launched:?}");
-    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
+    super::assert_build_entry_count(&directory.0, &executable, 2);
 }

@@ -135,3 +135,5 @@ actual-main CI [38150175528](https://github.com/Halckon/Koven/actions/runs/38150
 
 - [演进实施账本](../evolution-status.md)：语言能力与独立缺口
 - [完成 Spec Archive](../../archive/specs/README.md)：只按需追溯原验收
+
+- [0366 CLI 最终调试产物](0366-final-debug-artifacts.md)：已批准发布决定，实施及双宿主源码断点验收进行中。
