@@ -4,80 +4,15 @@ use lang_frontend::{
     name_resolution::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
-    ownership_checking::{
-        LoanTarget, UnitLoanTarget, check_compilation_unit_ownership, check_ownership,
-    },
+    ownership_checking::{UnitLoanTarget, check_compilation_unit_ownership, check_ownership},
     parser::parse_file,
     source::SourceMap,
     type_checking::{check_compilation_unit_types, check_types, standard_environments},
 };
 
-#[test]
-fn trusted_list_receiver_return_publishes_an_actual_source_qualified_root() {
-    let mut sources = SourceMap::new();
-    let source = sources
-        .add_source(
-            "loaded.ko",
-            "borrow fun <T> List<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, 0)",
-        )
-        .unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (environment, mut types) = standard_environments();
-    types.authorize_range_source(&sources, source).unwrap();
-    types
-        .authorize_range_extension_source(&sources, source)
-        .unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
-    let [returned] = owned.borrow_results().range_return_origins() else {
-        panic!("actual receiver return")
-    };
-    let LoanTarget::Place(root) = returned.origin() else {
-        panic!("bound receiver place")
-    };
-    let receiver = &names.symbols()[root.root().index()];
-    assert!(receiver.is_synthetic());
-    assert_eq!(receiver.name(), "this");
-    assert_eq!(receiver.span().source_id(), source);
-    let inputs = [SourceUnitInput::new("std", "loaded.ko", source, &parsed)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let typed = typed.validate().unwrap();
-    let owned =
-        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let [returned] = owned.borrow_results().range_return_origins() else {
-        panic!("unit actual receiver return")
-    };
-    let UnitLoanTarget::Place(root) = returned.origin() else {
-        panic!("unit bound receiver place")
-    };
-    let symbol = root.root();
-    let receiver = &names.names().source_units()[symbol.source_unit().index()]
-        .resolution()
-        .symbols()[symbol.symbol().index()];
-    assert!(receiver.is_synthetic());
-    assert_eq!(receiver.name(), "this");
-    assert_eq!(receiver.span().source_id(), source);
-    assert!(owned.validate().is_ok());
-}
-
-fn checked(
+// Unit loan descriptors do not expose the legacy independent loan-end event table.
+// Retain this path and its original event assertions, not a descriptor approximation.
+fn legacy_checked(
     text: &str,
 ) -> (
     SourceMap,
@@ -116,6 +51,124 @@ fn checked(
     (sources, single, unit)
 }
 
+#[test]
+fn trusted_list_receiver_return_publishes_an_actual_source_qualified_root() {
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source(
+            "loaded.ko",
+            "borrow fun <T> List<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, 0)",
+        )
+        .unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let (environment, mut types) = standard_environments();
+    types.authorize_range_source(&sources, source).unwrap();
+    types
+        .authorize_range_extension_source(&sources, source)
+        .unwrap();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let names = names.validate().unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let typed = typed.validate().unwrap();
+    let owned =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    let [returned] = owned.borrow_results().range_return_origins() else {
+        panic!("actual receiver return")
+    };
+    let UnitLoanTarget::Place(root) = returned.origin() else {
+        panic!("bound receiver place")
+    };
+    let symbol = root.root();
+    let receiver = &names.names().source_units()[symbol.source_unit().index()]
+        .resolution()
+        .symbols()[symbol.symbol().index()];
+    assert!(receiver.is_synthetic());
+    assert_eq!(receiver.name(), "this");
+    assert_eq!(receiver.span().source_id(), source);
+    let inputs = [SourceUnitInput::new("std", "loaded.ko", source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let typed = typed.validate().unwrap();
+    let owned =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let [returned] = owned.borrow_results().range_return_origins() else {
+        panic!("unit actual receiver return")
+    };
+    let UnitLoanTarget::Place(root) = returned.origin() else {
+        panic!("unit bound receiver place")
+    };
+    let symbol = root.root();
+    let receiver = &names.names().source_units()[symbol.source_unit().index()]
+        .resolution()
+        .symbols()[symbol.symbol().index()];
+    assert!(receiver.is_synthetic());
+    assert_eq!(receiver.name(), "this");
+    assert_eq!(receiver.span().source_id(), source);
+    assert!(owned.validate().is_ok());
+}
+
+// Primary single-document consumer uses source-qualified Unit facts.
+fn checked(
+    text: &str,
+) -> (
+    SourceMap,
+    lang_frontend::ownership_checking::CompilationUnitOwnership,
+    lang_frontend::ownership_checking::CompilationUnitOwnership,
+) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("receiver.ko", text).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let (environment, mut types) = standard_environments();
+    types.authorize_range_source(&sources, source).unwrap();
+    types
+        .authorize_range_extension_source(&sources, source)
+        .unwrap();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let names = names.validate().unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let typed = typed.validate().unwrap();
+    let single =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    let inputs = [SourceUnitInput::new("root", "receiver.ko", source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    (sources, single, unit)
+}
+
 const RECEIVERS: &str = "borrow fun <T> List<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, count)\nborrow fun <T> View<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, count)\n";
 
 #[test]
@@ -128,7 +181,7 @@ fn named_receiver_continues_each_real_root_loan_until_dependent_bindings_end() {
         let text = format!(
             "{RECEIVERS}class Item(val value: Int) {{}}\nclass Resource {{ deinit() {{}} }}\nfun alias(source: View<{element}>): borrow View<{element}> from source = source\nfun inspect(source: View<{element}>): Unit {{}}\nfun consume(own source: List<{element}>): Unit {{}}\nfun run(): Unit {{ val root = listOf({value}); borrow val parent = root.prefix(1); borrow val child = parent.prefix(1); borrow val metadata = alias(child); inspect(metadata); inspect(parent); consume(root) }}"
         );
-        let (_, single, unit) = checked(&text);
+        let (_, single, unit) = legacy_checked(&text);
         for diagnostics in [single.diagnostics(), unit.diagnostics()] {
             assert!(diagnostics.is_empty(), "{diagnostics:?}");
         }
@@ -212,9 +265,7 @@ fn named_receiver_continues_each_real_root_loan_until_dependent_bindings_end() {
 
 #[test]
 fn temporary_receiver_chain_publishes_source_loans_for_the_actual_immediate_consumer() {
-    use lang_frontend::ownership_checking::{
-        DropPoint, DropTarget, RangeUseSite, UnitDropPoint, UnitDropTarget,
-    };
+    use lang_frontend::ownership_checking::{RangeUseSite, UnitDropPoint, UnitDropTarget};
     for (element, value) in [
         ("String", "\"kept\""),
         ("Item", "Item(1)"),
@@ -230,7 +281,7 @@ fn temporary_receiver_chain_publishes_source_loans_for_the_actual_immediate_cons
         assert_eq!(single.borrow_results().range_uses().len(), 2);
         assert_eq!(unit.borrow_results().range_uses().len(), 2);
         let root = single.borrow_results().range_uses()[0].origin();
-        let LoanTarget::Temporary(root_expression) = root else {
+        let UnitLoanTarget::Temporary(root_expression) = root else {
             panic!("actual temporary root")
         };
         assert_eq!(single.borrow_results().range_uses()[1].origin(), root);
@@ -240,10 +291,10 @@ fn temporary_receiver_chain_publishes_source_loans_for_the_actual_immediate_cons
         let cleanup: Vec<_> = single
             .drops()
             .iter()
-            .filter(|drop| drop.target() == DropTarget::Temporary(*root_expression))
+            .filter(|drop| drop.target() == UnitDropTarget::Temporary(*root_expression))
             .collect();
         assert_eq!(cleanup.len(), 1);
-        assert_eq!(cleanup[0].point(), DropPoint::CallReturn(consumer));
+        assert_eq!(cleanup[0].point(), UnitDropPoint::CallReturn(consumer));
         let root = unit.borrow_results().range_uses()[0].origin();
         let UnitLoanTarget::Temporary(root_expression) = root else {
             panic!("unit actual temporary root")
@@ -378,7 +429,7 @@ fn receiver_element_loans_protect_root_and_end_before_scope_restores_permission(
     }
     assert_eq!(single.iterations().len(), 1);
     assert_eq!(unit.iterations().len(), 1);
-    let Some(LoanTarget::Place(metadata)) = single.iterations()[0].source() else {
+    let Some(UnitLoanTarget::Place(metadata)) = single.iterations()[0].source() else {
         panic!("named provider metadata")
     };
     assert_eq!(
