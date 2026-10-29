@@ -28,6 +28,9 @@ impl UnitExpressionLowerer<'_> {
             return Ok(LoweredValue::Diverged);
         };
         let operation = match (kind, lowered.arguments.as_slice()) {
+            (TextPrimitiveKind::Utf8ErrorOffset, [EntityId::Loan(source)]) => {
+                Operation::Utf8ErrorOffset { source: *source }
+            }
             (TextPrimitiveKind::ByteLength, [EntityId::Loan(source)]) => {
                 Operation::StringByteLength { source: *source }
             }

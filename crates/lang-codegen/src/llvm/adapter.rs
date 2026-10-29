@@ -415,9 +415,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.values.insert(*result, value.into());
             }
-            Operation::StringByteLength { .. } | Operation::StringByteAt { .. } => {
-                self.lower_text_read(instruction, &results)?;
-            }
+            Operation::StringByteLength { .. }
+            | Operation::StringByteAt { .. }
+            | Operation::Utf8ErrorOffset { .. } => self.lower_text_read(instruction, &results)?,
             Operation::StringEqual { left, right } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("string equal", 1, results.len()));

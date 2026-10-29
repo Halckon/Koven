@@ -143,3 +143,62 @@ fun main(): Unit {
     let run = crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
     crate::native_tests::boxed_enum_tests::assert_success(&run, b"4\nA\0\xc3\xa9\n0\n");
 }
+
+#[test]
+fn trusted_utf8_scan_reports_sequence_start_and_preserves_byte_array() {
+    let mut sources = SourceMap::new();
+    let (text_id, text) = support::parsed(
+        &mut sources,
+        "text.ko",
+        r#"package koven.text
+fun checkBytes(): Unit {
+    val bytes = Array<UByte>(3, { index -> if (index == 0) 65 else if (index == 1) 226 else 130 })
+    if (textUtf8ErrorOffset(bytes) != 1) { error("truncated sequence start") }
+    if (bytes.size != 3) { error("source retained") }
+    if (textUtf8ErrorOffset(Array<UByte>(0, { index -> 0 })) != -1) { error("empty") }
+    if (textUtf8ErrorOffset(Array<UByte>(1, { index -> 0 })) != -1) { error("nul") }
+    println("utf8")
+}
+"#,
+    );
+    let (app_id, app) = support::parsed(
+        &mut sources,
+        "app.ko",
+        "package app\nimport koven.text.checkBytes\nfun main(): Unit { checkBytes() }",
+    );
+    let inputs = [
+        SourceUnitInput::new("std", "koven/text/text.ko", text_id, &text),
+        SourceUnitInput::new("app", "app/Main.ko", app_id, &app),
+    ];
+    let (environment, mut types) = standard_environments();
+    types.authorize_text_source(&sources, text_id).unwrap();
+    let (names, typed, owned) = support::analyze(&sources, &inputs, &environment, &types);
+    let (program, entry) = super::unit_lower::lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &types,
+        &typed,
+        &owned,
+        support::declaration(&names, "app", "main"),
+    )
+    .unwrap();
+    super::verify::verify_program(&program).unwrap();
+    assert_eq!(
+        program.modules[0]
+            .functions
+            .iter()
+            .flat_map(|f| &f.instructions)
+            .filter(|i| matches!(i.operation, Operation::Utf8ErrorOffset { .. }))
+            .count(),
+        3
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert_eq!(
+        llvm.matches("define internal i64 @koven.utf8.error_offset(")
+            .count(),
+        1
+    );
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 2);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"utf8\n");
+}

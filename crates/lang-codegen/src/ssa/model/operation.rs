@@ -31,6 +31,10 @@ pub(crate) enum Operation {
         source: LoanId,
         index: ValueId,
     },
+    /// Strictly scan an active shared Array<UByte> loan; -1 means valid UTF-8.
+    Utf8ErrorOffset {
+        source: LoanId,
+    },
     /// 按 UTF-8 bytes 比较两个 String view，不进行 Unicode normalization。
     StringEqual {
         left: EntityId,
@@ -433,7 +437,9 @@ impl Operation {
                 vec![*left, *right]
             }
             Self::PrintString { value } => vec![EntityId::Loan(*value)],
-            Self::StringClone { source } | Self::StringByteLength { source } => {
+            Self::StringClone { source }
+            | Self::StringByteLength { source }
+            | Self::Utf8ErrorOffset { source } => {
                 vec![EntityId::Loan(*source)]
             }
             Self::StringByteAt { source, index } => {

@@ -134,3 +134,15 @@ loan 的用例。独立静态审查未发现确认实现缺陷；指出 ended-lo
 也在该 receiver fixture 的 L0084 类型检查处失败；frontend lib 229 passed、0 failed、
 0 ignored，codegen 2477 passed、1 failed、1 ignored。忽略项仍为需要 debugserver 权限的
 LLDB 断点用例，不能算通过。当前字节读取片的尺寸门禁通过，未增加尺寸例外。
+
+输入 `a49749498294620eec65229de3bec57cf6955c8d` 的
+[Linux 编译门禁](https://github.com/Halckon/Koven/actions/runs/40930435335/job/123647622119)
+发现 UTF-8 native fixture 使用了 Inkwell FunctionValue 不提供的 set_name；已核对锁定依赖
+0.11.0 的真实 API，改用 as_global_value().set_name，独立提交修复。该 head 尚无新增 native
+通过证据。
+
+当前新增 Utf8ErrorOffset 的 Array<UByte> shared-loan SSA 接入，unit 调用复用原有参数
+清理；LLVM 复用共享 scanner，将合法标记映射为 Int -1。测试补充截断序列起点、空数组、NUL、
+输入数组继续可用，以及 List／Int 元素／signed Byte／exclusive／ended／错误返回类型的精确
+instruction 拒绝矩阵。独立静态审查确认构造、header、Int 映射、分配计数和错误定位，无确认
+缺陷；这些新增用例仍未编译执行，不代表 decodeUtf8 公共 API 已交付。

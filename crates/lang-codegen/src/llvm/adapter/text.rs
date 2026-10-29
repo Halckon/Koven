@@ -14,6 +14,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         };
         let name = value_name(*result);
         let value = match instruction.operation {
+            Operation::Utf8ErrorOffset { source } => {
+                return self.lower_utf8_error_offset(source, results);
+            }
             Operation::StringByteLength { source } => {
                 let view = self.string_view(EntityId::Loan(source))?;
                 // Every live String was checked against Int.MAX_VALUE at creation.
@@ -66,6 +69,65 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 ));
             }
         };
+        self.values.insert(*result, value.into());
+        Ok(())
+    }
+}
+
+impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+    FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+{
+    pub(super) fn lower_utf8_error_offset(
+        &mut self,
+        source: LoanId,
+        results: &[ValueId],
+    ) -> Result<(), LlvmAdapterError> {
+        let [result] = results else {
+            return Err(invalid_result_count("utf8 error offset", 1, results.len()));
+        };
+        let name = value_name(*result);
+        let ty = access_type(self.function, PlaceAccess::Loan(source))?;
+        let header = self
+            .builder
+            .build_load(
+                self.dependencies.type_map.basic_type(ty)?,
+                self.access(PlaceAccess::Loan(source))?,
+                &format!("{name}.array"),
+            )?
+            .into_struct_value();
+        let bytes = self
+            .builder
+            .build_extract_value(header, 0, &format!("{name}.bytes"))?
+            .into_pointer_value();
+        let length = self
+            .builder
+            .build_extract_value(header, 1, &format!("{name}.length"))?
+            .into_int_value();
+        let scanner = crate::llvm::utf8::define_error_offset(
+            self.context,
+            self.llvm,
+            self.dependencies.runtime.size_type(),
+        )?;
+        let offset = match self
+            .builder
+            .build_call(
+                scanner,
+                &[bytes.into(), length.into()],
+                &format!("{name}.offset"),
+            )?
+            .try_as_basic_value()
+        {
+            ValueKind::Basic(value) => value.into_int_value(),
+            ValueKind::Instruction(_) => {
+                return Err(LlvmAdapterError::Build(
+                    "UTF-8 scanner returned void".to_owned(),
+                ));
+            }
+        };
+        // Array length is bounded by Int.MAX_VALUE; all-ones success becomes Int -1.
+        let value = self
+            .builder
+            .build_int_cast(offset, self.context.i32_type(), &name)?;
         self.values.insert(*result, value.into());
         Ok(())
     }

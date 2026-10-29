@@ -144,3 +144,124 @@ fn byte_read_native_checks_negative_end_and_empty_before_dereferencing() {
         }
     }
 }
+
+#[test]
+fn utf8_scan_requires_exact_array_ubyte_active_shared_loan_and_int_result() {
+    use crate::ssa::model::SequentialContainerKind;
+    for case in [
+        "valid",
+        "list",
+        "int-element",
+        "signed-byte",
+        "exclusive",
+        "ended",
+        "result",
+    ] {
+        let origin = origin();
+        let mut program = Program::default();
+        let module_id = program.add_module("utf8-contract");
+        let module = program.module_mut(module_id).unwrap();
+        let int = module.intern_type(SsaTypeKind::Integer {
+            bits: 32,
+            signed: true,
+        });
+        let byte = module.intern_type(SsaTypeKind::Integer {
+            bits: 8,
+            signed: case == "signed-byte",
+        });
+        let array = module.intern_type(SsaTypeKind::SequentialContainer {
+            kind: if case == "list" {
+                SequentialContainerKind::List
+            } else {
+                SequentialContainerKind::Array
+            },
+            element: if case == "int-element" { int } else { byte },
+        });
+        let function_id = module.add_function("scan", vec![], origin.clone()).unwrap();
+        let function = module.function_mut(function_id).unwrap();
+        let block = function.add_block(vec![], origin.clone()).unwrap();
+        let owner = value(
+            append(
+                function,
+                block,
+                Operation::ContainerConstruct {
+                    container: array,
+                    elements: vec![],
+                },
+                vec![EntityType::Value(array)],
+                &origin,
+            )[0],
+        );
+        let EntityId::Place(place) = append(
+            function,
+            block,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(array)],
+            &origin,
+        )[0] else {
+            panic!("place");
+        };
+        let kind = if case == "exclusive" {
+            LoanKind::Exclusive
+        } else {
+            LoanKind::Shared
+        };
+        let source = loan(
+            append(
+                function,
+                block,
+                Operation::BorrowBegin { place, kind },
+                vec![EntityType::Loan {
+                    kind,
+                    target: array,
+                }],
+                &origin,
+            )[0],
+        );
+        if case == "ended" {
+            append(
+                function,
+                block,
+                Operation::BorrowEnd { loan: source },
+                vec![],
+                &origin,
+            );
+        }
+        let (instruction, _) = function
+            .append_instruction(
+                block,
+                Operation::Utf8ErrorOffset { source },
+                vec![EntityType::Value(if case == "result" { byte } else { int })],
+                origin.clone(),
+            )
+            .unwrap();
+        if case != "ended" {
+            append(
+                function,
+                block,
+                Operation::BorrowEnd { loan: source },
+                vec![],
+                &origin,
+            );
+        }
+        append(function, block, Operation::Drop { owner }, vec![], &origin);
+        function
+            .set_terminator(block, TerminatorKind::Return { values: vec![] }, origin)
+            .unwrap();
+        if case == "valid" {
+            verify_program(&program).unwrap();
+        } else {
+            let errors = verify_program(&program).expect_err(case);
+            assert!(
+                errors.errors.iter().any(|error| error.location
+                    == crate::ssa::verify::VerifyLocation::Instruction(instruction)
+                    && if case == "ended" {
+                        matches!(error.kind, VerifyErrorKind::LoanInactive { .. })
+                    } else {
+                        matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+                    }),
+                "{case}: {errors:?}"
+            );
+        }
+    }
+}

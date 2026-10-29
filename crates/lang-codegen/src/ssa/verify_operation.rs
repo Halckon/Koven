@@ -3,6 +3,7 @@
 mod integer;
 mod integer_range;
 mod range;
+mod text;
 pub(super) use range::{
     parameter as range_parameter, return_contract as range_return_contract,
     verify_signature as range_verify_signature,
@@ -67,6 +68,10 @@ pub(super) fn verify_operation(
                         })
                     )
                 })
+        }
+        Operation::Utf8ErrorOffset { source } => {
+            text::shared_byte_array(module, function, *source)
+                && single_value_result(&results).is_some_and(|ty| is_koven_int(module, ty))
         }
         Operation::StringEqual { left, right } => {
             string_binary_contract(module, function, *left, *right, &results, true)

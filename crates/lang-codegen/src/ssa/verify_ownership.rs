@@ -396,7 +396,7 @@ fn apply_operation(
                 errors,
             );
         }
-        Operation::PrintString { value } => {
+        Operation::PrintString { value } | Operation::Utf8ErrorOffset { source: value } => {
             if !state.loans.contains(value) {
                 errors.push(error(
                     VerifyErrorKind::LoanInactive { loan: *value },
