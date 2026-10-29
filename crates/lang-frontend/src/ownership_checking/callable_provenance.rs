@@ -161,6 +161,15 @@ return_summary!(
     UnitPointerCallableReturnOrigin,
     UnitTypeId
 );
+// SPEC-0365: the single normally returned capturing (move) lambda of a source factory. Its
+// environment travels in the returned closure value; `origin` is the lambda expression.
+return_summary!(
+    UnitClosureCallableReturnSummary,
+    UnitCallableTarget,
+    UnitExpressionId,
+    UnitExpressionId,
+    UnitTypeId
+);
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct FileCallableFacts {
@@ -172,6 +181,7 @@ pub(super) struct FileCallableFacts {
 pub(super) struct UnitCallableFacts {
     pub(super) origins: Vec<UnitCallableOriginFact>,
     pub(super) returns: Vec<UnitPointerCallableReturnSummary>,
+    pub(super) closure_returns: Vec<UnitClosureCallableReturnSummary>,
 }
 
 impl OwnershipCheckedFile {
@@ -231,6 +241,22 @@ impl CompilationUnitOwnership {
         target: UnitCallableTarget,
     ) -> Option<&UnitPointerCallableReturnSummary> {
         self.pointer_callable_returns()
+            .iter()
+            .find(|summary| summary.target == target)
+    }
+    /// SPEC-0365: factories whose one normal return is a capturing (move) lambda.
+    #[must_use]
+    pub fn closure_callable_returns(&self) -> &[UnitClosureCallableReturnSummary] {
+        &self.callable_provenance.closure_returns
+    }
+    /// The capturing-lambda return of a completed source factory with one proved delivery;
+    /// disjoint from [`Self::pointer_callable_return`].
+    #[must_use]
+    pub fn closure_callable_return(
+        &self,
+        target: UnitCallableTarget,
+    ) -> Option<&UnitClosureCallableReturnSummary> {
+        self.closure_callable_returns()
             .iter()
             .find(|summary| summary.target == target)
     }

@@ -6,7 +6,8 @@ use crate::{
     name_resolution::{UnitReferenceTarget, UnitSymbolId},
     ownership_checking::{
         OwnershipCheckingError, UnitCallableOrigin, UnitCallableOriginFact,
-        UnitPointerCallableReturnOrigin, UnitPointerCallableReturnSummary,
+        UnitClosureCallableReturnSummary, UnitPointerCallableReturnOrigin,
+        UnitPointerCallableReturnSummary,
         callable_provenance::{
             UnitCallableFacts,
             graph::{Collector, ReturnFrame},
@@ -307,6 +308,7 @@ pub(super) fn finish(
     let graph = collection.arena.borrow();
     let initial = graph.solve(|origin| !matches!(origin, UnitCallableOrigin::FactoryResult(_)));
     let mut returns = Vec::new();
+    let mut closure_returns = Vec::new();
     for frame in &collection.returns {
         let [(expression, node, span, true)] = frame.deliveries.as_slice() else {
             continue;
@@ -316,6 +318,18 @@ pub(super) fn finish(
                 if !captures.iter().any(|capture| capture.lambda() == lambda) =>
             {
                 UnitPointerCallableReturnOrigin::Lambda(lambda)
+            }
+            // A capturing return is a move closure (a borrowed one is rejected, L0137); its
+            // environment travels in the value, so it is a closure return, not a pointer.
+            Some(UnitCallableOrigin::Lambda(lambda)) => {
+                closure_returns.push(UnitClosureCallableReturnSummary::new(
+                    frame.target,
+                    *expression,
+                    lambda,
+                    frame.function_type,
+                    *span,
+                ));
+                continue;
             }
             Some(UnitCallableOrigin::KnownFunction(target)) => {
                 UnitPointerCallableReturnOrigin::KnownFunction(target)
@@ -331,9 +345,16 @@ pub(super) fn finish(
         ));
     }
     returns.sort_by_key(|summary| summary.target());
+    closure_returns.sort_by_key(|summary| summary.target());
     let solved = graph.solve(|origin| match origin {
-        UnitCallableOrigin::FactoryResult(call) => factory_target(typed, call)
-            .is_some_and(|target| returns.iter().any(|summary| summary.target() == target)),
+        UnitCallableOrigin::FactoryResult(call) => {
+            factory_target(typed, call).is_some_and(|target| {
+                returns.iter().any(|summary| summary.target() == target)
+                    || closure_returns
+                        .iter()
+                        .any(|summary| summary.target() == target)
+            })
+        }
         _ => true,
     });
     let origins = collection
@@ -345,5 +366,9 @@ pub(super) fn finish(
                 .map(|origin| UnitCallableOriginFact::new(*expression, origin, *span))
         })
         .collect();
-    UnitCallableFacts { origins, returns }
+    UnitCallableFacts {
+        origins,
+        returns,
+        closure_returns,
+    }
 }
