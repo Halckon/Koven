@@ -9,7 +9,7 @@ use lang_frontend::{
     type_checking::{check_compilation_unit_types, check_types, standard_environments},
 };
 
-fn stage_codes(text: &str) -> (Vec<String>, Vec<String>) {
+fn stage_codes(text: &str) -> (Vec<String>, Vec<String>, Vec<String>) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("range_type.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -32,6 +32,25 @@ fn stage_codes(text: &str) -> (Vec<String>, Vec<String>) {
             .iter()
             .map(|d| d.code().to_string()),
     );
+    // Legacy raw typing deliberately continues after name errors; Unit validates first.
+    // Preserve the legacy diagnostics above and apply the same original oracles below.
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+    let mut memory: Vec<_> = names
+        .diagnostics()
+        .iter()
+        .map(|d| d.code().to_string())
+        .collect();
+    if let Ok(names) = names.validate() {
+        memory.extend(
+            check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string()),
+        );
+    }
     let inputs = [SourceUnitInput::new(
         "root",
         "range_type.ko",
@@ -54,7 +73,7 @@ fn stage_codes(text: &str) -> (Vec<String>, Vec<String>) {
                 .map(|d| d.code().to_string()),
         );
     }
-    (single, unit)
+    (memory, unit, single)
 }
 
 #[test]
@@ -64,9 +83,10 @@ fn compiler_bound_view_is_available_as_a_non_owning_parameter() {
         "fun inspect(borrow source: View<String>): Unit {}",
         "class Item(val number: Int) {}\nfun inspect(source: View<Item>): Unit {}",
     ] {
-        let (single, unit) = stage_codes(text);
+        let (single, unit, legacy) = stage_codes(text);
         assert!(single.is_empty(), "single {text}: {single:?}");
         assert!(unit.is_empty(), "unit {text}: {unit:?}");
+        assert!(legacy.is_empty(), "legacy {text}: {legacy:?}");
     }
 }
 
@@ -80,8 +100,8 @@ fn range_type_cannot_be_optional_owned_or_stored_in_an_aggregate() {
         "fun reject(source: List<View<Int>>): Unit {}",
         "fun reject(source: Map<Int, View<String>>): Unit {}",
     ] {
-        let (single, unit) = stage_codes(text);
-        for (label, codes) in [("single", single), ("unit", unit)] {
+        let (single, unit, legacy) = stage_codes(text);
+        for (label, codes) in [("memory", single), ("unit", unit), ("legacy", legacy)] {
             assert!(
                 codes.iter().any(|c| c == "L0163"),
                 "{label} must reject non-escaping storage, {text}: {codes:?}"
@@ -93,8 +113,8 @@ fn range_type_cannot_be_optional_owned_or_stored_in_an_aggregate() {
 #[test]
 fn plain_result_cannot_deliver_a_range_as_an_owned_value() {
     let text = "fun reject(source: View<Int>): View<Int> = source";
-    let (single, unit) = stage_codes(text);
-    for codes in [single, unit] {
+    let (single, unit, legacy) = stage_codes(text);
+    for codes in [single, unit, legacy] {
         assert!(codes.iter().any(|c| c == "L0162"), "{codes:?}");
     }
 }
@@ -102,9 +122,10 @@ fn plain_result_cannot_deliver_a_range_as_an_owned_value() {
 #[test]
 fn source_nominal_named_view_does_not_gain_carrier_restrictions() {
     let text = "class View(val value: Int) {}\nclass Holder(val value: View) {}\nfun ordinary(own source: View): View = source";
-    let (single, unit) = stage_codes(text);
+    let (single, unit, legacy) = stage_codes(text);
     assert!(single.is_empty(), "{single:?}");
     assert!(unit.is_empty(), "{unit:?}");
+    assert!(legacy.is_empty(), "{legacy:?}");
 }
 
 #[test]
@@ -116,8 +137,8 @@ fn inferred_local_and_generic_argument_cannot_hide_a_range_carrier() {
         "fun <T> accept(source: T): Unit {}\nfun reject(source: View<Int>): Unit { accept(source) }",
         "fun <T> accept(source: T): Unit {}\nfun reject(source: View<Int>): Unit { accept<View<Int>>(source) }",
     ] {
-        let (single, unit) = stage_codes(text);
-        for (label, codes) in [("single", single), ("unit", unit)] {
+        let (single, unit, legacy) = stage_codes(text);
+        for (label, codes) in [("memory", single), ("unit", unit), ("legacy", legacy)] {
             assert!(
                 codes.iter().any(|c| c == "L0163"),
                 "{label} {text}: {codes:?}"
@@ -137,8 +158,8 @@ fn new_carrier_source_contract_rejects_invalid_parameters_and_result_shapes() {
         "fun reject(source: List<String>): View<Int> from source {}",
         "fun reject(source: List<Int>): Int from source {}",
     ] {
-        let (single, unit) = stage_codes(text);
-        for (label, codes) in [("single", single), ("unit", unit)] {
+        let (single, unit, legacy) = stage_codes(text);
+        for (label, codes) in [("memory", single), ("unit", unit), ("legacy", legacy)] {
             assert!(
                 codes.iter().any(|c| c == "L0162"),
                 "{label} {text}: {codes:?}"
@@ -155,9 +176,12 @@ fn carrier_delivery_contract_preserves_real_from_and_named_source_mapping_under_
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
     assert!(parsed.diagnostics().is_empty());
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let names = names.validate().unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     let call = typed
         .calls()
         .iter()
@@ -176,8 +200,10 @@ fn carrier_delivery_contract_preserves_real_from_and_named_source_mapping_under_
     assert!(call.borrow_return().is_none());
     assert!(
         typed
-            .callables()
+            .signatures()
+            .declarations()
             .iter()
+            .filter_map(|declaration| declaration.callable())
             .any(|c| matches!(c.result_source(), CallableResultSource::Borrow(_)))
     );
     assert!(
