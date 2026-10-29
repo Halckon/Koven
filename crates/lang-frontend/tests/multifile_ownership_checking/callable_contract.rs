@@ -509,6 +509,58 @@ fn callable_contract_legal_multiple_and_capturing_returns_publish_no_summary() {
     assert!(fixture.owned.pointer_callable_returns().is_empty());
 }
 
+/// SPEC-0365: a capturing (move) lambda return is published as a closure return, disjoint
+/// from pointer returns, and its call sites resolve as factory results.
+#[test]
+fn callable_contract_capturing_return_publishes_a_closure_summary() {
+    let provider = format!(
+        "{PROVIDER}\n\
+        fun captured(own label: String): (Int)->Boolean = move {{ index -> label == \"kept\" && index == 0 }}\n\
+        fun multiple(flag: Boolean, own label: String): (Int)->Boolean {{ val first: (Int)->Boolean = move {{ index -> label == \"a\" }}\nval second: (Int)->Boolean = {{ index -> index == 1 }}\nif(flag) {{ return first }}\nreturn second }}"
+    );
+    let fixture = preflight(
+        &provider,
+        "package q\nimport p.captured\nfun use(): Unit { val check = captured(\"kept\")\ncheck(0) }",
+    );
+    let summary = fixture
+        .owned
+        .closure_callable_return(target(&fixture, "captured"))
+        .expect("one normal capturing return");
+    let provider_unit = source_unit(&fixture.names, fixture.provider_source);
+    let lambda = expression(
+        &fixture.sources,
+        &fixture.provider,
+        provider_unit,
+        "move { index -> label == \"kept\" && index == 0 }",
+    );
+    assert_eq!(summary.origin(), lambda);
+    assert!(fixture.owned.captures_of(lambda).next().is_some());
+    assert!(
+        fixture
+            .owned
+            .pointer_callable_return(target(&fixture, "captured"))
+            .is_none(),
+        "a closure return is never an empty-environment pointer return"
+    );
+    assert!(
+        fixture
+            .owned
+            .closure_callable_return(target(&fixture, "multiple"))
+            .is_none(),
+        "two normal returns have no unique source"
+    );
+    let call = expression(
+        &fixture.sources,
+        &fixture.consumer,
+        source_unit(&fixture.names, fixture.consumer_source),
+        "captured(\"kept\")",
+    );
+    assert!(matches!(
+        fixture.owned.callable_origin(call).map(|fact| fact.origin()),
+        Some(UnitCallableOrigin::FactoryResult(origin)) if origin == call
+    ));
+}
+
 #[test]
 fn callable_contract_loop_fixed_point_preserves_stable_and_overwritten_origins() {
     let stable = preflight(
