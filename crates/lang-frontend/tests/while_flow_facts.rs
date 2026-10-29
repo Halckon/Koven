@@ -1,25 +1,29 @@
 //! SPEC-0330 首批：普通源码的 while 保守 flow；只到 raw / complete 类型入口。
-//! 每组先收集并打印全部源码、两个入口和 marker 事实，再执行 oracle。
+//! 每组先收集并打印全部源码、MemoryDocument / rooted Unit 两种来源和 marker 事实，再执行 oracle。
 //! 不修改 typed facts，不检查 ownership，不执行 Koven 源码或 native 产物。
 use lang_frontend::{
     ast::ExpressionId,
     diagnostic::Diagnostic,
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::{Expression, ParsedFile, parse_file},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, CompilationUnitTypes, DeferredReason, FinalTypeAdmissionError, TypeId,
-        TypeKind, TypedFile, UnitExpressionId, UnitTypeId, UnitTypeKind,
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, DeferredReason, FinalTypeAdmissionError,
+        UnitExpressionId, UnitTypeId, UnitTypeKind, check_compilation_unit_types,
+        complete_compilation_unit_types, standard_environments,
     },
 };
 
 #[path = "while_flow_facts/null_comparison_fallback.rs"]
 mod null_comparison_fallback;
+
+// Preserve the rooted Unit control while migrating the legacy single-file path.
+#[derive(Clone, Copy, Debug)]
+enum SourceMode {
+    MemoryDocument,
+    RootedUnit,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Shape {
@@ -113,28 +117,6 @@ struct Observation {
     typed: Result<TypeObservation, String>,
 }
 
-fn single_shape(typed: &TypedFile, id: TypeId) -> Shape {
-    match typed.types().get(id) {
-        Some(TypeKind::Builtin(BuiltinType::Int)) => Shape::Int,
-        Some(TypeKind::Builtin(BuiltinType::Boolean)) => Shape::Boolean,
-        Some(TypeKind::Builtin(BuiltinType::Unit)) => Shape::Unit,
-        Some(TypeKind::Nullable(inner))
-            if typed.types().get(*inner) == Some(&TypeKind::Builtin(BuiltinType::Int)) =>
-        {
-            Shape::NullableInt
-        }
-        Some(TypeKind::Error) => Shape::Error,
-        Some(TypeKind::Nominal { .. }) => Shape::Nominal,
-        Some(TypeKind::Nullable(inner))
-            if matches!(typed.types().get(*inner), Some(TypeKind::Nominal { .. })) =>
-        {
-            Shape::NullableNominal
-        }
-        Some(TypeKind::Deferred(reason)) => Shape::Deferred(*reason),
-        _ => Shape::Other,
-    }
-}
-
 fn unit_shape(typed: &CompilationUnitTypes, id: UnitTypeId) -> Shape {
     match typed.types().get(id) {
         Some(UnitTypeKind::Builtin(BuiltinType::Int)) => Shape::Int,
@@ -222,13 +204,13 @@ fn primary_text(sources: &SourceMap, diagnostics: &[Diagnostic]) -> Vec<String> 
 }
 
 // 此处不作成功断言。基础设施错误也作为 observation 返回，避免第一例失败遮住后续证据。
-fn observe(case: &Case, unit_mode: bool) -> Result<Observation, String> {
-    observe_with_comparisons(case, unit_mode, false)
+fn observe(case: &Case, mode: SourceMode) -> Result<Observation, String> {
+    observe_with_comparisons(case, mode, false)
 }
 
 fn observe_with_comparisons(
     case: &Case,
-    unit_mode: bool,
+    mode: SourceMode,
     collect_comparisons: bool,
 ) -> Result<Observation, String> {
     let mut sources = SourceMap::new();
@@ -238,8 +220,11 @@ fn observe_with_comparisons(
     let tokens = lex(&sources, source).map_err(|error| format!("lex: {error:?}"))?;
     let file = parse_file(&sources, &tokens).map_err(|error| format!("parse: {error:?}"))?;
     let (environment, types) = standard_environments();
-    let (name_diagnostics, typed) = if unit_mode {
-        let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
+    let (name_diagnostics, typed) = {
+        let inputs = [match mode {
+            SourceMode::MemoryDocument => SourceUnitInput::memory_document(source, &file),
+            SourceMode::RootedUnit => SourceUnitInput::new("root", "main.ko", source, &file),
+        }];
         let index = index_compilation_unit(&sources, &inputs)
             .map_err(|error| format!("unit index: {error:?}"))?;
         let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
@@ -285,35 +270,6 @@ fn observe_with_comparisons(
             })
         })();
         (diagnostics, typed)
-    } else {
-        let names = resolve_names(&sources, &file, &environment)
-            .map_err(|error| format!("single names: {error:?}"))?;
-        let diagnostics = names.diagnostics().to_vec();
-        let typed = (|| {
-            let typed = check_types(&sources, &file, &names, &types)
-                .map_err(|error| format!("single raw: {error:?}"))?;
-            let raw = typed.diagnostics().to_vec();
-            let marks = observe_marks(case, &sources, &file, |id| {
-                typed.expression_type(id).map(|ty| single_shape(&typed, ty))
-            });
-            let complete =
-                complete_file_types(&sources, &file, &names, &types, &typed).map(|complete| {
-                    std::ptr::eq(complete.types(), &typed) && complete.is_same_analysis(&typed)
-                });
-            Ok(TypeObservation {
-                marks,
-                comparisons: if collect_comparisons {
-                    null_comparison_fallback::observe_single(&file, &names, &typed)
-                } else {
-                    Vec::new()
-                },
-                primary_text: primary_text(&sources, &raw),
-                raw,
-                raw_after_complete: typed.diagnostics().to_vec(),
-                complete,
-            })
-        })();
-        (diagnostics, typed)
     };
     Ok(Observation {
         lex: tokens.diagnostics().to_vec(),
@@ -327,22 +283,20 @@ fn assert_cases(cases: &[Case]) {
     let observations = cases
         .iter()
         .flat_map(|case| {
-            [false, true]
+            [SourceMode::MemoryDocument, SourceMode::RootedUnit]
                 .into_iter()
-                .map(move |unit_mode| (case, unit_mode, observe(case, unit_mode)))
+                .map(move |mode| (case, mode, observe(case, mode)))
         })
         .collect::<Vec<_>>();
-    for (case, unit_mode, observation) in &observations {
+    for (case, mode, observation) in &observations {
         eprintln!(
-            "SPEC-0330 case={} mode={} source={:?} observation={observation:#?}",
-            case.name,
-            if *unit_mode { "unit" } else { "single" },
-            case.text,
+            "SPEC-0330 case={} mode={mode:?} source={:?} observation={observation:#?}",
+            case.name, case.text,
         );
     }
     // 从这里开始才执行 oracle；两个入口及全部正反例的真实结果已经收齐。
-    for (case, unit_mode, observation) in observations {
-        let context = format!("case={} unit={unit_mode}", case.name);
+    for (case, mode, observation) in observations {
+        let context = format!("case={} mode={mode:?}", case.name);
         let observation = observation.unwrap_or_else(|error| panic!("{context}: {error}"));
         assert!(observation.lex.is_empty(), "{context}: {observation:?}");
         assert!(observation.parse.is_empty(), "{context}: {observation:?}");

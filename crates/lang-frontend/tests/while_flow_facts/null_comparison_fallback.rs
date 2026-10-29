@@ -1,10 +1,7 @@
 //! SPEC-0330：只读观察真实 null comparison facts，不注入或改写 typed 产物。
 use super::*;
 use lang_frontend::{
-    name_resolution::{
-        NameResolution, ReferenceTarget, SourceUnitId, UnitReferenceTarget,
-        ValidatedCompilationUnitNames,
-    },
+    name_resolution::{SourceUnitId, UnitReferenceTarget, ValidatedCompilationUnitNames},
     parser::{BinaryOperator, LiteralKind},
 };
 
@@ -73,48 +70,6 @@ fn comparison_nodes(file: &ParsedFile) -> Vec<(ExpressionId, Span, ExpressionId,
         .collect()
 }
 
-pub(super) fn observe_single(
-    file: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-) -> Vec<ComparisonObservation> {
-    comparison_nodes(file)
-        .into_iter()
-        .map(|(expression, span, candidate, null)| {
-            let read_type = typed.expression_type(candidate);
-            let null_type = typed.expression_type(null);
-            let descriptor = typed.null_comparison(expression).map(|fact| {
-                let symbol = names.references().iter().find_map(|reference| {
-                    if Some(reference.span()) != name_span(file, candidate) {
-                        return None;
-                    }
-                    match reference.target() {
-                        ReferenceTarget::Symbol(symbol) => Some(*symbol),
-                        _ => None,
-                    }
-                });
-                DescriptorObservation {
-                    expression_matches: fact.expression() == expression,
-                    symbol_matches_read: symbol == Some(fact.symbol()),
-                    storage_matches_symbol: typed.symbol_type(fact.symbol()) == Some(fact.nullable_type()),
-                    storage_type: single_shape(typed, fact.nullable_type()),
-                    null_matches_storage: null_type == Some(fact.nullable_type()),
-                    read_matches_storage_inner: matches!(typed.types().get(fact.nullable_type()), Some(TypeKind::Nullable(inner)) if read_type == Some(*inner)),
-                    non_null_when_true: fact.non_null_when_true(),
-                }
-            });
-            ComparisonObservation {
-                span,
-                read_type: read_type.map(|ty| single_shape(typed, ty)),
-                null_type: null_type.map(|ty| single_shape(typed, ty)),
-                result_type: typed.expression_type(expression).map(|ty| single_shape(typed, ty)),
-                non_null_use: typed.non_null_use(candidate).is_some(),
-                descriptor,
-            }
-        })
-        .collect()
-}
-
 pub(super) fn observe_unit(
     file: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -171,19 +126,19 @@ fn mark(name: &'static str, text: &'static str, shape: Shape) -> Mark {
     }
 }
 
-// 与既有 helper 相同：先完成所有源码、两个入口的 raw/complete 收集并输出，再开始 oracle。
-fn collect(cases: &[Case]) -> Vec<(&Case, bool, Result<Observation, String>)> {
+// 与既有 helper 相同：先完成所有源码、MemoryDocument / rooted Unit 两种来源的 raw/complete 收集并输出，再开始 oracle。
+fn collect(cases: &[Case]) -> Vec<(&Case, SourceMode, Result<Observation, String>)> {
     let observations = cases
         .iter()
         .flat_map(|case| {
-            [false, true]
+            [SourceMode::MemoryDocument, SourceMode::RootedUnit]
                 .into_iter()
                 .map(move |unit| (case, unit, observe_with_comparisons(case, unit, true)))
         })
         .collect::<Vec<_>>();
     for (case, unit, observation) in &observations {
         eprintln!(
-            "SPEC-0330 null fallback case={} unit={unit} source={:?} observation={observation:#?}",
+            "SPEC-0330 null fallback case={} mode={unit:?} source={:?} observation={observation:#?}",
             case.name, case.text
         );
         if let Ok(observation) = observation
@@ -197,10 +152,10 @@ fn collect(cases: &[Case]) -> Vec<(&Case, bool, Result<Observation, String>)> {
 
 fn assert_observation(
     case: &Case,
-    unit: bool,
+    unit: SourceMode,
     observation: Result<Observation, String>,
 ) -> TypeObservation {
-    let context = format!("{} unit={unit}", case.name);
+    let context = format!("{} mode={unit:?}", case.name);
     let observation = observation.unwrap_or_else(|error| panic!("{context}: {error}"));
     assert!(observation.lex.is_empty(), "{context}: {observation:?}");
     assert!(observation.parse.is_empty(), "{context}: {observation:?}");
@@ -299,12 +254,12 @@ fn narrowed_nullable_storage_contextualizes_nested_null_comparisons() {
         let typed = assert_observation(case, unit, observation);
         assert!(
             typed.raw.is_empty(),
-            "{} unit={unit}: {typed:#?}",
+            "{} mode={unit:?}: {typed:#?}",
             case.name
         );
         assert!(
             matches!(typed.complete, Ok(true)),
-            "{} unit={unit}: {typed:#?}",
+            "{} mode={unit:?}: {typed:#?}",
             case.name
         );
         let (inner, storage) = if case.name.starts_with("int_") {
@@ -433,7 +388,7 @@ fn nullable_storage_fallback_preserves_invalidation_and_invalid_neighbors() {
                 .map(|d| d.code().to_string())
                 .collect::<Vec<_>>(),
             expected_codes,
-            "{} unit={unit}: {typed:#?}",
+            "{} mode={unit:?}: {typed:#?}",
             case.name
         );
         let mut expected_spans = typed
@@ -467,7 +422,7 @@ fn nullable_storage_fallback_preserves_invalidation_and_invalid_neighbors() {
         if expected_codes.is_empty() {
             assert!(
                 matches!(typed.complete, Ok(true)),
-                "{} unit={unit}: {typed:#?}",
+                "{} mode={unit:?}: {typed:#?}",
                 case.name
             );
         } else {
