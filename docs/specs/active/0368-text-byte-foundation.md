@@ -357,3 +357,26 @@ unit 的 canonical Result／授权 TextError 路径及两种 CLI 已有运行证
 23 passed、0 failed、0 ignored；不以先前宽版本或失败中间版代替最终证据。
 nullable_string 邻接回归5 passed、0 failed、0 ignored；严格 codegen all-targets Clippy、
 Rustfmt 与821篇文档结构检查通过。最终 head 双宿主验收仍待完成。
+
+### 只读取 tag 的 Result 早退与主体清理（2026-10-30）
+
+新增真实 decodeUtf8 临时 Array 用例在 `when ((result)) { is Ok -> return 1;
+is Err -> return 0 }` 先取得 UnsupportedNode：前端已经发布 Named subject 的
+AfterExpression 清理事实，原 named enum 准入刻意拒绝该形状。
+修复复用独立 enum type-test 的 Group operand 链、tag 读取与比较；仅 named owner、
+已有主体清理事实且全部条件为静态 type-test 时，先求值一次并保存 tag，再逐点消费
+原清理事实，后续 CFG 使用 Copyable tag。没有清理事实时仍保留原 owner carry；临时
+enum subject 及非静态条件不因此开放，不重算前端 liveness，不推迟已确定的析构点。
+旧 named subject 拒绝回归改为正向 SSA／LLVM：同一入口块内必须只有一次 tag 读取与
+一次该 owner 的 Drop，并按 block.instructions 的真实执行顺序核对读取在前、析构在后。
+普通／Grouped make() 的临时 enum 仍有明确拒绝回归。
+
+真实标准 API 的计数用例同时执行有效／无效解码、穷尽早退、`!is Err` 与正常落空：
+四个临时 Array 加两个成功 String 结果共6次分配，全部逐指针释放；1 passed、0 failed、
+0 ignored。独立静态复核确认身份、Group 清理顺序、tag 的跨块使用与旧 type-test 行为；
+指出测试最初仅比较指令 arena 索引，已修正为同块实际执行顺序，复核通过。
+本地 enum lowering15项、独立 enum regression8项、text_23项均通过且无忽略。
+公开 CLI text_bytes 全套5项通过（单文件／project 各 check、build、直接运行及 CLI run）；
+独立 type-test 最后使用清理1项与共享 when 邻接7项通过，均0 failed、0 ignored。
+codegen／CLI all-targets 严格 Clippy、Rustfmt、文档与 diff 检查通过；本片仍不替代最终
+head 官方双宿主 CI，也未关闭前述旧 raw 前端入口合同待决项。

@@ -198,7 +198,21 @@ fun decodedLength(data: Array<UByte>): Int {
         is Err -> return -1
     }
 }
+fun tagOnly(valid: Boolean): Int {
+    val result = decodeUtf8(Array<UByte>(1, { index -> if (valid) { 65u } else { 255u } }))
+    when ((result)) {
+        is Ok -> return 1
+        is Err -> return 0
+    }
+}
+fun partialTag(valid: Boolean): Int {
+    val result = decodeUtf8(Array<UByte>(1, { index -> if (valid) { 65u } else { 255u } }))
+    when ((result)) { !is Err -> return 1 }
+    return 0
+}
 fun main(): Unit {
+    if (tagOnly(true) != 1 || tagOnly(false) != 0) { error("tag-only return") }
+    if (partialTag(true) != 1 || partialTag(false) != 0) { error("tag fallthrough") }
     val data = bytes()
     val decoded = decodeUtf8(data)
     data[0] = 89u

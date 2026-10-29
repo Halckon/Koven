@@ -188,7 +188,7 @@ fn lowers_empty_case_of_a_move_only_enum_as_the_root_tagged_owner() {
 }
 
 #[test]
-fn move_only_enum_when_waits_for_branch_qualified_subject_drop_facts() {
+fn move_only_enum_when_snapshots_tag_before_subject_drop() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -209,7 +209,7 @@ fn move_only_enum_when_waits_for_branch_qualified_subject_drop_facts() {
     )];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let error = match lower_scalar_unit_with_entry(
+    let (program, entry) = lower_scalar_unit_with_entry(
         &sources,
         &inputs,
         &names,
@@ -217,11 +217,50 @@ fn move_only_enum_when_waits_for_branch_qualified_subject_drop_facts() {
         &typed,
         &owned,
         declaration(&names, "test", "entry"),
-    ) {
-        Ok(_) => panic!("MoveOnly enum when must not bypass its AfterExpression drop fact"),
-        Err(error) => error,
+    )
+    .expect("a tag snapshot must precede the published subject cleanup");
+    super::verify::verify_program(&program).unwrap();
+    render_verified_program(&program).unwrap();
+    let function = program
+        .module(entry.module())
+        .unwrap()
+        .function(entry)
+        .unwrap();
+    let tags = function
+        .instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, instruction)| match instruction.operation {
+            Operation::TaggedDiscriminant { owner } => Some((index, owner)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(tags.len(), 1, "later case tests must reuse the saved tag");
+    let (tag_index, owner) = tags[0];
+    let drops = function
+        .instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, instruction)| {
+            matches!(instruction.operation, Operation::Drop { owner: dropped } if dropped == owner)
+                .then_some(index)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(drops.len(), 1, "the original owner is retired exactly once");
+    let entry_block = function.entry_block().unwrap();
+    assert_eq!(function.instructions[tag_index].block, entry_block);
+    assert_eq!(function.instructions[drops[0]].block, entry_block);
+    let execution_order = &function.blocks[entry_block.index()].instructions;
+    let position = |index| {
+        execution_order
+            .iter()
+            .position(|id| id.index() == index)
+            .unwrap()
     };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(
+        position(tag_index) < position(drops[0]),
+        "tag must be read before owner cleanup in the executed block order"
+    );
 }
 
 #[test]
@@ -789,8 +828,8 @@ fun main(): Unit {
 }
 
 #[test]
-fn owned_enum_when_keeps_unplanned_subject_cleanup_rejected() {
-    for subject in ["((item))", "make()"] {
+fn owned_enum_when_keeps_temporary_subject_cleanup_rejected() {
+    for subject in ["make()", "((make()))"] {
         let source = format!(
             "enum class Owned {{ Full(value: String), Empty }}\n\
              fun make(): Owned = Owned.Full(\"value\")\n\
@@ -801,7 +840,7 @@ fn owned_enum_when_keeps_unplanned_subject_cleanup_rejected() {
         );
         with_generic_enum_source("rejected-when.ko", &source, "entry", |view, entry| {
             let error = match super::unit_lower::lower_owned_unit_with_entry(view, entry) {
-                Ok(_) => panic!("subject-local drops and temporary owners need an explicit plan"),
+                Ok(_) => panic!("temporary enum owners still need an explicit subject plan"),
                 Err(error) => error,
             };
             assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{subject}");

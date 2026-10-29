@@ -26,7 +26,7 @@ provider builder 固定 length 快照、零 cursor 的入口运输、guard 真�
 单文件 lowering 在函数参数 bindings 建立后消费 `FunctionEntry` 析构事实；MoveOnly Value 实参
 交付后移除其源码 binding；`MutableList.add`另按具体MoveOnly element ValueId移除binding/temporary别名，保留Copyable和无关owner。通用 `when` 条件边显式传递 owned bindings，并只在匹配边消费
 `WhenAlternativeMatch` 析构事实。非 nullable subjectless 逗号分支已通过 SSA 和 native 双路径测试；
-该证据不扩大 nullable native 支持。MoveOnly enum 的 named owned subject 在主体链无自身 ASAP-drop 时，逐条件使用重绑定 owner；具体 case payload 借用共用 place 校验及调用帧字段账本。[文本基础补片](../specs/active/0368-text-byte-foundation.md)记录计数与拒绝边界，temporary／主体 ASAP-drop 仍未支持。全分支直接 return 的 statement when 已消费前端正常继续事实，封闭不可能的未匹配尾边；Unit 类型不再被误作必有正常出口。无 payload Copyable enum case condition 另消费 construction/ownership identity 生成 Boolean tag 比较；Guide4 单文件 native 和精确剩余边界见[Litmus4 账本](guide-conformance.md#return-控制表达式与-litmus4-的-native-边界)。
+该证据不扩大 nullable native 支持。MoveOnly enum 的 named owned subject 在主体链无自身 ASAP-drop 时逐条件重绑定 owner；已有主体清理事实且仅静态 case test 时，先读取 tag，再按原点清理 owner，以 tag 完成后续判断。case payload 借用共用 place 校验及调用帧字段账本。[文本基础补片](../specs/active/0368-text-byte-foundation.md)记录计数与拒绝边界，temporary subject 仍未支持。全分支直接 return 的 statement when 已消费前端正常继续事实，封闭不可能的未匹配尾边；Unit 类型不再被误作必有正常出口。无 payload Copyable enum case condition 另消费 construction/ownership identity 生成 Boolean tag 比较；Guide4 单文件 native 和精确剩余边界见[Litmus4 账本](guide-conformance.md#return-控制表达式与-litmus4-的-native-边界)。
 
 Unit pointer-like nullable `when` 现消费真实 typed/owned 的 `null/else` descriptor与use witness，
 对 owned whole-root/temporary class、Box、Rc建立实际 `NullableBranch` proof，消费提取走 `NullableTake`。

@@ -381,3 +381,36 @@ fun main(): Unit {
         b"A\xc3\xa9\0\nX\xc3\xa9\0\nY\xc3\xa9\0\n",
     );
 }
+
+#[test]
+fn public_text_temporary_decode_results_allow_tag_only_early_returns() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.*
+fun temporaryArray(valid: Boolean): Int {
+    val decoded = decodeUtf8(Array<UByte>(1, { index -> if (valid) { 65u } else { 255u } }))
+    when ((decoded)) {
+        is Ok -> return 1
+        is Err -> return 0
+    }
+}
+fun partial(valid: Boolean): Int {
+    val decoded = decodeUtf8(Array<UByte>(1, { index -> if (valid) { 65u } else { 255u } }))
+    when ((decoded)) { !is Err -> return 1 }
+    return 0
+}
+fun main(): Unit {
+    if (partial(false) != 0) { error("unmatched tag must fall through") }
+    if (partial(true) != 1) { error("negated tag must match") }
+    if (temporaryArray(false) != 0) { error("temporary invalid bytes accepted") }
+    if (temporaryArray(true) != 1) { error("temporary valid bytes rejected") }
+    println("temporary decode")
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // Four temporary arrays and two successful String copies; both match and
+    // normal unmatched continuations must retire the correct payload once.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 6);
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"temporary decode\n");
+}
