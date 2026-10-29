@@ -2,6 +2,7 @@
 use super::*;
 
 pub(super) mod nullable_child;
+mod nullable_text;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PendingCallFrame {

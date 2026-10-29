@@ -1,4 +1,6 @@
 //! Copy primitives must publish independent valid String owners and reject invalid storage input.
+mod nullable_return;
+
 use super::{model::*, unit_lower_test_support as support};
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,

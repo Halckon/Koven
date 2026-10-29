@@ -286,7 +286,13 @@ impl UnitExpressionLowerer<'_> {
             let plain_string = self.has_only_string_if_proofs()
                 && matches!(node.payload(), Expression::String { parts, .. }
                     if parts.iter().all(|part| matches!(part, lang_frontend::parser::StringPart::Text(_))));
-            if !root_borrow_call && !rc_share && !plain_string {
+            let text_argument_return = match node.payload() {
+                Expression::Return { value, .. } => {
+                    self.can_return_from_nullable_text_argument(unit_expression, *value, span)?
+                }
+                _ => false,
+            };
+            if !root_borrow_call && !rc_share && !plain_string && !text_argument_return {
                 self.reject_live_if_proof(span)?;
             }
         }
@@ -450,7 +456,14 @@ impl UnitExpressionLowerer<'_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        self.reject_live_if_proof(span)?;
+        let text_argument_return = self.can_return_from_nullable_text_argument(
+            UnitExpressionId::new(self.source_unit, expression),
+            value,
+            span,
+        )?;
+        if !text_argument_return {
+            self.reject_live_if_proof(span)?;
+        }
         if self.function.carrier_return.is_some() {
             return self.lower_range_return(
                 value.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
@@ -492,6 +505,11 @@ impl UnitExpressionLowerer<'_> {
         } else {
             self.end_pending_abi_call_slots(0, span)?;
         }
+        if text_argument_return {
+            // Return cancels both qualified frames. Loans are already ended above;
+            // discard the bookkeeping so the original root drop can retire its proof.
+            self.pending_call_frames.clear();
+        }
         self.record_map_return_delivery(
             UnitExpressionId::new(self.source_unit, expression),
             result,
@@ -504,6 +522,9 @@ impl UnitExpressionLowerer<'_> {
         self.end_thunk_capture_views(span)?;
         self.retire_nullable_when_transfers(0, span)?;
         self.retire_while_proofs(true, span)?;
+        if text_argument_return && !self.nullable_proofs.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let values = self.return_values(result, span)?;
         self.function
             .set_terminator(

@@ -517,7 +517,7 @@ text／用户源四个身份及顺序，保留后续原用户入口选择断言�
 | 严格解码与错误偏移 | CLI 同一矩阵的17类非法输入与独立 Rust oracle；`utf8_error_offset_native_matches_strict_sequence_boundaries` | 已有局部动态通过；不以字符数替代字节偏移 |
 | 字节切片 | CLI 同一矩阵的205组端点组合，核范围优先级、scalar 边界及空切片 | 已有局部动态通过 |
 | 可恢复连接 | `standard_checked_plus_returns_null_only_for_length_overflow_and_aborts_on_oom`；公开 CLI 左右各一次求值与结果输出 | 合成上限／OOM 与正常小输入分别验证；不声称 GB 成功复制 |
-| 所有权与控制流 | codegen `text_` 36项与 CLI `text_bytes` 10项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果记录 | 已覆盖记录中的具体形状；live String If proof 的参数控制退出仍待处理 |
+| 所有权与控制流 | codegen `text_` 36项与 CLI `text_bytes` 10项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果记录 | 已覆盖记录中的具体形状；下述参数 return 补片仍待扩大验证，Owned／其他 If 退出仍未开放 |
 | 公共入口 | `native_cli text_bytes` 对单文件／project 各执行 check、build 后直接运行及 CLI run | 10项通过、无忽略；不替代旧 raw API 的跨源合同 |
 | 回归与平台 | 历史输入完整 codegen 库测试、官方双宿主 CI、独立复核、Clippy／尺寸／文档门禁 | 独立复核及局部门禁已通过；修复后的最终双宿主 CI 待完成，暂不归档 |
 
@@ -550,3 +550,28 @@ codegen／CLI all-targets严格Clippy、Rustfmt、尺寸门禁（2019文件、39
 必须继续验证／处理，不能将正常调用与调用后 return 的成功冒充参数求值期间 return。
 修复后的现有CLI探针 `joined.checkedPlus(if (stop) { return } else { "!" })` 在真实非空
 分支内 check 成功、build 仍为 UnsupportedNode；尚未将这一路径纳入通过计数。
+
+### 非空文本 receiver 的参数 return（2026-10-30）
+
+基于 `344ea7a00d43593f6a086c9048dd762dcad5d87b`，将上面的有效CLI反例转成真实标准源
+native计数用例，先在 `return` 精确取得 UnsupportedNode，再修复有界取消接线。
+资格同时核对 String If proof、canonical 文本调用、receiver／argument 两帧、当前 receiver
+槽与父 proof 的同一 loan、返回表达式确在实参内，以及 Unit／Copyable 返回值。loop、thunk、
+iteration cleanup 与其他 carrier 保留原 gate；此资格检查不生成 SSA 或 cleanup。
+
+仍先执行原 `end_pending_call_loans`，随后移除两层已取消帧的记录，再按原 ControlTransfer
+drop 的位置退休父 proof 并释放 owner；不把父 loan 当作调用新建 loan 提前结束，也不合成
+新的析构事实。终止边不进入合流，正常边恢复独立的 pending 状态；返回前若原事实未清空
+proof 则拒绝发布。独立 full-pass 核对帧取消、CFG恢复、返回值求值和清理顺序，未发现
+确认缺陷，并要求补齐双臂 return 用例，已加入。
+
+`text_copy_tests::nullable_return` 4 passed、0 failed、0 ignored：单臂取消／正常提交共3次
+分配，双臂取消只有两个 joined owner；另一用例先求值 sliceBytes 首个参数，再从第二参数
+返回实际 seen 值，incoming String 与 caller clone 后续仍可读，共4次分配。均逐指针核对
+释放和完整输出，不单凭计数声称具体释放时刻。另以精确源码 span 保留非参数 live-If return
+与 Owned String return 的拒绝；这两个边界尚未解决，不代表语言不允许。
+公开CLI `native_cli text_bytes` 11项、codegen `text_` 40项、`ordinary_direct_prefix` 3项、
+`nullable` 176项、`while_proof` 3项全部通过，0 failed、0 ignored（各过滤集合有重叠）。
+codegen／CLI all-targets严格Clippy、Rustfmt、文档结构与diff检查通过；尺寸门禁2021文件、
+39项历史超限通过，未新增例外。新测试归入 nullable_return 子模块，复用原标准源／计数
+helper；不改写前端事实或复制标准 API 算法。本片双宿主全套CI尚待新提交触发与验收。

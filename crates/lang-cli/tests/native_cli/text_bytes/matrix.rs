@@ -420,3 +420,43 @@ fun main(): Unit {
 "#;
     check_build_run_both_modes(program, b"ab\na\nab!\n");
 }
+
+#[test]
+fn public_text_nullable_receiver_argument_returns_work_in_both_modes() {
+    let program = r#"fun observe(stop: Boolean): Unit {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus(if (stop) { return } else { "!" })
+        if (copy == null) { error("unexpected overflow") }
+    }
+    println("completed")
+}
+fun measure(input: String, stop: Boolean): Int {
+    val joined = input.checkedPlus("b")
+    var seen = 0
+    if (joined != null) {
+        val copy = joined.sliceBytes(
+            if (stop) { seen = seen + 1; 0 } else { seen = seen + 2; 0 },
+            if (stop) { return seen } else { 1 })
+    }
+    return seen
+}
+fun cancel(stop: Boolean): Unit {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus(if (stop) { return } else { return })
+    }
+}
+fun main(): Unit {
+    observe(true)
+    observe(false)
+    val input = "a".clone()
+    if (measure(input, true) != 1 || measure(input, false) != 2) { error("argument order") }
+    cancel(true)
+    cancel(false)
+    println(input)
+    println("ok")
+}
+"#;
+    check_build_run_both_modes(program, b"completed\na\nok\n");
+}

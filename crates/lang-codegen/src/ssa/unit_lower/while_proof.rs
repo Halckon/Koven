@@ -153,6 +153,13 @@ impl UnitExpressionLowerer<'_> {
         if !self.pending_call_frames.is_empty() || !self.pending_operands.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        self.ensure_string_if_proof_non_call_carriers(span)
+    }
+
+    pub(super) fn ensure_string_if_proof_non_call_carriers(
+        &self,
+        span: Span,
+    ) -> Result<(), LoweringError> {
         self.ensure_proof_non_call_carriers(true, span)
     }
 
