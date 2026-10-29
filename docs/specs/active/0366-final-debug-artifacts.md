@@ -460,3 +460,30 @@ single/project/多根三项均实际报告 `Breakpoint 1: no locations (pending)
 没有停止 frame；0 passed / 3 failed / 0 ignored（6.62 秒）。没有修改实际分支或基线
 编译器代码。此为实施后的缺口佐证，不追认为实施前红测、Linux 证据或当前实现结果。
 当前正向命中继续由前述最终产物测试与随后真实 CI 验证。
+
+## 25. 首个 Linux 完整 targeted 成功与 macOS 循环夹具修复
+
+head `b379d43673f8562abdac33d5dc79dd96957069ba` 的
+[run 40887166831](https://github.com/Halckon/Koven/actions/runs/40887166831) 的 base 为
+`72b0414e1f4cc2d9f7dc251c96947bfc18bd6ce3`，实际 CI merge 为
+`3aec9e7addedb1206f90e6dd849c34f2b1426e93`。Linux
+[job 123498005904](https://github.com/Halckon/Koven/actions/runs/40887166831/job/123498005904)
+完整成功。日志实际命中新名称正反例及三项最终 ELF 行表/LLDB 用例；native_cli
+38 passed / 0 failed / 0 ignored（6.02 秒）、project_cli 39 passed / 0 ignored（7.53 秒）、
+run_cancellation 2 passed / 0 ignored（1.72 秒），CLI 单元 74 passed / 0 ignored，
+codegen 2477 passed / 0 ignored。词频、conformance、Linux sanitizer、生成资源程序
+及各自证据上传步骤均成功，不仅是核心步骤结束。
+
+macOS [job 123498005782](https://github.com/Halckon/Koven/actions/runs/40887166831/job/123498005782)
+失败在 single_file_analysis_cli 的成功循环夹具：它复用同一输出路径，仅移除 executable，
+未移除本轮新增 program.dSYM，下一次 build 正确地按 no-clobber 返回错误。其余 CLI
+targets 通过，包括单元 76 项、native 38 项（5.95 秒）、project 39 项（5.39 秒）、取消
+integration 2 项。codegen 为 2476 passed / 1 ignored，现存默认 ignore 不隐瞒；对应实际
+LLDB 的显式本机证据见 §22。该输入的 macOS 完整组合及 preview 不计通过。
+
+仅在该测试成功构建、执行与原断言之后，复用输出前移除 fixture 独占的 program.dSYM；
+Linux 路径、生产保护及 human/JSON/entry/stdout/stderr oracle 均不变。搜索 CLI 所有
+remove_file 调用，未发现另一处只删除构建 executable 后复用输出的同类位置；其余删除
+源码或整体 fixture。独立只读复核确认无弱化和误清理风险。修正后本机完整
+single_file_analysis_cli 5 passed / 0 failed / 0 ignored（16.48 秒），CLI all-targets
+严格 clippy 通过。修正后双宿主结果仍待新提交 CI，不能用原 Linux 成功追认新输入。

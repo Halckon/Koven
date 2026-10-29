@@ -81,6 +81,9 @@ fn single_file_constant_success_preserves_native_build_run_and_entry_errors() {
             assert_output(&launched, 0, "界é😀界é😀\n", "");
             directory.assert_no_temporaries();
             fs::remove_file(directory.path().join("program")).expect("remove built program");
+            #[cfg(target_os = "macos")]
+            fs::remove_dir_all(directory.path().join("program.dSYM"))
+                .expect("remove owned debug bundle before reusing the output path");
             assert_output(
                 &directory.invoke(format, "run", entry),
                 0,
