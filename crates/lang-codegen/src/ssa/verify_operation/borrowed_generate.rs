@@ -23,7 +23,10 @@ pub(super) fn contract(
     else {
         return false;
     };
-    let Some(signature) = module.callable_signature(target) else {
+    let Some(signature) = module
+        .callable_signature(target)
+        .or_else(|| module.callable_view_signature(target))
+    else {
         return false;
     };
     let [

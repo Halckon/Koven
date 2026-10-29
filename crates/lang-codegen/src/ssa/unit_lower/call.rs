@@ -622,32 +622,45 @@ impl UnitExpressionLowerer<'_> {
                         self.static_self,
                         argument.span,
                     )?;
-                    let target = if matches!(
+                    let function_parameter = matches!(
                         self.typed.types().get(parameter_type),
                         Some(lang_frontend::type_checking::UnitTypeKind::Function { .. })
-                    ) {
-                        if let Some(route) = self.source_plan.call_site(self.source_token, call) {
-                            self.callable_abi.parameter_type(
+                    );
+                    let target = if function_parameter {
+                        // ADR-0034: borrow the concrete callable; the callee receives a view.
+                        match self
+                            .source_plan
+                            .borrowed_argument(self.source_token, argument_id)
+                        {
+                            Some(token) => self.callable_abi.token_type(
                                 self.source_plan,
-                                route.key(),
-                                mapping.parameter_index(),
+                                token,
                                 argument.span,
-                            )?
-                        } else {
-                            self.expression_ssa_type(argument.value, argument.span)?
+                            )?,
+                            None => self.expression_ssa_type(argument.value, argument.span)?,
                         }
                     } else {
                         self.type_ids.get(&parameter_type).copied().ok_or_else(|| {
                             lowering_error(LoweringErrorKind::MissingFact, argument.span)
                         })?
                     };
-                    let (loan, created, end_span) = self.lower_borrow_argument(
+                    let (loan, mut created, end_span) = self.lower_borrow_argument(
                         call,
                         argument.value,
                         target,
                         argument.span,
                         span,
                     )?;
+                    let loan = if function_parameter {
+                        self.callable_view_argument(
+                            loan,
+                            &mut created,
+                            parameter_type,
+                            argument.span,
+                        )?
+                    } else {
+                        loan
+                    };
                     let mut argument_slots = Vec::new();
                     for created in created {
                         let pending_index = self.pending_operands.len();

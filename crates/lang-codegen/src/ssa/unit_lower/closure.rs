@@ -95,6 +95,36 @@ pub(super) struct CallablePlan {
     pub(super) static_self: Option<UnitTypeId>,
 }
 
+/// The lambdas lowered inside `scope`, as the refinement layer sees them (ADR-0034).
+pub(super) fn refine_callables(
+    plans: &BTreeMap<CallablePlanKey, CallablePlan>,
+    scope: FunctionId,
+) -> BTreeMap<UnitExpressionId, crate::ssa::refine::RefineCallable> {
+    plans
+        .values()
+        .filter(|plan| plan.scope == scope)
+        .map(|plan| {
+            (
+                plan.expression,
+                crate::ssa::refine::RefineCallable {
+                    callable: plan.callable,
+                    thunk: plan.thunk,
+                    captures: plan
+                        .captures
+                        .iter()
+                        .map(|capture| crate::ssa::refine::RefineCapture {
+                            symbol: capture.symbol,
+                            ty: capture.ty,
+                            mode: capture.mode,
+                            effect: capture.effect,
+                        })
+                        .collect(),
+                },
+            )
+        })
+        .collect()
+}
+
 pub(super) fn declare(
     module: &mut Module,
     plans: &[FunctionPlan],

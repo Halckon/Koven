@@ -358,37 +358,31 @@
       "oracle_derivation": "parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08)"
     },
     "p17_lambda": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "lambda\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0364: lambda with a shared capture passed as a Borrow callable view (ADR-0034)",
       "source_sha256": "fed68fe307f5c6fb5afbe74bc4e2ebf09eab65d4a6fb8a95dec137dd3abb0bc5",
       "guide_chapter": "07-calls-lambdas-closures.md",
       "baseline_marker": "BE:UnsupportedNode",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
+      "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0364"
       ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N04"
-      ],
-      "target_stdout": "lambda\n",
       "oracle_derivation": "capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda' (blocked by N04)"
     },
     "p17b_lambda_nocapture": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "lambda0\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0364: capture-free lambda passed as a Borrow callable view (ADR-0034)",
       "source_sha256": "d79332e22329580e90312f4f57935faf5b5243917842cdc81dbad9d56e1c1879",
       "guide_chapter": "07-calls-lambdas-closures.md",
       "baseline_marker": "BE:UnsupportedNode",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
+      "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0364"
       ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N04"
-      ],
-      "target_stdout": "lambda0\n",
       "oracle_derivation": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' (blocked by N04)"
     },
     "p18_move_closure": {
@@ -830,20 +824,17 @@
       "oracle_derivation": "single literal println('lambda-local')"
     },
     "q02_lambda_arg_inline": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "lambda-arg\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0364: nested calls through a Borrow callable view (ADR-0034)",
       "source_sha256": "d058d457677dbc5ea360b8264a1ee04396e82d04590fd95dea90199ffc533b7d",
       "guide_chapter": "07-calls-lambdas-closures.md",
       "baseline_marker": "BE:UnsupportedNode",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
+      "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0364"
       ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N04"
-      ],
-      "target_stdout": "lambda-arg\n",
       "oracle_derivation": "twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg' (blocked by N04)"
     },
     "q03_fn_ref": {

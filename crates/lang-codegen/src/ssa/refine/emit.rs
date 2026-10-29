@@ -329,6 +329,41 @@ impl Emitter<'_> {
             ROp::SharedReborrow { source } => Operation::SharedReborrow {
                 source: loan(self.get(*source, span)?, span)?,
             },
+            ROp::FunctionAddress { target } => Operation::FunctionAddress { target: *target },
+            ROp::ClosureConstruct {
+                closure,
+                thunk,
+                captures,
+            } => Operation::ClosureConstruct {
+                closure: *closure,
+                thunk: *thunk,
+                captures: captures
+                    .iter()
+                    .map(|slot| {
+                        Ok(match self.get(*slot, span)? {
+                            EntityId::Loan(loan) => {
+                                crate::ssa::model::ClosureCaptureOperand::Shared(loan)
+                            }
+                            EntityId::Value(value) => {
+                                crate::ssa::model::ClosureCaptureOperand::Owned(value)
+                            }
+                            EntityId::Place(_) => {
+                                return Err(error(LoweringErrorKind::InvalidModel, span));
+                            }
+                        })
+                    })
+                    .collect::<Result<_, LoweringError>>()?,
+            },
+            ROp::CallableViewOf { source } => Operation::CallableViewOf {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::CallableInvokeView { view, arguments } => Operation::CallableInvokeView {
+                view: loan(self.get(*view, span)?, span)?,
+                arguments: arguments
+                    .iter()
+                    .map(|slot| self.get(*slot, span))
+                    .collect::<Result<_, _>>()?,
+            },
             ROp::RootPlaceTake { owner, place: slot } => Operation::RootPlaceTake {
                 owner: self.value(*owner, span)?,
                 place: place(self.get(*slot, span)?, span)?,

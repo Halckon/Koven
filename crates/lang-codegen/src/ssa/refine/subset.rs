@@ -1,6 +1,8 @@
 //! Deterministic precheck for the migrated subset (SPEC-0350 §3). It reads typed and
 //! ownership facts plus AST construct kinds; it never runs lowering. Anything outside
 //! the subset keeps the existing per-family path.
+mod callable;
+mod drops;
 mod field;
 mod heap;
 mod inout;
@@ -14,7 +16,6 @@ use std::collections::BTreeSet;
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{SymbolKind, UnitSymbolId},
-    ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::{
         AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, NameMarker,
         PrefixOperator, Statement, WhenCondition, WhenEntry,
@@ -76,7 +77,9 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
             .zip(&inputs.modes)
             .all(|(symbol, mode)| {
                 checker.symbol_type(*symbol).is_some_and(|ty| {
-                    checker.storage_type(ty)
+                    // ADR-0034: a Borrow function parameter is a callable view.
+                    (*mode == ParameterMode::Borrow && checker.view_function(ty))
+                        || checker.storage_type(ty)
                         && match mode {
                             ParameterMode::Value => true,
                             // A MoveOnly Borrow parameter is only lent on (a plain class
@@ -461,7 +464,14 @@ impl Checker<'_, '_> {
             } => self.subject_when(ty, subject, &entries),
             Expression::Call { arguments, .. } => {
                 let values: Vec<_> = arguments.iter().map(|argument| argument.value).collect();
-                self.call(expression) && self.arguments(expression, &values)
+                let through_view = self
+                    .inputs
+                    .typed
+                    .call(self.id(expression))
+                    .is_some_and(|descriptor| descriptor.target() == UnitCallTarget::FunctionValue);
+                self.call(expression)
+                    && (!through_view || self.view_callee(expression))
+                    && self.arguments(expression, &values)
             }
             Expression::Assignment {
                 target,
@@ -747,15 +757,19 @@ impl Checker<'_, '_> {
                 .arguments()
                 .iter()
                 .all(|argument| match argument.mode() {
-                    ParameterMode::Value | ParameterMode::Borrow => {
+                    ParameterMode::Value => self.storage_type(self.c(argument.parameter_type())),
+                    ParameterMode::Borrow => {
                         self.storage_type(self.c(argument.parameter_type()))
+                            || self.view_function(self.c(argument.parameter_type()))
                     }
                     ParameterMode::Inout => {
                         self.scalar(self.c(argument.parameter_type()))
                             || self.class(self.c(argument.parameter_type()))
                     }
                 });
+        // A call through a function value is further restricted to view parameters.
         let target = descriptor.prints_line()
+            || descriptor.target() == UnitCallTarget::FunctionValue
             || (matches!(
                 descriptor.target(),
                 UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
@@ -790,6 +804,9 @@ impl Checker<'_, '_> {
             };
             if mode == ParameterMode::Inout {
                 return self.inout_argument(call, value);
+            }
+            if mode == ParameterMode::Borrow && self.view_function(parameter) {
+                return self.callable_argument(value);
             }
             // A borrowed MoveOnly value is wrapped for a nullable parameter only when it is
             // a temporary whose drop obligation can move to the wrapper.
@@ -913,71 +930,5 @@ impl Checker<'_, '_> {
         let supported = declared.is_some_and(|ty| self.storage_type(ty));
         self.known.insert(symbol);
         supported
-    }
-
-    /// Drop facts must name plain bindings or temporaries at points the builder emits.
-    fn drops_supported(&self) -> bool {
-        self.inputs.owned.drops().iter().all(|fact| {
-            let point_ok = match fact.point() {
-                UnitDropPoint::AfterExpression(expression)
-                | UnitDropPoint::AfterBinaryOperands(expression) => {
-                    !self.branch_form.contains(&expression)
-                }
-                UnitDropPoint::BeforeReplacement(assignment) => {
-                    self.replacements.contains(&assignment)
-                        && matches!(fact.target(), UnitDropTarget::ReplacedField { .. })
-                }
-                UnitDropPoint::LambdaEntry(_) | UnitDropPoint::AfterReplacement(_) => false,
-                // A jump out of a call argument drops the earlier MoveOnly arguments it
-                // abandons; temporaries holding loans stay outside.
-                UnitDropPoint::ControlTransfer(_) => match fact.target() {
-                    UnitDropTarget::Temporary(expression) => self.pending_owner(expression),
-                    _ => true,
-                },
-                _ => true,
-            };
-            let target_ok = matches!(
-                fact.target(),
-                UnitDropTarget::Named(_)
-                    | UnitDropTarget::Temporary(_)
-                    | UnitDropTarget::ReplacedField { .. }
-            );
-            !self.fact_in_function(fact.value_origin()) || (point_ok && target_ok)
-        }) && self
-            .inputs
-            .owned
-            .conditional_receiver_drops()
-            .iter()
-            .all(|fact| !self.fact_in_function(fact.value_origin()))
-    }
-
-    /// A pending argument a jump may abandon: a MoveOnly named owner moved into a Value
-    /// argument (borrowed temporaries stay outside: their loan would be abandoned too).
-    fn pending_owner(&self, expression: UnitExpressionId) -> bool {
-        expression.source_unit() == self.inputs.source_unit
-            && self
-                .inputs
-                .parsed
-                .ast()
-                .expressions()
-                .get(expression.expression())
-                .is_ok_and(|node| matches!(node.payload(), Expression::Name))
-            && self
-                .expression_type(expression.expression())
-                .is_some_and(|ty| self.copyability_of(ty) == Copyability::MoveOnly)
-    }
-
-    fn fact_in_function(&self, origin: lang_frontend::source::Span) -> bool {
-        self.inputs
-            .parsed
-            .ast()
-            .items()
-            .get(self.inputs.function_item)
-            .is_ok_and(|item| {
-                let item = item.span();
-                origin.source_id() == item.source_id()
-                    && item.start() <= origin.start()
-                    && origin.end() <= item.end()
-            })
     }
 }

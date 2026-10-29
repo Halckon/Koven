@@ -562,6 +562,15 @@ impl Builder<'_, '_> {
                 continue;
             }
             if argument.mode() == ParameterMode::Borrow
+                && let Some(&view) = self.inputs.views.get(&self.c(argument.parameter_type()))
+            {
+                // ADR-0034: a Borrow function parameter receives a callable view.
+                let (lent, created) = self.callable_argument(value_expression, view, span)?;
+                loans.extend(created);
+                lowered.push(lent);
+                continue;
+            }
+            if argument.mode() == ParameterMode::Borrow
                 && let Some(view) = self.narrowed_view(value_expression)?
             {
                 // A MoveOnly non-null use borrows through the condition's proof view.
@@ -617,7 +626,23 @@ impl Builder<'_, '_> {
             self.deliver(value_expression);
         }
         let mut receiver_end = None;
-        let result = if descriptor.prints_line() {
+        let result = if descriptor.target() == UnitCallTarget::FunctionValue {
+            // ADR-0034: a call through a view parameter.
+            let Expression::Call { callee, .. } = self.node(expression)?.0 else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            let view = self.view_callee(callee)?;
+            let op = ROp::CallableInvokeView {
+                view,
+                arguments: lowered,
+            };
+            if self.is_unit(self.c(descriptor.return_type())) {
+                self.push(op, Vec::new(), span)?;
+                Lowered::Unit
+            } else {
+                Lowered::Value(self.typed_value(op, expression)?)
+            }
+        } else if descriptor.prints_line() {
             let [loan] = lowered.as_slice() else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };

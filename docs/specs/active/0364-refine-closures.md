@@ -38,9 +38,21 @@ closure 形成显式化，Borrow 函数参数使用 callable view，函数可返
 - [x] 步 1：`verify_callable_view_tests` 覆盖 function pointer 与 concrete closure 两种 view 的
   verify + LLVM、源 loan 先结束、源 loan 结束后使用、非 callable 源、view 作 value 参数、view 作返回、
   view 存入 aggregate/inline nullable/owned capture、捕获 view 的 closure 逃逸，拒绝原因逐项断言。
-- [ ] 步 2/3：p17、p17b、q02、p18 两模式通过；`refine_tests` native 运行覆盖直接实参 lambda、
-  有/无捕获、view 继续下传、borrowed closure 捕获 view、move closure 返回与 owned String capture 析构。
+- [x] 步 2：p17、p17b、q02 两模式通过（门禁 136/154，0 回退）。规划器取消 Borrow 函数参数的回调
+  单态化：callee 参数为 view，调用方的具体 callable 记入 `borrowed_arguments`；旧路径调用点经
+  `CallableViewOf` 传 view，运行时长度构造器可直接调用 view 参数。`refine_closure_tests` native 运行覆盖
+  无捕获/shared/owned 捕获的直接实参 lambda、view 转发与嵌套调用，分配计数确认 owned capture 随
+  closure 析构恰好释放一次。
+- [ ] 步 3：p18（返回带捕获的 move closure）。缺 frontend 的闭包返回来源事实（现有返回摘要只覆盖
+  无捕获 pointer），另开 frontend Spec 后实施。
 - [ ] 受影响目标定向测试、fmt、clippy、尺寸护栏、`check_docs.py` 通过；双宿主 CI 以 PR 为准。
+
+### 改动的既有测试（步 2）
+
+ADR-0034 取消 Borrow 回调单态化后，下列测试原先断言“每种回调一个实例”，现改为断言单实例 + 每个
+实参各自冻结的 callable：`unit_plan_tests/callable_identity` 中 8 项（三环境、别名/递归转发、
+三层转发、具名实参、两项工厂返回、已知函数引用、冻结路由）；`generic_runtime_tests` 的 key 断言；
+`unit_lower_container_tests` 原“view 参数初始化器不支持”的边界测试改为正向测试，float 元素边界单列。
 
 ## 4. 非目标
 
@@ -52,3 +64,4 @@ closure 形成显式化，Borrow 函数参数使用 callable view，函数可返
 | 提交 | 内容 |
 |---|---|
 | 步 1 | SSA/LLVM callable view 与 verifier 反例 |
+| 步 2 | 规划器 view 化、旧路径调用点 view 实参、细化层 view 调用与 lambda 形成；p17/p17b/q02 |

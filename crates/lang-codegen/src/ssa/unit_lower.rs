@@ -9,6 +9,7 @@ mod borrow_result;
 mod call;
 mod call_lifetimes;
 mod callable_abi;
+mod callable_view;
 mod cfg;
 mod checked;
 mod closure;
@@ -700,6 +701,9 @@ impl UnitExpressionLowerer<'_> {
             self.typed.types().get(ty),
             Some(UnitTypeKind::Function { .. })
         ) {
+            if let Some(view) = self.view_parameter_type(expression) {
+                return Ok(view);
+            }
             return self.callable_abi.expression_type(
                 self.source_plan,
                 self.typed,
@@ -713,6 +717,23 @@ impl UnitExpressionLowerer<'_> {
             .get(&ty)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+    }
+
+    /// ADR-0034: a Borrow function parameter's callable view target type.
+    fn view_parameter_type(&self, expression: ExpressionId) -> Option<SsaTypeId> {
+        let fact = self
+            .owned
+            .callable_origin(UnitExpressionId::new(self.source_unit, expression))?;
+        let lang_frontend::ownership_checking::UnitCallableOrigin::Parameter(symbol) =
+            fact.origin()
+        else {
+            return None;
+        };
+        let loan = self.borrow_bindings.get(&symbol)?;
+        match self.function.entity(EntityId::Loan(*loan))?.ty {
+            EntityType::Loan { target, .. } => Some(target),
+            _ => None,
+        }
     }
 
     /// 把 frontend 已批准的 `inner -> inner?` 隐式适配映射为消费式 nullable wrap。

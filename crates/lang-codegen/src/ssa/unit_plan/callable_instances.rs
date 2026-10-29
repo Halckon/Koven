@@ -47,6 +47,9 @@ pub(crate) struct UnitCallablePlan {
     routes: BTreeMap<(SourceToken, UnitExpressionId), PlannedUnitCallSite>,
     returns: BTreeMap<SourceToken, UnitPlannedCallableReturn>,
     runtime_callbacks: BTreeMap<(SourceToken, UnitExpressionId), CallableToken>,
+    /// ADR-0034: concrete callables passed to Borrow function parameters, by caller and argument
+    /// expression. The callee receives a view, so the callable never specializes the callee.
+    borrowed_arguments: BTreeMap<(SourceToken, UnitExpressionId), CallableToken>,
 }
 
 impl UnitCallablePlan {
@@ -75,6 +78,25 @@ impl UnitCallablePlan {
         constructor: UnitExpressionId,
     ) -> Option<CallableToken> {
         self.runtime_callbacks.get(&(source, constructor)).copied()
+    }
+
+    pub(in crate::ssa) fn borrowed_argument(
+        &self,
+        source: SourceToken,
+        argument: UnitExpressionId,
+    ) -> Option<CallableToken> {
+        self.borrowed_arguments.get(&(source, argument)).copied()
+    }
+
+    /// Every concrete callable a source passes to a Borrow function parameter.
+    pub(in crate::ssa) fn borrowed_arguments(
+        &self,
+        source: SourceToken,
+    ) -> impl Iterator<Item = CallableToken> + '_ {
+        self.borrowed_arguments
+            .iter()
+            .filter(move |((caller, _), _)| *caller == source)
+            .map(|(_, token)| *token)
     }
 
     pub(in crate::ssa) fn callable_return(
@@ -195,11 +217,14 @@ impl<'a> CallablePlanner<'a> {
                 .get(initializer.value)
                 .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, initializer.span))?
                 .span();
-            let token =
-                self.origin(caller, substitutions, initializer_id, pending, operand_span)?;
-            self.plan
-                .runtime_callbacks
-                .insert((caller, descriptor.expression()), token);
+            // A view parameter initializer has no concrete callable to freeze (ADR-0034).
+            if let Some(token) =
+                self.origin(caller, substitutions, initializer_id, pending, operand_span)?
+            {
+                self.plan
+                    .runtime_callbacks
+                    .insert((caller, descriptor.expression()), token);
+            }
         }
         for descriptor in self.typed.map_with_values() {
             let call = descriptor.expression();
@@ -227,8 +252,9 @@ impl<'a> CallablePlanner<'a> {
                 .get(action.expression())
                 .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, node.span()))?
                 .span();
-            let token = self.origin(caller, substitutions, action, pending, action_span)?;
-            self.plan.runtime_callbacks.insert((caller, call), token);
+            if let Some(token) = self.origin(caller, substitutions, action, pending, action_span)? {
+                self.plan.runtime_callbacks.insert((caller, call), token);
+            }
         }
         Ok(())
     }
@@ -257,6 +283,7 @@ impl<'a> CallablePlanner<'a> {
                     .filter(|((caller, _), _)| *caller == source)
                     .map(|(_, token)| *token),
             )
+            .chain(self.plan.borrowed_arguments(source))
             .chain(
                 self.plan
                     .callable_return(source)
@@ -331,8 +358,8 @@ impl<'a> CallablePlanner<'a> {
         }
         let callable = unit_callable_signature(self.typed, key.target())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let mut expected = Vec::new();
-        for (index, parameter) in callable.parameters().iter().enumerate() {
+        for parameter in callable.parameters() {
+            // ADR-0034: a Borrow function parameter is a view, never a specialization slot.
             if self
                 .function_type(
                     parameter.ty(),
@@ -341,36 +368,16 @@ impl<'a> CallablePlanner<'a> {
                     parameter.span(),
                 )?
                 .is_some()
+                && parameter.mode() != ParameterMode::Borrow
             {
-                if parameter.mode() != ParameterMode::Borrow {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        parameter.span(),
-                    ));
-                }
-                expected.push(index);
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    parameter.span(),
+                ));
             }
         }
-        if expected
-            != key
-                .callable_arguments()
-                .iter()
-                .map(|(slot, _)| *slot)
-                .collect::<Vec<_>>()
-        {
-            return Err(lowering_error(
-                if key.callable_arguments().is_empty() {
-                    LoweringErrorKind::UnsupportedNode
-                } else {
-                    LoweringErrorKind::MissingFact
-                },
-                span,
-            ));
-        }
-        for &(_, token) in key.callable_arguments() {
-            self.plan
-                .callable(token)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if !key.callable_arguments().is_empty() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         Ok(())
     }
@@ -461,10 +468,14 @@ impl<'a> CallablePlanner<'a> {
             if actual != expected || mapped != expected {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, operand_span));
             }
-            slots.push((
-                mapping.parameter_index(),
-                self.origin(caller, substitutions, expression, pending, operand_span)?,
-            ));
+            // ADR-0034: the callee receives a view; the concrete callable is the caller's.
+            if let Some(token) =
+                self.origin(caller, substitutions, expression, pending, operand_span)?
+            {
+                self.plan
+                    .borrowed_arguments
+                    .insert((caller, expression), token);
+            }
         }
         slots.sort_by_key(|(slot, _)| *slot);
         resolved.key.callable_arguments = slots;
@@ -492,7 +503,7 @@ impl<'a> CallablePlanner<'a> {
         expression: UnitExpressionId,
         pending: &mut BTreeSet<UnitFunctionInstanceKey>,
         span: Span,
-    ) -> Result<CallableToken, LoweringError> {
+    ) -> Result<Option<CallableToken>, LoweringError> {
         let fact = self
             .owned
             .callable_origin(expression)
@@ -529,6 +540,7 @@ impl<'a> CallablePlanner<'a> {
                         owner: caller,
                         expression: lambda,
                     })
+                    .map(Some)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
             }
             UnitCallableOrigin::Parameter(symbol) => {
@@ -538,20 +550,22 @@ impl<'a> CallablePlanner<'a> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 let signature = unit_callable_signature(self.typed, key.target())
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                let slot = signature
+                // ADR-0034: a Borrow function parameter is already a view; forwarding it
+                // re-borrows the view and freezes no concrete callable.
+                signature
                     .parameters()
                     .iter()
-                    .position(|parameter| parameter.symbol() == Some(symbol))
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-                key.callable_arguments()
-                    .binary_search_by_key(&slot, |(slot, _)| *slot)
-                    .map(|index| key.callable_arguments()[index].1)
-                    .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))
+                    .find(|parameter| parameter.symbol() == Some(symbol))
+                    .filter(|parameter| parameter.mode() == ParameterMode::Borrow)
+                    .map(|_| None)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
-            UnitCallableOrigin::KnownFunction(target) => self.known_function(target, pending, span),
-            UnitCallableOrigin::FactoryResult(call) => {
-                self.factory_return(caller, substitutions, call, pending, span)
+            UnitCallableOrigin::KnownFunction(target) => {
+                self.known_function(target, pending, span).map(Some)
             }
+            UnitCallableOrigin::FactoryResult(call) => self
+                .factory_return(caller, substitutions, call, pending, span)
+                .map(Some),
         }
     }
 

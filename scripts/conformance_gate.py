@@ -254,7 +254,7 @@ PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
     "linked_stack": "10-ownership-borrowing-drop.md",
 }
 
-# Explicit mapping from all 21 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
+# Explicit mapping from all 18 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
 UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p02_interp": ["L1", "L2"],
     "p05_double": ["N05"],
@@ -263,8 +263,6 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p15_elvis": ["N03"],
     "p16_result_q": ["N08"],
     "p16b_result_string": ["N08"],
-    "p17_lambda": ["N04"],
-    "p17b_lambda_nocapture": ["N04"],
     "p18_move_closure": ["N04"],
     "p21_box_enum": ["N07", "L7"],
     "p25b_linked_recursive": ["N03"],
@@ -272,7 +270,6 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p28_companion": ["N06"],
     "p35_value_eq": ["L1"],
     "p40_nested_generic_class": ["N01"],
-    "q02_lambda_arg_inline": ["N04"],
     "q03_fn_ref": ["N04"],
     "q08_enum_string_payload": ["N02", "L7"],
     "s02_pair_builtin": ["S6"],
@@ -658,6 +655,24 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "stdout": "vmethod-generic\n",
         "v046_baseline_exempt": True,
         "note": "SPEC-0361: generic value-class instance method in E3 refinement layer",
+    },
+    "p17_lambda": {
+        "kind": "run_ok",
+        "stdout": "lambda\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0364: lambda with a shared capture passed as a Borrow callable view (ADR-0034)",
+    },
+    "p17b_lambda_nocapture": {
+        "kind": "run_ok",
+        "stdout": "lambda0\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0364: capture-free lambda passed as a Borrow callable view (ADR-0034)",
+    },
+    "q02_lambda_arg_inline": {
+        "kind": "run_ok",
+        "stdout": "lambda-arg\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0364: nested calls through a Borrow callable view (ADR-0034)",
     },
     "e01_enum_when_bool_return": {
         "kind": "run_ok",

@@ -243,40 +243,72 @@ fn lowers_cross_file_container_construction_and_owner_transfer_deterministically
     assert_eq!(drop_count(function(module, "q.entry")), 5);
 }
 
+/// ADR-0034: a Borrow callback parameter is a callable view that a runtime-length
+/// constructor calls directly.
 #[test]
-fn runtime_length_container_and_unsupported_element_remain_explicit_boundaries() {
-    for (name, text) in [
-        (
-            "test/runtime.ko",
-            "package test\n\
-             fun entry(size: Int, initializer: (Int) -> Int): List<Int> =\n\
-                 List<Int>(size, initializer)",
-        ),
-        (
-            "test/float.ko",
-            "package test\nfun entry(): List<Double> = listOf(1.0)",
-        ),
-    ] {
-        let mut sources = SourceMap::new();
-        let (source, parsed) = parsed(&mut sources, name, text);
-        let inputs = [SourceUnitInput::new("root", name, source, &parsed)];
-        let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) =
-            analyze(&sources, &inputs, &name_environment, &type_environment);
-        let error = match lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &type_environment,
-            &typed,
-            &owned,
-            declaration(&names, "test", "entry"),
-        ) {
-            Ok(_) => panic!("{name} remains outside the concrete container core"),
-            Err(error) => error,
-        };
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
-    }
+fn runtime_length_container_calls_a_view_parameter_initializer() {
+    let text = "package test\n\
+                fun entry(size: Int, initializer: (Int) -> Int): List<Int> =\n\
+                    List<Int>(size, initializer)";
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(&mut sources, "test/runtime.ko", text);
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "test/runtime.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, entry) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    )
+    .expect("a view initializer lowers");
+    let module = &program.modules[0];
+    let function = module.function(entry).expect("entry");
+    let view = function.blocks[0].parameters[1];
+    assert!(matches!(
+        function.entity(view).map(|data| data.ty),
+        Some(super::model::EntityType::Loan { target, .. })
+            if module.callable_view_signature(target).is_some()
+    ));
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        super::model::Operation::ContainerGenerateBorrowed { .. }
+    )));
+    crate::llvm::render_verified_program(&program).expect("view initializer reaches LLVM");
+}
+
+#[test]
+fn unsupported_float_element_remains_an_explicit_boundary() {
+    let (name, text) = (
+        "test/float.ko",
+        "package test\nfun entry(): List<Double> = listOf(1.0)",
+    );
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(&mut sources, name, text);
+    let inputs = [SourceUnitInput::new("root", name, source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let error = match lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    ) {
+        Ok(_) => panic!("{name} remains outside the concrete container core"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
 }
 
 #[test]

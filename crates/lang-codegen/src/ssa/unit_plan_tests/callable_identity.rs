@@ -289,10 +289,27 @@ fn unit_callable_plan_three_environments_have_three_full_keys_and_stable_input_o
         forward, reversed,
         "normalized source order determines the entire plan"
     );
+    // ADR-0034: the Borrow callback is a view, so one generic instance serves all three
+    // environments; each call still freezes its own concrete callable token.
+    assert_eq!(fixture.counts(&forward, &["generate"]), [1]);
+    let source = forward
+        .iter()
+        .find(|instance| instance.key().target() == fixture.target("entry"))
+        .unwrap();
+    let tokens = fixture
+        .callback_uses("generate")
+        .iter()
+        .map(|call| {
+            forward
+                .callable_plan()
+                .borrowed_argument(source.source_token(), call[0].expression)
+                .expect("each environment is a frozen borrowed callable")
+        })
+        .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
-        fixture.counts(&forward, &["generate"]),
-        [3],
-        "one semantic Fn signature cannot merge pointer/shared/owned environments"
+        tokens.len(),
+        3,
+        "pointer/shared/owned environments stay distinct"
     );
 }
 
@@ -334,8 +351,8 @@ fn unit_callable_plan_same_origin_alias_and_recursive_parameter_reuse_one_instan
     assert!(
         plan.iter()
             .filter(|instance| instance.key().target() == fixture.target("relay"))
-            .all(|instance| instance.key().is_specialized()),
-        "nongeneric callback slots still use the existing specialization budget"
+            .all(|instance| !instance.key().is_specialized()),
+        "ADR-0034: a Borrow callback parameter is a view, not a specialization slot"
     );
 }
 
@@ -361,8 +378,8 @@ fn unit_callable_plan_three_parameter_forwarders_preserve_each_actual_environmen
     let plan = fixture.plan();
     assert_eq!(
         fixture.counts(&plan, &["outer", "middle", "inner"]),
-        [3, 3, 3],
-        "each forwarding instance transports its current parameter token, including the environment"
+        [1, 1, 1],
+        "ADR-0034: forwarding re-borrows the view; no environment specializes a forwarder"
     );
 }
 
@@ -409,8 +426,8 @@ fn unit_callable_plan_named_arguments_use_declaration_slots_instead_of_evaluatio
     let plan = fixture.plan();
     assert_eq!(
         fixture.counts(&plan, &["route"]),
-        [2],
-        "ordered sparse Fn slots are 1/3, with no entries for scalar arguments"
+        [1],
+        "ADR-0034: both Fn parameters are views; one instance serves every slot assignment"
     );
 }
 
@@ -446,8 +463,8 @@ fn unit_callable_plan_pointer_factory_return_identity_is_memoized_per_source_ins
     let plan = fixture.plan();
     assert_eq!(
         fixture.counts(&plan, &["generate", "factory", "otherFactory"]),
-        [2, 1, 1],
-        "two evaluations of the same pointer factory share its return token; different factory bodies remain distinct"
+        [1, 1, 1],
+        "ADR-0034: the view parameter keeps one generate instance; each factory body stays distinct"
     );
 }
 
@@ -476,8 +493,8 @@ fn unit_callable_plan_known_function_reference_requires_the_selected_source_body
     let plan = fixture.plan();
     assert_eq!(
         fixture.counts(&plan, &["helper", "identity", "other"]),
-        [2, 1, 1],
-        "function value references demand their selected bodies even without a direct source call"
+        [1, 1, 1],
+        "function value references demand their selected bodies; the view keeps one helper"
     );
 }
 
@@ -648,28 +665,20 @@ fn unit_callable_plan_frozen_named_routes_preserve_sparse_slots_and_owner_tokens
                 .unwrap()
         })
         .collect::<Vec<_>>();
+    // ADR-0034: Fn parameters are views; every route shares one key and each operand
+    // carries its own frozen borrowed callable.
     assert_eq!(routes[0].key(), routes[1].key());
-    assert_ne!(routes[0].key(), routes[2].key());
+    assert_eq!(routes[0].key(), routes[2].key());
     for (route, operands) in routes.iter().zip(uses) {
         assert!(route.delegation().is_empty());
-        assert_eq!(
-            route
-                .key()
-                .callable_arguments()
-                .iter()
-                .map(|(slot, _)| *slot)
-                .collect::<Vec<_>>(),
-            [1, 3]
-        );
-        for &(slot, token) in route.key().callable_arguments() {
-            let Some(UnitCallableOrigin::Lambda(lambda)) = operands
-                .iter()
-                .find(|operand| operand.parameter == slot)
-                .unwrap()
-                .origin
-            else {
+        assert!(route.key().callable_arguments().is_empty());
+        for operand in &operands {
+            let Some(UnitCallableOrigin::Lambda(lambda)) = operand.origin else {
                 panic!("actual source lambda");
             };
+            let token = callables
+                .borrowed_argument(source.source_token(), operand.expression)
+                .expect("frozen borrowed callable");
             assert_eq!(
                 callables.callable(token),
                 Some(&CallableKey::Lambda {
@@ -725,10 +734,17 @@ fn unit_callable_plan_factory_memo_and_routes_share_the_returned_pointer_token()
             .call_site(source.source_token(), call.expression())
             .unwrap();
         if call.target() == UnitCallTarget::Declaration(declaration(&fixture.names, "helper")) {
-            assert_eq!(route.key().callable_arguments(), [(0, result.callable())]);
+            assert!(route.key().callable_arguments().is_empty());
         } else {
             assert_eq!(route.key(), factory.key());
         }
+    }
+    // ADR-0034: each borrowed factory result shares the memoized returned pointer token.
+    for call in fixture.callback_uses("helper") {
+        assert_eq!(
+            callables.borrowed_argument(source.source_token(), call[0].expression),
+            Some(result.callable())
+        );
     }
 }
 
