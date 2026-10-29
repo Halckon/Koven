@@ -5,10 +5,11 @@ use lang_frontend::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
-        CompilationUnitOwnership, LoanEndPoint, OwnershipCheckedFile, UnitDropPoint,
-        UnitDropTarget, UnitLoanTarget, check_compilation_unit_ownership, check_ownership,
+        CompilationUnitOwnership, LoanEndPoint, OwnershipCheckedFile, OwnershipDeferredReason,
+        UnitDropPoint, UnitDropTarget, UnitLoanTarget, check_compilation_unit_ownership,
+        check_ownership,
     },
-    parser::{ParsedFile, parse_file},
+    parser::{Expression, ParsedFile, parse_file},
     source::SourceMap,
     type_checking::{
         UnitCallTarget, check_compilation_unit_types, check_types, complete_compilation_unit_types,
@@ -64,18 +65,28 @@ fn observe(text: &str) -> Observed {
     }
 }
 
+fn assert_units_admitted(observed: &Observed) {
+    assert_eq!(observed.units.len(), 2);
+    for unit in &observed.units {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        unit.clone().validate().unwrap();
+    }
+}
+
 fn assert_accepted(observed: &Observed) {
     assert!(
         observed.legacy.diagnostics().is_empty(),
         "{:?}",
         observed.legacy.diagnostics()
     );
-    assert!(observed.legacy.deferred().is_empty());
-    assert_eq!(observed.units.len(), 2);
+    assert!(
+        observed.legacy.deferred().is_empty(),
+        "{:?}",
+        observed.legacy.deferred()
+    );
+    assert_units_admitted(observed);
     for unit in &observed.units {
-        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
-        unit.clone().validate().unwrap();
         for event in unit.direct_call_loan_ends() {
             let loan = event.loan();
             assert!(unit.loans().contains(loan));
@@ -308,7 +319,7 @@ fn ownership_error_clears_previously_observed_call_ends() {
 #[test]
 fn nonreturning_suffix_and_unreachable_calls_publish_no_cleanup() {
     let observed = observe(
-        "fun stop(): Nothing { loop {} }\nfun read(first: String, own n: Int, last: String): Unit {}\nfun run(): Unit { read(\"prefix\", stop(), \"suffix\"); read(\"unreachable\", 0, \"tail\") }",
+        "fun stop(): Nothing = stop()\nfun read(first: String, own n: Int, last: String): Unit {}\nfun run(): Unit { read(\"prefix\", stop(), \"suffix\"); read(\"unreachable\", 0, \"tail\") }",
     );
     assert_accepted(&observed);
     assert!(observed.legacy.loan_ends().is_empty());
@@ -321,17 +332,23 @@ fn nonreturning_suffix_and_unreachable_calls_publish_no_cleanup() {
 #[test]
 fn projections_and_borrow_bindings_are_excluded_after_real_loan_production() {
     let cases = [
-        ("own holder: Holder", "", "(holder.text)"),
-        ("", "", "Holder(\"field\").text"),
-        ("own values: List<String>", "", "values[0]"),
-        ("", "", "listOf(\"element\")[0]"),
+        ("own holder: Holder", "", "(holder.text)", None),
+        (
+            "",
+            "",
+            "Holder(\"field\").text",
+            Some(OwnershipDeferredReason::MemberReceiver),
+        ),
+        ("own values: List<String>", "", "values[0]", None),
+        ("", "", "listOf(\"element\")[0]", None),
         (
             "own source: String",
             "borrow val alias = source;",
             "((alias))",
+            None,
         ),
     ];
-    for (parameter, prefix, operand) in cases {
+    for (parameter, prefix, operand, legacy_deferred) in cases {
         for suffix in ["0", "if (flag) { return } else { 0 }"] {
             let parameters = if parameter.is_empty() {
                 "flag: Boolean".to_owned()
@@ -341,7 +358,47 @@ fn projections_and_borrow_bindings_are_excluded_after_real_loan_production() {
             let observed = observe(&format!(
                 "class Holder(val text: String)\nfun read(text: String, own n: Int): Unit {{}}\nfun run({parameters}): Unit {{ {prefix} read({operand}, {suffix}) }}"
             ));
-            assert_accepted(&observed);
+            if let Some(reason) = legacy_deferred {
+                // 旧 checker 对 temporary field 没有稳定 place，明确保留其准入差异。
+                // 不把 legacy deferred 当作成功，也不借此放宽 Unit 的完整准入。
+                assert!(
+                    observed.legacy.diagnostics().is_empty(),
+                    "{:?}",
+                    observed.legacy.diagnostics()
+                );
+                let members = observed
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .iter()
+                    .filter_map(|(id, node)| {
+                        (matches!(node.payload(), Expression::Member { .. })
+                            && observed.sources.slice(node.span()) == Ok(operand))
+                        .then_some(id)
+                    })
+                    .collect::<Vec<_>>();
+                let [member] = members.as_slice() else {
+                    panic!("one actual temporary field operand")
+                };
+                assert_eq!(
+                    observed
+                        .legacy
+                        .deferred()
+                        .iter()
+                        .map(|fact| (fact.expression(), fact.reason()))
+                        .collect::<Vec<_>>(),
+                    [(*member, reason)],
+                    "operand {operand}, suffix {suffix}"
+                );
+                assert_units_admitted(&observed);
+            } else {
+                assert!(
+                    observed.legacy.deferred().is_empty(),
+                    "operand {operand}, suffix {suffix}: {:?}",
+                    observed.legacy.deferred()
+                );
+                assert_accepted(&observed);
+            }
             for unit in &observed.units {
                 let actual = unit
                     .loans()
