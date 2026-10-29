@@ -126,6 +126,12 @@ pub(super) fn verify_operation(
             callable,
             arguments,
         } => callable_invoke_contract(module, function, *callable, arguments, &results),
+        Operation::CallableViewOf { source } => {
+            callable::view_of_contract(module, function, *source, &results)
+        }
+        Operation::CallableInvokeView { view, arguments } => {
+            callable::invoke_view_contract(module, function, *view, arguments, &results)
+        }
         Operation::AggregateConstruct { aggregate, fields } => {
             aggregate_construct_contract(module, function, *aggregate, fields, &results)
         }
@@ -1119,6 +1125,8 @@ pub(super) fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
                 | SsaTypeKind::SharedReference { .. }
                 | SsaTypeKind::FunctionPointer { .. }
                 | SsaTypeKind::ConcreteClosure { .. }
+                // Admitted only as a shared loan target; entity rules reject view values.
+                | SsaTypeKind::CallableView { .. }
         )
     )
 }

@@ -439,6 +439,18 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.push(')');
             Ok(())
         }
+        Operation::CallableViewOf { source } => {
+            output.write_str("callable.view ")?;
+            write_entity_id(output, EntityId::Loan(*source))
+        }
+        Operation::CallableInvokeView { view, arguments } => {
+            output.write_str("invoke.view ")?;
+            write_entity_id(output, EntityId::Loan(*view))?;
+            output.push('(');
+            write_entity_ids(output, arguments)?;
+            output.push(')');
+            Ok(())
+        }
         Operation::AggregateConstruct { aggregate, fields } => {
             output.write_str("aggregate.construct ")?;
             write_type_id(output, *aggregate)?;

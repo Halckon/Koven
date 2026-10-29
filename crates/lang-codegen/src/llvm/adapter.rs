@@ -325,6 +325,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 | Operation::SharedFieldLoan { .. }
                 | Operation::SharedHeapFieldLoan { .. }
                 | Operation::SharedReborrow { .. }
+                | Operation::CallableViewOf { .. }
                 | Operation::SharedReferenceFollow { .. }
                 | Operation::ContainerElementPlace { .. }
                 | Operation::RangeElementPlace { .. }
@@ -522,12 +523,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             } => {
                 self.lower_closure_construct(*closure_type, *thunk, captures, &results)?;
             }
-            Operation::CallableInvoke {
-                callable,
-                arguments,
-            } => {
-                self.lower_callable_invoke(*callable, arguments, &results)?;
-            }
+            Operation::CallableInvoke { .. }
+            | Operation::CallableViewOf { .. }
+            | Operation::CallableInvokeView { .. } => self.lower_callable(instruction, &results)?,
             Operation::AggregateConstruct { aggregate, fields } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count(

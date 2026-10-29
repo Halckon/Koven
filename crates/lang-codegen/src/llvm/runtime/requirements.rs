@@ -304,7 +304,11 @@ impl RuntimeRequirements {
                     "opaque MoveOnly 类型没有可生成的 drop glue".to_owned(),
                 ));
             }
-            Some(SsaTypeKind::ZeroSized { .. } | SsaTypeKind::FunctionPointer { .. }) => {}
+            Some(
+                SsaTypeKind::ZeroSized { .. }
+                | SsaTypeKind::FunctionPointer { .. }
+                | SsaTypeKind::CallableView { .. },
+            ) => {}
             Some(SsaTypeKind::ConcreteClosure { captures, .. }) => {
                 for capture in captures {
                     if capture.mode == ClosureCaptureMode::Owned {

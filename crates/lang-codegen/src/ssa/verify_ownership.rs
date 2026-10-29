@@ -448,6 +448,20 @@ fn apply_operation(
                 module, function, captures, aliases, state, location, origin, errors,
             );
         }
+        Operation::CallableInvokeView { view, arguments } => {
+            closure::apply_invoke_view(
+                module,
+                function,
+                *view,
+                arguments,
+                aliases,
+                closure_loans,
+                state,
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::CallableInvoke {
             callable,
             arguments,
@@ -1010,7 +1024,9 @@ fn apply_operation(
                 ));
             }
         }
-        Operation::SharedReborrow { source } | Operation::SharedReferenceFollow { source } => {
+        Operation::SharedReborrow { source }
+        | Operation::SharedReferenceFollow { source }
+        | Operation::CallableViewOf { source } => {
             if !state.loans.contains(source) {
                 errors.push(error(
                     VerifyErrorKind::LoanInactive { loan: *source },

@@ -188,6 +188,9 @@ impl LayoutCalculator<'_, '_> {
                 let payload = self.dependency(*inner)?;
                 self.record(ty, &[present, payload])?
             }
+            Some(SsaTypeKind::CallableView { .. }) => {
+                self.record(ty, &[self.pointer_layout, self.pointer_layout])?
+            }
             Some(SsaTypeKind::RangeView { .. } | SsaTypeKind::StringOwner) => self.record(
                 ty,
                 &[self.pointer_layout, self.size_layout, self.size_layout],

@@ -156,6 +156,25 @@ pub(super) enum ROp {
     SharedReborrow {
         source: Slot,
     },
+    /// ADR-0034: the address of a lambda thunk without captures (a function pointer).
+    FunctionAddress {
+        target: crate::ssa::model::FunctionId,
+    },
+    /// ADR-0034: a capturing lambda's closure value; captures are loans (shared) or values.
+    ClosureConstruct {
+        closure: crate::ssa::model::SsaTypeId,
+        thunk: crate::ssa::model::FunctionId,
+        captures: Vec<Slot>,
+    },
+    /// ADR-0034: re-borrows a callable loan as a callable view.
+    CallableViewOf {
+        source: Slot,
+    },
+    /// ADR-0034: calls through a callable view loan.
+    CallableInvokeView {
+        view: Slot,
+        arguments: Vec<Slot>,
+    },
     /// Takes a MoveOnly owner back from its root place after its loans ended.
     RootPlaceTake {
         owner: Slot,
@@ -172,9 +191,15 @@ pub(super) enum ROp {
 impl ROp {
     pub(super) fn operands(&self) -> Vec<Slot> {
         match self {
-            Self::Constant(_) | Self::StringLiteral { .. } | Self::NullableNull { .. } => {
-                Vec::new()
-            }
+            Self::Constant(_)
+            | Self::StringLiteral { .. }
+            | Self::NullableNull { .. }
+            | Self::FunctionAddress { .. } => Vec::new(),
+            Self::CallableViewOf { source } => vec![*source],
+            Self::ClosureConstruct { captures, .. } => captures.clone(),
+            Self::CallableInvokeView { view, arguments } => std::iter::once(*view)
+                .chain(arguments.iter().copied())
+                .collect(),
             Self::Alias { source: slot }
             | Self::PrintString { value: slot }
             | Self::ReadLoan { loan: slot }

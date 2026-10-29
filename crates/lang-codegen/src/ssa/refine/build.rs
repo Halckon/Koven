@@ -1,5 +1,6 @@
 //! AST + typed + ownership facts → slot CFG. Ownership decisions come only from facts:
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
+mod callable;
 mod condition;
 mod expression;
 mod field;
@@ -229,10 +230,12 @@ impl Builder<'_, '_> {
         self.inputs.typed.copyability(self.c(ty))
     }
 
+    /// The SSA type of a storage type; a Borrow function type is its callable view target.
     fn ssa_type(&self, ty: UnitTypeId, span: Span) -> Result<SsaTypeId, LoweringError> {
         self.types
             .type_ids
             .get(&ty)
+            .or_else(|| self.inputs.views.get(&ty))
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
     }
@@ -413,6 +416,9 @@ impl Builder<'_, '_> {
                     self.end_views_of(*symbol, *span)?;
                     self.bindings.get(symbol).copied()
                 }
+                // ADR-0009: a closure's drop glue releases its owned captures; the fact is
+                // satisfied by the closure's own drop at the same point.
+                UnitDropTarget::Captured { .. } => continue,
                 UnitDropTarget::Temporary(expression) => {
                     // A moved named argument: its owner is gone on this path.
                     if let Some(symbol) = self.pending_symbol(*expression) {
@@ -522,6 +528,7 @@ impl Builder<'_, '_> {
                 && origin.source_id() == item.source_id()
                 && item.start() <= origin.start()
                 && origin.end() <= item.end()
+                && !self.inside_lambda(origin)
             {
                 return Err(error(LoweringErrorKind::MissingFact, origin));
             }

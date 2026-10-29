@@ -97,6 +97,7 @@ impl AliasRoots {
                         }
                     }
                     Operation::SharedReborrow { source }
+                    | Operation::CallableViewOf { source }
                     | Operation::SharedReferenceFollow { source }
                     | Operation::BorrowCall { source, .. }
                     | Operation::MapIterationKeyLoan { source, .. }

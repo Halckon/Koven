@@ -54,10 +54,9 @@ fn unit_runtime_generic_helper_returns_resource_in_three_environments() {
                 .collect::<Vec<_>>();
             assert_eq!(instances.len(), 1);
             assert_eq!(instances[0].key().type_arguments().len(), 1);
-            assert_eq!(
-                instances[0].key().callable_arguments().len(),
-                1,
-                "generic element and selected callback identity both belong to the complete key"
+            assert!(
+                instances[0].key().callable_arguments().is_empty(),
+                "ADR-0034: the callback is a view; only the generic element belongs to the key"
             );
             let (program, _) = lower_scalar_unit_with_entry(
                 &sources,

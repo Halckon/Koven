@@ -180,6 +180,31 @@ pub(super) fn apply_invoke(
             origin,
         ));
     }
+    invoke_arguments(
+        module,
+        function,
+        arguments,
+        aliases,
+        closure_loans,
+        state,
+        location,
+        origin,
+        errors,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn invoke_arguments(
+    module: &Module,
+    function: &Function,
+    arguments: &[EntityId],
+    aliases: &AliasRoots,
+    closure_loans: &ClosureLoans,
+    state: &mut BlockState,
+    location: VerifyLocation,
+    origin: &Origin,
+    errors: &mut Vec<VerifyError>,
+) {
     for argument in arguments {
         match argument {
             EntityId::Value(value) => {
@@ -222,6 +247,41 @@ pub(super) fn apply_invoke(
             }
         }
     }
+}
+
+/// ADR-0034: a call through a callable view reads the borrowed callable; the view loan and
+/// every loan argument must be active, and value arguments are consumed.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn apply_invoke_view(
+    module: &Module,
+    function: &Function,
+    view: LoanId,
+    arguments: &[EntityId],
+    aliases: &AliasRoots,
+    closure_loans: &ClosureLoans,
+    state: &mut BlockState,
+    location: VerifyLocation,
+    origin: &Origin,
+    errors: &mut Vec<VerifyError>,
+) {
+    if !state.loans.contains(&view) {
+        errors.push(error(
+            VerifyErrorKind::LoanInactive { loan: view },
+            location.clone(),
+            origin,
+        ));
+    }
+    invoke_arguments(
+        module,
+        function,
+        arguments,
+        aliases,
+        closure_loans,
+        state,
+        location,
+        origin,
+        errors,
+    );
 }
 
 /// Borrowed generation reads the callable storage and retains every capture dependency.

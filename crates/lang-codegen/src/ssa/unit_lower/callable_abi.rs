@@ -8,6 +8,8 @@ pub(super) struct CallableAbi {
     lambdas: BTreeMap<(SourceToken, UnitExpressionId), SsaTypeId>,
     named: BTreeMap<SourceToken, SsaTypeId>,
     sources: BTreeMap<UnitFunctionInstanceKey, SourceToken>,
+    /// ADR-0034 view targets of Borrow function parameters, by concrete function type.
+    views: BTreeMap<UnitTypeId, SsaTypeId>,
 }
 
 impl CallableAbi {
@@ -41,6 +43,7 @@ impl CallableAbi {
                     plan.callable_return(instance.source_token())
                         .map(|value| value.callable()),
                 )
+                .chain(plan.borrowed_arguments(instance.source_token()))
             {
                 if let Some(CallableKey::KnownFunction { function }) = plan.callable(token) {
                     named_sources.insert(*function);
@@ -111,7 +114,21 @@ impl CallableAbi {
                 .collect(),
             named,
             sources,
+            views: BTreeMap::new(),
         })
+    }
+
+    pub(super) fn record_view(&mut self, function: UnitTypeId, view: SsaTypeId) {
+        self.views.insert(function, view);
+    }
+
+    pub(super) fn views(&self) -> &BTreeMap<UnitTypeId, SsaTypeId> {
+        &self.views
+    }
+
+    /// The callable view target recorded for a Borrow function parameter's concrete type.
+    pub(super) fn view(&self, function: UnitTypeId) -> Option<SsaTypeId> {
+        self.views.get(&function).copied()
     }
 
     pub(super) fn token_type(
@@ -224,4 +241,54 @@ impl CallableAbi {
             }
         }
     }
+}
+
+/// ADR-0034: the callable view loan target for a concrete function type. Borrow function
+/// parameters receive this view instead of a callable-provenance specialization.
+pub(super) fn view_type(
+    module: &mut crate::ssa::model::Module,
+    typed: &CompilationUnitTypes,
+    types: &mut type_lower::UnitTypeLowering,
+    function: UnitTypeId,
+    span: Span,
+) -> Result<SsaTypeId, LoweringError> {
+    let Some(UnitTypeKind::Function {
+        parameters,
+        return_type,
+        ..
+    }) = typed.types().get(function).cloned()
+    else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    };
+    let is_function = |ty| matches!(typed.types().get(ty), Some(UnitTypeKind::Function { .. }));
+    let mut entities = Vec::with_capacity(parameters.len());
+    for parameter in parameters {
+        if is_function(parameter.ty()) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let ty = types.intern(module, typed, parameter.ty(), span)?;
+        entities.push(match parameter.mode() {
+            ParameterMode::Value => EntityType::Value(ty),
+            ParameterMode::Borrow => EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: ty,
+            },
+            ParameterMode::Inout => {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+        });
+    }
+    let returns = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
+        Vec::new()
+    } else if is_function(return_type) {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    } else {
+        vec![types.intern(module, typed, return_type, span)?]
+    };
+    module
+        .add_callable_view_type(crate::ssa::model::CallableSignature {
+            parameters: entities,
+            returns,
+        })
+        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
 }
