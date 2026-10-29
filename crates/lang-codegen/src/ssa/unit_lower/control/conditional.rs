@@ -12,9 +12,13 @@ impl UnitExpressionLowerer<'_> {
         then_index: usize,
         else_index: usize,
         span: Span,
+        result: ControlResult,
     ) -> Result<LoweredValue, LoweringError> {
         let control = UnitExpressionId::new(self.source_unit, expression);
-        let result_required = self.control_result_required(expression, span)?;
+        if result.control != control {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let result_required = result.required;
         let ordinary_if = self
             .parsed
             .ast()
@@ -223,7 +227,7 @@ impl UnitExpressionLowerer<'_> {
                 control,
                 branch: then_index,
             },
-            result_required,
+            result,
         )? {
             exits.push(exit);
         }
@@ -251,7 +255,7 @@ impl UnitExpressionLowerer<'_> {
                     control,
                     branch: else_index,
                 },
-                result_required,
+                result,
             )? {
                 exits.push(exit);
             }

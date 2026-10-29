@@ -3,6 +3,8 @@
 mod branch;
 mod conditional;
 mod nullable_if;
+#[cfg(test)]
+mod result_tests;
 mod when_subject;
 
 use when_subject::{OwnedWhenSubject, WhenSubjectValue};
@@ -15,7 +17,9 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget, UnitShortCircuitRhs},
     parser::{Expression, LiteralKind, TypeRef, WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitTypeKind, UnitTypeRefId},
+    type_checking::{
+        BuiltinType, Copyability, UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
+    },
 };
 
 use super::{
@@ -31,6 +35,14 @@ use crate::ssa::{
         SsaTypeId, TerminatorKind, ValueId,
     },
 };
+
+/// The published control identity and its result representation travel together.
+#[derive(Clone, Copy)]
+pub(super) struct ControlResult {
+    control: UnitExpressionId,
+    pub(super) required: bool,
+    string: Option<(UnitTypeId, SsaTypeId)>,
+}
 
 #[derive(Clone, Copy)]
 struct BooleanWhenArm {
@@ -223,7 +235,17 @@ impl UnitExpressionLowerer<'_> {
         else_branch: Option<StatementId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        self.lower_conditional(expression, condition, then_branch, else_branch, 0, 1, span)
+        let result = self.control_result(expression, None, span)?;
+        self.lower_conditional(
+            expression,
+            condition,
+            then_branch,
+            else_branch,
+            0,
+            1,
+            span,
+            result,
+        )
     }
 
     pub(super) fn lower_boolean_when(
@@ -232,6 +254,7 @@ impl UnitExpressionLowerer<'_> {
         subject: Option<ExpressionId>,
         entries: &[WhenEntry],
         span: Span,
+        expected_string: Option<(UnitTypeId, SsaTypeId)>,
     ) -> Result<LoweredValue, LoweringError> {
         let control = UnitExpressionId::new(self.source_unit, expression);
         // SPEC-0357 publishes comparison-completed facts; this consumer cannot place them yet.
@@ -243,8 +266,12 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if self.typed.nullable_when(control).is_some() {
+            if expected_string.is_some() {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
             return self.lower_nullable_when(control, span);
         }
+        let result = self.control_result(expression, expected_string, span)?;
         if let Some(subject) = subject {
             let subject_id = UnitExpressionId::new(self.source_unit, subject);
             let subject_type = self
@@ -286,6 +313,7 @@ impl UnitExpressionLowerer<'_> {
                     subject_root,
                     entries,
                     span,
+                    result,
                 );
             }
             if let Some(arms) = self.boolean_literal_arms(entries)? {
@@ -294,7 +322,9 @@ impl UnitExpressionLowerer<'_> {
                         if when_true.body == when_false.body
                             && when_true.index == when_false.index =>
                     {
-                        self.lower_exhaustive_boolean_arm(expression, subject, when_true, span)
+                        self.lower_exhaustive_boolean_arm(
+                            expression, subject, when_true, span, result,
+                        )
                     }
                     (Some(when_true), Some(when_false)) => self.lower_conditional(
                         expression,
@@ -304,6 +334,7 @@ impl UnitExpressionLowerer<'_> {
                         when_true.index,
                         when_false.index,
                         span,
+                        result,
                     ),
                     (Some(when_true), None) => self.lower_conditional(
                         expression,
@@ -313,6 +344,7 @@ impl UnitExpressionLowerer<'_> {
                         when_true.index,
                         entries.len(),
                         span,
+                        result,
                     ),
                     (None, Some(_)) | (None, None) => self.lower_when_chain(
                         expression,
@@ -320,6 +352,7 @@ impl UnitExpressionLowerer<'_> {
                         None,
                         entries,
                         span,
+                        result,
                     ),
                 };
             }
@@ -330,6 +363,7 @@ impl UnitExpressionLowerer<'_> {
             None,
             entries,
             span,
+            result,
         )
     }
 
@@ -386,8 +420,8 @@ impl UnitExpressionLowerer<'_> {
         subject: ExpressionId,
         arm: BooleanWhenArm,
         span: Span,
+        result: ControlResult,
     ) -> Result<LoweredValue, LoweringError> {
-        let result_required = self.control_result_required(expression, span)?;
         self.require_expression_value(subject)?;
         let exit = self.lower_if_branch(
             self.block,
@@ -407,7 +441,7 @@ impl UnitExpressionLowerer<'_> {
                 control: UnitExpressionId::new(self.source_unit, expression),
                 branch: arm.index,
             },
-            result_required,
+            result,
         )?;
         self.merge_unit_exits(exit.into_iter().collect(), span)
     }
@@ -419,8 +453,8 @@ impl UnitExpressionLowerer<'_> {
         subject_root: Option<OwnedWhenSubject>,
         entries: &[WhenEntry],
         span: Span,
+        result: ControlResult,
     ) -> Result<LoweredValue, LoweringError> {
-        let result_required = self.control_result_required(expression, span)?;
         let (subject, subject_root) =
             self.lower_when_subject(subject, subject_root, entries, span)?;
         let baseline = self.bindings.clone();
@@ -479,7 +513,7 @@ impl UnitExpressionLowerer<'_> {
                         control,
                         branch: index,
                     },
-                    result_required,
+                    result,
                 )? {
                     exits.push(exit);
                 }
@@ -651,7 +685,7 @@ impl UnitExpressionLowerer<'_> {
                     control,
                     branch: index,
                 },
-                result_required,
+                result,
             )? {
                 exits.push(exit);
             }
@@ -686,7 +720,7 @@ impl UnitExpressionLowerer<'_> {
             unmatched_temporaries,
         )) = unmatched
         {
-            if result_required || self.typed.expression_falls_through(control) == Some(false) {
+            if result.required || self.typed.expression_falls_through(control) == Some(false) {
                 if subject.and_then(WhenSubjectValue::tagged_type).is_some() {
                     self.function
                         .set_abort_terminator(
@@ -873,11 +907,12 @@ impl UnitExpressionLowerer<'_> {
         })
     }
 
-    pub(super) fn control_result_required(
+    pub(super) fn control_result(
         &self,
         expression: ExpressionId,
+        expected_string: Option<(UnitTypeId, SsaTypeId)>,
         span: Span,
-    ) -> Result<bool, LoweringError> {
+    ) -> Result<ControlResult, LoweringError> {
         let expression_type = self
             .typed
             .expression_type(UnitExpressionId::new(self.source_unit, expression))
@@ -889,6 +924,20 @@ impl UnitExpressionLowerer<'_> {
             self.static_self,
             span,
         )?;
+        let control = UnitExpressionId::new(self.source_unit, expression);
+        if let Some((ty, storage)) = expected_string {
+            if !matches!(self.typed.types().get(concrete_type), Some(UnitTypeKind::Nullable(inner))
+                if builtin_type(self.typed, *inner) == Some(BuiltinType::Nothing))
+                || self.string_nullable_storage(ty) != Some(storage)
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            return Ok(ControlResult {
+                control,
+                required: true,
+                string: expected_string,
+            });
+        }
         let result_required = builtin_type(self.typed, concrete_type) != Some(BuiltinType::Unit);
         if result_required
             && builtin_type(self.typed, concrete_type) != Some(BuiltinType::Nothing)
@@ -901,6 +950,12 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        Ok(result_required)
+        Ok(ControlResult {
+            control,
+            required: result_required,
+            string: self
+                .string_nullable_storage(concrete_type)
+                .map(|storage| (concrete_type, storage)),
+        })
     }
 }

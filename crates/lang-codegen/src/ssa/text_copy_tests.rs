@@ -412,6 +412,85 @@ fun main(): Unit {
 }
 
 #[test]
+fn public_text_nested_null_controls_use_the_outer_nullable_result() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.checkedPlus
+fun mark(value: Boolean): Boolean { println("condition"); return value }
+fun observe(input: String, present: Boolean, side: Boolean): Unit {
+    val text = if (present) { input.checkedPlus("!") } else {
+        (if (mark(side)) {
+            val local = "left".clone()
+            println(local)
+            ((null))
+        } else {
+            val local = "right".clone()
+            println(local)
+            null
+        })
+    }
+    if (text != null) { println(text) } else { println("null") }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input, true, false)
+    observe(input, false, true)
+    observe(input, false, false)
+    println(input)
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 4);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"input!\ninput\ncondition\nleft\nnull\ninput\ncondition\nright\nnull\ninput\ninput\n",
+    );
+}
+
+#[test]
+fn public_text_nested_null_when_controls_preserve_prefix_returns() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+import koven.text.checkedPlus
+fun mark(value: Boolean): Boolean { println("condition"); return value }
+fun observe(input: String, present: Boolean, side: Boolean, stop: Boolean): Unit {
+    val text = when (present) {
+        true -> input.checkedPlus("!")
+        false -> when {
+            mark(side) -> {
+                if (stop) { println("stop"); return }
+                when (side) { true, false -> ((null)) }
+            }
+            else -> {
+                val local = "tail".clone()
+                println(local)
+                if (mark(stop)) { null } else { null }
+            }
+        }
+    }
+    if (text != null) { println(text) } else { println("null") }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input, true, false, false)
+    observe(input, false, true, false)
+    observe(input, false, true, true)
+    observe(input, false, false, false)
+    observe(input, false, false, true)
+    println(input)
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 4);
+    crate::native_tests::boxed_enum_tests::assert_success(&run,
+        b"input!\ninput\ncondition\nnull\ninput\ncondition\nstop\ncondition\ntail\ncondition\nnull\ninput\ncondition\ntail\ncondition\nnull\ninput\ninput\n");
+}
+
+#[test]
 fn public_text_incoming_borrow_crosses_nullable_null_and_source_call_edges() {
     let (program, entry) = lower_public_text_program(
         r#"package app

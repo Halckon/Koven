@@ -365,7 +365,7 @@ impl UnitExpressionLowerer<'_> {
             } => self.lower_if(expression, *condition, *then_branch, *else_branch, span),
             Expression::When {
                 subject, entries, ..
-            } => self.lower_boolean_when(expression, *subject, entries, span),
+            } => self.lower_boolean_when(expression, *subject, entries, span, None),
             Expression::Return { value, .. } => self.lower_return(expression, *value, span),
             Expression::Break { .. } => self.lower_break(expression, span),
             Expression::Continue { .. } => self.lower_continue(expression, span),

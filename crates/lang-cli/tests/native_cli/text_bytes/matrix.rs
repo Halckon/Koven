@@ -338,3 +338,34 @@ fun main(): Unit {
         b"input!\ninput\ninput\nnull\ndiscarded\nnull\ninput\nnull\ndiscarded\ninput\n",
     );
 }
+
+#[test]
+fn public_text_nested_null_results_work_in_both_modes() {
+    let program = r#"fun mark(flag: Boolean): Boolean { println("condition"); return flag }
+fun observe(input: String, present: Boolean, side: Boolean, stop: Boolean): Unit {
+    val text = when (present) {
+        true -> input.checkedPlus("!")
+        false -> when {
+            mark(side) -> {
+                if (stop) { println("stop"); return }
+                when (side) { true, false -> ((null)) }
+            }
+            else -> if (mark(stop)) { null } else { ((null)) }
+        }
+    }
+    if (text != null) { println(text) } else { println("null") }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input, true, false, false)
+    observe(input, false, true, false)
+    observe(input, false, true, true)
+    observe(input, false, false, false)
+    observe(input, false, false, true)
+    println(input)
+}
+"#;
+    check_build_run_both_modes(program,
+        b"input!\ninput\ncondition\nnull\ninput\ncondition\nstop\ncondition\ncondition\nnull\ninput\ncondition\ncondition\nnull\ninput\ninput\n");
+}

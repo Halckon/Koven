@@ -4,11 +4,11 @@ use crate::ssa::statement_core::{self, StatementLowering};
 use lang_frontend::parser::Statement;
 
 /// Retain shared statement ordering while materializing a Nothing? tail in its
-/// already checked control-result representation. No other expression is replaced.
+/// already checked control-result representation, including nested null controls.
 struct NullTail<'a, 'b> {
     lowerer: &'a mut UnitExpressionLowerer<'b>,
     tail: ExpressionId,
-    storage: SsaTypeId,
+    string_result: (UnitTypeId, SsaTypeId),
 }
 
 impl StatementLowering for NullTail<'_, '_> {
@@ -16,7 +16,9 @@ impl StatementLowering for NullTail<'_, '_> {
         if matches!(self.lowerer.parsed.ast().statements().get(statement)
             .map(|node| node.payload()), Ok(Statement::Expression { expression }) if *expression == self.tail)
         {
-            return self.lowerer.lower_joined_null(self.tail, self.storage);
+            return self
+                .lowerer
+                .lower_joined_null(self.tail, self.string_result);
         }
         self.lowerer.lower_statement_inner(statement)
     }
@@ -44,8 +46,16 @@ impl UnitExpressionLowerer<'_> {
         pending_call_frames: Vec<super::super::call_lifetimes::PendingCallFrame>,
         temporaries: BTreeMap<UnitExpressionId, ValueId>,
         drop_point: UnitDropPoint,
-        result_required: bool,
+        result_plan: ControlResult,
     ) -> Result<Option<BranchExit>, LoweringError> {
+        if !matches!(drop_point, UnitDropPoint::BranchExit { control, .. } if control == result_plan.control)
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                self.statement_span(statement)?,
+            ));
+        }
+        let result_required = result_plan.required;
         self.block = block;
         self.current_receiver = receiver;
         self.consumed_receiver = consumed_receiver;
@@ -63,40 +73,16 @@ impl UnitExpressionLowerer<'_> {
         let result_expression = result_required
             .then(|| self.control_tail_expression(statement))
             .transpose()?;
-        let string_result = if result_required {
-            let UnitDropPoint::BranchExit { control, .. } = drop_point else {
-                return Err(lowering_error(
-                    LoweringErrorKind::MissingFact,
-                    self.statement_span(statement)?,
-                ));
-            };
-            let statement_span = self.statement_span(statement)?;
-            let ty = self
-                .typed
-                .expression_type(control)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, statement_span))?;
-            let ty = resolve_concrete_type(
-                self.typed,
-                ty,
-                self.substitutions,
-                self.static_self,
-                self.statement_span(statement)?,
-            )?;
-            self.string_nullable_storage(ty)
-                .map(|storage| (ty, storage))
-        } else {
-            None
-        };
+        let string_result = result_plan.string;
         let null_tail = result_expression
             .zip(string_result)
-            .and_then(|(tail, (_, storage))| {
+            .and_then(|(tail, string_result)| {
                 let ty = self
                     .typed
                     .expression_type(UnitExpressionId::new(self.source_unit, tail))?;
-                (self.is_null_literal(tail)
-                    && matches!(self.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
+                (matches!(self.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
                         if builtin_type(self.typed, *inner) == Some(BuiltinType::Nothing)))
-                .then_some((tail, storage))
+                .then_some((tail, string_result))
             });
         let mut result = if result_required {
             self.lower_tail_value_body_with_null(statement, null_tail)?
@@ -197,7 +183,7 @@ impl UnitExpressionLowerer<'_> {
     fn lower_tail_value_body_with_null(
         &mut self,
         statement: StatementId,
-        null_tail: Option<(ExpressionId, SsaTypeId)>,
+        null_tail: Option<(ExpressionId, (UnitTypeId, SsaTypeId))>,
     ) -> Result<LoweredValue, LoweringError> {
         let node = self
             .parsed
@@ -212,12 +198,12 @@ impl UnitExpressionLowerer<'_> {
             lang_frontend::parser::Statement::ControlBody { elements }
             | lang_frontend::parser::Statement::LambdaBody { elements } => elements,
             _ => {
-                return if let Some((tail, storage)) = null_tail {
+                return if let Some((tail, string_result)) = null_tail {
                     statement_core::lower_statement(
                         &mut NullTail {
                             lowerer: self,
                             tail,
-                            storage,
+                            string_result,
                         },
                         statement,
                     )
@@ -227,12 +213,12 @@ impl UnitExpressionLowerer<'_> {
             }
         };
         let elements = elements.clone();
-        if let Some((tail, storage)) = null_tail {
+        if let Some((tail, string_result)) = null_tail {
             statement_core::lower_tail_sequence(
                 &mut NullTail {
                     lowerer: self,
                     tail,
-                    storage,
+                    string_result,
                 },
                 statement,
                 &elements,
@@ -242,11 +228,11 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    /// Preserve the Group chain's original cleanup, using the published joined type.
+    /// Preserve nested control evaluation and Group cleanup in the published joined type.
     fn lower_joined_null(
         &mut self,
         expression: ExpressionId,
-        storage: SsaTypeId,
+        string_result: (UnitTypeId, SsaTypeId),
     ) -> Result<LoweredValue, LoweringError> {
         let span = self
             .parsed
@@ -261,6 +247,7 @@ impl UnitExpressionLowerer<'_> {
         let operands = self
             .nullable_when_group_chain(UnitExpressionId::new(self.source_unit, expression), span)?;
         for &id in &operands {
+            self.guard_nullable_when_expression(id, span)?;
             let ty = self
                 .typed
                 .expression_type(id)
@@ -281,14 +268,54 @@ impl UnitExpressionLowerer<'_> {
             .expressions()
             .get(literal.expression())
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if !matches!(node.payload(), Expression::Literal(LiteralKind::Null)) {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        let terminal = literal.expression();
+        let terminal_span = node.span();
+        let payload = node.payload().clone();
+        let result = match payload {
+            Expression::Literal(LiteralKind::Null) => self.append_scalar(
+                Operation::NullableNull {
+                    nullable: string_result.1,
+                },
+                string_result.1,
+                terminal_span,
+            )?,
+            Expression::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                let plan = self.control_result(terminal, Some(string_result), terminal_span)?;
+                self.lower_conditional(
+                    terminal,
+                    condition,
+                    then_branch,
+                    else_branch,
+                    0,
+                    1,
+                    terminal_span,
+                    plan,
+                )?
+            }
+            Expression::When {
+                subject, entries, ..
+            } => self.lower_boolean_when(
+                terminal,
+                subject,
+                &entries,
+                terminal_span,
+                Some(string_result),
+            )?,
+            _ => {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    terminal_span,
+                ));
+            }
+        };
+        if result == LoweredValue::Diverged {
+            return Ok(result);
         }
-        let result = self.append_scalar(
-            Operation::NullableNull { nullable: storage },
-            storage,
-            node.span(),
-        )?;
         for id in operands.into_iter().rev() {
             self.emit_drops(UnitDropPoint::AfterExpression(id))?;
         }

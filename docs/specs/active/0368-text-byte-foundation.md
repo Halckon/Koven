@@ -468,3 +468,29 @@ drop/exit action断言。相关 map_operand_last_use_ 全套最终16 passed、0 
 其余167项的生产输入未再改变，复用原通过结果，不将旧失败批次改写为168项一次全绿。
 公开CLI text_bytes最终8项通过，0 failed、0 ignored；codegen／CLI all-targets严格Clippy、
 Rustfmt、手写Rust尺寸、821篇文档结构与diff检查通过。架构入口保留能力摘要与详细记录链接。
+
+### 嵌套 Nothing? 控制尾值（2026-10-30）
+
+基于 `33612b7468b62b974863e4ffa9b38773f00b81b4`，真实标准源的外层 String?
+value-if、内层仅返回 null 的 if 首先取得 UnsupportedNode。修复以显式 ControlResult
+传递源 control 身份、是否要求结果及精确 String? 目标表示；typed 为 Nothing? 时才可
+接受外层目标，不重新计算 join、不改写 typed facts、不引入隐式上下文。
+分支入口验证 control 身份，内层 if／when 复用原 conditional／when CFG；透明 Group
+逐层核 typed/copyability 与原 nullable guard，按原点消费 AfterExpression，prefix／tail／
+body 仍由 statement core 顺序执行。普通结果与 dedicated nullable-subject when 保持原合同。
+
+两个 native 用例各4次分配并逐指针释放，覆盖动态嵌套 if、Boolean when 双臂及合并单臂、
+subjectless when 的有副作用条件、Group null、局部 clone 和 prefix return；完整输出证明
+实际条件与分支求值次数。计数器不证明释放先后；清理顺序由代码与独立静态复核核对。
+prefix return 是尾值前退出的证据，不冒充整个 contextual tail 静态 Diverged 的独立覆盖。
+私有 guard 从真实 frontend/ownership/SSA fixture 出发，拒绝无 context 的 Nothing?、
+错误storage／语义目标、向非Nothing?强加目标，以及在创建CFG前拒绝错误control身份；
+Function全量相等证明该身份错误不发出指令。两项native及该guard均通过，无失败或忽略。
+独立full-pass核对结果身份、原guard、CFG合流、Group与statement清理，未发现新增缺陷。
+
+本片不提供独立 Nothing? 局部存储、名字尾值或任意 nullable-subject 结果转换；旧 raw
+前端入口合同与最终 head 双宿主 CI 仍待完成，Spec 保持 in-progress。
+本机LLVM21.1.8／offline target 串行验证：text_33项、共享control-result 1项、when 7项、
+nullable 169项全部通过，均0 failed、0 ignored；本轮nullable是完整新批次，不复用前片失败批次。
+公开CLI `native_cli text_bytes` 9项通过，0 failed、0 ignored；codegen／CLI all-targets
+严格Clippy通过，手写Rust尺寸门禁通过（2018文件、39项既有超限，无例外增长）。
