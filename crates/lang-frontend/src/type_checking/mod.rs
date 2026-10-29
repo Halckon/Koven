@@ -305,6 +305,11 @@ mod tests {
             "replace",
             "swap",
             "rangeView",
+            "textByteLength",
+            "textByteAt",
+            "textUtf8ErrorOffset",
+            "textCopyBytes",
+            "textCopySlice",
         ]);
         let actual = first_names
             .symbols()
@@ -380,6 +385,21 @@ mod tests {
             assert_eq!(
                 binding(name),
                 &ExternalTypeBinding::IntrinsicCallable(callable)
+            );
+        }
+        for (name, kind) in [
+            ("textByteLength", super::TextPrimitiveKind::ByteLength),
+            ("textByteAt", super::TextPrimitiveKind::ByteAt),
+            (
+                "textUtf8ErrorOffset",
+                super::TextPrimitiveKind::Utf8ErrorOffset,
+            ),
+            ("textCopyBytes", super::TextPrimitiveKind::CopyBytes),
+            ("textCopySlice", super::TextPrimitiveKind::CopySlice),
+        ] {
+            assert_eq!(
+                binding(name),
+                &ExternalTypeBinding::IntrinsicCallable(IntrinsicCallable::Text(kind))
             );
         }
         let error = first_names
