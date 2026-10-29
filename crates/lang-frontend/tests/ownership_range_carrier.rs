@@ -13,7 +13,55 @@ use lang_frontend::{
     type_checking::{check_compilation_unit_types, check_types, standard_environments},
 };
 
-fn checked(text: &str) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwnership) {
+// Primary single-document consumer uses source-qualified Unit facts.
+fn checked(
+    text: &str,
+) -> (
+    SourceMap,
+    CompilationUnitOwnership,
+    CompilationUnitOwnership,
+) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("range-loans.ko", text).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let (environment, types) = standard_environments();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let names = names.validate().unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let typed = typed.validate().unwrap();
+    let single =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "range-loans.ko",
+        source,
+        &parsed,
+    )];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    (sources, single, unit)
+}
+
+// Unit loan descriptors do not expose the legacy independent loan-end event table.
+// Retain this path and its original event assertions, not a descriptor approximation.
+fn legacy_checked(text: &str) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwnership) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("range-loans.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -53,7 +101,7 @@ fn existing_metadata_alias_keeps_parent_and_original_call_loan_until_its_end() {
         let text = format!(
             "class Item(val value: Int) {{}}\nfun alias(source: View<{element}>): borrow View<{element}> from source = source\nfun observe(source: View<{element}>): Unit {{}}\nfun run(source: View<{element}>): Unit {{ borrow val parent = alias(source); borrow val child = alias(parent); observe(child); observe(parent) }}"
         );
-        let (_, single, unit) = checked(&text);
+        let (_, single, unit) = legacy_checked(&text);
         assert!(
             single.diagnostics().is_empty(),
             "{:?}",

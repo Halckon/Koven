@@ -5,15 +5,67 @@ use lang_frontend::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
-        BorrowBindingStorage, CompilationUnitOwnership, LoanTarget, OwnershipCheckedFile,
-        UnitLoanTarget, check_compilation_unit_ownership, check_ownership,
+        BorrowBindingStorage, CompilationUnitOwnership, OwnershipCheckedFile, UnitLoanTarget,
+        check_compilation_unit_ownership, check_ownership,
     },
     parser::parse_file,
     source::SourceMap,
     type_checking::{check_compilation_unit_types, check_types, standard_environments},
 };
 
-fn checked(body: &str) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwnership) {
+// Primary single-document consumer uses source-qualified Unit facts.
+fn checked(
+    body: &str,
+) -> (
+    SourceMap,
+    CompilationUnitOwnership,
+    CompilationUnitOwnership,
+) {
+    let mut sources = SourceMap::new();
+    let text = format!(
+        "fun observe(source: View<String>): Unit {{}}\nfun alias(source: View<String>): borrow View<String> from source = source\nfun consume(own source: List<String>): Unit {{}}\n{body}"
+    );
+    let source = sources.add_source("range-construct.ko", text).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let (environment, mut types) = standard_environments();
+    types.authorize_range_source(&sources, source).unwrap();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let names = names.validate().unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let typed = typed.validate().unwrap();
+    let single =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    let inputs = [SourceUnitInput::new(
+        "std",
+        "range-construct.ko",
+        source,
+        &parsed,
+    )];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    (sources, single, unit)
+}
+
+// Unit loan descriptors do not expose the legacy independent loan-end event table.
+// Retain this path and its original event assertions, not a descriptor approximation.
+fn legacy_checked(body: &str) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwnership) {
     let mut sources = SourceMap::new();
     let text = format!(
         "fun observe(source: View<String>): Unit {{}}\nfun alias(source: View<String>): borrow View<String> from source = source\nfun consume(own source: List<String>): Unit {{}}\n{body}"
@@ -67,7 +119,7 @@ fn constructing_a_range_continues_the_real_root_loan_and_ends_before_move() {
     };
     assert_eq!(binding.storage(), BorrowBindingStorage::NewRangeDescriptor);
     assert!(binding.parent().is_none());
-    let LoanTarget::Place(root) = binding.origin() else {
+    let UnitLoanTarget::Place(root) = binding.origin() else {
         panic!("owning root")
     };
     assert_ne!(root.root(), binding.binding());
@@ -132,7 +184,7 @@ fn range_iteration_keeps_root_and_noncopyable_element_read_only_in_single_and_un
 
 #[test]
 fn range_descriptor_iteration_never_publishes_an_owned_metadata_drop() {
-    use lang_frontend::ownership_checking::{DropTarget, UnitDropTarget};
+    use lang_frontend::ownership_checking::UnitDropTarget;
     let (_, single, unit) = checked(
         "fun run():Unit{val source=listOf(\"kept\");{borrow val part=rangeView(source,0,1);for(item in part){println(item)}};consume(source)}",
     );
@@ -147,7 +199,7 @@ fn range_descriptor_iteration_never_publishes_an_owned_metadata_drop() {
         !single
             .drops()
             .iter()
-            .any(|fact| fact.target() == DropTarget::Named(binding))
+            .any(|fact| fact.target() == UnitDropTarget::Named(binding))
     );
     let binding = unit.borrow_results().bindings()[0].binding();
     assert!(
@@ -186,7 +238,7 @@ fn temporary_range_provider_continues_the_actual_root_in_single_and_unit() {
     let [fact] = single.borrow_results().range_uses() else {
         panic!("single continuation");
     };
-    let LoanTarget::Temporary(root) = *fact.origin() else {
+    let UnitLoanTarget::Temporary(root) = *fact.origin() else {
         panic!("actual temporary root");
     };
     assert_ne!(root, fact.expression());
@@ -228,7 +280,7 @@ fn nested_view_construction_continues_the_original_temporary_collection_root() {
     assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
     assert_eq!(single.borrow_results().range_uses().len(), 2);
     for fact in single.borrow_results().range_uses() {
-        let LoanTarget::Temporary(root) = *fact.origin() else {
+        let UnitLoanTarget::Temporary(root) = *fact.origin() else {
             panic!("actual collection root");
         };
         assert_eq!(
@@ -295,7 +347,7 @@ fn range_call_prefix_return_publishes_only_established_outer_argument_ends() {
         "val root=listOf(\"kept\");{borrow val parent=rangeView(root,0,1);read(rangeView(parent,0,1),if(flag){return}else{0})};consume(root)",
         "read(rangeView(rangeView(listOf(\"kept\"),0,1),0,1),if(flag){return}else{0})",
     ] {
-        let (_, single, unit) = checked(&format!(
+        let (_, single, unit) = legacy_checked(&format!(
             "fun read(view:View<String>,number:Int):Unit{{}}\nfun run(flag:Boolean):Unit{{{body}}}"
         ));
         assert!(
@@ -451,7 +503,7 @@ fn derived_descriptor_inherits_root_without_parent_metadata_and_alias_keeps_meta
 }
 #[test]
 fn range_statement_if_preserves_lexical_borrow_ends() {
-    use lang_frontend::ownership_checking::{DropPoint, UnitDropPoint};
+    use lang_frontend::ownership_checking::UnitDropPoint;
 
     let (_, single, unit) = checked(
         r#"
@@ -499,7 +551,7 @@ fun run(flag:Boolean):Unit{
     };
     assert_eq!(end.binding(), binding.binding());
     assert!(
-        matches!(end.point(), DropPoint::AfterStatement(_)),
+        matches!(end.point(), UnitDropPoint::AfterStatement(_)),
         "{:?}",
         end.point()
     );

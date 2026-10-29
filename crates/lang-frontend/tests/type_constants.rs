@@ -2,23 +2,59 @@
 
 use lang_frontend::{
     diagnostic::Diagnostic,
-    name_resolution::resolve_names,
+    name_resolution::{
+        SourceUnitId, SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        resolve_names,
+    },
     parser::ParsedFile,
     source::SourceMap,
     type_checking::{
-        BuiltinType, ExpressionCategory, TypeKind, TypedFile, check_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, ExpressionCategory, TypeKind, TypedFile,
+        UnitExpressionId, UnitTypeKind, check_compilation_unit_types, check_types,
+        standard_environments,
     },
 };
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-fn checked(text: &str) -> (SourceMap, TypedFile) {
-    let (sources, _, typed) = analyzed(text);
+// MemoryDocument is the default consumer; non-equivalent legacy witnesses remain below.
+fn checked(text: &str) -> (SourceMap, CompilationUnitTypes) {
+    let (sources, _, _, typed) = analyzed(text);
     (sources, typed)
 }
 
-fn analyzed(text: &str) -> (SourceMap, ParsedFile, TypedFile) {
+fn analyzed(text: &str) -> (SourceMap, ParsedFile, SourceUnitId, CompilationUnitTypes) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("constants.ko", text).expect("source");
+    let parsed = parser_test_assertions::parse_file_twice(&sources, source, "constants");
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).expect("memory index");
+    let (names, types) = standard_environments();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &names).expect("names");
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let names = names.validate().expect("valid memory names");
+    let source_unit = names.names().index().source_units()[0].id();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).expect("types");
+    (sources, parsed, source_unit, typed)
+}
+
+// Unit facts do not expose legacy owner matches/use_at/use-category, and the Unit
+// type entry requires validated names. Keep those original witnesses without weakening them.
+// Six complete tests also retain this entry: Unit adds L0167 for top-level runtime values,
+// differs on Any/Any? admission, and does not share legacy invalid-dependency suppression.
+// Their original sources and exact diagnostics are not rewritten to fit the Unit boundary.
+fn legacy_checked(text: &str) -> (SourceMap, TypedFile) {
+    let (sources, _, typed) = legacy_analyzed(text);
+    (sources, typed)
+}
+
+fn legacy_analyzed(text: &str) -> (SourceMap, ParsedFile, TypedFile) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("constants.ko", text).expect("source");
     let parsed = parser_test_assertions::parse_file_twice(&sources, source, "constants");
@@ -53,13 +89,14 @@ fn constant_types_are_closed_without_restricting_ordinary_variables() {
         ("enum class Color { Red }\n", "Color", "Color.Red"),
         ("", "() -> Int", "{ 1 }"),
     ] {
-        let (_, variable) = checked(&format!("{prefix}val sample: {ty} = {value}"));
+        let (_, variable) = legacy_checked(&format!("{prefix}val sample: {ty} = {value}"));
         assert!(
             variable.diagnostics().is_empty(),
             "{ty}: {:?}",
             variable.diagnostics()
         );
-        let (sources, constant) = checked(&format!("{prefix}const val sample: {ty} = {value}"));
+        let (sources, constant) =
+            legacy_checked(&format!("{prefix}const val sample: {ty} = {value}"));
         assert_eq!(codes(constant.diagnostics()), ["L0155"], "{ty}");
         assert_eq!(
             sources
@@ -118,7 +155,7 @@ fn constant_type_gate_applies_inside_object_and_companion_namespaces() {
         "object Config { const val sample: Any = 1 }",
         "class Config { companion { const val sample: Any? = 1 } }",
     ] {
-        let (_, typed) = checked(source);
+        let (_, typed) = legacy_checked(source);
         assert_eq!(codes(typed.diagnostics()), ["L0155"], "{source}");
     }
 }
@@ -137,7 +174,7 @@ fn associated_constant_selection_uses_declaration_namespace_and_concrete_type() 
             format!("{declaration}\nval selected = Config.LIMIT"),
             format!("val selected = Config.LIMIT\n{declaration}"),
         ] {
-            let (sources, parsed, typed) = analyzed(&source);
+            let (sources, parsed, typed) = legacy_analyzed(&source);
             assert!(
                 typed.diagnostics().is_empty(),
                 "{source}: {:?}",
@@ -196,7 +233,7 @@ fn associated_constant_visibility_and_missing_member_are_precise() {
             "L0080",
         ),
     ] {
-        let (sources, typed) = checked(&format!("{declaration}\nval selected = {target}"));
+        let (sources, typed) = legacy_checked(&format!("{declaration}\nval selected = {target}"));
         assert_eq!(codes(typed.diagnostics()), [code], "{target}");
         assert_eq!(
             sources
@@ -205,7 +242,7 @@ fn associated_constant_visibility_and_missing_member_are_precise() {
             target.split('.').next_back().unwrap()
         );
     }
-    let (_, typed) = checked(
+    let (_, typed) = legacy_checked(
         "class Config { companion { private const val LIMIT: Int = 7\nconst val COPY: Int = Config.LIMIT } }",
     );
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
@@ -214,7 +251,7 @@ fn associated_constant_visibility_and_missing_member_are_precise() {
 #[test]
 fn associated_constant_selection_does_not_override_a_value_receiver() {
     let source = "class Config { companion { const val LIMIT: Int = 7 } }\nclass Holder(val LIMIT: Boolean)\nfun inspect(Config: Holder): Boolean = Config.LIMIT";
-    let (sources, parsed, typed) = analyzed(source);
+    let (sources, parsed, source_unit, typed) = analyzed(source);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let (expression, _) = parsed
         .ast()
@@ -222,11 +259,12 @@ fn associated_constant_selection_does_not_override_a_value_receiver() {
         .iter()
         .find(|(_, node)| sources.slice(node.span()).unwrap() == "Config.LIMIT")
         .unwrap();
+    let expression = UnitExpressionId::new(source_unit, expression);
     assert_eq!(
         typed
             .types()
             .get(typed.expression_type(expression).unwrap()),
-        Some(&TypeKind::Builtin(BuiltinType::Boolean))
+        Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
     );
     assert_eq!(
         typed.expression_category(expression),
@@ -268,7 +306,7 @@ fn constant_expressions_reject_runtime_work_even_in_a_short_circuit_rhs() {
         ("", "\"answer ${1}\"", "\"answer ${1}\""),
         ("", "1.0 == 2.0", "1.0 == 2.0"),
     ] {
-        let (sources, typed) = checked(&format!("{prefix}const val sample = {expression}"));
+        let (sources, typed) = legacy_checked(&format!("{prefix}const val sample = {expression}"));
         assert_eq!(codes(typed.diagnostics()), ["L0156"], "{expression}");
         assert_eq!(
             sources
@@ -321,11 +359,11 @@ fn constant_expression_type_errors_and_invalid_dependencies_do_not_cascade() {
             vec!["L0157", "L0157"],
         ),
     ] {
-        let (_, typed) = checked(source);
+        let (_, typed) = legacy_checked(source);
         assert_eq!(codes(typed.diagnostics()), expected, "{source}");
     }
     // Eligibility checks both operands but must not eagerly evaluate a short-circuited division.
-    let (_, typed) = checked(
+    let (_, typed) = legacy_checked(
         "const val first: Boolean = false && (1 / 0 == 0)\nconst val second: Int = 1 + 2 * 3",
     );
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
@@ -451,7 +489,7 @@ fn constant_evaluation_uses_associated_declared_integer_widths_and_operator_span
 
 #[test]
 fn forward_constants_are_typed_before_runtime_consumers() {
-    let (sources, parsed, typed) =
+    let (sources, parsed, source_unit, typed) =
         analyzed("fun answer(): Int = FIRST + 1\nconst val FIRST = SECOND\nconst val SECOND = 41");
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let (expression, _) = parsed
@@ -460,11 +498,12 @@ fn forward_constants_are_typed_before_runtime_consumers() {
         .iter()
         .find(|(_, node)| sources.slice(node.span()).unwrap() == "FIRST + 1")
         .unwrap();
+    let expression = UnitExpressionId::new(source_unit, expression);
     assert_eq!(
         typed
             .types()
             .get(typed.expression_type(expression).unwrap()),
-        Some(&TypeKind::Builtin(BuiltinType::Int))
+        Some(&UnitTypeKind::Builtin(BuiltinType::Int))
     );
     let (_, typed) = checked("fun answer(): Int = FLAG + 1\nconst val FLAG = true");
     assert_eq!(codes(typed.diagnostics()), ["L0085"]);
@@ -474,13 +513,91 @@ fn forward_constants_are_typed_before_runtime_consumers() {
 fn constant_facts_publish_exact_values_dependencies_and_runtime_reads() {
     use lang_frontend::type_checking::ConstValue;
     let source = "fun answer(): Int = Config.answer\nobject Config { const val answer = seed + 1\nconst val seed = 41 }\nconst val flag = true\nconst val byte: Byte = -128\nconst val short: Short = -32768\nconst val long: Long = -9223372036854775808L\nconst val ubyte: UByte = 255u\nconst val ushort: UShort = 65535u\nconst val uint = 4294967295u\nconst val ulong = 18446744073709551615uL\nconst val character = '中'\nconst val text = \"中\\n\" + \"文\"";
-    let (sources, _, typed) = analyzed(source);
+    let (sources, _, typed) = legacy_analyzed(source);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let facts = typed.constants().expect("complete constant capability");
     assert!(facts.matches(&typed));
     assert!(facts.matches(&typed.clone()));
-    let (_, other) = checked(source);
+    let (_, other) = legacy_checked(source);
     assert!(!facts.matches(&other));
+    // The same value/dependency corpus also reaches the Unit consumer. Owner matching
+    // and the indexed legacy use table above/below remain independent legacy oracles.
+    let (_, unit) = checked(source);
+    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+    // SourceMaps have distinct owners: compare source-local byte ranges, never Span identities.
+    let unit_facts = unit
+        .constants()
+        .expect("complete memory constant capability");
+    assert_eq!(unit_facts.declarations().len(), facts.declarations().len());
+    for declaration in facts.declarations() {
+        let unit_declaration = unit_facts
+            .declarations()
+            .iter()
+            .find(|candidate| {
+                (
+                    candidate.declaration_span().start(),
+                    candidate.declaration_span().end(),
+                ) == (
+                    declaration.declaration_span().start(),
+                    declaration.declaration_span().end(),
+                )
+            })
+            .expect("same constant declaration");
+        assert_eq!(unit_declaration.value(), declaration.value());
+        assert_eq!(
+            unit.symbol_type(unit_declaration.symbol()),
+            Some(unit_declaration.ty())
+        );
+        let legacy_dependencies = declaration
+            .dependencies()
+            .iter()
+            .map(|symbol| {
+                facts
+                    .declarations()
+                    .iter()
+                    .find(|candidate| candidate.symbol() == *symbol)
+                    .map(|candidate| {
+                        (
+                            candidate.declaration_span().start(),
+                            candidate.declaration_span().end(),
+                        )
+                    })
+                    .expect("closed legacy dependency")
+            })
+            .collect::<Vec<_>>();
+        let unit_dependencies = unit_declaration
+            .dependencies()
+            .iter()
+            .map(|symbol| {
+                unit_facts
+                    .declarations()
+                    .iter()
+                    .find(|candidate| candidate.symbol() == *symbol)
+                    .map(|candidate| {
+                        (
+                            candidate.declaration_span().start(),
+                            candidate.declaration_span().end(),
+                        )
+                    })
+                    .expect("closed unit dependency")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(unit_dependencies, legacy_dependencies);
+    }
+    assert_eq!(unit_facts.uses().len(), facts.uses().len());
+    for usage in unit_facts.uses() {
+        let declaration = unit_facts
+            .declarations()
+            .iter()
+            .find(|declaration| declaration.symbol() == usage.target())
+            .expect("closed unit use");
+        assert_eq!(usage.value(), declaration.value());
+        assert_eq!(unit.expression_type(usage.expression()), Some(usage.ty()));
+        assert_eq!(
+            unit.expression_category(usage.expression()),
+            Some(ExpressionCategory::Temporary)
+        );
+    }
     assert_eq!(facts.declarations().len(), 12);
     for declaration in facts.declarations() {
         let name = sources.slice(declaration.declaration_span()).unwrap();
@@ -665,14 +782,14 @@ fn constant_acceptance_infers_exact_reference_types_and_values() {
             assert_eq!(declaration.value(), &expected);
             assert_eq!(
                 typed.types().get(declaration.ty()),
-                Some(&TypeKind::Builtin(ty))
+                Some(&UnitTypeKind::Builtin(ty))
             );
             if sources.slice(declaration.declaration_span()).unwrap() == "sample" {
                 assert_eq!(declaration.dependencies().len(), 1);
             }
         }
         let (_, repeated) = checked(&source);
-        let observable = |typed: &TypedFile| {
+        let observable = |typed: &CompilationUnitTypes| {
             typed
                 .constants()
                 .unwrap()

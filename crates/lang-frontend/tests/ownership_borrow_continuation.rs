@@ -1,4 +1,4 @@
-//! 普通借用的 caller continuation 与 scope end；single/unit 同一源码验证。
+//! 普通借用的 caller continuation 与 scope end；MemoryDocument Unit 与独立 loan-end witness。
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -13,7 +13,38 @@ use lang_frontend::{
     type_checking::{check_compilation_unit_types, check_types, standard_environments},
 };
 
-fn checked(body: &str) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwnership) {
+fn checked(body: &str) -> (SourceMap, CompilationUnitOwnership) {
+    let text = format!(
+        "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) {{}}\n{body}"
+    );
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("continuation.ko", text).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let (environment, types) = standard_environments();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let typed = typed.validate().unwrap();
+    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    (sources, unit)
+}
+
+// Unit publishes source-qualified loans and result endpoints, but no independent
+// loan_ends stream. Keep this legacy witness only for CallReturn/ControlTransfer
+// and forwarded-source non-termination; result-end counts cannot replace it.
+fn checked_with_legacy_loan_ends(
+    body: &str,
+) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwnership) {
     let text = format!(
         "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) {{}}\n{body}"
     );
@@ -31,12 +62,7 @@ fn checked(body: &str) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwner
     let typed = check_types(&sources, &parsed, &names, &types).unwrap();
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let single = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    let inputs = [SourceUnitInput::new(
-        "root",
-        "continuation.ko",
-        source,
-        &parsed,
-    )];
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
     let index = index_compilation_unit(&sources, &inputs).unwrap();
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
         .unwrap()
@@ -58,18 +84,12 @@ fn nested_reborrow_and_alias_scopes_restore_owner_permission() {
         "fun run() { val source = \"kept\"; { borrow val item = view(source); { borrow val child = view(item); println(child) }; println(item) }; consume(source) }",
         "fun run(flag: Boolean) { val source = \"kept\"; if (flag) { borrow val item = view(source); println(item) } else { borrow val item = source; println(item) }; consume(source) }",
     ] {
-        let (_, single, unit) = checked(body);
-        assert!(
-            single.diagnostics().is_empty(),
-            "{body}: {:?}",
-            single.diagnostics()
-        );
+        let (_, unit) = checked(body);
         assert!(
             unit.diagnostics().is_empty(),
             "{body}: {:?}",
             unit.diagnostics()
         );
-        assert!(single.deferred().is_empty());
         assert!(unit.deferred().is_empty());
     }
 }
@@ -82,8 +102,9 @@ fn live_results_and_children_block_source_move_on_every_branch() {
         "fun run(flag: Boolean) { val source = \"kept\"; borrow val item = view(source); if (flag) { consume(source) }; println(item) }",
         "fun run() { val source = \"kept\"; borrow val item = source; { borrow val alias = item; println(alias) }; consume(source); println(item) }",
     ] {
-        let (_, single, unit) = checked(body);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        let (_, unit) = checked(body);
+        {
+            let diagnostics = unit.diagnostics();
             assert!(
                 diagnostics.iter().any(|d| d.code().to_string() == "L0135"),
                 "{body}: {diagnostics:?}"
@@ -97,7 +118,7 @@ fn results_continue_original_source_loans_and_never_own_the_payload() {
     use lang_frontend::ownership_checking::{
         DropTarget, LoanEndPoint, LoanTarget, UnitDropTarget, UnitLoanTarget,
     };
-    let (_, single, unit) = checked(
+    let (_, single, unit) = checked_with_legacy_loan_ends(
         "fun run() { val source = \"kept\"; { borrow val item = wrap(source); println(item) } }",
     );
     assert!(single.diagnostics().is_empty());
@@ -171,38 +192,12 @@ fn results_continue_original_source_loans_and_never_own_the_payload() {
 
 #[test]
 fn children_end_before_parents_and_owner_cleanup_on_scope_and_return_edges() {
-    use lang_frontend::ownership_checking::{
-        DropTarget, LoanTarget, UnitDropTarget, UnitLoanTarget,
-    };
+    use lang_frontend::ownership_checking::{UnitDropTarget, UnitLoanTarget};
     for exit in ["", "return"] {
-        let (_, single, unit) = checked(&format!(
+        let (_, unit) = checked(&format!(
             "fun run() {{ val source = \"kept\"; borrow val parent = view(source); borrow val child = view(parent); println(child); {exit} }}"
         ));
-        assert!(
-            single.diagnostics().is_empty(),
-            "{:?}",
-            single.diagnostics()
-        );
         assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let bindings = single.borrow_results().bindings();
-        assert_eq!(bindings.len(), 2);
-        assert_eq!(bindings[1].parent(), Some(bindings[0].binding()));
-        assert_eq!(bindings[1].origin(), bindings[0].origin());
-        let ends = single.borrow_results().ends();
-        assert_eq!(
-            ends.iter().map(|end| end.binding()).collect::<Vec<_>>(),
-            vec![bindings[1].binding(), bindings[0].binding()]
-        );
-        let LoanTarget::Place(origin) = bindings[0].origin() else {
-            panic!("stable source");
-        };
-        assert!(
-            single
-                .drops()
-                .iter()
-                .any(|drop| drop.target() == DropTarget::Named(origin.root())
-                    && drop.point() == ends[1].point())
-        );
         let bindings = unit.borrow_results().bindings();
         assert_eq!(bindings.len(), 2);
         assert_eq!(bindings[1].parent(), Some(bindings[0].binding()));
@@ -231,8 +226,9 @@ fn source_mutation_and_exclusive_reborrow_conflicts_keep_real_spans() {
         "fun mutate(inout source: String) {}\nfun run() { var source = \"kept\"; borrow val item = view(source); mutate(&source); println(item) }",
         "class Record(var text: String)\nfun run() { val source = Record(\"kept\"); borrow val item = source; item.text = \"changed\"; println(item.text) }",
     ] {
-        let (sources, single, unit) = checked(body);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        let (sources, unit) = checked(body);
+        {
+            let diagnostics = unit.diagnostics();
             let conflict = diagnostics
                 .iter()
                 .find(|d| d.code().to_string() == "L0135")
@@ -240,7 +236,6 @@ fn source_mutation_and_exclusive_reborrow_conflicts_keep_real_spans() {
             assert!(!sources.slice(conflict.primary_span()).unwrap().is_empty());
             assert!(!conflict.details().is_empty());
         }
-        assert!(single.borrow_results().bindings().is_empty());
         assert!(unit.borrow_results().bindings().is_empty());
     }
 }
@@ -262,16 +257,15 @@ fn global_borrow_binding_is_rejected_by_parser_at_its_marker() {
 }
 
 fn assert_ownership_rejects(body: &str, code: &str) {
-    let (_, single, unit) = checked(body);
-    for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+    let (_, unit) = checked(body);
+    {
+        let diagnostics = unit.diagnostics();
         assert!(
             diagnostics.iter().any(|d| d.code().to_string() == code),
             "{body}: {diagnostics:?}"
         );
     }
-    assert!(single.borrow_results().bindings().is_empty());
     assert!(unit.borrow_results().bindings().is_empty());
-    assert!(single.borrow_results().ends().is_empty());
     assert!(unit.borrow_results().ends().is_empty());
 }
 
@@ -322,20 +316,13 @@ fn nullable_generic_and_copyable_bindings_keep_shared_capability() {
         "fun <T> genericView(source: T): borrow T from source = source\nclass Resource { deinit() {} }\nfun run() { val source = Resource(); { borrow val item = genericView(source) } }",
         "fun intView(source: Int): borrow Int from source = source\nfun observe(own item: Int) {}\nfun run(source: Int) { borrow val item = intView(source); observe(item) }",
     ] {
-        let (_, single, unit) = checked(body);
-        assert!(
-            single.diagnostics().is_empty(),
-            "{body}: {:?}",
-            single.diagnostics()
-        );
+        let (_, unit) = checked(body);
         assert!(
             unit.diagnostics().is_empty(),
             "{body}: {:?}",
             unit.diagnostics()
         );
-        assert_eq!(single.borrow_results().bindings().len(), 1);
         assert_eq!(unit.borrow_results().bindings().len(), 1);
-        assert_eq!(single.borrow_results().ends().len(), 1);
         assert_eq!(unit.borrow_results().ends().len(), 1);
     }
 }
@@ -343,7 +330,7 @@ fn nullable_generic_and_copyable_bindings_keep_shared_capability() {
 #[test]
 fn named_source_continues_only_its_loan_and_other_arguments_end_at_call_return() {
     use lang_frontend::ownership_checking::LoanEndPoint;
-    let (_, single, unit) = checked(
+    let (_, single, unit) = checked_with_legacy_loan_ends(
         "fun select(other: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val other = \"other\"; borrow val item = select(source = source, other = other); println(item) }",
     );
     assert!(
@@ -363,7 +350,7 @@ fn named_source_continues_only_its_loan_and_other_arguments_end_at_call_return()
     assert_eq!(ends[0].point(), LoanEndPoint::CallReturn(source.call()));
     assert_eq!(single.borrow_results().ends().len(), 1);
     assert_eq!(unit.borrow_results().ends().len(), 1);
-    let (_, single, unit) = checked(
+    let (_, single, unit) = checked_with_legacy_loan_ends(
         "fun select(other: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val other = \"other\"; borrow val item = select(source = source, other = other); consume(source); println(item) }",
     );
     for diagnostics in [single.diagnostics(), unit.diagnostics()] {
@@ -377,7 +364,7 @@ fn named_source_continues_only_its_loan_and_other_arguments_end_at_call_return()
 #[test]
 fn abandoned_initializer_ends_source_call_without_ending_an_unestablished_result() {
     use lang_frontend::ownership_checking::{DropPoint, LoanEndPoint, UnitDropPoint};
-    let (_, single, unit) = checked(
+    let (_, single, unit) = checked_with_legacy_loan_ends(
         "fun select(source: String, other: String): borrow String from source = source\nfun run(flag: Boolean) { val source = \"kept\"; borrow val item = select(source, if (flag) { return } else { \"other\" }); println(item) }",
     );
     assert!(
