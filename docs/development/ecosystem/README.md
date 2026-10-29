@@ -12,7 +12,7 @@
 | [Koven](https://github.com/Halckon/koven) | 编译器、runtime、标准库、CLI、LSP、formatter、测试／文档／依赖工具、安装包、教程与验收示例、生态总规划 | 语言及示例真源；保留五个 workspace member，新增 crate 另走 ADR |
 | [koven-site](https://github.com/koven-lang/koven-site) | 门户、教程／API 呈现、Playground 前端、练习及所有权／IR 展示 | 固定版本消费；不复制语言规则或执行任意源码 |
 | [koven-editors](https://github.com/koven-lang/koven-editors) | VS Code、JetBrains 插件，工具链、语言服务、运行／测试／调试交互 | 消费编译器事实；不另建语义分析 |
-| koven-playground（待建） | 在线执行 API、调度、沙箱、配额、分享存储与部署 | 到服务实施时建仓；使用固定工具链；不维护编译器分叉 |
+| [koven-playground](https://github.com/koven-lang/koven-playground)（私有） | 在线执行 API、调度、沙箱、配额、分享存储与部署 | 已交付本地请求与 Linux 隔离入口；在线 API／分享／部署未交付，证据见 [M2](M2.md)；固定工具链，不维护编译器分叉 |
 | 官方扩展库（待建） | 可独立发布的 JSON、CSV、配置等库 | 本地／远程复用能力成熟且有真实消费者后再拆仓 |
 
 标准库、三个示范程序、Kovenlings 首片源码与答案验证留主仓库。网站只呈现或消费生成内容。
