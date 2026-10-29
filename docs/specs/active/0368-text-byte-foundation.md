@@ -159,3 +159,18 @@ UTF-8 检验；区间复制先做 Int 范围与顺序检验，再检查两端 sc
 独立审阅发现非法 UTF-8 fixture 的零分配计数会提前 Abort，已修为只允许源数组的一次分配并
 复核，错误文案断言保留；Abort 用例不作为释放计数证据。文档、diff、尺寸门禁通过，未扩大
 尺寸例外；本复制片尚未经过 Rust 编译和 native 执行。
+
+上述 `c6cf4166` 的双平台 Targeted Tests 均在 frontend 内建身份清单断言失败：
+新增五个文本存储原语未同步 expected 名称；两宿主均为 228 passed、1 failed、0 ignored，
+codegen/native 与 stage integration 尚未运行。已同步精确清单，并逐个断言 TextPrimitiveKind
+绑定，保留唯一性检查，独立提交测试修复；不改变授权或生产语义。
+
+已加入真实 `koven/text/text.ko` 并由共同 CLI loader 在 ranges／Result 后加载授权；公共算法
+与错误分类留在 Koven。独立审阅确认直接 This capture 会被现有 closure layout 拒绝，已改由
+私有 Borrow 参数 helper 承载同步 Array 生成，复用现有 Symbol shared capture。
+新增真实单文件/project check、build、run 测试：UTF-8／NUL 往返、切片／非边界错误、
+InvalidRange 优先级、非法 continuation／截断起始偏移、checkedPlus、动态 source 后继续
+使用字节副本；另覆盖未导入与非授权原语拒绝。普通成功运行不替代 source 实际释放时序的
+SSA 或 sanitizer 证据。标准资产存在测试与 loader 身份／完整类型所有权测试已同步。
+公共源码与新测试已经过独立静态复核，尚未编译和运行；Result<String, TextError> 的完整
+native 使用与所有验收矩阵仍需实际验证，保持 in-progress。

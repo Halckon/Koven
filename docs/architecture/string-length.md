@@ -14,3 +14,16 @@ owner 分配前拒绝超限参数并返回 operational failure。clone 不扩大
 合成 owner 长度及 strlen／allocator shim，检查失败先于读取、分配及调用 main，不能当作
 真实 GB 字符串解析或分配证据。正常内容与 owner 生命周期复用已有 native String/clone/argv 测试。
 插值仍保留既有未接入边界；公开文本及 IO API 尚未在本片实现。
+
+## 文本字节接入（验收进行中）
+
+`koven/text/text.ko` 承载 byteLength、toBytes、decodeUtf8、sliceBytes、checkedPlus 与 TextError；
+两种 CLI 使用同一 loader，为真实标准 SourceId 单独授权文本扩展和存储原语。
+扩展依赖显式可见性与 canonical callable 身份；普通同名源不能获得授权。
+unit lowering 消费五种 typed primitive 事实，分别生成字节读取、共享 UTF-8 扫描与独立复制操作。
+复制复用 String.clone 的分配／空串路径，范围和 UTF-8 失败先于发布新 String。
+
+`toBytes` 的同步生成器通过私有 Borrow 参数 helper 捕获普通 symbol；现有 closure lowering
+尚不接受直接 This capture。公共 Result 错误分类与 checkedPlus 长度策略留在 Koven 源码。
+这些接线已存在于当前分支，完整公共 CLI 与 Result<String, TextError> 的 native 验收仍待
+[SPEC-0368](../specs/active/0368-text-byte-foundation.md)闭合；不据静态实现宣称接口交付完成。
