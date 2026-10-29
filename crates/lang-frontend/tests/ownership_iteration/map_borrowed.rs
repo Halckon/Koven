@@ -1,5 +1,5 @@
 //! SPEC-0331：普通源码 P2 + ownership 联合成功目标。
-//! 三个 exact 分别先收齐 8 / 4 / 4 次观察；不使用未来 Map plan API。
+//! 三个 exact 分别先收齐 12 / 6 / 6 次观察；不使用未来 Map plan API。
 
 #[path = "map_borrowed/cases.rs"]
 mod cases;
@@ -39,7 +39,9 @@ impl Report {
 fn assert_cases(cases: &[Case], expected_observations: usize) {
     let observations = cases
         .iter()
-        .flat_map(|case| [Entry::Single, Entry::Unit].map(|entry| observe(case, entry)))
+        .flat_map(|case| {
+            [Entry::Single, Entry::Unit, Entry::MemoryUnit].map(|entry| observe(case, entry))
+        })
         .collect::<Vec<_>>();
     // 保留所有真实阶段产物至本 exact 的全部观察结束；首个 RED 不掩盖后续路径。
     let assessments = observations
@@ -63,17 +65,17 @@ fn assert_cases(cases: &[Case], expected_observations: usize) {
 
 #[test]
 fn owned_borrowed_and_temporary_sources_preserve_bindings_and_cleanup() {
-    assert_cases(&CASES[..4], 8);
+    assert_cases(&CASES[..4], 12);
 }
 
 #[test]
 fn borrowed_move_only_key_and_value_reject_owned_delivery() {
-    assert_cases(&CASES[4..6], 4);
+    assert_cases(&CASES[4..6], 6);
 }
 
 #[test]
 fn active_sources_reject_consume_and_owned_return() {
-    assert_cases(&CASES[6..], 4);
+    assert_cases(&CASES[6..], 6);
 }
 
 #[path = "map_borrowed/unacquired.rs"]

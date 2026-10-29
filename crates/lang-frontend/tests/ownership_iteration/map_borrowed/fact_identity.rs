@@ -1,4 +1,4 @@
-//! 只读公共 Map typed/ownership identity oracle；原八观察和新 query 分开报告。
+//! 只读公共 Map typed/ownership identity oracle；保留原八观察，追加四份 MemoryDocument。
 #[path = "fact_identity_single.rs"]
 mod single;
 #[path = "fact_identity_unit.rs"]
@@ -159,10 +159,11 @@ fn public_map_facts_preserve_exact_identity_and_cleanup_in_both_entries() {
     let observations = CASES[..4]
         .iter()
         .flat_map(|case| {
-            [Entry::Single, Entry::Unit].map(|entry| (case, entry, observe(case, entry)))
+            [Entry::Single, Entry::Unit, Entry::MemoryUnit]
+                .map(|entry| (case, entry, observe(case, entry)))
         })
         .collect::<Vec<_>>();
-    // 先保活全部八份原观察。原 assess/报告不接收新 query 的结果，入口行为不变。
+    // 先保活十二份观察。原八份不删除，新增 MemoryDocument 复用同一 query。
     let original = observations
         .iter()
         .map(|(_, _, item)| item.assess())
@@ -191,12 +192,12 @@ fn public_map_facts_preserve_exact_identity_and_cleanup_in_both_entries() {
     for ((_, original), (_, query)) in original.iter().zip(&queries) {
         println!("{original}\n{query}");
     }
-    assert_eq!(observations.len(), 8);
-    assert_eq!(original.len(), 8);
-    assert_eq!(queries.len(), 8);
+    assert_eq!(observations.len(), 12);
+    assert_eq!(original.len(), 12);
+    assert_eq!(queries.len(), 12);
     assert!(
         original.iter().all(|(passed, _)| *passed) && queries.iter().all(|(passed, _)| *passed),
-        "SPEC-0331 public Map query failed after all eight original and query observations were retained.\n{}",
+        "SPEC-0331 public Map query failed after all twelve original and query observations were retained.\n{}",
         original
             .iter()
             .zip(&queries)

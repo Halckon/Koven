@@ -93,7 +93,7 @@ class CompositionContracts(unittest.TestCase):
         other_targets = [target for target in targets
                          if target not in ("compilation_unit_index", "multifile_name_resolution")]
         self.assertEqual(len(other_targets), len(set(other_targets)))
-        self.assertEqual(125, len(other_targets))
+        self.assertEqual(126, len(other_targets))
         for target in ("unit_single_source_analysis", "single_file_fact_compile_contracts"):
             self.assertEqual(1, targets.count(target))
         for target in ("single_file_analysis", "single_file_analysis_compile_contracts"):
@@ -111,6 +111,7 @@ class CompositionContracts(unittest.TestCase):
         self.assertEqual(1, targets.count("integer_range_values"))
         self.assertEqual(1, targets.count("integer_range_iteration"))
         self.assertEqual(1, targets.count("integer_range_iteration_ownership"))
+        self.assertEqual(1, targets.count("type_iteration_unit"))
         self.assertEqual(1, targets.count("canonical_type_tables"))
         self.assertEqual(1, targets.count("enum_case_borrow_categories"))
         for target in ("compilation_unit_memory_document", "unit_recovery",

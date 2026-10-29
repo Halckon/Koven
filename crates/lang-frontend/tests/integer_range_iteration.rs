@@ -86,67 +86,82 @@ fn observe(text: &str) -> Vec<Observation> {
         delivery: plan.map(|p| p.delivery()),
         complete: Some(complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ())),
     };
-    let inputs = [SourceUnitInput::new("root", "iteration.ko", source, &file)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
-    let diagnostics = names.diagnostics().to_vec();
-    let unit = match names.validate() {
-        Err(_) => Observation {
-            mode: "unit names rejected",
-            source_span,
-            names: diagnostics,
-            raw: None,
-            source_kind: String::new(),
-            plan: String::new(),
-            identity: false,
-            element: None,
-            provider: None,
-            source_builtin: None,
-            delivery: None,
-            complete: None,
-        },
-        Ok(names) => {
-            let unit = names.names().index().source_units()[0].id();
-            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
-            let statement = UnitStatementId::new(unit, statement);
-            let source_expr = UnitExpressionId::new(unit, source_expr);
-            let plan = typed.sequential_iteration(statement);
-            Observation {
-                mode: "unit",
+    // Keep the legacy witness; both Unit keys consume this exact parsed source.
+    let mut observations = vec![single];
+    for (mode, input) in [
+        (
+            "unit",
+            SourceUnitInput::new("root", "iteration.ko", source, &file),
+        ),
+        (
+            "memory unit",
+            SourceUnitInput::memory_document(source, &file),
+        ),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+        let diagnostics = names.diagnostics().to_vec();
+        let unit = match names.validate() {
+            Err(_) => Observation {
+                mode,
                 source_span,
                 names: diagnostics,
-                raw: Some(typed.diagnostics().to_vec()),
-                source_kind: format!(
-                    "{:?}",
-                    typed
-                        .expression_type(source_expr)
-                        .and_then(|id| typed.types().get(id))
-                ),
-                plan: format!("{plan:?}"),
-                identity: plan.is_some_and(|p| {
-                    p.statement() == statement
-                        && p.source() == source_expr
-                        && Some(p.source_type()) == typed.expression_type(source_expr)
-                        && typed.sequential_iterations().len() == 1
-                }),
-                element: plan.and_then(|p| match typed.types().get(p.element_type()) {
-                    Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
-                    _ => None,
-                }),
-                provider: plan.map(|p| p.provider()),
-                source_builtin: plan.and_then(|p| match typed.types().get(p.source_type()) {
-                    Some(UnitTypeKind::Builtin(b)) => Some(*b),
-                    _ => None,
-                }),
-                delivery: plan.map(|p| p.delivery()),
-                complete: Some(
-                    complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
-                        .map(|_| ()),
-                ),
+                raw: None,
+                source_kind: String::new(),
+                plan: String::new(),
+                identity: false,
+                element: None,
+                provider: None,
+                source_builtin: None,
+                delivery: None,
+                complete: None,
+            },
+            Ok(names) => {
+                let unit = names.names().index().source_units()[0].id();
+                let typed =
+                    check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+                let statement = UnitStatementId::new(unit, statement);
+                let source_expr = UnitExpressionId::new(unit, source_expr);
+                let plan = typed.sequential_iteration(statement);
+                Observation {
+                    mode,
+                    source_span,
+                    names: diagnostics,
+                    raw: Some(typed.diagnostics().to_vec()),
+                    source_kind: format!(
+                        "{:?}",
+                        typed
+                            .expression_type(source_expr)
+                            .and_then(|id| typed.types().get(id))
+                    ),
+                    plan: format!("{plan:?}"),
+                    identity: plan.is_some_and(|p| {
+                        p.statement() == statement
+                            && p.source() == source_expr
+                            && Some(p.source_type()) == typed.expression_type(source_expr)
+                            && typed.sequential_iterations().len() == 1
+                    }),
+                    element: plan.and_then(|p| match typed.types().get(p.element_type()) {
+                        Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
+                        _ => None,
+                    }),
+                    provider: plan.map(|p| p.provider()),
+                    source_builtin: plan.and_then(|p| match typed.types().get(p.source_type()) {
+                        Some(UnitTypeKind::Builtin(b)) => Some(*b),
+                        _ => None,
+                    }),
+                    delivery: plan.map(|p| p.delivery()),
+                    complete: Some(
+                        complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+                            .map(|_| ()),
+                    ),
+                }
             }
-        }
-    };
-    let observations = vec![single, unit];
+        };
+        observations.push(unit);
+    }
     for o in &observations {
         println!(
             "SOURCE {text:?} MODE {} SOURCE_SPAN {:?} SOURCE_KIND {} PLAN {} OBS {o:?}",

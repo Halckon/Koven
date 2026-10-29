@@ -1,5 +1,5 @@
 //! SPEC-0331：六个 clean 非法 Map pattern 与一个 nominal 同名邻控。
-//! 单个普通 exact 先采齐 single/unit 十四路，再核完整原始诊断和 AST 身份。
+//! 单个普通 exact 先采齐 single/rooted Unit/MemoryDocument Unit 二十一路，再核完整原始诊断和 AST 身份。
 
 use crate::map_binding_analysis as analysis;
 #[path = "map_binding_controls/facts.rs"]
@@ -183,11 +183,11 @@ fn assess(case: &Case, observation: &Observation) -> (bool, String) {
 fn invalid_map_bindings_and_nominal_lookalike_preserve_diagnostics_in_both_entries() {
     let mut observations = Vec::new();
     for case in &CASES {
-        for entry in [Entry::Single, Entry::Unit] {
+        for entry in [Entry::Single, Entry::Unit, Entry::MemoryUnit] {
             observations.push((case, observe(case.text, entry)));
         }
     }
-    // 十四次真实分析全部结束后才评估、完整输出，再作唯一的集合目标断言。
+    // 二十一次真实分析全部结束后才评估、完整输出，再作唯一的集合目标断言。
     let assessments = observations
         .iter()
         .map(|(case, observation)| assess(case, observation))
@@ -195,7 +195,11 @@ fn invalid_map_bindings_and_nominal_lookalike_preserve_diagnostics_in_both_entri
     for (_, report) in &assessments {
         println!("{report}");
     }
-    assert_eq!(assessments.len(), 14, "seven source fixtures × single/unit");
+    assert_eq!(
+        assessments.len(),
+        21,
+        "seven source fixtures × three entries"
+    );
     assert!(
         assessments.iter().all(|(passed, _)| *passed),
         "SPEC-0331: clean invalid Map bindings require exact full-binding L0160; nominal Map requires source L0159. Complete must retain the same full raw Diagnostic. BLOCKED, INTERNAL, arbitrary Err and partial plans cannot satisfy this target.\n{}",

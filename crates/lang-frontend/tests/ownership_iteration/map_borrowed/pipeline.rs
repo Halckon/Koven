@@ -25,6 +25,7 @@ use lang_frontend::{
 pub(super) enum Entry {
     Single,
     Unit,
+    MemoryUnit,
 }
 
 struct SingleAnalysis {
@@ -152,13 +153,12 @@ fn analyze(case: &Case, entry: Entry) -> Result<Observed, Blocked> {
                 owned,
             }))
         }
-        Entry::Unit => {
-            let inputs = [SourceUnitInput::new(
-                "root",
-                LOGICAL_PATH,
-                file.source_id(),
-                file,
-            )];
+        Entry::Unit | Entry::MemoryUnit => {
+            let inputs = [if matches!(entry, Entry::MemoryUnit) {
+                SourceUnitInput::memory_document(file.source_id(), file)
+            } else {
+                SourceUnitInput::new("root", LOGICAL_PATH, file.source_id(), file)
+            }];
             let index = index_compilation_unit(sources, &inputs)
                 .map_err(|error| blocked("unit index infrastructure", error))?;
             require_clean(sources, "unit index", index.diagnostics())?;
@@ -298,12 +298,16 @@ impl Observation<'_> {
                 matches!(analysis.owned, Ok(Some(_))),
             ),
             Analysis::Unit(analysis) => {
-                let inputs = [SourceUnitInput::new(
-                    "root",
-                    LOGICAL_PATH,
-                    fixture.file.source_id(),
-                    &fixture.file,
-                )];
+                let inputs = [if matches!(self.entry, Entry::MemoryUnit) {
+                    SourceUnitInput::memory_document(fixture.file.source_id(), &fixture.file)
+                } else {
+                    SourceUnitInput::new(
+                        "root",
+                        LOGICAL_PATH,
+                        fixture.file.source_id(),
+                        &fixture.file,
+                    )
+                }];
                 (
                     analysis.raw.is_compatible_with(
                         &fixture.sources,

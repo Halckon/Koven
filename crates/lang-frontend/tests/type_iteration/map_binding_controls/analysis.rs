@@ -1,11 +1,12 @@
-//! 只读保存一次真实 Phase 2 分析链；前置失败与最终准入失败分开记录。
+//! 原 Single witness 与 rooted/MemoryDocument Unit 使用同源、同 oracle。
+//! 前置失败与最终准入失败分开记录；本批不退役旧 API。
 
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::{LexedFile, lex},
     name_resolution::{
-        NameResolution, SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit,
-        resolve_compilation_unit_names, resolve_names,
+        NameResolution, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     parser::{ParsedFile, parse_file},
     source::SourceMap,
@@ -22,6 +23,19 @@ const LOGICAL_PATH: &str = "iteration.ko";
 pub(super) enum Entry {
     Single,
     Unit,
+    MemoryUnit,
+}
+
+impl Entry {
+    pub(super) fn matches_key(self, key: &SourceUnitKey) -> bool {
+        match (self, key) {
+            (Self::Unit, SourceUnitKey::Rooted { root, logical_path }) => {
+                root.as_str() == "root" && logical_path.as_str() == LOGICAL_PATH
+            }
+            (Self::MemoryUnit, SourceUnitKey::MemoryDocument) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -85,6 +99,7 @@ pub(super) enum Analysis {
 }
 
 pub(super) struct Observed {
+    pub(super) entry: Entry,
     pub(super) fixture: Fixture,
     pub(super) analysis: Analysis,
 }
@@ -142,8 +157,12 @@ fn analyze(text: &str, entry: Entry, trace: &mut Vec<String>) -> Result<Observed
                 complete,
             }))
         }
-        Entry::Unit => {
-            let inputs = [SourceUnitInput::new("root", LOGICAL_PATH, source, file)];
+        Entry::Unit | Entry::MemoryUnit => {
+            let inputs = [if matches!(entry, Entry::MemoryUnit) {
+                SourceUnitInput::memory_document(file.source_id(), file)
+            } else {
+                SourceUnitInput::new("root", LOGICAL_PATH, source, file)
+            }];
             let index = index_compilation_unit(sources, &inputs)
                 .map_err(|error| blocked("unit index infrastructure", error))?;
             clean(sources, trace, "unit index", index.diagnostics())?;
@@ -166,5 +185,9 @@ fn analyze(text: &str, entry: Entry, trace: &mut Vec<String>) -> Result<Observed
             }))
         }
     };
-    Ok(Observed { fixture, analysis })
+    Ok(Observed {
+        entry,
+        fixture,
+        analysis,
+    })
 }

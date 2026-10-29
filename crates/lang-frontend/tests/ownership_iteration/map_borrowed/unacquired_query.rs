@@ -346,7 +346,7 @@ fn public_unacquired_map_facts_preserve_typed_identity_without_owned_plans() {
     let observations = [Case::SourceReturn, Case::DeadTail]
         .into_iter()
         .flat_map(|case| {
-            [Entry::Single, Entry::Unit].map(|entry| Observation {
+            [Entry::Single, Entry::Unit, Entry::MemoryUnit].map(|entry| Observation {
                 case,
                 entry,
                 result: analyze(case, entry),
@@ -383,12 +383,12 @@ fn public_unacquired_map_facts_preserve_typed_identity_without_owned_plans() {
     for ((_, original), (_, query)) in original.iter().zip(&queries) {
         println!("{original}\n{query}");
     }
-    assert_eq!(observations.len(), 4);
-    assert_eq!(original.len(), 4);
-    assert_eq!(queries.len(), 4);
+    assert_eq!(observations.len(), 6);
+    assert_eq!(original.len(), 6);
+    assert_eq!(queries.len(), 6);
     assert!(
         original.iter().all(|(passed, _)| *passed) && queries.iter().all(|(passed, _)| *passed),
-        "SPEC-0331 D1/D2 public query failed after all four original and query observations were retained. Typed Map remains present; no claim about private acquisition templates or backend support.\n{}",
+        "SPEC-0331 D1/D2 public query failed after all six original and query observations were retained. Typed Map remains present; no claim about private acquisition templates or backend support.\n{}",
         original
             .iter()
             .zip(&queries)
