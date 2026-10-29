@@ -289,3 +289,35 @@ MissingFact，均对应本补片本地已通过的用例。后续集成门禁被
 恢复后同一 guard 复跑1 passed、0 failed、0 ignored，独立复审核对恢复文件摘要及文档边界。
 Rustfmt、diff、文档结构（821篇）和尺寸门禁通过；2014个手写 Rust 文件中39个历史超限，
 本片未增加尺寸例外。
+
+### 副本生命周期与全分支返回（2026-10-30）
+
+真实标准 API 的新增计数测试以原 String→字节副本→两次 decodeUtf8 建立4次独立分配：
+先把副本首字节改为 X，原串仍输出 A；再把输入改为 Y，第一次解码结果仍输出 X，第二次
+输出 Y，均保留多字节与 NUL。复用逐指针计数器，在第三次分配前额外检查源 clone 已释放、
+数组仍存活，补足此前仅有相对释放顺序的时间证据。该测试1 passed、0 failed、0 ignored。
+
+全分支返回的 owned enum statement-when 回归先取得 MissingFact（0 passed、1 failed），
+原因是 Unit-typed statement 被错误赋予正常未匹配出口。前端本已计算 source-qualified
+`expression_falls_through`，现将其保留到最终 typed product，并由后端消费明确 false；
+未匹配 tagged 尾边复用既有内部不变量 Abort。未知事实不被当作不继续，合法分支出口不删除，
+不在后端重算穷尽性。独立审查核对 producer、trial 回滚、常量重检查、事实身份与清理，
+未发现确认缺陷；`bodies.rs` 仅增长3行至1379，沿用既有尺寸上限。
+
+前端事实测试核对两个源中相同局部表达式 ID 的 Unit when 分别继续／不继续，并反转输入
+顺序与复制 product；修正夹具初始 ID 不同及包路径不匹配后1 passed、0 failed、0 ignored。
+新 native 用例覆盖全部分支返回与非穷尽 when 正常落空两类行为，逐指针核对两次分配／
+释放，1 passed、0 failed、0 ignored。此证据闭合前文登记的全分支返回缺口；receiver
+后续实参直接 return 是另一入口边界，仍未由本次修复开放。
+
+最终本地验证（LLVM 21、独立 target、offline 串行）：
+
+| 命令 | 实际结果 |
+|---|---|
+| `cargo test -p lang-cli --test native_cli text_bytes` | 5 passed、0 failed、0 ignored；含两种公开模式的独立副本及 Ok／Err 全返回 |
+| `cargo test -p lang-frontend --test multifile_type_checking` | 154 passed、0 failed、0 ignored |
+| `cargo test -p lang-codegen --lib unit_lower_enum_tests` | 15 passed、0 failed、0 ignored |
+| `cargo check --workspace --all-targets` | 通过 |
+| `cargo clippy -p lang-frontend -p lang-codegen -p lang-cli --all-targets -- -D warnings` | 通过 |
+
+本片不替代最终 head 双宿主 CI 和 Spec 逐项完成审计，状态保持 in-progress。

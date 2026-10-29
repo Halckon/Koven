@@ -808,3 +808,41 @@ fn owned_enum_when_keeps_unplanned_subject_cleanup_rejected() {
         });
     }
 }
+
+#[test]
+fn exhaustive_owned_enum_statement_when_returns_without_a_fallthrough_edge() {
+    let source = r#"enum class Reply<T> { Full(value: T), Empty }
+fun total(own item: Reply<String>): Int {
+    when (item) {
+        is Reply.Full -> { println(item.value); return 7 }
+        is Reply.Empty -> return 8
+    }
+}
+fun partial(own item: Reply<String>): Int {
+    when (item) {
+        is Reply.Full -> { println(item.value); return 9 }
+    }
+    println("fallthrough")
+    return 10
+}
+fun main(): Unit {
+    val full: Reply<String> = Reply.Full("total".clone())
+    val empty: Reply<String> = Reply.Empty
+    if (total(full) != 7) { error("total full") }
+    if (total(empty) != 8) { error("total empty") }
+    val partialFull: Reply<String> = Reply.Full("partial".clone())
+    val partialEmpty: Reply<String> = Reply.Empty
+    if (partial(partialFull) != 9) { error("partial full") }
+    if (partial(partialEmpty) != 10) { error("partial empty") }
+}"#;
+    with_generic_enum_source("returning-when.ko", source, "main", |view, entry| {
+        let (program, entry) = super::unit_lower::lower_owned_unit_with_entry(view, entry)
+            .expect("typed non-fallthrough when must not fabricate a normal exit");
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 2);
+        crate::native_tests::boxed_enum_tests::assert_success(
+            &run,
+            b"total\npartial\nfallthrough\n",
+        );
+    });
+}

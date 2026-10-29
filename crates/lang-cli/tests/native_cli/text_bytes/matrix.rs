@@ -181,3 +181,41 @@ fun main(): Unit {
         b"field\nfield\ntemporary\nearly\nearly\ncontainer\n",
     );
 }
+
+#[test]
+fn public_text_independent_copies_and_exhaustive_result_returns() {
+    let program = r#"fun bytes(): Array<UByte> {
+    val source = "Aé\0".clone()
+    val data = source.toBytes()
+    data[0] = 88u
+    println(source)
+    return data
+}
+fun decodedLength(data: Array<UByte>): Int {
+    val result = decodeUtf8(data)
+    when (result) {
+        is Ok -> return result.success.byteLength()
+        is Err -> return -1
+    }
+}
+fun main(): Unit {
+    val data = bytes()
+    val decoded = decodeUtf8(data)
+    data[0] = 89u
+    when (decoded) {
+        is Ok -> println(decoded.success)
+        is Err -> error("copy failed")
+    }
+    val after = decodeUtf8(data)
+    when (after) {
+        is Ok -> println(after.success)
+        is Err -> error("mutated input failed")
+    }
+    if (decodedLength(data) != 4) { error("success return") }
+    val bad = Array<UByte>(1, { index -> 128u })
+    if (decodedLength(bad) != -1) { error("error return") }
+    println("returns")
+}
+"#;
+    check_build_run_both_modes(program, b"A\xc3\xa9\0\nX\xc3\xa9\0\nY\xc3\xa9\0\nreturns\n");
+}

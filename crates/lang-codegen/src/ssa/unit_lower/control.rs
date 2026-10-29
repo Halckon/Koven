@@ -720,7 +720,7 @@ impl UnitExpressionLowerer<'_> {
             unmatched_temporaries,
         )) = unmatched
         {
-            if result_required {
+            if result_required || self.typed.expression_falls_through(control) == Some(false) {
                 if subject.is_some_and(|(_, tagged)| tagged.is_some()) {
                     self.function
                         .set_abort_terminator(
