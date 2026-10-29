@@ -42,6 +42,7 @@ mod range_type_uses;
 mod rc;
 mod resource;
 mod string;
+mod string_length;
 
 use std::{sync::Arc, thread};
 
@@ -84,6 +85,7 @@ pub use range_construction::{RangeConstructionDescriptor, RangeSizeDescriptor, R
 mod range_extension;
 pub use range_extension::RangeExtensionBinding;
 pub use string::*;
+pub use string_length::MAX_STRING_BYTE_LENGTH;
 
 /// 构造一组共享身份、包含全部编译器内建类型的标准分析环境。
 ///

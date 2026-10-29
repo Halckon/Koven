@@ -68,6 +68,11 @@ impl Checker<'_> {
                 self.check_expression(expression, expected, expected_span)?
             }
             Expression::String { parts } => {
+                if let Some(diagnostic) =
+                    crate::type_checking::string_length::check_literal(self.sources, span, &parts)?
+                {
+                    self.diagnostics.push(diagnostic);
+                }
                 for part in parts {
                     if let StringPart::Interpolation { expression, .. } = part {
                         self.check_expression(expression, None, None)?;

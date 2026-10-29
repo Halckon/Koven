@@ -202,6 +202,16 @@ fn define_borrowed_arguments_wrapper<'ctx>(
     builder.build_conditional_branch(item_null, failure, item_valid)?;
     builder.position_at_end(item_valid);
     let length = call_int(&builder, strlen, &[item.into()], "argv.preflight.length")?;
+    // Reject before UTF-8 traversal or allocation: argv failure is operational, not Abort.
+    let length_exceeded = builder.build_int_compare(
+        IntPredicate::UGT,
+        length,
+        size.const_int(lang_frontend::type_checking::MAX_STRING_BYTE_LENGTH, false),
+        "argv.length_exceeded",
+    )?;
+    let length_valid = context.append_basic_block(wrapper, "argv.preflight.length_valid");
+    builder.build_conditional_branch(length_exceeded, failure, length_valid)?;
+    builder.position_at_end(length_valid);
     let valid = call_int(
         &builder,
         utf8,
