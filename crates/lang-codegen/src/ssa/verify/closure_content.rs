@@ -142,7 +142,8 @@ fn callable_reads(module: &Module, function: &Function, instruction: &Instructio
             arguments,
             ..
         } => (receiver.as_ref(), arguments.as_slice()),
-        Operation::CallableInvoke { arguments, .. } => (None, arguments.as_slice()),
+        Operation::CallableInvoke { arguments, .. }
+        | Operation::CallableInvokeView { arguments, .. } => (None, arguments.as_slice()),
         _ => return Vec::new(),
     };
     receiver
@@ -161,7 +162,11 @@ fn callable_reads(module: &Module, function: &Function, instruction: &Instructio
                         .semantic_type()
                         .index()
                 ),
-                Some(SsaTypeKind::FunctionPointer { .. } | SsaTypeKind::ConcreteClosure { .. })
+                Some(
+                    SsaTypeKind::FunctionPointer { .. }
+                        | SsaTypeKind::ConcreteClosure { .. }
+                        | SsaTypeKind::CallableView { .. }
+                )
             )
             .then_some(*loan)
         })
@@ -284,7 +289,9 @@ impl<'a> Proof<'a> {
             Operation::SharedRetain { owner } => Some(content(*owner)),
             Operation::RootPlace { owner } => Some(value(*owner)),
             Operation::BorrowBegin { place, .. } => Some(content(EntityId::Place(*place))),
-            Operation::SharedReborrow { source } => Some(content(EntityId::Loan(*source))),
+            Operation::SharedReborrow { source } | Operation::CallableViewOf { source } => {
+                Some(content(EntityId::Loan(*source)))
+            }
             // Following an address cannot recover captured LoanIds from a capture-free slot.
             // Capturing targets keep the unknown default; capture-free targets keep exact emptiness.
             Operation::SharedReferenceFollow { .. } => None,

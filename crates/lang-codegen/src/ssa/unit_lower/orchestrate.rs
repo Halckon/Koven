@@ -91,7 +91,7 @@ fn lower_unit_impl(
         owned,
         &mut types,
     )?;
-    let callable_abi = callable_abi::CallableAbi::declare(
+    let mut callable_abi = callable_abi::CallableAbi::declare(
         module,
         &instances,
         &source_plan,
@@ -221,7 +221,7 @@ fn lower_unit_impl(
                 target,
             });
         }
-        for (slot, parameter) in callable.parameters().iter().enumerate() {
+        for parameter in callable.parameters() {
             let symbol = parameter
                 .symbol()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, parameter.span()))?;
@@ -244,7 +244,17 @@ fn lower_unit_impl(
                 typed.types().get(concrete),
                 Some(UnitTypeKind::Function { .. })
             ) {
-                callable_abi.parameter_type(&source_plan, instance.key(), slot, parameter.span())?
+                {
+                    let view = callable_abi::view_type(
+                        module,
+                        typed,
+                        &mut types,
+                        concrete,
+                        parameter.span(),
+                    )?;
+                    callable_abi.record_view(concrete, view);
+                    view
+                }
             } else {
                 types.intern(module, typed, concrete, parameter.span())?
             };
@@ -457,6 +467,7 @@ fn lower_unit_impl(
                 (entry, entities, modes)
             })
         };
+        let refine_callables = closure::refine_callables(&callable_plans, plan.id);
         if let Some((entry, entities, modes)) = refine_entry {
             let refine_body = match &plan.body {
                 FunctionPlanBody::Expression(expression) => {
@@ -493,6 +504,8 @@ fn lower_unit_impl(
                 span: plan.instance.span(),
                 substitutions: plan.instance.substitutions(),
                 static_self: plan.instance.key().static_self(),
+                callables: &refine_callables,
+                views: callable_abi.views(),
             };
             if crate::ssa::refine::routes(&inputs) {
                 for ty in crate::ssa::refine::type_demands(&inputs) {

@@ -99,7 +99,7 @@
 
 | 状态 | ID | 内容 | 阶段 | 优先级 | Guide | Phase | Spec / 依据 |
 |---|---|---|---|---|---|---|---|
-| ◐ 部分 | N04 | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0278](../archive/specs/0278-borrowed-closure-escape-verification.md) [0363](../archive/specs/0363-closure-scope-escape.md) [0365](../archive/specs/0365-closure-return-facts.md) [borrowed-closure-escape](../architecture/borrowed-closure-escape.md) [0034-refine-closures-and-callable-views](../adr/accepted/0034-refine-closures-and-callable-views.md) |
+| ◐ 部分 | N04 | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0278](../archive/specs/0278-borrowed-closure-escape-verification.md) [0363](../archive/specs/0363-closure-scope-escape.md) [0364](../archive/specs/0364-refine-closures.md) [0365](../archive/specs/0365-closure-return-facts.md) [borrowed-closure-escape](../architecture/borrowed-closure-escape.md) [0034-refine-closures-and-callable-views](../adr/accepted/0034-refine-closures-and-callable-views.md) |
 | ☐ 未开始 | S1 | 非逃逸闭包以 exclusive loan 可变捕获 var（D7） | P3 语言增量 | v1 必做 | 需新增 | 2,3,4 | — |
 
 ## 集合与迭代

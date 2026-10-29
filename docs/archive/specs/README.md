@@ -524,4 +524,5 @@
 - [SPEC-0361](0361-refine-generic-value-class.md)：E3 泛型函数实例具体化与 Copyable 标量字段 value class 迁入细化层；t03 两模式通过，p40 待容器家族。
 - [SPEC-0362](0362-refine-pending-arguments.md)：E3 `!!` 的括号名称与 `if` 临时 operand、实参内跳转释放待交付命名实参；补足 PR #191 的 Unit 对照。
 - [SPEC-0363](0363-closure-scope-escape.md)：borrowed closure 经赋值或 block 结果被外层持有、而所借 binding 的 scope 已结束时报 L0135（ADR-0034 逃逸分析第一层的漏报修复）。
+- [SPEC-0364](0364-refine-closures.md)：E3 闭包家族迁入细化层（ADR-0034 步 1–3）：SSA callable view、规划器取消 Borrow 回调单态化、细化层经 view 调用与直接实参 lambda（p17、p17b、q02）、工厂返回 move 闭包（p18，frontend 事实由 SPEC-0365 提供）；均两模式通过。
 - [SPEC-0365](0365-closure-return-facts.md)：frontend 发布带捕获（move）闭包返回的来源事实，与空环境 pointer 返回摘要不相交；p18 的前置。

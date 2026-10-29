@@ -222,6 +222,11 @@ pub(crate) enum SsaTypeKind {
     FunctionPointer {
         signature: CallableSignature,
     },
+    /// ADR-0034 Borrow callable view: only ever the target of a shared loan, whose LLVM
+    /// pointer addresses a caller-frame `{code, environment}` descriptor. Never a value.
+    CallableView {
+        signature: CallableSignature,
+    },
     ConcreteClosure {
         name: String,
         signature: CallableSignature,

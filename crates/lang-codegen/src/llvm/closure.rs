@@ -84,9 +84,14 @@ pub(super) fn prepare<'ctx>(
     callable: BasicValueEnum<'ctx>,
     name: &str,
 ) -> Result<PreparedCallable<'ctx>, LlvmAdapterError> {
-    let signature = module.callable_signature(callable_type).ok_or_else(|| {
-        LlvmAdapterError::InvalidSsa("indirect call operand has no callable signature".to_owned())
-    })?;
+    let signature = module
+        .callable_signature(callable_type)
+        .or_else(|| module.callable_view_signature(callable_type))
+        .ok_or_else(|| {
+            LlvmAdapterError::InvalidSsa(
+                "indirect call operand has no callable signature".to_owned(),
+            )
+        })?;
     let (function, environment) = match module.type_kind(callable_type) {
         Some(SsaTypeKind::FunctionPointer { .. }) => (callable.into_pointer_value(), None),
         Some(SsaTypeKind::ConcreteClosure { .. }) => {
@@ -103,6 +108,17 @@ pub(super) fn prepare<'ctx>(
             )?;
             builder.build_store(storage, environment)?;
             (function, Some(storage))
+        }
+        // ADR-0034: a loaded view descriptor already holds the environment pointer.
+        Some(SsaTypeKind::CallableView { .. }) => {
+            let descriptor = callable.into_struct_value();
+            let function = builder
+                .build_extract_value(descriptor, 0, &format!("{name}.code"))?
+                .into_pointer_value();
+            let environment = builder
+                .build_extract_value(descriptor, 1, &format!("{name}.env"))?
+                .into_pointer_value();
+            (function, Some(environment))
         }
         _ => {
             return Err(LlvmAdapterError::InvalidSsa(

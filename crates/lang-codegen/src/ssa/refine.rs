@@ -42,6 +42,25 @@ pub(in crate::ssa) struct RefineReceiver {
     pub(in crate::ssa) mode: ParameterMode,
 }
 
+/// One capture of a lambda of this function instance (ADR-0034).
+#[derive(Clone, Copy, Debug)]
+pub(in crate::ssa) struct RefineCapture {
+    pub(in crate::ssa) symbol: UnitSymbolId,
+    /// The captured binding's SSA type.
+    pub(in crate::ssa) ty: SsaTypeId,
+    pub(in crate::ssa) mode: lang_frontend::ownership_checking::ClosureCaptureMode,
+    pub(in crate::ssa) effect: lang_frontend::ownership_checking::ClosureCaptureEffect,
+}
+
+/// A lambda of this function instance: its callable value type, thunk and captures.
+#[derive(Clone, Debug)]
+pub(in crate::ssa) struct RefineCallable {
+    /// Function pointer (no captures) or concrete closure type.
+    pub(in crate::ssa) callable: SsaTypeId,
+    pub(in crate::ssa) thunk: FunctionId,
+    pub(in crate::ssa) captures: Vec<RefineCapture>,
+}
+
 /// Everything one function instance needs; all facts come from the same validated unit.
 pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) sources: &'a SourceMap,
@@ -69,6 +88,11 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) substitutions: &'a BTreeMap<UnitSymbolId, UnitTypeId>,
     /// The concrete `Self` of a static-self instance.
     pub(in crate::ssa) static_self: Option<UnitTypeId>,
+    /// This instance's lambdas, by lambda expression (ADR-0034).
+    pub(in crate::ssa) callables:
+        &'a BTreeMap<lang_frontend::type_checking::UnitExpressionId, RefineCallable>,
+    /// Callable view targets of Borrow function types, by concrete function type.
+    pub(in crate::ssa) views: &'a BTreeMap<UnitTypeId, SsaTypeId>,
 }
 
 impl RefineInputs<'_> {

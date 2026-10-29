@@ -26,6 +26,23 @@ impl Module {
         Ok(self.intern_type(SsaTypeKind::FunctionPointer { signature }))
     }
 
+    /// The ADR-0034 callable view loan target for `signature`.
+    pub(crate) fn add_callable_view_type(
+        &mut self,
+        signature: CallableSignature,
+    ) -> Result<SsaTypeId, ModelError> {
+        let signature = self.check_callable_signature(signature.parameters, signature.returns)?;
+        Ok(self.intern_type(SsaTypeKind::CallableView { signature }))
+    }
+
+    /// The signature of a callable view loan target.
+    pub(crate) fn callable_view_signature(&self, ty: SsaTypeId) -> Option<&CallableSignature> {
+        match self.type_kind(ty)? {
+            SsaTypeKind::CallableView { signature } => Some(signature),
+            _ => None,
+        }
+    }
+
     pub(crate) fn add_shared_reference_type(
         &mut self,
         target: SsaTypeId,
