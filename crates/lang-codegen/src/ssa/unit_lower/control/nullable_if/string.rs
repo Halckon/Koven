@@ -83,14 +83,22 @@ impl UnitExpressionLowerer<'_> {
             .get(narrowed)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if self.ssa_types.get(storage.index())
-            != Some(&SsaTypeKind::InlineNullable { inner, niche: true })
-            || self.ssa_types.get(inner.index()) != Some(&SsaTypeKind::StringOwner)
+        if self.ssa_types.get(inner.index()) != Some(&SsaTypeKind::StringOwner)
             || self
                 .function
                 .entity(EntityId::Value(owner))
                 .map(|entity| entity.ty)
                 != Some(EntityType::Value(storage))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        // Map.remove uses the registered presence-plus-String result wrapper.
+        // Leave it to the existing reader, which also validates the remove origin.
+        if self.map_results.get(&storage) == Some(&inner) {
+            return Ok(None);
+        }
+        if self.ssa_types.get(storage.index())
+            != Some(&SsaTypeKind::InlineNullable { inner, niche: true })
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }

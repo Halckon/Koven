@@ -340,3 +340,20 @@ ParsedFile／NameResolution，名称入口不展开 import；外部类型环境�
 unit 的 canonical Result／授权 TextError 路径及两种 CLI 已有运行证据，但不替代旧接口。
 不能用同名 enum、拼接源码或按名称识别绕过此边界；需要明确的跨源输入适配／共用前端
 方案后继续实现，本 Spec 保持 in-progress，未降低双入口验收要求。
+
+### Map.remove String 借用回归（2026-10-30）
+
+输入 `a92400b44fbff0351c3c6690561ac8987e9b887b` 的双宿主 Check／Clippy 通过，
+[Linux 行为作业](https://github.com/Halckon/Koven/actions/runs/40940011309/job/123685488731)
+为2486 passed、11 failed、0 ignored，失败集中在既有 owned_map_borrow 的 String 路径；
+下游集成／sanitizer／资源生成门禁被跳过，不能算通过。macOS 同输入仍在执行。
+本地原 `owned_map_borrow_single_string_plain` 复现 MissingFact 后，确认新增 nullable String
+入口错误接管了 Map.remove 的已注册 `[Boolean, StringOwner]` presence wrapper。
+修复先核对 String inner 和当前 owner/storage 身份，再仅对 `map_results[storage] == inner`
+退回既有 Map reader；该 reader 继续验证 remove 来源。普通 InlineNullable String 的 niche
+与错误存储检查保持不变，不按 aggregate 名称或相似布局授予资格。
+独立审查指出最初“所有非 inline 都退回”过宽；中间按 NullableHandle 收窄的版本仍失败，
+经真实表示与注册代码核对后改为上述精确注册身份。最终 `owned_map_borrow` 全套本地
+23 passed、0 failed、0 ignored；不以先前宽版本或失败中间版代替最终证据。
+nullable_string 邻接回归5 passed、0 failed、0 ignored；严格 codegen all-targets Clippy、
+Rustfmt 与821篇文档结构检查通过。最终 head 双宿主验收仍待完成。
