@@ -1,9 +1,9 @@
-//! Return from a text argument cancels its receiver frame before retiring the If view.
+//! String If returns use original drops, after cancelling any qualified text call.
 use super::*;
 
 impl UnitExpressionLowerer<'_> {
-    /// Qualify the actual pending call and Return without emitting cleanup or SSA.
-    pub(in crate::ssa::unit_lower) fn can_return_from_nullable_text_argument(
+    /// Qualify Return and any pending text call without emitting cleanup or SSA.
+    pub(in crate::ssa::unit_lower) fn can_return_from_nullable_string_if(
         &self,
         expression: UnitExpressionId,
         value: Option<ExpressionId>,
@@ -19,6 +19,33 @@ impl UnitExpressionLowerer<'_> {
             || self.ensure_string_if_proof_non_call_carriers(span).is_err()
         {
             return Ok(false);
+        }
+        let returned = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression.expression())
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if expression.source_unit() != self.source_unit
+            || returned.span() != span
+            || !matches!(returned.payload(), Expression::Return { value: actual, .. } if *actual == value)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        // Owned return delivery while an If view is live remains a separate contract.
+        if let Some(value) = value {
+            let ty = self
+                .typed
+                .expression_type(UnitExpressionId::new(self.source_unit, value))
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let concrete =
+                resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
+            if self.typed.copyability(concrete) != Copyability::Copyable {
+                return Ok(false);
+            }
+        }
+        if self.pending_call_frames.is_empty() {
+            return Ok(self.pending_operands.is_empty());
         }
         let [receiver, arguments] = self.pending_call_frames.as_slice() else {
             return Ok(false);
@@ -39,30 +66,6 @@ impl UnitExpressionLowerer<'_> {
             || receiver.field_replace_owner.is_some()
         {
             return Ok(false);
-        }
-        let returned = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression.expression())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if expression.source_unit() != self.source_unit
-            || returned.span() != span
-            || !matches!(returned.payload(), Expression::Return { value: actual, .. } if *actual == value)
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        // Owned return delivery while the receiver is borrowed remains a separate contract.
-        if let Some(value) = value {
-            let ty = self
-                .typed
-                .expression_type(UnitExpressionId::new(self.source_unit, value))
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let concrete =
-                resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
-            if self.typed.copyability(concrete) != Copyability::Copyable {
-                return Ok(false);
-            }
         }
         let call = receiver.call;
         let node = self

@@ -517,7 +517,7 @@ text／用户源四个身份及顺序，保留后续原用户入口选择断言�
 | 严格解码与错误偏移 | CLI 同一矩阵的17类非法输入与独立 Rust oracle；`utf8_error_offset_native_matches_strict_sequence_boundaries` | 已有局部动态通过；不以字符数替代字节偏移 |
 | 字节切片 | CLI 同一矩阵的205组端点组合，核范围优先级、scalar 边界及空切片 | 已有局部动态通过 |
 | 可恢复连接 | `standard_checked_plus_returns_null_only_for_length_overflow_and_aborts_on_oom`；公开 CLI 左右各一次求值与结果输出 | 合成上限／OOM 与正常小输入分别验证；不声称 GB 成功复制 |
-| 所有权与控制流 | codegen `text_` 36项与 CLI `text_bytes` 10项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果记录 | 已覆盖记录中的具体形状；下述参数 return 补片仍待扩大验证，Owned／其他 If 退出仍未开放 |
+| 所有权与控制流 | codegen `text_` 42项与 CLI `text_bytes` 12项；前述逐指针释放、字段／临时／incoming Borrow、return／break／continue、nullable 控制结果及直接返回记录 | 已覆盖记录中的具体形状；String If 的 Unit／Copyable 返回已有动态证据，live-proof Owned／其他 If 退出仍未开放 |
 | 公共入口 | `native_cli text_bytes` 对单文件／project 各执行 check、build 后直接运行及 CLI run | 10项通过、无忽略；不替代旧 raw API 的跨源合同 |
 | 回归与平台 | 历史输入完整 codegen 库测试、官方双宿主 CI、独立复核、Clippy／尺寸／文档门禁 | 独立复核及局部门禁已通过；修复后的最终双宿主 CI 待完成，暂不归档 |
 
@@ -575,3 +575,26 @@ proof 则拒绝发布。独立 full-pass 核对帧取消、CFG恢复、返回值
 codegen／CLI all-targets严格Clippy、Rustfmt、文档结构与diff检查通过；尺寸门禁2021文件、
 39项历史超限通过，未新增例外。新测试归入 nullable_return 子模块，复用原标准源／计数
 helper；不改写前端事实或复制标准 API 算法。本片双宿主全套CI尚待新提交触发与验收。
+
+### String If 的直接 Unit／Copyable return（2026-10-30）
+
+基于 `243861fb0ac09fe65dd085d9a99023bf081cb532`，真实标准源 native 在非实参位置的
+`return`（span 179..185）先取得 UnsupportedNode。复用上片的 String If／实际 Return／
+Unit或Copyable资格，允许无 pending call frame 且无 pending operand 的直接返回；有帧时
+仍必须满足原 canonical 文本实参两帧合同。loop、thunk、iteration、其他carrier gate保持。
+返回值仍先求值，再消费原 ControlTransfer drop；没有新增析构事实或提前结束父view。
+
+独立full-pass核对共同身份检查、原参数取消、CFG分支恢复及proof退休，未发现确认缺陷。
+按复核建议将Int返回改成 `return joined.byteLength()`，以真实view读取验证求值先于清理。
+Unit提前退出与正常继续、Copyable返回值、caller输入继续使用共5次分配，完整stdout与逐
+指针释放通过。另覆盖动态null／非空与双臂返回的四组合，两臂均从joined读取byteLength
+后形成返回值，确认return准入时view仍live；参数取消的原3项回归保持。
+直接Owned拒绝夹具曾因正常路径不再使用joined而在return前已ASAP退休proof，错误期望
+拒绝导致测试失败；已让正常路径继续读取joined，精确验证仍live的Owned返回边界，未改
+生产代码迎合错误夹具。修正后的 `text_copy_tests::nullable_return` 6项通过，0 failed、
+0 ignored，双臂读view加强后的最终6项复跑也全部通过。公开CLI `native_cli text_bytes`
+12项、codegen `text_` 42项、`nullable` 178项、`while_proof` 3项全部通过，无失败或忽略；
+各过滤集合有重叠，text_运行后的双臂测试加强由最终nullable与6项复跑覆盖。
+codegen／CLI all-targets严格Clippy、Rustfmt、821篇文档结构与diff检查通过；尺寸门禁
+2021文件、39项历史超限通过，未新增例外。官方最终head双宿主CI尚待新提交触发与验收，
+live-proof Owned返回及旧raw前端合同仍未关闭，不归档。

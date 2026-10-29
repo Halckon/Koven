@@ -460,3 +460,33 @@ fun main(): Unit {
 "#;
     check_build_run_both_modes(program, b"completed\na\nok\n");
 }
+
+#[test]
+fn public_text_nullable_if_returns_work_in_both_modes() {
+    let program = r#"fun unitExit(input: String, stop: Boolean): Unit {
+    val joined = input.checkedPlus("b")
+    if (joined != null) {
+        if (stop) { return }
+        println(joined)
+    }
+    println("completed")
+}
+fun intExit(input: String, stop: Boolean): Int {
+    val joined = input.checkedPlus("b")
+    if (joined != null) {
+        if (stop) { return joined.byteLength() }
+        println(joined)
+        return 29
+    }
+    return 0
+}
+fun main(): Unit {
+    val input = "a".clone()
+    unitExit(input, true)
+    unitExit(input, false)
+    if (intExit(input, true) != 2 || intExit(input, false) != 29) { error("return value") }
+    println(input)
+}
+"#;
+    check_build_run_both_modes(program, b"ab\ncompleted\nab\na\n");
+}

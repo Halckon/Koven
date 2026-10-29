@@ -286,13 +286,13 @@ impl UnitExpressionLowerer<'_> {
             let plain_string = self.has_only_string_if_proofs()
                 && matches!(node.payload(), Expression::String { parts, .. }
                     if parts.iter().all(|part| matches!(part, lang_frontend::parser::StringPart::Text(_))));
-            let text_argument_return = match node.payload() {
+            let string_if_return = match node.payload() {
                 Expression::Return { value, .. } => {
-                    self.can_return_from_nullable_text_argument(unit_expression, *value, span)?
+                    self.can_return_from_nullable_string_if(unit_expression, *value, span)?
                 }
                 _ => false,
             };
-            if !root_borrow_call && !rc_share && !plain_string && !text_argument_return {
+            if !root_borrow_call && !rc_share && !plain_string && !string_if_return {
                 self.reject_live_if_proof(span)?;
             }
         }
@@ -456,12 +456,12 @@ impl UnitExpressionLowerer<'_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let text_argument_return = self.can_return_from_nullable_text_argument(
+        let string_if_return = self.can_return_from_nullable_string_if(
             UnitExpressionId::new(self.source_unit, expression),
             value,
             span,
         )?;
-        if !text_argument_return {
+        if !string_if_return {
             self.reject_live_if_proof(span)?;
         }
         if self.function.carrier_return.is_some() {
@@ -505,8 +505,8 @@ impl UnitExpressionLowerer<'_> {
         } else {
             self.end_pending_abi_call_slots(0, span)?;
         }
-        if text_argument_return {
-            // Return cancels both qualified frames. Loans are already ended above;
+        if string_if_return {
+            // Return cancels any qualified text frames. Loans are already ended above;
             // discard the bookkeeping so the original root drop can retire its proof.
             self.pending_call_frames.clear();
         }
@@ -522,7 +522,7 @@ impl UnitExpressionLowerer<'_> {
         self.end_thunk_capture_views(span)?;
         self.retire_nullable_when_transfers(0, span)?;
         self.retire_while_proofs(true, span)?;
-        if text_argument_return && !self.nullable_proofs.is_empty() {
+        if string_if_return && !self.nullable_proofs.is_empty() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let values = self.return_values(result, span)?;
