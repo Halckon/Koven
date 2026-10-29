@@ -39,7 +39,7 @@
 | ✅ 已交付 | B06 | const val 封闭求值、数值字面量（radix/下划线）与整数具名位运算 | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | [0226](../archive/specs/0226-unit-constant-materialization-ownership.md) [0227](../archive/specs/0227-unit-constant-native-lowering.md) [0229](../archive/specs/0229-extended-numeric-literal-values.md) [0240](../archive/specs/0240-integer-bitwise-execution.md) |
 | ✅ 已交付 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | P0 止血 | v1 必做 | 需新增 | 2 | [0343](../archive/specs/0343-top-level-const-only.md) [global-and-static-state](../proposals/global-and-static-state.md) |
 | ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 4 | — |
-| ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | P3 语言增量 | v1 必做 | 需新增 | 2,4,5 | — |
+| ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | P3 语言增量 | v1 必做 | 已定义 | 2,4,5 | — |
 | ✅ 已交付 | L3 | 八种整数之间的 checked 转换（越界 Abort） | P3 语言增量 | v1 必做 | 已定义 | 2,3,4 | [0327](../archive/specs/0327-checked-integer-conversions.md) |
 | ☐ 未开始 | L3b | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | P3 语言增量 | v1 必做 | 需新增 | 2,4 | — |
 | ✅ 已交付 | L9b | 简单变量普通赋值的类型、Unit 结果与收窄事实失效 | P3 语言增量 | v1 必做 | 已定义 | 2 | [0325](../archive/specs/0325-simple-variable-assignment-types.md) |
@@ -123,10 +123,10 @@
 |---|---|---|---|---|---|---|---|
 | ✅ 已交付 | B07 | String：字面量、拼接、内容比较、String.clone、println(String) | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | [0189](../archive/specs/0189-standard-println-output.md) [0236](../archive/specs/0236-explicit-string-clone.md) [string-clone](../architecture/string-clone.md) |
 | ✅ 已交付 | B22 | argv 词频程序（Map 版）与 main(args) | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4,6 | [0274](../archive/specs/0274-argv-word-frequency.md) [0295](../archive/specs/0295-map-argv-word-frequency.md) |
-| ☐ 未开始 | L2 | 字符串插值降级："${x}" 要求 x : Display（D2） | P3 语言增量 | v1 必做 | 需新增 | 2,4 | — |
-| ☐ 未开始 | L5 | 文本 API：size、Char 迭代、byteAt、substring、indexOf、split、trim、lines、startsWith、toInt(): Int?、StringBuilder | P4 文本与 IO | v1 必做 | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) |
-| ☐ 未开始 | L6 | IO 与进程：readLine(): String?、File.readText/writeText: Result、eprintln、exitProcess(code): Nothing（D9） | P4 文本与 IO | v1 必做 | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) |
-| ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | P4 文本与 IO | v1 必做 | 需新增 | 2,4,5 | — |
+| ☐ 未开始 | L2 | 字符串插值降级："${x}" 要求 x : Display（D2） | P3 语言增量 | v1 必做 | 已定义 | 2,4 | — |
+| ☐ 未开始 | L5 | 文本 API：已启用字节长度、复制/严格UTF-8、字节切片、split/lines、parseLong与checkedPlus；Char迭代、trim、StringBuilder等仍待后继合同 | P4 文本与 IO | v1 必做 | 已定义 | 2,4,5 | [13-program-runtime-standard-library](../guide/13-program-runtime-standard-library.md) [text-input-and-io](../proposals/text-input-and-io.md) |
+| ☐ 未开始 | L6 | 同步 IO：显式上限文件读写、目录路径、标准流Result合同；exitProcess与显式流owner另行定义（D9） | P4 文本与 IO | v1 必做 | 已定义 | 2,4,5 | [13-program-runtime-standard-library](../guide/13-program-runtime-standard-library.md) [text-input-and-io](../proposals/text-input-and-io.md) |
+| ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | P4 文本与 IO | v1 必做 | 已定义 | 2,4,5 | — |
 
 ## 标准库与运行时
 

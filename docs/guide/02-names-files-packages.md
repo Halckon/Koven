@@ -1,8 +1,8 @@
-# Koven v0.46：名称、文件、Package 与 Import
+# Koven v0.47：名称、文件、Package 与 Import
 
-> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审文件组合、名称解析、可见性与跨文件绑定时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.47） · **读取时机**：实现或评审文件组合、名称解析、可见性与跨文件绑定时 · **唯一真源**：本页
 
-本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.47 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 单文件输入与共同名称解析
 
@@ -39,8 +39,12 @@ frontend 仍不得自行推根或读取文件系统。
 | Package | 标准源码 | 名称可见性 |
 |---|---|---|
 | `koven.algorithms` | `crates/lang-std/koven/algorithms/ranges.ko` | 按本页 import/可见性规则使用 List/View `take`、`drop`、`dropLast` |
+| `koven.text` | 标准文本源；具体资产路径由实施 Spec 冻结 | 显式 import 文本函数、错误类型与 String 扩展，不自动进入内建环境 |
+| `koven.io` | 标准同步 IO 源；具体资产路径由实施 Spec 冻结 | 显式 import File、Directory、Path、标准流及其错误／条目类型 |
 | `koven.core` | `crates/lang-std/koven/core/result.ko` | 声明内建环境的 `Result<T, E>`、`Ok`、`Err`；按下文内建环境规则无需 import |
 
+文本／IO 表面以 [Guide13](13-program-runtime-standard-library.md#文本字节与严格解析) 为准。
+资产路径和可信加载身份由实施 Spec 冻结；缺失实现不得注入占位声明或按用户源码拼写授予特权。
 标准源码是用户单文件之外的受信任标准输入，不改变“只加载一个用户文件”的约束。
 加载 package 不等于自动导入名称；内建环境也不等于隐式 wildcard import。内建环境包含
 `Result<T, E>`、`Ok` 与 `Err`，两模式相同、不需要 import；它们遵守普通词法遮蔽规则，同一
