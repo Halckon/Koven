@@ -185,6 +185,7 @@ struct UnitExpressionLowerer<'a> {
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
+    entry_string_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
     map_borrow_guards:
         BTreeMap<UnitSymbolId, lang_frontend::type_checking::UnitNullComparisonDescriptor>,

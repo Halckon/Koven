@@ -252,7 +252,7 @@ fun temporary(stop: Boolean): Unit {
 }
 fun incoming(input: String, stop: Boolean): Unit {
     val joined = input.checkedPlus(if (stop) { println("incoming-stop"); return } else { "!" })
-    if (joined == null) { error("small join must succeed") }
+    if (joined != null) { println(joined) }
     println(input)
 }
 fun main(): Unit {
@@ -273,27 +273,61 @@ fun main(): Unit {
     // its caller's clone and allocates just one completed join.
     let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 8);
     crate::native_tests::boxed_enum_tests::assert_success(&run,
-        b"named-stop\nnamed!\nnamed\ntemporary-stop\ntemporary!\nincoming-stop\nincoming\nincoming\nincoming\n");
+        b"named-stop\nnamed!\nnamed\ntemporary-stop\ntemporary!\nincoming-stop\nincoming\nincoming!\nincoming\nincoming\n");
 }
 
 #[test]
-fn public_text_incoming_borrow_keeps_the_existing_nullable_payload_boundary() {
-    let source = r#"package app
+fn public_text_incoming_borrow_survives_nullable_payload_reads() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
 import koven.text.checkedPlus
 fun observe(input: String): Unit {
     val joined = input.checkedPlus("!")
-    if (joined != null) { println(joined) }
+    if (joined != null) { println(joined); println((joined)) } else { println("null") }
+    if (joined == null) { println("absent") } else { println(joined) }
+    println(input)
 }
-fun main(): Unit { observe("input") }
-"#;
-    let error = try_lower_public_text_program(source)
-        .err()
-        .expect("incoming String loan is outside the current nullable proof carrier gate");
-    assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
-    let span = error.span.unwrap();
-    assert_eq!(
-        &source[span.start()..span.end()],
-        "if (joined != null) { println(joined) }"
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input)
+    println(input)
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    // The caller's clone outlives the independent joined copy in the callee.
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 2);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"input!\ninput!\ninput!\ninput\ninput\n",
+    );
+}
+
+#[test]
+fn public_text_incoming_borrow_crosses_nullable_null_and_source_call_edges() {
+    let (program, entry) = lower_public_text_program(
+        r#"package app
+fun read(value: String): Unit { println(value) }
+fun observe(input: String, own value: String?, flag: Boolean): Unit {
+    if (flag) { println("flag") }
+    if (value != null) { read(value); println((value)) } else { println("null") }
+    if (value == null) { println("absent") } else { read(value) }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input, "value".clone(), true)
+    println(input)
+    observe(input, null, false)
+    println(input)
+}
+"#,
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 2);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &run,
+        b"flag\nvalue\nvalue\nvalue\ninput\ninput\nnull\nabsent\ninput\ninput\n",
     );
 }
 

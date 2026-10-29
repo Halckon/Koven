@@ -229,7 +229,12 @@ impl UnitExpressionLowerer<'_> {
             || !self.pending_call_frames.is_empty()
             || !self.pending_operands.is_empty()
             || !self.temporaries.is_empty()
-            || self.ensure_while_proof_non_call_carriers(span).is_err()
+            || (if self.has_only_string_if_proofs() {
+                self.ensure_string_if_proof_carriers(span)
+            } else {
+                self.ensure_while_proof_non_call_carriers(span)
+            })
+            .is_err()
             || self.typed.construction(call).is_some()
             || self.typed.ownership_primitive(call).is_some()
         {

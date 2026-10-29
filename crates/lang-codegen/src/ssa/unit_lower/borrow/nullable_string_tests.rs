@@ -15,17 +15,23 @@ enum Fault {
     WhileScope,
     PendingOperand,
     PendingFrame,
+    MissingEntryString,
+    ExclusiveEntryString,
+    WrongEntryStringTarget,
+    UnqualifiedStringRoot,
 }
 
 #[test]
 fn nullable_string_reader_and_retirement_reject_wrong_identity_without_mutation() {
     let mut fixture = Fixture::new(
-        r#"fun entry(own text: String?): Unit {
+        r#"fun entry(own text: String?, input: String): Unit {
     if (text != null) { println(text); println(text) }
+    println(input)
     while (false) {}
 }"#,
     );
     let root = fixture.symbol("text");
+    let input = fixture.symbol("input");
     let module = &mut fixture.program.modules[0];
     let (storage, inner) = module
         .types
@@ -97,6 +103,10 @@ fn nullable_string_reader_and_retirement_reject_wrong_identity_without_mutation(
         Fault::WhileScope,
         Fault::PendingOperand,
         Fault::PendingFrame,
+        Fault::MissingEntryString,
+        Fault::ExclusiveEntryString,
+        Fault::WrongEntryStringTarget,
+        Fault::UnqualifiedStringRoot,
     ] {
         let mut function = fixture.function().clone();
         fixture.with_lowerer(&mut function, |lowerer| {
@@ -160,7 +170,37 @@ fn nullable_string_reader_and_retirement_reject_wrong_identity_without_mutation(
             lowerer
                 .validate_nullable_proof_retirement(root, span)
                 .unwrap();
+            // The String If exception must never leak into the While carrier gate.
+            assert_eq!(
+                lowerer
+                    .ensure_no_while_proof_carriers(span)
+                    .unwrap_err()
+                    .kind,
+                LoweringErrorKind::UnsupportedNode
+            );
             match fault {
+                Fault::MissingEntryString => {
+                    lowerer.entry_string_roots.remove(&input);
+                }
+                Fault::ExclusiveEntryString => {
+                    let incoming = lowerer.borrow_bindings[&input];
+                    lowerer.function.loans[incoming.index()].ty = EntityType::Loan {
+                        kind: LoanKind::Exclusive,
+                        target: inner,
+                    };
+                }
+                Fault::WrongEntryStringTarget => {
+                    let incoming = lowerer.borrow_bindings[&input];
+                    lowerer.function.loans[incoming.index()].ty = EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: boolean,
+                    };
+                }
+                Fault::UnqualifiedStringRoot => {
+                    lowerer
+                        .borrow_bindings
+                        .insert(root, lowerer.borrow_bindings[&input]);
+                }
                 Fault::MissingBinding => {
                     lowerer.bindings.remove(&root);
                 }
@@ -211,11 +251,50 @@ fn nullable_string_reader_and_retirement_reject_wrong_identity_without_mutation(
                 }),
             }
             let before_function = lowerer.function.clone();
+            if matches!(
+                fault,
+                Fault::MissingEntryString
+                    | Fault::ExclusiveEntryString
+                    | Fault::WrongEntryStringTarget
+                    | Fault::UnqualifiedStringRoot
+            ) {
+                assert_eq!(
+                    lowerer
+                        .ensure_string_if_proof_carriers(span)
+                        .unwrap_err()
+                        .kind,
+                    LoweringErrorKind::UnsupportedNode,
+                    "{fault:?}"
+                );
+                let call_node = lowerer
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(fact.call().expression())
+                    .unwrap();
+                let Expression::Call { arguments, .. } = call_node.payload() else {
+                    panic!("call")
+                };
+                assert!(
+                    !lowerer
+                        .can_call_with_nullable_root_proof(fact.call(), arguments, fact.end_span())
+                        .unwrap(),
+                    "{fault:?}"
+                );
+            }
             let before_bindings = lowerer.bindings.clone();
             let before_proofs = lowerer.nullable_proofs.clone();
             let before_pending = lowerer.pending_operands.clone();
             let before_frames = lowerer.pending_call_frames.clone();
-            if matches!(fault, Fault::PendingOperand | Fault::PendingFrame) {
+            if matches!(
+                fault,
+                Fault::PendingOperand
+                    | Fault::PendingFrame
+                    | Fault::MissingEntryString
+                    | Fault::ExclusiveEntryString
+                    | Fault::WrongEntryStringTarget
+                    | Fault::UnqualifiedStringRoot
+            ) {
                 assert_eq!(
                     lowerer
                         .validate_nullable_proof_retirement(root, span)

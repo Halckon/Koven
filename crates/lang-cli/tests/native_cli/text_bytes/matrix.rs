@@ -279,3 +279,31 @@ fun main(): Unit {
     check_build_run_both_modes(program,
         b"join-stop\nfield!\nfield\nfirst\nslice-stop\nfirst\nslice\nslice\ntail\ntail\ncompleted\nloop\ntail\n");
 }
+
+#[test]
+fn public_text_nullable_results_preserve_borrowed_inputs_in_both_modes() {
+    let program = r#"fun read(value: String): Unit { println(value) }
+fun join(input: String): Unit {
+    val joined = input.checkedPlus("!")
+    if (joined != null) { read(joined); println((joined)) }
+    println(input)
+}
+fun inspect(input: String, own value: String?, flag: Boolean): Unit {
+    if (flag) { println("flag") }
+    if (value != null) { read(value) } else { println("null") }
+    if (value == null) { println("absent") } else { println(value) }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    join(input)
+    inspect(input, "value".clone(), true)
+    inspect(input, null, false)
+    println(input)
+}
+"#;
+    check_build_run_both_modes(
+        program,
+        b"input!\ninput!\ninput\nflag\nvalue\nvalue\ninput\nnull\nabsent\ninput\ninput\n",
+    );
+}

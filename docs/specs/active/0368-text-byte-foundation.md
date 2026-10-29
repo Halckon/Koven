@@ -410,3 +410,27 @@ incoming 用例初版在后续 `if (joined != null) println(joined)` 失败，�
 最终邻接验证：ordinary_direct_prefix3项通过（含12种取消／提交组合与普通receiver等精确
 拒绝）；text_27项通过，均无失败或忽略。codegen／CLI all-targets严格Clippy、Rustfmt、
 821篇文档结构与diff检查通过；最终双宿主CI尚待完成。
+
+### incoming String 借用与 nullable payload（2026-10-30）
+
+基于 `1fcdc9668ef7516b9b4a5dc3d6253b59e28ed7a9` 中精确断言 nullable-if
+UnsupportedNode 的真实标准源反例，补齐直接 checkedPlus 结果的非空借用读取。
+复用 named loan 的 CFG 重绑定，仅从实际入口 Shared(StringOwner) 参数登记 root 资格；
+String If 的建立、同步 root-proof 调用与退休同时核对当前 loan 类型和该资格。
+其他 carrier 限制不变，While／Heap／Rc 不取得此例外，入参借用不由结果 proof 结束。
+
+本机 LLVM 21.1.8／offline target 的 `cargo test -p lang-codegen --lib text_` 为
+28 passed、0 failed、0 ignored：直接结果的重复读取、正反 null 比较、owned String?
+参数的 null／非空边、Boolean CFG 重绑定、源函数 Borrow 调用及输入后续读取均通过；
+两条新增计数用例各2次分配与逐指针释放。前一片 incoming 控制前缀用例恢复实际 payload
+输出，取消和正常提交路径均通过。单文件／project 的 `native_cli text_bytes` 7项通过，
+包含真实 check、build、直接运行与 CLI run，0 failed、0 ignored。
+`nullable_string` 5项及 `while_proof` 3项通过；私有测试从真实入参 fixture 删除资格、
+注入 Exclusive／错误target／非入口root，分别证明 gate、调用资格与退休拒绝且不修改
+SSA／proof；另断言原 While gate 仍拒绝 incoming String。独立静态复核通过。
+
+扩展探针 `val joined = if (present) { input.checkedPlus("!") } else { null }`
+在 value-if 本身仍为 UnsupportedNode，尚未进入本片 nullable payload gate；未将此形状
+计作通过。null 路径由 owned String? 参数的独立用例验证。该 value-if 缺口、旧 raw
+前端入口合同与最终 head 双宿主 CI 继续开放，Spec 保持 in-progress。
+codegen／CLI all-targets 严格 Clippy、Rustfmt、手写 Rust 尺寸与821篇文档结构门禁通过。

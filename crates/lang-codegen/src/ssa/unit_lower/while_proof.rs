@@ -144,6 +144,31 @@ impl UnitExpressionLowerer<'_> {
         &self,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.ensure_proof_non_call_carriers(false, span)
+    }
+
+    /// Only a direct String If view permits unrelated entry Shared(String) loans.
+    /// Their root qualification survives the ordinary named-slot CFG rebinding.
+    pub(super) fn ensure_string_if_proof_carriers(&self, span: Span) -> Result<(), LoweringError> {
+        if !self.pending_call_frames.is_empty() || !self.pending_operands.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        self.ensure_proof_non_call_carriers(true, span)
+    }
+
+    pub(super) fn has_only_string_if_proofs(&self) -> bool {
+        !self.nullable_proofs.is_empty()
+            && self.nullable_proofs.values().all(|proof| {
+                proof.if_scope().is_some()
+                    && self.ssa_types.get(proof.inner.index()) == Some(&SsaTypeKind::StringOwner)
+            })
+    }
+
+    fn ensure_proof_non_call_carriers(
+        &self,
+        allow_entry_strings: bool,
+        span: Span,
+    ) -> Result<(), LoweringError> {
         if self.function.borrow_return.is_some()
             || self.function.carrier_return.is_some()
             || !self.capture_loans.is_empty()
@@ -153,10 +178,21 @@ impl UnitExpressionLowerer<'_> {
             || self.current_receiver.is_some()
             || self.has_iteration_context()
             || self.borrow_bindings.iter().any(|(root, &loan)| {
-                !self.entry_boolean_roots.contains(root)
-                    || !matches!(self.function.entity(EntityId::Loan(loan)).map(|data| data.ty),
-                        Some(EntityType::Loan { kind: LoanKind::Shared, target })
-                            if matches!(self.ssa_types.get(target.index()), Some(SsaTypeKind::Boolean)))
+                let Some(EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target,
+                }) = self
+                    .function
+                    .entity(EntityId::Loan(loan))
+                    .map(|data| data.ty)
+                else {
+                    return true;
+                };
+                !((self.entry_boolean_roots.contains(root)
+                    && self.ssa_types.get(target.index()) == Some(&SsaTypeKind::Boolean))
+                    || (allow_entry_strings
+                        && self.entry_string_roots.contains(root)
+                        && self.ssa_types.get(target.index()) == Some(&SsaTypeKind::StringOwner)))
             })
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -322,7 +358,9 @@ impl UnitExpressionLowerer<'_> {
         }
         // All checks precede both BorrowEnd and state removal, in particular an owner Drop.
         self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
-        if proof.while_scope().is_some() && self.has_only_retirement_int_prefix() {
+        if self.has_only_string_if_proofs() {
+            self.ensure_string_if_proof_carriers(span)?;
+        } else if proof.while_scope().is_some() && self.has_only_retirement_int_prefix() {
             self.ensure_while_proof_non_call_carriers(span)?;
         } else {
             self.ensure_no_while_proof_carriers(span)?;

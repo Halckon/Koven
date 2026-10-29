@@ -112,7 +112,7 @@ impl UnitExpressionLowerer<'_> {
             },
             span,
         )?;
-        self.ensure_no_while_proof_carriers(span)?;
+        self.ensure_string_if_proof_carriers(span)?;
         Ok(Some(NullableIfEntry {
             root,
             owner,
