@@ -10,7 +10,7 @@
 | 语言规范 | [Guide v0.46](../../../guide/README.md) |
 | 授权范围 | 持续推进编辑器里程碑，补齐消费方 SPEC-0011 的 debug build 前置；草案不授权未审结方案实施 |
 | 前置合同 | [ADR-0010](../../../adr/accepted/0010-first-native-object-and-linker-contract.md)、[ADR-0011](../../../adr/accepted/0011-first-dwarf-line-mapping.md)、[ADR-0026](../../../adr/accepted/0026-linux-x86-64-native-host.md) |
-| 阻塞项 | macOS 多产物发布/清理及项目源码路径合同待审结；当前 main 的失败复现及双宿主验证待执行 |
+| 阻塞项 | macOS 多产物发布/清理及项目源码路径合同待审结；当前 macOS 缺口已复现；Linux 与双宿主命中验证待执行 |
 | 影响范围 | lang-cli linker、single/project 构建产物生命周期及真实 CLI 测试 |
 | 语言语义变更 | 否 |
 
@@ -25,6 +25,20 @@
 构建三行 main.ko 成功，但最终 executable 的 dwarfdump 无源码行记录，LLDB 第 2 行断点
 pending；dsymutil 报告临时 `.o` 已不存在。当前基线只做源码核查：链接器仍仅链接对象，
 project commit 在发布前删除对象。尚未把旧输入的运行结果当作当前基线或 Linux 的结果。
+
+### 当前基线实测（2026-10-29）
+
+在上述基线加本片纯文档提交的工作树，以 LLVM 21、Rust 1.96 执行
+`cargo build --locked -p lang-cli` 成功（23.84 秒）。CLI SHA-256：
+`89669e6cb1abcfa4ce716e66d0612e888bebdc1b5fd01568d83d4052b7f28f7d`。
+同一三行无 package 的 public main 源文件，single/project 显式 entry 均 build exit 0；
+从另一个 cwd 以实际绝对源码路径在第 2 行设断点，两者均报告 pending/no locations。
+随后 dsymutil 均报告无调试符号，single 另报告其临时对象缺失。
+LLDB 命令 exit 0 不代表断点解析成功，本次明确按其 pending 结果登记为未满足合同。
+
+首次夹具声明 package app 却位于不匹配的逻辑目录，构建被 L0146 拒绝；修正夹具后才执行
+上述产物探针，不把该前端拒绝当作调试缺口证据。探针及原始结果保留仓库外临时目录。
+尚未执行实际 breakpoint run/hit、Linux，亦尚未添加实现回归测试。
 
 ## 2. 行为合同
 
@@ -91,4 +105,4 @@ Unicode/空格路径及从不同 cwd 启动 LLDB；不得为方便调试悄悄�
 不实现 IDE adapter、DAP、变量/参数/类型显示、表达式求值、优化、交叉编译、源码嵌入、
 任意路径映射或商店发布。不增加通用构建配置与依赖。
 
-当前只形成草案与已有预检结论；本片生产代码、当前基线红测、Linux 和 PR CI 均未运行。
+当前只形成草案与已有预检结论；本片生产代码、自动回归红测、Linux 和 PR CI 均未运行；当前基线 macOS 探针见 §1。
