@@ -270,6 +270,13 @@ fun start(args: Array<String>): Result<Unit, E> { ... }
   manifest、任一 source、object、临时 executable 与 final 不能重合。失败清理本次临时产物，
   不删除/覆盖调用者已有文件。`run` 继续使用进程拥有的临时目录并在
   子进程结束后清理。
+- 最终调试产物按 [ADR-0035](../adr/accepted/0035-final-debug-artifact-publication.md)：macOS
+  默认 build 交付 executable 及追加 `.dSYM` 后缀的匹配调试包；Linux 保留 ELF 源码行表。
+  已有任一最终路径（含悬空符号链接）均拒绝，发布不得覆盖他人产物。
+  调试包先发布、executable 最后发布，两者均就绪才成功。若调试包已发布而 executable
+  发布失败，返回 operational error 并报告遗留调试包位置，允许该部分产物保留。
+  不递归删除可能被外部替换的公开目录；私有临时产物仍清理，清理失败明确报告。
+  此为失败清理的明确例外，不将双路径发布宣称为单一原子事务。
 - manifest/provider、entry/link/launch/cleanup failure 是具体 operational error；frontend
   diagnostics 继续遵守 human/JSON Lines 选择，项目错误不得伪造成语言 diagnostic。成功 build
   stdout/stderr 为空；run 继续转发程序 stdout/stderr。程序结束后 `kovenc run` 以子进程的退出
