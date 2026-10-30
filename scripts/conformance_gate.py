@@ -2073,6 +2073,37 @@ def summarize_comparisons(
         if k not in ordered_by_batch:
             ordered_by_batch[k] = by_batch[k]
 
+    p2_a_eval = p2_a_runnable = p2_b_eval = p2_b_diag = p2_c_eval = 0
+    for item in probe_comparisons:
+        name = item["name"]
+        b_key = item.get("probe_batch") or classify_probe_batch(name)
+        if b_key not in FOUNDATIONAL_BATCHES:
+            continue
+        if name in FOUNDATIONAL_GROUP_B_PROBES:
+            p2_b_eval += 1
+            if item["status"] == "pass_diagnostic":
+                p2_b_diag += 1
+        elif name in FOUNDATIONAL_GROUP_C_PROBES:
+            p2_c_eval += 1
+        else:
+            p2_a_eval += 1
+            if item["status"] in ("pass_run", "pass_abort"):
+                p2_a_runnable += 1
+
+    foundational_p2 = {
+        "group_a_evaluated": p2_a_eval,
+        "group_a_runnable_passed": p2_a_runnable,
+        "group_b_evaluated": p2_b_eval,
+        "group_b_diagnostic_passed": p2_b_diag,
+        "group_c_evaluated": p2_c_eval,
+        "p2_target_min": P2_GROUP_A_TARGET_MIN,
+        "p2_gate_met": (
+            p2_a_eval == 74
+            and p2_a_runnable >= P2_GROUP_A_TARGET_MIN
+            and p2_b_diag == len(FOUNDATIONAL_GROUP_B_PROBES)
+        ),
+    }
+
     return {
         "total_probes": len(probe_comparisons),
         "probe_capability_passed": probe_cap_passed,
@@ -2081,6 +2112,7 @@ def summarize_comparisons(
         "counts": counts,
         "by_chapter": dict(sorted(by_chapter.items())),
         "by_batch": ordered_by_batch,
+        "foundational_p2": foundational_p2,
         "gate_passed": len(failures) == 0,
         "failures": failures,
     }

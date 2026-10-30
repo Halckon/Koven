@@ -71,7 +71,7 @@ classify_files() {
         ;;
     esac
   fi
-  c=$(grep -oE "^error\[L[0-9]{4}\]" "$err_file" 2>/dev/null | head -n 1 | grep -oE "L[0-9]{4}")
+  c=$(grep -oE "^error\[L[0-9]{4}\]([[:space:]]|:)" "$err_file" 2>/dev/null | head -n 1 | grep -oE "L[0-9]{4}")
   b=$(grep -oE "lowering failed with [A-Za-z]+" "$out_file" "$err_file" 2>/dev/null | head -n 1 | sed 's/^.*lowering failed with //')
   bo=$(grep -oE "native object [A-Za-z]+:" "$out_file" "$err_file" 2>/dev/null | head -n 1 | sed -e 's/^.*native object //' -e 's/:$//')
   o=$(grep -oE "ownership checking failed: [a-z -]+" "$out_file" "$err_file" 2>/dev/null | head -n 1)

@@ -1125,6 +1125,18 @@ sys.exit(1)
             include_programs=False,
         )
         self.assertEqual([p["comparison"]["name"] for p in ledger_filtered["probes"]], ["p01_ok"])
+        self.assertEqual(
+            ledger_filtered["summary"]["foundational_p2"],
+            {
+                "group_a_evaluated": 1,
+                "group_a_runnable_passed": 1,
+                "group_b_evaluated": 0,
+                "group_b_diagnostic_passed": 0,
+                "group_c_evaluated": 0,
+                "p2_target_min": 70,
+                "p2_gate_met": False,
+            },
+        )
         with self.assertRaisesRegex(ValueError, "no probes matched the requested filters"):
             gate.evaluate_suite(
                 kovenc=kovenc,

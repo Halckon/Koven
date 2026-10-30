@@ -376,6 +376,7 @@ class DocsChecker:
                     base_path.read_text(encoding="utf-8"),
                     expected_names=set(data["probes"].keys()),
                 )
+            is_prod_repo = (self.root / "docs" / "roadmap" / "v1.json").is_file()
             audit_md_path = corpus / "ORACLE_AUDIT.md"
             if audit_md_path.is_file():
                 expected_md = render_oracle_audit_markdown(data)
@@ -384,6 +385,8 @@ class DocsChecker:
                     self.error(
                         "conformance/ORACLE_AUDIT.md is out of sync with expectations.json (run `python3 scripts/conformance_gate.py --init-expectations`)"
                     )
+            elif is_prod_repo:
+                self.error("缺少 conformance/ORACLE_AUDIT.md")
             readme_md_path = corpus / "README.md"
             if readme_md_path.is_file():
                 actual_readme = readme_md_path.read_text(encoding="utf-8")
@@ -392,6 +395,8 @@ class DocsChecker:
                     self.error(
                         "conformance/README.md chapter coverage table is out of sync with expectations.json (run `python3 scripts/conformance_gate.py --init-expectations`)"
                     )
+            elif is_prod_repo:
+                self.error("缺少 conformance/README.md")
         except Exception as exc:
             self.error(f"conformance/expectations.json: {exc}")
 
