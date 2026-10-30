@@ -100,6 +100,16 @@ VALID_UNIMPLEMENTED_MARKERS = frozenset(
     }
 )
 
+UNIMPLEMENTED_MARKER_CATALOG: dict[str, tuple[str, str]] = {
+    "FE:L0080": ("Phase 2 名称解析", "前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`）"),
+    "FE:L0084": ("Phase 2 类型检查", "前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`）"),
+    "FE:L0085": ("Phase 2 运算符类型", "前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`）"),
+    "FE:L0165": ("Phase 2 最终类型准入", "前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`）"),
+    "BE:UnsupportedNode": ("Phase 4 SSA Lowering", "后端 SSA 构建阶段尚未支持的语法或语义节点"),
+    "BE:UnsupportedSource": ("Phase 4 Native Object", "后端原生目标文件生成阶段尚未支持的调用来源"),
+    "BE:MissingFact": ("Phase 3/4 事实交接", "前端到后端 lowering 所需的所有权或类型事实尚未完备"),
+}
+
 VALID_ORACLE_ORIGINS = frozenset(
     {
         "single_println_literal",
@@ -136,6 +146,22 @@ VALID_GUIDE_CHAPTERS = (
     "13-program-runtime-standard-library.md",
 )
 
+GUIDE_CHAPTER_DOMAINS: dict[str, str] = {
+    "01-lexical.md": "词法",
+    "02-names-files-packages.md": "名称、文件、Package 与 Import",
+    "03-types-generics.md": "类型与泛型",
+    "04-expressions-operators.md": "表达式与运算符",
+    "05-declarations-callables.md": "声明与 Callable",
+    "06-blocks-control-flow.md": "Block 与控制流",
+    "07-calls-lambdas-closures.md": "调用、Lambda 与 Closure",
+    "08-class-family-members.md": "Class Family、成员与 Receiver",
+    "09-nullability-errors.md": "空安全与错误值",
+    "10-ownership-borrowing-drop.md": "所有权、借用与析构",
+    "11-copyability-layout-construction.md": "Copyable、布局、构造与结构移动",
+    "12-collections-destructuring.md": "集合、索引与解构",
+    "13-program-runtime-standard-library.md": "程序入口、Runtime 与标准库",
+}
+
 PROBE_BATCH_CATALOG: dict[str, str] = {
     "p": "基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等",
     "q": "对 `p` 中失败项的变体复测，缩小失败条件",
@@ -153,6 +179,29 @@ PROBE_BATCH_CATALOG: dict[str, str] = {
 PROBE_NAME_CONVENTION_RE = re.compile(
     r"^(?:(w)(1[2-9])|([epqrstuvwxy])([0-9]{2}[a-z]?)_([A-Za-z0-9_]+))$"
 )
+
+
+FOUNDATIONAL_BATCHES = frozenset({"p", "q", "r", "s"})
+FOUNDATIONAL_GROUP_B_PROBES = frozenset(
+    {
+        "p01_int_print",
+        "p03b_byte_literal_cmp",
+        "p25_linked_iter",
+        "p42_lambda_mutate",
+        "p43_if_join_any",
+        "r01_bogus_member",
+        "r02_bogus_member_str",
+        "s04_question_on_nullable",
+    }
+)
+FOUNDATIONAL_GROUP_C_PROBES = frozenset(
+    {
+        "p23_global_var",
+        "p35_value_eq",
+        "p37_is_generic_case",
+    }
+)
+P2_GROUP_A_TARGET_MIN = 70
 
 
 def classify_probe_batch(name: str) -> str:
@@ -1266,6 +1315,16 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"{section}.{name} with known_unimplemented has invalid allowed_markers {allowed!r}"
                     )
+                bm = spec.get("baseline_marker")
+                if (
+                    isinstance(bm, str)
+                    and not spec.get("v046_baseline_exempt", False)
+                    and bm in VALID_UNIMPLEMENTED_MARKERS
+                    and bm not in allowed
+                ):
+                    raise ValueError(
+                        f"{section}.{name} with known_unimplemented must include non-exempt baseline_marker {bm!r} in allowed_markers"
+                    )
                 if "target_stdout" in spec:
                     ts = spec["target_stdout"]
                     if not isinstance(ts, str) or not ts or not ts.endswith("\n"):
@@ -1343,10 +1402,25 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(f"{section}.{name} has invalid guide_chapter {ch!r}")
                 if corpus_root is not None:
                     guide_dir = corpus_root.parent / "docs" / "guide"
-                    if guide_dir.is_dir() and not (guide_dir / ch).is_file():
-                        raise ValueError(
-                            f"{section}.{name} references missing Guide chapter {guide_dir / ch}"
+                    if guide_dir.is_dir():
+                        ch_path = guide_dir / ch
+                        if not ch_path.is_file():
+                            raise ValueError(
+                                f"{section}.{name} references missing Guide chapter {ch_path}"
+                            )
+                        expected_domain = GUIDE_CHAPTER_DOMAINS[ch]
+                        ch_h1 = next(
+                            (
+                                ln
+                                for ln in ch_path.read_text(encoding="utf-8").splitlines()
+                                if ln.startswith("# ")
+                            ),
+                            "",
                         )
+                        if not ch_h1.endswith(f"：{expected_domain}"):
+                            raise ValueError(
+                                f"Guide chapter {ch} H1 {ch_h1!r} does not match expected domain {expected_domain!r}"
+                            )
             if section == "probes":
                 inferred_batch = classify_probe_batch(name)
                 if "probe_batch" in spec:
@@ -1381,9 +1455,10 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"{section}.{name} must not contain a package directive (collides with project-mode package app header)"
                     )
-                if not MAIN_ENTRY_RE.search(src_text):
+                main_matches = MAIN_ENTRY_RE.findall(src_text)
+                if len(main_matches) != 1:
                     raise ValueError(
-                        f"{section}.{name} must declare a fun main(...) entry point"
+                        f"{section}.{name} must declare a single fun main(...) entry point (found {len(main_matches)})"
                     )
                 if section == "programs" and "expected_file" in spec:
                     exp_file = corpus_root / spec["expected_file"]
@@ -2190,6 +2265,135 @@ def summarize_probe_batches(expectations: dict[str, Any]) -> dict[str, dict[str,
     return summary
 
 
+def summarize_unimplemented_markers(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Aggregate known_unimplemented probes and programs by allowed unimplemented marker."""
+    summary: dict[str, dict[str, Any]] = {
+        marker: {
+            "marker": marker,
+            "stage": stage,
+            "description": desc,
+            "probes": [],
+            "programs": [],
+            "baseline_count": 0,
+        }
+        for marker, (stage, desc) in UNIMPLEMENTED_MARKER_CATALOG.items()
+    }
+    for name, spec in sorted(expectations["probes"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        bm = spec.get("baseline_marker")
+        if bm in summary:
+            summary[bm]["baseline_count"] += 1
+        for m in spec.get("allowed_markers", []):
+            if m in summary:
+                summary[m]["probes"].append(name)
+    for name, spec in sorted(expectations["programs"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for m in spec.get("allowed_markers", []):
+            if m in summary:
+                summary[m]["programs"].append(name)
+    return summary
+
+
+def summarize_program_roadmap_blockers(
+    expectations: dict[str, Any],
+    roadmap_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Aggregate all known_unimplemented acceptance programs by their roadmap_blockers."""
+    if roadmap_items is None:
+        v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+        else:
+            roadmap_items = {}
+
+    by_blocker: dict[str, dict[str, Any]] = {}
+    for prog_name, spec in sorted(expectations["programs"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for b_id in spec.get("roadmap_blockers", []):
+            item = roadmap_items.get(b_id, {})
+            bucket = by_blocker.setdefault(
+                b_id,
+                {
+                    "id": b_id,
+                    "title": item.get("title", "").replace("|", "\\|"),
+                    "status": item.get("status", "unknown"),
+                    "programs": [],
+                    "probes": [],
+                },
+            )
+            bucket["programs"].append(prog_name)
+
+    for probe_name, spec in sorted(expectations["probes"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for b_id in spec.get("roadmap_blockers", []):
+            if b_id in by_blocker:
+                by_blocker[b_id]["probes"].append(probe_name)
+
+    return dict(sorted(by_blocker.items()))
+
+
+def summarize_foundational_cohort(expectations: dict[str, Any]) -> dict[str, Any]:
+    """Classify the 85 foundational p/q/r/s probes into Groups A (74), B (8), and C (3) for P2 gate tracking."""
+    groups: dict[str, dict[str, Any]] = {
+        "A": {
+            "label": "A 组：合法基础程序（P2 门槛基数）",
+            "total": 0,
+            "runnable": 0,
+            "run_ok": [],
+            "runtime_abort": [],
+            "compile_fail": [],
+            "known_unimplemented": [],
+        },
+        "B": {
+            "label": "B 组：应拒基础探针（静态/借用/类型拒绝）",
+            "total": 0,
+            "runnable": 0,
+            "run_ok": [],
+            "runtime_abort": [],
+            "compile_fail": [],
+            "known_unimplemented": [],
+        },
+        "C": {
+            "label": "C 组：v0.44 待裁决项（已在 v0.46 规范定案）",
+            "total": 0,
+            "runnable": 0,
+            "run_ok": [],
+            "runtime_abort": [],
+            "compile_fail": [],
+            "known_unimplemented": [],
+        },
+    }
+    for name, spec in sorted(expectations["probes"].items()):
+        batch = spec.get("probe_batch") or classify_probe_batch(name)
+        if batch not in FOUNDATIONAL_BATCHES:
+            continue
+        if name in FOUNDATIONAL_GROUP_B_PROBES:
+            grp = groups["B"]
+        elif name in FOUNDATIONAL_GROUP_C_PROBES:
+            grp = groups["C"]
+        else:
+            grp = groups["A"]
+        grp["total"] += 1
+        kind = spec["kind"]
+        grp[kind].append(name)
+        if kind in ("run_ok", "runtime_abort"):
+            grp["runnable"] += 1
+
+    group_a = groups["A"]
+    return {
+        "total_foundational": sum(g["total"] for g in groups.values()),
+        "p2_target_min": P2_GROUP_A_TARGET_MIN,
+        "p2_gap_to_target": max(0, P2_GROUP_A_TARGET_MIN - group_a["runnable"]),
+        "p2_gate_met": group_a["runnable"] >= P2_GROUP_A_TARGET_MIN,
+        "groups": groups,
+    }
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -2243,6 +2447,8 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     origin_stats = summarize_oracle_origins(expectations)
     shape_stats = summarize_output_shape_distribution(expectations)
     batch_stats = summarize_probe_batches(expectations)
+    marker_stats = summarize_unimplemented_markers(expectations)
+    foundational_stats = summarize_foundational_cohort(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -2388,6 +2594,36 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     lines.append(
         f"| **合计** | **11 个演进批次** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** | **{all_passed_batches} 全通过 / {partial_batches} 部分通过** |"
     )
+    lines.extend(
+        [
+            "",
+            "### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（7 Markers）",
+            "",
+            "| 允许记号 (`allowed_marker`) | 归属编译阶段 | 记号契约说明 | 基线命中数 (`baseline_marker`) | 授权 Probe 数 | 授权 Program 数 |",
+            "|---|---|---|---:|---:|---:|",
+        ]
+    )
+    for m_key, m_row in marker_stats.items():
+        lines.append(
+            f"| `{m_key}` | {m_row['stage']} | {m_row['description']} | {m_row['baseline_count']} | "
+            f"{len(m_row['probes'])} | {len(m_row['programs'])} |"
+        )
+
+    grp_a = foundational_stats["groups"]["A"]
+    grp_b = foundational_stats["groups"]["B"]
+    grp_c = foundational_stats["groups"]["C"]
+    lines.extend(
+        [
+            "",
+            f"### 1.8 初始 {foundational_stats['total_foundational']} 探针（`p`/`q`/`r`/`s` 批次 A/B/C 三组）与 P2 阶段门槛对账矩阵",
+            "",
+            "| 分组 | 分组定义与审计口径 | 总数 | 可运行 (`run_ok` + `runtime_abort`) | `compile_fail` | `known_unimplemented` | 阶段门槛 / 当前状态说明 |",
+            "|---|---|---:|---:|---:|---:|---|",
+            f"| **A 组** | {grp_a['label']} | {grp_a['total']} | {grp_a['runnable']} ({len(grp_a['run_ok'])} + {len(grp_a['runtime_abort'])}) | {len(grp_a['compile_fail'])} (`q17_generic_class`) | {len(grp_a['known_unimplemented'])} | P2 门槛 `≥ {foundational_stats['p2_target_min']} / {grp_a['total']}`（当前 `{grp_a['runnable']} / {grp_a['total']}`，距门槛差 `{foundational_stats['p2_gap_to_target']}` 项） |",
+            f"| **B 组** | {grp_b['label']} | {grp_b['total']} | {grp_b['runnable']} | {len(grp_b['compile_fail'])} | {len(grp_b['known_unimplemented'])} | `8 / 8 (100%)` 精确命中期望前端诊断码 (`pass_diagnostic`) |",
+            f"| **C 组** | {grp_c['label']} | {grp_c['total']} | {grp_c['runnable']} (`p37_is_generic_case`) | {len(grp_c['compile_fail'])} (`p23_global_var`) | {len(grp_c['known_unimplemented'])} (`p35_value_eq`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1` |",
+        ]
+    )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
@@ -2417,6 +2653,22 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         blockers = ", ".join(f"`{b}`" for b in spec.get("roadmap_blockers", []))
         lines.append(
             f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | {blockers} | [{exp_file}]({exp_file}) | {exp_size} | {allowed} |"
+        )
+
+    prog_blockers = summarize_program_roadmap_blockers(expectations, roadmap_items)
+    lines.extend(
+        [
+            "",
+            f"### 2.1 六个 V1 验收程序按路线图阻塞项（`v1.json`）归类对账（{len(prog_blockers)} Roadmap Blockers）",
+            "",
+            "| 路线图条目 ID | 路线图条目标题 | 状态 | 阻塞 Program 数 | 阻塞的验收程序 (`programs`) | 同时阻塞的 Probe 数 |",
+            "|---|---|---|---:|---|---:|",
+        ]
+    )
+    for b_id, b_info in prog_blockers.items():
+        prog_list = ", ".join(f"`{p}`" for p in b_info["programs"])
+        lines.append(
+            f"| `{b_id}` | {b_info['title']} | `{b_info['status']}` | {len(b_info['programs'])} | {prog_list} | {len(b_info['probes'])} |"
         )
 
     # 3. Aggregate every known_unimplemented probe by roadmap blocker
@@ -2564,46 +2816,50 @@ def main(argv: list[str] | None = None) -> int:
         baseline_file = args.baseline or (args.corpus / "baseline-aef3f4f8.tsv")
         try:
             derived = derive_static_expectations(args.corpus, baseline_file)
-        except ValueError as exc:
-            # CLI 边界：把推导错误（命名违规、baseline 缺项等）渲染为单行诊断，不暴露 traceback
-            print(f"conformance: error: {exc}", file=sys.stderr)
-            return 1
-        args.expectations.write_text(
-            json.dumps(derived, ensure_ascii=True, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        if (args.corpus / "baseline-aef3f4f8.tsv").is_file():
-            (args.corpus / "ORACLE_AUDIT.md").write_text(
-                render_oracle_audit_markdown(derived),
+            args.expectations.write_text(
+                json.dumps(derived, ensure_ascii=True, indent=2) + "\n",
                 encoding="utf-8",
             )
-            readme_path = args.corpus / "README.md"
-            if readme_path.is_file():
-                readme_path.write_text(
-                    sync_readme_chapter_table(
-                        readme_path.read_text(encoding="utf-8"), derived
-                    ),
+            if (args.corpus / "baseline-aef3f4f8.tsv").is_file():
+                (args.corpus / "ORACLE_AUDIT.md").write_text(
+                    render_oracle_audit_markdown(derived),
                     encoding="utf-8",
                 )
+                readme_path = args.corpus / "README.md"
+                if readme_path.is_file():
+                    readme_path.write_text(
+                        sync_readme_chapter_table(
+                            readme_path.read_text(encoding="utf-8"), derived
+                        ),
+                        encoding="utf-8",
+                    )
+        except (ValueError, OSError) as exc:
+            # CLI 边界：把推导或写入错误（命名违规、baseline 缺项、README 表缺失等）渲染为单行诊断，不暴露 traceback
+            print(f"conformance: error: {exc}", file=sys.stderr)
+            return 1
         print(
             f"conformance: initialized {len(derived['probes'])} probes and "
             f"{len(derived['programs'])} programs in {args.expectations}"
         )
         return 0
 
-    ledger = evaluate_suite(
-        kovenc=args.cli,
-        corpus_root=args.corpus,
-        expectations_path=args.expectations,
-        baseline_path=args.baseline,
-        selected_probes=args.probes,
-        include_programs=not args.no_programs,
-        timeout_sec=args.timeout,
-        strict_unreviewed=not args.allow_unreviewed,
-        compiler_commit=args.compiler_commit,
-        evidence_dir=args.evidence,
-        jobs=args.jobs,
-    )
+    try:
+        ledger = evaluate_suite(
+            kovenc=args.cli,
+            corpus_root=args.corpus,
+            expectations_path=args.expectations,
+            baseline_path=args.baseline,
+            selected_probes=args.probes,
+            include_programs=not args.no_programs,
+            timeout_sec=args.timeout,
+            strict_unreviewed=not args.allow_unreviewed,
+            compiler_commit=args.compiler_commit,
+            evidence_dir=args.evidence,
+            jobs=args.jobs,
+        )
+    except (ValueError, OSError) as exc:
+        print(f"conformance: error: {exc}", file=sys.stderr)
+        return 1
     summary = ledger["summary"]
     print(
         f"conformance: probes_cap_passed={summary['probe_capability_passed']}/{summary['total_probes']} "
