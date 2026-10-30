@@ -59,7 +59,7 @@ python3 scripts/conformance_gate.py \
 门禁行为与产物（`--evidence <dir>`）：
 
 - **分离保存原始字节**：每个目标在单文件（`kovenc run <file>.ko`）和单文件 project（自动前置 `package app\n` 写入 `src/app/main.ko`，以 `kovenc run --project project.toml --entry app.main` 运行）两种模式下，分别将 `stdout` 与 `stderr` 原始字节写入 `raw/<name>.<mode>.stdout` / `.stderr`，不合并流、不截断尾换行，并在 `.status.json` 记录退出码与 `timed_out` 状态。
-- **元数据与摘要绑定**：`results.json` 绑定编译器二进制路径、SHA-256、Git 提交、宿主平台（`system`/`machine`）、原始源码 SHA-256，以及 project 模式显式变换记录（`prepend_package_header` 头字节、SHA-256 与变换后源码 SHA-256）。
+- **元数据与摘要绑定**：`results.json` 绑定编译器二进制路径、SHA-256、Git 提交、宿主平台（`system`/`machine`）、原始源码 SHA-256，以及 project 模式显式变换记录（`prepend_package_header` 头字节、SHA-256 与变换后源码 SHA-256）；同时自动生成可读的确定性执行摘要 `SUMMARY.md`（由 `--verify-evidence` 一并校验防篡改）。
 - **比较器状态分类**：
   - `pass_run`：退出码 0、stderr 为空、`stdout` 与 `expectations.json`（或验收程序的 `expected.txt`）逐字节相等（含尾换行），计入能力通过。
   - `pass_diagnostic`：非零退出、stdout 为空、未发生 `ICE`/`BE` 后端错误，`stderr` 行首 `error[Lxxxx]` 序列精确匹配期望的诊断码列表（默认 `[diagnostic]`，多诊断探针如 `p25_linked_iter` 由 `all_diagnostics` 显式列出），计入能力通过。

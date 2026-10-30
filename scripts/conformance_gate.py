@@ -1541,7 +1541,40 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                             raise ValueError(
                                 f"{section}.{name} has all roadmap_blockers marked done in {v1_json_path.name}: must transition out of known_unimplemented"
                             )
+            verify_static_catalog_invariants(data)
     return data
+
+
+def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
+    """Verify that static catalog tables in conformance_gate.py have no stale keys or unimplemented drift."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    probe_keys = set(probes.keys())
+    prog_keys = set(programs.keys())
+    ku_probes = {k for k, v in probes.items() if v["kind"] == "known_unimplemented"}
+    if ku_probes != set(UNIMPLEMENTED_ROADMAP_BLOCKERS.keys()):
+        stale = sorted(set(UNIMPLEMENTED_ROADMAP_BLOCKERS.keys()) - ku_probes)
+        missing = sorted(ku_probes - set(UNIMPLEMENTED_ROADMAP_BLOCKERS.keys()))
+        raise ValueError(
+            f"UNIMPLEMENTED_ROADMAP_BLOCKERS drift: stale={stale}, missing={missing}"
+        )
+    for label, catalog in (
+        ("PROBE_GUIDE_CHAPTERS", PROBE_GUIDE_CHAPTERS),
+        ("CONFIRMED_STDOUT_ORACLES", CONFIRMED_STDOUT_ORACLES),
+        ("SEMANTIC_ORACLE_DERIVATIONS", SEMANTIC_ORACLE_DERIVATIONS),
+        ("V046_PROBE_OVERRIDES", V046_PROBE_OVERRIDES),
+        ("EXPECTED_MULTI_DIAGNOSTICS", EXPECTED_MULTI_DIAGNOSTICS),
+    ):
+        extra = sorted(set(catalog.keys()) - probe_keys)
+        if extra:
+            raise ValueError(f"{label} contains unknown probe keys: {extra}")
+    for label, catalog in (
+        ("PROGRAM_GUIDE_CHAPTERS", PROGRAM_GUIDE_CHAPTERS),
+        ("PROGRAM_ROADMAP_BLOCKERS", PROGRAM_ROADMAP_BLOCKERS),
+        ("PROGRAM_ORACLE_DERIVATIONS", PROGRAM_ORACLE_DERIVATIONS),
+    ):
+        if set(catalog.keys()) != prog_keys:
+            raise ValueError(f"{label} keys do not match programs inventory")
 
 
 def parse_tsv_matrix(
@@ -1971,8 +2004,102 @@ def evaluate_suite(
             "\n".join(tsv_lines) + ("\n" if tsv_lines else ""),
             encoding="utf-8",
         )
+        (evidence_dir / "SUMMARY.md").write_text(
+            render_evidence_summary_markdown(ledger),
+            encoding="utf-8",
+        )
 
     return ledger
+
+
+def render_evidence_summary_markdown(ledger: dict[str, Any]) -> str:
+    """Render deterministic Markdown execution summary (SUMMARY.md) for a conformance evidence bundle."""
+    comp = ledger["compiler"]
+    host = ledger["host"]
+    summary = ledger["summary"]
+    verdict_str = "PASS" if summary["gate_passed"] else "FAIL"
+    fp2 = summary.get("foundational_p2", {})
+    lines = [
+        "# Conformance 回归验收门禁执行摘要（SUMMARY.md）",
+        "",
+        "| 维度 | 值 |",
+        "|---|---|",
+        f"| **门禁结论 (`gate_passed`)** | **{verdict_str}** |",
+        f"| **编译器 Git 提交 (`commit`)** | `{comp['commit']}` |",
+        f"| **编译器二进制 SHA-256** | `{comp['sha256']}` |",
+        f"| **宿主平台 (`system` / `machine`)** | `{host['system']} / {host['machine']}` |",
+        f"| **Probe 能力通过 (`probe_capability_passed`)** | **{summary['probe_capability_passed']} / {summary['total_probes']}** |",
+        f"| **V1 验收程序通过 (`program_run_passed`)** | **{summary['program_run_passed']} / {summary['total_programs']}** |",
+        f"| **P2 基础 A 组可运行 (`foundational_p2`)** | `{fp2.get('group_a_runnable_passed', 0)} / {fp2.get('group_a_evaluated', 0)}` (目标 `≥ {fp2.get('p2_target_min', 70)}`) |",
+        "",
+        "## 1. 比较器状态分布 (`counts`)",
+        "",
+        "| 状态 (`status`) | 数量 |",
+        "|---|---:|",
+    ]
+    for k, v in sorted(summary["counts"].items()):
+        lines.append(f"| `{k}` | {v} |")
+
+    by_batch = summary.get("by_batch", {})
+    if by_batch:
+        lines.extend(
+            [
+                "",
+                "## 2. 按 Probe 批次执行汇总 (`by_batch`)",
+                "",
+                "| 批次 (`probe_batch`) | 总数 | `pass_run` | `pass_diagnostic` | `pass_abort` | `known_unimplemented` | `capability_passed` |",
+                "|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for b_key, b_row in by_batch.items():
+            lines.append(
+                f"| `{b_key}` | {b_row['total']} | {b_row['pass_run']} | {b_row['pass_diagnostic']} | "
+                f"{b_row['pass_abort']} | {b_row['known_unimplemented']} | {b_row['capability_passed']} / {b_row['total']} |"
+            )
+
+    by_chapter = summary.get("by_chapter", {})
+    if by_chapter:
+        lines.extend(
+            [
+                "",
+                "## 3. 按 Guide 章节执行汇总 (`by_chapter`)",
+                "",
+                "| Guide 章节 | 总数 | `pass_run` | `pass_diagnostic` | `pass_abort` | `known_unimplemented` | `capability_passed` |",
+                "|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for ch_key, ch_row in by_chapter.items():
+            lines.append(
+                f"| `{ch_key}` | {ch_row['total']} | {ch_row['pass_run']} | {ch_row['pass_diagnostic']} | "
+                f"{ch_row['pass_abort']} | {ch_row['known_unimplemented']} | {ch_row['capability_passed']} / {ch_row['total']} |"
+            )
+
+    if summary.get("unexpected_passes"):
+        lines.extend(
+            [
+                "",
+                "## 4. 新晋通过待晋升条目 (`unexpected_passes`)",
+                "",
+            ]
+        )
+        for up_name in summary["unexpected_passes"]:
+            lines.append(
+                f"- `{up_name}`：已在单文件与工程双模式下退出码 0 且精确匹配 `target_stdout`，请更新 `V046_PROBE_OVERRIDES` 并运行 `--init-expectations`。"
+            )
+
+    if summary.get("failures"):
+        lines.extend(
+            [
+                "",
+                "## 5. 阻断项明细 (`failures`)",
+                "",
+            ]
+        )
+        for fail_msg in summary["failures"]:
+            lines.append(f"- `{fail_msg}`")
+
+    lines.append("")
+    return "\n".join(lines)
 
 
 def verify_evidence_bundle(
@@ -2152,6 +2279,12 @@ def verify_evidence_bundle(
     if recomputed_summary != ledger.get("summary"):
         raise ValueError("summary mismatch in results.json")
 
+    summary_md_path = evidence_dir / "SUMMARY.md"
+    if summary_md_path.is_file():
+        expected_summary_md = render_evidence_summary_markdown(ledger)
+        if summary_md_path.read_text(encoding="utf-8") != expected_summary_md:
+            raise ValueError("SUMMARY.md mismatch in evidence bundle")
+
     return ledger
 
 
@@ -2315,9 +2448,12 @@ def summarize_comparisons(
         "unexpected_pass": 0,
     }
     failures: list[str] = []
+    unexpected_passes: list[str] = []
     for item in probe_comparisons + program_comparisons:
         st = item["status"]
         counts[st] = counts.get(st, 0) + 1
+        if st == "unexpected_pass":
+            unexpected_passes.append(item["name"])
         if st in (
             "wrong_output",
             "mode_mismatch",
@@ -2425,6 +2561,7 @@ def summarize_comparisons(
         "by_chapter": dict(sorted(by_chapter.items())),
         "by_batch": ordered_by_batch,
         "foundational_p2": foundational_p2,
+        "unexpected_passes": unexpected_passes,
         "gate_passed": len(failures) == 0,
         "failures": failures,
     }
@@ -3135,6 +3272,120 @@ def summarize_roadmap_area_impact(
     return by_area
 
 
+def summarize_unimplemented_promotion_contracts(
+    expectations: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return structured promotion contract rows for all remaining known_unimplemented probes."""
+    rows: list[dict[str, Any]] = []
+    for name, spec in sorted(expectations["probes"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        batch = spec.get("probe_batch") or classify_probe_batch(name)
+        if batch not in FOUNDATIONAL_BATCHES:
+            cohort_grp = "-"
+        elif name in FOUNDATIONAL_GROUP_B_PROBES:
+            cohort_grp = "B"
+        elif name in FOUNDATIONAL_GROUP_C_PROBES:
+            cohort_grp = "C"
+        else:
+            cohort_grp = "A"
+        rows.append(
+            {
+                "name": name,
+                "guide_chapter": spec["guide_chapter"],
+                "probe_batch": batch,
+                "foundational_group": cohort_grp,
+                "baseline_marker": spec.get("baseline_marker", "-"),
+                "allowed_markers": list(spec.get("allowed_markers", [])),
+                "roadmap_blockers": list(spec.get("roadmap_blockers", [])),
+                "target_stdout": spec.get("target_stdout", ""),
+                "expected_lines": spec.get("expected_lines", 0),
+                "expected_bytes": spec.get("expected_bytes", 0),
+            }
+        )
+    return rows
+
+
+COMPILER_PHASE_CATALOG: dict[int, tuple[str, str]] = {
+    2: ("Phase 2 前端类型与解析", "名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`)"),
+    3: ("Phase 3 所有权与析构", "借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`)"),
+    4: ("Phase 4 SSA / LLVM / Runtime", "SSA 构建、所有权校验、LLVM IR 生成、原生链接与 `abort` 合同 (`crates/lang-codegen`)"),
+    5: ("Phase 5 标准库与并发", "内建容器、文本/数值协议、`Box`/`Rc` 与原生线程运行时 (`crates/lang-std`)"),
+}
+
+
+def summarize_compiler_phase_matrix(
+    expectations: dict[str, Any],
+    roadmap_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[int, dict[str, Any]]:
+    """Summarize active negative diagnostics/aborts and remaining roadmap blockers across compiler Phases 2..5."""
+    if roadmap_items is None:
+        v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+        else:
+            roadmap_items = {}
+
+    phase_3_diags = {"L0132", "L0133", "L0135", "L0164"}
+    phases_out: dict[int, dict[str, Any]] = {
+        ph: {
+            "phase": ph,
+            "title": title,
+            "description": desc,
+            "active_negative_probes": [],
+            "active_negative_contracts": [],
+            "blockers": [],
+            "blocked_probes": [],
+            "blocked_programs": [],
+        }
+        for ph, (title, desc) in COMPILER_PHASE_CATALOG.items()
+    }
+
+    for name, spec in sorted(expectations["probes"].items()):
+        kind = spec["kind"]
+        if kind == "compile_fail":
+            codes = spec.get("all_diagnostics", [spec["diagnostic"]])
+            target_ph = 3 if any(c in phase_3_diags for c in codes) else 2
+            phases_out[target_ph]["active_negative_probes"].append(name)
+            for c in codes:
+                tag = f"FE:{c}"
+                if tag not in phases_out[target_ph]["active_negative_contracts"]:
+                    phases_out[target_ph]["active_negative_contracts"].append(tag)
+        elif kind == "runtime_abort":
+            phases_out[4]["active_negative_probes"].append(name)
+            tag = f"abort:{spec['abort_message']}"
+            if tag not in phases_out[4]["active_negative_contracts"]:
+                phases_out[4]["active_negative_contracts"].append(tag)
+        elif kind == "known_unimplemented":
+            for b_id in spec.get("roadmap_blockers", []):
+                item = roadmap_items.get(b_id, {})
+                for ph in item.get("phases", []):
+                    if ph not in phases_out:
+                        continue
+                    if b_id not in phases_out[ph]["blockers"]:
+                        phases_out[ph]["blockers"].append(b_id)
+                        phases_out[ph]["blockers"].sort()
+                    if name not in phases_out[ph]["blocked_probes"]:
+                        phases_out[ph]["blocked_probes"].append(name)
+
+    for prog_name, spec in sorted(expectations["programs"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for b_id in spec.get("roadmap_blockers", []):
+            item = roadmap_items.get(b_id, {})
+            for ph in item.get("phases", []):
+                if ph not in phases_out:
+                    continue
+                if b_id not in phases_out[ph]["blockers"]:
+                    phases_out[ph]["blockers"].append(b_id)
+                    phases_out[ph]["blockers"].sort()
+                if prog_name not in phases_out[ph]["blocked_programs"]:
+                    phases_out[ph]["blocked_programs"].append(prog_name)
+
+    return phases_out
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -3546,6 +3797,49 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"{len(a_row['probes'])} | {len(a_row['programs'])} |"
         )
 
+    promo_contracts = summarize_unimplemented_promotion_contracts(expectations)
+    lines.extend(
+        [
+            "",
+            f"### 3.4 {len(promo_contracts)} 个 `known_unimplemented` Probe 晋升契约与目标输出（`target_stdout`）对账表",
+            "",
+            "| Probe | Guide 章节 | P2 分组 | 基线记号 | 允许记号 (`allowed_markers`) | 路线图阻塞项 | 目标输出 (`target_stdout`) | 规模 |",
+            "|---|---|:---:|---|---|---|---|---:|",
+        ]
+    )
+    for p_row in promo_contracts:
+        ch = p_row["guide_chapter"]
+        allowed_s = ", ".join(f"`{m}`" for m in p_row["allowed_markers"])
+        blks_s = ", ".join(f"`{b}`" for b in p_row["roadmap_blockers"])
+        escaped_out = p_row["target_stdout"].encode("unicode_escape").decode("ascii")
+        lines.append(
+            f"| `{p_row['name']}` | [{ch}](../docs/guide/{ch}) | `{p_row['foundational_group']}` | "
+            f"`{p_row['baseline_marker']}` | {allowed_s} | {blks_s} | `{escaped_out}` | "
+            f"{p_row['expected_lines']}L / {p_row['expected_bytes']}B |"
+        )
+
+    phase_matrix = summarize_compiler_phase_matrix(expectations, roadmap_items)
+    lines.extend(
+        [
+            "",
+            "### 3.5 编译器阶段（`Phase 2` – `Phase 5`）负向契约与未实现阻塞全景矩阵",
+            "",
+            "| 编译器阶段 | 阶段职责范围 | 已生效负向 Probe 数 | 覆盖负向契约 (`FE:Lxxxx` / `abort`) | 关联路线图阻塞项 | 阻塞 Probe 数 | 阻塞 Program 数 |",
+            "|---|---|---:|---|---|---:|---:|",
+        ]
+    )
+    for ph_id, ph_row in phase_matrix.items():
+        neg_c = (
+            ", ".join(f"`{c}`" for c in ph_row["active_negative_contracts"])
+            if ph_row["active_negative_contracts"]
+            else "-"
+        )
+        blks_c = ", ".join(f"`{b}`" for b in ph_row["blockers"]) if ph_row["blockers"] else "-"
+        lines.append(
+            f"| **{ph_row['title']}** | {ph_row['description']} | {len(ph_row['active_negative_probes'])} | "
+            f"{neg_c} | {blks_c} | {len(ph_row['blocked_probes'])} | {len(ph_row['blocked_programs'])} |"
+        )
+
     lines.extend(
         [
             "",
@@ -3790,6 +4084,12 @@ def main(argv: list[str] | None = None) -> int:
         f"counts={json.dumps(summary['counts'], sort_keys=True)}"
     )
     if not summary["gate_passed"]:
+        for up_name in summary.get("unexpected_passes", []):
+            print(
+                f"PROMOTE: {up_name} exited 0 with exact target_stdout in both modes; "
+                f"update V046_PROBE_OVERRIDES and run --init-expectations",
+                file=sys.stderr,
+            )
         for failure in summary["failures"]:
             print(f"FAIL: {failure}", file=sys.stderr)
         return 1
