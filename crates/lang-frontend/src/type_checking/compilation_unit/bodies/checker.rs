@@ -581,6 +581,11 @@ impl<'a> BodyChecker<'a> {
                 falls_through: true,
             },
             Expression::String { parts } => {
+                if let Some(diagnostic) =
+                    crate::type_checking::string_length::check_literal(self.sources, span, &parts)?
+                {
+                    self.diagnostics.push(diagnostic);
+                }
                 for part in parts {
                     if let StringPart::Interpolation { expression, .. } = part {
                         self.check_expression(source, expression, None, None, return_type)?;

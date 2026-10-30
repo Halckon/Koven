@@ -152,7 +152,7 @@ implementation 和 delegation route，不重新按名称或 shape 选择；callb
 - ordinary/value class（具体泛型 value class 限 direct T/已闭合字段，generic This 投影与嵌套模板不扩展）、enum、Box、字段投影、replacement 及[有界字段 Borrow](direct-field-replace.md)；[concrete generic enum](../specs/active/0341-shared-lowering-core.md#35-单源-unit-兼容回退concrete-generic-enum2026-10-19) 限 direct T/已闭合 payload，泛型 callable 模板中的 enum 构造及模板 payload 内嵌套/nullable T 替换仍待迁移；
 - 顺序容器构造、element place/read/replace；
 - closure environment、capture 与 callable thunk；
-- String owner/operation（含 [StringClone](string-clone.md)）、Rc retain/release/payload loan；
+- String owner/operation（含 [StringClone](string-clone.md)、[长度边界](string-length.md)）、Rc retain/release/payload loan；
 - pointer-like nullable handle；触及 nullable 且落在迁移子集内的函数改由[所有权细化层](ownership-refinement.md)lowering；
 - source-qualified drop、loan、Value delivery 和 multi-file entry。
 

@@ -1,13 +1,13 @@
-# SPEC-0366: CLI 最终调试产物与源码断点
+# SPEC-0369: CLI 最终调试产物与源码断点
 
 > **性质**：CLI 产物合同草案 · **状态**：in-progress · **读取时机**：交付最终 executable 的源码调试能力时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
 | 状态 | in-progress |
-| Goal ID | `KOV-P6-0366` |
+| Goal ID | `KOV-P6-0369` |
 | 所属 Phase | Phase 6 CLI；复用 Phase 4 调试行表 |
-| 语言规范 | [Guide v0.46](../../guide/README.md) |
+| 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 授权范围 | 持续推进编辑器里程碑，补齐消费方 SPEC-0011 的 debug build 前置；草案不授权未审结方案实施 |
 | 前置合同 | [ADR-0010](../../adr/accepted/0010-first-native-object-and-linker-contract.md)、[ADR-0011](../../adr/accepted/0011-first-dwarf-line-mapping.md)、[ADR-0026](../../adr/accepted/0026-linux-x86-64-native-host.md) |
 | 阻塞项 | macOS 实现与定向验收已推进；Linux、双宿主 CI 及 PR/main 交付闭环待验证 |
@@ -487,3 +487,26 @@ remove_file 调用，未发现另一处只删除构建 executable 后复用输�
 源码或整体 fixture。独立只读复核确认无弱化和误清理风险。修正后本机完整
 single_file_analysis_cli 5 passed / 0 failed / 0 ignored（16.48 秒），CLI all-targets
 严格 clippy 通过。修正后双宿主结果仍待新提交 CI，不能用原 Linux 成功追认新输入。
+
+## 26. 主线协调、编号修正与保留例外（2026-10-30）
+
+本 Spec 原编号 0366 与主线已归档的文本／IO 规范启用合同重号，现改为 SPEC-0369；
+原分支 `feature/spec-0366-final-debug-artifacts`、历史提交和验收输入身份保持不变。
+0366 文本／IO 与 0367 String 长度合同不改写；0368 由独立文本／字节实施 PR 使用。
+本次普通 merge 同步 main `c8c9955db6c486ee02c27ae44b086e74800de1c9`，保留 Guide v0.47
+全部文本／IO 内容，不提升 Guide 版本。
+
+用户本轮明确决定“先保留例外，备注好后续再修”：继续保留 Guide 与 ADR-0035 的
+部分发布失败例外，即 dSYM 已发布而 executable 发布失败时，返回 operational error、
+报告遗留 dSYM，并禁止递归删除可能被他人替换的公开目录；这不是正常成功，也不是原子事务。
+
+- [ ] 后续修正：独立评审此部分发布失败例外的替代方案、公开产物所有权与安全清理边界，
+  在获得明确批准并补齐失败／竞态证据后再调整合同与实现；本次不实施替代方案，不承诺日期。
+
+此前 head `708a26f634783f2ce3afe0b44c43381bf9e1f079` 的
+[PR CI 40891981710](https://github.com/Halckon/Koven/actions/runs/40891981710) 已成功，
+双宿主 workspace check/clippy、targeted tests、preview producer 与 independent consumer
+均实际执行成功；编辑器作业按改动条件跳过。证据绑定旧 base
+`6bc24966c6a20e8ee58aabb07d6bd6dddec91b43`，不能替代本次主线组合的新 CI。
+本轮只做云端静态协调，不重跑本地动态或全量测试；本次提交 CI、最终验收归档与 main
+交付仍待闭合，Spec 保持 in-progress，未授权合并或 formal approve。

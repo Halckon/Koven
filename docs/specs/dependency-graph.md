@@ -8,14 +8,14 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 338 份"))
+ARCH(("已完成<br/>archive 340 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
   S0341["S0341<br/>D10 统一 compilation-unit 检查与代码生成管线"]
   S0357["S0357<br/>String subject when 的 Unit 清理事实"]
   S0360["S0360<br/>String when 清理事实的 refinement 消费"]
-  S0366["S0366<br/>CLI 最终调试产物与源码断点"]
+  S0369["S0369<br/>CLI 最终调试产物与源码断点"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -50,7 +50,7 @@ ARCH --> S0341
 | SPEC-0341 | active | [0341-shared-lowering-core.md](active/0341-shared-lowering-core.md) |
 | SPEC-0357 | active | [0357-string-when-ownership-facts.md](active/0357-string-when-ownership-facts.md) |
 | SPEC-0360 | active | [0360-string-when-refinement.md](active/0360-string-when-refinement.md) |
-| SPEC-0366 | active | [0366-final-debug-artifacts.md](active/0366-final-debug-artifacts.md) |
+| SPEC-0369 | active | [0369-final-debug-artifacts.md](active/0369-final-debug-artifacts.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -59,4 +59,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（338 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（340 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

@@ -172,3 +172,7 @@ draft → approved → in-progress → done
 - [0347 本地 Kovenlings](../archive/specs/0347-local-kovenlings.md)：基于 v0.45 已验收能力的两道本地练习；双宿主真实验收已通过并归档。
 
 - [0348 API 声明索引](../archive/specs/0348-api-documentation.md)：v0.45 解析器导出与既有教程示例验证首片。
+
+[0366 文本与同步 IO 规范启用](../archive/specs/0366-text-io-guide.md)记录 v0.47 完整迁移，不能作为生产能力完成证据。
+
+[0367 String 长度不变量](../archive/specs/0367-string-length-invariant.md)已完成创建边界验收并归档；公开文本 API 仍待后继交付。

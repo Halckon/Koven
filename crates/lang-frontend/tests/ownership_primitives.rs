@@ -11,7 +11,10 @@ use lang_frontend::{
     },
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{
+        FinalTypeAdmissionError, check_compilation_unit_types, check_types,
+        complete_compilation_unit_types, standard_environments,
+    },
 };
 
 fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
@@ -25,17 +28,103 @@ fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
     let typed = check_types(&sources, &file, &names, &types).unwrap();
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let single = check_ownership(&sources, &file, &names, &typed).unwrap();
-    let inputs = [SourceUnitInput::new("root", "primitive.ko", source, &file)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    // Preserve the independent legacy witness. Unit keys share the exact source and AST;
+    // only rooted-vs-MemoryDocument contracts are compared, never unlike legacy diagnostics.
+    let mut observations = Vec::new();
+    for input in [
+        SourceUnitInput::new("root", "primitive.ko", source, &file),
+        SourceUnitInput::memory_document(source, &file),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let [indexed] = names.names().index().source_units() else {
+            panic!("one actual source");
+        };
+        let source_unit = indexed.id();
+        assert_eq!(indexed.source_id(), source);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        // This observes admission; matching rejection is NOT a success witness.
+        // A deferred fixture can legitimately fail final admission. Preserve its full
+        // diagnostics instead of equating basic validation with complete admission.
+        let complete =
+            match complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed) {
+                Ok(complete) => {
+                    assert!(complete.is_same_analysis(&typed));
+                    Ok(())
+                }
+                Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => Err(diagnostics),
+                Err(other) => panic!("internal final-admission failure: {other:?}"),
+            };
+        let typed = typed.validate().unwrap();
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert!(owned.is_compatible_with(&typed));
+        for plan in owned.ownership_primitives() {
+            let descriptor = plan.descriptor();
+            assert_eq!(descriptor.expression().source_unit(), source_unit);
+            assert_eq!(
+                owned.ownership_primitive(descriptor.expression()),
+                Some(plan)
+            );
+            assert_eq!(
+                typed.types().ownership_primitive(descriptor.expression()),
+                Some(*descriptor)
+            );
+            for operand in descriptor.operands() {
+                assert_eq!(operand.source_unit(), source_unit);
+            }
+            for place in plan.places() {
+                assert_eq!(place.root().source_unit(), source_unit);
+            }
+        }
+        for plan in owned.field_replacements() {
+            let descriptor = plan.descriptor();
+            assert_eq!(descriptor.expression().source_unit(), source_unit);
+            assert_eq!(owned.field_replacement(descriptor.expression()), Some(plan));
+            assert_eq!(
+                typed.types().ownership_primitive(descriptor.expression()),
+                Some(*descriptor)
+            );
+            assert_eq!(plan.place().root().source_unit(), source_unit);
+            for field in plan.place().fields() {
+                assert_eq!(field.source_unit(), source_unit);
+            }
+            for operand in descriptor.operands() {
+                assert_eq!(operand.source_unit(), source_unit);
+            }
+        }
+        for fact in owned.deferred() {
+            assert_eq!(fact.expression().source_unit(), source_unit);
+        }
+        observations.push((owned, complete));
+    }
+    let [(unit, complete), (memory, memory_complete)] = observations.as_slice() else {
+        panic!("rooted and MemoryDocument observations");
+    };
+    // Diagnostic equality retains severity, code, message, primary span and every detail.
+    assert_eq!(unit.diagnostics(), memory.diagnostics(), "{text}");
+    assert_eq!(complete, memory_complete, "{text}");
+    assert_eq!(unit.ownership_primitives(), memory.ownership_primitives());
+    assert_eq!(unit.field_replacements(), memory.field_replacements());
+    assert_eq!(unit.loans(), memory.loans());
+    assert_eq!(unit.drops(), memory.drops());
+    assert_eq!(unit.deferred(), memory.deferred());
+    assert_eq!(
+        unit.call_argument_contracts(),
+        memory.call_argument_contracts()
+    );
+    assert_eq!(unit.value_deliveries(), memory.value_deliveries());
+    assert_eq!(
+        unit.clone().validate().is_ok(),
+        memory.clone().validate().is_ok()
+    );
+    let unit = unit.clone();
     (single, unit)
 }
 
@@ -268,6 +357,7 @@ fn root_return_cleans_loan_before_original_owner_and_abort_does_not_unwind() {
         unit.drops()[0].point(),
         UnitDropPoint::ControlTransfer(_)
     ));
+    // Legacy-only: Unit has no public loan_ends table; keep this witness.
     assert!(
         single
             .loan_ends()
@@ -381,6 +471,7 @@ fn root_commit_coalesces_complete_nonclosure_branch_values_before_drop() {
         assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
         assert_eq!(single.ownership_primitives().len(), 1);
         assert_eq!(unit.ownership_primitives().len(), 1);
+        // Legacy-only: UnitDropFact does not expose conditional cleanup-owner identities.
         assert!(
             single.drops().iter().all(|drop| drop.condition().is_none()),
             "complete roots must have one unconditional drop: {:?}",
@@ -443,6 +534,7 @@ fn root_commit_transports_plain_owner_identity_before_later_capture() {
         single.diagnostics()
     );
     assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+    // Legacy-only lineage: Unit exposes no cleanup_steps/cleanup_conditions owner graph.
     let plan = &single.ownership_primitives()[0];
     let root = plan.places()[0].root();
     let input = single

@@ -85,6 +85,10 @@ impl ConstValue {
             },
             (Self::String(left), Self::String(right)) => match operator {
                 Binary::Add => {
+                    super::string_length::checked_string_length(
+                        left.len() as u64,
+                        right.len() as u64,
+                    )?;
                     let mut bytes = left.to_vec();
                     bytes.extend_from_slice(&right);
                     Some(Self::String(bytes.into()))
@@ -137,9 +141,21 @@ fn integer_bitwise(ty: BuiltinType, operator: Binary, left: i128, right: i128) -
 /// Decode the lexer-approved escape set without importing a backend or executing user code.
 pub(super) fn decode_text(text: &str) -> Option<String> {
     let mut output = String::new();
+    visit_decoded_text(text, |character| output.push(character))?;
+    Some(output)
+}
+
+/// Count bytes without allocating a second copy of a potentially oversized literal.
+pub(super) fn decoded_text_length(text: &str) -> Option<u64> {
+    let mut length = 0;
+    visit_decoded_text(text, |character| length += character.len_utf8() as u64)?;
+    Some(length)
+}
+
+fn visit_decoded_text(text: &str, mut emit: impl FnMut(char)) -> Option<()> {
     let mut chars = text.chars();
     while let Some(character) = chars.next() {
-        output.push(if character == '\\' {
+        emit(if character == '\\' {
             match chars.next()? {
                 '\\' => '\\',
                 '\'' => '\'',
@@ -155,7 +171,7 @@ pub(super) fn decode_text(text: &str) -> Option<String> {
             character
         });
     }
-    Some(output)
+    Some(())
 }
 
 pub(super) fn accepts_prefix_operand(operator: Prefix, ty: BuiltinType) -> bool {

@@ -1,8 +1,8 @@
-# Koven v0.46：程序入口、Runtime 与标准库
+# Koven v0.47：程序入口、Runtime 与标准库
 
-> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.47） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
 
-本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.47 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 线程、Channel 与 Move Closure
 
@@ -41,13 +41,8 @@ v1 提供受限线程：只转移所有权，没有共享内存。
 
 ## IO 与网络
 
-```kotlin
-val content = File.readText("path/to/file")
-File.writeText("out.txt", "hello")
-```
-
-- v1 的文件与网络 IO 只采用同步阻塞模型；异步 IO 和协程均未定义。泛型型变、反射、
-  顺序容器、运算符与诊断分别由对应领域页定义，本页不复制其规则。
+v1 的文件与网络 IO 采用同步阻塞模型；本版仅启用下文标准同步 IO 表面，不定义网络 API、异步 IO 或协程。
+文件读取必须显式传入上限并处理 Result；标准库调用遵守普通名称、类型及所有权规则。
 
 ## 程序入口与共享所有权
 
@@ -162,7 +157,7 @@ U+0000，对外语义不依赖 NUL 终止。
 
 ### 封闭的最小操作
 
-一般 String runtime 只承接以下封闭操作：
+String 的既有核心操作如下；本版新增表面见[文本字节与严格解析](#文本字节与严格解析)：
 
 - `left + right` 在左到右各求值一次后，以同步 shared-read 方式读取两个 `String` operand，
   产生内容为精确字节拼接的新 `String` owner；不消费具名 operand。长度加法、目标布局或
@@ -186,12 +181,11 @@ U+0000，对外语义不依赖 NUL 终止。
 - 标准 `println(value: String): Unit` 对任意 String Borrow 写出内容的全部字节，再写一个
   ASCII LF；内容中的 U+0000 不截断。短写或不可恢复的 stdout 失败沿用现有 abort 边界。
 - 标准 `error(message: String): Nothing` 必须先按普通求值/借用规则形成 message，再进入既有
-  abort effect；现行规范不保证 stderr 文本格式或 message 一定被打印。
+  abort effect；输出与失败边界遵守 [Abort 输出合同](09-nullability-errors.md#abort-输出合同)。
 
-除上述核心操作与显式 `clone()` 复制外，本最小表面不发布 `length`、索引、slice、builder、编码转换、用户构造器、可变 buffer、
-intern、隐式共享或 `toString`/formatting protocol。String interpolation 虽已有 Lexer/Parser/类型
-节点，但 operand 到 String 的转换契约尚未封闭；在后续 guide 定义可打印/转换协议前，native
-lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并假装成完整协议。
+除下文明确启用的文本表面外，不发布 length、任意索引、builder、用户构造器、可变 buffer、
+intern 或隐式共享。Display 与字符串插值沿用 [Guide03](03-types-generics.md#值语义能力) 和
+[Guide04](04-expressions-operators.md) 的已启用规则；实现不足必须明确拒绝，不能用旧禁令取消规范。
 
 ### 运行时和编译阶段边界
 
@@ -329,7 +323,7 @@ fun <T> swap(inout a: T, inout b: T): Unit
 [String runtime ABI](../adr/accepted/0018-string-owner-runtime-abi.md) 的存储优化：
 静态字节可随进程存活且不执行 `free`，但 String 值仍遵守普通 owner 生命周期，不因此满足 `Copyable`。
 需要保留源并取得独立 owner 时使用上文[封闭操作](#封闭的最小操作)定义的 `String.clone()`；
-`println` / `error` 继续借用 String。独立静态 `Str`、Str→String 转换与 `toString()` 继续延后，
+`println` / `error` 继续借用 String。独立静态 `Str` 与 Str→String 转换继续延后，
 不得从后续切片设计或底层静态字节表示推导已启用的类型、ABI 或能力。
 
 ---
@@ -339,3 +333,83 @@ fun <T> swap(inout a: T, inout b: T): Unit
 v1 的用户源码中没有 `unsafe`、`extern` 与裸指针；标准库如何借助 runtime 实现属于实现细节，
 不是语言承诺。原 `extern "C"`、`RawPtr<T>` 与 `unsafe { }` 草图移至
 [unsafe 与 FFI 边界候选](../proposals/unsafe-and-ffi-boundary.md)，属于 v2 评审范围。
+
+## 文本字节与严格解析
+
+文本函数、TextError、ParseError 与 String 扩展由 `koven.text` 显式导入；
+File、Directory、Path、stdin/stdout/stderr、IoError、DirectoryEntry 由 `koven.io` 显式导入。
+这些名称不新增关键字，也不绕过标准源码的可信身份与普通可见性。
+
+
+默认参数为 Borrow；表中所有 String、Array 返回值都是独立 owner，不借用 receiver 的存储。
+采用 UTF-8 **字节偏移**，避免把 Unicode scalar、字节和用户感知字符混为同一种索引。
+所有外部字节严格解码；不替换非法序列、不正规化、不做 locale 处理。
+
+| 公开接口 | 合同 |
+|---|---|
+| `text.byteLength(): Int` | UTF-8 字节数，范围为 0 至 2147483647；创建超额按下文入口规则失败 |
+| `text.toBytes(): Array<UByte>` | 精确复制全部字节，包括 U+0000；源仍有效 |
+| `decodeUtf8(bytes: Array<UByte>): Result<String, TextError>` | 验完整 UTF-8；首个非法字节偏移随错误返回；成功复制为新 String |
+| `text.sliceBytes(start: Int, end: Int): Result<String, TextError>` | 半开区间；0≤start≤end≤byteLength 且两端均在 scalar 边界；空区间有效 |
+| `text.split(separator: String): Result<Array<String>, TextError>` | 精确字节分隔、保留空字段；空分隔符报错，不提供隐式逐字符模式 |
+| `text.lines(): Array<String>` | LF 分行，紧邻 LF 的 CR 一并移除；其他 CR 保留；空输入无行，末尾换行不额外产空行 |
+| `parseLong(text: String): Result<Long, ParseError>` | 十进制 ASCII，可选一个正负号，至少一位；不 trim、不接收分隔符／Unicode 数字；越界返回错误 |
+
+`TextError` 分类为 InvalidUtf8(offset)、InvalidRange、NotScalarBoundary、EmptySeparator；
+`ParseError` 为 InvalidDigit(offset)、MissingDigits、OutOfRange。偏移均从 0 开始计字节。
+`InvalidUtf8(offset)` 指向第一个无法完整解码的 UTF-8 序列的起始字节：
+`41 E2 28 A1` 与截断的 `41 E2 82` 均返回 1；孤立 continuation byte 指向自身。
+`parseLong` 先验证完整词法形状，再检查范围：空串及单独 `+`/`-` 为 MissingDigits，
+其他非法字符返回首个 InvalidDigit 的字节偏移；只有词法合法的数字才可能 OutOfRange。
+因此 `9223372036854775808x` 返回 InvalidDigit(19)，`x` 返回 InvalidDigit(0)。
+
+Long 的十进制格式化复用既有 Display 合同，不新增竞争的格式化协议。
+`lines`／`split`／解析业务循环优先写在 Koven；只有所需存储读取及 UTF-8 检验边界进入受控 runtime。
+
+分配失败仍遵循现行 Abort 合同，不声称 Result 能恢复 OOM。外部长度先验 Int 上限；
+已经存在的 String owner 不得因本建议被悄悄截断。实现必须在所有 String 创建边界检查上限；内部长度继续使用 target usize，不以缩窄 ABI 或截断代替检查。
+
+### String 长度与可恢复连接
+
+所有 live String 的 UTF-8 字节数不超过 Int.MAX_VALUE（2147483647），保留 target usize 内部布局。
+字面量超限是编译诊断；argv 超限是在进入 main 前的 operational failure；有显式上限的 IO
+超限返回 LimitExceeded；动态 `+` 超限在发布结果前 Abort。不能仅在 byteLength 处截断或转换。
+`text.checkedPlus(other: String): String?` 以调用期 shared Borrow 各求值一次、保持两输入 owner，
+返回精确拼接的新独立 String owner；仅长度超限返回 null，分配失败仍 Abort，不承诺恢复 OOM。
+成功结果与 `+` 的内容和所有权一致。该表面不增加 Result 连接或 TextError.LengthExceeded。
+插值的拼接与其他无 Result 的动态 String 创建同样遵守上限；可恢复拼接使用 checkedPlus。
+Path.join 若结果长度超限返回 IoError.LimitExceeded。解码输入 Array 的 size 已受 Int 上限约束；
+不能因内部 target usize 可表示更长数据而发布违反上限的 String。clone 不扩大已有长度。
+
+### 同步 IO 与资源责任
+
+本版定义下列便利文件和标准流表面；显式流 owner 与 close 仍是后继合同，不能由便利函数取消。
+同步阻塞，不隐式创建线程。路径为 UTF-8 String，拒绝内嵌 NUL；不展开 `~`、环境变量或通配符。
+相对路径以进程工作目录解释；不规范化大小写，不承诺沙箱隔离或消除检查与使用之间的竞争。
+
+| 公开接口 | 合同 |
+|---|---|
+| `File.readBytes(path: String, maxBytes: Int): Result<Array<UByte>, IoError>` | 非负显式上限；循环短读到 EOF，超过上限报 LimitExceeded，不返回截断成功 |
+| `File.readText(path: String, maxBytes: Int): Result<String, IoError>` | 复用 readBytes 和严格 UTF-8；非法输入为 InvalidEncoding，不静默替换 |
+| `File.writeBytes(path: String, bytes: Array<UByte>): Result<Unit, IoError>` | 创建或截断普通文件，循环短写；失败可能留下前缀，不承诺原子替换／持久化 |
+| `File.writeText(path: String, text: String): Result<Unit, IoError>` | 精确 UTF-8 写出，不自动加换行；资源行为同 writeBytes |
+| `Directory.list(path: String, maxEntries: Int): Result<Array<DirectoryEntry>, IoError>` | 非递归；排除 . 与 ..；超过显式非负上限报错；结果本身无顺序保证 |
+| `Path.join(parent: String, child: String): Result<String, IoError>` | child 必须单个非空文件名，不含路径分隔符且不是 . 或 ..；不提供安全目录遍历保证 |
+| `stdout.write(text: String)`／`stderr.write(text: String)` | 返回 Result<Unit, IoError>；write-all，不自动加换行；不改变现有 println 行为 |
+| `stdout.flush()`／`stderr.flush()` | 返回 Result<Unit, IoError>；把本库缓冲交给宿主，不等于磁盘 fsync |
+| `stdin.readLine(maxBytes: Int): Result<String?, IoError>` | EOF 前无字节为 null，空行为空 String；LF／CRLF 去终止符；EOF 的剩余字节仍返回一行 |
+
+IoError 携带稳定分类、操作和 owned 路径／描述：InvalidInput、NotFound、PermissionDenied、
+InvalidEncoding、LimitExceeded、Interrupted、Other；不把宿主 errno 数值或系统文案作为跨平台 oracle。
+readLine 上限按终止符之前的原始字节计；超额／编码错误后 stdin 状态未恢复，不保证下一次调用续行。
+宿主 EINTR 在无进展时重试，已读写部分保留进度；无法重试的中断才返回 Interrupted。
+
+便利文件 API 在所有正常返回路径关闭自己打开的句柄；先操作失败再关闭失败时保留操作错误，
+操作成功但 close 失败时返回 close 错误。关闭失败不得无条件重试，以免误关已复用句柄。
+标准流不归调用者所有，不关闭宿主标准句柄。显式可关闭流 owner 留给独立后继合同，
+须定义 close 幂等性、drop 的尽力清理及不可观测错误；本合同不从 RAII 推导“close 必成功”。
+
+DirectoryEntry 有 owned name、kind（File／Directory／Symlink／Other）、`size: Long?`；
+size 只对普通文件存在，无法表示的宿主大小返回错误。读取元信息不跟随链接；条目消失、
+不可读或不可表示的文件名使整个调用失败，已创建 entry owner 正常释放，不输出部分成功。
+列表不是目录原子快照；入口目录及文件打开仍遵循宿主符号链接行为，不能宣称禁止跟随所有链接。

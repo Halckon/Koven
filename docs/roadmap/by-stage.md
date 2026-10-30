@@ -95,7 +95,7 @@ P0 之前已合入 main 的编译器骨架与有界能力；不表示每项都�
 
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| ▶ 进行中 | B18d | CLI 最终调试产物与双宿主源码断点 | v1 必做 | 工具链 | 已定义 | 4,6 | [0366](../specs/active/0366-final-debug-artifacts.md) | 发布决定已接受；最终产物、源码路径及 macOS/Linux LLDB 实施验收进行中。 |
+| ▶ 进行中 | B18d | CLI 最终调试产物与双宿主源码断点 | v1 必做 | 工具链 | 已定义 | 4,6 | [0369](../specs/active/0369-final-debug-artifacts.md) | 发布决定已接受；最终产物、源码路径及 macOS/Linux LLDB 实施验收进行中。 |
 | ✅ 已交付 | E1 | 前端硬门禁：Deferred/Error 不进入所有权与 codegen；未知成员报诊断；内部错误结构化；L0165 用户措辞 | v1 必做 | 编译器结构 | — | 2 | [0319](../archive/specs/0319-final-type-admission-diagnostics.md) [0323](../archive/specs/0323-final-admission-static-recovery.md) [0324](../archive/specs/0324-final-admission-user-messages.md) | 内部错误（ICE/ERR）与 154 probe 中的 InvalidSsa 均已清零（原 10 次观察随 SPEC-0350 与 SPEC-0341 后续切片消除）。 |
 | ▶ 进行中 | E1b | 声明/函数终止性：val 初始化全分支 return 与 L0088 入口一致 | v1 必做 | 控制流 | 已定义 | 2 | [0326](../archive/specs/0326-closed-control-branch-join.md) | 0326 作者已认领，尚未分 Spec。 |
 | ✅ 已交付 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | v1 必做 | 标准库与运行时 | 已定义 | 5,6 | [0349](../archive/specs/0349-builtin-result-and-check.md) | SPEC-0349：koven/core/result.ko 由宿主按 SourceId 授权为内建环境，两模式相同、无需 import；用户任一 package 的顶层 Result/Ok/Err 以 L0150 拒绝；kovenc check（单文件与 --project）与 --help 落地，单文件 build/run 的诊断退出码改为 1。Pair 随 S6（to / mapOf）进入。 |
@@ -136,8 +136,8 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | v1 必做 | 类型、泛型与声明 | 需新增 | 2,4,5 | — | — |
-| ☐ 未开始 | L2 | 字符串插值降级："${x}" 要求 x : Display（D2） | v1 必做 | 文本与 IO | 需新增 | 2,4 | — | 依赖 L1。 |
+| ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | v1 必做 | 类型、泛型与声明 | 已定义 | 2,4,5 | — | — |
+| ☐ 未开始 | L2 | 字符串插值降级："${x}" 要求 x : Display（D2） | v1 必做 | 文本与 IO | 已定义 | 2,4 | — | 依赖 L1。 |
 | ✅ 已交付 | L3 | 八种整数之间的 checked 转换（越界 Abort） | v1 必做 | 类型、泛型与声明 | 已定义 | 2,3,4 | [0327](../archive/specs/0327-checked-integer-conversions.md) | — |
 | ☐ 未开始 | L3b | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | v1 必做 | 类型、泛型与声明 | 需新增 | 2,4 | — | 属于“可能 abort 的 API 必须有不 abort 版本”规则（L20）的一部分。 |
 | ✅ 已交付 | L4 | IntRange/LongRange 可存储 Copyable 值、in / not in、升序基本 for | v1 必做 | 集合与迭代 | 已定义 | 2,3,4 | [0328](../archive/specs/0328-integer-range-values.md) [0329](../archive/specs/0329-integer-range-iteration.md) | 一般 Range? 参数/局部 null 等边界仍由作者跟踪。 |
@@ -170,9 +170,9 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| ☐ 未开始 | L5 | 文本 API：size、Char 迭代、byteAt、substring、indexOf、split、trim、lines、startsWith、toInt(): Int?、StringBuilder | v1 必做 | 文本与 IO | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) | — |
-| ☐ 未开始 | L6 | IO 与进程：readLine(): String?、File.readText/writeText: Result、eprintln、exitProcess(code): Nothing（D9） | v1 必做 | 文本与 IO | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) | 依赖 L5、N08、E4。D9 已决：exitProcess(code): Nothing 在本项定义。 |
-| ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | v1 必做 | 文本与 IO | 需新增 | 2,4,5 | — | 依赖 E4 与 L1。 |
+| ☐ 未开始 | L5 | 文本 API：已启用字节长度、复制/严格UTF-8、字节切片、split/lines、parseLong与checkedPlus；Char迭代、trim、StringBuilder等仍待后继合同 | v1 必做 | 文本与 IO | 已定义 | 2,4,5 | [13-program-runtime-standard-library](../guide/13-program-runtime-standard-library.md) [text-input-and-io](../proposals/text-input-and-io.md) | SPEC-0366仅启用已批准表面，不证明实现；SPEC-0367已验收String创建长度前置，公开文本API仍待交付；未列出索引/indexOf/startsWith/toInt等旧规划目标保留，签名由后继合同冻结。 |
+| ☐ 未开始 | L6 | 同步 IO：显式上限文件读写、目录路径、标准流Result合同；exitProcess与显式流owner另行定义（D9） | v1 必做 | 文本与 IO | 已定义 | 2,4,5 | [13-program-runtime-standard-library](../guide/13-program-runtime-standard-library.md) [text-input-and-io](../proposals/text-input-and-io.md) | 依赖L5、N08、E4；SPEC-0366启用便利IO，不证明实现。time/sleep/math与exitProcess目标保留；旧readLine/eprintln摘要不另成公共API。 |
+| ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | v1 必做 | 文本与 IO | 已定义 | 2,4,5 | — | 依赖 E4 与 L1。 |
 | ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | v1 必做 | 标准库与运行时 | 需新增 | 2,3,4,5 | [thread-transfer](../proposals/thread-transfer.md) | 依赖 N04（move 闭包）与 L6 runtime；用第七个验收程序验收。2026-10-22 用户确认 v1 必须提供最基础的线程能力（spawn/join，以及 channel），与生态 M4 一致。 |
 | ☐ 未开始 | L6b | time/sleep/math 基础 API | v1 必做 | 标准库与运行时 | 需新增 | 2,4,5 | [text-input-and-io](../proposals/text-input-and-io.md) | — |
 

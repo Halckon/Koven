@@ -80,4 +80,4 @@ v0.35、v0.36 与 v0.37 已启用；原候选与重基记录仅用于追溯：
 
 ## 已批准文本／IO 的迁移准备
 
-[v0.47 迁移对账](v0.47-text-io-enablement.md)保留既有批准合同的全部范围，列出三个需要补齐的错误 oracle；仍未启用。
+[v0.47 迁移对账](../archive/migrations/v0.47-preparation.md)保全迁移前的完整范围与用户错误 oracle 决定；现已由 [v0.47](../guide/README.md)启用，生产实现另验。
