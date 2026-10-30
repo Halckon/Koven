@@ -213,6 +213,14 @@
 | `S6` | `P3` | `todo` | 2 (`s02_pair_builtin`, `s03_to_pair`) | 0 | 2 | - |
 | `T1` | `P4` | `todo` | 0 | 1 (`p27_thread`) | 1 | - |
 
+### 3.2 路线图阶段（`P2` → `P3` → `P4`）递进解封与里程碑投射矩阵
+
+| 阶段里程碑 | 阶段核心目标 | 本阶段清零阻塞项 | 本阶段新增解封 Probe | 累计能力通过 (`capability_passed`) | P2 A 组可运行 (`≥ 70 / 74`) | V1 验收程序就绪 |
+|---|---|---|---|---:|---:|---:|
+| **P2 完成** | Native 后端能力补齐（泛型、可空/Result `?`、闭包、浮点/字符与接口分派） | `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08` | +9 (`p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p25b_linked_recursive`, `p28_companion`, `p40_nested_generic_class`, `q03_fn_ref`) | **147 / 154** | **67 / 74** | **2 / 6** |
+| **P3 完成** | 语言糖、协议与标准库收口（Equatable/Display 插值、位运算、多载荷 enum 与 Pair/to） | `L1`, `L2`, `L3b`, `L7`, `S6` | +6 (`p02_interp`, `p21_box_enum`, `p35_value_eq`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair`) | **153 / 154** | **72 / 74** | **6 / 6** |
+| **P4 完成** | 并发与扩展（原生线程 thread 与 JoinHandle） | `T1` | +1 (`p27_thread`) | **154 / 154** | **73 / 74** | **6 / 6** |
+
 ## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本
 
 | Probe | Guide 章节 | 类型 (`kind`) | 溯源 (`oracle_origin`) | 期望结果 / 诊断码 | 语义推导 / 规则说明 (`oracle_derivation` / `note`) |

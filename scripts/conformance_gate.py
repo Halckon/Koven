@@ -2155,6 +2155,87 @@ def verify_evidence_bundle(
     return ledger
 
 
+def compare_dual_host_evidence(
+    evidence_dir_a: Path,
+    evidence_dir_b: Path,
+    expectations_path: Path,
+    corpus_root: Path | None = None,
+    baseline_path: Path | None = None,
+    strict_unreviewed: bool = True,
+    require_same_commit: bool = True,
+    require_distinct_systems: bool = False,
+) -> dict[str, Any]:
+    """Verify two evidence bundles (e.g. macOS and Linux CI runs) and assert cross-host parity across all probes and programs."""
+    ledger_a = verify_evidence_bundle(
+        evidence_dir=evidence_dir_a,
+        expectations_path=expectations_path,
+        corpus_root=corpus_root,
+        baseline_path=baseline_path,
+        strict_unreviewed=strict_unreviewed,
+    )
+    ledger_b = verify_evidence_bundle(
+        evidence_dir=evidence_dir_b,
+        expectations_path=expectations_path,
+        corpus_root=corpus_root,
+        baseline_path=baseline_path,
+        strict_unreviewed=strict_unreviewed,
+    )
+    commit_a = ledger_a["compiler"]["commit"]
+    commit_b = ledger_b["compiler"]["commit"]
+    if require_same_commit and commit_a != commit_b:
+        raise ValueError(
+            f"dual-host commit mismatch: {commit_a!r} vs {commit_b!r}"
+        )
+    host_a = ledger_a["host"]
+    host_b = ledger_b["host"]
+    if require_distinct_systems and host_a["system"] == host_b["system"]:
+        raise ValueError(
+            f"dual-host comparison requires distinct host systems, both were {host_a['system']!r}"
+        )
+
+    for section in ("probes", "programs"):
+        map_a = {e["execution"]["name"]: e for e in ledger_a[section]}
+        map_b = {e["execution"]["name"]: e for e in ledger_b[section]}
+        if set(map_a.keys()) != set(map_b.keys()):
+            raise ValueError(
+                f"dual-host {section} inventory mismatch: "
+                f"only_in_a={sorted(set(map_a) - set(map_b))}, "
+                f"only_in_b={sorted(set(map_b) - set(map_a))}"
+            )
+        for name in sorted(map_a.keys()):
+            comp_a = map_a[name]["comparison"]
+            comp_b = map_b[name]["comparison"]
+            if comp_a != comp_b:
+                raise ValueError(
+                    f"dual-host comparison mismatch on {section}.{name}: "
+                    f"{comp_a['status']} ({comp_a['single_marker']}/{comp_a['project_marker']}) vs "
+                    f"{comp_b['status']} ({comp_b['single_marker']}/{comp_b['project_marker']})"
+                )
+            if comp_a["status"] == "pass_run":
+                for mode in ("single", "project"):
+                    sha_a = map_a[name]["execution"][mode]["stdout_sha256"]
+                    sha_b = map_b[name]["execution"][mode]["stdout_sha256"]
+                    if sha_a != sha_b:
+                        raise ValueError(
+                            f"dual-host stdout_sha256 mismatch on {section}.{name}.{mode}: {sha_a} vs {sha_b}"
+                        )
+
+    if ledger_a["summary"] != ledger_b["summary"]:
+        raise ValueError("dual-host summary mismatch between evidence bundles")
+
+    return {
+        "parity_passed": True,
+        "gate_passed": bool(ledger_a["summary"]["gate_passed"]) and bool(ledger_b["summary"]["gate_passed"]),
+        "commit": commit_a,
+        "host_a": host_a,
+        "host_b": host_b,
+        "total_probes": ledger_a["summary"]["total_probes"],
+        "probe_capability_passed": ledger_a["summary"]["probe_capability_passed"],
+        "total_programs": ledger_a["summary"]["total_programs"],
+        "program_run_passed": ledger_a["summary"]["program_run_passed"],
+    }
+
+
 def _strip_raw_bytes(exec_record: dict[str, Any]) -> dict[str, Any]:
     out = dict(exec_record)
     for mode in ("single", "project"):
@@ -2821,6 +2902,104 @@ def summarize_blocker_unlock_impact(
     return dict(sorted(impact.items()))
 
 
+ROADMAP_STAGE_CATALOG: dict[str, str] = {
+    "P2": "Native 后端能力补齐（泛型、可空/Result `?`、闭包、浮点/字符与接口分派）",
+    "P3": "语言糖、协议与标准库收口（Equatable/Display 插值、位运算、多载荷 enum 与 Pair/to）",
+    "P4": "并发与扩展（原生线程 thread 与 JoinHandle）",
+}
+
+
+def summarize_stage_progression(
+    expectations: dict[str, Any],
+    roadmap_items: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Project cumulative probe capability, Foundational Group A runnable count, and V1 program unlocks across stages P2 -> P3 -> P4."""
+    if roadmap_items is None:
+        v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+        else:
+            roadmap_items = {}
+
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    base_cap = sum(
+        1 for s in probes.values() if s["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+    )
+    cohort = summarize_foundational_cohort(expectations)
+    base_group_a = cohort["groups"]["A"]["runnable"]
+    base_progs = sum(1 for s in programs.values() if s["kind"] == "run_ok")
+
+    cumulative_stages: set[str] = set()
+    prev_unlocked_probes: set[str] = set()
+    prev_unlocked_progs: set[str] = set()
+    rows: list[dict[str, Any]] = []
+
+    for stage_id, stage_desc in ROADMAP_STAGE_CATALOG.items():
+        cumulative_stages.add(stage_id)
+        stage_blockers = sorted(
+            b_id
+            for b_id, item in roadmap_items.items()
+            if item.get("stage") == stage_id
+            and any(
+                b_id in s.get("roadmap_blockers", [])
+                for s in list(probes.values()) + list(programs.values())
+                if s["kind"] == "known_unimplemented"
+            )
+        )
+        now_unlocked_probes: list[str] = []
+        cum_group_a_gain = 0
+        for name, spec in sorted(probes.items()):
+            if spec["kind"] != "known_unimplemented":
+                continue
+            blockers = spec.get("roadmap_blockers", [])
+            if blockers and all(
+                roadmap_items.get(b, {}).get("stage", "P2") in cumulative_stages
+                for b in blockers
+            ):
+                if name not in prev_unlocked_probes:
+                    now_unlocked_probes.append(name)
+                    prev_unlocked_probes.add(name)
+                batch = spec.get("probe_batch") or classify_probe_batch(name)
+                if (
+                    batch in FOUNDATIONAL_BATCHES
+                    and name not in FOUNDATIONAL_GROUP_B_PROBES
+                    and name not in FOUNDATIONAL_GROUP_C_PROBES
+                ):
+                    cum_group_a_gain += 1
+
+        now_unlocked_progs: list[str] = []
+        for prog_name, spec in sorted(programs.items()):
+            if spec["kind"] != "known_unimplemented":
+                continue
+            blockers = spec.get("roadmap_blockers", [])
+            if blockers and all(
+                roadmap_items.get(b, {}).get("stage", "P2") in cumulative_stages
+                for b in blockers
+            ):
+                if prog_name not in prev_unlocked_progs:
+                    now_unlocked_progs.append(prog_name)
+                    prev_unlocked_progs.add(prog_name)
+
+        rows.append(
+            {
+                "stage": stage_id,
+                "description": stage_desc,
+                "stage_blockers": stage_blockers,
+                "newly_unlocked_probes": now_unlocked_probes,
+                "newly_unlocked_programs": now_unlocked_progs,
+                "projected_probe_cap": base_cap + len(prev_unlocked_probes),
+                "total_probes": len(probes),
+                "projected_group_a_runnable": base_group_a + cum_group_a_gain,
+                "group_a_total": cohort["groups"]["A"]["total"],
+                "projected_programs_ready": base_progs + len(prev_unlocked_progs),
+                "total_programs": len(programs),
+            }
+        )
+    return rows
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -3190,6 +3369,30 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"{len(u_row['p2_group_a_probes'])} | {prog_repr} |"
         )
 
+    stage_prog = summarize_stage_progression(expectations, roadmap_items)
+    lines.extend(
+        [
+            "",
+            "### 3.2 路线图阶段（`P2` → `P3` → `P4`）递进解封与里程碑投射矩阵",
+            "",
+            "| 阶段里程碑 | 阶段核心目标 | 本阶段清零阻塞项 | 本阶段新增解封 Probe | 累计能力通过 (`capability_passed`) | P2 A 组可运行 (`≥ 70 / 74`) | V1 验收程序就绪 |",
+            "|---|---|---|---|---:|---:|---:|",
+        ]
+    )
+    for s_row in stage_prog:
+        s_blks = ", ".join(f"`{b}`" for b in s_row["stage_blockers"]) if s_row["stage_blockers"] else "-"
+        s_probes = (
+            f"+{len(s_row['newly_unlocked_probes'])} (" + ", ".join(f"`{p}`" for p in s_row["newly_unlocked_probes"]) + ")"
+            if s_row["newly_unlocked_probes"]
+            else "0"
+        )
+        lines.append(
+            f"| **{s_row['stage']} 完成** | {s_row['description']} | {s_blks} | {s_probes} | "
+            f"**{s_row['projected_probe_cap']} / {s_row['total_probes']}** | "
+            f"**{s_row['projected_group_a_runnable']} / {s_row['group_a_total']}** | "
+            f"**{s_row['projected_programs_ready']} / {s_row['total_programs']}** |"
+        )
+
     lines.extend(
         [
             "",
@@ -3324,6 +3527,14 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="verify an existing evidence bundle directory against expectations and optional baseline without running compiler",
     )
+    parser.add_argument(
+        "--compare-evidence",
+        nargs=2,
+        type=Path,
+        metavar=("EVIDENCE_A", "EVIDENCE_B"),
+        default=None,
+        help="verify two evidence bundle directories and assert cross-host parity across all probes and programs",
+    )
     args = parser.parse_args(argv)
 
     if args.init_expectations:
@@ -3376,6 +3587,28 @@ def main(argv: list[str] | None = None) -> int:
             f"programs_passed={v_sum['program_run_passed']}/{v_sum['total_programs']}"
         )
         return 0 if v_sum["gate_passed"] else 1
+
+    if args.compare_evidence is not None:
+        dir_a, dir_b = args.compare_evidence
+        try:
+            parity = compare_dual_host_evidence(
+                evidence_dir_a=dir_a,
+                evidence_dir_b=dir_b,
+                expectations_path=args.expectations,
+                corpus_root=args.corpus,
+                baseline_path=args.baseline,
+                strict_unreviewed=not args.allow_unreviewed,
+            )
+        except (ValueError, OSError) as exc:
+            print(f"conformance: error: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"conformance: dual-host parity verified commit={parity['commit']} "
+            f"hosts={parity['host_a']['system']}/{parity['host_b']['system']} "
+            f"probes_cap_passed={parity['probe_capability_passed']}/{parity['total_probes']} "
+            f"programs_passed={parity['program_run_passed']}/{parity['total_programs']}"
+        )
+        return 0 if parity["gate_passed"] else 1
 
     try:
         ledger = evaluate_suite(

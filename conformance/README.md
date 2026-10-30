@@ -43,6 +43,15 @@ python3 scripts/conformance_gate.py \
 python3 scripts/conformance_gate.py \
   --cli target/release/kovenc \
   --batch e --chapter 06 --no-programs
+
+# 离线校验单个证据包或比对 macOS / Linux 双宿主证据包一致性
+python3 scripts/conformance_gate.py \
+  --verify-evidence .local-artifacts/conformance-gate \
+  --baseline conformance/baseline-aef3f4f8.tsv
+
+python3 scripts/conformance_gate.py \
+  --compare-evidence .local-artifacts/conformance-macos .local-artifacts/conformance-linux \
+  --baseline conformance/baseline-aef3f4f8.tsv
 ```
 
 在 GitHub Actions CI（`.github/workflows/ci.yml`）中，`docs` 任务自动通过 `scripts/check_docs.py` 校验 `conformance/expectations.json` 与 `conformance/baseline-aef3f4f8.tsv` 的源码/期望 SHA-256 及条目完整性；`test` 任务在 `macos-14` 与 `ubuntu-24.04` 双宿主上自动执行 `scripts/conformance_gate.py --baseline conformance/baseline-aef3f4f8.tsv` 并归档 `conformance-<os>-<sha>` 证据包。

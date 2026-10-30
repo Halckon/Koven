@@ -637,6 +637,30 @@ sys.exit(1)
             (ev_seq / "matrix.tsv").read_text(encoding="utf-8"),
             (ev_par / "matrix.tsv").read_text(encoding="utf-8"),
         )
+        parity = gate.compare_dual_host_evidence(
+            evidence_dir_a=ev_seq,
+            evidence_dir_b=ev_par,
+            expectations_path=self.expectations_path,
+            corpus_root=self.corpus,
+            baseline_path=self.baseline_path,
+        )
+        self.assertTrue(parity["parity_passed"])
+        self.assertEqual(
+            gate.main(
+                [
+                    "--compare-evidence",
+                    str(ev_seq),
+                    str(ev_par),
+                    "--corpus",
+                    str(self.corpus),
+                    "--expectations",
+                    str(self.expectations_path),
+                    "--baseline",
+                    str(self.baseline_path),
+                ]
+            ),
+            0,
+        )
 
         # Verify DocsChecker.check_conformance_corpus detects tampered expectations.json
         checker = DocsChecker(self.root)
@@ -1037,6 +1061,14 @@ sys.exit(1)
         self.assertEqual(impact["L7"]["sole_probes"], [])
         self.assertEqual(impact["L7"]["co_probes"], ["p21_box_enum", "q08_enum_string_payload"])
         self.assertEqual(impact["L3b"]["programs"], ["varint_codec"])
+        stage_prog = gate.summarize_stage_progression(loaded, roadmap_items)
+        self.assertEqual([r["stage"] for r in stage_prog], ["P2", "P3", "P4"])
+        self.assertEqual([r["projected_probe_cap"] for r in stage_prog], [147, 153, 154])
+        self.assertEqual([r["projected_group_a_runnable"] for r in stage_prog], [67, 72, 73])
+        self.assertEqual([r["projected_programs_ready"] for r in stage_prog], [2, 6, 6])
+        self.assertEqual(
+            stage_prog[0]["newly_unlocked_programs"], ["raii_state_machine", "word_count"]
+        )
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",
