@@ -146,6 +146,22 @@ VALID_GUIDE_CHAPTERS = (
     "13-program-runtime-standard-library.md",
 )
 
+GUIDE_CHAPTER_DOMAINS: dict[str, str] = {
+    "01-lexical.md": "词法",
+    "02-names-files-packages.md": "名称、文件、Package 与 Import",
+    "03-types-generics.md": "类型与泛型",
+    "04-expressions-operators.md": "表达式与运算符",
+    "05-declarations-callables.md": "声明与 Callable",
+    "06-blocks-control-flow.md": "Block 与控制流",
+    "07-calls-lambdas-closures.md": "调用、Lambda 与 Closure",
+    "08-class-family-members.md": "Class Family、成员与 Receiver",
+    "09-nullability-errors.md": "空安全与错误值",
+    "10-ownership-borrowing-drop.md": "所有权、借用与析构",
+    "11-copyability-layout-construction.md": "Copyable、布局、构造与结构移动",
+    "12-collections-destructuring.md": "集合、索引与解构",
+    "13-program-runtime-standard-library.md": "程序入口、Runtime 与标准库",
+}
+
 PROBE_BATCH_CATALOG: dict[str, str] = {
     "p": "基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等",
     "q": "对 `p` 中失败项的变体复测，缩小失败条件",
@@ -1365,10 +1381,25 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(f"{section}.{name} has invalid guide_chapter {ch!r}")
                 if corpus_root is not None:
                     guide_dir = corpus_root.parent / "docs" / "guide"
-                    if guide_dir.is_dir() and not (guide_dir / ch).is_file():
-                        raise ValueError(
-                            f"{section}.{name} references missing Guide chapter {guide_dir / ch}"
+                    if guide_dir.is_dir():
+                        ch_path = guide_dir / ch
+                        if not ch_path.is_file():
+                            raise ValueError(
+                                f"{section}.{name} references missing Guide chapter {ch_path}"
+                            )
+                        expected_domain = GUIDE_CHAPTER_DOMAINS[ch]
+                        ch_h1 = next(
+                            (
+                                ln
+                                for ln in ch_path.read_text(encoding="utf-8").splitlines()
+                                if ln.startswith("# ")
+                            ),
+                            "",
                         )
+                        if not ch_h1.endswith(f"：{expected_domain}"):
+                            raise ValueError(
+                                f"Guide chapter {ch} H1 {ch_h1!r} does not match expected domain {expected_domain!r}"
+                            )
             if section == "probes":
                 inferred_batch = classify_probe_batch(name)
                 if "probe_batch" in spec:
@@ -1403,9 +1434,10 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"{section}.{name} must not contain a package directive (collides with project-mode package app header)"
                     )
-                if not MAIN_ENTRY_RE.search(src_text):
+                main_matches = MAIN_ENTRY_RE.findall(src_text)
+                if len(main_matches) != 1:
                     raise ValueError(
-                        f"{section}.{name} must declare a fun main(...) entry point"
+                        f"{section}.{name} must declare a single fun main(...) entry point (found {len(main_matches)})"
                     )
                 if section == "programs" and "expected_file" in spec:
                     exp_file = corpus_root / spec["expected_file"]
@@ -2243,35 +2275,45 @@ def summarize_unimplemented_markers(expectations: dict[str, Any]) -> dict[str, d
     return summary
 
 
-def summarize_unimplemented_markers(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Aggregate known_unimplemented probes and programs by allowed unimplemented marker."""
-    summary: dict[str, dict[str, Any]] = {
-        marker: {
-            "marker": marker,
-            "stage": stage,
-            "description": desc,
-            "probes": [],
-            "programs": [],
-            "baseline_count": 0,
-        }
-        for marker, (stage, desc) in UNIMPLEMENTED_MARKER_CATALOG.items()
-    }
-    for name, spec in sorted(expectations["probes"].items()):
+def summarize_program_roadmap_blockers(
+    expectations: dict[str, Any],
+    roadmap_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Aggregate all known_unimplemented acceptance programs by their roadmap_blockers."""
+    if roadmap_items is None:
+        v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+        else:
+            roadmap_items = {}
+
+    by_blocker: dict[str, dict[str, Any]] = {}
+    for prog_name, spec in sorted(expectations["programs"].items()):
         if spec["kind"] != "known_unimplemented":
             continue
-        bm = spec.get("baseline_marker")
-        if bm in summary:
-            summary[bm]["baseline_count"] += 1
-        for m in spec.get("allowed_markers", []):
-            if m in summary:
-                summary[m]["probes"].append(name)
-    for name, spec in sorted(expectations["programs"].items()):
+        for b_id in spec.get("roadmap_blockers", []):
+            item = roadmap_items.get(b_id, {})
+            bucket = by_blocker.setdefault(
+                b_id,
+                {
+                    "id": b_id,
+                    "title": item.get("title", "").replace("|", "\\|"),
+                    "status": item.get("status", "unknown"),
+                    "programs": [],
+                    "probes": [],
+                },
+            )
+            bucket["programs"].append(prog_name)
+
+    for probe_name, spec in sorted(expectations["probes"].items()):
         if spec["kind"] != "known_unimplemented":
             continue
-        for m in spec.get("allowed_markers", []):
-            if m in summary:
-                summary[m]["programs"].append(name)
-    return summary
+        for b_id in spec.get("roadmap_blockers", []):
+            if b_id in by_blocker:
+                by_blocker[b_id]["probes"].append(probe_name)
+
+    return dict(sorted(by_blocker.items()))
 
 
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
@@ -2516,6 +2558,22 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         blockers = ", ".join(f"`{b}`" for b in spec.get("roadmap_blockers", []))
         lines.append(
             f"| `{name}` | [{ch}](../docs/guide/{ch}) | `{spec['kind']}` | {blockers} | [{exp_file}]({exp_file}) | {exp_size} | {allowed} |"
+        )
+
+    prog_blockers = summarize_program_roadmap_blockers(expectations, roadmap_items)
+    lines.extend(
+        [
+            "",
+            f"### 2.1 六个 V1 验收程序按路线图阻塞项（`v1.json`）归类对账（{len(prog_blockers)} Roadmap Blockers）",
+            "",
+            "| 路线图条目 ID | 路线图条目标题 | 状态 | 阻塞 Program 数 | 阻塞的验收程序 (`programs`) | 同时阻塞的 Probe 数 |",
+            "|---|---|---|---:|---|---:|",
+        ]
+    )
+    for b_id, b_info in prog_blockers.items():
+        prog_list = ", ".join(f"`{p}`" for p in b_info["programs"])
+        lines.append(
+            f"| `{b_id}` | {b_info['title']} | `{b_info['status']}` | {len(b_info['programs'])} | {prog_list} | {len(b_info['probes'])} |"
         )
 
     # 3. Aggregate every known_unimplemented probe by roadmap blocker

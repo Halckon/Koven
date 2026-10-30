@@ -134,6 +134,21 @@
 | `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `N01`, `N08`, `L3b` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | 17 行 / 375 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
 | `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | 16 行 / 187 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
 
+### 2.1 六个 V1 验收程序按路线图阻塞项（`v1.json`）归类对账（10 Roadmap Blockers）
+
+| 路线图条目 ID | 路线图条目标题 | 状态 | 阻塞 Program 数 | 阻塞的验收程序 (`programs`) | 同时阻塞的 Probe 数 |
+|---|---|---|---:|---|---:|
+| `L1` | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable | `todo` | 1 | `config_parse` | 2 |
+| `L2` | 字符串插值降级："${x}" 要求 x : Display | `todo` | 1 | `config_parse` | 1 |
+| `L3b` | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | `todo` | 1 | `varint_codec` | 0 |
+| `L7` | MoveOnly enum 的消费式匹配：owned subject 分支获得 payload owned 绑定 | `todo` | 2 | `expr_eval`, `linked_stack` | 2 |
+| `N01` | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | `partial` | 3 | `linked_stack`, `raii_state_machine`, `varint_codec` | 1 |
+| `N02` | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | `partial` | 4 | `config_parse`, `expr_eval`, `raii_state_machine`, `word_count` | 1 |
+| `N03` | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | `partial` | 2 | `linked_stack`, `word_count` | 2 |
+| `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 1 | `expr_eval` | 2 |
+| `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 2 | `expr_eval`, `linked_stack` | 1 |
+| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 3 | `config_parse`, `expr_eval`, `varint_codec` | 2 |
+
 ## 3. 17 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
 
 | 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |

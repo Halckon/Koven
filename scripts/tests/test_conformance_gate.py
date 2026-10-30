@@ -228,11 +228,12 @@ sys.exit(1)
         finally:
             exp_txt_path.write_text(self.prog_expected, encoding="utf-8")
 
-        # Verify probe with top-level package directive or missing fun main is rejected
+        # Verify probe with top-level package directive or missing/duplicate fun main is rejected
         p01_path = self.corpus / "probes" / "p01_ok.ko"
         for bad_src, err_re in [
             ('package custom\nfun main(): Unit { println("hello") }\n', "must not contain a package directive"),
-            ('fun helper(): Unit { println("hello") }\n', "must declare a fun main"),
+            ('fun helper(): Unit { println("hello") }\n', "must declare a single fun main"),
+            ('fun main(): Unit { println("a") }\nfun main(): Unit { println("b") }\n', "must declare a single fun main"),
         ]:
             p01_path.write_text(bad_src, encoding="utf-8")
             self._write_default_expectations(
@@ -942,6 +943,15 @@ sys.exit(1)
         self.assertEqual(marker_stats["FE:L0165"]["baseline_count"], 5)
         self.assertEqual(marker_stats["FE:L0080"]["baseline_count"], 2)
         self.assertEqual(len(marker_stats["BE:UnsupportedSource"]["probes"]), 1)
+        prog_blockers = gate.summarize_program_roadmap_blockers(loaded, roadmap_items)
+        self.assertEqual(
+            set(prog_blockers.keys()),
+            {"L1", "L2", "L3b", "L7", "N01", "N02", "N03", "N05", "N07", "N08"},
+        )
+        self.assertEqual(prog_blockers["L3b"]["programs"], ["varint_codec"])
+        self.assertEqual(prog_blockers["L3b"]["probes"], [])
+        self.assertEqual(len(prog_blockers["N02"]["programs"]), 4)
+        self.assertEqual(set(gate.GUIDE_CHAPTER_DOMAINS.keys()), set(gate.VALID_GUIDE_CHAPTERS))
 
     def test_13_derivation_reports_naming_diagnostic_instead_of_baseline_keyerror(
         self,
