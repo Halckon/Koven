@@ -1503,6 +1503,13 @@ def derive_static_expectations(
     probes_out: dict[str, Any] = {}
     for path in sorted(probes_dir.glob("*.ko")):
         name = path.stem
+        # 命名违规与 baseline 缺项都要给出可读诊断，不能落到 baseline[name] 的 KeyError
+        classify_probe_batch(name)
+        if name not in baseline:
+            raise ValueError(
+                f"probes.{name} is missing from baseline matrix {baseline_path.name}; "
+                f"add a baseline row for the probe or rename the source file"
+            )
         raw_bytes = path.read_bytes()
         src_text = raw_bytes.decode("utf-8")
         src_sha = sha256_bytes(raw_bytes)
@@ -2557,7 +2564,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.init_expectations:
         baseline_file = args.baseline or (args.corpus / "baseline-aef3f4f8.tsv")
-        derived = derive_static_expectations(args.corpus, baseline_file)
+        try:
+            derived = derive_static_expectations(args.corpus, baseline_file)
+        except ValueError as exc:
+            # CLI 边界：把推导错误（命名违规、baseline 缺项等）渲染为单行诊断，不暴露 traceback
+            print(f"conformance: error: {exc}", file=sys.stderr)
+            return 1
         args.expectations.write_text(
             json.dumps(derived, ensure_ascii=True, indent=2) + "\n",
             encoding="utf-8",

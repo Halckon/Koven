@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import hashlib
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -930,6 +932,61 @@ sys.exit(1)
             gate.sync_readme_chapter_table("# No table\n", loaded)
         with self.assertRaisesRegex(ValueError, "violates canonical batch naming convention"):
             gate.classify_probe_batch("z01_invalid_prefix")
+
+    def test_13_derivation_reports_naming_diagnostic_instead_of_baseline_keyerror(
+        self,
+    ) -> None:
+        """违规命名的 probe 源文件必须以命名诊断失败。
+
+        意图：新增 probe 时命名写错，作者需要看到"违反了哪条命名约定"；
+        若落到 baseline[name] 的 KeyError，作者只会看到缺行，误以为是漏填 baseline。
+        """
+        (self.corpus / "probes" / "zz9_bad_name.ko").write_text(
+            self.probe_ok_src, encoding="utf-8"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            gate.derive_static_expectations(self.corpus, self.baseline_path)
+        message = str(ctx.exception)
+        self.assertIn("zz9_bad_name", message)
+        self.assertIn("naming convention", message)
+
+    def test_14_named_probe_absent_from_baseline_matrix_reports_missing_row(
+        self,
+    ) -> None:
+        """命名合法但 baseline 缺项时必须报缺项，而不是 KeyError。"""
+        (self.corpus / "probes" / "p06_absent.ko").write_text(
+            self.probe_ok_src, encoding="utf-8"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            gate.derive_static_expectations(self.corpus, self.baseline_path)
+        message = str(ctx.exception)
+        self.assertIn("p06_absent", message)
+        self.assertIn("baseline", message)
+
+    def test_15_cli_init_expectations_renders_derivation_error_without_traceback(
+        self,
+    ) -> None:
+        """CLI 边界必须把推导错误渲染成单行诊断并返回 1。"""
+        (self.corpus / "probes" / "zz9_bad_name.ko").write_text(
+            self.probe_ok_src, encoding="utf-8"
+        )
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            rc = gate.main(
+                [
+                    "--init-expectations",
+                    "--corpus",
+                    str(self.corpus),
+                    "--baseline",
+                    str(self.baseline_path),
+                    "--expectations",
+                    str(self.root / "derived.json"),
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn("conformance: error:", stderr.getvalue())
+        self.assertIn("naming convention", stderr.getvalue())
+        self.assertFalse((self.root / "derived.json").exists())
 
 
 if __name__ == "__main__":
