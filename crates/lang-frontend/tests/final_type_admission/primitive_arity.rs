@@ -289,7 +289,7 @@ fn same_spelling_non_intrinsic_external_retains_deferred_call_rejection() {
     let text = "fun run(): Int = replace<Int, Int>(1)";
     let mut sources = SourceMap::new();
     let (source, file) = parsed(&mut sources, "external.ko", text);
-    let check = |raw: &[Diagnostic], complete: Vec<Diagnostic>, token: &str| {
+    let check = |raw: &[Diagnostic], complete: Vec<Diagnostic>, token: &str, message: &str| {
         assert!(raw.is_empty(), "{raw:?}");
         let start = text.find(token).unwrap();
         let catalog = DiagnosticCodeCatalog::try_new(&["L0165"]).unwrap();
@@ -297,7 +297,7 @@ fn same_spelling_non_intrinsic_external_retains_deferred_call_rejection() {
             &sources,
             Severity::Error,
             catalog.resolve("L0165").unwrap(),
-            "type checking could not complete: overload selection is unresolved",
+            message,
             sources.span(source, start, start + token.len()).unwrap(),
         )
         .unwrap();
@@ -310,6 +310,7 @@ fn same_spelling_non_intrinsic_external_retains_deferred_call_rejection() {
         typed.diagnostics(),
         rejected(complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ())),
         "replace",
+        "type checking could not complete: overload selection is unresolved",
     );
     for input in [
         SourceUnitInput::new("root", "external.ko", source, &file),
@@ -330,6 +331,7 @@ fn same_spelling_non_intrinsic_external_retains_deferred_call_rejection() {
                     .map(|_| ()),
             ),
             "replace<Int, Int>(1)",
+            "type checking could not complete: the call's type is unresolved",
         );
     }
 }
