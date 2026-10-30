@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import hashlib
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -325,6 +327,10 @@ sys.exit(1)
             (
                 {"p02_diag": {"kind": "compile_fail", "source_sha256": _sha256(self.probe_diag_src), "diagnostic": "L0084", "stdout": "x\n"}},
                 "must not define stdout",
+            ),
+            (
+                {"p01_ok": {"kind": "run_ok", "source_sha256": _sha256(self.probe_ok_src), "stdout": "hello\n", "probe_batch": "q"}},
+                "invalid probe_batch",
             ),
         ]:
             self._write_default_expectations(bad_spec)
@@ -894,8 +900,94 @@ sys.exit(1)
                 self.assertNotIn("expected_lines", spec)
                 self.assertNotIn("expected_bytes", spec)
 
+        # 14. Verify probe_batch taxonomy (11 batches, 154 probes) and conformance/README.md chapter table sync
+        batch_stats = gate.summarize_probe_batches(loaded)
+        self.assertEqual(set(batch_stats.keys()), set(gate.PROBE_BATCH_CATALOG.keys()))
+        self.assertEqual(
+            sum(b["total"] for b in batch_stats.values()),
+            len(loaded["probes"]),
+        )
+        self.assertEqual(batch_stats["p"]["total"], 59)
+        self.assertEqual(batch_stats["q"]["total"], 20)
+        self.assertEqual(batch_stats["r"]["total"], 2)
+        self.assertEqual(batch_stats["s"]["total"], 4)
+        self.assertEqual(batch_stats["t"]["total"], 10)
+        self.assertEqual(batch_stats["u"]["total"], 4)
+        self.assertEqual(batch_stats["v"]["total"], 23)
+        self.assertEqual(batch_stats["w"]["total"], 19)
+        self.assertEqual(batch_stats["x"]["total"], 3)
+        self.assertEqual(batch_stats["y"]["total"], 6)
+        self.assertEqual(batch_stats["e"]["total"], 4)
+        for full_batch in ("r", "t", "u", "v", "w", "x", "y", "e"):
+            self.assertEqual(batch_stats[full_batch]["batch_status"], "all_passed")
+            self.assertEqual(batch_stats[full_batch]["known_unimplemented"], 0)
+        readme_md_path = repo_corpus / "README.md"
+        self.assertTrue(readme_md_path.is_file())
+        actual_readme = readme_md_path.read_text(encoding="utf-8")
+        self.assertEqual(
+            actual_readme,
+            gate.sync_readme_chapter_table(actual_readme, loaded),
+        )
+        with self.assertRaisesRegex(ValueError, "missing the Guide chapter coverage table"):
+            gate.sync_readme_chapter_table("# No table\n", loaded)
+        with self.assertRaisesRegex(ValueError, "violates canonical batch naming convention"):
+            gate.classify_probe_batch("z01_invalid_prefix")
+
+    def test_13_derivation_reports_naming_diagnostic_instead_of_baseline_keyerror(
+        self,
+    ) -> None:
+        """违规命名的 probe 源文件必须以命名诊断失败。
+
+        意图：新增 probe 时命名写错，作者需要看到"违反了哪条命名约定"；
+        若落到 baseline[name] 的 KeyError，作者只会看到缺行，误以为是漏填 baseline。
+        """
+        (self.corpus / "probes" / "zz9_bad_name.ko").write_text(
+            self.probe_ok_src, encoding="utf-8"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            gate.derive_static_expectations(self.corpus, self.baseline_path)
+        message = str(ctx.exception)
+        self.assertIn("zz9_bad_name", message)
+        self.assertIn("naming convention", message)
+
+    def test_14_named_probe_absent_from_baseline_matrix_reports_missing_row(
+        self,
+    ) -> None:
+        """命名合法但 baseline 缺项时必须报缺项，而不是 KeyError。"""
+        (self.corpus / "probes" / "p06_absent.ko").write_text(
+            self.probe_ok_src, encoding="utf-8"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            gate.derive_static_expectations(self.corpus, self.baseline_path)
+        message = str(ctx.exception)
+        self.assertIn("p06_absent", message)
+        self.assertIn("baseline", message)
+
+    def test_15_cli_init_expectations_renders_derivation_error_without_traceback(
+        self,
+    ) -> None:
+        """CLI 边界必须把推导错误渲染成单行诊断并返回 1。"""
+        (self.corpus / "probes" / "zz9_bad_name.ko").write_text(
+            self.probe_ok_src, encoding="utf-8"
+        )
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            rc = gate.main(
+                [
+                    "--init-expectations",
+                    "--corpus",
+                    str(self.corpus),
+                    "--baseline",
+                    str(self.baseline_path),
+                    "--expectations",
+                    str(self.root / "derived.json"),
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn("conformance: error:", stderr.getvalue())
+        self.assertIn("naming convention", stderr.getvalue())
+        self.assertFalse((self.root / "derived.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
-
-

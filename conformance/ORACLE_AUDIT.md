@@ -94,6 +94,23 @@
 | `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | 17 | 0 | 0 B | `p01_int_print`, `p03b_byte_literal_cmp`, `p04_overflow`, `p23_global_var`, `p25_linked_iter`, `p42_lambda_mutate`, `p43_if_join_any`, `p45_abort_message`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `v12_convert_abort`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
 | `acceptance_programs` | V1 验收程序 (`expected.txt`) | 6 | 85 | 1537 B | `config_parse` (10L/190B), `expr_eval` (6L/174B), `linked_stack` (8L/242B), `raii_state_machine` (28L/369B), `varint_codec` (17L/375B), `word_count` (16L/187B) |
 
+### 1.6 Probe 批次前缀与演进关注面分布矩阵（11 Batches，154 Probes）
+
+| 批次前缀 (`probe_batch`) | 关注面与批次说明 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 批次状态 (`batch_status`) |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| `p` | 基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等 | 59 | 38 | 6 | 2 | 13 | 46 / 59 | `partial` |
+| `q` | 对 `p` 中失败项的变体复测，缩小失败条件 | 20 | 17 | 1 | 0 | 2 | 18 / 20 | `partial` |
+| `r` | 未知成员访问，期望前端诊断 | 2 | 0 | 2 | 0 | 0 | 2 / 2 | `all_passed` |
+| `s` | 标准环境：内建 `Result`、`Pair`/`to` 与 `?` 的边界 | 4 | 1 | 1 | 0 | 2 | 2 / 4 | `partial` |
+| `t` | SPEC-0311–0318 的定向复测：value class 方法、Map/List 遍历中的跳转、短路求值 | 10 | 10 | 0 | 0 | 0 | 10 / 10 | `all_passed` |
+| `u` | enum case 作借用实参、循环中 `MutableList.add` 等增量复测 | 4 | 4 | 0 | 0 | 0 | 4 / 4 | `all_passed` |
+| `v` | v0.44 补全面：赋值结果、整数 Range、显式整数转换、nullable 循环、Map consume | 23 | 20 | 2 | 1 | 0 | 23 / 23 | `all_passed` |
+| `w` | Map/MutableMap：遍历顺序、覆盖与删除、遍历中的跳转与借用 | 19 | 18 | 1 | 0 | 0 | 19 / 19 | `all_passed` |
+| `x` | nullable class、String nullable 返回与条件中的借用实参复测 | 3 | 3 | 0 | 0 | 0 | 3 / 3 | `all_passed` |
+| `y` | `koven.algorithms` 的 `take` 与 N1a 范围借用 | 6 | 5 | 1 | 0 | 0 | 6 / 6 | `all_passed` |
+| `e` | enum subject `when` 在 compilation-unit 管线中的回退（E2 门槛） | 4 | 4 | 0 | 0 | 0 | 4 / 4 | `all_passed` |
+| **合计** | **11 个演进批次** | **154** | **120** | **14** | **3** | **17** | **137 / 154** | **8 全通过 / 3 部分通过** |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
