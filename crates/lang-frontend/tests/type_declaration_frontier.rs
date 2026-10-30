@@ -1,15 +1,14 @@
 //! 只完成声明语法时，不授予 borrow-return；Unit 严格链不得推进到 owned 能力。
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,
+    diagnostic::{Diagnostic, Severity, codes},
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::parse_file,
-    source::SourceMap,
+    source::{SourceId, SourceMap},
     type_checking::{
-        FinalTypeAdmissionError, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, standard_environments,
+        FinalTypeAdmissionError, check_compilation_unit_types, complete_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -23,6 +22,37 @@ const CASES: &[(&str, &str)] = &[
     ("fun view(source: Int): Int from source = source", "from"),
 ];
 
+fn expected_diagnostics(sources: &SourceMap, source: SourceId, marker: &str) -> Vec<Diagnostic> {
+    let text = sources.source_text(source).unwrap();
+    let at = text.find(marker).unwrap();
+    let message = match marker {
+        "." => "extension receiver lacks a trusted canonical standard Borrow binding",
+        "from" => "carrier producer source is not authorized",
+        _ => panic!("unexpected fixed frontier marker"),
+    };
+    let diagnostic = |code: &str, message: &str, start, length| {
+        Diagnostic::new(
+            sources,
+            Severity::Error,
+            codes::catalog().unwrap().resolve(code).unwrap(),
+            message,
+            sources.span(source, start, start + length).unwrap(),
+        )
+        .unwrap()
+    };
+    let mut expected = vec![diagnostic("L0164", message, at, marker.len())];
+    if marker == "from" {
+        let source_at = text.find("from source").unwrap() + "from ".len();
+        expected.push(diagnostic(
+            "L0162",
+            "carrier result and its List/View source must have the same element type",
+            source_at,
+            "source".len(),
+        ));
+    }
+    expected
+}
+
 #[test]
 fn single_frontier_declarations_have_an_explicit_typed_rejection_at_the_new_marker() {
     for &(text, marker) in CASES {
@@ -30,10 +60,19 @@ fn single_frontier_declarations_have_an_explicit_typed_rejection_at_the_new_mark
         let source = sources.add_source("frontier.ko", text).unwrap();
         let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
         assert!(parsed.diagnostics().is_empty());
+        // Preserve the original single-source cases through an explicit rooted Unit.
+        let inputs = [SourceUnitInput::new("root", "frontier.ko", source, &parsed)];
         let (environment, types) = standard_environments();
-        let names = resolve_names(&sources, &parsed, &environment).unwrap();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
         assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-        let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+        let names = names.validate().unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert_eq!(
+            typed.diagnostics(),
+            expected_diagnostics(&sources, source, marker)
+        );
         let rejection = typed
             .diagnostics()
             .iter()
@@ -42,8 +81,10 @@ fn single_frontier_declarations_have_an_explicit_typed_rejection_at_the_new_mark
         assert_eq!(sources.slice(rejection.primary_span()).unwrap(), marker);
         assert!(
             typed
-                .callables()
+                .signatures()
+                .declarations()
                 .iter()
+                .filter_map(|declaration| declaration.callable())
                 .all(|c| c.borrow_return().is_none())
         );
     }
@@ -64,6 +105,10 @@ fn unit_frontier_rejects_at_the_marker_without_publishing_borrow_return_or_owner
             .validate()
             .unwrap();
         let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert_eq!(
+            typed.diagnostics(),
+            expected_diagnostics(&sources, source, marker)
+        );
         let rejection = typed
             .diagnostics()
             .iter()
