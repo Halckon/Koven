@@ -54,6 +54,7 @@ DIAGNOSTIC_RE = re.compile(rb"(?m)^error\[(L[0-9]{4})\](?:\s|:)")
 BACKEND_RE = re.compile(rb"lowering failed with ([A-Za-z]+)")
 BACKEND_OBJECT_RE = re.compile(rb"native object ([A-Za-z]+):")
 OWNERSHIP_ICE_RE = re.compile(rb"ownership checking failed: [a-z -]+")
+ABORT_FRAME_RE = re.compile(rb"(?m)^  at \S+")
 SIMPLE_PRINTLN_LITERAL_RE = re.compile(r'println\("([^"\\$]*)"\)')
 PACKAGE_DIRECTIVE_RE = re.compile(r"(?m)^\s*package\s+")
 MAIN_ENTRY_RE = re.compile(r"(?m)\bfun\s+main\s*\(")
@@ -1095,6 +1096,11 @@ def evaluate_mode_against_oracle(
             return "wrong_output", f"runtime_abort produced unexpected stdout: {stdout!r}"
         if marker != expected_marker:
             return "regression", f"expected {expected_marker}, got {marker}"
+        if not ABORT_FRAME_RE.search(stderr):
+            return (
+                "wrong_output",
+                "runtime_abort stderr missing '  at <location>' stack frame per Guide 09 D12",
+            )
         return "pass_abort", None
 
     if kind == "known_unimplemented":
@@ -1196,6 +1202,8 @@ def compare_item(
         "expectation_kind": expectation["kind"],
         "guide_chapter": expectation.get("guide_chapter"),
         "probe_batch": expectation.get("probe_batch"),
+        "baseline_marker": baseline_row[0] if baseline_row else expectation.get("baseline_marker"),
+        "v046_baseline_exempt": bool(expectation.get("v046_baseline_exempt", False)),
         "single_marker": single_res["marker"],
         "project_marker": project_res["marker"],
         "single_verdict": single_verdict,
@@ -2542,6 +2550,65 @@ def summarize_v2_chapter_readiness(expectations: dict[str, Any]) -> dict[str, di
     return readiness
 
 
+def summarize_blocker_unlock_impact(
+    expectations: dict[str, Any],
+    roadmap_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Analyze sole-blocker immediate probe unlocks vs co-blocked items and P2 Group A gate contribution per roadmap item."""
+    if roadmap_items is None:
+        v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+        else:
+            roadmap_items = {}
+
+    impact: dict[str, dict[str, Any]] = {}
+
+    def _ensure_bucket(b_id: str) -> dict[str, Any]:
+        if b_id not in impact:
+            item = roadmap_items.get(b_id, {})
+            impact[b_id] = {
+                "id": b_id,
+                "stage": item.get("stage", "-"),
+                "status": item.get("status", "unknown"),
+                "title": item.get("title", "").replace("|", "\\|"),
+                "sole_probes": [],
+                "co_probes": [],
+                "p2_group_a_probes": [],
+                "programs": [],
+            }
+        return impact[b_id]
+
+    for name, spec in sorted(expectations["probes"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        blockers = spec.get("roadmap_blockers", [])
+        batch = spec.get("probe_batch") or classify_probe_batch(name)
+        is_group_a = (
+            batch in FOUNDATIONAL_BATCHES
+            and name not in FOUNDATIONAL_GROUP_B_PROBES
+            and name not in FOUNDATIONAL_GROUP_C_PROBES
+        )
+        for b_id in blockers:
+            bucket = _ensure_bucket(b_id)
+            if len(blockers) == 1:
+                bucket["sole_probes"].append(name)
+            else:
+                bucket["co_probes"].append(name)
+            if is_group_a:
+                bucket["p2_group_a_probes"].append(name)
+
+    for prog_name, spec in sorted(expectations["programs"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for b_id in spec.get("roadmap_blockers", []):
+            bucket = _ensure_bucket(b_id)
+            bucket["programs"].append(prog_name)
+
+    return dict(sorted(impact.items()))
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -2878,6 +2945,37 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         pnames = ", ".join(f"`{p}`" for p in plist)
         lines.append(
             f"| `{b_id}` | {title} | `{status}` | {len(plist)} | {pnames} |"
+        )
+
+    unlock_impact = summarize_blocker_unlock_impact(expectations, roadmap_items)
+    lines.extend(
+        [
+            "",
+            f"### 3.1 路线图阻塞项解封收益分析（单阻塞独立解封 vs 联合阻塞与 P2 门槛贡献，{len(unlock_impact)} Blockers）",
+            "",
+            "| 路线图条目 | 阶段 | 状态 | 独立解封 Probe (`sole_probes`) | 联合阻塞 Probe (`co_probes`) | P2 A 组贡献数 | 关联 V1 验收程序 |",
+            "|---|---|---|---|---|---:|---|",
+        ]
+    )
+    for b_id, u_row in unlock_impact.items():
+        sole_repr = (
+            f"{len(u_row['sole_probes'])} (" + ", ".join(f"`{p}`" for p in u_row["sole_probes"]) + ")"
+            if u_row["sole_probes"]
+            else "0"
+        )
+        co_repr = (
+            f"{len(u_row['co_probes'])} (" + ", ".join(f"`{p}`" for p in u_row["co_probes"]) + ")"
+            if u_row["co_probes"]
+            else "0"
+        )
+        prog_repr = (
+            ", ".join(f"`{p}`" for p in u_row["programs"])
+            if u_row["programs"]
+            else "-"
+        )
+        lines.append(
+            f"| `{b_id}` | `{u_row['stage']}` | `{u_row['status']}` | {sole_repr} | {co_repr} | "
+            f"{len(u_row['p2_group_a_probes'])} | {prog_repr} |"
         )
 
     lines.extend(

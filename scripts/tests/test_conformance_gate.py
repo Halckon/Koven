@@ -996,6 +996,23 @@ sys.exit(1)
                 "13-program-runtime-standard-library.md",
             ],
         )
+        impact = gate.summarize_blocker_unlock_impact(loaded, roadmap_items)
+        self.assertEqual(sum(len(v["sole_probes"]) for v in impact.values()), 12)
+        self.assertEqual(impact["N05"]["sole_probes"], ["p05_double", "p06_char"])
+        self.assertEqual(impact["L7"]["sole_probes"], [])
+        self.assertEqual(impact["L7"]["co_probes"], ["p21_box_enum", "q08_enum_string_payload"])
+        self.assertEqual(impact["L3b"]["programs"], ["varint_codec"])
+        verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
+            {
+                "marker": "abort:boom",
+                "exit": 134,
+                "stdout_bytes": b"",
+                "stderr_bytes": b"abort: boom\n",
+            },
+            {"kind": "runtime_abort", "abort_message": "boom"},
+        )
+        self.assertEqual(verdict_no_frame, "wrong_output")
+        self.assertIn("stack frame", reason_no_frame or "")
 
     def test_13_derivation_reports_naming_diagnostic_instead_of_baseline_keyerror(
         self,

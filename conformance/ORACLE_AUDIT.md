@@ -194,6 +194,25 @@
 | `S6` | Map 带初值构造 mapOf("a" to 1) | `todo` | 2 | `s02_pair_builtin`, `s03_to_pair` |
 | `T1` | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权 | `todo` | 1 | `p27_thread` |
 
+### 3.1 路线图阻塞项解封收益分析（单阻塞独立解封 vs 联合阻塞与 P2 门槛贡献，14 Blockers）
+
+| 路线图条目 | 阶段 | 状态 | 独立解封 Probe (`sole_probes`) | 联合阻塞 Probe (`co_probes`) | P2 A 组贡献数 | 关联 V1 验收程序 |
+|---|---|---|---|---|---:|---|
+| `L1` | `P3` | `todo` | 1 (`p35_value_eq`) | 1 (`p02_interp`) | 1 | `config_parse` |
+| `L2` | `P3` | `todo` | 0 | 1 (`p02_interp`) | 1 | `config_parse` |
+| `L3b` | `P3` | `todo` | 0 | 0 | 0 | `varint_codec` |
+| `L7` | `P3` | `todo` | 0 | 2 (`p21_box_enum`, `q08_enum_string_payload`) | 2 | `expr_eval`, `linked_stack` |
+| `N01` | `P2` | `partial` | 1 (`p40_nested_generic_class`) | 0 | 1 | `linked_stack`, `raii_state_machine`, `varint_codec` |
+| `N02` | `P2` | `partial` | 0 | 1 (`q08_enum_string_payload`) | 1 | `config_parse`, `expr_eval`, `raii_state_machine`, `word_count` |
+| `N03` | `P2` | `partial` | 2 (`p15_elvis`, `p25b_linked_recursive`) | 0 | 2 | `linked_stack`, `word_count` |
+| `N04` | `P2` | `partial` | 1 (`q03_fn_ref`) | 1 (`p27_thread`) | 2 | - |
+| `N05` | `P2` | `todo` | 2 (`p05_double`, `p06_char`) | 0 | 2 | `expr_eval` |
+| `N06` | `P2` | `partial` | 2 (`p11_interface_bound`, `p28_companion`) | 0 | 2 | - |
+| `N07` | `P2` | `partial` | 0 | 1 (`p21_box_enum`) | 1 | `expr_eval`, `linked_stack` |
+| `N08` | `P2` | `todo` | 1 (`p16_result_q`) | 0 | 1 | `config_parse`, `expr_eval`, `varint_codec` |
+| `S6` | `P3` | `todo` | 2 (`s02_pair_builtin`, `s03_to_pair`) | 0 | 2 | - |
+| `T1` | `P4` | `todo` | 0 | 1 (`p27_thread`) | 1 | - |
+
 ## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本
 
 | Probe | Guide 章节 | 类型 (`kind`) | 溯源 (`oracle_origin`) | 期望结果 / 诊断码 | 语义推导 / 规则说明 (`oracle_derivation` / `note`) |
