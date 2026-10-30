@@ -174,6 +174,41 @@ sys.exit(1)
         self.assertTrue((evidence_dir / "results.json").is_file())
         self.assertTrue((evidence_dir / "matrix.tsv").is_file())
 
+        verified = gate.verify_evidence_bundle(
+            evidence_dir=evidence_dir,
+            expectations_path=self.expectations_path,
+            corpus_root=self.corpus,
+            baseline_path=self.baseline_path,
+        )
+        self.assertEqual(verified["summary"], ledger["summary"])
+        self.assertEqual(
+            gate.main(
+                [
+                    "--verify-evidence",
+                    str(evidence_dir),
+                    "--corpus",
+                    str(self.corpus),
+                    "--expectations",
+                    str(self.expectations_path),
+                    "--baseline",
+                    str(self.baseline_path),
+                ]
+            ),
+            0,
+        )
+        # Tamper with raw stdout file and verify offline bundle verification catches it
+        (evidence_dir / "raw" / "p01_ok.single.stdout").write_bytes(b"tampered\n")
+        try:
+            with self.assertRaisesRegex(ValueError, "raw stdout mismatch for probes.p01_ok.single"):
+                gate.verify_evidence_bundle(
+                    evidence_dir=evidence_dir,
+                    expectations_path=self.expectations_path,
+                    corpus_root=self.corpus,
+                    baseline_path=self.baseline_path,
+                )
+        finally:
+            (evidence_dir / "raw" / "p01_ok.single.stdout").write_bytes(b"hello\n")
+
     def test_2_wrong_output_or_missing_trailing_newline_with_exit_0_is_rejected(self) -> None:
         for name, snippet in [
             ("wrong_text", 'sys.stdout.buffer.write(b"wrong\\n"); sys.exit(0)'),
@@ -537,8 +572,10 @@ sys.stderr.buffer.write(b"error: native build failed: native object UnsupportedS
 sys.exit(2)
 """,
         )
+        matrix_ev_dir = self.root / "matrix_ev"
         env = dict(os.environ)
         env["KOVENC"] = str(kovenc_obj)
+        env["KOVEN_CONFORMANCE_EVIDENCE"] = str(matrix_ev_dir)
         out = subprocess.check_output(
             ["bash", str(repo_root / "scripts" / "conformance_matrix.sh"), str(probe_dir)],
             cwd=repo_root,
@@ -549,6 +586,10 @@ sys.exit(2)
             out,
             "p28_companion\tBE:UnsupportedSource\tBE:UnsupportedSource\n",
         )
+        verified_matrix = gate.verify_matrix_evidence_dir(
+            matrix_ev_dir, expected_names={"p28_companion"}
+        )
+        self.assertEqual(verified_matrix["manifest"]["probe_count"], 1)
 
     def test_11_parallel_jobs_preserve_deterministic_order_and_docs_checker_validates_corpus(
         self,
@@ -601,6 +642,30 @@ sys.exit(1)
         self.assertEqual(
             (ev_seq / "matrix.tsv").read_text(encoding="utf-8"),
             (ev_par / "matrix.tsv").read_text(encoding="utf-8"),
+        )
+        parity = gate.compare_dual_host_evidence(
+            evidence_dir_a=ev_seq,
+            evidence_dir_b=ev_par,
+            expectations_path=self.expectations_path,
+            corpus_root=self.corpus,
+            baseline_path=self.baseline_path,
+        )
+        self.assertTrue(parity["parity_passed"])
+        self.assertEqual(
+            gate.main(
+                [
+                    "--compare-evidence",
+                    str(ev_seq),
+                    str(ev_par),
+                    "--corpus",
+                    str(self.corpus),
+                    "--expectations",
+                    str(self.expectations_path),
+                    "--baseline",
+                    str(self.baseline_path),
+                ]
+            ),
+            0,
         )
 
         # Verify DocsChecker.check_conformance_corpus detects tampered expectations.json
@@ -1002,6 +1067,18 @@ sys.exit(1)
         self.assertEqual(impact["L7"]["sole_probes"], [])
         self.assertEqual(impact["L7"]["co_probes"], ["p21_box_enum", "q08_enum_string_payload"])
         self.assertEqual(impact["L3b"]["programs"], ["varint_codec"])
+        stage_prog = gate.summarize_stage_progression(loaded, roadmap_items)
+        self.assertEqual([r["stage"] for r in stage_prog], ["P2", "P3", "P4"])
+        self.assertEqual([r["projected_probe_cap"] for r in stage_prog], [147, 153, 154])
+        self.assertEqual([r["projected_group_a_runnable"] for r in stage_prog], [67, 72, 73])
+        self.assertEqual([r["projected_programs_ready"] for r in stage_prog], [2, 6, 6])
+        self.assertEqual(
+            stage_prog[0]["newly_unlocked_programs"], ["raii_state_machine", "word_count"]
+        )
+        area_impact = gate.summarize_roadmap_area_impact(loaded, roadmap_items)
+        self.assertEqual(set(area_impact.keys()), set(gate.ROADMAP_AREA_CATALOG.keys()))
+        self.assertEqual(area_impact["collections"]["probes"], ["s02_pair_builtin", "s03_to_pair"])
+        self.assertEqual(area_impact["stdlib"]["probes"], ["p21_box_enum", "p27_thread"])
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",

@@ -130,10 +130,16 @@ PY
   printf '{"exit":%d,"timed_out":%s}\n' "$RC" "$timed_out" >"$status_file"
 }
 
+if [ -n "$EVIDENCE" ]; then
+  : >"$EVIDENCE/matrix.tsv"
+fi
+PROBE_COUNT=0
+
 for path in "$PROBES"/*.ko; do
   [ -e "$path" ] || continue
   file=$(basename "$path")
   name=${file%.ko}
+  PROBE_COUNT=$((PROBE_COUNT + 1))
 
   if [ -n "$EVIDENCE" ]; then
     s_out="$EVIDENCE/raw/$name.single.stdout"
@@ -164,4 +170,25 @@ for path in "$PROBES"/*.ko; do
   rm -rf "$project"
 
   printf '%s\t%s\t%s\n' "$name" "$single" "$unit"
+  if [ -n "$EVIDENCE" ]; then
+    printf '%s\t%s\t%s\n' "$name" "$single" "$unit" >>"$EVIDENCE/matrix.tsv"
+  fi
 done
+
+if [ -n "$EVIDENCE" ]; then
+  python3 - "$EVIDENCE/manifest.json" "$KOVENC" "$PROBES" "$PROBE_COUNT" <<'PY'
+import json, sys
+out_path, kovenc_p, probes_p, count_s = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+manifest = {
+    "schema": "koven.conformance-matrix-manifest.v1",
+    "kovenc": kovenc_p,
+    "probes_dir": probes_p,
+    "probe_count": count_s,
+    "matrix_file": "matrix.tsv",
+    "raw_dir": "raw",
+}
+with open(out_path, "w", encoding="utf-8") as fh:
+    json.dump(manifest, fh, ensure_ascii=True, indent=2)
+    fh.write("\n")
+PY
+fi
