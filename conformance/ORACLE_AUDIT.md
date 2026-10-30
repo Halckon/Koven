@@ -235,6 +235,36 @@
 | `text-io` | `Display` 协议与字符串插值求值 (`L2`) | `Phase 2`, `Phase 4` | `L2` | 1 | 1 |
 | `stdlib` | 递归堆分配容器 `Box<T>` 与原生线程 `thread`/`JoinHandle` (`N07`, `T1`) | `Phase 2`, `Phase 3`, `Phase 4`, `Phase 5` | `N07`, `T1` | 2 | 2 |
 
+### 3.4 16 个 `known_unimplemented` Probe 晋升契约与目标输出（`target_stdout`）对账表
+
+| Probe | Guide 章节 | P2 分组 | 基线记号 | 允许记号 (`allowed_markers`) | 路线图阻塞项 | 目标输出 (`target_stdout`) | 规模 |
+|---|---|:---:|---|---|---|---|---:|
+| `p02_interp` | [01-lexical.md](../docs/guide/01-lexical.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `L1`, `L2` | `hello k\n` | 1L / 8B |
+| `p05_double` | [01-lexical.md](../docs/guide/01-lexical.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N05` | `double\n` | 1L / 7B |
+| `p06_char` | [01-lexical.md](../docs/guide/01-lexical.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N05` | `char\n` | 1L / 5B |
+| `p11_interface_bound` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `N06` | `dog\n` | 1L / 4B |
+| `p15_elvis` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N03` | `elvis\n` | 1L / 6B |
+| `p16_result_q` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `N08` | `question\n` | 1L / 9B |
+| `p21_box_enum` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `N07`, `L7` | `box\n` | 1L / 4B |
+| `p25b_linked_recursive` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N03` | `rec-list\n` | 1L / 9B |
+| `p27_thread` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `A` | `FE:L0080` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` | `T1`, `N04` | `thread\n` | 1L / 7B |
+| `p28_companion` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `A` | `ERR` | `BE:UnsupportedNode`, `BE:UnsupportedSource`, `BE:MissingFact`, `FE:L0165` | `N06` | `companion\n` | 1L / 10B |
+| `p35_value_eq` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `C` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `L1` | `veq\n` | 1L / 4B |
+| `p40_nested_generic_class` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N01` | `stack\n` | 1L / 6B |
+| `q03_fn_ref` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `N04` | `fnref\n` | 1L / 6B |
+| `q08_enum_string_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N02`, `L7` | `hi\nquit\n` | 2L / 8B |
+| `s02_pair_builtin` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `A` | `FE:L0080` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` | `S6` | `pair\n` | 1L / 5B |
+| `s03_to_pair` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `S6` | `to\n` | 1L / 3B |
+
+### 3.5 编译器阶段（`Phase 2` – `Phase 5`）负向契约与未实现阻塞全景矩阵
+
+| 编译器阶段 | 阶段职责范围 | 已生效负向 Probe 数 | 覆盖负向契约 (`FE:Lxxxx` / `abort`) | 关联路线图阻塞项 | 阻塞 Probe 数 | 阻塞 Program 数 |
+|---|---|---:|---|---|---:|---:|
+| **Phase 2 前端类型与解析** | 名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`) | 10 | `FE:L0084`, `FE:L0085`, `FE:L0167`, `FE:L0112`, `FE:L0080`, `FE:L0089` | `L1`, `L2`, `L3b`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S6`, `T1` | 14 | 6 |
+| **Phase 3 所有权与析构** | 借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`) | 4 | `FE:L0133`, `FE:L0132`, `FE:L0135`, `FE:L0164` | `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S6`, `T1` | 12 | 6 |
+| **Phase 4 SSA / LLVM / Runtime** | SSA 构建、所有权校验、LLVM IR 生成、原生链接与 `abort` 合同 (`crates/lang-codegen`) | 3 | `abort:integer overflow in +`, `abort:boom`, `abort:value out of range for ULong` | `L1`, `L2`, `L3b`, `L7`, `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08`, `S6`, `T1` | 16 | 6 |
+| **Phase 5 标准库与并发** | 内建容器、文本/数值协议、`Box`/`Rc` 与原生线程运行时 (`crates/lang-std`) | 0 | - | `L1`, `T1` | 3 | 1 |
+
 ## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本
 
 | Probe | Guide 章节 | 类型 (`kind`) | 溯源 (`oracle_origin`) | 期望结果 / 诊断码 | 语义推导 / 规则说明 (`oracle_derivation` / `note`) |

@@ -173,6 +173,11 @@ sys.exit(1)
         )
         self.assertTrue((evidence_dir / "results.json").is_file())
         self.assertTrue((evidence_dir / "matrix.tsv").is_file())
+        self.assertTrue((evidence_dir / "SUMMARY.md").is_file())
+        self.assertEqual(
+            (evidence_dir / "SUMMARY.md").read_text(encoding="utf-8"),
+            gate.render_evidence_summary_markdown(ledger),
+        )
 
         verified = gate.verify_evidence_bundle(
             evidence_dir=evidence_dir,
@@ -208,6 +213,20 @@ sys.exit(1)
                 )
         finally:
             (evidence_dir / "raw" / "p01_ok.single.stdout").write_bytes(b"hello\n")
+
+        # Tamper with SUMMARY.md and verify offline bundle verification catches it
+        orig_summary_md = (evidence_dir / "SUMMARY.md").read_text(encoding="utf-8")
+        (evidence_dir / "SUMMARY.md").write_text("# Tampered\n", encoding="utf-8")
+        try:
+            with self.assertRaisesRegex(ValueError, "SUMMARY.md mismatch in evidence bundle"):
+                gate.verify_evidence_bundle(
+                    evidence_dir=evidence_dir,
+                    expectations_path=self.expectations_path,
+                    corpus_root=self.corpus,
+                    baseline_path=self.baseline_path,
+                )
+        finally:
+            (evidence_dir / "SUMMARY.md").write_text(orig_summary_md, encoding="utf-8")
 
     def test_2_wrong_output_or_missing_trailing_newline_with_exit_0_is_rejected(self) -> None:
         for name, snippet in [
@@ -1079,6 +1098,24 @@ sys.exit(1)
         self.assertEqual(set(area_impact.keys()), set(gate.ROADMAP_AREA_CATALOG.keys()))
         self.assertEqual(area_impact["collections"]["probes"], ["s02_pair_builtin", "s03_to_pair"])
         self.assertEqual(area_impact["stdlib"]["probes"], ["p21_box_enum", "p27_thread"])
+        promo_rows = gate.summarize_unimplemented_promotion_contracts(loaded)
+        self.assertEqual(len(promo_rows), 16)
+        self.assertEqual(
+            [r["name"] for r in promo_rows if r["foundational_group"] == "C"],
+            ["p35_value_eq"],
+        )
+        self.assertEqual(
+            len([r for r in promo_rows if r["foundational_group"] == "A"]),
+            15,
+        )
+        self.assertTrue(all(r["target_stdout"].endswith("\n") for r in promo_rows))
+        phase_mat = gate.summarize_compiler_phase_matrix(loaded, roadmap_items)
+        self.assertEqual(set(phase_mat.keys()), {2, 3, 4, 5})
+        self.assertEqual(len(phase_mat[2]["active_negative_probes"]), 10)
+        self.assertEqual(len(phase_mat[3]["active_negative_probes"]), 4)
+        self.assertEqual(len(phase_mat[4]["active_negative_probes"]), 3)
+        self.assertEqual(len(phase_mat[4]["blocked_probes"]), 16)
+        self.assertEqual(len(phase_mat[4]["blocked_programs"]), 6)
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",
