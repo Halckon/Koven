@@ -528,3 +528,4 @@
 - [SPEC-0365](0365-closure-return-facts.md)：frontend 发布带捕获（move）闭包返回的来源事实，与空环境 pointer 返回摘要不相交；p18 的前置。
 
 - [SPEC-0366](0366-text-io-guide.md)：已批准文本／同步 IO 合同的 Guide v0.47 迁移；生产 API 实现另验。
+- [SPEC-0367](0367-string-length-invariant.md)：String 字面量、常量、concat 与 argv 的 Int 字节长度边界，双宿主 native 与 preview 验收；公开文本 API 另验。

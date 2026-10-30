@@ -9,6 +9,7 @@ use inkwell::{
 };
 
 use crate::ssa::model::SsaTypeId;
+use lang_frontend::type_checking::MAX_STRING_BYTE_LENGTH;
 
 use super::{LlvmAdapterError, runtime::RuntimeAbi, type_map::TypeMap};
 
@@ -93,10 +94,18 @@ pub(super) fn concat<'ctx>(
         left.length,
         &format!("{name}.overflow"),
     )?;
+    let length_exceeded = builder.build_int_compare(
+        IntPredicate::UGT,
+        length,
+        runtime.size_type().const_int(MAX_STRING_BYTE_LENGTH, false),
+        &format!("{name}.length_exceeded"),
+    )?;
+    let invalid_length =
+        builder.build_or(overflow, length_exceeded, &format!("{name}.invalid_length"))?;
     runtime.abort_if(
         builder,
         function,
-        overflow,
+        invalid_length,
         name,
         super::runtime::AbortMessage::Text("size overflow"),
     )?;

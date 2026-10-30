@@ -10,6 +10,9 @@ mod root_primitive_tests;
 #[path = "native_return_control_tests.rs"]
 pub(crate) mod return_control_tests;
 
+#[path = "native_string_length_tests.rs"]
+mod string_length_tests;
+
 #[path = "native_string_clone_tests.rs"]
 mod string_clone_tests;
 
