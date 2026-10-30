@@ -326,6 +326,10 @@ sys.exit(1)
                 {"p02_diag": {"kind": "compile_fail", "source_sha256": _sha256(self.probe_diag_src), "diagnostic": "L0084", "stdout": "x\n"}},
                 "must not define stdout",
             ),
+            (
+                {"p01_ok": {"kind": "run_ok", "source_sha256": _sha256(self.probe_ok_src), "stdout": "hello\n", "probe_batch": "q"}},
+                "invalid probe_batch",
+            ),
         ]:
             self._write_default_expectations(bad_spec)
             try:
@@ -894,8 +898,39 @@ sys.exit(1)
                 self.assertNotIn("expected_lines", spec)
                 self.assertNotIn("expected_bytes", spec)
 
+        # 14. Verify probe_batch taxonomy (11 batches, 154 probes) and conformance/README.md chapter table sync
+        batch_stats = gate.summarize_probe_batches(loaded)
+        self.assertEqual(set(batch_stats.keys()), set(gate.PROBE_BATCH_CATALOG.keys()))
+        self.assertEqual(
+            sum(b["total"] for b in batch_stats.values()),
+            len(loaded["probes"]),
+        )
+        self.assertEqual(batch_stats["p"]["total"], 59)
+        self.assertEqual(batch_stats["q"]["total"], 20)
+        self.assertEqual(batch_stats["r"]["total"], 2)
+        self.assertEqual(batch_stats["s"]["total"], 4)
+        self.assertEqual(batch_stats["t"]["total"], 10)
+        self.assertEqual(batch_stats["u"]["total"], 4)
+        self.assertEqual(batch_stats["v"]["total"], 23)
+        self.assertEqual(batch_stats["w"]["total"], 19)
+        self.assertEqual(batch_stats["x"]["total"], 3)
+        self.assertEqual(batch_stats["y"]["total"], 6)
+        self.assertEqual(batch_stats["e"]["total"], 4)
+        for full_batch in ("r", "t", "u", "v", "w", "x", "y", "e"):
+            self.assertEqual(batch_stats[full_batch]["batch_status"], "all_passed")
+            self.assertEqual(batch_stats[full_batch]["known_unimplemented"], 0)
+        readme_md_path = repo_corpus / "README.md"
+        self.assertTrue(readme_md_path.is_file())
+        actual_readme = readme_md_path.read_text(encoding="utf-8")
+        self.assertEqual(
+            actual_readme,
+            gate.sync_readme_chapter_table(actual_readme, loaded),
+        )
+        with self.assertRaisesRegex(ValueError, "missing the Guide chapter coverage table"):
+            gate.sync_readme_chapter_table("# No table\n", loaded)
+        with self.assertRaisesRegex(ValueError, "violates canonical batch naming convention"):
+            gate.classify_probe_batch("z01_invalid_prefix")
+
 
 if __name__ == "__main__":
     unittest.main()
-
-

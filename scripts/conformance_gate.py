@@ -136,6 +136,35 @@ VALID_GUIDE_CHAPTERS = (
     "13-program-runtime-standard-library.md",
 )
 
+PROBE_BATCH_CATALOG: dict[str, str] = {
+    "p": "基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等",
+    "q": "对 `p` 中失败项的变体复测，缩小失败条件",
+    "r": "未知成员访问，期望前端诊断",
+    "s": "标准环境：内建 `Result`、`Pair`/`to` 与 `?` 的边界",
+    "t": "SPEC-0311–0318 的定向复测：value class 方法、Map/List 遍历中的跳转、短路求值",
+    "u": "enum case 作借用实参、循环中 `MutableList.add` 等增量复测",
+    "v": "v0.44 补全面：赋值结果、整数 Range、显式整数转换、nullable 循环、Map consume",
+    "w": "Map/MutableMap：遍历顺序、覆盖与删除、遍历中的跳转与借用",
+    "x": "nullable class、String nullable 返回与条件中的借用实参复测",
+    "y": "`koven.algorithms` 的 `take` 与 N1a 范围借用",
+    "e": "enum subject `when` 在 compilation-unit 管线中的回退（E2 门槛）",
+}
+
+PROBE_NAME_CONVENTION_RE = re.compile(
+    r"^(?:(w)(1[2-9])|([epqrstuvwxy])([0-9]{2}[a-z]?)_([A-Za-z0-9_]+))$"
+)
+
+
+def classify_probe_batch(name: str) -> str:
+    """Extract and validate the canonical single-letter probe batch prefix."""
+    m = PROBE_NAME_CONVENTION_RE.fullmatch(name)
+    if m is None:
+        raise ValueError(
+            f"probe name {name!r} violates canonical batch naming convention "
+            f"(<batch><NN>[a-z]_<topic> or w12..w19)"
+        )
+    return m.group(1) or m.group(3)
+
 PROBE_GUIDE_CHAPTERS: dict[str, str] = {
     "p02_interp": "01-lexical.md",
     "p03_long_uint": "01-lexical.md",
@@ -1320,6 +1349,20 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         raise ValueError(
                             f"{section}.{name} references missing Guide chapter {guide_dir / ch}"
                         )
+            if section == "probes":
+                inferred_batch = classify_probe_batch(name)
+                if "probe_batch" in spec:
+                    pb = spec["probe_batch"]
+                    if (
+                        not isinstance(pb, str)
+                        or pb not in PROBE_BATCH_CATALOG
+                        or pb != inferred_batch
+                    ):
+                        raise ValueError(
+                            f"probes.{name} has invalid probe_batch {pb!r} (expected {inferred_batch!r})"
+                        )
+            elif "probe_batch" in spec:
+                raise ValueError(f"programs.{name} must not define probe_batch")
 
             if corpus_root is not None:
                 src_file = (
@@ -2106,6 +2149,84 @@ def summarize_output_shape_distribution(expectations: dict[str, Any]) -> dict[st
     }
 
 
+def summarize_probe_batches(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Aggregate all probes by their canonical single-letter batch prefix (p..e)."""
+    summary: dict[str, dict[str, Any]] = {
+        batch: {
+            "batch": batch,
+            "description": desc,
+            "total": 0,
+            "run_ok": 0,
+            "compile_fail": 0,
+            "runtime_abort": 0,
+            "known_unimplemented": 0,
+            "unreviewed": 0,
+            "cap_passed": 0,
+            "batch_status": "empty",
+            "probes": [],
+        }
+        for batch, desc in PROBE_BATCH_CATALOG.items()
+    }
+    for name, spec in sorted(expectations["probes"].items()):
+        batch = spec.get("probe_batch") or classify_probe_batch(name)
+        row = summary[batch]
+        row["total"] += 1
+        row["probes"].append(name)
+        kind = spec["kind"]
+        row[kind] = row.get(kind, 0) + 1
+        if kind in ("run_ok", "compile_fail", "runtime_abort"):
+            row["cap_passed"] += 1
+
+    for row in summary.values():
+        if row["total"] > 0 and row["cap_passed"] == row["total"]:
+            row["batch_status"] = "all_passed"
+        elif row["total"] > 0:
+            row["batch_status"] = "partial"
+    return summary
+
+
+def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
+    """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
+    chapter_stats = summarize_chapter_polarity(expectations)
+    lines = [
+        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    tot_all = tot_ok = tot_cf = tot_ab = tot_ku = tot_cap = 0
+    for ch in VALID_GUIDE_CHAPTERS:
+        st = chapter_stats[ch]
+        tot_all += st["total"]
+        tot_ok += st["run_ok"]
+        tot_cf += st["compile_fail"]
+        tot_ab += st["runtime_abort"]
+        tot_ku += st["known_unimplemented"]
+        tot_cap += st["cap_passed"]
+        lines.append(
+            f"| [{ch}](../docs/guide/{ch}) | {st['total']} | {st['run_ok']} | {st['compile_fail']} | "
+            f"{st['runtime_abort']} | {st['known_unimplemented']} | {st['cap_passed']} / {st['total']} |"
+        )
+    lines.append(
+        f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** |"
+    )
+    return "\n".join(lines)
+
+
+README_CHAPTER_TABLE_RE = re.compile(
+    r"(\| Guide v0\.4[67] 章节 \| Probe 总数 \| `run_ok` \| `compile_fail` \| `runtime_abort` \| `known_unimplemented` \| 能力通过 \(`capability_passed`\) \|\n"
+    r"\|---\|---:\|---:\|---:\|---:\|---:\|---:\|\n"
+    r"(?:\| \[[^\n]+\n)+"
+    r"\| \*\*合计\*\* \|[^\n]+)"
+)
+
+
+def sync_readme_chapter_table(readme_text: str, expectations: dict[str, Any]) -> str:
+    """Replace the Guide chapter summary table in conformance/README.md with fresh counts."""
+    table_md = render_readme_chapter_table(expectations)
+    if not README_CHAPTER_TABLE_RE.search(readme_text):
+        raise ValueError("conformance/README.md is missing the Guide chapter coverage table")
+    return README_CHAPTER_TABLE_RE.sub(lambda _: table_md, readme_text, count=1)
+
+
 def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     """Render deterministic Markdown audit ledger from expectations.json."""
     probes = expectations["probes"]
@@ -2116,6 +2237,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     spec_trace = summarize_v046_spec_traceability(expectations)
     origin_stats = summarize_oracle_origins(expectations)
     shape_stats = summarize_output_shape_distribution(expectations)
+    batch_stats = summarize_probe_batches(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -2239,7 +2361,27 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `multi_line_stdout` | ≥2 行输出 Probe (`run_ok` + `known_unimplemented`) | {len(shape_stats['multi_line_probes'])} | {sum(m['lines'] for m in shape_stats['multi_line_probes'])} | {sum(m['bytes'] for m in shape_stats['multi_line_probes'])} B | {ml_summary} |",
             f"| `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | {len(shape_stats['zero_stdout_probes'])} | 0 | 0 B | " + ", ".join(f"`{p}`" for p in shape_stats["zero_stdout_probes"]) + " |",
             f"| `acceptance_programs` | V1 验收程序 (`expected.txt`) | {len(programs)} | {shape_stats['total_program_lines']} | {shape_stats['total_program_bytes']} B | " + ", ".join(f"`{k}` ({v['expected_lines']}L/{v['expected_bytes']}B)" for k, v in sorted(programs.items())) + " |",
+            "",
+            "### 1.6 Probe 批次前缀与演进关注面分布矩阵（11 Batches，154 Probes）",
+            "",
+            "| 批次前缀 (`probe_batch`) | 关注面与批次说明 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 批次状态 (`batch_status`) |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---|",
         ]
+    )
+    all_passed_batches = sum(
+        1 for b in batch_stats.values() if b["batch_status"] == "all_passed"
+    )
+    partial_batches = sum(
+        1 for b in batch_stats.values() if b["batch_status"] == "partial"
+    )
+    for b_key, b_row in batch_stats.items():
+        lines.append(
+            f"| `{b_key}` | {b_row['description']} | {b_row['total']} | {b_row['run_ok']} | "
+            f"{b_row['compile_fail']} | {b_row['runtime_abort']} | {b_row['known_unimplemented']} | "
+            f"{b_row['cap_passed']} / {b_row['total']} | `{b_row['batch_status']}` |"
+        )
+    lines.append(
+        f"| **合计** | **11 个演进批次** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** | **{all_passed_batches} 全通过 / {partial_batches} 部分通过** |"
     )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
@@ -2425,6 +2567,14 @@ def main(argv: list[str] | None = None) -> int:
                 render_oracle_audit_markdown(derived),
                 encoding="utf-8",
             )
+            readme_path = args.corpus / "README.md"
+            if readme_path.is_file():
+                readme_path.write_text(
+                    sync_readme_chapter_table(
+                        readme_path.read_text(encoding="utf-8"), derived
+                    ),
+                    encoding="utf-8",
+                )
         print(
             f"conformance: initialized {len(derived['probes'])} probes and "
             f"{len(derived['programs'])} programs in {args.expectations}"
