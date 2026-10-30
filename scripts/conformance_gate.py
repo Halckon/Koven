@@ -1195,6 +1195,7 @@ def compare_item(
         "name": execution["name"],
         "expectation_kind": expectation["kind"],
         "guide_chapter": expectation.get("guide_chapter"),
+        "probe_batch": expectation.get("probe_batch"),
         "single_marker": single_res["marker"],
         "project_marker": project_res["marker"],
         "single_verdict": single_verdict,
@@ -1587,7 +1588,10 @@ def derive_static_expectations(
         src_text = raw_bytes.decode("utf-8")
         src_sha = sha256_bytes(raw_bytes)
         base_single, base_project = baseline[name]
-        assert base_single == base_project, f"baseline mismatch for {name}"
+        if base_single != base_project:
+            raise ValueError(
+                f"baseline mode mismatch for probes.{name}: single={base_single!r} vs project={base_project!r}"
+            )
 
         literals = SIMPLE_PRINTLN_LITERAL_RE.findall(src_text)
         total_printlns = src_text.count("println(")
@@ -1977,6 +1981,34 @@ def summarize_comparisons(
         if item["capability_passed"]:
             bucket["capability_passed"] += 1
 
+    by_batch: dict[str, dict[str, int]] = {}
+    for item in probe_comparisons:
+        b_key = item.get("probe_batch") or classify_probe_batch(item["name"])
+        b_bucket = by_batch.setdefault(
+            b_key,
+            {
+                "total": 0,
+                "pass_run": 0,
+                "pass_diagnostic": 0,
+                "pass_abort": 0,
+                "known_unimplemented": 0,
+                "capability_passed": 0,
+            },
+        )
+        b_bucket["total"] += 1
+        st = item["status"]
+        if st in ("pass_run", "pass_diagnostic", "pass_abort", "known_unimplemented"):
+            b_bucket[st] += 1
+        if item["capability_passed"]:
+            b_bucket["capability_passed"] += 1
+
+    ordered_by_batch = {
+        k: by_batch[k] for k in PROBE_BATCH_CATALOG if k in by_batch
+    }
+    for k in sorted(by_batch.keys()):
+        if k not in ordered_by_batch:
+            ordered_by_batch[k] = by_batch[k]
+
     return {
         "total_probes": len(probe_comparisons),
         "probe_capability_passed": probe_cap_passed,
@@ -1984,6 +2016,7 @@ def summarize_comparisons(
         "program_run_passed": program_run_passed,
         "counts": counts,
         "by_chapter": dict(sorted(by_chapter.items())),
+        "by_batch": ordered_by_batch,
         "gate_passed": len(failures) == 0,
         "failures": failures,
     }
@@ -2394,6 +2427,65 @@ def summarize_foundational_cohort(expectations: dict[str, Any]) -> dict[str, Any
     }
 
 
+def summarize_v2_chapter_readiness(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Evaluate each of the 13 Guide chapters against V2 exit criteria (positive + negative polarity and 0 known_unimplemented)."""
+    chapter_polarity = summarize_chapter_polarity(expectations)
+    readiness: dict[str, dict[str, Any]] = {}
+    for ch in VALID_GUIDE_CHAPTERS:
+        pol = chapter_polarity[ch]
+        neg_contracts: list[str] = []
+        unimpl_probes: list[str] = []
+        blockers: set[str] = set()
+        programs_in_ch: list[str] = []
+
+        for name, spec in sorted(expectations["probes"].items()):
+            if spec.get("guide_chapter") != ch:
+                continue
+            if spec["kind"] == "compile_fail":
+                for code in spec.get("all_diagnostics", [spec["diagnostic"]]):
+                    tag = f"FE:{code}"
+                    if tag not in neg_contracts:
+                        neg_contracts.append(tag)
+            elif spec["kind"] == "runtime_abort":
+                tag = f"abort:{spec['abort_message']}"
+                if tag not in neg_contracts:
+                    neg_contracts.append(tag)
+            elif spec["kind"] == "known_unimplemented":
+                unimpl_probes.append(name)
+                blockers.update(spec.get("roadmap_blockers", []))
+
+        for prog_name, prog_spec in sorted(expectations["programs"].items()):
+            if prog_spec.get("guide_chapter") == ch:
+                programs_in_ch.append(prog_name)
+
+        has_pos = pol["has_positive"]
+        has_neg = pol["has_negative"]
+        ku_count = pol["known_unimplemented"]
+        if has_pos and has_neg and ku_count == 0:
+            v2_status = "v2_probe_ready"
+        elif has_pos and has_neg and ku_count > 0:
+            v2_status = "blocked_by_roadmap"
+        elif not has_neg and ku_count > 0:
+            v2_status = "needs_negative_and_roadmap"
+        else:
+            v2_status = "needs_negative_only"
+
+        readiness[ch] = {
+            "chapter": ch,
+            "domain": GUIDE_CHAPTER_DOMAINS[ch],
+            "total_probes": pol["total"],
+            "positive_active": pol["positive_active"],
+            "negative_active": pol["negative_active"],
+            "known_unimplemented": ku_count,
+            "negative_contracts": neg_contracts,
+            "unimplemented_probes": unimpl_probes,
+            "roadmap_blockers": sorted(blockers),
+            "acceptance_programs": programs_in_ch,
+            "v2_status": v2_status,
+        }
+    return readiness
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -2449,6 +2541,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     batch_stats = summarize_probe_batches(expectations)
     marker_stats = summarize_unimplemented_markers(expectations)
     foundational_stats = summarize_foundational_cohort(expectations)
+    v2_readiness = summarize_v2_chapter_readiness(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -2622,8 +2715,39 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| **A 组** | {grp_a['label']} | {grp_a['total']} | {grp_a['runnable']} ({len(grp_a['run_ok'])} + {len(grp_a['runtime_abort'])}) | {len(grp_a['compile_fail'])} (`q17_generic_class`) | {len(grp_a['known_unimplemented'])} | P2 门槛 `≥ {foundational_stats['p2_target_min']} / {grp_a['total']}`（当前 `{grp_a['runnable']} / {grp_a['total']}`，距门槛差 `{foundational_stats['p2_gap_to_target']}` 项） |",
             f"| **B 组** | {grp_b['label']} | {grp_b['total']} | {grp_b['runnable']} | {len(grp_b['compile_fail'])} | {len(grp_b['known_unimplemented'])} | `8 / 8 (100%)` 精确命中期望前端诊断码 (`pass_diagnostic`) |",
             f"| **C 组** | {grp_c['label']} | {grp_c['total']} | {grp_c['runnable']} (`p37_is_generic_case`) | {len(grp_c['compile_fail'])} (`p23_global_var`) | {len(grp_c['known_unimplemented'])} (`p35_value_eq`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1` |",
+            "",
+            "### 1.9 Guide 13 章 V2 终态完备性（正反例双极性 + 零未实现）差距矩阵",
+            "",
+            "| Guide 章节 | 规范领域 | 正向已通 (`run_ok`) | 负向契约 (`compile_fail` / `abort`) | 剩余 `known_unimplemented` | 路线图阻塞项 | 关联 V1 验收程序 | V2 章节就绪状态 (`v2_status`) |",
+            "|---|---|---:|---|---|---|---|---|",
         ]
     )
+    for ch in VALID_GUIDE_CHAPTERS:
+        r_row = v2_readiness[ch]
+        neg_repr = (
+            f"{r_row['negative_active']} (" + ", ".join(f"`{c}`" for c in r_row["negative_contracts"]) + ")"
+            if r_row["negative_contracts"]
+            else "0（待补反例）"
+        )
+        ku_repr = (
+            f"{r_row['known_unimplemented']} (" + ", ".join(f"`{p}`" for p in r_row["unimplemented_probes"]) + ")"
+            if r_row["unimplemented_probes"]
+            else "0"
+        )
+        blk_repr = (
+            ", ".join(f"`{b}`" for b in r_row["roadmap_blockers"])
+            if r_row["roadmap_blockers"]
+            else "-"
+        )
+        prog_repr = (
+            ", ".join(f"`{p}`" for p in r_row["acceptance_programs"])
+            if r_row["acceptance_programs"]
+            else "-"
+        )
+        lines.append(
+            f"| [{ch}](../docs/guide/{ch}) | {r_row['domain']} | {r_row['positive_active']} | "
+            f"{neg_repr} | {ku_repr} | {blk_repr} | {prog_repr} | `{r_row['v2_status']}` |"
+        )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"

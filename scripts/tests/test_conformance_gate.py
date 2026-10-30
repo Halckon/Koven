@@ -155,6 +155,17 @@ sys.exit(1)
         self.assertEqual(ledger["summary"]["probe_capability_passed"], 3)
         self.assertEqual(ledger["summary"]["counts"]["known_unimplemented"], 2)
         self.assertEqual(
+            ledger["summary"]["by_batch"]["p"],
+            {
+                "total": 4,
+                "pass_run": 1,
+                "pass_diagnostic": 1,
+                "pass_abort": 1,
+                "known_unimplemented": 1,
+                "capability_passed": 3,
+            },
+        )
+        self.assertEqual(
             (evidence_dir / "raw" / "p01_ok.single.stdout").read_bytes(), b"hello\n"
         )
         self.assertEqual(
@@ -962,6 +973,29 @@ sys.exit(1)
         self.assertEqual(len(cohort["groups"]["B"]["compile_fail"]), 8)
         self.assertEqual(cohort["groups"]["C"]["total"], 3)
         self.assertEqual(cohort["p2_gap_to_target"], 12)
+        v2_ready = gate.summarize_v2_chapter_readiness(loaded)
+        self.assertEqual(set(v2_ready.keys()), set(gate.VALID_GUIDE_CHAPTERS))
+        self.assertEqual(
+            [ch for ch, r in v2_ready.items() if r["v2_status"] == "v2_probe_ready"],
+            [
+                "04-expressions-operators.md",
+                "05-declarations-callables.md",
+                "12-collections-destructuring.md",
+            ],
+        )
+        self.assertEqual(
+            len([ch for ch, r in v2_ready.items() if r["v2_status"] == "blocked_by_roadmap"]),
+            6,
+        )
+        self.assertEqual(
+            [ch for ch, r in v2_ready.items() if r["v2_status"] == "needs_negative_and_roadmap"],
+            [
+                "01-lexical.md",
+                "08-class-family-members.md",
+                "11-copyability-layout-construction.md",
+                "13-program-runtime-standard-library.md",
+            ],
+        )
 
     def test_13_derivation_reports_naming_diagnostic_instead_of_baseline_keyerror(
         self,
@@ -983,7 +1017,7 @@ sys.exit(1)
     def test_14_named_probe_absent_from_baseline_matrix_reports_missing_row(
         self,
     ) -> None:
-        """命名合法但 baseline 缺项时必须报缺项，而不是 KeyError。"""
+        """命名合法但 baseline 缺项或单文件/工程列不一致时必须报 ValueError。"""
         (self.corpus / "probes" / "p06_absent.ko").write_text(
             self.probe_ok_src, encoding="utf-8"
         )
@@ -992,6 +1026,18 @@ sys.exit(1)
         message = str(ctx.exception)
         self.assertIn("p06_absent", message)
         self.assertIn("baseline", message)
+        (self.corpus / "probes" / "p06_absent.ko").unlink()
+
+        orig_baseline = self.baseline_path.read_text(encoding="utf-8")
+        self.baseline_path.write_text(
+            orig_baseline.replace("p01_ok\tOK\tOK", "p01_ok\tOK\tFE:L0084"),
+            encoding="utf-8",
+        )
+        try:
+            with self.assertRaisesRegex(ValueError, "baseline mode mismatch for probes.p01_ok"):
+                gate.derive_static_expectations(self.corpus, self.baseline_path)
+        finally:
+            self.baseline_path.write_text(orig_baseline, encoding="utf-8")
 
     def test_15_cli_init_expectations_renders_derivation_error_without_traceback(
         self,

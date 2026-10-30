@@ -132,6 +132,24 @@
 | **B 组** | B 组：应拒基础探针（静态/借用/类型拒绝） | 8 | 0 | 8 | 0 | `8 / 8 (100%)` 精确命中期望前端诊断码 (`pass_diagnostic`) |
 | **C 组** | C 组：v0.44 待裁决项（已在 v0.46 规范定案） | 3 | 1 (`p37_is_generic_case`) | 1 (`p23_global_var`) | 1 (`p35_value_eq`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1` |
 
+### 1.9 Guide 13 章 V2 终态完备性（正反例双极性 + 零未实现）差距矩阵
+
+| Guide 章节 | 规范领域 | 正向已通 (`run_ok`) | 负向契约 (`compile_fail` / `abort`) | 剩余 `known_unimplemented` | 路线图阻塞项 | 关联 V1 验收程序 | V2 章节就绪状态 (`v2_status`) |
+|---|---|---:|---|---|---|---|---|
+| [01-lexical.md](../docs/guide/01-lexical.md) | 词法 | 1 | 0（待补反例） | 3 (`p02_interp`, `p05_double`, `p06_char`) | `L1`, `L2`, `N05` | - | `needs_negative_and_roadmap` |
+| [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 名称、文件、Package 与 Import | 2 | 3 (`FE:L0080`) | 2 (`s02_pair_builtin`, `s03_to_pair`) | `S6` | - | `blocked_by_roadmap` |
+| [03-types-generics.md](../docs/guide/03-types-generics.md) | 类型与泛型 | 6 | 2 (`FE:L0085`, `abort:value out of range for ULong`) | 3 (`p11_interface_bound`, `p35_value_eq`, `p40_nested_generic_class`) | `L1`, `N01`, `N06` | `varint_codec` | `blocked_by_roadmap` |
+| [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 表达式与运算符 | 3 | 2 (`abort:integer overflow in +`, `FE:L0084`) | 0 | - | - | `v2_probe_ready` |
+| [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 声明与 Callable | 2 | 2 (`FE:L0084`, `FE:L0167`) | 0 | - | - | `v2_probe_ready` |
+| [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | Block 与控制流 | 16 | 2 (`FE:L0112`, `FE:L0089`) | 1 (`q08_enum_string_payload`) | `L7`, `N02` | - | `blocked_by_roadmap` |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 6 | 1 (`FE:L0135`) | 1 (`q03_fn_ref`) | `N04` | - | `blocked_by_roadmap` |
+| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | Class Family、成员与 Receiver | 15 | 0（待补反例） | 1 (`p28_companion`) | `N06` | `raii_state_machine` | `needs_negative_and_roadmap` |
+| [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 空安全与错误值 | 12 | 2 (`abort:boom`, `FE:L0085`) | 2 (`p15_elvis`, `p16_result_q`) | `N03`, `N08` | `config_parse` | `blocked_by_roadmap` |
+| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 所有权、借用与析构 | 6 | 2 (`FE:L0133`, `FE:L0132`, `FE:L0164`) | 1 (`p25b_linked_recursive`) | `N03` | `linked_stack` | `blocked_by_roadmap` |
+| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | Copyable、布局、构造与结构移动 | 2 | 0（待补反例） | 1 (`p21_box_enum`) | `L7`, `N07` | `expr_eval` | `needs_negative_and_roadmap` |
+| [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 集合、索引与解构 | 47 | 1 (`FE:L0135`) | 0 | - | `word_count` | `v2_probe_ready` |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 3 | 0（待补反例） | 1 (`p27_thread`) | `N04`, `T1` | - | `needs_negative_and_roadmap` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
