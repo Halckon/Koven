@@ -173,6 +173,11 @@ sys.exit(1)
         )
         self.assertTrue((evidence_dir / "results.json").is_file())
         self.assertTrue((evidence_dir / "matrix.tsv").is_file())
+        self.assertTrue((evidence_dir / "SUMMARY.md").is_file())
+        self.assertEqual(
+            (evidence_dir / "SUMMARY.md").read_text(encoding="utf-8"),
+            gate.render_evidence_summary_markdown(ledger),
+        )
 
         verified = gate.verify_evidence_bundle(
             evidence_dir=evidence_dir,
@@ -208,6 +213,20 @@ sys.exit(1)
                 )
         finally:
             (evidence_dir / "raw" / "p01_ok.single.stdout").write_bytes(b"hello\n")
+
+        # Tamper with SUMMARY.md and verify offline bundle verification catches it
+        orig_summary_md = (evidence_dir / "SUMMARY.md").read_text(encoding="utf-8")
+        (evidence_dir / "SUMMARY.md").write_text("# Tampered\n", encoding="utf-8")
+        try:
+            with self.assertRaisesRegex(ValueError, "SUMMARY.md mismatch in evidence bundle"):
+                gate.verify_evidence_bundle(
+                    evidence_dir=evidence_dir,
+                    expectations_path=self.expectations_path,
+                    corpus_root=self.corpus,
+                    baseline_path=self.baseline_path,
+                )
+        finally:
+            (evidence_dir / "SUMMARY.md").write_text(orig_summary_md, encoding="utf-8")
 
     def test_2_wrong_output_or_missing_trailing_newline_with_exit_0_is_rejected(self) -> None:
         for name, snippet in [

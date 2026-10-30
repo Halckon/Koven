@@ -2004,8 +2004,102 @@ def evaluate_suite(
             "\n".join(tsv_lines) + ("\n" if tsv_lines else ""),
             encoding="utf-8",
         )
+        (evidence_dir / "SUMMARY.md").write_text(
+            render_evidence_summary_markdown(ledger),
+            encoding="utf-8",
+        )
 
     return ledger
+
+
+def render_evidence_summary_markdown(ledger: dict[str, Any]) -> str:
+    """Render deterministic Markdown execution summary (SUMMARY.md) for a conformance evidence bundle."""
+    comp = ledger["compiler"]
+    host = ledger["host"]
+    summary = ledger["summary"]
+    verdict_str = "PASS" if summary["gate_passed"] else "FAIL"
+    fp2 = summary.get("foundational_p2", {})
+    lines = [
+        "# Conformance 回归验收门禁执行摘要（SUMMARY.md）",
+        "",
+        "| 维度 | 值 |",
+        "|---|---|",
+        f"| **门禁结论 (`gate_passed`)** | **{verdict_str}** |",
+        f"| **编译器 Git 提交 (`commit`)** | `{comp['commit']}` |",
+        f"| **编译器二进制 SHA-256** | `{comp['sha256']}` |",
+        f"| **宿主平台 (`system` / `machine`)** | `{host['system']} / {host['machine']}` |",
+        f"| **Probe 能力通过 (`probe_capability_passed`)** | **{summary['probe_capability_passed']} / {summary['total_probes']}** |",
+        f"| **V1 验收程序通过 (`program_run_passed`)** | **{summary['program_run_passed']} / {summary['total_programs']}** |",
+        f"| **P2 基础 A 组可运行 (`foundational_p2`)** | `{fp2.get('group_a_runnable_passed', 0)} / {fp2.get('group_a_evaluated', 0)}` (目标 `≥ {fp2.get('p2_target_min', 70)}`) |",
+        "",
+        "## 1. 比较器状态分布 (`counts`)",
+        "",
+        "| 状态 (`status`) | 数量 |",
+        "|---|---:|",
+    ]
+    for k, v in sorted(summary["counts"].items()):
+        lines.append(f"| `{k}` | {v} |")
+
+    by_batch = summary.get("by_batch", {})
+    if by_batch:
+        lines.extend(
+            [
+                "",
+                "## 2. 按 Probe 批次执行汇总 (`by_batch`)",
+                "",
+                "| 批次 (`probe_batch`) | 总数 | `pass_run` | `pass_diagnostic` | `pass_abort` | `known_unimplemented` | `capability_passed` |",
+                "|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for b_key, b_row in by_batch.items():
+            lines.append(
+                f"| `{b_key}` | {b_row['total']} | {b_row['pass_run']} | {b_row['pass_diagnostic']} | "
+                f"{b_row['pass_abort']} | {b_row['known_unimplemented']} | {b_row['capability_passed']} / {b_row['total']} |"
+            )
+
+    by_chapter = summary.get("by_chapter", {})
+    if by_chapter:
+        lines.extend(
+            [
+                "",
+                "## 3. 按 Guide 章节执行汇总 (`by_chapter`)",
+                "",
+                "| Guide 章节 | 总数 | `pass_run` | `pass_diagnostic` | `pass_abort` | `known_unimplemented` | `capability_passed` |",
+                "|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for ch_key, ch_row in by_chapter.items():
+            lines.append(
+                f"| `{ch_key}` | {ch_row['total']} | {ch_row['pass_run']} | {ch_row['pass_diagnostic']} | "
+                f"{ch_row['pass_abort']} | {ch_row['known_unimplemented']} | {ch_row['capability_passed']} / {ch_row['total']} |"
+            )
+
+    if summary.get("unexpected_passes"):
+        lines.extend(
+            [
+                "",
+                "## 4. 新晋通过待晋升条目 (`unexpected_passes`)",
+                "",
+            ]
+        )
+        for up_name in summary["unexpected_passes"]:
+            lines.append(
+                f"- `{up_name}`：已在单文件与工程双模式下退出码 0 且精确匹配 `target_stdout`，请更新 `V046_PROBE_OVERRIDES` 并运行 `--init-expectations`。"
+            )
+
+    if summary.get("failures"):
+        lines.extend(
+            [
+                "",
+                "## 5. 阻断项明细 (`failures`)",
+                "",
+            ]
+        )
+        for fail_msg in summary["failures"]:
+            lines.append(f"- `{fail_msg}`")
+
+    lines.append("")
+    return "\n".join(lines)
 
 
 def verify_evidence_bundle(
@@ -2184,6 +2278,12 @@ def verify_evidence_bundle(
     )
     if recomputed_summary != ledger.get("summary"):
         raise ValueError("summary mismatch in results.json")
+
+    summary_md_path = evidence_dir / "SUMMARY.md"
+    if summary_md_path.is_file():
+        expected_summary_md = render_evidence_summary_markdown(ledger)
+        if summary_md_path.read_text(encoding="utf-8") != expected_summary_md:
+            raise ValueError("SUMMARY.md mismatch in evidence bundle")
 
     return ledger
 
@@ -3882,6 +3982,12 @@ def main(argv: list[str] | None = None) -> int:
         f"counts={json.dumps(summary['counts'], sort_keys=True)}"
     )
     if not summary["gate_passed"]:
+        for up_name in summary.get("unexpected_passes", []):
+            print(
+                f"PROMOTE: {up_name} exited 0 with exact target_stdout in both modes; "
+                f"update V046_PROBE_OVERRIDES and run --init-expectations",
+                file=sys.stderr,
+            )
         for failure in summary["failures"]:
             print(f"FAIL: {failure}", file=sys.stderr)
         return 1
