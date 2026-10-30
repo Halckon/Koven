@@ -351,7 +351,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(value)
     }
 
-    pub(super) fn nullable_when_group_chain(
+    pub(in super::super) fn nullable_when_group_chain(
         &self,
         expression: UnitExpressionId,
         span: Span,

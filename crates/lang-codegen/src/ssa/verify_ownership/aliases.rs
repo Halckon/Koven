@@ -122,7 +122,11 @@ impl AliasRoots {
             }
         }
 
-        Self { roots }
+        let direct_fields = direct_fields::DirectFields::compute(function, &roots);
+        Self {
+            roots,
+            direct_fields,
+        }
     }
 
     pub(in crate::ssa) fn overlap(&self, left: EntityId, right: EntityId) -> bool {

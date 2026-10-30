@@ -342,7 +342,7 @@ fn standard_display_without_collision_keeps_the_canonical_name() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 3);
+    assert_eq!(descriptors.len(), 4);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(standard, user);
@@ -370,7 +370,7 @@ fn standard_display_collision_preserves_the_user_source_and_standard_key() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 3);
+    assert_eq!(descriptors.len(), 4);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(standard, user);
@@ -419,7 +419,7 @@ fn standard_display_collision_reaches_the_last_bounded_candidate() {
         let (mut environment, mut types) = standard_environments();
         append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types)
             .unwrap();
-        assert_eq!(descriptors.len(), 5);
+        assert_eq!(descriptors.len(), 6);
         assert_eq!(&descriptors[..3], originals.as_slice());
         let standard = descriptors[3].source_id();
         for (original, index) in originals.iter().zip(order) {
@@ -469,7 +469,7 @@ fn standard_display_collision_uses_the_first_free_candidate() {
     let originals = descriptors.clone();
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 5);
+    assert_eq!(descriptors.len(), 6);
     assert_eq!(&descriptors[..3], originals.as_slice());
     let standard = descriptors[3].source_id();
     for (original, (display, text, _)) in originals.iter().zip(users) {
@@ -501,7 +501,7 @@ fn standard_display_collision_keeps_complete_user_diagnostic_locations() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 3);
+    assert_eq!(descriptors.len(), 4);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(user, standard);
@@ -578,7 +578,7 @@ fn standard_display_collision_preserves_range_call_source_identities() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 3);
+    assert_eq!(descriptors.len(), 4);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(user, standard);
@@ -722,7 +722,7 @@ fn loaded_result_source_alone_receives_builtin_name_authority() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 3);
+    assert_eq!(descriptors.len(), 4);
     assert_eq!(descriptors[0], original);
     assert_eq!(
         descriptors[1].logical_path().expect("rooted source"),
@@ -747,4 +747,35 @@ fn loaded_result_source_alone_receives_builtin_name_authority() {
     let declaration = &names.names().index().declarations()[declaration.index()];
     assert_eq!(declaration.name(), "Result");
     assert_eq!(declaration.name_span().source_id(), result);
+}
+
+#[test]
+fn loaded_text_source_alone_receives_text_authority_and_owns_its_results() {
+    let mut sources = SourceMap::new();
+    let user = sources.add_source("koven-std/koven/text/text.ko",
+        "package app\nimport koven.text.byteLength\nimport koven.text.toBytes\nfun useText(text: String): Int { val bytes = text.toBytes(); return text.byteLength() + bytes.size }\n").unwrap();
+    let mut descriptors = vec![UnitSourceDescriptor::new("user", "app/Main.ko", user)];
+    let (mut environment, mut types) = standard_environments();
+    append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
+    let standard = descriptors[3].source_id();
+    assert!(types.is_authorized_text_source(standard));
+    assert!(!types.is_authorized_text_source(user));
+    assert!(!types.is_authorized_range_source(standard));
+    assert_eq!(sources.source_text(standard).unwrap(), TEXT_TEXT);
+    assert_eq!(
+        sources.source_name(standard).unwrap(),
+        "koven-std/koven/text/text.ko [standard source 1]"
+    );
+    let snapshot = analyze_unit_names(sources, descriptors, environment).unwrap();
+    assert_unit_names_and_types(&snapshot, &types);
+    let inputs = snapshot.inputs();
+    let names = snapshot.validated_names().unwrap();
+    let typed = check_compilation_unit_types(snapshot.sources(), &inputs, names, &types)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let owned =
+        check_compilation_unit_ownership(snapshot.sources(), &inputs, names, &types, &typed)
+            .unwrap();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }

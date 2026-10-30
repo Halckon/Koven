@@ -46,6 +46,7 @@ mod receiver;
 mod scalar;
 mod statement;
 mod string_clone;
+mod text_primitive;
 mod type_lower;
 mod type_plan;
 mod while_proof;
@@ -184,6 +185,7 @@ struct UnitExpressionLowerer<'a> {
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
+    entry_string_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
     map_borrow_guards:
         BTreeMap<UnitSymbolId, lang_frontend::type_checking::UnitNullComparisonDescriptor>,
@@ -279,7 +281,18 @@ impl UnitExpressionLowerer<'_> {
             };
             let rc_share = matches!(node.payload(), Expression::Call { .. })
                 && self.can_share_with_nullable_rc_proof(unit_expression, span)?;
-            if !root_borrow_call && !rc_share {
+            // A plain literal owns static bytes and cannot invalidate a String If view.
+            // Interpolation still uses the ordinary carrier/transfer gate.
+            let plain_string = self.has_only_string_if_proofs()
+                && matches!(node.payload(), Expression::String { parts, .. }
+                    if parts.iter().all(|part| matches!(part, lang_frontend::parser::StringPart::Text(_))));
+            let string_if_return = match node.payload() {
+                Expression::Return { value, .. } => {
+                    self.can_return_from_nullable_string_if(unit_expression, *value, span)?
+                }
+                _ => false,
+            };
+            if !root_borrow_call && !rc_share && !plain_string && !string_if_return {
                 self.reject_live_if_proof(span)?;
             }
         }
@@ -363,7 +376,7 @@ impl UnitExpressionLowerer<'_> {
             } => self.lower_if(expression, *condition, *then_branch, *else_branch, span),
             Expression::When {
                 subject, entries, ..
-            } => self.lower_boolean_when(expression, *subject, entries, span),
+            } => self.lower_boolean_when(expression, *subject, entries, span, None),
             Expression::Return { value, .. } => self.lower_return(expression, *value, span),
             Expression::Break { .. } => self.lower_break(expression, span),
             Expression::Continue { .. } => self.lower_continue(expression, span),
@@ -443,7 +456,14 @@ impl UnitExpressionLowerer<'_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        self.reject_live_if_proof(span)?;
+        let string_if_return = self.can_return_from_nullable_string_if(
+            UnitExpressionId::new(self.source_unit, expression),
+            value,
+            span,
+        )?;
+        if !string_if_return {
+            self.reject_live_if_proof(span)?;
+        }
         if self.function.carrier_return.is_some() {
             return self.lower_range_return(
                 value.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
@@ -451,7 +471,7 @@ impl UnitExpressionLowerer<'_> {
             );
         }
         let (mut result, nullable_owner_return) = match value {
-            Some(value) => self.lower_while_owner_return(value, span)?,
+            Some(value) => self.lower_proven_owner_return(expression, value, span)?,
             None => (LoweredValue::Unit, false),
         };
         if result == LoweredValue::Diverged {
@@ -485,6 +505,11 @@ impl UnitExpressionLowerer<'_> {
         } else {
             self.end_pending_abi_call_slots(0, span)?;
         }
+        if string_if_return {
+            // Return cancels any qualified text frames. Loans are already ended above;
+            // discard the bookkeeping so the original root drop can retire its proof.
+            self.pending_call_frames.clear();
+        }
         self.record_map_return_delivery(
             UnitExpressionId::new(self.source_unit, expression),
             result,
@@ -497,6 +522,9 @@ impl UnitExpressionLowerer<'_> {
         self.end_thunk_capture_views(span)?;
         self.retire_nullable_when_transfers(0, span)?;
         self.retire_while_proofs(true, span)?;
+        if string_if_return && !self.nullable_proofs.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let values = self.return_values(result, span)?;
         self.function
             .set_terminator(

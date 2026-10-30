@@ -12,7 +12,7 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, Operation, Origin, PlaceAccess, SsaTypeId, ValueId},
+    model::{EntityId, EntityType, Operation, Origin, PlaceAccess, PlaceId, SsaTypeId, ValueId},
     unit_plan::resolve_enum_runtime_payload_types,
 };
 
@@ -170,6 +170,38 @@ impl UnitExpressionLowerer<'_> {
         receiver_type: lang_frontend::type_checking::UnitTypeId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        let receiver_value = self.require_expression_value(receiver.expression())?;
+        let result_type = self.expression_ssa_type(expression, span)?;
+        let field = self.lower_enum_field_place(
+            projection,
+            receiver_type,
+            receiver_value,
+            result_type,
+            span,
+        )?;
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::Read {
+                    source: PlaceAccess::Place(field),
+                },
+                vec![EntityType::Value(result_type)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        Ok(LoweredValue::Value(require_value(results[0], span)?))
+    }
+
+    /// Validate the concrete case payload once for both reads and shared field loans.
+    pub(super) fn lower_enum_field_place(
+        &mut self,
+        projection: UnitAggregateProjectionDescriptor,
+        receiver_type: lang_frontend::type_checking::UnitTypeId,
+        receiver_value: ValueId,
+        result_type: SsaTypeId,
+        span: Span,
+    ) -> Result<PlaceId, LoweringError> {
         let Some(UnitTypeKind::EnumCase { case, root }) = self.typed.types().get(receiver_type)
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
@@ -212,13 +244,20 @@ impl UnitExpressionLowerer<'_> {
             .get(root)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if self
+            .function
+            .entity(EntityId::Value(receiver_value))
+            .map(|entity| entity.ty)
+            != Some(EntityType::Value(tagged))
+            || self.type_ids.get(&projection.ty()).copied() != Some(result_type)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let (variant, payload) = self
             .enum_payloads
             .get(&(tagged, *case))
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let receiver_value = self.require_expression_value(receiver.expression())?;
-        let result_type = self.expression_ssa_type(expression, span)?;
         let (_, roots) = self
             .function
             .append_instruction(
@@ -246,17 +285,6 @@ impl UnitExpressionLowerer<'_> {
         let EntityId::Place(field) = fields[0] else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::Read {
-                    source: PlaceAccess::Place(field),
-                },
-                vec![EntityType::Value(result_type)],
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        Ok(LoweredValue::Value(require_value(results[0], span)?))
+        Ok(field)
     }
 }

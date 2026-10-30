@@ -465,7 +465,6 @@ fn field_replace_single_unclosed_projections_stay_unsupported() {
         "class Inner(var value: Int)\nclass Outer(val inner: Inner)\nfun test(): Unit { val holder = Outer(Inner(1))\nval old = replace(&holder.inner.value, 2) }",
         "class Holder<T>(var value: T)\nfun test(): Unit { val holder = Holder(1)\nval old = replace(&holder.value, 2) }",
         "class Holder(var a: Int, var b: Int)\nfun test(): Unit { val holder = Holder(1, 2)\nswap(&holder.a, &holder.b) }",
-        "class Holder(var a: Int, var b: Int)\nfun test(): Unit { val holder = Holder(1, 2)\nval old = replace(&holder.a, replace(&holder.b, 3)) }",
         "class Holder(var a: Int, var b: Int)\nfun test(): Unit { val holder = Holder(1, 2)\nval old = replace(&holder.a, holder.b) }",
         "class Holder(var a: String, var b: String)\nfun test(): Unit { val holder = Holder(\"a\", \"b\")\nval old = replace(&holder.a, holder.b.clone()) }",
     ] {
@@ -476,4 +475,19 @@ fn field_replace_single_unclosed_projections_stay_unsupported() {
             "{source}"
         );
     }
+}
+
+#[test]
+fn field_replace_single_allows_direct_sibling_exchange() {
+    let analysis = analyze_field(
+        "class Holder(var a: Int, var b: Int)\nfun test(): Unit { val holder = Holder(1, 2)\nval old = replace(&holder.a, replace(&holder.b, 3)) }",
+    );
+    let program = lower_field(&analysis).expect("direct sibling exchanges preserve their parent");
+    assert_eq!(
+        render_program(&program)
+            .matches("heap.field_exchange")
+            .count(),
+        2
+    );
+    render_verified_program(&program).expect("sibling exchanges verify");
 }

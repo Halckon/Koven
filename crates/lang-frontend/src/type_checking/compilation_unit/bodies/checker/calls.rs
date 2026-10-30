@@ -26,6 +26,8 @@ use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
 mod generic;
 mod member;
 mod range_extension;
+mod text_extension;
+mod text_primitive;
 
 impl BodyChecker<'_> {
     pub(super) fn check_call(
@@ -51,6 +53,17 @@ impl BodyChecker<'_> {
             .get(expression)
             .map_err(TypeCheckingError::from)?
             .span();
+        if let Some(result) = self.check_text_primitive_call(
+            source,
+            expression,
+            call_span,
+            callee,
+            type_arguments,
+            arguments,
+            return_type,
+        )? {
+            return Ok(result);
+        }
         if let Some(result) = self.check_range_construction_call(
             source,
             expression,
@@ -882,6 +895,7 @@ impl BodyChecker<'_> {
             .expression_categories
             .insert(callee, crate::type_checking::ExpressionCategory::Temporary);
         self.parts.calls.push(UnitCallDescriptor {
+            text_primitive: None,
             expression: UnitExpressionId::new(source, expression),
             instance: UnitCallableInstanceKey {
                 target: candidate.target,

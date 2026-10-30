@@ -1,3 +1,5 @@
+mod transport;
+
 use lang_frontend::source::SourceMap;
 
 use super::{
@@ -570,14 +572,23 @@ fn nullable_take_rejects_a_proof_from_a_different_owner() {
         )
         .expect("return");
 
+    let take = function
+        .instructions
+        .iter()
+        .find(|instruction| {
+            instruction.operation
+                == Operation::NullableTake {
+                    owner: non_null_second,
+                    proof: first_proof,
+                }
+        })
+        .unwrap()
+        .id;
     let errors = verify_program(&program)
         .expect_err("proof for the first owner cannot unwrap the second")
         .errors;
     assert!(errors.iter().any(|error| {
-        matches!(
-            error.kind,
-            VerifyErrorKind::NullableProofMismatch { owner, proof }
-                if owner == non_null_second && proof == first_proof
-        )
+        error.location == super::verify::VerifyLocation::Instruction(take)
+            && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
     }));
 }

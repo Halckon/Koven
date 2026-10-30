@@ -20,6 +20,11 @@ pub(super) struct StringView<'ctx> {
 }
 
 impl<'ctx> StringView<'ctx> {
+    /// The caller has proved readable, valid UTF-8 storage within the String length limit.
+    pub(super) const fn from_valid_utf8(bytes: PointerValue<'ctx>, length: IntValue<'ctx>) -> Self {
+        Self { bytes, length }
+    }
+
     pub(super) const fn bytes(self) -> PointerValue<'ctx> {
         self.bytes
     }

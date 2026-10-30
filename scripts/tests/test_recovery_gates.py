@@ -93,7 +93,8 @@ class CompositionContracts(unittest.TestCase):
         other_targets = [target for target in targets
                          if target not in ("compilation_unit_index", "multifile_name_resolution")]
         self.assertEqual(len(other_targets), len(set(other_targets)))
-        self.assertEqual(127, len(other_targets))
+        self.assertEqual(128, len(other_targets))
+        self.assertEqual(1, other_targets.count("type_text_extension"))
         self.assertEqual(1, targets.count("unit_direct_call_loan_ends"))
         for target in ("unit_single_source_analysis", "single_file_fact_compile_contracts"):
             self.assertEqual(1, targets.count(target))

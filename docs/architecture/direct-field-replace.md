@@ -70,16 +70,21 @@ source，仍保持本页其它 receiver/表示限制。跨文件 `make()` 产生
 
 nested fields、`this` / 隐式字段、non-owning 或参数 receiver、temporary receiver、index、
 generic receiver、value-class receiver、closure/provenance、field swap 和普通 Inout ABI
-不在本片。SSA AliasRoots 仍把同父对象字段关联到共同 root；字段 loan 活跃期间的 sibling
-read/clone/嵌套 exchange 在 backend 明确 Unsupported。frontend 继续接受可证明 disjoint
-的 sibling places，这些后端限制不改写 Guide 的合法性。
+不在本片。SSA AliasRoots 仍保留共同 root 约束父 owner 的移动与析构；直接字段 loan 的
+不重叠判断见下文。字段 loan 活跃期间的 sibling Copyable read／clone 仍在 backend
+明确 Unsupported，frontend 的合法性不因此改变。
 
 SPEC-0264 接入 unit owned local 普通非泛型 class 的一级字段 Borrow 实参（如
 `println(h.state)`），val/var 字段均可只读借用，调用结束后可继续 replace var 字段。投影与 loan 的
 source/root/field/type 联合校验，复用 HeapPayloadPlace/FieldPlace 与 BorrowBegin/End，
 不读取或复制字段 owner；父 owner 清理仍消费前端事实。普通与常量专用入口已有 native
 读取、连续调用、精确指针释放和嵌套调用帧结束证据；常量入口另覆盖参数 return/break/continue。
-同父 sibling shared/exclusive 两个求值方向均保持 Unsupported，未扩展 projection-aware alias。
+SPEC-0368 补齐 unit 直接字段 sibling shared/exclusive 两个求值方向及嵌套 exchange。
+独立字段来源证明只认唯一 owner root、相同父类型和不同一级字段；CFG 合流保留每条入边，
+未知来源、混合字段／root、无来源循环与嵌套投影不能建立证明。BorrowBegin 和
+HeapFieldExchange 使用该证明排除兄弟字段冲突；全局 overlap、父 owner move/drop 和
+root exchange 继续使用完整 root。文本 receiver 与参数中的 sibling replace 已有 native
+输出、逐指针释放及分支提前 return 清理测试；不扩展上文 Copyable read／clone 的边界。
 普通 field 值直接置于复杂 `&&`
 的既有 MissingFact 未扩大；快照在条件前读取到 local 再比较，不声称新增短路支持。
 
@@ -105,7 +110,8 @@ commit 不提前执行 deinit，正常与控制退出按实际 owner 唯一清�
 SPEC-0279 的实际完整CI推动修正了旧Borrow参数字段拒绝断言：普通非泛型class
 Borrow参数的一级String字段现在通过SharedHeapFieldLoan只读交付；两视图均核child结束、
 parent保留且无whole-owner Read，并以普通LLVM链接执行输出核验。nested/generic/owned-local value-class、
-own参数与pending replacement的原六项负控保留；不据此开放通用借用返回或全部字段形态。
+own参数四项负控保留；原pending replacement的两项sibling负例现改为上述native正例，
+不据此开放通用借用返回或全部字段形态。
 
 ## 普通 Borrow inline 参数字段
 

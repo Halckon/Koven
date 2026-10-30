@@ -3,6 +3,7 @@ mod cleanup;
 mod source;
 mod value;
 
+use super::control::ControlResult;
 use super::*;
 use crate::ssa::model::SsaTypeKind;
 use lang_frontend::{
@@ -42,7 +43,7 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
             .clone();
         let source = self.prepare_nullable_when_source(&descriptor, span)?;
-        let result_required = self.control_result_required(control.expression(), span)?;
+        let result_plan = self.control_result(control.expression(), None, span)?;
         let result_type = self
             .typed
             .expression_type(control)
@@ -53,7 +54,7 @@ impl UnitExpressionLowerer<'_> {
         }
         let checkpoint = self.loop_state();
         let guards = self.map_borrow_guards.clone();
-        let result = self.lower_nullable_when_source(&descriptor, &source, result_required, span);
+        let result = self.lower_nullable_when_source(&descriptor, &source, result_plan, span);
         self.map_borrow_guards = guards;
         if result.is_err() {
             // No failed entry leaves an installed proof or half-retired binding.
@@ -67,7 +68,7 @@ impl UnitExpressionLowerer<'_> {
         &mut self,
         descriptor: &UnitNullableWhenDescriptor,
         source: &NullableWhenSource,
-        result_required: bool,
+        result_plan: ControlResult,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let owner = match self.evaluate_nullable_when_subject(descriptor, source, span)? {
@@ -186,7 +187,7 @@ impl UnitExpressionLowerer<'_> {
                     control: descriptor.expression(),
                     branch: index,
                 },
-                result_required,
+                result_plan,
             )?;
             let owned_entry = self
                 .owned

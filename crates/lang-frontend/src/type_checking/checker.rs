@@ -28,6 +28,7 @@ mod range_carrier;
 mod range_construction;
 mod rc;
 mod string;
+mod text_extension;
 mod trial;
 mod type_inference;
 mod type_ref;

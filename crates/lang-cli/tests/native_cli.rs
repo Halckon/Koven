@@ -30,6 +30,9 @@ mod runtime_constructor;
 #[path = "native_cli/readonly_methods.rs"]
 mod readonly_methods;
 
+#[path = "native_cli/text_bytes.rs"]
+mod text_bytes;
+
 #[path = "native_cli/builtin_result.rs"]
 mod builtin_result;
 

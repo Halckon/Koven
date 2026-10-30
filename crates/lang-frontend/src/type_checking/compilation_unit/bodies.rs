@@ -23,6 +23,7 @@ mod assignment;
 mod checker;
 mod constants;
 mod container;
+mod control_flow;
 pub use constants::*;
 mod integer;
 mod integer_range;
@@ -554,6 +555,7 @@ pub struct CompilationUnitTypes {
     signatures: CompilationUnitSignatures,
     expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
     expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
+    expression_falls_through: BTreeMap<UnitExpressionId, bool>,
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
@@ -624,6 +626,7 @@ impl CompilationUnitTypes {
             signatures,
             expression_types: parts.expression_types,
             expression_categories: parts.expression_categories,
+            expression_falls_through: parts.expression_falls_through,
             type_ref_types: parts.type_ref_types,
             symbol_types: parts.symbol_types,
             parameter_modes: parts.parameter_modes,

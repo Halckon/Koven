@@ -182,7 +182,11 @@ fn lower_unit_impl(
                 })
             }
             (None, None) => None,
-            (Some(_), None) if callable.range_extension().is_some() => None,
+            (Some(_), None)
+                if callable.range_extension().is_some() || callable.text_extension().is_some() =>
+            {
+                None
+            }
             (Some(receiver), None) => {
                 return Err(lowering_error(
                     LoweringErrorKind::MissingFact,
@@ -203,18 +207,26 @@ fn lower_unit_impl(
         if let Some(receiver) = receiver {
             parameter_types.push(receiver.entity_type);
         }
-        if let Some(binding) = callable.range_extension() {
+        let extension = callable
+            .range_extension()
+            .map(|binding| (binding.receiver_type(), binding.receiver_span()))
+            .or_else(|| {
+                callable
+                    .text_extension()
+                    .map(|binding| (binding.receiver_type(), binding.receiver_span()))
+            });
+        if let Some((receiver_type, receiver_span)) = extension {
             let symbol = callable
                 .extension_receiver_symbol()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
             let concrete = resolve_concrete_type(
                 typed,
-                binding.receiver_type(),
+                receiver_type,
                 instance.substitutions(),
                 instance.key().static_self(),
-                binding.receiver_span(),
+                receiver_span,
             )?;
-            let target = types.intern(module, typed, concrete, binding.receiver_span())?;
+            let target = types.intern(module, typed, concrete, receiver_span)?;
             parameter_symbols.push(symbol);
             parameter_types.push(EntityType::Loan {
                 kind: LoanKind::Shared,
@@ -583,6 +595,7 @@ fn lower_unit_impl(
         let mut bindings = BTreeMap::new();
         let mut borrow_bindings = BTreeMap::new();
         let mut entry_boolean_roots = std::collections::BTreeSet::new();
+        let mut entry_string_roots = std::collections::BTreeSet::new();
         for (symbol, entity) in plan
             .parameter_symbols
             .into_iter()
@@ -599,6 +612,12 @@ fn lower_unit_impl(
                                 Some(crate::ssa::model::SsaTypeKind::Boolean)))
                     {
                         entry_boolean_roots.insert(symbol);
+                    }
+                    if matches!(function.entity(EntityId::Loan(loan)).map(|data| data.ty),
+                        Some(EntityType::Loan { kind: LoanKind::Shared, target })
+                            if matches!(module.types.get(target.index()), Some(crate::ssa::model::SsaTypeKind::StringOwner)))
+                    {
+                        entry_string_roots.insert(symbol);
                     }
                     borrow_bindings.insert(symbol, loan);
                 }
@@ -638,6 +657,7 @@ fn lower_unit_impl(
             bindings,
             borrow_bindings,
             entry_boolean_roots,
+            entry_string_roots,
             nullable_proofs: BTreeMap::new(),
             map_borrow_guards: BTreeMap::new(),
             result_source_loans: BTreeMap::new(),
@@ -766,6 +786,7 @@ fn lower_unit_impl(
             bindings: BTreeMap::new(),
             borrow_bindings: BTreeMap::new(),
             entry_boolean_roots: std::collections::BTreeSet::new(),
+            entry_string_roots: std::collections::BTreeSet::new(),
             nullable_proofs: BTreeMap::new(),
             map_borrow_guards: BTreeMap::new(),
             result_source_loans: BTreeMap::new(),

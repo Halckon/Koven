@@ -17,6 +17,8 @@ mod root_exchange;
 #[cfg(test)]
 mod root_exchange_tests;
 mod storage;
+mod text;
+mod text_copy;
 
 use std::collections::BTreeMap;
 
@@ -396,24 +398,12 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.values.insert(*result, value.into());
             }
-            Operation::StringClone { source } => {
-                let [result] = results.as_slice() else {
-                    return Err(invalid_result_count("string clone", 1, results.len()));
-                };
-                let value = string::clone_owner(
-                    self.context,
-                    &self.builder,
-                    self.llvm_function,
-                    self.dependencies.runtime,
-                    self.dependencies
-                        .type_map
-                        .basic_type(value_type(self.function, *result)?)?
-                        .into_struct_type(),
-                    self.string_view(EntityId::Loan(*source))?,
-                    &value_name(*result),
-                )?;
-                self.values.insert(*result, value.into());
-            }
+            Operation::StringClone { .. }
+            | Operation::StringCopyBytes { .. }
+            | Operation::StringCopySlice { .. } => self.lower_text_copy(instruction, &results)?,
+            Operation::StringByteLength { .. }
+            | Operation::StringByteAt { .. }
+            | Operation::Utf8ErrorOffset { .. } => self.lower_text_read(instruction, &results)?,
             Operation::StringEqual { left, right } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("string equal", 1, results.len()));

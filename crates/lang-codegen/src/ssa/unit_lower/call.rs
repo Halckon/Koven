@@ -117,6 +117,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if descriptor.text_primitive().is_some() {
+            return self.lower_text_primitive(expression, arguments, descriptor, span);
+        }
         if descriptor.aborts() {
             let Some(lowered) = self.lower_call_arguments(call, arguments, descriptor, span)?
             else {
@@ -281,7 +284,25 @@ impl UnitExpressionLowerer<'_> {
                     pending_start: receiver_start,
                     exclusive_root_owners: Vec::new(),
                     field_replace_owner: None,
-                    shared_field_roots: Vec::new(),
+                    shared_field_roots: self
+                        .owned
+                        .receiver_fact(call)
+                        .into_iter()
+                        .filter_map(|fact| {
+                            use lang_frontend::ownership_checking::{
+                                UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+                            };
+                            match fact.target() {
+                                UnitReceiverOwnershipTarget::Place(place)
+                                    if fact.kind() == UnitReceiverOwnershipKind::SharedLoan
+                                        && !place.is_root() =>
+                                {
+                                    Some(place.root())
+                                }
+                                _ => None,
+                            }
+                        })
+                        .collect(),
                     abi_slots: Vec::new(),
                     created_loans: (receiver_start + 1
                         ..receiver_start + 1 + receiver.created_loans.len())
@@ -377,13 +398,36 @@ impl UnitExpressionLowerer<'_> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
             )]
         };
+        // Trusted text extensions have no nominal owner. Their shared receiver is
+        // the first static ABI argument, while its existing cleanup frame stays intact.
+        let text_extension = match descriptor.target() {
+            UnitCallTarget::Declaration(id) => self
+                .typed
+                .signatures()
+                .declaration(id)
+                .and_then(|signature| signature.callable())
+                .is_some_and(|signature| signature.text_extension().is_some()),
+            _ => false,
+        };
+        let mut arguments = arguments;
+        let call_receiver = receiver.as_ref().map(|receiver| receiver.entity);
+        let call_receiver = if text_extension {
+            arguments.insert(
+                0,
+                call_receiver
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
+            );
+            None
+        } else {
+            call_receiver
+        };
         let (_, results) = self
             .function
             .append_instruction(
                 self.block,
                 Operation::DirectCall {
                     callee,
-                    receiver: receiver.as_ref().map(|receiver| receiver.entity),
+                    receiver: call_receiver,
                     arguments,
                 },
                 result_types,

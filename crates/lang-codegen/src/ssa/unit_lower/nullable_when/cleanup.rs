@@ -131,7 +131,7 @@ impl UnitExpressionLowerer<'_> {
     /// Check every original point, leaf first, before any SSA or owner mutation.
     /// Empty drop facts also make closure validation and late-Map drop dispatch
     /// structurally empty; empty end facts make end_result_bindings a no-op.
-    pub(super) fn preflight_nullable_when_take_drops(
+    pub(in crate::ssa::unit_lower) fn preflight_nullable_take_drops(
         &self,
         operands: &[UnitExpressionId],
         span: Span,

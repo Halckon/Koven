@@ -70,7 +70,11 @@ pub(super) fn apply(
         }, location.clone(), origin));
     }
     if state.loans.iter().any(|active| {
-        *active != loan && aliases.overlap(EntityId::Value(owner), EntityId::Loan(*active))
+        *active != loan
+            && aliases.overlap(EntityId::Value(owner), EntityId::Loan(*active))
+            && !aliases
+                .direct_fields
+                .disjoint(EntityId::Loan(loan), EntityId::Loan(*active))
     }) {
         errors.push(error(
             VerifyErrorKind::OwnerLoanConflict { value: owner },

@@ -15,6 +15,7 @@ subgraph Gactive["现行 active"]
   S0341["S0341<br/>D10 统一 compilation-unit 检查与代码生成管线"]
   S0357["S0357<br/>String subject when 的 Unit 清理事实"]
   S0360["S0360<br/>String when 清理事实的 refinement 消费"]
+  S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
   S0369["S0369<br/>CLI 最终调试产物与源码断点"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -50,6 +51,7 @@ ARCH --> S0341
 | SPEC-0341 | active | [0341-shared-lowering-core.md](active/0341-shared-lowering-core.md) |
 | SPEC-0357 | active | [0357-string-when-ownership-facts.md](active/0357-string-when-ownership-facts.md) |
 | SPEC-0360 | active | [0360-string-when-refinement.md](active/0360-string-when-refinement.md) |
+| SPEC-0368 | active | [0368-text-byte-foundation.md](active/0368-text-byte-foundation.md) |
 | SPEC-0369 | active | [0369-final-debug-artifacts.md](active/0369-final-debug-artifacts.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |

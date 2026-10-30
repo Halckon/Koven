@@ -1,0 +1,45 @@
+package koven.text
+
+// Byte offsets and error policy live here; storage access remains compiler-bound.
+enum class TextError {
+    InvalidUtf8(offset: Int),
+    InvalidRange,
+    NotScalarBoundary,
+    EmptySeparator
+}
+
+borrow fun String.byteLength(): Int = textByteLength(this)
+
+borrow fun String.toBytes(): Array<UByte> = copyByteArray(this)
+
+// The synchronous generator captures the existing borrowed parameter binding.
+private fun copyByteArray(source: String): Array<UByte> =
+    Array<UByte>(textByteLength(source), { index -> textByteAt(source, index) })
+
+fun decodeUtf8(bytes: Array<UByte>): Result<String, TextError> {
+    val offset = textUtf8ErrorOffset(bytes)
+    if (offset != -1) { return Err(TextError.InvalidUtf8(offset)) }
+    return Ok(textCopyBytes(bytes))
+}
+
+private fun scalarBoundary(text: String, offset: Int, length: Int): Boolean {
+    if (offset == length) { return true }
+    val byte = textByteAt(text, offset)
+    val continuationStart: UByte = 128u
+    val continuationEnd: UByte = 192u
+    return byte < continuationStart || byte >= continuationEnd
+}
+
+borrow fun String.sliceBytes(start: Int, end: Int): Result<String, TextError> {
+    val length = textByteLength(this)
+    if (start < 0 || end < start || end > length) { return Err(TextError.InvalidRange) }
+    if (!scalarBoundary(this, start, length) || !scalarBoundary(this, end, length)) {
+        return Err(TextError.NotScalarBoundary)
+    }
+    return Ok(textCopySlice(this, start, end))
+}
+
+borrow fun String.checkedPlus(other: String): String? {
+    if (textByteLength(other) > 2147483647 - textByteLength(this)) { return null }
+    return this + other
+}

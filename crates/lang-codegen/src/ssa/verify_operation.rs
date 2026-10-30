@@ -2,7 +2,9 @@
 
 mod integer;
 mod integer_range;
+mod nullable;
 mod range;
+mod text;
 pub(super) use range::{
     parameter as range_parameter, return_contract as range_return_contract,
     verify_signature as range_verify_signature,
@@ -51,6 +53,38 @@ pub(super) fn verify_operation(
         }
         Operation::StringClone { source } => shared_string_loan_type(module, function, *source)
             .is_some_and(|ty| single_value_result(&results) == Some(ty)),
+        Operation::StringByteLength { source } => {
+            shared_string_loan_type(module, function, *source).is_some()
+                && single_value_result(&results).is_some_and(|ty| is_koven_int(module, ty))
+        }
+        Operation::StringByteAt { source, index } => {
+            shared_string_loan_type(module, function, *source).is_some()
+                && value_type(function, *index).is_some_and(|ty| is_koven_int(module, ty))
+                && single_value_result(&results).is_some_and(|ty| {
+                    matches!(
+                        module.type_kind(ty),
+                        Some(SsaTypeKind::Integer {
+                            bits: 8,
+                            signed: false
+                        })
+                    )
+                })
+        }
+        Operation::Utf8ErrorOffset { source } => {
+            text::shared_byte_array(module, function, *source)
+                && single_value_result(&results).is_some_and(|ty| is_koven_int(module, ty))
+        }
+        Operation::StringCopyBytes { source } => {
+            text::shared_byte_array(module, function, *source)
+                && single_value_result(&results).is_some_and(|ty| is_string_owner(module, ty))
+        }
+        Operation::StringCopySlice { source, start, end } => {
+            shared_string_loan_type(module, function, *source)
+                .is_some_and(|ty| single_value_result(&results) == Some(ty))
+                && [start, end].iter().all(|index| {
+                    value_type(function, **index).is_some_and(|ty| is_koven_int(module, ty))
+                })
+        }
         Operation::StringEqual { left, right } => {
             string_binary_contract(module, function, *left, *right, &results, true)
         }
@@ -623,18 +657,12 @@ fn nullable_take_contract(
     let Some(inner) = module.nullable_inner(nullable) else {
         return false;
     };
-    let is_branch_proof = function.blocks.iter().any(|block| {
-        matches!(
-            block.terminator.as_ref().map(|terminator| &terminator.kind),
-            Some(super::model::TerminatorKind::NullableBranch { view, .. }) if *view == proof
-        )
-    });
     entity_type(function, EntityId::Loan(proof))
         == EntityType::Loan {
             kind: LoanKind::Shared,
             target: inner,
         }
-        && is_branch_proof
+        && nullable::has_exact_branch_proof(function, owner, proof)
         && single_value_result(results) == Some(inner)
 }
 

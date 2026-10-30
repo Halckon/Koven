@@ -188,7 +188,7 @@ fn lowers_empty_case_of_a_move_only_enum_as_the_root_tagged_owner() {
 }
 
 #[test]
-fn move_only_enum_when_waits_for_branch_qualified_subject_drop_facts() {
+fn move_only_enum_when_snapshots_tag_before_subject_drop() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -209,7 +209,7 @@ fn move_only_enum_when_waits_for_branch_qualified_subject_drop_facts() {
     )];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let error = match lower_scalar_unit_with_entry(
+    let (program, entry) = lower_scalar_unit_with_entry(
         &sources,
         &inputs,
         &names,
@@ -217,11 +217,50 @@ fn move_only_enum_when_waits_for_branch_qualified_subject_drop_facts() {
         &typed,
         &owned,
         declaration(&names, "test", "entry"),
-    ) {
-        Ok(_) => panic!("MoveOnly enum when must not bypass its AfterExpression drop fact"),
-        Err(error) => error,
+    )
+    .expect("a tag snapshot must precede the published subject cleanup");
+    super::verify::verify_program(&program).unwrap();
+    render_verified_program(&program).unwrap();
+    let function = program
+        .module(entry.module())
+        .unwrap()
+        .function(entry)
+        .unwrap();
+    let tags = function
+        .instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, instruction)| match instruction.operation {
+            Operation::TaggedDiscriminant { owner } => Some((index, owner)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(tags.len(), 1, "later case tests must reuse the saved tag");
+    let (tag_index, owner) = tags[0];
+    let drops = function
+        .instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, instruction)| {
+            matches!(instruction.operation, Operation::Drop { owner: dropped } if dropped == owner)
+                .then_some(index)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(drops.len(), 1, "the original owner is retired exactly once");
+    let entry_block = function.entry_block().unwrap();
+    assert_eq!(function.instructions[tag_index].block, entry_block);
+    assert_eq!(function.instructions[drops[0]].block, entry_block);
+    let execution_order = &function.blocks[entry_block.index()].instructions;
+    let position = |index| {
+        execution_order
+            .iter()
+            .position(|id| id.index() == index)
+            .unwrap()
     };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(
+        position(tag_index) < position(drops[0]),
+        "tag must be read before owner cleanup in the executed block order"
+    );
 }
 
 #[test]
@@ -734,4 +773,115 @@ fn original_generic_nominal_source_runs_natively() {
             assert!(run.status.success(), "{run:?}");
         },
     );
+}
+
+#[test]
+fn owned_generic_enum_when_rebinds_subject_and_borrows_string_payload() {
+    let source = r#"enum class Reply<T> { Full(value: T), Empty }
+fun show(own item: Reply<String>): Unit {
+    when (item) {
+        is Reply.Full -> println(item.value)
+        is Reply.Empty -> println("empty")
+    }
+    when (item) {
+        is Reply.Empty -> println("empty again")
+        is Reply.Full -> println(item.value)
+    }
+}
+fun local(): Unit {
+    val item: Reply<String> = Reply.Full("local".clone())
+    when ((item)) {
+        is Reply.Empty -> error("wrong local case")
+        is Reply.Full -> println(item.value)
+    }
+}
+fun early(own item: Reply<String>): Int {
+    when (item) {
+        is Reply.Empty -> return 8
+        is Reply.Full -> println(item.value)
+    }
+    return 7
+}
+fun main(): Unit {
+    val full: Reply<String> = Reply.Full("payload".clone())
+    val empty: Reply<String> = Reply.Empty
+    show(full)
+    show(empty)
+    local()
+    val earlyFull: Reply<String> = Reply.Full("early".clone())
+    val earlyEmpty: Reply<String> = Reply.Empty
+    if (early(earlyFull) != 7) { error("wrong full return") }
+    if (early(earlyEmpty) != 8) { error("wrong empty return") }
+}"#;
+    with_generic_enum_source("owned-when.ko", source, "main", |view, entry| {
+        let (program, entry) = super::unit_lower::lower_owned_unit_with_entry(view, entry)
+            .expect("owned enum subject survives each condition edge and both when joins");
+        super::verify::verify_program(&program).expect("no stale or duplicated enum owner");
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
+            .expect("borrowed String payload has the ordinary String ABI");
+        let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 3);
+        crate::native_tests::boxed_enum_tests::assert_success(
+            &run,
+            b"payload\npayload\nempty\nempty again\nlocal\nearly\n",
+        );
+    });
+}
+
+#[test]
+fn owned_enum_when_keeps_temporary_subject_cleanup_rejected() {
+    for subject in ["make()", "((make()))"] {
+        let source = format!(
+            "enum class Owned {{ Full(value: String), Empty }}\n\
+             fun make(): Owned = Owned.Full(\"value\")\n\
+             fun entry(own item: Owned): Int = when ({subject}) {{\n\
+                 is Owned.Full -> 1\n\
+                 is Owned.Empty -> 0\n\
+             }}"
+        );
+        with_generic_enum_source("rejected-when.ko", &source, "entry", |view, entry| {
+            let error = match super::unit_lower::lower_owned_unit_with_entry(view, entry) {
+                Ok(_) => panic!("temporary enum owners still need an explicit subject plan"),
+                Err(error) => error,
+            };
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{subject}");
+        });
+    }
+}
+
+#[test]
+fn exhaustive_owned_enum_statement_when_returns_without_a_fallthrough_edge() {
+    let source = r#"enum class Reply<T> { Full(value: T), Empty }
+fun total(own item: Reply<String>): Int {
+    when (item) {
+        is Reply.Full -> { println(item.value); return 7 }
+        is Reply.Empty -> return 8
+    }
+}
+fun partial(own item: Reply<String>): Int {
+    when (item) {
+        is Reply.Full -> { println(item.value); return 9 }
+    }
+    println("fallthrough")
+    return 10
+}
+fun main(): Unit {
+    val full: Reply<String> = Reply.Full("total".clone())
+    val empty: Reply<String> = Reply.Empty
+    if (total(full) != 7) { error("total full") }
+    if (total(empty) != 8) { error("total empty") }
+    val partialFull: Reply<String> = Reply.Full("partial".clone())
+    val partialEmpty: Reply<String> = Reply.Empty
+    if (partial(partialFull) != 9) { error("partial full") }
+    if (partial(partialEmpty) != 10) { error("partial empty") }
+}"#;
+    with_generic_enum_source("returning-when.ko", source, "main", |view, entry| {
+        let (program, entry) = super::unit_lower::lower_owned_unit_with_entry(view, entry)
+            .expect("typed non-fallthrough when must not fabricate a normal exit");
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 2);
+        crate::native_tests::boxed_enum_tests::assert_success(
+            &run,
+            b"total\npartial\nfallthrough\n",
+        );
+    });
 }

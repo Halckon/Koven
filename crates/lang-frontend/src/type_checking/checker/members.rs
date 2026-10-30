@@ -128,8 +128,12 @@ impl Checker<'_> {
                 self.typed_callables
                     .iter()
                     .find(|d| d.symbol() == symbol)
-                    .and_then(|d| d.range_extension())
-                    .and_then(|b| self.shape_type(b.receiver_type(), &parameter_slots)),
+                    .and_then(|d| {
+                        d.range_extension()
+                            .map(|b| b.receiver_type())
+                            .or_else(|| d.text_extension().map(|b| b.receiver_type()))
+                    })
+                    .and_then(|ty| self.shape_type(ty, &parameter_slots)),
                 shape_parameters,
             );
             if let Some(first) = first_by_shape.get(&key).copied() {

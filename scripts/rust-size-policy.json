@@ -240,6 +240,13 @@
       "split_plan": "后续按完整领域职责拆分，不机械搬迁状态机。",
       "review": "SPEC-0312 独立审阅核对3行注册及独立测试职责，有限上限2007；SPEC-0314独立审阅3行新return测试注册，有限上限2010；再次增长或扩职责须复审。",
       "max_lines": 2010
+    },
+    "crates/lang-frontend/src/type_checking/checker/callable.rs": {
+      "max_lines": 1010,
+      "reason": "SPEC-0368 在既有成员候选入口增加 String 分流八行与模块登记一行；可信来源、签名及候选算法均位于独立 text_extension 模块，不为有限接线机械切片。",
+      "owner": "lang-frontend callable selection",
+      "split_plan": "后续按成员候选收集与调用匹配的完整职责边界独立拆分，保留 canonical 身份与既有回归。",
+      "review": "SPEC-0368 独立审查核对 1001→1010 的九行接线，并确认其他超限文件仅模块或模型字段增长。超过 1010 行或新增算法职责前重新审阅。"
     }
   },
   "generated": {}

@@ -160,11 +160,11 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 16 | 2 | 0 | 1 | 18 / 19 |
 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 6 | 1 | 0 | 1 | 7 / 8 |
 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 |
-| [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 11 | 1 | 1 | 3 | 13 / 16 |
+| [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 12 | 1 | 1 | 2 | 14 / 16 |
 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 |
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 3 | 0 | 0 | 1 | 3 / 4 |
-| **合计** | **154** | **120** | **14** | **3** | **17** | **137 / 154** |
+| **合计** | **154** | **121** | **14** | **3** | **16** | **138 / 154** |
 
 

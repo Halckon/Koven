@@ -749,8 +749,18 @@ mod tests {
                 snapshot.names().diagnostics()
             );
             let units = snapshot.names().index().source_units();
-            // koven/algorithms/ranges.ko、koven/core/result.ko 与用户源。
-            assert_eq!(units.len(), 3);
+            assert_eq!(
+                units
+                    .iter()
+                    .map(|unit| snapshot.sources().source_name(unit.source_id()).unwrap())
+                    .collect::<Vec<_>>(),
+                [
+                    "koven-std/koven/algorithms/ranges.ko",
+                    "koven-std/koven/core/result.ko",
+                    "koven-std/koven/text/text.ko",
+                    "User.ko",
+                ]
+            );
             assert_eq!(units[0].source_id(), standard);
             let user_unit = units.iter().find(|unit| unit.source_id() == user).unwrap();
             assert_ne!(user_unit.id().index(), 0);
