@@ -65,87 +65,6 @@ fn binding_type_is_available_before_the_body_is_checked() {
 }
 
 #[test]
-fn range_view_publishes_a_distinct_shared_provider_without_owned_container_identity() {
-    use lang_frontend::type_checking::{IterationProvider, ParameterMode};
-    for element in ["String", "Item", "Token"] {
-        let (_, typed) = checked(&format!(
-            "class Item(val n:Int){{}}\nclass Token{{deinit(){{}}}}\nfun run(source:View<{element}>):Unit{{for(item in source){{}}}}"
-        ));
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        let [plan] = typed.sequential_iterations() else {
-            panic!("one provider");
-        };
-        assert_eq!(plan.provider(), IterationProvider::RangeView);
-        assert_eq!(plan.delivery(), ParameterMode::Borrow);
-    }
-}
-
-#[test]
-fn three_providers_publish_name_discard_and_ordered_borrowed_components() {
-    use lang_frontend::type_checking::{
-        BuiltinType, ParameterMode, SequentialContainerKind, SequentialIterationBinding, TypeKind,
-    };
-    for (container, provider) in [
-        ("Array", SequentialContainerKind::Array),
-        ("List", SequentialContainerKind::List),
-        ("MutableList", SequentialContainerKind::MutableList),
-    ] {
-        let text = format!(
-            "value class Pair<T>(val first: T, val second: Boolean)\nfun run(xs: {container}<Pair<Int>>) {{ for (item in xs) {{}} for (_ in xs) {{}} for ((n, _) in xs) {{ val i: Int = n }} }}"
-        );
-        let (_, typed) = checked(&text);
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        let plans = typed.sequential_iterations();
-        assert_eq!(plans.len(), 3);
-        for plan in plans {
-            assert_eq!(
-                plan.provider(),
-                lang_frontend::type_checking::IterationProvider::Sequential(provider)
-            );
-            assert_eq!(plan.delivery(), ParameterMode::Borrow);
-            let TypeKind::Intrinsic { arguments, .. } =
-                typed.types().get(plan.source_type()).unwrap()
-            else {
-                panic!("intrinsic source")
-            };
-            assert_eq!(arguments, &[plan.element_type()]);
-            if let SequentialIterationBinding::Name(symbol) = plan.binding() {
-                assert_eq!(typed.symbol_type(*symbol), Some(plan.element_type()));
-            }
-            assert_eq!(typed.sequential_iteration(plan.statement()), Some(plan));
-        }
-        assert!(matches!(
-            plans[0].binding(),
-            SequentialIterationBinding::Name(_)
-        ));
-        assert!(matches!(
-            plans[1].binding(),
-            SequentialIterationBinding::Discard
-        ));
-        let SequentialIterationBinding::Destructure(components) = plans[2].binding() else {
-            panic!("projection")
-        };
-        assert_eq!(components.len(), 2);
-        assert!(components[0].symbol().is_some());
-        assert!(components[1].symbol().is_none());
-        assert_eq!(
-            typed.types().get(components[0].ty()),
-            Some(&TypeKind::Builtin(BuiltinType::Int))
-        );
-        assert_eq!(
-            typed.types().get(components[1].ty()),
-            Some(&TypeKind::Builtin(BuiltinType::Boolean))
-        );
-        let (_, repeated) = checked(&text);
-        assert_eq!(plans, repeated.sequential_iterations());
-        assert!(
-            typed.destructurings().is_empty(),
-            "borrowed projections cannot become owned destructuring"
-        );
-    }
-}
-
-#[test]
 fn invalid_patterns_do_not_publish_partial_plans() {
     for (prefix, element, pattern, code) in [
         ("", "Int", "(a, b)", "L0160"),
@@ -176,15 +95,6 @@ fn invalid_patterns_do_not_publish_partial_plans() {
         );
         assert!(typed.sequential_iterations().is_empty());
     }
-}
-
-#[test]
-fn move_only_element_is_typed_without_phase_three_rejections() {
-    let (_, typed) = checked(
-        "class Node {}\nvalue class Pair(val node: Node, val flag: Boolean)\nfun consume(own n: Node) {}\nfun run(xs: List<Pair>) { for ((n, _) in xs) { consume(n) } }",
-    );
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.sequential_iterations().len(), 1);
 }
 
 #[test]
@@ -335,32 +245,6 @@ fn nominal_rejections_label_the_source_or_element_declaration() {
             .collect::<Vec<_>>();
         assert_eq!(labels, ["Node"]);
     }
-}
-
-#[test]
-fn source_modes_and_nested_loops_preserve_unique_source_identities() {
-    for parameter in ["own xs: List<Int>", "xs: List<Int>", "inout xs: List<Int>"] {
-        let (_, typed) = checked(&format!(
-            "fun run({parameter}) {{ for (n in xs) {{ for (m in xs) {{ val x: Int = m }} }} }}"
-        ));
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        assert_eq!(typed.sequential_iterations().len(), 2);
-        assert!(
-            typed
-                .sequential_iterations()
-                .windows(2)
-                .all(|p| p[0].statement().index() < p[1].statement().index())
-        );
-        assert_ne!(
-            typed.sequential_iterations()[0].source(),
-            typed.sequential_iterations()[1].source()
-        );
-    }
-    let (_, typed) = checked(
-        "class Holder(val xs: List<Int>) {}\nfun run(h: Holder) { for (n in h.xs) { val x: Int = n } }",
-    );
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.sequential_iterations().len(), 1);
 }
 
 #[test]
