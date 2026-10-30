@@ -5,14 +5,12 @@ use lang_frontend::{
     name_resolution::{NameResolution, Namespace, Symbol, SymbolKind},
     parser::{ClassifierKind, Expression, ForBinding, Item, NameMarker, Statement},
     source::Span,
-    type_checking::{
-        BuiltinType, NominalKind, TypeKind, UnitExpressionId, UnitStatementId, UnitTypeKind,
-    },
+    type_checking::{BuiltinType, NominalKind, UnitExpressionId, UnitStatementId, UnitTypeKind},
 };
 
 use super::{
     Case,
-    analysis::{Analysis, Blocked, Fixture, Observed, blocked},
+    analysis::{Blocked, Fixture, Observed, blocked},
 };
 
 #[derive(Debug)]
@@ -204,195 +202,114 @@ pub(super) struct Facts {
 }
 
 pub(super) fn facts(observed: &Observed, sites: &Sites, case: &Case) -> Result<Facts, Blocked> {
-    match &observed.analysis {
-        Analysis::Single(analysis) => {
-            let names = &analysis.names;
-            let raw = &analysis.raw;
-            let kind = raw
-                .expression_type(sites.source)
-                .and_then(|ty| raw.types().get(ty));
-            let (bindings_match, mut details) = bindings(names, sites, case);
-            let source_matches = match (case.constructor, kind) {
-                (
-                    Some(expected),
-                    Some(TypeKind::Intrinsic {
-                        constructor,
-                        arguments,
-                    }),
-                ) => {
-                    *constructor == expected
-                        && arguments.len() == 2
-                        && raw.types().get(arguments[0])
-                            == Some(&TypeKind::Builtin(BuiltinType::Int))
-                        && raw.types().get(arguments[1])
-                            == Some(&TypeKind::Builtin(BuiltinType::String))
-                }
-                (None, Some(TypeKind::Nominal { nominal, arguments })) => {
-                    sites.nominal.is_some_and(|(_, name)| {
-                        real_symbol(names, name, Namespace::Type, SymbolKind::Classifier)
-                            .is_some_and(|symbol| symbol.id() == nominal.symbol())
-                    }) && arguments.is_empty()
-                        && raw
-                            .nominals()
-                            .iter()
-                            .any(|item| item.id() == *nominal && item.kind() == NominalKind::Class)
-                }
-                _ => false,
-            };
-            let plans_absent = raw.map_iterations().is_empty()
-                && raw.sequential_iterations().is_empty()
-                && raw.map_iteration(sites.statement).is_none()
-                && raw.sequential_iteration(sites.statement).is_none();
-            details.push(format!(
-                "source_kind={kind:?} nominals={:?}",
-                raw.nominals()
-            ));
-            if let Some(TypeKind::Intrinsic { arguments, .. }) = kind {
-                details.push(format!(
-                    "source_KV={:?}",
-                    arguments
-                        .iter()
-                        .map(|ty| raw.types().get(*ty))
-                        .collect::<Vec<_>>()
-                ));
-            }
-            for span in &sites.markers {
-                if let Some(symbol) =
-                    real_symbol(names, *span, Namespace::Value, SymbolKind::ForBinding)
-                {
-                    details.push(format!(
-                        "binding_type {:?}={:?}",
-                        symbol.id(),
-                        raw.symbol_type(symbol.id())
-                            .and_then(|ty| raw.types().get(ty))
-                    ));
-                }
-            }
-            details.push(format!(
-                "map_plans={:?} sequential_plans={:?} map_lookup={:?} sequential_lookup={:?}",
-                raw.map_iterations(),
-                raw.sequential_iterations(),
-                raw.map_iteration(sites.statement),
-                raw.sequential_iteration(sites.statement)
-            ));
-            Ok(Facts {
-                source_matches,
-                bindings_match,
-                plans_absent,
-                details,
-            })
-        }
-        Analysis::Unit(analysis) => {
-            let names = analysis.names.names();
-            let [source_names] = names.source_units() else {
-                return Err(blocked(
-                    "unit identity",
-                    "expected one source names product",
-                ));
-            };
-            let [source_unit] = names.index().source_units() else {
-                return Err(blocked("unit identity", "expected one indexed source unit"));
-            };
-            let unit = source_names.source_unit();
-            if source_unit.id() != unit
-                || source_unit.source_id() != observed.fixture.file.source_id()
-                || !observed.entry.matches_key(source_unit.key())
-            {
-                return Err(blocked("unit identity", source_unit));
-            }
-            let raw = &analysis.raw;
-            let statement = UnitStatementId::new(unit, sites.statement);
-            let kind = raw
-                .expression_type(UnitExpressionId::new(unit, sites.source))
-                .and_then(|ty| raw.types().get(ty));
-            let (bindings_match, mut details) = bindings(source_names.resolution(), sites, case);
-            let source_matches = match (case.constructor, kind) {
-                (
-                    Some(expected),
-                    Some(UnitTypeKind::Intrinsic {
-                        constructor,
-                        arguments,
-                    }),
-                ) => {
-                    *constructor == expected
-                        && arguments.len() == 2
-                        && raw.types().get(arguments[0])
-                            == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
-                        && raw.types().get(arguments[1])
-                            == Some(&UnitTypeKind::Builtin(BuiltinType::String))
-                }
-                (
-                    None,
-                    Some(UnitTypeKind::Nominal {
-                        declaration,
-                        arguments,
-                    }),
-                ) => {
-                    let indexed = names
-                        .index()
-                        .declarations()
-                        .iter()
-                        .find(|item| item.id() == *declaration);
-                    let signature = raw
-                        .signatures()
-                        .declaration(*declaration)
-                        .and_then(|item| item.nominal());
-                    details.push(format!(
-                        "nominal_declaration={indexed:?} nominal_signature={signature:?}"
-                    ));
-                    arguments.is_empty()
-                        && sites.nominal.is_some_and(|(root, span)| {
-                            let symbol = real_symbol(
-                                source_names.resolution(),
-                                span,
-                                Namespace::Type,
-                                SymbolKind::Classifier,
-                            );
-                            indexed.is_some_and(|item| {
-                                item.root() == root
-                                    && item.name_span() == span
-                                    && item.source_unit() == unit
-                                    && item.namespace() == Namespace::Type
-                                    && item.kind() == SymbolKind::Classifier
-                            }) && signature.is_some_and(|item| {
-                                item.declaration() == *declaration
-                                    && item.kind() == NominalKind::Class
-                                    && item.symbol().source_unit() == unit
-                                    && symbol
-                                        .is_some_and(|local| item.symbol().symbol() == local.id())
-                                    && names.declaration_symbol(*declaration) == Some(item.symbol())
-                            })
-                        })
-                }
-                _ => false,
-            };
-            let plans_absent = raw.map_iterations().is_empty()
-                && raw.sequential_iterations().is_empty()
-                && raw.map_iteration(statement).is_none()
-                && raw.sequential_iteration(statement).is_none();
-            details.push(format!("source_unit={source_unit:?} source_kind={kind:?}"));
-            if let Some(UnitTypeKind::Intrinsic { arguments, .. }) = kind {
-                details.push(format!(
-                    "source_KV={:?}",
-                    arguments
-                        .iter()
-                        .map(|ty| raw.types().get(*ty))
-                        .collect::<Vec<_>>()
-                ));
-            }
-            details.push(format!(
-                "map_plans={:?} sequential_plans={:?} map_lookup={:?} sequential_lookup={:?}",
-                raw.map_iterations(),
-                raw.sequential_iterations(),
-                raw.map_iteration(statement),
-                raw.sequential_iteration(statement)
-            ));
-            Ok(Facts {
-                source_matches,
-                bindings_match,
-                plans_absent,
-                details,
-            })
-        }
+    let analysis = &observed.analysis;
+
+    let names = analysis.names.names();
+    let [source_names] = names.source_units() else {
+        return Err(blocked(
+            "unit identity",
+            "expected one source names product",
+        ));
+    };
+    let [source_unit] = names.index().source_units() else {
+        return Err(blocked("unit identity", "expected one indexed source unit"));
+    };
+    let unit = source_names.source_unit();
+    if source_unit.id() != unit
+        || source_unit.source_id() != observed.fixture.file.source_id()
+        || !observed.entry.matches_key(source_unit.key())
+    {
+        return Err(blocked("unit identity", source_unit));
     }
+    let raw = &analysis.raw;
+    let statement = UnitStatementId::new(unit, sites.statement);
+    let kind = raw
+        .expression_type(UnitExpressionId::new(unit, sites.source))
+        .and_then(|ty| raw.types().get(ty));
+    let (bindings_match, mut details) = bindings(source_names.resolution(), sites, case);
+    let source_matches = match (case.constructor, kind) {
+        (
+            Some(expected),
+            Some(UnitTypeKind::Intrinsic {
+                constructor,
+                arguments,
+            }),
+        ) => {
+            *constructor == expected
+                && arguments.len() == 2
+                && raw.types().get(arguments[0]) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+                && raw.types().get(arguments[1])
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        }
+        (
+            None,
+            Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }),
+        ) => {
+            let indexed = names
+                .index()
+                .declarations()
+                .iter()
+                .find(|item| item.id() == *declaration);
+            let signature = raw
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|item| item.nominal());
+            details.push(format!(
+                "nominal_declaration={indexed:?} nominal_signature={signature:?}"
+            ));
+            arguments.is_empty()
+                && sites.nominal.is_some_and(|(root, span)| {
+                    let symbol = real_symbol(
+                        source_names.resolution(),
+                        span,
+                        Namespace::Type,
+                        SymbolKind::Classifier,
+                    );
+                    indexed.is_some_and(|item| {
+                        item.root() == root
+                            && item.name_span() == span
+                            && item.source_unit() == unit
+                            && item.namespace() == Namespace::Type
+                            && item.kind() == SymbolKind::Classifier
+                    }) && signature.is_some_and(|item| {
+                        item.declaration() == *declaration
+                            && item.kind() == NominalKind::Class
+                            && item.symbol().source_unit() == unit
+                            && symbol.is_some_and(|local| item.symbol().symbol() == local.id())
+                            && names.declaration_symbol(*declaration) == Some(item.symbol())
+                    })
+                })
+        }
+        _ => false,
+    };
+    let plans_absent = raw.map_iterations().is_empty()
+        && raw.sequential_iterations().is_empty()
+        && raw.map_iteration(statement).is_none()
+        && raw.sequential_iteration(statement).is_none();
+    details.push(format!("source_unit={source_unit:?} source_kind={kind:?}"));
+    if let Some(UnitTypeKind::Intrinsic { arguments, .. }) = kind {
+        details.push(format!(
+            "source_KV={:?}",
+            arguments
+                .iter()
+                .map(|ty| raw.types().get(*ty))
+                .collect::<Vec<_>>()
+        ));
+    }
+    details.push(format!(
+        "map_plans={:?} sequential_plans={:?} map_lookup={:?} sequential_lookup={:?}",
+        raw.map_iterations(),
+        raw.sequential_iterations(),
+        raw.map_iteration(statement),
+        raw.sequential_iteration(statement)
+    ));
+    Ok(Facts {
+        source_matches,
+        bindings_match,
+        plans_absent,
+        details,
+    })
 }

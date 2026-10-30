@@ -75,7 +75,20 @@ pub(super) fn evaluate<C: ConstantEvaluationContext>(
                             let StringPart::Text(span) = part else {
                                 return Ok(None);
                             };
-                            let Some(text) = decode_text(context.text(span)?) else {
+                            let raw = context.text(span)?;
+                            let Some(length) = super::constant_value::decoded_text_length(raw)
+                            else {
+                                return Ok(None);
+                            };
+                            if super::string_length::checked_string_length(
+                                bytes.len() as u64,
+                                length,
+                            )
+                            .is_none()
+                            {
+                                return context.evaluation_failure(span);
+                            }
+                            let Some(text) = decode_text(raw) else {
                                 return Ok(None);
                             };
                             bytes.extend_from_slice(text.as_bytes());

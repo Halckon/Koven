@@ -248,6 +248,36 @@ impl Checker<'_> {
         Ok(Ok(candidate))
     }
 
+    // Keep the single-candidate arity rejection and its evaluated operands together.
+    pub(super) fn reject_instantiation(
+        &mut self,
+        callee: ExpressionId,
+        arguments: &[CallArgument],
+        candidate_count: usize,
+        failure: Option<InstantiationFailure>,
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        if candidate_count == 1 {
+            if matches!(failure, Some(InstantiationFailure::Arity { .. })) {
+                for argument in arguments {
+                    self.check_expression(argument.value, None, None)?;
+                }
+            }
+            if let Some(failure) = failure {
+                self.emit_instantiation_failure(failure)?;
+            }
+        } else {
+            self.emit(
+                self.no_matching_overload_code,
+                "no overload matches the call arguments",
+                self.ast().expressions().get(callee)?.span(),
+            )?;
+        }
+        Ok(ExprCheck {
+            ty: self.error_type(),
+            falls_through: true,
+        })
+    }
+
     pub(super) fn emit_instantiation_failure(
         &mut self,
         failure: InstantiationFailure,

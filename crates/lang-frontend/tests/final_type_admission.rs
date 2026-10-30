@@ -395,3 +395,6 @@ mod unit_statement_map_write;
 
 #[path = "final_type_admission/iteration_recovery.rs"]
 mod iteration_recovery;
+
+#[path = "final_type_admission/primitive_arity.rs"]
+mod primitive_arity;

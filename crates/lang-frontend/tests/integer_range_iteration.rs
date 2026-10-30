@@ -1,6 +1,6 @@
 //! SPEC-0329: ordinary source observation only; no facts mutation or execution.
 use lang_frontend::{
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, Severity},
     lexer::lex,
     name_resolution::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
@@ -27,7 +27,7 @@ struct Observation {
     provider: Option<IterationProvider>,
     source_builtin: Option<BuiltinType>,
     delivery: Option<ParameterMode>,
-    complete: Option<Result<(), FinalTypeAdmissionError>>,
+    complete: Option<Result<bool, FinalTypeAdmissionError>>,
 }
 
 fn observe(text: &str) -> Vec<Observation> {
@@ -84,7 +84,10 @@ fn observe(text: &str) -> Vec<Observation> {
             _ => None,
         }),
         delivery: plan.map(|p| p.delivery()),
-        complete: Some(complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ())),
+        complete: Some(
+            complete_file_types(&sources, &file, &names, &types, &typed)
+                .map(|complete| complete.is_same_analysis(&typed)),
+        ),
     };
     // Keep the legacy witness; both Unit keys consume this exact parsed source.
     let mut observations = vec![single];
@@ -155,7 +158,7 @@ fn observe(text: &str) -> Vec<Observation> {
                     delivery: plan.map(|p| p.delivery()),
                     complete: Some(
                         complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
-                            .map(|_| ()),
+                            .map(|complete| complete.is_same_analysis(&typed)),
                     ),
                 }
             }
@@ -186,7 +189,7 @@ fn accepted(o: &Observation, endpoint: BuiltinType, mode: ParameterMode) {
         };
         assert_eq!(o.source_builtin, Some(range));
     }
-    assert!(matches!(o.complete, Some(Ok(()))), "{o:?}");
+    assert!(matches!(o.complete, Some(Ok(true))), "{o:?}");
 }
 
 #[test]
@@ -261,14 +264,24 @@ fn invalid_numeric_sources_preserve_borrow_provider_controls() {
         assert_eq!(raw.len(), 1, "{o:?}");
         assert_eq!(raw[0].code().to_string(), "L0159", "{o:?}");
         assert_eq!(raw[0].primary_span(), o.source_span, "{o:?}");
-        assert!(o.delivery.is_none(), "{o:?}");
-        assert!(
-            matches!(
-                o.complete,
-                Some(Err(FinalTypeAdmissionError::Diagnostics(_)))
-            ),
+        // Independent frozen contract: do not derive expected text/details from another entry.
+        assert_eq!(raw[0].severity(), Severity::Error, "{o:?}");
+        assert_eq!(
+            raw[0].message(),
+            "for source requires a compiler-bound sequential container, View, IntRange or LongRange",
             "{o:?}"
         );
+        assert!(raw[0].details().is_empty(), "{o:?}");
+        assert!(o.delivery.is_none(), "{o:?}");
+        match &o.complete {
+            Some(Err(FinalTypeAdmissionError::Diagnostics(diagnostics))) => {
+                assert_eq!(
+                    diagnostics, raw,
+                    "complete preserves full raw diagnostics: {o:?}"
+                );
+            }
+            other => panic!("expected exact L0159 completion diagnostics, got {other:?}: {o:?}"),
+        }
     }
     for o in borrowed {
         accepted(&o, BuiltinType::Int, ParameterMode::Borrow);

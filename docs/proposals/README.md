@@ -77,3 +77,7 @@ String Copyable、Map 转换与 v2 interface 值不由此获得启用
 
 v0.35、v0.36 与 v0.37 已启用；原候选与重基记录仅用于追溯：
 [v0.35](../archive/guides/v0.35-candidate.md)、[v0.36](../archive/guides/v0.36-candidate.md)、[v0.37](../archive/guides/v0.37-candidate.md)。
+
+## 已批准文本／IO 的迁移准备
+
+[v0.47 迁移对账](../archive/migrations/v0.47-preparation.md)保全迁移前的完整范围与用户错误 oracle 决定；现已由 [v0.47](../guide/README.md)启用，生产实现另验。

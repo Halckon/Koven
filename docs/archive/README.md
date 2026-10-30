@@ -30,3 +30,5 @@ Archive 不参与现行语言语义、实现授权或默认 Agent 路由。历�
 
 - [v0.45 单文件 Unit 与统一管线启用账本](migrations/v0.45-enablement.md)
 - [v0.46 v1 待决规则启用账本](migrations/v0.46-enablement.md)
+
+- [v0.47 文本与 IO 启用账本](migrations/v0.47-enablement.md)

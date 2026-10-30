@@ -35,7 +35,7 @@ MARKDOWN_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 HTML_TAG_RE = re.compile(
     r"</?[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][^>]*)?\s*/?>"
 )
-CURRENT_GUIDE_VERSION = "v0.46"
+CURRENT_GUIDE_VERSION = "v0.47"
 CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*(v[\d.]+)\s*-->")
 CURRENT_COMPILER_CONTRACTS_RE = re.compile(r"<!--\s*current-compiler-contracts\s*-->")
 SCOPED_AGENT_DIRS = (
