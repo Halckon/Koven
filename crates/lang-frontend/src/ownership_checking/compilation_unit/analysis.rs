@@ -118,6 +118,7 @@ pub(super) fn analyze(
         dataflow.receiver_facts.clear();
         dataflow.conditional_receiver_deliveries.clear();
         dataflow.loans.clear();
+        dataflow.direct_call_loan_ends.clear();
         dataflow.value_deliveries.clear();
         dataflow.rc_effects.clear();
         dataflow.construction_plans.clear();

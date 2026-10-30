@@ -345,6 +345,12 @@ impl BodyChecker<'_> {
         }
         if instantiated.is_empty() {
             if initial_candidate_count == 1 {
+                if matches!(
+                    first_instantiation_error,
+                    Some(generic::UnitInstantiationFailure::Arity { .. })
+                ) {
+                    self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                }
                 if let Some(error) = first_instantiation_error {
                     self.emit_unit_instantiation_failure(error)?;
                 }

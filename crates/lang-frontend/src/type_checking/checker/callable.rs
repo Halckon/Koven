@@ -189,21 +189,12 @@ impl Checker<'_> {
             }
         }
         if instantiated.is_empty() {
-            if initial_candidate_count == 1 {
-                if let Some(failure) = first_failure {
-                    self.emit_instantiation_failure(failure)?;
-                }
-            } else {
-                self.emit(
-                    self.no_matching_overload_code,
-                    "no overload matches the call arguments",
-                    self.ast().expressions().get(callee)?.span(),
-                )?;
-            }
-            return Ok(ExprCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
+            return self.reject_instantiation(
+                callee,
+                &arguments,
+                initial_candidate_count,
+                first_failure,
+            );
         }
         let mut mapped = instantiated;
 

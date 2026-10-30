@@ -9,9 +9,10 @@ use lang_frontend::{
     parser::{Expression, ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, CallableTarget, CompilationUnitTypes, OwnershipPrimitiveKind, ParameterMode,
-        TypeKind, TypedFile, UnitCallTarget, UnitTypeKind, check_compilation_unit_types,
-        check_types, standard_environments,
+        BuiltinType, CallableTarget, CompilationUnitTypes, FinalTypeAdmissionError,
+        OwnershipPrimitiveKind, ParameterMode, TypeKind, TypedFile, UnitCallTarget, UnitTypeKind,
+        check_compilation_unit_types, check_types, complete_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -47,12 +48,83 @@ fn unit(texts: &[(&str, &str)], reverse: bool) -> CompilationUnitTypes {
         inputs.reverse();
     }
     let (names, environment) = standard_environments();
-    let index = index_compilation_unit(&sources, &inputs).expect("index");
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &names)
-        .expect("names")
-        .validate()
-        .expect("valid names");
-    check_compilation_unit_types(&sources, &inputs, &names, &environment).expect("types")
+    let observe = |inputs: &[SourceUnitInput<'_>]| {
+        let index = index_compilation_unit(&sources, inputs).expect("index");
+        assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let names = resolve_compilation_unit_names(&sources, inputs, &index, &names)
+            .expect("names")
+            .validate()
+            .expect("valid names");
+        let typed =
+            check_compilation_unit_types(&sources, inputs, &names, &environment).expect("types");
+        // Do not equate basic validation with final admission, especially for deferred inputs.
+        // Matching rooted/MemoryDocument rejection is not a successful-admission witness.
+        let complete =
+            match complete_compilation_unit_types(&sources, inputs, &names, &environment, &typed) {
+                Ok(complete) => {
+                    assert!(complete.is_same_analysis(&typed));
+                    Ok(())
+                }
+                Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => Err(diagnostics),
+                Err(other) => panic!("internal final-admission failure: {other:?}"),
+            };
+        for fact in typed.ownership_primitives() {
+            let indexed = names
+                .names()
+                .index()
+                .source_units()
+                .iter()
+                .find(|source| source.id() == fact.expression().source_unit())
+                .expect("fact's actual source unit");
+            let (_, parsed) = files
+                .iter()
+                .find(|(source, _)| *source == indexed.source_id())
+                .expect("fact's original parsed source");
+            assert_eq!(typed.ownership_primitive(fact.expression()), Some(*fact));
+            assert!(
+                fact.operands()
+                    .iter()
+                    .all(|operand| operand.source_unit() == fact.expression().source_unit())
+            );
+            assert_eq!(
+                fact.operands().map(|operand| operand.expression()),
+                operands(parsed, fact.expression().expression()),
+            );
+            let call = typed
+                .call(fact.expression())
+                .expect("primitive call identity");
+            assert!(matches!(
+                call.instance().target(),
+                UnitCallTarget::External(_)
+            ));
+            assert_eq!(call.instance().type_arguments(), &[fact.value_type()]);
+            let expected_modes = match fact.kind() {
+                OwnershipPrimitiveKind::Replace => [ParameterMode::Inout, ParameterMode::Value],
+                OwnershipPrimitiveKind::Swap => [ParameterMode::Inout, ParameterMode::Inout],
+            };
+            assert_eq!(
+                call.arguments()
+                    .iter()
+                    .map(|argument| argument.mode())
+                    .collect::<Vec<_>>(),
+                expected_modes
+            );
+        }
+        (typed, complete)
+    };
+    let (rooted, complete) = observe(&inputs);
+    if let [(source, file)] = files.as_slice() {
+        // Only single-source cases acquire MemoryDocument. Genuine multifile witnesses
+        // keep their rooted identities and input-order contracts unchanged.
+        let memory_inputs = [SourceUnitInput::memory_document(*source, file)];
+        let (memory, memory_complete) = observe(&memory_inputs);
+        assert_eq!(rooted.diagnostics(), memory.diagnostics());
+        assert_eq!(complete, memory_complete);
+        assert_eq!(rooted.ownership_primitives(), memory.ownership_primitives());
+        assert_eq!(rooted.calls(), memory.calls());
+        assert_eq!(rooted.assignments(), memory.assignments());
+    }
+    rooted
 }
 
 fn operands(file: &ParsedFile, expression: ExpressionId) -> [ExpressionId; 2] {
@@ -71,6 +143,17 @@ const BASIC: &str =
 fn single_primitives_publish_exact_intrinsic_operands_and_call_contracts() {
     let (_, file, typed) = single(BASIC);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let unit = unit(&[("primitives.ko", BASIC)], false);
+    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+    assert_eq!(unit.ownership_primitives().len(), 2);
+    assert_eq!(
+        unit.ownership_primitives()[0].kind(),
+        OwnershipPrimitiveKind::Replace
+    );
+    assert_eq!(
+        unit.ownership_primitives()[1].kind(),
+        OwnershipPrimitiveKind::Swap
+    );
     let facts = typed.ownership_primitives();
     assert_eq!(facts.len(), 2);
     for (fact, kind, modes) in [
@@ -176,6 +259,7 @@ fn source_functions_named_replace_and_swap_have_no_intrinsic_facts() {
     );
     let typed = unit(&[("source.ko", text)], false);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.calls().len(), 2);
     assert!(typed.ownership_primitives().is_empty());
     assert!(
         typed
@@ -418,22 +502,41 @@ fn explicit_environment_binding_identifies_intrinsics_independent_of_spelling() 
         CallableTarget::External(external)
     );
 
-    let inputs = [SourceUnitInput::new("root", "bound.ko", source, &file)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &names)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &environment).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.ownership_primitives().len(), 1);
-    let fact = typed.ownership_primitives()[0];
-    assert_eq!(fact.kind(), OwnershipPrimitiveKind::Replace);
-    assert_eq!(
-        typed.call(fact.expression()).unwrap().instance().target(),
-        UnitCallTarget::External(external)
-    );
-    assert!(typed.validate().is_ok());
+    for input in [
+        SourceUnitInput::new("root", "bound.ko", source, &file),
+        SourceUnitInput::memory_document(source, &file),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &names)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &environment).unwrap();
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.ownership_primitives().len(), 1);
+        let fact = typed.ownership_primitives()[0];
+        assert_eq!(fact.kind(), OwnershipPrimitiveKind::Replace);
+        assert_eq!(
+            typed.call(fact.expression()).unwrap().instance().target(),
+            UnitCallTarget::External(external)
+        );
+        let [indexed] = names.names().index().source_units() else {
+            panic!("one actual bound source");
+        };
+        assert_eq!(indexed.source_id(), source);
+        assert_eq!(fact.expression().source_unit(), indexed.id());
+        assert_eq!(
+            fact.operands().map(|operand| operand.expression()),
+            operands(&file, fact.expression().expression())
+        );
+        assert!(
+            fact.operands()
+                .iter()
+                .all(|operand| operand.source_unit() == fact.expression().source_unit())
+        );
+        assert!(typed.validate().is_ok());
+    }
 }
 
 #[test]

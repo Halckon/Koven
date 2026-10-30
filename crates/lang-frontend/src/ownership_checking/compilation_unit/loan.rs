@@ -12,7 +12,8 @@ pub enum UnitLoanTarget {
     Temporary(UnitExpressionId),
 }
 
-/// 一次成功建立并在同步 call 返回时结束的 source-qualified loan。
+/// 一次成功建立的 source-qualified 同步 loan 描述符。
+/// 借用结果可延续其来源 loan；此描述符本身不证明 loan 已在 call 返回时结束。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitLoanFact {
     call: UnitExpressionId,
@@ -75,7 +76,7 @@ impl UnitLoanFact {
         self.begin_span
     }
 
-    /// 返回同步 call 结束位置。
+    /// 返回所属同步 call 的源码结束位置；不是实际 loan-end 事件的位置。
     #[must_use]
     pub const fn end_span(&self) -> Span {
         self.end_span
@@ -85,5 +86,34 @@ impl UnitLoanFact {
     #[must_use]
     pub const fn parameter_span(&self) -> Option<Span> {
         self.parameter_span
+    }
+}
+
+/// 普通直接 Borrow 调用实参的实际 planner 结束事件；不是完整 Unit loan-end 流。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitDirectCallLoanEndFact {
+    pub(super) loan: UnitLoanFact,
+    pub(super) point: UnitDropPoint,
+    pub(super) preceding_drops: usize,
+}
+
+impl UnitDirectCallLoanEndFact {
+    /// 返回原始 source-qualified loan 描述符，保留 call、argument 和 target 身份。
+    #[must_use]
+    pub const fn loan(&self) -> &UnitLoanFact {
+        &self.loan
+    }
+
+    /// 实际返回或放弃该调用前缀的控制转移点。
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        self.point
+    }
+
+    /// 同 point 普通 drops 中先于此事件的数量；事件间保持发布顺序。
+    /// 这不是 receiver 条件析构或 capture/provider 动作的统一执行索引。
+    #[must_use]
+    pub const fn preceding_drops(&self) -> usize {
+        self.preceding_drops
     }
 }

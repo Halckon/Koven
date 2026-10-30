@@ -54,6 +54,7 @@ pub(super) trait Facts {
 
     fn static_qualifier(&self, span: Span) -> bool;
     fn static_candidate(&self, span: Span) -> bool;
+    fn ownership_primitive_candidate(&self, span: Span) -> bool;
     fn rejected_function_overload(&self, callee_span: Span, no_match_code: DiagnosticCode) -> bool;
     fn rejected_bare_enum_case(
         &self,
@@ -85,6 +86,18 @@ fn static_symbol(kind: SymbolKind) -> bool {
         SymbolKind::Function | SymbolKind::Classifier | SymbolKind::EnumVariant
     )
 }
+fn ownership_primitive_external(
+    environment: &TypeEnvironment,
+    symbol: crate::name_resolution::ExternalSymbolId,
+) -> bool {
+    matches!(
+        environment.binding(symbol),
+        Some(ExternalTypeBinding::IntrinsicCallable(
+            IntrinsicCallable::Replace | IntrinsicCallable::Swap
+        ))
+    )
+}
+
 fn static_external(
     environment: &TypeEnvironment,
     symbol: crate::name_resolution::ExternalSymbolId,
@@ -503,6 +516,21 @@ impl Facts for Single<'_> {
                 _ => false,
             })
     }
+    fn ownership_primitive_candidate(&self, span: Span) -> bool {
+        self.names.references().iter().any(|reference| {
+            reference.span() == span
+                && reference.namespace() == Namespace::Value
+                && match reference.target() {
+                    ReferenceTarget::External(symbol) => {
+                        ownership_primitive_external(self.environment, *symbol)
+                    }
+                    ReferenceTarget::ExternalOverloadSet(symbols) => symbols
+                        .iter()
+                        .any(|symbol| ownership_primitive_external(self.environment, *symbol)),
+                    _ => false,
+                }
+        })
+    }
     fn declaration(&self, span: Span) -> Option<(Self::Symbol, usize)> {
         let symbol = self
             .names
@@ -750,6 +778,22 @@ impl Facts for Unit<'_> {
                 }
                 _ => false,
             })
+    }
+    fn ownership_primitive_candidate(&self, span: Span) -> bool {
+        self.names.names().references().iter().any(|reference| {
+            reference.source_unit() == self.source
+                && reference.span() == span
+                && reference.namespace() == Some(Namespace::Value)
+                && match reference.target() {
+                    UnitReferenceTarget::External(symbol) => {
+                        ownership_primitive_external(self.environment, *symbol)
+                    }
+                    UnitReferenceTarget::ExternalOverloadSet(symbols) => symbols
+                        .iter()
+                        .any(|symbol| ownership_primitive_external(self.environment, *symbol)),
+                    _ => false,
+                }
+        })
     }
     fn declaration(&self, span: Span) -> Option<(Self::Symbol, usize)> {
         let names = self

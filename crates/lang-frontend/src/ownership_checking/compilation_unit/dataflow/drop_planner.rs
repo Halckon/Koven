@@ -1,6 +1,7 @@
 mod assignment;
 mod binding;
 mod borrow_result;
+mod call_loan_end;
 mod control;
 mod iteration;
 mod lambda;
@@ -63,6 +64,7 @@ pub(super) struct Analysis {
             crate::ownership_checking::UnitDropPoint,
         >,
     >,
+    pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
@@ -123,6 +125,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
             ..Analysis::default()
         });
     }
+    let direct_call_loan_ends = planner.direct_call_loan_ends();
     let drops = planner
         .facts
         .into_iter()
@@ -134,6 +137,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         .map(|fact| fact.into_unit(checker.source_unit))
         .collect();
     Ok(Analysis {
+        direct_call_loan_ends,
         borrow_ends: planner.borrow_ends,
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,
@@ -1015,6 +1019,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 }
                 self.continue_borrow_call_source(id, state);
                 self.finish_call_borrows(id, &mut borrowed_roots, state);
+                self.finish_direct_call_loans(id, state);
                 state.pending_loans.retain(|(action, _)| match action {
                     crate::ownership_checking::UnitIterationCleanupAction::EndCallLoan(loan) => {
                         loan.call() != self.checker.unit_expression(id)
