@@ -54,6 +54,7 @@ DIAGNOSTIC_RE = re.compile(rb"(?m)^error\[(L[0-9]{4})\](?:\s|:)")
 BACKEND_RE = re.compile(rb"lowering failed with ([A-Za-z]+)")
 BACKEND_OBJECT_RE = re.compile(rb"native object ([A-Za-z]+):")
 OWNERSHIP_ICE_RE = re.compile(rb"ownership checking failed: [a-z -]+")
+ABORT_FRAME_RE = re.compile(rb"(?m)^  at \S+")
 SIMPLE_PRINTLN_LITERAL_RE = re.compile(r'println\("([^"\\$]*)"\)')
 PACKAGE_DIRECTIVE_RE = re.compile(r"(?m)^\s*package\s+")
 MAIN_ENTRY_RE = re.compile(r"(?m)\bfun\s+main\s*\(")
@@ -1095,6 +1096,11 @@ def evaluate_mode_against_oracle(
             return "wrong_output", f"runtime_abort produced unexpected stdout: {stdout!r}"
         if marker != expected_marker:
             return "regression", f"expected {expected_marker}, got {marker}"
+        if not ABORT_FRAME_RE.search(stderr):
+            return (
+                "wrong_output",
+                "runtime_abort stderr missing '  at <location>' stack frame per Guide 09 D12",
+            )
         return "pass_abort", None
 
     if kind == "known_unimplemented":
@@ -1195,6 +1201,9 @@ def compare_item(
         "name": execution["name"],
         "expectation_kind": expectation["kind"],
         "guide_chapter": expectation.get("guide_chapter"),
+        "probe_batch": expectation.get("probe_batch"),
+        "baseline_marker": baseline_row[0] if baseline_row else expectation.get("baseline_marker"),
+        "v046_baseline_exempt": bool(expectation.get("v046_baseline_exempt", False)),
         "single_marker": single_res["marker"],
         "project_marker": project_res["marker"],
         "single_verdict": single_verdict,
@@ -1587,7 +1596,10 @@ def derive_static_expectations(
         src_text = raw_bytes.decode("utf-8")
         src_sha = sha256_bytes(raw_bytes)
         base_single, base_project = baseline[name]
-        assert base_single == base_project, f"baseline mismatch for {name}"
+        if base_single != base_project:
+            raise ValueError(
+                f"baseline mode mismatch for probes.{name}: single={base_single!r} vs project={base_project!r}"
+            )
 
         literals = SIMPLE_PRINTLN_LITERAL_RE.findall(src_text)
         total_printlns = src_text.count("println(")
@@ -1782,12 +1794,28 @@ def resolve_default_cli(root: Path) -> Path:
     return release_cli
 
 
+def resolve_chapter_selector(selector: str) -> str:
+    """Resolve a Guide chapter filename or 2-digit prefix ('01'..'13') to a canonical chapter filename."""
+    cleaned = selector.strip()
+    if cleaned in VALID_GUIDE_CHAPTERS:
+        return cleaned
+    if re.fullmatch(r"[0-9]{2}", cleaned):
+        prefix = f"{cleaned}-"
+        for ch in VALID_GUIDE_CHAPTERS:
+            if ch.startswith(prefix):
+                return ch
+    raise ValueError(f"unknown Guide chapter selector: {selector!r}")
+
+
 def evaluate_suite(
     kovenc: Path,
     corpus_root: Path,
     expectations_path: Path,
     baseline_path: Path | None = None,
     selected_probes: list[str] | None = None,
+    selected_batches: list[str] | None = None,
+    selected_chapters: list[str] | None = None,
+    selected_programs: list[str] | None = None,
     include_programs: bool = True,
     timeout_sec: float = 60.0,
     strict_unreviewed: bool = True,
@@ -1798,6 +1826,10 @@ def evaluate_suite(
     """Run selected probes/programs, compare against expectations & baseline, and return full ledger."""
     if jobs < 1:
         raise ValueError(f"jobs must be >= 1, got {jobs}")
+    if timeout_sec <= 0:
+        raise ValueError(f"timeout_sec must be > 0, got {timeout_sec}")
+    if selected_programs is not None and not include_programs:
+        raise ValueError("cannot combine --program with --no-programs")
     kovenc = kovenc.resolve(strict=True)
     corpus_root = corpus_root.resolve(strict=True)
     expectations = load_expectations(expectations_path, corpus_root=corpus_root)
@@ -1818,6 +1850,35 @@ def evaluate_suite(
         if len(selected_probes) != len(set(selected_probes)):
             raise ValueError("duplicate probe names in selection")
         probe_names = [n for n in probe_names if n in set(selected_probes)]
+    if selected_batches is not None:
+        unknown_batches = sorted(set(selected_batches) - set(PROBE_BATCH_CATALOG.keys()))
+        if unknown_batches:
+            raise ValueError(f"unknown probe batches requested: {unknown_batches}")
+        if len(selected_batches) != len(set(selected_batches)):
+            raise ValueError("duplicate probe batches in selection")
+        batch_set = set(selected_batches)
+        probe_names = [
+            n
+            for n in probe_names
+            if (expectations["probes"][n].get("probe_batch") or classify_probe_batch(n))
+            in batch_set
+        ]
+    if selected_chapters is not None:
+        resolved_chapters = [resolve_chapter_selector(c) for c in selected_chapters]
+        if len(resolved_chapters) != len(set(resolved_chapters)):
+            raise ValueError("duplicate Guide chapters in selection")
+        chapter_set = set(resolved_chapters)
+        probe_names = [
+            n
+            for n in probe_names
+            if expectations["probes"][n].get("guide_chapter") in chapter_set
+        ]
+    if (
+        selected_probes is not None
+        or selected_batches is not None
+        or selected_chapters is not None
+    ) and not probe_names:
+        raise ValueError("no probes matched the requested filters")
 
     if evidence_dir is not None:
         evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -1856,6 +1917,13 @@ def evaluate_suite(
         return {"execution": _strip_raw_bytes(exec_record), "comparison": comp}
 
     program_names = sorted(expectations["programs"].keys()) if include_programs else []
+    if selected_programs is not None:
+        unknown_progs = sorted(set(selected_programs) - set(program_names))
+        if unknown_progs:
+            raise ValueError(f"unknown program names requested: {unknown_progs}")
+        if len(selected_programs) != len(set(selected_programs)):
+            raise ValueError("duplicate program names in selection")
+        program_names = [n for n in program_names if n in set(selected_programs)]
     if jobs == 1:
         probe_results = [_run_probe(name) for name in probe_names]
         program_results = [_run_program(name) for name in program_names]
@@ -1977,6 +2045,65 @@ def summarize_comparisons(
         if item["capability_passed"]:
             bucket["capability_passed"] += 1
 
+    by_batch: dict[str, dict[str, int]] = {}
+    for item in probe_comparisons:
+        b_key = item.get("probe_batch") or classify_probe_batch(item["name"])
+        b_bucket = by_batch.setdefault(
+            b_key,
+            {
+                "total": 0,
+                "pass_run": 0,
+                "pass_diagnostic": 0,
+                "pass_abort": 0,
+                "known_unimplemented": 0,
+                "capability_passed": 0,
+            },
+        )
+        b_bucket["total"] += 1
+        st = item["status"]
+        if st in ("pass_run", "pass_diagnostic", "pass_abort", "known_unimplemented"):
+            b_bucket[st] += 1
+        if item["capability_passed"]:
+            b_bucket["capability_passed"] += 1
+
+    ordered_by_batch = {
+        k: by_batch[k] for k in PROBE_BATCH_CATALOG if k in by_batch
+    }
+    for k in sorted(by_batch.keys()):
+        if k not in ordered_by_batch:
+            ordered_by_batch[k] = by_batch[k]
+
+    p2_a_eval = p2_a_runnable = p2_b_eval = p2_b_diag = p2_c_eval = 0
+    for item in probe_comparisons:
+        name = item["name"]
+        b_key = item.get("probe_batch") or classify_probe_batch(name)
+        if b_key not in FOUNDATIONAL_BATCHES:
+            continue
+        if name in FOUNDATIONAL_GROUP_B_PROBES:
+            p2_b_eval += 1
+            if item["status"] == "pass_diagnostic":
+                p2_b_diag += 1
+        elif name in FOUNDATIONAL_GROUP_C_PROBES:
+            p2_c_eval += 1
+        else:
+            p2_a_eval += 1
+            if item["status"] in ("pass_run", "pass_abort"):
+                p2_a_runnable += 1
+
+    foundational_p2 = {
+        "group_a_evaluated": p2_a_eval,
+        "group_a_runnable_passed": p2_a_runnable,
+        "group_b_evaluated": p2_b_eval,
+        "group_b_diagnostic_passed": p2_b_diag,
+        "group_c_evaluated": p2_c_eval,
+        "p2_target_min": P2_GROUP_A_TARGET_MIN,
+        "p2_gate_met": (
+            p2_a_eval == 74
+            and p2_a_runnable >= P2_GROUP_A_TARGET_MIN
+            and p2_b_diag == len(FOUNDATIONAL_GROUP_B_PROBES)
+        ),
+    }
+
     return {
         "total_probes": len(probe_comparisons),
         "probe_capability_passed": probe_cap_passed,
@@ -1984,6 +2111,8 @@ def summarize_comparisons(
         "program_run_passed": program_run_passed,
         "counts": counts,
         "by_chapter": dict(sorted(by_chapter.items())),
+        "by_batch": ordered_by_batch,
+        "foundational_p2": foundational_p2,
         "gate_passed": len(failures) == 0,
         "failures": failures,
     }
@@ -2394,6 +2523,124 @@ def summarize_foundational_cohort(expectations: dict[str, Any]) -> dict[str, Any
     }
 
 
+def summarize_v2_chapter_readiness(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Evaluate each of the 13 Guide chapters against V2 exit criteria (positive + negative polarity and 0 known_unimplemented)."""
+    chapter_polarity = summarize_chapter_polarity(expectations)
+    readiness: dict[str, dict[str, Any]] = {}
+    for ch in VALID_GUIDE_CHAPTERS:
+        pol = chapter_polarity[ch]
+        neg_contracts: list[str] = []
+        unimpl_probes: list[str] = []
+        blockers: set[str] = set()
+        programs_in_ch: list[str] = []
+
+        for name, spec in sorted(expectations["probes"].items()):
+            if spec.get("guide_chapter") != ch:
+                continue
+            if spec["kind"] == "compile_fail":
+                for code in spec.get("all_diagnostics", [spec["diagnostic"]]):
+                    tag = f"FE:{code}"
+                    if tag not in neg_contracts:
+                        neg_contracts.append(tag)
+            elif spec["kind"] == "runtime_abort":
+                tag = f"abort:{spec['abort_message']}"
+                if tag not in neg_contracts:
+                    neg_contracts.append(tag)
+            elif spec["kind"] == "known_unimplemented":
+                unimpl_probes.append(name)
+                blockers.update(spec.get("roadmap_blockers", []))
+
+        for prog_name, prog_spec in sorted(expectations["programs"].items()):
+            if prog_spec.get("guide_chapter") == ch:
+                programs_in_ch.append(prog_name)
+
+        has_pos = pol["has_positive"]
+        has_neg = pol["has_negative"]
+        ku_count = pol["known_unimplemented"]
+        if has_pos and has_neg and ku_count == 0:
+            v2_status = "v2_probe_ready"
+        elif has_pos and has_neg and ku_count > 0:
+            v2_status = "blocked_by_roadmap"
+        elif not has_neg and ku_count > 0:
+            v2_status = "needs_negative_and_roadmap"
+        else:
+            v2_status = "needs_negative_only"
+
+        readiness[ch] = {
+            "chapter": ch,
+            "domain": GUIDE_CHAPTER_DOMAINS[ch],
+            "total_probes": pol["total"],
+            "positive_active": pol["positive_active"],
+            "negative_active": pol["negative_active"],
+            "known_unimplemented": ku_count,
+            "negative_contracts": neg_contracts,
+            "unimplemented_probes": unimpl_probes,
+            "roadmap_blockers": sorted(blockers),
+            "acceptance_programs": programs_in_ch,
+            "v2_status": v2_status,
+        }
+    return readiness
+
+
+def summarize_blocker_unlock_impact(
+    expectations: dict[str, Any],
+    roadmap_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Analyze sole-blocker immediate probe unlocks vs co-blocked items and P2 Group A gate contribution per roadmap item."""
+    if roadmap_items is None:
+        v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+        else:
+            roadmap_items = {}
+
+    impact: dict[str, dict[str, Any]] = {}
+
+    def _ensure_bucket(b_id: str) -> dict[str, Any]:
+        if b_id not in impact:
+            item = roadmap_items.get(b_id, {})
+            impact[b_id] = {
+                "id": b_id,
+                "stage": item.get("stage", "-"),
+                "status": item.get("status", "unknown"),
+                "title": item.get("title", "").replace("|", "\\|"),
+                "sole_probes": [],
+                "co_probes": [],
+                "p2_group_a_probes": [],
+                "programs": [],
+            }
+        return impact[b_id]
+
+    for name, spec in sorted(expectations["probes"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        blockers = spec.get("roadmap_blockers", [])
+        batch = spec.get("probe_batch") or classify_probe_batch(name)
+        is_group_a = (
+            batch in FOUNDATIONAL_BATCHES
+            and name not in FOUNDATIONAL_GROUP_B_PROBES
+            and name not in FOUNDATIONAL_GROUP_C_PROBES
+        )
+        for b_id in blockers:
+            bucket = _ensure_bucket(b_id)
+            if len(blockers) == 1:
+                bucket["sole_probes"].append(name)
+            else:
+                bucket["co_probes"].append(name)
+            if is_group_a:
+                bucket["p2_group_a_probes"].append(name)
+
+    for prog_name, spec in sorted(expectations["programs"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for b_id in spec.get("roadmap_blockers", []):
+            bucket = _ensure_bucket(b_id)
+            bucket["programs"].append(prog_name)
+
+    return dict(sorted(impact.items()))
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -2449,6 +2696,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     batch_stats = summarize_probe_batches(expectations)
     marker_stats = summarize_unimplemented_markers(expectations)
     foundational_stats = summarize_foundational_cohort(expectations)
+    v2_readiness = summarize_v2_chapter_readiness(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -2622,8 +2870,39 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| **A 组** | {grp_a['label']} | {grp_a['total']} | {grp_a['runnable']} ({len(grp_a['run_ok'])} + {len(grp_a['runtime_abort'])}) | {len(grp_a['compile_fail'])} (`q17_generic_class`) | {len(grp_a['known_unimplemented'])} | P2 门槛 `≥ {foundational_stats['p2_target_min']} / {grp_a['total']}`（当前 `{grp_a['runnable']} / {grp_a['total']}`，距门槛差 `{foundational_stats['p2_gap_to_target']}` 项） |",
             f"| **B 组** | {grp_b['label']} | {grp_b['total']} | {grp_b['runnable']} | {len(grp_b['compile_fail'])} | {len(grp_b['known_unimplemented'])} | `8 / 8 (100%)` 精确命中期望前端诊断码 (`pass_diagnostic`) |",
             f"| **C 组** | {grp_c['label']} | {grp_c['total']} | {grp_c['runnable']} (`p37_is_generic_case`) | {len(grp_c['compile_fail'])} (`p23_global_var`) | {len(grp_c['known_unimplemented'])} (`p35_value_eq`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1` |",
+            "",
+            "### 1.9 Guide 13 章 V2 终态完备性（正反例双极性 + 零未实现）差距矩阵",
+            "",
+            "| Guide 章节 | 规范领域 | 正向已通 (`run_ok`) | 负向契约 (`compile_fail` / `abort`) | 剩余 `known_unimplemented` | 路线图阻塞项 | 关联 V1 验收程序 | V2 章节就绪状态 (`v2_status`) |",
+            "|---|---|---:|---|---|---|---|---|",
         ]
     )
+    for ch in VALID_GUIDE_CHAPTERS:
+        r_row = v2_readiness[ch]
+        neg_repr = (
+            f"{r_row['negative_active']} (" + ", ".join(f"`{c}`" for c in r_row["negative_contracts"]) + ")"
+            if r_row["negative_contracts"]
+            else "0（待补反例）"
+        )
+        ku_repr = (
+            f"{r_row['known_unimplemented']} (" + ", ".join(f"`{p}`" for p in r_row["unimplemented_probes"]) + ")"
+            if r_row["unimplemented_probes"]
+            else "0"
+        )
+        blk_repr = (
+            ", ".join(f"`{b}`" for b in r_row["roadmap_blockers"])
+            if r_row["roadmap_blockers"]
+            else "-"
+        )
+        prog_repr = (
+            ", ".join(f"`{p}`" for p in r_row["acceptance_programs"])
+            if r_row["acceptance_programs"]
+            else "-"
+        )
+        lines.append(
+            f"| [{ch}](../docs/guide/{ch}) | {r_row['domain']} | {r_row['positive_active']} | "
+            f"{neg_repr} | {ku_repr} | {blk_repr} | {prog_repr} | `{r_row['v2_status']}` |"
+        )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
@@ -2698,6 +2977,37 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         pnames = ", ".join(f"`{p}`" for p in plist)
         lines.append(
             f"| `{b_id}` | {title} | `{status}` | {len(plist)} | {pnames} |"
+        )
+
+    unlock_impact = summarize_blocker_unlock_impact(expectations, roadmap_items)
+    lines.extend(
+        [
+            "",
+            f"### 3.1 路线图阻塞项解封收益分析（单阻塞独立解封 vs 联合阻塞与 P2 门槛贡献，{len(unlock_impact)} Blockers）",
+            "",
+            "| 路线图条目 | 阶段 | 状态 | 独立解封 Probe (`sole_probes`) | 联合阻塞 Probe (`co_probes`) | P2 A 组贡献数 | 关联 V1 验收程序 |",
+            "|---|---|---|---|---|---:|---|",
+        ]
+    )
+    for b_id, u_row in unlock_impact.items():
+        sole_repr = (
+            f"{len(u_row['sole_probes'])} (" + ", ".join(f"`{p}`" for p in u_row["sole_probes"]) + ")"
+            if u_row["sole_probes"]
+            else "0"
+        )
+        co_repr = (
+            f"{len(u_row['co_probes'])} (" + ", ".join(f"`{p}`" for p in u_row["co_probes"]) + ")"
+            if u_row["co_probes"]
+            else "0"
+        )
+        prog_repr = (
+            ", ".join(f"`{p}`" for p in u_row["programs"])
+            if u_row["programs"]
+            else "-"
+        )
+        lines.append(
+            f"| `{b_id}` | `{u_row['stage']}` | `{u_row['status']}` | {sole_repr} | {co_repr} | "
+            f"{len(u_row['p2_group_a_probes'])} | {prog_repr} |"
         )
 
     lines.extend(
@@ -2776,6 +3086,24 @@ def main(argv: list[str] | None = None) -> int:
         help="run only selected probe name(s) (repeatable)",
     )
     parser.add_argument(
+        "--batch",
+        action="append",
+        dest="batches",
+        help="run only probes in selected batch prefix(es) p/q/r/s/t/u/v/w/x/y/e (repeatable)",
+    )
+    parser.add_argument(
+        "--chapter",
+        action="append",
+        dest="chapters",
+        help="run only probes in selected Guide chapter filename or 01..13 prefix (repeatable)",
+    )
+    parser.add_argument(
+        "--program",
+        action="append",
+        dest="programs",
+        help="run only selected acceptance program(s) (repeatable)",
+    )
+    parser.add_argument(
         "--no-programs",
         action="store_true",
         help="skip the 6 acceptance programs",
@@ -2850,6 +3178,9 @@ def main(argv: list[str] | None = None) -> int:
             expectations_path=args.expectations,
             baseline_path=args.baseline,
             selected_probes=args.probes,
+            selected_batches=args.batches,
+            selected_chapters=args.chapters,
+            selected_programs=args.programs,
             include_programs=not args.no_programs,
             timeout_sec=args.timeout,
             strict_unreviewed=not args.allow_unreviewed,

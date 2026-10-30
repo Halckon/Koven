@@ -155,6 +155,17 @@ sys.exit(1)
         self.assertEqual(ledger["summary"]["probe_capability_passed"], 3)
         self.assertEqual(ledger["summary"]["counts"]["known_unimplemented"], 2)
         self.assertEqual(
+            ledger["summary"]["by_batch"]["p"],
+            {
+                "total": 4,
+                "pass_run": 1,
+                "pass_diagnostic": 1,
+                "pass_abort": 1,
+                "known_unimplemented": 1,
+                "capability_passed": 3,
+            },
+        )
+        self.assertEqual(
             (evidence_dir / "raw" / "p01_ok.single.stdout").read_bytes(), b"hello\n"
         )
         self.assertEqual(
@@ -962,6 +973,46 @@ sys.exit(1)
         self.assertEqual(len(cohort["groups"]["B"]["compile_fail"]), 8)
         self.assertEqual(cohort["groups"]["C"]["total"], 3)
         self.assertEqual(cohort["p2_gap_to_target"], 12)
+        v2_ready = gate.summarize_v2_chapter_readiness(loaded)
+        self.assertEqual(set(v2_ready.keys()), set(gate.VALID_GUIDE_CHAPTERS))
+        self.assertEqual(
+            [ch for ch, r in v2_ready.items() if r["v2_status"] == "v2_probe_ready"],
+            [
+                "04-expressions-operators.md",
+                "05-declarations-callables.md",
+                "12-collections-destructuring.md",
+            ],
+        )
+        self.assertEqual(
+            len([ch for ch, r in v2_ready.items() if r["v2_status"] == "blocked_by_roadmap"]),
+            6,
+        )
+        self.assertEqual(
+            [ch for ch, r in v2_ready.items() if r["v2_status"] == "needs_negative_and_roadmap"],
+            [
+                "01-lexical.md",
+                "08-class-family-members.md",
+                "11-copyability-layout-construction.md",
+                "13-program-runtime-standard-library.md",
+            ],
+        )
+        impact = gate.summarize_blocker_unlock_impact(loaded, roadmap_items)
+        self.assertEqual(sum(len(v["sole_probes"]) for v in impact.values()), 12)
+        self.assertEqual(impact["N05"]["sole_probes"], ["p05_double", "p06_char"])
+        self.assertEqual(impact["L7"]["sole_probes"], [])
+        self.assertEqual(impact["L7"]["co_probes"], ["p21_box_enum", "q08_enum_string_payload"])
+        self.assertEqual(impact["L3b"]["programs"], ["varint_codec"])
+        verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
+            {
+                "marker": "abort:boom",
+                "exit": 134,
+                "stdout_bytes": b"",
+                "stderr_bytes": b"abort: boom\n",
+            },
+            {"kind": "runtime_abort", "abort_message": "boom"},
+        )
+        self.assertEqual(verdict_no_frame, "wrong_output")
+        self.assertIn("stack frame", reason_no_frame or "")
 
     def test_13_derivation_reports_naming_diagnostic_instead_of_baseline_keyerror(
         self,
@@ -983,7 +1034,7 @@ sys.exit(1)
     def test_14_named_probe_absent_from_baseline_matrix_reports_missing_row(
         self,
     ) -> None:
-        """命名合法但 baseline 缺项时必须报缺项，而不是 KeyError。"""
+        """命名合法但 baseline 缺项或单文件/工程列不一致时必须报 ValueError。"""
         (self.corpus / "probes" / "p06_absent.ko").write_text(
             self.probe_ok_src, encoding="utf-8"
         )
@@ -992,6 +1043,18 @@ sys.exit(1)
         message = str(ctx.exception)
         self.assertIn("p06_absent", message)
         self.assertIn("baseline", message)
+        (self.corpus / "probes" / "p06_absent.ko").unlink()
+
+        orig_baseline = self.baseline_path.read_text(encoding="utf-8")
+        self.baseline_path.write_text(
+            orig_baseline.replace("p01_ok\tOK\tOK", "p01_ok\tOK\tFE:L0084"),
+            encoding="utf-8",
+        )
+        try:
+            with self.assertRaisesRegex(ValueError, "baseline mode mismatch for probes.p01_ok"):
+                gate.derive_static_expectations(self.corpus, self.baseline_path)
+        finally:
+            self.baseline_path.write_text(orig_baseline, encoding="utf-8")
 
     def test_15_cli_init_expectations_renders_derivation_error_without_traceback(
         self,
@@ -1022,11 +1085,66 @@ sys.exit(1)
         for bad_args, expected_err in [
             (["--cli", str(self.root / "missing_kovenc"), "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "conformance: error:"),
             (["--jobs", "0", "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "jobs must be >= 1"),
+            (["--timeout", "0", "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "timeout_sec must be > 0"),
+            (["--program", "word_count", "--no-programs", "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "cannot combine --program with --no-programs"),
         ]:
             err_buf = io.StringIO()
             with contextlib.redirect_stderr(err_buf):
                 self.assertEqual(gate.main(bad_args), 1)
             self.assertIn(expected_err, err_buf.getvalue())
+
+        self.assertEqual(gate.resolve_chapter_selector("09"), "09-nullability-errors.md")
+        self.assertEqual(
+            gate.resolve_chapter_selector("09-nullability-errors.md"),
+            "09-nullability-errors.md",
+        )
+        with self.assertRaisesRegex(ValueError, "unknown Guide chapter selector"):
+            gate.resolve_chapter_selector("99")
+
+        kovenc = _make_mock_compiler(
+            self.root / "kovenc_filter",
+            'sys.stdout.buffer.write(b"hello\\n"); sys.exit(0)\n',
+        )
+        self._write_default_expectations(
+            {
+                "p01_ok": {
+                    "kind": "run_ok",
+                    "source_sha256": _sha256(self.probe_ok_src),
+                    "guide_chapter": "05-declarations-callables.md",
+                    "probe_batch": "p",
+                    "stdout": "hello\n",
+                }
+            }
+        )
+        ledger_filtered = gate.evaluate_suite(
+            kovenc=kovenc,
+            corpus_root=self.corpus,
+            expectations_path=self.expectations_path,
+            selected_batches=["p"],
+            selected_chapters=["05"],
+            include_programs=False,
+        )
+        self.assertEqual([p["comparison"]["name"] for p in ledger_filtered["probes"]], ["p01_ok"])
+        self.assertEqual(
+            ledger_filtered["summary"]["foundational_p2"],
+            {
+                "group_a_evaluated": 1,
+                "group_a_runnable_passed": 1,
+                "group_b_evaluated": 0,
+                "group_b_diagnostic_passed": 0,
+                "group_c_evaluated": 0,
+                "p2_target_min": 70,
+                "p2_gate_met": False,
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "no probes matched the requested filters"):
+            gate.evaluate_suite(
+                kovenc=kovenc,
+                corpus_root=self.corpus,
+                expectations_path=self.expectations_path,
+                selected_batches=["e"],
+                include_programs=False,
+            )
 
 
 if __name__ == "__main__":

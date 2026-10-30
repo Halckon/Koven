@@ -33,12 +33,16 @@ scripts/conformance_matrix.sh --gate \
   --evidence .local-artifacts/conformance-gate
 ```
 
-也可以按单个或若干个 probe 局部采样，或通过 `--jobs <N>`（环境变量 `KOVEN_CONFORMANCE_JOBS`）控制确定性并发度：
+也可以按单个或若干个 probe、批次前缀（`--batch`）、Guide 章节（`--chapter`，支持 `01`..`13` 简写）或验收程序（`--program`）局部采样，并通过 `--jobs <N>`（环境变量 `KOVEN_CONFORMANCE_JOBS`）控制确定性并发度：
 
 ```sh
 python3 scripts/conformance_gate.py \
   --cli target/release/kovenc \
   --probe p04_overflow --probe p28_companion --no-programs
+
+python3 scripts/conformance_gate.py \
+  --cli target/release/kovenc \
+  --batch e --chapter 06 --no-programs
 ```
 
 在 GitHub Actions CI（`.github/workflows/ci.yml`）中，`docs` 任务自动通过 `scripts/check_docs.py` 校验 `conformance/expectations.json` 与 `conformance/baseline-aef3f4f8.tsv` 的源码/期望 SHA-256 及条目完整性；`test` 任务在 `macos-14` 与 `ubuntu-24.04` 双宿主上自动执行 `scripts/conformance_gate.py --baseline conformance/baseline-aef3f4f8.tsv` 并归档 `conformance-<os>-<sha>` 证据包。
@@ -122,7 +126,7 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 | `p23_global_var` | 源码不变 | v0.46 顶层只允许 `const val`，顶层 `var counter` 由 Phase 2 以 L0167 拒绝（SPEC-0343） | 两模式均为 `FE:L0167` |
 | `p04_overflow` / `p45_abort_message` / `v12_convert_abort` | 源码不变 | v0.46 D12（SPEC-0355）实现 Abort 输出合同 | 两模式分别输出 `abort:integer overflow in +`、`abort:boom`、`abort:value out of range for ULong` |
 | `p16_result_q` | 删除自声明的 `enum class Result<T, E>`，其余不变 | v0.46 起 `Result`/`Ok`/`Err` 属于内建环境（SPEC-0349）；用户任一 package 的同名顶层声明以 L0150 拒绝 | 不再因声明冲突失败；`?` 仍待 N08 |
-| `p16b_result_string` | 同上 | 同上 | 不再因声明冲突失败；String 载荷 lowering 另计 |
+| `p16b_result_string` | 同上 | 同上 | 不再因声明冲突失败；String 载荷 `when` 匹配由 SPEC-0368 闭环，运行输出 `good\n` |
 | `p37_is_generic_case` | 同上 | 同上；无实参 `is Result.Ok` 从 subject 推断 root 实参（SPEC-0349） | 前端不再报 L0111，运行输出 `case-noargs\n` |
 
 以下 probe 未改动，但含义受 v0.46 影响，判读时留意：
