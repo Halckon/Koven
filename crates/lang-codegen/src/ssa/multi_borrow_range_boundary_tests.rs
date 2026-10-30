@@ -1,45 +1,55 @@
 //! Ordinary sources using the real trusted standard-library provider; no malformed IR.
 use super::LoweringErrorKind;
+use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use lang_frontend::{
-    lexer::lex,
-    name_resolution::{SourceUnitInput, resolve_names},
-    ownership_checking::check_ownership,
-    parser::parse_file,
+    name_resolution::{SourceUnitInput, SourceUnitKey, SymbolKind},
     source::SourceMap,
-    type_checking::{check_types, standard_environments},
+    type_checking::standard_environments,
 };
 const SOURCE: &str = "fun view(source: String, other: View<String>): borrow String from source = source\nfun wrap(source: String, items: List<String>): borrow String from source = view(source, take(items, 1))\nfun entry() { val source = \"kept\".clone(); val items = listOf(\"other\"); borrow val item = wrap(source, items); println(item) }";
 const STANDARD: &str = include_str!("../../../lang-std/koven/algorithms/ranges.ko");
 
 #[test]
 fn multi_parameter_borrow_single_short_range_argument_remains_unsupported() {
-    let mut sources = SourceMap::new();
     let text = format!(
         "{}\n{SOURCE}",
         STANDARD.strip_prefix("package koven.algorithms\n").unwrap()
     );
-    let source = sources.add_source("trusted.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let (environment, mut types) = standard_environments();
-    types.authorize_range_source(&sources, source).unwrap();
-    types
-        .authorize_range_extension_source(&sources, source)
-        .unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(parsed.diagnostics().is_empty());
-    assert!(names.diagnostics().is_empty());
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let error = super::lower_frontend::orchestrate::lower_scalar_file(
-        &sources, &parsed, &names, &typed, &owned,
-    )
-    .err()
-    .unwrap();
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    let analysis =
+        UnitSource::analyze_with_type_environment("trusted.ko", &text, |sources, source, types| {
+            types.authorize_range_source(sources, source).unwrap();
+            types
+                .authorize_range_extension_source(sources, source)
+                .unwrap();
+        })
+        .expect("the original trusted source passes strict Unit admission");
+    analysis.assert_frontend_clean();
+    assert!(analysis.ownership().deferred().is_empty());
+    let [source] = analysis.names().names().index().source_units() else {
+        panic!("one original MemoryDocument");
+    };
+    assert_eq!(source.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(source.source_id(), analysis.parsed().source_id());
     assert_eq!(
-        sources.slice(error.span.unwrap()).unwrap(),
+        analysis.sources().source_name(source.source_id()).unwrap(),
+        "trusted.ko"
+    );
+    assert_eq!(
+        analysis.sources().source_text(source.source_id()).unwrap(),
+        text
+    );
+    let entry = analysis.declaration("entry", SymbolKind::Function);
+    let error = analysis
+        .lower_entry(entry)
+        .err()
+        .expect("the original short range argument remains unsupported");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    let span = error
+        .span
+        .expect("the original rejection has a source span");
+    assert_eq!(span.source_id(), source.source_id());
+    assert_eq!(
+        analysis.sources().slice(span).unwrap(),
         "view(source, take(items, 1))"
     );
 }
