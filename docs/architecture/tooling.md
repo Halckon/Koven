@@ -31,9 +31,9 @@ std 依次登记 `ranges.ko`、`koven/core/result.ko`，后者经 `NameEnvironme
 bodyless single 保 lowering UnsupportedNode，project 保 entry unsupported process shape；frontend 诊断三条路径均 exit1（SPEC-0349 起），operational 错误 single/project 各自 exit2/exit1、
 JSON schema 与完整操作错误文本不变。这些 driver 差异不计作类型、ownership 或程序行为不一致。
 
-CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`，通过 `Command`
-参数数组链接已有 native object，不调用 shell 或让外部 driver 重新编译 LLVM IR。
-链接启动失败与进程失败保留现有结构化错误；受支持目标在 codegen 边界先行校验。
+CLI 以参数数组调用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc` 链接 native object，不调用 shell 或重新编译 LLVM IR。
+macOS build 在私有 staging 收集 dSYM 后依次 no-clobber 发布调试包和 executable；Linux 发布带行表 ELF。链接失败保留结构化错误，目标在 codegen 边界校验。
+`run` 的链接工具与程序复用进程组取消，回收及私有目录清理后恢复原信号状态；进程内编译仍同步运行，取消在下一外部进程边界阻止启动。
 
 实现入口是 `crates/lang-cli/src/main.rs`、`native_command.rs`、`check_command.rs`、`project/`、`project_build.rs` 和
 `project_command.rs`；对应覆盖位于 `native_cli`、`project_cli`、`check_cli` 与 `format_cli` integration suites。

@@ -225,7 +225,29 @@ impl SourceMap {
         name: impl Into<String>,
         text: impl Into<String>,
     ) -> Result<SourceId, SourceError> {
-        let name = name.into();
+        self.register_source(name.into(), text.into(), None)
+    }
+
+    /// 添加源码及宿主明确提供的文件名；文件名不参与逻辑身份，不读取文件系统。
+    ///
+    /// # Errors
+    ///
+    /// 逻辑名称重复时返回 [`SourceError::DuplicateSourceName`]。
+    pub fn add_source_with_file_name(
+        &mut self,
+        name: impl Into<String>,
+        text: impl Into<String>,
+        file_name: impl Into<String>,
+    ) -> Result<SourceId, SourceError> {
+        self.register_source(name.into(), text.into(), Some(file_name.into()))
+    }
+
+    fn register_source(
+        &mut self,
+        name: String,
+        text: String,
+        file_name: Option<String>,
+    ) -> Result<SourceId, SourceError> {
         if self.sources.iter().any(|source| source.name == name) {
             return Err(SourceError::DuplicateSourceName { name });
         }
@@ -234,11 +256,11 @@ impl SourceMap {
             map_id: self.map_id,
             index: self.sources.len(),
         };
-        let text = text.into();
         let line_starts = line_starts(&text);
 
         self.sources.push(Source {
             name,
+            file_name,
             text,
             line_starts,
         });
@@ -253,6 +275,16 @@ impl SourceMap {
     /// 当 ID 不属于本 map 时返回 [`SourceError::InvalidSourceId`]。
     pub fn source_name(&self, source_id: SourceId) -> Result<&str, SourceError> {
         Ok(&self.source(source_id)?.name)
+    }
+
+    /// 返回宿主提供的文件名；未提供时回退到逻辑名称。
+    ///
+    /// # Errors
+    ///
+    /// 当 ID 不属于本 map 时返回 [`SourceError::InvalidSourceId`]。
+    pub fn source_file_name(&self, source_id: SourceId) -> Result<&str, SourceError> {
+        let source = self.source(source_id)?;
+        Ok(source.file_name.as_deref().unwrap_or(&source.name))
     }
 
     /// 返回不可变 UTF-8 源文本。
@@ -398,6 +430,7 @@ fn next_source_map_id() -> u64 {
 
 struct Source {
     name: String,
+    file_name: Option<String>,
     text: String,
     line_starts: Vec<usize>,
 }

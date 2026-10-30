@@ -191,7 +191,8 @@ class PreviewDependencyInstaller(unittest.TestCase):
                          '-o', 'Acquire::http::Timeout=30', '-o', 'Acquire::https::Timeout=30',
                          'install', '--yes',
                          '--no-install-recommends', *[f'{name}={LLVM_VERSION}' for name in
-                         ('llvm-21-dev', 'clang-21', 'libclang-cpp21', 'libclang-rt-21-dev')],
+                         ('llvm-21-dev', 'clang-21', 'libclang-cpp21', 'libclang-rt-21-dev',
+                      'lldb-21', 'liblldb-21', 'python3-lldb-21')],
                          f'liblzma5:amd64={LZMA_VERSION}', 'build-essential']])
         self.assertIn(['apt-cache', 'show', f'liblzma5:amd64={LZMA_VERSION}'], calls)
         self.assertIn(['sha256sum', LIBRARY], calls)

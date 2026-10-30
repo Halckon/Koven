@@ -119,6 +119,7 @@ dependencies = [
  "fluent-uri",
  "lang-codegen",
  "lang-frontend",
+ "libc",
  "serde_json",
  "toml",
 ]

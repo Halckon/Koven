@@ -1,5 +1,7 @@
 //! Host-native linker driver boundary.
 
+use crate::run_control::{RunControl, RunOutcome};
+
 use std::{
     io,
     path::{Path, PathBuf},
@@ -14,6 +16,9 @@ const NATIVE_LINK_DRIVER: &str = if cfg!(target_os = "linux") {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum LinkerError {
+    Cancelled {
+        signal: i32,
+    },
     Launch {
         driver: PathBuf,
         kind: io::ErrorKind,
@@ -25,20 +30,45 @@ pub(crate) enum LinkerError {
 }
 
 /// Links one caller-owned native object into one caller-owned executable path.
-pub(crate) fn link_native_object(object: &Path, executable: &Path) -> Result<(), LinkerError> {
-    link_with_driver(Path::new(NATIVE_LINK_DRIVER), object, executable)
+pub(crate) fn link_native_object(
+    object: &Path,
+    executable: &Path,
+    control: Option<&RunControl>,
+) -> Result<(), LinkerError> {
+    link_with_driver(Path::new(NATIVE_LINK_DRIVER), object, executable, control)
 }
 
-fn link_with_driver(driver: &Path, object: &Path, executable: &Path) -> Result<(), LinkerError> {
-    let output = Command::new(driver)
-        .arg(object)
-        .arg("-o")
-        .arg(executable)
-        .output()
-        .map_err(|error| LinkerError::Launch {
-            driver: driver.to_path_buf(),
-            kind: error.kind(),
-        })?;
+fn link_with_driver(
+    driver: &Path,
+    object: &Path,
+    executable: &Path,
+    control: Option<&RunControl>,
+) -> Result<(), LinkerError> {
+    let arguments = [
+        object.as_os_str().to_owned(),
+        "-o".into(),
+        executable.as_os_str().to_owned(),
+    ];
+    // run owns the cancellation scope until its private artifacts are cleaned.
+    // build keeps its existing driver lifecycle without installing run handlers.
+    let outcome = match control {
+        Some(control) => control.output(driver, &arguments),
+        None => Command::new(driver)
+            .args(&arguments)
+            .output()
+            .map(RunOutcome::Completed),
+    }
+    .map_err(|error| LinkerError::Launch {
+        driver: driver.to_path_buf(),
+        kind: error.kind(),
+    })?;
+    let output = match outcome {
+        RunOutcome::CancelledBeforeStart(signal) => return Err(LinkerError::Cancelled { signal }),
+        RunOutcome::Completed(output) => output,
+    };
+    if let Some(signal) = control.and_then(RunControl::cancelled) {
+        return Err(LinkerError::Cancelled { signal });
+    }
     if output.status.success() {
         Ok(())
     } else {
@@ -87,6 +117,78 @@ mod tests {
     }
 
     #[test]
+    fn cancellation_during_linking_stops_the_tool_before_run() {
+        let _serial = crate::run_control::tests::SIGNAL_TEST.lock().unwrap();
+        let control = crate::run_control::RunControl::install().unwrap();
+        let directory = TestDirectory::create();
+        let script = directory.join("controlled-linker.sh");
+        let executable = directory.join("program");
+        // Signal only after the tool starts. Its bounded fallback makes the old
+        // synchronous driver fail without hanging the test harness indefinitely.
+        fs::write(
+            &script,
+            "kill -TERM \"$PPID\"; sleep 2; printf late > \"$2\"; exit 0\n",
+        )
+        .unwrap();
+        let result = link_with_driver(
+            std::path::Path::new("/bin/sh"),
+            &script,
+            &executable,
+            Some(&control),
+        );
+        assert_eq!(control.cancelled(), Some(libc::SIGTERM));
+        control.finish().unwrap();
+        assert!(
+            matches!(
+                result,
+                Err(LinkerError::Cancelled {
+                    signal: libc::SIGTERM
+                })
+            ),
+            "cancelled linker must not report success: {result:?}"
+        );
+        assert!(!executable.exists());
+    }
+
+    #[test]
+    fn pending_cancellation_survives_compilation_and_prevents_link() {
+        let _serial = crate::run_control::tests::SIGNAL_TEST.lock().unwrap();
+        let control = crate::run_control::RunControl::install().unwrap();
+        let directory = TestDirectory::create();
+        let source = directory.join("main.ko");
+        let object = directory.join("program.o");
+        let executable = directory.join("program");
+        fs::write(&source, "fun main(): Unit {}\n").unwrap();
+        // SAFETY: SIGTERM has the live RunControl handler; raise targets this
+        // test process, and this test holds the shared signal-state lock.
+        assert_eq!(unsafe { libc::raise(libc::SIGTERM) }, 0);
+        let result = crate::bootstrap::bootstrap_build(
+            crate::bootstrap::BootstrapTarget {
+                source: &source,
+                source_root: None,
+                entry: crate::bootstrap::BootstrapEntry::ConventionalMain,
+                object: &object,
+                executable: &executable,
+            },
+            Some(&control),
+        );
+        control.finish().unwrap();
+        assert!(matches!(
+            result,
+            Err(crate::bootstrap::BootstrapError::Linker(
+                LinkerError::Cancelled {
+                    signal: libc::SIGTERM
+                }
+            ))
+        ));
+        assert!(object.is_file(), "the synchronous compilation actually ran");
+        assert!(
+            !executable.exists(),
+            "pending cancellation must suppress linking"
+        );
+    }
+
+    #[test]
     fn system_driver_links_one_object_without_shell() {
         let directory = TestDirectory::create();
         let source = directory.join("entry.c");
@@ -106,7 +208,7 @@ mod tests {
             String::from_utf8_lossy(&compile.stderr)
         );
 
-        link_native_object(&object, &executable).expect("link must succeed");
+        link_native_object(&object, &executable, None).expect("link must succeed");
         assert!(object.exists());
         assert_eq!(
             Command::new(&executable)
@@ -125,16 +227,21 @@ mod tests {
         let executable = directory.join("invalid");
         fs::write(&object, b"not an object").expect("object write");
         let missing = directory.join("missing-driver");
-        assert!(matches!(
-            link_with_driver(&missing, &object, &executable),
-            Err(LinkerError::Launch { driver, .. }) if driver == missing
-        ));
-        assert!(object.exists());
+        let _serial = crate::run_control::tests::SIGNAL_TEST.lock().unwrap();
+        let control = crate::run_control::RunControl::install().unwrap();
+        for scope in [None, Some(&control)] {
+            assert!(matches!(
+                link_with_driver(&missing, &object, &executable, scope),
+                Err(LinkerError::Launch { driver, .. }) if driver == missing
+            ));
+            assert!(object.exists());
 
-        assert!(matches!(
-            link_native_object(&object, &executable),
-            Err(LinkerError::Failure { status: Some(_), stderr }) if !stderr.is_empty()
-        ));
-        assert!(object.exists());
+            assert!(matches!(
+                link_native_object(&object, &executable, scope),
+                Err(LinkerError::Failure { status: Some(_), stderr }) if !stderr.is_empty()
+            ));
+            assert!(object.exists());
+        }
+        control.finish().unwrap();
     }
 }

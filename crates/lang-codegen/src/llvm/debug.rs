@@ -21,7 +21,8 @@ use super::LlvmAdapterError;
 pub(super) struct DebugPlan<'sources> {
     sources: &'sources SourceMap,
     primary_source: String,
-    source_ids: BTreeMap<String, SourceId>,
+    primary_file_name: String,
+    source_files: BTreeMap<String, String>,
 }
 
 impl<'sources> DebugPlan<'sources> {
@@ -33,11 +34,17 @@ impl<'sources> DebugPlan<'sources> {
         let entry = module.function(native_entry).ok_or_else(|| {
             LlvmAdapterError::Debug("debug native entry function 不存在".to_owned())
         })?;
-        let primary_source = resolve_position(sources, &entry.origin)?.source_name;
+        let position = resolve_position(sources, &entry.origin)?;
+        let primary_file_name = sources
+            .source_file_name(position.source_id)
+            .map_err(|error| LlvmAdapterError::Debug(error.to_string()))?
+            .to_owned();
+        let primary_source = position.source_name;
         let mut plan = Self {
             sources,
             primary_source,
-            source_ids: BTreeMap::new(),
+            primary_file_name,
+            source_files: BTreeMap::new(),
         };
 
         for function in &module.functions {
@@ -77,9 +84,13 @@ impl<'sources> DebugPlan<'sources> {
 
     fn validate_origin(&mut self, origin: &Origin) -> Result<(), LlvmAdapterError> {
         let position = resolve_position(self.sources, origin)?;
-        self.source_ids
+        let file_name = self
+            .sources
+            .source_file_name(position.source_id)
+            .map_err(|error| LlvmAdapterError::Debug(error.to_string()))?;
+        self.source_files
             .entry(position.source_name)
-            .or_insert(position.source_id);
+            .or_insert_with(|| file_name.to_owned());
         Ok(())
     }
 
@@ -89,7 +100,7 @@ impl<'sources> DebugPlan<'sources> {
 
     #[cfg(test)]
     pub(super) fn ordered_source_names(&self) -> Vec<&str> {
-        self.source_ids.keys().map(String::as_str).collect()
+        self.source_files.keys().map(String::as_str).collect()
     }
 }
 
@@ -113,7 +124,7 @@ impl<'ctx, 'sources> DebugEmitter<'ctx, 'sources> {
         let (builder, compile_unit) = llvm.create_debug_info_builder(
             false,
             DWARFSourceLanguage::C,
-            &plan.primary_source,
+            &plan.primary_file_name,
             "",
             "kovenc",
             false,
@@ -129,9 +140,9 @@ impl<'ctx, 'sources> DebugEmitter<'ctx, 'sources> {
         );
         let mut files = BTreeMap::new();
         files.insert(plan.primary_source.clone(), compile_unit.get_file());
-        for source_name in plan.source_ids.keys() {
+        for (source_name, file_name) in &plan.source_files {
             if source_name != &plan.primary_source {
-                files.insert(source_name.clone(), builder.create_file(source_name, ""));
+                files.insert(source_name.clone(), builder.create_file(file_name, ""));
             }
         }
         Self {

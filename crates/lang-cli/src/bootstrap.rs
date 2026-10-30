@@ -117,7 +117,10 @@ pub(crate) struct PreparedSingleSource {
 }
 
 /// 从一份显式用户 source 和有限受信标准源构建并链接一个 native target。
-pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
+pub(crate) fn bootstrap_build(
+    target: BootstrapTarget<'_>,
+    control: Option<&crate::run_control::RunControl>,
+) -> Result<(), BootstrapError> {
     validate_paths(target)?;
     let prepared = prepare_single_source(target.source, target.source_root)?;
     emit_unit_object(
@@ -129,7 +132,8 @@ pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), Bootstr
         },
         target.object,
     )?;
-    link_native_object(target.object, target.executable).map_err(BootstrapError::Linker)?;
+    link_native_object(target.object, target.executable, control)
+        .map_err(BootstrapError::Linker)?;
     Ok(())
 }
 
@@ -145,9 +149,17 @@ pub(crate) fn prepare_single_source(
     let source_name = path
         .to_str()
         .ok_or_else(|| BootstrapError::NonUtf8SourcePath(path.to_path_buf()))?;
+    // 文件名只供调试器定位，诊断继续使用调用者的原 source 名称。
+    let file_path = fs::canonicalize(path).map_err(|error| BootstrapError::ReadSource {
+        path: path.to_path_buf(),
+        kind: error.kind(),
+    })?;
+    let file_name = file_path
+        .to_str()
+        .ok_or_else(|| BootstrapError::NonUtf8SourcePath(file_path.clone()))?;
     let mut sources = SourceMap::new();
     let source = sources
-        .add_source(source_name, text)
+        .add_source_with_file_name(source_name, text, file_name)
         .map_err(UnitBuildError::Source)?;
     let lexed = lex(&sources, source).map_err(UnitBuildError::Lexer)?;
     let parsed = parse_file(&sources, &lexed).map_err(UnitBuildError::Parser)?;
@@ -271,7 +283,7 @@ fn source_diagnostics(sources: &SourceMap, diagnostics: &[Diagnostic]) -> Bootst
 /// 构建、链接并运行仓库 bootstrap target；测试外壳不增加另一条语义链。
 #[cfg(test)]
 pub(crate) fn bootstrap_and_run(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
-    bootstrap_build(target)?;
+    bootstrap_build(target, None)?;
     let output = Command::new(target.executable).output().map_err(|error| {
         BootstrapError::LaunchExecutable {
             path: target.executable.to_path_buf(),
