@@ -1,16 +1,17 @@
 //! SPEC-0179 同源 Unit 合同；四组正例使用独立固定空诊断 oracle。
-//! 其余 Single comparator、ordering 与上游 recovery witness 保留。
+//! 两组拒绝使用完整固定 raw/final 诊断；其余 comparator 与 recovery witness 保留。
 //! 两个入口各自使用真实 source key，不是 multi-source 覆盖。
 //! The two counterparts deferred after CI run 40825988901 are restored after the
 //! final-admission repair in PR #223. Their original raw Single witnesses remain.
 //! Raw and final diagnostics must still match in full; Internal is never success.
 use lang_frontend::{
+    diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
         SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit,
         resolve_compilation_unit_names, resolve_names,
     },
     parser::ParsedFile,
-    source::SourceMap,
+    source::{SourceId, SourceMap},
     type_checking::{
         CompilationUnitTypes, FinalTypeAdmissionError, check_compilation_unit_types, check_types,
         complete_compilation_unit_types, complete_file_types, standard_environments,
@@ -34,7 +35,7 @@ fn checked(entry: Entry, text: &str) -> (SourceMap, CompilationUnitTypes) {
 // These positive fixtures have a fixed empty raw/final Diagnostic oracle. Neither
 // Unit entry can obtain its expected diagnostics from a Single analysis or its peer.
 fn checked_without_diagnostics(entry: Entry, text: &str) -> (SourceMap, CompilationUnitTypes) {
-    let (sources, _, _, typed) = analyzed_with_oracle(entry, text, true);
+    let (sources, _, _, typed) = analyzed_with_oracle(entry, text, DiagnosticOracle::Empty);
     (sources, typed)
 }
 
@@ -47,13 +48,63 @@ fn analyzed(
     ValidatedCompilationUnitNames,
     CompilationUnitTypes,
 ) {
-    analyzed_with_oracle(entry, text, false)
+    analyzed_with_oracle(entry, text, DiagnosticOracle::Legacy)
+}
+
+#[derive(Clone, Copy)]
+enum DiagnosticOracle {
+    Legacy,
+    Empty,
+    NonProvider { end: usize },
+    BindingMismatch,
+}
+
+// Literal fixtures, not diagnostics projected from either analysis entry. The
+// SourceId is the only dynamic identity; byte offsets and all text are fixed.
+fn rejection_oracle(
+    sources: &SourceMap,
+    source: SourceId,
+    oracle: DiagnosticOracle,
+) -> Vec<Diagnostic> {
+    let (code, message, start, end) = match oracle {
+        DiagnosticOracle::NonProvider { end } => (
+            "L0159",
+            "for source requires a compiler-bound sequential container, View, IntRange or LongRange",
+            22,
+            end,
+        ),
+        DiagnosticOracle::BindingMismatch => (
+            "L0084",
+            "expression type does not match the expected type",
+            65,
+            69,
+        ),
+        _ => panic!("a fixed rejection oracle is required"),
+    };
+    let mut diagnostic = Diagnostic::new(
+        sources,
+        Severity::Error,
+        codes::catalog().unwrap().resolve(code).unwrap(),
+        message,
+        sources.span(source, start, end).unwrap(),
+    )
+    .unwrap();
+    if matches!(oracle, DiagnosticOracle::BindingMismatch) {
+        diagnostic
+            .add_label(
+                sources,
+                sources.span(source, 55, 62).unwrap(),
+                "expected Boolean, found Int",
+            )
+            .unwrap();
+    }
+    vec![diagnostic]
 }
 
 fn analyzed_with_oracle(
     entry: Entry,
     text: &str,
-    expect_no_diagnostics: bool,
+    oracle: DiagnosticOracle,
 ) -> (
     SourceMap,
     ParsedFile,
@@ -89,13 +140,22 @@ fn analyzed_with_oracle(
     let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     let unit_complete = complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
         .map(|complete| complete.is_same_analysis(&typed));
-    if expect_no_diagnostics {
+    if matches!(oracle, DiagnosticOracle::Empty) {
         // Empty slices fix the full Diagnostic sequence, including all labels and order.
         assert_eq!(typed.diagnostics(), &[], "{entry:?}: {text}");
         assert!(
             matches!(unit_complete, Ok(true)),
             "{entry:?}: {text}: {unit_complete:?}"
         );
+    } else if !matches!(oracle, DiagnosticOracle::Legacy) {
+        let expected = rejection_oracle(&sources, source, oracle);
+        assert_eq!(typed.diagnostics(), expected, "{entry:?}: {text}");
+        match unit_complete {
+            Err(FinalTypeAdmissionError::Diagnostics(actual)) => {
+                assert_eq!(actual, expected, "{entry:?}: {text}");
+            }
+            other => panic!("expected fixed diagnostics, never success or Internal: {other:?}"),
+        }
     } else {
         // Retained negative/recovery contracts still compare complete diagnostics.
         let single_names = resolve_names(&sources, &parsed, &environment).unwrap();
@@ -156,9 +216,12 @@ fn analyzed_with_oracle(
 #[test]
 fn non_provider_source_is_rejected_at_the_complete_source_span() {
     for entry in ENTRIES {
-        for source in ["true", "\"text\"", "1 + 2"] {
-            let (sources, typed) =
-                checked(entry, &format!("fun run() {{ for (_ in {source}) {{}} }}"));
+        for (source, end) in [("true", 26), ("\"text\"", 28), ("1 + 2", 27)] {
+            let (sources, _, _, typed) = analyzed_with_oracle(
+                entry,
+                &format!("fun run() {{ for (_ in {source}) {{}} }}"),
+                DiagnosticOracle::NonProvider { end },
+            );
             assert_eq!(typed.diagnostics().len(), 1, "{source}");
             assert_eq!(typed.diagnostics()[0].code().to_string(), "L0159");
             assert_eq!(
@@ -174,9 +237,10 @@ fn non_provider_source_is_rejected_at_the_complete_source_span() {
 #[test]
 fn binding_type_is_available_before_the_body_is_checked() {
     for entry in ENTRIES {
-        let (_, typed) = checked(
+        let (_, _, _, typed) = analyzed_with_oracle(
             entry,
             "fun run(xs: List<Int>) { for (item in xs) { val wrong: Boolean = item } }",
+            DiagnosticOracle::BindingMismatch,
         );
         assert_eq!(typed.diagnostics().len(), 1, "{:?}", typed.diagnostics());
     }
