@@ -813,3 +813,32 @@ P2 行 cleanup/独立 loan-end 为不适用，不由本批新增能力；所有 
 | 新候选官方 CI、独立复核、发布 | 均未执行；候选未提交/推送，既有 #220/#223 CI 不冒充本 patch 验收 |
 
 D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交付的削减不计作 main 已退休。
+
+## 53. Single 测试消费者成批退休（2026-10-30，待 CI）
+
+基于 GitHub `main` 的 `18c23efd9a184844f4e3538a7b8d2d8e98d3adbd`，将两个已静审候选
+合入隔离分支 `fix/spec-0341-single-retirement-batch`；不改变生产实现、Guide、fixture、runner
+或 API。§52 的历史结果不回写，本节仅更新 B03/B04/B06/B12 与三个 codegen 单 root 的处置。
+
+- codegen：保留三个原测试名和完整原源码，将两项 nested interpolation 拒绝及一项 unreachable
+  non-null assertion 从 `lower_scalar_file` 转为严格 MemoryDocument Unit 单 root。保留原
+  UnsupportedNode 与 typed/owned facts oracle，增加精确 source/span、单 root、SSA/LLVM 验证及
+  单一 Int 类型表断言；这是测试中的断言，不表示本地已经运行验证。历史 Stage A witness
+  中的保留旧测试描述不代表这三项仍使用旧入口；原 Unit witness 不删除。
+- frontend：B03/B04/B06/B12 的四个原 Single 定义移除，同名 Unit 测试保留原源码、provider、
+  Borrow、binding/projection、repeatability、nested source 身份断言；Rooted/MemoryDocument
+  各自使用固定空的完整 raw Diagnostic 序列及 final admission 原分析身份成功，不再运行 Single
+  comparator。其余完整 raw/final comparator、ordering、recovery 及独立 cleanup/loan-end 不变。
+- 净退休：3 个 codegen Single lowering 调用点；4 组 frontend Single producer 测试及其 4 组
+  comparator 路径。frontend 共用 Single helper 仍有其他消费者，不能宣称 caller 文件归零。
+  不把 Phase 2 成功外推为 Phase 3 或 native 等价，也不外推 multi-source 覆盖。
+
+| 验收项 | 输入与证据 | 状态 |
+|---|---|---|
+| 候选原样组合与基线 | codegen `a3eac896`，frontend 两文件工作树差量；两者基底均为 `18c23efd` | 静态组合，无冲突；原候选工作树保留 |
+| 原源码、完整 oracle、保留边界 | 四个 Rust 文件相对上述 main 的 diff；独立只读静审 | 未发现有界语义或 oracle blocker；非 formal approve |
+| 格式、文档、diff、尺寸 | rustfmt 四文件（skip_children）、check_docs.py、git diff --check、check_rust_sizes.py --base 18c23efd | 静态通过；39 个旧超限文件不变，无新例外 |
+| 编译、clippy、行为和双宿主门禁 | 官方 PR CI：既有 codegen 完整测试及 stage 中 type_iteration/type_iteration_unit 完整 targets | 待执行；不缩小既有 CI 选择 |
+| 本地 cargo/build/check/test/clippy/native | 用户要求不运行 | 未运行 |
+
+仅发布 Draft PR 交由官方 CI 验证，不 Ready、不 formal approve、不合并；D10/E2 保持 in-progress。
