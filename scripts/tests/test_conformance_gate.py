@@ -1109,6 +1109,13 @@ sys.exit(1)
             15,
         )
         self.assertTrue(all(r["target_stdout"].endswith("\n") for r in promo_rows))
+        phase_mat = gate.summarize_compiler_phase_matrix(loaded, roadmap_items)
+        self.assertEqual(set(phase_mat.keys()), {2, 3, 4, 5})
+        self.assertEqual(len(phase_mat[2]["active_negative_probes"]), 10)
+        self.assertEqual(len(phase_mat[3]["active_negative_probes"]), 4)
+        self.assertEqual(len(phase_mat[4]["active_negative_probes"]), 3)
+        self.assertEqual(len(phase_mat[4]["blocked_probes"]), 16)
+        self.assertEqual(len(phase_mat[4]["blocked_programs"]), 6)
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",

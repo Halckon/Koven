@@ -3306,6 +3306,86 @@ def summarize_unimplemented_promotion_contracts(
     return rows
 
 
+COMPILER_PHASE_CATALOG: dict[int, tuple[str, str]] = {
+    2: ("Phase 2 前端类型与解析", "名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`)"),
+    3: ("Phase 3 所有权与析构", "借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`)"),
+    4: ("Phase 4 SSA / LLVM / Runtime", "SSA 构建、所有权校验、LLVM IR 生成、原生链接与 `abort` 合同 (`crates/lang-codegen`)"),
+    5: ("Phase 5 标准库与并发", "内建容器、文本/数值协议、`Box`/`Rc` 与原生线程运行时 (`crates/lang-std`)"),
+}
+
+
+def summarize_compiler_phase_matrix(
+    expectations: dict[str, Any],
+    roadmap_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[int, dict[str, Any]]:
+    """Summarize active negative diagnostics/aborts and remaining roadmap blockers across compiler Phases 2..5."""
+    if roadmap_items is None:
+        v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+        else:
+            roadmap_items = {}
+
+    phase_3_diags = {"L0132", "L0133", "L0135", "L0164"}
+    phases_out: dict[int, dict[str, Any]] = {
+        ph: {
+            "phase": ph,
+            "title": title,
+            "description": desc,
+            "active_negative_probes": [],
+            "active_negative_contracts": [],
+            "blockers": [],
+            "blocked_probes": [],
+            "blocked_programs": [],
+        }
+        for ph, (title, desc) in COMPILER_PHASE_CATALOG.items()
+    }
+
+    for name, spec in sorted(expectations["probes"].items()):
+        kind = spec["kind"]
+        if kind == "compile_fail":
+            codes = spec.get("all_diagnostics", [spec["diagnostic"]])
+            target_ph = 3 if any(c in phase_3_diags for c in codes) else 2
+            phases_out[target_ph]["active_negative_probes"].append(name)
+            for c in codes:
+                tag = f"FE:{c}"
+                if tag not in phases_out[target_ph]["active_negative_contracts"]:
+                    phases_out[target_ph]["active_negative_contracts"].append(tag)
+        elif kind == "runtime_abort":
+            phases_out[4]["active_negative_probes"].append(name)
+            tag = f"abort:{spec['abort_message']}"
+            if tag not in phases_out[4]["active_negative_contracts"]:
+                phases_out[4]["active_negative_contracts"].append(tag)
+        elif kind == "known_unimplemented":
+            for b_id in spec.get("roadmap_blockers", []):
+                item = roadmap_items.get(b_id, {})
+                for ph in item.get("phases", []):
+                    if ph not in phases_out:
+                        continue
+                    if b_id not in phases_out[ph]["blockers"]:
+                        phases_out[ph]["blockers"].append(b_id)
+                        phases_out[ph]["blockers"].sort()
+                    if name not in phases_out[ph]["blocked_probes"]:
+                        phases_out[ph]["blocked_probes"].append(name)
+
+    for prog_name, spec in sorted(expectations["programs"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for b_id in spec.get("roadmap_blockers", []):
+            item = roadmap_items.get(b_id, {})
+            for ph in item.get("phases", []):
+                if ph not in phases_out:
+                    continue
+                if b_id not in phases_out[ph]["blockers"]:
+                    phases_out[ph]["blockers"].append(b_id)
+                    phases_out[ph]["blockers"].sort()
+                if prog_name not in phases_out[ph]["blocked_programs"]:
+                    phases_out[ph]["blocked_programs"].append(prog_name)
+
+    return phases_out
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -3736,6 +3816,28 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `{p_row['name']}` | [{ch}](../docs/guide/{ch}) | `{p_row['foundational_group']}` | "
             f"`{p_row['baseline_marker']}` | {allowed_s} | {blks_s} | `{escaped_out}` | "
             f"{p_row['expected_lines']}L / {p_row['expected_bytes']}B |"
+        )
+
+    phase_matrix = summarize_compiler_phase_matrix(expectations, roadmap_items)
+    lines.extend(
+        [
+            "",
+            "### 3.5 编译器阶段（`Phase 2` – `Phase 5`）负向契约与未实现阻塞全景矩阵",
+            "",
+            "| 编译器阶段 | 阶段职责范围 | 已生效负向 Probe 数 | 覆盖负向契约 (`FE:Lxxxx` / `abort`) | 关联路线图阻塞项 | 阻塞 Probe 数 | 阻塞 Program 数 |",
+            "|---|---|---:|---|---|---:|---:|",
+        ]
+    )
+    for ph_id, ph_row in phase_matrix.items():
+        neg_c = (
+            ", ".join(f"`{c}`" for c in ph_row["active_negative_contracts"])
+            if ph_row["active_negative_contracts"]
+            else "-"
+        )
+        blks_c = ", ".join(f"`{b}`" for b in ph_row["blockers"]) if ph_row["blockers"] else "-"
+        lines.append(
+            f"| **{ph_row['title']}** | {ph_row['description']} | {len(ph_row['active_negative_probes'])} | "
+            f"{neg_c} | {blks_c} | {len(ph_row['blocked_probes'])} | {len(ph_row['blocked_programs'])} |"
         )
 
     lines.extend(
