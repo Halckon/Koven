@@ -2,15 +2,13 @@
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity},
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::{Statement, parse_file},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, FinalTypeAdmissionError, IterationProvider, ParameterMode, TypeKind,
-        UnitExpressionId, UnitStatementId, UnitTypeKind, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, complete_file_types, standard_environments,
+        BuiltinType, FinalTypeAdmissionError, IterationProvider, ParameterMode, UnitExpressionId,
+        UnitStatementId, UnitTypeKind, check_compilation_unit_types,
+        complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -53,44 +51,8 @@ fn observe(text: &str) -> Vec<Observation> {
     let (statement, source_expr) = loops[0];
     let source_span = file.ast().expressions().get(source_expr).unwrap().span();
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &file, &environment).unwrap();
-    let typed = check_types(&sources, &file, &names, &types).unwrap();
-    let plan = typed.sequential_iteration(statement);
-    let single = Observation {
-        mode: "single",
-        source_span,
-        names: names.diagnostics().to_vec(),
-        raw: Some(typed.diagnostics().to_vec()),
-        source_kind: format!(
-            "{:?}",
-            typed
-                .expression_type(source_expr)
-                .and_then(|id| typed.types().get(id))
-        ),
-        plan: format!("{plan:?}"),
-        identity: plan.is_some_and(|p| {
-            p.statement() == statement
-                && p.source() == source_expr
-                && Some(p.source_type()) == typed.expression_type(source_expr)
-                && typed.sequential_iterations().len() == 1
-        }),
-        element: plan.and_then(|p| match typed.types().get(p.element_type()) {
-            Some(TypeKind::Builtin(builtin)) => Some(*builtin),
-            _ => None,
-        }),
-        provider: plan.map(|p| p.provider()),
-        source_builtin: plan.and_then(|p| match typed.types().get(p.source_type()) {
-            Some(TypeKind::Builtin(b)) => Some(*b),
-            _ => None,
-        }),
-        delivery: plan.map(|p| p.delivery()),
-        complete: Some(
-            complete_file_types(&sources, &file, &names, &types, &typed)
-                .map(|complete| complete.is_same_analysis(&typed)),
-        ),
-    };
-    // Keep the legacy witness; both Unit keys consume this exact parsed source.
-    let mut observations = vec![single];
+    // Both Unit keys retain independent fixed raw/final contracts for this parsed source.
+    let mut observations = Vec::new();
     for (mode, input) in [
         (
             "unit",
