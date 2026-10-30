@@ -2236,6 +2236,57 @@ def compare_dual_host_evidence(
     }
 
 
+def verify_matrix_evidence_dir(
+    evidence_dir: Path,
+    expected_names: set[str] | None = None,
+) -> dict[str, Any]:
+    """Verify a TSV-mode conformance_matrix.sh evidence directory (manifest.json, matrix.tsv, and raw files)."""
+    evidence_dir = evidence_dir.resolve(strict=True)
+    manifest_path = evidence_dir / "manifest.json"
+    matrix_path = evidence_dir / "matrix.tsv"
+    raw_dir = evidence_dir / "raw"
+    if not manifest_path.is_file():
+        raise ValueError(f"missing manifest.json in matrix evidence dir: {evidence_dir}")
+    if not matrix_path.is_file():
+        raise ValueError(f"missing matrix.tsv in matrix evidence dir: {evidence_dir}")
+    if not raw_dir.is_dir():
+        raise ValueError(f"missing raw/ directory in matrix evidence dir: {evidence_dir}")
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema") != "koven.conformance-matrix-manifest.v1"
+        or manifest.get("matrix_file") != "matrix.tsv"
+        or manifest.get("raw_dir") != "raw"
+    ):
+        raise ValueError(f"invalid manifest.json schema in {manifest_path}")
+
+    rows = parse_tsv_matrix(matrix_path.read_text(encoding="utf-8"), expected_names=expected_names)
+    if manifest.get("probe_count") != len(rows):
+        raise ValueError(
+            f"manifest probe_count mismatch: recorded {manifest.get('probe_count')}, matrix has {len(rows)}"
+        )
+    for name, (single_m, project_m) in sorted(rows.items()):
+        for mode, expected_m in (("single", single_m), ("project", project_m)):
+            out_p = raw_dir / f"{name}.{mode}.stdout"
+            err_p = raw_dir / f"{name}.{mode}.stderr"
+            st_p = raw_dir / f"{name}.{mode}.status.json"
+            if not out_p.is_file() or not err_p.is_file() or not st_p.is_file():
+                raise ValueError(f"missing raw file for {name}.{mode} in {raw_dir}")
+            st_data = json.loads(st_p.read_text(encoding="utf-8"))
+            recomputed = classify_raw(
+                st_data.get("exit"),
+                bool(st_data.get("timed_out")),
+                out_p.read_bytes(),
+                err_p.read_bytes(),
+            )
+            if recomputed != expected_m:
+                raise ValueError(
+                    f"matrix evidence marker mismatch for {name}.{mode}: matrix has {expected_m!r}, raw files classify as {recomputed!r}"
+                )
+    return {"manifest": manifest, "rows": rows}
+
+
 def _strip_raw_bytes(exec_record: dict[str, Any]) -> dict[str, Any]:
     out = dict(exec_record)
     for mode in ("single", "project"):
@@ -3000,6 +3051,90 @@ def summarize_stage_progression(
     return rows
 
 
+ROADMAP_AREA_CATALOG: dict[str, str] = {
+    "types": "类型系统、标量字面量 (`Double`/`Char`)、位运算与 `Equatable`/`Comparable` 协议 (`L1`, `L3b`, `N05`)",
+    "control": "多载荷与递归 enum 构造及 `when` 解构分派 (`L7`, `N02`)",
+    "closures": "函数引用 `::fn` 与移动闭包调用 (`N04`)",
+    "classes": "泛型 Interface 上界分派与匿名 `companion` 关联调用 (`N06`)",
+    "errors": "可空链式访问、Elvis `?:` 与 `Result` `?` 传播 (`N03`, `N08`)",
+    "ownership": "嵌套泛型 class 字段借用、可变写入与所有权证明 (`N01`)",
+    "collections": "内建 `Pair` 构造与中缀 `to` 糖 (`S6`)",
+    "text-io": "`Display` 协议与字符串插值求值 (`L2`)",
+    "stdlib": "递归堆分配容器 `Box<T>` 与原生线程 `thread`/`JoinHandle` (`N07`, `T1`)",
+}
+
+
+def summarize_roadmap_area_impact(
+    expectations: dict[str, Any],
+    roadmap_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Aggregate known_unimplemented probes and acceptance programs by roadmap area and compiler phases."""
+    if roadmap_items is None:
+        v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
+        if v1_json_path.is_file():
+            v1_data = json.loads(v1_json_path.read_text(encoding="utf-8"))
+            roadmap_items = {it["id"]: it for it in v1_data.get("items", [])}
+        else:
+            roadmap_items = {}
+
+    by_area: dict[str, dict[str, Any]] = {
+        area_key: {
+            "area": area_key,
+            "description": desc,
+            "blockers": [],
+            "phases": [],
+            "probes": [],
+            "programs": [],
+        }
+        for area_key, desc in ROADMAP_AREA_CATALOG.items()
+    }
+    for name, spec in sorted(expectations["probes"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for b_id in spec.get("roadmap_blockers", []):
+            item = roadmap_items.get(b_id, {})
+            area = item.get("area", "types")
+            bucket = by_area.setdefault(
+                area,
+                {
+                    "area": area,
+                    "description": area,
+                    "blockers": [],
+                    "phases": [],
+                    "probes": [],
+                    "programs": [],
+                },
+            )
+            if b_id not in bucket["blockers"]:
+                bucket["blockers"].append(b_id)
+                bucket["blockers"].sort()
+            for ph in item.get("phases", []):
+                if ph not in bucket["phases"]:
+                    bucket["phases"].append(ph)
+                    bucket["phases"].sort()
+            if name not in bucket["probes"]:
+                bucket["probes"].append(name)
+
+    for prog_name, spec in sorted(expectations["programs"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for b_id in spec.get("roadmap_blockers", []):
+            item = roadmap_items.get(b_id, {})
+            area = item.get("area", "types")
+            bucket = by_area[area]
+            if b_id not in bucket["blockers"]:
+                bucket["blockers"].append(b_id)
+                bucket["blockers"].sort()
+            for ph in item.get("phases", []):
+                if ph not in bucket["phases"]:
+                    bucket["phases"].append(ph)
+                    bucket["phases"].sort()
+            if prog_name not in bucket["programs"]:
+                bucket["programs"].append(prog_name)
+
+    return by_area
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -3391,6 +3526,24 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"**{s_row['projected_probe_cap']} / {s_row['total_probes']}** | "
             f"**{s_row['projected_group_a_runnable']} / {s_row['group_a_total']}** | "
             f"**{s_row['projected_programs_ready']} / {s_row['total_programs']}** |"
+        )
+
+    area_impact = summarize_roadmap_area_impact(expectations, roadmap_items)
+    lines.extend(
+        [
+            "",
+            f"### 3.3 路线图领域（`area`）与编译器阶段（`phases`）阻塞分布矩阵（{len(area_impact)} Areas）",
+            "",
+            "| 路线图领域 (`area`) | 领域职责说明 | 涉及编译阶段 (`phases`) | 关联阻塞项 | 阻塞 Probe 数 | 阻塞 Program 数 |",
+            "|---|---|---|---|---:|---:|",
+        ]
+    )
+    for a_key, a_row in area_impact.items():
+        ph_repr = ", ".join(f"`Phase {p}`" for p in a_row["phases"])
+        blks_repr = ", ".join(f"`{b}`" for b in a_row["blockers"])
+        lines.append(
+            f"| `{a_key}` | {a_row['description']} | {ph_repr} | {blks_repr} | "
+            f"{len(a_row['probes'])} | {len(a_row['programs'])} |"
         )
 
     lines.extend(

@@ -572,8 +572,10 @@ sys.stderr.buffer.write(b"error: native build failed: native object UnsupportedS
 sys.exit(2)
 """,
         )
+        matrix_ev_dir = self.root / "matrix_ev"
         env = dict(os.environ)
         env["KOVENC"] = str(kovenc_obj)
+        env["KOVEN_CONFORMANCE_EVIDENCE"] = str(matrix_ev_dir)
         out = subprocess.check_output(
             ["bash", str(repo_root / "scripts" / "conformance_matrix.sh"), str(probe_dir)],
             cwd=repo_root,
@@ -584,6 +586,10 @@ sys.exit(2)
             out,
             "p28_companion\tBE:UnsupportedSource\tBE:UnsupportedSource\n",
         )
+        verified_matrix = gate.verify_matrix_evidence_dir(
+            matrix_ev_dir, expected_names={"p28_companion"}
+        )
+        self.assertEqual(verified_matrix["manifest"]["probe_count"], 1)
 
     def test_11_parallel_jobs_preserve_deterministic_order_and_docs_checker_validates_corpus(
         self,
@@ -1069,6 +1075,10 @@ sys.exit(1)
         self.assertEqual(
             stage_prog[0]["newly_unlocked_programs"], ["raii_state_machine", "word_count"]
         )
+        area_impact = gate.summarize_roadmap_area_impact(loaded, roadmap_items)
+        self.assertEqual(set(area_impact.keys()), set(gate.ROADMAP_AREA_CATALOG.keys()))
+        self.assertEqual(area_impact["collections"]["probes"], ["s02_pair_builtin", "s03_to_pair"])
+        self.assertEqual(area_impact["stdlib"]["probes"], ["p21_box_enum", "p27_thread"])
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",

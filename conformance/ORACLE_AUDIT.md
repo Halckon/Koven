@@ -221,6 +221,20 @@
 | **P3 完成** | 语言糖、协议与标准库收口（Equatable/Display 插值、位运算、多载荷 enum 与 Pair/to） | `L1`, `L2`, `L3b`, `L7`, `S6` | +6 (`p02_interp`, `p21_box_enum`, `p35_value_eq`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair`) | **153 / 154** | **72 / 74** | **6 / 6** |
 | **P4 完成** | 并发与扩展（原生线程 thread 与 JoinHandle） | `T1` | +1 (`p27_thread`) | **154 / 154** | **73 / 74** | **6 / 6** |
 
+### 3.3 路线图领域（`area`）与编译器阶段（`phases`）阻塞分布矩阵（9 Areas）
+
+| 路线图领域 (`area`) | 领域职责说明 | 涉及编译阶段 (`phases`) | 关联阻塞项 | 阻塞 Probe 数 | 阻塞 Program 数 |
+|---|---|---|---|---:|---:|
+| `types` | 类型系统、标量字面量 (`Double`/`Char`)、位运算与 `Equatable`/`Comparable` 协议 (`L1`, `L3b`, `N05`) | `Phase 2`, `Phase 4`, `Phase 5` | `L1`, `L3b`, `N05` | 4 | 3 |
+| `control` | 多载荷与递归 enum 构造及 `when` 解构分派 (`L7`, `N02`) | `Phase 2`, `Phase 3`, `Phase 4` | `L7`, `N02` | 2 | 5 |
+| `closures` | 函数引用 `::fn` 与移动闭包调用 (`N04`) | `Phase 2`, `Phase 3`, `Phase 4` | `N04` | 2 | 0 |
+| `classes` | 泛型 Interface 上界分派与匿名 `companion` 关联调用 (`N06`) | `Phase 2`, `Phase 3`, `Phase 4` | `N06` | 2 | 0 |
+| `errors` | 可空链式访问、Elvis `?:` 与 `Result` `?` 传播 (`N03`, `N08`) | `Phase 2`, `Phase 3`, `Phase 4` | `N03`, `N08` | 3 | 5 |
+| `ownership` | 嵌套泛型 class 字段借用、可变写入与所有权证明 (`N01`) | `Phase 2`, `Phase 3`, `Phase 4` | `N01` | 1 | 3 |
+| `collections` | 内建 `Pair` 构造与中缀 `to` 糖 (`S6`) | `Phase 2`, `Phase 3`, `Phase 4` | `S6` | 2 | 0 |
+| `text-io` | `Display` 协议与字符串插值求值 (`L2`) | `Phase 2`, `Phase 4` | `L2` | 1 | 1 |
+| `stdlib` | 递归堆分配容器 `Box<T>` 与原生线程 `thread`/`JoinHandle` (`N07`, `T1`) | `Phase 2`, `Phase 3`, `Phase 4`, `Phase 5` | `N07`, `T1` | 2 | 2 |
+
 ## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本
 
 | Probe | Guide 章节 | 类型 (`kind`) | 溯源 (`oracle_origin`) | 期望结果 / 诊断码 | 语义推导 / 规则说明 (`oracle_derivation` / `note`) |
