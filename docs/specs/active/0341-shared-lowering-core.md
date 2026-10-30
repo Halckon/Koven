@@ -1017,3 +1017,38 @@ D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交�
   关联到 SPEC-0341；#244 没有改变此关联或 probe/期望源码，也不新增这三项的能力通过事实。
   因此仅作为本次已包含的基线与验收基础设施关联，不计入 D10/E2 退休量，
   也不把 V2 阶段里程碑的条件投射写成当前能力已经完成。
+
+## 56. Range endpoint Single 路径有界退休候选（2026-10-30）
+
+基线为实际 main `66d66a58a252175493dd7173fec95a14263fca1b`，独立云工作分支
+`fix/spec-0341-range-endpoint-single-retirement`。本片只改一个 frontend 测试文件与本节，
+无生产、Guide、fixture、runner、policy、CLI/LSP 或 while 修改；Architecture 生产事实不变。
+
+- `invalid_range_endpoints_have_operand_diagnostics` 原名字和 15 对端点 × 两个运算符源码
+  全保留，包括四个 nullable 与 26 个非 nullable 负源。先将原 Single comparator 隐含的
+  resolved/Boolean/builtin/Copyable/annotation 结果固定成独立 oracle，再切换该测试入口。
+  新的专属 Unit producer 明确核真实 root 的 `UnitTypeKind::Error` 与 `Copyability::Error`，
+  不固定内部数字 ID、不从观察输出或生产 formatter 生成期望。
+- Rooted 与 MemoryDocument 共享同一 SourceMap、SourceId、ParsedFile，实际 source-qualified
+  root/operand 查询、operator 完整 Span、两入口完整诊断比较和无部分 range facts 保留。
+  原 L0085 severity/message、左右有序 labels、无额外 details、raw == final 的固定断言不变；
+  final 必须是 Diagnostics，Internal、成功或未到达类型阶段均不充作预期拒绝。
+- 原三入口 `observe` 与其他五个测试保持，L0082 的 Single declaration label 和 Unit 空 details
+  两套独立完整 oracle 不变。新 endpoint producer 不调用 Single，也不先执行旧路径后过滤结果，
+  不引入 mode 开关或把旧调用搬到 adapter。为隔离其他 witness，局部保留小范围 Unit 接线重复。
+- 静态净变化是 1 条 Single 测试路径、30 个源码展开观察：本测试 90 → 60 个观察格；
+  六个测试定义均保留。共享的 `resolve_names`、`check_types`、`complete_file_types` 各仍有一个
+  调用点，caller 文件与这三个 API 调用点净减少均为 0，不声称整文件、全局 Single 或 D10/E2 完成。
+  §55 的 formatter 修复仍为净退休 0；其既有 CI 不替代本候选验收。
+
+| 验收项 | 精确输入/选择 | 状态 |
+|---|---|---|
+| 原源与 oracle 保全 | 六测试、30 源、其他五测试及原 observe/rejected_api/helper 字节核对 | 静态通过；移除本片新增项并恢复唯一调用后逐字等于基线 |
+| 格式、文档、diff、尺寸 | 目标 rustfmt；check_docs.py；git diff --check；check_rust_sizes.py --base 66d66a58 | 静态通过；823 Markdown、2035 Rust/39 旧超限；目标 611→721 行，无新例外 |
+| 独立静审 | Unit root/诊断/身份合同、Single 调用边界与退休计数 | 无 P0/P1 或候选阻塞；独立字节核验一致；非 formal approval 或行为验收 |
+| 新头编译与行为 | 既有 stage 全选 integer_range_values 六测试；官方双宿主完整门禁 | 未运行；未发布 |
+| 本地 Cargo/build/check/test/clippy/native | 用户禁止 | 未运行 |
+
+本节记录本地静态候选；现按用户授权提交并发布 Draft PR，触发精确头官方 CI。
+CI 与 Slack 独立审查分别闭环，不将本地静审替代动态验收；不 Ready、formal approve 或合并。
+D10/SPEC-0341/E2 继续 in-progress。
