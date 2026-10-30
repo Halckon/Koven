@@ -1,5 +1,5 @@
-//! SPEC-0241: enum condition facts and explicit limits of the single-file slice.
-use super::{Analysis, LoweringErrorKind, Operation, analyze, lower_scalar_file};
+//! SPEC-0241: original enum condition facts and explicit limits through strict Unit.
+use super::{LoweringErrorKind, Operation};
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use crate::native_tests::return_control_tests::guide_litmus_04;
 use lang_frontend::{
@@ -7,29 +7,6 @@ use lang_frontend::{
     ownership_checking::{LoanKind, UnitLoanTarget},
     type_checking::{ExpressionCategory, ParameterMode, UnitConstructionTarget},
 };
-
-fn assert_frontend(analysis: &Analysis) {
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-}
 
 #[test]
 fn guide_litmus_04_uses_three_boolean_tag_tests_without_constructing_a_condition() {
@@ -212,29 +189,82 @@ fn enum_tag_slice_does_not_claim_general_payload_grouped_or_move_only_equality()
             "Flag.Off",
         ),
     ] {
-        let analysis = analyze(source);
-        assert_frontend(&analysis);
-        let error = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .err()
-        .expect("unsupported enum equality must fail explicitly");
+        let analysis = UnitSource::analyze("lowering.ko", source)
+            .expect("each original negative source passes strict Unit admission");
+        analysis.assert_frontend_clean();
+        assert!(analysis.ownership().deferred().is_empty());
+        let [document] = analysis.names().names().index().source_units() else {
+            panic!("one original MemoryDocument");
+        };
+        assert_eq!(
+            document.key(),
+            &lang_frontend::name_resolution::SourceUnitKey::MemoryDocument
+        );
+        assert_eq!(document.source_id(), analysis.parsed().source_id());
+        assert_eq!(
+            analysis.sources().source_name(document.source_id()),
+            Ok("lowering.ko")
+        );
+        assert_eq!(
+            analysis.sources().source_text(document.source_id()),
+            Ok(source)
+        );
+        if condition == "Flag.Off" {
+            // The original MoveOnly fixture reaches the snapshot-tag rejection, not
+            // the later Copyable enum construction guard.
+            assert!(
+                analysis.ownership().drops().iter().any(|fact| {
+                    let lang_frontend::ownership_checking::UnitDropPoint::AfterExpression(
+                        expression,
+                    ) = fact.point()
+                    else {
+                        return false;
+                    };
+                    let node = analysis.parsed().ast().expressions()
+                        .get(expression.expression()).unwrap();
+                    if expression.source_unit() != document.id()
+                        || analysis.sources().slice(node.span()) != Ok("s")
+                        || !matches!(node.payload(), lang_frontend::parser::Expression::Name)
+                    {
+                        return false;
+                    }
+                    analysis.names().names().references().iter().any(|reference| {
+                        reference.source_unit() == document.id()
+                            && reference.span() == node.span()
+                            && matches!(reference.target(),
+                                lang_frontend::name_resolution::UnitReferenceTarget::Symbol(root)
+                                    if fact.target() == lang_frontend::ownership_checking::UnitDropTarget::Named(*root))
+                    })
+                }),
+                "original last-use subject cleanup must require a tag snapshot"
+            );
+            assert!(!analysis.ownership().drops().iter().any(|fact| matches!(
+                fact.point(),
+                lang_frontend::ownership_checking::UnitDropPoint::WhenComparisonCompleted { .. }
+                    | lang_frontend::ownership_checking::UnitDropPoint::WhenAlternativeNoMatch { .. }
+            )), "the enum fixture must not fail at the String comparison cleanup guard");
+        }
+        let declaration = analysis.declaration("score", SymbolKind::Function);
+        assert_eq!(
+            analysis
+                .sources()
+                .slice(analysis.declaration_span(declaration)),
+            Ok(&source[source.find("fun score").unwrap()..])
+        );
+        let error = analysis
+            .lower_entry(declaration)
+            .err()
+            .expect("unsupported enum equality must fail explicitly");
         assert_eq!(
             error.kind,
             LoweringErrorKind::UnsupportedNode,
             "{source}: {error:?}"
         );
-        assert_eq!(
-            analysis
-                .sources
-                .slice(error.span.expect("source range"))
-                .unwrap(),
-            condition,
-            "{source}"
-        );
+        let span = error.span.expect("source range");
+        assert_eq!(span.source_id(), analysis.parsed().source_id());
+        assert_eq!(analysis.sources().slice(span), Ok(condition), "{source}");
+        let start = source.find(&format!("{condition} ->")).unwrap();
+        assert_eq!(span.start(), start, "{source}");
+        assert_eq!(span.end(), start + condition.len(), "{source}");
     }
 }

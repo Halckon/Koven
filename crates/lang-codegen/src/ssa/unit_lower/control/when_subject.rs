@@ -77,12 +77,25 @@ impl UnitExpressionLowerer<'_> {
                 tagged.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             // Only static case tests can use a tag snapshot; no value equality or
             // effectful condition is silently changed into tag comparison.
-            if entries
+            if let Some(condition) = entries
                 .iter()
                 .flat_map(|entry| &entry.conditions)
-                .any(|condition| !matches!(condition, WhenCondition::TypeTest { .. }))
+                .find(|condition| !matches!(condition, WhenCondition::TypeTest { .. }))
             {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                let rejection_span = match condition {
+                    WhenCondition::Expression(expression) => self
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(*expression)
+                        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
+                        .span(),
+                    _ => span,
+                };
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    rejection_span,
+                ));
             }
             let operand = *plan
                 .operands

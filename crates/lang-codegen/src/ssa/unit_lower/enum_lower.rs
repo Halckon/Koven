@@ -24,20 +24,37 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<ValueId, LoweringError> {
+        // Rejection identifies the condition expression, not its entire `-> body` entry.
+        let condition_span = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
+            .span();
         let id = UnitExpressionId::new(self.source_unit, expression);
         if self.typed.construction(id).is_none_or(|descriptor| {
             !matches!(descriptor.target(), UnitConstructionTarget::EnumCase(_))
         }) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                condition_span,
+            ));
         }
         let descriptor = self.construction_descriptor(expression, span)?;
         if !descriptor.arguments().is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                condition_span,
+            ));
         }
         match self.typed.copyability(descriptor.result_type()) {
             Copyability::Copyable => {}
             Copyability::MoveOnly => {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    condition_span,
+                ));
             }
             Copyability::Unknown | Copyability::Error => {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
