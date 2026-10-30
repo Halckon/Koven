@@ -2,12 +2,10 @@
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity, codes},
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::parse_file,
     source::{SourceId, SourceMap},
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 
 fn checked(text: &str, authorized: bool) -> (Vec<String>, Vec<String>) {
@@ -28,9 +26,13 @@ fn checked(text: &str, authorized: bool) -> (Vec<String>, Vec<String>) {
     if authorized {
         types.authorize_range_source(&sources, source).unwrap();
     }
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let single = check_types(&sources, &parsed, &names, &types).unwrap();
+    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let memory = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     let inputs = [SourceUnitInput::new(
         "koven-std",
         "koven/algorithms.ko",
@@ -44,7 +46,7 @@ fn checked(text: &str, authorized: bool) -> (Vec<String>, Vec<String>) {
         .unwrap();
     let unit = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     (
-        single
+        memory
             .diagnostics()
             .iter()
             .map(|d| d.code().to_string())
@@ -63,8 +65,8 @@ fn authorized_source_can_declare_the_minimum_carrier_producer() {
         "fun <T> produce(source: List<T>): View<T> from source",
         "fun produce(source: View<String>): View<String> from source",
     ] {
-        let (single, unit) = checked(text, true);
-        assert!(single.is_empty(), "single {text}: {single:?}");
+        let (memory, unit) = checked(text, true);
+        assert!(memory.is_empty(), "memory {text}: {memory:?}");
         assert!(unit.is_empty(), "unit {text}: {unit:?}");
     }
 }
@@ -76,8 +78,8 @@ fn std_path_package_and_type_spelling_do_not_authorize_a_source() {
         "package koven\nfun produce(source: List<Int>): View<Int> from source",
         "package koven\nclass View(val value: Int) {}\nfun produce(source: List<Int>): View from source",
     ] {
-        let (single, unit) = checked(text, false);
-        for codes in [single, unit] {
+        let (memory, unit) = checked(text, false);
+        for codes in [memory, unit] {
             assert!(codes.iter().any(|c| c == "L0164"), "{text}: {codes:?}");
         }
     }
@@ -107,23 +109,23 @@ fn authority_rejects_foreign_map_and_does_not_spread_to_a_second_source() {
 
 #[test]
 fn authorization_does_not_enable_extensions_or_invalid_carrier_contracts() {
-    let (single, unit) = checked(
+    let (memory, unit) = checked(
         "borrow fun List<Int>.take(count: Int): View<Int> from this",
         true,
     );
-    for codes in [single, unit] {
+    for codes in [memory, unit] {
         assert!(codes.iter().any(|c| c == "L0164"), "{codes:?}");
     }
-    let (single, unit) = checked(
+    let (memory, unit) = checked(
         "fun produce(own source: List<Int>): View<Int> from source",
         true,
     );
-    for codes in [single, unit] {
+    for codes in [memory, unit] {
         assert!(codes.iter().any(|c| c == "L0162"), "{codes:?}");
     }
 }
 
-// Stage A: 保留上面的所有 legacy witness；签名接受不授予 complete/ownership/native 资格。
+// 两种 Unit 来源保留原签名及固定诊断；签名接受不授予 complete/ownership/native 资格。
 fn expected_diagnostic(
     sources: &SourceMap,
     source: SourceId,
@@ -218,10 +220,6 @@ fn memory_document_signatures_preserve_full_authority_diagnostics() {
                 })
                 .collect::<Vec<_>>();
             // 固定完整 Diagnostic（severity/code/message/真实 Span/有序 details），不是 code 子集。
-            let names = resolve_names(&sources, &parsed, &environment).unwrap();
-            assert!(names.diagnostics().is_empty());
-            let single = check_types(&sources, &parsed, &names, &types).unwrap();
-            assert_eq!(single.diagnostics(), expected, "legacy {text}");
             for input in [
                 SourceUnitInput::memory_document(source, &parsed),
                 SourceUnitInput::new("koven-std", "koven/algorithms.ko", source, &parsed),
