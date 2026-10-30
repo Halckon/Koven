@@ -1068,11 +1068,54 @@ sys.exit(1)
         for bad_args, expected_err in [
             (["--cli", str(self.root / "missing_kovenc"), "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "conformance: error:"),
             (["--jobs", "0", "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "jobs must be >= 1"),
+            (["--timeout", "0", "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "timeout_sec must be > 0"),
+            (["--program", "word_count", "--no-programs", "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "cannot combine --program with --no-programs"),
         ]:
             err_buf = io.StringIO()
             with contextlib.redirect_stderr(err_buf):
                 self.assertEqual(gate.main(bad_args), 1)
             self.assertIn(expected_err, err_buf.getvalue())
+
+        self.assertEqual(gate.resolve_chapter_selector("09"), "09-nullability-errors.md")
+        self.assertEqual(
+            gate.resolve_chapter_selector("09-nullability-errors.md"),
+            "09-nullability-errors.md",
+        )
+        with self.assertRaisesRegex(ValueError, "unknown Guide chapter selector"):
+            gate.resolve_chapter_selector("99")
+
+        kovenc = _make_mock_compiler(
+            self.root / "kovenc_filter",
+            'sys.stdout.buffer.write(b"hello\\n"); sys.exit(0)\n',
+        )
+        self._write_default_expectations(
+            {
+                "p01_ok": {
+                    "kind": "run_ok",
+                    "source_sha256": _sha256(self.probe_ok_src),
+                    "guide_chapter": "05-declarations-callables.md",
+                    "probe_batch": "p",
+                    "stdout": "hello\n",
+                }
+            }
+        )
+        ledger_filtered = gate.evaluate_suite(
+            kovenc=kovenc,
+            corpus_root=self.corpus,
+            expectations_path=self.expectations_path,
+            selected_batches=["p"],
+            selected_chapters=["05"],
+            include_programs=False,
+        )
+        self.assertEqual([p["comparison"]["name"] for p in ledger_filtered["probes"]], ["p01_ok"])
+        with self.assertRaisesRegex(ValueError, "no probes matched the requested filters"):
+            gate.evaluate_suite(
+                kovenc=kovenc,
+                corpus_root=self.corpus,
+                expectations_path=self.expectations_path,
+                selected_batches=["e"],
+                include_programs=False,
+            )
 
 
 if __name__ == "__main__":

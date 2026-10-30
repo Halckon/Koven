@@ -1786,12 +1786,28 @@ def resolve_default_cli(root: Path) -> Path:
     return release_cli
 
 
+def resolve_chapter_selector(selector: str) -> str:
+    """Resolve a Guide chapter filename or 2-digit prefix ('01'..'13') to a canonical chapter filename."""
+    cleaned = selector.strip()
+    if cleaned in VALID_GUIDE_CHAPTERS:
+        return cleaned
+    if re.fullmatch(r"[0-9]{2}", cleaned):
+        prefix = f"{cleaned}-"
+        for ch in VALID_GUIDE_CHAPTERS:
+            if ch.startswith(prefix):
+                return ch
+    raise ValueError(f"unknown Guide chapter selector: {selector!r}")
+
+
 def evaluate_suite(
     kovenc: Path,
     corpus_root: Path,
     expectations_path: Path,
     baseline_path: Path | None = None,
     selected_probes: list[str] | None = None,
+    selected_batches: list[str] | None = None,
+    selected_chapters: list[str] | None = None,
+    selected_programs: list[str] | None = None,
     include_programs: bool = True,
     timeout_sec: float = 60.0,
     strict_unreviewed: bool = True,
@@ -1802,6 +1818,10 @@ def evaluate_suite(
     """Run selected probes/programs, compare against expectations & baseline, and return full ledger."""
     if jobs < 1:
         raise ValueError(f"jobs must be >= 1, got {jobs}")
+    if timeout_sec <= 0:
+        raise ValueError(f"timeout_sec must be > 0, got {timeout_sec}")
+    if selected_programs is not None and not include_programs:
+        raise ValueError("cannot combine --program with --no-programs")
     kovenc = kovenc.resolve(strict=True)
     corpus_root = corpus_root.resolve(strict=True)
     expectations = load_expectations(expectations_path, corpus_root=corpus_root)
@@ -1822,6 +1842,35 @@ def evaluate_suite(
         if len(selected_probes) != len(set(selected_probes)):
             raise ValueError("duplicate probe names in selection")
         probe_names = [n for n in probe_names if n in set(selected_probes)]
+    if selected_batches is not None:
+        unknown_batches = sorted(set(selected_batches) - set(PROBE_BATCH_CATALOG.keys()))
+        if unknown_batches:
+            raise ValueError(f"unknown probe batches requested: {unknown_batches}")
+        if len(selected_batches) != len(set(selected_batches)):
+            raise ValueError("duplicate probe batches in selection")
+        batch_set = set(selected_batches)
+        probe_names = [
+            n
+            for n in probe_names
+            if (expectations["probes"][n].get("probe_batch") or classify_probe_batch(n))
+            in batch_set
+        ]
+    if selected_chapters is not None:
+        resolved_chapters = [resolve_chapter_selector(c) for c in selected_chapters]
+        if len(resolved_chapters) != len(set(resolved_chapters)):
+            raise ValueError("duplicate Guide chapters in selection")
+        chapter_set = set(resolved_chapters)
+        probe_names = [
+            n
+            for n in probe_names
+            if expectations["probes"][n].get("guide_chapter") in chapter_set
+        ]
+    if (
+        selected_probes is not None
+        or selected_batches is not None
+        or selected_chapters is not None
+    ) and not probe_names:
+        raise ValueError("no probes matched the requested filters")
 
     if evidence_dir is not None:
         evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -1860,6 +1909,13 @@ def evaluate_suite(
         return {"execution": _strip_raw_bytes(exec_record), "comparison": comp}
 
     program_names = sorted(expectations["programs"].keys()) if include_programs else []
+    if selected_programs is not None:
+        unknown_progs = sorted(set(selected_programs) - set(program_names))
+        if unknown_progs:
+            raise ValueError(f"unknown program names requested: {unknown_progs}")
+        if len(selected_programs) != len(set(selected_programs)):
+            raise ValueError("duplicate program names in selection")
+        program_names = [n for n in program_names if n in set(selected_programs)]
     if jobs == 1:
         probe_results = [_run_probe(name) for name in probe_names]
         program_results = [_run_program(name) for name in program_names]
@@ -2900,6 +2956,24 @@ def main(argv: list[str] | None = None) -> int:
         help="run only selected probe name(s) (repeatable)",
     )
     parser.add_argument(
+        "--batch",
+        action="append",
+        dest="batches",
+        help="run only probes in selected batch prefix(es) p/q/r/s/t/u/v/w/x/y/e (repeatable)",
+    )
+    parser.add_argument(
+        "--chapter",
+        action="append",
+        dest="chapters",
+        help="run only probes in selected Guide chapter filename or 01..13 prefix (repeatable)",
+    )
+    parser.add_argument(
+        "--program",
+        action="append",
+        dest="programs",
+        help="run only selected acceptance program(s) (repeatable)",
+    )
+    parser.add_argument(
         "--no-programs",
         action="store_true",
         help="skip the 6 acceptance programs",
@@ -2974,6 +3048,9 @@ def main(argv: list[str] | None = None) -> int:
             expectations_path=args.expectations,
             baseline_path=args.baseline,
             selected_probes=args.probes,
+            selected_batches=args.batches,
+            selected_chapters=args.chapters,
+            selected_programs=args.programs,
             include_programs=not args.no_programs,
             timeout_sec=args.timeout,
             strict_unreviewed=not args.allow_unreviewed,

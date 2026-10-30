@@ -33,12 +33,16 @@ scripts/conformance_matrix.sh --gate \
   --evidence .local-artifacts/conformance-gate
 ```
 
-也可以按单个或若干个 probe 局部采样，或通过 `--jobs <N>`（环境变量 `KOVEN_CONFORMANCE_JOBS`）控制确定性并发度：
+也可以按单个或若干个 probe、批次前缀（`--batch`）、Guide 章节（`--chapter`，支持 `01`..`13` 简写）或验收程序（`--program`）局部采样，并通过 `--jobs <N>`（环境变量 `KOVEN_CONFORMANCE_JOBS`）控制确定性并发度：
 
 ```sh
 python3 scripts/conformance_gate.py \
   --cli target/release/kovenc \
   --probe p04_overflow --probe p28_companion --no-programs
+
+python3 scripts/conformance_gate.py \
+  --cli target/release/kovenc \
+  --batch e --chapter 06 --no-programs
 ```
 
 在 GitHub Actions CI（`.github/workflows/ci.yml`）中，`docs` 任务自动通过 `scripts/check_docs.py` 校验 `conformance/expectations.json` 与 `conformance/baseline-aef3f4f8.tsv` 的源码/期望 SHA-256 及条目完整性；`test` 任务在 `macos-14` 与 `ubuntu-24.04` 双宿主上自动执行 `scripts/conformance_gate.py --baseline conformance/baseline-aef3f4f8.tsv` 并归档 `conformance-<os>-<sha>` 证据包。
