@@ -1541,7 +1541,40 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                             raise ValueError(
                                 f"{section}.{name} has all roadmap_blockers marked done in {v1_json_path.name}: must transition out of known_unimplemented"
                             )
+            verify_static_catalog_invariants(data)
     return data
+
+
+def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
+    """Verify that static catalog tables in conformance_gate.py have no stale keys or unimplemented drift."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    probe_keys = set(probes.keys())
+    prog_keys = set(programs.keys())
+    ku_probes = {k for k, v in probes.items() if v["kind"] == "known_unimplemented"}
+    if ku_probes != set(UNIMPLEMENTED_ROADMAP_BLOCKERS.keys()):
+        stale = sorted(set(UNIMPLEMENTED_ROADMAP_BLOCKERS.keys()) - ku_probes)
+        missing = sorted(ku_probes - set(UNIMPLEMENTED_ROADMAP_BLOCKERS.keys()))
+        raise ValueError(
+            f"UNIMPLEMENTED_ROADMAP_BLOCKERS drift: stale={stale}, missing={missing}"
+        )
+    for label, catalog in (
+        ("PROBE_GUIDE_CHAPTERS", PROBE_GUIDE_CHAPTERS),
+        ("CONFIRMED_STDOUT_ORACLES", CONFIRMED_STDOUT_ORACLES),
+        ("SEMANTIC_ORACLE_DERIVATIONS", SEMANTIC_ORACLE_DERIVATIONS),
+        ("V046_PROBE_OVERRIDES", V046_PROBE_OVERRIDES),
+        ("EXPECTED_MULTI_DIAGNOSTICS", EXPECTED_MULTI_DIAGNOSTICS),
+    ):
+        extra = sorted(set(catalog.keys()) - probe_keys)
+        if extra:
+            raise ValueError(f"{label} contains unknown probe keys: {extra}")
+    for label, catalog in (
+        ("PROGRAM_GUIDE_CHAPTERS", PROGRAM_GUIDE_CHAPTERS),
+        ("PROGRAM_ROADMAP_BLOCKERS", PROGRAM_ROADMAP_BLOCKERS),
+        ("PROGRAM_ORACLE_DERIVATIONS", PROGRAM_ORACLE_DERIVATIONS),
+    ):
+        if set(catalog.keys()) != prog_keys:
+            raise ValueError(f"{label} keys do not match programs inventory")
 
 
 def parse_tsv_matrix(
@@ -2315,9 +2348,12 @@ def summarize_comparisons(
         "unexpected_pass": 0,
     }
     failures: list[str] = []
+    unexpected_passes: list[str] = []
     for item in probe_comparisons + program_comparisons:
         st = item["status"]
         counts[st] = counts.get(st, 0) + 1
+        if st == "unexpected_pass":
+            unexpected_passes.append(item["name"])
         if st in (
             "wrong_output",
             "mode_mismatch",
@@ -2425,6 +2461,7 @@ def summarize_comparisons(
         "by_chapter": dict(sorted(by_chapter.items())),
         "by_batch": ordered_by_batch,
         "foundational_p2": foundational_p2,
+        "unexpected_passes": unexpected_passes,
         "gate_passed": len(failures) == 0,
         "failures": failures,
     }
@@ -3135,6 +3172,40 @@ def summarize_roadmap_area_impact(
     return by_area
 
 
+def summarize_unimplemented_promotion_contracts(
+    expectations: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return structured promotion contract rows for all remaining known_unimplemented probes."""
+    rows: list[dict[str, Any]] = []
+    for name, spec in sorted(expectations["probes"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        batch = spec.get("probe_batch") or classify_probe_batch(name)
+        if batch not in FOUNDATIONAL_BATCHES:
+            cohort_grp = "-"
+        elif name in FOUNDATIONAL_GROUP_B_PROBES:
+            cohort_grp = "B"
+        elif name in FOUNDATIONAL_GROUP_C_PROBES:
+            cohort_grp = "C"
+        else:
+            cohort_grp = "A"
+        rows.append(
+            {
+                "name": name,
+                "guide_chapter": spec["guide_chapter"],
+                "probe_batch": batch,
+                "foundational_group": cohort_grp,
+                "baseline_marker": spec.get("baseline_marker", "-"),
+                "allowed_markers": list(spec.get("allowed_markers", [])),
+                "roadmap_blockers": list(spec.get("roadmap_blockers", [])),
+                "target_stdout": spec.get("target_stdout", ""),
+                "expected_lines": spec.get("expected_lines", 0),
+                "expected_bytes": spec.get("expected_bytes", 0),
+            }
+        )
+    return rows
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -3544,6 +3615,27 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         lines.append(
             f"| `{a_key}` | {a_row['description']} | {ph_repr} | {blks_repr} | "
             f"{len(a_row['probes'])} | {len(a_row['programs'])} |"
+        )
+
+    promo_contracts = summarize_unimplemented_promotion_contracts(expectations)
+    lines.extend(
+        [
+            "",
+            f"### 3.4 {len(promo_contracts)} 个 `known_unimplemented` Probe 晋升契约与目标输出（`target_stdout`）对账表",
+            "",
+            "| Probe | Guide 章节 | P2 分组 | 基线记号 | 允许记号 (`allowed_markers`) | 路线图阻塞项 | 目标输出 (`target_stdout`) | 规模 |",
+            "|---|---|:---:|---|---|---|---|---:|",
+        ]
+    )
+    for p_row in promo_contracts:
+        ch = p_row["guide_chapter"]
+        allowed_s = ", ".join(f"`{m}`" for m in p_row["allowed_markers"])
+        blks_s = ", ".join(f"`{b}`" for b in p_row["roadmap_blockers"])
+        escaped_out = p_row["target_stdout"].encode("unicode_escape").decode("ascii")
+        lines.append(
+            f"| `{p_row['name']}` | [{ch}](../docs/guide/{ch}) | `{p_row['foundational_group']}` | "
+            f"`{p_row['baseline_marker']}` | {allowed_s} | {blks_s} | `{escaped_out}` | "
+            f"{p_row['expected_lines']}L / {p_row['expected_bytes']}B |"
         )
 
     lines.extend(

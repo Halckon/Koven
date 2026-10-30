@@ -1079,6 +1079,17 @@ sys.exit(1)
         self.assertEqual(set(area_impact.keys()), set(gate.ROADMAP_AREA_CATALOG.keys()))
         self.assertEqual(area_impact["collections"]["probes"], ["s02_pair_builtin", "s03_to_pair"])
         self.assertEqual(area_impact["stdlib"]["probes"], ["p21_box_enum", "p27_thread"])
+        promo_rows = gate.summarize_unimplemented_promotion_contracts(loaded)
+        self.assertEqual(len(promo_rows), 16)
+        self.assertEqual(
+            [r["name"] for r in promo_rows if r["foundational_group"] == "C"],
+            ["p35_value_eq"],
+        )
+        self.assertEqual(
+            len([r for r in promo_rows if r["foundational_group"] == "A"]),
+            15,
+        )
+        self.assertTrue(all(r["target_stdout"].endswith("\n") for r in promo_rows))
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",
