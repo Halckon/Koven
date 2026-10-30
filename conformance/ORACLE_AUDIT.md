@@ -111,6 +111,18 @@
 | `e` | enum subject `when` 在 compilation-unit 管线中的回退（E2 门槛） | 4 | 4 | 0 | 0 | 0 | 4 / 4 | `all_passed` |
 | **合计** | **11 个演进批次** | **154** | **120** | **14** | **3** | **17** | **137 / 154** | **8 全通过 / 3 部分通过** |
 
+### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（7 Markers）
+
+| 允许记号 (`allowed_marker`) | 归属编译阶段 | 记号契约说明 | 基线命中数 (`baseline_marker`) | 授权 Probe 数 | 授权 Program 数 |
+|---|---|---|---:|---:|---:|
+| `FE:L0080` | Phase 2 名称解析 | 前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`） | 2 | 2 | 6 |
+| `FE:L0084` | Phase 2 类型检查 | 前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`） | 0 | 0 | 6 |
+| `FE:L0085` | Phase 2 运算符类型 | 前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`） | 0 | 0 | 6 |
+| `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 5 | 15 | 6 |
+| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 9 | 17 | 6 |
+| `BE:UnsupportedSource` | Phase 4 Native Object | 后端原生目标文件生成阶段尚未支持的调用来源 | 0 | 1 | 0 |
+| `BE:MissingFact` | Phase 3/4 事实交接 | 前端到后端 lowering 所需的所有权或类型事实尚未完备 | 0 | 17 | 6 |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |

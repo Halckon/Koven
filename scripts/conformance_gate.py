@@ -100,6 +100,16 @@ VALID_UNIMPLEMENTED_MARKERS = frozenset(
     }
 )
 
+UNIMPLEMENTED_MARKER_CATALOG: dict[str, tuple[str, str]] = {
+    "FE:L0080": ("Phase 2 名称解析", "前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`）"),
+    "FE:L0084": ("Phase 2 类型检查", "前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`）"),
+    "FE:L0085": ("Phase 2 运算符类型", "前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`）"),
+    "FE:L0165": ("Phase 2 最终类型准入", "前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`）"),
+    "BE:UnsupportedNode": ("Phase 4 SSA Lowering", "后端 SSA 构建阶段尚未支持的语法或语义节点"),
+    "BE:UnsupportedSource": ("Phase 4 Native Object", "后端原生目标文件生成阶段尚未支持的调用来源"),
+    "BE:MissingFact": ("Phase 3/4 事实交接", "前端到后端 lowering 所需的所有权或类型事实尚未完备"),
+}
+
 VALID_ORACLE_ORIGINS = frozenset(
     {
         "single_println_literal",
@@ -1268,6 +1278,16 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                     raise ValueError(
                         f"{section}.{name} with known_unimplemented has invalid allowed_markers {allowed!r}"
                     )
+                bm = spec.get("baseline_marker")
+                if (
+                    isinstance(bm, str)
+                    and not spec.get("v046_baseline_exempt", False)
+                    and bm in VALID_UNIMPLEMENTED_MARKERS
+                    and bm not in allowed
+                ):
+                    raise ValueError(
+                        f"{section}.{name} with known_unimplemented must include non-exempt baseline_marker {bm!r} in allowed_markers"
+                    )
                 if "target_stdout" in spec:
                     ts = spec["target_stdout"]
                     if not isinstance(ts, str) or not ts or not ts.endswith("\n"):
@@ -2192,6 +2212,68 @@ def summarize_probe_batches(expectations: dict[str, Any]) -> dict[str, dict[str,
     return summary
 
 
+def summarize_unimplemented_markers(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Aggregate known_unimplemented probes and programs by allowed unimplemented marker."""
+    summary: dict[str, dict[str, Any]] = {
+        marker: {
+            "marker": marker,
+            "stage": stage,
+            "description": desc,
+            "probes": [],
+            "programs": [],
+            "baseline_count": 0,
+        }
+        for marker, (stage, desc) in UNIMPLEMENTED_MARKER_CATALOG.items()
+    }
+    for name, spec in sorted(expectations["probes"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        bm = spec.get("baseline_marker")
+        if bm in summary:
+            summary[bm]["baseline_count"] += 1
+        for m in spec.get("allowed_markers", []):
+            if m in summary:
+                summary[m]["probes"].append(name)
+    for name, spec in sorted(expectations["programs"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for m in spec.get("allowed_markers", []):
+            if m in summary:
+                summary[m]["programs"].append(name)
+    return summary
+
+
+def summarize_unimplemented_markers(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Aggregate known_unimplemented probes and programs by allowed unimplemented marker."""
+    summary: dict[str, dict[str, Any]] = {
+        marker: {
+            "marker": marker,
+            "stage": stage,
+            "description": desc,
+            "probes": [],
+            "programs": [],
+            "baseline_count": 0,
+        }
+        for marker, (stage, desc) in UNIMPLEMENTED_MARKER_CATALOG.items()
+    }
+    for name, spec in sorted(expectations["probes"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        bm = spec.get("baseline_marker")
+        if bm in summary:
+            summary[bm]["baseline_count"] += 1
+        for m in spec.get("allowed_markers", []):
+            if m in summary:
+                summary[m]["probes"].append(name)
+    for name, spec in sorted(expectations["programs"].items()):
+        if spec["kind"] != "known_unimplemented":
+            continue
+        for m in spec.get("allowed_markers", []):
+            if m in summary:
+                summary[m]["programs"].append(name)
+    return summary
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -2245,6 +2327,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     origin_stats = summarize_oracle_origins(expectations)
     shape_stats = summarize_output_shape_distribution(expectations)
     batch_stats = summarize_probe_batches(expectations)
+    marker_stats = summarize_unimplemented_markers(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -2390,6 +2473,20 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     lines.append(
         f"| **合计** | **11 个演进批次** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** | **{all_passed_batches} 全通过 / {partial_batches} 部分通过** |"
     )
+    lines.extend(
+        [
+            "",
+            "### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（7 Markers）",
+            "",
+            "| 允许记号 (`allowed_marker`) | 归属编译阶段 | 记号契约说明 | 基线命中数 (`baseline_marker`) | 授权 Probe 数 | 授权 Program 数 |",
+            "|---|---|---|---:|---:|---:|",
+        ]
+    )
+    for m_key, m_row in marker_stats.items():
+        lines.append(
+            f"| `{m_key}` | {m_row['stage']} | {m_row['description']} | {m_row['baseline_count']} | "
+            f"{len(m_row['probes'])} | {len(m_row['programs'])} |"
+        )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
@@ -2566,46 +2663,50 @@ def main(argv: list[str] | None = None) -> int:
         baseline_file = args.baseline or (args.corpus / "baseline-aef3f4f8.tsv")
         try:
             derived = derive_static_expectations(args.corpus, baseline_file)
-        except ValueError as exc:
-            # CLI 边界：把推导错误（命名违规、baseline 缺项等）渲染为单行诊断，不暴露 traceback
-            print(f"conformance: error: {exc}", file=sys.stderr)
-            return 1
-        args.expectations.write_text(
-            json.dumps(derived, ensure_ascii=True, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        if (args.corpus / "baseline-aef3f4f8.tsv").is_file():
-            (args.corpus / "ORACLE_AUDIT.md").write_text(
-                render_oracle_audit_markdown(derived),
+            args.expectations.write_text(
+                json.dumps(derived, ensure_ascii=True, indent=2) + "\n",
                 encoding="utf-8",
             )
-            readme_path = args.corpus / "README.md"
-            if readme_path.is_file():
-                readme_path.write_text(
-                    sync_readme_chapter_table(
-                        readme_path.read_text(encoding="utf-8"), derived
-                    ),
+            if (args.corpus / "baseline-aef3f4f8.tsv").is_file():
+                (args.corpus / "ORACLE_AUDIT.md").write_text(
+                    render_oracle_audit_markdown(derived),
                     encoding="utf-8",
                 )
+                readme_path = args.corpus / "README.md"
+                if readme_path.is_file():
+                    readme_path.write_text(
+                        sync_readme_chapter_table(
+                            readme_path.read_text(encoding="utf-8"), derived
+                        ),
+                        encoding="utf-8",
+                    )
+        except (ValueError, OSError) as exc:
+            # CLI 边界：把推导或写入错误（命名违规、baseline 缺项、README 表缺失等）渲染为单行诊断，不暴露 traceback
+            print(f"conformance: error: {exc}", file=sys.stderr)
+            return 1
         print(
             f"conformance: initialized {len(derived['probes'])} probes and "
             f"{len(derived['programs'])} programs in {args.expectations}"
         )
         return 0
 
-    ledger = evaluate_suite(
-        kovenc=args.cli,
-        corpus_root=args.corpus,
-        expectations_path=args.expectations,
-        baseline_path=args.baseline,
-        selected_probes=args.probes,
-        include_programs=not args.no_programs,
-        timeout_sec=args.timeout,
-        strict_unreviewed=not args.allow_unreviewed,
-        compiler_commit=args.compiler_commit,
-        evidence_dir=args.evidence,
-        jobs=args.jobs,
-    )
+    try:
+        ledger = evaluate_suite(
+            kovenc=args.cli,
+            corpus_root=args.corpus,
+            expectations_path=args.expectations,
+            baseline_path=args.baseline,
+            selected_probes=args.probes,
+            include_programs=not args.no_programs,
+            timeout_sec=args.timeout,
+            strict_unreviewed=not args.allow_unreviewed,
+            compiler_commit=args.compiler_commit,
+            evidence_dir=args.evidence,
+            jobs=args.jobs,
+        )
+    except (ValueError, OSError) as exc:
+        print(f"conformance: error: {exc}", file=sys.stderr)
+        return 1
     summary = ledger["summary"]
     print(
         f"conformance: probes_cap_passed={summary['probe_capability_passed']}/{summary['total_probes']} "

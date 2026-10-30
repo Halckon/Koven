@@ -332,6 +332,10 @@ sys.exit(1)
                 {"p01_ok": {"kind": "run_ok", "source_sha256": _sha256(self.probe_ok_src), "stdout": "hello\n", "probe_batch": "q"}},
                 "invalid probe_batch",
             ),
+            (
+                {"p04_unimpl": {"kind": "known_unimplemented", "source_sha256": _sha256(self.probe_unimpl_src), "baseline_marker": "FE:L0165", "allowed_markers": ["BE:UnsupportedNode"], "target_stdout": "3.0\n"}},
+                "must include non-exempt baseline_marker",
+            ),
         ]:
             self._write_default_expectations(bad_spec)
             try:
@@ -932,6 +936,12 @@ sys.exit(1)
             gate.sync_readme_chapter_table("# No table\n", loaded)
         with self.assertRaisesRegex(ValueError, "violates canonical batch naming convention"):
             gate.classify_probe_batch("z01_invalid_prefix")
+        marker_stats = gate.summarize_unimplemented_markers(loaded)
+        self.assertEqual(set(marker_stats.keys()), set(gate.UNIMPLEMENTED_MARKER_CATALOG.keys()))
+        self.assertEqual(marker_stats["BE:UnsupportedNode"]["baseline_count"], 9)
+        self.assertEqual(marker_stats["FE:L0165"]["baseline_count"], 5)
+        self.assertEqual(marker_stats["FE:L0080"]["baseline_count"], 2)
+        self.assertEqual(len(marker_stats["BE:UnsupportedSource"]["probes"]), 1)
 
     def test_13_derivation_reports_naming_diagnostic_instead_of_baseline_keyerror(
         self,
@@ -966,7 +976,7 @@ sys.exit(1)
     def test_15_cli_init_expectations_renders_derivation_error_without_traceback(
         self,
     ) -> None:
-        """CLI 边界必须把推导错误渲染成单行诊断并返回 1。"""
+        """CLI 边界必须把推导错误与运行期参数错误渲染成单行诊断并返回 1。"""
         (self.corpus / "probes" / "zz9_bad_name.ko").write_text(
             self.probe_ok_src, encoding="utf-8"
         )
@@ -987,6 +997,16 @@ sys.exit(1)
         self.assertIn("conformance: error:", stderr.getvalue())
         self.assertIn("naming convention", stderr.getvalue())
         self.assertFalse((self.root / "derived.json").exists())
+        (self.corpus / "probes" / "zz9_bad_name.ko").unlink()
+
+        for bad_args, expected_err in [
+            (["--cli", str(self.root / "missing_kovenc"), "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "conformance: error:"),
+            (["--jobs", "0", "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "jobs must be >= 1"),
+        ]:
+            err_buf = io.StringIO()
+            with contextlib.redirect_stderr(err_buf):
+                self.assertEqual(gate.main(bad_args), 1)
+            self.assertIn(expected_err, err_buf.getvalue())
 
 
 if __name__ == "__main__":
