@@ -74,7 +74,7 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        let root = HeapIfRoot {
+        let root = NamedNullableIfRoot {
             symbol: comparison.symbol(),
             declared: comparison.nullable_type(),
             narrowed: *narrowed,
@@ -93,7 +93,7 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok(None);
         }
-        self.validate_heap_if_condition(condition, comparison, root, span)?;
+        self.validate_named_nullable_if_condition(condition, comparison, root, span)?;
         // The current Value and registered storage are checked, never retyped.
         let (nullable, inner) = self.direct_nullable_while_entry(comparison, span)?;
         if storage != nullable
@@ -120,7 +120,7 @@ impl UnitExpressionLowerer<'_> {
     fn heap_if_has_terminal_int_field(
         &self,
         body: StatementId,
-        root: HeapIfRoot,
+        root: NamedNullableIfRoot,
         span: Span,
     ) -> Result<bool, LoweringError> {
         let statements = self.parsed.ast().statements();

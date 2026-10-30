@@ -11,6 +11,7 @@ pub struct UnitCallDescriptor {
     pub(super) result_source: crate::type_checking::CallableResultSource,
     pub(super) range_construction:
         Option<crate::type_checking::RangeConstructionDescriptor<UnitExpressionId, UnitTypeId>>,
+    pub(super) text_primitive: Option<crate::type_checking::TextPrimitiveKind>,
     pub(super) receiver: Option<UnitCallReceiverDescriptor>,
     pub(super) arguments: Vec<UnitCallArgumentDescriptor>,
     pub(super) aborts: bool,
@@ -18,6 +19,11 @@ pub struct UnitCallDescriptor {
 }
 
 impl UnitCallDescriptor {
+    /// 返回本次成功调用所绑定的可信文本存储操作。
+    pub const fn text_primitive(&self) -> Option<crate::type_checking::TextPrimitiveKind> {
+        self.text_primitive
+    }
+
     /// 返回 source-qualified 范围构造的实际操作数。
     pub fn range_construction(
         &self,

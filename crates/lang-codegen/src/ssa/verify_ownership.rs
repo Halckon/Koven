@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod aliases;
 mod borrow_result;
 mod closure;
+mod direct_fields;
 mod field_exchange;
 #[cfg(test)]
 mod field_exchange_tests;
@@ -31,6 +32,7 @@ struct BlockState {
 
 pub(super) struct AliasRoots {
     roots: BTreeMap<EntityId, BTreeSet<EntityId>>,
+    direct_fields: direct_fields::DirectFields,
 }
 
 struct ReborrowDependencies {
@@ -382,7 +384,10 @@ fn apply_operation(
                 module, function, *right, aliases, state, location, origin, errors,
             );
         }
-        Operation::StringClone { source } => {
+        Operation::StringClone { source }
+        | Operation::StringByteLength { source }
+        | Operation::StringByteAt { source, .. }
+        | Operation::StringCopySlice { source, .. } => {
             require_string_view(
                 module,
                 function,
@@ -394,7 +399,9 @@ fn apply_operation(
                 errors,
             );
         }
-        Operation::PrintString { value } => {
+        Operation::PrintString { value }
+        | Operation::Utf8ErrorOffset { source: value }
+        | Operation::StringCopyBytes { source: value } => {
             if !state.loans.contains(value) {
                 errors.push(error(
                     VerifyErrorKind::LoanInactive { loan: *value },
@@ -1607,6 +1614,9 @@ fn has_borrow_conflict(
 ) -> bool {
     state.loans.iter().any(|loan| {
         aliases.overlap(EntityId::Place(place), EntityId::Loan(*loan))
+            && !aliases
+                .direct_fields
+                .disjoint(EntityId::Place(place), EntityId::Loan(*loan))
             && (requested == LoanKind::Exclusive
                 || loan_kind(function, *loan) == LoanKind::Exclusive)
     })

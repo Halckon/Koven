@@ -46,6 +46,9 @@ mod tagged;
 mod type_map;
 #[cfg(test)]
 mod unit_storage_tests;
+mod utf8;
+#[cfg(test)]
+mod utf8_tests;
 
 use inkwell::OptimizationLevel;
 use inkwell::builder::BuilderError;

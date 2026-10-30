@@ -11,11 +11,13 @@ const RANGE_PATH: &str = "koven/algorithms/ranges.ko";
 const RANGE_TEXT: &str = include_str!("../../lang-std/koven/algorithms/ranges.ko");
 const RESULT_PATH: &str = "koven/core/result.ko";
 const RESULT_TEXT: &str = include_str!("../../lang-std/koven/core/result.ko");
+const TEXT_PATH: &str = "koven/text/text.ko";
+const TEXT_TEXT: &str = include_str!("../../lang-std/koven/text/text.ko");
 const STANDARD_ROOT: &str = "koven-std";
 
 // CLI caller 必须为 map 中每份既有 source 登记一个 descriptor；后续 single adapter 也须保持。
 // N 份既有 source 最多占用 N 个候选展示名；不把该私有边界推广为任意 SourceMap 的计数 API。
-// 先追加 ranges 再追加 result，既有 ranges descriptor 位置保持不变。
+// 依次追加 ranges、result、text，既有标准 descriptor 位置保持不变。
 pub(crate) fn append_standard_sources(
     sources: &mut SourceMap,
     descriptors: &mut Vec<UnitSourceDescriptor>,
@@ -40,6 +42,11 @@ pub(crate) fn append_standard_sources(
         RESULT_PATH,
         result,
     ));
+    let text = register(sources, descriptors.len(), TEXT_PATH, TEXT_TEXT)?;
+    types
+        .authorize_text_source(sources, text)
+        .map_err(UnitBuildError::StandardSource)?;
+    descriptors.push(UnitSourceDescriptor::new(STANDARD_ROOT, TEXT_PATH, text));
     Ok(())
 }
 

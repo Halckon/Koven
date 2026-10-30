@@ -22,6 +22,29 @@ pub(crate) enum Operation {
     StringClone {
         source: LoanId,
     },
+    /// Read the byte count from an active shared String loan as a Koven Int.
+    StringByteLength {
+        source: LoanId,
+    },
+    /// Read one byte after checking the signed Int index; invalid indices Abort.
+    StringByteAt {
+        source: LoanId,
+        index: ValueId,
+    },
+    /// Strictly scan an active shared Array<UByte> loan; -1 means valid UTF-8.
+    Utf8ErrorOffset {
+        source: LoanId,
+    },
+    /// Validate and copy a shared Array<UByte> into an independent String owner.
+    StringCopyBytes {
+        source: LoanId,
+    },
+    /// Copy a checked half-open scalar-aligned String byte range into a fresh owner.
+    StringCopySlice {
+        source: LoanId,
+        start: ValueId,
+        end: ValueId,
+    },
     /// 按 UTF-8 bytes 比较两个 String view，不进行 Unicode normalization。
     StringEqual {
         left: EntityId,
@@ -423,8 +446,21 @@ impl Operation {
             Self::StringConcat { left, right } | Self::StringEqual { left, right } => {
                 vec![*left, *right]
             }
+            Self::StringCopySlice { source, start, end } => vec![
+                EntityId::Loan(*source),
+                EntityId::Value(*start),
+                EntityId::Value(*end),
+            ],
             Self::PrintString { value } => vec![EntityId::Loan(*value)],
-            Self::StringClone { source } => vec![EntityId::Loan(*source)],
+            Self::StringClone { source }
+            | Self::StringByteLength { source }
+            | Self::Utf8ErrorOffset { source }
+            | Self::StringCopyBytes { source } => {
+                vec![EntityId::Loan(*source)]
+            }
+            Self::StringByteAt { source, index } => {
+                vec![EntityId::Loan(*source), EntityId::Value(*index)]
+            }
             Self::Binary { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::IntegerBitwise { left, right, .. }

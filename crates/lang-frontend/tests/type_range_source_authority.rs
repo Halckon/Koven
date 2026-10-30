@@ -182,7 +182,7 @@ fn memory_document_signatures_preserve_full_authority_diagnostics() {
             true,
             vec![(
                 "L0164",
-                "extension receiver lacks a trusted canonical Borrow List/View binding",
+                "extension receiver lacks a trusted canonical standard Borrow binding",
                 ".",
             )],
         ),

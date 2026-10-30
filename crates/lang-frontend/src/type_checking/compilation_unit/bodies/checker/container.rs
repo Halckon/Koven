@@ -193,7 +193,8 @@ impl BodyChecker<'_> {
                 IntrinsicCallable::MapOf | IntrinsicCallable::MutableMapOf => Target::Map(callable),
                 IntrinsicCallable::Replace
                 | IntrinsicCallable::Swap
-                | IntrinsicCallable::RangeView => return Ok(None),
+                | IntrinsicCallable::RangeView
+                | IntrinsicCallable::Text(_) => return Ok(None),
             };
             return Ok(Some(target));
         }

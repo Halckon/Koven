@@ -38,15 +38,23 @@ pub(super) fn duplicate_top_level_shapes(
             signature.package(),
             callable.name().to_owned(),
             callable.type_parameters().len(),
-            callable.range_extension().map(|binding| {
-                let parameters = callable
-                    .type_parameters()
-                    .iter()
-                    .enumerate()
-                    .map(|(i, s)| (*s, i))
-                    .collect();
-                shape_type(types, binding.receiver_type(), &parameters)
-            }),
+            callable
+                .range_extension()
+                .map(|binding| binding.receiver_type())
+                .or_else(|| {
+                    callable
+                        .text_extension()
+                        .map(|binding| binding.receiver_type())
+                })
+                .map(|receiver_type| {
+                    let parameters = callable
+                        .type_parameters()
+                        .iter()
+                        .enumerate()
+                        .map(|(i, s)| (*s, i))
+                        .collect();
+                    shape_type(types, receiver_type, &parameters)
+                }),
             callable_shape(types, callable),
         );
         if let Some(first_span) = first.get(&key).copied() {

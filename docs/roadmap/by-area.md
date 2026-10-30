@@ -21,7 +21,7 @@
 | 文本与 IO | 2 | 0 | 0 | 4 | 0 | 0 | 6 |
 | 标准库与运行时 | 3 | 1 | 0 | 3 | 0 | 0 | 7 |
 | 编译器结构 | 4 | 0 | 2 | 0 | 0 | 0 | 6 |
-| 工具链 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| 工具链 | 1 | 0 | 1 | 0 | 0 | 0 | 2 |
 | 安全验证 | 1 | 1 | 0 | 1 | 0 | 0 | 3 |
 | 验收、发布与文档 | 5 | 3 | 0 | 2 | 0 | 0 | 10 |
 
@@ -160,6 +160,7 @@
 | 状态 | ID | 内容 | 阶段 | 优先级 | Guide | Phase | Spec / 依据 |
 |---|---|---|---|---|---|---|---|
 | ✅ 已交付 | B18 | kovenc build/run、本地 project、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter | S0 已交付基线 | v1 必做 | 已定义 | 6 | [0187](../archive/specs/0187-multifile-lsp-diagnostics-definition.md) [0251](../archive/specs/0251-lsp-unit-name-snapshot.md) [0267](../archive/specs/0267-editor-corpus-gate.md) [tooling](../architecture/tooling.md) |
+| ▶ 进行中 | B18d | CLI 最终调试产物与双宿主源码断点 | P0 止血 | v1 必做 | 已定义 | 4,6 | [0369](../specs/active/0369-final-debug-artifacts.md) |
 
 ## 安全验证
 

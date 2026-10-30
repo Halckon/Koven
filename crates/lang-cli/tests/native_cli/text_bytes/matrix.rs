@@ -1,0 +1,656 @@
+//! Public API oracles use Rust's UTF-8 boundaries, independently of the Koven scanner.
+use super::check_build_run_both_modes;
+use std::fmt::Write;
+
+#[test]
+fn public_text_roundtrips_every_byte_and_classifies_utf8_and_slice_boundaries() {
+    let mut program = String::from(
+        r#"fun slice(text: String, start: Int, end: Int, expected: Int): Unit {
+    val result = text.sliceBytes(start, end)
+    when (result) {
+        is Ok -> {
+            if (expected != 0) { error("invalid slice accepted") }
+            println(result.success)
+        }
+        is Err -> {
+            val problem = result.error
+            when (problem) {
+                is TextError.InvalidRange -> {
+                    if (expected != 1) { error("wrong range precedence") }
+                }
+                is TextError.NotScalarBoundary -> {
+                    if (expected != 2) { error("wrong scalar boundary") }
+                }
+                else -> error("unexpected slice error")
+            }
+        }
+    }
+}
+"#,
+    );
+    let mut calls = String::from("fun main(): Unit {\n");
+    let mut expected = Vec::new();
+    // Include each UTF-8 width transition, both sides of the surrogate gap and
+    // the highest scalar; byte equality catches lossy decoding and NUL truncation.
+    for (case, text) in [
+        "",
+        "ASCII",
+        "中文🙂",
+        "A\0é",
+        "\u{7f}\u{80}\u{7ff}\u{800}\u{d7ff}\u{e000}\u{ffff}\u{10000}\u{10ffff}",
+    ]
+    .iter()
+    .enumerate()
+    {
+        writeln!(program, "fun roundtrip{case}(): Unit {{").unwrap();
+        writeln!(program, "val source = {}.clone()", literal(text)).unwrap();
+        writeln!(
+            program,
+            "if (source.byteLength() != {}) {{ error(\"length\") }}",
+            text.len()
+        )
+        .unwrap();
+        program.push_str("val bytes = source.toBytes()\n");
+        writeln!(
+            program,
+            "if (bytes.size != {}) {{ error(\"array size\") }}",
+            text.len()
+        )
+        .unwrap();
+        for (index, byte) in text.bytes().enumerate() {
+            writeln!(program, "val byte{index}: UByte = {byte}u\nif (bytes[{index}] != byte{index}) {{ error(\"byte {index}\") }}").unwrap();
+        }
+        program.push_str("val decoded = decodeUtf8(bytes)\nwhen (decoded) {\nis Ok -> println(decoded.success)\nis Err -> error(\"valid bytes rejected\")\n}\nprintln(source)\n}\n");
+        writeln!(calls, "roundtrip{case}()").unwrap();
+        for _ in 0..2 {
+            expected.extend_from_slice(text.as_bytes());
+            expected.push(b'\n');
+        }
+    }
+    let invalid: &[&[u8]] = &[
+        &[0x80],
+        &[0xbf],
+        &[0xc0, 0x80],
+        &[0xc1, 0xbf],
+        &[0xe0, 0x9f, 0xbf],
+        &[0xed, 0xa0, 0x80],
+        &[0xf0, 0x8f, 0xbf, 0xbf],
+        &[0xf4, 0x90, 0x80, 0x80],
+        &[0xf5, 0x80, 0x80, 0x80],
+        &[0xff],
+        &[0x41, 0xe2, 0x28, 0xa1],
+        &[0x41, 0xe2, 0x82],
+        &[0x41, 0xc2],
+        &[0x41, 0xf0, 0x90, 0x80],
+        &[0xc2, 0xa2, 0x80],
+        &[0xc2, 0xa2, 0xe2, 0x28, 0xa1, 0xff],
+        &[0xe2, 0x82, 0xac, 0xf0, 0x90, 0x80, 0x41],
+    ];
+    for bytes in invalid {
+        let offset = std::str::from_utf8(bytes).unwrap_err().valid_up_to();
+        let mut initializer = String::new();
+        for (index, byte) in bytes.iter().enumerate() {
+            if index + 1 < bytes.len() {
+                write!(initializer, "if (index == {index}) {byte}u else ").unwrap();
+            } else {
+                write!(initializer, "{byte}u").unwrap();
+            }
+        }
+        writeln!(
+            calls,
+            "invalidUtf8(Array<UByte>({}, {{ index -> {initializer} }}), {offset})",
+            bytes.len()
+        )
+        .unwrap();
+    }
+    // All endpoint pairs include valid empty slices, every continuation byte,
+    // negative/reversed/out-of-range intervals and range-vs-boundary precedence.
+    for text in ["", "Aé中𐀀\0"] {
+        for start in -1..=text.len() as i32 + 1 {
+            for end in -1..=text.len() as i32 + 1 {
+                let kind = if start < 0 || end < start || end > text.len() as i32 {
+                    1
+                } else if !text.is_char_boundary(start as usize)
+                    || !text.is_char_boundary(end as usize)
+                {
+                    2
+                } else {
+                    expected.extend_from_slice(&text.as_bytes()[start as usize..end as usize]);
+                    expected.push(b'\n');
+                    0
+                };
+                writeln!(calls, "slice({}, {start}, {end}, {kind})", literal(text)).unwrap();
+            }
+        }
+    }
+    calls.push_str("println(\"matrix passed\")\n}\n");
+    expected.extend_from_slice(b"matrix passed\n");
+    program.push_str(&calls);
+    check_build_run_both_modes(&program, &expected);
+}
+
+fn literal(text: &str) -> String {
+    format!(
+        "\"{}\"",
+        text.replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\0', "\\0")
+    )
+}
+
+#[test]
+fn public_text_accepts_field_and_temporary_borrows_and_owned_result_transfers() {
+    let program = r#"class Holder(val text: String)
+fun transfer(flag: Boolean): Result<String, TextError> {
+    val result = "early".sliceBytes(0, 5)
+    if (flag) { return result }
+    return result
+}
+fun transferred(flag: Boolean): Unit {
+    val result = transfer(flag)
+    when (result) {
+        is Ok -> println(result.success)
+        is Err -> error("transferred result failed")
+    }
+}
+fun main(): Unit {
+    val holder = Holder("field".clone())
+    val bytes = holder.text.toBytes()
+    val decoded = decodeUtf8(bytes)
+    when (decoded) {
+        is Ok -> println(decoded.success)
+        is Err -> error("field decode failed")
+    }
+    println(holder.text)
+    val temporary = decodeUtf8("temporary".clone().toBytes())
+    when (temporary) {
+        is Ok -> println(temporary.success)
+        is Err -> error("temporary decode failed")
+    }
+    transferred(true)
+    transferred(false)
+    val results = Array<Result<String, TextError>>(2, { index -> "stored".sliceBytes(0, 6) })
+    if (results.size != 2) { error("result container size") }
+    println("container")
+}
+"#;
+    // This is public reachability and output evidence. Allocation/drop counters
+    // separately establish lifetime correctness; successful exit is not a leak oracle.
+    check_build_run_both_modes(
+        program,
+        b"field\nfield\ntemporary\nearly\nearly\ncontainer\n",
+    );
+}
+
+#[test]
+fn public_text_independent_copies_and_exhaustive_result_returns() {
+    let program = r#"fun bytes(): Array<UByte> {
+    val source = "Aé\0".clone()
+    val data = source.toBytes()
+    data[0] = 88u
+    println(source)
+    return data
+}
+fun decodedLength(data: Array<UByte>): Int {
+    val result = decodeUtf8(data)
+    when (result) {
+        is Ok -> return result.success.byteLength()
+        is Err -> return -1
+    }
+}
+fun tagOnly(valid: Boolean): Int {
+    val result = decodeUtf8(Array<UByte>(1, { index -> if (valid) { 65u } else { 255u } }))
+    when ((result)) {
+        is Ok -> return 1
+        is Err -> return 0
+    }
+}
+fun partialTag(valid: Boolean): Int {
+    val result = decodeUtf8(Array<UByte>(1, { index -> if (valid) { 65u } else { 255u } }))
+    when ((result)) { !is Err -> return 1 }
+    return 0
+}
+fun main(): Unit {
+    if (tagOnly(true) != 1 || tagOnly(false) != 0) { error("tag-only return") }
+    if (partialTag(true) != 1 || partialTag(false) != 0) { error("tag fallthrough") }
+    val data = bytes()
+    val decoded = decodeUtf8(data)
+    data[0] = 89u
+    when (decoded) {
+        is Ok -> println(decoded.success)
+        is Err -> error("copy failed")
+    }
+    val after = decodeUtf8(data)
+    when (after) {
+        is Ok -> println(after.success)
+        is Err -> error("mutated input failed")
+    }
+    if (decodedLength(data) != 4) { error("success return") }
+    val bad = Array<UByte>(1, { index -> 128u })
+    if (decodedLength(bad) != -1) { error("error return") }
+    println("returns")
+}
+"#;
+    check_build_run_both_modes(program, b"A\xc3\xa9\0\nX\xc3\xa9\0\nY\xc3\xa9\0\nreturns\n");
+}
+
+#[test]
+fn public_text_receiver_argument_transfers_work_in_both_modes() {
+    let program = r#"class Holder(val text: String)
+fun join(stop: Boolean): Unit {
+    val holder = Holder("field".clone())
+    val result = holder.text.checkedPlus(if (stop) { println("join-stop"); return } else { "!" })
+    if (result != null) { println(result) }
+    println(holder.text)
+}
+fun first(): Int { println("first"); return 0 }
+fun slice(stop: Boolean): Unit {
+    val holder = Holder("slice".clone())
+    val part = holder.text.sliceBytes(first(), if (stop) { println("slice-stop"); return } else { 5 })
+    when (part) {
+        is Ok -> println(part.success)
+        is Err -> error("slice failed")
+    }
+    println(holder.text)
+}
+fun cycle(stop: Boolean, again: Boolean): Unit {
+    var once = true
+    while (once) {
+        once = false
+        val holder = Holder("loop".clone())
+        val joined = holder.text.checkedPlus(if (stop) {
+            if (again) { continue } else { break }
+        } else { "!" })
+        println("completed")
+        println(holder.text)
+    }
+    println("tail")
+}
+fun main(): Unit {
+    join(true)
+    join(false)
+    slice(true)
+    slice(false)
+    cycle(true, true)
+    cycle(true, false)
+    cycle(false, true)
+}
+"#;
+    check_build_run_both_modes(program,
+        b"join-stop\nfield!\nfield\nfirst\nslice-stop\nfirst\nslice\nslice\ntail\ntail\ncompleted\nloop\ntail\n");
+}
+
+#[test]
+fn public_text_nullable_results_preserve_borrowed_inputs_in_both_modes() {
+    let program = r#"fun read(value: String): Unit { println(value) }
+fun join(input: String): Unit {
+    val joined = input.checkedPlus("!")
+    if (joined != null) { read(joined); println((joined)) }
+    println(input)
+}
+fun inspect(input: String, own value: String?, flag: Boolean): Unit {
+    if (flag) { println("flag") }
+    if (value != null) { read(value) } else { println("null") }
+    if (value == null) { println("absent") } else { println(value) }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    join(input)
+    inspect(input, "value".clone(), true)
+    inspect(input, null, false)
+    println(input)
+}
+"#;
+    check_build_run_both_modes(
+        program,
+        b"input!\ninput!\ninput\nflag\nvalue\nvalue\ninput\nnull\nabsent\ninput\ninput\n",
+    );
+}
+
+#[test]
+fn public_text_nullable_control_results_work_in_both_modes() {
+    let program = r#"fun observe(input: String, present: Boolean, stop: Boolean): Unit {
+    val joined = if (present) { input.checkedPlus("!") } else { ((null)) }
+    if (joined != null) { println(joined) } else { println("null") }
+    val text = when {
+        present -> input.clone()
+        else -> {
+            val discarded = "discarded".clone()
+            println(discarded)
+            if (stop) { return }
+            ((null))
+        }
+    }
+    if (text != null) { println(text) } else { println("null") }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input, true, false)
+    observe(input, false, false)
+    observe(input, false, true)
+    println(input)
+}
+"#;
+    check_build_run_both_modes(
+        program,
+        b"input!\ninput\ninput\nnull\ndiscarded\nnull\ninput\nnull\ndiscarded\ninput\n",
+    );
+}
+
+#[test]
+fn public_text_nested_null_results_work_in_both_modes() {
+    let program = r#"fun mark(flag: Boolean): Boolean { println("condition"); return flag }
+fun observe(input: String, present: Boolean, side: Boolean, stop: Boolean): Unit {
+    val text = when (present) {
+        true -> input.checkedPlus("!")
+        false -> when {
+            mark(side) -> {
+                if (stop) { println("stop"); return }
+                when (side) { true, false -> ((null)) }
+            }
+            else -> if (mark(stop)) { null } else { ((null)) }
+        }
+    }
+    if (text != null) { println(text) } else { println("null") }
+    println(input)
+}
+fun main(): Unit {
+    val input = "input".clone()
+    observe(input, true, false, false)
+    observe(input, false, true, false)
+    observe(input, false, true, true)
+    observe(input, false, false, false)
+    observe(input, false, false, true)
+    println(input)
+}
+"#;
+    check_build_run_both_modes(program,
+        b"input!\ninput\ncondition\nnull\ninput\ncondition\nstop\ncondition\ncondition\nnull\ninput\ncondition\ncondition\nnull\ninput\ninput\n");
+}
+
+#[test]
+fn public_text_nullable_receivers_work_in_both_modes() {
+    let program = r#"fun read(): Unit {
+    val joined = "a".checkedPlus("b")
+    var length = 0
+    var groupedLength = 0
+    if (joined != null) {
+        length = joined.byteLength()
+        groupedLength = (joined).byteLength()
+        println(joined)
+    }
+    if (length != 2 || groupedLength != 2) { error("bad length") }
+}
+fun copyBytes(): Unit {
+    val joined = "a".checkedPlus("b")
+    var size = 0
+    if (joined != null) {
+        val copy = joined.toBytes()
+        size = copy.size
+    }
+    if (size != 2) { error("bad bytes") }
+}
+fun slice(): Unit {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.sliceBytes(0, 1)
+        when (copy) {
+            is Ok -> println(copy.success)
+            is Err -> error("bad slice")
+        }
+    }
+}
+fun again(): String? {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus("!")
+        return copy
+    }
+    return null
+}
+fun main(): Unit {
+    read()
+    copyBytes()
+    slice()
+    val copy = again()
+    if (copy != null) { println(copy) }
+}
+"#;
+    check_build_run_both_modes(program, b"ab\na\nab!\n");
+}
+
+#[test]
+fn public_text_nullable_receiver_argument_returns_work_in_both_modes() {
+    let program = r#"fun observe(stop: Boolean): Unit {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus(if (stop) { return } else { "!" })
+        if (copy == null) { error("unexpected overflow") }
+    }
+    println("completed")
+}
+fun measure(input: String, stop: Boolean): Int {
+    val joined = input.checkedPlus("b")
+    var seen = 0
+    if (joined != null) {
+        val copy = joined.sliceBytes(
+            if (stop) { seen = seen + 1; 0 } else { seen = seen + 2; 0 },
+            if (stop) { return seen } else { 1 })
+    }
+    return seen
+}
+fun cancel(stop: Boolean): Unit {
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus(if (stop) { return } else { return })
+    }
+}
+fun main(): Unit {
+    observe(true)
+    observe(false)
+    val input = "a".clone()
+    if (measure(input, true) != 1 || measure(input, false) != 2) { error("argument order") }
+    cancel(true)
+    cancel(false)
+    println(input)
+    println("ok")
+}
+"#;
+    check_build_run_both_modes(program, b"completed\na\nok\n");
+}
+
+#[test]
+fn public_text_nullable_if_returns_work_in_both_modes() {
+    let program = r#"fun unitExit(input: String, stop: Boolean): Unit {
+    val joined = input.checkedPlus("b")
+    if (joined != null) {
+        if (stop) { return }
+        println(joined)
+    }
+    println("completed")
+}
+fun intExit(input: String, stop: Boolean): Int {
+    val joined = input.checkedPlus("b")
+    if (joined != null) {
+        if (stop) { return joined.byteLength() }
+        println(joined)
+        return 29
+    }
+    return 0
+}
+fun main(): Unit {
+    val input = "a".clone()
+    unitExit(input, true)
+    unitExit(input, false)
+    if (intExit(input, true) != 2 || intExit(input, false) != 29) { error("return value") }
+    println(input)
+}
+"#;
+    check_build_run_both_modes(program, b"ab\ncompleted\nab\na\n");
+}
+
+#[test]
+fn public_text_nullable_if_owned_returns_wrap_in_both_modes() {
+    let program = r#"fun direct(stop: Boolean): String? {
+    val result = "direct".clone()
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        if (stop) { return result }
+        println(joined)
+    }
+    return result
+}
+fun argument(stop: Boolean): String? {
+    val result = "argument".clone()
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus(if (stop) { return result } else { "!" })
+        if (copy == null) { error("overflow") }
+    }
+    return result
+}
+fun main(): Unit {
+    val first = direct(true)
+    if (first != null) { println(first) }
+    val second = direct(false)
+    if (second != null) { println(second) }
+    val third = argument(true)
+    if (third != null) { println(third) }
+    val fourth = argument(false)
+    if (fourth != null) { println(fourth) }
+}
+"#;
+    check_build_run_both_modes(program, b"direct\nab\ndirect\nargument\nargument\n");
+}
+
+#[test]
+fn public_text_nullable_if_array_and_result_returns_work_in_both_modes() {
+    let program = r#"fun bytes(stop: Boolean): Array<UByte> {
+    val result = "é".toBytes()
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        if (stop) { return result }
+        println(joined)
+    }
+    return result
+}
+fun sliced(stop: Boolean): Result<String, TextError> {
+    val result = "slice".sliceBytes(0, 5)
+    val joined = "a".checkedPlus("b")
+    if (joined != null) {
+        val copy = joined.checkedPlus(if (stop) { return result } else { "!" })
+        if (copy == null) { error("overflow") }
+    }
+    return result
+}
+fun main(): Unit {
+    val first = bytes(true)
+    val second = bytes(false)
+    val lead: UByte = 195u
+    val continuation: UByte = 169u
+    if (first.size != 2 || first[0] != lead || first[1] != continuation ||
+        second.size != 2 || second[0] != lead || second[1] != continuation) { error("bytes") }
+    val third = sliced(true)
+    when (third) {
+        is Ok -> println(third.success)
+        is Err -> error("slice")
+    }
+    val fourth = sliced(false)
+    when (fourth) {
+        is Ok -> println(fourth.success)
+        is Err -> error("slice")
+    }
+}
+"#;
+    check_build_run_both_modes(program, b"ab\nslice\nslice\n");
+}
+
+#[test]
+fn public_text_nullable_if_narrowed_owner_returns_work_in_both_modes() {
+    let program = r#"fun direct(present: Boolean, stop: Boolean): String {
+    val joined = if (present) { "a".checkedPlus("b") } else { null }
+    if (joined != null) {
+        if (stop) { return ((joined)) }
+        println(joined)
+        return joined
+    }
+    return "absent"
+}
+fun wrapped(present: Boolean, stop: Boolean): String? {
+    val joined = if (present) { "c".checkedPlus("d") } else { null }
+    if (joined != null) {
+        if (stop) { return ((joined)) }
+        println(joined)
+        return joined
+    }
+    return joined
+}
+fun main(): Unit {
+    println(direct(true, true))
+    println(direct(true, false))
+    println(direct(false, true))
+    println(direct(false, false))
+    val first = wrapped(true, true)
+    if (first != null) { println(first) } else { error("missing first") }
+    val second = wrapped(true, false)
+    if (second != null) { println(second) } else { error("missing second") }
+    val third = wrapped(false, true)
+    if (third != null) { error("unexpected third") }
+    val fourth = wrapped(false, false)
+    if (fourth != null) { error("unexpected fourth") }
+    println("null")
+}
+"#;
+    check_build_run_both_modes(program, b"ab\nab\nab\nabsent\nabsent\ncd\ncd\ncd\nnull\n");
+}
+
+#[test]
+fn public_text_nullable_roots_return_without_borrows_in_both_modes() {
+    let program = r#"fun owned(own text: String?): String {
+    if (text != null) { return ((text)) }
+    return "absent"
+}
+fun preserved(own text: String?): String? {
+    if (text == null) { return text } else { return ((text)) }
+}
+fun local(present: Boolean): String {
+    val text = if (present) { "a".checkedPlus("b") } else { null }
+    if (text != null) { return text }
+    return "missing"
+}
+fun forked(own text: String?, stop: Boolean): String {
+    if (text != null) {
+        if (stop) { return text } else { return ((text)) }
+    }
+    return "empty"
+}
+fun main(): Unit {
+    val first: String? = "owned".clone()
+    println(owned(first))
+    val absent: String? = null
+    println(owned(absent))
+    val second: String? = "wrapped".clone()
+    val result = preserved(second)
+    if (result != null) { println(result) }
+    val none: String? = null
+    val empty = preserved(none)
+    if (empty != null) { error("unexpected") }
+    println(local(true))
+    println(local(false))
+    val left: String? = "branch".clone()
+    println(forked(left, true))
+    val right: String? = "branch".clone()
+    println(forked(right, false))
+    val nullLeft: String? = null
+    println(forked(nullLeft, true))
+    val nullRight: String? = null
+    println(forked(nullRight, false))
+}
+"#;
+    check_build_run_both_modes(
+        program,
+        b"owned\nabsent\nwrapped\nab\nmissing\nbranch\nbranch\nempty\nempty\n",
+    );
+}

@@ -266,3 +266,28 @@ fn duplicate_source_names_are_rejected_without_mutating_the_first_source() {
     );
     assert_eq!(sources.source_text(first_id), Ok("first"));
 }
+
+#[test]
+fn physical_file_name_does_not_change_logical_identity() {
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source_with_file_name("src/main.ko", "界\n", "/actual/目录/main.ko")
+        .expect("unique logical name");
+    assert_eq!(sources.source_name(source), Ok("src/main.ko"));
+    assert_eq!(sources.source_file_name(source), Ok("/actual/目录/main.ko"));
+    assert_eq!(sources.source_text(source), Ok("界\n"));
+    let span = sources.span(source, 0, 3).expect("same source span");
+    assert_eq!(sources.slice(span), Ok("界"));
+    assert!(matches!(
+        sources.add_source("src/main.ko", "other"),
+        Err(SourceError::DuplicateSourceName { .. })
+    ));
+    let mut other = SourceMap::new();
+    let foreign = other.add_source("foreign", "").expect("source");
+    assert!(matches!(
+        sources.source_file_name(foreign),
+        Err(SourceError::InvalidSourceId { .. })
+    ));
+    let logical = sources.add_source("embedded.ko", "").expect("source");
+    assert_eq!(sources.source_file_name(logical), Ok("embedded.ko"));
+}

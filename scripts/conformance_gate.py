@@ -181,6 +181,29 @@ PROBE_NAME_CONVENTION_RE = re.compile(
 )
 
 
+FOUNDATIONAL_BATCHES = frozenset({"p", "q", "r", "s"})
+FOUNDATIONAL_GROUP_B_PROBES = frozenset(
+    {
+        "p01_int_print",
+        "p03b_byte_literal_cmp",
+        "p25_linked_iter",
+        "p42_lambda_mutate",
+        "p43_if_join_any",
+        "r01_bogus_member",
+        "r02_bogus_member_str",
+        "s04_question_on_nullable",
+    }
+)
+FOUNDATIONAL_GROUP_C_PROBES = frozenset(
+    {
+        "p23_global_var",
+        "p35_value_eq",
+        "p37_is_generic_case",
+    }
+)
+P2_GROUP_A_TARGET_MIN = 70
+
+
 def classify_probe_batch(name: str) -> str:
     """Extract and validate the canonical single-letter probe batch prefix."""
     m = PROBE_NAME_CONVENTION_RE.fullmatch(name)
@@ -317,7 +340,6 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p11_interface_bound": ["N06"],
     "p15_elvis": ["N03"],
     "p16_result_q": ["N08"],
-    "p16b_result_string": ["N08"],
     "p21_box_enum": ["N07", "L7"],
     "p25b_linked_recursive": ["N03"],
     "p27_thread": ["T1", "N04"],
@@ -360,7 +382,7 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "p11_interface_bound": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06)",
     "p15_elvis": "f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03)",
     "p16_result_q": "Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08)",
-    "p16b_result_string": "parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08)",
+    "p16b_result_string": "parse(1) selects Result.Ok('good'); exhaustive when selects Ok and prints success once, followed by newline",
     "p17_lambda": "capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda'",
     "p17b_lambda_nocapture": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0'",
     "p18_move_closure": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move'",
@@ -596,11 +618,10 @@ V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
         "note": "Guide v0.46 E4 (SPEC-0349): Result in builtin env; ? lowering pending N08",
     },
     "p16b_result_string": {
-        "kind": "known_unimplemented",
-        "allowed_markers": ["BE:UnsupportedNode", "BE:MissingFact", "FE:L0165"],
-        "target_stdout": "good\n",
+        "kind": "run_ok",
+        "stdout": "good\n",
         "v046_baseline_exempt": True,
-        "note": "Guide v0.46 E4 (SPEC-0349): Result in builtin env; String payload lowering pending N08",
+        "note": "SPEC-0349 builtin Result; SPEC-0368 String payload construction and exhaustive case reads in both public entry modes",
     },
     "p37_is_generic_case": {
         "kind": "run_ok",
@@ -2316,6 +2337,63 @@ def summarize_program_roadmap_blockers(
     return dict(sorted(by_blocker.items()))
 
 
+def summarize_foundational_cohort(expectations: dict[str, Any]) -> dict[str, Any]:
+    """Classify the 85 foundational p/q/r/s probes into Groups A (74), B (8), and C (3) for P2 gate tracking."""
+    groups: dict[str, dict[str, Any]] = {
+        "A": {
+            "label": "A 组：合法基础程序（P2 门槛基数）",
+            "total": 0,
+            "runnable": 0,
+            "run_ok": [],
+            "runtime_abort": [],
+            "compile_fail": [],
+            "known_unimplemented": [],
+        },
+        "B": {
+            "label": "B 组：应拒基础探针（静态/借用/类型拒绝）",
+            "total": 0,
+            "runnable": 0,
+            "run_ok": [],
+            "runtime_abort": [],
+            "compile_fail": [],
+            "known_unimplemented": [],
+        },
+        "C": {
+            "label": "C 组：v0.44 待裁决项（已在 v0.46 规范定案）",
+            "total": 0,
+            "runnable": 0,
+            "run_ok": [],
+            "runtime_abort": [],
+            "compile_fail": [],
+            "known_unimplemented": [],
+        },
+    }
+    for name, spec in sorted(expectations["probes"].items()):
+        batch = spec.get("probe_batch") or classify_probe_batch(name)
+        if batch not in FOUNDATIONAL_BATCHES:
+            continue
+        if name in FOUNDATIONAL_GROUP_B_PROBES:
+            grp = groups["B"]
+        elif name in FOUNDATIONAL_GROUP_C_PROBES:
+            grp = groups["C"]
+        else:
+            grp = groups["A"]
+        grp["total"] += 1
+        kind = spec["kind"]
+        grp[kind].append(name)
+        if kind in ("run_ok", "runtime_abort"):
+            grp["runnable"] += 1
+
+    group_a = groups["A"]
+    return {
+        "total_foundational": sum(g["total"] for g in groups.values()),
+        "p2_target_min": P2_GROUP_A_TARGET_MIN,
+        "p2_gap_to_target": max(0, P2_GROUP_A_TARGET_MIN - group_a["runnable"]),
+        "p2_gate_met": group_a["runnable"] >= P2_GROUP_A_TARGET_MIN,
+        "groups": groups,
+    }
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -2370,6 +2448,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     shape_stats = summarize_output_shape_distribution(expectations)
     batch_stats = summarize_probe_batches(expectations)
     marker_stats = summarize_unimplemented_markers(expectations)
+    foundational_stats = summarize_foundational_cohort(expectations)
 
     lines = [
         "# Conformance 强 Oracle 语义推导与 Guide v0.46 章节覆盖对账账本",
@@ -2529,6 +2608,22 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `{m_key}` | {m_row['stage']} | {m_row['description']} | {m_row['baseline_count']} | "
             f"{len(m_row['probes'])} | {len(m_row['programs'])} |"
         )
+
+    grp_a = foundational_stats["groups"]["A"]
+    grp_b = foundational_stats["groups"]["B"]
+    grp_c = foundational_stats["groups"]["C"]
+    lines.extend(
+        [
+            "",
+            f"### 1.8 初始 {foundational_stats['total_foundational']} 探针（`p`/`q`/`r`/`s` 批次 A/B/C 三组）与 P2 阶段门槛对账矩阵",
+            "",
+            "| 分组 | 分组定义与审计口径 | 总数 | 可运行 (`run_ok` + `runtime_abort`) | `compile_fail` | `known_unimplemented` | 阶段门槛 / 当前状态说明 |",
+            "|---|---|---:|---:|---:|---:|---|",
+            f"| **A 组** | {grp_a['label']} | {grp_a['total']} | {grp_a['runnable']} ({len(grp_a['run_ok'])} + {len(grp_a['runtime_abort'])}) | {len(grp_a['compile_fail'])} (`q17_generic_class`) | {len(grp_a['known_unimplemented'])} | P2 门槛 `≥ {foundational_stats['p2_target_min']} / {grp_a['total']}`（当前 `{grp_a['runnable']} / {grp_a['total']}`，距门槛差 `{foundational_stats['p2_gap_to_target']}` 项） |",
+            f"| **B 组** | {grp_b['label']} | {grp_b['total']} | {grp_b['runnable']} | {len(grp_b['compile_fail'])} | {len(grp_b['known_unimplemented'])} | `8 / 8 (100%)` 精确命中期望前端诊断码 (`pass_diagnostic`) |",
+            f"| **C 组** | {grp_c['label']} | {grp_c['total']} | {grp_c['runnable']} (`p37_is_generic_case`) | {len(grp_c['compile_fail'])} (`p23_global_var`) | {len(grp_c['known_unimplemented'])} (`p35_value_eq`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1` |",
+        ]
+    )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"

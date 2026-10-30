@@ -12,10 +12,10 @@ use lang_frontend::{
 };
 
 #[derive(Clone, Copy)]
-struct HeapIfRoot {
-    symbol: UnitSymbolId,
-    declared: UnitTypeId,
-    narrowed: UnitTypeId,
+pub(super) struct NamedNullableIfRoot {
+    pub(super) symbol: UnitSymbolId,
+    pub(super) declared: UnitTypeId,
+    pub(super) narrowed: UnitTypeId,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -84,7 +84,7 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        let root = HeapIfRoot {
+        let root = NamedNullableIfRoot {
             symbol: root,
             declared: comparison.nullable_type(),
             narrowed: *narrowed,
@@ -105,7 +105,7 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok(None);
         }
-        self.validate_heap_if_condition(condition, comparison, root, span)?;
+        self.validate_named_nullable_if_condition(condition, comparison, root, span)?;
         // Reuse the existing actual storage/current-Value check, not its != parser.
         let (nullable, inner) = self.direct_nullable_while_entry(comparison, span)?;
         if storage != nullable
@@ -213,11 +213,11 @@ impl UnitExpressionLowerer<'_> {
         Ok(matches!(node.payload(), Expression::Call { .. }).then_some(expression))
     }
 
-    fn validate_heap_if_condition(
+    pub(super) fn validate_named_nullable_if_condition(
         &self,
         condition: ExpressionId,
         descriptor: UnitNullComparisonDescriptor,
-        root: HeapIfRoot,
+        root: NamedNullableIfRoot,
         span: Span,
     ) -> Result<(), LoweringError> {
         let comparison = self.ungroup_map_if_expression(condition, span)?;
@@ -267,7 +267,7 @@ impl UnitExpressionLowerer<'_> {
     fn heap_if_call_qualifies(
         &self,
         expression: ExpressionId,
-        root: HeapIfRoot,
+        root: NamedNullableIfRoot,
         span: Span,
     ) -> Result<bool, LoweringError> {
         let call = UnitExpressionId::new(self.source_unit, expression);
@@ -407,7 +407,7 @@ impl UnitExpressionLowerer<'_> {
     fn heap_if_root_operand(
         &self,
         mut expression: ExpressionId,
-        root: HeapIfRoot,
+        root: NamedNullableIfRoot,
         narrowed: bool,
         span: Span,
     ) -> Result<bool, LoweringError> {

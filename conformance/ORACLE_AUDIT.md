@@ -14,12 +14,12 @@
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 16 | 2 | 0 | 1 | 18 / 19 | `both_positive_and_negative` |
 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 6 | 1 | 0 | 1 | 7 / 8 | `both_positive_and_negative` |
 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 | `positive_only` |
-| [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 11 | 1 | 1 | 3 | 13 / 16 | `both_positive_and_negative` |
+| [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 12 | 1 | 1 | 2 | 14 / 16 | `both_positive_and_negative` |
 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 | `both_positive_and_negative` |
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 | `positive_only` |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 | `both_positive_and_negative` |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 3 | 0 | 0 | 1 | 3 / 4 | `positive_only` |
-| **合计** | **154** | **120** | **14** | **3** | **17** | **137 / 154** | **9 双极性 / 4 仅正向** |
+| **合计** | **154** | **121** | **14** | **3** | **16** | **138 / 154** | **9 双极性 / 4 仅正向** |
 
 - **正/负向双极性覆盖章节（9 / 13）**：`02-names-files-packages.md`, `03-types-generics.md`, `04-expressions-operators.md`, `05-declarations-callables.md`, `06-blocks-control-flow.md`, `07-calls-lambdas-closures.md`, `09-nullability-errors.md`, `10-ownership-borrowing-drop.md`, `12-collections-destructuring.md`（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。
 - **仅正向覆盖章节（4 / 13，待后续补充独立负向诊断探针）**：`01-lexical.md`, `08-class-family-members.md`, `11-copyability-layout-construction.md`, `13-program-runtime-standard-library.md`（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。
@@ -47,11 +47,11 @@
 | 演进分类 (`baseline_evolution`) | 历史基线状态 (`baseline-aef3f4f8.tsv`) | 当前强 Oracle 状态 (`expectations.json`) | Probe 数量 | 代表性 / 完整 Probe 列表 |
 |---|---|---|---:|---|
 | `baseline_ok_preserved` | `OK` | `run_ok`（精确字节匹配） | 89 | 历史 `OK` 基线 100% 保持通过（含 `q12_companion_const` 匿名 `companion { }` 语法更新） |
-| `promoted_to_run_ok` | `BE:InvalidSsa` / `BE:MissingFact` / `BE:UnsupportedNode` / `FE:L0080` / `FE:L0111` | `run_ok`（新晋能力通过） | 31 | `e01_enum_when_bool_return`, `e02_enum_when_stmt_println`, `e03_enum_when_bool_val`, `p08_when_int`, `p12b_class_field_assign`, `p12c_inout_param`, `p14_nullable`, `p14b_nullable_simple`, `p14c_nullable_int`, `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p22_rc`, `p37_is_generic_case`, `p41_when_string`, `p49_when_enum_no_payload`, `p50_enum_method`, `q02_lambda_arg_inline`, `q05_nullable_param`, `q09_inout_class_param`, `s01_result_builtin`, `t03_vmethod_generic`, `u01_enum_case_borrow_arg`, `v03_join_nullable`, `v13_while_nullable_int`, `v16_when_in_range`, `v19_stmt_when_mixed`, `x02_string_nullable_return`, `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println` |
+| `promoted_to_run_ok` | `BE:InvalidSsa` / `BE:MissingFact` / `BE:UnsupportedNode` / `FE:L0080` / `FE:L0111` | `run_ok`（新晋能力通过） | 32 | `e01_enum_when_bool_return`, `e02_enum_when_stmt_println`, `e03_enum_when_bool_val`, `p08_when_int`, `p12b_class_field_assign`, `p12c_inout_param`, `p14_nullable`, `p14b_nullable_simple`, `p14c_nullable_int`, `p16b_result_string`, `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p22_rc`, `p37_is_generic_case`, `p41_when_string`, `p49_when_enum_no_payload`, `p50_enum_method`, `q02_lambda_arg_inline`, `q05_nullable_param`, `q09_inout_class_param`, `s01_result_builtin`, `t03_vmethod_generic`, `u01_enum_case_borrow_arg`, `v03_join_nullable`, `v13_while_nullable_int`, `v16_when_in_range`, `v19_stmt_when_mixed`, `x02_string_nullable_return`, `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println` |
 | `upgraded_to_structured_abort` | `abort(exit 1,no msg)` | `runtime_abort`（`SIGABRT` + `abort: <msg>`） | 3 | `p04_overflow`, `p45_abort_message`, `v12_convert_abort` |
 | `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | 1 | `p23_global_var` |
 | `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | 13 | `p01_int_print`, `p03b_byte_literal_cmp`, `p25_linked_iter`, `p42_lambda_mutate`, `p43_if_join_any`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
-| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | 17 | `p02_interp`, `p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p16b_result_string`, `p21_box_enum`, `p25b_linked_recursive`, `p27_thread`, `p28_companion`, `p35_value_eq`, `p40_nested_generic_class`, `q03_fn_ref`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair` |
+| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | 16 | `p02_interp`, `p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p21_box_enum`, `p25b_linked_recursive`, `p27_thread`, `p28_companion`, `p35_value_eq`, `p40_nested_generic_class`, `q03_fn_ref`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair` |
 | `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | 0 | 无（零基线退化） |
 
 ### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（35 Probes）
@@ -63,7 +63,7 @@
 | `SPEC-0341` | [0341-shared-lowering-core.md](../docs/specs/active/0341-shared-lowering-core.md) | `active` | 3 | `run_ok`: 3 | `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println` |
 | `SPEC-0342` | [0342-companion-block-syntax.md](../docs/archive/specs/0342-companion-block-syntax.md) | `archived` | 2 | `known_unimplemented`: 1, `run_ok`: 1 | `p28_companion`, `q12_companion_const` |
 | `SPEC-0343` | [0343-top-level-const-only.md](../docs/archive/specs/0343-top-level-const-only.md) | `archived` | 1 | `compile_fail`: 1 | `p23_global_var` |
-| `SPEC-0349` | [0349-builtin-result-and-check.md](../docs/archive/specs/0349-builtin-result-and-check.md) | `archived` | 4 | `known_unimplemented`: 2, `run_ok`: 2 | `p16_result_q`, `p16b_result_string`, `p37_is_generic_case`, `s01_result_builtin` |
+| `SPEC-0349` | [0349-builtin-result-and-check.md](../docs/archive/specs/0349-builtin-result-and-check.md) | `archived` | 4 | `known_unimplemented`: 1, `run_ok`: 3 | `p16_result_q`, `p16b_result_string`, `p37_is_generic_case`, `s01_result_builtin` |
 | `SPEC-0350` | [0350-ownership-refinement-nullable-pilot.md](../docs/archive/specs/0350-ownership-refinement-nullable-pilot.md) | `archived` | 7 | `run_ok`: 7 | `p14_nullable`, `p14b_nullable_simple`, `p14c_nullable_int`, `q05_nullable_param`, `v03_join_nullable`, `v13_while_nullable_int`, `x02_string_nullable_return` |
 | `SPEC-0355` | [0355-abort-output.md](../docs/archive/specs/0355-abort-output.md) | `archived` | 3 | `runtime_abort`: 3 | `p04_overflow`, `p45_abort_message`, `v12_convert_abort` |
 | `SPEC-0356` | [0356-refine-when-family.md](../docs/archive/specs/0356-refine-when-family.md) | `archived` | 8 | `run_ok`: 8 | `e01_enum_when_bool_return`, `e02_enum_when_stmt_println`, `e03_enum_when_bool_val`, `p08_when_int`, `p49_when_enum_no_payload`, `p50_enum_method`, `v16_when_in_range`, `v19_stmt_when_mixed` |
@@ -73,6 +73,7 @@
 | `SPEC-0360` | [0360-string-when-refinement.md](../docs/specs/active/0360-string-when-refinement.md) | `active` | 1 | `run_ok`: 1 | `p41_when_string` |
 | `SPEC-0361` | [0361-refine-generic-value-class.md](../docs/archive/specs/0361-refine-generic-value-class.md) | `archived` | 1 | `run_ok`: 1 | `t03_vmethod_generic` |
 | `SPEC-0364` | [0364-refine-closures.md](../docs/archive/specs/0364-refine-closures.md) | `archived` | 4 | `run_ok`: 4 | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `q02_lambda_arg_inline` |
+| `SPEC-0368` | [0368-text-byte-foundation.md](../docs/specs/active/0368-text-byte-foundation.md) | `active` | 1 | `run_ok`: 1 | `p16b_result_string` |
 
 ### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，154 Probes + 6 Programs）
 
@@ -80,7 +81,7 @@
 |---|---|---:|---:|---|
 | `single_println_literal` | 单条无循环/无插值 `println("...")` 静态字面量精确推导 | 31 | 0 | `run_ok`: 31 |
 | `source_trace_audited` | 控制流、循环、集合或 `deinit` 多语句源码级人工追踪确认（`CONFIRMED_STDOUT_ORACLES`） | 57 | 0 | `run_ok`: 57 |
-| `v046_spec_contract` | Guide v0.46 语法/语义变更或 `baseline-aef3f4f8.tsv` 之后合入的 Spec 合同覆盖（`V046_PROBE_OVERRIDES`） | 39 | 0 | `compile_fail`: 1, `known_unimplemented`: 3, `run_ok`: 32, `runtime_abort`: 3 |
+| `v046_spec_contract` | Guide v0.46 语法/语义变更或 `baseline-aef3f4f8.tsv` 之后合入的 Spec 合同覆盖（`V046_PROBE_OVERRIDES`） | 39 | 0 | `compile_fail`: 1, `known_unimplemented`: 2, `run_ok`: 33, `runtime_abort`: 3 |
 | `baseline_diagnostic_audited` | 前端负向诊断码契约确认（`error[Lxxxx]` + `diagnostic.rs::codes` 符号匹配） | 13 | 0 | `compile_fail`: 13 |
 | `baseline_unimplemented_audited` | 已知未实现特性边界确认（绑定 `target_stdout` 与 `v1.json` 路线图阻塞项） | 14 | 0 | `known_unimplemented`: 14 |
 | `expected_txt_file` | V1 验收程序独立 `expected.txt` 黄金标准输出文件绑定（SHA-256 + 行数/字节数校验） | 0 | 6 | `known_unimplemented`: 6 |
@@ -98,7 +99,7 @@
 
 | 批次前缀 (`probe_batch`) | 关注面与批次说明 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 批次状态 (`batch_status`) |
 |---|---|---:|---:|---:|---:|---:|---:|---|
-| `p` | 基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等 | 59 | 38 | 6 | 2 | 13 | 46 / 59 | `partial` |
+| `p` | 基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等 | 59 | 39 | 6 | 2 | 12 | 47 / 59 | `partial` |
 | `q` | 对 `p` 中失败项的变体复测，缩小失败条件 | 20 | 17 | 1 | 0 | 2 | 18 / 20 | `partial` |
 | `r` | 未知成员访问，期望前端诊断 | 2 | 0 | 2 | 0 | 0 | 2 / 2 | `all_passed` |
 | `s` | 标准环境：内建 `Result`、`Pair`/`to` 与 `?` 的边界 | 4 | 1 | 1 | 0 | 2 | 2 / 4 | `partial` |
@@ -109,7 +110,7 @@
 | `x` | nullable class、String nullable 返回与条件中的借用实参复测 | 3 | 3 | 0 | 0 | 0 | 3 / 3 | `all_passed` |
 | `y` | `koven.algorithms` 的 `take` 与 N1a 范围借用 | 6 | 5 | 1 | 0 | 0 | 6 / 6 | `all_passed` |
 | `e` | enum subject `when` 在 compilation-unit 管线中的回退（E2 门槛） | 4 | 4 | 0 | 0 | 0 | 4 / 4 | `all_passed` |
-| **合计** | **11 个演进批次** | **154** | **120** | **14** | **3** | **17** | **137 / 154** | **8 全通过 / 3 部分通过** |
+| **合计** | **11 个演进批次** | **154** | **121** | **14** | **3** | **16** | **138 / 154** | **8 全通过 / 3 部分通过** |
 
 ### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（7 Markers）
 
@@ -118,10 +119,18 @@
 | `FE:L0080` | Phase 2 名称解析 | 前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`） | 2 | 2 | 6 |
 | `FE:L0084` | Phase 2 类型检查 | 前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`） | 0 | 0 | 6 |
 | `FE:L0085` | Phase 2 运算符类型 | 前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`） | 0 | 0 | 6 |
-| `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 5 | 15 | 6 |
-| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 9 | 17 | 6 |
+| `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 5 | 14 | 6 |
+| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 8 | 16 | 6 |
 | `BE:UnsupportedSource` | Phase 4 Native Object | 后端原生目标文件生成阶段尚未支持的调用来源 | 0 | 1 | 0 |
-| `BE:MissingFact` | Phase 3/4 事实交接 | 前端到后端 lowering 所需的所有权或类型事实尚未完备 | 0 | 17 | 6 |
+| `BE:MissingFact` | Phase 3/4 事实交接 | 前端到后端 lowering 所需的所有权或类型事实尚未完备 | 0 | 16 | 6 |
+
+### 1.8 初始 85 探针（`p`/`q`/`r`/`s` 批次 A/B/C 三组）与 P2 阶段门槛对账矩阵
+
+| 分组 | 分组定义与审计口径 | 总数 | 可运行 (`run_ok` + `runtime_abort`) | `compile_fail` | `known_unimplemented` | 阶段门槛 / 当前状态说明 |
+|---|---|---:|---:|---:|---:|---|
+| **A 组** | A 组：合法基础程序（P2 门槛基数） | 74 | 58 (56 + 2) | 1 (`q17_generic_class`) | 15 | P2 门槛 `≥ 70 / 74`（当前 `58 / 74`，距门槛差 `12` 项） |
+| **B 组** | B 组：应拒基础探针（静态/借用/类型拒绝） | 8 | 0 | 8 | 0 | `8 / 8 (100%)` 精确命中期望前端诊断码 (`pass_diagnostic`) |
+| **C 组** | C 组：v0.44 待裁决项（已在 v0.46 规范定案） | 3 | 1 (`p37_is_generic_case`) | 1 (`p23_global_var`) | 1 (`p35_value_eq`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1` |
 
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
@@ -147,9 +156,9 @@
 | `N03` | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | `partial` | 2 | `linked_stack`, `word_count` | 2 |
 | `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 1 | `expr_eval` | 2 |
 | `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 2 | `expr_eval`, `linked_stack` | 1 |
-| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 3 | `config_parse`, `expr_eval`, `varint_codec` | 2 |
+| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 3 | `config_parse`, `expr_eval`, `varint_codec` | 1 |
 
-## 3. 17 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
+## 3. 16 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
 
 | 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |
 |---|---|---|---:|---|
@@ -163,7 +172,7 @@
 | `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 2 | `p05_double`, `p06_char` |
 | `N06` | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | `partial` | 2 | `p11_interface_bound`, `p28_companion` |
 | `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 1 | `p21_box_enum` |
-| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 2 | `p16_result_q`, `p16b_result_string` |
+| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 1 | `p16_result_q` |
 | `S6` | Map 带初值构造 mapOf("a" to 1) | `todo` | 2 | `s02_pair_builtin`, `s03_to_pair` |
 | `T1` | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权 | `todo` | 1 | `p27_thread` |
 
@@ -196,7 +205,7 @@
 | `p14c_nullable_int` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `nint\n` | a: Int? = 5 is non-null and equals 5; smart cast branch prints 'nint' |
 | `p15_elvis` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `elvis\n` | f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03) |
 | `p16_result_q` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `v046_spec_contract` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `question\n` | Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08) |
-| `p16b_result_string` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `v046_spec_contract` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `good\n` | parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08) |
+| `p16b_result_string` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `run_ok` | `v046_spec_contract` | `good\n` | parse(1) selects Result.Ok('good'); exhaustive when selects Ok and prints success once, followed by newline |
 | `p17_lambda` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `lambda\n` | capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda' |
 | `p17b_lambda_nocapture` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `lambda0\n` | non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0' |
 | `p18_move_closure` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `run_ok` | `v046_spec_contract` | `move\n` | move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move' |

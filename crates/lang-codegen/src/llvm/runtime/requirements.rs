@@ -102,7 +102,10 @@ impl RuntimeRequirements {
                     Operation::StringLiteral { ref bytes, .. } if bytes.is_empty() => {
                         requirements.needs_empty_string = true;
                     }
-                    Operation::StringConcat { .. } | Operation::StringClone { .. } => {
+                    Operation::StringConcat { .. }
+                    | Operation::StringClone { .. }
+                    | Operation::StringCopyBytes { .. }
+                    | Operation::StringCopySlice { .. } => {
                         requirements.needs_allocation = true;
                         requirements.needs_abort = true;
                     }
@@ -117,7 +120,7 @@ impl RuntimeRequirements {
                         requirements.needs_abort = true;
                         requirements.container_allocations.insert(container);
                     }
-                    Operation::RangeConstruct { .. } => {
+                    Operation::StringByteAt { .. } | Operation::RangeConstruct { .. } => {
                         requirements.needs_abort = true;
                     }
                     Operation::ContainerElementPlace { .. }

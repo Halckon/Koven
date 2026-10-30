@@ -87,8 +87,19 @@ pub(crate) fn prepare_project_unit(
     let mut descriptors = Vec::with_capacity(project.sources().len());
     for source in project.sources() {
         let source_name = format!("{}/{}", source.root_identity(), source.logical_path());
+        // 不将宿主物理路径用作项目逻辑身份或诊断名称。
+        let file_path = fs::canonicalize(source.presentation_path()).map_err(|error| {
+            ProjectBuildError::InvalidPaths(format!(
+                "cannot resolve project debug source path {}: {:?}",
+                source.presentation_path().display(),
+                error.kind(),
+            ))
+        })?;
+        let file_name = file_path.to_str().ok_or_else(|| {
+            ProjectBuildError::InvalidPaths("project debug source path is not UTF-8".to_owned())
+        })?;
         let source_id = sources
-            .add_source(source_name, source.text())
+            .add_source_with_file_name(source_name, source.text(), file_name)
             .map_err(UnitBuildError::Source)?;
         descriptors.push(UnitSourceDescriptor::new(
             source.root_identity(),

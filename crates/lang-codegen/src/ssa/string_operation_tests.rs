@@ -1,3 +1,5 @@
+mod text_reads;
+
 use lang_frontend::source::SourceMap;
 
 use super::{

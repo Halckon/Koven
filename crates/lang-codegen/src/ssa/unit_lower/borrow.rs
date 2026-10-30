@@ -1,6 +1,8 @@
 //! 同步 shared 实参的 frontend loan 验证与 place 准备。
 mod nullable_field;
 #[cfg(test)]
+mod nullable_string_tests;
+#[cfg(test)]
 mod nullable_temporary_tests;
 
 use super::*;
@@ -227,7 +229,12 @@ impl UnitExpressionLowerer<'_> {
             || !self.pending_call_frames.is_empty()
             || !self.pending_operands.is_empty()
             || !self.temporaries.is_empty()
-            || self.ensure_while_proof_non_call_carriers(span).is_err()
+            || (if self.has_only_string_if_proofs() {
+                self.ensure_string_if_proof_carriers(span)
+            } else {
+                self.ensure_while_proof_non_call_carriers(span)
+            })
+            .is_err()
             || self.typed.construction(call).is_some()
             || self.typed.ownership_primitive(call).is_some()
         {
@@ -236,14 +243,23 @@ impl UnitExpressionLowerer<'_> {
         let Some(descriptor) = self.typed.call(call) else {
             return Ok(false);
         };
+        if self.has_only_string_if_proofs()
+            && self
+                .nullable_string_receiver_loan(call, descriptor, span)?
+                .is_some()
+        {
+            return self.supports_direct_control_prefix(call, arguments, descriptor, span);
+        }
+        let print = descriptor.prints_line();
         if descriptor.receiver().is_some()
             || descriptor.aborts()
-            || descriptor.prints_line()
             || descriptor.result_source() != CallableResultSource::Owned
-            || !matches!(
-                descriptor.target(),
-                UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
-            )
+            || (!print
+                && !matches!(
+                    descriptor.target(),
+                    UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+                ))
+            || (print && (arguments.len() != 1 || descriptor.arguments().len() != 1))
             || arguments.is_empty()
             || descriptor
                 .arguments()
@@ -261,6 +277,7 @@ impl UnitExpressionLowerer<'_> {
         )?;
         if self.typed.copyability(return_type) != Copyability::Copyable
             || builtin_type(self.typed, return_type) == Some(BuiltinType::Nothing)
+            || (print && builtin_type(self.typed, return_type) != Some(BuiltinType::Unit))
         {
             return Ok(false);
         }
@@ -268,18 +285,23 @@ impl UnitExpressionLowerer<'_> {
             .source_plan
             .source(self.source_token)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let route = self
-            .source_plan
-            .call_site(self.source_token, call)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if call.source_unit() != self.source_unit
             || descriptor.expression() != call
             || arguments.len() != descriptor.arguments().len()
             || self.function_ids.get(key) != Some(&self.function.id())
-            || !self.function_ids.contains_key(route.key())
             || super::map_iteration::enclosing_lambda(self.parsed, span).is_some()
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        // PrintString is a bound intrinsic, not a source-plan function call.
+        if !print {
+            let route = self
+                .source_plan
+                .call_site(self.source_token, call)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if !self.function_ids.contains_key(route.key()) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
         }
         let mut uses_if_proof = false;
         for (index, argument) in arguments.iter().enumerate() {
@@ -327,6 +349,9 @@ impl UnitExpressionLowerer<'_> {
                 .get(&parameter_type)
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
+            if print && self.ssa_types.get(target.index()) != Some(&SsaTypeKind::StringOwner) {
+                return Ok(false);
+            }
             if self
                 .lower_nullable_root_borrow(argument.value, fact.target(), target, argument.span)?
                 .is_none()
@@ -349,6 +374,17 @@ impl UnitExpressionLowerer<'_> {
         let UnitLoanTarget::Place(path) = loan_target else {
             return Ok(None);
         };
+        self.lower_nullable_root_place_borrow(argument, path, target, span)
+    }
+
+    /// Arguments and receivers use the same published non-null root proof.
+    pub(super) fn lower_nullable_root_place_borrow(
+        &self,
+        argument: ExpressionId,
+        path: &lang_frontend::ownership_checking::UnitOwnershipPlace,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<Option<LoanId>, LoweringError> {
         if !path.is_root() {
             return Ok(None);
         }
@@ -363,10 +399,14 @@ impl UnitExpressionLowerer<'_> {
             .function
             .entity(EntityId::Value(proof.owner))
             .map(|data| data.ty);
-        if !matches!(owner_type, Some(EntityType::Value(storage))
+        let supported_storage = matches!(owner_type, Some(EntityType::Value(storage))
             if matches!(self.ssa_types.get(storage.index()), Some(SsaTypeKind::NullableHandle { inner })
                 if matches!(self.ssa_types.get(inner.index()), Some(SsaTypeKind::HeapOwner { .. }))))
-            || super::map_borrow::owned_remove_origin(self.function, proof.owner)
+            || (proof.if_scope().is_some()
+                && matches!(owner_type, Some(EntityType::Value(storage))
+                if matches!(self.ssa_types.get(storage.index()), Some(SsaTypeKind::InlineNullable { inner, niche: true })
+                    if self.ssa_types.get(inner.index()) == Some(&SsaTypeKind::StringOwner))));
+        if !supported_storage || super::map_borrow::owned_remove_origin(self.function, proof.owner)
         {
             return Ok(None);
         }

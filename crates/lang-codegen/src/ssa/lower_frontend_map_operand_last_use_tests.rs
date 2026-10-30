@@ -123,12 +123,14 @@ fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
         Err(error) => {
             assert!(!supported, "{error:?}");
             assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-            // SPEC-0350: `String?` now has an SSA type, so the rejection moved from the
-            // signature into the body of the same unsupported `nullableValue` declaration.
+            // The factory's String? value-if now lowers; the iteration operand's
+            // temporary nullable comparison remains the actual rejected operation.
             let span = error.span.unwrap();
-            let line_start = "package p\n".len();
-            let line = text.lines().nth(1).unwrap();
-            assert!(line_start <= span.start() && span.end() <= line_start + line.len());
+            let boundary = "nullableValue(item) != null";
+            assert_eq!(text.matches(boundary).count(), 1);
+            let start = text.find(boundary).unwrap();
+            assert_eq!((span.start(), span.end()), (start, start + boundary.len()));
+            assert_eq!(sources.slice(span).unwrap(), boundary);
         }
     }
 }

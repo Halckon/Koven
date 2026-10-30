@@ -3,6 +3,7 @@
 mod guard_tests;
 mod heap;
 mod rc;
+mod string;
 
 use super::super::unwrap_modified;
 use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key};
@@ -33,7 +34,20 @@ impl UnitExpressionLowerer<'_> {
         result_required: bool,
         span: Span,
     ) -> Result<Option<NullableIfEntry>, LoweringError> {
-        if result_required || !self.nullable_proofs.is_empty() {
+        if !self.nullable_proofs.is_empty() {
+            return Ok(None);
+        }
+        let diverges = self
+            .typed
+            .expression_type(control)
+            .is_some_and(|ty| builtin_type(self.typed, ty) == Some(BuiltinType::Nothing));
+        // Nothing has no normal result to deliver, but its return arms still need proofs.
+        if (!result_required || diverges)
+            && let Some(entry) = self.prepare_string_nullable_if_entry(control, condition, span)?
+        {
+            return Ok(Some(entry));
+        }
+        if result_required {
             return Ok(None);
         }
         if let Some(entry) = self.prepare_rc_nullable_if_entry(control, condition, span)? {
@@ -271,7 +285,7 @@ impl UnitExpressionLowerer<'_> {
         }))) {
             return Ok(None);
         }
-        if !self.is_direct_function_body_map_if(control, span)? {
+        if !self.is_direct_function_body_if(control, span)? {
             return Ok(None);
         }
         let node = self
@@ -441,7 +455,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     /// Follow the actual current source instance to its own top-level block elements.
-    pub(in crate::ssa::unit_lower) fn is_direct_function_body_map_if(
+    pub(in crate::ssa::unit_lower) fn is_direct_function_body_if(
         &self,
         control: UnitExpressionId,
         span: Span,

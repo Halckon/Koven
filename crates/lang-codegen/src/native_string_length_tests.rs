@@ -136,3 +136,84 @@ int main(void) {
         "{rejected:?}"
     );
 }
+
+#[test]
+fn standard_checked_plus_returns_null_only_for_length_overflow_and_aborts_on_oom() {
+    // Keep the exact production algorithm: this fixture selects its source, never rewrites it.
+    let standard = include_str!("../../lang-std/koven/text/text.ko");
+    let (_, body) = standard
+        .split_once("borrow fun String.checkedPlus")
+        .expect("production checkedPlus declaration");
+    let source = format!(
+        "package koven.text\nborrow fun String.checkedPlus{body}\nfun probe(left: String, right: String): Unit {{ val joined = left.checkedPlus(right); if (joined == null) {{ println(\"overflow\") }} else {{ println(\"within\") }} }}"
+    );
+    let analysis = UnitSource::analyze_with_type_environment(
+        "checked-plus.ko",
+        &source,
+        |sources, source, environment| {
+            environment.authorize_text_source(sources, source).unwrap();
+        },
+    )
+    .expect("the selected production source must pass admission");
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("probe", SymbolKind::Function))
+        .unwrap();
+    let function = program
+        .module(entry.module())
+        .unwrap()
+        .function(entry)
+        .unwrap();
+    let symbol = format!("f{}.{}", entry.index(), function.name);
+    let llvm = crate::llvm::render_verified_program(&program).unwrap();
+    assert_eq!(
+        llvm.matches(&format!("define internal void @{symbol}("))
+            .count(),
+        1
+    );
+    let llvm = llvm
+        .replace(&format!("@{symbol}("), "@probe_checked_plus(")
+        .replace(
+            "define internal void @probe_checked_plus(",
+            "define void @probe_checked_plus(",
+        )
+        .replace("@malloc(", "@probe_malloc(");
+    let shim = r#"
+#include <stdint.h>
+#include <stdlib.h>
+struct text { const void *bytes; size_t length, capacity; };
+extern void probe_checked_plus(const struct text *, const struct text *);
+static int fail_allocation;
+void *probe_malloc(size_t size) {
+    (void)size;
+    if (fail_allocation) return 0;
+    _Exit(42);
+}
+int main(int argc, char **argv) {
+    (void)argc;
+    /* Unreadable data makes any premature byte access observable. */
+    struct text left = {(const void *)(uintptr_t)1, 2147483647, 0};
+    struct text right = {(const void *)(uintptr_t)1, 0, 0};
+    if (argv[1][0] == 'o') right.length = 1;
+    if (argv[1][0] == 'f') { left.length = 1; fail_allocation = 1; }
+    probe_checked_plus(&left, &right);
+    return 0;
+}
+"#;
+    let accepted = run_probe(&llvm, shim, "boundary");
+    assert_eq!(accepted.status.code(), Some(42), "{accepted:?}");
+    assert!(
+        accepted.stdout.is_empty() && accepted.stderr.is_empty(),
+        "{accepted:?}"
+    );
+    let overflow = run_probe(&llvm, shim, "overflow");
+    assert_eq!(overflow.status.code(), Some(0), "{overflow:?}");
+    assert_eq!(overflow.stdout, b"overflow\n");
+    assert!(overflow.stderr.is_empty(), "{overflow:?}");
+    let oom = run_probe(&llvm, shim, "failure");
+    assert_eq!(oom.status.signal(), Some(6), "{oom:?}");
+    assert!(
+        oom.stderr.starts_with(b"abort: allocation failed\n"),
+        "{oom:?}"
+    );
+    assert!(oom.stdout.is_empty(), "{oom:?}");
+}

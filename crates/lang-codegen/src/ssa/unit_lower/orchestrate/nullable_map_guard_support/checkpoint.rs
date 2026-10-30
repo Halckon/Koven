@@ -718,6 +718,7 @@ pub(in crate::ssa::unit_lower) fn state_text(lowerer: &UnitExpressionLowerer<'_>
             &lowerer.temporary_range_slots,
             &lowerer.short_range_ends,
             &lowerer.entry_boolean_roots,
+            &lowerer.entry_string_roots,
             lowerer.closure_binding_context,
             lowerer.thunk_expression,
             lowerer.source_token,

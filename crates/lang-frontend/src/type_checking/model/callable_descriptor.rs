@@ -17,9 +17,20 @@ pub struct CallableDescriptor {
     pub(crate) range_extension: Option<
         crate::type_checking::RangeExtensionBinding<crate::type_checking::CallableTarget, TypeId>,
     >,
+    pub(crate) text_extension: Option<
+        crate::type_checking::TextExtensionBinding<crate::type_checking::CallableTarget, TypeId>,
+    >,
 }
 
 impl CallableDescriptor {
+    /// Trusted String extension with a normal owned result, never a range carrier.
+    pub const fn text_extension(
+        &self,
+    ) -> Option<
+        crate::type_checking::TextExtensionBinding<crate::type_checking::CallableTarget, TypeId>,
+    > {
+        self.text_extension
+    }
     /// 可信扩展接收者的实际合成 Borrow 参数，与 canonical 声明同轮绑定。
     pub const fn extension_receiver_symbol(&self) -> Option<SymbolId> {
         self.extension_receiver_symbol

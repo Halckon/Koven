@@ -341,6 +341,24 @@ impl UnitExpressionLowerer<'_> {
         target: SsaTypeId,
         span: Span,
     ) -> Result<PlaceId, LoweringError> {
+        let field = self.lower_owned_shared_field_place(expression, place, target, span)?;
+        self.pending_call_frames
+            .last_mut()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+            .shared_field_roots
+            .push(place.root());
+        Ok(field)
+    }
+
+    /// Receiver loans are prepared before their pending frame exists. The caller
+    /// registers the checked root when it installs that frame for argument evaluation.
+    pub(super) fn lower_owned_shared_field_place(
+        &mut self,
+        expression: ExpressionId,
+        place: &UnitOwnershipPlace,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<PlaceId, LoweringError> {
         let [symbol] = place.fields() else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
@@ -372,6 +390,32 @@ impl UnitExpressionLowerer<'_> {
             .symbols()
             .get(root.symbol().index())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if let Some(receiver_type) = self.typed.expression_type(receiver)
+            && let Some(UnitTypeKind::EnumCase {
+                root: owner_type, ..
+            }) = self.typed.types().get(receiver_type)
+        {
+            if !matches!(
+                root_symbol.kind(),
+                SymbolKind::Variable | SymbolKind::ValueParameter
+            ) || self.typed.symbol_type(root) != Some(*owner_type)
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            if self.pending_call_frames.iter().any(|frame| {
+                frame.field_replace_owner.is_some_and(|slot| {
+                    self.pending_operands.get(slot) == Some(&EntityId::Value(owner))
+                })
+            }) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let field =
+                self.lower_enum_field_place(projection, receiver_type, owner, target, span)?;
+            return Ok(field);
+        }
         if root_symbol.kind() != SymbolKind::Variable {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -404,14 +448,6 @@ impl UnitExpressionLowerer<'_> {
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        // SSA currently aliases sibling fields through their parent. Preserve the existing gate.
-        if self.pending_call_frames.iter().any(|frame| {
-            frame.field_replace_owner.is_some_and(|slot| {
-                self.pending_operands.get(slot) == Some(&EntityId::Value(owner))
-            })
-        }) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let owner_ssa = self
             .type_ids
             .get(&owner_type)
@@ -466,11 +502,6 @@ impl UnitExpressionLowerer<'_> {
         let EntityId::Place(field) = fields[0] else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        self.pending_call_frames
-            .last_mut()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-            .shared_field_roots
-            .push(root);
         Ok(field)
     }
 }

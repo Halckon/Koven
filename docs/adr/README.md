@@ -32,6 +32,8 @@ scope 逃逸修复由 0363 维护，闭包家族实施由 0364 维护。
 [0031 单文件 Unit driver 适配](accepted/0031-single-file-compilation-unit-adapter.md)按 2026-10-19 用户
 对 Guide v0.45 的明确批准接受，局部扩展 0005；project 原显式 root 与发现政策保持。
 
+[0035 最终调试产物发布](accepted/0035-final-debug-artifact-publication.md)按 2026-10-29 用户选择接受；由 SPEC-0366 实施。
+
 ## Proposed
 
 [0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为

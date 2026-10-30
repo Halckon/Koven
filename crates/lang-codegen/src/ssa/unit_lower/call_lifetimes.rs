@@ -2,6 +2,7 @@
 use super::*;
 
 pub(super) mod nullable_child;
+mod nullable_text;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PendingCallFrame {
@@ -14,9 +15,9 @@ pub(super) struct PendingCallFrame {
     pub(super) created_loans: Vec<usize>,
     /// (owner, shared-loan) slots for sealed source addresses with no user storage LoanFact.
     pub(super) abi_slots: Vec<(usize, usize)>,
-    /// 同一父 owner 的并行字段 loan 尚无 projection-aware alias 合同。
+    /// 字段置换的父 owner 槽位；整体借用与控制退出仍核对其身份。
     pub(super) field_replace_owner: Option<usize>,
-    /// 保留共享字段 loan 的稳定 root，使后续 sibling exclusive loan 明确拒绝。
+    /// 保留共享字段 loan 的稳定 root，供跨控制流 cleanup 与 proof guard 使用。
     pub(super) shared_field_roots: Vec<UnitSymbolId>,
     /// 独占 root 的 owner 槽位须与 binding 保持同一 CFG identity。
     pub(super) exclusive_root_owners: Vec<usize>,
@@ -62,8 +63,8 @@ impl UnitExpressionLowerer<'_> {
             })
     }
 
-    /// 普通无 receiver 的声明调用仅复用已封闭的 root/temporary 前缀事务。
-    /// 不授予 receiver、字段/元素、函数值或借用结果新的控制流能力。
+    /// 声明调用复用已封闭的 root/temporary 实参前缀事务；可信文本的 Borrow receiver
+    /// 另复用既有 receiver 帧。不授予普通 receiver、字段实参或借用结果新能力。
     pub(super) fn supports_direct_control_prefix(
         &self,
         call: UnitExpressionId,
@@ -75,12 +76,29 @@ impl UnitExpressionLowerer<'_> {
             LoanKind as FrontendLoanKind, UnitCallArgumentOwnershipKind, UnitLoanTarget,
             UnitValueDeliveryKind, UnitValueDeliverySource,
         };
-        use lang_frontend::type_checking::{CallableResultSource, UnitCallTarget};
+        use lang_frontend::type_checking::{
+            CallableResultSource, UnitCallReceiverOrigin, UnitCallTarget,
+        };
 
         let UnitCallTarget::Declaration(target) = descriptor.target() else {
             return Ok(false);
         };
-        if descriptor.receiver().is_some()
+        let supported_receiver = descriptor.receiver().is_none_or(|receiver| {
+            receiver.mode() == ParameterMode::Borrow
+                && matches!(receiver.origin(), UnitCallReceiverOrigin::Expression(_))
+                && builtin_type(self.typed, receiver.ty()) == Some(BuiltinType::String)
+                && self
+                    .typed
+                    .signatures()
+                    .declaration(target)
+                    .and_then(|declaration| declaration.callable())
+                    .and_then(|callable| callable.text_extension())
+                    .is_some_and(|binding| {
+                        binding.callable() == UnitCallableTarget::Declaration(target)
+                            && binding.receiver_type() == receiver.ty()
+                    })
+        });
+        if !supported_receiver
             || descriptor.result_source() != CallableResultSource::Owned
             || descriptor.aborts()
             || descriptor.prints_line()

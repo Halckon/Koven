@@ -1,6 +1,6 @@
 //! Original M16/M17 bytes, one admitted MemoryDocument and every real function root.
 //! Unit exposes ordered provider cleanup, not Legacy closure-phi transport tables.
-//! Unsupported nullable bodies retain their complete frontend obligations without SSA claims.
+//! The nullable factory lowers; unsupported operand comparisons retain their frontend obligations.
 
 use crate::{
     native_tests::boxed_enum_tests::unit_source::UnitSource,
@@ -705,6 +705,23 @@ pub(super) fn check(text: &str, name: &str, supported: bool) {
     for declaration in roots {
         // Each root consumes these same admitted products; a negative root never supplies SSA.
         let result = unit.lower_entry(declaration);
+        if !supported && declaration == unit.declaration("nullableValue", SymbolKind::Function) {
+            let (program, entry) = result.expect("String? value-if now lowers");
+            let functions = program
+                .modules
+                .iter()
+                .flat_map(|module| &module.functions)
+                .collect::<Vec<_>>();
+            let function = one(&functions, "original nullableValue body without wrappers");
+            assert_eq!(function.id, entry);
+            assert_eq!(
+                function.origin,
+                Origin::Source(unit.declaration_span(declaration))
+            );
+            crate::ssa::verify::verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            continue;
+        }
         if !supported {
             let error = match result {
                 Ok(_) => panic!("{name}: root {declaration:?} unexpectedly lowered"),
@@ -721,11 +738,11 @@ pub(super) fn check(text: &str, name: &str, supported: bool) {
                 unit.sources().source_name(span.source_id()).unwrap(),
                 "lowering.ko"
             );
-            assert_eq!((span.start(), span.end()), (47, 95));
-            assert_eq!(
-                unit.sources().slice(span).unwrap(),
-                "if (item == 1) { \"value\".clone() } else { null }"
-            );
+            let boundary = "nullableValue(item) != null";
+            assert_eq!(text.matches(boundary).count(), 1);
+            let start = text.find(boundary).unwrap();
+            assert_eq!((span.start(), span.end()), (start, start + boundary.len()));
+            assert_eq!(unit.sources().slice(span).unwrap(), boundary);
             continue;
         }
         let (program, entry) = result.unwrap_or_else(|error| panic!("{name}: lower: {error:?}"));

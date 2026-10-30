@@ -19,7 +19,8 @@ runs:
       run: |
         bash scripts/install_ci_llvm.sh
         echo 'LLVM_SYS_211_PREFIX=/usr/lib/llvm-21' >> "$GITHUB_ENV"
-    - name: Verify LLVM, Clang, DWARF tool and host C driver
+        echo '/usr/lib/llvm-21/bin' >> "$GITHUB_PATH"
+    - name: Verify LLVM, Clang, DWARF, LLDB Python API and host C driver
       id: verify
       shell: bash
       run: |
@@ -32,5 +33,11 @@ runs:
         "$LLVM_SYS_211_PREFIX/bin/clang" --version | grep -Fq 'clang version 21.1.'
         "$LLVM_SYS_211_PREFIX/bin/llvm-dwarfdump" --version
         "$LLVM_SYS_211_PREFIX/bin/llvm-dwarfdump" --version | grep -Fq "LLVM version $version"
+        debugger=/usr/bin/lldb
+        if [[ "$RUNNER_OS" == Linux ]]; then
+          debugger="$LLVM_SYS_211_PREFIX/bin/lldb"
+        fi
+        "$debugger" --version
+        "$debugger" --batch -o "script print('KOVEN_LLDB_SB_API_OK' if hasattr(lldb.SBFileSpec, 'fullpath') and hasattr(lldb.SBFrame, 'GetFunctionName') else 'KOVEN_LLDB_SB_API_MISSING')" | grep -Fx 'KOVEN_LLDB_SB_API_OK'
         /usr/bin/cc --version
         echo "version=$version" >> "$GITHUB_OUTPUT"

@@ -19,9 +19,25 @@ pub struct UnitCallableSignature {
     extension_receiver_symbol: Option<UnitSymbolId>,
     range_extension:
         Option<crate::type_checking::RangeExtensionBinding<UnitCallableTarget, UnitTypeId>>,
+    text_extension:
+        Option<crate::type_checking::TextExtensionBinding<UnitCallableTarget, UnitTypeId>>,
 }
 
 impl UnitCallableSignature {
+    /// 返回经宿主来源及精确签名验证的文本扩展身份。
+    pub const fn text_extension(
+        &self,
+    ) -> Option<crate::type_checking::TextExtensionBinding<UnitCallableTarget, UnitTypeId>> {
+        self.text_extension
+    }
+
+    pub(crate) fn with_text_extension(
+        mut self,
+        binding: Option<crate::type_checking::TextExtensionBinding<UnitCallableTarget, UnitTypeId>>,
+    ) -> Self {
+        self.text_extension = binding;
+        self
+    }
     /// 同一 SourceUnit 中锚定到可信扩展 receiver 的合成参数身份。
     pub const fn extension_receiver_symbol(&self) -> Option<UnitSymbolId> {
         self.extension_receiver_symbol
@@ -88,6 +104,7 @@ impl UnitCallableSignature {
             visibility,
             has_body,
             range_extension: None,
+            text_extension: None,
             extension_receiver_symbol: None,
         }
     }

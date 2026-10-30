@@ -239,17 +239,6 @@ impl UnitExpressionLowerer<'_> {
                 argument.span,
             ));
         };
-        if self.pending_call_frames.iter().any(|frame| {
-            frame.shared_field_roots.contains(&root)
-                || frame.field_replace_owner.is_some_and(|slot| {
-                    self.pending_operands.get(slot) == Some(&EntityId::Value(owner))
-                })
-        }) {
-            return Err(lowering_error(
-                LoweringErrorKind::UnsupportedNode,
-                argument.span,
-            ));
-        }
         let owner_ssa = self
             .type_ids
             .get(&owner_type)

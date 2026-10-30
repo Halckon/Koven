@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前5份 active：[0360 String when refinement 消费](0360-string-when-refinement.md)为in-progress、官方CI待验；[0357 String when Unit 清理事实](0357-string-when-ownership-facts.md)为in-progress，首核事实实现待CI验收；[0291](0291-readonly-map-construction.md)保持有界交付待项；[0333静态Map返回调用](0333-static-map-callers.md)为approved、未实施，原源与失败保留；[0341统一Unit管线](0341-shared-lowering-core.md)为in-progress，终态为单文件/project 共用 compilation-unit 检查和代码生成；规范启用、实现切换及通用 lowering 对账分别记账。[0356 E3 `when` 家族](../../archive/specs/0356-refine-when-family.md)三步完成并归档；[0358 E3 赋值与 `Inout`](../../archive/specs/0358-refine-assignment-inout.md)、[0359 E3 `Rc`](../../archive/specs/0359-refine-rc.md)与[0361 E3 泛型实例与 value class](../../archive/specs/0361-refine-generic-value-class.md)、[0362 E3 待交付实参](../../archive/specs/0362-refine-pending-arguments.md)、[0363 closure scope 逃逸](../../archive/specs/0363-closure-scope-escape.md)、[0364 E3 闭包家族](../../archive/specs/0364-refine-closures.md)、[0365 闭包返回来源事实](../../archive/specs/0365-closure-return-facts.md)已归档；0331有限验收已归档，最终PR交付状态见[近期交付](../README.md#近期交付)。
+当前6份 active：[0368 文本字节基础](0368-text-byte-foundation.md)为in-progress、合同已建立，生产实现待验；[0360 String when refinement 消费](0360-string-when-refinement.md)为in-progress、官方CI待验；[0357 String when Unit 清理事实](0357-string-when-ownership-facts.md)为in-progress，首核事实实现待CI验收；[0291](0291-readonly-map-construction.md)保持有界交付待项；[0333静态Map返回调用](0333-static-map-callers.md)为approved、未实施，原源与失败保留；[0341统一Unit管线](0341-shared-lowering-core.md)为in-progress，终态为单文件/project 共用 compilation-unit 检查和代码生成；规范启用、实现切换及通用 lowering 对账分别记账。[0356 E3 `when` 家族](../../archive/specs/0356-refine-when-family.md)三步完成并归档；[0358 E3 赋值与 `Inout`](../../archive/specs/0358-refine-assignment-inout.md)、[0359 E3 `Rc`](../../archive/specs/0359-refine-rc.md)与[0361 E3 泛型实例与 value class](../../archive/specs/0361-refine-generic-value-class.md)、[0362 E3 待交付实参](../../archive/specs/0362-refine-pending-arguments.md)、[0363 closure scope 逃逸](../../archive/specs/0363-closure-scope-escape.md)、[0364 E3 闭包家族](../../archive/specs/0364-refine-closures.md)、[0365 闭包返回来源事实](../../archive/specs/0365-closure-return-facts.md)已归档；0331有限验收已归档，最终PR交付状态见[近期交付](../README.md#近期交付)。
 
 [0332 Rc nullable while 回归修复](../../archive/specs/0332-rc-nullable-while-regression.md)已由PR118正常合并为main `a2a7e4b6`，main CI另验；额外Rc边界由[v0.44后继](../drafts/v0.44/README.md)独立承接。
 
@@ -135,3 +135,5 @@ actual-main CI [38150175528](https://github.com/Halckon/Koven/actions/runs/38150
 
 - [演进实施账本](../evolution-status.md)：语言能力与独立缺口
 - [完成 Spec Archive](../../archive/specs/README.md)：只按需追溯原验收
+
+- [0369 CLI 最终调试产物](0369-final-debug-artifacts.md)：已批准发布决定，实施及双宿主源码断点验收进行中。

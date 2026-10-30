@@ -1,0 +1,166 @@
+//! Named owned String? views reuse the ordinary If proof and retirement protocol.
+use super::{heap::NamedNullableIfRoot, *};
+use lang_frontend::ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget};
+use lang_frontend::type_checking::UnitCallReceiverOrigin;
+
+impl UnitExpressionLowerer<'_> {
+    pub(super) fn prepare_string_nullable_if_entry(
+        &self,
+        control: UnitExpressionId,
+        condition: ExpressionId,
+        span: Span,
+    ) -> Result<Option<NullableIfEntry>, LoweringError> {
+        let Some(comparison) = self.map_borrow_condition(condition, span)? else {
+            return Ok(None);
+        };
+        let declared = comparison.nullable_type();
+        let Some(UnitTypeKind::Nullable(narrowed)) = self.typed.types().get(declared) else {
+            return Ok(None);
+        };
+        if builtin_type(self.typed, *narrowed) != Some(BuiltinType::String)
+            || !self.loops.is_empty()
+            || !self.pending_call_frames.is_empty()
+            || !self.pending_operands.is_empty()
+            || !self.is_direct_function_body_if(control, span)?
+        {
+            return Ok(None);
+        }
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(control.expression())
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Expression::If {
+            condition: actual,
+            then_branch,
+            else_branch,
+            ..
+        } = *node.payload()
+        else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        if actual != condition || node.span() != span {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let Some(non_null) = (if comparison.non_null_when_true() {
+            Some(then_branch)
+        } else {
+            else_branch
+        }) else {
+            return Ok(None);
+        };
+        let body = self.statement_span(non_null)?;
+        let root = comparison.symbol();
+        // Do not mint an unused proof for ordinary null-status checks. The witness
+        // must be an actual narrowed root loan or direct owner return in this arm.
+        let argument_witness = self.owned.loans().iter().any(|fact| {
+            fact.kind() == FrontendLoanKind::Shared
+                && fact.call().source_unit() == self.source_unit
+                && fact.argument().source_unit() == self.source_unit
+                && fact.end_span().source_id() == body.source_id()
+                && body.start() <= fact.end_span().start() && fact.end_span().end() <= body.end()
+                && matches!(fact.target(), UnitLoanTarget::Place(place) if place.is_root() && place.root() == root)
+                && self.typed.non_null_use(fact.argument()).is_some_and(|use_fact| {
+                    use_fact.expression() == fact.argument()
+                        && use_fact.symbol() == root && use_fact.declared_type() == declared
+                        && use_fact.narrowed_type() == *narrowed
+                })
+        });
+        let receiver_witness = self.owned.receiver_facts().iter().any(|fact| {
+            let UnitCallReceiverOrigin::Expression(expression) = fact.source() else { return false; };
+            fact.kind() == UnitReceiverOwnershipKind::SharedLoan
+                && fact.call().source_unit() == self.source_unit
+                && expression.source_unit() == self.source_unit
+                && fact.end_span().source_id() == body.source_id()
+                && body.start() <= fact.end_span().start() && fact.end_span().end() <= body.end()
+                && matches!(fact.target(), UnitReceiverOwnershipTarget::Place(place) if place.is_root() && place.root() == root)
+                && self.typed.non_null_use(expression).is_some_and(|use_fact| {
+                    use_fact.expression() == expression && use_fact.symbol() == root
+                        && use_fact.declared_type() == declared && use_fact.narrowed_type() == *narrowed
+                })
+        });
+        let return_witness = self.parsed.ast().expressions().iter().any(|(_, node)| {
+            let Expression::Return {
+                value: Some(value), ..
+            } = node.payload()
+            else {
+                return false;
+            };
+            let returned = node.span();
+            returned.source_id() == body.source_id()
+                && body.start() <= returned.start()
+                && returned.end() <= body.end()
+                && super::super::super::map_iteration::enclosing_lambda(self.parsed, returned)
+                    .is_none()
+                && self
+                    .direct_place_symbol(*value, returned)
+                    .is_ok_and(|symbol| symbol == root)
+                && self
+                    .typed
+                    .non_null_use(UnitExpressionId::new(self.source_unit, *value))
+                    .is_some_and(|use_fact| {
+                        use_fact.symbol() == root
+                            && use_fact.declared_type() == declared
+                            && use_fact.narrowed_type() == *narrowed
+                    })
+        });
+        if !argument_witness && !receiver_witness && !return_witness {
+            return Ok(None);
+        }
+        let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
+            return Ok(None);
+        };
+        if self.borrow_bindings.contains_key(&root) {
+            return Ok(None);
+        }
+        let storage = self
+            .type_ids
+            .get(&declared)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let inner = self
+            .type_ids
+            .get(narrowed)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if self.ssa_types.get(inner.index()) != Some(&SsaTypeKind::StringOwner)
+            || self
+                .function
+                .entity(EntityId::Value(owner))
+                .map(|entity| entity.ty)
+                != Some(EntityType::Value(storage))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        // Map.remove uses the registered presence-plus-String result wrapper.
+        // Leave it to the existing reader, which also validates the remove origin.
+        if self.map_results.get(&storage) == Some(&inner) {
+            return Ok(None);
+        }
+        if self.ssa_types.get(storage.index())
+            != Some(&SsaTypeKind::InlineNullable { inner, niche: true })
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        self.validate_named_nullable_if_condition(
+            condition,
+            comparison,
+            NamedNullableIfRoot {
+                symbol: root,
+                declared,
+                narrowed: *narrowed,
+            },
+            span,
+        )?;
+        self.ensure_string_if_proof_carriers(span)?;
+        Ok(Some(NullableIfEntry {
+            root,
+            owner,
+            inner,
+            scope: control,
+            non_null_when_true: comparison.non_null_when_true(),
+            consume: None,
+        }))
+    }
+}

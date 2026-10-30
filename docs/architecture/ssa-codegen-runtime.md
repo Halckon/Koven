@@ -26,13 +26,13 @@ provider builder 固定 length 快照、零 cursor 的入口运输、guard 真�
 单文件 lowering 在函数参数 bindings 建立后消费 `FunctionEntry` 析构事实；MoveOnly Value 实参
 交付后移除其源码 binding；`MutableList.add`另按具体MoveOnly element ValueId移除binding/temporary别名，保留Copyable和无关owner。通用 `when` 条件边显式传递 owned bindings，并只在匹配边消费
 `WhenAlternativeMatch` 析构事实。非 nullable subjectless 逗号分支已通过 SSA 和 native 双路径测试；
-该证据不扩大 nullable native 支持，也不证明 MoveOnly enum 后续类型判别的主体重绑定已闭合。 无 payload Copyable enum case condition 另消费 construction/ownership identity 生成 Boolean tag 比较；Guide4 单文件 native 和精确剩余边界见[Litmus4 账本](guide-conformance.md#return-控制表达式与-litmus4-的-native-边界)。
+该证据不扩大 nullable native 支持。MoveOnly enum 的 named owned subject 在主体链无自身 ASAP-drop 时逐条件重绑定 owner；已有主体清理事实且仅静态 case test 时，先读取 tag，再按原点清理 owner，以 tag 完成后续判断。case payload 借用共用 place 校验及调用帧字段账本。[文本基础补片](../specs/active/0368-text-byte-foundation.md)记录计数与拒绝边界，temporary subject 仍未支持。全分支直接 return 的 statement when 已消费前端正常继续事实，封闭不可能的未匹配尾边；Unit 类型不再被误作必有正常出口。无 payload Copyable enum case condition 另消费 construction/ownership identity 生成 Boolean tag 比较；Guide4 单文件 native 和精确剩余边界见[Litmus4 账本](guide-conformance.md#return-控制表达式与-litmus4-的-native-边界)。
 
 Unit pointer-like nullable `when` 现消费真实 typed/owned 的 `null/else` descriptor与use witness，
 对 owned whole-root/temporary class、Box、Rc建立实际 `NullableBranch` proof，消费提取走 `NullableTake`。
 view/owner、来源generation、pending槽与分支cleanup逐实体绑定；替换与join结束旧proof，不沿旧generation恢复别名。
 有界 fresh owned HeapOwner `If` 支持一侧直接root-Borrow调用、另一侧为空；按当前根和真实null比较重新证明，
-不复活旧When view，也不扩展Rc/While、nested proof或live-If控制转移。Borrow/Inout/field/element与inline nullable边界保留。
+不复活旧When view，也不扩展Rc/While、nested proof或live-If控制转移。String? 已支持直接statement-if的owned根借用与可信文本receiver复用父proof loan，以及if/when的owned结果交付；仅String If允许有入口资格的Shared(String)随CFG重绑定。新增类型身份复用niche表示，已有身份不变；结果使用原transfer/wrap，literal/Group Nothing?按typed结果物化并保留原清理顺序。嵌套Nothing? if/when沿显式控制身份及目标表示复用原CFG，独立Nothing?存储与nullable-subject专用路径不扩展；精确身份与范围见[文本补片](../specs/active/0368-text-byte-foundation.md#string-控制表达式结果交付2026-10-30)。
 原single路径及其三类owner 8alloc/8free、Rc retain/release计数属于历史验收；当前Unit普通SSA/LLVM/native输出
 证据不替代原mixed whole的计数/Abort验收，当前范围与待验结果见 [0341检查点](../specs/active/0341-shared-lowering-core.md#50-post054-修复与有限收尾检查点)。
 
@@ -110,8 +110,8 @@ Copyable Inout receiver 的 inline writeback owner 与原始 Place 一起跨参�
 Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。
 MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回。
 常量入口的 named function-value callee pending frame 保留原规则：先移除alias，再按frontend owner事实清理，Abort不展开。
-lambda Borrow storage仍复用Shared Loan ABI；普通Unit direct declaration call只为无receiver、已证root/temporary前缀开放控制退出，
-逐项核真实typed/owned/call route与frame身份；函数值、receiver、field/element或借用结果不由此获得新能力，Borrow Unit/Inout callback仍拒绝。
+lambda Borrow storage仍复用Shared Loan ABI；普通Unit direct declaration call为无receiver及canonical文本String Borrow receiver开放已证root/temporary实参前缀的控制退出，
+逐项核真实typed/owned/call route与frame身份；String非空If中的Unit／Copyable及独立owner return允许空调用帧，或先结束文本实参调用loan、取消两帧，再按原ControlTransfer drop退休父proof；独立owner先走原transfer／nullable wrap。已有String If proof且无pending槽时，根的Name/Group返回以NullableTake交付String，或结束view后保留String?；沿每条CFG边同步验证owner/proof配对，循环必须可追溯真实birth。直接Name/Group return也可用原非空使用事实建立proof，排除lambda作用域；Nothing类型的双臂return复用同一入口。实参求值期间移动已借用receiver根由前端L0135拒绝；函数值、普通receiver、field/element实参或借用结果不由此获得新能力，Borrow Unit/Inout callback仍拒绝。
 Map callback通用storage与capture见 [Map当前边界](map-native-execution.md)；contains/get/put/remove在后续参数CFG后读取重绑定owner/loan，
 MapPut自行收集K/V drop glue，MapRemove收集K并交付owned V，不依赖scope Drop。已证ownership primitive优先于普通prefix gate分派。
 常量入口允许外层pending temporary穿过内层loop/while，header、回边和break/false出口携完整owner/loan/pending状态；

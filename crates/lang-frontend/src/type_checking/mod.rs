@@ -43,6 +43,10 @@ mod rc;
 mod resource;
 mod string;
 mod string_length;
+mod text_extension;
+mod text_primitive;
+pub use text_extension::{TextExtensionBinding, TextExtensionKind};
+pub use text_primitive::TextPrimitiveKind;
 
 use std::{sync::Arc, thread};
 
@@ -153,6 +157,26 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
         ("replace", IntrinsicCallable::Replace),
         ("swap", IntrinsicCallable::Swap),
         ("rangeView", IntrinsicCallable::RangeView),
+        (
+            "textByteLength",
+            IntrinsicCallable::Text(TextPrimitiveKind::ByteLength),
+        ),
+        (
+            "textByteAt",
+            IntrinsicCallable::Text(TextPrimitiveKind::ByteAt),
+        ),
+        (
+            "textUtf8ErrorOffset",
+            IntrinsicCallable::Text(TextPrimitiveKind::Utf8ErrorOffset),
+        ),
+        (
+            "textCopyBytes",
+            IntrinsicCallable::Text(TextPrimitiveKind::CopyBytes),
+        ),
+        (
+            "textCopySlice",
+            IntrinsicCallable::Text(TextPrimitiveKind::CopySlice),
+        ),
     ]
     .map(|(name, callable)| {
         (
@@ -281,6 +305,11 @@ mod tests {
             "replace",
             "swap",
             "rangeView",
+            "textByteLength",
+            "textByteAt",
+            "textUtf8ErrorOffset",
+            "textCopyBytes",
+            "textCopySlice",
         ]);
         let actual = first_names
             .symbols()
@@ -356,6 +385,21 @@ mod tests {
             assert_eq!(
                 binding(name),
                 &ExternalTypeBinding::IntrinsicCallable(callable)
+            );
+        }
+        for (name, kind) in [
+            ("textByteLength", super::TextPrimitiveKind::ByteLength),
+            ("textByteAt", super::TextPrimitiveKind::ByteAt),
+            (
+                "textUtf8ErrorOffset",
+                super::TextPrimitiveKind::Utf8ErrorOffset,
+            ),
+            ("textCopyBytes", super::TextPrimitiveKind::CopyBytes),
+            ("textCopySlice", super::TextPrimitiveKind::CopySlice),
+        ] {
+            assert_eq!(
+                binding(name),
+                &ExternalTypeBinding::IntrinsicCallable(IntrinsicCallable::Text(kind))
             );
         }
         let error = first_names

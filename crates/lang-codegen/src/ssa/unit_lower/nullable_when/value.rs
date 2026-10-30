@@ -296,7 +296,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         self.validate_nullable_when_retirement(prepared.witness.symbol(), span)?;
-        self.preflight_nullable_when_take_drops(&prepared.operands, span)?;
+        self.preflight_nullable_take_drops(&prepared.operands, span)?;
         let (_, values) = self
             .function
             .append_instruction(

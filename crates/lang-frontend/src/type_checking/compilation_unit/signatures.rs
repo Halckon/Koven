@@ -35,6 +35,7 @@ mod constants;
 mod graph;
 mod range_carrier;
 mod recovery;
+mod text_extension;
 
 pub(crate) use recovery::collect_compilation_unit_signatures_recovering;
 pub(super) use recovery::diagnosed_missing_name;

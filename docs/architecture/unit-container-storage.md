@@ -77,6 +77,12 @@ current binding，RHS CFG后使用重绑定loan，不隐式clone/消费源。前
 至完整RHS完成；提前return仍按ControlTransfer清理。0274双宿主各37条公共命令及15项CI已通过；完整字节证据见[验收身份](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/word-frequency-0274/ci.json)。
 `||`不同路径容器last-use合流以及一般投影仍有既有拒绝边界。
 
+String 字段的 shared receiver 复用已有 owned 单层字段 place 校验，生成 BorrowBegin，
+不执行 MoveOnly 字段 Read；receiver 调用帧登记父 root，并沿既有 pending loan 协议清理。
+Group receiver 和后续普通参数分支已有 native 计数；同父 sibling replacement 保持拒绝。
+后续参数直接 return 仍受原 receiver control-prefix 门禁限制，泛型／嵌套字段及 Borrow 参数
+owner 未因此开放；公开矩阵与剩余边界见[文本基础验收](../specs/active/0368-text-byte-foundation.md)。
+
 ## Unit 泛型函数直接容器签名
 
 普通unit函数的直接`Array<T>`、`List<T>`、`MutableList<T>`参数和返回通过

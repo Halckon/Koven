@@ -836,11 +836,11 @@ sys.exit(1)
         base_evo = gate.summarize_baseline_evolution(loaded)
         self.assertEqual(base_evo["regressed_from_baseline_ok"], [])
         self.assertEqual(len(base_evo["baseline_ok_preserved"]), 89)
-        self.assertEqual(len(base_evo["promoted_to_run_ok"]), 31)
+        self.assertEqual(len(base_evo["promoted_to_run_ok"]), 32)
         self.assertEqual(len(base_evo["upgraded_to_structured_abort"]), 3)
         self.assertEqual(len(base_evo["upgraded_to_compile_fail"]), 1)
         self.assertEqual(len(base_evo["baseline_compile_fail_preserved"]), 13)
-        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 17)
+        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 16)
         self.assertEqual(
             sum(len(v) for v in base_evo.values()),
             len(loaded["probes"]),
@@ -862,7 +862,7 @@ sys.exit(1)
                 self.assertTrue((repo_root / relpath).is_file())
                 self.assertIn(status, ("active", "archived"))
         spec_trace = gate.summarize_v046_spec_traceability(loaded, repo_root)
-        self.assertEqual(len(spec_trace), 15)
+        self.assertEqual(len(spec_trace), 16)
         covered_by_specs = {
             p for info in spec_trace.values() for p in info["probes"]
         }
@@ -939,7 +939,7 @@ sys.exit(1)
             gate.classify_probe_batch("z01_invalid_prefix")
         marker_stats = gate.summarize_unimplemented_markers(loaded)
         self.assertEqual(set(marker_stats.keys()), set(gate.UNIMPLEMENTED_MARKER_CATALOG.keys()))
-        self.assertEqual(marker_stats["BE:UnsupportedNode"]["baseline_count"], 9)
+        self.assertEqual(marker_stats["BE:UnsupportedNode"]["baseline_count"], 8)
         self.assertEqual(marker_stats["FE:L0165"]["baseline_count"], 5)
         self.assertEqual(marker_stats["FE:L0080"]["baseline_count"], 2)
         self.assertEqual(len(marker_stats["BE:UnsupportedSource"]["probes"]), 1)
@@ -952,6 +952,16 @@ sys.exit(1)
         self.assertEqual(prog_blockers["L3b"]["probes"], [])
         self.assertEqual(len(prog_blockers["N02"]["programs"]), 4)
         self.assertEqual(set(gate.GUIDE_CHAPTER_DOMAINS.keys()), set(gate.VALID_GUIDE_CHAPTERS))
+        cohort = gate.summarize_foundational_cohort(loaded)
+        self.assertEqual(cohort["total_foundational"], 85)
+        self.assertEqual(cohort["groups"]["A"]["total"], 74)
+        self.assertEqual(cohort["groups"]["A"]["runnable"], 58)
+        self.assertEqual(cohort["groups"]["A"]["compile_fail"], ["q17_generic_class"])
+        self.assertEqual(len(cohort["groups"]["A"]["known_unimplemented"]), 15)
+        self.assertEqual(cohort["groups"]["B"]["total"], 8)
+        self.assertEqual(len(cohort["groups"]["B"]["compile_fail"]), 8)
+        self.assertEqual(cohort["groups"]["C"]["total"], 3)
+        self.assertEqual(cohort["p2_gap_to_target"], 12)
 
     def test_13_derivation_reports_naming_diagnostic_instead_of_baseline_keyerror(
         self,

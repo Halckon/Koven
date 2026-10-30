@@ -150,21 +150,10 @@ impl UnitExpressionLowerer<'_> {
         // The final Read of a named owner can have an ASAP drop on the leaf.
         // Evaluate once, retaining transparent aliases, and defer that cleanup
         // until the discriminator has read the owner.
-        let mut operands = vec![operand];
-        let mut evaluated = operand;
-        loop {
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(evaluated)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let Expression::Group { expression } = *node.payload() else {
-                break;
-            };
-            evaluated = expression;
-            operands.push(evaluated);
-        }
+        let operands = self.enum_operand_chain(operand, span)?;
+        let evaluated = *operands
+            .last()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         // TypeTest currently publishes named Read cleanup, not a general
         // temporary-result cleanup plan. Never invent the missing drop.
         let evaluated_id = UnitExpressionId::new(self.source_unit, evaluated);
@@ -226,15 +215,36 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoweredValue::Value(result))
     }
 
-    pub(super) fn lower_enum_tag_test(
+    /// Preserve Group identities so their existing cleanup points can be consumed in order.
+    pub(super) fn enum_operand_chain(
+        &self,
+        operand: ExpressionId,
+        span: Span,
+    ) -> Result<Vec<ExpressionId>, LoweringError> {
+        let mut operands = vec![operand];
+        let mut evaluated = operand;
+        loop {
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(evaluated)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let Expression::Group { expression } = *node.payload() else {
+                break;
+            };
+            evaluated = expression;
+            operands.push(evaluated);
+        }
+        Ok(operands)
+    }
+
+    pub(super) fn lower_enum_discriminant(
         &mut self,
         owner: ValueId,
-        variant: usize,
-        negated: bool,
         span: Span,
     ) -> Result<ValueId, LoweringError> {
         let integer = self.ssa_builtin(BuiltinType::Int, span)?;
-        let boolean = self.ssa_builtin(BuiltinType::Boolean, span)?;
         let (_, tag) = self
             .function
             .append_instruction(
@@ -244,6 +254,29 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        require_value(tag[0], span)
+    }
+
+    pub(super) fn lower_enum_tag_test(
+        &mut self,
+        owner: ValueId,
+        variant: usize,
+        negated: bool,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let tag = self.lower_enum_discriminant(owner, span)?;
+        self.lower_enum_discriminant_test(tag, variant, negated, span)
+    }
+
+    pub(super) fn lower_enum_discriminant_test(
+        &mut self,
+        tag: ValueId,
+        variant: usize,
+        negated: bool,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let integer = self.ssa_builtin(BuiltinType::Int, span)?;
+        let boolean = self.ssa_builtin(BuiltinType::Boolean, span)?;
         let (_, expected) = self
             .function
             .append_instruction(
@@ -262,7 +295,7 @@ impl UnitExpressionLowerer<'_> {
                 self.block,
                 Operation::Compare {
                     operator: ComparisonOperator::Equal,
-                    left: require_value(tag[0], span)?,
+                    left: tag,
                     right: require_value(expected[0], span)?,
                 },
                 vec![EntityType::Value(boolean)],

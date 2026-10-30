@@ -453,21 +453,25 @@ fn unit_field_replace_existing_storage_families_keep_unique_return_owners() {
 }
 
 #[test]
-fn unit_field_replace_nested_same_parent_loans_remain_explicitly_unsupported() {
+fn unit_field_replace_nested_sibling_loans_preserve_both_fields() {
     for constants in [false, true] {
-        let error = lower(
+        let (program, entry) = lower(
             r#"
             class Holder(var first: String, var second: String)
-            fun entry(): String {
+            fun entry(): Unit {
                 val holder = Holder("first", "second")
-                return replace(&holder.first, replace(&holder.second, "third"))
+                val old = replace(&holder.first, replace(&holder.second, "third"))
+                println(old)
+                println(holder.first)
+                println(holder.second)
             }
         "#,
             constants,
         )
-        .err()
-        .expect("simultaneous sibling loans need projection-aware SSA aliasing");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        .unwrap();
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 1);
+        crate::native_tests::boxed_enum_tests::assert_success(&run, b"first\nsecond\nthird\n");
     }
 }
 

@@ -380,26 +380,19 @@
       "expected_bytes": 9
     },
     "p16b_result_string": {
-      "kind": "known_unimplemented",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
-      ],
-      "target_stdout": "good\n",
+      "kind": "run_ok",
+      "stdout": "good\n",
       "v046_baseline_exempt": true,
-      "note": "Guide v0.46 E4 (SPEC-0349): Result in builtin env; String payload lowering pending N08",
+      "note": "SPEC-0349 builtin Result; SPEC-0368 String payload construction and exhaustive case reads in both public entry modes",
       "source_sha256": "17fb9700edf35e301f684fdf4f677d0fbc48c90776d355e0c4f06b182f36e4d9",
       "guide_chapter": "09-nullability-errors.md",
       "baseline_marker": "BE:UnsupportedNode",
       "oracle_origin": "v046_spec_contract",
       "spec_refs": [
-        "SPEC-0349"
+        "SPEC-0349",
+        "SPEC-0368"
       ],
-      "roadmap_blockers": [
-        "N08"
-      ],
-      "oracle_derivation": "parse(1) returns Result.Ok('good'); when branch prints r.success ('good') (blocked by N08)",
+      "oracle_derivation": "parse(1) selects Result.Ok('good'); exhaustive when selects Ok and prints success once, followed by newline",
       "expected_lines": 1,
       "expected_bytes": 5
     },

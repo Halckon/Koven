@@ -174,6 +174,7 @@ pub struct CallDescriptor {
     instance: CallableInstanceKey,
     return_type: TypeId,
     result_source: super::CallableResultSource,
+    text_primitive: Option<super::TextPrimitiveKind>,
     range_construction: Option<super::RangeConstructionDescriptor<ExpressionId, TypeId>>,
     receiver: Option<CallReceiverDescriptor>,
     arguments: Vec<CallArgumentDescriptor>,
@@ -182,6 +183,14 @@ pub struct CallDescriptor {
 }
 
 impl CallDescriptor {
+    /// 返回本次成功调用所绑定的可信文本存储操作。
+    pub const fn text_primitive(&self) -> Option<super::TextPrimitiveKind> {
+        self.text_primitive
+    }
+    pub(crate) fn set_text_primitive(&mut self, kind: super::TextPrimitiveKind) {
+        self.text_primitive = Some(kind);
+    }
+
     pub(crate) fn clear_range_construction(&mut self) {
         self.range_construction = None;
     }
@@ -215,6 +224,7 @@ impl CallDescriptor {
             return_type,
             result_source: crate::type_checking::CallableResultSource::Owned,
             range_construction: None,
+            text_primitive: None,
             receiver,
             arguments,
             aborts,

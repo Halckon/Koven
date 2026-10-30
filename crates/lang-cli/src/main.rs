@@ -4,6 +4,7 @@ mod bootstrap;
 #[cfg(test)]
 mod bootstrap_tests;
 
+mod build_artifacts;
 mod check_command;
 mod diagnostic_renderer;
 mod doc;
@@ -14,6 +15,7 @@ mod native_command;
 mod project;
 mod project_build;
 mod project_command;
+mod run_control;
 mod source_set;
 mod standard_sources;
 mod unit_build;

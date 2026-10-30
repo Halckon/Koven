@@ -192,6 +192,11 @@ impl UnitExpressionLowerer<'_> {
             let valid_storage = match owner_type {
                 Some(EntityType::Value(storage)) => match self.ssa_types.get(storage.index()) {
                     Some(SsaTypeKind::NullableHandle { inner }) => *inner == proof.inner,
+                    Some(SsaTypeKind::InlineNullable { inner, niche: true }) => {
+                        proof.if_scope().is_some()
+                            && *inner == proof.inner
+                            && self.ssa_types.get(inner.index()) == Some(&SsaTypeKind::StringOwner)
+                    }
                     Some(SsaTypeKind::Aggregate {
                         ownership: Ownership::MoveOnly,
                         ..
