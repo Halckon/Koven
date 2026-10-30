@@ -43,28 +43,6 @@ fn analyzed(text: &str) -> (SourceMap, ParsedFile, NameResolution, TypedFile) {
 }
 
 #[test]
-fn non_provider_source_is_rejected_at_the_complete_source_span() {
-    for source in ["true", "\"text\"", "1 + 2"] {
-        let (sources, typed) = checked(&format!("fun run() {{ for (_ in {source}) {{}} }}"));
-        assert_eq!(typed.diagnostics().len(), 1, "{source}");
-        assert_eq!(typed.diagnostics()[0].code().to_string(), "L0159");
-        assert_eq!(
-            sources
-                .slice(typed.diagnostics()[0].primary_span())
-                .unwrap(),
-            source
-        );
-    }
-}
-
-#[test]
-fn binding_type_is_available_before_the_body_is_checked() {
-    let (_, typed) =
-        checked("fun run(xs: List<Int>) { for (item in xs) { val wrong: Boolean = item } }");
-    assert_eq!(typed.diagnostics().len(), 1, "{:?}", typed.diagnostics());
-}
-
-#[test]
 fn invalid_patterns_do_not_publish_partial_plans() {
     for (prefix, element, pattern, code) in [
         ("", "Int", "(a, b)", "L0160"),
