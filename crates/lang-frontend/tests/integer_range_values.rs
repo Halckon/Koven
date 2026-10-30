@@ -1,6 +1,7 @@
 //! SPEC-0328 ordinary source probes: no fabricated facts or language execution.
+//! Stage A: retain Single; fixed diagnostics and differential checks are not retirement evidence.
 use lang_frontend::{
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, DiagnosticDetail, Severity},
     lexer::lex,
     name_resolution::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
@@ -101,76 +102,105 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
         copyable: root_type.and_then(|id| typed.copyability(id)) == Some(Copyability::Copyable),
         matches_annotation: annotation_id
             .map(|id| root_type.is_some() && root_type == typed.type_ref_type(id)),
-        complete: Some(complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ())),
+        complete: Some(
+            complete_file_types(&sources, &file, &names, &types, &typed).map(|complete| {
+                assert!(complete.is_same_analysis(&typed));
+            }),
+        ),
     };
-    let inputs = [SourceUnitInput::new("root", "range.ko", source, &file)];
-    let index = index_compilation_unit(&sources, &inputs).expect("unit index API");
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .expect("unit names API");
-    let name_diagnostics = names.diagnostics().to_vec();
-    let unit = match names.validate() {
-        Err(_) => Observation {
-            mode: "unit names rejected",
-            root: root_node.span(),
-            operator_span,
-            range_fact_valid: None,
-            range_fact_count: 0,
-            names: name_diagnostics,
-            raw: None,
-            shape: None,
-            resolved: false,
-            boolean: false,
-            builtin: None,
-            copyable: false,
-            matches_annotation: None,
-            complete: None,
-        },
-        Ok(names) => {
-            let unit = names.names().index().source_units()[0].id();
-            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-                .expect("unit raw API");
-            let root_type = typed.expression_type(UnitExpressionId::new(unit, root_id));
-            let kind = root_type.and_then(|id| typed.types().get(id));
-            Observation {
-                mode: "unit",
+    let mut result = vec![single];
+    // Both Unit descriptors reuse the exact SourceMap, SourceId and parsed AST above.
+    for (mode, input) in [
+        (
+            "unit rooted",
+            SourceUnitInput::new("root", "range.ko", source, &file),
+        ),
+        (
+            "unit memory",
+            SourceUnitInput::memory_document(source, &file),
+        ),
+    ] {
+        assert_eq!(input.source_id(), source);
+        assert!(std::ptr::eq(input.parsed(), &file));
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).expect("unit index API");
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .expect("unit names API");
+        let name_diagnostics = names.diagnostics().to_vec();
+        let unit = match names.validate() {
+            Err(_) => Observation {
+                mode,
                 root: root_node.span(),
                 operator_span,
-                range_fact_valid: typed
-                    .integer_range_operation(UnitExpressionId::new(unit, root_id))
-                    .map(|fact| {
-                        binary.is_some_and(|(left, right, operator, _)| {
-                            fact.expression() == UnitExpressionId::new(unit, root_id)
-                                && fact.left() == UnitExpressionId::new(unit, left)
-                                && fact.right() == UnitExpressionId::new(unit, right)
-                                && Some(fact.kind()) == range_kind(operator)
-                                && typed.expression_type(fact.left()) == Some(fact.left_type())
-                                && typed.expression_type(fact.right()) == Some(fact.right_type())
-                                && root_type == Some(fact.result_type())
-                        })
-                    }),
-                range_fact_count: typed.integer_range_operations().len(),
+                range_fact_valid: None,
+                range_fact_count: 0,
                 names: name_diagnostics,
-                raw: Some(typed.diagnostics().to_vec()),
-                shape: Some(format!("{kind:?}")),
-                resolved: matches!(kind, Some(kind) if !matches!(kind, UnitTypeKind::Error | UnitTypeKind::Deferred(_))),
-                boolean: matches!(kind, Some(UnitTypeKind::Builtin(BuiltinType::Boolean))),
-                builtin: match kind {
-                    Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
-                    _ => None,
-                },
-                copyable: root_type.map(|id| typed.copyability(id)) == Some(Copyability::Copyable),
-                matches_annotation: annotation_id.map(|id| {
-                    root_type.is_some()
-                        && root_type == typed.type_ref_type(UnitTypeRefId::new(unit, id))
-                }),
-                complete: Some(
-                    complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
-                        .map(|_| ()),
-                ),
+                raw: None,
+                shape: None,
+                resolved: false,
+                boolean: false,
+                builtin: None,
+                copyable: false,
+                matches_annotation: None,
+                complete: None,
+            },
+            Ok(names) => {
+                let unit = names.names().index().source_units()[0].id();
+                let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                    .expect("unit raw API");
+                let root_type = typed.expression_type(UnitExpressionId::new(unit, root_id));
+                let kind = root_type.and_then(|id| typed.types().get(id));
+                Observation {
+                    mode,
+                    root: root_node.span(),
+                    operator_span,
+                    range_fact_valid: typed
+                        .integer_range_operation(UnitExpressionId::new(unit, root_id))
+                        .map(|fact| {
+                            binary.is_some_and(|(left, right, operator, _)| {
+                                fact.expression() == UnitExpressionId::new(unit, root_id)
+                                    && fact.left() == UnitExpressionId::new(unit, left)
+                                    && fact.right() == UnitExpressionId::new(unit, right)
+                                    && Some(fact.kind()) == range_kind(operator)
+                                    && typed.expression_type(fact.left()) == Some(fact.left_type())
+                                    && typed.expression_type(fact.right())
+                                        == Some(fact.right_type())
+                                    && root_type == Some(fact.result_type())
+                            })
+                        }),
+                    range_fact_count: typed.integer_range_operations().len(),
+                    names: name_diagnostics,
+                    raw: Some(typed.diagnostics().to_vec()),
+                    shape: Some(format!("{kind:?}")),
+                    resolved: matches!(kind, Some(kind) if !matches!(kind, UnitTypeKind::Error | UnitTypeKind::Deferred(_))),
+                    boolean: matches!(kind, Some(UnitTypeKind::Builtin(BuiltinType::Boolean))),
+                    builtin: match kind {
+                        Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
+                        _ => None,
+                    },
+                    copyable: root_type.map(|id| typed.copyability(id))
+                        == Some(Copyability::Copyable),
+                    matches_annotation: annotation_id.map(|id| {
+                        root_type.is_some()
+                            && root_type == typed.type_ref_type(UnitTypeRefId::new(unit, id))
+                    }),
+                    complete: Some(
+                        complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+                            .map(|complete| {
+                                assert!(complete.is_same_analysis(&typed));
+                            }),
+                    ),
+                }
             }
+        };
+        let nullable_endpoint = text.contains("left: Int?") || text.contains("left: Long?");
+        assert_same_observation(&result[0], &unit, nullable_endpoint);
+        if result.len() == 2 {
+            assert_same_observation(&result[1], &unit, false);
         }
-    };
-    let result = vec![single, unit];
+        result.push(unit);
+    }
+    assert_eq!(result.len(), 3, "Single, rooted Unit and MemoryDocument");
     for observation in &result {
         println!(
             "SOURCE {text:?} ROOT {root_text:?} MODE {} SPAN {:?} SHAPE {:?} OBS {observation:?}",
@@ -178,6 +208,50 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
         );
     }
     result
+}
+
+// Compare full Diagnostic values (including message, severity, labels and notes),
+// not a code-only projection. Internal admission errors are never accepted as parity.
+fn assert_same_observation(single: &Observation, unit: &Observation, nullable_endpoint: bool) {
+    assert_eq!(unit.root, single.root, "{unit:?}");
+    assert_eq!(unit.operator_span, single.operator_span, "{unit:?}");
+    assert_eq!(unit.names, single.names, "full name diagnostics: {unit:?}");
+    // L0082 intentionally differs: Single adds a builtin-declaration label, Unit
+    // does not. rejected_api independently freezes both complete diagnostics.
+    // Nullable endpoint labels also differ: Unit currently prints its internal
+    // Nullable(UnitTypeId) Debug shape. Do not invent a frozen numeric ID without
+    // CI evidence. Keep Single and compare both Unit descriptors in full instead.
+    let builtin_arguments = single.mode == "single"
+        && single.raw.as_ref().is_some_and(|diagnostics| {
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code().to_string() == "L0082")
+        });
+    if !builtin_arguments && !nullable_endpoint {
+        assert_eq!(unit.raw, single.raw, "full raw diagnostics: {unit:?}");
+    }
+    match (&single.complete, &unit.complete) {
+        (Some(Ok(())), Some(Ok(()))) => {}
+        (
+            Some(Err(FinalTypeAdmissionError::Diagnostics(expected))),
+            Some(Err(FinalTypeAdmissionError::Diagnostics(actual))),
+        ) => {
+            if !builtin_arguments && !nullable_endpoint {
+                assert_eq!(actual, expected, "full final diagnostics: {unit:?}");
+            }
+        }
+        _ => panic!("final admission mismatch or internal failure: {single:?} / {unit:?}"),
+    }
+    assert_eq!(unit.range_fact_valid, single.range_fact_valid, "{unit:?}");
+    assert_eq!(unit.range_fact_count, single.range_fact_count, "{unit:?}");
+    assert_eq!(unit.resolved, single.resolved, "{unit:?}");
+    assert_eq!(unit.boolean, single.boolean, "{unit:?}");
+    assert_eq!(unit.builtin, single.builtin, "{unit:?}");
+    assert_eq!(unit.copyable, single.copyable, "{unit:?}");
+    assert_eq!(
+        unit.matches_annotation, single.matches_annotation,
+        "{unit:?}"
+    );
 }
 
 fn range_kind(operator: BinaryOperator) -> Option<IntegerRangeOperationKind> {
@@ -334,7 +408,42 @@ fn invalid_range_endpoints_have_operand_diagnostics() {
             let root = format!("left {operator} right");
             let text =
                 format!("fun probe(left: {left}, right: {right}): Unit {{ val bad = {root} }}");
-            all.extend(observe(&text, &root, None));
+            let observations = observe(&text, &root, None);
+            let left_start = text.rfind("left").expect("left operand");
+            let right_start = text.rfind("right").expect("right operand");
+            let operator_start = left_start + "left ".len();
+            let labels = [
+                (
+                    left_start..left_start + 4,
+                    format!("left operand has type {left}"),
+                ),
+                (
+                    right_start..right_start + 5,
+                    format!("right operand has type {right}"),
+                ),
+            ];
+            for observation in &observations {
+                let raw = observation.raw.as_ref().expect("raw endpoint analysis");
+                assert_eq!(raw.len(), 1);
+                if left.ends_with('?') && observation.mode != "single" {
+                    // Open oracle gap, not a retirement claim: exact code/span and
+                    // raw == final remain below; Unit-vs-Unit compares all details.
+                    assert_eq!(raw[0].severity(), Severity::Error);
+                    assert_eq!(
+                        raw[0].message(),
+                        "operator does not accept these operand types"
+                    );
+                    continue;
+                }
+                assert_frozen_diagnostic(
+                    &raw[0],
+                    "L0085",
+                    "operator does not accept these operand types",
+                    operator_start..operator_start + operator.len(),
+                    &labels,
+                );
+            }
+            all.extend(observations);
         }
     }
     for observation in all {
@@ -353,10 +462,43 @@ fn invalid_range_endpoints_have_operand_diagnostics() {
         else {
             panic!("source diagnostics required: {observation:?}");
         };
-        assert!(
-            raw.iter().all(|d| final_diagnostics.contains(d)),
-            "{observation:?}"
+        assert_eq!(
+            raw, final_diagnostics,
+            "complete ordered diagnostics: {observation:?}"
         );
+    }
+}
+
+// Fixed source-derived expectations, not regenerated from either checker.
+fn assert_frozen_diagnostic(
+    diagnostic: &Diagnostic,
+    code: &str,
+    message: &str,
+    span: std::ops::Range<usize>,
+    labels: &[(std::ops::Range<usize>, String)],
+) {
+    assert_eq!(diagnostic.severity(), Severity::Error);
+    assert_eq!(diagnostic.code().to_string(), code);
+    assert_eq!(diagnostic.message(), message);
+    assert_eq!(
+        diagnostic.primary_span().start()..diagnostic.primary_span().end(),
+        span
+    );
+    assert_eq!(
+        diagnostic.details().len(),
+        labels.len(),
+        "no extra labels, notes or help"
+    );
+    for (detail, (span, message)) in diagnostic.details().iter().zip(labels) {
+        let DiagnosticDetail::Label(label) = detail else {
+            panic!("expected ordered label, got {detail:?}");
+        };
+        assert_eq!(
+            label.span().source_id(),
+            diagnostic.primary_span().source_id()
+        );
+        assert_eq!(label.span().start()..label.span().end(), *span);
+        assert_eq!(label.message(), message);
     }
 }
 
@@ -369,7 +511,40 @@ fn rejected_api(
     let start = text.rfind(span_text).expect("diagnostic source token");
     observe(text, root, None)
         .into_iter()
-        .map(|observation| (observation, code.to_owned(), start..start + span_text.len()))
+        .map(|observation| {
+            let span = start..start + span_text.len();
+            let message = match code {
+                "L0143" => "this type identity cannot be constructed",
+                "L0165" => "type checking could not complete: the member's type is unresolved",
+                "L0082" => "builtin type does not accept type arguments",
+                "L0161" => "Map key type must be Hashable",
+                _ => panic!("missing fixed diagnostic expectation for {code}"),
+            };
+            let labels = if code == "L0082" && observation.mode == "single" {
+                let name_start = text[..start].rfind(": ").expect("return annotation") + 2;
+                vec![(
+                    name_start..start - 1,
+                    "builtin type declared here".to_owned(),
+                )]
+            } else {
+                Vec::new()
+            };
+            let Some(Err(FinalTypeAdmissionError::Diagnostics(final_diagnostics))) =
+                &observation.complete
+            else {
+                panic!("expected structured final rejection: {observation:?}");
+            };
+            assert_eq!(final_diagnostics.len(), 1);
+            assert_frozen_diagnostic(&final_diagnostics[0], code, message, span.clone(), &labels);
+            let raw = observation.raw.as_ref().expect("raw stage reached");
+            if code == "L0165" {
+                assert!(raw.is_empty());
+            } else {
+                assert_eq!(raw.len(), 1);
+                assert_frozen_diagnostic(&raw[0], code, message, span.clone(), &labels);
+            }
+            (observation, code.to_owned(), span)
+        })
         .collect()
 }
 
@@ -428,6 +603,10 @@ fn range_identity_does_not_enable_extra_public_apis() {
         assert_eq!(diagnostics.len(), 1, "{observation:?}");
         assert_eq!(diagnostics[0].code().to_string(), code, "{observation:?}");
         assert_eq!(
+            diagnostics[0].primary_span().source_id(),
+            observation.root.source_id()
+        );
+        assert_eq!(
             diagnostics[0].primary_span().start()..diagnostics[0].primary_span().end(),
             span
         );
@@ -441,5 +620,6 @@ fn range_identity_does_not_enable_extra_public_apis() {
             observation.range_fact_count, 0,
             "no successful fact survives rejected source"
         );
+        assert_eq!(observation.range_fact_valid, None, "{observation:?}");
     }
 }
