@@ -174,6 +174,41 @@ sys.exit(1)
         self.assertTrue((evidence_dir / "results.json").is_file())
         self.assertTrue((evidence_dir / "matrix.tsv").is_file())
 
+        verified = gate.verify_evidence_bundle(
+            evidence_dir=evidence_dir,
+            expectations_path=self.expectations_path,
+            corpus_root=self.corpus,
+            baseline_path=self.baseline_path,
+        )
+        self.assertEqual(verified["summary"], ledger["summary"])
+        self.assertEqual(
+            gate.main(
+                [
+                    "--verify-evidence",
+                    str(evidence_dir),
+                    "--corpus",
+                    str(self.corpus),
+                    "--expectations",
+                    str(self.expectations_path),
+                    "--baseline",
+                    str(self.baseline_path),
+                ]
+            ),
+            0,
+        )
+        # Tamper with raw stdout file and verify offline bundle verification catches it
+        (evidence_dir / "raw" / "p01_ok.single.stdout").write_bytes(b"tampered\n")
+        try:
+            with self.assertRaisesRegex(ValueError, "raw stdout mismatch for probes.p01_ok.single"):
+                gate.verify_evidence_bundle(
+                    evidence_dir=evidence_dir,
+                    expectations_path=self.expectations_path,
+                    corpus_root=self.corpus,
+                    baseline_path=self.baseline_path,
+                )
+        finally:
+            (evidence_dir / "raw" / "p01_ok.single.stdout").write_bytes(b"hello\n")
+
     def test_2_wrong_output_or_missing_trailing_newline_with_exit_0_is_rejected(self) -> None:
         for name, snippet in [
             ("wrong_text", 'sys.stdout.buffer.write(b"wrong\\n"); sys.exit(0)'),

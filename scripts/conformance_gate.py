@@ -1975,6 +1975,186 @@ def evaluate_suite(
     return ledger
 
 
+def verify_evidence_bundle(
+    evidence_dir: Path,
+    expectations_path: Path,
+    corpus_root: Path | None = None,
+    baseline_path: Path | None = None,
+    strict_unreviewed: bool = True,
+) -> dict[str, Any]:
+    """Verify an offline evidence bundle's raw stdout/stderr/status files, matrix.tsv, and results.json against expectations."""
+    evidence_dir = evidence_dir.resolve(strict=True)
+    results_path = evidence_dir / "results.json"
+    matrix_path = evidence_dir / "matrix.tsv"
+    raw_dir = evidence_dir / "raw"
+    if not results_path.is_file():
+        raise ValueError(f"missing results.json in evidence bundle: {evidence_dir}")
+    if not matrix_path.is_file():
+        raise ValueError(f"missing matrix.tsv in evidence bundle: {evidence_dir}")
+    if not raw_dir.is_dir():
+        raise ValueError(f"missing raw/ directory in evidence bundle: {evidence_dir}")
+
+    ledger = json.loads(results_path.read_text(encoding="utf-8"))
+    if not isinstance(ledger, dict) or ledger.get("schema") != SCHEMA_RESULTS:
+        raise ValueError(f"invalid results.json schema in {results_path}")
+
+    compiler = ledger.get("compiler")
+    if (
+        not isinstance(compiler, dict)
+        or not isinstance(compiler.get("sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", compiler["sha256"])
+        or not isinstance(compiler.get("commit"), str)
+        or not compiler["commit"].strip()
+    ):
+        raise ValueError("invalid compiler metadata in results.json")
+
+    host = ledger.get("host")
+    if (
+        not isinstance(host, dict)
+        or not isinstance(host.get("system"), str)
+        or not host["system"].strip()
+        or not isinstance(host.get("machine"), str)
+        or not host["machine"].strip()
+    ):
+        raise ValueError("invalid host metadata in results.json")
+
+    expectations = load_expectations(
+        expectations_path,
+        corpus_root=corpus_root.resolve(strict=True) if corpus_root is not None else None,
+    )
+    baseline = (
+        parse_tsv_matrix(
+            baseline_path.read_text(encoding="utf-8"),
+            expected_names=set(expectations["probes"].keys()),
+        )
+        if baseline_path is not None
+        else {}
+    )
+
+    def _verify_entry(
+        entry: dict[str, Any],
+        section: str,
+        raw_prefix_name: str,
+        exp_spec: dict[str, Any],
+        base_row: tuple[str, str] | None,
+    ) -> dict[str, Any]:
+        if not isinstance(entry, dict) or "execution" not in entry or "comparison" not in entry:
+            raise ValueError(f"malformed entry in results.json {section}")
+        exec_rec = dict(entry["execution"])
+        comp_rec = entry["comparison"]
+        name = exec_rec.get("name")
+        if exec_rec.get("source_sha256") != exp_spec["source_sha256"]:
+            raise ValueError(
+                f"source_sha256 mismatch in results.json for {section}.{name}: "
+                f"recorded {exec_rec.get('source_sha256')}, expected {exp_spec['source_sha256']}"
+            )
+        pt = exec_rec.get("project_transform")
+        if (
+            not isinstance(pt, dict)
+            or pt.get("kind") != "prepend_package_header"
+            or pt.get("header_sha256") != sha256_bytes(PROJECT_PACKAGE_HEADER)
+            or pt.get("project_toml_sha256") != sha256_bytes(PROJECT_TOML_BYTES)
+            or pt.get("original_source_sha256") != exp_spec["source_sha256"]
+        ):
+            raise ValueError(f"invalid project_transform metadata for {section}.{name}")
+
+        reconstructed_exec = dict(exec_rec)
+        for mode in ("single", "project"):
+            m_rec = exec_rec.get(mode)
+            if not isinstance(m_rec, dict):
+                raise ValueError(f"missing {mode} execution record for {section}.{name}")
+            out_p = raw_dir / f"{raw_prefix_name}.{mode}.stdout"
+            err_p = raw_dir / f"{raw_prefix_name}.{mode}.stderr"
+            st_p = raw_dir / f"{raw_prefix_name}.{mode}.status.json"
+            if not out_p.is_file() or not err_p.is_file() or not st_p.is_file():
+                raise ValueError(f"missing raw artifact files for {section}.{name}.{mode}")
+            out_bytes = out_p.read_bytes()
+            err_bytes = err_p.read_bytes()
+            st_data = json.loads(st_p.read_text(encoding="utf-8"))
+            if st_data.get("exit") != m_rec.get("exit") or st_data.get("timed_out") != m_rec.get("timed_out"):
+                raise ValueError(f"status.json mismatch for {section}.{name}.{mode}")
+            if (
+                len(out_bytes) != m_rec.get("stdout_len")
+                or sha256_bytes(out_bytes) != m_rec.get("stdout_sha256")
+                or base64.b64encode(out_bytes).decode("ascii") != m_rec.get("stdout_b64")
+            ):
+                raise ValueError(f"raw stdout mismatch for {section}.{name}.{mode}")
+            if (
+                len(err_bytes) != m_rec.get("stderr_len")
+                or sha256_bytes(err_bytes) != m_rec.get("stderr_sha256")
+                or base64.b64encode(err_bytes).decode("ascii") != m_rec.get("stderr_b64")
+            ):
+                raise ValueError(f"raw stderr mismatch for {section}.{name}.{mode}")
+            recomputed_marker = classify_raw(
+                m_rec["exit"], bool(m_rec["timed_out"]), out_bytes, err_bytes
+            )
+            if recomputed_marker != m_rec.get("marker"):
+                raise ValueError(
+                    f"marker mismatch for {section}.{name}.{mode}: recorded {m_rec.get('marker')!r}, recomputed {recomputed_marker!r}"
+                )
+            m_with_bytes = dict(m_rec)
+            m_with_bytes["stdout_bytes"] = out_bytes
+            m_with_bytes["stderr_bytes"] = err_bytes
+            reconstructed_exec[mode] = m_with_bytes
+
+        recomputed_comp = compare_item(reconstructed_exec, exp_spec, baseline_row=base_row)
+        if recomputed_comp != comp_rec:
+            raise ValueError(
+                f"comparison mismatch for {section}.{name}: recorded {comp_rec}, recomputed {recomputed_comp}"
+            )
+        return recomputed_comp
+
+    probe_entries = ledger.get("probes")
+    program_entries = ledger.get("programs")
+    if not isinstance(probe_entries, list) or not isinstance(program_entries, list):
+        raise ValueError("results.json probes and programs must be lists")
+
+    recomputed_probe_comps: list[dict[str, Any]] = []
+    seen_probes: set[str] = set()
+    for entry in probe_entries:
+        name = entry.get("execution", {}).get("name")
+        if not isinstance(name, str) or name not in expectations["probes"]:
+            raise ValueError(f"unknown probe {name!r} in results.json")
+        if name in seen_probes:
+            raise ValueError(f"duplicate probe {name!r} in results.json")
+        seen_probes.add(name)
+        recomputed_probe_comps.append(
+            _verify_entry(entry, "probes", name, expectations["probes"][name], baseline.get(name))
+        )
+
+    recomputed_prog_comps: list[dict[str, Any]] = []
+    seen_progs: set[str] = set()
+    for entry in program_entries:
+        name = entry.get("execution", {}).get("name")
+        if not isinstance(name, str) or name not in expectations["programs"]:
+            raise ValueError(f"unknown program {name!r} in results.json")
+        if name in seen_progs:
+            raise ValueError(f"duplicate program {name!r} in results.json")
+        seen_progs.add(name)
+        recomputed_prog_comps.append(
+            _verify_entry(entry, "programs", f"program_{name}", expectations["programs"][name], None)
+        )
+
+    matrix_text = matrix_path.read_text(encoding="utf-8")
+    if seen_probes:
+        matrix_rows = parse_tsv_matrix(matrix_text, expected_names=seen_probes)
+        for comp in recomputed_probe_comps:
+            if matrix_rows.get(comp["name"]) != (comp["single_marker"], comp["project_marker"]):
+                raise ValueError(f"matrix.tsv row mismatch for probe {comp['name']}")
+    elif matrix_text.strip():
+        raise ValueError("matrix.tsv must be empty when no probes were evaluated")
+
+    recomputed_summary = summarize_comparisons(
+        recomputed_probe_comps,
+        recomputed_prog_comps,
+        strict_unreviewed=strict_unreviewed,
+    )
+    if recomputed_summary != ledger.get("summary"):
+        raise ValueError("summary mismatch in results.json")
+
+    return ledger
+
+
 def _strip_raw_bytes(exec_record: dict[str, Any]) -> dict[str, Any]:
     out = dict(exec_record)
     for mode in ("single", "project"):
@@ -3138,6 +3318,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="derive static expectations.json from corpus sources + baseline TSV without running compiler",
     )
+    parser.add_argument(
+        "--verify-evidence",
+        type=Path,
+        default=None,
+        help="verify an existing evidence bundle directory against expectations and optional baseline without running compiler",
+    )
     args = parser.parse_args(argv)
 
     if args.init_expectations:
@@ -3170,6 +3356,26 @@ def main(argv: list[str] | None = None) -> int:
             f"{len(derived['programs'])} programs in {args.expectations}"
         )
         return 0
+
+    if args.verify_evidence is not None:
+        try:
+            verified = verify_evidence_bundle(
+                evidence_dir=args.verify_evidence,
+                expectations_path=args.expectations,
+                corpus_root=args.corpus,
+                baseline_path=args.baseline,
+                strict_unreviewed=not args.allow_unreviewed,
+            )
+        except (ValueError, OSError) as exc:
+            print(f"conformance: error: {exc}", file=sys.stderr)
+            return 1
+        v_sum = verified["summary"]
+        print(
+            f"conformance: verified evidence bundle {args.verify_evidence} "
+            f"probes_cap_passed={v_sum['probe_capability_passed']}/{v_sum['total_probes']} "
+            f"programs_passed={v_sum['program_run_passed']}/{v_sum['total_programs']}"
+        )
+        return 0 if v_sum["gate_passed"] else 1
 
     try:
         ledger = evaluate_suite(
