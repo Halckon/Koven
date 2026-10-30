@@ -876,3 +876,54 @@ D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交�
 
 仅发布 Draft PR，不 Ready、不 formal approve、不合并。后续 CI 结果须绑定实际 head/base/merge，
 不得用 #237 的结果冒充本批生产 span 修改验收。
+
+## 55. Nullable 类型名与 Range 完整标签候选（2026-10-30）
+
+基线为实际 main `eea83d4cfa896287cb3fafe703d36dae0489019b`，隔离分支
+`fix/spec-0341-nullable-type-diagnostics`。本片为 Phase 2 诊断候选，旧 Single witness
+及所有原源码保留，净退休为 0；不触碰 while lowering、L0082 标签差异或其他工作线。
+
+- Unit body checker 的 `type_name` 对 Nullable 递归调用现有 inner formatter 并追加 `?`；
+  不扩充合法操作数，不修改类型事实、错误码、主消息、primary 或 labels 顺序。
+  非 nullable formatter 分支保持不变；nullable nominal/intrinsic 等内部类型仍沿用其既有
+  inner 显示规则，本片不声明一般类型名美化已完成。
+- `integer_range_values` 的 Int?/Long? × `..`/`..<` 四源不再跳过完整诊断对照：
+  Single、rooted Unit、MemoryDocument Unit 均由既有独立 source-derived oracle 核
+  L0085 severity/message/operator span、左右 operand 的有序 labels 与无额外 details，
+  再核 raw==final、无部分 range facts。原 26 个非 nullable 负源、其他成功/拒绝测试、
+  同轮 SourceMap/ParsedFile 身份、完整 raw/final comparator 与 L0082 独立 oracle 均保留。
+- formatter 还服务 expected/found、调用、分支、构造和容器诊断，故风险不限于 Range；
+  官方 CI 须保留完整既有 bounded stage、CLI/LSP 与双宿主门禁，不缩 runner 或测试选择。
+  本片没有新增 CLI/LSP golden，不把 frontend 断言当成其消费链验收。
+- checker 物理行 1184→1185，沿用现有 1226 行例外上限，不改 policy；此增长只修正
+  既有 formatter 分支，独立静审确认职责与既有拆分约束未扩，不机械拆文件或压行。
+
+| 验收项 | 精确输入/选择 | 状态 |
+|---|---|---|
+| 原源码、Single witness、完整固定诊断 | 两 Rust 文件的有界 diff | 静态核验通过；六个 test 定义及旧 API 调用数不变，无本地 red/green |
+| 格式、文档、diff、尺寸 | rustfmt 两文件；check_docs.py；git diff --check；check_rust_sizes.py --base eea83d4c | 静态通过；823 Markdown、2035 手写 Rust，39 个旧超限文件；无新增例外 |
+| 独立静审 | 生产一臂、原源码/Single/oracle 保全及一行增长 | 无本地候选阻塞；非 formal approve、非行为验收 |
+| 编译、clippy、直接行为及共享 formatter 调用方 | 官方既有完整 CI 选择，绑定后续精确 head/base/merge | 未运行 |
+| 本地 cargo/build/check/test/clippy/native | 用户要求禁止 | 未运行 |
+
+上述为本地候选阶段的静态结果；现按用户批准提交并发布 Draft PR，启动官方 CI，
+并邀请 Slack 独立审查。CI 与审查须分别绑定发布头核验；不 Ready、formal approve 或合并，
+不以本地静审替代正式审查及动态验收。D10/E2 继续 in-progress。
+
+### 55.1 首轮 CI 下游标签 oracle 修复候选
+
+- Draft #243 head `b93330cabcfab9a8dac2d704c44fc46b7a9f8023`、base `eea83d4c`、
+  测试合并 `84ac27a8` 的 [run 41057274362](https://github.com/Halckon/Koven/actions/runs/41057274362)
+  attempt 1 实际失败。双宿主 frontend lib 均229通过；codegen lib 的
+  `nullable_when_replacement_without_reproof_keeps_exact_type_error` 同报唯一失败：
+  实际 `expected declaration#0, found declaration#0?`，旧 oracle 仍拼 Nullable Debug。
+  Linux 2542通过/1失败，macOS 2541通过/1失败/1原ignore；两者exit101。
+- `check_core.sh` 因此提前退出，CLI/LSP、stage 内 Range 六项、tutorial 与后继产品门均未到达；
+  其上传缺失是前序失败的连带，preview跳过，aggregate失败。不得记录为相关目标通过。
+- 此后仅更新两处测试期望：codegen generation 的真实失败标签，以及静态发现、首轮未到达的
+  frontend grouped-null comparison 同类 oracle。两者以既有真实 Node declaration 身份固定
+  `declaration#N?`；仍独立核 Nullable(inner)==实际 Node、参数/实参身份、stale smart-cast
+  缺席及完整诊断。第二处增加显式 nullable inner 整值断言；不调用生产 formatter生成期望，
+  不放宽 code/Span/details、修改原源码或把预期拒绝改为成功。生产不再变动。
+- 此修复按授权接续原 Draft #243；两文件 rustfmt、docs（823）、diff、尺寸（2035 Rust/39旧超限）
+  静态通过，独立静审无候选阻塞。未运行本地Cargo或动态检查，新头官方CI与Slack审查待验。

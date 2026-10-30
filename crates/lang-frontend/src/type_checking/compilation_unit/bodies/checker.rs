@@ -1059,6 +1059,7 @@ impl<'a> BodyChecker<'a> {
     pub(super) fn type_name(&self, ty: UnitTypeId) -> String {
         match self.signatures.types().get(ty) {
             Some(UnitTypeKind::Builtin(builtin)) => builtin.name().to_owned(),
+            Some(UnitTypeKind::Nullable(inner)) => format!("{}?", self.type_name(*inner)),
             Some(UnitTypeKind::Nominal { declaration, .. }) => {
                 format!("declaration#{}", declaration.index())
             }

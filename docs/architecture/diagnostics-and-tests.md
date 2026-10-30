@@ -8,6 +8,9 @@
 `Diagnostic` 必须包含 severity、已注册 code、单行 message 和主 `Span`，并按生产者顺序保存 label、
 note 与 help。
 
+Unit body 诊断的 nullable 类型名递归使用既有 inner 类型名并追加 `?`，不再将外层
+`Nullable(UnitTypeId)` Debug 形状作为标签；其他类型名规则、诊断码及 Span 不变。
+
 `ordered_diagnostics` 先用共同 SourceMap 验证全部 Span，再按 source 名称、范围、severity、code、
 message 和 details 建立稳定全序。顺序不依赖 `SourceId`、source 加载顺序或哈希容器迭代。
 

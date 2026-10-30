@@ -193,10 +193,9 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
                 }
             }
         };
-        let nullable_endpoint = text.contains("left: Int?") || text.contains("left: Long?");
-        assert_same_observation(&result[0], &unit, nullable_endpoint);
+        assert_same_observation(&result[0], &unit);
         if result.len() == 2 {
-            assert_same_observation(&result[1], &unit, false);
+            assert_same_observation(&result[1], &unit);
         }
         result.push(unit);
     }
@@ -212,22 +211,19 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
 
 // Compare full Diagnostic values (including message, severity, labels and notes),
 // not a code-only projection. Internal admission errors are never accepted as parity.
-fn assert_same_observation(single: &Observation, unit: &Observation, nullable_endpoint: bool) {
+fn assert_same_observation(single: &Observation, unit: &Observation) {
     assert_eq!(unit.root, single.root, "{unit:?}");
     assert_eq!(unit.operator_span, single.operator_span, "{unit:?}");
     assert_eq!(unit.names, single.names, "full name diagnostics: {unit:?}");
     // L0082 intentionally differs: Single adds a builtin-declaration label, Unit
     // does not. rejected_api independently freezes both complete diagnostics.
-    // Nullable endpoint labels also differ: Unit currently prints its internal
-    // Nullable(UnitTypeId) Debug shape. Do not invent a frozen numeric ID without
-    // CI evidence. Keep Single and compare both Unit descriptors in full instead.
     let builtin_arguments = single.mode == "single"
         && single.raw.as_ref().is_some_and(|diagnostics| {
             diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code().to_string() == "L0082")
         });
-    if !builtin_arguments && !nullable_endpoint {
+    if !builtin_arguments {
         assert_eq!(unit.raw, single.raw, "full raw diagnostics: {unit:?}");
     }
     match (&single.complete, &unit.complete) {
@@ -236,7 +232,7 @@ fn assert_same_observation(single: &Observation, unit: &Observation, nullable_en
             Some(Err(FinalTypeAdmissionError::Diagnostics(expected))),
             Some(Err(FinalTypeAdmissionError::Diagnostics(actual))),
         ) => {
-            if !builtin_arguments && !nullable_endpoint {
+            if !builtin_arguments {
                 assert_eq!(actual, expected, "full final diagnostics: {unit:?}");
             }
         }
@@ -425,16 +421,6 @@ fn invalid_range_endpoints_have_operand_diagnostics() {
             for observation in &observations {
                 let raw = observation.raw.as_ref().expect("raw endpoint analysis");
                 assert_eq!(raw.len(), 1);
-                if left.ends_with('?') && observation.mode != "single" {
-                    // Open oracle gap, not a retirement claim: exact code/span and
-                    // raw == final remain below; Unit-vs-Unit compares all details.
-                    assert_eq!(raw[0].severity(), Severity::Error);
-                    assert_eq!(
-                        raw[0].message(),
-                        "operator does not accept these operand types"
-                    );
-                    continue;
-                }
                 assert_frozen_diagnostic(
                     &raw[0],
                     "L0085",
