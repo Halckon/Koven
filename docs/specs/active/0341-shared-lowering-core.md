@@ -816,6 +816,10 @@ D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交�
 
 ## 53. Single 测试消费者成批退休（2026-10-30，待 CI）
 
+> 合入状态订正（2026-10-30）：[#237](https://github.com/Halckon/Koven/pull/237) 已合入。
+> 本节标题、验收表及结语中的“待 CI／待执行／仅发布 Draft／不合并”保留为首次发布时快照，
+> 不代表当前状态；当前精确输入、官方 CI 与合入证据见[四批已合入验收对账](#四批已合入验收对账2026-10-30)。
+
 基于 GitHub `main` 的 `18c23efd9a184844f4e3538a7b8d2d8e98d3adbd`，将两个已静审候选
 合入隔离分支 `fix/spec-0341-single-retirement-batch`；不改变生产实现、Guide、fixture、runner
 或 API。§52 的历史结果不回写，本节仅更新 B03/B04/B06/B12 与三个 codegen 单 root 的处置。
@@ -844,6 +848,11 @@ D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交�
 仅发布 Draft PR 交由官方 CI 验证，不 Ready、不 formal approve、不合并；D10/E2 保持 in-progress。
 
 ## 54. 拒绝诊断固定 oracle 与 Single 消费者成批退休（2026-10-30，待 CI）
+
+> 合入状态订正（2026-10-30）：[#239](https://github.com/Halckon/Koven/pull/239) 已合入。
+> 本节标题、验收表及结语中的“待 CI／待执行／仅发布 Draft／不合并”保留为首次发布时快照，
+> 不代表当前状态；当前精确输入、官方 CI 与合入证据见[四批已合入验收对账](#四批已合入验收对账2026-10-30)。
+> 原候选基线 `c6c2b934` 不回写；最终同步后的官方 CI base 为 `593ac9a0`，两者用途不同。
 
 基线为 `c6c2b9344c865bc1c4522238050b15c737978ee8`（#237 已合入），隔离分支
 `fix/spec-0341-diagnostic-retirement-batch`。组合 codegen 候选 `7671459c` 与 frontend 两文件
@@ -927,3 +936,84 @@ D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交�
   不放宽 code/Span/details、修改原源码或把预期拒绝改为成功。生产不再变动。
 - 此修复按授权接续原 Draft #243；两文件 rustfmt、docs（823）、diff、尺寸（2035 Rust/39旧超限）
   静态通过，独立静审无候选阻塞。未运行本地Cargo或动态检查，新头官方CI与Slack审查待验。
+
+## 四批已合入验收对账（2026-10-30）
+
+本节只补记 #237、#239、#240、#242 的已核实交付事实。§52 冻结候选快照与
+§53／§54 的原始发布记录保留；本节优先说明这四批的当前合入状态。§55／§55.1
+候选与失败历史原样保留，其后继 #243 的合入和验证状态在下方单独记录，不借四批 CI 为其背书。
+
+### 精确输入、官方 CI 与实际合入
+
+以下各 run、`CI Passed` 与相应 `Code CI Evidence` 均已回读为 success；测试 merge
+是官方 PR CI 的组合输入，不是最终写入 main 的 merge commit。每行证据只适用于本行，
+不以旧 head、其他 PR 或当前 main 的运行结果替代。静审、官方 CI 与合入分别记录。
+
+| PR | 最终 CI base | 最终 head | 官方测试 merge | 官方 PR CI | 实际合入 main |
+|---|---|---|---|---|---|
+| [#237](https://github.com/Halckon/Koven/pull/237) | `18c23efd` | `bb2093b4` | `b230d9ec` | [41017271001](https://github.com/Halckon/Koven/actions/runs/41017271001)，success | [`c6c2b934`](https://github.com/Halckon/Koven/commit/c6c2b9344c865bc1c4522238050b15c737978ee8) |
+| [#239](https://github.com/Halckon/Koven/pull/239) | `593ac9a0` | `3f44eb21` | `0f136272` | [41027117780](https://github.com/Halckon/Koven/actions/runs/41027117780)，success | [`67d68a46`](https://github.com/Halckon/Koven/commit/67d68a4656e79b5dce6c2d4fa18216d897777175) |
+| [#240](https://github.com/Halckon/Koven/pull/240) | `67d68a46` | `5fa8fa7f` | `b5e5df0d` | [41039872478](https://github.com/Halckon/Koven/actions/runs/41039872478)，success | [`e69ad0aa`](https://github.com/Halckon/Koven/commit/e69ad0aaccbe00f888616e47e4a8339df5afc0cf) |
+| [#242](https://github.com/Halckon/Koven/pull/242) | `e69ad0aa` | `11239aa6` | `6b55a4c8` | [41047646309](https://github.com/Halckon/Koven/actions/runs/41047646309)，success | [`37c4e188`](https://github.com/Halckon/Koven/commit/37c4e1888624fdd511250c9a7aabf1037f6c6129) |
+
+§53 对应 #237 的 3 个 codegen Single 调用点与 4 组 frontend producer/comparator 退休；
+§54 对应 #239 的 1 个 codegen 调用点与 2 组 frontend producer/comparator 退休。
+#239 含两处生产 span 精化，不能记为纯测试变更；其成功路径与原拒绝谓词未扩张。
+以上两节原源码、完整诊断、事实断言及剩余 Single 消费者边界均继续适用。
+
+### #240：range iteration 与 trusted borrow
+
+- 仅改 `integer_range_iteration.rs` 与 `multi_borrow_range_boundary_tests.rs` 两个测试文件，
+  相对最终 base 为 +42/-70；本批未改生产实现、Guide、runner、CI 选择或 skip。
+- frontend 退休原 Single producer，保留 33 份原源码、3 个原测试、Rooted/MemoryDocument
+  双入口和原事实断言。正例使用完整空 raw/final oracle；L0159 拒绝保留独立固定完整诊断，
+  final 必须完整等于 raw，Internal 或成功不作预期拒绝。
+- codegen 退休 trusted short-range 的旧 lowering producer，保留原源码、标准库文本、
+  `trusted.ko`、range 与 range-extension 双授权、严格 Unit admission，以及
+  `UnsupportedNode` 和 `view(source, take(items, 1))` 精确 span；相邻两源 control 保留。
+- 当时为避免 #239 共享文档冲突而将验收暂记 PR；本节补入账本，不改变原 diff 或扩张退休范围。
+
+### #242：Range authority 与 extension
+
+- 仅改 `type_range_source_authority.rs` 与 `type_range_extension.rs` 两个测试文件，
+  相对最终 base 为 +78/-137；保留 authority 6 个及 extension 13 个原测试和源码。
+- 两文件原 4 个 `check_types`、4 个 `resolve_names` 调用点删除，未搬至兼容 adapter。
+  authority 的授权隔离、input-order、foreign SourceMap、第二 source、decoy 及真实
+  SourceId/Span 合同保留；raw 接受不代表 complete、ownership 或 native 资格。
+- extension 保留 source-qualified `UnitTypeRefId`，将原 Single 独占的 `source_kind`、
+  `receiver_mode`、`origin`、`from_span`、`source_span` 五项补入 Unit binding oracle。
+  原 code/predicate-only 拒绝不冒称完整 Diagnostic golden，不放宽拒绝为成功。
+
+### 审查与剩余边界
+
+- [Grok 补审](https://app.slack.com/archives/C0CBTCC2X2R/p1793363634557559)与
+  [Cooper 补审](https://app.slack.com/archives/C0CBTCC2X2R/p1793364304960869)均为合入后的只读
+  Slack 审查，不是 GitHub formal approval。2026-10-30 12:55 UTC 回读四 PR 的 reviews 均为 `[]`，
+  不补写或冒充正式 approval。
+- [补审边界澄清](https://app.slack.com/archives/C0CBTCC2X2R/p1793364509858319)：snapshot-tag
+  首个非 TypeTest 非 Expression 时仍回退 span，属诊断精度边界；固定 offset 属独立字面 oracle
+  的维护约束。nullable 的原 Single/Unit 诊断一致性缺口并非四批迁移删空全部 oracle，
+  两个 Unit 入口的完整比较仍保留；该补审结论对应 `eea83d4c`，后继 #243 的状态另列，不当作当前仍未修复的证据。
+- 本次四批未退休 while shape 的旧独立对照，未证明全局 Single 消费者归零；本地
+  cargo/build/check/test/clippy/native 均未运行。D10/SPEC-0341/E2 保持 in-progress，
+  不外推一般 native 或 multi-source 等价，不将本账本对账当作整体完成或当前 main CI 通过。
+
+### 后继合入与 V2 基线边界
+
+- 本次文档对账基线为实际 main [`ad9b3f11`](https://github.com/Halckon/Koven/commit/ad9b3f1143441f05ee1a9c16bd540e6e3133e241)，
+  已包含 [#243](https://github.com/Halckon/Koven/pull/243) 与 [#244](https://github.com/Halckon/Koven/pull/244)。
+- §55／§55.1 的 #243 已合入 [`24b00d5d`](https://github.com/Halckon/Koven/commit/24b00d5dfb1e51cebc6315f0765da981e6b72e81)。
+  其最终 head `f251b3b7`、base `eea83d4c`、官方测试 merge `1fae6d75` 的
+  [run 41060319957](https://github.com/Halckon/Koven/actions/runs/41060319957)、`CI Passed` 与
+  `Code CI Evidence` 均 success；不同于 §55.1 保留的失败 run `41057274362`。
+  因而 §55／§55.1 的“候选／待验／不合并”是各自记录时的历史状态，不代表当前 PR 仍待合入。
+  该后继恢复本片四个 nullable Range 负源的完整标签对照，Single witness 保留、净退休为 0，
+  不将 nullable 外壳显示修复扩大为通用复合类型美化或 while shape 已完成。
+- #244 的五文件范围是 `conformance/ORACLE_AUDIT.md`、`conformance/README.md`、
+  `scripts/conformance_gate.py`、`scripts/conformance_matrix.sh` 及其脚本测试。
+  它增加离线证据校验、双宿主比对和路线图阶段／领域审计，未修改 SPEC-0341、Rust 编译器
+  或本四批退休文件。既有 [V2 Spec 关联账本](../../../conformance/ORACLE_AUDIT.md) 已将
+  `y01_import_take_for_sum`、`y03_method_take_for`、`y04_take_for_println` 三个 run_ok probe
+  关联到 SPEC-0341；#244 没有改变此关联或 probe/期望源码，也不新增这三项的能力通过事实。
+  因此仅作为本次已包含的基线与验收基础设施关联，不计入 D10/E2 退休量，
+  也不把 V2 阶段里程碑的条件投射写成当前能力已经完成。
