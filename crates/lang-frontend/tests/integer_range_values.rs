@@ -1,5 +1,5 @@
 //! SPEC-0328 ordinary source probes: no fabricated facts or language execution.
-//! Stage A: retain Single; fixed diagnostics and differential checks are not retirement evidence.
+//! Endpoint rejection uses Unit only; the other five tests retain their Single witnesses.
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
     lexer::lex,
@@ -379,6 +379,111 @@ fn range_values_cross_existing_storage_boundaries() {
     }
 }
 
+// This bounded producer never calls the legacy checker. Both descriptors use the
+// same parsed source; expected diagnostics remain in the original endpoint test.
+fn observe_invalid_endpoints(text: &str, root_text: &str) -> Vec<Observation> {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("range.ko", text).expect("source");
+    let lexed = lex(&sources, source).expect("lex API");
+    assert!(lexed.diagnostics().is_empty(), "{:?}", lexed.diagnostics());
+    let file = parse_file(&sources, &lexed).expect("parse API");
+    assert!(file.diagnostics().is_empty(), "{:?}", file.diagnostics());
+    let roots = file
+        .ast()
+        .expressions()
+        .iter()
+        .filter(|(_, node)| sources.slice(node.span()) == Ok(root_text))
+        .collect::<Vec<_>>();
+    assert_eq!(roots.len(), 1, "unique root {root_text}");
+    let (root_id, root_node) = roots[0];
+    let Expression::Binary {
+        left,
+        right,
+        operator,
+        operator_span,
+    } = root_node.payload()
+    else {
+        panic!("endpoint source must retain its binary root");
+    };
+    let (environment, types) = standard_environments();
+    let mut result = Vec::new();
+    for (mode, input) in [
+        (
+            "unit rooted",
+            SourceUnitInput::new("root", "range.ko", source, &file),
+        ),
+        (
+            "unit memory",
+            SourceUnitInput::memory_document(source, &file),
+        ),
+    ] {
+        assert_eq!(input.source_id(), source);
+        assert!(std::ptr::eq(input.parsed(), &file));
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).expect("unit index API");
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .expect("unit names API");
+        let name_diagnostics = names.diagnostics().to_vec();
+        assert!(name_diagnostics.is_empty(), "{name_diagnostics:?}");
+        let names = names.validate().expect("endpoint names are valid");
+        let unit = names.names().index().source_units()[0].id();
+        let typed =
+            check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit raw API");
+        let root = UnitExpressionId::new(unit, root_id);
+        let root_type = typed.expression_type(root).expect("rejected root type");
+        let kind = typed.types().get(root_type);
+        assert_eq!(kind, Some(&UnitTypeKind::Error));
+        assert_eq!(typed.copyability(root_type), Copyability::Error);
+        assert!(typed.integer_range_operations().is_empty());
+        assert!(typed.integer_range_operation(root).is_none());
+        let observation = Observation {
+            mode,
+            root: root_node.span(),
+            operator_span: Some(*operator_span),
+            range_fact_valid: typed.integer_range_operation(root).map(|fact| {
+                fact.expression() == root
+                    && fact.left() == UnitExpressionId::new(unit, *left)
+                    && fact.right() == UnitExpressionId::new(unit, *right)
+                    && Some(fact.kind()) == range_kind(*operator)
+                    && typed.expression_type(fact.left()) == Some(fact.left_type())
+                    && typed.expression_type(fact.right()) == Some(fact.right_type())
+                    && root_type == fact.result_type()
+            }),
+            range_fact_count: typed.integer_range_operations().len(),
+            names: name_diagnostics,
+            raw: Some(typed.diagnostics().to_vec()),
+            shape: Some(format!("{kind:?}")),
+            resolved: matches!(kind, Some(kind) if !matches!(kind, UnitTypeKind::Error | UnitTypeKind::Deferred(_))),
+            boolean: matches!(kind, Some(UnitTypeKind::Builtin(BuiltinType::Boolean))),
+            builtin: match kind {
+                Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
+                _ => None,
+            },
+            copyable: typed.copyability(root_type) == Copyability::Copyable,
+            matches_annotation: None,
+            complete: Some(
+                complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).map(
+                    |complete| {
+                        assert!(complete.is_same_analysis(&typed));
+                    },
+                ),
+            ),
+        };
+        if let Some(previous) = result.first() {
+            assert_same_observation(previous, &observation);
+        }
+        result.push(observation);
+    }
+    assert_eq!(result.len(), 2, "rooted Unit and MemoryDocument only");
+    for observation in &result {
+        println!(
+            "SOURCE {text:?} ROOT {root_text:?} MODE {} SPAN {:?} SHAPE {:?} OBS {observation:?}",
+            observation.mode, observation.root, observation.shape
+        );
+    }
+    result
+}
+
 #[test]
 fn invalid_range_endpoints_have_operand_diagnostics() {
     let mut all = Vec::new();
@@ -404,7 +509,7 @@ fn invalid_range_endpoints_have_operand_diagnostics() {
             let root = format!("left {operator} right");
             let text =
                 format!("fun probe(left: {left}, right: {right}): Unit {{ val bad = {root} }}");
-            let observations = observe(&text, &root, None);
+            let observations = observe_invalid_endpoints(&text, &root);
             let left_start = text.rfind("left").expect("left operand");
             let right_start = text.rfind("right").expect("right operand");
             let operator_start = left_start + "left ".len();
@@ -443,6 +548,11 @@ fn invalid_range_endpoints_have_operand_diagnostics() {
         assert_eq!(Some(raw[0].primary_span()), observation.operator_span);
         assert_eq!(observation.range_fact_count, 0, "{observation:?}");
         assert_eq!(observation.range_fact_valid, None);
+        assert!(!observation.resolved, "{observation:?}");
+        assert!(!observation.boolean, "{observation:?}");
+        assert_eq!(observation.builtin, None, "{observation:?}");
+        assert!(!observation.copyable, "{observation:?}");
+        assert_eq!(observation.matches_annotation, None, "{observation:?}");
         let Some(Err(FinalTypeAdmissionError::Diagnostics(final_diagnostics))) =
             &observation.complete
         else {
