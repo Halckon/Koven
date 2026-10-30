@@ -194,41 +194,58 @@ fn source_functions_named_like_intrinsics_and_valid_primitives_still_complete() 
 }
 
 #[test]
-fn source_generic_arity_retains_its_original_callee_span_contract() {
-    let text = "fun <T> replace(value: Int): Int = value\nfun run(): Int = replace<Int, Int>(1)";
-    let mut sources = SourceMap::new();
-    let (source, file) = parsed(&mut sources, "source-call.ko", text);
-    let (environment, types) = standard_environments();
-    let check = |raw: &[Diagnostic], complete: Vec<Diagnostic>| {
-        assert_eq!(complete, raw);
-        assert_eq!(raw.len(), 1, "{raw:?}");
-        assert_eq!(raw[0].code().to_string(), "L0091");
-        assert_eq!(sources.slice(raw[0].primary_span()), Ok("replace"));
-        assert_eq!(
-            raw[0].primary_span().start(),
-            text.rfind("replace").unwrap()
+fn source_generic_excess_arity_checks_operands_and_keeps_type_argument_span() {
+    for (argument, extra_error) in [("1", false), ("true + false", true)] {
+        let text = format!(
+            "fun <T> replace(value: Int): Int = value\nfun run(): Int = replace<Int, Int>({argument})"
         );
-    };
-    let names = resolve_names(&sources, &file, &environment).unwrap();
-    let typed = check_types(&sources, &file, &names, &types).unwrap();
-    let complete =
-        rejected(complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ()));
-    check(typed.diagnostics(), complete);
-    for input in [
-        SourceUnitInput::new("root", "source-call.ko", source, &file),
-        SourceUnitInput::memory_document(source, &file),
-    ] {
-        let inputs = [input];
-        let index = index_compilation_unit(&sources, &inputs).unwrap();
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-            .unwrap()
-            .validate()
-            .unwrap();
-        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
-        let complete = rejected(
-            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).map(|_| ()),
-        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "source-call.ko", &text);
+        let (environment, types) = standard_environments();
+        let check = |raw: &[Diagnostic], complete: Vec<Diagnostic>| {
+            assert_eq!(complete, raw);
+            assert_eq!(raw.len(), if extra_error { 2 } else { 1 }, "{raw:?}");
+            let arity = raw
+                .iter()
+                .find(|d| d.code().to_string() == "L0091")
+                .unwrap();
+            assert_eq!(sources.slice(arity.primary_span()), Ok("Int"));
+            assert_eq!(arity.primary_span().start(), text.rfind("Int").unwrap());
+            assert_eq!(
+                arity.message(),
+                "callable does not accept these type arguments"
+            );
+            assert!(arity.details().is_empty());
+            if extra_error {
+                let operand = raw
+                    .iter()
+                    .find(|d| d.code().to_string() == "L0085")
+                    .unwrap();
+                assert_eq!(sources.slice(operand.primary_span()), Ok("+"));
+            }
+        };
+        let names = resolve_names(&sources, &file, &environment).unwrap();
+        let typed = check_types(&sources, &file, &names, &types).unwrap();
+        let complete =
+            rejected(complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ()));
         check(typed.diagnostics(), complete);
+        for input in [
+            SourceUnitInput::new("root", "source-call.ko", source, &file),
+            SourceUnitInput::memory_document(source, &file),
+        ] {
+            let inputs = [input];
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+            let complete = rejected(
+                complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+                    .map(|_| ()),
+            );
+            check(typed.diagnostics(), complete);
+        }
     }
 }
 
@@ -262,7 +279,7 @@ fn ordinary_external() -> lang_frontend::type_checking::EnvironmentFunction {
 }
 
 #[test]
-fn same_spelling_non_intrinsic_external_keeps_normal_callee_arity_rejection() {
+fn same_spelling_non_intrinsic_external_retains_deferred_call_rejection() {
     let mut environment = NameEnvironment::new();
     let int = environment.declare_type("Int").unwrap();
     let replace = environment.declare_function("replace").unwrap();
@@ -272,16 +289,19 @@ fn same_spelling_non_intrinsic_external_keeps_normal_callee_arity_rejection() {
     let text = "fun run(): Int = replace<Int, Int>(1)";
     let mut sources = SourceMap::new();
     let (source, file) = parsed(&mut sources, "external.ko", text);
-    let check = |raw: &[Diagnostic], complete: Vec<Diagnostic>| {
-        assert_eq!(complete, raw);
-        assert_eq!(raw.len(), 1, "{raw:?}");
-        assert_eq!(raw[0].code().to_string(), "L0091");
-        assert_eq!(sources.slice(raw[0].primary_span()), Ok("replace"));
-        assert_eq!(raw[0].primary_span().start(), text.find("replace").unwrap());
-        assert_eq!(
-            raw[0].message(),
-            "callable does not accept these type arguments"
-        );
+    let check = |raw: &[Diagnostic], complete: Vec<Diagnostic>, token: &str| {
+        assert!(raw.is_empty(), "{raw:?}");
+        let start = text.find(token).unwrap();
+        let catalog = DiagnosticCodeCatalog::try_new(&["L0165"]).unwrap();
+        let expected = Diagnostic::new(
+            &sources,
+            Severity::Error,
+            catalog.resolve("L0165").unwrap(),
+            "type checking could not complete: overload selection is unresolved",
+            sources.span(source, start, start + token.len()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(complete, [expected]);
     };
     let names = resolve_names(&sources, &file, &environment).unwrap();
     let typed = check_types(&sources, &file, &names, &types).unwrap();
@@ -289,6 +309,7 @@ fn same_spelling_non_intrinsic_external_keeps_normal_callee_arity_rejection() {
     check(
         typed.diagnostics(),
         rejected(complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ())),
+        "replace",
     );
     for input in [
         SourceUnitInput::new("root", "external.ko", source, &file),
@@ -308,6 +329,7 @@ fn same_spelling_non_intrinsic_external_keeps_normal_callee_arity_rejection() {
                 complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
                     .map(|_| ()),
             ),
+            "replace<Int, Int>(1)",
         );
     }
 }
