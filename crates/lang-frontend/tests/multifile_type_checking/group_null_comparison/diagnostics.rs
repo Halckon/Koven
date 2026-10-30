@@ -5,6 +5,7 @@ use lang_frontend::{
     diagnostic::{Diagnostic, Severity, codes},
     parser::{Expression, LiteralKind},
     source::Span,
+    type_checking::UnitTypeKind,
 };
 
 pub(super) fn diagnostic(
@@ -42,6 +43,10 @@ pub(super) fn mismatch(fixture: &Fixture, argument: ExpressionId) -> Diagnostic 
     let argument = leaf(fixture, argument);
     assert_eq!(fixture.sources.slice(span(fixture, argument)), Ok("x"));
     let (node, nullable) = node_types(fixture);
+    assert_eq!(
+        fixture.typed.types().get(nullable),
+        Some(&UnitTypeKind::Nullable(node))
+    );
     let observe = fixture
         .typed
         .signatures()
@@ -66,9 +71,8 @@ pub(super) fn mismatch(fixture: &Fixture, argument: ExpressionId) -> Diagnostic 
             &fixture.sources,
             parameter.span(),
             format!(
-                "expected declaration#{}, found {:?}",
+                "expected declaration#{0}, found declaration#{0}?",
                 declaration(&fixture.names, "Node").index(),
-                fixture.typed.types().get(nullable).unwrap(),
             ),
         )
         .unwrap();

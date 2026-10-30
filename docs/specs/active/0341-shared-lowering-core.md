@@ -909,3 +909,21 @@ D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交�
 上述为本地候选阶段的静态结果；现按用户批准提交并发布 Draft PR，启动官方 CI，
 并邀请 Slack 独立审查。CI 与审查须分别绑定发布头核验；不 Ready、formal approve 或合并，
 不以本地静审替代正式审查及动态验收。D10/E2 继续 in-progress。
+
+### 55.1 首轮 CI 下游标签 oracle 修复候选
+
+- Draft #243 head `b93330cabcfab9a8dac2d704c44fc46b7a9f8023`、base `eea83d4c`、
+  测试合并 `84ac27a8` 的 [run 41057274362](https://github.com/Halckon/Koven/actions/runs/41057274362)
+  attempt 1 实际失败。双宿主 frontend lib 均229通过；codegen lib 的
+  `nullable_when_replacement_without_reproof_keeps_exact_type_error` 同报唯一失败：
+  实际 `expected declaration#0, found declaration#0?`，旧 oracle 仍拼 Nullable Debug。
+  Linux 2542通过/1失败，macOS 2541通过/1失败/1原ignore；两者exit101。
+- `check_core.sh` 因此提前退出，CLI/LSP、stage 内 Range 六项、tutorial 与后继产品门均未到达；
+  其上传缺失是前序失败的连带，preview跳过，aggregate失败。不得记录为相关目标通过。
+- 此后仅更新两处测试期望：codegen generation 的真实失败标签，以及静态发现、首轮未到达的
+  frontend grouped-null comparison 同类 oracle。两者以既有真实 Node declaration 身份固定
+  `declaration#N?`；仍独立核 Nullable(inner)==实际 Node、参数/实参身份、stale smart-cast
+  缺席及完整诊断。第二处增加显式 nullable inner 整值断言；不调用生产 formatter生成期望，
+  不放宽 code/Span/details、修改原源码或把预期拒绝改为成功。生产不再变动。
+- 此修复按授权接续原 Draft #243；两文件 rustfmt、docs（823）、diff、尺寸（2035 Rust/39旧超限）
+  静态通过，独立静审无候选阻塞。未运行本地Cargo或动态检查，新头官方CI与Slack审查待验。

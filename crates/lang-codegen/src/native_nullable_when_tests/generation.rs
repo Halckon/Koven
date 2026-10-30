@@ -609,8 +609,8 @@ fn nullable_when_sequential_generations_keep_distinct_real_proofs() {
     assert_ssa_generations(&source, &program, &controls);
 }
 
-// Type diagnostics intentionally display unit-local type IDs. Derive those IDs from
-// the same complete source's public raw type product, never from observed output.
+// Derive the nominal declaration identity and nullable inner from the same source's
+// public raw type product; the fixed display contract is not read from observed output.
 fn assert_label_product_identity(
     sources: &lang_frontend::source::SourceMap,
     original: &lang_frontend::diagnostic::Diagnostic,
@@ -731,7 +731,7 @@ fn assert_label_product_identity(
     assert_eq!(
         label,
         format!(
-            "expected declaration#{}, found {actual:?}",
+            "expected declaration#{0}, found declaration#{0}?",
             declaration.index()
         )
     );
