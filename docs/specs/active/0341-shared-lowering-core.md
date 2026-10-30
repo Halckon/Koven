@@ -842,3 +842,37 @@ D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交�
 | 本地 cargo/build/check/test/clippy/native | 用户要求不运行 | 未运行 |
 
 仅发布 Draft PR 交由官方 CI 验证，不 Ready、不 formal approve、不合并；D10/E2 保持 in-progress。
+
+## 54. 拒绝诊断固定 oracle 与 Single 消费者成批退休（2026-10-30，待 CI）
+
+基线为 `c6c2b9344c865bc1c4522238050b15c737978ee8`（#237 已合入），隔离分支
+`fix/spec-0341-diagnostic-retirement-batch`。组合 codegen 候选 `7671459c` 与 frontend 两文件
+未提交候选；原工作树保留，互不覆盖。此批不是纯测试变更：两处 Unit lowering 生产路径仅精化
+既有拒绝的诊断位置，不扩大成功语义；其余三份 Rust 文件为测试消费者迁移。
+
+- `lower_copyable_enum_case_condition` 的非 case、payload、MoveOnly 拒绝定位原 condition
+  expression；snapshot-tag 路径仍只允许静态 type-test，第一项非 type-test 若为 expression，
+  拒绝定位该 expression。UnsupportedNode 不降级为成功；AST 身份损坏仍以 MissingFact 失败。
+- `enum_tag_slice_does_not_claim_general_payload_grouped_or_move_only_equality` 原名和四份完整
+  fixture 不变：`other`、`(Flag.On)`、`Flag.On(1)`、`Flag.Off`。严格 MemoryDocument Unit
+  保留四项 UnsupportedNode 与原精确 condition span，增加 source/entry 身份及 MoveOnly
+  subject 实际 last-use drop 与非 String-cleanup 路由断言。净少一个 `lower_scalar_file` 调用点；
+  `lower_frontend_return_tests.rs` 不再调用旧入口，不声称整个 codegen Single 入口已退休。
+- frontend 的 B01/B02 原 Single 测试移除，同名 Rooted/MemoryDocument 测试及原四份源码保留。
+  以独立字面 oracle 固定完整 raw/final Diagnostic：L0159 非 provider 三源，L0084 binding
+  mismatch 一源；包含 severity、message、primary 与有序 labels，final 必须 Diagnostics，
+  不能将 Internal 或成功视为等价。净少 2 组 producer 与 2 组 comparator 路径；共用 Single
+  helper 仍有消费者，不计 caller 文件归零。既有四组空 oracle、其他完整 comparator/recovery 不变。
+- 无新增语言能力、依赖、fixture、runner、CI 选择或 skip；不删除独立 cleanup/loan-end witness。
+  不外推 native 或 multi-source 等价；D10/E2 保持 in-progress。
+
+| 验收项 | 精确输入/选择 | 状态 |
+|---|---|---|
+| 基线、组合与完整 oracle | 上述 main 与候选，五 Rust 文件组合 diff | 独立只读静审无阻塞；无本地动态结果 |
+| 格式、文档、diff、尺寸 | 五文件 rustfmt；check_docs.py；git diff --check；check_rust_sizes.py --base c6c2b934 | 静态通过；39 个旧超限文件无增长，无新增例外 |
+| 直接错误与邻接回归 | 官方 codegen 完整 lib（含四原负例）；frontend type_iteration/type_iteration_unit 完整 targets | 待官方 PR CI |
+| 双平台 check/clippy、既有 bounded/native/preview 门禁 | 本 Draft PR 的官方 CI，保持原选择 | 待执行 |
+| 本地 cargo/build/check/test/clippy/native 或全量测试 | 用户要求禁止 | 未运行；无本地 red/green 证据 |
+
+仅发布 Draft PR，不 Ready、不 formal approve、不合并。后续 CI 结果须绑定实际 head/base/merge，
+不得用 #237 的结果冒充本批生产 span 修改验收。
