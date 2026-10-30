@@ -228,11 +228,12 @@ sys.exit(1)
         finally:
             exp_txt_path.write_text(self.prog_expected, encoding="utf-8")
 
-        # Verify probe with top-level package directive or missing fun main is rejected
+        # Verify probe with top-level package directive or missing/duplicate fun main is rejected
         p01_path = self.corpus / "probes" / "p01_ok.ko"
         for bad_src, err_re in [
             ('package custom\nfun main(): Unit { println("hello") }\n', "must not contain a package directive"),
-            ('fun helper(): Unit { println("hello") }\n', "must declare a fun main"),
+            ('fun helper(): Unit { println("hello") }\n', "must declare a single fun main"),
+            ('fun main(): Unit { println("a") }\nfun main(): Unit { println("b") }\n', "must declare a single fun main"),
         ]:
             p01_path.write_text(bad_src, encoding="utf-8")
             self._write_default_expectations(
@@ -331,6 +332,10 @@ sys.exit(1)
             (
                 {"p01_ok": {"kind": "run_ok", "source_sha256": _sha256(self.probe_ok_src), "stdout": "hello\n", "probe_batch": "q"}},
                 "invalid probe_batch",
+            ),
+            (
+                {"p04_unimpl": {"kind": "known_unimplemented", "source_sha256": _sha256(self.probe_unimpl_src), "baseline_marker": "FE:L0165", "allowed_markers": ["BE:UnsupportedNode"], "target_stdout": "3.0\n"}},
+                "must include non-exempt baseline_marker",
             ),
         ]:
             self._write_default_expectations(bad_spec)
@@ -932,6 +937,31 @@ sys.exit(1)
             gate.sync_readme_chapter_table("# No table\n", loaded)
         with self.assertRaisesRegex(ValueError, "violates canonical batch naming convention"):
             gate.classify_probe_batch("z01_invalid_prefix")
+        marker_stats = gate.summarize_unimplemented_markers(loaded)
+        self.assertEqual(set(marker_stats.keys()), set(gate.UNIMPLEMENTED_MARKER_CATALOG.keys()))
+        self.assertEqual(marker_stats["BE:UnsupportedNode"]["baseline_count"], 8)
+        self.assertEqual(marker_stats["FE:L0165"]["baseline_count"], 5)
+        self.assertEqual(marker_stats["FE:L0080"]["baseline_count"], 2)
+        self.assertEqual(len(marker_stats["BE:UnsupportedSource"]["probes"]), 1)
+        prog_blockers = gate.summarize_program_roadmap_blockers(loaded, roadmap_items)
+        self.assertEqual(
+            set(prog_blockers.keys()),
+            {"L1", "L2", "L3b", "L7", "N01", "N02", "N03", "N05", "N07", "N08"},
+        )
+        self.assertEqual(prog_blockers["L3b"]["programs"], ["varint_codec"])
+        self.assertEqual(prog_blockers["L3b"]["probes"], [])
+        self.assertEqual(len(prog_blockers["N02"]["programs"]), 4)
+        self.assertEqual(set(gate.GUIDE_CHAPTER_DOMAINS.keys()), set(gate.VALID_GUIDE_CHAPTERS))
+        cohort = gate.summarize_foundational_cohort(loaded)
+        self.assertEqual(cohort["total_foundational"], 85)
+        self.assertEqual(cohort["groups"]["A"]["total"], 74)
+        self.assertEqual(cohort["groups"]["A"]["runnable"], 58)
+        self.assertEqual(cohort["groups"]["A"]["compile_fail"], ["q17_generic_class"])
+        self.assertEqual(len(cohort["groups"]["A"]["known_unimplemented"]), 15)
+        self.assertEqual(cohort["groups"]["B"]["total"], 8)
+        self.assertEqual(len(cohort["groups"]["B"]["compile_fail"]), 8)
+        self.assertEqual(cohort["groups"]["C"]["total"], 3)
+        self.assertEqual(cohort["p2_gap_to_target"], 12)
 
     def test_13_derivation_reports_naming_diagnostic_instead_of_baseline_keyerror(
         self,
@@ -966,7 +996,7 @@ sys.exit(1)
     def test_15_cli_init_expectations_renders_derivation_error_without_traceback(
         self,
     ) -> None:
-        """CLI 边界必须把推导错误渲染成单行诊断并返回 1。"""
+        """CLI 边界必须把推导错误与运行期参数错误渲染成单行诊断并返回 1。"""
         (self.corpus / "probes" / "zz9_bad_name.ko").write_text(
             self.probe_ok_src, encoding="utf-8"
         )
@@ -987,6 +1017,16 @@ sys.exit(1)
         self.assertIn("conformance: error:", stderr.getvalue())
         self.assertIn("naming convention", stderr.getvalue())
         self.assertFalse((self.root / "derived.json").exists())
+        (self.corpus / "probes" / "zz9_bad_name.ko").unlink()
+
+        for bad_args, expected_err in [
+            (["--cli", str(self.root / "missing_kovenc"), "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "conformance: error:"),
+            (["--jobs", "0", "--corpus", str(self.corpus), "--expectations", str(self.expectations_path)], "jobs must be >= 1"),
+        ]:
+            err_buf = io.StringIO()
+            with contextlib.redirect_stderr(err_buf):
+                self.assertEqual(gate.main(bad_args), 1)
+            self.assertIn(expected_err, err_buf.getvalue())
 
 
 if __name__ == "__main__":

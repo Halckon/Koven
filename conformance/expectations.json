@@ -381,6 +381,7 @@
     },
     "p16b_result_string": {
       "kind": "run_ok",
+      "stdout": "good\n",
       "v046_baseline_exempt": true,
       "note": "SPEC-0349 builtin Result; SPEC-0368 String payload construction and exhaustive case reads in both public entry modes",
       "source_sha256": "17fb9700edf35e301f684fdf4f677d0fbc48c90776d355e0c4f06b182f36e4d9",
@@ -393,8 +394,7 @@
       ],
       "oracle_derivation": "parse(1) selects Result.Ok('good'); exhaustive when selects Ok and prints success once, followed by newline",
       "expected_lines": 1,
-      "expected_bytes": 5,
-      "stdout": "good\n"
+      "expected_bytes": 5
     },
     "p17_lambda": {
       "kind": "run_ok",

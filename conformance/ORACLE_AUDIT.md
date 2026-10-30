@@ -112,6 +112,26 @@
 | `e` | enum subject `when` 在 compilation-unit 管线中的回退（E2 门槛） | 4 | 4 | 0 | 0 | 0 | 4 / 4 | `all_passed` |
 | **合计** | **11 个演进批次** | **154** | **121** | **14** | **3** | **16** | **138 / 154** | **8 全通过 / 3 部分通过** |
 
+### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（7 Markers）
+
+| 允许记号 (`allowed_marker`) | 归属编译阶段 | 记号契约说明 | 基线命中数 (`baseline_marker`) | 授权 Probe 数 | 授权 Program 数 |
+|---|---|---|---:|---:|---:|
+| `FE:L0080` | Phase 2 名称解析 | 前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`） | 2 | 2 | 6 |
+| `FE:L0084` | Phase 2 类型检查 | 前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`） | 0 | 0 | 6 |
+| `FE:L0085` | Phase 2 运算符类型 | 前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`） | 0 | 0 | 6 |
+| `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 5 | 14 | 6 |
+| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 8 | 16 | 6 |
+| `BE:UnsupportedSource` | Phase 4 Native Object | 后端原生目标文件生成阶段尚未支持的调用来源 | 0 | 1 | 0 |
+| `BE:MissingFact` | Phase 3/4 事实交接 | 前端到后端 lowering 所需的所有权或类型事实尚未完备 | 0 | 16 | 6 |
+
+### 1.8 初始 85 探针（`p`/`q`/`r`/`s` 批次 A/B/C 三组）与 P2 阶段门槛对账矩阵
+
+| 分组 | 分组定义与审计口径 | 总数 | 可运行 (`run_ok` + `runtime_abort`) | `compile_fail` | `known_unimplemented` | 阶段门槛 / 当前状态说明 |
+|---|---|---:|---:|---:|---:|---|
+| **A 组** | A 组：合法基础程序（P2 门槛基数） | 74 | 58 (56 + 2) | 1 (`q17_generic_class`) | 15 | P2 门槛 `≥ 70 / 74`（当前 `58 / 74`，距门槛差 `12` 项） |
+| **B 组** | B 组：应拒基础探针（静态/借用/类型拒绝） | 8 | 0 | 8 | 0 | `8 / 8 (100%)` 精确命中期望前端诊断码 (`pass_diagnostic`) |
+| **C 组** | C 组：v0.44 待裁决项（已在 v0.46 规范定案） | 3 | 1 (`p37_is_generic_case`) | 1 (`p23_global_var`) | 1 (`p35_value_eq`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
@@ -122,6 +142,21 @@
 | `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `N01`, `N02` | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | 28 行 / 369 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
 | `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `N01`, `N08`, `L3b` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | 17 行 / 375 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
 | `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | 16 行 / 187 B | `FE:L0080`, `FE:L0084`, `FE:L0085`, `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` |
+
+### 2.1 六个 V1 验收程序按路线图阻塞项（`v1.json`）归类对账（10 Roadmap Blockers）
+
+| 路线图条目 ID | 路线图条目标题 | 状态 | 阻塞 Program 数 | 阻塞的验收程序 (`programs`) | 同时阻塞的 Probe 数 |
+|---|---|---|---:|---|---:|
+| `L1` | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable | `todo` | 1 | `config_parse` | 2 |
+| `L2` | 字符串插值降级："${x}" 要求 x : Display | `todo` | 1 | `config_parse` | 1 |
+| `L3b` | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | `todo` | 1 | `varint_codec` | 0 |
+| `L7` | MoveOnly enum 的消费式匹配：owned subject 分支获得 payload owned 绑定 | `todo` | 2 | `expr_eval`, `linked_stack` | 2 |
+| `N01` | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | `partial` | 3 | `linked_stack`, `raii_state_machine`, `varint_codec` | 1 |
+| `N02` | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | `partial` | 4 | `config_parse`, `expr_eval`, `raii_state_machine`, `word_count` | 1 |
+| `N03` | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | `partial` | 2 | `linked_stack`, `word_count` | 2 |
+| `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 1 | `expr_eval` | 2 |
+| `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 2 | `expr_eval`, `linked_stack` | 1 |
+| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 3 | `config_parse`, `expr_eval`, `varint_codec` | 1 |
 
 ## 3. 16 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
 
