@@ -11,19 +11,19 @@
 [CI39957053961](https://github.com/Halckon/Koven/actions/runs/39957053961) 最终 cancelled，不记为通过。
 2026-10-23 的 v0.45 前置判断已由本次核查取代；原冻结观察仍见 [baseline](baseline.md)。
 “已有有界证据”仅表示所列入口和场景；不得外推到所有泛型、所有权模式或新 API。
-用户已批准 [文本／IO 合同](../../proposals/text-input-and-io.md#eco-v1-m0-使用合同建议2026-10-22未启用)
-及后续 Guide 启用；v0.46 已启用相关错误模型，但 [本版边界](../../guide/15-conformance-and-staging.md#v046-启用边界)
-明确排除文本 API 与文件／标准 IO，不能把版本升级视作这些 API 已启用。
+用户已批准 [文本／IO 合同](../../archive/migrations/text-io-approved-contract.md#eco-v1-m0-使用合同建议2026-10-22未启用)
+及后续 Guide 启用；[SPEC-0366](../../archive/specs/0366-text-io-guide.md)在 v0.47 写入文本／IO 与用户补选错误规则。
+上列 v0.46 输入身份保留为核查基线；规范迁移不改变下列生产实现观察。
 
 ## M0-S5：能力、入口与后继
 
 | 能力 | 当前状态与直接来源 | 需要先闭合的事项／使用方 |
 |---|---|---|
 | argv 与进程入口 | Guide13 已允许 Result process entry；当前 [CLI 选择器](../../../crates/lang-cli/src/unit_build.rs) 的 `process_entry_shape` 仍只接受 Unit 返回；[0274](../../archive/specs/0274-argv-word-frequency.md)有 argv 应用证据 | 可复用参数输入；不能据此提供文件读取或宣称 Result main 已实现。三个工具仍需生产方错误退出交付 |
-| String 核心 | [Guide13](../../guide/13-program-runtime-standard-library.md)只发布拼接、clone、相等与 println 等封闭操作 | byteLength、解码、切片、分行、split、数字解析须先进入 Guide；格式化沿用 Display 合同，仍需普通 single/project 实现验收；日志与 CSV 均依赖这些能力 |
+| String 核心 | [Guide13](../../guide/13-program-runtime-standard-library.md)已定义核心 String 与 v0.47 文本表面；现有实现证据仍限各自已交付 Spec | byteLength、解码、切片、分行、split、数字解析已由 v0.47 定义，生产实现待交付；格式化沿用 Display 合同，仍需普通 single/project 实现验收；日志与 CSV 均依赖这些能力 |
 | Result 数据值 | [0349](../../archive/specs/0349-builtin-result-and-check.md)已交付内建 Result/Ok/Err、subject 推断及 check；[标准源加载](../../../crates/lang-cli/src/standard_sources.rs)按 SourceId 授权 result.ko | 声明或 bootstrap 成功不证明自动传播、must-use、Display 或 Result main。恢复错误／退出沿用已启用 Guide09/13，补实现与直接验收，不另造退出函数 |
 | Map 聚合 | [0295](../../archive/specs/0295-map-argv-word-frequency.md)记录 argv 词频的双入口有界证据；[0291](../../specs/active/0291-readonly-map-construction.md)、[0333](../../specs/active/0333-static-map-callers.md)仍有独立范围 | 复用已验收调用形状，不能将 active 合同或存在编号当完成；日志聚合还依赖文本、IO、溢出与输出合同 |
-| 文件、路径与目录 | [Guide13](../../guide/13-program-runtime-standard-library.md)限定同步阻塞模型；标准库源码资产为 prelude、ranges 与 core/result | 模型不是可调用 API。已批准的路径编码、读写／枚举、close、flush 与失败清理先迁入新版本 Guide，再立实现 Spec；三个工具均受此阻塞 |
+| 文件、路径与目录 | [Guide13](../../guide/13-program-runtime-standard-library.md)限定同步阻塞模型；标准库源码资产为 prelude、ranges 与 core/result | 模型不是可调用 API。路径编码、读写／枚举、close、flush 与失败清理已迁入 v0.47；后继实施仍须正式 Spec；三个工具均受此阻塞 |
 | 用户测试工具 | [教程 runner](../../../scripts/check_tutorial.py)已有源码／命令／stdout／stderr／退出状态 oracle；不是用户项目测试发现器 | [0354](../../archive/specs/0354-conformance-corpus.md)的固定种子矩阵也不是用户测试发现器。M1-S4 必须另定发现、筛选、断言、失败位置、机器结果和零测试行为；复用现有执行合同，不追认已有 runner 为完整用户测试工具 |
 | 普通编译入口 | [0341](../../specs/active/0341-shared-lowering-core.md)仍为 in-progress | PR220已交付有界 iteration Unit witnesses，PR225/162仍在处理迁移待项；新能力须核实际 single/project 路径，不能从局部退役测试推定整条管线完成 |
 | 安装与版本切换 | [0345](../../archive/specs/0345-preview-version-manager.md)及 PR128 完成双宿主真实 parameter-report 消费 | 可复用安装管理；包内示例不是日志、目录或 CSV 工具，三工具最终安装验收仍待 M1-S5–S7 |
@@ -47,9 +47,9 @@
 ## 下一步与完成边界
 
 本矩阵完成“缺口对应哪份已有合同、哪些前置不能跳过”的盘点；M0 尚不 completed。
-优先落实已批准文本／IO 的新版本 Guide 迁移；无需再次等待 v0.46 启用，也不把尚未获得本生态直接验收的
-Display 或仍被入口选择器拒绝的 Result main 当可用。规范迁移与实现分开验收；迁移前不增加候选 public API。
+规范迁移由 SPEC-0366 承接；后继依次落实文本与 IO 实现，也不把尚未获得本生态直接验收的
+Display 或仍被入口选择器拒绝的 Result main 当可用。规范迁移与实现分开验收。
 Guide 迁移交付后，按 M1-S1→S2→S3 与 M1-S4 的依赖组织实现。
-[编译器路线图](../../roadmap/README.md)的 L5/L6 仍有旧接口摘要，与已批准候选的字节偏移、
-显式输入上限及 Result 错误表面不同；迁移时须逐项对账，不混成两套标准库 API，也不删减其他 v1 目标。
+[编译器路线图](../../roadmap/README.md)的 L5/L6 已对齐已批准的字节偏移、显式输入上限及 Result 表面；
+未启用的其他 v1 目标继续保留，不能混成第二套标准库 API。
 跨仓库兼容组合须独立真实运行，本页不以文档门禁替代该证据。

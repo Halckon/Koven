@@ -3,7 +3,7 @@ mod drop_point;
 pub use drop_point::UnitDropPoint;
 
 mod loan;
-pub use loan::{UnitLoanFact, UnitLoanTarget};
+pub use loan::{UnitDirectCallLoanEndFact, UnitLoanFact, UnitLoanTarget};
 
 mod analysis;
 mod binding;
@@ -606,6 +606,7 @@ pub struct CompilationUnitOwnership {
     receiver_facts: Vec<UnitReceiverOwnershipFact>,
     conditional_receiver_deliveries: Vec<UnitConditionalReceiverDeliveryFact>,
     delegations: Vec<UnitDelegationOwnershipPlan>,
+    direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
     rc_effects: Vec<UnitRcOwnershipEffect>,
@@ -801,6 +802,11 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
+            direct_call_loan_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.direct_call_loan_ends
+            } else {
+                Vec::new()
+            },
             loans: dataflow.loans,
             value_deliveries: dataflow.value_deliveries,
             rc_effects: dataflow.rc_effects,
@@ -930,13 +936,25 @@ impl CompilationUnitOwnership {
         &self.delegations
     }
 
+    /// 普通直接调用 Borrow 实参的实际结束事件，保持 planner 的结束动作顺序。
+    /// 仅覆盖 owned-result、无 receiver 的 declaration/symbol call：operand 为可分组的
+    /// owned val/var 或具名参数根，或无插值 String 字面量。不包含借用绑定、provider 来源/绑定、投影、
+    /// 构造结果、借用结果、来源移交、Inout、receiver 或 capture end。
+    /// 本轮任一 provider 使用的名称根均保守排除，不按调用位置扩大准入。
+    /// 空列表不证明其它种类的 loan 仍活跃或已经结束。
+    #[must_use]
+    pub fn direct_call_loan_ends(&self) -> &[UnitDirectCallLoanEndFact] {
+        &self.direct_call_loan_ends
+    }
+
     /// 返回源码/调用顺序稳定的有效同步 loans。
     #[must_use]
     pub fn loans(&self) -> &[UnitLoanFact] {
         &self.loans
     }
 
-    /// 返回在指定 call 结束的 loans。
+    /// 返回由指定 call 建立的 loan 描述符，按所属 call identity 筛选。
+    /// 此查询不表示实际 loan-end 事件；借用结果的来源可延续到后续消费边界。
     pub fn loans_ending_at(&self, call: UnitExpressionId) -> impl Iterator<Item = &UnitLoanFact> {
         self.loans.iter().filter(move |loan| loan.call() == call)
     }

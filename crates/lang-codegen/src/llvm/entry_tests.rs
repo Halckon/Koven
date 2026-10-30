@@ -143,6 +143,16 @@ fn borrowed_arguments_plan_builds_checked_argv_owner_wrapper() {
     assert!(llvm.contains("@koven.entry.valid_utf8"), "{llvm}");
     assert!(llvm.contains("argv.preflight"), "{llvm}");
     assert!(llvm.contains("argv.construct"), "{llvm}");
+    assert!(
+        llvm.contains("%argv.length_exceeded = icmp ugt i64 %argv.preflight.length, 2147483647"),
+        "argv must enforce the language limit: {llvm}"
+    );
+    assert!(
+        llvm.contains(
+            "br i1 %argv.length_exceeded, label %argv.invalid, label %argv.preflight.length_valid"
+        ),
+        "oversize argv must return failure before UTF-8 reads or owner construction: {llvm}"
+    );
     assert!(llvm.contains("call void @f0.app(ptr"), "{llvm}");
     assert!(llvm.contains("call void @koven.drop.t"), "{llvm}");
     assert!(

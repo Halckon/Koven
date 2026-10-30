@@ -1,10 +1,10 @@
-# Koven v0.46 语言规范
+# Koven v0.47 语言规范
 
-> **性质**：规范性语言规范入口 · **状态**：current（v0.46） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
+> **性质**：规范性语言规范入口 · **状态**：current（v0.47） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
 
-<!-- current-guide: v0.46 -->
+<!-- current-guide: v0.47 -->
 
-本规范定义 Koven v0.46。它不是教程，也不描述某项功能何时完成；当前实现事实见
+本规范定义 Koven v0.47。它不是教程，也不描述某项功能何时完成；当前实现事实见
 [Architecture](../architecture/README.md)，未来设计见 [Proposals](../proposals/README.md)。
 已分离的内部表示、算法与资源合同见 [Compiler Contracts](../compiler-specs/README.md)；
 本 Guide 继续作为 Language Reference，语言语义、诊断与强制 Phase 权威不变。
@@ -36,6 +36,10 @@ Spec归档或后继里程碑推进，只证明各自验收范围，不能视为�
 | 权威边界、Phase、门禁和明确非目标 | [一致性与实施边界](15-conformance-and-staging.md) |
 
 ## 版本与边界
+
+- v0.47 完整继承 v0.46，启用已批准的 UTF-8 字节文本、严格解析、同步文件／目录／标准流及
+  String 长度上限与 checkedPlus；见 [本版边界](15-conformance-and-staging.md#v047-启用边界)。
+  [启用账本](../archive/migrations/v0.47-enablement.md)保全旧版并记录全部决定；规范启用不等于实现完成。
 
 - v0.46 完整继承并取代 v0.45，启用 v1 待决规则：错误模型与 abort 输出、`Result` 进入内建环境、
   顶层只接受 `const val`、`Equatable`/`Hashable`/`Display`、字符串插值、非逃逸闭包可变捕获、

@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，338 份）"]
+subgraph Garchive["已完成（archive，340 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -347,6 +347,8 @@ subgraph Garchive["已完成（archive，338 份）"]
   S0363["S0363<br/>borrowed closure 的词法 scope 逃逸诊断"]
   S0364["S0364<br/>E3 闭包家族迁入所有权细化层"]
   S0365["S0365<br/>带捕获闭包返回的来源事实"]
+  S0366["S0366<br/>文本与同步 IO 规范启用"]
+  S0367["S0367<br/>String 创建入口的 Int 字节长度不变量"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1429,6 +1431,7 @@ S0342 --> S0343
 S0343 --> S0354
 S0343 --> S0355
 S0354 --> S0349
+S0366 --> S0367
 ```
 
 ## 节点链接
@@ -1773,6 +1776,8 @@ S0354 --> S0349
 | SPEC-0363 | archive | [0363-closure-scope-escape.md](0363-closure-scope-escape.md) |
 | SPEC-0364 | archive | [0364-refine-closures.md](0364-refine-closures.md) |
 | SPEC-0365 | archive | [0365-closure-return-facts.md](0365-closure-return-facts.md) |
+| SPEC-0366 | archive | [0366-text-io-guide.md](0366-text-io-guide.md) |
+| SPEC-0367 | archive | [0367-string-length-invariant.md](0367-string-length-invariant.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |

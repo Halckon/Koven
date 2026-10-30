@@ -1,8 +1,8 @@
-# Koven v0.46：一致性、Phase 与实施边界
+# Koven v0.47：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.46） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.47） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.46 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.47 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -448,7 +448,18 @@ v0.46 完整继承 v0.45，仅启用下列规则；具体规则只由相应领�
 
 unsafe、`extern "C"` 与 `RawPtr` 草图移到 [proposals](../proposals/unsafe-and-ffi-boundary.md)，不再是 v1 的语言承诺。
 
-不启用 `exitProcess`、文本 API 与文件/标准输入输出、`Pair`/`to`、集合高层 API、MoveOnly enum
+v0.46 本身不启用 `exitProcess`、文本 API 与文件/标准输入输出、`Pair`/`to`、集合高层 API、MoveOnly enum
 消费式匹配、共享内存并发、静态不可变存储，也不改变 v0.45 的两模式一致性要求。
 规范启用不表示上述规则已经实现：未实现的路径必须结构化拒绝，不能伪造事实或把 Deferred
 当成功；新诊断码由实施各项的 Spec 分配。
+
+## v0.47 启用边界
+
+v0.47 完整继承 v0.46，仅增加 [Guide13 文本与同步 IO](13-program-runtime-standard-library.md#文本字节与严格解析)
+及 [Guide02 标准源](02-names-files-packages.md#标准环境与允许加载的标准库源)的对应可见性；
+[Guide05](05-declarations-callables.md)仅允许本版枚举的可信标准 String Borrow 扩展，N1a 与用户扩展边界保持。
+String 字节长度上限、checkedPlus、UTF-8 序列起点和解析错误优先级以 Guide13 为唯一语义真源。
+本版不启用 exitProcess、显式可关闭流 owner、StringBuilder、未列出的文本／网络 API、公开 FFI 或新的异常模型；
+这些后继目标不因本版便利函数完成而取消。三个示范程序的产品上限与格式不属于语言容量规则。
+规范启用不表示 API 已实现；公共逻辑仍归 Koven 标准源，最小 runtime 处理必要边界。
+各实现 Spec 必须分别验证单文件/project 的正常与错误路径、owner/loan/资源清理及目标宿主行为。
