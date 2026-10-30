@@ -366,6 +366,7 @@ class DocsChecker:
             load_expectations,
             parse_tsv_matrix,
             render_oracle_audit_markdown,
+            sync_readme_chapter_table,
         )
 
         try:
@@ -382,6 +383,14 @@ class DocsChecker:
                 if actual_md != expected_md:
                     self.error(
                         "conformance/ORACLE_AUDIT.md is out of sync with expectations.json (run `python3 scripts/conformance_gate.py --init-expectations`)"
+                    )
+            readme_md_path = corpus / "README.md"
+            if readme_md_path.is_file():
+                actual_readme = readme_md_path.read_text(encoding="utf-8")
+                expected_readme = sync_readme_chapter_table(actual_readme, data)
+                if actual_readme != expected_readme:
+                    self.error(
+                        "conformance/README.md chapter coverage table is out of sync with expectations.json (run `python3 scripts/conformance_gate.py --init-expectations`)"
                     )
         except Exception as exc:
             self.error(f"conformance/expectations.json: {exc}")
