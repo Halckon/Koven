@@ -876,3 +876,36 @@ D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交�
 
 仅发布 Draft PR，不 Ready、不 formal approve、不合并。后续 CI 结果须绑定实际 head/base/merge，
 不得用 #237 的结果冒充本批生产 span 修改验收。
+
+## 55. Nullable 类型名与 Range 完整标签候选（2026-10-30）
+
+基线为实际 main `eea83d4cfa896287cb3fafe703d36dae0489019b`，隔离分支
+`fix/spec-0341-nullable-type-diagnostics`。本片为 Phase 2 诊断候选，旧 Single witness
+及所有原源码保留，净退休为 0；不触碰 while lowering、L0082 标签差异或其他工作线。
+
+- Unit body checker 的 `type_name` 对 Nullable 递归调用现有 inner formatter 并追加 `?`；
+  不扩充合法操作数，不修改类型事实、错误码、主消息、primary 或 labels 顺序。
+  非 nullable formatter 分支保持不变；nullable nominal/intrinsic 等内部类型仍沿用其既有
+  inner 显示规则，本片不声明一般类型名美化已完成。
+- `integer_range_values` 的 Int?/Long? × `..`/`..<` 四源不再跳过完整诊断对照：
+  Single、rooted Unit、MemoryDocument Unit 均由既有独立 source-derived oracle 核
+  L0085 severity/message/operator span、左右 operand 的有序 labels 与无额外 details，
+  再核 raw==final、无部分 range facts。原 26 个非 nullable 负源、其他成功/拒绝测试、
+  同轮 SourceMap/ParsedFile 身份、完整 raw/final comparator 与 L0082 独立 oracle 均保留。
+- formatter 还服务 expected/found、调用、分支、构造和容器诊断，故风险不限于 Range；
+  官方 CI 须保留完整既有 bounded stage、CLI/LSP 与双宿主门禁，不缩 runner 或测试选择。
+  本片没有新增 CLI/LSP golden，不把 frontend 断言当成其消费链验收。
+- checker 物理行 1184→1185，沿用现有 1226 行例外上限，不改 policy；此增长只修正
+  既有 formatter 分支，独立静审确认职责与既有拆分约束未扩，不机械拆文件或压行。
+
+| 验收项 | 精确输入/选择 | 状态 |
+|---|---|---|
+| 原源码、Single witness、完整固定诊断 | 两 Rust 文件的有界 diff | 静态核验通过；六个 test 定义及旧 API 调用数不变，无本地 red/green |
+| 格式、文档、diff、尺寸 | rustfmt 两文件；check_docs.py；git diff --check；check_rust_sizes.py --base eea83d4c | 静态通过；823 Markdown、2035 手写 Rust，39 个旧超限文件；无新增例外 |
+| 独立静审 | 生产一臂、原源码/Single/oracle 保全及一行增长 | 无本地候选阻塞；非 formal approve、非行为验收 |
+| 编译、clippy、直接行为及共享 formatter 调用方 | 官方既有完整 CI 选择，绑定后续精确 head/base/merge | 未运行 |
+| 本地 cargo/build/check/test/clippy/native | 用户要求禁止 | 未运行 |
+
+上述为本地候选阶段的静态结果；现按用户批准提交并发布 Draft PR，启动官方 CI，
+并邀请 Slack 独立审查。CI 与审查须分别绑定发布头核验；不 Ready、formal approve 或合并，
+不以本地静审替代正式审查及动态验收。D10/E2 继续 in-progress。
