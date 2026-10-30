@@ -12,7 +12,7 @@ mod return_control_tests;
 
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{NameResolution, resolve_names},
+    name_resolution::{DeclarationId, NameResolution, SourceUnitKey, SymbolKind, resolve_names},
     ownership_checking::{OwnershipCheckedFile, check_ownership},
     parser::{ParsedFile, parse_file},
     source::SourceMap,
@@ -24,7 +24,9 @@ use super::{
     model::Operation,
     render::render_program,
 };
-use crate::llvm::render_verified_program;
+use crate::{
+    llvm::render_verified_program, native_tests::boxed_enum_tests::unit_source::UnitSource,
+};
 
 #[path = "call_lifetimes_tests.rs"]
 mod call_lifetimes_tests;
@@ -62,38 +64,64 @@ fn analyze(text: &str) -> Analysis {
     }
 }
 
-// Preserve the original whole-file rejection independently of the Unit positive oracles.
+// These complete single-root sources retain their original test identities through Unit.
+fn analyze_single_root(text: &str, name: &str) -> (UnitSource, DeclarationId) {
+    let unit = UnitSource::analyze("lowering.ko", text).expect("strict original Unit admission");
+    unit.assert_frontend_clean();
+    assert!(unit.ownership().deferred().is_empty());
+    assert_eq!(unit.parsed().roots().len(), 1);
+    let [document] = unit.names().names().index().source_units() else {
+        panic!("one original MemoryDocument");
+    };
+    assert_eq!(document.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(document.source_id(), unit.parsed().source_id());
+    assert_eq!(
+        unit.sources().source_name(document.source_id()),
+        Ok("lowering.ko")
+    );
+    assert_eq!(unit.sources().source_text(document.source_id()), Ok(text));
+    let declaration = unit.declaration(name, SymbolKind::Function);
+    assert_eq!(
+        unit.sources().slice(unit.declaration_span(declaration)),
+        Ok(text)
+    );
+    (unit, declaration)
+}
+
 #[test]
 fn rejects_nested_interpolation_in_error_at_whole_file_boundary() {
-    let unsupported = analyze("fun abortInterpolated(): Unit { error(\"${1}\") }");
-    let error = match lower_scalar_file(
-        &unsupported.sources,
-        &unsupported.parsed,
-        &unsupported.names,
-        &unsupported.typed,
-        &unsupported.owned,
-    ) {
-        Ok(_) => panic!("String interpolation remains outside this native slice"),
-        Err(error) => error,
-    };
+    let text = "fun abortInterpolated(): Unit { error(\"${1}\") }";
+    let (unit, declaration) = analyze_single_root(text, "abortInterpolated");
+    let error = unit
+        .lower_entry(declaration)
+        .err()
+        .expect("String interpolation remains outside this native slice");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
+    let span = error
+        .span
+        .expect("nested interpolation retains source span");
+    assert_eq!(span.source_id(), unit.parsed().source_id());
+    assert_eq!(unit.sources().slice(span), Ok("\"${1}\""));
+    assert_eq!(span.start(), text.find('"').unwrap());
+    assert_eq!(span.end(), text.rfind('"').unwrap() + 1);
 }
 
 #[test]
 fn rejects_nested_interpolation_in_println_at_whole_file_boundary() {
-    let unsupported = analyze("fun output(): Unit { println(\"${1}\") }");
-    let error = match lower_scalar_file(
-        &unsupported.sources,
-        &unsupported.parsed,
-        &unsupported.names,
-        &unsupported.typed,
-        &unsupported.owned,
-    ) {
-        Ok(_) => panic!("interpolated println remains outside this native slice"),
-        Err(error) => error,
-    };
+    let text = "fun output(): Unit { println(\"${1}\") }";
+    let (unit, declaration) = analyze_single_root(text, "output");
+    let error = unit
+        .lower_entry(declaration)
+        .err()
+        .expect("interpolated println remains outside this native slice");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    let span = error
+        .span
+        .expect("nested interpolation retains source span");
+    assert_eq!(span.source_id(), unit.parsed().source_id());
+    assert_eq!(unit.sources().slice(span), Ok("\"${1}\""));
+    assert_eq!(span.start(), text.find('"').unwrap());
+    assert_eq!(span.end(), text.rfind('"').unwrap() + 1);
 }
 
 #[test]
@@ -583,19 +611,30 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
 
 #[test]
 fn non_null_assertion_does_not_register_unreachable_inline_types() {
-    let analysis =
-        analyze("fun inspect(): Int { return 0\nval unused: Int? = 1\nval asserted = unused!! }");
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert_eq!(analysis.typed.non_null_assertions().len(), 1);
-    assert!(analysis.owned.non_null_assertions().is_empty());
-    lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("unreachable typed facts cannot enable or reject runtime layouts");
+    let text = "fun inspect(): Int { return 0\nval unused: Int? = 1\nval asserted = unused!! }";
+    let (unit, declaration) = analyze_single_root(text, "inspect");
+    assert!(unit.types().diagnostics().is_empty());
+    assert_eq!(unit.types().non_null_assertions().len(), 1);
+    assert!(unit.ownership().non_null_assertions().is_empty());
+    let (program, root) = unit
+        .lower_entry(declaration)
+        .expect("unreachable typed facts cannot enable or reject runtime layouts");
+    super::verify::verify_program(&program).expect("original single-root SSA verifies");
+    render_verified_program(&program).expect("original single-root LLVM verifies");
+    let module = program.module(root.module()).expect("returned module");
+    assert_eq!(module.functions.len(), 1);
+    assert_eq!(
+        module.types,
+        [super::model::SsaTypeKind::Integer {
+            bits: 32,
+            signed: true
+        }]
+    );
+    let function = module.function(root).expect("returned root");
+    assert_eq!(
+        function.origin,
+        super::model::Origin::Source(unit.declaration_span(declaration))
+    );
 }
 
 #[path = "constant_lowering_tests.rs"]

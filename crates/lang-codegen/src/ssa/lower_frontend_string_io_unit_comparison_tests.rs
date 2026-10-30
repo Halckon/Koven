@@ -1,5 +1,5 @@
 //! Original String I/O sources through strict MemoryDocument Unit admission.
-//! Legacy whole-file interpolation rejections remain independent boundary tests.
+//! Original single-root interpolation rejections retain independent Unit boundary tests.
 //! Every original root is selected separately; this is not whole-file/native equivalence.
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 

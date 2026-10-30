@@ -1,4 +1,5 @@
-//! SPEC-0179 同源 Unit 对照；原 Single、ordering 与上游 recovery witness 不删除。
+//! SPEC-0179 同源 Unit 合同；四组正例使用独立固定空诊断 oracle。
+//! 其余 Single comparator、ordering 与上游 recovery witness 保留。
 //! 两个入口各自使用真实 source key，不是 multi-source 覆盖。
 //! The two counterparts deferred after CI run 40825988901 are restored after the
 //! final-admission repair in PR #223. Their original raw Single witnesses remain.
@@ -30,9 +31,29 @@ fn checked(entry: Entry, text: &str) -> (SourceMap, CompilationUnitTypes) {
     (sources, typed)
 }
 
+// These positive fixtures have a fixed empty raw/final Diagnostic oracle. Neither
+// Unit entry can obtain its expected diagnostics from a Single analysis or its peer.
+fn checked_without_diagnostics(entry: Entry, text: &str) -> (SourceMap, CompilationUnitTypes) {
+    let (sources, _, _, typed) = analyzed_with_oracle(entry, text, true);
+    (sources, typed)
+}
+
 fn analyzed(
     entry: Entry,
     text: &str,
+) -> (
+    SourceMap,
+    ParsedFile,
+    ValidatedCompilationUnitNames,
+    CompilationUnitTypes,
+) {
+    analyzed_with_oracle(entry, text, false)
+}
+
+fn analyzed_with_oracle(
+    entry: Entry,
+    text: &str,
+    expect_no_diagnostics: bool,
 ) -> (
     SourceMap,
     ParsedFile,
@@ -48,14 +69,6 @@ fn analyzed(
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    // Independent legacy compatibility oracle on exactly the same SourceMap and AST.
-    let single_names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(
-        single_names.diagnostics().is_empty(),
-        "{:?}",
-        single_names.diagnostics()
-    );
-    let single = check_types(&sources, &parsed, &single_names, &types).unwrap();
     let inputs = [match entry {
         Entry::Rooted => SourceUnitInput::new("root", "iteration.ko", source, &parsed),
         Entry::MemoryDocument => SourceUnitInput::memory_document(source, &parsed),
@@ -67,32 +80,49 @@ fn analyzed(
         index.diagnostics()
     );
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
-    assert_eq!(
-        names.diagnostics(),
-        single_names.diagnostics(),
-        "{entry:?}: {text}"
+    assert!(
+        names.diagnostics().is_empty(),
+        "{entry:?}: {text}: {:?}",
+        names.diagnostics()
     );
     let names = names.validate().unwrap();
     let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
-    // Full Diagnostic equality includes severity, code, message, spans and details; no code-only projection.
-    assert_eq!(
-        typed.diagnostics(),
-        single.diagnostics(),
-        "{entry:?}: {text}"
-    );
-    let single_complete = complete_file_types(&sources, &parsed, &single_names, &types, &single)
-        .map(|complete| complete.is_same_analysis(&single));
     let unit_complete = complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
         .map(|complete| complete.is_same_analysis(&typed));
-    match (single_complete, unit_complete) {
-        (Ok(single_same), Ok(unit_same)) => assert!(single_same && unit_same),
-        (
-            Err(FinalTypeAdmissionError::Diagnostics(single)),
-            Err(FinalTypeAdmissionError::Diagnostics(unit)),
-        ) => {
-            assert_eq!(single, unit, "{entry:?}: {text}");
+    if expect_no_diagnostics {
+        // Empty slices fix the full Diagnostic sequence, including all labels and order.
+        assert_eq!(typed.diagnostics(), &[], "{entry:?}: {text}");
+        assert!(
+            matches!(unit_complete, Ok(true)),
+            "{entry:?}: {text}: {unit_complete:?}"
+        );
+    } else {
+        // Retained negative/recovery contracts still compare complete diagnostics.
+        let single_names = resolve_names(&sources, &parsed, &environment).unwrap();
+        assert_eq!(
+            names.names().diagnostics(),
+            single_names.diagnostics(),
+            "{entry:?}: {text}"
+        );
+        let single = check_types(&sources, &parsed, &single_names, &types).unwrap();
+        assert_eq!(
+            typed.diagnostics(),
+            single.diagnostics(),
+            "{entry:?}: {text}"
+        );
+        let single_complete =
+            complete_file_types(&sources, &parsed, &single_names, &types, &single)
+                .map(|complete| complete.is_same_analysis(&single));
+        match (single_complete, unit_complete) {
+            (Ok(single_same), Ok(unit_same)) => assert!(single_same && unit_same),
+            (
+                Err(FinalTypeAdmissionError::Diagnostics(single)),
+                Err(FinalTypeAdmissionError::Diagnostics(unit)),
+            ) => assert_eq!(single, unit, "{entry:?}: {text}"),
+            other => {
+                panic!("completion mismatch or internal failure: {entry:?}: {text}: {other:?}")
+            }
         }
-        other => panic!("completion mismatch or internal failure: {entry:?}: {text}: {other:?}"),
     }
     let [indexed] = names.names().index().source_units() else {
         panic!("one actual source");
@@ -157,7 +187,7 @@ fn range_view_publishes_a_distinct_shared_provider_without_owned_container_ident
     for entry in ENTRIES {
         use lang_frontend::type_checking::{IterationProvider, ParameterMode};
         for element in ["String", "Item", "Token"] {
-            let (_, typed) = checked(
+            let (_, typed) = checked_without_diagnostics(
                 entry,
                 &format!(
                     "class Item(val n:Int){{}}\nclass Token{{deinit(){{}}}}\nfun run(source:View<{element}>):Unit{{for(item in source){{}}}}"
@@ -188,7 +218,7 @@ fn three_providers_publish_name_discard_and_ordered_borrowed_components() {
             let text = format!(
                 "value class Pair<T>(val first: T, val second: Boolean)\nfun run(xs: {container}<Pair<Int>>) {{ for (item in xs) {{}} for (_ in xs) {{}} for ((n, _) in xs) {{ val i: Int = n }} }}"
             );
-            let (_, typed) = checked(entry, &text);
+            let (_, typed) = checked_without_diagnostics(entry, &text);
             assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
             let plans = typed.sequential_iterations();
             assert_eq!(plans.len(), 3);
@@ -231,7 +261,7 @@ fn three_providers_publish_name_discard_and_ordered_borrowed_components() {
                 typed.types().get(components[1].ty()),
                 Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
             );
-            let (_, repeated) = checked(entry, &text);
+            let (_, repeated) = checked_without_diagnostics(entry, &text);
             assert_eq!(plans, repeated.sequential_iterations());
             assert!(
                 typed.destructurings().is_empty(),
@@ -280,7 +310,7 @@ fn invalid_patterns_do_not_publish_partial_plans() {
 #[test]
 fn move_only_element_is_typed_without_phase_three_rejections() {
     for entry in ENTRIES {
-        let (_, typed) = checked(
+        let (_, typed) = checked_without_diagnostics(
             entry,
             "class Node {}\nvalue class Pair(val node: Node, val flag: Boolean)\nfun consume(own n: Node) {}\nfun run(xs: List<Pair>) { for ((n, _) in xs) { consume(n) } }",
         );
@@ -469,7 +499,7 @@ fn nominal_rejections_label_the_source_or_element_declaration() {
 fn source_modes_and_nested_loops_preserve_unique_source_identities() {
     for entry in ENTRIES {
         for parameter in ["own xs: List<Int>", "xs: List<Int>", "inout xs: List<Int>"] {
-            let (_, typed) = checked(
+            let (_, typed) = checked_without_diagnostics(
                 entry,
                 &format!(
                     "fun run({parameter}) {{ for (n in xs) {{ for (m in xs) {{ val x: Int = m }} }} }}"
@@ -485,7 +515,7 @@ fn source_modes_and_nested_loops_preserve_unique_source_identities() {
                 typed.sequential_iterations()[1].source()
             );
         }
-        let (_, typed) = checked(
+        let (_, typed) = checked_without_diagnostics(
             entry,
             "class Holder(val xs: List<Int>) {}\nfun run(h: Holder) { for (n in h.xs) { val x: Int = n } }",
         );
