@@ -94,7 +94,8 @@ fn assert_numeric_range_probe() {
             assert_eq!(executable.exists(), command == "build");
             let mut after = directory_snapshot(&directory.0);
             if command == "build" {
-                after.retain(|(path, _)| path != std::path::Path::new("numeric-range"));
+                super::build_outputs::assert_debug_bundle(&executable);
+                after.retain(|(path, _)| !super::build_outputs::is_final_output(&executable, path));
             }
             assert_eq!(after, before, "source bytes and temporary output cleanup");
         }
@@ -223,10 +224,16 @@ fn single_integer_control_joins_execute() {
     assert_eq!(launched.status.code(), Some(0), "{launched:?}");
     assert_eq!(launched.stdout, b"joined\n");
     assert!(launched.stderr.is_empty(), "{launched:?}");
+    super::build_outputs::assert_debug_bundle(&executable);
+    let mut snapshot = directory_snapshot(&directory.0);
+    snapshot.retain(|(path, _)| {
+        path == std::path::Path::new(executable.file_name().expect("output name"))
+            || !super::build_outputs::is_final_output(&executable, path)
+    });
     assert_eq!(
-        directory_snapshot(&directory.0).len(),
+        snapshot.len(),
         2,
-        "source and executable only"
+        "source and executable only outside the debug bundle"
     );
 }
 
@@ -323,9 +330,15 @@ fn single_local_assignment_unit_value_executes() {
     assert_eq!(launched.status.code(), Some(0), "{launched:?}");
     assert_eq!(launched.stdout, b"assigned\n");
     assert!(launched.stderr.is_empty(), "{launched:?}");
+    super::build_outputs::assert_debug_bundle(&executable);
+    let mut snapshot = directory_snapshot(&directory.0);
+    snapshot.retain(|(path, _)| {
+        path == std::path::Path::new(executable.file_name().expect("output name"))
+            || !super::build_outputs::is_final_output(&executable, path)
+    });
     assert_eq!(
-        directory_snapshot(&directory.0).len(),
+        snapshot.len(),
         2,
-        "source and executable only"
+        "source and executable only outside the debug bundle"
     );
 }

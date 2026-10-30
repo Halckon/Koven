@@ -31,7 +31,7 @@ fn single_while_flow_executes_bounded_success_and_cleanup() {
         include_bytes!("../fixtures/while-flow-0330/success.stdout")
     );
     assert!(launched.stderr.is_empty(), "{launched:?}");
-    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
+    super::assert_build_entry_count(&directory.0, &executable, 2);
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn single_pending_field_child_executes_both_branches_and_empty_input() {
         include_bytes!("../fixtures/while-flow-0330/pending.stdout")
     );
     assert!(launched.stderr.is_empty(), "{launched:?}");
-    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
+    super::assert_build_entry_count(&directory.0, &executable, 2);
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn single_if_retest_executes_both_branches_and_empty_input() {
         include_bytes!("../fixtures/while-flow-0330/retest.stdout")
     );
     assert!(launched.stderr.is_empty(), "{launched:?}");
-    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
+    super::assert_build_entry_count(&directory.0, &executable, 2);
 }
 
 #[test]
@@ -124,7 +124,7 @@ fn single_numeric_for_preserves_outer_proof_and_empty_input() {
         include_bytes!("../fixtures/while-flow-0330/numeric.stdout")
     );
     assert!(launched.stderr.is_empty(), "{launched:?}");
-    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
+    super::assert_build_entry_count(&directory.0, &executable, 2);
 }
 
 #[test]
@@ -155,7 +155,7 @@ fn single_borrowed_for_preserves_outer_proof_and_empty_input() {
         include_bytes!("../fixtures/while-flow-0330/inner-borrowed.stdout")
     );
     assert!(launched.stderr.is_empty(), "{launched:?}");
-    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
+    super::assert_build_entry_count(&directory.0, &executable, 2);
 }
 
 #[test]
@@ -186,5 +186,5 @@ fn single_nullable_while_preserves_outer_borrowed_for_access() {
         include_bytes!("../fixtures/while-flow-0330/outer-borrowed.stdout")
     );
     assert!(launched.stderr.is_empty(), "{launched:?}");
-    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
+    super::assert_build_entry_count(&directory.0, &executable, 2);
 }

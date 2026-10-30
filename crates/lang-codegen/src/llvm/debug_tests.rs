@@ -41,16 +41,46 @@ impl Drop for TestDirectory {
 }
 
 fn debug_program() -> (SourceMap, Program, crate::ssa::model::FunctionId) {
+    debug_program_with_file_names(false)
+}
+
+fn debug_program_with_file_names(
+    physical: bool,
+) -> (SourceMap, Program, crate::ssa::model::FunctionId) {
     let mut sources = SourceMap::default();
     let helper_source = sources
-        .add_source("z-helper.ko", "fun helper() {}\n")
+        .add_source_with_file_name(
+            "z-helper.ko",
+            "fun helper() {}\n",
+            if physical {
+                "/actual/z-helper.ko"
+            } else {
+                "z-helper.ko"
+            },
+        )
         .expect("helper source");
     let primary_text = "fun app() {\r\n    π\r\n}\r\n";
     let primary_source = sources
-        .add_source("primary.ko", primary_text)
+        .add_source_with_file_name(
+            "primary.ko",
+            primary_text,
+            if physical {
+                "/actual/primary.ko"
+            } else {
+                "primary.ko"
+            },
+        )
         .expect("primary source");
     let alpha_source = sources
-        .add_source("a-helper.ko", "fun alpha() {}\n")
+        .add_source_with_file_name(
+            "a-helper.ko",
+            "fun alpha() {}\n",
+            if physical {
+                "/actual/a-helper.ko"
+            } else {
+                "a-helper.ko"
+            },
+        )
         .expect("alpha source");
     let helper_origin = Origin::Source(sources.span(helper_source, 0, 3).expect("helper span"));
     let function_origin =
@@ -470,4 +500,33 @@ fn elf_line_table_records_koven_source_locations_and_runs() {
     assert_success(&link, "cc link");
     let executed = run(&mut Command::new(&executable), "native ELF executable");
     assert_eq!(executed.status.code(), Some(0));
+}
+
+#[test]
+fn physical_debug_files_keep_logical_order_and_abort_location() {
+    let (sources, program, entry) = debug_program_with_file_names(true);
+    let plan = DebugPlan::build(&sources, &program.modules[0], entry).expect("debug plan");
+    assert_eq!(
+        plan.ordered_source_names(),
+        ["a-helper.ko", "primary.ko", "z-helper.ko"]
+    );
+    let first = render_verified_program_with_debug(&program, &sources, entry).expect("debug IR");
+    assert_eq!(
+        first,
+        render_verified_program_with_debug(&program, &sources, entry).expect("repeat IR")
+    );
+    for name in ["primary.ko", "a-helper.ko", "z-helper.ko"] {
+        assert!(
+            first.contains(&format!("filename: \"/actual/{name}\"")),
+            "{first}"
+        );
+    }
+    let context = inkwell::context::Context::create();
+    let llvm = context.create_module("location");
+    let emitter = super::debug::DebugEmitter::new(&context, &llvm, plan);
+    let function = program.modules[0].function(entry).expect("entry");
+    assert_eq!(
+        emitter.abort_location(&function.origin).expect("location"),
+        "  at primary.ko:1:1\n"
+    );
 }

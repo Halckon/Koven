@@ -2,10 +2,8 @@
 
 use std::{
     ffi::OsString,
-    fs::{self, OpenOptions},
-    io,
+    fs, io,
     path::{Path, PathBuf},
-    process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -66,7 +64,7 @@ pub(super) fn execute_build(
     if let Err(output) = require_absent_output(&executable) {
         return output;
     }
-    let artifacts = match BuildArtifacts::reserve(&executable) {
+    let mut artifacts = match crate::build_artifacts::BuildArtifacts::reserve(&executable) {
         Ok(artifacts) => artifacts,
         Err(error) => return operational(format!("cannot reserve build temporaries: {error}")),
     };
@@ -76,26 +74,19 @@ pub(super) fn execute_build(
         artifacts.object(),
         &[artifacts.object(), artifacts.executable(), &executable],
     ) {
-        return render_project_error(error, message_format);
+        return cleanup_build_output(render_project_error(error, message_format), &mut artifacts);
     }
-    if let Err(error) = link_native_object(artifacts.object(), artifacts.executable()) {
-        return operational(format!("linker failed: {error:?}"));
+    if let Err(error) = link_native_object(artifacts.object(), artifacts.executable(), None) {
+        return cleanup_build_output(
+            operational(format!("linker failed: {error:?}")),
+            &mut artifacts,
+        );
     }
-    if let Err(error) = artifacts.commit(&executable) {
-        return match error {
-            ArtifactCommitError::CleanupObject(error) => operational(format!(
-                "cannot clean temporary object before publishing {}: {error}",
-                executable.display()
-            )),
-            ArtifactCommitError::Publish(error) => operational(format!(
-                "cannot atomically publish {}: {error}",
-                executable.display()
-            )),
-            ArtifactCommitError::CleanupPublished(error) => operational(format!(
-                "published {} but cannot clean its temporary executable: {error}",
-                executable.display()
-            )),
-        };
+    if let Err(error) = artifacts.publish(&executable) {
+        return cleanup_build_output(
+            operational(format!("build artifact finalization failed: {error}")),
+            &mut artifacts,
+        );
     }
     CommandOutput::success(Vec::new())
 }
@@ -126,30 +117,69 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
             );
         }
     };
-    let directory = match TemporaryDirectory::create() {
-        Ok(directory) => directory,
-        Err(error) => {
-            return operational(format!("cannot create run temporary directory: {error}"));
+    let control = match crate::run_control::RunControl::install() {
+        Ok(control) => control,
+        Err(error) => return operational(format!("cannot install run control: {error}")),
+    };
+    let mut output = (|| {
+        let directory = match TemporaryDirectory::create() {
+            Ok(directory) => directory,
+            Err(error) => {
+                return operational(format!("cannot create run temporary directory: {error}"));
+            }
+        };
+        let object = directory.path().join("program.o");
+        let executable = directory.path().join("program");
+        if let Err(error) =
+            emit_project_object(&manifest, &selector, &object, &[&object, &executable])
+        {
+            return finish_run_cleanup(
+                render_project_error(error, message_format),
+                directory.cleanup(),
+            );
         }
-    };
-    let object = directory.path().join("program.o");
-    let executable = directory.path().join("program");
-    if let Err(error) = emit_project_object(&manifest, &selector, &object, &[&object, &executable])
-    {
-        return render_project_error(error, message_format);
+        if let Err(error) = link_native_object(&object, &executable, Some(&control)) {
+            let output = match error {
+                crate::linker::LinkerError::Cancelled { signal } => CommandOutput {
+                    status: (128 + signal) as u8,
+                    stdout: Vec::new(),
+                    stderr: Vec::new(),
+                },
+                error => operational(format!("linker failed: {error:?}")),
+            };
+            return finish_run_cleanup(output, directory.cleanup());
+        }
+        let output = match control.output(&executable, program_arguments) {
+            Ok(crate::run_control::RunOutcome::Completed(output)) => CommandOutput {
+                status: crate::native_command::child_exit_status(output.status),
+                stdout: output.stdout,
+                stderr: output.stderr,
+            },
+            Ok(crate::run_control::RunOutcome::CancelledBeforeStart(signal)) => CommandOutput {
+                status: (128 + signal) as u8,
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+            },
+            Err(error) => operational(format!("cannot launch {}: {error}", executable.display())),
+        };
+        finish_run_cleanup(output, directory.cleanup())
+    })();
+    if let Err(error) = control.finish() {
+        if output.status == 0 {
+            output.status = 1;
+        }
+        if !output.stderr.is_empty() && !output.stderr.ends_with(b"\n") {
+            output.stderr.push(b'\n');
+        }
+        output.stderr.extend_from_slice(
+            format!("error: cannot restore run signal state: {error}\n").as_bytes(),
+        );
     }
-    if let Err(error) = link_native_object(&object, &executable) {
-        return operational(format!("linker failed: {error:?}"));
-    }
-    let mut output = match Command::new(&executable).args(program_arguments).output() {
-        Ok(output) => CommandOutput {
-            status: crate::native_command::child_exit_status(output.status),
-            stdout: output.stdout,
-            stderr: output.stderr,
-        },
-        Err(error) => operational(format!("cannot launch {}: {error}", executable.display())),
-    };
-    if let Err(error) = directory.cleanup() {
+    output
+}
+
+fn finish_run_cleanup(mut output: CommandOutput, cleanup: io::Result<()>) -> CommandOutput {
+    if let Err(error) = cleanup {
         append_cleanup_error(&mut output, &error);
     }
     output
@@ -243,109 +273,16 @@ fn operational(message: impl AsRef<str>) -> CommandOutput {
     }
 }
 
-struct BuildArtifacts {
-    object: PathBuf,
-    executable: PathBuf,
-}
-
-impl BuildArtifacts {
-    fn reserve(final_output: &Path) -> io::Result<Self> {
-        let parent = final_output.parent().unwrap_or_else(|| Path::new("."));
-        let name = final_output
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("output");
-        for _ in 0..128 {
-            let nonce = NEXT_TEMPORARY.fetch_add(1, Ordering::Relaxed);
-            let base = format!(".{name}.kovenc-{}-{nonce}", std::process::id());
-            let object = parent.join(format!("{base}.o"));
-            let executable = parent.join(format!("{base}.exe"));
-            match reserve_file(&object) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(error) => return Err(error),
-            }
-            match reserve_file(&executable) {
-                Ok(()) => return Ok(Self { object, executable }),
-                Err(error) => {
-                    let _ = fs::remove_file(&object);
-                    if error.kind() == io::ErrorKind::AlreadyExists {
-                        continue;
-                    }
-                    return Err(error);
-                }
-            }
-        }
-        Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "could not reserve a unique sibling temporary",
-        ))
+fn cleanup_build_output(
+    mut output: CommandOutput,
+    artifacts: &mut crate::build_artifacts::BuildArtifacts,
+) -> CommandOutput {
+    if let Err(error) = artifacts.cleanup() {
+        output.stderr.extend_from_slice(
+            format!("error: cannot clean private build staging: {error}\n").as_bytes(),
+        );
     }
-
-    fn object(&self) -> &Path {
-        &self.object
-    }
-
-    fn executable(&self) -> &Path {
-        &self.executable
-    }
-
-    fn commit(self, final_output: &Path) -> Result<(), ArtifactCommitError> {
-        self.commit_with(final_output, |path| fs::remove_file(path))
-    }
-
-    fn commit_with(
-        self,
-        final_output: &Path,
-        mut remove_file: impl FnMut(&Path) -> io::Result<()>,
-    ) -> Result<(), ArtifactCommitError> {
-        if let Err(error) = remove_file(&self.object)
-            && error.kind() != io::ErrorKind::NotFound
-        {
-            return Err(ArtifactCommitError::CleanupObject(error));
-        }
-        fs::hard_link(&self.executable, final_output).map_err(ArtifactCommitError::Publish)?;
-        if let Err(error) = remove_file(&self.executable)
-            && error.kind() != io::ErrorKind::NotFound
-        {
-            return Err(ArtifactCommitError::CleanupPublished(error));
-        }
-        Ok(())
-    }
-
-    fn cleanup_files(&mut self) -> io::Result<()> {
-        let mut first_error = None;
-        for path in [&self.object, &self.executable] {
-            if let Err(error) = fs::remove_file(path)
-                && error.kind() != io::ErrorKind::NotFound
-                && first_error.is_none()
-            {
-                first_error = Some(error);
-            }
-        }
-        first_error.map_or(Ok(()), Err)
-    }
-}
-
-#[derive(Debug)]
-enum ArtifactCommitError {
-    CleanupObject(io::Error),
-    Publish(io::Error),
-    CleanupPublished(io::Error),
-}
-
-impl Drop for BuildArtifacts {
-    fn drop(&mut self) {
-        let _ = self.cleanup_files();
-    }
-}
-
-fn reserve_file(path: &Path) -> io::Result<()> {
-    OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map(|_| ())
+    output
 }
 
 struct TemporaryDirectory(Option<PathBuf>);
@@ -392,12 +329,11 @@ impl Drop for TemporaryDirectory {
 mod tests {
     use std::{ffi::OsString, fs, io};
 
-    use crate::{MessageFormat, format::CommandOutput};
+    use crate::{MessageFormat, build_artifacts::BuildArtifacts, format::CommandOutput};
 
     use super::{
-        ArtifactCommitError, BUILD_USAGE, BuildArtifacts, RUN_USAGE, append_cleanup_error,
-        execute_build, execute_run, link_native_object, parse_selector, require_absent_output,
-        usage,
+        BUILD_USAGE, RUN_USAGE, append_cleanup_error, execute_build, execute_run,
+        link_native_object, parse_selector, require_absent_output, usage,
     };
 
     #[test]
@@ -556,90 +492,6 @@ mod tests {
     }
 
     #[test]
-    fn atomic_commit_never_replaces_a_racing_final_output() {
-        let directory = std::env::temp_dir().join(format!(
-            "koven-project-artifact-test-{}-{}",
-            std::process::id(),
-            super::NEXT_TEMPORARY.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-        ));
-        fs::create_dir(&directory).expect("create artifact test directory");
-        let final_output = directory.join("program");
-        let artifacts = BuildArtifacts::reserve(&final_output).expect("reserve artifacts");
-        fs::write(artifacts.executable(), b"complete executable").expect("seed linked output");
-        fs::write(&final_output, b"racing caller output").expect("seed race winner");
-        let error = artifacts
-            .commit(&final_output)
-            .expect_err("no-replace commit must reject the race winner");
-        assert!(matches!(
-            error,
-            ArtifactCommitError::Publish(error)
-                if error.kind() == io::ErrorKind::AlreadyExists
-        ));
-        assert_eq!(
-            fs::read(&final_output).expect("read final"),
-            b"racing caller output"
-        );
-        assert_eq!(fs::read_dir(&directory).expect("read directory").count(), 1);
-        fs::remove_dir_all(directory).expect("clean artifact test directory");
-    }
-
-    #[test]
-    fn atomic_commit_does_not_publish_when_object_cleanup_fails() {
-        let directory = std::env::temp_dir().join(format!(
-            "koven-project-artifact-cleanup-test-{}-{}",
-            std::process::id(),
-            super::NEXT_TEMPORARY.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-        ));
-        fs::create_dir(&directory).expect("create artifact test directory");
-        let final_output = directory.join("program");
-        let artifacts = BuildArtifacts::reserve(&final_output).expect("reserve artifacts");
-        let object = artifacts.object().to_path_buf();
-        fs::write(artifacts.executable(), b"complete executable").expect("seed linked output");
-        fs::remove_file(&object).expect("remove reserved object");
-        fs::create_dir(&object).expect("inject object cleanup failure");
-
-        let error = artifacts
-            .commit(&final_output)
-            .expect_err("cleanup failure must prevent publication");
-        assert!(matches!(error, ArtifactCommitError::CleanupObject(_)));
-        assert!(!final_output.exists());
-
-        fs::remove_dir(&object).expect("remove injected directory");
-        fs::remove_dir_all(directory).expect("clean artifact test directory");
-    }
-
-    #[test]
-    fn atomic_commit_reports_cleanup_failure_after_publishing_complete_output() {
-        let directory = std::env::temp_dir().join(format!(
-            "koven-project-artifact-published-cleanup-test-{}-{}",
-            std::process::id(),
-            super::NEXT_TEMPORARY.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-        ));
-        fs::create_dir(&directory).expect("create artifact test directory");
-        let final_output = directory.join("program");
-        let artifacts = BuildArtifacts::reserve(&final_output).expect("reserve artifacts");
-        let temporary_executable = artifacts.executable().to_path_buf();
-        fs::write(&temporary_executable, b"complete executable").expect("seed linked output");
-
-        let error = artifacts
-            .commit_with(&final_output, |path| {
-                if path == temporary_executable {
-                    Err(io::Error::other("injected published cleanup failure"))
-                } else {
-                    fs::remove_file(path)
-                }
-            })
-            .expect_err("published cleanup failure must be observable");
-        assert!(matches!(error, ArtifactCommitError::CleanupPublished(_)));
-        assert_eq!(
-            fs::read(&final_output).expect("read published output"),
-            b"complete executable"
-        );
-
-        fs::remove_dir_all(directory).expect("clean artifact test directory");
-    }
-
-    #[test]
     fn linker_failure_does_not_publish_and_artifact_drop_cleans_siblings() {
         let directory = std::env::temp_dir().join(format!(
             "koven-project-link-failure-test-{}-{}",
@@ -651,7 +503,7 @@ mod tests {
         let artifacts = BuildArtifacts::reserve(&final_output).expect("reserve artifacts");
         fs::write(artifacts.object(), b"not an object").expect("seed invalid object");
 
-        assert!(link_native_object(artifacts.object(), artifacts.executable()).is_err());
+        assert!(link_native_object(artifacts.object(), artifacts.executable(), None).is_err());
         drop(artifacts);
         assert!(!final_output.exists());
         assert_eq!(fs::read_dir(&directory).expect("read directory").count(), 0);

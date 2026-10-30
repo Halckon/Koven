@@ -5,7 +5,8 @@
 ## Source 与 Span
 
 `source::SourceMap` 拥有不可变 UTF-8 源码、用户可见名称和预计算行起点。`SourceId` 是 map-local
-身份；`Span` 是同一 source 上的 `[start, end)` 半开字节范围，只能通过受检 API 创建。
+身份；可选的宿主文件名元数据与用户可见逻辑名称独立，未提供时回退到逻辑名。
+该元数据不读文件系统、不参与名称唯一性或 SourceId 分配；`Span` 是同一 source 上的 `[start, end)` 半开字节范围，只能通过受检 API 创建。
 
 - 重复 source 名称、foreign `SourceId`、逆序范围、越界和非 UTF-8 边界返回具体 `SourceError`。
 - 行列只在展示边界派生；行为覆盖 LF、CRLF、空文件、EOF 和 Unicode scalar 列。

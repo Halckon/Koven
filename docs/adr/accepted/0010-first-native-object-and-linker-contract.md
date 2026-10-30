@@ -111,3 +111,8 @@ ADR-0007 固定了首个 `aarch64-apple-darwin` target 与 LLVM 21 工具链，A
 
 - 被以下 ADR 局部扩展：[ADR-0026](0026-linux-x86-64-native-host.md) 新增 Linux x86_64 + glibc
   本机目标及其 feature/object/link driver 范围；本 ADR 的其他决定继续生效。
+
+
+## 后续局部扩展
+
+[ADR-0035](0035-final-debug-artifact-publication.md)扩展最终调试产物生命周期和部分发布失败边界；其他决定保持。

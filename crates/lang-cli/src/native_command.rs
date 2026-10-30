@@ -4,7 +4,6 @@ use std::{
     ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
-    process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -106,28 +105,41 @@ pub(super) fn execute_build(
             );
         }
     };
-    let object = temporary_object_path(&executable);
-    let result = bootstrap_build(BootstrapTarget {
-        source: &source,
-        source_root: source_root.as_deref(),
-        entry: entry
-            .as_deref()
-            .map(BootstrapEntry::Explicit)
-            .unwrap_or(BootstrapEntry::ConventionalMain),
-        object: &object,
-        executable: &executable,
-    });
-    if let Err(error) = fs::remove_file(&object)
-        && error.kind() != io::ErrorKind::NotFound
-    {
-        return CommandOutput::error(format!(
-            "error: cannot clean temporary object {}: {error}\n",
-            object.display()
-        ));
+    let mut artifacts = match crate::build_artifacts::BuildArtifacts::reserve(&executable) {
+        Ok(artifacts) => artifacts,
+        Err(error) => {
+            return CommandOutput::error(format!(
+                "error: cannot reserve build artifacts: {error}\n"
+            ));
+        }
+    };
+    let result = bootstrap_build(
+        BootstrapTarget {
+            source: &source,
+            source_root: source_root.as_deref(),
+            entry: entry
+                .as_deref()
+                .map(BootstrapEntry::Explicit)
+                .unwrap_or(BootstrapEntry::ConventionalMain),
+            object: artifacts.object(),
+            executable: artifacts.executable(),
+        },
+        None,
+    );
+    if let Err(error) = result {
+        return render_error_with_cleanup(error, message_format, artifacts.cleanup().err());
     }
-    match result {
+    match artifacts.publish(&executable) {
         Ok(()) => CommandOutput::success(Vec::new()),
-        Err(error) => render_error(error, message_format),
+        Err(error) => {
+            let detail = match artifacts.cleanup() {
+                Ok(()) => error.to_string(),
+                Err(cleanup) => format!("{error}; build staging cleanup failed: {cleanup}"),
+            };
+            CommandOutput::error(format!(
+                "error: build artifact finalization failed: {detail}\n"
+            ))
+        }
     }
 }
 
@@ -189,45 +201,94 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
             );
         }
     };
-    let directory = match TemporaryDirectory::create() {
-        Ok(directory) => directory,
+    let control = match crate::run_control::RunControl::install() {
+        Ok(control) => control,
         Err(error) => {
-            return CommandOutput::error(format!(
-                "error: cannot create run temporary directory: {error}\n"
-            ));
+            return CommandOutput::error(format!("error: cannot install run control: {error}\n"));
         }
     };
-    let object = directory.path().join("program.o");
-    let executable = directory.path().join("program");
-    if let Err(error) = bootstrap_build(BootstrapTarget {
-        source: &source,
-        source_root: source_root.as_deref(),
-        entry: entry
-            .as_deref()
-            .map(BootstrapEntry::Explicit)
-            .unwrap_or(BootstrapEntry::ConventionalMain),
-        object: &object,
-        executable: &executable,
-    }) {
-        return render_error(error, message_format);
+    let mut output = (|| {
+        let directory = match TemporaryDirectory::create() {
+            Ok(directory) => directory,
+            Err(error) => {
+                return CommandOutput::error(format!(
+                    "error: cannot create run temporary directory: {error}\n"
+                ));
+            }
+        };
+        let object = directory.path().join("program.o");
+        let executable = directory.path().join("program");
+        if let Err(error) = bootstrap_build(
+            BootstrapTarget {
+                source: &source,
+                source_root: source_root.as_deref(),
+                entry: entry
+                    .as_deref()
+                    .map(BootstrapEntry::Explicit)
+                    .unwrap_or(BootstrapEntry::ConventionalMain),
+                object: &object,
+                executable: &executable,
+            },
+            Some(&control),
+        ) {
+            let output = match error {
+                BootstrapError::Linker(crate::linker::LinkerError::Cancelled { signal }) => {
+                    CommandOutput {
+                        status: (128 + signal) as u8,
+                        stdout: Vec::new(),
+                        stderr: Vec::new(),
+                    }
+                }
+                error => render_error(error, message_format),
+            };
+            return finish_run_cleanup(output, directory.cleanup());
+        }
+        let output = match control.output(&executable, program_arguments) {
+            Ok(crate::run_control::RunOutcome::Completed(output)) => CommandOutput {
+                status: child_exit_status(output.status),
+                stdout: output.stdout,
+                stderr: output.stderr,
+            },
+            Ok(crate::run_control::RunOutcome::CancelledBeforeStart(signal)) => CommandOutput {
+                status: (128 + signal) as u8,
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+            },
+            Err(error) => CommandOutput::error(format!(
+                "error: cannot launch {}: {error}\n",
+                executable.display()
+            )),
+        };
+        finish_run_cleanup(output, directory.cleanup())
+    })();
+    if let Err(error) = control.finish() {
+        if output.status == 0 {
+            output.status = 2;
+        }
+        if !output.stderr.is_empty() && !output.stderr.ends_with(b"\n") {
+            output.stderr.push(b'\n');
+        }
+        output.stderr.extend_from_slice(
+            format!("error: cannot restore run signal state: {error}\n").as_bytes(),
+        );
     }
-    let output = match Command::new(&executable).args(program_arguments).output() {
-        Ok(output) => CommandOutput {
-            status: child_exit_status(output.status),
-            stdout: output.stdout,
-            stderr: output.stderr,
-        },
-        Err(error) => CommandOutput::error(format!(
-            "error: cannot launch {}: {error}\n",
-            executable.display()
-        )),
-    };
-    match directory.cleanup() {
-        Ok(()) => output,
-        Err(error) => CommandOutput::error(format!(
-            "error: cannot clean run temporary directory: {error}\n"
-        )),
+    output
+}
+
+/// 清理失败不能丢弃程序输出或覆盖已有非零退出状态。
+fn finish_run_cleanup(mut output: CommandOutput, cleanup: io::Result<()>) -> CommandOutput {
+    if let Err(error) = cleanup {
+        if output.status == 0 {
+            output.status = 2;
+        }
+        if !output.stderr.is_empty() && !output.stderr.ends_with(b"\n") {
+            output.stderr.push(b'\n');
+        }
+        output.stderr.extend_from_slice(
+            format!("error: cannot clean run temporary directory: {error}\n").as_bytes(),
+        );
     }
+    output
 }
 
 /// `kovenc run` exit status for the finished program (Guide v0.46 D9): its own exit code,
@@ -262,19 +323,6 @@ fn render_error(error: BootstrapError, message_format: MessageFormat) -> Command
         }
         error => CommandOutput::error(format!("error: native build failed: {error}\n")),
     }
-}
-
-fn temporary_object_path(executable: &Path) -> PathBuf {
-    let parent = executable.parent().unwrap_or_else(|| Path::new("."));
-    let name = executable
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("output");
-    parent.join(format!(
-        ".{name}.kovenc-{}-{}.o",
-        std::process::id(),
-        NEXT_TEMPORARY.fetch_add(1, Ordering::Relaxed)
-    ))
 }
 
 fn usage(usage: &str, message: impl AsRef<str>) -> CommandOutput {
@@ -317,5 +365,81 @@ impl Drop for TemporaryDirectory {
         if let Some(path) = self.0.take() {
             let _ = fs::remove_dir_all(path);
         }
+    }
+}
+
+/// 保留原始诊断协议，清理失败仅追加 operational error 并使退出状态为失败。
+fn render_error_with_cleanup(
+    error: BootstrapError,
+    message_format: MessageFormat,
+    cleanup: Option<io::Error>,
+) -> CommandOutput {
+    let mut output = render_error(error, message_format);
+    if let Some(cleanup) = cleanup {
+        output.status = 2;
+        output.stderr.extend_from_slice(
+            format!("error: build staging cleanup failed: {cleanup}\n").as_bytes(),
+        );
+    }
+    output
+}
+
+#[cfg(test)]
+mod cleanup_tests {
+    use super::*;
+
+    #[test]
+    fn cleanup_failure_preserves_original_json_diagnostics() {
+        let json = "{\"code\":\"L0001\"}\n";
+        let output = render_error_with_cleanup(
+            BootstrapError::Unit(UnitBuildError::FrontendDiagnostics {
+                human: "human diagnostic\n".to_owned(),
+                json: json.to_owned(),
+            }),
+            MessageFormat::Json,
+            Some(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "cleanup denied",
+            )),
+        );
+        assert_eq!(output.status, 2);
+        assert!(output.stdout.is_empty());
+        let stderr = String::from_utf8(output.stderr).expect("UTF-8 diagnostics");
+        assert!(stderr.starts_with(json));
+        assert!(!stderr.contains("human diagnostic"));
+        assert!(stderr.contains("cleanup denied"));
+    }
+}
+
+#[cfg(test)]
+mod run_cleanup_tests {
+    use super::*;
+
+    #[test]
+    fn cleanup_failure_retains_child_output_and_nonzero_exit() {
+        let output = finish_run_cleanup(
+            CommandOutput {
+                status: 7,
+                stdout: b"child stdout".to_vec(),
+                stderr: b"child stderr".to_vec(),
+            },
+            Err(io::Error::other("cleanup fault")),
+        );
+        assert_eq!(output.status, 7);
+        assert_eq!(output.stdout, b"child stdout");
+        assert_eq!(
+            output.stderr,
+            b"child stderr\nerror: cannot clean run temporary directory: cleanup fault\n"
+        );
+    }
+
+    #[test]
+    fn cleanup_failure_turns_success_into_operational_failure() {
+        let output = finish_run_cleanup(
+            CommandOutput::success(b"result".to_vec()),
+            Err(io::Error::other("cleanup fault")),
+        );
+        assert_eq!(output.status, 2);
+        assert_eq!(output.stdout, b"result");
     }
 }

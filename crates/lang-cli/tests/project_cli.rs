@@ -3,6 +3,9 @@
 #[path = "support/numeric_iteration_run.rs"]
 mod bounded_iteration_run;
 
+#[path = "support/build_outputs.rs"]
+mod build_outputs;
+
 #[path = "project_cli/enum_case_borrow.rs"]
 mod enum_case_borrow;
 

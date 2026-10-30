@@ -48,6 +48,7 @@ indexed_sha256="$(apt-cache show "liblzma5:amd64=$lzma_version" | awk '$1 == "SH
 sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
   install --yes --no-install-recommends \
   "llvm-21-dev=$version" "clang-21=$version" "libclang-cpp21=$version" "libclang-rt-21-dev=$version" \
+  "lldb-21=$version" "liblldb-21=$version" "python3-lldb-21=$version" \
   "liblzma5:amd64=$lzma_version" build-essential
 installed_lzma="$(dpkg-query -W -f='${Version} ${Architecture}' liblzma5:amd64)"
 [[ "$installed_lzma" == "$lzma_version amd64" ]] || {

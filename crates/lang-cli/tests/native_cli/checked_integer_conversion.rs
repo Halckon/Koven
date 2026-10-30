@@ -29,7 +29,7 @@ fn single_all_integer_conversion_boundaries_execute() {
         include_bytes!("../fixtures/checked-integer-conversion-0327/success.stdout")
     );
     assert!(launched.stderr.is_empty(), "{launched:?}");
-    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
+    super::assert_build_entry_count(&directory.0, &executable, 2);
 }
 
 #[path = "../support/checked_integer_conversion_abort.rs"]
@@ -59,6 +59,6 @@ fn single_out_of_range_integer_conversions_abort() {
             "{name}: {built:?}"
         );
         abort_support::assert_abort(&executable, &directory.0);
-        assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
+        super::assert_build_entry_count(&directory.0, &executable, 2);
     }
 }
