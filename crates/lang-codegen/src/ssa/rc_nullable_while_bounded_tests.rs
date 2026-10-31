@@ -1,6 +1,9 @@
 //! SPEC-0332 bounded ordinary sources; SSA/LLVM only, no native execution.
 use std::fmt::Debug;
 
+#[path = "rc_nullable_while_memory_document_tests.rs"]
+mod memory_document;
+
 #[path = "rc_nullable_while_presence_identity.rs"]
 mod identity;
 #[path = "rc_nullable_while_presence_facts.rs"]
