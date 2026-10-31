@@ -1166,6 +1166,24 @@ sys.exit(1)
         self.assertEqual(src_scale["total_program_source_bytes"], 17175)
         self.assertEqual(src_scale["total_corpus_source_lines"], 924)
         self.assertEqual(src_scale["total_corpus_source_bytes"], 40246)
+        v3_cov = gate.summarize_v3_sanitizer_coverage(loaded)
+        self.assertEqual(
+            list(v3_cov.keys()),
+            [
+                "deterministic_deinit_drop",
+                "heap_class_rc_and_box",
+                "string_and_text_owner",
+                "collection_list_and_map_provider",
+                "closure_env_and_thread_spawn",
+                "checked_abort_and_overflow",
+            ],
+        )
+        self.assertEqual(v3_cov["deterministic_deinit_drop"]["status"], "all_runnable")
+        self.assertEqual(v3_cov["collection_list_and_map_provider"]["status"], "all_runnable")
+        self.assertEqual(v3_cov["checked_abort_and_overflow"]["status"], "all_runnable")
+        self.assertEqual(v3_cov["heap_class_rc_and_box"]["status"], "partial")
+        self.assertEqual(v3_cov["string_and_text_owner"]["status"], "partial")
+        self.assertEqual(v3_cov["closure_env_and_thread_spawn"]["status"], "partial")
 
         # Verify LF trailing-newline source hygiene and source_lines / source_bytes checks
         p01_path = self.corpus / "probes" / "p01_ok.ko"

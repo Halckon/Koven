@@ -1637,6 +1637,27 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
             raise ValueError(
                 f"PROGRAM_PREREQUISITE_PROBES[{prog_name!r}] references unknown probes in {pre_probes!r}"
             )
+    expected_v3_cats = [
+        "deterministic_deinit_drop",
+        "heap_class_rc_and_box",
+        "string_and_text_owner",
+        "collection_list_and_map_provider",
+        "closure_env_and_thread_spawn",
+        "checked_abort_and_overflow",
+    ]
+    if list(V3_SANITIZER_RESOURCE_CATALOG.keys()) != expected_v3_cats:
+        raise ValueError("V3_SANITIZER_RESOURCE_CATALOG must define the 6 canonical V3 categories in order")
+    v3_covered_programs: set[str] = set()
+    for cat_key, cat_spec in V3_SANITIZER_RESOURCE_CATALOG.items():
+        c_probes = cat_spec.get("probes", [])
+        c_progs = cat_spec.get("programs", [])
+        if not c_probes or any(p not in probe_keys for p in c_probes):
+            raise ValueError(f"V3_SANITIZER_RESOURCE_CATALOG[{cat_key!r}] references unknown probes in {c_probes!r}")
+        if any(pr not in prog_keys for pr in c_progs):
+            raise ValueError(f"V3_SANITIZER_RESOURCE_CATALOG[{cat_key!r}] references unknown programs in {c_progs!r}")
+        v3_covered_programs.update(c_progs)
+    if v3_covered_programs != prog_keys:
+        raise ValueError(f"V3_SANITIZER_RESOURCE_CATALOG programs coverage mismatch: {sorted(v3_covered_programs)}")
 
 
 def parse_tsv_matrix(
@@ -3894,6 +3915,124 @@ def summarize_corpus_source_scale(expectations: dict[str, Any]) -> dict[str, Any
     }
 
 
+V3_SANITIZER_RESOURCE_CATALOG: dict[str, dict[str, Any]] = {
+    "deterministic_deinit_drop": {
+        "title": "确定性 `deinit` 析构与提前返回栈展开清理",
+        "sanitizer_focus": "ASan `drop` (heap-use-after-free) / LSan 零泄漏",
+        "probes": [
+            "p32_deinit",
+            "q19_deep_return_cleanup",
+        ],
+        "programs": ["raii_state_machine"],
+    },
+    "heap_class_rc_and_box": {
+        "title": "堆分配 `class`、`Rc<T>` 共享引用计数、`Box<T>` 递归枚举与 `replace`",
+        "sanitizer_focus": "ASan `user` / `runtime` 与 LSan `leak` 对照",
+        "probes": [
+            "p12_class_inout",
+            "p12b_class_field_assign",
+            "p21_box_enum",
+            "p22_rc",
+            "p25b_linked_recursive",
+            "p40_nested_generic_class",
+            "p44b_method_on_class",
+            "p46_string_field_class",
+            "q04_rc_simple",
+            "q09_inout_class_param",
+            "q20_replace_field",
+        ],
+        "programs": ["expr_eval", "linked_stack"],
+    },
+    "string_and_text_owner": {
+        "title": "堆拥有 `String` 克隆、拼接、重赋值、枚举行李与可空返回",
+        "sanitizer_focus": "ASan 堆缓冲区边界 / LSan 字符串所有权释放",
+        "probes": [
+            "p02_interp",
+            "p16b_result_string",
+            "p26_borrow_return",
+            "p31_string_ops",
+            "p41_when_string",
+            "q08_enum_string_payload",
+            "q10_var_reassign_string",
+            "x02_string_nullable_return",
+        ],
+        "programs": ["config_parse"],
+    },
+    "collection_list_and_map_provider": {
+        "title": "`List` / `MutableList` / `Map` / `MutableMap` 扩容、覆盖、删除与遍历析构",
+        "sanitizer_focus": "SPEC-0288 `map-fixture` 与 12 组 `provider-fixtures` (`singleton`/`overwrite`/`growth`)",
+        "probes": [
+            "p19_mutablelist",
+            "p38_list_of_strings",
+            "p47_list_index_string",
+            "q15_borrow_param_string_list",
+            "t05_map_loop_continue",
+            "t10_map_nested_if_break",
+            "u02_list_add_loop_string",
+            "v15_map_for",
+            "v22_range_with_map",
+            "w01_map_for_sum",
+            "w02_map_for_order",
+            "w03_map_overwrite_remove",
+            "w08_map_string_values",
+            "w09_map_temp_source",
+            "w11_word_count",
+        ],
+        "programs": ["word_count"],
+    },
+    "closure_env_and_thread_spawn": {
+        "title": "捕获闭包环境、`move` 闭包所有权转移与 `thread(move { ... })`",
+        "sanitizer_focus": "ASan 闭包环境生命周期 / 跨线程 `Send` 所有权传递",
+        "probes": [
+            "p17_lambda",
+            "p18_move_closure",
+            "p27_thread",
+            "q01_lambda_local",
+            "q02_lambda_arg_inline",
+        ],
+        "programs": [],
+    },
+    "checked_abort_and_overflow": {
+        "title": "受检整数溢出、`error(msg)` 与显式数值转换 `SIGABRT` 中止边界",
+        "sanitizer_focus": "Guide 09 D12 `abort: <msg>` + 栈帧确定性退出",
+        "probes": [
+            "p04_overflow",
+            "p45_abort_message",
+            "v12_convert_abort",
+        ],
+        "programs": ["varint_codec"],
+    },
+}
+
+
+def summarize_v3_sanitizer_coverage(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Cross-reference V3 native sanitizer (ASan/LSan) resource-lifecycle categories against probes and programs."""
+    probes = expectations["probes"]
+    out: dict[str, dict[str, Any]] = {}
+    for cat_key, spec in V3_SANITIZER_RESOURCE_CATALOG.items():
+        c_probes = list(spec["probes"])
+        c_progs = list(spec["programs"])
+        runnable = [
+            p for p in c_probes if probes[p]["kind"] in ("run_ok", "runtime_abort")
+        ]
+        unimpl = [p for p in c_probes if probes[p]["kind"] == "known_unimplemented"]
+        blockers = sorted(
+            {b for p in unimpl for b in probes[p].get("roadmap_blockers", [])}
+        )
+        out[cat_key] = {
+            "category": cat_key,
+            "title": spec["title"],
+            "sanitizer_focus": spec["sanitizer_focus"],
+            "probes": c_probes,
+            "runnable_probes": runnable,
+            "unimplemented_probes": unimpl,
+            "roadmap_blockers": blockers,
+            "programs": c_progs,
+            "status": "all_runnable" if not unimpl else "partial",
+        }
+    return out
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -4235,6 +4374,29 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         f"**{src_scale['total_program_source_lines']} 行 / {src_scale['total_program_source_bytes']} B** | "
         f"**{src_scale['total_corpus_source_lines']} 行 / {src_scale['total_corpus_source_bytes']} B** |"
     )
+
+    v3_cov = summarize_v3_sanitizer_coverage(expectations)
+    lines.extend(
+        [
+            "",
+            "### 1.13 V3 原生内存安全（ASan / LSan）资源生命周期与堆所有者 Probe 覆盖矩阵",
+            "",
+            "| V3 资源安全分类 | 覆盖语义与生命周期特征 | `check_native_sanitizers.py` 关注面 | 关联 Probe 就绪率 | 待解封 Probe 与阻塞项 | 关联 V1 验收程序 | 状态 |",
+            "|---|---|---|---:|---|---|---|",
+        ]
+    )
+    for cat_key, v3_row in v3_cov.items():
+        rem_v3 = (
+            ", ".join(f"`{p}`" for p in v3_row["unimplemented_probes"])
+            + " (" + ", ".join(f"`{b}`" for b in v3_row["roadmap_blockers"]) + ")"
+            if v3_row["unimplemented_probes"]
+            else "-"
+        )
+        prog_v3 = ", ".join(f"`{pr}`" for pr in v3_row["programs"]) if v3_row["programs"] else "-"
+        lines.append(
+            f"| `{cat_key}` | {v3_row['title']} | {v3_row['sanitizer_focus']} | "
+            f"{len(v3_row['runnable_probes'])} / {len(v3_row['probes'])} | {rem_v3} | {prog_v3} | `{v3_row['status']}` |"
+        )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"

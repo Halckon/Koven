@@ -195,6 +195,17 @@
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 4 | 5 行 / 367 B | - | 0 行 / 0 B | 5 行 / 367 B |
 | **合计** | **13 个核心章节** | **154** | **370 行 / 23071 B** | **6 Programs** | **554 行 / 17175 B** | **924 行 / 40246 B** |
 
+### 1.13 V3 原生内存安全（ASan / LSan）资源生命周期与堆所有者 Probe 覆盖矩阵
+
+| V3 资源安全分类 | 覆盖语义与生命周期特征 | `check_native_sanitizers.py` 关注面 | 关联 Probe 就绪率 | 待解封 Probe 与阻塞项 | 关联 V1 验收程序 | 状态 |
+|---|---|---|---:|---|---|---|
+| `deterministic_deinit_drop` | 确定性 `deinit` 析构与提前返回栈展开清理 | ASan `drop` (heap-use-after-free) / LSan 零泄漏 | 2 / 2 | - | `raii_state_machine` | `all_runnable` |
+| `heap_class_rc_and_box` | 堆分配 `class`、`Rc<T>` 共享引用计数、`Box<T>` 递归枚举与 `replace` | ASan `user` / `runtime` 与 LSan `leak` 对照 | 8 / 11 | `p21_box_enum`, `p25b_linked_recursive`, `p40_nested_generic_class` (`L7`, `N01`, `N03`, `N07`) | `expr_eval`, `linked_stack` | `partial` |
+| `string_and_text_owner` | 堆拥有 `String` 克隆、拼接、重赋值、枚举行李与可空返回 | ASan 堆缓冲区边界 / LSan 字符串所有权释放 | 6 / 8 | `p02_interp`, `q08_enum_string_payload` (`L1`, `L2`, `L7`, `N02`) | `config_parse` | `partial` |
+| `collection_list_and_map_provider` | `List` / `MutableList` / `Map` / `MutableMap` 扩容、覆盖、删除与遍历析构 | SPEC-0288 `map-fixture` 与 12 组 `provider-fixtures` (`singleton`/`overwrite`/`growth`) | 15 / 15 | - | `word_count` | `all_runnable` |
+| `closure_env_and_thread_spawn` | 捕获闭包环境、`move` 闭包所有权转移与 `thread(move { ... })` | ASan 闭包环境生命周期 / 跨线程 `Send` 所有权传递 | 4 / 5 | `p27_thread` (`N04`, `T1`) | - | `partial` |
+| `checked_abort_and_overflow` | 受检整数溢出、`error(msg)` 与显式数值转换 `SIGABRT` 中止边界 | Guide 09 D12 `abort: <msg>` + 栈帧确定性退出 | 3 / 3 | - | `varint_codec` | `all_runnable` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
