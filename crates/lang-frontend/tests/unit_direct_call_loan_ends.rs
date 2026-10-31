@@ -1,4 +1,4 @@
-//! 真实源码的直接 Borrow 调用事件切片；保留 legacy witness，另验两种 Unit 身份。
+//! 真实源码的直接 Borrow 调用事件切片；固定 oracle 走 Unit，其他族保留 legacy witness。
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -21,7 +21,6 @@ use lang_frontend::{
 struct Observed {
     sources: SourceMap,
     parsed: ParsedFile,
-    legacy: OwnershipCheckedFile,
     units: Vec<CompilationUnitOwnership>,
     unit_names: Vec<ValidatedCompilationUnitNames>,
 }
@@ -36,11 +35,6 @@ fn observe(text: &str) -> Observed {
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let legacy = check_ownership(&sources, &parsed, &names, &typed).unwrap();
     let mut units = Vec::new();
     let mut unit_names = Vec::new();
     for input in [
@@ -64,10 +58,22 @@ fn observe(text: &str) -> Observed {
     Observed {
         sources,
         parsed,
-        legacy,
         units,
         unit_names,
     }
+}
+
+// 只有尚未由固定完整 oracle 承接的测试族继续运行 Single 对照。
+// 与 Unit 共用同一份 SourceMap / ParsedFile，不重新解析或改写原源码。
+fn observe_with_legacy(text: &str) -> (Observed, OwnershipCheckedFile) {
+    let observed = observe(text);
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&observed.sources, &observed.parsed, &environment).unwrap();
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let typed = check_types(&observed.sources, &observed.parsed, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let legacy = check_ownership(&observed.sources, &observed.parsed, &names, &typed).unwrap();
+    (observed, legacy)
 }
 
 fn assert_units_admitted(observed: &Observed) {
@@ -79,17 +85,13 @@ fn assert_units_admitted(observed: &Observed) {
     }
 }
 
-fn assert_accepted(observed: &Observed) {
+fn assert_accepted(observed: &Observed, legacy: &OwnershipCheckedFile) {
     assert!(
-        observed.legacy.diagnostics().is_empty(),
+        legacy.diagnostics().is_empty(),
         "{:?}",
-        observed.legacy.diagnostics()
+        legacy.diagnostics()
     );
-    assert!(
-        observed.legacy.deferred().is_empty(),
-        "{:?}",
-        observed.legacy.deferred()
-    );
+    assert!(legacy.deferred().is_empty(), "{:?}", legacy.deferred());
     assert_units_admitted(observed);
     for unit in &observed.units {
         for event in unit.direct_call_loan_ends() {
@@ -109,8 +111,7 @@ fn assert_accepted(observed: &Observed) {
             };
             // 原 checker 独立提供真实边界；不以 Unit descriptor 数量伪装事件。
             assert_eq!(
-                observed
-                    .legacy
+                legacy
                     .loan_ends()
                     .iter()
                     .filter(|old| {
@@ -155,8 +156,8 @@ struct ExpectedEnd {
     target: ExpectedTarget,
 }
 
-// Stage A: expected vectors are literal source contracts, never captured from
-// either analysis. Normalize only the actual ordered slice; keep the legacy witness.
+// 固定期望来自逐份原源码，不从任一分析产物生成。
+// Stage B 仅让这五组改走 Unit；其他族的旧 witness 不在本次退休范围。
 fn assert_fixed_ends(observed: &Observed, expected: &[ExpectedEnd]) {
     assert_eq!(observed.units.len(), 2);
     assert_eq!(observed.unit_names.len(), 2);
@@ -276,7 +277,7 @@ fn direct_and_grouped_root_arguments_end_once_at_call_return() {
     let observed = observe(
         "fun read(first: String, second: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; read(owner, ((owner))) }",
     );
-    assert_accepted(&observed);
+    assert_units_admitted(&observed);
     assert_fixed_ends(
         &observed,
         &[
@@ -296,7 +297,6 @@ fn direct_and_grouped_root_arguments_end_once_at_call_return() {
             },
         ],
     );
-    assert_eq!(observed.legacy.loan_ends().len(), 2);
     for unit in &observed.units {
         let ends = unit.direct_call_loan_ends();
         assert_eq!(ends.len(), 2);
@@ -353,7 +353,7 @@ fn only_established_prefix_ends_on_return_break_and_continue() {
             let observed = observe(&format!(
                 "fun read(first: String, own n: Int, last: String): Unit {{}}\nfun run(flag: Boolean): Unit {{ {body} }}"
             ));
-            assert_accepted(&observed);
+            assert_units_admitted(&observed);
             let (call, prefix, suffix, point) = match (operand, jump) {
                 ("\"prefix\"", "return") => (
                     (90, 147),
@@ -467,7 +467,7 @@ fn nested_call_return_does_not_end_the_outer_pending_loan() {
     let observed = observe(
         "fun inner(text: String): Int = 0\nfun outer(first: String, own n: Int): Unit {}\nfun run(): Unit { outer(\"outer\", inner(\"inner\")) }",
     );
-    assert_accepted(&observed);
+    assert_units_admitted(&observed);
     assert_fixed_ends(
         &observed,
         &[
@@ -518,7 +518,7 @@ fn inner_loop_jump_keeps_the_outer_call_prefix() {
     let observed = observe(
         "fun read(first: String, own n: Int): Unit {}\nfun run(flag: Boolean): Unit { read(\"outer\", if (flag) { loop { break }; 0 } else { 0 }) }",
     );
-    assert_accepted(&observed);
+    assert_units_admitted(&observed);
     assert_fixed_ends(
         &observed,
         &[ExpectedEnd {
@@ -539,18 +539,12 @@ fn inner_loop_jump_keeps_the_outer_call_prefix() {
 
 #[test]
 fn source_continuations_are_outside_the_direct_call_slice() {
-    let observed = observe(
+    let (observed, legacy) = observe_with_legacy(
         "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun read(text: String): Unit {}\nfun run(source: String): Unit { read(view(source)) }",
     );
-    assert_accepted(&observed);
-    assert!(
-        !observed
-            .legacy
-            .borrow_results()
-            .forwarded_source_loans()
-            .is_empty()
-    );
-    assert!(!observed.legacy.borrow_results().call_uses().is_empty());
+    assert_accepted(&observed, &legacy);
+    assert!(!legacy.borrow_results().forwarded_source_loans().is_empty());
+    assert!(!legacy.borrow_results().call_uses().is_empty());
     for unit in &observed.units {
         assert!(!unit.borrow_results().forwarded_source_loans().is_empty());
         assert!(!unit.borrow_results().call_uses().is_empty());
@@ -563,11 +557,11 @@ fn source_continuations_are_outside_the_direct_call_slice() {
 
 #[test]
 fn ownership_error_clears_previously_observed_call_ends() {
-    let observed = observe(
+    let (observed, legacy) = observe_with_legacy(
         "fun read(text: String): Unit {}\nfun consume(own text: String): Unit {}\nfun run(): Unit { val text = \"held\"; read(text); consume(text); read(text) }",
     );
-    assert!(!observed.legacy.diagnostics().is_empty());
-    assert!(observed.legacy.loan_ends().is_empty());
+    assert!(!legacy.diagnostics().is_empty());
+    assert!(legacy.loan_ends().is_empty());
     for unit in &observed.units {
         assert!(!unit.diagnostics().is_empty());
         assert!(unit.direct_call_loan_ends().is_empty());
@@ -580,9 +574,8 @@ fn nonreturning_suffix_and_unreachable_calls_publish_no_cleanup() {
     let observed = observe(
         "fun stop(): Nothing = stop()\nfun read(first: String, own n: Int, last: String): Unit {}\nfun run(): Unit { read(\"prefix\", stop(), \"suffix\"); read(\"unreachable\", 0, \"tail\") }",
     );
-    assert_accepted(&observed);
+    assert_units_admitted(&observed);
     assert_fixed_ends(&observed, &[]);
-    assert!(observed.legacy.loan_ends().is_empty());
     for unit in &observed.units {
         assert!(unit.direct_call_loan_ends().is_empty());
         assert!(unit.drops().is_empty());
@@ -615,16 +608,16 @@ fn projections_and_borrow_bindings_are_excluded_after_real_loan_production() {
             } else {
                 format!("flag: Boolean, {parameter}")
             };
-            let observed = observe(&format!(
+            let (observed, legacy) = observe_with_legacy(&format!(
                 "class Holder(val text: String)\nfun read(text: String, own n: Int): Unit {{}}\nfun run({parameters}): Unit {{ {prefix} read({operand}, {suffix}) }}"
             ));
             if let Some(reason) = legacy_deferred {
                 // 旧 checker 对 temporary field 没有稳定 place，明确保留其准入差异。
                 // 不把 legacy deferred 当作成功，也不借此放宽 Unit 的完整准入。
                 assert!(
-                    observed.legacy.diagnostics().is_empty(),
+                    legacy.diagnostics().is_empty(),
                     "{:?}",
-                    observed.legacy.diagnostics()
+                    legacy.diagnostics()
                 );
                 let members = observed
                     .parsed
@@ -641,8 +634,7 @@ fn projections_and_borrow_bindings_are_excluded_after_real_loan_production() {
                     panic!("one actual temporary field operand")
                 };
                 assert_eq!(
-                    observed
-                        .legacy
+                    legacy
                         .deferred()
                         .iter()
                         .map(|fact| (fact.expression(), fact.reason()))
@@ -653,11 +645,11 @@ fn projections_and_borrow_bindings_are_excluded_after_real_loan_production() {
                 assert_units_admitted(&observed);
             } else {
                 assert!(
-                    observed.legacy.deferred().is_empty(),
+                    legacy.deferred().is_empty(),
                     "operand {operand}, suffix {suffix}: {:?}",
-                    observed.legacy.deferred()
+                    legacy.deferred()
                 );
-                assert_accepted(&observed);
+                assert_accepted(&observed, &legacy);
             }
             for unit in &observed.units {
                 let actual = unit
@@ -698,10 +690,10 @@ fn projections_and_borrow_bindings_are_excluded_after_real_loan_production() {
 
 #[test]
 fn receiver_inout_and_provider_producers_remain_outside_the_slice() {
-    let implicit_field = observe(
+    let (implicit_field, legacy) = observe_with_legacy(
         "fun read(text: String): Unit {}\nclass Holder(val text: String) { fun inspect(): Unit { read(text) } }",
     );
-    assert_accepted(&implicit_field);
+    assert_accepted(&implicit_field, &legacy);
     for unit in &implicit_field.units {
         assert_eq!(unit.loans().len(), 1);
         assert!(
@@ -709,10 +701,10 @@ fn receiver_inout_and_provider_producers_remain_outside_the_slice() {
             "an implicit field Name is not an owned local root"
         );
     }
-    let receiver = observe(
+    let (receiver, legacy) = observe_with_legacy(
         "class Node { fun touch(text: String): Unit {} }\nfun run(own node: Node): Unit { node.touch(\"method\") }",
     );
-    assert_accepted(&receiver);
+    assert_accepted(&receiver, &legacy);
     for unit in &receiver.units {
         assert!(!unit.receiver_facts().is_empty());
         assert!(
@@ -730,10 +722,10 @@ fn receiver_inout_and_provider_producers_remain_outside_the_slice() {
         );
         assert!(unit.direct_call_loan_ends().is_empty());
     }
-    let inout = observe(
+    let (inout, legacy) = observe_with_legacy(
         "fun change(inout text: String): Unit {}\nfun read(text: String): Unit {}\nfun run(inout source: String): Unit { read(source); change(&source) }",
     );
-    assert_accepted(&inout);
+    assert_accepted(&inout, &legacy);
     for unit in &inout.units {
         assert_eq!(unit.loans().len(), 2);
         assert!(
@@ -743,10 +735,10 @@ fn receiver_inout_and_provider_producers_remain_outside_the_slice() {
         );
         assert!(unit.direct_call_loan_ends().is_empty());
     }
-    let provider = observe(
+    let (provider, legacy) = observe_with_legacy(
         "fun read(text: String, own n: Int): Unit {}\nfun readItems(values: List<String>): Unit {}\nfun run(own values: List<String>, flag: Boolean): Unit { for (item in values) { read(item, if (flag) { return } else { 0 }); readItems(values) } }",
     );
-    assert_accepted(&provider);
+    assert_accepted(&provider, &legacy);
     for unit in &provider.units {
         assert_eq!(unit.iterations().len(), 1);
         assert_eq!(unit.loans().len(), 2);
@@ -761,11 +753,11 @@ fn receiver_inout_and_provider_producers_remain_outside_the_slice() {
 
 #[test]
 fn later_real_deferred_work_blocks_the_event_capability() {
-    let observed = observe(
+    let (observed, legacy) = observe_with_legacy(
         "fun read(text: String): Unit {}\nfun run(): Unit { read(\"before\"); var callback: () -> Int = { 1 }; val old = replace(&callback, { 2 }) }",
     );
-    assert!(observed.legacy.diagnostics().is_empty());
-    assert!(!observed.legacy.deferred().is_empty());
+    assert!(legacy.diagnostics().is_empty());
+    assert!(!legacy.deferred().is_empty());
     for unit in &observed.units {
         assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
         assert!(!unit.deferred().is_empty());
