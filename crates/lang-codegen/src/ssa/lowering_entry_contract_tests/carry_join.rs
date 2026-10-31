@@ -95,14 +95,57 @@ fn paired_pending_value_joins_compare_complete_incoming_signatures() {
             "package pair\nfun take(own first: Int, own second: Int): Int = first\n\
              fun entry(own first: Int, own flag: Boolean): Int {body}"
         );
-        observe_products(
+        let kinds = std::cell::RefCell::new(Vec::new());
+        let observe = |sources: &SourceMap,
+                       parsed: &ParsedFile,
+                       program: &Program,
+                       entry,
+                       kind,
+                       modes: Option<&[ParameterMode]>| {
+            kinds.borrow_mut().push(kind);
+            scalar_join(sources, parsed, program, entry, kind, modes, same);
+        };
+        // Stage A keeps the original Single witness, including its distinct
+        // Copyable pending representation, while adding a real rooted Unit baseline.
+        let legacy_events = observe_products(
             &text,
             false,
             &mut failures,
             legacy_only::paired_in_order_observed_entry,
-            |sources, parsed, program, entry, kind, modes| {
-                scalar_join(sources, parsed, program, entry, kind, modes, same);
-            },
+            observe,
+        );
+        assert_eq!(legacy_events, Vec::<Event>::new());
+        assert_eq!(
+            kinds.replace(Vec::new()),
+            [
+                EntryKind::Single,
+                EntryKind::Unit,
+                EntryKind::Unit,
+                EntryKind::Single,
+                EntryKind::Unit,
+                EntryKind::Unit,
+            ]
+        );
+        let rooted_events = observe_products(
+            &text,
+            false,
+            &mut failures,
+            paired_in_order_observed_entry,
+            observe,
+        );
+        // Both sources use only Copyable scalar values: the complete observed
+        // String/borrow/drop/abort event stream is independently fixed to empty.
+        assert_eq!(rooted_events, Vec::<Event>::new());
+        assert_eq!(
+            *kinds.borrow(),
+            [
+                EntryKind::RootedUnit,
+                EntryKind::Unit,
+                EntryKind::Unit,
+                EntryKind::RootedUnit,
+                EntryKind::Unit,
+                EntryKind::Unit,
+            ]
         );
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
@@ -114,7 +157,7 @@ fn observe_products(
     failures: &mut Vec<String>,
     produce: fn(&str, bool, bool, &products::Observer<'_>) -> Vec<Event>,
     observe: impl Fn(&SourceMap, &ParsedFile, &Program, FunctionId, EntryKind, Option<&[ParameterMode]>),
-) {
+) -> Vec<Event> {
     let observations = std::cell::RefCell::new(Vec::new());
     let query = |sources: &SourceMap,
                  parsed: &ParsedFile,
@@ -146,6 +189,7 @@ fn observe_products(
         }
     }
     assert_eq!(first, second);
+    first
 }
 
 fn function_span(sources: &SourceMap, parsed: &ParsedFile, name: &str) -> Span {
@@ -445,10 +489,9 @@ fn scalar_join(
     }
     let signature = column(&graph, calls[0].block, result);
     assert_eq!(signature.len(), 2);
-    let pending = if kind == EntryKind::Unit {
-        column(&graph, calls[0].block, first)
-    } else {
-        signature.iter().map(|(from, _)| (*from, first)).collect()
+    let pending = match kind {
+        EntryKind::RootedUnit | EntryKind::Unit => column(&graph, calls[0].block, first),
+        EntryKind::Single => signature.iter().map(|(from, _)| (*from, first)).collect(),
     };
     assert_eq!(
         pending.iter().map(|(from, _)| *from).collect::<Vec<_>>(),
