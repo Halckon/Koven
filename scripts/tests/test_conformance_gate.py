@@ -1157,6 +1157,60 @@ sys.exit(1)
             prog_prereqs["word_count"]["unimplemented_probes"],
             ["p15_elvis", "q08_enum_string_payload"],
         )
+        src_scale = gate.summarize_corpus_source_scale(loaded)
+        self.assertEqual(src_scale["total_probe_count"], 154)
+        self.assertEqual(src_scale["total_probe_source_lines"], 370)
+        self.assertEqual(src_scale["total_probe_source_bytes"], 23071)
+        self.assertEqual(src_scale["total_program_count"], 6)
+        self.assertEqual(src_scale["total_program_source_lines"], 554)
+        self.assertEqual(src_scale["total_program_source_bytes"], 17175)
+        self.assertEqual(src_scale["total_corpus_source_lines"], 924)
+        self.assertEqual(src_scale["total_corpus_source_bytes"], 40246)
+
+        # Verify LF trailing-newline source hygiene and source_lines / source_bytes checks
+        p01_path = self.corpus / "probes" / "p01_ok.ko"
+        orig_p01 = p01_path.read_bytes()
+        try:
+            crlf_bytes = b'fun main(): Unit { println("hello") }\r\n'
+            p01_path.write_bytes(crlf_bytes)
+            with self.assertRaisesRegex(
+                ValueError, "must be non-empty, use LF line endings, and end with trailing newline"
+            ):
+                gate.derive_static_expectations(self.corpus, self.baseline_path)
+            self._write_default_expectations(
+                {
+                    "p01_ok": {
+                        "kind": "run_ok",
+                        "source_sha256": hashlib.sha256(crlf_bytes).hexdigest(),
+                        "stdout": "hello\n",
+                    }
+                }
+            )
+            with self.assertRaisesRegex(
+                ValueError, "must be non-empty, use LF line endings, and end with trailing newline"
+            ):
+                gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+        finally:
+            p01_path.write_bytes(orig_p01)
+            self._write_default_expectations()
+
+        for bad_metric_spec, expected_err in [
+            ({"source_lines": 0}, "invalid source_lines"),
+            ({"source_bytes": True}, "invalid source_bytes"),
+            ({"source_lines": 999}, "source_lines mismatch"),
+            ({"source_bytes": 999}, "source_bytes mismatch"),
+        ]:
+            spec_override = {
+                "kind": "run_ok",
+                "source_sha256": _sha256(self.probe_ok_src),
+                "stdout": "hello\n",
+                **bad_metric_spec,
+            }
+            self._write_default_expectations({"p01_ok": spec_override})
+            with self.assertRaisesRegex(ValueError, expected_err):
+                gate.load_expectations(self.expectations_path, corpus_root=self.corpus)
+        self._write_default_expectations()
+
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",

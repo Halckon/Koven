@@ -176,6 +176,25 @@
 | **v0.46 启用边界** | Abort 输出合同 (SPEC-0355)、Result 内建与无参 is Result.Ok (SPEC-0349)、顶层仅 const val (SPEC-0343)、匿名 companion { } | 12 | 7 / 12 | `p02_interp`, `p16_result_q`, `p27_thread`, `p28_companion`, `p35_value_eq` (`L1`, `L2`, `N04`, `N06`, `N08`, `T1`) | `partial` |
 | **v0.47 启用边界** | Guide 13 文本字节基础、可信标准 String Borrow 扩展与 Result<String, String> 载荷 when 闭环 (SPEC-0368) | 5 | 5 / 5 | - | `all_passed` |
 
+### 1.12 语料库源码规模、LF 尾换行卫生契约与章节源码分布汇总
+
+| Guide v0.46 章节 | 领域主题 | Probe 数量 | Probe 源码规模 (`lines / bytes`) | 关联验收程序 | Program 源码规模 (`lines / bytes`) | 章节源码合计 |
+|---|---|---:|---:|---|---:|---:|
+| [01-lexical.md](../docs/guide/01-lexical.md) | 词法 | 4 | 10 行 / 398 B | - | 0 行 / 0 B | 10 行 / 398 B |
+| [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 名称、文件、Package 与 Import | 7 | 9 行 / 657 B | - | 0 行 / 0 B | 9 行 / 657 B |
+| [03-types-generics.md](../docs/guide/03-types-generics.md) | 类型与泛型 | 11 | 24 行 / 1544 B | `varint_codec` | 90 行 / 2812 B | 114 行 / 4356 B |
+| [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 表达式与运算符 | 5 | 5 行 / 399 B | - | 0 行 / 0 B | 5 行 / 399 B |
+| [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 声明与 Callable | 4 | 8 行 / 410 B | - | 0 行 / 0 B | 8 行 / 410 B |
+| [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | Block 与控制流 | 19 | 40 行 / 2892 B | - | 0 行 / 0 B | 40 行 / 2892 B |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 8 | 15 行 / 1037 B | - | 0 行 / 0 B | 15 行 / 1037 B |
+| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | Class Family、成员与 Receiver | 16 | 39 行 / 2490 B | `raii_state_machine` | 90 行 / 2750 B | 129 行 / 5240 B |
+| [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 空安全与错误值 | 16 | 47 行 / 2561 B | `config_parse` | 116 行 / 3797 B | 163 行 / 6358 B |
+| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 所有权、借用与析构 | 9 | 28 行 / 1636 B | `linked_stack` | 89 行 / 2453 B | 117 行 / 4089 B |
+| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | Copyable、布局、构造与结构移动 | 3 | 7 行 / 542 B | `expr_eval` | 119 行 / 3942 B | 126 行 / 4484 B |
+| [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 集合、索引与解构 | 48 | 133 行 / 8138 B | `word_count` | 50 行 / 1421 B | 183 行 / 9559 B |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 4 | 5 行 / 367 B | - | 0 行 / 0 B | 5 行 / 367 B |
+| **合计** | **13 个核心章节** | **154** | **370 行 / 23071 B** | **6 Programs** | **554 行 / 17175 B** | **924 行 / 40246 B** |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |

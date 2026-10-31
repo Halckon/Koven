@@ -1360,6 +1360,13 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                         raise ValueError(
                             f"{section}.{name} with known_unimplemented has invalid roadmap_blockers {blockers!r}"
                         )
+            for src_metric_key in ("source_lines", "source_bytes"):
+                if src_metric_key in spec and (
+                    not isinstance(spec[src_metric_key], int)
+                    or isinstance(spec[src_metric_key], bool)
+                    or spec[src_metric_key] < 1
+                ):
+                    raise ValueError(f"{section}.{name} has invalid {src_metric_key}")
             if "baseline_marker" in spec and (
                 not isinstance(spec["baseline_marker"], str)
                 or not spec["baseline_marker"].strip()
@@ -1454,12 +1461,24 @@ def load_expectations(path: Path, corpus_root: Path | None = None) -> dict[str, 
                 if not src_file.is_file():
                     raise ValueError(f"missing source file for {section}.{name}: {src_file}")
                 src_bytes = src_file.read_bytes()
+                if not src_bytes or not src_bytes.endswith(b"\n") or b"\r" in src_bytes:
+                    raise ValueError(
+                        f"source file for {section}.{name} must be non-empty, use LF line endings, and end with trailing newline"
+                    )
                 actual_sha = sha256_bytes(src_bytes)
                 if actual_sha != spec["source_sha256"]:
                     raise ValueError(
                         f"source_sha256 mismatch for {section}.{name}: expected {spec['source_sha256']}, got {actual_sha}"
                     )
                 src_text = src_bytes.decode("utf-8")
+                if "source_bytes" in spec and spec["source_bytes"] != len(src_bytes):
+                    raise ValueError(
+                        f"source_bytes mismatch for {section}.{name}: expected {spec['source_bytes']}, got {len(src_bytes)}"
+                    )
+                if "source_lines" in spec and spec["source_lines"] != len(src_text.splitlines()):
+                    raise ValueError(
+                        f"source_lines mismatch for {section}.{name}: expected {spec['source_lines']}, got {len(src_text.splitlines())}"
+                    )
                 if PACKAGE_DIRECTIVE_RE.search(src_text):
                     raise ValueError(
                         f"{section}.{name} must not contain a package directive (collides with project-mode package app header)"
@@ -1659,6 +1678,7 @@ def derive_static_expectations(
     programs_dir = corpus_root / "programs"
 
     probes_out: dict[str, Any] = {}
+    probe_src_metrics: dict[str, tuple[int, int]] = {}
     for path in sorted(probes_dir.glob("*.ko")):
         name = path.stem
         # 命名违规与 baseline 缺项都要给出可读诊断，不能落到 baseline[name] 的 KeyError
@@ -1669,7 +1689,12 @@ def derive_static_expectations(
                 f"add a baseline row for the probe or rename the source file"
             )
         raw_bytes = path.read_bytes()
+        if not raw_bytes or not raw_bytes.endswith(b"\n") or b"\r" in raw_bytes:
+            raise ValueError(
+                f"source file for probes.{name} must be non-empty, use LF line endings, and end with trailing newline"
+            )
         src_text = raw_bytes.decode("utf-8")
+        probe_src_metrics[name] = (len(src_text.splitlines()), len(raw_bytes))
         src_sha = sha256_bytes(raw_bytes)
         base_single, base_project = baseline[name]
         if base_single != base_project:
@@ -1809,7 +1834,10 @@ def derive_static_expectations(
                 "note": "requires human oracle confirmation",
             }
 
-    for entry in probes_out.values():
+    for name, entry in probes_out.items():
+        src_lines, src_bytes_len = probe_src_metrics[name]
+        entry["source_lines"] = src_lines
+        entry["source_bytes"] = src_bytes_len
         out_text = entry.get("stdout") or entry.get("target_stdout")
         if isinstance(out_text, str) and out_text:
             entry["expected_lines"] = len(out_text.splitlines())
@@ -1823,11 +1851,19 @@ def derive_static_expectations(
         expected_txt = prog_dir / "expected.txt"
         if not main_ko.is_file() or not expected_txt.is_file():
             continue
+        main_bytes = main_ko.read_bytes()
+        if not main_bytes or not main_bytes.endswith(b"\n") or b"\r" in main_bytes:
+            raise ValueError(
+                f"source file for programs.{prog_dir.name} must be non-empty, use LF line endings, and end with trailing newline"
+            )
+        main_text = main_bytes.decode("utf-8")
         exp_bytes = expected_txt.read_bytes()
         exp_text = exp_bytes.decode("utf-8")
         prog_entry: dict[str, Any] = {
             "kind": "known_unimplemented",
-            "source_sha256": sha256_file(main_ko),
+            "source_sha256": sha256_bytes(main_bytes),
+            "source_lines": len(main_text.splitlines()),
+            "source_bytes": len(main_bytes),
             "guide_chapter": PROGRAM_GUIDE_CHAPTERS.get(
                 prog_dir.name, "13-program-runtime-standard-library.md"
             ),
@@ -3800,6 +3836,64 @@ def summarize_program_probe_prerequisites(
     return out
 
 
+def summarize_corpus_source_scale(expectations: dict[str, Any]) -> dict[str, Any]:
+    """Aggregate source line and byte metrics across all 154 probes, 6 programs, and 13 Guide chapters."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    by_chapter: dict[str, dict[str, Any]] = {
+        ch: {
+            "chapter": ch,
+            "domain": GUIDE_CHAPTER_DOMAINS[ch],
+            "probe_count": 0,
+            "probe_source_lines": 0,
+            "probe_source_bytes": 0,
+            "program_count": 0,
+            "program_source_lines": 0,
+            "program_source_bytes": 0,
+            "programs": [],
+        }
+        for ch in VALID_GUIDE_CHAPTERS
+    }
+    tot_probe_lines = 0
+    tot_probe_bytes = 0
+    for name, spec in sorted(probes.items()):
+        ch = spec.get("guide_chapter", "05-declarations-callables.md")
+        sl = int(spec.get("source_lines", 0))
+        sb = int(spec.get("source_bytes", 0))
+        tot_probe_lines += sl
+        tot_probe_bytes += sb
+        if ch in by_chapter:
+            by_chapter[ch]["probe_count"] += 1
+            by_chapter[ch]["probe_source_lines"] += sl
+            by_chapter[ch]["probe_source_bytes"] += sb
+
+    tot_prog_lines = 0
+    tot_prog_bytes = 0
+    for name, spec in sorted(programs.items()):
+        ch = spec.get("guide_chapter", "13-program-runtime-standard-library.md")
+        sl = int(spec.get("source_lines", 0))
+        sb = int(spec.get("source_bytes", 0))
+        tot_prog_lines += sl
+        tot_prog_bytes += sb
+        if ch in by_chapter:
+            by_chapter[ch]["program_count"] += 1
+            by_chapter[ch]["program_source_lines"] += sl
+            by_chapter[ch]["program_source_bytes"] += sb
+            by_chapter[ch]["programs"].append(name)
+
+    return {
+        "total_probe_count": len(probes),
+        "total_probe_source_lines": tot_probe_lines,
+        "total_probe_source_bytes": tot_probe_bytes,
+        "total_program_count": len(programs),
+        "total_program_source_lines": tot_prog_lines,
+        "total_program_source_bytes": tot_prog_bytes,
+        "total_corpus_source_lines": tot_probe_lines + tot_prog_lines,
+        "total_corpus_source_bytes": tot_probe_bytes + tot_prog_bytes,
+        "by_chapter": by_chapter,
+    }
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -4108,6 +4202,39 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| **{ver_key} 启用边界** | {v_row['summary']} | {len(v_row['probes'])} | "
             f"{v_row['cap_passed_count']} / {len(v_row['probes'])} | {rem_v} | `{v_row['status']}` |"
         )
+
+    src_scale = summarize_corpus_source_scale(expectations)
+    lines.extend(
+        [
+            "",
+            "### 1.12 语料库源码规模、LF 尾换行卫生契约与章节源码分布汇总",
+            "",
+            "| Guide v0.46 章节 | 领域主题 | Probe 数量 | Probe 源码规模 (`lines / bytes`) | 关联验收程序 | Program 源码规模 (`lines / bytes`) | 章节源码合计 |",
+            "|---|---|---:|---:|---|---:|---:|",
+        ]
+    )
+    for ch in VALID_GUIDE_CHAPTERS:
+        sc_row = src_scale["by_chapter"][ch]
+        prog_s = ", ".join(f"`{p}`" for p in sc_row["programs"]) if sc_row["programs"] else "-"
+        prog_scale_s = (
+            f"{sc_row['program_source_lines']} 行 / {sc_row['program_source_bytes']} B"
+            if sc_row["program_count"] > 0
+            else "0 行 / 0 B"
+        )
+        ch_tot_l = sc_row["probe_source_lines"] + sc_row["program_source_lines"]
+        ch_tot_b = sc_row["probe_source_bytes"] + sc_row["program_source_bytes"]
+        lines.append(
+            f"| [{ch}](../docs/guide/{ch}) | {sc_row['domain']} | {sc_row['probe_count']} | "
+            f"{sc_row['probe_source_lines']} 行 / {sc_row['probe_source_bytes']} B | {prog_s} | "
+            f"{prog_scale_s} | {ch_tot_l} 行 / {ch_tot_b} B |"
+        )
+    lines.append(
+        f"| **合计** | **13 个核心章节** | **{src_scale['total_probe_count']}** | "
+        f"**{src_scale['total_probe_source_lines']} 行 / {src_scale['total_probe_source_bytes']} B** | "
+        f"**{src_scale['total_program_count']} Programs** | "
+        f"**{src_scale['total_program_source_lines']} 行 / {src_scale['total_program_source_bytes']} B** | "
+        f"**{src_scale['total_corpus_source_lines']} 行 / {src_scale['total_corpus_source_bytes']} B** |"
+    )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
