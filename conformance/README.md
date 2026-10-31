@@ -62,7 +62,7 @@ python3 scripts/conformance_gate.py \
 python3 scripts/conformance_gate.py --audit-summary
 ```
 
-在 GitHub Actions CI（`.github/workflows/ci.yml`）中，`docs` 任务自动通过 `scripts/check_docs.py` 校验 `conformance/expectations.json` 与 `conformance/baseline-aef3f4f8.tsv` 的源码/期望 SHA-256 及条目完整性；`test` 任务在 `macos-14` 与 `ubuntu-24.04` 双宿主上自动执行 `scripts/conformance_gate.py --baseline conformance/baseline-aef3f4f8.tsv` 并归档 `conformance-<os>-<sha>` 证据包。
+在 GitHub Actions CI（`.github/workflows/ci.yml`）中，`docs` 任务自动通过 `scripts/check_docs.py` 校验 `conformance/expectations.json` 与 `conformance/baseline-aef3f4f8.tsv` 的源码/期望 SHA-256 及条目完整性；`test` 任务在 `macos-15` 与 `ubuntu-24.04` 双宿主上自动执行 `scripts/conformance_gate.py --baseline conformance/baseline-aef3f4f8.tsv` 并归档 `conformance-<os>-<sha>` 证据包。
 
 门禁行为与产物（`--evidence <dir>`）：
 
