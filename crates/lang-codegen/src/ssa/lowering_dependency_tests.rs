@@ -496,6 +496,19 @@ fn production_lowering_dependencies_remain_directional() {
             );
         }
     }
+    // Preserve the independent legacy witnesses without compiling their lowering
+    // implementation or exposing its entry in the non-test library.
+    let source = fs::read_to_string(root.join("mod.rs")).expect("real SSA module root");
+    for token in production_tokens(&source) {
+        assert!(
+            !matches!(
+                token.text,
+                "lower_frontend" | "lower_scalar_file_with_entry"
+            ),
+            "legacy single lowering item in the non-test SSA root: {}",
+            token.text
+        );
+    }
 }
 
 fn check(path: &str, source: &str) -> Vec<String> {

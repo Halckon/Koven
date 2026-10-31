@@ -485,11 +485,11 @@ pub(crate) fn presence_cases() -> [(&'static str, &'static str, &'static str); 4
 fn bounded_presence_rc_nullable_while_sources_reach_verified_llvm() {
     let mut observations = Vec::new();
     for (case, source, _golden) in presence_cases() {
-        for unit in [false, true] {
-            observations.push(observe(case, source, unit));
-        }
+        observations.push(observe(case, source, true));
     }
-    // All eight independent presence pipelines finish before the success oracle.
+    // Original bytes now have the strict MemoryDocument success witness in
+    // memory_document. Keep these four package-qualified Rooted observations;
+    // the separate Single cleanup-identity and payload-boundary witnesses stay.
     for observation in &observations {
         let case = observation.case;
         let unit = observation.unit;
@@ -510,7 +510,7 @@ fn bounded_presence_rc_nullable_while_sources_reach_verified_llvm() {
             ),
         }
     }
-    assert_eq!(observations.len(), 8);
+    assert_eq!(observations.len(), 4);
     assert!(
         observations.iter().all(|observation| {
             observation.complete_ok
@@ -519,6 +519,6 @@ fn bounded_presence_rc_nullable_while_sources_reach_verified_llvm() {
                 && observation.entry_identity_ok
                 && observation.outcome.is_ok()
         }),
-        "all eight bounded presence pipelines must reach source-anchored verified LLVM"
+        "all four Rooted presence pipelines must reach source-anchored verified LLVM"
     );
 }

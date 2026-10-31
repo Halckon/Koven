@@ -71,6 +71,17 @@ fn original_payload_sources_keep_precise_memory_document_return_boundary() {
 fn original_presence_sources_reach_source_anchored_memory_document_llvm() {
     for (case, text, _golden) in presence_cases() {
         let unit = original_memory_source(case, text);
+        // Stage A for the stronger identity oracle: keep the independent Single
+        // identity witness until this exact MemoryDocument path has CI evidence.
+        let facts = identity_facts::unit(
+            unit.sources(),
+            unit.parsed(),
+            unit.names(),
+            unit.basic_types(),
+            unit.ownership(),
+            case,
+        )
+        .unwrap_or_else(|error| panic!("{case}: original frontend owner identity: {error}"));
         let expected = source_functions(unit.sources(), unit.parsed())
             .unwrap_or_else(|error| panic!("{case}: {}: {}", error.stage, error.detail));
         let entry = unit.declaration("entry", SymbolKind::Function);
@@ -87,6 +98,8 @@ fn original_presence_sources_reach_source_anchored_memory_document_llvm() {
         verify_entry_sources(unit.sources(), &program, entry, &expected)
             .unwrap_or_else(|error| panic!("{case}: {}: {}", error.stage, error.detail));
         verify_program(&program).unwrap();
+        identity::inspect_program(&program, entry, case, &facts)
+            .unwrap_or_else(|error| panic!("{case}: original SSA cleanup identity: {error}"));
         let llvm = crate::llvm::render_verified_program(&program)
             .unwrap_or_else(|error| panic!("{case}: verified LLVM: {error:?}"));
         assert!(!llvm.is_empty(), "{case}: nonempty rendered module");

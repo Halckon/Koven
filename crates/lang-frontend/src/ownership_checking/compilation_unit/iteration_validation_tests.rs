@@ -1,4 +1,6 @@
 //! Mutations attack the public producer contract rather than re-running its builder.
+#[path = "iteration_validation_tests/lambda_ci.rs"]
+mod lambda_ci;
 #[path = "iteration_validation_tests/map_ci.rs"]
 mod map_ci;
 #[path = "iteration_validation_tests/numeric_snapshot.rs"]
