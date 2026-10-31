@@ -450,6 +450,24 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"{len(v3_row['runnable_probes'])} / {len(v3_row['probes'])} | {rem_v3} | {prog_v3} | `{v3_row['status']}` |"
         )
 
+    syntax_align = summarize_guide_syntax_index_alignment(expectations)
+    tot_syntax_entries = sum(r["entry_count"] for r in syntax_align.values())
+    lines.extend(
+        [
+            "",
+            f"### 1.14 Guide 14 语法索引（{tot_syntax_entries} 项语法形式）与 Conformance 章节探针对账矩阵",
+            "",
+            "| 语法索引领域 (`14-syntax-index.md`) | 语法条目数 | 唯一规则归属章节 | 覆盖语法形式说明 | 归属章节 Probe 通过率 | 状态 |",
+            "|---|---:|---|---|---:|---|",
+        ]
+    )
+    for dom, sx_row in syntax_align.items():
+        ch_links = ", ".join(f"[{c}](../docs/guide/{c})" for c in sx_row["chapters"])
+        lines.append(
+            f"| **{dom}** | {sx_row['entry_count']} | {ch_links} | {sx_row['summary']} | "
+            f"{sx_row['cap_passed_count']} / {sx_row['probe_count']} | `{sx_row['status']}` |"
+        )
+
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
     roadmap_items: dict[str, dict[str, Any]] = {}

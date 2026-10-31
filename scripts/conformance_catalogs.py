@@ -849,3 +849,20 @@ PROGRAM_README_CATALOG: dict[str, tuple[str, str]] = {
     "varint_codec": ("二进制编解码", "ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错"),
     "linked_stack": ("链表/栈", "拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表"),
 }
+
+GUIDE_SYNTAX_INDEX_DOMAINS: dict[str, tuple[int, list[str], str]] = {
+    "词法": (8, ["01-lexical.md"], "关键字、标识符、trivia/换行、字面量、标点与词法恢复"),
+    "文件与名称": (3, ["02-names-files-packages.md"], "完整文件与声明分隔、`package`/`import` 文件头、跨文件限定名称"),
+    "类型": (1, ["03-types-generics.md"], "`type_ref`、泛型实参与函数类型语法"),
+    "表达式": (3, ["04-expressions-operators.md"], "primary/bound reference、postfix/调用/索引、运算符优先级与结合性"),
+    "声明": (3, ["05-declarations-callables.md", "06-blocks-control-flow.md"], "`val`/`var`/`const val`/`fun`、callable 参数 marker 与函数 body 三形态"),
+    "控制流": (2, ["06-blocks-control-flow.md"], "block/block element 与 `if`/`when`/`while`/`for`/`loop`/jump"),
+    "调用与 Lambda": (4, ["07-calls-lambdas-closures.md"], "lambda literal、尾 lambda、隐式 `it` 与自动 Borrow/`&` 调用实参"),
+    "类型声明": (3, ["08-class-family-members.md"], "class/value/interface/enum/object/companion、receiver marker 与 `by` 委托"),
+    "空安全与错误": (2, ["09-nullability-errors.md"], "`?:`/`!!`/nullable/`error()` 与 postfix `?`/`Result<T, E>`"),
+    "所有权": (1, ["10-ownership-borrowing-drop.md"], "Value/Borrow/Inout、loan 与调用期借用/ASAP 析构"),
+    "普通借用结果": (1, ["10-ownership-borrowing-drop.md"], "`: borrow T from source` 与 `borrow val` 显式局部绑定"),
+    "构造": (1, ["11-copyability-layout-construction.md"], "class/value/enum 名义值与 Intrinsic `Box` 构造"),
+    "集合与解构": (2, ["12-collections-destructuring.md"], "顺序容器构造/索引/element place 与局部 `val` 解构语法"),
+    "程序入口": (2, ["13-program-runtime-standard-library.md"], "conventional `main` 与 project selector / process entry"),
+}

@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from conformance_catalogs import (
+    GUIDE_SYNTAX_INDEX_DOMAINS,
     PROJECT_PACKAGE_HEADER,
     PROJECT_TOML_BYTES,
     SCHEMA_RESULTS,
@@ -544,3 +545,123 @@ def compare_tsv_matrix_against_expectations(
         "unexpected_passes": unexpected_passes,
         "failures": failures,
     }
+
+
+def summarize_guide_syntax_index_alignment(
+    expectations: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Cross-reference the 36 syntax entries across 14 domain groups in Guide 14 against target chapter probes."""
+    probes = expectations["probes"]
+    out: dict[str, dict[str, Any]] = {}
+    for dom, (entry_count, chapters, summary) in GUIDE_SYNTAX_INDEX_DOMAINS.items():
+        ch_set = set(chapters)
+        dom_probes = sorted(
+            name for name, spec in probes.items() if spec.get("guide_chapter") in ch_set
+        )
+        cap_passed = [
+            p
+            for p in dom_probes
+            if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+        ]
+        unimpl = [p for p in dom_probes if probes[p]["kind"] == "known_unimplemented"]
+        out[dom] = {
+            "domain": dom,
+            "entry_count": entry_count,
+            "chapters": list(chapters),
+            "summary": summary,
+            "probe_count": len(dom_probes),
+            "cap_passed_count": len(cap_passed),
+            "unimplemented_count": len(unimpl),
+            "status": "all_passed" if not unimpl else "partial",
+        }
+    return out
+
+
+V3_SANITIZER_RESOURCE_CATALOG: dict[str, dict[str, Any]] = {
+    "deterministic_deinit_drop": {
+        "title": "确定性 `deinit` 析构与提前返回栈展开清理",
+        "sanitizer_focus": "ASan `drop` (heap-use-after-free) / LSan 零泄漏",
+        "probes": [
+            "p32_deinit",
+            "q19_deep_return_cleanup",
+        ],
+        "programs": ["raii_state_machine"],
+    },
+    "heap_class_rc_and_box": {
+        "title": "堆分配 `class`、`Rc<T>` 共享引用计数、`Box<T>` 递归枚举与 `replace`",
+        "sanitizer_focus": "ASan `user` / `runtime` 与 LSan `leak` 对照",
+        "probes": [
+            "p12_class_inout",
+            "p12b_class_field_assign",
+            "p21_box_enum",
+            "p22_rc",
+            "p25b_linked_recursive",
+            "p40_nested_generic_class",
+            "p44b_method_on_class",
+            "p46_string_field_class",
+            "q04_rc_simple",
+            "q09_inout_class_param",
+            "q20_replace_field",
+        ],
+        "programs": ["expr_eval", "linked_stack"],
+    },
+    "string_and_text_owner": {
+        "title": "堆拥有 `String` 克隆、拼接、重赋值、枚举行李与可空返回",
+        "sanitizer_focus": "ASan 堆缓冲区边界 / LSan 字符串所有权释放",
+        "probes": [
+            "p02_interp",
+            "p16b_result_string",
+            "p26_borrow_return",
+            "p31_string_ops",
+            "p41_when_string",
+            "q08_enum_string_payload",
+            "q10_var_reassign_string",
+            "x02_string_nullable_return",
+        ],
+        "programs": ["config_parse"],
+    },
+    "collection_list_and_map_provider": {
+        "title": "`List` / `MutableList` / `Map` / `MutableMap` 扩容、覆盖、删除与遍历析构",
+        "sanitizer_focus": "SPEC-0288 `map-fixture` 与 12 组 `provider-fixtures` (`singleton`/`overwrite`/`growth`)",
+        "probes": [
+            "p19_mutablelist",
+            "p38_list_of_strings",
+            "p47_list_index_string",
+            "q15_borrow_param_string_list",
+            "t05_map_loop_continue",
+            "t10_map_nested_if_break",
+            "u02_list_add_loop_string",
+            "v15_map_for",
+            "v22_range_with_map",
+            "w01_map_for_sum",
+            "w02_map_for_order",
+            "w03_map_overwrite_remove",
+            "w08_map_string_values",
+            "w09_map_temp_source",
+            "w11_word_count",
+        ],
+        "programs": ["word_count"],
+    },
+    "closure_env_and_thread_spawn": {
+        "title": "捕获闭包环境、`move` 闭包所有权转移与 `thread(move { ... })`",
+        "sanitizer_focus": "ASan 闭包环境生命周期 / 跨线程 `Send` 所有权传递",
+        "probes": [
+            "p17_lambda",
+            "p18_move_closure",
+            "p27_thread",
+            "q01_lambda_local",
+            "q02_lambda_arg_inline",
+        ],
+        "programs": [],
+    },
+    "checked_abort_and_overflow": {
+        "title": "受检整数溢出、`error(msg)` 与显式数值转换 `SIGABRT` 中止边界",
+        "sanitizer_focus": "Guide 09 D12 `abort: <msg>` + 栈帧确定性退出",
+        "probes": [
+            "p04_overflow",
+            "p45_abort_message",
+            "v12_convert_abort",
+        ],
+        "programs": ["varint_codec"],
+    },
+}

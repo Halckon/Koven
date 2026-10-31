@@ -597,6 +597,13 @@ class ConformanceAuditSelfTests(unittest.TestCase):
             gate.sync_readme_chapter_table(repo_readme_text, loaded),
             repo_readme_text,
         )
+        syntax_align = gate.summarize_guide_syntax_index_alignment(loaded)
+        self.assertEqual(len(syntax_align), 14)
+        self.assertEqual(sum(r["entry_count"] for r in syntax_align.values()), 36)
+        self.assertEqual(syntax_align["表达式"]["status"], "all_passed")
+        self.assertEqual(syntax_align["集合与解构"]["status"], "all_passed")
+        self.assertEqual(syntax_align["声明"]["probe_count"], 23)
+        self.assertEqual(syntax_align["声明"]["cap_passed_count"], 22)
 
         # Verify LF trailing-newline source hygiene and source_lines / source_bytes checks
         p01_path = self.corpus / "probes" / "p01_ok.ko"
