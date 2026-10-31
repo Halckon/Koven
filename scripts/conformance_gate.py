@@ -41,92 +41,6 @@ from conformance_evidence import *  # noqa: F401,F403
 from conformance_audit import *  # noqa: F401,F403
 
 
-def render_readme_program_table(expectations: dict[str, Any]) -> str:
-    """Render the V1 acceptance programs summary table embedded in conformance/README.md."""
-    probes = expectations["probes"]
-    programs = expectations["programs"]
-    lines = [
-        "| 目录 | 题目 | 覆盖面 | 归属章节 | 当前状态 | 前置 Probe 就绪 | 路线图阻塞项 |",
-        "|---|---|---|---|---|---:|---|",
-    ]
-    for prog_name, (title, coverage) in PROGRAM_README_CATALOG.items():
-        spec = programs.get(prog_name, {})
-        ch = spec.get(
-            "guide_chapter",
-            PROGRAM_GUIDE_CHAPTERS.get(prog_name, "13-program-runtime-standard-library.md"),
-        )
-        kind = spec.get("kind", "known_unimplemented")
-        blockers = spec.get("roadmap_blockers", PROGRAM_ROADMAP_BLOCKERS.get(prog_name, []))
-        blk_s = ", ".join(f"`{b}`" for b in blockers) if blockers else "-"
-        pre_list = PROGRAM_PREREQUISITE_PROBES.get(prog_name, [])
-        if pre_list and all(p in probes for p in pre_list):
-            passed_cnt = sum(
-                1
-                for p in pre_list
-                if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
-            )
-            pre_s = f"{passed_cnt} / {len(pre_list)}"
-        else:
-            pre_s = "-"
-        lines.append(
-            f"| `{prog_name}` | {title} | {coverage} | [{ch}](../docs/guide/{ch}) | `{kind}` | {pre_s} | {blk_s} |"
-        )
-    return "\n".join(lines)
-
-
-def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
-    """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
-    chapter_stats = summarize_chapter_polarity(expectations)
-    lines = [
-        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |",
-        "|---|---:|---:|---:|---:|---:|---:|",
-    ]
-    tot_all = tot_ok = tot_cf = tot_ab = tot_ku = tot_cap = 0
-    for ch in VALID_GUIDE_CHAPTERS:
-        st = chapter_stats[ch]
-        tot_all += st["total"]
-        tot_ok += st["run_ok"]
-        tot_cf += st["compile_fail"]
-        tot_ab += st["runtime_abort"]
-        tot_ku += st["known_unimplemented"]
-        tot_cap += st["cap_passed"]
-        lines.append(
-            f"| [{ch}](../docs/guide/{ch}) | {st['total']} | {st['run_ok']} | {st['compile_fail']} | "
-            f"{st['runtime_abort']} | {st['known_unimplemented']} | {st['cap_passed']} / {st['total']} |"
-        )
-    lines.append(
-        f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** |"
-    )
-    return "\n".join(lines)
-
-
-README_PROGRAM_TABLE_RE = re.compile(
-    r"(\| 目录 \| 题目 \| 覆盖面(?: \| 归属章节 \| 当前状态 \| 前置 Probe 就绪 \| 路线图阻塞项)? \|\n"
-    r"\|---\|---\|---(?:\|---\|---\|---:\|---)?\|\n"
-    r"(?:\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+\n)+"
-    r"\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+)"
-)
-
-README_CHAPTER_TABLE_RE = re.compile(
-    r"(\| Guide v0\.4[67] 章节 \| Probe 总数 \| `run_ok` \| `compile_fail` \| `runtime_abort` \| `known_unimplemented` \| 能力通过 \(`capability_passed`\) \|\n"
-    r"\|---\|---:\|---:\|---:\|---:\|---:\|---:\|\n"
-    r"(?:\| \[[^\n]+\n)+"
-    r"\| \*\*合计\*\* \|[^\n]+)"
-)
-
-
-def sync_readme_chapter_table(readme_text: str, expectations: dict[str, Any]) -> str:
-    """Replace the Guide chapter and V1 acceptance program summary tables in conformance/README.md with fresh counts."""
-    table_md = render_readme_chapter_table(expectations)
-    if not README_CHAPTER_TABLE_RE.search(readme_text):
-        raise ValueError("conformance/README.md is missing the Guide chapter coverage table")
-    updated = README_CHAPTER_TABLE_RE.sub(lambda _: table_md, readme_text, count=1)
-    if README_PROGRAM_TABLE_RE.search(updated):
-        prog_md = render_readme_program_table(expectations)
-        updated = README_PROGRAM_TABLE_RE.sub(lambda _: prog_md, updated, count=1)
-    return updated
-
-
 def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     """Render deterministic Markdown audit ledger from expectations.json."""
     probes = expectations["probes"]
@@ -845,7 +759,30 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="compare a 3-column TSV matrix against expectations.json and optional baseline without running compiler",
     )
+    parser.add_argument(
+        "--audit-summary",
+        action="store_true",
+        help="verify corpus expectations + docs sync and emit deterministic JSON audit summary without running compiler",
+    )
     args = parser.parse_args(argv)
+
+    if args.audit_summary:
+        try:
+            loaded_exp = load_expectations(args.expectations, corpus_root=args.corpus)
+            audit_md = args.corpus / "ORACLE_AUDIT.md"
+            if audit_md.is_file() and audit_md.read_text(encoding="utf-8") != render_oracle_audit_markdown(loaded_exp):
+                raise ValueError("conformance/ORACLE_AUDIT.md is out of sync with expectations.json")
+            readme_md = args.corpus / "README.md"
+            if readme_md.is_file():
+                r_text = readme_md.read_text(encoding="utf-8")
+                if sync_readme_chapter_table(r_text, loaded_exp) != r_text:
+                    raise ValueError("conformance/README.md is out of sync with expectations.json")
+            audit_summary = build_static_audit_summary(loaded_exp, corpus_root=args.corpus)
+        except (ValueError, OSError) as exc:
+            print(f"conformance: error: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(audit_summary, ensure_ascii=True, indent=2))
+        return 0
 
     if args.init_expectations:
         baseline_file = args.baseline or (args.corpus / "baseline-aef3f4f8.tsv")

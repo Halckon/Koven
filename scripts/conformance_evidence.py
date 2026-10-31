@@ -757,3 +757,182 @@ def summarize_project_transform_contracts(
             },
         },
     }
+
+
+def render_readme_program_table(expectations: dict[str, Any]) -> str:
+    """Render the V1 acceptance programs summary table embedded in conformance/README.md."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    lines = [
+        "| 目录 | 题目 | 覆盖面 | 归属章节 | 当前状态 | 前置 Probe 就绪 | 路线图阻塞项 |",
+        "|---|---|---|---|---|---:|---|",
+    ]
+    for prog_name, (title, coverage) in PROGRAM_README_CATALOG.items():
+        spec = programs.get(prog_name, {})
+        ch = spec.get(
+            "guide_chapter",
+            PROGRAM_GUIDE_CHAPTERS.get(prog_name, "13-program-runtime-standard-library.md"),
+        )
+        kind = spec.get("kind", "known_unimplemented")
+        blockers = spec.get("roadmap_blockers", PROGRAM_ROADMAP_BLOCKERS.get(prog_name, []))
+        blk_s = ", ".join(f"`{b}`" for b in blockers) if blockers else "-"
+        pre_list = PROGRAM_PREREQUISITE_PROBES.get(prog_name, [])
+        if pre_list and all(p in probes for p in pre_list):
+            passed_cnt = sum(
+                1
+                for p in pre_list
+                if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+            )
+            pre_s = f"{passed_cnt} / {len(pre_list)}"
+        else:
+            pre_s = "-"
+        lines.append(
+            f"| `{prog_name}` | {title} | {coverage} | [{ch}](../docs/guide/{ch}) | `{kind}` | {pre_s} | {blk_s} |"
+        )
+    return "\n".join(lines)
+
+
+def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
+    """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
+    from conformance_audit import summarize_chapter_polarity
+
+    chapter_stats = summarize_chapter_polarity(expectations)
+    lines = [
+        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    tot_all = tot_ok = tot_cf = tot_ab = tot_ku = tot_cap = 0
+    for ch in VALID_GUIDE_CHAPTERS:
+        st = chapter_stats[ch]
+        tot_all += st["total"]
+        tot_ok += st["run_ok"]
+        tot_cf += st["compile_fail"]
+        tot_ab += st["runtime_abort"]
+        tot_ku += st["known_unimplemented"]
+        tot_cap += st["cap_passed"]
+        lines.append(
+            f"| [{ch}](../docs/guide/{ch}) | {st['total']} | {st['run_ok']} | {st['compile_fail']} | "
+            f"{st['runtime_abort']} | {st['known_unimplemented']} | {st['cap_passed']} / {st['total']} |"
+        )
+    lines.append(
+        f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** |"
+    )
+    return "\n".join(lines)
+
+
+README_PROGRAM_TABLE_RE = re.compile(
+    r"(\| 目录 \| 题目 \| 覆盖面(?: \| 归属章节 \| 当前状态 \| 前置 Probe 就绪 \| 路线图阻塞项)? \|\n"
+    r"\|---\|---\|---(?:\|---\|---\|---:\|---)?\|\n"
+    r"(?:\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+\n)+"
+    r"\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+)"
+)
+
+README_CHAPTER_TABLE_RE = re.compile(
+    r"(\| Guide v0\.4[67] 章节 \| Probe 总数 \| `run_ok` \| `compile_fail` \| `runtime_abort` \| `known_unimplemented` \| 能力通过 \(`capability_passed`\) \|\n"
+    r"\|---\|---:\|---:\|---:\|---:\|---:\|---:\|\n"
+    r"(?:\| \[[^\n]+\n)+"
+    r"\| \*\*合计\*\* \|[^\n]+)"
+)
+
+
+def sync_readme_chapter_table(readme_text: str, expectations: dict[str, Any]) -> str:
+    """Replace the Guide chapter and V1 acceptance program summary tables in conformance/README.md with fresh counts."""
+    table_md = render_readme_chapter_table(expectations)
+    if not README_CHAPTER_TABLE_RE.search(readme_text):
+        raise ValueError("conformance/README.md is missing the Guide chapter coverage table")
+    updated = README_CHAPTER_TABLE_RE.sub(lambda _: table_md, readme_text, count=1)
+    if README_PROGRAM_TABLE_RE.search(updated):
+        prog_md = render_readme_program_table(expectations)
+        updated = README_PROGRAM_TABLE_RE.sub(lambda _: prog_md, updated, count=1)
+    return updated
+
+
+def build_static_audit_summary(
+    expectations: dict[str, Any],
+    corpus_root: Path | None = None,
+) -> dict[str, Any]:
+    """Build a deterministic machine-readable JSON audit summary of the conformance corpus without invoking compiler."""
+    from conformance_audit import (
+        summarize_foundational_cohort,
+        summarize_guide_litmus_alignment,
+        summarize_stage_progression,
+        summarize_v2_chapter_readiness,
+        summarize_v3_sanitizer_coverage,
+    )
+
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    kind_counts: dict[str, int] = {
+        "run_ok": 0,
+        "compile_fail": 0,
+        "runtime_abort": 0,
+        "known_unimplemented": 0,
+        "unreviewed": 0,
+    }
+    for spec in probes.values():
+        k = spec["kind"]
+        kind_counts[k] = kind_counts.get(k, 0) + 1
+    cap_passed = (
+        kind_counts["run_ok"] + kind_counts["compile_fail"] + kind_counts["runtime_abort"]
+    )
+    cohort = summarize_foundational_cohort(expectations)
+    v2_ready = summarize_v2_chapter_readiness(expectations)
+    litmus = summarize_guide_litmus_alignment(expectations)
+    v3_cov = summarize_v3_sanitizer_coverage(expectations)
+    stage_prog = summarize_stage_progression(expectations)
+    pt_contracts = summarize_project_transform_contracts(expectations, corpus_root=corpus_root)
+
+    return {
+        "schema": "koven.conformance-audit-summary.v1",
+        "total_probes": len(probes),
+        "probe_capability_passed": cap_passed,
+        "probe_kind_counts": kind_counts,
+        "total_programs": len(programs),
+        "program_run_ok": sum(1 for s in programs.values() if s["kind"] == "run_ok"),
+        "foundational_p2": {
+            "group_a_total": cohort["groups"]["A"]["total"],
+            "group_a_runnable": cohort["groups"]["A"]["runnable"],
+            "p2_target_min": cohort["p2_target_min"],
+            "p2_gap_to_target": cohort["p2_gap_to_target"],
+            "p2_gate_met": cohort["p2_gate_met"],
+        },
+        "v2_chapter_readiness": {
+            "v2_probe_ready": [
+                ch for ch, r in v2_ready.items() if r["v2_status"] == "v2_probe_ready"
+            ],
+            "blocked_by_roadmap": [
+                ch for ch, r in v2_ready.items() if r["v2_status"] == "blocked_by_roadmap"
+            ],
+            "needs_negative_and_roadmap": [
+                ch
+                for ch, r in v2_ready.items()
+                if r["v2_status"] == "needs_negative_and_roadmap"
+            ],
+        },
+        "litmus_alignment": {
+            "all_passed": [k for k, v in litmus.items() if v["status"] == "all_passed"],
+            "partial": [k for k, v in litmus.items() if v["status"] == "partial"],
+        },
+        "v3_sanitizer_coverage": {
+            "all_runnable": [
+                k for k, v in v3_cov.items() if v["status"] == "all_runnable"
+            ],
+            "partial": [k for k, v in v3_cov.items() if v["status"] == "partial"],
+        },
+        "stage_progression": [
+            {
+                "stage": s["stage"],
+                "projected_probe_cap": s["projected_probe_cap"],
+                "projected_group_a_runnable": s["projected_group_a_runnable"],
+                "projected_programs_ready": s["projected_programs_ready"],
+            }
+            for s in stage_prog
+        ],
+        "project_transform": {
+            "header_utf8": pt_contracts["header_utf8"],
+            "entry_selector": pt_contracts["entry_selector"],
+            "explicit_import_probes": len(
+                pt_contracts["cohorts"]["probes_explicit_import"]["probes"]
+            ),
+        },
+    }

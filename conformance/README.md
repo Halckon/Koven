@@ -57,6 +57,9 @@ python3 scripts/conformance_gate.py \
 python3 scripts/conformance_gate.py \
   --compare-evidence .local-artifacts/conformance-macos .local-artifacts/conformance-linux \
   --baseline conformance/baseline-aef3f4f8.tsv
+
+# 离线输出语料库强 Oracle、P2 门槛、V2 章节就绪度与 V3 Sanitizer 覆盖 JSON 摘要
+python3 scripts/conformance_gate.py --audit-summary
 ```
 
 在 GitHub Actions CI（`.github/workflows/ci.yml`）中，`docs` 任务自动通过 `scripts/check_docs.py` 校验 `conformance/expectations.json` 与 `conformance/baseline-aef3f4f8.tsv` 的源码/期望 SHA-256 及条目完整性；`test` 任务在 `macos-14` 与 `ubuntu-24.04` 双宿主上自动执行 `scripts/conformance_gate.py --baseline conformance/baseline-aef3f4f8.tsv` 并归档 `conformance-<os>-<sha>` 证据包。
