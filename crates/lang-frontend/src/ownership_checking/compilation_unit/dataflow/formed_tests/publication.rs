@@ -410,7 +410,7 @@ fn assert_memory_document_rejection(
         &typed,
     )
     .unwrap();
-    assert_eq!(product.diagnostics(), [expected.clone()]);
+    assert_eq!(product.diagnostics(), std::slice::from_ref(expected));
     assert!(product.deferred().is_empty());
     assert!(product.is_compatible_with(&typed));
     assert!(product.formed_owned_locals().is_empty());
