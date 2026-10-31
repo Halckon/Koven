@@ -471,55 +471,6 @@ mod legacy_only {
         type_checking::{check_compilation_unit_types, check_types, standard_environments},
     };
 
-    pub(super) fn paired_in_order_observed_entry(
-        text: &str,
-        constants: bool,
-        entry_first: bool,
-        observe: &products::Observer<'_>,
-    ) -> Vec<Event> {
-        products::compare_in_order(
-            text,
-            constants,
-            entry_first,
-            EntryKind::Single,
-            |sources, input| single_product(sources, input.parsed()),
-            observe,
-        )
-    }
-
-    fn single_product(
-        sources: &SourceMap,
-        file: &ParsedFile,
-    ) -> (Program, FunctionId, Option<Vec<ParameterMode>>) {
-        let (name_environment, environment) = standard_environments();
-        let names = resolve_names(sources, file, &name_environment).unwrap();
-        let typed = check_types(sources, file, &names, &environment).unwrap();
-        let owned = check_ownership(sources, file, &names, &typed).unwrap();
-        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        let entry = names
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.name() == "entry" && symbol.kind() == SymbolKind::Function)
-            .unwrap()
-            .id();
-        let modes = typed
-            .callables()
-            .iter()
-            .find(|callable| callable.symbol() == entry)
-            .map(|callable| {
-                callable
-                    .parameters()
-                    .iter()
-                    .map(|parameter| parameter.mode)
-                    .collect::<Vec<_>>()
-            });
-        let (program, entry) =
-            lower_scalar_file_with_entry(sources, file, &names, &typed, &owned, entry).unwrap();
-        (program, entry, modes)
-    }
-
     fn error_key(
         sources: &SourceMap,
         error: LoweringError,

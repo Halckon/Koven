@@ -22,8 +22,6 @@ use lang_frontend::{
 pub(super) enum EntryKind {
     RootedUnit,
     Unit,
-    // Only the retained legacy-only Copyable pending contract observes this kind.
-    Single,
 }
 
 pub(super) type Observer<'a> =
