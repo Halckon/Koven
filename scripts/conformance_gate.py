@@ -468,6 +468,24 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"{sx_row['cap_passed_count']} / {sx_row['probe_count']} | `{sx_row['status']}` |"
         )
 
+    pt_contracts = summarize_project_transform_contracts(expectations)
+    lines.extend(
+        [
+            "",
+            "### 1.15 单文件与 Project 双模式变换契约（`package app` + `app.main`）对账矩阵",
+            "",
+            f"- **Project 模式变换规则（`prepend_package_header`）**：自动向源码前置 `{pt_contracts['header_utf8']}\\n`（`{pt_contracts['header_bytes']} B`，SHA-256 `{pt_contracts['header_sha256'][:16]}…`）写入 `{pt_contracts['target_relpath']}`，配合固定 `project.toml`（SHA-256 `{pt_contracts['project_toml_sha256'][:16]}…`）以 `kovenc run --project project.toml --entry {pt_contracts['entry_selector']}` 执行，要求单文件与工程模式结果记号及 `stdout` 字节 100% 一致：",
+            "",
+            "| 双模式变换分组 (`cohort`) | 分组语义与文件头特征 | 条目数量 | 双模式能力通过 (`capability_passed`) | 关联条目 / 代表性样本 |",
+            "|---|---|---:|---:|---|",
+        ]
+    )
+    for c_key, c_row in pt_contracts["cohorts"].items():
+        lines.append(
+            f"| `{c_key}` | {c_row['label']} | {c_row['count']} | "
+            f"{c_row['cap_passed']} / {c_row['count']} | {c_row['representative']} |"
+        )
+
     # Load v1.json roadmap metadata for blocker names and titles if available
     v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
     roadmap_items: dict[str, dict[str, Any]] = {}

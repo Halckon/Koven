@@ -11,6 +11,12 @@ from typing import Any
 
 from conformance_catalogs import (
     GUIDE_SYNTAX_INDEX_DOMAINS,
+    MAIN_ENTRY_RE,
+    PACKAGE_DIRECTIVE_RE,
+    PROGRAM_GUIDE_CHAPTERS,
+    PROGRAM_PREREQUISITE_PROBES,
+    PROGRAM_README_CATALOG,
+    PROGRAM_ROADMAP_BLOCKERS,
     PROJECT_PACKAGE_HEADER,
     PROJECT_TOML_BYTES,
     SCHEMA_RESULTS,
@@ -23,6 +29,7 @@ from conformance_expectations import (
     sha256_bytes,
 )
 from conformance_runner import (
+    build_project_source,
     classify_raw,
     compare_item,
     is_internal_error_marker,
@@ -665,3 +672,88 @@ V3_SANITIZER_RESOURCE_CATALOG: dict[str, dict[str, Any]] = {
         "programs": ["varint_codec"],
     },
 }
+
+
+def summarize_project_transform_contracts(
+    expectations: dict[str, Any],
+    corpus_root: Path | None = None,
+) -> dict[str, Any]:
+    """Verify and summarize single-file vs project-mode (`package app` + `app.main`) transformation invariants across the corpus."""
+    if corpus_root is None:
+        default_corpus = Path(__file__).resolve().parents[1] / "conformance"
+        if (default_corpus / "probes").is_dir():
+            corpus_root = default_corpus
+
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    explicit_import_probes: list[str] = []
+    default_prelude_probes: list[str] = []
+
+    for name, spec in sorted(probes.items()):
+        if corpus_root is not None:
+            src_file = corpus_root / "probes" / f"{name}.ko"
+            raw_bytes = src_file.read_bytes()
+            transformed_bytes, meta = build_project_source(raw_bytes)
+            if meta["original_source_sha256"] != spec["source_sha256"]:
+                raise ValueError(f"project transform original_source_sha256 mismatch for probes.{name}")
+            if meta["transformed_source_sha256"] == meta["original_source_sha256"]:
+                raise ValueError(f"project transform did not alter source hash for probes.{name}")
+            t_text = transformed_bytes.decode("utf-8")
+            if len(PACKAGE_DIRECTIVE_RE.findall(t_text)) != 1 or len(MAIN_ENTRY_RE.findall(t_text)) != 1:
+                raise ValueError(f"project transform violated single package/main invariant for probes.{name}")
+            has_import = bool(re.search(r"(?m)^\s*import\s+", t_text))
+        else:
+            has_import = name.startswith("y") and name != "y02_take_no_import"
+        if has_import:
+            explicit_import_probes.append(name)
+        else:
+            default_prelude_probes.append(name)
+
+    if corpus_root is not None:
+        for name, spec in sorted(programs.items()):
+            src_file = corpus_root / "programs" / name / "main.ko"
+            raw_bytes = src_file.read_bytes()
+            transformed_bytes, meta = build_project_source(raw_bytes)
+            if meta["original_source_sha256"] != spec["source_sha256"]:
+                raise ValueError(f"project transform original_source_sha256 mismatch for programs.{name}")
+            t_text = transformed_bytes.decode("utf-8")
+            if len(PACKAGE_DIRECTIVE_RE.findall(t_text)) != 1 or len(MAIN_ENTRY_RE.findall(t_text)) != 1:
+                raise ValueError(f"project transform violated single package/main invariant for programs.{name}")
+
+    return {
+        "header_utf8": PROJECT_PACKAGE_HEADER.decode("utf-8").strip(),
+        "header_bytes": len(PROJECT_PACKAGE_HEADER),
+        "header_sha256": sha256_bytes(PROJECT_PACKAGE_HEADER),
+        "project_toml_sha256": sha256_bytes(PROJECT_TOML_BYTES),
+        "target_relpath": "src/app/main.ko",
+        "entry_selector": "app.main",
+        "cohorts": {
+            "probes_default_prelude": {
+                "label": "无显式 `import` 探针（默认内建环境）",
+                "count": len(default_prelude_probes),
+                "cap_passed": sum(
+                    1
+                    for p in default_prelude_probes
+                    if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+                ),
+                "representative": "`p01_int_print`..`x03_if_call_borrow_arg`, `y02_take_no_import` (FE:L0080)",
+            },
+            "probes_explicit_import": {
+                "label": "含显式 `import koven.algorithms.take` 探针",
+                "count": len(explicit_import_probes),
+                "cap_passed": sum(
+                    1
+                    for p in explicit_import_probes
+                    if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+                ),
+                "probes": explicit_import_probes,
+                "representative": ", ".join(f"`{p}`" for p in explicit_import_probes),
+            },
+            "acceptance_programs": {
+                "label": "V1 多函数/多类型验收程序（`programs/<name>/main.ko`）",
+                "count": len(programs),
+                "cap_passed": sum(1 for s in programs.values() if s["kind"] == "run_ok"),
+                "representative": ", ".join(f"`{p}`" for p in sorted(programs.keys())),
+            },
+        },
+    }

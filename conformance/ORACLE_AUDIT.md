@@ -225,6 +225,16 @@
 | **集合与解构** | 2 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 顺序容器构造/索引/element place 与局部 `val` 解构语法 | 48 / 48 | `all_passed` |
 | **程序入口** | 2 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | conventional `main` 与 project selector / process entry | 3 / 4 | `partial` |
 
+### 1.15 单文件与 Project 双模式变换契约（`package app` + `app.main`）对账矩阵
+
+- **Project 模式变换规则（`prepend_package_header`）**：自动向源码前置 `package app\n`（`12 B`，SHA-256 `75d99e22087438b6…`）写入 `src/app/main.ko`，配合固定 `project.toml`（SHA-256 `698c7c35fe8b6169…`）以 `kovenc run --project project.toml --entry app.main` 执行，要求单文件与工程模式结果记号及 `stdout` 字节 100% 一致：
+
+| 双模式变换分组 (`cohort`) | 分组语义与文件头特征 | 条目数量 | 双模式能力通过 (`capability_passed`) | 关联条目 / 代表性样本 |
+|---|---|---:|---:|---|
+| `probes_default_prelude` | 无显式 `import` 探针（默认内建环境） | 149 | 133 / 149 | `p01_int_print`..`x03_if_call_borrow_arg`, `y02_take_no_import` (FE:L0080) |
+| `probes_explicit_import` | 含显式 `import koven.algorithms.take` 探针 | 5 | 5 / 5 | `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println`, `y05_take_borrow_val_call`, `y06_take_borrow_val_for` |
+| `acceptance_programs` | V1 多函数/多类型验收程序（`programs/<name>/main.ko`） | 6 | 0 / 6 | `config_parse`, `expr_eval`, `linked_stack`, `raii_state_machine`, `varint_codec`, `word_count` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |

@@ -604,6 +604,23 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         self.assertEqual(syntax_align["集合与解构"]["status"], "all_passed")
         self.assertEqual(syntax_align["声明"]["probe_count"], 23)
         self.assertEqual(syntax_align["声明"]["cap_passed_count"], 22)
+        pt_contracts = gate.summarize_project_transform_contracts(loaded, repo_corpus)
+        self.assertEqual(pt_contracts["header_utf8"], "package app")
+        self.assertEqual(pt_contracts["entry_selector"], "app.main")
+        self.assertEqual(pt_contracts["cohorts"]["probes_default_prelude"]["count"], 149)
+        self.assertEqual(pt_contracts["cohorts"]["probes_default_prelude"]["cap_passed"], 133)
+        self.assertEqual(
+            pt_contracts["cohorts"]["probes_explicit_import"]["probes"],
+            [
+                "y01_import_take_for_sum",
+                "y03_method_take_for",
+                "y04_take_for_println",
+                "y05_take_borrow_val_call",
+                "y06_take_borrow_val_for",
+            ],
+        )
+        self.assertEqual(pt_contracts["cohorts"]["probes_explicit_import"]["cap_passed"], 5)
+        self.assertEqual(pt_contracts["cohorts"]["acceptance_programs"]["count"], 6)
 
         # Verify LF trailing-newline source hygiene and source_lines / source_bytes checks
         p01_path = self.corpus / "probes" / "p01_ok.ko"
