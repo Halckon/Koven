@@ -201,6 +201,21 @@ sys.exit(1)
             ),
             0,
         )
+        self.assertEqual(
+            gate.main(
+                [
+                    "--check-matrix",
+                    str(evidence_dir / "matrix.tsv"),
+                    "--corpus",
+                    str(self.corpus),
+                    "--expectations",
+                    str(self.expectations_path),
+                    "--baseline",
+                    str(self.baseline_path),
+                ]
+            ),
+            0,
+        )
         # Tamper with raw stdout file and verify offline bundle verification catches it
         (evidence_dir / "raw" / "p01_ok.single.stdout").write_bytes(b"tampered\n")
         try:
@@ -1116,6 +1131,32 @@ sys.exit(1)
         self.assertEqual(len(phase_mat[4]["active_negative_probes"]), 3)
         self.assertEqual(len(phase_mat[4]["blocked_probes"]), 16)
         self.assertEqual(len(phase_mat[4]["blocked_programs"]), 6)
+        litmus_align = gate.summarize_guide_litmus_alignment(loaded)
+        self.assertEqual(list(litmus_align.keys()), list(range(1, 13)))
+        self.assertEqual(
+            [k for k, v in litmus_align.items() if v["status"] == "all_passed"],
+            [1, 2, 3, 8, 9, 10, 11, 12],
+        )
+        self.assertEqual(
+            [k for k, v in litmus_align.items() if v["status"] == "partial"],
+            [4, 5, 6, 7],
+        )
+        ver_bounds = gate.summarize_guide_version_boundaries(loaded)
+        self.assertEqual(list(ver_bounds.keys()), ["v0.44", "v0.45", "v0.46", "v0.47"])
+        self.assertEqual(ver_bounds["v0.44"]["status"], "all_passed")
+        self.assertEqual(ver_bounds["v0.45"]["status"], "all_passed")
+        self.assertEqual(ver_bounds["v0.46"]["status"], "partial")
+        self.assertEqual(ver_bounds["v0.47"]["status"], "all_passed")
+        prog_prereqs = gate.summarize_program_probe_prerequisites(loaded)
+        self.assertEqual(set(prog_prereqs.keys()), set(loaded["programs"].keys()))
+        self.assertEqual(
+            len(prog_prereqs["word_count"]["passed_probes"]),
+            5,
+        )
+        self.assertEqual(
+            prog_prereqs["word_count"]["unimplemented_probes"],
+            ["p15_elvis", "q08_enum_string_payload"],
+        )
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",

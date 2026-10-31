@@ -150,6 +150,32 @@
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 集合、索引与解构 | 47 | 1 (`FE:L0135`) | 0 | - | `word_count` | `v2_probe_ready` |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 3 | 0（待补反例） | 1 (`p27_thread`) | `N04`, `T1` | - | `needs_negative_and_roadmap` |
 
+### 1.10 Guide 15 规范性 Litmus 1–12 与端到端 Conformance Probe 对齐矩阵
+
+| Litmus 编号与主题 | 归属 Guide 章节 | 关联端到端 Probe | 能力通过 (`capability_passed`) | 剩余未实现与阻塞项 | 状态 |
+|---|---|---|---:|---|---|
+| **Litmus 1**：基础函数与局部变量 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | `p01_int_print`, `p24_recursion`, `q10_var_reassign_string`, `v01_assign_unit_value` | 4 / 4 | - | `all_passed` |
+| **Litmus 2**：换行分句与表达式续行 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | `p03_long_uint`, `t07_short_circuit_plain`, `v01_assign_unit_value`, `v02_assign_chain` | 4 / 4 | - | `all_passed` |
+| **Litmus 3**：控制流与循环结构 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `p07_while_var`, `p48_nested_loops_break`, `q13_if_expr_value`, `v04_stmt_if_mixed` | 4 / 4 | - | `all_passed` |
+| **Litmus 4**：枚举类型与穷尽 when 匹配 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `e01_enum_when_bool_return`, `e04_enum_when_int_return`, `p09_enum_payload`, `p49_when_enum_no_payload`, `q08_enum_string_payload` | 4 / 5 | `q08_enum_string_payload` (`L7`, `N02`) | `partial` |
+| **Litmus 5**：类、值类与伴随对象 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `p12_class_inout`, `p28_companion`, `p44_method_on_value`, `q12_companion_const` | 3 / 4 | `p28_companion` (`N06`) | `partial` |
+| **Litmus 6**：泛型、接口与单态化 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `p10_generic_fn`, `p11_interface_bound`, `q16_interface_static`, `t03_vmethod_generic` | 3 / 4 | `p11_interface_bound` (`N06`) | `partial` |
+| **Litmus 7**：线性所有权与移动语义 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `p21_box_enum`, `p25_linked_iter`, `p32_deinit`, `q19_deep_return_cleanup` | 3 / 4 | `p21_box_enum` (`L7`, `N07`) | `partial` |
+| **Litmus 8**：借用检查与在位可变引用 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `p12c_inout_param`, `p26_borrow_return`, `q09_inout_class_param`, `q20_replace_field` | 4 / 4 | - | `all_passed` |
+| **Litmus 9**：空安全、流类型与非空断言 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `p14_nullable`, `p14b_nullable_simple`, `q05_nullable_param`, `q06_nullable_return_bang`, `x02_string_nullable_return` | 5 / 5 | - | `all_passed` |
+| **Litmus 10**：函数类型与闭包捕获 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p42_lambda_mutate`, `q01_lambda_local`, `q02_lambda_arg_inline` | 6 / 6 | - | `all_passed` |
+| **Litmus 11**：顺序集合遍历与结构解构 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `p19_mutablelist`, `p34_for_range`, `p38_list_of_strings`, `q15_borrow_param_string_list`, `w01_map_for_sum` | 5 / 5 | - | `all_passed` |
+| **Litmus 12**：关联常量与标准库互操作 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `p31_string_ops`, `q12_companion_const`, `s01_result_builtin` | 3 / 3 | - | `all_passed` |
+
+### 1.11 Guide 15 版本启用边界（`v0.44` → `v0.45` → `v0.46` → `v0.47`）与 Probe 验收对账矩阵
+
+| Guide 启用边界 | 核心启用语义与阶段合同 | 关联验收 Probe 数 | 能力通过 (`capability_passed`) | 剩余未实现与阻塞项 | 状态 |
+|---|---|---:|---:|---|---|
+| **v0.44 启用边界** | 封闭 if/when join、赋值返回 Unit、while 事实、IntRange/LongRange 与 for、八整数 checked 转换、插入序 Map 遍历 | 14 | 14 / 14 | - | `all_passed` |
+| **v0.45 启用边界** | 单文件与 project 统一 compilation-unit 管线、显式 koven.algorithms.take 导入、enum subject when 两模式零差异 | 10 | 10 / 10 | - | `all_passed` |
+| **v0.46 启用边界** | Abort 输出合同 (SPEC-0355)、Result 内建与无参 is Result.Ok (SPEC-0349)、顶层仅 const val (SPEC-0343)、匿名 companion { } | 12 | 7 / 12 | `p02_interp`, `p16_result_q`, `p27_thread`, `p28_companion`, `p35_value_eq` (`L1`, `L2`, `N04`, `N06`, `N08`, `T1`) | `partial` |
+| **v0.47 启用边界** | Guide 13 文本字节基础、可信标准 String Borrow 扩展与 Result<String, String> 载荷 when 闭环 (SPEC-0368) | 5 | 5 / 5 | - | `all_passed` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
@@ -175,6 +201,17 @@
 | `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 1 | `expr_eval` | 2 |
 | `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 2 | `expr_eval`, `linked_stack` | 1 |
 | `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 3 | `config_parse`, `expr_eval`, `varint_codec` | 1 |
+
+### 2.2 六个 V1 验收程序与前置核心能力 Probe 对账矩阵
+
+| 验收程序 | 归属章节 | 前置 Probe 通过率 | 已通过前置 Probe (`run_ok` / `compile_fail` / `abort`) | 待解封前置 Probe (`known_unimplemented`) | 路线图阻塞项 |
+|---|---|---:|---|---|---|
+| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 4 / 7 | `p16b_result_string`, `p31_string_ops`, `s01_result_builtin`, `w08_map_string_values` | `p02_interp`, `p16_result_q`, `q08_enum_string_payload` | `N02`, `N08`, `L1`, `L2` |
+| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 / 8 | `p09_enum_payload`, `p24_recursion`, `s01_result_builtin` | `p05_double`, `p06_char`, `p16_result_q`, `p21_box_enum`, `q08_enum_string_payload` | `N02`, `N05`, `N07`, `N08`, `L7` |
+| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 4 / 7 | `p14_nullable`, `p25_linked_iter`, `q20_replace_field`, `v18_while_nullable_class` | `p21_box_enum`, `p25b_linked_recursive`, `p40_nested_generic_class` | `N01`, `N03`, `N07`, `L7` |
+| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 5 / 7 | `p12_class_inout`, `p32_deinit`, `p49_when_enum_no_payload`, `q19_deep_return_cleanup`, `q20_replace_field` | `p40_nested_generic_class`, `q08_enum_string_payload` | `N01`, `N02` |
+| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 5 / 7 | `p03_long_uint`, `p19_mutablelist`, `s01_result_builtin`, `v11_convert_ok`, `v12_convert_abort` | `p16_result_q`, `p40_nested_generic_class` | `N01`, `N08`, `L3b` |
+| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 5 / 7 | `p19_mutablelist`, `p31_string_ops`, `w01_map_for_sum`, `w02_map_for_order`, `w11_word_count` | `p15_elvis`, `q08_enum_string_payload` | `N02`, `N03` |
 
 ## 3. 16 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
 

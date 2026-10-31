@@ -76,9 +76,9 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 
 - 脚本可在任意目录执行，相对路径一律按仓库根解释。`KOVENC` 默认 `target/release/kovenc`；
   第一个参数可替换 probe 目录，默认 `conformance/probes`；`PROBE_TIMEOUT` 设置单次运行秒数，
-  默认 60；若设置 `KOVEN_CONFORMANCE_EVIDENCE=<dir>` 则同时落盘保存原始 `.stdout`/`.stderr`/`.status.json`。
+  默认 60；若设置 `KOVEN_CONFORMANCE_EVIDENCE=<dir>` 则同时落盘保存原始 `.stdout`/`.stderr`/`.status.json`、`matrix.tsv` 与 `manifest.json`。
 - 输出三列 TSV：名称、单文件结果、project 结果。结果文件放在仓库外或 `.local-artifacts/`，
-  不提交；只有经确认的基线才以 `baseline-<commit>.tsv` 入库。
+  不提交；只有经确认的基线才以 `baseline-<commit>.tsv` 入库。可通过 `python3 scripts/conformance_gate.py --check-matrix matrix.tsv --baseline conformance/baseline-aef3f4f8.tsv` 离线比对任意三列矩阵与 `expectations.json` / 历史基线。
 
 ## 结果记号
 
