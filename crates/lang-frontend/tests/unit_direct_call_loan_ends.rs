@@ -2,18 +2,19 @@
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames, index_compilation_unit,
+        resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
-        CompilationUnitOwnership, LoanEndPoint, OwnershipCheckedFile, OwnershipDeferredReason,
-        UnitDropPoint, UnitDropTarget, UnitLoanTarget, check_compilation_unit_ownership,
-        check_ownership,
+        CompilationUnitOwnership, LoanEndPoint, LoanKind, OwnershipCheckedFile,
+        OwnershipDeferredReason, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
+        check_compilation_unit_ownership, check_ownership,
     },
     parser::{Expression, ParsedFile, parse_file},
-    source::SourceMap,
+    source::{SourceMap, Span},
     type_checking::{
-        UnitCallTarget, check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        standard_environments,
+        UnitCallTarget, UnitExpressionId, check_compilation_unit_types, check_types,
+        complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -22,6 +23,7 @@ struct Observed {
     parsed: ParsedFile,
     legacy: OwnershipCheckedFile,
     units: Vec<CompilationUnitOwnership>,
+    unit_names: Vec<ValidatedCompilationUnitNames>,
 }
 
 fn observe(text: &str) -> Observed {
@@ -40,6 +42,7 @@ fn observe(text: &str) -> Observed {
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let legacy = check_ownership(&sources, &parsed, &names, &typed).unwrap();
     let mut units = Vec::new();
+    let mut unit_names = Vec::new();
     for input in [
         SourceUnitInput::new("root", "call_ends.ko", source, &parsed),
         SourceUnitInput::memory_document(source, &parsed),
@@ -56,12 +59,14 @@ fn observe(text: &str) -> Observed {
         units.push(
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap(),
         );
+        unit_names.push(names);
     }
     Observed {
         sources,
         parsed,
         legacy,
         units,
+        unit_names,
     }
 }
 
@@ -125,12 +130,172 @@ fn assert_accepted(observed: &Observed) {
     }
 }
 
+type ByteSpan = (usize, usize);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExpectedPoint {
+    CallReturn,
+    Return(ByteSpan),
+    Break(ByteSpan),
+    Continue(ByteSpan),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExpectedTarget {
+    Local(ByteSpan),
+    Temporary,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ExpectedEnd {
+    call: ByteSpan,
+    argument: ByteSpan,
+    parameter: ByteSpan,
+    point: ExpectedPoint,
+    target: ExpectedTarget,
+}
+
+// Stage A: expected vectors are literal source contracts, never captured from
+// either analysis. Normalize only the actual ordered slice; keep the legacy witness.
+fn assert_fixed_ends(observed: &Observed, expected: &[ExpectedEnd]) {
+    assert_eq!(observed.units.len(), 2);
+    assert_eq!(observed.unit_names.len(), 2);
+    let source = observed.parsed.source_id();
+    let bytes = |span: Span| {
+        assert_eq!(span.source_id(), source);
+        (span.start(), span.end())
+    };
+    for (entry, (unit, names)) in observed.units.iter().zip(&observed.unit_names).enumerate() {
+        let [indexed] = names.names().index().source_units() else {
+            panic!("one actual source in this entry");
+        };
+        assert_eq!(indexed.source_id(), source);
+        match (entry, indexed.key()) {
+            (0, SourceUnitKey::Rooted { root, logical_path }) => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), "call_ends.ko");
+            }
+            (1, SourceUnitKey::MemoryDocument) => {}
+            other => panic!("unexpected source key: {other:?}"),
+        }
+        let [local_names] = names.names().source_units() else {
+            panic!("one same-round local name product");
+        };
+        assert_eq!(local_names.source_unit(), indexed.id());
+        let node = |expression: UnitExpressionId| {
+            assert_eq!(expression.source_unit(), indexed.id());
+            observed
+                .parsed
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .unwrap()
+        };
+        let actual = unit
+            .direct_call_loan_ends()
+            .iter()
+            .map(|event| {
+                let loan = event.loan();
+                assert!(unit.loans().contains(loan));
+                assert_eq!(loan.kind(), LoanKind::Shared);
+                assert_eq!(event.preceding_drops(), 0);
+                let call = node(loan.call());
+                let Expression::Call { arguments, .. } = call.payload() else {
+                    panic!("actual call expression");
+                };
+                assert!(
+                    arguments
+                        .iter()
+                        .any(|argument| argument.value == loan.argument().expression())
+                );
+                let argument = node(loan.argument());
+                assert_eq!(loan.begin_span(), argument.span());
+                assert_eq!(loan.end_span(), call.span());
+                let point = match event.point() {
+                    UnitDropPoint::CallReturn(returned) => {
+                        assert_eq!(returned, loan.call());
+                        ExpectedPoint::CallReturn
+                    }
+                    UnitDropPoint::ControlTransfer(transfer) => {
+                        let transfer = node(transfer);
+                        match transfer.payload() {
+                            Expression::Return { .. } => {
+                                ExpectedPoint::Return(bytes(transfer.span()))
+                            }
+                            Expression::Break { .. } => {
+                                ExpectedPoint::Break(bytes(transfer.span()))
+                            }
+                            Expression::Continue { .. } => {
+                                ExpectedPoint::Continue(bytes(transfer.span()))
+                            }
+                            other => panic!("actual control-transfer expression: {other:?}"),
+                        }
+                    }
+                    other => panic!("unexpected end point: {other:?}"),
+                };
+                let target = match loan.target() {
+                    UnitLoanTarget::Place(place) => {
+                        assert!(place.is_root());
+                        let root = place.root();
+                        assert_eq!(root.source_unit(), indexed.id());
+                        assert!(unit.formed_owned_locals().contains(&root));
+                        let symbol = &local_names.resolution().symbols()[root.symbol().index()];
+                        assert_eq!(symbol.id(), root.symbol());
+                        assert_eq!(symbol.name(), "owner");
+                        assert_eq!(observed.sources.slice(symbol.span()), Ok("owner"));
+                        ExpectedTarget::Local(bytes(symbol.span()))
+                    }
+                    UnitLoanTarget::Temporary(owner) => {
+                        assert_eq!(
+                            *owner,
+                            loan.argument(),
+                            "the outer argument owns the temporary"
+                        );
+                        ExpectedTarget::Temporary
+                    }
+                    other => panic!("unexpected loan target: {other:?}"),
+                };
+                ExpectedEnd {
+                    call: bytes(call.span()),
+                    argument: bytes(argument.span()),
+                    parameter: bytes(loan.parameter_span().expect("selected source parameter")),
+                    point,
+                    target,
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual, expected,
+            "entry {entry}: complete ordered event vector"
+        );
+    }
+}
+
 #[test]
 fn direct_and_grouped_root_arguments_end_once_at_call_return() {
     let observed = observe(
         "fun read(first: String, second: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; read(owner, ((owner))) }",
     );
     assert_accepted(&observed);
+    assert_fixed_ends(
+        &observed,
+        &[
+            ExpectedEnd {
+                call: (87, 109),
+                argument: (99, 108),
+                parameter: (24, 38),
+                point: ExpectedPoint::CallReturn,
+                target: ExpectedTarget::Local((71, 76)),
+            },
+            ExpectedEnd {
+                call: (87, 109),
+                argument: (92, 97),
+                parameter: (9, 22),
+                point: ExpectedPoint::CallReturn,
+                target: ExpectedTarget::Local((71, 76)),
+            },
+        ],
+    );
     assert_eq!(observed.legacy.loan_ends().len(), 2);
     for unit in &observed.units {
         let ends = unit.direct_call_loan_ends();
@@ -189,6 +354,71 @@ fn only_established_prefix_ends_on_return_break_and_continue() {
                 "fun read(first: String, own n: Int, last: String): Unit {{}}\nfun run(flag: Boolean): Unit {{ {body} }}"
             ));
             assert_accepted(&observed);
+            let (call, prefix, suffix, point) = match (operand, jump) {
+                ("\"prefix\"", "return") => (
+                    (90, 147),
+                    (95, 103),
+                    (138, 146),
+                    ExpectedPoint::Return((117, 123)),
+                ),
+                ("\"prefix\"", "break") => (
+                    (97, 153),
+                    (102, 110),
+                    (144, 152),
+                    ExpectedPoint::Break((124, 129)),
+                ),
+                ("\"prefix\"", "continue") => (
+                    (97, 156),
+                    (102, 110),
+                    (147, 155),
+                    ExpectedPoint::Continue((124, 132)),
+                ),
+                ("((\"prefix\"))", "return") => (
+                    (90, 151),
+                    (95, 107),
+                    (142, 150),
+                    ExpectedPoint::Return((121, 127)),
+                ),
+                ("((\"prefix\"))", "break") => (
+                    (97, 157),
+                    (102, 114),
+                    (148, 156),
+                    ExpectedPoint::Break((128, 133)),
+                ),
+                ("((\"prefix\"))", "continue") => (
+                    (97, 160),
+                    (102, 114),
+                    (151, 159),
+                    ExpectedPoint::Continue((128, 136)),
+                ),
+                other => panic!("original prefix fixture: {other:?}"),
+            };
+            assert_fixed_ends(
+                &observed,
+                &[
+                    ExpectedEnd {
+                        call,
+                        argument: prefix,
+                        parameter: (9, 22),
+                        point,
+                        target: ExpectedTarget::Temporary,
+                    },
+                    ExpectedEnd {
+                        call,
+                        argument: suffix,
+                        parameter: (36, 48),
+                        point: ExpectedPoint::CallReturn,
+                        target: ExpectedTarget::Temporary,
+                    },
+                    ExpectedEnd {
+                        call,
+                        argument: prefix,
+                        parameter: (9, 22),
+                        point: ExpectedPoint::CallReturn,
+                        target: ExpectedTarget::Temporary,
+                    },
+                ],
+            );
             for unit in &observed.units {
                 let ends = unit.direct_call_loan_ends();
                 assert_eq!(
@@ -238,6 +468,25 @@ fn nested_call_return_does_not_end_the_outer_pending_loan() {
         "fun inner(text: String): Int = 0\nfun outer(first: String, own n: Int): Unit {}\nfun run(): Unit { outer(\"outer\", inner(\"inner\")) }",
     );
     assert_accepted(&observed);
+    assert_fixed_ends(
+        &observed,
+        &[
+            ExpectedEnd {
+                call: (112, 126),
+                argument: (118, 125),
+                parameter: (10, 22),
+                point: ExpectedPoint::CallReturn,
+                target: ExpectedTarget::Temporary,
+            },
+            ExpectedEnd {
+                call: (97, 127),
+                argument: (103, 110),
+                parameter: (43, 56),
+                point: ExpectedPoint::CallReturn,
+                target: ExpectedTarget::Temporary,
+            },
+        ],
+    );
     for unit in &observed.units {
         let ends = unit.direct_call_loan_ends();
         assert_eq!(ends.len(), 2);
@@ -270,6 +519,16 @@ fn inner_loop_jump_keeps_the_outer_call_prefix() {
         "fun read(first: String, own n: Int): Unit {}\nfun run(flag: Boolean): Unit { read(\"outer\", if (flag) { loop { break }; 0 } else { 0 }) }",
     );
     assert_accepted(&observed);
+    assert_fixed_ends(
+        &observed,
+        &[ExpectedEnd {
+            call: (76, 133),
+            argument: (81, 88),
+            parameter: (9, 22),
+            point: ExpectedPoint::CallReturn,
+            target: ExpectedTarget::Temporary,
+        }],
+    );
     for unit in &observed.units {
         let [end] = unit.direct_call_loan_ends() else {
             panic!("only the completed outer call ends its prefix")
@@ -322,6 +581,7 @@ fn nonreturning_suffix_and_unreachable_calls_publish_no_cleanup() {
         "fun stop(): Nothing = stop()\nfun read(first: String, own n: Int, last: String): Unit {}\nfun run(): Unit { read(\"prefix\", stop(), \"suffix\"); read(\"unreachable\", 0, \"tail\") }",
     );
     assert_accepted(&observed);
+    assert_fixed_ends(&observed, &[]);
     assert!(observed.legacy.loan_ends().is_empty());
     for unit in &observed.units {
         assert!(unit.direct_call_loan_ends().is_empty());
