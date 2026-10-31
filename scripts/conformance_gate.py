@@ -1658,6 +1658,8 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
         v3_covered_programs.update(c_progs)
     if v3_covered_programs != prog_keys:
         raise ValueError(f"V3_SANITIZER_RESOURCE_CATALOG programs coverage mismatch: {sorted(v3_covered_programs)}")
+    if set(PROGRAM_README_CATALOG.keys()) != prog_keys:
+        raise ValueError("PROGRAM_README_CATALOG keys do not match programs inventory")
 
 
 def parse_tsv_matrix(
@@ -4033,6 +4035,49 @@ def summarize_v3_sanitizer_coverage(expectations: dict[str, Any]) -> dict[str, d
     return out
 
 
+PROGRAM_README_CATALOG: dict[str, tuple[str, str]] = {
+    "word_count": ("词频", "`MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查"),
+    "config_parse": ("配置解析", "逐字符解析 `key = value`、注释与空行、`Display` 实现、`Result` 与 `?`"),
+    "expr_eval": ("表达式求值", "递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错"),
+    "raii_state_machine": ("RAII 状态机", "`deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移"),
+    "varint_codec": ("二进制编解码", "ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错"),
+    "linked_stack": ("链表/栈", "拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表"),
+}
+
+
+def render_readme_program_table(expectations: dict[str, Any]) -> str:
+    """Render the V1 acceptance programs summary table embedded in conformance/README.md."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    lines = [
+        "| 目录 | 题目 | 覆盖面 | 归属章节 | 当前状态 | 前置 Probe 就绪 | 路线图阻塞项 |",
+        "|---|---|---|---|---|---:|---|",
+    ]
+    for prog_name, (title, coverage) in PROGRAM_README_CATALOG.items():
+        spec = programs.get(prog_name, {})
+        ch = spec.get(
+            "guide_chapter",
+            PROGRAM_GUIDE_CHAPTERS.get(prog_name, "13-program-runtime-standard-library.md"),
+        )
+        kind = spec.get("kind", "known_unimplemented")
+        blockers = spec.get("roadmap_blockers", PROGRAM_ROADMAP_BLOCKERS.get(prog_name, []))
+        blk_s = ", ".join(f"`{b}`" for b in blockers) if blockers else "-"
+        pre_list = PROGRAM_PREREQUISITE_PROBES.get(prog_name, [])
+        if pre_list and all(p in probes for p in pre_list):
+            passed_cnt = sum(
+                1
+                for p in pre_list
+                if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+            )
+            pre_s = f"{passed_cnt} / {len(pre_list)}"
+        else:
+            pre_s = "-"
+        lines.append(
+            f"| `{prog_name}` | {title} | {coverage} | [{ch}](../docs/guide/{ch}) | `{kind}` | {pre_s} | {blk_s} |"
+        )
+    return "\n".join(lines)
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -4059,6 +4104,13 @@ def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+README_PROGRAM_TABLE_RE = re.compile(
+    r"(\| 目录 \| 题目 \| 覆盖面(?: \| 归属章节 \| 当前状态 \| 前置 Probe 就绪 \| 路线图阻塞项)? \|\n"
+    r"\|---\|---\|---(?:\|---\|---\|---:\|---)?\|\n"
+    r"(?:\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+\n)+"
+    r"\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+)"
+)
+
 README_CHAPTER_TABLE_RE = re.compile(
     r"(\| Guide v0\.4[67] 章节 \| Probe 总数 \| `run_ok` \| `compile_fail` \| `runtime_abort` \| `known_unimplemented` \| 能力通过 \(`capability_passed`\) \|\n"
     r"\|---\|---:\|---:\|---:\|---:\|---:\|---:\|\n"
@@ -4068,11 +4120,15 @@ README_CHAPTER_TABLE_RE = re.compile(
 
 
 def sync_readme_chapter_table(readme_text: str, expectations: dict[str, Any]) -> str:
-    """Replace the Guide chapter summary table in conformance/README.md with fresh counts."""
+    """Replace the Guide chapter and V1 acceptance program summary tables in conformance/README.md with fresh counts."""
     table_md = render_readme_chapter_table(expectations)
     if not README_CHAPTER_TABLE_RE.search(readme_text):
         raise ValueError("conformance/README.md is missing the Guide chapter coverage table")
-    return README_CHAPTER_TABLE_RE.sub(lambda _: table_md, readme_text, count=1)
+    updated = README_CHAPTER_TABLE_RE.sub(lambda _: table_md, readme_text, count=1)
+    if README_PROGRAM_TABLE_RE.search(updated):
+        prog_md = render_readme_program_table(expectations)
+        updated = README_PROGRAM_TABLE_RE.sub(lambda _: prog_md, updated, count=1)
+    return updated
 
 
 def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:

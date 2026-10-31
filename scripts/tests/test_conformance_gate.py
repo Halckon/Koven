@@ -1184,6 +1184,15 @@ sys.exit(1)
         self.assertEqual(v3_cov["heap_class_rc_and_box"]["status"], "partial")
         self.assertEqual(v3_cov["string_and_text_owner"]["status"], "partial")
         self.assertEqual(v3_cov["closure_env_and_thread_spawn"]["status"], "partial")
+        readme_prog_tbl = gate.render_readme_program_table(loaded)
+        self.assertIn("| `word_count` | 词频 |", readme_prog_tbl)
+        self.assertIn("| `raii_state_machine` | RAII 状态机 |", readme_prog_tbl)
+        repo_readme_text = (repo_corpus / "README.md").read_text(encoding="utf-8")
+        self.assertIn(readme_prog_tbl, repo_readme_text)
+        self.assertEqual(
+            gate.sync_readme_chapter_table(repo_readme_text, loaded),
+            repo_readme_text,
+        )
 
         # Verify LF trailing-newline source hygiene and source_lines / source_bytes checks
         p01_path = self.corpus / "probes" / "p01_ok.ko"

@@ -145,14 +145,14 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 
 ## 验收程序（V1 目标）
 
-| 目录 | 题目 | 覆盖面 |
-|---|---|---|
-| `word_count` | 词频 | `MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查 |
-| `config_parse` | 配置解析 | 逐字符解析 `key = value`、注释与空行、`Display` 实现、`Result` 与 `?` |
-| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 |
-| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 |
-| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 |
-| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 |
+| 目录 | 题目 | 覆盖面 | 归属章节 | 当前状态 | 前置 Probe 就绪 | 路线图阻塞项 |
+|---|---|---|---|---|---:|---|
+| `word_count` | 词频 | `MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | 5 / 7 | `N02`, `N03` |
+| `config_parse` | 配置解析 | 逐字符解析 `key = value`、注释与空行、`Display` 实现、`Result` 与 `?` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | 4 / 7 | `N02`, `N08`, `L1`, `L2` |
+| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | 3 / 8 | `N02`, `N05`, `N07`, `N08`, `L7` |
+| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | 5 / 7 | `N01`, `N02` |
+| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | 5 / 7 | `N01`, `N08`, `L3b` |
+| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 4 / 7 | `N01`, `N03`, `N07`, `L7` |
 
 这些程序按 Guide v0.46 编写，是 V1 的**目标**而不是当前实现能力：今天不能编译或运行并不算
 失败，只说明对应能力尚未实现。每个程序不读输入、输出确定；验收以 stdout 与 `expected.txt`
