@@ -103,29 +103,10 @@ fn paired_pending_value_joins_compare_complete_incoming_signatures() {
                        kind,
                        modes: Option<&[ParameterMode]>| {
             kinds.borrow_mut().push(kind);
-            scalar_join(sources, parsed, program, entry, kind, modes, same);
+            scalar_join(sources, parsed, program, entry, modes, same);
         };
-        // Stage A keeps the original Single witness, including its distinct
-        // Copyable pending representation, while adding a real rooted Unit baseline.
-        let legacy_events = observe_products(
-            &text,
-            false,
-            &mut failures,
-            legacy_only::paired_in_order_observed_entry,
-            observe,
-        );
-        assert_eq!(legacy_events, Vec::<Event>::new());
-        assert_eq!(
-            kinds.replace(Vec::new()),
-            [
-                EntryKind::Single,
-                EntryKind::Unit,
-                EntryKind::Unit,
-                EntryKind::Single,
-                EntryKind::Unit,
-                EntryKind::Unit,
-            ]
-        );
+        // This retirement requires the separate Stage A CI baseline. Both
+        // original sources and their Unit relation oracle stay unchanged.
         let rooted_events = observe_products(
             &text,
             false,
@@ -346,7 +327,6 @@ fn scalar_join(
     parsed: &ParsedFile,
     program: &Program,
     entry: FunctionId,
-    kind: EntryKind,
     modes: Option<&[ParameterMode]>,
     same: bool,
 ) {
@@ -476,23 +456,9 @@ fn scalar_join(
     graph
         .incoming_from(calls[0].block, &[when_true, when_false])
         .unwrap();
-    if kind == EntryKind::Single {
-        assert_eq!(
-            first, parameters[0],
-            "Copyable pending source remains outside carry"
-        );
-        if same {
-            assert_eq!(result, parameters[0]);
-            assert_eq!(arguments[1][0], parameters[0]);
-            return;
-        }
-    }
     let signature = column(&graph, calls[0].block, result);
     assert_eq!(signature.len(), 2);
-    let pending = match kind {
-        EntryKind::RootedUnit | EntryKind::Unit => column(&graph, calls[0].block, first),
-        EntryKind::Single => signature.iter().map(|(from, _)| (*from, first)).collect(),
-    };
+    let pending = column(&graph, calls[0].block, first);
     assert_eq!(
         pending.iter().map(|(from, _)| *from).collect::<Vec<_>>(),
         signature.iter().map(|(from, _)| *from).collect::<Vec<_>>()
