@@ -1,20 +1,19 @@
-//! SPEC-0179 同源 Unit 合同；四组正例使用独立固定空诊断 oracle。
-//! 两组拒绝使用完整固定 raw/final 诊断；其余 comparator 与 recovery witness 保留。
+//! SPEC-0179 同源 Unit 合同；原源码与事实断言使用独立完整 raw/final 诊断 oracle。
+//! 延迟来源的 raw 空诊断与 final 拒绝分别固定，不把恢复事实当作成功准入。
 //! 两个入口各自使用真实 source key，不是 multi-source 覆盖。
-//! The two counterparts deferred after CI run 40825988901 are restored after the
-//! final-admission repair in PR #223. Their original raw Single witnesses remain.
-//! Raw and final diagnostics must still match in full; Internal is never success.
+//! The original name-error/raw-recovery Single witness remains in type_iteration.
+//! Final rejection must be Diagnostics with the full oracle; Internal is never success.
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
         SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit,
-        resolve_compilation_unit_names, resolve_names,
+        resolve_compilation_unit_names,
     },
     parser::ParsedFile,
     source::{SourceId, SourceMap},
     type_checking::{
-        CompilationUnitTypes, FinalTypeAdmissionError, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, complete_file_types, standard_environments,
+        CompilationUnitTypes, FinalTypeAdmissionError, check_compilation_unit_types,
+        complete_compilation_unit_types, standard_environments,
     },
 };
 #[path = "support/parser_test_assertions.rs"]
@@ -27,8 +26,12 @@ enum Entry {
 }
 const ENTRIES: [Entry; 2] = [Entry::Rooted, Entry::MemoryDocument];
 
-fn checked(entry: Entry, text: &str) -> (SourceMap, CompilationUnitTypes) {
-    let (sources, _, _, typed) = analyzed(entry, text);
+fn checked(
+    entry: Entry,
+    text: &str,
+    oracle: DiagnosticOracle,
+) -> (SourceMap, CompilationUnitTypes) {
+    let (sources, _, _, typed) = analyzed_with_oracle(entry, text, oracle);
     (sources, typed)
 }
 
@@ -39,24 +42,20 @@ fn checked_without_diagnostics(entry: Entry, text: &str) -> (SourceMap, Compilat
     (sources, typed)
 }
 
-fn analyzed(
-    entry: Entry,
-    text: &str,
-) -> (
-    SourceMap,
-    ParsedFile,
-    ValidatedCompilationUnitNames,
-    CompilationUnitTypes,
-) {
-    analyzed_with_oracle(entry, text, DiagnosticOracle::Legacy)
-}
-
 #[derive(Clone, Copy)]
 enum DiagnosticOracle {
-    Legacy,
     Empty,
     NonProvider { end: usize },
     BindingMismatch,
+    InvalidPattern(usize),
+    NamedNonProvider(&'static str),
+    BodyError(usize),
+    LateBound,
+    AmbiguousCall,
+    NoMatchingCall,
+    ReorderedNonProvider(bool),
+    NominalRejection(usize),
+    DeferredSource,
 }
 
 // Literal fixtures, not diagnostics projected from either analysis entry. The
@@ -66,37 +65,149 @@ fn rejection_oracle(
     source: SourceId,
     oracle: DiagnosticOracle,
 ) -> Vec<Diagnostic> {
-    let (code, message, start, end) = match oracle {
-        DiagnosticOracle::NonProvider { end } => (
-            "L0159",
-            "for source requires a compiler-bound sequential container, View, IntRange or LongRange",
-            22,
-            end,
-        ),
+    let non_provider =
+        "for source requires a compiler-bound sequential container, View, IntRange or LongRange";
+    let invalid_pattern = "for destructuring requires a concrete value class element";
+    let mismatch = "expression type does not match the expected type";
+    let (code, message, primary, labels) = match oracle {
+        DiagnosticOracle::NonProvider { end } => {
+            let text = match end {
+                26 => "true",
+                28 => "\"text\"",
+                27 => "1 + 2",
+                _ => panic!("original non-provider source"),
+            };
+            ("L0159", non_provider, (22, end, text), vec![])
+        }
         DiagnosticOracle::BindingMismatch => (
             "L0084",
-            "expression type does not match the expected type",
-            65,
-            69,
+            mismatch,
+            (65, 69, "item"),
+            vec![(55, 62, "Boolean", "expected Boolean, found Int")],
         ),
-        _ => panic!("a fixed rejection oracle is required"),
+        DiagnosticOracle::InvalidPattern(case) => match case {
+            0 => ("L0160", invalid_pattern, (31, 37, "(a, b)"), vec![]),
+            1 => (
+                "L0160",
+                invalid_pattern,
+                (45, 51, "(a, b)"),
+                vec![(6, 10, "Node", "type declared here")],
+            ),
+            2 | 3 => (
+                "L0118",
+                "value class destructuring must bind every component exactly once",
+                if case == 2 {
+                    (76, 79, "(a)")
+                } else {
+                    (76, 85, "(a, b, c)")
+                },
+                vec![(12, 16, "Pair", "expected 2 bindings")],
+            ),
+            _ => panic!("original pattern source"),
+        },
+        DiagnosticOracle::NamedNonProvider(name) => {
+            let (primary, declaration) = match name {
+                "List" => ((69, 71, "xs"), (6, 10, "List")),
+                "Iterable" => ((77, 79, "xs"), (6, 14, "Iterable")),
+                "Iterator" => ((77, 79, "xs"), (6, 14, "Iterator")),
+                _ => panic!("original nominal provider source"),
+            };
+            (
+                "L0159",
+                non_provider,
+                primary,
+                vec![(
+                    declaration.0,
+                    declaration.1,
+                    declaration.2,
+                    "type declared here",
+                )],
+            )
+        }
+        DiagnosticOracle::BodyError(0) => (
+            "L0084",
+            mismatch,
+            (58, 59, "n"),
+            vec![(48, 55, "Boolean", "expected Boolean, found Int")],
+        ),
+        DiagnosticOracle::BodyError(1) => (
+            "L0085",
+            "operator does not accept these operand types",
+            (27, 28, "+"),
+            vec![
+                (22, 26, "true", "left operand has type Boolean"),
+                (29, 30, "1", "right operand has type Int"),
+            ],
+        ),
+        DiagnosticOracle::BodyError(_) => panic!("original body-error source"),
+        DiagnosticOracle::LateBound => (
+            "L0115",
+            "type argument does not satisfy its Copyable bound",
+            (86, 90, "Node"),
+            vec![(33, 34, "T", "Copyable bound declared here")],
+        ),
+        DiagnosticOracle::AmbiguousCall => (
+            "L0124",
+            "call remains ambiguous after argument type checking",
+            (224, 230, "choose"),
+            vec![
+                (4, 10, "choose", "matching callable declared here"),
+                (56, 62, "choose", "matching callable declared here"),
+            ],
+        ),
+        DiagnosticOracle::NoMatchingCall => (
+            "L0123",
+            "no overload matches the call arguments",
+            (224, 230, "choose"),
+            vec![],
+        ),
+        DiagnosticOracle::ReorderedNonProvider(declaration_first) => (
+            "L0159",
+            non_provider,
+            if declaration_first {
+                (96, 98, "xs")
+            } else {
+                (41, 43, "xs")
+            },
+            vec![],
+        ),
+        DiagnosticOracle::NominalRejection(case) => {
+            let (code, message, primary) = match case {
+                0 => ("L0159", non_provider, (44, 46, "xs")),
+                1 => ("L0159", non_provider, (45, 47, "xs")),
+                2 => ("L0160", invalid_pattern, (46, 49, "(n)")),
+                3 => ("L0160", invalid_pattern, (45, 48, "(n)")),
+                _ => panic!("original nominal rejection source"),
+            };
+            (
+                code,
+                message,
+                primary,
+                vec![(6, 10, "Node", "type declared here")],
+            )
+        }
+        DiagnosticOracle::DeferredSource => (
+            "L0165",
+            "type checking could not complete: overload selection is unresolved",
+            (58, 68, "::identity"),
+            vec![],
+        ),
+        DiagnosticOracle::Empty => panic!("a fixed rejection oracle is required"),
     };
+    let primary_span = sources.span(source, primary.0, primary.1).unwrap();
+    assert_eq!(sources.slice(primary_span).unwrap(), primary.2);
     let mut diagnostic = Diagnostic::new(
         sources,
         Severity::Error,
         codes::catalog().unwrap().resolve(code).unwrap(),
         message,
-        sources.span(source, start, end).unwrap(),
+        primary_span,
     )
     .unwrap();
-    if matches!(oracle, DiagnosticOracle::BindingMismatch) {
-        diagnostic
-            .add_label(
-                sources,
-                sources.span(source, 55, 62).unwrap(),
-                "expected Boolean, found Int",
-            )
-            .unwrap();
+    for (start, end, text, message) in labels {
+        let span = sources.span(source, start, end).unwrap();
+        assert_eq!(sources.slice(span).unwrap(), text);
+        diagnostic.add_label(sources, span, message).unwrap();
     }
     vec![diagnostic]
 }
@@ -140,48 +251,29 @@ fn analyzed_with_oracle(
     let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
     let unit_complete = complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
         .map(|complete| complete.is_same_analysis(&typed));
+    // Raw recovery and final admission are separate contracts. In particular,
+    // the callable-reference sources have no raw diagnostic but must fail final admission.
+    let expected_raw = if matches!(
+        oracle,
+        DiagnosticOracle::Empty | DiagnosticOracle::DeferredSource
+    ) {
+        vec![]
+    } else {
+        rejection_oracle(&sources, source, oracle)
+    };
+    assert_eq!(typed.diagnostics(), expected_raw, "{entry:?}: {text}");
     if matches!(oracle, DiagnosticOracle::Empty) {
-        // Empty slices fix the full Diagnostic sequence, including all labels and order.
-        assert_eq!(typed.diagnostics(), &[], "{entry:?}: {text}");
         assert!(
             matches!(unit_complete, Ok(true)),
             "{entry:?}: {text}: {unit_complete:?}"
         );
-    } else if !matches!(oracle, DiagnosticOracle::Legacy) {
-        let expected = rejection_oracle(&sources, source, oracle);
-        assert_eq!(typed.diagnostics(), expected, "{entry:?}: {text}");
+    } else {
+        let expected_final = rejection_oracle(&sources, source, oracle);
         match unit_complete {
             Err(FinalTypeAdmissionError::Diagnostics(actual)) => {
-                assert_eq!(actual, expected, "{entry:?}: {text}");
+                assert_eq!(actual, expected_final, "{entry:?}: {text}");
             }
             other => panic!("expected fixed diagnostics, never success or Internal: {other:?}"),
-        }
-    } else {
-        // Retained negative/recovery contracts still compare complete diagnostics.
-        let single_names = resolve_names(&sources, &parsed, &environment).unwrap();
-        assert_eq!(
-            names.names().diagnostics(),
-            single_names.diagnostics(),
-            "{entry:?}: {text}"
-        );
-        let single = check_types(&sources, &parsed, &single_names, &types).unwrap();
-        assert_eq!(
-            typed.diagnostics(),
-            single.diagnostics(),
-            "{entry:?}: {text}"
-        );
-        let single_complete =
-            complete_file_types(&sources, &parsed, &single_names, &types, &single)
-                .map(|complete| complete.is_same_analysis(&single));
-        match (single_complete, unit_complete) {
-            (Ok(single_same), Ok(unit_same)) => assert!(single_same && unit_same),
-            (
-                Err(FinalTypeAdmissionError::Diagnostics(single)),
-                Err(FinalTypeAdmissionError::Diagnostics(unit)),
-            ) => assert_eq!(single, unit, "{entry:?}: {text}"),
-            other => {
-                panic!("completion mismatch or internal failure: {entry:?}: {text}: {other:?}")
-            }
         }
     }
     let [indexed] = names.names().index().source_units() else {
@@ -338,7 +430,7 @@ fn three_providers_publish_name_discard_and_ordered_borrowed_components() {
 #[test]
 fn invalid_patterns_do_not_publish_partial_plans() {
     for entry in ENTRIES {
-        for (prefix, element, pattern, code) in [
+        for (case, (prefix, element, pattern, code)) in [
             ("", "Int", "(a, b)", "L0160"),
             ("class Node {}", "Node", "(a, b)", "L0160"),
             (
@@ -353,10 +445,14 @@ fn invalid_patterns_do_not_publish_partial_plans() {
                 "(a, b, c)",
                 "L0118",
             ),
-        ] {
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let (sources, typed) = checked(
                 entry,
                 &format!("{prefix}\nfun run(xs: List<{element}>) {{ for ({pattern} in xs) {{}} }}"),
+                DiagnosticOracle::InvalidPattern(case),
             );
             assert_eq!(typed.diagnostics().len(), 1, "{:?}", typed.diagnostics());
             assert_eq!(typed.diagnostics()[0].code().to_string(), code);
@@ -392,6 +488,7 @@ fn user_named_types_and_methods_do_not_acquire_provider_identity() {
                 &format!(
                     "class {name} {{ fun iterator(): Int = 1 }}\nfun run(xs: {name}) {{ for (_ in xs) {{}} }}"
                 ),
+                DiagnosticOracle::NamedNonProvider(name),
             );
             assert_eq!(typed.diagnostics().len(), 1, "{:?}", typed.diagnostics());
             assert_eq!(typed.diagnostics()[0].code().to_string(), "L0159");
@@ -403,11 +500,14 @@ fn user_named_types_and_methods_do_not_acquire_provider_identity() {
 #[test]
 fn body_errors_and_poisoned_source_do_not_publish_plans() {
     for entry in ENTRIES {
-        for text in [
+        for (case, text) in [
             "fun run(xs: List<Int>) { for (n in xs) { val b: Boolean = n } }",
             "fun run() { for (_ in true + 1) {} }",
-        ] {
-            let (_, typed) = checked(entry, text);
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (_, typed) = checked(entry, text, DiagnosticOracle::BodyError(case));
             assert_eq!(typed.diagnostics().len(), 1, "{:?}", typed.diagnostics());
             assert_ne!(typed.diagnostics()[0].code().to_string(), "L0159");
             assert!(typed.sequential_iterations().is_empty());
@@ -421,6 +521,7 @@ fn late_generic_bound_failure_invalidates_iteration_plans() {
         let (_, typed) = checked(
             entry,
             "class Node {}\nvalue class Holder<T: Copyable>(val payload: T)\nfun run(xs: List<Holder<Node>>) { for ((n) in xs) {} }",
+            DiagnosticOracle::LateBound,
         );
         assert!(!typed.diagnostics().is_empty());
         assert!(typed.sequential_iterations().is_empty());
@@ -436,7 +537,8 @@ fn overload_trials_commit_one_iteration_and_one_source_call() {
         fun needInt(n: Int): Int = n
         fun source(): List<Int> = listOf(1)
         fun run() { val chosen = choose { for (n in source()) { val x: Int = n } needInt(it) } }";
-        let (sources, parsed, _, typed) = analyzed(entry, text);
+        let (sources, parsed, _, typed) =
+            analyzed_with_oracle(entry, text, DiagnosticOracle::Empty);
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         assert_eq!(
             typed.sequential_iterations().len(),
@@ -466,7 +568,15 @@ fn overload_trials_commit_one_iteration_and_one_source_call() {
             1
         );
         for result in ["it", "true"] {
-            let (_, failed) = checked(entry, &text.replace("needInt(it)", result));
+            let (_, failed) = checked(
+                entry,
+                &text.replace("needInt(it)", result),
+                if result == "it" {
+                    DiagnosticOracle::AmbiguousCall
+                } else {
+                    DiagnosticOracle::NoMatchingCall
+                },
+            );
             assert_eq!(failed.diagnostics().len(), 1);
             assert_eq!(
                 failed.diagnostics()[0].code().to_string(),
@@ -486,11 +596,11 @@ fn declaration_and_fixture_order_preserve_projected_types_and_diagnostics() {
         let declaration = "value class Pair<T>(val first: T, val second: Boolean)";
         let body = "fun run(xs: List<Pair<Int>>) { for ((n, flag) in xs) { val i: Int = n\n val b: Boolean = flag } }";
         let fixtures = [
-            format!("{declaration}\n{body}"),
-            format!("{body}\n{declaration}"),
+            (format!("{declaration}\n{body}"), true),
+            (format!("{body}\n{declaration}"), false),
         ];
-        for text in fixtures.iter().chain(fixtures.iter().rev()) {
-            let (_, _, names, typed) = analyzed(entry, text);
+        for (text, declaration_first) in fixtures.iter().chain(fixtures.iter().rev()) {
+            let (_, _, names, typed) = analyzed_with_oracle(entry, text, DiagnosticOracle::Empty);
             assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
             let plan = &typed.sequential_iterations()[0];
             let UnitSequentialIterationBinding::Destructure(components) = plan.binding() else {
@@ -518,7 +628,11 @@ fn declaration_and_fixture_order_preserve_projected_types_and_diagnostics() {
                 );
             }
             let invalid = text.replace("List<Pair<Int>>", "Boolean");
-            let (sources, typed) = checked(entry, &invalid);
+            let (sources, typed) = checked(
+                entry,
+                &invalid,
+                DiagnosticOracle::ReorderedNonProvider(*declaration_first),
+            );
             assert_eq!(typed.diagnostics().len(), 1);
             assert_eq!(typed.diagnostics()[0].code().to_string(), "L0159");
             assert_eq!(
@@ -535,15 +649,19 @@ fn declaration_and_fixture_order_preserve_projected_types_and_diagnostics() {
 fn nominal_rejections_label_the_source_or_element_declaration() {
     for entry in ENTRIES {
         use lang_frontend::diagnostic::DiagnosticDetail;
-        for (ty, pattern, code) in [
+        for (case, (ty, pattern, code)) in [
             ("Node", "n", "L0159"),
             ("Node?", "n", "L0159"),
             ("List<Node?>", "(n)", "L0160"),
             ("List<Node>", "(n)", "L0160"),
-        ] {
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let (sources, typed) = checked(
                 entry,
                 &format!("class Node {{}}\nfun run(xs: {ty}) {{ for ({pattern} in xs) {{}} }}"),
+                DiagnosticOracle::NominalRejection(case),
             );
             assert_eq!(typed.diagnostics()[0].code().to_string(), code);
             let labels = typed.diagnostics()[0]
@@ -597,6 +715,7 @@ fn deferred_source_suppresses_provider_and_pattern_cascades() {
                 &format!(
                     "fun identity(n: Int): Int = n\nfun run() {{ val reference = ::identity\n for ({binding} in listOf(reference(1))) {{}} }}"
                 ),
+                DiagnosticOracle::DeferredSource,
             );
             assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
             assert!(typed.sequential_iterations().is_empty());
