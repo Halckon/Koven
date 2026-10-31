@@ -847,6 +847,26 @@ sys.exit(1)
                 include_programs=False,
             )
 
+        repo_root = Path(__file__).resolve().parents[2]
+        audit_out = io.StringIO()
+        with contextlib.redirect_stdout(audit_out):
+            rc_audit = gate.main(
+                [
+                    "--audit-summary",
+                    "--corpus",
+                    str(repo_root / "conformance"),
+                    "--expectations",
+                    str(repo_root / "conformance" / "expectations.json"),
+                ]
+            )
+        self.assertEqual(rc_audit, 0)
+        parsed_audit = json.loads(audit_out.getvalue())
+        self.assertEqual(parsed_audit["schema"], "koven.conformance-audit-summary.v1")
+        self.assertEqual(parsed_audit["total_probes"], 154)
+        self.assertEqual(parsed_audit["probe_capability_passed"], 138)
+        self.assertEqual(parsed_audit["foundational_p2"]["group_a_runnable"], 58)
+        self.assertEqual(parsed_audit["project_transform"]["explicit_import_probes"], 5)
+
 
 if __name__ == "__main__":
     unittest.main()

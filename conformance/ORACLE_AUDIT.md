@@ -206,6 +206,35 @@
 | `closure_env_and_thread_spawn` | 捕获闭包环境、`move` 闭包所有权转移与 `thread(move { ... })` | ASan 闭包环境生命周期 / 跨线程 `Send` 所有权传递 | 4 / 5 | `p27_thread` (`N04`, `T1`) | - | `partial` |
 | `checked_abort_and_overflow` | 受检整数溢出、`error(msg)` 与显式数值转换 `SIGABRT` 中止边界 | Guide 09 D12 `abort: <msg>` + 栈帧确定性退出 | 3 / 3 | - | `varint_codec` | `all_runnable` |
 
+### 1.14 Guide 14 语法索引（36 项语法形式）与 Conformance 章节探针对账矩阵
+
+| 语法索引领域 (`14-syntax-index.md`) | 语法条目数 | 唯一规则归属章节 | 覆盖语法形式说明 | 归属章节 Probe 通过率 | 状态 |
+|---|---:|---|---|---:|---|
+| **词法** | 8 | [01-lexical.md](../docs/guide/01-lexical.md) | 关键字、标识符、trivia/换行、字面量、标点与词法恢复 | 1 / 4 | `partial` |
+| **文件与名称** | 3 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 完整文件与声明分隔、`package`/`import` 文件头、跨文件限定名称 | 5 / 7 | `partial` |
+| **类型** | 1 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `type_ref`、泛型实参与函数类型语法 | 8 / 11 | `partial` |
+| **表达式** | 3 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | primary/bound reference、postfix/调用/索引、运算符优先级与结合性 | 5 / 5 | `all_passed` |
+| **声明** | 3 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md), [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `val`/`var`/`const val`/`fun`、callable 参数 marker 与函数 body 三形态 | 22 / 23 | `partial` |
+| **控制流** | 2 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | block/block element 与 `if`/`when`/`while`/`for`/`loop`/jump | 18 / 19 | `partial` |
+| **调用与 Lambda** | 4 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | lambda literal、尾 lambda、隐式 `it` 与自动 Borrow/`&` 调用实参 | 7 / 8 | `partial` |
+| **类型声明** | 3 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | class/value/interface/enum/object/companion、receiver marker 与 `by` 委托 | 15 / 16 | `partial` |
+| **空安全与错误** | 2 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `?:`/`!!`/nullable/`error()` 与 postfix `?`/`Result<T, E>` | 14 / 16 | `partial` |
+| **所有权** | 1 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | Value/Borrow/Inout、loan 与调用期借用/ASAP 析构 | 8 / 9 | `partial` |
+| **普通借用结果** | 1 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `: borrow T from source` 与 `borrow val` 显式局部绑定 | 8 / 9 | `partial` |
+| **构造** | 1 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | class/value/enum 名义值与 Intrinsic `Box` 构造 | 2 / 3 | `partial` |
+| **集合与解构** | 2 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 顺序容器构造/索引/element place 与局部 `val` 解构语法 | 48 / 48 | `all_passed` |
+| **程序入口** | 2 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | conventional `main` 与 project selector / process entry | 3 / 4 | `partial` |
+
+### 1.15 单文件与 Project 双模式变换契约（`package app` + `app.main`）对账矩阵
+
+- **Project 模式变换规则（`prepend_package_header`）**：自动向源码前置 `package app\n`（`12 B`，SHA-256 `75d99e22087438b6…`）写入 `src/app/main.ko`，配合固定 `project.toml`（SHA-256 `698c7c35fe8b6169…`）以 `kovenc run --project project.toml --entry app.main` 执行，要求单文件与工程模式结果记号及 `stdout` 字节 100% 一致：
+
+| 双模式变换分组 (`cohort`) | 分组语义与文件头特征 | 条目数量 | 双模式能力通过 (`capability_passed`) | 关联条目 / 代表性样本 |
+|---|---|---:|---:|---|
+| `probes_default_prelude` | 无显式 `import` 探针（默认内建环境） | 149 | 133 / 149 | `p01_int_print`..`x03_if_call_borrow_arg`, `y02_take_no_import` (FE:L0080) |
+| `probes_explicit_import` | 含显式 `import koven.algorithms.take` 探针 | 5 | 5 / 5 | `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println`, `y05_take_borrow_val_call`, `y06_take_borrow_val_for` |
+| `acceptance_programs` | V1 多函数/多类型验收程序（`programs/<name>/main.ko`） | 6 | 0 / 6 | `config_parse`, `expr_eval`, `linked_stack`, `raii_state_machine`, `varint_codec`, `word_count` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |

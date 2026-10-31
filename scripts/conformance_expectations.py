@@ -14,6 +14,7 @@ from conformance_catalogs import (
     DIAGNOSTIC_SYMBOL_CATALOG,
     EXPECTED_MULTI_DIAGNOSTICS,
     GUIDE_CHAPTER_DOMAINS,
+    GUIDE_SYNTAX_INDEX_DOMAINS,
     MAIN_ENTRY_RE,
     PACKAGE_DIRECTIVE_RE,
     PROBE_BATCH_CATALOG,
@@ -188,95 +189,6 @@ GUIDE_VERSION_BOUNDARY_CATALOG: dict[str, dict[str, Any]] = {
             "q10_var_reassign_string",
             "x02_string_nullable_return",
         ],
-    },
-}
-
-V3_SANITIZER_RESOURCE_CATALOG: dict[str, dict[str, Any]] = {
-    "deterministic_deinit_drop": {
-        "title": "确定性 `deinit` 析构与提前返回栈展开清理",
-        "sanitizer_focus": "ASan `drop` (heap-use-after-free) / LSan 零泄漏",
-        "probes": [
-            "p32_deinit",
-            "q19_deep_return_cleanup",
-        ],
-        "programs": ["raii_state_machine"],
-    },
-    "heap_class_rc_and_box": {
-        "title": "堆分配 `class`、`Rc<T>` 共享引用计数、`Box<T>` 递归枚举与 `replace`",
-        "sanitizer_focus": "ASan `user` / `runtime` 与 LSan `leak` 对照",
-        "probes": [
-            "p12_class_inout",
-            "p12b_class_field_assign",
-            "p21_box_enum",
-            "p22_rc",
-            "p25b_linked_recursive",
-            "p40_nested_generic_class",
-            "p44b_method_on_class",
-            "p46_string_field_class",
-            "q04_rc_simple",
-            "q09_inout_class_param",
-            "q20_replace_field",
-        ],
-        "programs": ["expr_eval", "linked_stack"],
-    },
-    "string_and_text_owner": {
-        "title": "堆拥有 `String` 克隆、拼接、重赋值、枚举行李与可空返回",
-        "sanitizer_focus": "ASan 堆缓冲区边界 / LSan 字符串所有权释放",
-        "probes": [
-            "p02_interp",
-            "p16b_result_string",
-            "p26_borrow_return",
-            "p31_string_ops",
-            "p41_when_string",
-            "q08_enum_string_payload",
-            "q10_var_reassign_string",
-            "x02_string_nullable_return",
-        ],
-        "programs": ["config_parse"],
-    },
-    "collection_list_and_map_provider": {
-        "title": "`List` / `MutableList` / `Map` / `MutableMap` 扩容、覆盖、删除与遍历析构",
-        "sanitizer_focus": "SPEC-0288 `map-fixture` 与 12 组 `provider-fixtures` (`singleton`/`overwrite`/`growth`)",
-        "probes": [
-            "p19_mutablelist",
-            "p38_list_of_strings",
-            "p47_list_index_string",
-            "q15_borrow_param_string_list",
-            "t05_map_loop_continue",
-            "t10_map_nested_if_break",
-            "u02_list_add_loop_string",
-            "v15_map_for",
-            "v22_range_with_map",
-            "w01_map_for_sum",
-            "w02_map_for_order",
-            "w03_map_overwrite_remove",
-            "w08_map_string_values",
-            "w09_map_temp_source",
-            "w11_word_count",
-        ],
-        "programs": ["word_count"],
-    },
-    "closure_env_and_thread_spawn": {
-        "title": "捕获闭包环境、`move` 闭包所有权转移与 `thread(move { ... })`",
-        "sanitizer_focus": "ASan 闭包环境生命周期 / 跨线程 `Send` 所有权传递",
-        "probes": [
-            "p17_lambda",
-            "p18_move_closure",
-            "p27_thread",
-            "q01_lambda_local",
-            "q02_lambda_arg_inline",
-        ],
-        "programs": [],
-    },
-    "checked_abort_and_overflow": {
-        "title": "受检整数溢出、`error(msg)` 与显式数值转换 `SIGABRT` 中止边界",
-        "sanitizer_focus": "Guide 09 D12 `abort: <msg>` + 栈帧确定性退出",
-        "probes": [
-            "p04_overflow",
-            "p45_abort_message",
-            "v12_convert_abort",
-        ],
-        "programs": ["varint_codec"],
     },
 }
 
@@ -701,6 +613,8 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
             raise ValueError(
                 f"PROGRAM_PREREQUISITE_PROBES[{prog_name!r}] references unknown probes in {pre_probes!r}"
             )
+    from conformance_evidence import V3_SANITIZER_RESOURCE_CATALOG
+
     expected_v3_cats = [
         "deterministic_deinit_drop",
         "heap_class_rc_and_box",
@@ -724,6 +638,33 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
         raise ValueError(f"V3_SANITIZER_RESOURCE_CATALOG programs coverage mismatch: {sorted(v3_covered_programs)}")
     if set(PROGRAM_README_CATALOG.keys()) != prog_keys:
         raise ValueError("PROGRAM_README_CATALOG keys do not match programs inventory")
+    guide14_path = (
+        Path(__file__).resolve().parents[1] / "docs" / "guide" / "14-syntax-index.md"
+    )
+    if guide14_path.is_file():
+        g14_text = guide14_path.read_text(encoding="utf-8")
+        actual_g14: dict[str, tuple[int, list[str]]] = {}
+        for line in g14_text.splitlines():
+            m = re.match(
+                r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*\[([^\]]+)\]\(([^)#]+)#([^)]+)\)\s*\|$",
+                line,
+            )
+            if not m:
+                continue
+            dom, _, _, target_ch, _ = m.groups()
+            if target_ch not in VALID_GUIDE_CHAPTERS:
+                raise ValueError(f"Guide 14 syntax index references invalid chapter {target_ch!r}")
+            cnt, ch_list = actual_g14.get(dom, (0, []))
+            if target_ch not in ch_list:
+                ch_list = [*ch_list, target_ch]
+            actual_g14[dom] = (cnt + 1, ch_list)
+        expected_g14 = {
+            dom: (cnt, chs) for dom, (cnt, chs, _) in GUIDE_SYNTAX_INDEX_DOMAINS.items()
+        }
+        if actual_g14 != expected_g14:
+            raise ValueError(
+                f"Guide 14 syntax index domain mismatch: actual={actual_g14}, expected={expected_g14}"
+            )
 
 
 def parse_tsv_matrix(

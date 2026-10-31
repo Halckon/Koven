@@ -21,10 +21,10 @@ from conformance_catalogs import (
     VALID_GUIDE_CHAPTERS,
     classify_probe_batch,
 )
+from conformance_evidence import V3_SANITIZER_RESOURCE_CATALOG
 from conformance_expectations import (
     GUIDE_LITMUS_CATALOG,
     GUIDE_VERSION_BOUNDARY_CATALOG,
-    V3_SANITIZER_RESOURCE_CATALOG,
     resolve_spec_doc_relpath,
 )
 

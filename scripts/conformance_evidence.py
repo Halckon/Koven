@@ -10,6 +10,13 @@ import re
 from typing import Any
 
 from conformance_catalogs import (
+    GUIDE_SYNTAX_INDEX_DOMAINS,
+    MAIN_ENTRY_RE,
+    PACKAGE_DIRECTIVE_RE,
+    PROGRAM_GUIDE_CHAPTERS,
+    PROGRAM_PREREQUISITE_PROBES,
+    PROGRAM_README_CATALOG,
+    PROGRAM_ROADMAP_BLOCKERS,
     PROJECT_PACKAGE_HEADER,
     PROJECT_TOML_BYTES,
     SCHEMA_RESULTS,
@@ -22,6 +29,7 @@ from conformance_expectations import (
     sha256_bytes,
 )
 from conformance_runner import (
+    build_project_source,
     classify_raw,
     compare_item,
     is_internal_error_marker,
@@ -543,4 +551,388 @@ def compare_tsv_matrix_against_expectations(
         "counts": counts,
         "unexpected_passes": unexpected_passes,
         "failures": failures,
+    }
+
+
+def summarize_guide_syntax_index_alignment(
+    expectations: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Cross-reference the 36 syntax entries across 14 domain groups in Guide 14 against target chapter probes."""
+    probes = expectations["probes"]
+    out: dict[str, dict[str, Any]] = {}
+    for dom, (entry_count, chapters, summary) in GUIDE_SYNTAX_INDEX_DOMAINS.items():
+        ch_set = set(chapters)
+        dom_probes = sorted(
+            name for name, spec in probes.items() if spec.get("guide_chapter") in ch_set
+        )
+        cap_passed = [
+            p
+            for p in dom_probes
+            if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+        ]
+        unimpl = [p for p in dom_probes if probes[p]["kind"] == "known_unimplemented"]
+        out[dom] = {
+            "domain": dom,
+            "entry_count": entry_count,
+            "chapters": list(chapters),
+            "summary": summary,
+            "probe_count": len(dom_probes),
+            "cap_passed_count": len(cap_passed),
+            "unimplemented_count": len(unimpl),
+            "status": "all_passed" if not unimpl else "partial",
+        }
+    return out
+
+
+V3_SANITIZER_RESOURCE_CATALOG: dict[str, dict[str, Any]] = {
+    "deterministic_deinit_drop": {
+        "title": "确定性 `deinit` 析构与提前返回栈展开清理",
+        "sanitizer_focus": "ASan `drop` (heap-use-after-free) / LSan 零泄漏",
+        "probes": [
+            "p32_deinit",
+            "q19_deep_return_cleanup",
+        ],
+        "programs": ["raii_state_machine"],
+    },
+    "heap_class_rc_and_box": {
+        "title": "堆分配 `class`、`Rc<T>` 共享引用计数、`Box<T>` 递归枚举与 `replace`",
+        "sanitizer_focus": "ASan `user` / `runtime` 与 LSan `leak` 对照",
+        "probes": [
+            "p12_class_inout",
+            "p12b_class_field_assign",
+            "p21_box_enum",
+            "p22_rc",
+            "p25b_linked_recursive",
+            "p40_nested_generic_class",
+            "p44b_method_on_class",
+            "p46_string_field_class",
+            "q04_rc_simple",
+            "q09_inout_class_param",
+            "q20_replace_field",
+        ],
+        "programs": ["expr_eval", "linked_stack"],
+    },
+    "string_and_text_owner": {
+        "title": "堆拥有 `String` 克隆、拼接、重赋值、枚举行李与可空返回",
+        "sanitizer_focus": "ASan 堆缓冲区边界 / LSan 字符串所有权释放",
+        "probes": [
+            "p02_interp",
+            "p16b_result_string",
+            "p26_borrow_return",
+            "p31_string_ops",
+            "p41_when_string",
+            "q08_enum_string_payload",
+            "q10_var_reassign_string",
+            "x02_string_nullable_return",
+        ],
+        "programs": ["config_parse"],
+    },
+    "collection_list_and_map_provider": {
+        "title": "`List` / `MutableList` / `Map` / `MutableMap` 扩容、覆盖、删除与遍历析构",
+        "sanitizer_focus": "SPEC-0288 `map-fixture` 与 12 组 `provider-fixtures` (`singleton`/`overwrite`/`growth`)",
+        "probes": [
+            "p19_mutablelist",
+            "p38_list_of_strings",
+            "p47_list_index_string",
+            "q15_borrow_param_string_list",
+            "t05_map_loop_continue",
+            "t10_map_nested_if_break",
+            "u02_list_add_loop_string",
+            "v15_map_for",
+            "v22_range_with_map",
+            "w01_map_for_sum",
+            "w02_map_for_order",
+            "w03_map_overwrite_remove",
+            "w08_map_string_values",
+            "w09_map_temp_source",
+            "w11_word_count",
+        ],
+        "programs": ["word_count"],
+    },
+    "closure_env_and_thread_spawn": {
+        "title": "捕获闭包环境、`move` 闭包所有权转移与 `thread(move { ... })`",
+        "sanitizer_focus": "ASan 闭包环境生命周期 / 跨线程 `Send` 所有权传递",
+        "probes": [
+            "p17_lambda",
+            "p18_move_closure",
+            "p27_thread",
+            "q01_lambda_local",
+            "q02_lambda_arg_inline",
+        ],
+        "programs": [],
+    },
+    "checked_abort_and_overflow": {
+        "title": "受检整数溢出、`error(msg)` 与显式数值转换 `SIGABRT` 中止边界",
+        "sanitizer_focus": "Guide 09 D12 `abort: <msg>` + 栈帧确定性退出",
+        "probes": [
+            "p04_overflow",
+            "p45_abort_message",
+            "v12_convert_abort",
+        ],
+        "programs": ["varint_codec"],
+    },
+}
+
+
+def summarize_project_transform_contracts(
+    expectations: dict[str, Any],
+    corpus_root: Path | None = None,
+) -> dict[str, Any]:
+    """Verify and summarize single-file vs project-mode (`package app` + `app.main`) transformation invariants across the corpus."""
+    if corpus_root is None:
+        default_corpus = Path(__file__).resolve().parents[1] / "conformance"
+        if (default_corpus / "probes").is_dir():
+            corpus_root = default_corpus
+
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    explicit_import_probes: list[str] = []
+    default_prelude_probes: list[str] = []
+
+    for name, spec in sorted(probes.items()):
+        if corpus_root is not None:
+            src_file = corpus_root / "probes" / f"{name}.ko"
+            raw_bytes = src_file.read_bytes()
+            transformed_bytes, meta = build_project_source(raw_bytes)
+            if meta["original_source_sha256"] != spec["source_sha256"]:
+                raise ValueError(f"project transform original_source_sha256 mismatch for probes.{name}")
+            if meta["transformed_source_sha256"] == meta["original_source_sha256"]:
+                raise ValueError(f"project transform did not alter source hash for probes.{name}")
+            t_text = transformed_bytes.decode("utf-8")
+            if len(PACKAGE_DIRECTIVE_RE.findall(t_text)) != 1 or len(MAIN_ENTRY_RE.findall(t_text)) != 1:
+                raise ValueError(f"project transform violated single package/main invariant for probes.{name}")
+            has_import = bool(re.search(r"(?m)^\s*import\s+", t_text))
+        else:
+            has_import = name.startswith("y") and name != "y02_take_no_import"
+        if has_import:
+            explicit_import_probes.append(name)
+        else:
+            default_prelude_probes.append(name)
+
+    if corpus_root is not None:
+        for name, spec in sorted(programs.items()):
+            src_file = corpus_root / "programs" / name / "main.ko"
+            raw_bytes = src_file.read_bytes()
+            transformed_bytes, meta = build_project_source(raw_bytes)
+            if meta["original_source_sha256"] != spec["source_sha256"]:
+                raise ValueError(f"project transform original_source_sha256 mismatch for programs.{name}")
+            t_text = transformed_bytes.decode("utf-8")
+            if len(PACKAGE_DIRECTIVE_RE.findall(t_text)) != 1 or len(MAIN_ENTRY_RE.findall(t_text)) != 1:
+                raise ValueError(f"project transform violated single package/main invariant for programs.{name}")
+
+    return {
+        "header_utf8": PROJECT_PACKAGE_HEADER.decode("utf-8").strip(),
+        "header_bytes": len(PROJECT_PACKAGE_HEADER),
+        "header_sha256": sha256_bytes(PROJECT_PACKAGE_HEADER),
+        "project_toml_sha256": sha256_bytes(PROJECT_TOML_BYTES),
+        "target_relpath": "src/app/main.ko",
+        "entry_selector": "app.main",
+        "cohorts": {
+            "probes_default_prelude": {
+                "label": "无显式 `import` 探针（默认内建环境）",
+                "count": len(default_prelude_probes),
+                "cap_passed": sum(
+                    1
+                    for p in default_prelude_probes
+                    if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+                ),
+                "representative": "`p01_int_print`..`x03_if_call_borrow_arg`, `y02_take_no_import` (FE:L0080)",
+            },
+            "probes_explicit_import": {
+                "label": "含显式 `import koven.algorithms.take` 探针",
+                "count": len(explicit_import_probes),
+                "cap_passed": sum(
+                    1
+                    for p in explicit_import_probes
+                    if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+                ),
+                "probes": explicit_import_probes,
+                "representative": ", ".join(f"`{p}`" for p in explicit_import_probes),
+            },
+            "acceptance_programs": {
+                "label": "V1 多函数/多类型验收程序（`programs/<name>/main.ko`）",
+                "count": len(programs),
+                "cap_passed": sum(1 for s in programs.values() if s["kind"] == "run_ok"),
+                "representative": ", ".join(f"`{p}`" for p in sorted(programs.keys())),
+            },
+        },
+    }
+
+
+def render_readme_program_table(expectations: dict[str, Any]) -> str:
+    """Render the V1 acceptance programs summary table embedded in conformance/README.md."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    lines = [
+        "| 目录 | 题目 | 覆盖面 | 归属章节 | 当前状态 | 前置 Probe 就绪 | 路线图阻塞项 |",
+        "|---|---|---|---|---|---:|---|",
+    ]
+    for prog_name, (title, coverage) in PROGRAM_README_CATALOG.items():
+        spec = programs.get(prog_name, {})
+        ch = spec.get(
+            "guide_chapter",
+            PROGRAM_GUIDE_CHAPTERS.get(prog_name, "13-program-runtime-standard-library.md"),
+        )
+        kind = spec.get("kind", "known_unimplemented")
+        blockers = spec.get("roadmap_blockers", PROGRAM_ROADMAP_BLOCKERS.get(prog_name, []))
+        blk_s = ", ".join(f"`{b}`" for b in blockers) if blockers else "-"
+        pre_list = PROGRAM_PREREQUISITE_PROBES.get(prog_name, [])
+        if pre_list and all(p in probes for p in pre_list):
+            passed_cnt = sum(
+                1
+                for p in pre_list
+                if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+            )
+            pre_s = f"{passed_cnt} / {len(pre_list)}"
+        else:
+            pre_s = "-"
+        lines.append(
+            f"| `{prog_name}` | {title} | {coverage} | [{ch}](../docs/guide/{ch}) | `{kind}` | {pre_s} | {blk_s} |"
+        )
+    return "\n".join(lines)
+
+
+def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
+    """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
+    from conformance_audit import summarize_chapter_polarity
+
+    chapter_stats = summarize_chapter_polarity(expectations)
+    lines = [
+        "| Guide v0.46 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    tot_all = tot_ok = tot_cf = tot_ab = tot_ku = tot_cap = 0
+    for ch in VALID_GUIDE_CHAPTERS:
+        st = chapter_stats[ch]
+        tot_all += st["total"]
+        tot_ok += st["run_ok"]
+        tot_cf += st["compile_fail"]
+        tot_ab += st["runtime_abort"]
+        tot_ku += st["known_unimplemented"]
+        tot_cap += st["cap_passed"]
+        lines.append(
+            f"| [{ch}](../docs/guide/{ch}) | {st['total']} | {st['run_ok']} | {st['compile_fail']} | "
+            f"{st['runtime_abort']} | {st['known_unimplemented']} | {st['cap_passed']} / {st['total']} |"
+        )
+    lines.append(
+        f"| **合计** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** |"
+    )
+    return "\n".join(lines)
+
+
+README_PROGRAM_TABLE_RE = re.compile(
+    r"(\| 目录 \| 题目 \| 覆盖面(?: \| 归属章节 \| 当前状态 \| 前置 Probe 就绪 \| 路线图阻塞项)? \|\n"
+    r"\|---\|---\|---(?:\|---\|---\|---:\|---)?\|\n"
+    r"(?:\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+\n)+"
+    r"\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+)"
+)
+
+README_CHAPTER_TABLE_RE = re.compile(
+    r"(\| Guide v0\.4[67] 章节 \| Probe 总数 \| `run_ok` \| `compile_fail` \| `runtime_abort` \| `known_unimplemented` \| 能力通过 \(`capability_passed`\) \|\n"
+    r"\|---\|---:\|---:\|---:\|---:\|---:\|---:\|\n"
+    r"(?:\| \[[^\n]+\n)+"
+    r"\| \*\*合计\*\* \|[^\n]+)"
+)
+
+
+def sync_readme_chapter_table(readme_text: str, expectations: dict[str, Any]) -> str:
+    """Replace the Guide chapter and V1 acceptance program summary tables in conformance/README.md with fresh counts."""
+    table_md = render_readme_chapter_table(expectations)
+    if not README_CHAPTER_TABLE_RE.search(readme_text):
+        raise ValueError("conformance/README.md is missing the Guide chapter coverage table")
+    updated = README_CHAPTER_TABLE_RE.sub(lambda _: table_md, readme_text, count=1)
+    if README_PROGRAM_TABLE_RE.search(updated):
+        prog_md = render_readme_program_table(expectations)
+        updated = README_PROGRAM_TABLE_RE.sub(lambda _: prog_md, updated, count=1)
+    return updated
+
+
+def build_static_audit_summary(
+    expectations: dict[str, Any],
+    corpus_root: Path | None = None,
+) -> dict[str, Any]:
+    """Build a deterministic machine-readable JSON audit summary of the conformance corpus without invoking compiler."""
+    from conformance_audit import (
+        summarize_foundational_cohort,
+        summarize_guide_litmus_alignment,
+        summarize_stage_progression,
+        summarize_v2_chapter_readiness,
+        summarize_v3_sanitizer_coverage,
+    )
+
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    kind_counts: dict[str, int] = {
+        "run_ok": 0,
+        "compile_fail": 0,
+        "runtime_abort": 0,
+        "known_unimplemented": 0,
+        "unreviewed": 0,
+    }
+    for spec in probes.values():
+        k = spec["kind"]
+        kind_counts[k] = kind_counts.get(k, 0) + 1
+    cap_passed = (
+        kind_counts["run_ok"] + kind_counts["compile_fail"] + kind_counts["runtime_abort"]
+    )
+    cohort = summarize_foundational_cohort(expectations)
+    v2_ready = summarize_v2_chapter_readiness(expectations)
+    litmus = summarize_guide_litmus_alignment(expectations)
+    v3_cov = summarize_v3_sanitizer_coverage(expectations)
+    stage_prog = summarize_stage_progression(expectations)
+    pt_contracts = summarize_project_transform_contracts(expectations, corpus_root=corpus_root)
+
+    return {
+        "schema": "koven.conformance-audit-summary.v1",
+        "total_probes": len(probes),
+        "probe_capability_passed": cap_passed,
+        "probe_kind_counts": kind_counts,
+        "total_programs": len(programs),
+        "program_run_ok": sum(1 for s in programs.values() if s["kind"] == "run_ok"),
+        "foundational_p2": {
+            "group_a_total": cohort["groups"]["A"]["total"],
+            "group_a_runnable": cohort["groups"]["A"]["runnable"],
+            "p2_target_min": cohort["p2_target_min"],
+            "p2_gap_to_target": cohort["p2_gap_to_target"],
+            "p2_gate_met": cohort["p2_gate_met"],
+        },
+        "v2_chapter_readiness": {
+            "v2_probe_ready": [
+                ch for ch, r in v2_ready.items() if r["v2_status"] == "v2_probe_ready"
+            ],
+            "blocked_by_roadmap": [
+                ch for ch, r in v2_ready.items() if r["v2_status"] == "blocked_by_roadmap"
+            ],
+            "needs_negative_and_roadmap": [
+                ch
+                for ch, r in v2_ready.items()
+                if r["v2_status"] == "needs_negative_and_roadmap"
+            ],
+        },
+        "litmus_alignment": {
+            "all_passed": [k for k, v in litmus.items() if v["status"] == "all_passed"],
+            "partial": [k for k, v in litmus.items() if v["status"] == "partial"],
+        },
+        "v3_sanitizer_coverage": {
+            "all_runnable": [
+                k for k, v in v3_cov.items() if v["status"] == "all_runnable"
+            ],
+            "partial": [k for k, v in v3_cov.items() if v["status"] == "partial"],
+        },
+        "stage_progression": [
+            {
+                "stage": s["stage"],
+                "projected_probe_cap": s["projected_probe_cap"],
+                "projected_group_a_runnable": s["projected_group_a_runnable"],
+                "projected_programs_ready": s["projected_programs_ready"],
+            }
+            for s in stage_prog
+        ],
+        "project_transform": {
+            "header_utf8": pt_contracts["header_utf8"],
+            "entry_selector": pt_contracts["entry_selector"],
+            "explicit_import_probes": len(
+                pt_contracts["cohorts"]["probes_explicit_import"]["probes"]
+            ),
+        },
     }
