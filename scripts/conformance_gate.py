@@ -1575,6 +1575,33 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
     ):
         if set(catalog.keys()) != prog_keys:
             raise ValueError(f"{label} keys do not match programs inventory")
+    if list(GUIDE_LITMUS_CATALOG.keys()) != list(range(1, 13)):
+        raise ValueError("GUIDE_LITMUS_CATALOG must define Litmus 1..12 in order")
+    for lit_id, lit_spec in GUIDE_LITMUS_CATALOG.items():
+        if lit_spec.get("guide_chapter") not in VALID_GUIDE_CHAPTERS:
+            raise ValueError(f"Litmus {lit_id} has invalid guide_chapter")
+        lit_probes = lit_spec.get("probes", [])
+        if not lit_probes or any(p not in probe_keys for p in lit_probes):
+            raise ValueError(f"Litmus {lit_id} references unknown probes in {lit_probes!r}")
+    guide15_path = (
+        Path(__file__).resolve().parents[1]
+        / "docs"
+        / "guide"
+        / "15-conformance-and-staging.md"
+    )
+    if guide15_path.is_file():
+        g15_text = guide15_path.read_text(encoding="utf-8")
+        found_litmus = {
+            int(m.group(1)): m.group(2).strip()
+            for m in re.finditer(r"(?m)^### Litmus ([0-9]+):\s*(.+)$", g15_text)
+        }
+        expected_litmus = {
+            lit_id: spec["title"] for lit_id, spec in GUIDE_LITMUS_CATALOG.items()
+        }
+        if found_litmus != expected_litmus:
+            raise ValueError(
+                f"Guide 15 Litmus headings mismatch: found={found_litmus}, expected={expected_litmus}"
+            )
 
 
 def parse_tsv_matrix(
@@ -3386,6 +3413,96 @@ def summarize_compiler_phase_matrix(
     return phases_out
 
 
+GUIDE_LITMUS_CATALOG: dict[int, dict[str, Any]] = {
+    1: {
+        "title": "基础函数与局部变量",
+        "guide_chapter": "05-declarations-callables.md",
+        "probes": ["p01_int_print", "p24_recursion", "q10_var_reassign_string", "v01_assign_unit_value"],
+    },
+    2: {
+        "title": "换行分句与表达式续行",
+        "guide_chapter": "04-expressions-operators.md",
+        "probes": ["p03_long_uint", "t07_short_circuit_plain", "v01_assign_unit_value", "v02_assign_chain"],
+    },
+    3: {
+        "title": "控制流与循环结构",
+        "guide_chapter": "06-blocks-control-flow.md",
+        "probes": ["p07_while_var", "p48_nested_loops_break", "q13_if_expr_value", "v04_stmt_if_mixed"],
+    },
+    4: {
+        "title": "枚举类型与穷尽 when 匹配",
+        "guide_chapter": "06-blocks-control-flow.md",
+        "probes": ["e01_enum_when_bool_return", "e04_enum_when_int_return", "p09_enum_payload", "p49_when_enum_no_payload", "q08_enum_string_payload"],
+    },
+    5: {
+        "title": "类、值类与伴随对象",
+        "guide_chapter": "08-class-family-members.md",
+        "probes": ["p12_class_inout", "p28_companion", "p44_method_on_value", "q12_companion_const"],
+    },
+    6: {
+        "title": "泛型、接口与单态化",
+        "guide_chapter": "03-types-generics.md",
+        "probes": ["p10_generic_fn", "p11_interface_bound", "q16_interface_static", "t03_vmethod_generic"],
+    },
+    7: {
+        "title": "线性所有权与移动语义",
+        "guide_chapter": "10-ownership-borrowing-drop.md",
+        "probes": ["p21_box_enum", "p25_linked_iter", "p32_deinit", "q19_deep_return_cleanup"],
+    },
+    8: {
+        "title": "借用检查与在位可变引用",
+        "guide_chapter": "10-ownership-borrowing-drop.md",
+        "probes": ["p12c_inout_param", "p26_borrow_return", "q09_inout_class_param", "q20_replace_field"],
+    },
+    9: {
+        "title": "空安全、流类型与非空断言",
+        "guide_chapter": "09-nullability-errors.md",
+        "probes": ["p14_nullable", "p14b_nullable_simple", "q05_nullable_param", "q06_nullable_return_bang", "x02_string_nullable_return"],
+    },
+    10: {
+        "title": "函数类型与闭包捕获",
+        "guide_chapter": "07-calls-lambdas-closures.md",
+        "probes": ["p17_lambda", "p17b_lambda_nocapture", "p18_move_closure", "p42_lambda_mutate", "q01_lambda_local", "q02_lambda_arg_inline"],
+    },
+    11: {
+        "title": "顺序集合遍历与结构解构",
+        "guide_chapter": "12-collections-destructuring.md",
+        "probes": ["p19_mutablelist", "p34_for_range", "p38_list_of_strings", "q15_borrow_param_string_list", "w01_map_for_sum"],
+    },
+    12: {
+        "title": "关联常量与标准库互操作",
+        "guide_chapter": "13-program-runtime-standard-library.md",
+        "probes": ["p31_string_ops", "q12_companion_const", "s01_result_builtin"],
+    },
+}
+
+
+def summarize_guide_litmus_alignment(expectations: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    """Cross-reference Guide 15 Litmus 1..12 topics against their mapped end-to-end conformance probes."""
+    probes = expectations["probes"]
+    out: dict[int, dict[str, Any]] = {}
+    for lit_id, spec in GUIDE_LITMUS_CATALOG.items():
+        mapped = list(spec["probes"])
+        cap_passed = [
+            p for p in mapped if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+        ]
+        unimpl = [p for p in mapped if probes[p]["kind"] == "known_unimplemented"]
+        blockers = sorted(
+            {b for p in unimpl for b in probes[p].get("roadmap_blockers", [])}
+        )
+        out[lit_id] = {
+            "id": lit_id,
+            "title": spec["title"],
+            "guide_chapter": spec["guide_chapter"],
+            "probes": mapped,
+            "cap_passed_count": len(cap_passed),
+            "unimplemented_probes": unimpl,
+            "roadmap_blockers": blockers,
+            "status": "all_passed" if not unimpl else "partial",
+        }
+    return out
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -3647,6 +3764,30 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         lines.append(
             f"| [{ch}](../docs/guide/{ch}) | {r_row['domain']} | {r_row['positive_active']} | "
             f"{neg_repr} | {ku_repr} | {blk_repr} | {prog_repr} | `{r_row['v2_status']}` |"
+        )
+
+    litmus_align = summarize_guide_litmus_alignment(expectations)
+    lines.extend(
+        [
+            "",
+            "### 1.10 Guide 15 规范性 Litmus 1–12 与端到端 Conformance Probe 对齐矩阵",
+            "",
+            "| Litmus 编号与主题 | 归属 Guide 章节 | 关联端到端 Probe | 能力通过 (`capability_passed`) | 剩余未实现与阻塞项 | 状态 |",
+            "|---|---|---|---:|---|---|",
+        ]
+    )
+    for lit_id, l_row in litmus_align.items():
+        ch = l_row["guide_chapter"]
+        p_repr = ", ".join(f"`{p}`" for p in l_row["probes"])
+        rem_repr = (
+            ", ".join(f"`{p}`" for p in l_row["unimplemented_probes"])
+            + " (" + ", ".join(f"`{b}`" for b in l_row["roadmap_blockers"]) + ")"
+            if l_row["unimplemented_probes"]
+            else "-"
+        )
+        lines.append(
+            f"| **Litmus {lit_id}**：{l_row['title']} | [{ch}](../docs/guide/{ch}) | {p_repr} | "
+            f"{l_row['cap_passed_count']} / {len(l_row['probes'])} | {rem_repr} | `{l_row['status']}` |"
         )
 
     # Load v1.json roadmap metadata for blocker names and titles if available

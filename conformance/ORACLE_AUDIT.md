@@ -150,6 +150,23 @@
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 集合、索引与解构 | 47 | 1 (`FE:L0135`) | 0 | - | `word_count` | `v2_probe_ready` |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 3 | 0（待补反例） | 1 (`p27_thread`) | `N04`, `T1` | - | `needs_negative_and_roadmap` |
 
+### 1.10 Guide 15 规范性 Litmus 1–12 与端到端 Conformance Probe 对齐矩阵
+
+| Litmus 编号与主题 | 归属 Guide 章节 | 关联端到端 Probe | 能力通过 (`capability_passed`) | 剩余未实现与阻塞项 | 状态 |
+|---|---|---|---:|---|---|
+| **Litmus 1**：基础函数与局部变量 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | `p01_int_print`, `p24_recursion`, `q10_var_reassign_string`, `v01_assign_unit_value` | 4 / 4 | - | `all_passed` |
+| **Litmus 2**：换行分句与表达式续行 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | `p03_long_uint`, `t07_short_circuit_plain`, `v01_assign_unit_value`, `v02_assign_chain` | 4 / 4 | - | `all_passed` |
+| **Litmus 3**：控制流与循环结构 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `p07_while_var`, `p48_nested_loops_break`, `q13_if_expr_value`, `v04_stmt_if_mixed` | 4 / 4 | - | `all_passed` |
+| **Litmus 4**：枚举类型与穷尽 when 匹配 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `e01_enum_when_bool_return`, `e04_enum_when_int_return`, `p09_enum_payload`, `p49_when_enum_no_payload`, `q08_enum_string_payload` | 4 / 5 | `q08_enum_string_payload` (`L7`, `N02`) | `partial` |
+| **Litmus 5**：类、值类与伴随对象 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `p12_class_inout`, `p28_companion`, `p44_method_on_value`, `q12_companion_const` | 3 / 4 | `p28_companion` (`N06`) | `partial` |
+| **Litmus 6**：泛型、接口与单态化 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `p10_generic_fn`, `p11_interface_bound`, `q16_interface_static`, `t03_vmethod_generic` | 3 / 4 | `p11_interface_bound` (`N06`) | `partial` |
+| **Litmus 7**：线性所有权与移动语义 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `p21_box_enum`, `p25_linked_iter`, `p32_deinit`, `q19_deep_return_cleanup` | 3 / 4 | `p21_box_enum` (`L7`, `N07`) | `partial` |
+| **Litmus 8**：借用检查与在位可变引用 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `p12c_inout_param`, `p26_borrow_return`, `q09_inout_class_param`, `q20_replace_field` | 4 / 4 | - | `all_passed` |
+| **Litmus 9**：空安全、流类型与非空断言 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `p14_nullable`, `p14b_nullable_simple`, `q05_nullable_param`, `q06_nullable_return_bang`, `x02_string_nullable_return` | 5 / 5 | - | `all_passed` |
+| **Litmus 10**：函数类型与闭包捕获 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p42_lambda_mutate`, `q01_lambda_local`, `q02_lambda_arg_inline` | 6 / 6 | - | `all_passed` |
+| **Litmus 11**：顺序集合遍历与结构解构 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `p19_mutablelist`, `p34_for_range`, `p38_list_of_strings`, `q15_borrow_param_string_list`, `w01_map_for_sum` | 5 / 5 | - | `all_passed` |
+| **Litmus 12**：关联常量与标准库互操作 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `p31_string_ops`, `q12_companion_const`, `s01_result_builtin` | 3 / 3 | - | `all_passed` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |

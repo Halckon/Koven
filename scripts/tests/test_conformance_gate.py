@@ -1116,6 +1116,16 @@ sys.exit(1)
         self.assertEqual(len(phase_mat[4]["active_negative_probes"]), 3)
         self.assertEqual(len(phase_mat[4]["blocked_probes"]), 16)
         self.assertEqual(len(phase_mat[4]["blocked_programs"]), 6)
+        litmus_align = gate.summarize_guide_litmus_alignment(loaded)
+        self.assertEqual(list(litmus_align.keys()), list(range(1, 13)))
+        self.assertEqual(
+            [k for k, v in litmus_align.items() if v["status"] == "all_passed"],
+            [1, 2, 3, 8, 9, 10, 11, 12],
+        )
+        self.assertEqual(
+            [k for k, v in litmus_align.items() if v["status"] == "partial"],
+            [4, 5, 6, 7],
+        )
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",
