@@ -15,6 +15,8 @@
         "SPEC-0356"
       ],
       "oracle_derivation": "isRed(Color.Red) matches branch Color.Red -> true; if-branch prints 'e1'",
+      "source_lines": 3,
+      "source_bytes": 186,
       "expected_lines": 1,
       "expected_bytes": 3
     },
@@ -32,6 +34,8 @@
         "SPEC-0356"
       ],
       "oracle_derivation": "c = Color.Red matches statement when branch Color.Red -> println('e2')",
+      "source_lines": 2,
+      "source_bytes": 141,
       "expected_lines": 1,
       "expected_bytes": 3
     },
@@ -49,6 +53,8 @@
         "SPEC-0356"
       ],
       "oracle_derivation": "c = Color.Green yields b = false in when expression; if (!b) prints 'e5'",
+      "source_lines": 2,
+      "source_bytes": 162,
       "expected_lines": 1,
       "expected_bytes": 3
     },
@@ -60,6 +66,8 @@
       "stdout": "e6\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('e6')",
+      "source_lines": 3,
+      "source_bytes": 180,
       "expected_lines": 1,
       "expected_bytes": 3
     },
@@ -71,7 +79,9 @@
       "diagnostic": "L0084",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "TYPE_MISMATCH",
-      "oracle_derivation": "println expects String parameter; passing Int (40 + 2) emits TYPE_MISMATCH L0084"
+      "oracle_derivation": "println expects String parameter; passing Int (40 + 2) emits TYPE_MISMATCH L0084",
+      "source_lines": 1,
+      "source_bytes": 48
     },
     "p02_interp": {
       "kind": "known_unimplemented",
@@ -90,6 +100,8 @@
       ],
       "target_stdout": "hello k\n",
       "oracle_derivation": "string interpolation 'hello ${n}' with n = 'k' evaluates to 'hello k' (blocked by L1/L2)",
+      "source_lines": 1,
+      "source_bytes": 56,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -101,6 +113,8 @@
       "stdout": "widths\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('widths')",
+      "source_lines": 7,
+      "source_bytes": 199,
       "expected_lines": 1,
       "expected_bytes": 7
     },
@@ -112,7 +126,9 @@
       "diagnostic": "L0085",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "INVALID_OPERAND_TYPES",
-      "oracle_derivation": "comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085"
+      "oracle_derivation": "comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085",
+      "source_lines": 1,
+      "source_bytes": 78
     },
     "p04_overflow": {
       "kind": "runtime_abort",
@@ -126,7 +142,9 @@
       "spec_refs": [
         "SPEC-0355"
       ],
-      "oracle_derivation": "Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09"
+      "oracle_derivation": "Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09",
+      "source_lines": 1,
+      "source_bytes": 72
     },
     "p05_double": {
       "kind": "known_unimplemented",
@@ -144,6 +162,8 @@
       ],
       "target_stdout": "double\n",
       "oracle_derivation": "Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' (blocked by N05)",
+      "source_lines": 1,
+      "source_bytes": 76,
       "expected_lines": 1,
       "expected_bytes": 7
     },
@@ -163,6 +183,8 @@
       ],
       "target_stdout": "char\n",
       "oracle_derivation": "Char comparison 'a' < 'b' holds and prints 'char' (blocked by N05)",
+      "source_lines": 1,
+      "source_bytes": 67,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -174,6 +196,8 @@
       "stdout": "while\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "while loop sums i=0..9 into s=45; s == 45 holds and prints 'while'",
+      "source_lines": 1,
+      "source_bytes": 118,
       "expected_lines": 1,
       "expected_bytes": 6
     },
@@ -190,6 +214,8 @@
         "SPEC-0356"
       ],
       "oracle_derivation": "name(2) matches the subject equality branch 2 -> 'two' and prints 'two'",
+      "source_lines": 2,
+      "source_bytes": 117,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -201,6 +227,8 @@
       "stdout": "enum\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('enum')",
+      "source_lines": 3,
+      "source_bytes": 269,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -212,6 +240,8 @@
       "stdout": "generic\nint\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int'",
+      "source_lines": 2,
+      "source_bytes": 148,
       "expected_lines": 2,
       "expected_bytes": 12
     },
@@ -231,6 +261,8 @@
       ],
       "target_stdout": "dog\n",
       "oracle_derivation": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06)",
+      "source_lines": 4,
+      "source_bytes": 189,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -242,6 +274,8 @@
       "stdout": "counter\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('counter')",
+      "source_lines": 2,
+      "source_bytes": 188,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -258,6 +292,8 @@
         "SPEC-0358"
       ],
       "oracle_derivation": "single literal println('field-assign')",
+      "source_lines": 2,
+      "source_bytes": 130,
       "expected_lines": 1,
       "expected_bytes": 13
     },
@@ -274,6 +310,8 @@
         "SPEC-0358"
       ],
       "oracle_derivation": "single literal println('inout-param')",
+      "source_lines": 2,
+      "source_bytes": 124,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -285,6 +323,8 @@
       "stdout": "value\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('value')",
+      "source_lines": 2,
+      "source_bytes": 136,
       "expected_lines": 1,
       "expected_bytes": 6
     },
@@ -301,6 +341,8 @@
         "SPEC-0350"
       ],
       "oracle_derivation": "pick(true) returns non-null Node(5); smart cast prints 'smart' and pick(true)!!.v == 5 prints 'bangbang'",
+      "source_lines": 8,
+      "source_bytes": 253,
       "expected_lines": 2,
       "expected_bytes": 15
     },
@@ -317,6 +359,8 @@
         "SPEC-0350"
       ],
       "oracle_derivation": "a: Node? = Node(5) is non-null with a.v == 5; smart cast branch prints 'smart'",
+      "source_lines": 2,
+      "source_bytes": 122,
       "expected_lines": 1,
       "expected_bytes": 6
     },
@@ -333,6 +377,8 @@
         "SPEC-0350"
       ],
       "oracle_derivation": "a: Int? = 5 is non-null and equals 5; smart cast branch prints 'nint'",
+      "source_lines": 1,
+      "source_bytes": 89,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -352,6 +398,8 @@
       ],
       "target_stdout": "elvis\n",
       "oracle_derivation": "f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03)",
+      "source_lines": 2,
+      "source_bytes": 89,
       "expected_lines": 1,
       "expected_bytes": 6
     },
@@ -376,6 +424,8 @@
         "N08"
       ],
       "oracle_derivation": "Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08)",
+      "source_lines": 7,
+      "source_bytes": 342,
       "expected_lines": 1,
       "expected_bytes": 9
     },
@@ -393,6 +443,8 @@
         "SPEC-0368"
       ],
       "oracle_derivation": "parse(1) selects Result.Ok('good'); exhaustive when selects Ok and prints success once, followed by newline",
+      "source_lines": 5,
+      "source_bytes": 257,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -409,6 +461,8 @@
         "SPEC-0364"
       ],
       "oracle_derivation": "capturing closure { n -> n * k } with k = 3 applied to 7 yields 21 and prints 'lambda'",
+      "source_lines": 2,
+      "source_bytes": 137,
       "expected_lines": 1,
       "expected_bytes": 7
     },
@@ -425,6 +479,8 @@
         "SPEC-0364"
       ],
       "oracle_derivation": "non-capturing lambda { n -> n * 3 } applied to 7 yields 21 and prints 'lambda0'",
+      "source_lines": 2,
+      "source_bytes": 127,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -441,6 +497,8 @@
         "SPEC-0364"
       ],
       "oracle_derivation": "move closure captures owned String 'x', compares s == 'x' -> true, and prints 'move'",
+      "source_lines": 2,
+      "source_bytes": 128,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -452,6 +510,8 @@
       "stdout": "list\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "xs=[10,2,3] sums to 15 with size 3; condition holds and prints 'list'",
+      "source_lines": 8,
+      "source_bytes": 205,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -463,6 +523,8 @@
       "stdout": "map\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('map')",
+      "source_lines": 6,
+      "source_bytes": 180,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -483,6 +545,8 @@
       ],
       "target_stdout": "box\n",
       "oracle_derivation": "recursive Expr.Add(Box(Num(1)), Box(Num(2))) evaluates to 3 and prints 'box' (blocked by N07/L7)",
+      "source_lines": 3,
+      "source_bytes": 284,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -499,6 +563,8 @@
         "SPEC-0359"
       ],
       "oracle_derivation": "Rc(Data(4)).share().value.n == 4 holds and prints 'rc'",
+      "source_lines": 2,
+      "source_bytes": 122,
       "expected_lines": 1,
       "expected_bytes": 3
     },
@@ -515,7 +581,9 @@
         "SPEC-0343"
       ],
       "diagnostic_symbol": "UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE",
-      "oracle_derivation": "top-level runtime var counter violates Guide 05 D4 (SPEC-0343); rejected with UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE L0167"
+      "oracle_derivation": "top-level runtime var counter violates Guide 05 D4 (SPEC-0343); rejected with UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE L0167",
+      "source_lines": 3,
+      "source_bytes": 128
     },
     "p24_recursion": {
       "kind": "run_ok",
@@ -525,6 +593,8 @@
       "stdout": "fib\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('fib')",
+      "source_lines": 2,
+      "source_bytes": 126,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -544,7 +614,9 @@
         "MOVE_FROM_BORROWED_BINDING",
         "PARTIAL_MOVE"
       ],
-      "oracle_derivation": "cur = cur.next moves non-Copyable Node? field out of borrowed/owned chain, emitting MOVE_FROM_BORROWED_BINDING L0133 and PARTIAL_MOVE L0132"
+      "oracle_derivation": "cur = cur.next moves non-Copyable Node? field out of borrowed/owned chain, emitting MOVE_FROM_BORROWED_BINDING L0133 and PARTIAL_MOVE L0132",
+      "source_lines": 8,
+      "source_bytes": 280
     },
     "p25b_linked_recursive": {
       "kind": "known_unimplemented",
@@ -562,6 +634,8 @@
       ],
       "target_stdout": "rec-list\n",
       "oracle_derivation": "recursive sum(Node(1, Node(2, null))) returns 3 and prints 'rec-list' (blocked by N03)",
+      "source_lines": 3,
+      "source_bytes": 215,
       "expected_lines": 1,
       "expected_bytes": 9
     },
@@ -573,6 +647,8 @@
       "stdout": "borrowed\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "nameOf borrows Holder('borrowed').name; println(n) prints 'borrowed'",
+      "source_lines": 3,
+      "source_bytes": 177,
       "expected_lines": 1,
       "expected_bytes": 9
     },
@@ -593,6 +669,8 @@
       ],
       "target_stdout": "thread\n",
       "oracle_derivation": "thread(move { println('thread') }).join() runs worker closure and prints 'thread' (blocked by T1/N04)",
+      "source_lines": 1,
+      "source_bytes": 63,
       "expected_lines": 1,
       "expected_bytes": 7
     },
@@ -619,6 +697,8 @@
         "N06"
       ],
       "oracle_derivation": "anonymous companion function C.make() returns 7 and prints 'companion' (blocked by N06)",
+      "source_lines": 2,
+      "source_bytes": 141,
       "expected_lines": 1,
       "expected_bytes": 10
     },
@@ -630,6 +710,8 @@
       "stdout": "ab\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "C.hi() concatenates super<A>.hi() ('a') + super<B>.hi() ('b') = 'ab'",
+      "source_lines": 4,
+      "source_bytes": 196,
       "expected_lines": 1,
       "expected_bytes": 3
     },
@@ -641,6 +723,8 @@
       "stdout": "array\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('array')",
+      "source_lines": 1,
+      "source_bytes": 96,
       "expected_lines": 1,
       "expected_bytes": 6
     },
@@ -652,6 +736,8 @@
       "stdout": "abc\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "'ab'.clone() + 'c' equals 'abc'; branch prints 'abc'",
+      "source_lines": 1,
+      "source_bytes": 91,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -663,6 +749,8 @@
       "stdout": "body\nb\na\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "main prints 'body' first, then drops locals in reverse lexical order: b ('b') then a ('a')",
+      "source_lines": 2,
+      "source_bytes": 125,
       "expected_lines": 3,
       "expected_bytes": 9
     },
@@ -674,6 +762,8 @@
       "stdout": "in-range\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('in-range')",
+      "source_lines": 1,
+      "source_bytes": 73,
       "expected_lines": 1,
       "expected_bytes": 9
     },
@@ -685,6 +775,8 @@
       "stdout": "for-range\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "0..<5 sums 0+1+2+3+4 = 10; s == 10 holds and prints 'for-range'",
+      "source_lines": 1,
+      "source_bytes": 102,
       "expected_lines": 1,
       "expected_bytes": 10
     },
@@ -704,6 +796,8 @@
       ],
       "target_stdout": "veq\n",
       "oracle_derivation": "structural equality Point(1, 2) == Point(1, 2) holds and prints 'veq' (blocked by L1)",
+      "source_lines": 2,
+      "source_bytes": 114,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -715,6 +809,8 @@
       "stdout": "conv\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('conv')",
+      "source_lines": 1,
+      "source_bytes": 96,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -731,6 +827,8 @@
         "SPEC-0349"
       ],
       "oracle_derivation": "Result.Ok(1) matches parameterless is Result.Ok with v = 1 (SPEC-0349); prints 'case-noargs'",
+      "source_lines": 5,
+      "source_bytes": 183,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -742,6 +840,8 @@
       "stdout": "x\ny\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "iterating mutableListOf('x', 'y') prints 'x' then 'y' in insertion order",
+      "source_lines": 5,
+      "source_bytes": 120,
       "expected_lines": 2,
       "expected_bytes": 4
     },
@@ -753,6 +853,8 @@
       "stdout": "removeAt\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('removeAt')",
+      "source_lines": 5,
+      "source_bytes": 140,
       "expected_lines": 1,
       "expected_bytes": 9
     },
@@ -772,6 +874,8 @@
       ],
       "target_stdout": "stack\n",
       "oracle_derivation": "Stack<Int>.push(1) mutates generic field items; size == 1 prints 'stack' (blocked by N01)",
+      "source_lines": 4,
+      "source_bytes": 216,
       "expected_lines": 1,
       "expected_bytes": 6
     },
@@ -789,6 +893,8 @@
         "SPEC-0357"
       ],
       "oracle_derivation": "single literal println('when-str')",
+      "source_lines": 1,
+      "source_bytes": 122,
       "expected_lines": 1,
       "expected_bytes": 9
     },
@@ -800,7 +906,9 @@
       "diagnostic": "L0135",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "LOAN_CONFLICT",
-      "oracle_derivation": "mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135"
+      "oracle_derivation": "mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135",
+      "source_lines": 2,
+      "source_bytes": 172
     },
     "p43_if_join_any": {
       "kind": "compile_fail",
@@ -810,7 +918,9 @@
       "diagnostic": "L0112",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "WHEN_BRANCH_TYPE",
-      "oracle_derivation": "when expression mixing Int (1) and String ('s') branches is rejected with WHEN_BRANCH_TYPE L0112 (D3)"
+      "oracle_derivation": "when expression mixing Int (1) and String ('s') branches is rejected with WHEN_BRANCH_TYPE L0112 (D3)",
+      "source_lines": 1,
+      "source_bytes": 83
     },
     "p44_method_on_value": {
       "kind": "run_ok",
@@ -820,6 +930,8 @@
       "stdout": "vmethod\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('vmethod')",
+      "source_lines": 2,
+      "source_bytes": 144,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -831,6 +943,8 @@
       "stdout": "cmethod\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('cmethod')",
+      "source_lines": 2,
+      "source_bytes": 138,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -846,7 +960,9 @@
       "spec_refs": [
         "SPEC-0355"
       ],
-      "oracle_derivation": "error('boom') aborts with SIGABRT and stderr header 'abort: boom' per Guide 09 D12"
+      "oracle_derivation": "error('boom') aborts with SIGABRT and stderr header 'abort: boom' per Guide 09 D12",
+      "source_lines": 1,
+      "source_bytes": 35
     },
     "p46_string_field_class": {
       "kind": "run_ok",
@@ -856,6 +972,8 @@
       "stdout": "ann\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "Person('ann', 3).name is 'ann'; describe(p) prints 'ann'",
+      "source_lines": 3,
+      "source_bytes": 154,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -867,6 +985,8 @@
       "stdout": "b\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "listOf('a', 'b')[1] evaluates to 'b' and prints 'b'",
+      "source_lines": 1,
+      "source_bytes": 63,
       "expected_lines": 1,
       "expected_bytes": 2
     },
@@ -878,6 +998,8 @@
       "stdout": "nested\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "outer loop runs 5 times, inner loop breaks at j==3 after 3 increments -> hits == 15; prints 'nested'",
+      "source_lines": 5,
+      "source_bytes": 203,
       "expected_lines": 1,
       "expected_bytes": 7
     },
@@ -895,6 +1017,8 @@
         "SPEC-0356"
       ],
       "oracle_derivation": "name(Color.Green) selects Color.Green -> 'green' and prints 'green'",
+      "source_lines": 3,
+      "source_bytes": 193,
       "expected_lines": 1,
       "expected_bytes": 6
     },
@@ -911,6 +1035,8 @@
         "SPEC-0356"
       ],
       "oracle_derivation": "single literal println('enum-method')",
+      "source_lines": 4,
+      "source_bytes": 226,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -922,6 +1048,8 @@
       "stdout": "lambda-local\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('lambda-local')",
+      "source_lines": 1,
+      "source_bytes": 103,
       "expected_lines": 1,
       "expected_bytes": 13
     },
@@ -938,6 +1066,8 @@
         "SPEC-0364"
       ],
       "oracle_derivation": "twice({ n -> n + 1 }) applies +1 twice to 1 -> 3 and prints 'lambda-arg'",
+      "source_lines": 2,
+      "source_bytes": 121,
       "expected_lines": 1,
       "expected_bytes": 11
     },
@@ -957,6 +1087,8 @@
       ],
       "target_stdout": "fnref\n",
       "oracle_derivation": "callable reference ::inc applied to 1 yields 2 and prints 'fnref' (blocked by N04)",
+      "source_lines": 2,
+      "source_bytes": 101,
       "expected_lines": 1,
       "expected_bytes": 6
     },
@@ -968,6 +1100,8 @@
       "stdout": "rc\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('rc')",
+      "source_lines": 1,
+      "source_bytes": 91,
       "expected_lines": 1,
       "expected_bytes": 3
     },
@@ -984,6 +1118,8 @@
         "SPEC-0350"
       ],
       "oracle_derivation": "show(Node(1)) takes non-null branch ('non-null'); show(null) takes else branch ('null')",
+      "source_lines": 3,
+      "source_bytes": 163,
       "expected_lines": 2,
       "expected_bytes": 14
     },
@@ -995,6 +1131,8 @@
       "stdout": "bang\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('bang')",
+      "source_lines": 3,
+      "source_bytes": 124,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -1006,6 +1144,8 @@
       "stdout": "res-int\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('res-int')",
+      "source_lines": 3,
+      "source_bytes": 240,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -1026,6 +1166,8 @@
       ],
       "target_stdout": "hi\nquit\n",
       "oracle_derivation": "show(Msg.Text('hi')) prints payload 'hi'; show(Msg.Quit) prints 'quit' (blocked by N02/L7)",
+      "source_lines": 3,
+      "source_bytes": 199,
       "expected_lines": 2,
       "expected_bytes": 8
     },
@@ -1042,6 +1184,8 @@
         "SPEC-0358"
       ],
       "oracle_derivation": "single literal println('inout-class')",
+      "source_lines": 3,
+      "source_bytes": 213,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -1053,6 +1197,8 @@
       "stdout": "abc\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "s starts as 'a', appends 'b' then 'c' -> 'abc'",
+      "source_lines": 1,
+      "source_bytes": 71,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -1064,6 +1210,8 @@
       "stdout": "index-loop\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "while loop sums listOf(1,2,3) by index -> s == 6; prints 'index-loop'",
+      "source_lines": 1,
+      "source_bytes": 157,
       "expected_lines": 1,
       "expected_bytes": 11
     },
@@ -1080,6 +1228,8 @@
         "SPEC-0342"
       ],
       "oracle_derivation": "Cfg.N reads associated const val 3 from anonymous companion { }; Cfg.N == 3 prints 'cconst'",
+      "source_lines": 2,
+      "source_bytes": 108,
       "expected_lines": 1,
       "expected_bytes": 7
     },
@@ -1091,6 +1241,8 @@
       "stdout": "big\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "x = 3 satisfies x > 2, so if-expression evaluates to 'big'",
+      "source_lines": 1,
+      "source_bytes": 82,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -1102,6 +1254,8 @@
       "stdout": "mid\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "x = 5 fails x < 3 and matches second guard x < 7 -> 'mid'",
+      "source_lines": 1,
+      "source_bytes": 108,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -1113,6 +1267,8 @@
       "stdout": "borrow-list\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "total(listOf('a', 'b')) counts 2 elements; 2 == 2 prints 'borrow-list'",
+      "source_lines": 2,
+      "source_bytes": 181,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -1124,6 +1280,8 @@
       "stdout": "dog\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "Dog.name() returns 'dog' via static interface implementation dispatch",
+      "source_lines": 3,
+      "source_bytes": 153,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -1135,7 +1293,9 @@
       "diagnostic": "L0164",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "UNSUPPORTED_BORROW_FLOW",
-      "oracle_derivation": "borrow T from this on generic class Holder<T> hits UNSUPPORTED_BORROW_FLOW L0164 (roadmap N09)"
+      "oracle_derivation": "borrow T from this on generic class Holder<T> hits UNSUPPORTED_BORROW_FLOW L0164 (roadmap N09)",
+      "source_lines": 2,
+      "source_bytes": 134
     },
     "q18_value_class_generic": {
       "kind": "run_ok",
@@ -1145,6 +1305,8 @@
       "stdout": "vgen\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('vgen')",
+      "source_lines": 2,
+      "source_bytes": 122,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -1156,6 +1318,8 @@
       "stdout": "b\na\na\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "f(true) drops inner b ('b') then outer a ('a') on early return; f(false) drops a ('a') -> 'b\\na\\na\\n'",
+      "source_lines": 3,
+      "source_bytes": 190,
       "expected_lines": 3,
       "expected_bytes": 6
     },
@@ -1167,6 +1331,8 @@
       "stdout": "old\nnew\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "replace(&b.s, 'new') returns previous field value 'old' and updates b.s to 'new'",
+      "source_lines": 2,
+      "source_bytes": 129,
       "expected_lines": 2,
       "expected_bytes": 8
     },
@@ -1178,7 +1344,9 @@
       "diagnostic": "L0080",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "UNRESOLVED_NAME",
-      "oracle_derivation": "calling nonexistent method Int.fooBar() emits UNRESOLVED_NAME L0080"
+      "oracle_derivation": "calling nonexistent method Int.fooBar() emits UNRESOLVED_NAME L0080",
+      "source_lines": 1,
+      "source_bytes": 65
     },
     "r02_bogus_member_str": {
       "kind": "compile_fail",
@@ -1188,7 +1356,9 @@
       "diagnostic": "L0080",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "UNRESOLVED_NAME",
-      "oracle_derivation": "accessing nonexistent property String.length emits UNRESOLVED_NAME L0080"
+      "oracle_derivation": "accessing nonexistent property String.length emits UNRESOLVED_NAME L0080",
+      "source_lines": 1,
+      "source_bytes": 67
     },
     "s01_result_builtin": {
       "kind": "run_ok",
@@ -1203,6 +1373,8 @@
         "SPEC-0349"
       ],
       "oracle_derivation": "builtin Result.Ok(1) is resolved without import (SPEC-0349); main prints 'result-builtin'",
+      "source_lines": 2,
+      "source_bytes": 88,
       "expected_lines": 1,
       "expected_bytes": 15
     },
@@ -1222,6 +1394,8 @@
       ],
       "target_stdout": "pair\n",
       "oracle_derivation": "builtin Pair(1, 2).first == 1 holds and prints 'pair' (blocked by S6)",
+      "source_lines": 1,
+      "source_bytes": 79,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -1241,6 +1415,8 @@
       ],
       "target_stdout": "to\n",
       "oracle_derivation": "infix 1 to 2 constructs Pair(1, 2); p.first == 1 prints 'to' (blocked by S6)",
+      "source_lines": 1,
+      "source_bytes": 73,
       "expected_lines": 1,
       "expected_bytes": 3
     },
@@ -1252,7 +1428,9 @@
       "diagnostic": "L0085",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "INVALID_OPERAND_TYPES",
-      "oracle_derivation": "postfix ? applied to nullable Int? (instead of Result) emits INVALID_OPERAND_TYPES L0085"
+      "oracle_derivation": "postfix ? applied to nullable Int? (instead of Result) emits INVALID_OPERAND_TYPES L0085",
+      "source_lines": 2,
+      "source_bytes": 80
     },
     "t01_vmethod_bare_field": {
       "kind": "run_ok",
@@ -1262,6 +1440,8 @@
       "stdout": "vmethod-bare\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('vmethod-bare')",
+      "source_lines": 2,
+      "source_bytes": 144,
       "expected_lines": 1,
       "expected_bytes": 13
     },
@@ -1273,6 +1453,8 @@
       "stdout": "vmethod-bool\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('vmethod-bool')",
+      "source_lines": 2,
+      "source_bytes": 127,
       "expected_lines": 1,
       "expected_bytes": 13
     },
@@ -1289,6 +1471,8 @@
         "SPEC-0361"
       ],
       "oracle_derivation": "generic value class W<Int>(4).get() returns 4 and prints 'vmethod-generic'",
+      "source_lines": 2,
+      "source_bytes": 146,
       "expected_lines": 1,
       "expected_bytes": 16
     },
@@ -1300,6 +1484,8 @@
       "stdout": "vmethod-param\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('vmethod-param')",
+      "source_lines": 2,
+      "source_bytes": 138,
       "expected_lines": 1,
       "expected_bytes": 14
     },
@@ -1311,6 +1497,8 @@
       "stdout": "map-continue\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "for-loop skips 'b' via continue and counts 'a' twice -> m.get('a') == 2 prints 'map-continue'",
+      "source_lines": 10,
+      "source_bytes": 318,
       "expected_lines": 1,
       "expected_bytes": 13
     },
@@ -1322,6 +1510,8 @@
       "stdout": "loop-return\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "find(listOf(1,2,3), 2) returns true on second element; prints 'loop-return'",
+      "source_lines": 2,
+      "source_bytes": 193,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -1333,6 +1523,8 @@
       "stdout": "short-circuit\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('short-circuit')",
+      "source_lines": 1,
+      "source_bytes": 91,
       "expected_lines": 1,
       "expected_bytes": 14
     },
@@ -1344,6 +1536,8 @@
       "stdout": "pos\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "Tag(1).label() checks 1 > 0 and returns 'pos'",
+      "source_lines": 2,
+      "source_bytes": 132,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -1355,6 +1549,8 @@
       "stdout": "vmethod-chain\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('vmethod-chain')",
+      "source_lines": 2,
+      "source_bytes": 164,
       "expected_lines": 1,
       "expected_bytes": 14
     },
@@ -1366,6 +1562,8 @@
       "stdout": "map-nested-break\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "loop inserts 'a' and 'b' (m.size == 2), then breaks at 'c'; prints 'map-nested-break'",
+      "source_lines": 8,
+      "source_bytes": 241,
       "expected_lines": 1,
       "expected_bytes": 17
     },
@@ -1382,6 +1580,8 @@
         "SPEC-0320"
       ],
       "oracle_derivation": "isRed(Color.Red) borrows enum case argument and matches Color.Red -> true; prints 'enum-arg'",
+      "source_lines": 3,
+      "source_bytes": 183,
       "expected_lines": 1,
       "expected_bytes": 9
     },
@@ -1393,6 +1593,8 @@
       "stdout": "x\ny\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "clones 'x' and 'y' into MutableList<String> and prints each element in order",
+      "source_lines": 5,
+      "source_bytes": 146,
       "expected_lines": 2,
       "expected_bytes": 4
     },
@@ -1404,6 +1606,8 @@
       "stdout": "class-list\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('class-list')",
+      "source_lines": 2,
+      "source_bytes": 154,
       "expected_lines": 1,
       "expected_bytes": 11
     },
@@ -1415,6 +1619,8 @@
       "stdout": "enum-payload-arg\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('enum-payload-arg')",
+      "source_lines": 3,
+      "source_bytes": 240,
       "expected_lines": 1,
       "expected_bytes": 17
     },
@@ -1426,6 +1632,8 @@
       "stdout": "assign-unit\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('assign-unit')",
+      "source_lines": 1,
+      "source_bytes": 94,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -1437,7 +1645,9 @@
       "diagnostic": "L0084",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "TYPE_MISMATCH",
-      "oracle_derivation": "assignment b = 3 yields Unit, so chaining a = (b = 3) for Int var a emits TYPE_MISMATCH L0084 (SPEC-0325)"
+      "oracle_derivation": "assignment b = 3 yields Unit, so chaining a = (b = 3) for Int var a emits TYPE_MISMATCH L0084 (SPEC-0325)",
+      "source_lines": 1,
+      "source_bytes": 71
     },
     "v03_join_nullable": {
       "kind": "run_ok",
@@ -1452,6 +1662,8 @@
         "SPEC-0350"
       ],
       "oracle_derivation": "pick(true) returns Int? = 7; smart cast x != null && x == 7 prints 'join-nullable'",
+      "source_lines": 2,
+      "source_bytes": 143,
       "expected_lines": 1,
       "expected_bytes": 14
     },
@@ -1463,7 +1675,9 @@
       "diagnostic": "L0089",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "NO_COMMON_BRANCH_TYPE",
-      "oracle_derivation": "if/else with incompatible Int and String branch types emits NO_COMMON_BRANCH_TYPE L0089 (SPEC-0326)"
+      "oracle_derivation": "if/else with incompatible Int and String branch types emits NO_COMMON_BRANCH_TYPE L0089 (SPEC-0326)",
+      "source_lines": 1,
+      "source_bytes": 87
     },
     "v05_range_in": {
       "kind": "run_ok",
@@ -1473,6 +1687,8 @@
       "stdout": "range-in\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('range-in')",
+      "source_lines": 1,
+      "source_bytes": 90,
       "expected_lines": 1,
       "expected_bytes": 9
     },
@@ -1484,6 +1700,8 @@
       "stdout": "for-range\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "0..<5 sums to 10 and 1..3 sums to 6 -> s == 16 prints 'for-range'",
+      "source_lines": 1,
+      "source_bytes": 133,
       "expected_lines": 1,
       "expected_bytes": 10
     },
@@ -1495,6 +1713,8 @@
       "stdout": "range-max\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "inclusive range 2147483646..2147483647 iterates exactly 2 times without overflow; prints 'range-max'",
+      "source_lines": 1,
+      "source_bytes": 118,
       "expected_lines": 1,
       "expected_bytes": 10
     },
@@ -1506,6 +1726,8 @@
       "stdout": "long-range\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "1L..4L sums 1+2+3+4 = 10L; prints 'long-range'",
+      "source_lines": 1,
+      "source_bytes": 112,
       "expected_lines": 1,
       "expected_bytes": 11
     },
@@ -1517,6 +1739,8 @@
       "stdout": "reverse-empty\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "ascending range 5..1 is empty (0 iterations, n == 0); prints 'reverse-empty'",
+      "source_lines": 1,
+      "source_bytes": 104,
       "expected_lines": 1,
       "expected_bytes": 14
     },
@@ -1528,6 +1752,8 @@
       "stdout": "range-value\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('range-value')",
+      "source_lines": 2,
+      "source_bytes": 149,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -1539,6 +1765,8 @@
       "stdout": "convert\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('convert')",
+      "source_lines": 1,
+      "source_bytes": 169,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -1554,7 +1782,9 @@
       "spec_refs": [
         "SPEC-0355"
       ],
-      "oracle_derivation": "(-1).toULong() fails range check and aborts with 'abort: value out of range for ULong' (SPEC-0327/0355)"
+      "oracle_derivation": "(-1).toULong() fails range check and aborts with 'abort: value out of range for ULong' (SPEC-0327/0355)",
+      "source_lines": 1,
+      "source_bytes": 87
     },
     "v13_while_nullable_int": {
       "kind": "run_ok",
@@ -1569,6 +1799,8 @@
         "SPEC-0350"
       ],
       "oracle_derivation": "while (x != null) adds 5 to total and sets x = null; total == 5 prints 'while-nullable'",
+      "source_lines": 1,
+      "source_bytes": 150,
       "expected_lines": 1,
       "expected_bytes": 15
     },
@@ -1580,6 +1812,8 @@
       "stdout": "consume\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('consume')",
+      "source_lines": 1,
+      "source_bytes": 192,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -1591,6 +1825,8 @@
       "stdout": "b\na\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "MutableMap preserves insertion order ('b' then 'a'); loop prints 'b' then 'a'",
+      "source_lines": 1,
+      "source_bytes": 121,
       "expected_lines": 2,
       "expected_bytes": 4
     },
@@ -1607,6 +1843,8 @@
         "SPEC-0356"
       ],
       "oracle_derivation": "bucket(3) satisfies the `in 0..9` arm -> 'small' and prints 'small'",
+      "source_lines": 2,
+      "source_bytes": 116,
       "expected_lines": 1,
       "expected_bytes": 6
     },
@@ -1618,6 +1856,8 @@
       "stdout": "conv-loop\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "0..<3 converts 0,1,2 via toLong() and sums to 3L; prints 'conv-loop'",
+      "source_lines": 1,
+      "source_bytes": 118,
       "expected_lines": 1,
       "expected_bytes": 10
     },
@@ -1629,6 +1869,8 @@
       "stdout": "while-class\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "while (n != null) reads n.v (4) and sets n = null; t == 4 prints 'while-class'",
+      "source_lines": 2,
+      "source_bytes": 163,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -1645,6 +1887,8 @@
         "SPEC-0356"
       ],
       "oracle_derivation": "single literal println('stmt-when-mixed')",
+      "source_lines": 1,
+      "source_bytes": 93,
       "expected_lines": 1,
       "expected_bytes": 16
     },
@@ -1656,6 +1900,8 @@
       "stdout": "range-in-list\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "3 is neither in 1..2 nor in 5..6 (n == 0, size == 2); prints 'range-in-list'",
+      "source_lines": 1,
+      "source_bytes": 163,
       "expected_lines": 1,
       "expected_bytes": 14
     },
@@ -1667,6 +1913,8 @@
       "stdout": "range-return\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "firstEven(5) returns 2 on i == 2 inside 1..5; prints 'range-return'",
+      "source_lines": 2,
+      "source_bytes": 163,
       "expected_lines": 1,
       "expected_bytes": 13
     },
@@ -1678,6 +1926,8 @@
       "stdout": "range-map\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "populates m[i] = i*i for i in 0..<4; m.get(3) == 9 prints 'range-map'",
+      "source_lines": 1,
+      "source_bytes": 161,
       "expected_lines": 1,
       "expected_bytes": 10
     },
@@ -1689,6 +1939,8 @@
       "stdout": "nested-range\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "outer 0..<3 runs 3 times, inner breaks at j == 1 after 1 increment -> n == 3 prints 'nested-range'",
+      "source_lines": 1,
+      "source_bytes": 148,
       "expected_lines": 1,
       "expected_bytes": 13
     },
@@ -1700,6 +1952,8 @@
       "stdout": "map-sum\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map entries ('b'->2, 'a'->1) sum to 3; prints 'map-sum'",
+      "source_lines": 1,
+      "source_bytes": 167,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -1711,6 +1965,8 @@
       "stdout": "map-order\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map iterates in insertion order ('b', 'a', 'c'); ok remains true and prints 'map-order'",
+      "source_lines": 11,
+      "source_bytes": 325,
       "expected_lines": 1,
       "expected_bytes": 10
     },
@@ -1722,6 +1978,8 @@
       "stdout": "map-reorder\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "overwriting 'b'->5, removing 'a', and re-inserting 'a'->7 yields order ('b'->5, 'a'->7); prints 'map-reorder'",
+      "source_lines": 13,
+      "source_bytes": 414,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -1733,6 +1991,8 @@
       "stdout": "map-break\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "iterating keys 0..4 breaks at k == 2 after counting 0 and 1 (seen == 2); prints 'map-break'",
+      "source_lines": 1,
+      "source_bytes": 210,
       "expected_lines": 1,
       "expected_bytes": 10
     },
@@ -1744,6 +2004,8 @@
       "stdout": "map-return\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "find(m, 'b') returns value 2 from map loop; prints 'map-return'",
+      "source_lines": 5,
+      "source_bytes": 299,
       "expected_lines": 1,
       "expected_bytes": 11
     },
@@ -1755,7 +2017,9 @@
       "diagnostic": "L0135",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "LOAN_CONFLICT",
-      "oracle_derivation": "calling m.put() while m is borrowed by for-loop iteration emits LOAN_CONFLICT L0135"
+      "oracle_derivation": "calling m.put() while m is borrowed by for-loop iteration emits LOAN_CONFLICT L0135",
+      "source_lines": 1,
+      "source_bytes": 125
     },
     "w07_map_nested": {
       "kind": "run_ok",
@@ -1765,6 +2029,8 @@
       "stdout": "map-nested\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "nested iteration over {1:1, 2:2} computes (1+2)*(1+2) = 9; prints 'map-nested'",
+      "source_lines": 1,
+      "source_bytes": 189,
       "expected_lines": 1,
       "expected_bytes": 11
     },
@@ -1776,6 +2042,8 @@
       "stdout": "two\none\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map entries (2->'two', 1->'one') print values 'two' then 'one' in insertion order",
+      "source_lines": 1,
+      "source_bytes": 125,
       "expected_lines": 2,
       "expected_bytes": 8
     },
@@ -1787,6 +2055,8 @@
       "stdout": "map-temp\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "iterating temporary make() map sums 3 + 4 = 7; prints 'map-temp'",
+      "source_lines": 2,
+      "source_bytes": 222,
       "expected_lines": 1,
       "expected_bytes": 9
     },
@@ -1798,6 +2068,8 @@
       "stdout": "map-continue2\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map loop skips 'b'->2 via continue and sums 'a'->1 + 'c'->3 = 4; prints 'map-continue2'",
+      "source_lines": 1,
+      "source_bytes": 216,
       "expected_lines": 1,
       "expected_bytes": 14
     },
@@ -1809,6 +2081,8 @@
       "stdout": "word-count\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "word frequency over ['x','y','x','z','x'] yields x=3, y=1, z=1; prints 'word-count'",
+      "source_lines": 10,
+      "source_bytes": 328,
       "expected_lines": 1,
       "expected_bytes": 11
     },
@@ -1820,6 +2094,8 @@
       "stdout": "b\nafter\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map loop prints key 'b', then post-loop s == 1 prints 'after'",
+      "source_lines": 1,
+      "source_bytes": 163,
       "expected_lines": 2,
       "expected_bytes": 8
     },
@@ -1831,6 +2107,8 @@
       "stdout": "seen\nend\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map loop with v == 2 prints 'seen', followed by post-loop 'end'",
+      "source_lines": 1,
+      "source_bytes": 154,
       "expected_lines": 2,
       "expected_bytes": 9
     },
@@ -1842,6 +2120,8 @@
       "stdout": "end\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map loop sets s = 1 without printing; post-loop prints 'end'",
+      "source_lines": 1,
+      "source_bytes": 128,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -1853,6 +2133,8 @@
       "stdout": "seen\nend\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map loop with v == 2 prints 'seen', followed by post-loop 'end'",
+      "source_lines": 1,
+      "source_bytes": 143,
       "expected_lines": 2,
       "expected_bytes": 9
     },
@@ -1864,6 +2146,8 @@
       "stdout": "borrow-param-sum\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "count(m) borrows Map parameter and sums 2 + 3 = 5; prints 'borrow-param-sum'",
+      "source_lines": 2,
+      "source_bytes": 242,
       "expected_lines": 1,
       "expected_bytes": 17
     },
@@ -1875,6 +2159,8 @@
       "stdout": "b\nend\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map loop prints key 'b', then if (t == 1) prints 'end'",
+      "source_lines": 1,
+      "source_bytes": 149,
       "expected_lines": 2,
       "expected_bytes": 6
     },
@@ -1886,6 +2172,8 @@
       "stdout": "end\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map loop accumulates s = 2, then if (s == 2) prints 'end'",
+      "source_lines": 1,
+      "source_bytes": 148,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -1897,6 +2185,8 @@
       "stdout": "b\nend\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "map loop prints key 'b', followed by post-loop 'end'",
+      "source_lines": 1,
+      "source_bytes": 133,
       "expected_lines": 2,
       "expected_bytes": 6
     },
@@ -1908,6 +2198,8 @@
       "stdout": "retest\n",
       "oracle_origin": "single_println_literal",
       "oracle_derivation": "single literal println('retest')",
+      "source_lines": 3,
+      "source_bytes": 163,
       "expected_lines": 1,
       "expected_bytes": 7
     },
@@ -1924,6 +2216,8 @@
         "SPEC-0350"
       ],
       "oracle_derivation": "find(true) returns non-null String? 'hit'; smart cast s != null prints 'hit'",
+      "source_lines": 2,
+      "source_bytes": 148,
       "expected_lines": 1,
       "expected_bytes": 4
     },
@@ -1935,6 +2229,8 @@
       "stdout": "obs\ndone\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "if (true) calls observe('obs') printing 'obs', then prints 'done'",
+      "source_lines": 2,
+      "source_bytes": 148,
       "expected_lines": 2,
       "expected_bytes": 9
     },
@@ -1951,6 +2247,8 @@
         "SPEC-0341"
       ],
       "oracle_derivation": "take(listOf(1,2,3), 2) yields 1 and 2 (sum 3); prints 'take'",
+      "source_lines": 2,
+      "source_bytes": 157,
       "expected_lines": 1,
       "expected_bytes": 5
     },
@@ -1962,7 +2260,9 @@
       "diagnostic": "L0080",
       "oracle_origin": "baseline_diagnostic_audited",
       "diagnostic_symbol": "UNRESOLVED_NAME",
-      "oracle_derivation": "calling take() without import koven.algorithms.take emits UNRESOLVED_NAME L0080 (Guide v0.45)"
+      "oracle_derivation": "calling take() without import koven.algorithms.take emits UNRESOLVED_NAME L0080 (Guide v0.45)",
+      "source_lines": 1,
+      "source_bytes": 128
     },
     "y03_method_take_for": {
       "kind": "run_ok",
@@ -1977,6 +2277,8 @@
         "SPEC-0341"
       ],
       "oracle_derivation": "xs.take(2) on listOf(1,2,3) sums 1 + 2 = 3; prints 'take-method'",
+      "source_lines": 2,
+      "source_bytes": 163,
       "expected_lines": 1,
       "expected_bytes": 12
     },
@@ -1993,6 +2295,8 @@
         "SPEC-0341"
       ],
       "oracle_derivation": "take(listOf('a','b','c'), 2) prints first two elements 'a' and 'b'",
+      "source_lines": 2,
+      "source_bytes": 120,
       "expected_lines": 2,
       "expected_bytes": 4
     },
@@ -2004,6 +2308,8 @@
       "stdout": "a\nb\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "borrow val v = take(xs, 2) passed to read(v) prints 'a' and 'b'",
+      "source_lines": 3,
+      "source_bytes": 188,
       "expected_lines": 2,
       "expected_bytes": 4
     },
@@ -2015,6 +2321,8 @@
       "stdout": "a\nb\n",
       "oracle_origin": "source_trace_audited",
       "oracle_derivation": "borrow val v = take(xs, 2) iterated directly in for-loop prints 'a' and 'b'",
+      "source_lines": 2,
+      "source_bytes": 138,
       "expected_lines": 2,
       "expected_bytes": 4
     }
@@ -2023,6 +2331,8 @@
     "config_parse": {
       "kind": "known_unimplemented",
       "source_sha256": "dc1410aa94f4bb8b76682710241a74a70a34f950dd9b6f4b1016b32b11252816",
+      "source_lines": 116,
+      "source_bytes": 3797,
       "guide_chapter": "09-nullability-errors.md",
       "expected_file": "programs/config_parse/expected.txt",
       "expected_sha256": "4fff2827a336c190aa7d862a09ec9ecdbe58349b61463ef16bdd5c36aaa14e17",
@@ -2048,6 +2358,8 @@
     "expr_eval": {
       "kind": "known_unimplemented",
       "source_sha256": "4e21f2c3832f6d793fc6aa9be1afaab8a3136bc11eeeab285699c49f32be18a6",
+      "source_lines": 119,
+      "source_bytes": 3942,
       "guide_chapter": "11-copyability-layout-construction.md",
       "expected_file": "programs/expr_eval/expected.txt",
       "expected_sha256": "c9530ec173624a9c9d229b8e219e089412bef9da707ac12b4929bbf310a28b79",
@@ -2074,6 +2386,8 @@
     "linked_stack": {
       "kind": "known_unimplemented",
       "source_sha256": "f3feff593d199bcac7f24dd05e56a227574d1cc35efa3dcd77a5355a2cf5e255",
+      "source_lines": 89,
+      "source_bytes": 2453,
       "guide_chapter": "10-ownership-borrowing-drop.md",
       "expected_file": "programs/linked_stack/expected.txt",
       "expected_sha256": "bebcbde32ea8dd5a716c5e26cacefdc85a2642c8b822c9076e88ca8fb4057c17",
@@ -2099,6 +2413,8 @@
     "raii_state_machine": {
       "kind": "known_unimplemented",
       "source_sha256": "034389765de013a6cc45c18cca45eebfd002bf50765a4989d462c4415e4de718",
+      "source_lines": 90,
+      "source_bytes": 2750,
       "guide_chapter": "08-class-family-members.md",
       "expected_file": "programs/raii_state_machine/expected.txt",
       "expected_sha256": "0de6a3667bc60c77d3aa2afac93e4daa1562589c8194037a9c294708b57979c7",
@@ -2122,6 +2438,8 @@
     "varint_codec": {
       "kind": "known_unimplemented",
       "source_sha256": "d12cc3b0618a9bf784ec6cf8d56f78c660c32e1d96f6e791603981a3cabab1f7",
+      "source_lines": 90,
+      "source_bytes": 2812,
       "guide_chapter": "03-types-generics.md",
       "expected_file": "programs/varint_codec/expected.txt",
       "expected_sha256": "7566e6b5cdb3d9c3d8bf557eebf03baa72211ef889beba1b8c4d6d070eece571",
@@ -2146,6 +2464,8 @@
     "word_count": {
       "kind": "known_unimplemented",
       "source_sha256": "e0acd2673ee5ce051246067fb593f7fd4bb6da759aa60ccd0e031629149fb5de",
+      "source_lines": 50,
+      "source_bytes": 1421,
       "guide_chapter": "12-collections-destructuring.md",
       "expected_file": "programs/word_count/expected.txt",
       "expected_sha256": "3b1a26f04983fb6bb189548492f1e9e766ed3de2b03f2a658e4f7a3f1c780adc",

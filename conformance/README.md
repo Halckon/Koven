@@ -19,8 +19,13 @@
 | `programs/<name>/main.ko` | 六个验收程序（V1 目标） |
 | `programs/<name>/expected.txt` | 对应程序 stdout 的精确期望 |
 | `../scripts/conformance_matrix.sh` | 矩阵 runner（支持 TSV 模式与 `--gate` 门禁转发） |
-| `../scripts/conformance_gate.py` | 公开入口强 oracle 回归验收门禁与比较器 |
-| `../scripts/tests/test_conformance_gate.py` | 验收门禁工具自测（由 `scripts/check_docs.py` 自动发现运行） |
+| `../scripts/conformance_gate.py` | 公开 CLI 入口、Markdown 审计账本渲染与门面导出（`1000` 行软上限） |
+| `../scripts/conformance_catalogs.py` | 静态规范目录、诊断码/记号注册表与章节/批次分类规则（`1000` 行软上限） |
+| `../scripts/conformance_expectations.py` | `expectations.json` 模式校验、静态目录不变量校验与期望推导（`1000` 行软上限） |
+| `../scripts/conformance_runner.py` | 双模式执行器（`single`/`project`）、逐字节 Oracle 比较器与套件评估（`1000` 行软上限） |
+| `../scripts/conformance_evidence.py` | 离线证据包防篡改校验、双宿主一致性比对与 TSV 矩阵核查（`1000` 行软上限） |
+| `../scripts/conformance_audit.py` | 章节极性、P2 门槛、Litmus、路线图阶段与 V3 Sanitizer 覆盖聚合（`1000` 行软上限） |
+| `../scripts/tests/test_conformance_gate.py` / `test_conformance_audit.py` | 门禁执行与对账审计自测（含 `1000` 行单一职责软门禁守卫） |
 
 ## 运行
 
@@ -145,14 +150,14 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 
 ## 验收程序（V1 目标）
 
-| 目录 | 题目 | 覆盖面 |
-|---|---|---|
-| `word_count` | 词频 | `MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查 |
-| `config_parse` | 配置解析 | 逐字符解析 `key = value`、注释与空行、`Display` 实现、`Result` 与 `?` |
-| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 |
-| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 |
-| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 |
-| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 |
+| 目录 | 题目 | 覆盖面 | 归属章节 | 当前状态 | 前置 Probe 就绪 | 路线图阻塞项 |
+|---|---|---|---|---|---:|---|
+| `word_count` | 词频 | `MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | 5 / 7 | `N02`, `N03` |
+| `config_parse` | 配置解析 | 逐字符解析 `key = value`、注释与空行、`Display` 实现、`Result` 与 `?` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | 4 / 7 | `N02`, `N08`, `L1`, `L2` |
+| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | 3 / 8 | `N02`, `N05`, `N07`, `N08`, `L7` |
+| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | 5 / 7 | `N01`, `N02` |
+| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | 5 / 7 | `N01`, `N08`, `L3b` |
+| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 4 / 7 | `N01`, `N03`, `N07`, `L7` |
 
 这些程序按 Guide v0.46 编写，是 V1 的**目标**而不是当前实现能力：今天不能编译或运行并不算
 失败，只说明对应能力尚未实现。每个程序不读输入、输出确定；验收以 stdout 与 `expected.txt`
