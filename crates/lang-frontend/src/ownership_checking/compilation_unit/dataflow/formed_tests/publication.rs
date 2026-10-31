@@ -7,7 +7,7 @@ use crate::{
     name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
         CompilationUnitOwnership, OwnershipDeferredReason, UnitDropTarget, UnitValueDeliveryKind,
-        check_compilation_unit_ownership_recovering,
+        check_compilation_unit_ownership, check_compilation_unit_ownership_recovering,
     },
     parser::parse_file,
     type_checking::{
@@ -359,6 +359,7 @@ fn immutable_counter_source_rejects_full_unit_run_and_clears_published_history()
     assert_eq!(raw.diagnostics, [expected.clone()]);
     assert!(raw.deferred.is_empty());
     assert!(raw.formed_owned_locals.is_empty());
+    assert_memory_document_rejection(&fixture, &shared, &expected);
     assert_eq!(shared.diagnostics(), [expected]);
     assert!(shared.formed_owned_locals().is_empty());
     assert!(shared.loans().is_empty());
@@ -366,6 +367,83 @@ fn immutable_counter_source_rejects_full_unit_run_and_clears_published_history()
     assert!(shared.drops().is_empty());
     assert!(shared.is_compatible_with(&fixture.typed));
     assert!(shared.validate().is_err());
+}
+
+// Same bytes, SourceId and ParsedFile as the real rejecting Rooted fixture above.
+// This adds an entry contract, not history-normalization or original-Var mutation coverage.
+fn assert_memory_document_rejection(
+    fixture: &Fixture,
+    rooted: &CompilationUnitOwnership,
+    expected: &Diagnostic,
+) {
+    let inputs = [SourceUnitInput::memory_document(
+        fixture.parsed[0].source_id(),
+        &fixture.parsed[0],
+    )];
+    let (names_environment, types_environment) = standard_environments();
+    let index = index_compilation_unit(&fixture.sources, &inputs).unwrap();
+    assert!(index.diagnostics().is_empty());
+    let names =
+        resolve_compilation_unit_names(&fixture.sources, &inputs, &index, &names_environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+    let raw_types =
+        check_compilation_unit_types(&fixture.sources, &inputs, &names, &types_environment)
+            .unwrap();
+    assert!(raw_types.diagnostics().is_empty());
+    let complete = complete_compilation_unit_types(
+        &fixture.sources,
+        &inputs,
+        &names,
+        &types_environment,
+        &raw_types,
+    )
+    .unwrap();
+    assert!(complete.is_same_analysis(&raw_types));
+    let typed = raw_types.validate().unwrap();
+    let product = check_compilation_unit_ownership(
+        &fixture.sources,
+        &inputs,
+        &names,
+        &types_environment,
+        &typed,
+    )
+    .unwrap();
+    assert_eq!(product.diagnostics(), [expected.clone()]);
+    assert!(product.deferred().is_empty());
+    assert!(product.is_compatible_with(&typed));
+    assert!(product.formed_owned_locals().is_empty());
+    assert!(product.drops().is_empty());
+    // All nine published counterparts of Facts, not merely history length.
+    assert_eq!(
+        [
+            product.loans().len(),
+            product.value_deliveries().len(),
+            product.receiver_facts().len(),
+            product.rc_effects().len(),
+            product.construction_plans().len(),
+            product.non_null_assertions().len(),
+            product.ownership_primitives().len(),
+            product.field_replacements().len(),
+            product.formed_owned_locals().len(),
+        ],
+        [0; 9],
+        "a rejected MemoryDocument must not publish any Facts class"
+    );
+    assert_eq!(product.loans(), rooted.loans());
+    assert_eq!(product.value_deliveries(), rooted.value_deliveries());
+    assert_eq!(product.receiver_facts(), rooted.receiver_facts());
+    assert_eq!(product.rc_effects(), rooted.rc_effects());
+    assert_eq!(product.construction_plans(), rooted.construction_plans());
+    assert_eq!(product.non_null_assertions(), rooted.non_null_assertions());
+    assert_eq!(
+        product.ownership_primitives(),
+        rooted.ownership_primitives()
+    );
+    assert_eq!(product.field_replacements(), rooted.field_replacements());
+    assert_eq!(product.formed_owned_locals(), rooted.formed_owned_locals());
+    assert!(product.validate().is_err());
 }
 
 #[test]
