@@ -3,6 +3,7 @@
 
 mod carry_join;
 mod products;
+mod receiver;
 mod temporary_alias;
 
 use lang_frontend::{

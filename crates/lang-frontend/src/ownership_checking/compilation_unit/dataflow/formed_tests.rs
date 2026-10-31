@@ -1,4 +1,6 @@
 //! CI-only assignment rollback guard; inspect raw history before aggregate clearing.
+mod publication;
+
 use super::super::formed_tests::{Fixture, Parts};
 use super::*;
 use crate::ownership_checking::{
