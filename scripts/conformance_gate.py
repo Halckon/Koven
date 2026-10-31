@@ -1611,6 +1611,13 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
         v_probes = ver_spec.get("probes", [])
         if not v_probes or any(p not in probe_keys for p in v_probes):
             raise ValueError(f"Guide version boundary {ver_key} references unknown probes in {v_probes!r}")
+    if set(PROGRAM_PREREQUISITE_PROBES.keys()) != prog_keys:
+        raise ValueError("PROGRAM_PREREQUISITE_PROBES keys do not match programs inventory")
+    for prog_name, pre_probes in PROGRAM_PREREQUISITE_PROBES.items():
+        if not pre_probes or any(p not in probe_keys for p in pre_probes):
+            raise ValueError(
+                f"PROGRAM_PREREQUISITE_PROBES[{prog_name!r}] references unknown probes in {pre_probes!r}"
+            )
 
 
 def parse_tsv_matrix(
@@ -3711,6 +3718,88 @@ def summarize_guide_version_boundaries(expectations: dict[str, Any]) -> dict[str
     return out
 
 
+PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
+    "config_parse": [
+        "p02_interp",
+        "p16_result_q",
+        "p16b_result_string",
+        "p31_string_ops",
+        "q08_enum_string_payload",
+        "s01_result_builtin",
+        "w08_map_string_values",
+    ],
+    "expr_eval": [
+        "p05_double",
+        "p06_char",
+        "p09_enum_payload",
+        "p16_result_q",
+        "p21_box_enum",
+        "p24_recursion",
+        "q08_enum_string_payload",
+        "s01_result_builtin",
+    ],
+    "linked_stack": [
+        "p14_nullable",
+        "p21_box_enum",
+        "p25_linked_iter",
+        "p25b_linked_recursive",
+        "p40_nested_generic_class",
+        "q20_replace_field",
+        "v18_while_nullable_class",
+    ],
+    "raii_state_machine": [
+        "p12_class_inout",
+        "p32_deinit",
+        "p40_nested_generic_class",
+        "p49_when_enum_no_payload",
+        "q08_enum_string_payload",
+        "q19_deep_return_cleanup",
+        "q20_replace_field",
+    ],
+    "varint_codec": [
+        "p03_long_uint",
+        "p16_result_q",
+        "p19_mutablelist",
+        "p40_nested_generic_class",
+        "s01_result_builtin",
+        "v11_convert_ok",
+        "v12_convert_abort",
+    ],
+    "word_count": [
+        "p15_elvis",
+        "p19_mutablelist",
+        "p31_string_ops",
+        "q08_enum_string_payload",
+        "w01_map_for_sum",
+        "w02_map_for_order",
+        "w11_word_count",
+    ],
+}
+
+
+def summarize_program_probe_prerequisites(
+    expectations: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Cross-reference the 6 V1 acceptance programs against their atomic prerequisite conformance probes."""
+    probes = expectations["probes"]
+    programs = expectations["programs"]
+    out: dict[str, dict[str, Any]] = {}
+    for prog_name, pre_list in sorted(PROGRAM_PREREQUISITE_PROBES.items()):
+        passed = [
+            p for p in pre_list if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+        ]
+        unimpl = [p for p in pre_list if probes[p]["kind"] == "known_unimplemented"]
+        out[prog_name] = {
+            "program": prog_name,
+            "guide_chapter": programs[prog_name]["guide_chapter"],
+            "roadmap_blockers": list(programs[prog_name].get("roadmap_blockers", [])),
+            "prerequisite_probes": list(pre_list),
+            "passed_probes": passed,
+            "unimplemented_probes": unimpl,
+        }
+    return out
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -4064,6 +4153,26 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         prog_list = ", ".join(f"`{p}`" for p in b_info["programs"])
         lines.append(
             f"| `{b_id}` | {b_info['title']} | `{b_info['status']}` | {len(b_info['programs'])} | {prog_list} | {len(b_info['probes'])} |"
+        )
+
+    prog_prereqs = summarize_program_probe_prerequisites(expectations)
+    lines.extend(
+        [
+            "",
+            "### 2.2 六个 V1 验收程序与前置核心能力 Probe 对账矩阵",
+            "",
+            "| 验收程序 | 归属章节 | 前置 Probe 通过率 | 已通过前置 Probe (`run_ok` / `compile_fail` / `abort`) | 待解封前置 Probe (`known_unimplemented`) | 路线图阻塞项 |",
+            "|---|---|---:|---|---|---|",
+        ]
+    )
+    for prog_name, pr_row in prog_prereqs.items():
+        ch = pr_row["guide_chapter"]
+        passed_s = ", ".join(f"`{p}`" for p in pr_row["passed_probes"])
+        unimpl_s = ", ".join(f"`{p}`" for p in pr_row["unimplemented_probes"])
+        blk_s = ", ".join(f"`{b}`" for b in pr_row["roadmap_blockers"])
+        lines.append(
+            f"| `{prog_name}` | [{ch}](../docs/guide/{ch}) | {len(pr_row['passed_probes'])} / {len(pr_row['prerequisite_probes'])} | "
+            f"{passed_s} | {unimpl_s} | {blk_s} |"
         )
 
     # 3. Aggregate every known_unimplemented probe by roadmap blocker

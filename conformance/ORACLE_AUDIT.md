@@ -202,6 +202,17 @@
 | `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 2 | `expr_eval`, `linked_stack` | 1 |
 | `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 3 | `config_parse`, `expr_eval`, `varint_codec` | 1 |
 
+### 2.2 六个 V1 验收程序与前置核心能力 Probe 对账矩阵
+
+| 验收程序 | 归属章节 | 前置 Probe 通过率 | 已通过前置 Probe (`run_ok` / `compile_fail` / `abort`) | 待解封前置 Probe (`known_unimplemented`) | 路线图阻塞项 |
+|---|---|---:|---|---|---|
+| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 4 / 7 | `p16b_result_string`, `p31_string_ops`, `s01_result_builtin`, `w08_map_string_values` | `p02_interp`, `p16_result_q`, `q08_enum_string_payload` | `N02`, `N08`, `L1`, `L2` |
+| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 / 8 | `p09_enum_payload`, `p24_recursion`, `s01_result_builtin` | `p05_double`, `p06_char`, `p16_result_q`, `p21_box_enum`, `q08_enum_string_payload` | `N02`, `N05`, `N07`, `N08`, `L7` |
+| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 4 / 7 | `p14_nullable`, `p25_linked_iter`, `q20_replace_field`, `v18_while_nullable_class` | `p21_box_enum`, `p25b_linked_recursive`, `p40_nested_generic_class` | `N01`, `N03`, `N07`, `L7` |
+| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 5 / 7 | `p12_class_inout`, `p32_deinit`, `p49_when_enum_no_payload`, `q19_deep_return_cleanup`, `q20_replace_field` | `p40_nested_generic_class`, `q08_enum_string_payload` | `N01`, `N02` |
+| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 5 / 7 | `p03_long_uint`, `p19_mutablelist`, `s01_result_builtin`, `v11_convert_ok`, `v12_convert_abort` | `p16_result_q`, `p40_nested_generic_class` | `N01`, `N08`, `L3b` |
+| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 5 / 7 | `p19_mutablelist`, `p31_string_ops`, `w01_map_for_sum`, `w02_map_for_order`, `w11_word_count` | `p15_elvis`, `q08_enum_string_payload` | `N02`, `N03` |
+
 ## 3. 16 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
 
 | 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |

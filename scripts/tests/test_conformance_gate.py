@@ -1147,6 +1147,16 @@ sys.exit(1)
         self.assertEqual(ver_bounds["v0.45"]["status"], "all_passed")
         self.assertEqual(ver_bounds["v0.46"]["status"], "partial")
         self.assertEqual(ver_bounds["v0.47"]["status"], "all_passed")
+        prog_prereqs = gate.summarize_program_probe_prerequisites(loaded)
+        self.assertEqual(set(prog_prereqs.keys()), set(loaded["programs"].keys()))
+        self.assertEqual(
+            len(prog_prereqs["word_count"]["passed_probes"]),
+            5,
+        )
+        self.assertEqual(
+            prog_prereqs["word_count"]["unimplemented_probes"],
+            ["p15_elvis", "q08_enum_string_payload"],
+        )
         verdict_no_frame, reason_no_frame = gate.evaluate_mode_against_oracle(
             {
                 "marker": "abort:boom",
