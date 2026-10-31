@@ -167,6 +167,15 @@
 | **Litmus 11**：顺序集合遍历与结构解构 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `p19_mutablelist`, `p34_for_range`, `p38_list_of_strings`, `q15_borrow_param_string_list`, `w01_map_for_sum` | 5 / 5 | - | `all_passed` |
 | **Litmus 12**：关联常量与标准库互操作 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `p31_string_ops`, `q12_companion_const`, `s01_result_builtin` | 3 / 3 | - | `all_passed` |
 
+### 1.11 Guide 15 版本启用边界（`v0.44` → `v0.45` → `v0.46` → `v0.47`）与 Probe 验收对账矩阵
+
+| Guide 启用边界 | 核心启用语义与阶段合同 | 关联验收 Probe 数 | 能力通过 (`capability_passed`) | 剩余未实现与阻塞项 | 状态 |
+|---|---|---:|---:|---|---|
+| **v0.44 启用边界** | 封闭 if/when join、赋值返回 Unit、while 事实、IntRange/LongRange 与 for、八整数 checked 转换、插入序 Map 遍历 | 14 | 14 / 14 | - | `all_passed` |
+| **v0.45 启用边界** | 单文件与 project 统一 compilation-unit 管线、显式 koven.algorithms.take 导入、enum subject when 两模式零差异 | 10 | 10 / 10 | - | `all_passed` |
+| **v0.46 启用边界** | Abort 输出合同 (SPEC-0355)、Result 内建与无参 is Result.Ok (SPEC-0349)、顶层仅 const val (SPEC-0343)、匿名 companion { } | 12 | 7 / 12 | `p02_interp`, `p16_result_q`, `p27_thread`, `p28_companion`, `p35_value_eq` (`L1`, `L2`, `N04`, `N06`, `N08`, `T1`) | `partial` |
+| **v0.47 启用边界** | Guide 13 文本字节基础、可信标准 String Borrow 扩展与 Result<String, String> 载荷 when 闭环 (SPEC-0368) | 5 | 5 / 5 | - | `all_passed` |
+
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |

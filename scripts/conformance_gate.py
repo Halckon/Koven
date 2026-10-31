@@ -1602,6 +1602,15 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
             raise ValueError(
                 f"Guide 15 Litmus headings mismatch: found={found_litmus}, expected={expected_litmus}"
             )
+        for ver_key in GUIDE_VERSION_BOUNDARY_CATALOG:
+            if f"## {ver_key} 启用边界" not in g15_text:
+                raise ValueError(f"Guide 15 missing heading '## {ver_key} 启用边界'")
+    if list(GUIDE_VERSION_BOUNDARY_CATALOG.keys()) != ["v0.44", "v0.45", "v0.46", "v0.47"]:
+        raise ValueError("GUIDE_VERSION_BOUNDARY_CATALOG must define v0.44..v0.47 in order")
+    for ver_key, ver_spec in GUIDE_VERSION_BOUNDARY_CATALOG.items():
+        v_probes = ver_spec.get("probes", [])
+        if not v_probes or any(p not in probe_keys for p in v_probes):
+            raise ValueError(f"Guide version boundary {ver_key} references unknown probes in {v_probes!r}")
 
 
 def parse_tsv_matrix(
@@ -2445,6 +2454,115 @@ def verify_matrix_evidence_dir(
                     f"matrix evidence marker mismatch for {name}.{mode}: matrix has {expected_m!r}, raw files classify as {recomputed!r}"
                 )
     return {"manifest": manifest, "rows": rows}
+
+
+def compare_tsv_matrix_against_expectations(
+    matrix_path: Path,
+    expectations_path: Path,
+    corpus_root: Path | None = None,
+    baseline_path: Path | None = None,
+) -> dict[str, Any]:
+    """Compare a 3-column TSV matrix against expectations.json and optional baseline TSV without requiring raw stdout files."""
+    matrix_path = matrix_path.resolve(strict=True)
+    expectations = load_expectations(
+        expectations_path,
+        corpus_root=corpus_root.resolve(strict=True) if corpus_root is not None else None,
+    )
+    baseline = (
+        parse_tsv_matrix(
+            baseline_path.read_text(encoding="utf-8"),
+            expected_names=set(expectations["probes"].keys()),
+        )
+        if baseline_path is not None
+        else {}
+    )
+    rows = parse_tsv_matrix(matrix_path.read_text(encoding="utf-8"))
+    unknown = sorted(set(rows.keys()) - set(expectations["probes"].keys()))
+    if unknown:
+        raise ValueError(f"unknown probe names in TSV matrix: {unknown}")
+
+    counts: dict[str, int] = {
+        "pass_run": 0,
+        "pass_diagnostic": 0,
+        "pass_abort": 0,
+        "known_unimplemented": 0,
+        "mode_mismatch": 0,
+        "regression": 0,
+        "internal_error": 0,
+        "unexpected_pass": 0,
+    }
+    failures: list[str] = []
+    unexpected_passes: list[str] = []
+    cap_passed = 0
+
+    for name, (single_m, project_m) in sorted(rows.items()):
+        spec = expectations["probes"][name]
+        kind = spec["kind"]
+        if is_internal_error_marker(single_m) or is_internal_error_marker(project_m):
+            st = "internal_error"
+            failures.append(f"{name} (internal_error): single={single_m}, project={project_m}")
+        elif single_m != project_m:
+            st = "mode_mismatch"
+            failures.append(f"{name} (mode_mismatch): single={single_m} vs project={project_m}")
+        elif kind == "run_ok":
+            if single_m == "OK":
+                st = "pass_run"
+                cap_passed += 1
+            else:
+                st = "regression"
+                failures.append(f"{name} (regression): expected OK, got {single_m}")
+        elif kind == "compile_fail":
+            exp_m = f"FE:{spec['diagnostic']}"
+            if single_m == exp_m:
+                st = "pass_diagnostic"
+                cap_passed += 1
+            else:
+                st = "regression"
+                failures.append(f"{name} (regression): expected {exp_m}, got {single_m}")
+        elif kind == "runtime_abort":
+            exp_m = f"abort:{spec['abort_message']}"
+            if single_m == exp_m:
+                st = "pass_abort"
+                cap_passed += 1
+            else:
+                st = "regression"
+                failures.append(f"{name} (regression): expected {exp_m}, got {single_m}")
+        elif kind == "known_unimplemented":
+            if single_m == "OK":
+                st = "unexpected_pass"
+                unexpected_passes.append(name)
+                failures.append(f"{name} (unexpected_pass): now OK in both modes; promote to run_ok")
+            elif single_m in spec.get("allowed_markers", []):
+                st = "known_unimplemented"
+            else:
+                st = "regression"
+                failures.append(
+                    f"{name} (regression): expected one of {spec.get('allowed_markers')}, got {single_m}"
+                )
+        else:
+            st = "regression"
+            failures.append(f"{name} (unreviewed): {single_m}")
+
+        if (
+            name in baseline
+            and not spec.get("v046_baseline_exempt", False)
+            and baseline[name][0] == "OK"
+            and (single_m != "OK" or project_m != "OK")
+            and st != "regression"
+        ):
+            st = "regression"
+            failures.append(f"{name} (baseline regression): was OK, now {single_m}/{project_m}")
+
+        counts[st] = counts.get(st, 0) + 1
+
+    return {
+        "gate_passed": len(failures) == 0,
+        "total_probes": len(rows),
+        "probe_capability_passed": cap_passed,
+        "counts": counts,
+        "unexpected_passes": unexpected_passes,
+        "failures": failures,
+    }
 
 
 def _strip_raw_bytes(exec_record: dict[str, Any]) -> dict[str, Any]:
@@ -3503,6 +3621,96 @@ def summarize_guide_litmus_alignment(expectations: dict[str, Any]) -> dict[int, 
     return out
 
 
+GUIDE_VERSION_BOUNDARY_CATALOG: dict[str, dict[str, Any]] = {
+    "v0.44": {
+        "summary": "封闭 if/when join、赋值返回 Unit、while 事实、IntRange/LongRange 与 for、八整数 checked 转换、插入序 Map 遍历",
+        "probes": [
+            "v01_assign_unit_value",
+            "v02_assign_chain",
+            "v03_join_nullable",
+            "v04_stmt_if_mixed",
+            "v06_for_range_sum",
+            "v07_range_max",
+            "v08_long_range",
+            "v11_convert_ok",
+            "v12_convert_abort",
+            "v13_while_nullable_int",
+            "v15_map_for",
+            "w01_map_for_sum",
+            "w02_map_for_order",
+            "w06_map_mutate_in_loop",
+        ],
+    },
+    "v0.45": {
+        "summary": "单文件与 project 统一 compilation-unit 管线、显式 koven.algorithms.take 导入、enum subject when 两模式零差异",
+        "probes": [
+            "e01_enum_when_bool_return",
+            "e02_enum_when_stmt_println",
+            "e03_enum_when_bool_val",
+            "e04_enum_when_int_return",
+            "p49_when_enum_no_payload",
+            "p50_enum_method",
+            "y01_import_take_for_sum",
+            "y02_take_no_import",
+            "y03_method_take_for",
+            "y05_take_borrow_val_call",
+        ],
+    },
+    "v0.46": {
+        "summary": "Abort 输出合同 (SPEC-0355)、Result 内建与无参 is Result.Ok (SPEC-0349)、顶层仅 const val (SPEC-0343)、匿名 companion { }",
+        "probes": [
+            "p02_interp",
+            "p04_overflow",
+            "p16_result_q",
+            "p23_global_var",
+            "p27_thread",
+            "p28_companion",
+            "p35_value_eq",
+            "p37_is_generic_case",
+            "p45_abort_message",
+            "q12_companion_const",
+            "s01_result_builtin",
+            "v12_convert_abort",
+        ],
+    },
+    "v0.47": {
+        "summary": "Guide 13 文本字节基础、可信标准 String Borrow 扩展与 Result<String, String> 载荷 when 闭环 (SPEC-0368)",
+        "probes": [
+            "p16b_result_string",
+            "p31_string_ops",
+            "p46_string_field_class",
+            "q10_var_reassign_string",
+            "x02_string_nullable_return",
+        ],
+    },
+}
+
+
+def summarize_guide_version_boundaries(expectations: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Cross-reference Guide 15 version enablement boundaries (v0.44..v0.47) against their conformance probes."""
+    probes = expectations["probes"]
+    out: dict[str, dict[str, Any]] = {}
+    for ver_key, spec in GUIDE_VERSION_BOUNDARY_CATALOG.items():
+        mapped = list(spec["probes"])
+        cap_passed = [
+            p for p in mapped if probes[p]["kind"] in ("run_ok", "compile_fail", "runtime_abort")
+        ]
+        unimpl = [p for p in mapped if probes[p]["kind"] == "known_unimplemented"]
+        blockers = sorted(
+            {b for p in unimpl for b in probes[p].get("roadmap_blockers", [])}
+        )
+        out[ver_key] = {
+            "version": ver_key,
+            "summary": spec["summary"],
+            "probes": mapped,
+            "cap_passed_count": len(cap_passed),
+            "unimplemented_probes": unimpl,
+            "roadmap_blockers": blockers,
+            "status": "all_passed" if not unimpl else "partial",
+        }
+    return out
+
+
 def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
     """Render the Guide chapter coverage summary table embedded in conformance/README.md."""
     chapter_stats = summarize_chapter_polarity(expectations)
@@ -3788,6 +3996,28 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         lines.append(
             f"| **Litmus {lit_id}**：{l_row['title']} | [{ch}](../docs/guide/{ch}) | {p_repr} | "
             f"{l_row['cap_passed_count']} / {len(l_row['probes'])} | {rem_repr} | `{l_row['status']}` |"
+        )
+
+    ver_bounds = summarize_guide_version_boundaries(expectations)
+    lines.extend(
+        [
+            "",
+            "### 1.11 Guide 15 版本启用边界（`v0.44` → `v0.45` → `v0.46` → `v0.47`）与 Probe 验收对账矩阵",
+            "",
+            "| Guide 启用边界 | 核心启用语义与阶段合同 | 关联验收 Probe 数 | 能力通过 (`capability_passed`) | 剩余未实现与阻塞项 | 状态 |",
+            "|---|---|---:|---:|---|---|",
+        ]
+    )
+    for ver_key, v_row in ver_bounds.items():
+        rem_v = (
+            ", ".join(f"`{p}`" for p in v_row["unimplemented_probes"])
+            + " (" + ", ".join(f"`{b}`" for b in v_row["roadmap_blockers"]) + ")"
+            if v_row["unimplemented_probes"]
+            else "-"
+        )
+        lines.append(
+            f"| **{ver_key} 启用边界** | {v_row['summary']} | {len(v_row['probes'])} | "
+            f"{v_row['cap_passed_count']} / {len(v_row['probes'])} | {rem_v} | `{v_row['status']}` |"
         )
 
     # Load v1.json roadmap metadata for blocker names and titles if available
@@ -4123,6 +4353,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="verify two evidence bundle directories and assert cross-host parity across all probes and programs",
     )
+    parser.add_argument(
+        "--check-matrix",
+        type=Path,
+        default=None,
+        help="compare a 3-column TSV matrix against expectations.json and optional baseline without running compiler",
+    )
     args = parser.parse_args(argv)
 
     if args.init_expectations:
@@ -4197,6 +4433,28 @@ def main(argv: list[str] | None = None) -> int:
             f"programs_passed={parity['program_run_passed']}/{parity['total_programs']}"
         )
         return 0 if parity["gate_passed"] else 1
+
+    if args.check_matrix is not None:
+        try:
+            m_res = compare_tsv_matrix_against_expectations(
+                matrix_path=args.check_matrix,
+                expectations_path=args.expectations,
+                corpus_root=args.corpus,
+                baseline_path=args.baseline,
+            )
+        except (ValueError, OSError) as exc:
+            print(f"conformance: error: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"conformance: checked matrix {args.check_matrix} "
+            f"probes_cap_passed={m_res['probe_capability_passed']}/{m_res['total_probes']} "
+            f"counts={json.dumps(m_res['counts'], sort_keys=True)}"
+        )
+        if not m_res["gate_passed"]:
+            for failure in m_res["failures"]:
+                print(f"FAIL: {failure}", file=sys.stderr)
+            return 1
+        return 0
 
     try:
         ledger = evaluate_suite(
