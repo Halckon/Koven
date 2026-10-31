@@ -18,7 +18,8 @@ fn producer(function: &Function, entity: EntityId) -> (usize, &Instruction) {
 
 fn assert_receiver_contract(sources: &SourceMap, program: &Program, entry: FunctionId) {
     crate::ssa::verify::verify_program(program).unwrap();
-    let function = &program.functions[entry.index()];
+    let module = program.module(entry.module()).unwrap();
+    let function = module.function(entry).unwrap();
     assert_eq!(
         function.blocks.len(),
         1,
@@ -83,7 +84,7 @@ fn assert_receiver_contract(sources: &SourceMap, program: &Program, entry: Funct
         };
         let (owner_index, creation) = producer(function, EntityId::Value(owner));
         if is_text {
-            let Operation::StringLiteral { bytes } = &creation.operation else {
+            let Operation::StringLiteral { string, bytes } = &creation.operation else {
                 panic!("text owner")
             };
             assert_eq!(bytes.as_slice(), b"receiver\0");
@@ -91,7 +92,8 @@ fn assert_receiver_contract(sources: &SourceMap, program: &Program, entry: Funct
             let EntityType::Value(ty) = function.entity(EntityId::Value(owner)).unwrap().ty else {
                 panic!("value owner")
             };
-            assert_eq!(program.types[ty.index()].kind, SsaTypeKind::StringOwner);
+            assert_eq!(ty, *string);
+            assert_eq!(module.types[ty.index()], SsaTypeKind::StringOwner);
         } else {
             assert!(matches!(creation.operation, Operation::HeapAllocate { .. }));
             assert_eq!(sources.slice(creation.origin.span()), Ok("Reader()"));
@@ -227,7 +229,7 @@ fn assert_receiver_contract(sources: &SourceMap, program: &Program, entry: Funct
     );
 
     // The actual call target, not any function with a matching printed string.
-    let target = &program.functions[callee.index()];
+    let target = module.function(*callee).unwrap();
     assert_eq!(target.blocks.len(), 1);
     assert_eq!(target.origin.span().source_id(), source);
     assert_eq!(
