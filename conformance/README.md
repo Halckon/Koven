@@ -19,8 +19,13 @@
 | `programs/<name>/main.ko` | 六个验收程序（V1 目标） |
 | `programs/<name>/expected.txt` | 对应程序 stdout 的精确期望 |
 | `../scripts/conformance_matrix.sh` | 矩阵 runner（支持 TSV 模式与 `--gate` 门禁转发） |
-| `../scripts/conformance_gate.py` | 公开入口强 oracle 回归验收门禁与比较器 |
-| `../scripts/tests/test_conformance_gate.py` | 验收门禁工具自测（由 `scripts/check_docs.py` 自动发现运行） |
+| `../scripts/conformance_gate.py` | 公开 CLI 入口、Markdown 审计账本渲染与门面导出（`<= 1000` 行） |
+| `../scripts/conformance_catalogs.py` | 静态规范目录、诊断码/记号注册表与章节/批次分类规则（`<= 1000` 行） |
+| `../scripts/conformance_expectations.py` | `expectations.json` 模式校验、静态目录不变量校验与期望推导（`<= 1000` 行） |
+| `../scripts/conformance_runner.py` | 双模式执行器（`single`/`project`）、逐字节 Oracle 比较器与套件评估（`<= 1000` 行） |
+| `../scripts/conformance_evidence.py` | 离线证据包防篡改校验、双宿主一致性比对与 TSV 矩阵核查（`<= 1000` 行） |
+| `../scripts/conformance_audit.py` | 章节极性、P2 门槛、Litmus、路线图阶段与 V3 Sanitizer 覆盖聚合（`<= 1000` 行） |
+| `../scripts/tests/test_conformance_gate.py` / `test_conformance_audit.py` | 门禁执行与对账审计自测（含 `<= 1000` 行单一职责上限守卫） |
 
 ## 运行
 
