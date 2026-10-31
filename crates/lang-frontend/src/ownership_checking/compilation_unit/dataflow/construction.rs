@@ -1,5 +1,8 @@
 //! Source-qualified construction ordered-delivery dataflow。
 
+#[cfg(test)]
+mod tests;
+
 use crate::{
     name_resolution::SourceUnitId,
     ownership_checking::{
