@@ -131,3 +131,5 @@ Unit 类型 lowering 为 nominal、Box/Rc owner、class payload 与 enum case pa
 Array/List/MutableList/Map/MutableMap 的 Unit storage 身份同样保留首次类型需求位置；
 容器没有独立源码声明，声明位置等于 primary，不把容器 stride/header 错误标成元素或 value 类型声明错误。
 共享 helper 也为 nullable Map 的内层 MapContainer 记录来源；nullable wrapper、View 与 MapResult 的额外身份不因此获得新来源或能力。
+View 的合成 List source 复用同一 helper：View-first 时记录 View 类型需求位置，List-first 时保留已有来源；
+这只是布局诊断来源，不替代 collection owner/loan 来源合同。RangeView 自身仍不新增 origin，元素名义声明来源不变。
