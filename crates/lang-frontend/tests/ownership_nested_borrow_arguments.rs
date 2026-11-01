@@ -1,4 +1,4 @@
-//! 普通借用结果直接交付同步 Borrow 实参；只用正常源码构建两入口事实。
+//! 普通借用结果直接交付同步 Borrow 实参；成功见证保留旧独立 loan-end，拒绝组走双 Unit 入口。
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -10,7 +10,10 @@ use lang_frontend::{
     },
     parser::{ParsedFile, parse_file},
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{
+        check_compilation_unit_types, check_types, complete_compilation_unit_types,
+        standard_environments,
+    },
 };
 
 struct Checked {
@@ -63,6 +66,59 @@ fn ordinary(body: &str) -> Checked {
     checked(&format!(
         "fun view(source: String): borrow String from source = source\nfun observe(item: String) {{ println(item) }}\nfun consume(own item: String) {{}}\n{body}"
     ))
+}
+
+// Negative-source consumers have no legacy-only loan-end oracle. Keep the original
+// positive helper and its independent event checks unchanged below.
+struct UnitChecked {
+    sources: SourceMap,
+    memory: CompilationUnitOwnership,
+    rooted: CompilationUnitOwnership,
+}
+
+fn ordinary_unit(body: &str) -> UnitChecked {
+    let text = format!(
+        "fun view(source: String): borrow String from source = source\nfun observe(item: String) {{ println(item) }}\nfun consume(own item: String) {{}}\n{body}"
+    );
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("nested_borrow.ko", text).unwrap();
+    let lexed = lex(&sources, source).unwrap();
+    assert!(lexed.diagnostics().is_empty(), "{:?}", lexed.diagnostics());
+    let parsed = parse_file(&sources, &lexed).unwrap();
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let (environment, types) = standard_environments();
+    let [memory, rooted] = [
+        SourceUnitInput::memory_document(source, &parsed),
+        SourceUnitInput::new("root", "nested_borrow.ko", source, &parsed),
+    ]
+    .map(|input| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let complete =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert!(complete.is_same_analysis(&typed));
+        let typed = typed.validate().unwrap();
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert!(owned.is_compatible_with(&typed));
+        owned
+    });
+    UnitChecked {
+        sources,
+        memory,
+        rooted,
+    }
 }
 
 fn assert_accepted(checked: &Checked) {
@@ -137,8 +193,8 @@ fn later_move_and_exclusive_access_conflict_before_outer_return() {
             "L0135",
         ),
     ] {
-        let checked = ordinary(body);
-        for diagnostics in [checked.single.diagnostics(), checked.unit.diagnostics()] {
+        let checked = ordinary_unit(body);
+        for diagnostics in [checked.memory.diagnostics(), checked.rooted.diagnostics()] {
             let diagnostic = diagnostics
                 .iter()
                 .find(|diagnostic| diagnostic.code().to_string() == code)
@@ -271,13 +327,12 @@ fn assert_call_use_contracts(checked: &Checked) {
     }
 }
 
-fn assert_atomic_empty(checked: &Checked) {
-    assert!(checked.single.borrow_results().call_uses().is_empty());
-    assert!(checked.unit.borrow_results().call_uses().is_empty());
-    assert!(checked.single.borrow_results().bindings().is_empty());
-    assert!(checked.unit.borrow_results().bindings().is_empty());
-    assert!(checked.single.borrow_results().ends().is_empty());
-    assert!(checked.unit.borrow_results().ends().is_empty());
+fn assert_atomic_empty(checked: &UnitChecked) {
+    for owned in [&checked.memory, &checked.rooted] {
+        assert!(owned.borrow_results().call_uses().is_empty());
+        assert!(owned.borrow_results().bindings().is_empty());
+        assert!(owned.borrow_results().ends().is_empty());
+    }
 }
 
 #[test]
@@ -403,8 +458,8 @@ fn owned_and_unproved_continuations_clear_call_uses_atomically() {
             "other",
         ),
     ] {
-        let checked = ordinary(body);
-        for diagnostics in [checked.single.diagnostics(), checked.unit.diagnostics()] {
+        let checked = ordinary_unit(body);
+        for diagnostics in [checked.memory.diagnostics(), checked.rooted.diagnostics()] {
             let diagnostic = diagnostics
                 .iter()
                 .find(|diagnostic| diagnostic.code().to_string() == code)
@@ -426,8 +481,8 @@ fn cfg_loop_and_indirect_result_uses_remain_unproved() {
         "fun run() { val source = \"kept\"; loop { observe(view(source)); break } }",
         "fun run() { val source = \"kept\"; val indirect: (String) -> Unit = observe; indirect(view(source)) }",
     ] {
-        let checked = ordinary(body);
-        for diagnostics in [checked.single.diagnostics(), checked.unit.diagnostics()] {
+        let checked = ordinary_unit(body);
+        for diagnostics in [checked.memory.diagnostics(), checked.rooted.diagnostics()] {
             assert!(
                 diagnostics
                     .iter()
@@ -441,21 +496,21 @@ fn cfg_loop_and_indirect_result_uses_remain_unproved() {
 
 #[test]
 fn later_deferred_work_clears_successful_call_uses() {
-    let checked = ordinary(
+    let checked = ordinary_unit(
         "fun run() { val source = \"kept\"; observe(view(source)); var callback: () -> Int = { 1 }; val old = replace(&callback, { 2 }) }",
     );
     assert!(
-        checked.single.diagnostics().is_empty(),
+        checked.memory.diagnostics().is_empty(),
         "{:?}",
-        checked.single.diagnostics()
+        checked.memory.diagnostics()
     );
     assert!(
-        checked.unit.diagnostics().is_empty(),
+        checked.rooted.diagnostics().is_empty(),
         "{:?}",
-        checked.unit.diagnostics()
+        checked.rooted.diagnostics()
     );
-    assert!(!checked.single.deferred().is_empty());
-    assert!(!checked.unit.deferred().is_empty());
+    assert!(!checked.memory.deferred().is_empty());
+    assert!(!checked.rooted.deferred().is_empty());
     assert_atomic_empty(&checked);
 }
 
@@ -495,8 +550,8 @@ fn inout_receiver_and_nonreturning_sources_do_not_publish_call_uses() {
             "view(source)",
         ),
     ] {
-        let checked = ordinary(body);
-        for diagnostics in [checked.single.diagnostics(), checked.unit.diagnostics()] {
+        let checked = ordinary_unit(body);
+        for diagnostics in [checked.memory.diagnostics(), checked.rooted.diagnostics()] {
             let diagnostic = diagnostics
                 .iter()
                 .find(|diagnostic| diagnostic.code().to_string() == "L0164")

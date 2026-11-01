@@ -4,9 +4,7 @@ use crate::{
     lexer::lex,
     name_resolution::resolve_names,
     parser::parse_file,
-    type_checking::{
-        FinalTypeAdmissionError, check_types, complete_file_types, standard_environments,
-    },
+    type_checking::{check_types, complete_file_types, standard_environments},
 };
 
 const SOURCE: &str = r#"
@@ -153,46 +151,7 @@ fn formed_history_is_published_only_after_successful_completion() {
         }
     }
 
-    // A real typed-error source exercises the separate typed-diagnostics gate.
-    let mut sources = SourceMap::new();
-    let source = sources
-        .add_source(
-            "typed_error.ko",
-            format!("{SOURCE}\nfun wrong(): Int = true\n"),
-        )
-        .unwrap();
-    let lexed = lex(&sources, source).unwrap();
-    assert!(lexed.diagnostics().is_empty());
-    let parsed = parse_file(&sources, &lexed).unwrap();
-    assert!(parsed.diagnostics().is_empty());
-    let (ne, te) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &ne).unwrap();
-    assert!(names.diagnostics().is_empty());
-    let typed = check_types(&sources, &parsed, &names, &te).unwrap();
-    assert_eq!(typed.diagnostics().len(), 1);
-    assert_eq!(typed.diagnostics()[0].code().to_string(), "L0084");
-    assert_eq!(
-        sources
-            .slice(typed.diagnostics()[0].primary_span())
-            .unwrap(),
-        "true"
-    );
-    let original = typed.diagnostics().to_vec();
-    let Err(FinalTypeAdmissionError::Diagnostics(rejected)) =
-        complete_file_types(&sources, &parsed, &names, &te, &typed)
-    else {
-        panic!("real type mismatch must retain its diagnostics");
-    };
-    assert_eq!(rejected, original);
-    let product = Checker::new(&sources, &parsed, &names, &typed)
-        .unwrap()
-        .run()
-        .unwrap();
-    assert!(
-        product.diagnostics().is_empty(),
-        "isolate typed gate from ownership errors"
-    );
-    assert!(product.deferred().is_empty());
-    assert!(product.formed_owned_locals().is_empty());
-    assert_eq!(typed.diagnostics(), original);
+    // The original typed-error source and its complete publication oracle now live in
+    // compilation_unit::dataflow::formed_tests::publication for both Unit entry modes.
+    // Retain this original-source pre-run mutation and replay witness above.
 }

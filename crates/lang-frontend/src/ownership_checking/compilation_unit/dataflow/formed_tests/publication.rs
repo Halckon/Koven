@@ -1,5 +1,5 @@
 //! CI-only original-source and rejecting-source guards; never execute mutations locally.
-//! The legacy witness remains while the extracted production normalization gate is checked.
+//! The legacy original-source pre-run mutation witness remains; typed-error consumers use Unit.
 
 use super::*;
 use crate::{
@@ -281,7 +281,7 @@ fn original_source_history_final_gate_preserves_each_rejection_combination() {
         raw.diagnostics = diagnostics.clone();
         raw.deferred = deferred.clone();
         // Final construction independently gates this still-nonempty raw history.
-        // Keep the legacy witness pending evidence review and official CI.
+        // Keep the distinct legacy pre-run injection witness; this is a final-product gate.
         let product = CompilationUnitOwnership::new(
             fixture.typed.types(),
             parts.bindings.into_values().collect(),
@@ -523,10 +523,9 @@ fn original_typed_error_preserves_diagnostics_and_blocks_history_publication() {
         let (ne, te) = standard_environments();
         let index = index_compilation_unit(&sources, &inputs).unwrap();
         assert!(index.diagnostics().is_empty());
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne)
-            .unwrap()
-            .validate()
-            .unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne).unwrap();
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().unwrap();
         let typed = check_compilation_unit_types(&sources, &inputs, &names, &te).unwrap();
         assert_eq!(typed.diagnostics(), [expected.clone()]);
         let original = typed.diagnostics().to_vec();
