@@ -1,8 +1,8 @@
 //! Layout-local columns preserve aliases only when every incoming entity agrees.
-use crate::ssa::{
-    lowering_support::LoweringError,
-    model::{EntityId, EntityType},
-};
+use crate::ssa::{lowering_support::LoweringError, model::EntityId};
+
+#[cfg(test)]
+use crate::ssa::model::EntityType;
 
 #[derive(Clone, Copy)]
 pub(in crate::ssa) struct ColumnId(usize);
@@ -102,6 +102,7 @@ impl<'e, E> IncomingColumns<'e, E> {
 }
 
 /// Called immediately after each association at the existing single-entry type gate.
+#[cfg(test)]
 pub(in crate::ssa) fn record_type(
     types: &mut Vec<EntityType>,
     choice: ColumnMatch,
