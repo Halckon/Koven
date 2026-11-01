@@ -11,6 +11,9 @@ use crate::ssa::refine::RefineBody;
 impl Checker<'_, '_> {
     /// The mode of a parameter of this function (or a thunk capture); `None` for locals.
     pub(super) fn parameter_mode(&self, symbol: UnitSymbolId) -> Option<ParameterMode> {
+        if self.for_borrowed.contains(&symbol) {
+            return Some(ParameterMode::Borrow);
+        }
         if let RefineBody::Lambda(thunk) = &self.inputs.body
             && thunk
                 .captures

@@ -400,6 +400,7 @@ impl Builder<'_, '_> {
             exit,
             views: mark,
             broken: false,
+            seq_for: None,
         });
         let reached = self.statement(loop_body)? != Lowered::Diverged;
         self.loops.pop();

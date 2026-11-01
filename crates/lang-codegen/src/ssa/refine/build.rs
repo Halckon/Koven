@@ -3,6 +3,7 @@
 mod callable;
 mod condition;
 mod container;
+mod container_for;
 mod expression;
 mod field;
 mod heap;
@@ -83,6 +84,17 @@ pub(super) struct LoopFrame {
     pub(super) exit: BlockRef,
     pub(super) views: usize,
     pub(super) broken: bool,
+    pub(super) seq_for: Option<SeqForFrame>,
+}
+
+/// Active sequential-container `for` provider loans and cursor slots.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SeqForFrame {
+    pub(super) source_loan: Slot,
+    pub(super) elem_loan: Slot,
+    pub(super) cursor: Slot,
+    pub(super) step: Slot,
+    pub(super) int_ty: SsaTypeId,
 }
 
 /// A shared proof view of a MoveOnly nullable binding's inner value.
@@ -406,6 +418,11 @@ impl Builder<'_, '_> {
 
     /// Consumes every drop fact published at `point`, in publication order.
     fn drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
+        if self.loops.iter().any(|frame| frame.seq_for.is_some())
+            && self.iteration_cleanup(point)?
+        {
+            return Ok(());
+        }
         let facts = self.collect_drops(point);
         self.emit_drops(&facts)?;
         if let UnitDropPoint::ControlTransfer(_) = point {
@@ -724,7 +741,9 @@ impl Builder<'_, '_> {
                 condition, body, ..
             } => self.while_loop(statement, condition, body, span),
             Statement::Loop { body, .. } => self.loop_statement(statement, body, span),
-            Statement::For { source, body, .. } => self.numeric_for(statement, source, body, span),
+            Statement::For { source, body, .. } => {
+                self.for_statement(statement, source, body, span)
+            }
             Statement::LocalDestructuring { initializer, .. } => {
                 self.local_destructuring(statement, initializer, span)
             }
@@ -824,6 +843,7 @@ impl Builder<'_, '_> {
             exit,
             views: mark,
             broken: false,
+            seq_for: None,
         });
         let reached = self.statement(loop_body)? != Lowered::Diverged;
         self.loops.pop();
@@ -862,6 +882,7 @@ impl Builder<'_, '_> {
             exit,
             views: mark,
             broken: false,
+            seq_for: None,
         });
         let reached = self.statement(loop_body)? != Lowered::Diverged;
         let frame = self.loops.pop().expect("loop frame pushed above");
@@ -903,7 +924,19 @@ impl Builder<'_, '_> {
         for view in iteration {
             self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
         }
-        if is_break {
+        if !is_break && let Some(seq) = frame.seq_for {
+            let next = self.value(
+                ROp::Binary {
+                    operator: crate::ssa::model::BinaryOperator::Add,
+                    left: seq.cursor,
+                    right: seq.step,
+                },
+                EntityType::Value(seq.int_ty),
+                span,
+            )?;
+            self.push(ROp::Alias { source: next }, vec![seq.cursor], span)?;
+        }
+        if is_break && frame.seq_for.is_none() {
             // This path leaves the loop: owners dying at `LoopExit` drop here, ending any
             // outer view of theirs; the views stay registered for the other paths.
             for (_, target, fact_span) in

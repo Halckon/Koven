@@ -552,6 +552,15 @@ impl Emitter<'_> {
                 index: self.value(*index, span)?,
                 value: self.value(*value, span)?,
             },
+            ROp::ContainerGenerateBorrowed {
+                container,
+                length,
+                initializer,
+            } => Operation::ContainerGenerateBorrowed {
+                container: *container,
+                length: self.value(*length, span)?,
+                initializer: loan(self.get(*initializer, span)?, span)?,
+            },
             ROp::LoanMutate { loan: slot, value } => Operation::LoanMutate {
                 loan: loan(self.get(*slot, span)?, span)?,
                 value: self.value(*value, span)?,
@@ -688,9 +697,12 @@ pub(super) fn emit(
                     .map_err(model_error)?;
                 continue;
             }
-            RTerm::Abort(reason @ (RAbort::NullAssertion | RAbort::UnmatchedWhen)) => {
+            RTerm::Abort(
+                reason @ (RAbort::NullAssertion | RAbort::NegativeSize | RAbort::UnmatchedWhen),
+            ) => {
                 let text = match reason {
                     RAbort::NullAssertion => "null assertion failed",
+                    RAbort::NegativeSize => "negative size",
                     _ => "internal error: when subject matched no branch",
                 };
                 emitter

@@ -54,6 +54,8 @@ struct Checker<'i, 'a> {
     /// Container element replacements (`xs[i] = v`) whose `AfterReplacement` drops are
     /// consumed by `ContainerReplace`.
     element_replacements: BTreeSet<UnitExpressionId>,
+    /// Element or component bindings introduced by a sequential `for` loop (`Borrow` loans).
+    for_borrowed: BTreeSet<UnitSymbolId>,
 }
 
 pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
@@ -71,6 +73,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         migrated: false,
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
+        for_borrowed: BTreeSet::new(),
     };
     let mut signature_types: Vec<_> = inputs
         .parameters
@@ -155,6 +158,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         migrated: false,
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
+        for_borrowed: BTreeSet::new(),
     };
     let Some(item) = inputs.scope_span() else {
         return Vec::new();
@@ -889,7 +893,10 @@ impl Checker<'_, '_> {
                 condition, body, ..
             } => self.condition(condition, true) && self.loop_body(body),
             Statement::Loop { body, .. } => self.loop_body(body),
-            Statement::For { source, body, .. } => self.numeric_for(statement, source, body),
+            Statement::For { source, body, .. } => {
+                self.numeric_for(statement, source, body)
+                    || self.sequential_for(statement, source, body)
+            }
             Statement::LocalDestructuring { initializer, .. } => {
                 self.local_destructuring(statement, initializer)
             }

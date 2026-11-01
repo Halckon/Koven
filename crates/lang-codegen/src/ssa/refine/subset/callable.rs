@@ -130,7 +130,7 @@ impl Checker<'_, '_> {
         supported
     }
 
-    fn lambda_formation(&self, lambda: ExpressionId) -> bool {
+    pub(super) fn lambda_formation(&self, lambda: ExpressionId) -> bool {
         self.inputs
             .callables
             .get(&self.id(lambda))

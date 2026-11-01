@@ -134,10 +134,53 @@ impl Checker<'_, '_> {
                             && self.expression(argument.value)
                     })
             }
-            ContainerConstructionKind::RuntimeLength => false,
+            ContainerConstructionKind::RuntimeLength => {
+                let [size, initializer] = arguments.as_slice() else {
+                    return false;
+                };
+                matches!(
+                    descriptor.container(),
+                    SequentialContainerKind::Array | SequentialContainerKind::List
+                ) && descriptor.parameter_modes() == [ParameterMode::Borrow, ParameterMode::Borrow]
+                    && size.named_prefix.is_none()
+                    && initializer.named_prefix.is_none()
+                    && matches!(
+                        size.mode_marker,
+                        None | Some(lang_frontend::parser::ParameterModeMarker::Borrow(_))
+                    )
+                    && matches!(
+                        initializer.mode_marker,
+                        None | Some(lang_frontend::parser::ParameterModeMarker::Borrow(_))
+                    )
+                    && self.is_int_index(size.value)
+                    && self.expression(size.value)
+                    && self.runtime_initializer(initializer.value)
+            }
         };
         self.migrated |= ok;
         ok
+    }
+
+    fn runtime_initializer(&mut self, value: ExpressionId) -> bool {
+        let root = self.ungrouped(value);
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
+            return false;
+        };
+        if self.span_has_control_transfer(node.span()) {
+            return false;
+        }
+        match node.payload() {
+            Expression::Name => self.reference(root).is_some_and(|symbol| {
+                self.known.contains(&symbol)
+                    && (self.view_parameter(symbol) || self.callables.contains(&symbol))
+            }),
+            Expression::Lambda { .. } => {
+                self.inputs.owned.callable_origin(self.id(root)).is_some()
+                    && self.lambda_formation(root)
+            }
+            Expression::Call { .. } => self.callable_value(root) && self.expression(value),
+            _ => false,
+        }
     }
 
     fn container_size(&mut self, expression: ExpressionId) -> bool {
@@ -521,6 +564,117 @@ impl Checker<'_, '_> {
                     Some(UnitTypeKind::Nullable(inner)) if *inner == actual
                 )
         })
+    }
+
+    /// `for (x in xs)`, `for (_ in xs)`, and `for ((a, b) in xs)` over a named sequential container.
+    pub(super) fn sequential_for(
+        &mut self,
+        statement: lang_frontend::ast::StatementId,
+        source: ExpressionId,
+        body: lang_frontend::ast::StatementId,
+    ) -> bool {
+        use lang_frontend::{
+            ownership_checking::{UnitIterationCleanupAction as Action, UnitIterationSourceAccess},
+            type_checking::{IterationProvider, UnitSequentialIterationBinding, UnitStatementId},
+        };
+        let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
+        if self.inputs.typed.map_iteration(statement_id).is_some() || self.scope_has_while_loop() {
+            return false;
+        }
+        let Some(plan) = self.inputs.owned.iteration(statement_id) else {
+            return false;
+        };
+        let descriptor = plan.descriptor();
+        let source_id = self.id(source);
+        let Some(UnitLoanTarget::Place(place)) = plan.source() else {
+            return false;
+        };
+        if self.inputs.typed.sequential_iteration(statement_id) != Some(descriptor)
+            || !matches!(descriptor.provider(), IterationProvider::Sequential(_))
+            || descriptor.statement() != statement_id
+            || descriptor.source() != source_id
+            || !place.is_root()
+            || !matches!(
+                plan.source_access(),
+                UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Shared
+            )
+        {
+            return false;
+        }
+        let container_ty = self.c(descriptor.source_type());
+        let element_ty = self.c(descriptor.element_type());
+        if self.container_element(container_ty) != Some(element_ty)
+            || self.expression_type(source) != Some(container_ty)
+            || self.named_container_owner(source, container_ty, true) != Some(place.root())
+            || !plan.exits().iter().all(|exit| {
+                exit.actions().iter().all(|action| {
+                    matches!(
+                        action,
+                        Action::Drop(_)
+                            | Action::EndBinding { .. }
+                            | Action::EndElement(_)
+                            | Action::FinishProvider(_)
+                            | Action::EndSource(_)
+                    )
+                })
+            })
+        {
+            return false;
+        }
+        match descriptor.binding() {
+            UnitSequentialIterationBinding::Discard => {}
+            UnitSequentialIterationBinding::Name(symbol) => {
+                if self.symbol_type(*symbol) != Some(element_ty) || !self.storage_type(element_ty) {
+                    return false;
+                }
+                self.note_nullable(element_ty);
+                self.known.insert(*symbol);
+                self.for_borrowed.insert(*symbol);
+            }
+            UnitSequentialIterationBinding::Destructure(parts) => {
+                if !(self.value_class(element_ty) || self.move_value_class(element_ty)) {
+                    return false;
+                }
+                for part in parts {
+                    let part_ty = self.c(part.ty());
+                    if !self.storage_type(part_ty) {
+                        return false;
+                    }
+                    self.note_nullable(part_ty);
+                    if let Some(symbol) = part.symbol() {
+                        if self.symbol_type(symbol) != Some(part_ty) {
+                            return false;
+                        }
+                        self.known.insert(symbol);
+                        self.for_borrowed.insert(symbol);
+                    }
+                }
+            }
+        }
+        let ok = self.loop_body(body);
+        self.migrated |= ok;
+        ok
+    }
+
+    fn scope_has_while_loop(&self) -> bool {
+        let Some(scope) = self.inputs.scope_span() else {
+            return true;
+        };
+        self.inputs
+            .parsed
+            .ast()
+            .statements()
+            .iter()
+            .any(|(_, node)| {
+                let span = node.span();
+                scope.source_id() == span.source_id()
+                    && scope.start() <= span.start()
+                    && span.end() <= scope.end()
+                    && matches!(
+                        node.payload(),
+                        lang_frontend::parser::Statement::While { .. }
+                    )
+            })
     }
 
     fn span_has_control_transfer(&self, span: Span) -> bool {

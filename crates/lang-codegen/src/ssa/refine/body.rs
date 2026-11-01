@@ -323,6 +323,12 @@ pub(super) enum ROp {
         index: Slot,
         value: Slot,
     },
+    /// Generates a runtime-length `Array<T>` or `List<T>` of `length` from `initializer`.
+    ContainerGenerateBorrowed {
+        container: SsaTypeId,
+        length: Slot,
+        initializer: Slot,
+    },
 }
 
 impl ROp {
@@ -428,6 +434,11 @@ impl ROp {
             | Self::ContainerRemoveAt {
                 owner: left,
                 index: right,
+            }
+            | Self::ContainerGenerateBorrowed {
+                length: left,
+                initializer: right,
+                ..
             } => {
                 vec![*left, *right]
             }
@@ -488,6 +499,8 @@ pub(super) enum RAbort {
     },
     /// `!!` on a null value.
     NullAssertion,
+    /// Negative runtime container length.
+    NegativeSize,
     /// The fall-through of a value `when` over a closed domain the frontend proved
     /// covered; unreachable at run time.
     UnmatchedWhen,

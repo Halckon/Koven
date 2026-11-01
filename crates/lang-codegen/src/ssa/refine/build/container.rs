@@ -92,7 +92,8 @@ impl Builder<'_, '_> {
                 }
             }
             ContainerConstructionKind::RuntimeLength => {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                return self
+                    .runtime_container_construction(expression, &arguments, container, span);
             }
         }
         let slot = self.value(
@@ -104,6 +105,237 @@ impl Builder<'_, '_> {
             span,
         )?;
         Ok(Lowered::Value(slot))
+    }
+
+    fn runtime_container_construction(
+        &mut self,
+        expression: ExpressionId,
+        arguments: &[lang_frontend::parser::CallArgument],
+        container: crate::ssa::model::SsaTypeId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        use crate::ssa::{
+            model::{ComparisonOperator, ScalarConstant},
+            refine::body::{RAbort, RTerm},
+        };
+        let [size, initializer] = arguments else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let id = self.unit(expression);
+        let int_ty = self.ssa_type(self.expression_type(size.value)?, size.span)?;
+        let (size_loan, created_size, size_read) =
+            self.runtime_size_loan(size.value, int_ty, size.span)?;
+        let Some(size_loan) = size_loan else {
+            return Ok(Lowered::Diverged);
+        };
+        let length = self.value(
+            ROp::ReadLoan { loan: size_loan },
+            EntityType::Value(int_ty),
+            size.span,
+        )?;
+        let bool_unit = self
+            .inputs
+            .typed
+            .types()
+            .builtin(lang_frontend::type_checking::BuiltinType::Boolean)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let bool_ty = self.ssa_type(bool_unit, span)?;
+        let zero = self.value(
+            ROp::Constant(ScalarConstant::Integer(0)),
+            EntityType::Value(int_ty),
+            span,
+        )?;
+        let negative = self.value(
+            ROp::Compare {
+                operator: ComparisonOperator::LessThan,
+                left: length,
+                right: zero,
+            },
+            EntityType::Value(bool_ty),
+            span,
+        )?;
+        let abort = self.body.block();
+        let success = self.body.block();
+        self.terminate(
+            RTerm::Branch {
+                condition: negative,
+                when_true: abort,
+                when_false: success,
+            },
+            span,
+        )?;
+        self.block = Some(abort);
+        self.terminate(RTerm::Abort(RAbort::NegativeSize), span)?;
+        self.block = Some(success);
+        let (init_loan, created_init, init_read) =
+            self.runtime_initializer_loan(initializer.value, initializer.span)?;
+        let Some(init_loan) = init_loan else {
+            return Ok(Lowered::Diverged);
+        };
+        let result = self.value(
+            ROp::ContainerGenerateBorrowed {
+                container,
+                length,
+                initializer: init_loan,
+            },
+            EntityType::Value(container),
+            span,
+        )?;
+        for loan in [created_init, created_size].into_iter().flatten() {
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
+        for arg in [size_read, init_read].into_iter().flatten() {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(arg)))?;
+        }
+        self.drops(UnitDropPoint::CallReturn(id))?;
+        Ok(Lowered::Value(result))
+    }
+
+    fn runtime_size_loan(
+        &mut self,
+        expression: ExpressionId,
+        int_ty: crate::ssa::model::SsaTypeId,
+        span: Span,
+    ) -> Result<
+        (
+            Option<crate::ssa::refine::body::Slot>,
+            Option<crate::ssa::refine::body::Slot>,
+            Option<ExpressionId>,
+        ),
+        LoweringError,
+    > {
+        let mut root = expression;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let id = self.unit(root);
+        if let (Expression::Name, root_span) = self.node(root)?
+            && self.inputs.typed.non_null_use(id).is_none()
+            && !self
+                .inputs
+                .constant_owned
+                .is_some_and(|owned| owned.materialization_at(id).is_some())
+            && let Ok(symbol) = self.reference(root_span)
+            && let Some(&loan) = self.borrowed.get(&symbol)
+        {
+            return Ok((Some(loan), None, Some(expression)));
+        }
+        let Some(owner) = self.required(expression)? else {
+            return Ok((None, None, None));
+        };
+        let place = self.value(ROp::RootPlace { owner }, EntityType::Place(int_ty), span)?;
+        let loan = self.value(
+            ROp::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: int_ty,
+            },
+            span,
+        )?;
+        Ok((Some(loan), Some(loan), None))
+    }
+
+    fn runtime_initializer_loan(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<
+        (
+            Option<crate::ssa::refine::body::Slot>,
+            Option<crate::ssa::refine::body::Slot>,
+            Option<ExpressionId>,
+        ),
+        LoweringError,
+    > {
+        let mut root = expression;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let (payload, root_span) = self.node(root)?;
+        match payload {
+            Expression::Name => {
+                let symbol = self.reference(root_span)?;
+                if let Some(&loan) = self.borrowed.get(&symbol) {
+                    return Ok((Some(loan), None, Some(expression)));
+                }
+                let owner = *self
+                    .bindings
+                    .get(&symbol)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, root_span))?;
+                let EntityType::Value(callable) = self.body.slots[owner.0] else {
+                    return Err(error(LoweringErrorKind::InvalidModel, root_span));
+                };
+                let place = self.value(
+                    ROp::RootPlace { owner },
+                    EntityType::Place(callable),
+                    root_span,
+                )?;
+                let loan = self.value(
+                    ROp::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: callable,
+                    },
+                    root_span,
+                )?;
+                Ok((Some(loan), Some(loan), Some(expression)))
+            }
+            Expression::Lambda { .. } => {
+                let owner = self.form_callable(root, root_span)?;
+                let callable = self
+                    .inputs
+                    .callables
+                    .get(&self.unit(root))
+                    .map(|callable| callable.callable)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, root_span))?;
+                let place = self.value(
+                    ROp::RootPlace { owner },
+                    EntityType::Place(callable),
+                    root_span,
+                )?;
+                let loan = self.value(
+                    ROp::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: callable,
+                    },
+                    root_span,
+                )?;
+                Ok((Some(loan), Some(loan), None))
+            }
+            Expression::Call { .. } => {
+                let Some(owner) = self.required(expression)? else {
+                    return Ok((None, None, None));
+                };
+                let EntityType::Value(callable) = self.body.slots[owner.0] else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                let place =
+                    self.value(ROp::RootPlace { owner }, EntityType::Place(callable), span)?;
+                let loan = self.value(
+                    ROp::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: callable,
+                    },
+                    span,
+                )?;
+                Ok((Some(loan), Some(loan), None))
+            }
+            _ => Err(error(LoweringErrorKind::UnsupportedNode, root_span)),
+        }
     }
 
     fn container_size(
@@ -479,7 +711,7 @@ impl Builder<'_, '_> {
         Ok(Lowered::Unit)
     }
 
-    fn named_container_symbol(
+    pub(super) fn named_container_symbol(
         &self,
         mut expression: ExpressionId,
         span: Span,
