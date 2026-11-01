@@ -527,6 +527,19 @@ fn production_lowering_dependencies_remain_directional() {
             );
         }
     }
+    // All-Value convenience constructors serve tests only. Production lowering
+    // preserves explicit Value/Loan parameter modes through the checked core APIs.
+    let source = fs::read_to_string(root.join("closure.rs")).expect("real callable constructors");
+    for token in production_tokens(&source) {
+        assert!(
+            !matches!(
+                token.text,
+                "add_function_pointer_type" | "add_concrete_closure_type"
+            ),
+            "test-only callable constructor in non-test code: {}",
+            token.text
+        );
+    }
     // The shared map helpers still serve Unit lowering; only the legacy
     // single-file DropPoint adapter belongs to the retained test witnesses.
     let source = fs::read_to_string(root.join("map_source.rs")).expect("real map source helpers");

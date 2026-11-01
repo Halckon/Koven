@@ -127,3 +127,7 @@ Unit 类型 lowering 为 nominal、Box/Rc owner、class payload 与 enum case pa
 声明标签使用 qualified declaration 或 case 的名称 span。目标布局错误桥接据此生成 L0145，
 而非因来源缺失退化为无 span 的 backend 错误；这不改变可接受类型或 E3/refine 能力。
 真实 Unit lowering 的来源断言与合成 InvalidLayout 的桥接断言分别覆盖运输和诊断映射，不代表自然源码布局溢出复现。
+
+Array/List/MutableList/Map/MutableMap 的 Unit storage 身份同样保留首次类型需求位置；
+容器没有独立源码声明，声明位置等于 primary，不把容器 stride/header 错误标成元素或 value 类型声明错误。
+共享 helper 也为 nullable Map 的内层 MapContainer 记录来源；nullable wrapper、View 与 MapResult 的额外身份不因此获得新来源或能力。

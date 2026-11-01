@@ -6,6 +6,7 @@ use super::model::{
 };
 
 impl Module {
+    #[cfg(test)]
     pub(crate) fn add_function_pointer_type(
         &mut self,
         parameters: Vec<SsaTypeId>,
@@ -51,6 +52,7 @@ impl Module {
         Ok(self.intern_type(SsaTypeKind::SharedReference { target }))
     }
 
+    #[cfg(test)]
     pub(crate) fn add_concrete_closure_type(
         &mut self,
         name: impl Into<String>,
