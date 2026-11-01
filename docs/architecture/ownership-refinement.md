@@ -60,7 +60,11 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 （`ContainerGenerateBorrowed` 及负长度守卫）、`.size`（`ContainerLength`）、Copyable 下标读取与 MoveOnly
 元素借用实参（`ContainerElementPlace`）、元素赋值替换 `xs[i] = v`（`ContainerReplace` 消费 `AfterReplacement`
 析构）、`MutableList<T>` 的 `add`/`clear`/`removeAt`/`removeFirst`/`removeLast`/`insertAt`，以及具名顺序容器的
-`for` 遍历（`Discard`/`Name`/`Destructure`，按 `iteration_cleanup_at` 消费退出序列）。
+`for` 遍历（`Discard`/`Name`/`Destructure`，按 `iteration_cleanup_at` 消费退出序列）。`Box<T>`、递归装箱枚举与
+`Map` 核心操作（SPEC-0377）：支持 `Box(payload)` 构造（`HeapAllocate`）、`Box<T>?` 窄化与 `!!` 解包、含 `Box<T>`
+负载的递归/MoveOnly `enum class` case 构造（`TaggedConstruct`）与参数/返回传递，以及 `Map<K, V>` /
+`MutableMap<K, V>` 的 `mapOf`/`mutableMapOf`（`MapConstruct`）、`.size`（`MapSize`）、`containsKey`（`MapContains`）
+与 `put`（`MapPut`）。
 
 ## inline nullable 布局
 

@@ -20,6 +20,55 @@ use crate::ssa::{
 };
 
 impl Builder<'_, '_> {
+    /// `Box(payload)` allocates a fresh heap box owner for the single payload argument.
+    pub(super) fn box_construction(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let id = self.unit(expression);
+        let descriptor = self
+            .inputs
+            .typed
+            .construction(id)
+            .filter(|descriptor| descriptor.expression() == id)
+            .cloned()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.target() != UnitConstructionTarget::IntrinsicBox {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let [argument] = descriptor.arguments() else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        if argument.argument().source_unit() != self.inputs.source_unit {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let value_expression = argument.argument().expression();
+        let Some(value) = self.required(value_expression)? else {
+            return Ok(Lowered::Diverged);
+        };
+        let payload_ty = self.c(argument.parameter_type());
+        let mut payload = self.adapt(value, value_expression, payload_ty)?;
+        let payload_ssa = self.ssa_type(payload_ty, span)?;
+        if argument.category() == lang_frontend::type_checking::ExpressionCategory::Place
+            && !self.move_only(payload_ty)
+        {
+            payload = self.value(
+                ROp::Copy { source: payload },
+                EntityType::Value(payload_ssa),
+                self.span(value_expression),
+            )?;
+        } else {
+            self.deliver(value_expression);
+        }
+        let owner = self.ssa_type(self.c(descriptor.result_type()), span)?;
+        Ok(Lowered::Value(self.value(
+            ROp::HeapAllocate { owner, payload },
+            EntityType::Value(owner),
+            span,
+        )?))
+    }
+
     /// Fields evaluate in source order and land in declaration order; the payload is then
     /// built and moved into a fresh heap owner.
     pub(super) fn construction(

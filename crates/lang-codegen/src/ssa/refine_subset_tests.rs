@@ -64,6 +64,13 @@ fn nullable_functions_inside_the_subset_are_routed() {
         "class Counter(var n: Int) { inout fun inc(): Unit { n = n + 1 } }\n\
          fun f(inout c: Counter): Unit { c.inc() }",
         "fun g(inout x: Int): Unit { x = 1 }\nfun f(): Int { var n = 0; g(&n); return n }",
+        "fun f(own x: Int?): Int { val g = { 1 }; return 0 }",
+        "value class Wrapped(val v: Int)\n\
+         fun f(own b: Box<Wrapped>?): Int { if (b != null) { return 1 }; return 0 }",
+        "class Cell<T>(val item: T)\n\
+         fun f(own c: Cell<Int>?): Int { if (c != null) { return 1 }; return 0 }",
+        "enum class Opt<T> { Some(v: T), None }\n\
+         fun f(o: Opt<Int>): Int = when (o) { is Opt.Some -> 1\n else -> 0 }",
     ] {
         let (result, routed) = route(source);
         assert!(routed, "{source}");
@@ -96,10 +103,6 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "fun f(b: Boolean): Int = when (b) { true -> 1\n false -> 0 }",
         ),
         (
-            "lambda",
-            "fun f(own x: Int?): Int { val g = { 1 }; return 0 }",
-        ),
-        (
             "MoveOnly Borrow parameter",
             "fun f(s: String?): Int { if (s != null) { return 1 }; return 0 }",
         ),
@@ -117,13 +120,8 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
              fun f(own n: Node?): Int { if (n != null) { return n.get() }; return 0 }",
         ),
         (
-            "Box",
+            "Box with non-nominal payload",
             "fun f(own b: Box<Int>?): Int { if (b != null) { return 1 }; return 0 }",
-        ),
-        (
-            "generic class",
-            "class Cell<T>(val item: T)\n\
-             fun f(own c: Cell<Int>?): Int { if (c != null) { return 1 }; return 0 }",
         ),
         (
             "MoveOnly Inout parameter",
@@ -149,11 +147,6 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "MoveOnly enum subject",
             "enum class Tag { Named(n: String), Empty }\n\
              fun f(own t: Tag): Int = when (t) { is Tag.Named -> 1\n else -> 0 }",
-        ),
-        (
-            "generic enum subject",
-            "enum class Opt<T> { Some(v: T), None }\n\
-             fun f(o: Opt<Int>): Int = when (o) { is Opt.Some -> 1\n else -> 0 }",
         ),
         (
             "non-scalar class field",

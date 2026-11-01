@@ -561,6 +561,21 @@ impl Emitter<'_> {
                 length: self.value(*length, span)?,
                 initializer: loan(self.get(*initializer, span)?, span)?,
             },
+            ROp::MapConstruct { map_type } => Operation::MapConstruct {
+                map_type: *map_type,
+            },
+            ROp::MapSize { owner } => Operation::MapSize {
+                owner: self.get(*owner, span)?,
+            },
+            ROp::MapContains { owner, key } => Operation::MapContains {
+                owner: self.get(*owner, span)?,
+                key: self.get(*key, span)?,
+            },
+            ROp::MapPut { owner, key, value } => Operation::MapPut {
+                owner: self.value(*owner, span)?,
+                key: self.value(*key, span)?,
+                value: self.value(*value, span)?,
+            },
             ROp::LoanMutate { loan: slot, value } => Operation::LoanMutate {
                 loan: loan(self.get(*slot, span)?, span)?,
                 value: self.value(*value, span)?,

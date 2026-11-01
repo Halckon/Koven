@@ -1,17 +1,182 @@
 //! Subset rules for class construction, field reads and `!!`; they mirror the builder.
+use std::collections::BTreeSet;
+
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::{ConstructionRootKind, NonNullAssertionTransferKind},
     parser::Expression,
     type_checking::{
-        Copyability, NullableWhenSubjectCategory, ParameterMode, UnitAggregateProjectionKind,
-        UnitAggregateProjectionReceiver, UnitConstructionTarget, UnitTypeKind,
+        Copyability, IntrinsicTypeConstructor, NullableWhenSubjectCategory, ParameterMode,
+        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitConstructionTarget,
+        UnitTypeId, UnitTypeKind,
     },
 };
 
 use super::{Checker, receiver::Owner};
 
 impl Checker<'_, '_> {
+    pub(super) fn view_inner_seen(
+        &self,
+        ty: UnitTypeId,
+        active: &mut BTreeSet<UnitTypeId>,
+    ) -> bool {
+        self.string(ty)
+            || self.class(ty)
+            || self.container_element_seen(ty, active).is_some()
+            || self.box_payload_seen(ty, active).is_some()
+    }
+
+    pub(super) fn push_demand(
+        &self,
+        ty: UnitTypeId,
+        seen: &mut BTreeSet<UnitTypeId>,
+        ordered: &mut Vec<UnitTypeId>,
+    ) {
+        if !(self.unit(ty) || self.storage_type(ty)) || !seen.insert(ty) {
+            return;
+        }
+        if let Some(element) = self.container_element(ty) {
+            self.push_demand(element, seen, ordered);
+        }
+        if let Some((key, value)) = self.map_kv(ty) {
+            self.push_demand(key, seen, ordered);
+            self.push_demand(value, seen, ordered);
+        }
+        if let Some(payload) = self.box_payload(ty) {
+            self.push_demand(payload, seen, ordered);
+        }
+        if self.box_enum_type(ty)
+            && let Some(cases) = self.enum_payload_types(ty)
+        {
+            for payload in cases.into_iter().flatten() {
+                self.push_demand(payload, seen, ordered);
+            }
+        }
+        if let Some(UnitTypeKind::Nullable(inner)) = self.kind(ty) {
+            self.push_demand(*inner, seen, ordered);
+        }
+        ordered.push(ty);
+    }
+
+    pub(super) fn storage_type_seen(
+        &self,
+        ty: UnitTypeId,
+        active: &mut BTreeSet<UnitTypeId>,
+    ) -> bool {
+        if !active.insert(ty) {
+            return true;
+        }
+        let ok = match self.kind(ty) {
+            Some(UnitTypeKind::Builtin(lang_frontend::type_checking::BuiltinType::String)) => true,
+            Some(UnitTypeKind::Nullable(inner)) => {
+                self.scalar(*inner) || self.view_inner_seen(*inner, active)
+            }
+            _ => {
+                self.scalar(ty)
+                    || self.range_type(ty)
+                    || self.class(ty)
+                    || self.enum_type(ty)
+                    || self.box_enum_type_seen(ty, active)
+                    || self.box_payload_seen(ty, active).is_some()
+                    || self.rc_payload(ty).is_some()
+                    || self.value_class(ty)
+                    || self.move_value_class(ty)
+                    || self.container_element_seen(ty, active).is_some()
+                    || self.map_kv(ty).is_some()
+            }
+        };
+        active.remove(&ty);
+        ok
+    }
+
+    /// A concrete `Box<T>` whose payload is a supported `value class` or `enum class`.
+    pub(super) fn box_payload(&self, ty: UnitTypeId) -> Option<UnitTypeId> {
+        self.box_payload_seen(ty, &mut BTreeSet::new())
+    }
+
+    pub(super) fn box_payload_seen(
+        &self,
+        ty: UnitTypeId,
+        active: &mut BTreeSet<UnitTypeId>,
+    ) -> Option<UnitTypeId> {
+        let Some(UnitTypeKind::Intrinsic {
+            constructor: IntrinsicTypeConstructor::Box,
+            arguments,
+        }) = self.kind(ty)
+        else {
+            return None;
+        };
+        let [payload] = arguments.as_slice() else {
+            return None;
+        };
+        let valid_payload = self.value_class(*payload)
+            || self.move_value_class(*payload)
+            || self.enum_type(*payload)
+            || self.box_enum_type_seen(*payload, active)
+            || active.contains(payload);
+        (valid_payload && self.storage_type_seen(*payload, active)).then_some(*payload)
+    }
+
+    /// `Box(payload)` constructing a single-owner heap box.
+    pub(super) fn box_construction(&mut self, expression: ExpressionId) -> bool {
+        let id = self.id(expression);
+        let Some(descriptor) = self
+            .inputs
+            .typed
+            .construction(id)
+            .filter(|descriptor| descriptor.expression() == id)
+            .cloned()
+        else {
+            return false;
+        };
+        let result = self.c(descriptor.result_type());
+        let Some(payload) = self.box_payload(result) else {
+            return false;
+        };
+        let [type_argument] = descriptor.instance().type_arguments() else {
+            return false;
+        };
+        let [argument] = descriptor.arguments() else {
+            return false;
+        };
+        let mut plans = self
+            .inputs
+            .owned
+            .construction_plans()
+            .iter()
+            .filter(|plan| plan.construction() == id);
+        let (Some(plan), None) = (plans.next(), plans.next()) else {
+            return false;
+        };
+        let [delivery] = plan.deliveries() else {
+            return false;
+        };
+        let value = argument.argument();
+        let ok = descriptor.target() == UnitConstructionTarget::IntrinsicBox
+            && self.expression_type(expression) == Some(result)
+            && self.c(*type_argument) == payload
+            && self.c(argument.parameter_type()) == payload
+            && argument.parameter_symbol().is_none()
+            && argument.parameter_index() == 0
+            && argument.evaluation_index() == 0
+            && value.source_unit() == self.inputs.source_unit
+            && plan.target() == UnitConstructionTarget::IntrinsicBox
+            && plan.terminating_operand().is_none()
+            && plan.root_obligation().is_some_and(|root| {
+                root.construction() == id
+                    && self.c(root.result_type()) == result
+                    && root.kind() == ConstructionRootKind::HeapOwner
+            })
+            && delivery.construction() == id
+            && delivery.argument() == value
+            && delivery.parameter_index() == 0
+            && delivery.evaluation_index() == 0
+            && self.adaptable(value.expression(), payload)
+            && self.expression(value.expression());
+        self.migrated |= ok;
+        ok
+    }
+
     /// A plain-class construction whose single plan delivers every field in order.
     pub(super) fn construction(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
@@ -97,11 +262,7 @@ impl Checker<'_, '_> {
     }
 
     /// The value's type is the parameter type or its frontend-approved nullable wrap.
-    fn adaptable(
-        &self,
-        value: ExpressionId,
-        expected: lang_frontend::type_checking::UnitTypeId,
-    ) -> bool {
+    pub(super) fn adaptable(&self, value: ExpressionId, expected: UnitTypeId) -> bool {
         self.expression_type(value).is_some_and(|actual| {
             actual == expected
                 || matches!(self.kind(expected), Some(UnitTypeKind::Nullable(inner)) if *inner == actual)

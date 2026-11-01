@@ -87,6 +87,8 @@ impl Builder<'_, '_> {
         let UnitConstructionTarget::EnumCase(case) = descriptor.target() else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
+        let result_ty = self.c(descriptor.result_type());
+        let move_enum = self.move_only(result_ty);
         let mut arguments = descriptor.arguments().iter().collect::<Vec<_>>();
         arguments.sort_by_key(|argument| argument.evaluation_index());
         let mut fields: Vec<Option<Slot>> = vec![None; arguments.len()];
@@ -94,9 +96,25 @@ impl Builder<'_, '_> {
             if argument.argument().source_unit() != self.inputs.source_unit {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
-            let Some(value) = self.required(argument.argument().expression())? else {
+            let value_expression = argument.argument().expression();
+            let Some(value) = self.required(value_expression)? else {
                 return Ok(Lowered::Diverged);
             };
+            let param_ty = self.c(argument.parameter_type());
+            let mut value = self.adapt(value, value_expression, param_ty)?;
+            if move_enum
+                && argument.category() == lang_frontend::type_checking::ExpressionCategory::Place
+                && !self.move_only(param_ty)
+            {
+                let param_ssa = self.ssa_type(param_ty, span)?;
+                value = self.value(
+                    ROp::Copy { source: value },
+                    EntityType::Value(param_ssa),
+                    self.span(value_expression),
+                )?;
+            } else {
+                self.deliver(value_expression);
+            }
             let slot = fields
                 .get_mut(argument.parameter_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
@@ -108,8 +126,7 @@ impl Builder<'_, '_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let (tagged, variant, aggregate) =
-            self.variant(self.c(descriptor.result_type()), case, span)?;
+        let (tagged, variant, aggregate) = self.variant(result_ty, case, span)?;
         let payload = self.value(
             ROp::AggregateConstruct { aggregate, fields },
             EntityType::Value(aggregate),

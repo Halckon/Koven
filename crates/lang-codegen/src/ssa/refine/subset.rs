@@ -86,7 +86,10 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     }
     for ty in signature_types {
         checker.note_nullable(ty);
-        checker.migrated |= checker.container_element(ty).is_some();
+        checker.migrated |= checker.container_element(ty).is_some()
+            || checker.box_payload(ty).is_some()
+            || checker.box_enum_type(ty)
+            || checker.map_kv(ty).is_some();
     }
     // Copyable Borrow parameters are read by copy, except String when subjects read the
     // loan; Inout parameters are scalars or plain classes, read through and replaced under
@@ -103,13 +106,16 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                         || checker.storage_type(ty)
                         && match mode {
                             ParameterMode::Value => true,
-                            // A MoveOnly Borrow parameter is only lent on (a plain class
-                            // or sequential container through its loan), never read by copy.
+                            // A MoveOnly Borrow parameter is only lent on (a plain class,
+                            // container, or boxed owner through its loan), never read by copy.
                             ParameterMode::Borrow => {
                                 checker.copyability_of(ty) == Copyability::Copyable
                                     || checker.class(ty)
                                     || checker.string(ty)
                                     || checker.container_element(ty).is_some()
+                                    || checker.box_payload(ty).is_some()
+                                    || checker.box_enum_type(ty)
+                                    || checker.map_kv(ty).is_some()
                             }
                             ParameterMode::Inout => checker.scalar(ty) || checker.class(ty),
                         }
@@ -197,7 +203,9 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
     // operations use `Int` lengths/indices.
     if demands.iter().any(|ty| {
         checker.enum_type(*ty)
+            || checker.box_enum_type(*ty)
             || checker.container_element(*ty).is_some()
+            || checker.map_kv(*ty).is_some()
             || matches!(
                 checker.kind(*ty),
                 Some(UnitTypeKind::Builtin(BuiltinType::IntRange))
@@ -296,45 +304,12 @@ impl Checker<'_, '_> {
 
     /// MoveOnly nullable inners are read through proof views.
     fn view_inner(&self, ty: UnitTypeId) -> bool {
-        self.string(ty) || self.class(ty) || self.container_element(ty).is_some()
-    }
-
-    fn push_demand(
-        &self,
-        ty: UnitTypeId,
-        seen: &mut BTreeSet<UnitTypeId>,
-        ordered: &mut Vec<UnitTypeId>,
-    ) {
-        if !(self.unit(ty) || self.storage_type(ty)) {
-            return;
-        }
-        if let Some(element) = self.container_element(ty) {
-            self.push_demand(element, seen, ordered);
-        }
-        if let Some(UnitTypeKind::Nullable(inner)) = self.kind(ty) {
-            self.push_demand(*inner, seen, ordered);
-        }
-        if seen.insert(ty) {
-            ordered.push(ty);
-        }
+        self.view_inner_seen(ty, &mut BTreeSet::new())
     }
 
     /// Types a slot may hold: scalars, String, plain classes and their nullables.
     fn storage_type(&self, ty: UnitTypeId) -> bool {
-        match self.kind(ty) {
-            Some(UnitTypeKind::Builtin(BuiltinType::String)) => true,
-            Some(UnitTypeKind::Nullable(inner)) => self.scalar(*inner) || self.view_inner(*inner),
-            _ => {
-                self.scalar(ty)
-                    || self.range_type(ty)
-                    || self.class(ty)
-                    || self.enum_type(ty)
-                    || self.rc_payload(ty).is_some()
-                    || self.value_class(ty)
-                    || self.move_value_class(ty)
-                    || self.container_element(ty).is_some()
-            }
-        }
+        self.storage_type_seen(ty, &mut BTreeSet::new())
     }
 
     /// Records whether the function handles a nullable value at all.
@@ -491,6 +466,9 @@ impl Checker<'_, '_> {
             match descriptor.target() {
                 lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
                     return self.enum_construction(expression);
+                }
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox => {
+                    return self.box_construction(expression);
                 }
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
                     return self.rc_construction(expression);
@@ -845,10 +823,10 @@ impl Checker<'_, '_> {
                 })
                 && self.inputs.typed.expression_category(self.id(value))
                     != Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
-                && !self
+                && self
                     .inputs
                     .constant_owned
-                    .is_some_and(|owned| owned.materialization_at(self.id(value)).is_some())
+                    .is_none_or(|owned| owned.materialization_at(self.id(value)).is_none())
             {
                 return false;
             }

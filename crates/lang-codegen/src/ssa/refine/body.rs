@@ -329,6 +329,25 @@ pub(super) enum ROp {
         length: Slot,
         initializer: Slot,
     },
+    /// Constructs an empty `Map<K, V>` or `MutableMap<K, V>`.
+    MapConstruct {
+        map_type: SsaTypeId,
+    },
+    /// Reads the entry count of a `Map<K, V>` or `MutableMap<K, V>`.
+    MapSize {
+        owner: Slot,
+    },
+    /// Tests whether `owner` contains `key`.
+    MapContains {
+        owner: Slot,
+        key: Slot,
+    },
+    /// Consumes `owner`, `key`, and `value`, returning the updated `MutableMap<K, V>`.
+    MapPut {
+        owner: Slot,
+        key: Slot,
+        value: Slot,
+    },
 }
 
 impl ROp {
@@ -337,7 +356,8 @@ impl ROp {
             Self::Constant(_)
             | Self::StringLiteral { .. }
             | Self::NullableNull { .. }
-            | Self::FunctionAddress { .. } => Vec::new(),
+            | Self::FunctionAddress { .. }
+            | Self::MapConstruct { .. } => Vec::new(),
             Self::CallableViewOf { source } | Self::SharedReferenceFollow { source } => {
                 vec![*source]
             }
@@ -389,7 +409,8 @@ impl ROp {
             | Self::ContainerLength { owner: slot }
             | Self::ContainerClear { owner: slot }
             | Self::ContainerRemoveFirst { owner: slot }
-            | Self::ContainerRemoveLast { owner: slot } => vec![*slot],
+            | Self::ContainerRemoveLast { owner: slot }
+            | Self::MapSize { owner: slot } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::Binary { left, right, .. }
             | Self::IntegerBitwise { left, right, .. }
@@ -439,6 +460,10 @@ impl ROp {
                 length: left,
                 initializer: right,
                 ..
+            }
+            | Self::MapContains {
+                owner: left,
+                key: right,
             } => {
                 vec![*left, *right]
             }
@@ -456,6 +481,11 @@ impl ROp {
             | Self::ContainerReplace {
                 owner: source,
                 index: start,
+                value: end,
+            }
+            | Self::MapPut {
+                owner: source,
+                key: start,
                 value: end,
             } => vec![*source, *start, *end],
             Self::RootSwap {

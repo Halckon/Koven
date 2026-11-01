@@ -52,7 +52,134 @@ impl Builder<'_, '_> {
         if typed.container_insert_at(id).is_some() {
             return self.container_insert_at(expression, span).map(Some);
         }
+        if typed.map_construction(id).is_some() {
+            return self.map_construction(expression, span).map(Some);
+        }
+        if typed.map_size(id).is_some() {
+            return self.map_size(expression, span).map(Some);
+        }
+        if typed.map_contains(id).is_some() {
+            return self.map_contains(expression, span).map(Some);
+        }
+        if typed.map_put(id).is_some() {
+            return self.map_put(expression, span).map(Some);
+        }
         Ok(None)
+    }
+
+    fn map_construction(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let id = self.unit(expression);
+        let map_type = self.ssa_type(self.expression_type(expression)?, span)?;
+        let slot = self.value(
+            ROp::MapConstruct { map_type },
+            EntityType::Value(map_type),
+            span,
+        )?;
+        self.drops(UnitDropPoint::CallReturn(id))?;
+        Ok(Lowered::Value(slot))
+    }
+
+    fn map_size(&mut self, expression: ExpressionId, span: Span) -> Result<Lowered, LoweringError> {
+        let id = self.unit(expression);
+        let descriptor = self
+            .inputs
+            .typed
+            .map_size(id)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let symbol = self.named_container_symbol(descriptor.receiver().expression(), span)?;
+        let owner = self
+            .borrowed
+            .get(&symbol)
+            .or_else(|| self.bindings.get(&symbol))
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let result_ty = self.ssa_type(self.expression_type(expression)?, span)?;
+        let result = self.value(ROp::MapSize { owner }, EntityType::Value(result_ty), span)?;
+        self.drops(UnitDropPoint::CallReturn(id))?;
+        Ok(Lowered::Value(result))
+    }
+
+    fn map_contains(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let id = self.unit(expression);
+        let descriptor = self
+            .inputs
+            .typed
+            .map_contains(id)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let symbol = self.named_container_symbol(descriptor.receiver().expression(), span)?;
+        let owner = self
+            .borrowed
+            .get(&symbol)
+            .or_else(|| self.bindings.get(&symbol))
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let key_expr = descriptor.key().expression();
+        let key = if let Some(loan) = self.borrowed_string_loan(key_expr)? {
+            loan
+        } else {
+            let Some(slot) = self.required(key_expr)? else {
+                return Ok(Lowered::Diverged);
+            };
+            slot
+        };
+        let result_ty = self.ssa_type(self.expression_type(expression)?, span)?;
+        let result = self.value(
+            ROp::MapContains { owner, key },
+            EntityType::Value(result_ty),
+            span,
+        )?;
+        self.drops(UnitDropPoint::CallReturn(id))?;
+        Ok(Lowered::Value(result))
+    }
+
+    fn map_put(&mut self, expression: ExpressionId, span: Span) -> Result<Lowered, LoweringError> {
+        let id = self.unit(expression);
+        let descriptor = self
+            .inputs
+            .typed
+            .map_put(id)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let symbol = self.named_container_symbol(descriptor.receiver().expression(), span)?;
+        let key_expr = descriptor.key().expression();
+        let Some(key) = self.required(key_expr)? else {
+            return Ok(Lowered::Diverged);
+        };
+        let value_expr = descriptor.value().expression();
+        let Some(val) = self.required(value_expr)? else {
+            return Ok(Lowered::Diverged);
+        };
+        let value_ty = self.c(descriptor.value_type());
+        let val = self.adapt(val, value_expr, value_ty)?;
+        if self.move_only(self.c(descriptor.key_type())) {
+            self.deliver(key_expr);
+        }
+        if self.move_only(value_ty) {
+            self.deliver(value_expr);
+        }
+        let binding = *self
+            .bindings
+            .get(&symbol)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        self.push(
+            ROp::MapPut {
+                owner: binding,
+                key,
+                value: val,
+            },
+            vec![binding],
+            span,
+        )?;
+        self.drops(UnitDropPoint::AfterExpression(descriptor.value()))?;
+        self.drops(UnitDropPoint::CallReturn(id))?;
+        Ok(Lowered::Unit)
     }
 
     fn container_construction(
@@ -123,9 +250,9 @@ impl Builder<'_, '_> {
         };
         let id = self.unit(expression);
         let int_ty = self.ssa_type(self.expression_type(size.value)?, size.span)?;
-        let (size_loan, created_size, size_read) =
-            self.runtime_size_loan(size.value, int_ty, size.span)?;
-        let Some(size_loan) = size_loan else {
+        let Some((size_loan, created_size, size_read)) =
+            self.runtime_size_loan(size.value, int_ty, size.span)?
+        else {
             return Ok(Lowered::Diverged);
         };
         let length = self.value(
@@ -167,9 +294,9 @@ impl Builder<'_, '_> {
         self.block = Some(abort);
         self.terminate(RTerm::Abort(RAbort::NegativeSize), span)?;
         self.block = Some(success);
-        let (init_loan, created_init, init_read) =
-            self.runtime_initializer_loan(initializer.value, initializer.span)?;
-        let Some(init_loan) = init_loan else {
+        let Some((init_loan, created_init, init_read)) =
+            self.runtime_initializer_loan(initializer.value, initializer.span)?
+        else {
             return Ok(Lowered::Diverged);
         };
         let result = self.value(
@@ -181,7 +308,7 @@ impl Builder<'_, '_> {
             EntityType::Value(container),
             span,
         )?;
-        for loan in [created_init, created_size].into_iter().flatten() {
+        for loan in created_init.into_iter().chain(created_size) {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
         }
         for arg in [size_read, init_read].into_iter().flatten() {
@@ -196,14 +323,7 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         int_ty: crate::ssa::model::SsaTypeId,
         span: Span,
-    ) -> Result<
-        (
-            Option<crate::ssa::refine::body::Slot>,
-            Option<crate::ssa::refine::body::Slot>,
-            Option<ExpressionId>,
-        ),
-        LoweringError,
-    > {
+    ) -> Result<Option<LentArgument>, LoweringError> {
         let mut root = expression;
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
@@ -211,17 +331,17 @@ impl Builder<'_, '_> {
         let id = self.unit(root);
         if let (Expression::Name, root_span) = self.node(root)?
             && self.inputs.typed.non_null_use(id).is_none()
-            && !self
+            && self
                 .inputs
                 .constant_owned
-                .is_some_and(|owned| owned.materialization_at(id).is_some())
+                .is_none_or(|owned| owned.materialization_at(id).is_none())
             && let Ok(symbol) = self.reference(root_span)
             && let Some(&loan) = self.borrowed.get(&symbol)
         {
-            return Ok((Some(loan), None, Some(expression)));
+            return Ok(Some((loan, Vec::new(), Some(expression))));
         }
         let Some(owner) = self.required(expression)? else {
-            return Ok((None, None, None));
+            return Ok(None);
         };
         let place = self.value(ROp::RootPlace { owner }, EntityType::Place(int_ty), span)?;
         let loan = self.value(
@@ -235,21 +355,14 @@ impl Builder<'_, '_> {
             },
             span,
         )?;
-        Ok((Some(loan), Some(loan), None))
+        Ok(Some((loan, vec![loan], None)))
     }
 
     fn runtime_initializer_loan(
         &mut self,
         expression: ExpressionId,
         span: Span,
-    ) -> Result<
-        (
-            Option<crate::ssa::refine::body::Slot>,
-            Option<crate::ssa::refine::body::Slot>,
-            Option<ExpressionId>,
-        ),
-        LoweringError,
-    > {
+    ) -> Result<Option<LentArgument>, LoweringError> {
         let mut root = expression;
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
@@ -259,7 +372,7 @@ impl Builder<'_, '_> {
             Expression::Name => {
                 let symbol = self.reference(root_span)?;
                 if let Some(&loan) = self.borrowed.get(&symbol) {
-                    return Ok((Some(loan), None, Some(expression)));
+                    return Ok(Some((loan, Vec::new(), Some(expression))));
                 }
                 let owner = *self
                     .bindings
@@ -284,7 +397,7 @@ impl Builder<'_, '_> {
                     },
                     root_span,
                 )?;
-                Ok((Some(loan), Some(loan), Some(expression)))
+                Ok(Some((loan, vec![loan], Some(expression))))
             }
             Expression::Lambda { .. } => {
                 let owner = self.form_callable(root, root_span)?;
@@ -310,11 +423,11 @@ impl Builder<'_, '_> {
                     },
                     root_span,
                 )?;
-                Ok((Some(loan), Some(loan), None))
+                Ok(Some((loan, vec![loan], None)))
             }
             Expression::Call { .. } => {
                 let Some(owner) = self.required(expression)? else {
-                    return Ok((None, None, None));
+                    return Ok(None);
                 };
                 let EntityType::Value(callable) = self.body.slots[owner.0] else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -332,7 +445,7 @@ impl Builder<'_, '_> {
                     },
                     span,
                 )?;
-                Ok((Some(loan), Some(loan), None))
+                Ok(Some((loan, vec![loan], None)))
             }
             _ => Err(error(LoweringErrorKind::UnsupportedNode, root_span)),
         }

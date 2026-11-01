@@ -106,3 +106,57 @@ fn container_for_and_runtime_generate_lower_in_refine() {
     }
     assert_eq!(run(source), ("a\nb\nfor-gen-ok\n".to_owned(), Some(0)));
 }
+
+#[test]
+fn box_and_map_lower_in_refine() {
+    let source = r#"value class Wrapped(val n: Int)
+    enum class Expr { Num(item: Int), Add(left: Box<Expr>, right: Box<Expr>) }
+    fun keep_expr(expr: Expr): Int = 1
+    fun check_map(m: MutableMap<String, Int>, key: String): Boolean = m.contains(key)
+    fun main(): Unit {
+        val left = Box(Expr.Num(2))
+        val right = Box(Expr.Num(3))
+        val tree = Expr.Add(left, right)
+        val ok_tree = keep_expr(tree)
+        val b: Box<Wrapped>? = Box(Wrapped(42))
+        val ok_box = if (b != null) 1 else 0
+        var m = mutableMapOf<String, Int>()
+        m.put("k1", 10)
+        m.put("k2", 20)
+        val has_k1 = check_map(m, "k1")
+        if (ok_tree == 1 && ok_box == 1 && m.size == 2 && has_k1 && !m.contains("k3")) {
+            println("box-map-ok")
+        }
+    }"#;
+    let (_, routed) = super::super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("box and map lower in ssa::refine")
+    });
+    for function in [
+        "koven.p.main.d",
+        "koven.p.keep_expr.d",
+        "koven.p.check_map.d",
+    ] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(run(source), ("box-map-ok\n".to_owned(), Some(0)));
+}

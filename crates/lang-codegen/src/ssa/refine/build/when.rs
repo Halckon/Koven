@@ -279,10 +279,10 @@ impl Builder<'_, '_> {
             let (payload, span) = self.node(expression)?;
             let id = self.unit(expression);
             if matches!(payload, Expression::Name)
-                && !self
+                && self
                     .inputs
                     .constant_owned
-                    .is_some_and(|owned| owned.materialization_at(id).is_some())
+                    .is_none_or(|owned| owned.materialization_at(id).is_none())
                 && let Some(&symbol) = self.inputs.references.get(&(span.start(), span.end()))
                 && let Some(loan) = self.borrowed.get(&symbol).copied()
             {

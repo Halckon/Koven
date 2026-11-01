@@ -108,6 +108,9 @@ impl Builder<'_, '_> {
                 lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
                     self.enum_construction(expression, span)
                 }
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox => {
+                    self.box_construction(expression, span)
+                }
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
                     self.rc_construction(expression, span)
                 }
