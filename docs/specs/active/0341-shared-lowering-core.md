@@ -1052,3 +1052,26 @@ D10/E2 仍为 in-progress；以上净减少仅为当前候选差量，尚未交�
 本节记录本地静态候选；现按用户授权提交并发布 Draft PR，触发精确头官方 CI。
 CI 与 Slack 独立审查分别闭环，不将本地静审替代动态验收；不 Ready、formal approve 或合并。
 D10/SPEC-0341/E2 继续 in-progress。
+
+
+## 57. Owned-unit 来源门收敛与 recovery 身份负合同（2026-11-01）
+
+基于 main `4491f1a412f6caf8e9faa8fbfd6f1a84da373d2f` 的本地候选；不触 E3/refine，
+不删除任何旧 witness，也不把来源门去重计作 Single 消费者退休。
+
+- basic/const 两个生产 handoff 复用私有 source/name/signature 校验；仍只重建一次 index，
+  `MismatchedSource` 优先于 `MismatchedAnalysis`。两种 ownership→typed owner 与能力检查
+  继续分别执行，不增加公开 API，不更改 basic/const/recovery 的可交换性。
+- 同批将 call 参数声明来源查询复用既有 `source_callable_signature`；原 receiver、range
+  等四个生产消费者与参数查询共用同一 Declaration/Symbol 查找。External/FunctionValue/
+  StructuralComponent 的无源码语义和缺失参数的精确内部错误保持；真实 top-level/member/
+  external 源码正例与参数越界负例注册于 frontend lib。此项减少一份生产查找逻辑，非消费者退休。
+- 新 MemoryDocument 封闭交接合同覆盖真实非零 SourceId、名称/环境 clone、同 typed 重查
+  ownership、fresh names/environment/typed 拒绝、输入种类变化及来源与分析同时错配。
+  常量专用入口同时检查有/无常量声明，两者均不能获得 basic 能力。
+- raw recovery 的真实类型错误来源还需独立核对身份；用户诊断不授权跳过 provenance。
+  回归使用真实 producer，不伪造私有事实，不扩大 recovery 入口可见性。
+- 新 raw 测试注册于现有 frontend lib；MemoryDocument 测试注册于已被 stage integration
+  选择的 `owned_compilation_unit_view`，不新增单独 CI 或改变执行顺序。
+- 格式及静态审查与行为验收分离；未运行本地 Cargo/build/test/Clippy，按用户授权准备发布 Draft PR 并验证精确头。
+  当前 main 已有独立 E3 Targeted 失败，不能归因为本片或用旧绿 CI 代替精确头验证。

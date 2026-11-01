@@ -89,3 +89,6 @@ fn owned_view_borrows_the_exact_validated_products() {
         "owned compilation-unit view has mismatched analysis identity"
     );
 }
+
+#[path = "owned_compilation_unit_view/memory.rs"]
+mod memory;
