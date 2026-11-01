@@ -131,6 +131,7 @@ pub(super) fn in_formation<R>(
         && (event.span.end() > formation.binding.end() || event.installs(parsed, epoch)))
 }
 
+#[cfg(test)]
 pub(super) fn drop_event(
     parsed: &ParsedFile,
     point: lang_frontend::ownership_checking::DropPoint,
