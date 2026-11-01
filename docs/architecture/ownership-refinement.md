@@ -51,6 +51,8 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 整数内建、整数区间与文本原语（SPEC-0371）：支持 `inv()`、八整数受检转换（`CheckedIntegerConvert`）、
 整数前缀 `+`/`-` 与位运算、`IntRange`/`LongRange` 值构造与 `in`/`!in`/`==`/`!=`、`String.clone()`
 及可信标准文本原语（`CopyBytes`/`CopySlice`/`Utf8ErrorOffset`/`ByteLength`/`ByteAt`）。
+局部解构与整数区间 `for`（SPEC-0373）：支持 Copyable/MoveOnly `value class` 的局部解构
+（`AggregateCopyExplode`/`AggregateExplode`）以及 `IntRange`/`LongRange` 升序 `for` 循环。
 
 ## inline nullable 布局
 

@@ -764,3 +764,54 @@ fn generic_classes_and_enums_lower_in_refine() {
     }
     counted(source, 1, b"generic-class-enum\n");
 }
+
+#[test]
+fn destructuring_and_numeric_for_lower_in_refine() {
+    let source = r#"value class Bounds(val lo: Int, val hi: Int)
+    class Token(val weight: Int)
+    value class TokenPair(val left: Token, val right: Token)
+    fun sum_range(bounds: Bounds, bonus: Int?): Int {
+        val (lo, hi) = bounds
+        var total = if (bonus == null) 0 else bonus
+        for (i in lo..hi) {
+            if (i == 2) { continue }
+            total = total + i
+            if (total > 20) { break }
+        }
+        return total
+    }
+    fun main(): Unit {
+        val (a, b) = TokenPair(Token(1), Token(4))
+        val res = sum_range(Bounds(a.weight, b.weight), 2)
+        if (res == 10) {
+            println("destructure-for")
+        }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("local destructuring and numeric range for lower in ssa::refine")
+    });
+    for function in ["koven.p.main.d", "koven.p.sum_range.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    counted(source, 2, b"destructure-for\n");
+}

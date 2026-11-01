@@ -249,6 +249,15 @@ impl Emitter<'_> {
             ROp::BooleanNot { operand } => Operation::BooleanNot {
                 operand: self.value(*operand, span)?,
             },
+            ROp::Binary {
+                operator,
+                left,
+                right,
+            } => Operation::Binary {
+                operator: *operator,
+                left: self.value(*left, span)?,
+                right: self.value(*right, span)?,
+            },
             ROp::IntegerNot { operand } => Operation::IntegerNot {
                 operand: self.value(*operand, span)?,
             },
@@ -386,6 +395,12 @@ impl Emitter<'_> {
             ROp::AggregateProject { aggregate, field } => Operation::AggregateProject {
                 aggregate: self.value(*aggregate, span)?,
                 field: *field,
+            },
+            ROp::AggregateCopyExplode { aggregate } => Operation::AggregateCopyExplode {
+                aggregate: self.value(*aggregate, span)?,
+            },
+            ROp::AggregateExplode { aggregate } => Operation::AggregateExplode {
+                aggregate: self.value(*aggregate, span)?,
             },
             ROp::SharedAllocate { owner, payload } => Operation::SharedAllocate {
                 owner: *owner,

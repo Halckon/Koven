@@ -62,6 +62,11 @@ pub(super) enum ROp {
     BooleanNot {
         operand: Slot,
     },
+    Binary {
+        operator: crate::ssa::model::BinaryOperator,
+        left: Slot,
+        right: Slot,
+    },
     IntegerNot {
         operand: Slot,
     },
@@ -193,6 +198,14 @@ pub(super) enum ROp {
         aggregate: Slot,
         field: usize,
     },
+    /// Copies all fields out of a Copyable inline aggregate value.
+    AggregateCopyExplode {
+        aggregate: Slot,
+    },
+    /// Consumes a MoveOnly inline aggregate value into its component values.
+    AggregateExplode {
+        aggregate: Slot,
+    },
     /// Moves `payload` into a fresh `Rc` shared owner.
     SharedAllocate {
         owner: SsaTypeId,
@@ -297,9 +310,12 @@ impl ROp {
             | Self::AggregateProject {
                 aggregate: slot, ..
             }
+            | Self::AggregateCopyExplode { aggregate: slot }
+            | Self::AggregateExplode { aggregate: slot }
             | Self::SharedFieldLoan { base: slot, .. }
             | Self::SharedHeapFieldLoan { base: slot, .. } => vec![*slot],
             Self::Compare { left, right, .. }
+            | Self::Binary { left, right, .. }
             | Self::IntegerBitwise { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::IntegerRangeConstruct {

@@ -706,6 +706,10 @@ impl Builder<'_, '_> {
                 condition, body, ..
             } => self.while_loop(statement, condition, body, span),
             Statement::Loop { body, .. } => self.loop_statement(statement, body, span),
+            Statement::For { source, body, .. } => self.numeric_for(statement, source, body, span),
+            Statement::LocalDestructuring { initializer, .. } => {
+                self.local_destructuring(statement, initializer, span)
+            }
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }

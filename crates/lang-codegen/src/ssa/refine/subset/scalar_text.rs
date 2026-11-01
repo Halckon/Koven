@@ -141,4 +141,60 @@ impl Checker<'_, '_> {
         }
         self.expression(receiver)
     }
+
+    pub(super) fn numeric_for(
+        &mut self,
+        statement: lang_frontend::ast::StatementId,
+        source: ExpressionId,
+        body: lang_frontend::ast::StatementId,
+    ) -> bool {
+        let statement_id =
+            lang_frontend::type_checking::UnitStatementId::new(self.inputs.source_unit, statement);
+        if self.inputs.typed.map_iteration(statement_id).is_some() {
+            return false;
+        }
+        let Some(plan) = self.inputs.owned.iteration(statement_id) else {
+            return false;
+        };
+        let descriptor = plan.descriptor();
+        let source_id = self.id(source);
+        if self.inputs.typed.sequential_iteration(statement_id) != Some(descriptor)
+            || !matches!(
+                descriptor.provider(),
+                lang_frontend::type_checking::IterationProvider::NumericRange(
+                    BuiltinType::Int | BuiltinType::Long
+                )
+            )
+            || descriptor.statement() != statement_id
+            || descriptor.source() != source_id
+            || plan.source_access()
+                != lang_frontend::ownership_checking::UnitIterationSourceAccess::Owned
+            || plan.source_kind()
+                != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(source_id)
+        {
+            return false;
+        }
+        let element_ty = self.c(descriptor.element_type());
+        let source_ty = self.c(descriptor.source_type());
+        if !self.integer_type(element_ty)
+            || !self.range_type(source_ty)
+            || self.expression_type(source) != Some(source_ty)
+            || !self.expression(source)
+        {
+            return false;
+        }
+        match descriptor.binding() {
+            lang_frontend::type_checking::UnitSequentialIterationBinding::Discard => {}
+            lang_frontend::type_checking::UnitSequentialIterationBinding::Name(symbol) => {
+                if self.symbol_type(*symbol) != Some(element_ty) {
+                    return false;
+                }
+                self.known.insert(*symbol);
+            }
+            lang_frontend::type_checking::UnitSequentialIterationBinding::Destructure(_) => {
+                return false;
+            }
+        }
+        self.loop_body(body)
+    }
 }

@@ -181,9 +181,23 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
             .flatten()
     }));
     demands.extend(typed.types().builtin(BuiltinType::Boolean));
-    // Case tests compare the `Int` discriminant.
-    if demands.iter().any(|ty| checker.enum_type(*ty)) {
+    // Case tests compare the `Int` discriminant; numeric range `for` loops use endpoints.
+    if demands.iter().any(|ty| {
+        checker.enum_type(*ty)
+            || matches!(
+                checker.kind(*ty),
+                Some(UnitTypeKind::Builtin(BuiltinType::IntRange))
+            )
+    }) {
         demands.extend(typed.types().builtin(BuiltinType::Int));
+    }
+    if demands.iter().any(|ty| {
+        matches!(
+            checker.kind(*ty),
+            Some(UnitTypeKind::Builtin(BuiltinType::LongRange))
+        )
+    }) {
+        demands.extend(typed.types().builtin(BuiltinType::Long));
     }
     let mut seen = BTreeSet::new();
     let mut ordered = Vec::new();
@@ -293,6 +307,7 @@ impl Checker<'_, '_> {
                     || self.enum_type(ty)
                     || self.rc_payload(ty).is_some()
                     || self.value_class(ty)
+                    || self.move_value_class(ty)
             }
         }
     }
@@ -431,7 +446,9 @@ impl Checker<'_, '_> {
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
                     return self.rc_construction(expression);
                 }
-                _ if self.value_class(self.c(descriptor.result_type())) => {
+                _ if self.value_class(self.c(descriptor.result_type()))
+                    || self.move_value_class(self.c(descriptor.result_type())) =>
+                {
                     return self.value_construction(expression);
                 }
                 _ => {}
@@ -814,6 +831,10 @@ impl Checker<'_, '_> {
                 condition, body, ..
             } => self.condition(condition, true) && self.loop_body(body),
             Statement::Loop { body, .. } => self.loop_body(body),
+            Statement::For { source, body, .. } => self.numeric_for(statement, source, body),
+            Statement::LocalDestructuring { initializer, .. } => {
+                self.local_destructuring(statement, initializer)
+            }
             _ => false,
         }
     }

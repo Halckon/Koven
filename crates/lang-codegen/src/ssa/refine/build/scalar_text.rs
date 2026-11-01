@@ -313,4 +313,146 @@ impl Builder<'_, '_> {
         };
         self.value(ROp::ReadLoan { loan }, EntityType::Value(target), span)
     }
+
+    pub(super) fn numeric_for(
+        &mut self,
+        statement: lang_frontend::ast::StatementId,
+        source: ExpressionId,
+        loop_body: lang_frontend::ast::StatementId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let statement_id =
+            lang_frontend::type_checking::UnitStatementId::new(self.inputs.source_unit, statement);
+        let plan = self
+            .inputs
+            .owned
+            .iteration(statement_id)
+            .cloned()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let descriptor = plan.descriptor();
+        let endpoint = self.ssa_type(self.c(descriptor.element_type()), span)?;
+        let boolean = self
+            .inputs
+            .typed
+            .types()
+            .builtin(BuiltinType::Boolean)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let boolean = self.ssa_type(boolean, span)?;
+        let Some(range) = self.required(source)? else {
+            return Ok(Lowered::Diverged);
+        };
+        let first = self.value(
+            ROp::AggregateProject {
+                aggregate: range,
+                field: 0,
+            },
+            EntityType::Value(endpoint),
+            span,
+        )?;
+        let last = self.value(
+            ROp::AggregateProject {
+                aggregate: range,
+                field: 1,
+            },
+            EntityType::Value(endpoint),
+            span,
+        )?;
+        let empty = self.value(
+            ROp::AggregateProject {
+                aggregate: range,
+                field: 2,
+            },
+            EntityType::Value(boolean),
+            span,
+        )?;
+        let current = self.value(
+            ROp::Alias { source: first },
+            EntityType::Value(endpoint),
+            span,
+        )?;
+        let header = self.body.block();
+        let continuation = self.body.block();
+        let increment = self.body.block();
+        let exhausted = self.body.block();
+        let exit = self.body.block();
+        self.terminate(
+            RTerm::Branch {
+                condition: empty,
+                when_true: exhausted,
+                when_false: header,
+            },
+            span,
+        )?;
+        let mark = self.enter(header);
+        if let lang_frontend::type_checking::UnitSequentialIterationBinding::Name(symbol) =
+            descriptor.binding()
+        {
+            let item = self.value(
+                ROp::Alias { source: current },
+                EntityType::Value(endpoint),
+                span,
+            )?;
+            self.bindings.insert(*symbol, item);
+        }
+        self.loops.push(super::LoopFrame {
+            statement: statement_id,
+            continue_target: continuation,
+            exit,
+            views: mark,
+            broken: false,
+        });
+        let reached = self.statement(loop_body)? != Lowered::Diverged;
+        self.loops.pop();
+        self.leave(mark, span)?;
+        if reached {
+            self.goto(continuation, span)?;
+        }
+        let mark = self.enter(continuation);
+        self.leave_unclaimed(mark, span)?;
+        let terminal = self.value(
+            ROp::Compare {
+                operator: crate::ssa::model::ComparisonOperator::Equal,
+                left: current,
+                right: last,
+            },
+            EntityType::Value(boolean),
+            span,
+        )?;
+        self.terminate(
+            RTerm::Branch {
+                condition: terminal,
+                when_true: exhausted,
+                when_false: increment,
+            },
+            span,
+        )?;
+        let mark = self.enter(increment);
+        self.leave_unclaimed(mark, span)?;
+        let one = self.value(
+            ROp::Constant(ScalarConstant::Integer(1)),
+            EntityType::Value(endpoint),
+            span,
+        )?;
+        let next = self.value(
+            ROp::Binary {
+                operator: crate::ssa::model::BinaryOperator::Add,
+                left: current,
+                right: one,
+            },
+            EntityType::Value(endpoint),
+            span,
+        )?;
+        self.push(ROp::Alias { source: next }, vec![current], span)?;
+        self.goto(header, span)?;
+
+        let facts = self.collect_drops(UnitDropPoint::LoopExit(statement_id));
+        let mark = self.enter(exhausted);
+        self.leave_unclaimed(mark, span)?;
+        self.emit_drops(&facts)?;
+        self.goto(exit, span)?;
+        self.finish_drops(&facts);
+        let mark = self.enter(exit);
+        self.leave_unclaimed(mark, span)?;
+        Ok(Lowered::Unit)
+    }
 }
