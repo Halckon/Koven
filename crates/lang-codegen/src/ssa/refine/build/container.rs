@@ -209,13 +209,18 @@ impl Builder<'_, '_> {
                 }
             }
             ContainerConstructionKind::ListForm => {
+                let mut delivered = Vec::with_capacity(arguments.len());
                 for argument in arguments {
                     let Some(value) = self.required(argument.value)? else {
                         return Ok(Lowered::Diverged);
                     };
                     let value = self.adapt(value, argument.value, element_ty)?;
-                    self.deliver(argument.value);
+                    self.repoint_temporary(argument.value, value);
+                    delivered.push(argument.value);
                     elements.push(value);
+                }
+                for value_expression in delivered {
+                    self.deliver(value_expression);
                 }
             }
             ContainerConstructionKind::RuntimeLength => {

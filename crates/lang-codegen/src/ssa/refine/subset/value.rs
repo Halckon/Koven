@@ -140,7 +140,7 @@ impl Checker<'_, '_> {
                     && delivery.argument() == value
                     && delivery.parameter_index() == argument.parameter_index()
                     && delivery.evaluation_index() == index
-                    && self.expression_type(value.expression()) == Some(parameter)
+                    && self.adaptable(value.expression(), parameter)
                     && self.expression(value.expression())
             })
     }

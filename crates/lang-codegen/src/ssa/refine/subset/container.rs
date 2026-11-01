@@ -46,18 +46,8 @@ impl Checker<'_, '_> {
         self.storage_type_seen(*element, active).then_some(*element)
     }
 
-    /// A concrete `Map<K, V>` or `MutableMap<K, V>` with scalar or `String` keys and values
-    /// in a unit without unmigrated map iteration/consume/remove/get families.
+    /// A concrete `Map<K, V>` or `MutableMap<K, V>` with scalar or `String` keys and values.
     pub(super) fn map_kv(&self, ty: UnitTypeId) -> Option<(UnitTypeId, UnitTypeId)> {
-        let typed = self.inputs.typed;
-        if !typed.map_iterations().is_empty()
-            || !typed.map_consumes().is_empty()
-            || !typed.map_removes().is_empty()
-            || !typed.map_gets().is_empty()
-            || !typed.map_with_values().is_empty()
-        {
-            return None;
-        }
         let Some(UnitTypeKind::Intrinsic {
             constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
             arguments,

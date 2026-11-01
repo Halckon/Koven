@@ -81,9 +81,12 @@ impl Builder<'_, '_> {
         });
         let join = self.body.block();
         self.body.blocks[join.0].origin = Some(span);
+        let outer_views = self.active_views.clone();
+        let mut joined_views = None;
         let mut reached = false;
         let mut falls_through = true;
         for (index, entry) in entries.iter().enumerate() {
+            self.active_views = outer_views.clone();
             let body = self.body.block();
             if entry.else_span.is_some() {
                 falls_through = false;
@@ -124,6 +127,7 @@ impl Builder<'_, '_> {
                 })?;
             }
             let unmatched = self.block;
+            self.active_views = outer_views.clone();
             let mark = self.enter(body);
             let value = self.branch_value(entry.body)?;
             self.leave(mark, span)?;
@@ -139,6 +143,7 @@ impl Builder<'_, '_> {
                     control,
                     branch: index,
                 })?;
+                joined_views = Some(self.active_views.clone());
                 self.goto(join, span)?;
                 reached = true;
             }
@@ -154,12 +159,17 @@ impl Builder<'_, '_> {
             if result.is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
+            self.active_views = outer_views;
             self.drops(UnitDropPoint::BranchExit {
                 control,
                 branch: entries.len(),
             })?;
+            joined_views = Some(self.active_views.clone());
             self.goto(join, span)?;
             reached = true;
+        }
+        if let Some(joined) = joined_views {
+            self.active_views = joined;
         }
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -227,11 +237,14 @@ impl Builder<'_, '_> {
             },
             span,
         )?;
+        let outer_views = self.active_views.clone();
+        let mut joined_views = None;
         let mut reached = false;
         for (block, index, branch) in [
             (when_true, true_index, true_body),
             (when_false, false_index, false_body),
         ] {
+            self.active_views = outer_views.clone();
             let mark = self.enter(block);
             let value = self.branch_value(branch)?;
             self.leave(mark, span)?;
@@ -249,8 +262,12 @@ impl Builder<'_, '_> {
                 control,
                 branch: index,
             })?;
+            joined_views = Some(self.active_views.clone());
             self.goto(join, span)?;
             reached = true;
+        }
+        if let Some(joined) = joined_views {
+            self.active_views = joined;
         }
         let fallthrough = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 2 });
         self.finish_drops(&fallthrough);

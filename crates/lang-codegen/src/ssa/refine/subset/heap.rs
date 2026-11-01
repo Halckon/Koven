@@ -79,6 +79,13 @@ impl Checker<'_, '_> {
                 self.push_demand(field, seen, ordered);
             }
         }
+        if (self.value_class(ty) || self.move_value_class(ty))
+            && let Some(fields) = self.value_fields(ty)
+        {
+            for field in fields {
+                self.push_demand(field, seen, ordered);
+            }
+        }
         if self.box_enum_type(ty)
             && let Some(cases) = self.enum_payload_types(ty)
         {

@@ -90,6 +90,7 @@ impl Builder<'_, '_> {
         let mut arguments = descriptor.arguments().iter().collect::<Vec<_>>();
         arguments.sort_by_key(|argument| argument.evaluation_index());
         let mut fields: Vec<Option<Slot>> = vec![None; arguments.len()];
+        let mut delivered = Vec::with_capacity(arguments.len());
         for argument in arguments {
             if argument.argument().source_unit() != self.inputs.source_unit {
                 return Err(error(LoweringErrorKind::MissingFact, span));
@@ -99,13 +100,17 @@ impl Builder<'_, '_> {
                 return Ok(Lowered::Diverged);
             };
             let value = self.adapt(value, value_expression, self.c(argument.parameter_type()))?;
-            self.deliver(value_expression);
+            self.repoint_temporary(value_expression, value);
+            delivered.push(value_expression);
             let slot = fields
                 .get_mut(argument.parameter_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             if slot.replace(value).is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
+        }
+        for value_expression in delivered {
+            self.deliver(value_expression);
         }
         let fields = fields
             .into_iter()

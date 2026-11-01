@@ -301,15 +301,16 @@ impl Builder<'_, '_> {
         match self.inputs.typed.types().get(expected) {
             Some(UnitTypeKind::Nullable(inner)) if *inner == actual => {
                 let nullable = self.ssa_type(expected, span)?;
-                self.deliver(expression);
-                self.value(
+                let wrapped = self.value(
                     ROp::NullableWrap {
                         nullable,
                         owner: value,
                     },
                     EntityType::Value(nullable),
                     span,
-                )
+                )?;
+                self.repoint_temporary(expression, wrapped);
+                Ok(wrapped)
             }
             _ => Err(error(LoweringErrorKind::MissingFact, span)),
         }
@@ -493,11 +494,14 @@ impl Builder<'_, '_> {
         let when_false = self.body.block();
         let join = self.body.block();
         self.condition(condition, when_true, when_false)?;
+        let outer_views = self.active_views.clone();
+        let mut joined_views = None;
         let mut reached = false;
         for (index, (block, branch)) in [(when_true, Some(then_branch)), (when_false, else_branch)]
             .into_iter()
             .enumerate()
         {
+            self.active_views = outer_views.clone();
             let mark = self.enter(block);
             let value = match branch {
                 Some(branch) => self.branch_value(branch)?,
@@ -518,8 +522,12 @@ impl Builder<'_, '_> {
                 control,
                 branch: index,
             })?;
+            joined_views = Some(self.active_views.clone());
             self.goto(join, span)?;
             reached = true;
+        }
+        if let Some(joined) = joined_views {
+            self.active_views = joined;
         }
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));

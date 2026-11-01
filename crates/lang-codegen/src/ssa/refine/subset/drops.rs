@@ -1,7 +1,6 @@
 //! Every drop fact of the function must have a supported point and target in the subset.
 use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget},
-    parser::Expression,
     type_checking::{Copyability, UnitExpressionId},
 };
 
@@ -64,17 +63,36 @@ impl Checker<'_, '_> {
             .all(|fact| !self.fact_in_function(fact.value_origin()))
     }
 
-    /// A pending argument a jump may abandon: a MoveOnly named owner moved into a Value
-    /// argument (borrowed temporaries stay outside: their loan would be abandoned too).
+    /// A pending argument a jump may abandon: a MoveOnly named owner or non-borrowed
+    /// temporary moved into a Value argument (borrowed temporaries stay outside: their
+    /// loan would be abandoned too).
     fn pending_owner(&self, expression: UnitExpressionId) -> bool {
-        expression.source_unit() == self.inputs.source_unit
-            && self
-                .inputs
-                .parsed
-                .ast()
-                .expressions()
-                .get(expression.expression())
-                .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+        if expression.source_unit() != self.inputs.source_unit {
+            return false;
+        }
+        let Ok(node) = self
+            .inputs
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression.expression())
+        else {
+            return false;
+        };
+        let span = node.span();
+        let borrowed = self.inputs.owned.loans().iter().any(|loan| {
+            loan.argument().source_unit() == self.inputs.source_unit
+                && self
+                    .inputs
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(loan.argument().expression())
+                    .is_ok_and(|arg| {
+                        arg.span().start() <= span.start() && span.end() <= arg.span().end()
+                    })
+        });
+        !borrowed
             && self
                 .expression_type(expression.expression())
                 .is_some_and(|ty| self.copyability_of(ty) == Copyability::MoveOnly)
