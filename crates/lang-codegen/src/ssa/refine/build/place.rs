@@ -15,7 +15,7 @@ use crate::ssa::{
 /// The owner a field access or receiver goes through.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum OwnerRef {
-    /// An explicit receiver expression: a name or `this`.
+    /// An explicit receiver expression: a name, `this`, or a temporary.
     Expression(ExpressionId),
     /// The implicit `this` of the current member of `DeclarationId`.
     This(DeclarationId),
@@ -57,18 +57,29 @@ impl Builder<'_, '_> {
                             }
                             return Err(error(LoweringErrorKind::InvalidModel, span));
                         }
-                        let symbol = self.reference(expression_span)?;
-                        match self.borrowed.get(&symbol).copied() {
-                            Some(loan) => Some(loan),
-                            None => {
-                                let owner = *self.bindings.get(&symbol).ok_or_else(|| {
-                                    error(LoweringErrorKind::MissingFact, expression_span)
-                                })?;
-                                return self.lend(owner, kind, span);
+                        if let Ok(symbol) = self.reference(expression_span) {
+                            match self.borrowed.get(&symbol).copied() {
+                                Some(loan) => Some(loan),
+                                None => {
+                                    let owner = *self.bindings.get(&symbol).ok_or_else(|| {
+                                        error(LoweringErrorKind::MissingFact, expression_span)
+                                    })?;
+                                    return self.lend(owner, kind, span);
+                                }
                             }
+                        } else {
+                            let owner = self
+                                .required(expression)?
+                                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                            return self.lend(owner, kind, span);
                         }
                     }
-                    _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+                    _ => {
+                        let owner = self
+                            .required(expression)?
+                            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                        return self.lend(owner, kind, span);
+                    }
                 }
             }
         };
@@ -82,6 +93,7 @@ impl Builder<'_, '_> {
                     scoped: false,
                 })
             }
+            (EntityType::Value(_), LoanKind::Shared) => self.lend(loan, LoanKind::Shared, span),
             _ => Err(error(LoweringErrorKind::MissingFact, span)),
         }
     }

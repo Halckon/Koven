@@ -140,6 +140,10 @@ impl Checker<'_, '_> {
                 && self.known.contains(&fact.symbol())
                 && self.view_symbols.contains(&fact.symbol());
         }
+        if self.field_loan_receiver(receiver, true) == Some(self.c(descriptor.receiver_type())) {
+            self.migrated = true;
+            return true;
+        }
         self.expression(receiver)
     }
 

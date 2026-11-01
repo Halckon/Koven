@@ -496,3 +496,136 @@ fn move_only_reassignment_and_move_enum_when_lower_in_refine() {
         )
     );
 }
+
+#[test]
+fn deinit_nested_fields_box_payloads_and_move_receivers_lower_in_refine() {
+    let source = r#"class Leaf(val name: String, val code: Int) {
+        deinit() {
+            println(this.name)
+        }
+    }
+    class Guard(val first: Leaf, val second: Leaf) {
+        deinit() {
+            println(this.first.name)
+            println(this.second.name)
+        }
+    }
+    enum class Owned {
+        Empty, Full(text: String);
+        own fun score(): Int = 9
+    }
+    object Registry {
+        fun ping(): Int = 7
+    }
+    interface Readable {
+        fun read(message: String): Int = 1
+    }
+    class Reader: Readable {
+        override fun read(message: String): Int = 7
+    }
+    class Host(val tag: Int, val delegate: Reader): Readable by delegate {}
+    class Relay(val id: Int) {
+        fun answer(): Int = id
+        own fun relay(): Int = answer()
+        own fun pass(): Relay = this
+    }
+    value class Wrapped(val n: Int)
+    value class Entry(val label: String, val items: List<Int>)
+    value class InlineCounter(var item: Int) {
+        inout fun set(next: Int): Unit { item = next }
+        inout fun read(): Int = item
+    }
+    value class InlineResource(val marker: Int, var item: String) {
+        inout fun set(own next: String): Unit { item = next }
+    }
+    interface Finishable {
+        own fun finish(): Int = 40
+        own fun relay(): Int = finish()
+    }
+    class FinResource: Finishable {}
+    class FieldHolder(var text: String, val tag: Int)
+    fun bump_wrapped(inout w: Wrapped, delta: Int): Unit {
+        w = Wrapped(w.n + delta)
+    }
+    fun clone_nested(g: Guard): String = g.first.name.clone()
+    fun read_nested_code(g: Guard): Int = g.second.code
+    fun main(): Unit {
+        val b_entry: Box<Entry>? = Box(Entry("boxed", listOf(1, 2)))
+        val b_owned: Box<Owned>? = Box(Owned.Full("boxed-enum"))
+        val has_boxes = if (b_entry != null && b_owned != null) 1 else 0
+        var w = Wrapped(10)
+        bump_wrapped(&w, 5)
+        val owned_score = (Owned.Full("payload")).score() + Owned.Empty.score()
+        val obj_ping = (Registry).ping()
+        val del_read = Host(0, Reader()).read("argument")
+        val relayed = Relay(41).pass().relay()
+        var m = mutableMapOf<String, String>()
+        m.put("k", "map-val")
+        val hit = m.withValue("k", { v -> println(v) })
+        val g = Guard(Leaf("L1", 11), Leaf("L2", 22))
+        val cloned = clone_nested(g)
+        val code = read_nested_code(g)
+        println(cloned)
+        var ic = InlineCounter(1)
+        ic.set(7)
+        val ic_val = ic.read()
+        var ir = InlineResource(1, "old-res")
+        ir.set("new-res")
+        val fin = FinResource().relay()
+        val holder = FieldHolder("old-field", 9)
+        val old_field = replace(&holder.text, "new-field")
+        println(old_field)
+        println(holder.text)
+        if (has_boxes == 1 && w.n == 15 && owned_score == 18 && obj_ping == 7 && del_read == 7 && relayed == 41 && hit && code == 22 && ic_val == 7 && fin == 40) {
+            println("deinit-nested-box-ok")
+        }
+    }"#;
+    let (_, routed) = super::super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("deinit, nested fields, Box payloads, and MoveOnly receivers lower in ssa::refine")
+    });
+    for function in [
+        "koven.p.main.d",
+        "koven.p.Leaf.deinit.d",
+        "koven.p.Guard.deinit.d",
+        "koven.p.Owned.score.s",
+        "koven.p.Relay.relay.s",
+        "koven.p.Relay.pass.s",
+        "koven.p.InlineCounter.set.s",
+        "koven.p.InlineCounter.read.s",
+        "koven.p.InlineResource.set.s",
+        "koven.p.Finishable.finish.s",
+        "koven.p.Finishable.relay.s",
+        "koven.p.bump_wrapped.d",
+        "koven.p.clone_nested.d",
+        "koven.p.read_nested_code.d",
+    ] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        run(source),
+        (
+            "map-val\nL1\nold-field\nnew-field\ndeinit-nested-box-ok\nL1\nL2\nL2\nL1\n".to_owned(),
+            Some(0)
+        )
+    );
+}

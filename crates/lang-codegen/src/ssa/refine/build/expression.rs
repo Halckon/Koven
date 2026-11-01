@@ -242,7 +242,21 @@ impl Builder<'_, '_> {
 
     /// A local or parameter read; a proven non-null use reads the narrowed inner value.
     fn name(&mut self, expression: ExpressionId, span: Span) -> Result<Slot, LoweringError> {
-        let symbol = self.reference(span)?;
+        let Ok(symbol) = self.reference(span) else {
+            let ty = self.expression_type(expression)?;
+            if self.is_object_type(ty) {
+                let aggregate = self.ssa_type(ty, span)?;
+                return self.value(
+                    ROp::AggregateConstruct {
+                        aggregate,
+                        fields: Vec::new(),
+                    },
+                    EntityType::Value(aggregate),
+                    span,
+                );
+            }
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
         if let Some(fact) = self.inputs.typed.non_null_use(self.unit(expression)) {
             if fact.symbol() != symbol {
                 return Err(error(LoweringErrorKind::MissingFact, span));
@@ -496,7 +510,7 @@ impl Builder<'_, '_> {
         self.condition(condition, when_true, when_false)?;
         let outer_views = self.active_views.clone();
         let mut joined_views = None;
-        let mut reached = false;
+        let mut branch_exits = Vec::new();
         for (index, (block, branch)) in [(when_true, Some(then_branch)), (when_false, else_branch)]
             .into_iter()
             .enumerate()
@@ -523,8 +537,30 @@ impl Builder<'_, '_> {
                 branch: index,
             })?;
             joined_views = Some(self.active_views.clone());
+            self.sync_dead();
+            branch_exits.push((self.current(span)?, self.this_dead));
             self.goto(join, span)?;
-            reached = true;
+        }
+        if branch_exits.iter().any(|(_, dead)| *dead) {
+            self.entry_this_dead.insert(join);
+            if let Some(slot) = self.receiver
+                && self
+                    .inputs
+                    .receiver
+                    .is_some_and(|r| r.mode == ParameterMode::Value && self.move_only(r.ty))
+            {
+                for &(exit_block, dead) in &branch_exits {
+                    if !dead {
+                        self.body.blocks[exit_block.0].statements.push(
+                            crate::ssa::refine::body::RStmt {
+                                op: ROp::Drop { owner: slot },
+                                results: Vec::new(),
+                                span,
+                            },
+                        );
+                    }
+                }
+            }
         }
         if let Some(joined) = joined_views {
             self.active_views = joined;
@@ -532,7 +568,7 @@ impl Builder<'_, '_> {
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
-        if !reached {
+        if branch_exits.is_empty() {
             self.block = None;
             return Ok(Lowered::Diverged);
         }
@@ -591,7 +627,7 @@ impl Builder<'_, '_> {
         if descriptor.arguments().len() != arguments.len() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let receiver = self.receiver_before_arguments(&descriptor, span)?;
+        let receiver = self.receiver_before_arguments(call, &descriptor, span)?;
         let mut lowered = Vec::with_capacity(arguments.len());
         let mut loans = Vec::new();
         let mut writebacks = Vec::new();
@@ -723,7 +759,7 @@ impl Builder<'_, '_> {
         for value_expression in delivered {
             self.deliver(value_expression);
         }
-        let mut receiver_end = None;
+        let mut receiver_loans = Vec::new();
         let mut invoked_callee = None;
         let unit_return = self.is_unit(self.c(descriptor.return_type()));
         let result = if descriptor.target() == UnitCallTarget::FunctionValue {
@@ -756,14 +792,15 @@ impl Builder<'_, '_> {
                 .get(resolved.key())
                 .copied()
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-            let (receiver, receiver_loan) = match receiver {
+            let (receiver, r_loans) = match receiver {
                 Some(receiver) => {
-                    let (operand, loan) = self.receiver_at_call(receiver, span)?;
-                    (Some(operand), loan)
+                    let (operand, r_loans, r_wb) = self.receiver_at_call(receiver, span)?;
+                    writebacks.extend(r_wb);
+                    (Some(operand), r_loans)
                 }
-                None => (None, None),
+                None => (None, Vec::new()),
             };
-            receiver_end = receiver_loan;
+            receiver_loans = r_loans;
             let op = ROp::DirectCall {
                 callee,
                 receiver,
@@ -781,8 +818,8 @@ impl Builder<'_, '_> {
         for loan in loans.into_iter().rev() {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
         }
-        if let Some(loan) = receiver_end {
-            self.end_owner_loan(loan, span)?;
+        for loan in receiver_loans.into_iter().rev() {
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
         }
         for writeback in writebacks {
             self.write_back(writeback)?;

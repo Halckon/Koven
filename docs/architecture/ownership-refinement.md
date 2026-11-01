@@ -70,7 +70,11 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 MoveOnly `enum class` `when`（SPEC-0379）：支持任意 `storage_type` 局部 `var` 绑定的重赋值（结束旧证明视图、消费
 `BeforeOverwrite` 并恢复槽位活跃追踪），以及携带任意 `storage_type` 载荷的 MoveOnly `enum class` 的构造、`is`/`!is` 判别、
 `when (subject)` 分支匹配（当 `subject` 在 `AfterExpression` 提前释放时先快照 `TaggedDiscriminant`）、标量载荷投影与
-MoveOnly 载荷字段借用实参。
+MoveOnly 载荷字段借用实参。`deinit` 析构体、多层字段借用、接口委托、无状态 `object`、`Map.withValue`、内联 `Inout` 接收者与一级字段 `replace`（SPEC-0380）：支持 `Item::Deinit`
+析构体与带 `deinit()` 的资源 `class`、多层 `class` 字段读取与借用（按层 `SharedHeapFieldLoan` 与逆序 `BorrowEnd`，含字段路径上的
+`String.clone()`）、含复合存储字段的 `value class` 与 `Box<T>` 载荷、MoveOnly 类型上的 `Value` 接收者成员调用（`own fun`、`this` 借用与
+`this` 返回及 `UnitDropTarget::This` 释放）、临时 `Borrow`/`Value` 接收者、接口 `by` 委托链（`site.delegation()`）与 `StaticSelf`
+默认方法特化（含条件 `Value` 接收者交付与析构）、无状态 `object` 单例、`Map.withValue`（`ROp::MapWithValue`）、内联 `Inout` 接收者（`value class` 与 `enum class` 的 `inout fun`、`InlineFieldReplace` 及调用后写回）、一级非泛型 `class` 字段 `replace(&holder.field, value)`（`HeapFieldExchange`）以及任意 Copyable `storage_type` 的 `Inout` 参数与 `&local` 实参。
 
 ## inline nullable 布局
 

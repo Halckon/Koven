@@ -22,7 +22,7 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
     ownership_checking::{UnitDropPoint, UnitDropTarget},
-    parser::{Expression, Item, Statement},
+    parser::{Expression, Statement},
     source::Span,
     type_checking::{
         Copyability, ParameterMode, UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeId,
@@ -72,8 +72,10 @@ pub(super) struct Builder<'i, 'a> {
     /// Named owners already dropped on the current path, and on entry to each block.
     /// A binding can die inside a loop on one path and at its `LoopExit` on another.
     dead: BTreeSet<UnitSymbolId>,
+    this_dead: bool,
     dead_block: Option<BlockRef>,
     entry_dead: BTreeMap<BlockRef, BTreeSet<UnitSymbolId>>,
+    entry_this_dead: BTreeSet<BlockRef>,
 }
 
 /// Jump targets of one loop; views above `views` belong to its iteration.
@@ -126,8 +128,10 @@ pub(super) fn build(
         active_views: Vec::new(),
         loops: Vec::new(),
         dead: BTreeSet::new(),
+        this_dead: false,
         dead_block: None,
         entry_dead: BTreeMap::new(),
+        entry_this_dead: BTreeSet::new(),
     };
     let entry = builder.body.block();
     builder.block = Some(entry);
@@ -324,6 +328,9 @@ impl Builder<'_, '_> {
                 .block
                 .and_then(|block| self.entry_dead.get(&block).cloned())
                 .unwrap_or_default();
+            self.this_dead = self
+                .block
+                .is_some_and(|block| self.entry_this_dead.contains(&block));
             self.dead_block = self.block;
         }
     }
@@ -352,6 +359,9 @@ impl Builder<'_, '_> {
                 .entry(successor)
                 .or_default()
                 .extend(self.dead.iter().copied());
+            if self.this_dead {
+                self.entry_this_dead.insert(successor);
+            }
         }
         self.body.blocks[block.0].terminator = Some((terminator, span));
         self.block = None;
@@ -438,14 +448,37 @@ impl Builder<'_, '_> {
 
     /// The not-yet-consumed facts at `point`.
     pub(super) fn collect_drops(&self, point: UnitDropPoint) -> Vec<(usize, UnitDropTarget, Span)> {
-        self.inputs
+        let mut facts: Vec<_> = self
+            .inputs
             .owned
             .drops()
             .iter()
             .enumerate()
             .filter(|(index, fact)| fact.point() == point && !self.consumed_drops.contains(index))
             .map(|(index, fact)| (index, fact.target(), fact.value_origin()))
-            .collect()
+            .collect();
+        if let Some(cond) = self
+            .inputs
+            .owned
+            .conditional_receiver_drops()
+            .iter()
+            .find(|fact| fact.point() == point)
+            && self
+                .inputs
+                .receiver
+                .is_some_and(|r| r.owner == cond.owner() && self.move_only(r.ty))
+        {
+            let pos = cond.preceding_drops().min(facts.len());
+            facts.insert(
+                pos,
+                (
+                    usize::MAX,
+                    UnitDropTarget::This(cond.owner()),
+                    cond.value_origin(),
+                ),
+            );
+        }
+        facts
     }
 
     /// Emits the drops on the current path; a point reached by several edges emits once
@@ -468,6 +501,15 @@ impl Builder<'_, '_> {
                 // ADR-0009: a closure's drop glue releases its owned captures; the fact is
                 // satisfied by the closure's own drop at the same point.
                 UnitDropTarget::Captured { .. } => continue,
+                UnitDropTarget::This(owner) => {
+                    if self.this_dead {
+                        continue;
+                    }
+                    self.this_dead = true;
+                    (self.inputs.receiver.map(|receiver| receiver.owner) == Some(*owner))
+                        .then_some(self.receiver)
+                        .flatten()
+                }
                 UnitDropTarget::Temporary(expression) => {
                     // A moved named argument: its owner is gone on this path.
                     if let Some(symbol) = self.pending_symbol(*expression) {
@@ -687,6 +729,14 @@ impl Builder<'_, '_> {
             root = inner;
             self.temporaries.remove(&self.unit(root));
         }
+        if matches!(self.node(root), Ok((Expression::This, _)))
+            && self
+                .inputs
+                .receiver
+                .is_some_and(|r| r.mode == ParameterMode::Value && self.move_only(r.ty))
+        {
+            self.deliver_this();
+        }
         if let Some(symbol) = self.pending_symbol(self.unit(root))
             && self.bindings.contains_key(&symbol)
             && self
@@ -696,6 +746,11 @@ impl Builder<'_, '_> {
             self.sync_dead();
             self.dead.insert(symbol);
         }
+    }
+
+    pub(super) fn deliver_this(&mut self) {
+        self.sync_dead();
+        self.this_dead = true;
     }
 }
 
@@ -749,76 +804,6 @@ impl Builder<'_, '_> {
             }
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
-    }
-
-    fn local_variable(
-        &mut self,
-        declaration: lang_frontend::ast::ItemId,
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let node = self
-            .inputs
-            .parsed
-            .ast()
-            .items()
-            .get(declaration)
-            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
-        let Item::Variable {
-            name, initializer, ..
-        } = node.payload().clone()
-        else {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        };
-        let lang_frontend::parser::NameMarker::Present(name_span) = name else {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        };
-        let symbol = self.declared_symbol(name_span)?;
-        let declared = self
-            .symbol_type(symbol)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        if self.is_unit(declared) {
-            if self.expression(initializer)? == Lowered::Diverged {
-                return Ok(Lowered::Diverged);
-            }
-            return Ok(Lowered::Unit);
-        }
-        let Lowered::Value(value) = self.expression(initializer)? else {
-            return Ok(Lowered::Diverged);
-        };
-        let value = self.adapt(value, initializer, declared)?;
-        self.deliver(initializer);
-        let EntityType::Value(ty) = self.body.slots[value.0] else {
-            return Err(error(LoweringErrorKind::InvalidModel, span));
-        };
-        let binding = self.value(ROp::Alias { source: value }, EntityType::Value(ty), span)?;
-        self.bindings.insert(symbol, binding);
-        Ok(Lowered::Unit)
-    }
-
-    fn declared_symbol(&self, name_span: Span) -> Result<UnitSymbolId, LoweringError> {
-        self.inputs
-            .names
-            .names()
-            .source_units()
-            .get(self.inputs.source_unit.index())
-            .and_then(|source| {
-                source.resolution().symbols().iter().find(|symbol| {
-                    symbol.span() == name_span
-                        && symbol.kind() == lang_frontend::name_resolution::SymbolKind::Variable
-                })
-            })
-            .and_then(|local| {
-                self.inputs
-                    .typed
-                    .body_symbol_types()
-                    .keys()
-                    .copied()
-                    .find(|symbol| {
-                        symbol.source_unit() == self.inputs.source_unit
-                            && symbol.symbol() == local.id()
-                    })
-            })
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, name_span))
     }
 
     fn while_loop(

@@ -234,11 +234,24 @@ impl Builder<'_, '_> {
         }
         let receiver = descriptor.receiver().expression();
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;
-        let (source, created_loan, view_read) =
+        let mut ungrouped = receiver;
+        while let (Expression::Group { expression: inner }, _) = self.node(ungrouped)? {
+            ungrouped = inner;
+        }
+        let (source, created_loans, view_reads) =
             if let Some(loan) = self.borrowed_string_loan(receiver)? {
-                (loan, None, Some(receiver))
+                (loan, Vec::new(), vec![receiver])
             } else if let Some(view) = self.narrowed_view(receiver)? {
-                (view, None, Some(receiver))
+                (view, Vec::new(), vec![receiver])
+            } else if self
+                .inputs
+                .typed
+                .aggregate_projection(self.unit(ungrouped))
+                .is_some()
+            {
+                let (loan, created, mut drops) = self.field_projection_loan(receiver, span)?;
+                drops.push(receiver);
+                (loan, created, drops)
             } else {
                 let Some(owner) = self.required(receiver)? else {
                     return Ok(Lowered::Diverged);
@@ -260,14 +273,14 @@ impl Builder<'_, '_> {
                     },
                     receiver_span,
                 )?;
-                (loan, Some(loan), None)
+                (loan, vec![loan], Vec::new())
             };
         let result = self.value(ROp::StringClone { source }, EntityType::Value(ty), span)?;
-        if let Some(loan) = created_loan {
+        for loan in created_loans.into_iter().rev() {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
         }
         self.drops(UnitDropPoint::CallReturn(id))?;
-        if let Some(read) = view_read {
+        for read in view_reads {
             self.drops(UnitDropPoint::AfterExpression(self.unit(read)))?;
         }
         Ok(Lowered::Value(result))

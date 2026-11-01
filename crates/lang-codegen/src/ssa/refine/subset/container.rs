@@ -127,6 +127,9 @@ impl Checker<'_, '_> {
         if typed.map_put(id).is_some() {
             return self.map_put(expression);
         }
+        if typed.map_with_value(id).is_some() {
+            return self.map_with_value(expression);
+        }
         false
     }
 
@@ -238,6 +241,47 @@ impl Checker<'_, '_> {
             && self.expression(key)
             && self.adaptable_element(value, value_ty)
             && self.expression(value);
+        self.migrated |= ok;
+        ok
+    }
+
+    fn map_with_value(&mut self, expression: ExpressionId) -> bool {
+        let id = self.id(expression);
+        let Some(descriptor) = self.inputs.typed.map_with_value(id).copied() else {
+            return false;
+        };
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
+            return false;
+        };
+        let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
+            return false;
+        };
+        let Some((key_ty, _)) = self.map_kv(map_ty) else {
+            return false;
+        };
+        if descriptor.expression() != id
+            || descriptor.receiver().source_unit() != self.inputs.source_unit
+            || descriptor.key().source_unit() != self.inputs.source_unit
+            || descriptor.action().source_unit() != self.inputs.source_unit
+            || self.span_has_control_transfer(node.span())
+            || self.c(descriptor.key_type()) != key_ty
+            || !self.expression_type(expression).is_some_and(|ty| {
+                matches!(
+                    self.kind(ty),
+                    Some(UnitTypeKind::Builtin(BuiltinType::Boolean))
+                )
+            })
+            || self
+                .named_container_owner(descriptor.receiver().expression(), map_ty, true)
+                .is_none()
+        {
+            return false;
+        }
+        let key = descriptor.key().expression();
+        let action = descriptor.action().expression();
+        let ok = self.expression_type(key) == Some(key_ty)
+            && (self.borrowed_string_name(key) || self.expression(key))
+            && self.runtime_initializer(action);
         self.migrated |= ok;
         ok
     }

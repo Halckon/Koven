@@ -395,18 +395,84 @@ impl Builder<'_, '_> {
             )?;
             return Ok(Some((field_loan, vec![field_loan], Some(receiver_expr))));
         }
-        let (owner, owner_type, receiver) = self.projection_owner(projection.receiver(), span)?;
+        let (field_loan, created, drops) = self.field_projection_loan(root, span)?;
+        for intermediate in drops.iter().skip(1) {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(*intermediate)))?;
+        }
+        Ok(Some((field_loan, created, drops.first().copied())))
+    }
+
+    /// Resolves a single- or multi-hop class field projection `r.f1.f2...` into a leaf
+    /// `SharedHeapFieldLoan`, all created loans in creation order, and the receiver
+    /// expressions encountered from root to immediate parent.
+    pub(super) fn field_projection_loan(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<(Slot, Vec<Slot>, Vec<ExpressionId>), LoweringError> {
+        let mut root = expression;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let id = self.unit(root);
+        let projection = self
+            .inputs
+            .typed
+            .aggregate_projection(id)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let (base_loan, mut created, drops, owner_type) = match projection.receiver() {
+            lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(receiver)
+                if receiver.source_unit() == self.inputs.source_unit =>
+            {
+                let mut ungrouped = receiver.expression();
+                while let (Expression::Group { expression: inner }, _) = self.node(ungrouped)? {
+                    ungrouped = inner;
+                }
+                if self
+                    .inputs
+                    .typed
+                    .aggregate_projection(self.unit(ungrouped))
+                    .is_some()
+                {
+                    let (parent_loan, created, mut drops) =
+                        self.field_projection_loan(receiver.expression(), span)?;
+                    let owner_type = self.expression_type(ungrouped)?;
+                    drops.push(receiver.expression());
+                    (parent_loan, created, drops, owner_type)
+                } else {
+                    let (owner, owner_type, receiver_expr) =
+                        self.projection_owner(projection.receiver(), span)?;
+                    let owner_loan = self.owner_loan(owner, LoanKind::Shared, span)?;
+                    let mut created = Vec::new();
+                    if owner_loan.scoped {
+                        created.push(owner_loan.loan);
+                    }
+                    let drops = receiver_expr.into_iter().collect();
+                    (owner_loan.loan, created, drops, owner_type)
+                }
+            }
+            _ => {
+                let (owner, owner_type, receiver_expr) =
+                    self.projection_owner(projection.receiver(), span)?;
+                let owner_loan = self.owner_loan(owner, LoanKind::Shared, span)?;
+                let mut created = Vec::new();
+                if owner_loan.scoped {
+                    created.push(owner_loan.loan);
+                }
+                let drops = receiver_expr.into_iter().collect();
+                (owner_loan.loan, created, drops, owner_type)
+            }
+        };
         let field = self
             .types
             .field_indices
             .get(&(owner_type, projection.field()))
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let owner_loan = self.owner_loan(owner, LoanKind::Shared, span)?;
-        let target = self.ssa_type(parameter, span)?;
+        let target = self.ssa_type(self.c(projection.ty()), span)?;
         let field_loan = self.value(
             ROp::SharedHeapFieldLoan {
-                base: owner_loan.loan,
+                base: base_loan,
                 field,
             },
             EntityType::Loan {
@@ -415,12 +481,8 @@ impl Builder<'_, '_> {
             },
             self.span(expression),
         )?;
-        let mut created = Vec::new();
-        if owner_loan.scoped {
-            created.push(owner_loan.loan);
-        }
         created.push(field_loan);
-        Ok(Some((field_loan, created, receiver)))
+        Ok((field_loan, created, drops))
     }
 
     /// Forms a lambda literal of this instance; the closure temporary's published drop

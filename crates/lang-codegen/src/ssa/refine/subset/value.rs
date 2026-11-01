@@ -24,7 +24,10 @@ impl Checker<'_, '_> {
         expression
     }
 
-    fn value_signature(&self, ty: UnitTypeId) -> Option<(&UnitNominalSignature, Vec<UnitTypeId>)> {
+    pub(super) fn value_signature(
+        &self,
+        ty: UnitTypeId,
+    ) -> Option<(&UnitNominalSignature, Vec<UnitTypeId>)> {
         let Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
@@ -47,21 +50,123 @@ impl Checker<'_, '_> {
         resolve_nominal_runtime_field_types(self.inputs.typed, ty, nominal, &arguments).ok()
     }
 
-    /// A concrete Copyable value class whose fields are all scalars.
+    /// A concrete Copyable value class whose fields are supported storage types.
     pub(super) fn value_class(&self, ty: UnitTypeId) -> bool {
-        self.inputs.typed.copyability(ty) == Copyability::Copyable
-            && self
-                .value_fields(ty)
-                .is_some_and(|fields| fields.iter().all(|field| self.scalar(*field)))
+        self.value_class_seen(ty, &mut std::collections::BTreeSet::new())
     }
 
-    /// A concrete MoveOnly value class whose fields are scalars, String, or plain classes.
+    pub(super) fn value_class_seen(
+        &self,
+        ty: UnitTypeId,
+        active: &mut std::collections::BTreeSet<UnitTypeId>,
+    ) -> bool {
+        let Some(fields) = self
+            .value_fields(ty)
+            .filter(|_| self.inputs.typed.copyability(ty) == Copyability::Copyable)
+        else {
+            return false;
+        };
+        if !active.insert(ty) {
+            return false;
+        }
+        let ok = fields
+            .iter()
+            .all(|field| self.storage_type_seen(*field, active));
+        active.remove(&ty);
+        ok
+    }
+
+    /// A concrete MoveOnly value class whose fields are supported storage types.
     pub(super) fn move_value_class(&self, ty: UnitTypeId) -> bool {
-        self.inputs.typed.copyability(ty) == Copyability::MoveOnly
-            && self.value_fields(ty).is_some_and(|fields| {
-                fields
-                    .iter()
-                    .all(|field| self.scalar(*field) || self.string(*field) || self.class(*field))
+        self.move_value_class_seen(ty, &mut std::collections::BTreeSet::new())
+    }
+
+    pub(super) fn move_value_class_seen(
+        &self,
+        ty: UnitTypeId,
+        active: &mut std::collections::BTreeSet<UnitTypeId>,
+    ) -> bool {
+        let Some(fields) = self
+            .value_fields(ty)
+            .filter(|_| self.inputs.typed.copyability(ty) == Copyability::MoveOnly)
+        else {
+            return false;
+        };
+        if !active.insert(ty) {
+            return false;
+        }
+        let ok = fields
+            .iter()
+            .all(|field| self.storage_type_seen(*field, active));
+        active.remove(&ty);
+        ok
+    }
+
+    /// A stateless `object` singleton (`NominalKind::Object` with no fields or type arguments).
+    pub(super) fn object_type(&self, ty: UnitTypeId) -> bool {
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = self.kind(ty)
+        else {
+            return false;
+        };
+        arguments.is_empty()
+            && self
+                .inputs
+                .typed
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|signature| signature.nominal())
+                .is_some_and(|nominal| {
+                    nominal.kind() == NominalKind::Object && nominal.fields().is_empty()
+                })
+    }
+
+    pub(super) fn object_name(&self, expression: ExpressionId) -> bool {
+        use lang_frontend::name_resolution::{Namespace, SymbolKind, UnitReferenceTarget};
+        let root = self.ungrouped(expression);
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
+            return false;
+        };
+        if !matches!(node.payload(), Expression::Name) {
+            return false;
+        }
+        let Some(ty) = self
+            .expression_type(root)
+            .filter(|ty| self.object_type(*ty))
+        else {
+            return false;
+        };
+        let Some(UnitTypeKind::Nominal {
+            declaration: type_decl,
+            ..
+        }) = self.kind(ty)
+        else {
+            return false;
+        };
+        let declarations = self.inputs.names.names().index().declarations();
+        let Some(type_record) = declarations.get(type_decl.index()) else {
+            return false;
+        };
+        self.inputs
+            .names
+            .names()
+            .references()
+            .iter()
+            .find(|reference| {
+                reference.source_unit() == self.inputs.source_unit
+                    && reference.namespace() == Some(Namespace::Value)
+                    && reference.span() == node.span()
+            })
+            .and_then(|reference| match reference.target() {
+                UnitReferenceTarget::Declaration(decl) => declarations.get(decl.index()),
+                _ => None,
+            })
+            .is_some_and(|value_record| {
+                value_record.kind() == SymbolKind::ObjectValue
+                    && value_record.source_unit() == type_record.source_unit()
+                    && value_record.root() == type_record.root()
             })
     }
 
@@ -191,7 +296,7 @@ impl Checker<'_, '_> {
         {
             return false;
         }
-        let owner = match projection.receiver() {
+        let (owner, is_this) = match projection.receiver() {
             UnitAggregateProjectionReceiver::Expression(receiver) => {
                 if receiver.source_unit() != self.inputs.source_unit
                     || !self.plain(receiver.expression())
@@ -203,28 +308,43 @@ impl Checker<'_, '_> {
                     return false;
                 };
                 match node.payload() {
-                    Expression::Name if !self.name(inner) => return false,
-                    Expression::Name | Expression::This => {}
+                    Expression::Name => {
+                        let Some(symbol) = self.reference(inner) else {
+                            return false;
+                        };
+                        if !self.known.contains(&symbol)
+                            || self.callables.contains(&symbol)
+                            || typed.non_null_use(self.id(inner)).is_some_and(|fact| {
+                                fact.symbol() != symbol
+                                    || self.copyability_of(self.c(fact.narrowed_type()))
+                                        != Copyability::Copyable
+                            })
+                        {
+                            return false;
+                        }
+                        (Owner::Expression(inner), false)
+                    }
+                    Expression::This => (Owner::Expression(inner), true),
                     _ => return false,
                 }
-                Owner::Expression(inner)
             }
-            UnitAggregateProjectionReceiver::This(declaration) => Owner::This(declaration),
+            UnitAggregateProjectionReceiver::This(declaration) => (Owner::This(declaration), true),
         };
         let Some(owner_type) =
-            self.owner_type(owner, lang_frontend::type_checking::ParameterMode::Value)
+            self.owner_type(owner, lang_frontend::type_checking::ParameterMode::Borrow)
         else {
             return false;
         };
         self.migrated = true;
-        self.value_class(owner_type)
+        (self.value_class(owner_type) || self.move_value_class(owner_type))
             && self
                 .value_signature(owner_type)
-                .is_some_and(|(nominal, _)| {
-                    nominal
-                        .fields()
-                        .iter()
-                        .any(|field| field.symbol() == projection.field())
+                .is_some_and(|(nominal, args)| {
+                    (!is_this || args.is_empty())
+                        && nominal
+                            .fields()
+                            .iter()
+                            .any(|field| field.symbol() == projection.field())
                 })
     }
 }

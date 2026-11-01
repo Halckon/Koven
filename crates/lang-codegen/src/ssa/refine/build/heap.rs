@@ -149,6 +149,35 @@ impl Builder<'_, '_> {
             .typed
             .aggregate_projection(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let result_type = self.ssa_type(self.expression_type(expression)?, span)?;
+        if let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            && receiver.source_unit() == self.inputs.source_unit
+        {
+            let mut ungrouped = receiver.expression();
+            while let (Expression::Group { expression: inner }, _) = self.node(ungrouped)? {
+                ungrouped = inner;
+            }
+            if self
+                .inputs
+                .typed
+                .aggregate_projection(self.unit(ungrouped))
+                .is_some()
+            {
+                let (leaf_loan, created, drops) = self.field_projection_loan(expression, span)?;
+                let result = self.value(
+                    ROp::ReadLoan { loan: leaf_loan },
+                    EntityType::Value(result_type),
+                    span,
+                )?;
+                for loan in created.into_iter().rev() {
+                    self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+                }
+                for receiver_expr in drops {
+                    self.drops(UnitDropPoint::AfterExpression(self.unit(receiver_expr)))?;
+                }
+                return Ok(Lowered::Value(result));
+            }
+        }
         let (owner, owner_type, receiver) = self.projection_owner(projection.receiver(), span)?;
         let field = self
             .types
@@ -156,7 +185,6 @@ impl Builder<'_, '_> {
             .get(&(owner_type, projection.field()))
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let result_type = self.ssa_type(self.expression_type(expression)?, span)?;
         let rc_payload = receiver.is_some_and(|receiver| {
             self.inputs
                 .typed

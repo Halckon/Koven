@@ -46,18 +46,100 @@ impl Builder<'_, '_> {
         let replacement = self.adapt(replacement, value, self.c(projection.ty()))?;
         self.deliver(value);
         let loan = self.owner_loan(owner, LoanKind::Exclusive, span)?;
-        self.push(
+        let op = if self.is_value_class(owner_type) {
+            ROp::InlineFieldReplace {
+                receiver: loan.loan,
+                field,
+                value: replacement,
+            }
+        } else {
             ROp::HeapFieldReplace {
                 receiver: loan.loan,
                 field,
                 value: replacement,
-            },
-            Vec::new(),
-            span,
-        )?;
+            }
+        };
+        self.push(op, Vec::new(), span)?;
         self.end_owner_loan(loan, span)?;
         let replaced = self.collect_drops(UnitDropPoint::BeforeReplacement(self.unit(assignment)));
         self.finish_drops(&replaced);
         Ok(Lowered::Unit)
+    }
+
+    pub(super) fn local_variable(
+        &mut self,
+        declaration: lang_frontend::ast::ItemId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let node = self
+            .inputs
+            .parsed
+            .ast()
+            .items()
+            .get(declaration)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+        let lang_frontend::parser::Item::Variable {
+            name, initializer, ..
+        } = node.payload().clone()
+        else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let lang_frontend::parser::NameMarker::Present(name_span) = name else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let symbol = self.declared_symbol(name_span)?;
+        let declared = self
+            .symbol_type(symbol)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if self.is_unit(declared) {
+            if self.expression(initializer)? == Lowered::Diverged {
+                return Ok(Lowered::Diverged);
+            }
+            return Ok(Lowered::Unit);
+        }
+        let Lowered::Value(value) = self.expression(initializer)? else {
+            return Ok(Lowered::Diverged);
+        };
+        let value = self.adapt(value, initializer, declared)?;
+        self.deliver(initializer);
+        let crate::ssa::model::EntityType::Value(ty) = self.body.slots[value.0] else {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        };
+        let binding = self.value(
+            ROp::Alias { source: value },
+            crate::ssa::model::EntityType::Value(ty),
+            span,
+        )?;
+        self.bindings.insert(symbol, binding);
+        Ok(Lowered::Unit)
+    }
+
+    fn declared_symbol(
+        &self,
+        name_span: Span,
+    ) -> Result<lang_frontend::name_resolution::UnitSymbolId, LoweringError> {
+        self.inputs
+            .names
+            .names()
+            .source_units()
+            .get(self.inputs.source_unit.index())
+            .and_then(|source| {
+                source.resolution().symbols().iter().find(|symbol| {
+                    symbol.span() == name_span
+                        && symbol.kind() == lang_frontend::name_resolution::SymbolKind::Variable
+                })
+            })
+            .and_then(|local| {
+                self.inputs
+                    .typed
+                    .body_symbol_types()
+                    .keys()
+                    .copied()
+                    .find(|symbol| {
+                        symbol.source_unit() == self.inputs.source_unit
+                            && symbol.symbol() == local.id()
+                    })
+            })
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, name_span))
     }
 }

@@ -500,6 +500,29 @@ impl Emitter<'_> {
                 field: *field,
                 value: self.value(*value, span)?,
             },
+            ROp::InlineFieldReplace {
+                receiver,
+                field,
+                value,
+            } => Operation::InlineFieldReplace {
+                receiver: loan(self.get(*receiver, span)?, span)?,
+                field: *field,
+                value: self.value(*value, span)?,
+            },
+            ROp::HeapPayloadPlace { owner } => Operation::HeapPayloadPlace {
+                owner: self.value(*owner, span)?,
+            },
+            ROp::HeapFieldExchange {
+                owner,
+                field,
+                loan: slot,
+                replacement,
+            } => Operation::HeapFieldExchange {
+                owner: self.value(*owner, span)?,
+                field: *field,
+                loan: loan(self.get(*slot, span)?, span)?,
+                replacement: self.value(*replacement, span)?,
+            },
             ROp::ContainerConstruct {
                 container,
                 elements,
@@ -575,6 +598,15 @@ impl Emitter<'_> {
                 owner: self.value(*owner, span)?,
                 key: self.value(*key, span)?,
                 value: self.value(*value, span)?,
+            },
+            ROp::MapWithValue {
+                source,
+                key,
+                action,
+            } => Operation::MapWithValue {
+                source: loan(self.get(*source, span)?, span)?,
+                key: EntityId::Loan(loan(self.get(*key, span)?, span)?),
+                action: loan(self.get(*action, span)?, span)?,
             },
             ROp::LoanMutate { loan: slot, value } => Operation::LoanMutate {
                 loan: loan(self.get(*slot, span)?, span)?,
