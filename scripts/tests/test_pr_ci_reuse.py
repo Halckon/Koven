@@ -107,6 +107,26 @@ class ReuseTests(unittest.TestCase):
         self.assertEqual({'Tree-sitter CLI Corpus'}, CI.required_job_names(dict(rust='false', preview='false', editors='true')))
         self.assertEqual(9, len(CI.required_job_names(dict(rust='true', preview='true', editors='false'))))
 
+    def test_macos_15_jobs_are_required_and_retired_14_evidence_is_rejected(self):
+        expected = {f'{name} (macos-15)' for name in (
+            'Workspace Check & Clippy', 'Targeted Tests',
+            'Preview Producer', 'Preview Independent Consumer')}
+        self.assertEqual(expected, {name for name in CI.required_job_names(self.flags)
+                                    if '(macos-' in name})
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text()
+        self.assertEqual(2, workflow.count('os: [macos-15, ubuntu-24.04]'))
+        self.assertEqual(2, workflow.count('runs-on: macos-15'))
+        for name in ('Preview Producer', 'Preview Independent Consumer'):
+            self.assertIn(f'name: {name} (macos-15)', workflow)
+        self.assertNotIn('macos-14', workflow)
+        self.assertNotIn('macos-latest', workflow)
+        self.assertTrue(self.valid())
+        jobs = copy.deepcopy(self.jobs)
+        for job in jobs:
+            job['name'] = job['name'].replace('(macos-15)', '(macos-14)')
+        self.assertFalse(CI.valid_evidence(self.run, jobs, self.context, self.flags,
+                                         lambda head, merge, base: 'd' * 64))
+
     def test_history_search_reaches_physical_baseline_not_reuse_marker(self):
         reused = {**self.run, 'id': 15}
         api = self.fake_api([reused, self.run], {15: [], 10: self.jobs})

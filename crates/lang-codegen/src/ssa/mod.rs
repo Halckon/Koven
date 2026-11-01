@@ -9,6 +9,7 @@ mod inline_nullable;
 mod integer;
 mod integer_range;
 mod integer_range_type;
+#[cfg(test)]
 mod lower_frontend;
 mod map_result;
 mod map_source;

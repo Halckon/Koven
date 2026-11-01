@@ -246,7 +246,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-15, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -278,7 +278,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-15, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -339,13 +339,13 @@ jobs:
           if-no-files-found: error
 
   preview-macos-produce:
-    name: Preview Producer (macos-14)
+    name: Preview Producer (macos-15)
     needs: [changes, test]
     if: |
       needs.changes.outputs.reuse != 'true' &&
       always() && needs.test.result == 'success' &&
       (needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     outputs:
       artifact-id: ${{ steps.candidate.outputs.artifact-id }}
@@ -387,10 +387,10 @@ jobs:
           if-no-files-found: error
 
   preview-macos-consume:
-    name: Preview Independent Consumer (macos-14)
+    name: Preview Independent Consumer (macos-15)
     needs: preview-macos-produce
     if: always() && needs.preview-macos-produce.result == 'success'
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/setup-python@v7

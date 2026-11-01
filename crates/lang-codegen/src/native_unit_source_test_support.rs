@@ -313,6 +313,14 @@ impl UnitSource {
         }
     }
 
+    /// Borrow the admitted basic capability without converting constant products.
+    pub(crate) fn basic_types(&self) -> &ValidatedCompilationUnitTypes {
+        let OwnedProducts::Basic(typed, _) = &self.products else {
+            panic!("fixture requires its original basic type capability");
+        };
+        typed
+    }
+
     /// Inspect the same admitted ownership products subsequently consumed by lowering.
     pub(crate) fn ownership(&self) -> &CompilationUnitOwnership {
         match &self.products {

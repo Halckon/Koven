@@ -71,11 +71,11 @@ def required_job_names(flags):
     names = set()
     if flags['rust'] == 'true' or flags['preview'] == 'true':
         names.add('Rust Code Formatting')
-        for host in ('macos-14', 'ubuntu-24.04'):
+        for host in ('macos-15', 'ubuntu-24.04'):
             names.add(f'Workspace Check & Clippy ({host})')
             names.add(f'Targeted Tests ({host})')
     if flags['preview'] == 'true':
-        for host in ('macos-14', 'ubuntu-24.04'):
+        for host in ('macos-15', 'ubuntu-24.04'):
             names.add(f'Preview Producer ({host})')
             names.add(f'Preview Independent Consumer ({host})')
     if flags['editors'] == 'true':

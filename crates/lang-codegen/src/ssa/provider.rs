@@ -328,6 +328,7 @@ impl GuardedElement {
         self.step
     }
 
+    #[cfg(test)]
     pub(crate) fn set_loan(&mut self, loan: LoanId) {
         self.loan = loan;
     }
