@@ -1,5 +1,7 @@
 """Detection evidence must reject ordinary failure, missing wiring and empty tests."""
 import importlib.util
+import contextlib
+import errno
 import os
 from pathlib import Path
 import subprocess
@@ -12,6 +14,90 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("sanitizers", ROOT / "scripts/check_native_sanitizers.py")
 GATE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GATE)
+
+
+class ProcessGroupUsageTests(unittest.TestCase):
+    GROUP = 73
+    PAGE_BYTES = 4096
+
+    def stat(self, group, pages):
+        # State is field 3, pgrp is field 5, and RSS is field 24.
+        fields = ["S", "1", str(group), *(["0"] * 18), str(pages)]
+        return "123 (worker (with spaces)) " + " ".join(fields)
+
+    @contextlib.contextmanager
+    def snapshot(self, *entries):
+        proc = mock.MagicMock(spec=Path)
+        proc.__truediv__.return_value.is_file.return_value = True
+        paths = []
+        for entry in entries:
+            path = mock.Mock(spec=Path)
+            if isinstance(entry, Exception):
+                path.read_text.side_effect = entry
+            else:
+                path.read_text.return_value = entry
+            paths.append(path)
+        proc.glob.return_value = paths
+        with mock.patch.object(GATE, "Path", return_value=proc), \
+                mock.patch.object(GATE.os, "sysconf", return_value=self.PAGE_BYTES):
+            yield proc, paths
+
+    def test_disappearing_pid_does_not_hide_surviving_group_members(self):
+        for number in (errno.ENOENT, errno.ESRCH):
+            with self.subTest(errno=number), self.snapshot(
+                    self.stat(self.GROUP, 3), OSError(number, "process disappeared"),
+                    self.stat(self.GROUP + 1, 1000), self.stat(self.GROUP, 5)) as (proc, paths):
+                self.assertEqual(GATE.process_group_usage(self.GROUP), (8 * self.PAGE_BYTES, 2))
+                proc.glob.assert_called_once_with("[0-9]*/stat")
+                for path in paths:
+                    path.read_text.assert_called_once_with()
+
+    def test_other_stat_io_errors_are_not_ignored(self):
+        for number in (errno.EACCES, errno.EPERM, errno.EIO):
+            error = OSError(number, "controlled stat failure")
+            with self.subTest(errno=number), self.snapshot(self.stat(self.GROUP, 3), error):
+                with self.assertRaises(OSError) as observed:
+                    GATE.process_group_usage(self.GROUP)
+                self.assertIs(observed.exception, error)
+
+    def test_missing_proc_accounting_is_not_an_empty_group(self):
+        with self.snapshot() as (proc, _paths):
+            proc.__truediv__.return_value.is_file.return_value = False
+            with self.assertRaisesRegex(OSError, "required Linux /proc accounting is unavailable"):
+                GATE.process_group_usage(self.GROUP)
+            proc.glob.assert_not_called()
+
+    def test_disappearance_outside_one_stat_read_is_not_ignored(self):
+        error = ProcessLookupError(errno.ESRCH, "controlled enumeration failure")
+        with self.snapshot() as (proc, _paths):
+            proc.glob.side_effect = error
+            with self.assertRaises(ProcessLookupError) as observed:
+                GATE.process_group_usage(self.GROUP)
+            self.assertIs(observed.exception, error)
+
+    def test_malformed_stat_is_not_an_empty_group(self):
+        for text, error in (("missing fields", IndexError),
+                            (self.stat("not-a-group", 3), ValueError),
+                            (self.stat(self.GROUP, "not-rss"), ValueError)):
+            with self.subTest(stat=text), self.snapshot(text):
+                with self.assertRaises(error):
+                    GATE.process_group_usage(self.GROUP)
+
+    def test_disappearing_pid_does_not_bypass_remaining_resource_budgets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for suffix in ("stdout", "stderr"):
+                (directory / f"sample.{suffix}").touch()
+            for number in (errno.ENOENT, errno.ESRCH):
+                for limits in ({"rss_bytes": 7 * self.PAGE_BYTES}, {"processes": 1}):
+                    with self.subTest(errno=number, limits=limits), self.snapshot(
+                            self.stat(self.GROUP, 3), OSError(number, "process disappeared"),
+                            self.stat(self.GROUP, 5)):
+                        observed = {}
+                        with self.assertRaisesRegex(GATE.ResourceLimit, "RSS/process count"):
+                            GATE.check_limits(directory, "sample", limits, observed, self.GROUP)
+                        self.assertEqual(observed["peak_rss_bytes"], 8 * self.PAGE_BYTES)
+                        self.assertEqual(observed["peak_processes"], 2)
 
 
 class NativeSanitizerGateTests(unittest.TestCase):

@@ -34,8 +34,9 @@ def process_group_usage(group):
             # comm can contain spaces and parentheses; fields after its final )
             # begin at state (#3), pgrp is #5 and resident pages are #24.
             fields = path.read_text().rsplit(")", 1)[1].split()
-        except FileNotFoundError:
-            continue  # A process exiting between enumeration and read is normal.
+        except (FileNotFoundError, ProcessLookupError):
+            # Exit before open can yield ENOENT; exit before read can yield ESRCH.
+            continue
         if int(fields[2]) == group:
             count += 1
             pages += int(fields[21])
