@@ -12,7 +12,7 @@ use crate::{
 fn source_parameters_keep_declaration_member_and_external_boundaries() {
     const SOURCE: &str = "fun take(value: Int): Int = value\n\
         class Worker { fun take(member: Int): Int = member }\n\
-        fun run(worker: Worker): Int { println(1); return take(worker.take(2)) }";
+        fun run(worker: Worker): Int { println(\"ok\"); return take(worker.take(2)) }";
     for memory in [false, true] {
         let mut sources = SourceMap::new();
         let source = sources.add_source("signature.ko", SOURCE).unwrap();
@@ -29,10 +29,9 @@ fn source_parameters_keep_declaration_member_and_external_boundaries() {
             .unwrap()
             .validate()
             .unwrap();
-        let typed = check_compilation_unit_types(&sources, &inputs, &names, &te)
-            .unwrap()
-            .validate()
-            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &te).unwrap();
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let typed = typed.validate().unwrap();
         let mut observed = Vec::new();
         for call in typed.types().calls() {
             let expression = call.expression();
@@ -52,7 +51,7 @@ fn source_parameters_keep_declaration_member_and_external_boundaries() {
                     assert!(matches!(call.target(), UnitCallTarget::Symbol(_)));
                     Some("member: Int")
                 }
-                "println(1)" => {
+                "println(\"ok\")" => {
                     assert!(matches!(call.target(), UnitCallTarget::External(_)));
                     None
                 }
@@ -83,7 +82,7 @@ fn source_parameters_keep_declaration_member_and_external_boundaries() {
         observed.sort();
         assert_eq!(
             observed,
-            ["println(1)", "take(worker.take(2))", "worker.take(2)"]
+            ["println(\"ok\")", "take(worker.take(2))", "worker.take(2)"]
         );
     }
 }

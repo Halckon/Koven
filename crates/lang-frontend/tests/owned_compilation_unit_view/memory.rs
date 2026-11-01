@@ -108,6 +108,20 @@ fn assert_source_analysis_gate(
         (
             sources,
             duplicate.as_slice(),
+            names,
+            environment,
+            OwnedCompilationUnitViewError::MismatchedSource,
+        ),
+        (
+            &foreign,
+            inputs,
+            names,
+            environment,
+            OwnedCompilationUnitViewError::MismatchedSource,
+        ),
+        (
+            sources,
+            duplicate.as_slice(),
             &fresh_names,
             &fresh_environment,
             OwnedCompilationUnitViewError::MismatchedSource,
