@@ -38,7 +38,6 @@ impl Checker<'_, '_> {
             || descriptor.operator() != AssignmentOperator::Assign
             || !self.known.contains(&symbol)
             || self.callables.contains(&symbol)
-            || self.inputs.typed.non_null_use(target_id).is_some()
             || self.symbol_type(symbol) != Some(target_ty)
             || !self.storage_type(target_ty)
             || !self.adaptable(value, target_ty)
