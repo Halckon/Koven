@@ -98,6 +98,8 @@ pub(in crate::ssa::unit_lower) fn declare(
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             let mut callable_parameter_types = Vec::with_capacity(callable_parameters.len());
+            let mut parameter_symbols = Vec::with_capacity(callable_parameters.len());
+            let mut parameter_modes = Vec::with_capacity(callable_parameters.len());
             let mut move_only_value_parameters = Vec::new();
             for (parameter, parameter_span) in callable_parameters.iter().zip(parameter_spans) {
                 let concrete = resolve_concrete_type(
@@ -123,17 +125,30 @@ pub(in crate::ssa::unit_lower) fn declare(
                         *parameter_span,
                     ));
                 }
+                let symbol = names
+                    .names()
+                    .source_units()
+                    .get(instance.source_unit().index())
+                    .and_then(|source| {
+                        source.resolution().symbols().iter().find(|symbol| {
+                            symbol.span() == *parameter_span
+                                && symbol.kind() == SymbolKind::LambdaParameter
+                        })
+                    })
+                    .and_then(|parameter_symbol| {
+                        typed.body_symbol_types().keys().copied().find(|symbol| {
+                            symbol.source_unit() == instance.source_unit()
+                                && symbol.symbol() == parameter_symbol.id()
+                        })
+                    })
+                    .ok_or_else(|| {
+                        lowering_error(LoweringErrorKind::MissingFact, *parameter_span)
+                    })?;
                 if supported_value && typed.copyability(concrete) == Copyability::MoveOnly {
-                    let symbol = owned
-                        .bindings()
-                        .iter()
-                        .find(|binding| binding.declaration_span() == *parameter_span)
-                        .map(|binding| binding.symbol())
-                        .ok_or_else(|| {
-                            lowering_error(LoweringErrorKind::MissingFact, *parameter_span)
-                        })?;
                     move_only_value_parameters.push(symbol);
                 }
+                parameter_symbols.push(symbol);
+                parameter_modes.push(parameter.mode());
                 let ty = types.intern(module, typed, concrete, *parameter_span)?;
                 callable_parameter_types.push(match parameter.mode() {
                     ParameterMode::Value => EntityType::Value(ty),
@@ -243,6 +258,7 @@ pub(in crate::ssa::unit_lower) fn declare(
                 capture_types.push(ClosureCaptureType { mode, ty });
                 captures.push(CapturePlan {
                     symbol,
+                    unit_ty: concrete,
                     ty,
                     storage,
                     mode: capture.mode(),
@@ -256,14 +272,14 @@ pub(in crate::ssa::unit_lower) fn declare(
                 instance.source_unit().index(),
                 expression.index()
             );
-            let (callable, thunk_parameters) = if captures.is_empty() {
+            let (callable, environment, thunk_parameters) = if captures.is_empty() {
                 let callable = module
                     .add_function_pointer_type_with_parameters(
                         callable_parameter_types.clone(),
                         callable_returns.clone(),
                     )
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                (callable, callable_parameter_types)
+                (callable, None, callable_parameter_types)
             } else {
                 let environment = module
                     .add_aggregate_type(format!("{identity}.environment"), environment_fields)
@@ -282,7 +298,7 @@ pub(in crate::ssa::unit_lower) fn declare(
                     target: environment,
                 }];
                 thunk_parameters.extend(callable_parameter_types);
-                (callable, thunk_parameters)
+                (callable, Some(environment), thunk_parameters)
             };
             if closures
                 .insert(
@@ -293,9 +309,11 @@ pub(in crate::ssa::unit_lower) fn declare(
                         parameters: thunk_parameters,
                         source_unit: instance.source_unit(),
                         callable,
+                        environment,
                         body: *body,
                         span,
-                        parameter_spans: parameter_spans.to_vec(),
+                        parameter_symbols,
+                        parameter_modes,
                         return_type,
                         result_expression,
                         captures,

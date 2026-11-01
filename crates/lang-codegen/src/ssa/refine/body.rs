@@ -134,6 +134,15 @@ pub(super) enum ROp {
         base: Slot,
         field: usize,
     },
+    /// Projects an active shared loan of a heap class owner to one field's shared loan.
+    SharedHeapFieldLoan {
+        base: Slot,
+        field: usize,
+    },
+    /// Dereferences an environment field's shared loan of a shared capture to the target's loan.
+    SharedReferenceFollow {
+        source: Slot,
+    },
     /// Copies a Copyable field out of an inline aggregate value.
     AggregateProject {
         aggregate: Slot,
@@ -175,6 +184,11 @@ pub(super) enum ROp {
         view: Slot,
         arguments: Vec<Slot>,
     },
+    /// ADR-0034: calls a local callable binding through its shared loan.
+    CallableInvoke {
+        callable: Slot,
+        arguments: Vec<Slot>,
+    },
     /// Takes a MoveOnly owner back from its root place after its loans ended.
     RootPlaceTake {
         owner: Slot,
@@ -195,9 +209,17 @@ impl ROp {
             | Self::StringLiteral { .. }
             | Self::NullableNull { .. }
             | Self::FunctionAddress { .. } => Vec::new(),
-            Self::CallableViewOf { source } => vec![*source],
+            Self::CallableViewOf { source } | Self::SharedReferenceFollow { source } => {
+                vec![*source]
+            }
             Self::ClosureConstruct { captures, .. } => captures.clone(),
             Self::CallableInvokeView { view, arguments } => std::iter::once(*view)
+                .chain(arguments.iter().copied())
+                .collect(),
+            Self::CallableInvoke {
+                callable,
+                arguments,
+            } => std::iter::once(*callable)
                 .chain(arguments.iter().copied())
                 .collect(),
             Self::Alias { source: slot }
@@ -224,7 +246,8 @@ impl ROp {
             | Self::AggregateProject {
                 aggregate: slot, ..
             }
-            | Self::SharedFieldLoan { base: slot, .. } => vec![*slot],
+            | Self::SharedFieldLoan { base: slot, .. }
+            | Self::SharedHeapFieldLoan { base: slot, .. } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::StringConcat { left, right }
@@ -298,12 +321,10 @@ pub(super) enum RTerm {
 impl RTerm {
     pub(super) fn operands(&self) -> Vec<Slot> {
         match self {
-            Self::Goto(_) | Self::Return(None) => Vec::new(),
+            Self::Goto(_) | Self::Return(None) | Self::Abort(_) => Vec::new(),
             Self::Branch { condition, .. } => vec![*condition],
             Self::NullBranch { owner, .. } => vec![*owner],
             Self::Return(Some(value)) => vec![*value],
-            Self::Abort(RAbort::CheckedArithmetic { divisor, .. }) => vec![*divisor],
-            Self::Abort(RAbort::NullAssertion | RAbort::UnmatchedWhen) => Vec::new(),
         }
     }
 

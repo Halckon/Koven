@@ -177,6 +177,7 @@ fn place(entity: EntityId, span: Span) -> Result<PlaceId, LoweringError> {
 struct Emitter<'f> {
     function: &'f mut Function,
     current: BTreeMap<Slot, EntityId>,
+    defined: BTreeMap<Slot, EntityId>,
 }
 
 impl Emitter<'_> {
@@ -189,6 +190,16 @@ impl Emitter<'_> {
 
     fn value(&self, slot: Slot, span: Span) -> Result<ValueId, LoweringError> {
         value(self.get(slot, span)?, span)
+    }
+
+    fn abort_divisor(&self, slot: Slot, span: Span) -> Result<ValueId, LoweringError> {
+        let entity = self
+            .current
+            .get(&slot)
+            .or_else(|| self.defined.get(&slot))
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        value(entity, span)
     }
 
     fn operation(&self, op: &ROp, span: Span) -> Result<Operation, LoweringError> {
@@ -312,6 +323,13 @@ impl Emitter<'_> {
                 base: loan(self.get(*base, span)?, span)?,
                 field: *field,
             },
+            ROp::SharedHeapFieldLoan { base, field } => Operation::SharedHeapFieldLoan {
+                base: loan(self.get(*base, span)?, span)?,
+                field: *field,
+            },
+            ROp::SharedReferenceFollow { source } => Operation::SharedReferenceFollow {
+                source: loan(self.get(*source, span)?, span)?,
+            },
             ROp::AggregateProject { aggregate, field } => Operation::AggregateProject {
                 aggregate: self.value(*aggregate, span)?,
                 field: *field,
@@ -359,6 +377,16 @@ impl Emitter<'_> {
             },
             ROp::CallableInvokeView { view, arguments } => Operation::CallableInvokeView {
                 view: loan(self.get(*view, span)?, span)?,
+                arguments: arguments
+                    .iter()
+                    .map(|slot| self.get(*slot, span))
+                    .collect::<Result<_, _>>()?,
+            },
+            ROp::CallableInvoke {
+                callable,
+                arguments,
+            } => Operation::CallableInvoke {
+                callable: self.value(*callable, span)?,
                 arguments: arguments
                     .iter()
                     .map(|slot| self.get(*slot, span))
@@ -437,6 +465,7 @@ pub(super) fn emit(
     let mut emitter = Emitter {
         function,
         current: BTreeMap::new(),
+        defined: BTreeMap::new(),
     };
     for block in &reachable {
         let target = blocks[block];
@@ -445,11 +474,15 @@ pub(super) fn emit(
             .copied()
             .zip(entities[block].iter().copied())
             .collect();
+        emitter
+            .defined
+            .extend(emitter.current.iter().map(|(k, v)| (*k, *v)));
         for statement in &body.blocks[block.0].statements {
             if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
             {
                 let entity = emitter.get(*source, statement.span)?;
                 emitter.current.insert(*result, entity);
+                emitter.defined.insert(*result, entity);
                 continue;
             }
             let operation = emitter.operation(&statement.op, statement.span)?;
@@ -464,6 +497,7 @@ pub(super) fn emit(
                 .map_err(|_| error(LoweringErrorKind::InvalidModel, statement.span))?;
             for (slot, entity) in statement.results.iter().zip(results) {
                 emitter.current.insert(*slot, entity);
+                emitter.defined.insert(*slot, entity);
             }
         }
         let (terminator, term_span) = body.blocks[block.0].terminator.as_ref().expect("reachable");
@@ -482,7 +516,7 @@ pub(super) fn emit(
         let model_error = |_| error(LoweringErrorKind::InvalidModel, *term_span);
         match terminator {
             RTerm::Abort(RAbort::CheckedArithmetic { operator, divisor }) => {
-                let divisor = emitter.value(*divisor, *term_span)?;
+                let divisor = emitter.abort_divisor(*divisor, *term_span)?;
                 emitter
                     .function
                     .set_abort_terminator(

@@ -26,10 +26,33 @@ use super::{
     unit_plan::{UnitCallablePlan, UnitFunctionInstanceKey},
 };
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(in crate::ssa) enum RefineBody {
     Expression(ExpressionId),
     Block(StatementId),
+    /// A lambda thunk body (ADR-0034 §1).
+    Lambda(RefineThunk),
+}
+
+/// One capture slot in a lambda thunk's borrowed environment (ADR-0034 §1).
+#[derive(Clone, Copy, Debug)]
+pub(in crate::ssa) struct RefineThunkCapture {
+    pub(in crate::ssa) symbol: UnitSymbolId,
+    pub(in crate::ssa) ty: UnitTypeId,
+    pub(in crate::ssa) storage: SsaTypeId,
+    pub(in crate::ssa) mode: lang_frontend::ownership_checking::ClosureCaptureMode,
+    pub(in crate::ssa) span: Span,
+}
+
+/// A lambda thunk instance lowered by the refinement layer (ADR-0034 §1).
+#[derive(Clone, Debug)]
+pub(in crate::ssa) struct RefineThunk {
+    pub(in crate::ssa) expression: lang_frontend::type_checking::UnitExpressionId,
+    pub(in crate::ssa) body: StatementId,
+    pub(in crate::ssa) result: Option<ExpressionId>,
+    /// The closure's `.environment` aggregate type when `!captures.is_empty()`.
+    pub(in crate::ssa) environment: Option<SsaTypeId>,
+    pub(in crate::ssa) captures: Vec<RefineThunkCapture>,
 }
 
 /// The current receiver of a method instance; its entity precedes the parameters.
@@ -61,7 +84,7 @@ pub(in crate::ssa) struct RefineCallable {
     pub(in crate::ssa) captures: Vec<RefineCapture>,
 }
 
-/// Everything one function instance needs; all facts come from the same validated unit.
+/// Everything one function or lambda thunk instance needs; all facts come from the same unit.
 pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) sources: &'a SourceMap,
     pub(in crate::ssa) parsed: &'a ParsedFile,
@@ -75,7 +98,8 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) source_plan: &'a UnitCallablePlan,
     pub(in crate::ssa) source_token: SourceToken,
     pub(in crate::ssa) references: &'a BTreeMap<(usize, usize), UnitSymbolId>,
-    pub(in crate::ssa) function_item: ItemId,
+    /// `Some` for a function instance, `None` for a lambda thunk.
+    pub(in crate::ssa) function_item: Option<ItemId>,
     pub(in crate::ssa) body: RefineBody,
     pub(in crate::ssa) return_type: UnitTypeId,
     pub(in crate::ssa) receiver: Option<RefineReceiver>,
@@ -93,9 +117,25 @@ pub(in crate::ssa) struct RefineInputs<'a> {
         &'a BTreeMap<lang_frontend::type_checking::UnitExpressionId, RefineCallable>,
     /// Callable view targets of Borrow function types, by concrete function type.
     pub(in crate::ssa) views: &'a BTreeMap<UnitTypeId, SsaTypeId>,
+    /// Concrete callable return types of planned functions that return a callable.
+    pub(in crate::ssa) callable_returns: &'a BTreeMap<FunctionId, SsaTypeId>,
 }
 
 impl RefineInputs<'_> {
+    /// The lexical span of this function or lambda thunk.
+    pub(in crate::ssa) fn scope_span(&self) -> Option<Span> {
+        match self.function_item {
+            Some(item) => self
+                .parsed
+                .ast()
+                .items()
+                .get(item)
+                .ok()
+                .map(|node| node.span()),
+            None => Some(self.span),
+        }
+    }
+
     /// The concrete identity of a type read from the (template) typed facts; the identity
     /// itself for a non-generic function.
     pub(in crate::ssa) fn concrete(&self, ty: UnitTypeId) -> Option<UnitTypeId> {

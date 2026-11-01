@@ -519,7 +519,6 @@ impl UnitExpressionLowerer<'_> {
             self.source_unit,
             expression,
         )))?;
-        self.end_thunk_capture_views(span)?;
         self.retire_nullable_when_transfers(0, span)?;
         self.retire_while_proofs(true, span)?;
         if string_if_return && !self.nullable_proofs.is_empty() {
@@ -734,7 +733,6 @@ impl UnitExpressionLowerer<'_> {
             }
             return self.callable_abi.expression_type(
                 self.source_plan,
-                self.typed,
                 self.owned,
                 self.source_token,
                 UnitExpressionId::new(self.source_unit, expression),

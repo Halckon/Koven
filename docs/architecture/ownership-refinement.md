@@ -43,6 +43,11 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 对 owned 值做 `AggregateProject`，对 loan 经 `SharedFieldLoan` 读出，receiver 可为 Value 或 Borrow。
 `!!`（SPEC-0362）也接受括号名称与 `if` 临时 operand；Value 实参在调用点统一交付，实参中途的
 `return`/`break`/`continue` 在跳转边释放已求值的命名 owner 实参（`ControlTransfer` 的 `Temporary` 事实）。
+闭包家族（SPEC-0364/0365/0370、ADR-0034）：Borrow 函数参数接收 `CallableView` shared loan 并经
+`CallableInvokeView` 调用；lambda 字面量形成 `FunctionAddress` 或 `ClosureConstruct`（shared capture
+建立源借用，owned Move 捕获消费来源绑定），可直接借出为 view、作为函数返回值或绑定到局部 callable
+变量（经 `CallableInvoke` 调用或借出为 view）；lambda 体（thunk）同样由 `ssa::refine` 构建，入口按序
+投影环境字段借用（`SharedFieldLoan` 与 `SharedReferenceFollow`）并在 `Return` 前逆序 `BorrowEnd`。
 
 ## inline nullable 布局
 

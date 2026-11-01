@@ -35,6 +35,8 @@ struct Checker<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
     /// Parameters and locals declared so far, with whether they are `var`.
     known: BTreeSet<UnitSymbolId>,
+    /// Local bindings holding a concrete callable owner (function pointer or closure).
+    callables: BTreeSet<UnitSymbolId>,
     /// Expressions lowered in branch form, whose own drop points are never emitted.
     branch_form: BTreeSet<UnitExpressionId>,
     /// Pilot routing gate: the function touches a nullable value.
@@ -49,21 +51,29 @@ struct Checker<'i, 'a> {
 }
 
 pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
+    let mut known: BTreeSet<_> = inputs.parameters.iter().copied().collect();
+    if let RefineBody::Lambda(thunk) = &inputs.body {
+        known.extend(thunk.captures.iter().map(|capture| capture.symbol));
+    }
     let mut checker = Checker {
         inputs,
-        known: inputs.parameters.iter().copied().collect(),
+        known,
+        callables: BTreeSet::new(),
         branch_form: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,
         replacements: BTreeSet::new(),
     };
-    let signature_types: Vec<_> = inputs
+    let mut signature_types: Vec<_> = inputs
         .parameters
         .iter()
         .filter_map(|symbol| checker.symbol_type(*symbol))
         .chain([inputs.return_type])
         .collect();
+    if let RefineBody::Lambda(thunk) = &inputs.body {
+        signature_types.extend(thunk.captures.iter().map(|capture| capture.ty));
+    }
     for ty in signature_types {
         checker.note_nullable(ty);
     }
@@ -115,9 +125,10 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
             .receiver
             .is_some_and(|receiver| receiver.mode == ParameterMode::Inout);
     signature
-        && match inputs.body {
-            RefineBody::Expression(expression) => checker.expression(expression),
-            RefineBody::Block(statement) => checker.statement(statement),
+        && match &inputs.body {
+            RefineBody::Expression(expression) => checker.expression(*expression),
+            RefineBody::Block(statement) => checker.statement(*statement),
+            RefineBody::Lambda(thunk) => checker.thunk_body(thunk),
         }
         && checker.drops_supported()
         && (checker.nullable || checker.migrated)
@@ -128,16 +139,16 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
     let checker = Checker {
         inputs,
         known: BTreeSet::new(),
+        callables: BTreeSet::new(),
         branch_form: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,
         replacements: BTreeSet::new(),
     };
-    let Ok(item) = inputs.parsed.ast().items().get(inputs.function_item) else {
+    let Some(item) = inputs.scope_span() else {
         return Vec::new();
     };
-    let item = item.span();
     let typed = inputs.typed;
     let mut demands: Vec<UnitTypeId> = inputs
         .parameters
@@ -146,6 +157,9 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         .chain([inputs.return_type])
         .chain(inputs.receiver.map(|receiver| receiver.ty))
         .collect();
+    if let RefineBody::Lambda(thunk) = &inputs.body {
+        demands.extend(thunk.captures.iter().map(|capture| capture.ty));
+    }
     for (expression, node) in inputs.parsed.ast().expressions().iter() {
         let span = node.span();
         if item.start() <= span.start() && span.end() <= item.end() {
@@ -386,7 +400,12 @@ impl Checker<'_, '_> {
         if self.inputs.typed.rc_operation(id).is_some() {
             return self.storage_type(ty) && self.rc_operation(expression);
         }
-        if !self.unspecialized(expression) || !(returns || self.unit(ty) || self.storage_type(ty)) {
+        if !self.unspecialized(expression)
+            || !(returns
+                || self.unit(ty)
+                || self.storage_type(ty)
+                || self.callable_value(expression))
+        {
             return false;
         }
         self.note_nullable(ty);
@@ -469,13 +488,13 @@ impl Checker<'_, '_> {
             } => self.subject_when(ty, subject, &entries),
             Expression::Call { arguments, .. } => {
                 let values: Vec<_> = arguments.iter().map(|argument| argument.value).collect();
-                let through_view = self
+                let function_value = self
                     .inputs
                     .typed
                     .call(self.id(expression))
                     .is_some_and(|descriptor| descriptor.target() == UnitCallTarget::FunctionValue);
                 self.call(expression)
-                    && (!through_view || self.view_callee(expression))
+                    && (!function_value || self.function_callee(expression, &values))
                     && self.arguments(expression, &values)
             }
             Expression::Assignment {
@@ -502,6 +521,13 @@ impl Checker<'_, '_> {
         };
         if !self.known.contains(&symbol) {
             return false;
+        }
+        if self.callables.contains(&symbol) {
+            return self
+                .inputs
+                .typed
+                .non_null_use(self.id(expression))
+                .is_none();
         }
         // A loan parameter is read by copy, so only a Copyable one is a value here.
         if matches!(
@@ -564,8 +590,11 @@ impl Checker<'_, '_> {
         supported && self.operand(left, string) && self.operand(right, string)
     }
 
-    /// A String operand may be a MoveOnly non-null name, read through its proof view.
+    /// A String operand may be a Borrow String binding or a MoveOnly non-null name.
     fn operand(&mut self, expression: ExpressionId, string: bool) -> bool {
+        if string && self.borrowed_string_name(expression) {
+            return true;
+        }
         if string
             && let Some(fact) = self.inputs.typed.non_null_use(self.id(expression))
             && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
@@ -813,6 +842,12 @@ impl Checker<'_, '_> {
             if mode == ParameterMode::Borrow && self.view_function(parameter) {
                 return self.callable_argument(value);
             }
+            if mode == ParameterMode::Borrow
+                && (self.borrowed_move_only_name(value, parameter)
+                    || self.borrowed_string_field(call, value, parameter))
+            {
+                return true;
+            }
             // A borrowed MoveOnly value is wrapped for a nullable parameter only when it is
             // a temporary whose drop obligation can move to the wrapper.
             if mode == ParameterMode::Borrow
@@ -854,7 +889,9 @@ impl Checker<'_, '_> {
             return false;
         };
         match node.payload().clone() {
-            Statement::Block { elements } | Statement::ControlBody { elements } => {
+            Statement::Block { elements }
+            | Statement::ControlBody { elements }
+            | Statement::LambdaBody { elements } => {
                 elements.into_iter().all(|element| self.statement(element))
             }
             Statement::Expression { expression } => self.expression(expression),
@@ -899,7 +936,6 @@ impl Checker<'_, '_> {
                 .sources
                 .slice(name_span)
                 .is_ok_and(|name| name == "_")
-            || !self.expression(initializer)
         {
             return false;
         }
@@ -928,11 +964,15 @@ impl Checker<'_, '_> {
         let Some(symbol) = symbol else {
             return false;
         };
-        let declared = self.symbol_type(symbol);
-        if let Some(ty) = declared {
-            self.note_nullable(ty);
+        let Some(declared) = self.symbol_type(symbol) else {
+            return false;
+        };
+        self.note_nullable(declared);
+        if self.view_or_function(declared) {
+            return self.callable_local(symbol, initializer);
         }
-        let supported = declared.is_some_and(|ty| self.storage_type(ty));
+        let supported =
+            (self.unit(declared) || self.storage_type(declared)) && self.expression(initializer);
         self.known.insert(symbol);
         supported
     }

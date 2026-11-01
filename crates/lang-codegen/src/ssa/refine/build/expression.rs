@@ -66,7 +66,11 @@ impl Builder<'_, '_> {
         }
     }
 
-    fn typed_value(&mut self, op: ROp, expression: ExpressionId) -> Result<Slot, LoweringError> {
+    pub(super) fn typed_value(
+        &mut self,
+        op: ROp,
+        expression: ExpressionId,
+    ) -> Result<Slot, LoweringError> {
         let span = self.span(expression);
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;
         self.value(op, EntityType::Value(ty), span)
@@ -318,10 +322,15 @@ impl Builder<'_, '_> {
             ))
         );
         if string {
-            // String operands are read, not consumed; a non-null use reads its proof view.
+            // String operands are read, not consumed; a Borrow binding or non-null use reads its loan.
             let mut operands = Vec::with_capacity(2);
             let mut view_reads = Vec::new();
             for operand in [left, right] {
+                if let Some(loan) = self.borrowed_string_loan(operand)? {
+                    operands.push(loan);
+                    view_reads.push(operand);
+                    continue;
+                }
                 if let Some(view) = self.narrowed_view(operand)? {
                     operands.push(view);
                     view_reads.push(operand);
@@ -567,9 +576,32 @@ impl Builder<'_, '_> {
                 && let Some(&view) = self.inputs.views.get(&self.c(argument.parameter_type()))
             {
                 // ADR-0034: a Borrow function parameter receives a callable view.
-                let (lent, created) = self.callable_argument(value_expression, view, span)?;
+                let (lent, created, read_argument) =
+                    self.callable_argument(value_expression, view, span)?;
                 loans.extend(created);
                 lowered.push(lent);
+                view_reads.extend(read_argument);
+                continue;
+            }
+            if argument.mode() == ParameterMode::Borrow
+                && let Some(loan) = self
+                    .borrowed_move_only_loan(value_expression, self.c(argument.parameter_type()))?
+            {
+                lowered.push(loan);
+                view_reads.push(value_expression);
+                continue;
+            }
+            if argument.mode() == ParameterMode::Borrow
+                && let Some((loan, created, field_receiver)) = self.borrowed_string_field_loan(
+                    value_expression,
+                    self.c(argument.parameter_type()),
+                    span,
+                )?
+            {
+                loans.extend(created);
+                lowered.push(loan);
+                view_reads.extend(field_receiver);
+                view_reads.push(value_expression);
                 continue;
             }
             if argument.mode() == ParameterMode::Borrow
@@ -628,22 +660,12 @@ impl Builder<'_, '_> {
             self.deliver(value_expression);
         }
         let mut receiver_end = None;
+        let mut invoked_callee = None;
+        let unit_return = self.is_unit(self.c(descriptor.return_type()));
         let result = if descriptor.target() == UnitCallTarget::FunctionValue {
-            // ADR-0034: a call through a view parameter.
-            let Expression::Call { callee, .. } = self.node(expression)?.0 else {
-                return Err(error(LoweringErrorKind::MissingFact, span));
-            };
-            let view = self.view_callee(callee)?;
-            let op = ROp::CallableInvokeView {
-                view,
-                arguments: lowered,
-            };
-            if self.is_unit(self.c(descriptor.return_type())) {
-                self.push(op, Vec::new(), span)?;
-                Lowered::Unit
-            } else {
-                Lowered::Value(self.typed_value(op, expression)?)
-            }
+            let (result, callee) = self.invoke_callable(expression, lowered, unit_return, span)?;
+            invoked_callee = callee;
+            result
         } else if descriptor.prints_line() {
             let [loan] = lowered.as_slice() else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
@@ -681,9 +703,11 @@ impl Builder<'_, '_> {
                 receiver,
                 arguments: lowered,
             };
-            if self.is_unit(self.c(descriptor.return_type())) {
+            if unit_return {
                 self.push(op, Vec::new(), span)?;
                 Lowered::Unit
+            } else if let Some(&callable) = self.inputs.callable_returns.get(&callee) {
+                Lowered::Value(self.value(op, EntityType::Value(callable), span)?)
             } else {
                 Lowered::Value(self.typed_value(op, expression)?)
             }
@@ -696,6 +720,9 @@ impl Builder<'_, '_> {
         }
         for writeback in writebacks {
             self.write_back(writeback)?;
+        }
+        if let Some(callee) = invoked_callee {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(callee)))?;
         }
         self.drops(UnitDropPoint::CallReturn(call))?;
         for argument in view_reads {

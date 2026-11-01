@@ -54,6 +54,7 @@ pub(super) type CallablePlanKey = (FunctionId, UnitExpressionId);
 #[derive(Clone, Copy)]
 pub(super) struct CapturePlan {
     symbol: UnitSymbolId,
+    unit_ty: UnitTypeId,
     ty: SsaTypeId,
     storage: SsaTypeId,
     mode: ClosureCaptureMode,
@@ -67,9 +68,11 @@ pub(super) struct CallableLayout {
     returns: Vec<SsaTypeId>,
     source_unit: SourceUnitId,
     pub(super) callable: SsaTypeId,
+    environment: Option<SsaTypeId>,
     body: StatementId,
     span: Span,
-    parameter_spans: Vec<Span>,
+    parameter_symbols: Vec<UnitSymbolId>,
+    parameter_modes: Vec<ParameterMode>,
     return_type: UnitTypeId,
     result_expression: Option<ExpressionId>,
     captures: Vec<CapturePlan>,
@@ -84,10 +87,12 @@ pub(super) struct CallablePlan {
     pub(super) source_unit: SourceUnitId,
     pub(super) expression: UnitExpressionId,
     pub(super) callable: SsaTypeId,
+    pub(super) environment: Option<SsaTypeId>,
     pub(super) thunk: FunctionId,
     pub(super) body: StatementId,
     pub(super) span: Span,
-    pub(super) parameter_spans: Vec<Span>,
+    pub(super) parameter_symbols: Vec<UnitSymbolId>,
+    pub(super) parameter_modes: Vec<ParameterMode>,
     pub(super) return_type: UnitTypeId,
     pub(super) result_expression: Option<ExpressionId>,
     pub(super) captures: Vec<CapturePlan>,
@@ -125,6 +130,27 @@ pub(super) fn refine_callables(
         .collect()
 }
 
+/// A lambda thunk body description for the refinement layer (SPEC-0370, ADR-0034).
+pub(super) fn refine_thunk(plan: &CallablePlan) -> crate::ssa::refine::RefineThunk {
+    crate::ssa::refine::RefineThunk {
+        expression: plan.expression,
+        body: plan.body,
+        result: plan.result_expression,
+        environment: plan.environment,
+        captures: plan
+            .captures
+            .iter()
+            .map(|capture| crate::ssa::refine::RefineThunkCapture {
+                symbol: capture.symbol,
+                ty: capture.unit_ty,
+                storage: capture.storage,
+                mode: capture.mode,
+                span: capture.span,
+            })
+            .collect(),
+    }
+}
+
 pub(super) fn declare(
     module: &mut Module,
     plans: &[FunctionPlan],
@@ -159,10 +185,12 @@ pub(super) fn declare(
                 source_unit: layout.source_unit,
                 expression,
                 callable: layout.callable,
+                environment: layout.environment,
                 thunk,
                 body: layout.body,
                 span: layout.span,
-                parameter_spans: layout.parameter_spans,
+                parameter_symbols: layout.parameter_symbols,
+                parameter_modes: layout.parameter_modes,
                 return_type: layout.return_type,
                 result_expression: layout.result_expression,
                 captures: layout.captures,
@@ -403,91 +431,6 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    pub(super) fn bind_callable_entry(&mut self, plan: &CallablePlan) -> Result<(), LoweringError> {
-        let parameters = self
-            .function
-            .block(self.block)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, plan.span))?
-            .parameters
-            .clone();
-        let parameter_offset = usize::from(!plan.captures.is_empty());
-        if parameters.len() != plan.parameter_spans.len() + parameter_offset {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, plan.span));
-        }
-        if let Some(first) = parameters.first().filter(|_| !plan.captures.is_empty()) {
-            let EntityId::Loan(environment) = first else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, plan.span));
-            };
-            for (field, capture) in plan.captures.iter().enumerate() {
-                let (_, results) = self
-                    .function
-                    .append_instruction(
-                        self.block,
-                        Operation::SharedFieldLoan {
-                            base: *environment,
-                            field,
-                        },
-                        vec![EntityType::Loan {
-                            kind: LoanKind::Shared,
-                            target: capture.storage,
-                        }],
-                        Origin::Source(capture.span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, capture.span))?;
-                let EntityId::Loan(mut loan) = results[0] else {
-                    return Err(lowering_error(
-                        LoweringErrorKind::InvalidModel,
-                        capture.span,
-                    ));
-                };
-                if capture.mode == ClosureCaptureMode::Shared {
-                    self.capture_loans.insert((plan.expression, field), loan);
-                    let (_, results) = self
-                        .function
-                        .append_instruction(
-                            self.block,
-                            Operation::SharedReferenceFollow { source: loan },
-                            vec![EntityType::Loan {
-                                kind: LoanKind::Shared,
-                                target: capture.ty,
-                            }],
-                            Origin::Source(capture.span),
-                        )
-                        .map_err(|_| {
-                            lowering_error(LoweringErrorKind::InvalidModel, capture.span)
-                        })?;
-                    let EntityId::Loan(target) = results[0] else {
-                        return Err(lowering_error(
-                            LoweringErrorKind::InvalidModel,
-                            capture.span,
-                        ));
-                    };
-                    loan = target;
-                }
-                self.borrow_bindings.insert(capture.symbol, loan);
-            }
-        }
-        for (span, entity) in plan
-            .parameter_spans
-            .iter()
-            .zip(parameters.into_iter().skip(parameter_offset))
-        {
-            let symbol = self.declaration_symbol(*span, SymbolKind::LambdaParameter)?;
-            match entity {
-                EntityId::Value(value) => {
-                    self.bindings.insert(symbol, LoweredValue::Value(value));
-                }
-                EntityId::Loan(loan) => {
-                    self.borrow_bindings.insert(symbol, loan);
-                }
-                EntityId::Place(_) => {
-                    return Err(lowering_error(LoweringErrorKind::InvalidModel, *span));
-                }
-            }
-        }
-        Ok(())
-    }
-
     pub(super) fn validate_closure_drop_facts(
         &self,
         facts: &[UnitDropFact],
@@ -555,25 +498,23 @@ pub(super) fn finish_thunk(
     lowerer: &mut UnitExpressionLowerer<'_>,
     plan: &CallablePlan,
 ) -> Result<(), LoweringError> {
+    // SPEC-0370: only capture-free `() -> Unit` lambdas whose bodies still use unmigrated
+    // map-iteration families remain on this fallback path.
+    if !plan.captures.is_empty()
+        || !plan.parameter_symbols.is_empty()
+        || builtin_type(lowerer.typed, plan.return_type) != Some(BuiltinType::Unit)
+    {
+        return Err(lowering_error(
+            LoweringErrorKind::UnsupportedNode,
+            plan.span,
+        ));
+    }
     lowerer.thunk_expression = Some(plan.expression);
-    lowerer.bind_callable_entry(plan)?;
     lowerer.emit_drops(
         lang_frontend::ownership_checking::UnitDropPoint::LambdaEntry(plan.expression),
     )?;
-    let result = if builtin_type(lowerer.typed, plan.return_type) == Some(BuiltinType::Unit) {
-        lowerer.lower_statement(plan.body)?
-    } else {
-        lowerer.lower_tail_value_body(plan.body)?
-    };
-    if let LoweredValue::Value(value) = result {
-        let expression = plan
-            .result_expression
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
-        lowerer.transfer_owned_expression(expression, value, plan.span)?;
-    }
+    let result = lowerer.lower_statement(plan.body)?;
     lowerer.finish_local_map_function(plan.span)?;
-    // Abort does not unwind its operand-prefix owners; ordinary Return already
-    // consumed its frontend cleanup facts and is checked by the SSA verifier.
     if result == LoweredValue::Diverged {
         return Ok(());
     }
@@ -583,41 +524,14 @@ pub(super) fn finish_thunk(
             plan.span,
         ));
     }
-    for symbol in lowerer.bindings.keys() {
-        let ty = lowerer
-            .typed
-            .body_symbol_types()
-            .get(symbol)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
-        let ty = resolve_concrete_type(
-            lowerer.typed,
-            ty,
-            &plan.substitutions,
-            plan.static_self,
-            plan.span,
-        )?;
-        if lowerer.typed.copyability(ty) == Copyability::MoveOnly {
-            return Err(lowering_error(
-                LoweringErrorKind::UnsupportedNode,
-                plan.span,
-            ));
-        }
+    if result != LoweredValue::Unit {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, plan.span));
     }
-    lowerer.end_thunk_capture_views(plan.span)?;
-    let values = match (builtin_type(lowerer.typed, plan.return_type), result) {
-        (Some(BuiltinType::Unit), LoweredValue::Unit) => Vec::new(),
-        (Some(BuiltinType::Unit), LoweredValue::Value(_))
-        | (_, LoweredValue::Unit | LoweredValue::Diverged) => {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, plan.span));
-        }
-        (_, LoweredValue::Value(value)) => vec![value],
-    };
     lowerer
         .function
         .set_terminator(
             lowerer.block,
-            TerminatorKind::Return { values },
+            TerminatorKind::Return { values: Vec::new() },
             Origin::Source(plan.span),
         )
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, plan.span))

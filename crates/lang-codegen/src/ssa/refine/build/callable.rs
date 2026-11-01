@@ -1,63 +1,184 @@
-//! The closure family in the refined CFG (SPEC-0364, ADR-0034): calls through a callable
-//! view, views forwarded to Borrow function parameters, and lambda literals formed as
-//! function pointers or closures and lent to the callee as views.
+//! The closure family in the refined CFG (SPEC-0364, SPEC-0365, SPEC-0370, ADR-0034):
+//! lambda thunk bodies, local callable bindings, calls through callable views or local
+//! callables, and Borrow String/field loans in closure bodies.
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{ClosureCaptureEffect, ClosureCaptureMode},
+    ownership_checking::{ClosureCaptureEffect, ClosureCaptureMode, UnitDropPoint},
     parser::Expression,
     source::Span,
+    type_checking::{BuiltinType, UnitAggregateProjectionKind, UnitTypeId, UnitTypeKind},
 };
 
-use super::Builder;
+use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::{EntityType, LoanKind, SsaTypeId},
-    refine::body::{ROp, Slot},
+    model::{EntityId, EntityType, LoanKind, SsaTypeId},
+    refine::{
+        RefineBody, RefineThunk,
+        body::{ROp, Slot},
+    },
 };
 
+pub(super) type LentArgument = (Slot, Vec<Slot>, Option<ExpressionId>);
+
 impl Builder<'_, '_> {
-    /// The callable view loan of `callee`, a view parameter.
-    pub(super) fn view_callee(&self, callee: ExpressionId) -> Result<Slot, LoweringError> {
-        let mut callee = callee;
-        while let (Expression::Group { expression: inner }, _) = self.node(callee)? {
-            callee = inner;
+    /// Binds a lambda thunk's optional borrowed environment, capture projections, and
+    /// explicit parameters on entry.
+    pub(super) fn bind_thunk_entry(
+        &mut self,
+        thunk: &RefineThunk,
+        entities: &[EntityId],
+    ) -> Result<(), LoweringError> {
+        let env_count = usize::from(thunk.environment.is_some());
+        if entities.len() != env_count + self.inputs.parameters.len() {
+            return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
         }
-        let (Expression::Name, span) = self.node(callee)? else {
-            return Err(error(LoweringErrorKind::MissingFact, self.span(callee)));
-        };
-        let symbol = self.reference(span)?;
-        self.borrowed
-            .get(&symbol)
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+        let (env_entities, parameter_entities) = entities.split_at(env_count);
+        if let (Some(environment), [EntityId::Loan(_)]) = (thunk.environment, env_entities) {
+            let env_slot = self.body.slot(EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: environment,
+            });
+            self.body.parameters.push(env_slot);
+            for (field, capture) in thunk.captures.iter().enumerate() {
+                let parent = self.value(
+                    ROp::SharedFieldLoan {
+                        base: env_slot,
+                        field,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: capture.storage,
+                    },
+                    capture.span,
+                )?;
+                self.capture_loans.push(parent);
+                if capture.mode == ClosureCaptureMode::Shared {
+                    let target = self.ssa_type(capture.ty, capture.span)?;
+                    let child = self.value(
+                        ROp::SharedReferenceFollow { source: parent },
+                        EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target,
+                        },
+                        capture.span,
+                    )?;
+                    self.capture_loans.push(child);
+                    self.borrowed.insert(capture.symbol, child);
+                } else {
+                    self.borrowed.insert(capture.symbol, parent);
+                }
+            }
+        } else if thunk.environment.is_some() {
+            return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+        }
+        self.bind_parameters(parameter_entities)?;
+        self.drops(UnitDropPoint::LambdaEntry(thunk.expression))
     }
 
-    /// Facts inside a lambda body belong to its thunk, not to this function's body.
+    /// Lowers a lambda thunk's body statement and emits its fallthrough return.
+    pub(super) fn lower_thunk_body(
+        &mut self,
+        thunk: &RefineThunk,
+        unit_return: bool,
+    ) -> Result<(), LoweringError> {
+        let lowered = self.statement(thunk.body)?;
+        if lowered == Lowered::Diverged {
+            return Ok(());
+        }
+        if unit_return {
+            return self.finish_return(None, true, self.inputs.span);
+        }
+        let Lowered::Value(value) = lowered else {
+            return Err(error(LoweringErrorKind::MissingFact, self.inputs.span));
+        };
+        let tail = thunk
+            .result
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, self.inputs.span))?;
+        let value = self.adapt(value, tail, self.inputs.return_type)?;
+        self.deliver(tail);
+        self.finish_return(Some(value), false, self.inputs.span)
+    }
+
+    /// Calls a view parameter (`CallableInvokeView`) or a local callable (`CallableInvoke`).
+    pub(super) fn invoke_callable(
+        &mut self,
+        expression: ExpressionId,
+        arguments: Vec<Slot>,
+        unit_return: bool,
+        span: Span,
+    ) -> Result<(Lowered, Option<ExpressionId>), LoweringError> {
+        let Expression::Call { callee, .. } = self.node(expression)?.0 else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let mut root = callee;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let (Expression::Name, callee_span) = self.node(root)? else {
+            return Err(error(LoweringErrorKind::MissingFact, self.span(callee)));
+        };
+        let symbol = self.reference(callee_span)?;
+        let (op, consumed_callee) = if let Some(&view) = self.borrowed.get(&symbol) {
+            (ROp::CallableInvokeView { view, arguments }, None)
+        } else if let Some(&callable) = self.bindings.get(&symbol) {
+            (
+                ROp::CallableInvoke {
+                    callable,
+                    arguments,
+                },
+                Some(callee),
+            )
+        } else {
+            return Err(error(LoweringErrorKind::MissingFact, callee_span));
+        };
+        let result = if unit_return {
+            self.push(op, Vec::new(), span)?;
+            Lowered::Unit
+        } else {
+            Lowered::Value(self.typed_value(op, expression)?)
+        };
+        Ok((result, consumed_callee))
+    }
+
+    /// Facts inside a nested lambda body belong to its thunk, not to this body.
     pub(super) fn inside_lambda(&self, origin: Span) -> bool {
+        let current = match &self.inputs.body {
+            RefineBody::Lambda(thunk) => Some(thunk.expression),
+            _ => None,
+        };
+        let scope = self.inputs.scope_span();
         self.inputs.callables.keys().any(|lambda| {
-            self.inputs
-                .parsed
-                .ast()
-                .expressions()
-                .get(lambda.expression())
-                .is_ok_and(|node| {
-                    let span = node.span();
-                    origin != span
-                        && origin.source_id() == span.source_id()
-                        && span.start() <= origin.start()
-                        && origin.end() <= span.end()
-                })
+            Some(*lambda) != current
+                && self
+                    .inputs
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(lambda.expression())
+                    .is_ok_and(|node| {
+                        let span = node.span();
+                        scope.is_none_or(|outer| {
+                            outer != span
+                                && outer.source_id() == span.source_id()
+                                && outer.start() <= span.start()
+                                && span.end() <= outer.end()
+                        }) && origin != span
+                            && origin.source_id() == span.source_id()
+                            && span.start() <= origin.start()
+                            && origin.end() <= span.end()
+                    })
         })
     }
 
-    /// The view argument for a Borrow function parameter whose view target is `view`, and
-    /// the loans to end after the call (in creation order).
+    /// The view argument for a Borrow function parameter whose view target is `view`, the
+    /// loans to end after the call (in creation order), and any named expression to drop-check.
     pub(super) fn callable_argument(
         &mut self,
         value: ExpressionId,
         view: SsaTypeId,
         span: Span,
-    ) -> Result<(Slot, Vec<Slot>), LoweringError> {
+    ) -> Result<LentArgument, LoweringError> {
         let mut root = value;
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
@@ -68,10 +189,37 @@ impl Builder<'_, '_> {
         };
         let (payload, root_span) = self.node(root)?;
         if let Expression::Name = payload {
-            // A view parameter is passed on as a call-scoped re-borrow of the view.
-            let source = self.view_callee(root)?;
-            let forwarded = self.value(ROp::SharedReborrow { source }, view_loan, root_span)?;
-            return Ok((forwarded, vec![forwarded]));
+            let symbol = self.reference(root_span)?;
+            if let Some(&source) = self.borrowed.get(&symbol) {
+                // A view parameter is passed on as a call-scoped re-borrow of the view.
+                let forwarded = self.value(ROp::SharedReborrow { source }, view_loan, root_span)?;
+                return Ok((forwarded, vec![forwarded], Some(value)));
+            }
+            let owner = *self
+                .bindings
+                .get(&symbol)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, root_span))?;
+            let EntityType::Value(callable) = self.body.slots[owner.0] else {
+                return Err(error(LoweringErrorKind::InvalidModel, root_span));
+            };
+            let place = self.value(
+                ROp::RootPlace { owner },
+                EntityType::Place(callable),
+                root_span,
+            )?;
+            let loan = self.value(
+                ROp::BorrowBegin {
+                    place,
+                    kind: LoanKind::Shared,
+                },
+                EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: callable,
+                },
+                root_span,
+            )?;
+            let lent = self.value(ROp::CallableViewOf { source: loan }, view_loan, span)?;
+            return Ok((lent, vec![loan, lent], Some(value)));
         }
         if !matches!(payload, Expression::Lambda { .. }) {
             return Err(error(LoweringErrorKind::UnsupportedNode, root_span));
@@ -100,7 +248,111 @@ impl Builder<'_, '_> {
             root_span,
         )?;
         let lent = self.value(ROp::CallableViewOf { source: loan }, view_loan, span)?;
-        Ok((lent, vec![loan, lent]))
+        Ok((lent, vec![loan, lent], None))
+    }
+
+    /// A Borrow String parameter or capture read through its shared loan in `==`, `!=`, `+`.
+    pub(super) fn borrowed_string_loan(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<Slot>, LoweringError> {
+        let mut root = expression;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let (Expression::Name, span) = self.node(root)? else {
+            return Ok(None);
+        };
+        if self.inputs.typed.non_null_use(self.unit(root)).is_some() {
+            return Ok(None);
+        }
+        let symbol = self.reference(span)?;
+        let is_string = matches!(
+            self.symbol_type(symbol)
+                .and_then(|ty| self.inputs.typed.types().get(ty)),
+            Some(UnitTypeKind::Builtin(BuiltinType::String))
+        );
+        Ok(is_string
+            .then(|| self.borrowed.get(&symbol).copied())
+            .flatten())
+    }
+
+    /// A MoveOnly Borrow parameter or capture lent directly to a Borrow call parameter.
+    pub(super) fn borrowed_move_only_loan(
+        &self,
+        expression: ExpressionId,
+        parameter: UnitTypeId,
+    ) -> Result<Option<Slot>, LoweringError> {
+        if !self.move_only(parameter) {
+            return Ok(None);
+        }
+        let mut root = expression;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let (Expression::Name, span) = self.node(root)? else {
+            return Ok(None);
+        };
+        if self.inputs.typed.non_null_use(self.unit(root)).is_some() {
+            return Ok(None);
+        }
+        let symbol = self.reference(span)?;
+        Ok((self.symbol_type(symbol) == Some(parameter))
+            .then(|| self.borrowed.get(&symbol).copied())
+            .flatten())
+    }
+
+    /// `owner.field` of type `String` lent to a Borrow call parameter via `SharedHeapFieldLoan`.
+    pub(super) fn borrowed_string_field_loan(
+        &mut self,
+        expression: ExpressionId,
+        parameter: UnitTypeId,
+        span: Span,
+    ) -> Result<Option<LentArgument>, LoweringError> {
+        let is_string = matches!(
+            self.inputs.typed.types().get(parameter),
+            Some(UnitTypeKind::Builtin(BuiltinType::String))
+        );
+        if !is_string {
+            return Ok(None);
+        }
+        let mut root = expression;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let id = self.unit(root);
+        let Some(projection) = self.inputs.typed.aggregate_projection(id) else {
+            return Ok(None);
+        };
+        if projection.kind() != UnitAggregateProjectionKind::Field {
+            return Ok(None);
+        }
+        let (owner, owner_type, receiver) = self.projection_owner(projection.receiver(), span)?;
+        let field = self
+            .types
+            .field_indices
+            .get(&(owner_type, projection.field()))
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let owner_loan = self.owner_loan(owner, LoanKind::Shared, span)?;
+        let string = self.ssa_type(parameter, span)?;
+        let field_loan = self.value(
+            ROp::SharedHeapFieldLoan {
+                base: owner_loan.loan,
+                field,
+            },
+            EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: string,
+            },
+            self.span(expression),
+        )?;
+        let mut created = Vec::new();
+        if owner_loan.scoped {
+            created.push(owner_loan.loan);
+        }
+        created.push(field_loan);
+        Ok(Some((field_loan, created, receiver)))
     }
 
     /// Forms a lambda literal of this instance; the closure temporary's published drop
@@ -186,11 +438,14 @@ impl Builder<'_, '_> {
                     .copied()
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
             }
-            (ClosureCaptureMode::Owned, ClosureCaptureEffect::Move) => self
-                .bindings
-                .get(&symbol)
-                .copied()
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span)),
+            (ClosureCaptureMode::Owned, ClosureCaptureEffect::Move) => {
+                self.sync_dead();
+                self.dead.insert(symbol);
+                self.bindings
+                    .get(&symbol)
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+            }
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }

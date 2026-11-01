@@ -17,6 +17,7 @@ subgraph Gactive["现行 active"]
   S0360["S0360<br/>String when 清理事实的 refinement 消费"]
   S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
   S0369["S0369<br/>CLI 最终调试产物与源码断点"]
+  S0370["S0370<br/>lambda 体（thunk）与局部 callable 绑定迁入所有权细化层"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -53,6 +54,7 @@ ARCH --> S0341
 | SPEC-0360 | active | [0360-string-when-refinement.md](active/0360-string-when-refinement.md) |
 | SPEC-0368 | active | [0368-text-byte-foundation.md](active/0368-text-byte-foundation.md) |
 | SPEC-0369 | active | [0369-final-debug-artifacts.md](active/0369-final-debug-artifacts.md) |
+| SPEC-0370 | active | [0370-refine-lambda-bodies.md](active/0370-refine-lambda-bodies.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

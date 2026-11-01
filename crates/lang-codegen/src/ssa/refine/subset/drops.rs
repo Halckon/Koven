@@ -6,6 +6,7 @@ use lang_frontend::{
 };
 
 use super::Checker;
+use crate::ssa::refine::RefineBody;
 
 impl Checker<'_, '_> {
     /// Drop facts must name plain bindings or temporaries at points the builder emits.
@@ -20,7 +21,10 @@ impl Checker<'_, '_> {
                     self.replacements.contains(&assignment)
                         && matches!(fact.target(), UnitDropTarget::ReplacedField { .. })
                 }
-                UnitDropPoint::LambdaEntry(_) | UnitDropPoint::AfterReplacement(_) => false,
+                UnitDropPoint::LambdaEntry(lambda) => {
+                    matches!(&self.inputs.body, RefineBody::Lambda(thunk) if thunk.expression == lambda)
+                }
+                UnitDropPoint::AfterReplacement(_) => false,
                 // A jump out of a call argument drops the earlier MoveOnly arguments it
                 // abandons; temporaries holding loans stay outside.
                 UnitDropPoint::ControlTransfer(_) => match fact.target() {
@@ -36,6 +40,10 @@ impl Checker<'_, '_> {
                 // Released by the drop glue of a closure formed in this function.
                 UnitDropTarget::Captured { closure, .. } => {
                     self.inputs.callables.contains_key(&closure)
+                        || matches!(
+                            &self.inputs.body,
+                            RefineBody::Lambda(thunk) if thunk.expression == closure
+                        )
                 }
                 _ => false,
             };
@@ -67,16 +75,11 @@ impl Checker<'_, '_> {
     }
 
     fn fact_in_function(&self, origin: lang_frontend::source::Span) -> bool {
-        self.inputs
-            .parsed
-            .ast()
-            .items()
-            .get(self.inputs.function_item)
-            .is_ok_and(|item| {
-                let item = item.span();
-                origin.source_id() == item.source_id()
-                    && item.start() <= origin.start()
-                    && origin.end() <= item.end()
-            })
+        self.inputs.scope_span().is_some_and(|item| {
+            origin.source_id() == item.source_id()
+                && item.start() <= origin.start()
+                && origin.end() <= item.end()
+                && (!matches!(self.inputs.body, RefineBody::Lambda(_)) || origin != item)
+        })
     }
 }

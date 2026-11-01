@@ -159,22 +159,6 @@ impl CallableAbi {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
-    pub(super) fn parameter_type(
-        &self,
-        plan: &crate::ssa::unit_plan::UnitCallablePlan,
-        key: &UnitFunctionInstanceKey,
-        slot: usize,
-        span: Span,
-    ) -> Result<SsaTypeId, LoweringError> {
-        let token = key
-            .callable_arguments()
-            .iter()
-            .find(|(index, _)| *index == slot)
-            .map(|(_, token)| *token)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        self.token_type(plan, token, span)
-    }
-
     pub(super) fn return_type(
         &self,
         plan: &crate::ssa::unit_plan::UnitCallablePlan,
@@ -190,7 +174,6 @@ impl CallableAbi {
     pub(super) fn expression_type(
         &self,
         plan: &crate::ssa::unit_plan::UnitCallablePlan,
-        typed: &CompilationUnitTypes,
         owned: &CompilationUnitOwnership,
         source: SourceToken,
         expression: UnitExpressionId,
@@ -212,18 +195,8 @@ impl CallableAbi {
                 .get(&(source, lambda))
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span)),
-            UnitCallableOrigin::Parameter(symbol) => {
-                let key = plan
-                    .source(source)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                let signature = unit_callable_signature(typed, key.target())
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                let slot = signature
-                    .parameters()
-                    .iter()
-                    .position(|parameter| parameter.symbol() == Some(symbol))
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-                self.parameter_type(plan, key, slot, span)
+            UnitCallableOrigin::Parameter(_) => {
+                Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
             UnitCallableOrigin::KnownFunction(target) => {
                 let key = UnitFunctionInstanceKey::for_target(target, Vec::new());

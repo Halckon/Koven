@@ -6,10 +6,19 @@ use lang_frontend::{
 };
 
 use super::Checker;
+use crate::ssa::refine::RefineBody;
 
 impl Checker<'_, '_> {
-    /// The mode of a parameter of this function; `None` for locals.
+    /// The mode of a parameter of this function (or a thunk capture); `None` for locals.
     pub(super) fn parameter_mode(&self, symbol: UnitSymbolId) -> Option<ParameterMode> {
+        if let RefineBody::Lambda(thunk) = &self.inputs.body
+            && thunk
+                .captures
+                .iter()
+                .any(|capture| capture.symbol == symbol)
+        {
+            return Some(ParameterMode::Borrow);
+        }
         let index = self
             .inputs
             .parameters
