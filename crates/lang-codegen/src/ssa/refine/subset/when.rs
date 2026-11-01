@@ -21,14 +21,18 @@ impl Checker<'_, '_> {
         let Some(subject_type) = self.expression_type(subject) else {
             return false;
         };
-        let tagged = self.enum_type(subject_type);
+        let copy_enum = self.enum_type(subject_type);
+        let move_enum = self.box_enum_type(subject_type);
+        let tagged = copy_enum || move_enum;
         // SPEC-0357 already validated lifetime and candidate inventory. Keep the backend
         // subset bounded to that literal kernel and its existing expression support.
         let string = self.string(subject_type);
         let subject_ok = if string {
             self.string_when_subject(subject)
+        } else if move_enum {
+            self.move_enum_when_subject(subject, subject_type, entries)
         } else {
-            (self.scalar(subject_type) || tagged) && self.expression(subject)
+            (self.scalar(subject_type) || copy_enum) && self.expression(subject)
         };
         let has_else = entries.iter().any(|entry| entry.else_span.is_some());
         let boolean_exhaustive = matches!(
@@ -47,7 +51,7 @@ impl Checker<'_, '_> {
                             self.string_when_literal(*condition)
                         }
                         WhenCondition::Expression(condition) if tagged => {
-                            self.case_value_condition(*condition, subject_type)
+                            copy_enum && self.case_value_condition(*condition, subject_type)
                         }
                         WhenCondition::Expression(condition) => {
                             self.expression_type(*condition) == Some(subject_type)
@@ -64,6 +68,54 @@ impl Checker<'_, '_> {
                 self.view_symbols = saved;
                 ok
             })
+    }
+
+    fn move_enum_when_subject(
+        &mut self,
+        subject: ExpressionId,
+        subject_type: UnitTypeId,
+        entries: &[WhenEntry],
+    ) -> bool {
+        let mut operands = Vec::new();
+        let mut current = subject;
+        loop {
+            let Ok(node) = self.inputs.parsed.ast().expressions().get(current) else {
+                return false;
+            };
+            operands.push(current);
+            match node.payload() {
+                Expression::Group { expression } => current = *expression,
+                Expression::Name => break,
+                _ => return false,
+            }
+        }
+        let Some(symbol) = self.reference(current) else {
+            return false;
+        };
+        if !self.known.contains(&symbol)
+            || !matches!(
+                self.parameter_mode(symbol),
+                None | Some(ParameterMode::Value)
+            )
+            || self.symbol_type(symbol) != Some(subject_type)
+            || !self.expression(subject)
+        {
+            return false;
+        }
+        let snapshot_tag = operands.iter().any(|&operand| {
+            let point =
+                lang_frontend::ownership_checking::UnitDropPoint::AfterExpression(self.id(operand));
+            self.inputs.owned.drops().iter().any(|fact| {
+                fact.point() == point
+                    && fact.target()
+                        == lang_frontend::ownership_checking::UnitDropTarget::Named(symbol)
+            })
+        });
+        !snapshot_tag
+            || entries
+                .iter()
+                .flat_map(|entry| &entry.conditions)
+                .all(|condition| matches!(condition, WhenCondition::TypeTest { .. }))
     }
 
     fn boolean_two_arms(&self, entries: &[WhenEntry]) -> bool {

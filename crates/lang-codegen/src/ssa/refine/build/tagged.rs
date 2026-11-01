@@ -43,7 +43,7 @@ impl Builder<'_, '_> {
     }
 
     /// The registered variant index and payload aggregate of a case symbol.
-    fn variant(
+    pub(super) fn variant(
         &self,
         root: UnitTypeId,
         case: UnitSymbolId,
@@ -156,6 +156,28 @@ impl Builder<'_, '_> {
         negated: bool,
         span: Span,
     ) -> Result<Slot, LoweringError> {
+        let integer = self
+            .inputs
+            .typed
+            .types()
+            .builtin(BuiltinType::Int)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+            .and_then(|ty| self.ssa_type(ty, span))?;
+        let tag = self.value(
+            ROp::TaggedDiscriminant { owner },
+            EntityType::Value(integer),
+            span,
+        )?;
+        self.variant_tag_test(tag, variant, negated, span)
+    }
+
+    pub(super) fn variant_tag_test(
+        &mut self,
+        tag: Slot,
+        variant: usize,
+        negated: bool,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
         let builtin = |builder: &Self, builtin| {
             builder
                 .inputs
@@ -167,11 +189,6 @@ impl Builder<'_, '_> {
         };
         let integer = builtin(self, BuiltinType::Int)?;
         let boolean = builtin(self, BuiltinType::Boolean)?;
-        let tag = self.value(
-            ROp::TaggedDiscriminant { owner },
-            EntityType::Value(integer),
-            span,
-        )?;
         let expected = self.value(
             ROp::Constant(ScalarConstant::Integer(
                 i128::try_from(variant)
@@ -199,15 +216,12 @@ impl Builder<'_, '_> {
         )
     }
 
-    /// `owner is C` / `!is C` for a case type of `root`.
-    pub(super) fn type_test(
-        &mut self,
-        owner: Slot,
+    pub(super) fn type_test_variant(
+        &self,
         root: UnitTypeId,
         type_ref: TypeRefId,
-        negated: bool,
         span: Span,
-    ) -> Result<Slot, LoweringError> {
+    ) -> Result<usize, LoweringError> {
         let target = self
             .inputs
             .typed
@@ -222,6 +236,19 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         let (_, variant, _) = self.variant(root, case, span)?;
+        Ok(variant)
+    }
+
+    /// `owner is C` / `!is C` for a case type of `root`.
+    pub(super) fn type_test(
+        &mut self,
+        owner: Slot,
+        root: UnitTypeId,
+        type_ref: TypeRefId,
+        negated: bool,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
+        let variant = self.type_test_variant(root, type_ref, span)?;
         self.variant_test(owner, variant, negated, span)
     }
 

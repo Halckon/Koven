@@ -66,7 +66,11 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 `MutableMap<K, V>` 的 `mapOf`/`mutableMapOf`（`MapConstruct`）、`.size`（`MapSize`）、`containsKey`（`MapContains`）
 与 `put`（`MapPut`）。复合 `class` 字段、通用 `Rc<T>` 负载与智能窄化接收者（SPEC-0378）：支持任意非递归 `storage_type`
 的 `class` 字段读取/替换与 `SharedHeapFieldLoan` 借用实参、任意非递归 `storage_type` 的 `Rc<T>` 负载与 `Rc<T>?` 证明视图、
-非条件位置的 MoveOnly 空值比较、智能窄化 `class` 接收者的成员调用以及完备双分支布尔字面量 `when`。
+非条件位置的 MoveOnly 空值比较、智能窄化 `class` 接收者的成员调用以及完备双分支布尔字面量 `when`。MoveOnly 局部可变重赋值与
+MoveOnly `enum class` `when`（SPEC-0379）：支持任意 `storage_type` 局部 `var` 绑定的重赋值（结束旧证明视图、消费
+`BeforeOverwrite` 并恢复槽位活跃追踪），以及携带任意 `storage_type` 载荷的 MoveOnly `enum class` 的构造、`is`/`!is` 判别、
+`when (subject)` 分支匹配（当 `subject` 在 `AfterExpression` 提前释放时先快照 `TaggedDiscriminant`）、标量载荷投影与
+MoveOnly 载荷字段借用实参。
 
 ## inline nullable 布局
 

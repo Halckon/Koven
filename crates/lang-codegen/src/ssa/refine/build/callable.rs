@@ -341,6 +341,60 @@ impl Builder<'_, '_> {
         {
             return Ok(None);
         }
+        if let lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(receiver) =
+            projection.receiver()
+            && let Some(lang_frontend::type_checking::UnitTypeKind::EnumCase { case, root }) = self
+                .inputs
+                .typed
+                .expression_type(receiver)
+                .and_then(|ty| self.inputs.typed.types().get(ty))
+                .cloned()
+        {
+            if receiver.source_unit() != self.inputs.source_unit {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            let root_ty = self.c(root);
+            let receiver_expr = receiver.expression();
+            let (Expression::Name, receiver_span) = self.node(receiver_expr)? else {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            let symbol = self.reference(receiver_span)?;
+            let owner = *self
+                .bindings
+                .get(&symbol)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, receiver_span))?;
+            let (_, variant, payload_agg) = self.variant(root_ty, case, span)?;
+            let field = self
+                .types
+                .field_indices
+                .get(&(root_ty, projection.field()))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let target = self.ssa_type(parameter, span)?;
+            let arg_span = self.span(expression);
+            let base = self.value(
+                ROp::TaggedPayloadPlace { owner, variant },
+                EntityType::Place(payload_agg),
+                arg_span,
+            )?;
+            let place = self.value(
+                ROp::FieldPlace { base, field },
+                EntityType::Place(target),
+                arg_span,
+            )?;
+            let field_loan = self.value(
+                ROp::BorrowBegin {
+                    place,
+                    kind: LoanKind::Shared,
+                },
+                EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target,
+                },
+                arg_span,
+            )?;
+            return Ok(Some((field_loan, vec![field_loan], Some(receiver_expr))));
+        }
         let (owner, owner_type, receiver) = self.projection_owner(projection.receiver(), span)?;
         let field = self
             .types

@@ -274,7 +274,7 @@ impl Checker<'_, '_> {
         {
             return false;
         }
-        let owner = match projection.receiver() {
+        let field_ok = match projection.receiver() {
             UnitAggregateProjectionReceiver::Expression(receiver) => {
                 if receiver.source_unit() != self.inputs.source_unit
                     || !self.plain(receiver.expression())
@@ -282,39 +282,63 @@ impl Checker<'_, '_> {
                     return false;
                 }
                 let receiver_expr = receiver.expression();
-                let owner_ty =
-                    self.owner_type(Owner::Expression(receiver_expr), ParameterMode::Borrow);
-                let allowed_source = match self
-                    .inputs
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .get(receiver_expr)
-                    .map(|node| node.payload())
+                if let Some(lang_frontend::type_checking::UnitTypeKind::EnumCase { root, .. }) =
+                    typed.expression_type(receiver).and_then(|ty| self.kind(ty))
                 {
-                    Ok(Expression::This) => true,
-                    Ok(Expression::Name) => self.reference(receiver_expr).is_some_and(|symbol| {
-                        matches!(
-                            self.parameter_mode(symbol),
-                            Some(ParameterMode::Borrow | ParameterMode::Inout)
-                        ) || typed.non_null_use(receiver).is_some()
-                            || (self.parameter_mode(symbol).is_none()
-                                && owner_ty
-                                    .and_then(|ty| self.class_signature(ty))
-                                    .is_some_and(|(_, args)| args.is_empty()))
-                    }),
-                    _ => false,
-                };
-                if !allowed_source {
-                    return false;
+                    let root_ty = self.c(*root);
+                    let is_name = self
+                        .inputs
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(receiver_expr)
+                        .is_ok_and(|node| matches!(node.payload(), Expression::Name));
+                    is_name
+                        && self.box_enum_type(root_ty)
+                        && self.payload_case(root_ty, projection.field()).is_some()
+                        && self.reference(receiver_expr).is_some_and(|symbol| {
+                            self.known.contains(&symbol)
+                                && matches!(
+                                    self.parameter_mode(symbol),
+                                    None | Some(ParameterMode::Value)
+                                )
+                                && self.symbol_type(symbol) == Some(root_ty)
+                        })
+                } else {
+                    let owner_ty =
+                        self.owner_type(Owner::Expression(receiver_expr), ParameterMode::Borrow);
+                    let allowed_source = match self
+                        .inputs
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(receiver_expr)
+                        .map(|node| node.payload())
+                    {
+                        Ok(Expression::This) => true,
+                        Ok(Expression::Name) => {
+                            self.reference(receiver_expr).is_some_and(|symbol| {
+                                matches!(
+                                    self.parameter_mode(symbol),
+                                    Some(ParameterMode::Borrow | ParameterMode::Inout)
+                                ) || typed.non_null_use(receiver).is_some()
+                                    || (self.parameter_mode(symbol).is_none()
+                                        && owner_ty
+                                            .and_then(|ty| self.class_signature(ty))
+                                            .is_some_and(|(_, args)| args.is_empty()))
+                            })
+                        }
+                        _ => false,
+                    };
+                    allowed_source
+                        && owner_ty.is_some_and(|owner| self.class_field(owner, projection.field()))
                 }
-                owner_ty
             }
-            UnitAggregateProjectionReceiver::This(declaration) => {
-                self.owner_type(Owner::This(declaration), ParameterMode::Borrow)
-            }
+            UnitAggregateProjectionReceiver::This(declaration) => self
+                .owner_type(Owner::This(declaration), ParameterMode::Borrow)
+                .is_some_and(|owner| self.class_field(owner, projection.field())),
         };
-        owner.is_some_and(|owner| self.class_field(owner, projection.field()))
+        field_ok
             && self.inputs.owned.loans().iter().any(|loan| {
                 loan.call() == self.id(call)
                     && (loan.argument() == self.id(value) || loan.argument() == id)

@@ -426,3 +426,73 @@ fn map_cross_function_routing_is_isolated() {
         "unmigrated_lookup should stay on unit_lower: {routed:?}"
     );
 }
+
+#[test]
+fn move_only_reassignment_and_move_enum_when_lower_in_refine() {
+    let source = r#"enum class Reply<T> { Full(value: T, code: Int), Empty }
+    fun inspect_reply(own item: Reply<String>): Int {
+        when (item) {
+            is Reply.Full -> println(item.value)
+            is Reply.Empty -> println("empty")
+        }
+        return when (item) {
+            is Reply.Full -> item.code
+            is Reply.Empty -> 0
+        }
+    }
+    fun tag_only(own item: Reply<String>): Int = when (item) {
+        is Reply.Full -> 1
+        else -> 0
+    }
+    fun main(): Unit {
+        var s: String? = null
+        s = "first"
+        if (s != null) { println(s) }
+        s = "second"
+        if (s != null) { println(s) }
+        val r1 = inspect_reply(Reply.Full("payload", 42))
+        val r2 = inspect_reply(Reply.Empty)
+        val t1 = tag_only(Reply.Full("unused", 9))
+        val t2 = tag_only(Reply.Empty)
+        if (r1 == 42 && r2 == 0 && t1 == 1 && t2 == 0) {
+            println("reassign-enum-ok")
+        }
+    }"#;
+    let (_, routed) = super::super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("MoveOnly reassignment and MoveOnly enum when lower in ssa::refine")
+    });
+    for function in [
+        "koven.p.main.d",
+        "koven.p.inspect_reply.d",
+        "koven.p.tag_only.d",
+    ] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        run(source),
+        (
+            "first\nsecond\npayload\nempty\nreassign-enum-ok\n".to_owned(),
+            Some(0)
+        )
+    );
+}

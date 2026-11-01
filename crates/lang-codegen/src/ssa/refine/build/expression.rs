@@ -846,6 +846,9 @@ impl Builder<'_, '_> {
             .bindings
             .get(&symbol)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        self.end_views_of(symbol, span)?;
+        self.sync_dead();
+        self.dead.remove(&symbol);
         self.push(ROp::Alias { source: slot }, vec![binding], span)?;
         self.narrowed.remove(&symbol);
         Ok(Lowered::Unit)

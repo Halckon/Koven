@@ -587,7 +587,7 @@ impl Checker<'_, '_> {
                 operator: AssignmentOperator::Assign,
                 value,
                 ..
-            } => self.assignment(target) && self.expression(value),
+            } => self.assignment(expression, target, value),
             Expression::Return { value, .. } => value.is_none_or(|value| self.expression(value)),
             Expression::Break { .. } | Expression::Continue { .. } => self.loops > 0,
             _ => false,
@@ -860,20 +860,6 @@ impl Checker<'_, '_> {
             }
             self.expression(value)
         })
-    }
-
-    fn assignment(&mut self, target: ExpressionId) -> bool {
-        let Some(symbol) = self.reference(target) else {
-            return false;
-        };
-        // Replacing an Inout parameter's target is part of the migrated Inout family.
-        if self.parameter_mode(symbol) == Some(ParameterMode::Inout) {
-            self.migrated = true;
-        }
-        self.known.contains(&symbol)
-            && self
-                .symbol_type(symbol)
-                .is_some_and(|ty| self.copyability_of(ty) == Copyability::Copyable)
     }
 
     fn statement(&mut self, statement: StatementId) -> bool {

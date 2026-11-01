@@ -5,9 +5,9 @@ use lang_frontend::{
     ownership_checking::ConstructionRootKind,
     parser::Expression,
     type_checking::{
-        Copyability, IntrinsicTypeConstructor, NominalKind, UnitAggregateProjectionKind,
-        UnitAggregateProjectionReceiver, UnitConstructionTarget, UnitEnumCaseSignature,
-        UnitNominalSignature, UnitTypeId, UnitTypeKind, UnitTypeRefId,
+        Copyability, NominalKind, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
+        UnitConstructionTarget, UnitEnumCaseSignature, UnitNominalSignature, UnitTypeId,
+        UnitTypeKind, UnitTypeRefId,
     },
 };
 
@@ -24,8 +24,7 @@ impl Checker<'_, '_> {
                 .is_some_and(|cases| cases.iter().flatten().all(|payload| self.scalar(*payload)))
     }
 
-    /// A concrete MoveOnly `enum class` carrying at least one `Box<T>` payload and only
-    /// supported storage-type payloads (including recursive boxed enum cases).
+    /// A concrete MoveOnly `enum class` whose payloads are supported storage types.
     pub(super) fn box_enum_type(&self, ty: UnitTypeId) -> bool {
         self.box_enum_type_seen(ty, &mut BTreeSet::new())
     }
@@ -45,20 +44,10 @@ impl Checker<'_, '_> {
         if !active.insert(ty) {
             return true;
         }
-        let has_box = cases.iter().flatten().any(|payload| {
-            matches!(
-                self.kind(*payload),
-                Some(UnitTypeKind::Intrinsic {
-                    constructor: IntrinsicTypeConstructor::Box,
-                    ..
-                })
-            )
-        });
-        let ok = has_box
-            && cases
-                .iter()
-                .flatten()
-                .all(|payload| self.storage_type_seen(*payload, active));
+        let ok = cases
+            .iter()
+            .flatten()
+            .all(|payload| self.storage_type_seen(*payload, active));
         active.remove(&ty);
         ok
     }
@@ -303,7 +292,9 @@ impl Checker<'_, '_> {
                     return false;
                 };
                 let root = self.c(*root);
-                if !self.enum_type(root) || !self.plain(receiver.expression()) {
+                if !(self.enum_type(root) || self.box_enum_type(root))
+                    || !self.plain(receiver.expression())
+                {
                     return false;
                 }
                 let Ok(node) = self
@@ -336,6 +327,7 @@ impl Checker<'_, '_> {
         if self
             .enum_signature(root)
             .is_some_and(|(_, arguments)| !arguments.is_empty())
+            || self.box_enum_type(root)
         {
             self.migrated = true;
         }

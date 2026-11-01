@@ -79,6 +79,9 @@ fn nullable_functions_inside_the_subset_are_routed() {
         "class Data(val n: Int)\nfun f(own r: Rc<Data>?): Int { if (r != null) { return r.value.n }; return 0 }",
         "class Bag(val items: List<Int>)\n\
          fun f(own b: Bag?): Int { if (b != null) { return 1 }; return 0 }",
+        "fun f(): Int { var s: String? = null; s = \"a\"; if (s != null) { return 1 }; return 0 }",
+        "enum class Tag { Named(n: String), Empty }\n\
+         fun f(own t: Tag): Int = when (t) { is Tag.Named -> 1\n else -> 0 }",
     ] {
         let (result, routed) = route(source);
         assert!(routed, "{source}");
@@ -111,10 +114,6 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "fun f(s: String?): Int { if (s != null) { return 1 }; return 0 }",
         ),
         (
-            "MoveOnly reassignment",
-            "fun f(): Int { var s: String? = null; s = \"a\"; if (s != null) { return 1 }; return 0 }",
-        ),
-        (
             "Box with non-nominal payload",
             "fun f(own b: Box<Int>?): Int { if (b != null) { return 1 }; return 0 }",
         ),
@@ -129,11 +128,6 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
         (
             "Borrow Rc parameter",
             "class Data(val n: Int)\nfun f(r: Rc<Data>): Int = r.value.n",
-        ),
-        (
-            "MoveOnly enum subject",
-            "enum class Tag { Named(n: String), Empty }\n\
-             fun f(own t: Tag): Int = when (t) { is Tag.Named -> 1\n else -> 0 }",
         ),
     ] {
         let (_, routed) = route(source);
