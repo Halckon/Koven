@@ -650,7 +650,7 @@ mod legacy_only {
     fn receiver_string_borrow_keeps_existing_single_unit_capability_difference() {
         let text = "package pair\nclass Reader { fun read(text: String): Unit { val printed = println(text) } }\nfun entry(): Unit { val reader = Reader()\nval ignored = reader.read(\"receiver\0\") }";
         let mut sources = SourceMap::new();
-        let (source, file) = parsed(&mut sources, "pair/entry.ko", text);
+        let (_source, file) = parsed(&mut sources, "pair/entry.ko", text);
         let (name_environment, environment) = standard_environments();
         let names = resolve_names(&sources, &file, &name_environment).unwrap();
         let typed = check_types(&sources, &file, &names, &environment).unwrap();
@@ -674,23 +674,7 @@ mod legacy_only {
                 Some(SourceKey("pair/entry.ko".to_owned(), start, text.len() - 2,))
             )
         );
-        let inputs = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
-        let (unit, entry) = lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &environment,
-            &typed,
-            &owned,
-            declaration(&names, "pair", "entry"),
-        )
-        .unwrap();
-        let events = events(&sources, &unit, entry);
-        assert!(
-            events
-                .iter()
-                .any(|event| matches!(event, Event::Literal(_, bytes) if bytes == b"receiver\0"))
-        );
+        // The original Unit success contract now has a complete owner/loan/drop
+        // oracle in receiver.rs; retain this unique Single rejection and exact span.
     }
 }
