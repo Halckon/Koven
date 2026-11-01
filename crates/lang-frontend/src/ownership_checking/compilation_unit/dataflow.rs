@@ -12,6 +12,7 @@ mod container;
 mod control;
 mod drop_planner;
 mod flow;
+mod formed_publication;
 #[cfg(test)]
 mod formed_tests;
 mod iteration;
@@ -341,14 +342,10 @@ pub(super) fn analyze(
     } else {
         Default::default()
     };
-    if !diagnostics.is_empty() || !deferred.is_empty() || !typed.has_valid_type_facts() {
-        formed_owned_locals.clear();
+    if !formed_publication::finalize(typed, &diagnostics, &deferred, &mut formed_owned_locals) {
         nullable_whens.clear();
         borrow_return_origins.clear();
         borrow_results = Default::default();
-    } else {
-        formed_owned_locals.sort();
-        formed_owned_locals.dedup();
     }
     nullable_whens.sort_by_key(|plan| plan.descriptor().expression());
     borrow_return_origins.sort_by_key(|fact| fact.expression());

@@ -1,4 +1,6 @@
 //! CI-only assignment rollback guard; inspect raw history before aggregate clearing.
+mod adjacent;
+mod normalization;
 mod publication;
 
 use super::super::formed_tests::{Fixture, Parts};
