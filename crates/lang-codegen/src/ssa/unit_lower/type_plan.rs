@@ -798,7 +798,7 @@ mod tests {
         let module = program
             .module_mut(module_id)
             .expect("new test module exists");
-        let mut types = UnitTypeLowering::new();
+        let mut types = UnitTypeLowering::new(&names);
         intern_body_scalar_types(module, &provider, keep, typed.types(), &mut types)
             .expect("direct T body fact resolves through the String substitution");
 
@@ -886,7 +886,7 @@ mod tests {
             let mut program = Program::default();
             let module_id = program.add_module("callee-role-test");
             let module = program.module_mut(module_id).unwrap();
-            let mut types = UnitTypeLowering::new();
+            let mut types = UnitTypeLowering::new(&names);
             let result =
                 intern_body_scalar_types(module, &provider, instance, typed.types(), &mut types);
             if direct {

@@ -399,7 +399,7 @@ fn observe(
             let module = program
                 .module_mut(module_id)
                 .expect("fresh module after planner");
-            let mut mapper = type_lower::UnitTypeLowering::new();
+            let mut mapper = type_lower::UnitTypeLowering::new(&names);
             let parsed_by_source =
                 crate::ssa::unit_source_query::parsed_by_source_unit(&inputs, &names)
                     .expect("same qualified source objects");

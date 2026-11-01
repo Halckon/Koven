@@ -385,7 +385,7 @@ impl Fixture {
             nullable_maps: module.nullable_maps.clone(),
             integer_ranges: module.integer_ranges.clone(),
         };
-        let mut abi_types = type_lower::UnitTypeLowering::new();
+        let mut abi_types = type_lower::UnitTypeLowering::new(&self.names);
         let layouts = closure::layout::declare(
             &mut abi_module,
             &parsed_files,

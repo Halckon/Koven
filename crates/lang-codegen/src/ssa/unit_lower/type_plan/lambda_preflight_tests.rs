@@ -257,7 +257,7 @@ impl Facts<'_, '_> {
         let mut program = Program::default();
         let id = program.add_module("lambda-preflight");
         let module = program.module_mut(id).unwrap();
-        let mut mapper = UnitTypeLowering::new();
+        let mut mapper = UnitTypeLowering::new(self.view.names());
         let parsed_by_source = [self.parsed];
         intern_map_result_types(
             module,
