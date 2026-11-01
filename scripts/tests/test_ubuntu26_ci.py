@@ -44,8 +44,12 @@ apt-cache() {
   local package=${2%%:*}
   [[ "$MODE" != missing ]] || return 100
   if [[ "$MODE" == hash ]]; then printf 'SHA256: wrong\n'; return; fi
-  while read -r name hash; do
-    [[ "$name" != "$package" ]] || printf 'SHA256: %s\n' "$hash"
+  while read -r name hash hash_v3; do
+    if [[ "$name" == "$package" ]]; then
+      if [[ "$MODE" == v3 ]]; then hash=$hash_v3; fi
+      printf 'SHA256: %s\n' "$hash"
+      if [[ "$MODE" == ambiguous ]]; then printf 'SHA256: %s\n' "$hash_v3"; fi
+    fi
   done <<< "$pins"
 }
 dpkg-query() {
@@ -72,8 +76,20 @@ dpkg() { [[ "$MODE" == downgrade ]]; }
         self.assertIn('llvm-21-dev:amd64=1:21.1.8-6ubuntu1', result.stdout)
         self.assertNotIn('liblzma5:amd64=', result.stdout)
 
+    def test_signed_amd64v3_variant_is_verified_without_broadening_unknown_hashes(self):
+        result = self.probe('v3')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(' --reinstall ', result.stdout)
+
+    def test_installer_changes_trigger_core_and_invalidate_cache(self):
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        # The scripts wildcard covers the new installer even without an explicit entry.
+        start = workflow.index('            rust:')
+        self.assertIn("- 'scripts/**'", workflow[start:workflow.index('            preview:', start)])
+        self.assertEqual(2, workflow.count("'scripts/install_ci_llvm*.sh'"))
+
     def test_failures_cannot_silently_continue(self):
-        for mode in ('host', 'update', 'missing', 'hash', 'downgrade', 'install', 'identity'):
+        for mode in ('host', 'update', 'missing', 'hash', 'ambiguous', 'downgrade', 'install', 'identity'):
             with self.subTest(mode=mode):
                 result = self.probe(mode)
                 self.assertNotEqual(0, result.returncode)
