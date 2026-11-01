@@ -48,6 +48,8 @@ mod statement;
 mod string_clone;
 mod text_primitive;
 mod type_lower;
+#[cfg(test)]
+mod type_origin_cache_tests;
 mod type_plan;
 mod while_proof;
 

@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
-    name_resolution::UnitSymbolId,
+    name_resolution::{DeclarationId, UnitSymbolId, ValidatedCompilationUnitNames},
     source::Span,
     type_checking::{
         BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, NominalKind, UnitTypeId,
@@ -14,13 +14,16 @@ use lang_frontend::{
 use super::lowering_error;
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{Module, SequentialContainerKind as SsaContainerKind, SsaTypeId, SsaTypeKind},
+    model::{
+        Module, SequentialContainerKind as SsaContainerKind, SsaTypeId, SsaTypeKind, TypeOrigin,
+    },
     unit_plan::{resolve_enum_runtime_payload_types, resolve_nominal_runtime_field_types},
 };
 
 /// unit lowering 共享的 concrete type identity 与 nominal layout metadata。
 pub(super) struct UnitTypeLowering {
     type_ids: BTreeMap<UnitTypeId, SsaTypeId>,
+    declaration_spans: BTreeMap<DeclarationId, Span>,
     heap_payloads: BTreeMap<SsaTypeId, SsaTypeId>,
     field_indices: BTreeMap<(UnitTypeId, UnitSymbolId), usize>,
     enum_payloads: BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
@@ -57,9 +60,16 @@ impl PendingOwnerDefinition {
 }
 
 impl UnitTypeLowering {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(names: &ValidatedCompilationUnitNames) -> Self {
         Self {
             type_ids: BTreeMap::new(),
+            declaration_spans: names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .map(|declaration| (declaration.id(), declaration.name_span()))
+                .collect(),
             heap_payloads: BTreeMap::new(),
             field_indices: BTreeMap::new(),
             enum_payloads: BTreeMap::new(),
@@ -248,13 +258,13 @@ impl UnitTypeLowering {
                 constructor: IntrinsicTypeConstructor::View,
                 arguments,
             } => {
-                let [element] = arguments.as_slice() else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                };
-                let element = self.intern_inner(module, typed, *element, span)?;
-                let source = module
-                    .add_sequential_container_type(SsaContainerKind::List, element)
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                let source = self.intern_container(
+                    module,
+                    typed,
+                    IntrinsicTypeConstructor::List,
+                    &arguments,
+                    span,
+                )?;
                 module.intern_type(SsaTypeKind::RangeView { source })
             }
             UnitTypeKind::Intrinsic {
@@ -284,8 +294,63 @@ impl UnitTypeLowering {
             UnitTypeKind::EnumCase { root, .. } => self.intern_inner(module, typed, root, span)?,
             _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         };
+        if matches!(
+            typed.types().get(ty),
+            Some(
+                UnitTypeKind::Nominal { .. }
+                    | UnitTypeKind::Intrinsic {
+                        constructor: IntrinsicTypeConstructor::Box | IntrinsicTypeConstructor::Rc,
+                        ..
+                    }
+            )
+        ) {
+            module.set_type_origin(
+                id,
+                TypeOrigin {
+                    primary: span,
+                    declaration: match typed.types().get(ty) {
+                        Some(UnitTypeKind::Intrinsic { arguments, .. }) => arguments
+                            .first()
+                            .map(|payload| self.declaration_span(typed, *payload, span))
+                            .unwrap_or(span),
+                        _ => self.declaration_span(typed, ty, span),
+                    },
+                },
+            );
+        }
         self.type_ids.insert(ty, id);
         Ok(id)
+    }
+
+    // Match the legacy diagnostic contract: unwrap Box, but not arbitrary
+    // containers or Rc, when selecting a nominal declaration label.
+    fn declaration_span(
+        &self,
+        typed: &CompilationUnitTypes,
+        mut ty: UnitTypeId,
+        fallback: Span,
+    ) -> Span {
+        loop {
+            match typed.types().get(ty) {
+                Some(UnitTypeKind::Nominal { declaration, .. }) => {
+                    return self
+                        .declaration_spans
+                        .get(declaration)
+                        .copied()
+                        .unwrap_or(fallback);
+                }
+                Some(UnitTypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Box,
+                    arguments,
+                }) => {
+                    let [payload] = arguments.as_slice() else {
+                        return fallback;
+                    };
+                    ty = *payload;
+                }
+                _ => return fallback,
+            }
+        }
     }
 
     fn define_pending_owners(
@@ -330,6 +395,9 @@ impl UnitTypeLowering {
                     module
                         .define_heap_owner(owner, payload)
                         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                    if let Some(origin) = module.type_origin(owner) {
+                        module.set_type_origin(payload, origin);
+                    }
                     self.heap_payloads.insert(owner, payload);
                 }
                 PendingOwnerDefinition::Box {
@@ -432,9 +500,18 @@ impl UnitTypeLowering {
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
         let element = self.intern_inner(module, typed, *element, span)?;
-        module
+        let storage = module
             .add_sequential_container_type(kind, element)
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        // Intrinsic container storage has no source declaration of its own.
+        module.set_type_origin(
+            storage,
+            TypeOrigin {
+                primary: span,
+                declaration: span,
+            },
+        );
+        Ok(storage)
     }
 
     fn intern_map(
@@ -465,9 +542,18 @@ impl UnitTypeLowering {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        module
+        let storage = module
             .add_map_container_type(kind, key, val)
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        // Intrinsic container storage has no source declaration of its own.
+        module.set_type_origin(
+            storage,
+            TypeOrigin {
+                primary: span,
+                declaration: span,
+            },
+        );
+        Ok(storage)
     }
 
     fn intern_nominal(
@@ -610,6 +696,13 @@ impl UnitTypeLowering {
                         fields,
                     )
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                module.set_type_origin(
+                    payload,
+                    TypeOrigin {
+                        primary: span,
+                        declaration: case.name_span(),
+                    },
+                );
                 payloads.push((case, payload));
             }
             let tagged = module

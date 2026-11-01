@@ -21,6 +21,10 @@ mod native_sanitizer_tests;
 mod native_tests;
 #[cfg(test)]
 mod test_support;
+#[cfg(test)]
+mod unit_container_origin_bridge_tests;
+#[cfg(test)]
+mod unit_type_origin_bridge_tests;
 
 pub use native::{
     NativeObjectError, NativeObjectErrorKind, NativeUnitEntry, emit_native_const_owned_unit_object,
