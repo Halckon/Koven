@@ -2,8 +2,8 @@
 use lang_frontend::source::Span;
 
 use crate::ssa::model::{
-    CheckedArithmeticOperator, ComparisonOperator, EntityType, FunctionId, LoanKind,
-    ScalarConstant, SsaTypeId,
+    CheckedArithmeticOperator, ComparisonOperator, EntityType, FunctionId, IntegerBitwiseOperator,
+    LoanKind, ScalarConstant, SsaTypeId,
 };
 
 /// A function-local variable; SSA construction gives it one entity per definition.
@@ -62,10 +62,55 @@ pub(super) enum ROp {
     BooleanNot {
         operand: Slot,
     },
+    IntegerNot {
+        operand: Slot,
+    },
+    IntegerBitwise {
+        operator: IntegerBitwiseOperator,
+        left: Slot,
+        right: Slot,
+    },
     CheckedArithmetic {
         operator: CheckedArithmeticOperator,
         left: Slot,
         right: Slot,
+    },
+    CheckedIntegerConvert {
+        operand: Slot,
+    },
+    IntegerRangeConstruct {
+        first: Slot,
+        bound: Slot,
+        inclusive: bool,
+    },
+    IntegerRangeContains {
+        value: Slot,
+        range: Slot,
+    },
+    IntegerRangeEqual {
+        left: Slot,
+        right: Slot,
+    },
+    StringClone {
+        source: Slot,
+    },
+    StringCopyBytes {
+        source: Slot,
+    },
+    StringCopySlice {
+        source: Slot,
+        start: Slot,
+        end: Slot,
+    },
+    Utf8ErrorOffset {
+        source: Slot,
+    },
+    StringByteLength {
+        source: Slot,
+    },
+    StringByteAt {
+        source: Slot,
+        index: Slot,
     },
     DirectCall {
         callee: FunctionId,
@@ -230,6 +275,12 @@ impl ROp {
             | Self::BorrowEnd { loan: slot }
             | Self::Drop { owner: slot }
             | Self::BooleanNot { operand: slot }
+            | Self::IntegerNot { operand: slot }
+            | Self::CheckedIntegerConvert { operand: slot }
+            | Self::StringClone { source: slot }
+            | Self::StringCopyBytes { source: slot }
+            | Self::Utf8ErrorOffset { source: slot }
+            | Self::StringByteLength { source: slot }
             | Self::NullableWrap { owner: slot, .. }
             | Self::NullableIsNull { owner: slot }
             | Self::HeapAllocate { payload: slot, .. }
@@ -249,7 +300,22 @@ impl ROp {
             | Self::SharedFieldLoan { base: slot, .. }
             | Self::SharedHeapFieldLoan { base: slot, .. } => vec![*slot],
             Self::Compare { left, right, .. }
+            | Self::IntegerBitwise { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
+            | Self::IntegerRangeConstruct {
+                first: left,
+                bound: right,
+                ..
+            }
+            | Self::IntegerRangeContains {
+                value: left,
+                range: right,
+            }
+            | Self::IntegerRangeEqual { left, right }
+            | Self::StringByteAt {
+                source: left,
+                index: right,
+            }
             | Self::StringConcat { left, right }
             | Self::StringEqual { left, right }
             | Self::LoanMutate {
@@ -267,6 +333,7 @@ impl ROp {
             } => {
                 vec![*left, *right]
             }
+            Self::StringCopySlice { source, start, end } => vec![*source, *start, *end],
             Self::NullableTake { owner, proof } => vec![*owner, *proof],
             Self::DirectCall {
                 receiver,
@@ -292,6 +359,9 @@ pub(super) enum RAbort {
     CheckedArithmetic {
         operator: CheckedArithmeticOperator,
         divisor: Slot,
+    },
+    CheckedConversion {
+        target: SsaTypeId,
     },
     /// `!!` on a null value.
     NullAssertion,

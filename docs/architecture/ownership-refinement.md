@@ -48,6 +48,9 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 建立源借用，owned Move 捕获消费来源绑定），可直接借出为 view、作为函数返回值或绑定到局部 callable
 变量（经 `CallableInvoke` 调用或借出为 view）；lambda 体（thunk）同样由 `ssa::refine` 构建，入口按序
 投影环境字段借用（`SharedFieldLoan` 与 `SharedReferenceFollow`）并在 `Return` 前逆序 `BorrowEnd`。
+整数内建、整数区间与文本原语（SPEC-0371）：支持 `inv()`、八整数受检转换（`CheckedIntegerConvert`）、
+整数前缀 `+`/`-` 与位运算、`IntRange`/`LongRange` 值构造与 `in`/`!in`/`==`/`!=`、`String.clone()`
+及可信标准文本原语（`CopyBytes`/`CopySlice`/`Utf8ErrorOffset`/`ByteLength`/`ByteAt`）。
 
 ## inline nullable 布局
 

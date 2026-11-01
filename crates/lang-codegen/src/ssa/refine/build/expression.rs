@@ -3,8 +3,7 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     ownership_checking::UnitDropPoint,
     parser::{
-        AssignmentOperator, BinaryOperator, CallArgument, Expression, LiteralKind, PrefixOperator,
-        Statement,
+        AssignmentOperator, BinaryOperator, CallArgument, Expression, LiteralKind, Statement,
     },
     source::Span,
     type_checking::{ParameterMode, UnitCallTarget, UnitTypeId, UnitTypeKind},
@@ -86,6 +85,15 @@ impl Builder<'_, '_> {
         if typed.rc_operation(id).is_some() {
             return self.rc_operation(expression, span);
         }
+        if typed.integer_operation(id).is_some() {
+            return self.integer_operation(expression, span);
+        }
+        if typed.integer_range_operation(id).is_some() {
+            return self.integer_range_operation(expression, span);
+        }
+        if typed.string_operation(id).is_some() {
+            return self.string_operation(expression, span);
+        }
         if let Some(descriptor) = typed.construction(id) {
             return match descriptor.target() {
                 lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
@@ -141,17 +149,8 @@ impl Builder<'_, '_> {
                 ..
             } => self.type_test_expression(operand, type_ref, negated, span),
             Expression::Prefix {
-                operator: PrefixOperator::Not,
-                operand,
-                ..
-            } => {
-                let Some(operand) = self.required(operand)? else {
-                    return Ok(Lowered::Diverged);
-                };
-                Ok(Lowered::Value(
-                    self.typed_value(ROp::BooleanNot { operand }, expression)?,
-                ))
-            }
+                operator, operand, ..
+            } => self.prefix(operator, operand, expression, span),
             Expression::Binary {
                 left,
                 operator,
@@ -405,6 +404,18 @@ impl Builder<'_, '_> {
                 span,
             )?;
             self.block = Some(success);
+            return Ok(Lowered::Value(result));
+        }
+        if let Some(operator) = crate::ssa::integer::bitwise_operator(operator) {
+            let result = self.typed_value(
+                ROp::IntegerBitwise {
+                    operator,
+                    left,
+                    right,
+                },
+                expression,
+            )?;
+            self.drops(UnitDropPoint::AfterBinaryOperands(self.unit(expression)))?;
             return Ok(Lowered::Value(result));
         }
         let operator = comparison_operator(operator)
@@ -666,6 +677,8 @@ impl Builder<'_, '_> {
             let (result, callee) = self.invoke_callable(expression, lowered, unit_return, span)?;
             invoked_callee = callee;
             result
+        } else if let Some(kind) = descriptor.text_primitive() {
+            self.text_primitive_call(expression, kind, &lowered, span)?
         } else if descriptor.prints_line() {
             let [loan] = lowered.as_slice() else {
                 return Err(error(LoweringErrorKind::MissingFact, span));

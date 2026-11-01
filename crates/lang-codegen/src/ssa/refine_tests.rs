@@ -653,3 +653,49 @@ fn generic_instances_and_value_classes_lower_concretely() {
         ("vmethod-generic\nvalue\ngeneric\n".to_owned(), Some(0))
     );
 }
+
+#[test]
+fn integer_range_and_string_clone_lower_in_refine() {
+    let source = r#"fun check(s: String, x: Int?): String {
+        val base = if (x == null) 0 else x
+        val inverted = base.inv().inv()
+        val shifted = ((inverted and 15) or 1) shl 1
+        val span = +1..(-(-10))
+        val wide = shifted.toLong()
+        if (shifted in span && wide == 6.toLong() && (1..<4) != (1..4)) {
+            return s.clone()
+        }
+        return "fallback".clone()
+    }
+    fun main(): Unit {
+        val out: String? = check("refined-ok", 2)
+        if (out != null) { println(out.clone()) }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("integer, range, and String.clone lower in ssa::refine")
+    });
+    for function in ["koven.p.main.d", "koven.p.check.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(run(source), ("refined-ok\n".to_owned(), Some(0)));
+}

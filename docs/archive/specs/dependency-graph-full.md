@@ -359,6 +359,7 @@ subgraph Gactive["现行 active"]
   S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
   S0369["S0369<br/>CLI 最终调试产物与源码断点"]
   S0370["S0370<br/>lambda 体（thunk）与局部 callable 绑定迁入所有权细化层"]
+  S0371["S0371<br/>整数内建、整数区间、String.clone() 与文本原语迁入所有权细化层"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1789,6 +1790,7 @@ S0366 --> S0367
 | SPEC-0368 | active | [0368-text-byte-foundation.md](../../specs/active/0368-text-byte-foundation.md) |
 | SPEC-0369 | active | [0369-final-debug-artifacts.md](../../specs/active/0369-final-debug-artifacts.md) |
 | SPEC-0370 | active | [0370-refine-lambda-bodies.md](../../specs/active/0370-refine-lambda-bodies.md) |
+| SPEC-0371 | active | [0371-refine-integer-range-text.md](../../specs/active/0371-refine-integer-range-text.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

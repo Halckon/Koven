@@ -9,6 +9,7 @@ mod inout;
 mod place;
 mod rc;
 mod receiver;
+mod scalar_text;
 mod tagged;
 mod value;
 mod when;

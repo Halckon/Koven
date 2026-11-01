@@ -249,6 +249,18 @@ impl Emitter<'_> {
             ROp::BooleanNot { operand } => Operation::BooleanNot {
                 operand: self.value(*operand, span)?,
             },
+            ROp::IntegerNot { operand } => Operation::IntegerNot {
+                operand: self.value(*operand, span)?,
+            },
+            ROp::IntegerBitwise {
+                operator,
+                left,
+                right,
+            } => Operation::IntegerBitwise {
+                operator: *operator,
+                left: self.value(*left, span)?,
+                right: self.value(*right, span)?,
+            },
             ROp::CheckedArithmetic {
                 operator,
                 left,
@@ -257,6 +269,47 @@ impl Emitter<'_> {
                 operator: *operator,
                 left: self.value(*left, span)?,
                 right: self.value(*right, span)?,
+            },
+            ROp::CheckedIntegerConvert { operand } => Operation::CheckedIntegerConvert {
+                operand: self.value(*operand, span)?,
+            },
+            ROp::IntegerRangeConstruct {
+                first,
+                bound,
+                inclusive,
+            } => Operation::IntegerRangeConstruct {
+                first: self.value(*first, span)?,
+                bound: self.value(*bound, span)?,
+                inclusive: *inclusive,
+            },
+            ROp::IntegerRangeContains { value, range } => Operation::IntegerRangeContains {
+                value: self.value(*value, span)?,
+                range: self.value(*range, span)?,
+            },
+            ROp::IntegerRangeEqual { left, right } => Operation::IntegerRangeEqual {
+                left: self.value(*left, span)?,
+                right: self.value(*right, span)?,
+            },
+            ROp::StringClone { source } => Operation::StringClone {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::StringCopyBytes { source } => Operation::StringCopyBytes {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::StringCopySlice { source, start, end } => Operation::StringCopySlice {
+                source: loan(self.get(*source, span)?, span)?,
+                start: self.value(*start, span)?,
+                end: self.value(*end, span)?,
+            },
+            ROp::Utf8ErrorOffset { source } => Operation::Utf8ErrorOffset {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::StringByteLength { source } => Operation::StringByteLength {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::StringByteAt { source, index } => Operation::StringByteAt {
+                source: loan(self.get(*source, span)?, span)?,
+                index: self.value(*index, span)?,
             },
             ROp::DirectCall {
                 callee,
@@ -525,6 +578,17 @@ pub(super) fn emit(
                             operator: *operator,
                             divisor,
                         },
+                        origin,
+                    )
+                    .map_err(model_error)?;
+                continue;
+            }
+            RTerm::Abort(RAbort::CheckedConversion { target: converted }) => {
+                emitter
+                    .function
+                    .set_abort_terminator(
+                        target,
+                        AbortReason::CheckedConversion { target: *converted },
                         origin,
                     )
                     .map_err(model_error)?;
