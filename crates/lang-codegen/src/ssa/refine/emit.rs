@@ -464,6 +464,33 @@ impl Emitter<'_> {
                 owner: self.value(*owner, span)?,
                 place: place(self.get(*slot, span)?, span)?,
             },
+            ROp::Copy { source } => Operation::Copy {
+                source: self.value(*source, span)?,
+            },
+            ROp::RootReplace {
+                owner,
+                loan: slot,
+                replacement,
+            } => Operation::RootReplace {
+                owner: self.value(*owner, span)?,
+                loan: loan(self.get(*slot, span)?, span)?,
+                replacement: self.value(*replacement, span)?,
+            },
+            ROp::RootSwap {
+                left_owner,
+                right_owner,
+                left_loan,
+                right_loan,
+            } => Operation::RootSwap {
+                owners: [
+                    self.value(*left_owner, span)?,
+                    self.value(*right_owner, span)?,
+                ],
+                loans: [
+                    loan(self.get(*left_loan, span)?, span)?,
+                    loan(self.get(*right_loan, span)?, span)?,
+                ],
+            },
             ROp::HeapFieldReplace {
                 receiver,
                 field,

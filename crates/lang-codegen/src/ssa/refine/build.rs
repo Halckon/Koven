@@ -605,7 +605,12 @@ impl Builder<'_, '_> {
 
     /// The named owner a pending argument value was moved out of.
     fn pending_symbol(&self, expression: UnitExpressionId) -> Option<UnitSymbolId> {
-        if expression.source_unit() != self.inputs.source_unit {
+        if expression.source_unit() != self.inputs.source_unit
+            || self
+                .inputs
+                .constant_owned
+                .is_some_and(|owned| owned.materialization_at(expression).is_some())
+        {
             return None;
         }
         let (payload, span) = self.node(expression.expression()).ok()?;
@@ -627,8 +632,13 @@ impl Builder<'_, '_> {
             matches!(fact.point(), UnitDropPoint::ControlTransfer(_))
                 && fact.target() == UnitDropTarget::Temporary(unit)
         });
+        let is_const_temp = self
+            .inputs
+            .constant_owned
+            .is_some_and(|owned| owned.materialization_at(unit).is_some());
         if self.move_only(ty)
             && (pending
+                || is_const_temp
                 || self.inputs.typed.expression_category(unit)
                     == Some(lang_frontend::type_checking::ExpressionCategory::Temporary))
         {
@@ -638,9 +648,15 @@ impl Builder<'_, '_> {
     }
 
     /// A recorded temporary now lives in `slot` (its adapted value).
-    fn repoint_temporary(&mut self, expression: ExpressionId, slot: Slot) {
+    fn repoint_temporary(&mut self, mut expression: ExpressionId, slot: Slot) {
         if let Some(recorded) = self.temporaries.get_mut(&self.unit(expression)) {
             *recorded = slot;
+        }
+        while let Ok((Expression::Group { expression: inner }, _)) = self.node(expression) {
+            expression = inner;
+            if let Some(recorded) = self.temporaries.get_mut(&self.unit(expression)) {
+                *recorded = slot;
+            }
         }
     }
 
@@ -651,6 +667,7 @@ impl Builder<'_, '_> {
         let mut root = expression;
         while let Ok((Expression::Group { expression: inner }, _)) = self.node(root) {
             root = inner;
+            self.temporaries.remove(&self.unit(root));
         }
         if let Some(symbol) = self.pending_symbol(self.unit(root))
             && self.bindings.contains_key(&symbol)

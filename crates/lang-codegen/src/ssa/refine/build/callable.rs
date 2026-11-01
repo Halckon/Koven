@@ -263,10 +263,18 @@ impl Builder<'_, '_> {
         let (Expression::Name, span) = self.node(root)? else {
             return Ok(None);
         };
-        if self.inputs.typed.non_null_use(self.unit(root)).is_some() {
+        let id = self.unit(root);
+        if self.inputs.typed.non_null_use(id).is_some()
+            || self
+                .inputs
+                .constant_owned
+                .is_some_and(|owned| owned.materialization_at(id).is_some())
+        {
             return Ok(None);
         }
-        let symbol = self.reference(span)?;
+        let Some(&symbol) = self.inputs.references.get(&(span.start(), span.end())) else {
+            return Ok(None);
+        };
         let is_string = matches!(
             self.symbol_type(symbol)
                 .and_then(|ty| self.inputs.typed.types().get(ty)),
@@ -293,10 +301,18 @@ impl Builder<'_, '_> {
         let (Expression::Name, span) = self.node(root)? else {
             return Ok(None);
         };
-        if self.inputs.typed.non_null_use(self.unit(root)).is_some() {
+        let id = self.unit(root);
+        if self.inputs.typed.non_null_use(id).is_some()
+            || self
+                .inputs
+                .constant_owned
+                .is_some_and(|owned| owned.materialization_at(id).is_some())
+        {
             return Ok(None);
         }
-        let symbol = self.reference(span)?;
+        let Some(&symbol) = self.inputs.references.get(&(span.start(), span.end())) else {
+            return Ok(None);
+        };
         Ok((self.symbol_type(symbol) == Some(parameter))
             .then(|| self.borrowed.get(&symbol).copied())
             .flatten())

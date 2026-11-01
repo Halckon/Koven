@@ -455,4 +455,52 @@ impl Builder<'_, '_> {
         self.leave_unclaimed(mark, span)?;
         Ok(Lowered::Unit)
     }
+
+    pub(super) fn constant_materialization(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<Lowered>, LoweringError> {
+        let id = self.unit(expression);
+        let Some(facts) = self.inputs.typed.constants() else {
+            return Ok(None);
+        };
+        let Ok(index) = facts
+            .uses()
+            .binary_search_by_key(&id, |use_| use_.expression())
+        else {
+            return Ok(None);
+        };
+        let descriptor = &facts.uses()[index];
+        let plan = self
+            .inputs
+            .constant_owned
+            .and_then(|owned| owned.materialization_at(id))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if plan.descriptor() != descriptor {
+            return Err(error(LoweringErrorKind::MismatchedAnalysis, span));
+        }
+        let ty = self.ssa_type(self.expression_type(expression)?, span)?;
+        let op = match (plan.kind(), descriptor.value()) {
+            (
+                lang_frontend::ownership_checking::ConstantMaterializationKind::InlineCopy,
+                lang_frontend::type_checking::ConstValue::Boolean(value),
+            ) => ROp::Constant(ScalarConstant::Boolean(*value)),
+            (
+                lang_frontend::ownership_checking::ConstantMaterializationKind::InlineCopy,
+                lang_frontend::type_checking::ConstValue::Integer { value, .. },
+            ) => ROp::Constant(ScalarConstant::Integer(*value)),
+            (
+                lang_frontend::ownership_checking::ConstantMaterializationKind::StringTemporary,
+                lang_frontend::type_checking::ConstValue::String(bytes),
+            ) => ROp::StringLiteral {
+                string: ty,
+                bytes: bytes.to_vec(),
+            },
+            _ => return Err(error(LoweringErrorKind::MismatchedAnalysis, span)),
+        };
+        self.value(op, EntityType::Value(ty), span)
+            .map(Lowered::Value)
+            .map(Some)
+    }
 }

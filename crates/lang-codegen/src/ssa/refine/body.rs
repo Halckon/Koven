@@ -252,6 +252,23 @@ pub(super) enum ROp {
         owner: Slot,
         place: Slot,
     },
+    /// Copies a Copyable value into an independent SSA value identity.
+    Copy {
+        source: Slot,
+    },
+    /// Commits a new value into an exclusively borrowed root local, returning `[new_owner, old]`.
+    RootReplace {
+        owner: Slot,
+        loan: Slot,
+        replacement: Slot,
+    },
+    /// Swaps two exclusively borrowed root locals, returning `[new_left, new_right]`.
+    RootSwap {
+        left_owner: Slot,
+        right_owner: Slot,
+        left_loan: Slot,
+        right_loan: Slot,
+    },
     /// Replaces one payload field through an exclusive owner loan, dropping the old value.
     HeapFieldReplace {
         receiver: Slot,
@@ -281,6 +298,7 @@ impl ROp {
                 .chain(arguments.iter().copied())
                 .collect(),
             Self::Alias { source: slot }
+            | Self::Copy { source: slot }
             | Self::PrintString { value: slot }
             | Self::ReadLoan { loan: slot }
             | Self::RootPlace { owner: slot }
@@ -349,7 +367,18 @@ impl ROp {
             } => {
                 vec![*left, *right]
             }
-            Self::StringCopySlice { source, start, end } => vec![*source, *start, *end],
+            Self::StringCopySlice { source, start, end }
+            | Self::RootReplace {
+                owner: source,
+                loan: start,
+                replacement: end,
+            } => vec![*source, *start, *end],
+            Self::RootSwap {
+                left_owner,
+                right_owner,
+                left_loan,
+                right_loan,
+            } => vec![*left_owner, *right_owner, *left_loan, *right_loan],
             Self::NullableTake { owner, proof } => vec![*owner, *proof],
             Self::DirectCall {
                 receiver,

@@ -6,9 +6,7 @@ use lang_frontend::{
     ownership_checking::UnitDropPoint,
     parser::{Expression, WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{
-        BuiltinType, IntegerRangeOperationKind, UnitExpressionId, UnitTypeId, UnitTypeKind,
-    },
+    type_checking::{BuiltinType, IntegerRangeOperationKind, UnitTypeId, UnitTypeKind},
 };
 
 use super::{Builder, Lowered};
@@ -279,17 +277,19 @@ impl Builder<'_, '_> {
     ) -> Result<Option<Slot>, LoweringError> {
         if string {
             let (payload, span) = self.node(expression)?;
-            if matches!(payload, Expression::Name) {
-                let symbol = self.reference(span)?;
-                if let Some(loan) = self.borrowed.get(&symbol).copied() {
-                    // The shared parameter remains owned by the caller. StringEqual can
-                    // observe its loan directly; never materialize an owned String read.
-                    self.drops(UnitDropPoint::AfterExpression(UnitExpressionId::new(
-                        self.inputs.source_unit,
-                        expression,
-                    )))?;
-                    return Ok(Some(loan));
-                }
+            let id = self.unit(expression);
+            if matches!(payload, Expression::Name)
+                && !self
+                    .inputs
+                    .constant_owned
+                    .is_some_and(|owned| owned.materialization_at(id).is_some())
+                && let Some(&symbol) = self.inputs.references.get(&(span.start(), span.end()))
+                && let Some(loan) = self.borrowed.get(&symbol).copied()
+            {
+                // The shared parameter remains owned by the caller. StringEqual can
+                // observe its loan directly; never materialize an owned String read.
+                self.drops(UnitDropPoint::AfterExpression(id))?;
+                return Ok(Some(loan));
             }
         }
         self.required(expression)

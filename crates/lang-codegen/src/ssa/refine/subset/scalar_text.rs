@@ -197,4 +197,42 @@ impl Checker<'_, '_> {
         }
         self.loop_body(body)
     }
+
+    pub(super) fn constant_materialization(&mut self, expression: ExpressionId) -> bool {
+        let id = self.id(expression);
+        let Some(facts) = self.inputs.typed.constants() else {
+            return false;
+        };
+        let Ok(index) = facts
+            .uses()
+            .binary_search_by_key(&id, |use_| use_.expression())
+        else {
+            return false;
+        };
+        let descriptor = &facts.uses()[index];
+        if let Some(owned) = self.inputs.constant_owned {
+            let Some(plan) = owned.materialization_at(id) else {
+                return false;
+            };
+            if plan.descriptor() != descriptor {
+                return false;
+            }
+        }
+        let Some(ty) = self.expression_type(expression) else {
+            return false;
+        };
+        let supported = match descriptor.value() {
+            lang_frontend::type_checking::ConstValue::Boolean(_) => matches!(
+                self.kind(ty),
+                Some(UnitTypeKind::Builtin(BuiltinType::Boolean))
+            ),
+            lang_frontend::type_checking::ConstValue::Integer { .. } => self.integer_type(ty),
+            lang_frontend::type_checking::ConstValue::String(_) => self.string(ty),
+            _ => false,
+        };
+        if supported {
+            self.migrated = true;
+        }
+        supported
+    }
 }

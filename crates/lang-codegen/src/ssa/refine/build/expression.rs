@@ -82,6 +82,12 @@ impl Builder<'_, '_> {
         let (payload, span) = self.node(expression)?;
         let id = self.unit(expression);
         let typed = self.inputs.typed;
+        if let Some(value) = self.constant_materialization(expression, span)? {
+            return Ok(value);
+        }
+        if typed.ownership_primitive(id).is_some() {
+            return self.ownership_primitive(expression, span);
+        }
         if typed.rc_operation(id).is_some() {
             return self.rc_operation(expression, span);
         }

@@ -815,3 +815,80 @@ fn destructuring_and_numeric_for_lower_in_refine() {
     }
     counted(source, 2, b"destructure-for\n");
 }
+
+#[test]
+fn ownership_primitives_and_constants_lower_in_refine() {
+    use lang_frontend::{
+        name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
+        ownership_checking::check_compilation_unit_constant_ownership,
+        type_checking::check_compilation_unit_types,
+    };
+    let source = r#"const val BASE: Int = 10
+    const val TAG: String = "swapped"
+    fun exchange(own next: String): String {
+        var left = "old"
+        var right = TAG.clone()
+        val prev = replace(&left, next)
+        swap(&left, &right)
+        println(left)
+        println(right)
+        return prev
+    }
+    fun main(): Unit {
+        var a = BASE
+        var b = 32
+        val old_a = replace(&a, 20)
+        swap(&a, &b)
+        val out = exchange("fresh")
+        if (old_a == 10 && a == 32 && b == 20) {
+            println(out)
+        }
+    }"#;
+    let ((program, entry), routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .unwrap()
+            .validate_constants()
+            .unwrap();
+        let owned = check_compilation_unit_constant_ownership(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+        )
+        .unwrap()
+        .validate()
+        .unwrap();
+        let entry = declaration(&names, "p", "main");
+        super::unit_lower::constant::lower_constant_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("ownership primitives and constants lower in ssa::refine")
+    });
+    for function in ["koven.p.main.d", "koven.p.exchange.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    let llvm =
+        crate::llvm::render_verified_program_with_entry(&program, entry).expect("verified LLVM");
+    let output = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 1);
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"swapped\nfresh\nold\n");
+}

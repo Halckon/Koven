@@ -359,6 +359,11 @@ impl Checker<'_, '_> {
         typed.construction(id).is_none()
             && typed.aggregate_projection(id).is_none()
             && typed.non_null_assertion(id).is_none()
+            && typed.ownership_primitive(id).is_none()
+            && self
+                .inputs
+                .constant_owned
+                .is_none_or(|owned| owned.materialization_at(id).is_none())
             && self.unspecialized(expression)
     }
 
@@ -371,10 +376,12 @@ impl Checker<'_, '_> {
             && typed.string_operation(id).is_none()
             && typed.rc_operation(id).is_none()
             && typed.range_size(id).is_none()
-            && typed.ownership_primitive(id).is_none()
             && typed.nullable_when(id).is_none()
             && self.inputs.constant_owned.is_none_or(|owned| {
-                owned.materialization_at(id).is_none() && owned.short_circuit_at(id).is_none()
+                owned.short_circuit_at(id).is_none_or(|plan| {
+                    plan.rhs()
+                        == lang_frontend::ownership_checking::UnitShortCircuitRhs::Conditional
+                })
             })
     }
 
@@ -415,6 +422,18 @@ impl Checker<'_, '_> {
         let id = self.id(expression);
         if let Expression::Lambda { .. } = node.payload() {
             return self.returned_lambda(expression);
+        }
+        if self.inputs.typed.constants().is_some_and(|facts| {
+            facts
+                .uses()
+                .binary_search_by_key(&id, |use_| use_.expression())
+                .is_ok()
+        }) {
+            return self.storage_type(ty) && self.constant_materialization(expression);
+        }
+        if self.inputs.typed.ownership_primitive(id).is_some() {
+            return (self.unit(ty) || self.storage_type(ty))
+                && self.ownership_primitive(expression);
         }
         // `Rc`, integer, integer-range, and String operations carry their own typed facts.
         if self.inputs.typed.rc_operation(id).is_some() {
@@ -787,6 +806,10 @@ impl Checker<'_, '_> {
                 })
                 && self.inputs.typed.expression_category(self.id(value))
                     != Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+                && !self
+                    .inputs
+                    .constant_owned
+                    .is_some_and(|owned| owned.materialization_at(self.id(value)).is_some())
             {
                 return false;
             }

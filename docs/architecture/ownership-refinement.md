@@ -53,6 +53,9 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 及可信标准文本原语（`CopyBytes`/`CopySlice`/`Utf8ErrorOffset`/`ByteLength`/`ByteAt`）。
 局部解构与整数区间 `for`（SPEC-0373）：支持 Copyable/MoveOnly `value class` 的局部解构
 （`AggregateCopyExplode`/`AggregateExplode`）以及 `IntRange`/`LongRange` 升序 `for` 循环。
+所有权原语与 `const val` 物化（SPEC-0374）：支持局部可变根 `replace(&root, value)`（`RootReplace`）与
+`swap(&left, &right)`（`RootSwap`，Copyable 根与新值先经 `Copy` 隔离 SSA 值身份），以及 `Boolean`/整数/
+`String` 的 `const val` 使用点物化。
 
 ## inline nullable 布局
 
