@@ -15,6 +15,7 @@ use crate::{
 use super::{
     ClosureCaptureDescriptor, ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource,
     ClosureDescriptor, OwnershipCheckingError, Transferability,
+    capture_rules::{ancestors, combine, contains, is_descendant},
 };
 
 pub(super) struct Analysis {
@@ -231,25 +232,6 @@ fn classifier_type(scope: ScopeId, names: &NameResolution, typed: &TypedFile) ->
     })
 }
 
-fn ancestors(scope: ScopeId, names: &NameResolution) -> impl Iterator<Item = ScopeId> + '_ {
-    std::iter::successors(Some(scope), |scope| {
-        names
-            .scopes()
-            .get(scope.index())
-            .and_then(|scope| scope.parent())
-    })
-}
-
-fn is_descendant(scope: ScopeId, ancestor: ScopeId, names: &NameResolution) -> bool {
-    ancestors(scope, names).any(|scope| scope == ancestor)
-}
-
-fn contains(outer: Span, inner: Span) -> bool {
-    outer.source_id() == inner.source_id()
-        && outer.start() <= inner.start()
-        && inner.end() <= outer.end()
-}
-
 struct TransferabilityEvaluator<'a> {
     typed: &'a TypedFile,
 }
@@ -420,18 +402,5 @@ impl<'a> TransferabilityEvaluator<'a> {
         };
         active.remove(&nominal);
         result
-    }
-}
-
-fn combine(left: Transferability, right: Transferability) -> Transferability {
-    match (left, right) {
-        (Transferability::Error, _) | (_, Transferability::Error) => Transferability::Error,
-        (Transferability::Unknown, _) | (_, Transferability::Unknown) => Transferability::Unknown,
-        (Transferability::NotTransferable, _) | (_, Transferability::NotTransferable) => {
-            Transferability::NotTransferable
-        }
-        (Transferability::Transferable, Transferability::Transferable) => {
-            Transferability::Transferable
-        }
     }
 }

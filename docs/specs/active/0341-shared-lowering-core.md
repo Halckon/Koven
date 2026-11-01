@@ -42,6 +42,28 @@ D10 的终态是单文件和 project 共用 compilation-unit 名称、类型、�
 - owner/loan/pending/receiver/Group alias、drop、正常及提前退出/Abort 运输以真实事实证明；
   保留末端 verifier。普通 native 成功不能替代释放次数、无泄漏或来源身份的资源证据。
 
+### 2.1 并行生产责任收敛：capture 规则与 Unit 文件对齐
+
+本批基于 main `4491f1a412f6caf8e9faa8fbfd6f1a84da373d2f`，不依赖未合入的
+frontend 合同批次。Single/Unit capture 的 scope 祖先、同来源 Span 包含与
+Transferability 合并规则收敛到私有共享实现；保留两个真实 producer 的类型求值、
+身份适配和全部旧 witness。这是重复规则退休，不是 Single 消费者或 E2 终态退休。
+
+Unit 类型 producer 在原 index/name/environment 资格门后只对齐一次 canonical ParsedFile
+借用，将同一 files 顺序供 signature collector 和 body checker 使用。只减少该处重复对齐，
+不改变 index、诊断顺序、recovery 资格或 public API；不宣称整条管线复杂度或吞吐改善已测得。
+不修改 E3/refine、native 路由、常量/基本 capability 边界或既有语言语义。
+
+| 验收项 | 目标 | 本批状态 |
+|---|---|---|
+| capture 合并格、来源与 scope 边界 | 私有 `capture_rules` lib 测试 | 待精确头官方 CI；保留原 producer suites |
+| Unit files 对齐及输入资格 | signature recovery 私有 lib 测试与现有 body 测试 | 待精确头官方 CI |
+| 共享调用方行为 | 既有 closure/multifile/type suites | 未继承旧 CI 为本批通过 |
+| 格式、文档与尺寸 | rustfmt、check_docs、check_rust_sizes、diff check | 静态通过：833 Markdown、2057 Rust 文件；39 项历史超限未扩大 |
+
+已知基线在 codegen 出现 54 项失败后由 heap-handle 递归测试栈溢出中止；不能把该状态
+归因于本批，也不能据此免除本批验证。未在本地运行 Cargo、build、test 或 Clippy。
+
 ## 3. 迁移步骤与回退清单
 
 1. **规范与证据固定。** 完成 v0.45 文档治理与独审，正式启用单独记账。以 actual91c 和

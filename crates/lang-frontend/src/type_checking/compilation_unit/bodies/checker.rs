@@ -17,7 +17,7 @@ use crate::{
         UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
         UnitAggregateProjectionReceiver, UnitCallableSignature, UnitFunctionParameterType,
         UnitRuntimeFieldLayoutDescriptor, UnitRuntimeFieldLayoutField, UnitTypeId, UnitTypeKind,
-        collect_compilation_unit_signatures_recovering, collect_expression_uses,
+        collect_expression_uses,
     },
 };
 
@@ -65,6 +65,7 @@ mod type_refs;
 mod when;
 mod while_flow;
 
+use super::super::signatures::collect_signatures_with_files;
 use flow::FlowKey;
 
 use super::{
@@ -97,9 +98,15 @@ pub(crate) fn check_compilation_unit_types_recovering(
     names: &CompilationUnitNames,
     environment: &TypeEnvironment,
 ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
-    let signatures =
-        collect_compilation_unit_signatures_recovering(sources, inputs, names, environment)?;
-    BodyChecker::new(sources, inputs, names, environment, signatures)?.run()
+    let prepared = collect_signatures_with_files(sources, inputs, names, environment)?;
+    BodyChecker::new(
+        sources,
+        prepared.files,
+        names,
+        environment,
+        prepared.signatures,
+    )
+    .run()
 }
 
 pub(super) struct BodyChecker<'a> {
@@ -134,21 +141,11 @@ pub(super) struct BodyChecker<'a> {
 impl<'a> BodyChecker<'a> {
     fn new(
         sources: &'a SourceMap,
-        inputs: &[SourceUnitInput<'a>],
+        files: Vec<&'a ParsedFile>,
         names: &'a CompilationUnitNames,
         environment: &'a TypeEnvironment,
         signatures: CompilationUnitSignatures,
-    ) -> Result<Self, CompilationUnitTypeError> {
-        let index = names.index();
-        let mut files = Vec::with_capacity(index.source_units().len());
-        for source in index.source_units() {
-            let parsed = inputs
-                .iter()
-                .find(|input| input.source_id() == source.source_id())
-                .map(|input| input.parsed())
-                .ok_or(CompilationUnitTypeError::MismatchedInputs)?;
-            files.push(parsed);
-        }
+    ) -> Self {
         let references = names
             .references()
             .iter()
@@ -188,7 +185,7 @@ impl<'a> BodyChecker<'a> {
             .iter()
             .map(|file| collect_expression_uses(file))
             .collect();
-        Ok(Self {
+        Self {
             sources,
             names,
             environment,
@@ -215,7 +212,7 @@ impl<'a> BodyChecker<'a> {
             checking_constants: false,
             constant_inputs: BTreeMap::new(),
             constant_values: BTreeMap::new(),
-        })
+        }
     }
 
     fn run(self) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {

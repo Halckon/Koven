@@ -4,6 +4,7 @@ mod borrow_last_use;
 mod borrow_result;
 mod callable_provenance;
 mod capture;
+mod capture_rules;
 mod checked_file;
 mod checker;
 mod cleanup_condition;
