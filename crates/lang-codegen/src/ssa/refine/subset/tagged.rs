@@ -1,7 +1,8 @@
-//! Subset rules for Copyable enums (SPEC-0356 step 3): case construction, case tests and
-//! smart-cast payload reads. They mirror `build/tagged.rs`.
+use std::collections::BTreeSet;
+
 use lang_frontend::{
     ast::{ExpressionId, TypeRefId},
+    ownership_checking::ConstructionRootKind,
     parser::Expression,
     type_checking::{
         Copyability, NominalKind, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
@@ -14,7 +15,7 @@ use super::Checker;
 use crate::ssa::unit_plan::resolve_enum_runtime_payload_types;
 
 impl Checker<'_, '_> {
-    /// A concrete, non-generic, Copyable `enum class` whose payloads are all scalars.
+    /// A concrete Copyable `enum class` whose payloads are all scalars.
     pub(super) fn enum_type(&self, ty: UnitTypeId) -> bool {
         self.enum_signature(ty).is_some()
             && self.copyability_of(ty) == Copyability::Copyable
@@ -23,7 +24,38 @@ impl Checker<'_, '_> {
                 .is_some_and(|cases| cases.iter().flatten().all(|payload| self.scalar(*payload)))
     }
 
-    pub(super) fn enum_signature(&self, ty: UnitTypeId) -> Option<&UnitNominalSignature> {
+    /// A concrete MoveOnly `enum class` whose payloads are supported storage types.
+    pub(super) fn box_enum_type(&self, ty: UnitTypeId) -> bool {
+        self.box_enum_type_seen(ty, &mut BTreeSet::new())
+    }
+
+    pub(super) fn box_enum_type_seen(
+        &self,
+        ty: UnitTypeId,
+        active: &mut BTreeSet<UnitTypeId>,
+    ) -> bool {
+        let Some(cases) = self
+            .enum_signature(ty)
+            .filter(|_| self.copyability_of(ty) == Copyability::MoveOnly)
+            .and_then(|_| self.enum_payload_types(ty))
+        else {
+            return false;
+        };
+        if !active.insert(ty) {
+            return true;
+        }
+        let ok = cases
+            .iter()
+            .flatten()
+            .all(|payload| self.storage_type_seen(*payload, active));
+        active.remove(&ty);
+        ok
+    }
+
+    pub(super) fn enum_signature(
+        &self,
+        ty: UnitTypeId,
+    ) -> Option<(&UnitNominalSignature, Vec<UnitTypeId>)> {
         let Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
@@ -37,13 +69,12 @@ impl Checker<'_, '_> {
             .signatures()
             .declaration(*declaration)?
             .nominal()?;
-        (arguments.is_empty()
-            && nominal.kind() == NominalKind::EnumClass
-            && nominal.type_parameters().is_empty())
-        .then_some(nominal)
+        (nominal.kind() == NominalKind::EnumClass
+            && arguments.len() == nominal.type_parameters().len())
+        .then(|| (nominal, arguments.clone()))
     }
 
-    fn enum_payload_types(&self, ty: UnitTypeId) -> Option<Vec<Vec<UnitTypeId>>> {
+    pub(super) fn enum_payload_types(&self, ty: UnitTypeId) -> Option<Vec<Vec<UnitTypeId>>> {
         let span = self.inputs.span;
         resolve_enum_runtime_payload_types(self.inputs.typed, ty, span).ok()
     }
@@ -57,9 +88,10 @@ impl Checker<'_, '_> {
         let Some(UnitTypeKind::EnumCase { case, root: own }) = self.kind(case_type) else {
             return None;
         };
-        (*own == root)
+        let (nominal, _) = (self.c(*own) == root)
             .then(|| self.enum_signature(root))
-            .flatten()?
+            .flatten()?;
+        nominal
             .enum_cases()
             .iter()
             .find(|candidate| candidate.type_symbol() == *case)
@@ -72,7 +104,8 @@ impl Checker<'_, '_> {
         })
     }
 
-    /// `E.C(...)` / `C`: fields delivered in source order, no root obligation (Copyable).
+    /// `E.C(...)` / `C`: fields delivered in source order, no root obligation (Copyable)
+    /// or `Inline` root obligation (MoveOnly boxed enum).
     pub(super) fn enum_construction(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         let typed = self.inputs.typed;
@@ -87,7 +120,7 @@ impl Checker<'_, '_> {
         let UnitConstructionTarget::EnumCase(target) = descriptor.target() else {
             return false;
         };
-        let Some(nominal) = self.enum_signature(result) else {
+        let Some((nominal, type_arguments)) = self.enum_signature(result) else {
             return false;
         };
         let Some((index, case)) = nominal
@@ -98,13 +131,17 @@ impl Checker<'_, '_> {
         else {
             return false;
         };
+        let payload_symbols: Vec<_> = case.payloads().iter().map(|field| field.symbol()).collect();
+        let is_box_enum = self.box_enum_type(result);
+        if !type_arguments.is_empty() || is_box_enum {
+            self.migrated = true;
+        }
         let Some(payloads) = self
             .enum_payload_types(result)
             .and_then(|cases| cases.get(index).cloned())
         else {
             return false;
         };
-        let payload_symbols: Vec<_> = case.payloads().iter().map(|field| field.symbol()).collect();
         let mut plans = self
             .inputs
             .owned
@@ -114,13 +151,29 @@ impl Checker<'_, '_> {
         let (Some(plan), None) = (plans.next(), plans.next()) else {
             return false;
         };
-        let identity = self.enum_type(result)
+        let instance_arguments: Vec<_> = descriptor
+            .instance()
+            .type_arguments()
+            .iter()
+            .map(|ty| self.c(*ty))
+            .collect();
+        let root_ok = if self.enum_type(result) {
+            plan.root_obligation().is_none()
+        } else if is_box_enum {
+            plan.root_obligation().is_some_and(|root| {
+                root.construction() == id
+                    && self.c(root.result_type()) == result
+                    && root.kind() == ConstructionRootKind::Inline
+            })
+        } else {
+            false
+        };
+        let identity = root_ok
             && self.expression_type(expression) == Some(result)
-            && descriptor.instance().type_arguments().is_empty()
+            && instance_arguments == type_arguments
             && descriptor.arguments().len() == payloads.len()
             && plan.target() == descriptor.target()
             && plan.terminating_operand().is_none()
-            && plan.root_obligation().is_none()
             && plan.deliveries().len() == payloads.len();
         if !identity {
             return false;
@@ -133,18 +186,17 @@ impl Checker<'_, '_> {
             .enumerate()
             .all(|(index, (argument, delivery))| {
                 let value = argument.argument();
+                let parameter = self.c(argument.parameter_type());
                 argument.evaluation_index() == index
                     && value.source_unit() == self.inputs.source_unit
-                    && payloads.get(argument.parameter_index())
-                        == Some(&self.c(argument.parameter_type()))
+                    && payloads.get(argument.parameter_index()) == Some(&parameter)
                     && payload_symbols.get(argument.parameter_index()).copied()
                         == argument.parameter_symbol()
                     && delivery.construction() == id
                     && delivery.argument() == value
                     && delivery.parameter_index() == argument.parameter_index()
                     && delivery.evaluation_index() == index
-                    && self.expression_type(value.expression())
-                        == Some(self.c(argument.parameter_type()))
+                    && self.adaptable(value.expression(), parameter)
                     && self.expression(value.expression())
             })
     }
@@ -232,13 +284,17 @@ impl Checker<'_, '_> {
                     return false;
                 }
                 let Some(UnitTypeKind::EnumCase { root, .. }) = self
-                    .expression_type(receiver.expression())
+                    .inputs
+                    .typed
+                    .expression_type(receiver)
                     .and_then(|ty| self.kind(ty))
                 else {
                     return false;
                 };
-                let root = *root;
-                if !self.enum_type(root) || !self.plain(receiver.expression()) {
+                let root = self.c(*root);
+                if !(self.enum_type(root) || self.box_enum_type(root))
+                    || !self.plain(receiver.expression())
+                {
                     return false;
                 }
                 let Ok(node) = self
@@ -268,6 +324,13 @@ impl Checker<'_, '_> {
                 root
             }
         };
+        if self
+            .enum_signature(root)
+            .is_some_and(|(_, arguments)| !arguments.is_empty())
+            || self.box_enum_type(root)
+        {
+            self.migrated = true;
+        }
         self.payload_case(root, projection.field()).is_some()
     }
 
@@ -277,8 +340,8 @@ impl Checker<'_, '_> {
         root: UnitTypeId,
         field: lang_frontend::name_resolution::UnitSymbolId,
     ) -> Option<(usize, usize)> {
-        let mut found = self
-            .enum_signature(root)?
+        let (nominal, _) = self.enum_signature(root)?;
+        let mut found = nominal
             .enum_cases()
             .iter()
             .enumerate()

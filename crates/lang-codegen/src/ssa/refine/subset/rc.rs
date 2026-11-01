@@ -1,8 +1,10 @@
-//! Subset rules for intrinsic `Rc<T>` (SPEC-0359): construction, `share()` and `value`
-//! projections whose payload is a scalar or a plain class. They mirror `build/rc.rs`.
+//! Subset rules for intrinsic `Rc<T>` (SPEC-0359, SPEC-0378): construction, `share()` and
+//! `value` projections whose payload is any supported storage type. They mirror `build/rc.rs`.
+use std::collections::BTreeSet;
+
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{ConstructionRootKind, RcOwnershipEffectKind},
+    ownership_checking::{ConstructionRootKind, LoanKind, RcOwnershipEffectKind},
     parser::Expression,
     type_checking::{
         Copyability, ExpressionCategory, IntrinsicTypeConstructor, ParameterMode, RcOperationKind,
@@ -13,8 +15,16 @@ use lang_frontend::{
 use super::Checker;
 
 impl Checker<'_, '_> {
-    /// The payload of `Rc<T>` when `T` is a scalar or a plain class.
+    /// The payload of `Rc<T>` when `T` is a non-recursive supported storage type.
     pub(super) fn rc_payload(&self, ty: UnitTypeId) -> Option<UnitTypeId> {
+        self.rc_payload_seen(ty, &mut BTreeSet::new())
+    }
+
+    pub(super) fn rc_payload_seen(
+        &self,
+        ty: UnitTypeId,
+        active: &mut BTreeSet<UnitTypeId>,
+    ) -> Option<UnitTypeId> {
         let Some(UnitTypeKind::Intrinsic {
             constructor: IntrinsicTypeConstructor::Rc,
             arguments,
@@ -25,7 +35,12 @@ impl Checker<'_, '_> {
         let [payload] = arguments.as_slice() else {
             return None;
         };
-        (self.scalar(*payload) || self.class(*payload)).then_some(*payload)
+        if !active.insert(ty) {
+            return None;
+        }
+        let ok = self.storage_type_seen(*payload, active);
+        active.remove(&ty);
+        ok.then_some(*payload)
     }
 
     /// `Rc(payload)`: one delivered argument and a shared-owner root obligation.
@@ -78,8 +93,9 @@ impl Checker<'_, '_> {
     }
 
     /// The `Rc` operation at `expression` with its single matching ownership effect, on an
-    /// owned local or Value parameter. A Borrow `Rc` parameter stays outside: its loan is a
-    /// pointer to the owner's storage, which the shared-owner operations do not follow.
+    /// owned local, Value parameter, or proven non-null `Rc<T>?` view. A Borrow `Rc` parameter
+    /// stays outside: its loan is a pointer to the owner's storage, which the shared-owner
+    /// operations do not follow.
     pub(super) fn rc_operation_on_owner(
         &self,
         expression: ExpressionId,
@@ -105,24 +121,26 @@ impl Checker<'_, '_> {
             && effect.kind() == expected
             && receiver.source_unit() == self.inputs.source_unit
             && self.inputs.typed.expression_category(receiver) == Some(ExpressionCategory::Place);
-        let node = self
-            .inputs
-            .parsed
-            .ast()
-            .expressions()
-            .get(receiver.expression())
-            .ok()?;
+        let root = self.ungrouped(receiver.expression());
+        let node = self.inputs.parsed.ast().expressions().get(root).ok()?;
+        let payload_ty = self.c(descriptor.payload_type());
         let owner = matches!(node.payload(), Expression::Name)
-            && self.reference(receiver.expression()).is_some_and(|symbol| {
+            && self.reference(root).is_some_and(|symbol| {
                 self.known.contains(&symbol)
                     && matches!(
                         self.parameter_mode(symbol),
                         None | Some(ParameterMode::Value)
                     )
-                    && self.inputs.typed.non_null_use(receiver).is_none()
-                    && self.symbol_type(symbol).is_some_and(|ty| {
-                        self.rc_payload(ty) == Some(self.c(descriptor.payload_type()))
-                    })
+                    && match self.inputs.typed.non_null_use(receiver) {
+                        None => self
+                            .symbol_type(symbol)
+                            .is_some_and(|ty| self.rc_payload(ty) == Some(payload_ty)),
+                        Some(fact) => {
+                            fact.symbol() == symbol
+                                && self.view_symbols.contains(&symbol)
+                                && self.rc_payload(self.c(fact.narrowed_type())) == Some(payload_ty)
+                        }
+                    }
             });
         (shape && owner).then_some(descriptor)
     }
@@ -134,9 +152,9 @@ impl Checker<'_, '_> {
             .is_some_and(|descriptor| match descriptor.kind() {
                 RcOperationKind::Share => true,
                 RcOperationKind::Value => {
-                    self.scalar(self.c(descriptor.payload_type()))
-                        && self.copyability_of(self.c(descriptor.payload_type()))
-                            == Copyability::Copyable
+                    let payload = self.c(descriptor.payload_type());
+                    self.storage_type(payload)
+                        && self.copyability_of(payload) == Copyability::Copyable
                 }
             })
     }
@@ -148,5 +166,37 @@ impl Checker<'_, '_> {
         (descriptor.kind() == RcOperationKind::Value
             && self.class(self.c(descriptor.payload_type())))
         .then(|| self.c(descriptor.payload_type()))
+    }
+
+    /// `owner.value` of a MoveOnly payload lent to a Borrow call parameter.
+    pub(super) fn borrowed_rc_payload(
+        &mut self,
+        call: ExpressionId,
+        value: ExpressionId,
+        parameter: UnitTypeId,
+    ) -> bool {
+        let Ok(call_node) = self.inputs.parsed.ast().expressions().get(call) else {
+            return false;
+        };
+        if self.span_has_control_transfer(call_node.span())
+            || self.copyability_of(parameter) != Copyability::MoveOnly
+            || !self.storage_type(parameter)
+        {
+            return false;
+        }
+        let root = self.ungrouped(value);
+        let Some(descriptor) = self.rc_operation_on_owner(root) else {
+            return false;
+        };
+        let ok = descriptor.kind() == RcOperationKind::Value
+            && self.c(descriptor.payload_type()) == parameter
+            && self.expression_type(root) == Some(parameter)
+            && self.inputs.owned.loans().iter().any(|loan| {
+                loan.call() == self.id(call)
+                    && (loan.argument() == self.id(value) || loan.argument() == self.id(root))
+                    && loan.kind() == LoanKind::Shared
+            });
+        self.migrated |= ok;
+        ok
     }
 }

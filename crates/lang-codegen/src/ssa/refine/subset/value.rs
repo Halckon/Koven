@@ -55,7 +55,17 @@ impl Checker<'_, '_> {
                 .is_some_and(|fields| fields.iter().all(|field| self.scalar(*field)))
     }
 
-    /// `V(fields...)`: every field delivered in evaluation order; no root obligation.
+    /// A concrete MoveOnly value class whose fields are scalars, String, or plain classes.
+    pub(super) fn move_value_class(&self, ty: UnitTypeId) -> bool {
+        self.inputs.typed.copyability(ty) == Copyability::MoveOnly
+            && self.value_fields(ty).is_some_and(|fields| {
+                fields
+                    .iter()
+                    .all(|field| self.scalar(*field) || self.string(*field) || self.class(*field))
+            })
+    }
+
+    /// `V(fields...)`: every field delivered in evaluation order.
     pub(super) fn value_construction(&mut self, expression: ExpressionId) -> bool {
         self.migrated = true;
         let id = self.id(expression);
@@ -91,12 +101,23 @@ impl Checker<'_, '_> {
         let (Some(plan), None) = (plans.next(), plans.next()) else {
             return false;
         };
-        let identity = self.value_class(result)
+        let root_ok = if self.value_class(result) {
+            plan.root_obligation().is_none()
+        } else if self.move_value_class(result) {
+            plan.root_obligation().is_some_and(|root| {
+                root.construction() == id
+                    && self.c(root.result_type()) == result
+                    && root.kind()
+                        == lang_frontend::ownership_checking::ConstructionRootKind::Inline
+            })
+        } else {
+            false
+        };
+        let identity = root_ok
             && self.expression_type(expression) == Some(result)
             && descriptor.arguments().len() == fields.len()
             && plan.target() == descriptor.target()
             && plan.terminating_operand().is_none()
-            && plan.root_obligation().is_none()
             && plan.deliveries().len() == fields.len();
         if !identity {
             return false;
@@ -119,9 +140,40 @@ impl Checker<'_, '_> {
                     && delivery.argument() == value
                     && delivery.parameter_index() == argument.parameter_index()
                     && delivery.evaluation_index() == index
-                    && self.expression_type(value.expression()) == Some(parameter)
+                    && self.adaptable(value.expression(), parameter)
                     && self.expression(value.expression())
             })
+    }
+
+    pub(super) fn local_destructuring(
+        &mut self,
+        statement: lang_frontend::ast::StatementId,
+        initializer: ExpressionId,
+    ) -> bool {
+        self.migrated = true;
+        let statement_id =
+            lang_frontend::type_checking::UnitStatementId::new(self.inputs.source_unit, statement);
+        let Some(descriptor) = self.inputs.typed.destructuring(statement_id).cloned() else {
+            return false;
+        };
+        let Some(init_ty) = self.expression_type(initializer) else {
+            return false;
+        };
+        let mode_ok = match descriptor.mode() {
+            lang_frontend::type_checking::DestructuringMode::Copy => self.value_class(init_ty),
+            lang_frontend::type_checking::DestructuringMode::Consume => {
+                self.move_value_class(init_ty)
+            }
+        };
+        if descriptor.statement() != statement_id || !mode_ok || !self.expression(initializer) {
+            return false;
+        }
+        descriptor.components().iter().all(|component| {
+            let ty = self.c(component.ty());
+            self.note_nullable(ty);
+            self.known.insert(component.symbol());
+            self.symbol_type(component.symbol()) == Some(ty) && self.storage_type(ty)
+        })
     }
 
     /// The value-class owner of a projection, read by copy: a known name or the current

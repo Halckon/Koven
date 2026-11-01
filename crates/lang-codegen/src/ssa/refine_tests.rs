@@ -653,3 +653,244 @@ fn generic_instances_and_value_classes_lower_concretely() {
         ("vmethod-generic\nvalue\ngeneric\n".to_owned(), Some(0))
     );
 }
+
+#[test]
+fn integer_range_and_string_clone_lower_in_refine() {
+    let source = r#"fun check(s: String, x: Int?): String {
+        val base = if (x == null) 0 else x
+        val inverted = base.inv().inv()
+        val shifted = ((inverted and 15) or 1) shl 1
+        val span = +1..(-(-10))
+        val wide = shifted.toLong()
+        if (shifted in span && wide == 6.toLong() && (1..<4) != (1..4)) {
+            return s.clone()
+        }
+        return "fallback".clone()
+    }
+    fun main(): Unit {
+        val out: String? = check("refined-ok", 2)
+        if (out != null) { println(out.clone()) }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("integer, range, and String.clone lower in ssa::refine")
+    });
+    for function in ["koven.p.main.d", "koven.p.check.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(run(source), ("refined-ok\n".to_owned(), Some(0)));
+}
+
+#[test]
+fn generic_classes_and_enums_lower_in_refine() {
+    let source = r#"class Boxed<T>(var tag: Int, var v: T) {
+        fun get_tag(): Int = tag
+        inout fun set(own next_tag: Int, own next_v: T): Unit {
+            this.tag = next_tag
+            this.v = next_v
+        }
+    }
+    enum class Outcome<T> {
+        Ok(value: T),
+        Err(code: Int, fallback: T);
+        fun is_ok(): Boolean = this is Ok
+    }
+    fun unwrap_or(x: Outcome<Int>): Int = when (x) {
+        is Outcome.Ok -> x.value
+        is Outcome.Err -> x.code + x.fallback
+    }
+    fun main(): Unit {
+        var b = Boxed(1, 10)
+        b.set(21, 21)
+        b.v = b.get_tag() + b.v
+        val ok = Outcome.Ok(b.v)
+        val err = Outcome.Err(3, 4)
+        if (ok.is_ok() && !err.is_ok()) {
+            if (unwrap_or(ok) == 42 && unwrap_or(err) == 7) {
+                println("generic-class-enum")
+            }
+        }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("generic classes and Copyable enums lower in ssa::refine")
+    });
+    for function in [
+        "koven.p.main.d",
+        "koven.p.unwrap_or.d",
+        ".get_tag.",
+        ".set.",
+        ".is_ok.",
+    ] {
+        assert!(
+            routed.iter().any(|name| name.contains(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    counted(source, 1, b"generic-class-enum\n");
+}
+
+#[test]
+fn destructuring_and_numeric_for_lower_in_refine() {
+    let source = r#"value class Bounds(val lo: Int, val hi: Int)
+    class Token(val weight: Int)
+    value class TokenPair(val left: Token, val right: Token)
+    fun sum_range(bounds: Bounds, bonus: Int?): Int {
+        val (lo, hi) = bounds
+        var total = if (bonus == null) 0 else bonus
+        for (i in lo..hi) {
+            if (i == 2) { continue }
+            total = total + i
+            if (total > 20) { break }
+        }
+        return total
+    }
+    fun main(): Unit {
+        val (a, b) = TokenPair(Token(1), Token(4))
+        val res = sum_range(Bounds(a.weight, b.weight), 2)
+        if (res == 10) {
+            println("destructure-for")
+        }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("local destructuring and numeric range for lower in ssa::refine")
+    });
+    for function in ["koven.p.main.d", "koven.p.sum_range.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    counted(source, 2, b"destructure-for\n");
+}
+
+#[test]
+fn ownership_primitives_and_constants_lower_in_refine() {
+    use lang_frontend::{
+        name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
+        ownership_checking::check_compilation_unit_constant_ownership,
+        type_checking::check_compilation_unit_types,
+    };
+    let source = r#"const val BASE: Int = 10
+    const val TAG: String = "swapped"
+    fun exchange(own next: String): String {
+        var left = "old"
+        var right = TAG.clone()
+        val prev = replace(&left, next)
+        swap(&left, &right)
+        println(left)
+        println(right)
+        return prev
+    }
+    fun main(): Unit {
+        var a = BASE
+        var b = 32
+        val old_a = replace(&a, 20)
+        swap(&a, &b)
+        val out = exchange("fresh")
+        if (old_a == 10 && a == 32 && b == 20) {
+            println(out)
+        }
+    }"#;
+    let ((program, entry), routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .unwrap()
+            .validate_constants()
+            .unwrap();
+        let owned = check_compilation_unit_constant_ownership(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+        )
+        .unwrap()
+        .validate()
+        .unwrap();
+        let entry = declaration(&names, "p", "main");
+        super::unit_lower::constant::lower_constant_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("ownership primitives and constants lower in ssa::refine")
+    });
+    for function in ["koven.p.main.d", "koven.p.exchange.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    let llvm =
+        crate::llvm::render_verified_program_with_entry(&program, entry).expect("verified LLVM");
+    let output = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 1);
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"swapped\nfresh\nold\n");
+}
+
+mod container_tests;

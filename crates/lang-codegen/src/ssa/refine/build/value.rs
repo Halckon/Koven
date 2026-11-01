@@ -46,19 +46,27 @@ impl Builder<'_, '_> {
         let mut arguments = descriptor.arguments().iter().collect::<Vec<_>>();
         arguments.sort_by_key(|argument| argument.evaluation_index());
         let mut fields: Vec<Option<Slot>> = vec![None; arguments.len()];
+        let mut delivered = Vec::with_capacity(arguments.len());
         for argument in arguments {
             if argument.argument().source_unit() != self.inputs.source_unit {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
-            let Some(value) = self.required(argument.argument().expression())? else {
+            let value_expression = argument.argument().expression();
+            let Some(value) = self.required(value_expression)? else {
                 return Ok(Lowered::Diverged);
             };
+            let value = self.adapt(value, value_expression, self.c(argument.parameter_type()))?;
+            self.repoint_temporary(value_expression, value);
+            delivered.push(value_expression);
             let slot = fields
                 .get_mut(argument.parameter_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             if slot.replace(value).is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
+        }
+        for value_expression in delivered {
+            self.deliver(value_expression);
         }
         let fields = fields
             .into_iter()
@@ -70,6 +78,45 @@ impl Builder<'_, '_> {
             EntityType::Value(aggregate),
             span,
         )?))
+    }
+
+    pub(super) fn local_destructuring(
+        &mut self,
+        statement: lang_frontend::ast::StatementId,
+        initializer: ExpressionId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let statement_id =
+            lang_frontend::type_checking::UnitStatementId::new(self.inputs.source_unit, statement);
+        let descriptor = self
+            .inputs
+            .typed
+            .destructuring(statement_id)
+            .cloned()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let Some(source) = self.required(initializer)? else {
+            return Ok(Lowered::Diverged);
+        };
+        let mut results = Vec::with_capacity(descriptor.components().len());
+        for component in descriptor.components() {
+            let ty = self.ssa_type(self.c(component.ty()), span)?;
+            let slot = self.body.slot(EntityType::Value(ty));
+            results.push(slot);
+        }
+        let op = match descriptor.mode() {
+            lang_frontend::type_checking::DestructuringMode::Copy => {
+                ROp::AggregateCopyExplode { aggregate: source }
+            }
+            lang_frontend::type_checking::DestructuringMode::Consume => {
+                self.deliver(initializer);
+                ROp::AggregateExplode { aggregate: source }
+            }
+        };
+        self.push(op, results.clone(), span)?;
+        for (component, slot) in descriptor.components().iter().zip(results) {
+            self.bindings.insert(component.symbol(), slot);
+        }
+        Ok(Lowered::Unit)
     }
 
     /// Whether the projection reads a field of a value class.

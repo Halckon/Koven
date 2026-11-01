@@ -43,7 +43,7 @@ impl Builder<'_, '_> {
     }
 
     /// The registered variant index and payload aggregate of a case symbol.
-    fn variant(
+    pub(super) fn variant(
         &self,
         root: UnitTypeId,
         case: UnitSymbolId,
@@ -87,16 +87,36 @@ impl Builder<'_, '_> {
         let UnitConstructionTarget::EnumCase(case) = descriptor.target() else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
+        let result_ty = self.c(descriptor.result_type());
+        let move_enum = self.move_only(result_ty);
         let mut arguments = descriptor.arguments().iter().collect::<Vec<_>>();
         arguments.sort_by_key(|argument| argument.evaluation_index());
         let mut fields: Vec<Option<Slot>> = vec![None; arguments.len()];
+        let mut delivered = Vec::with_capacity(arguments.len());
         for argument in arguments {
             if argument.argument().source_unit() != self.inputs.source_unit {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
-            let Some(value) = self.required(argument.argument().expression())? else {
+            let value_expression = argument.argument().expression();
+            let Some(value) = self.required(value_expression)? else {
                 return Ok(Lowered::Diverged);
             };
+            let param_ty = self.c(argument.parameter_type());
+            let mut value = self.adapt(value, value_expression, param_ty)?;
+            if move_enum
+                && argument.category() == lang_frontend::type_checking::ExpressionCategory::Place
+                && !self.move_only(param_ty)
+            {
+                let param_ssa = self.ssa_type(param_ty, span)?;
+                value = self.value(
+                    ROp::Copy { source: value },
+                    EntityType::Value(param_ssa),
+                    self.span(value_expression),
+                )?;
+            } else {
+                self.repoint_temporary(value_expression, value);
+                delivered.push(value_expression);
+            }
             let slot = fields
                 .get_mut(argument.parameter_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
@@ -104,12 +124,14 @@ impl Builder<'_, '_> {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
         }
+        for value_expression in delivered {
+            self.deliver(value_expression);
+        }
         let fields = fields
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let (tagged, variant, aggregate) =
-            self.variant(self.c(descriptor.result_type()), case, span)?;
+        let (tagged, variant, aggregate) = self.variant(result_ty, case, span)?;
         let payload = self.value(
             ROp::AggregateConstruct { aggregate, fields },
             EntityType::Value(aggregate),
@@ -134,6 +156,28 @@ impl Builder<'_, '_> {
         negated: bool,
         span: Span,
     ) -> Result<Slot, LoweringError> {
+        let integer = self
+            .inputs
+            .typed
+            .types()
+            .builtin(BuiltinType::Int)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+            .and_then(|ty| self.ssa_type(ty, span))?;
+        let tag = self.value(
+            ROp::TaggedDiscriminant { owner },
+            EntityType::Value(integer),
+            span,
+        )?;
+        self.variant_tag_test(tag, variant, negated, span)
+    }
+
+    pub(super) fn variant_tag_test(
+        &mut self,
+        tag: Slot,
+        variant: usize,
+        negated: bool,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
         let builtin = |builder: &Self, builtin| {
             builder
                 .inputs
@@ -145,11 +189,6 @@ impl Builder<'_, '_> {
         };
         let integer = builtin(self, BuiltinType::Int)?;
         let boolean = builtin(self, BuiltinType::Boolean)?;
-        let tag = self.value(
-            ROp::TaggedDiscriminant { owner },
-            EntityType::Value(integer),
-            span,
-        )?;
         let expected = self.value(
             ROp::Constant(ScalarConstant::Integer(
                 i128::try_from(variant)
@@ -177,15 +216,12 @@ impl Builder<'_, '_> {
         )
     }
 
-    /// `owner is C` / `!is C` for a case type of `root`.
-    pub(super) fn type_test(
-        &mut self,
-        owner: Slot,
+    pub(super) fn type_test_variant(
+        &self,
         root: UnitTypeId,
         type_ref: TypeRefId,
-        negated: bool,
         span: Span,
-    ) -> Result<Slot, LoweringError> {
+    ) -> Result<usize, LoweringError> {
         let target = self
             .inputs
             .typed
@@ -196,10 +232,23 @@ impl Builder<'_, '_> {
         else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
-        if own != root {
+        if self.c(own) != root {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         let (_, variant, _) = self.variant(root, case, span)?;
+        Ok(variant)
+    }
+
+    /// `owner is C` / `!is C` for a case type of `root`.
+    pub(super) fn type_test(
+        &mut self,
+        owner: Slot,
+        root: UnitTypeId,
+        type_ref: TypeRefId,
+        negated: bool,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
+        let variant = self.type_test_variant(root, type_ref, span)?;
         self.variant_test(owner, variant, negated, span)
     }
 
@@ -262,7 +311,9 @@ impl Builder<'_, '_> {
                 .receiver
                 .is_some_and(|receiver| self.is_enum(receiver.ty)),
             UnitAggregateProjectionReceiver::Expression(receiver) => matches!(
-                self.expression_type_of(receiver)
+                self.inputs
+                    .typed
+                    .expression_type(receiver)
                     .and_then(|ty| self.inputs.typed.types().get(ty)),
                 Some(UnitTypeKind::EnumCase { .. })
             ),
@@ -293,16 +344,17 @@ impl Builder<'_, '_> {
                 if receiver.source_unit() != self.inputs.source_unit {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
-                let receiver = receiver.expression();
                 let Some(UnitTypeKind::EnumCase { root, .. }) = self
                     .inputs
                     .typed
-                    .types()
-                    .get(self.expression_type(receiver)?)
+                    .expression_type(receiver)
+                    .and_then(|ty| self.inputs.typed.types().get(ty))
                     .cloned()
                 else {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 };
+                let root = self.c(root);
+                let receiver = receiver.expression();
                 let (payload, receiver_span) = self.node(receiver)?;
                 let owner = match payload {
                     Expression::This => self.this_value_of(root, receiver_span)?,

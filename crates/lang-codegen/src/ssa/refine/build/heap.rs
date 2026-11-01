@@ -20,6 +20,55 @@ use crate::ssa::{
 };
 
 impl Builder<'_, '_> {
+    /// `Box(payload)` allocates a fresh heap box owner for the single payload argument.
+    pub(super) fn box_construction(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let id = self.unit(expression);
+        let descriptor = self
+            .inputs
+            .typed
+            .construction(id)
+            .filter(|descriptor| descriptor.expression() == id)
+            .cloned()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.target() != UnitConstructionTarget::IntrinsicBox {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let [argument] = descriptor.arguments() else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        if argument.argument().source_unit() != self.inputs.source_unit {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let value_expression = argument.argument().expression();
+        let Some(value) = self.required(value_expression)? else {
+            return Ok(Lowered::Diverged);
+        };
+        let payload_ty = self.c(argument.parameter_type());
+        let mut payload = self.adapt(value, value_expression, payload_ty)?;
+        let payload_ssa = self.ssa_type(payload_ty, span)?;
+        if argument.category() == lang_frontend::type_checking::ExpressionCategory::Place
+            && !self.move_only(payload_ty)
+        {
+            payload = self.value(
+                ROp::Copy { source: payload },
+                EntityType::Value(payload_ssa),
+                self.span(value_expression),
+            )?;
+        } else {
+            self.deliver(value_expression);
+        }
+        let owner = self.ssa_type(self.c(descriptor.result_type()), span)?;
+        Ok(Lowered::Value(self.value(
+            ROp::HeapAllocate { owner, payload },
+            EntityType::Value(owner),
+            span,
+        )?))
+    }
+
     /// Fields evaluate in source order and land in declaration order; the payload is then
     /// built and moved into a fresh heap owner.
     pub(super) fn construction(
@@ -41,6 +90,7 @@ impl Builder<'_, '_> {
         let mut arguments = descriptor.arguments().iter().collect::<Vec<_>>();
         arguments.sort_by_key(|argument| argument.evaluation_index());
         let mut fields: Vec<Option<Slot>> = vec![None; arguments.len()];
+        let mut delivered = Vec::with_capacity(arguments.len());
         for argument in arguments {
             if argument.argument().source_unit() != self.inputs.source_unit {
                 return Err(error(LoweringErrorKind::MissingFact, span));
@@ -50,13 +100,17 @@ impl Builder<'_, '_> {
                 return Ok(Lowered::Diverged);
             };
             let value = self.adapt(value, value_expression, self.c(argument.parameter_type()))?;
-            self.deliver(value_expression);
+            self.repoint_temporary(value_expression, value);
+            delivered.push(value_expression);
             let slot = fields
                 .get_mut(argument.parameter_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             if slot.replace(value).is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
+        }
+        for value_expression in delivered {
+            self.deliver(value_expression);
         }
         let fields = fields
             .into_iter()
@@ -113,14 +167,17 @@ impl Builder<'_, '_> {
             Some(receiver) if !rc_payload => self.narrowed_view(receiver)?,
             _ => None,
         };
-        let loan = match (view, receiver) {
-            (Some(view), _) => OwnerLoan {
-                loan: view,
-                scoped: false,
-            },
+        let (loan, rc_view_read) = match (view, receiver) {
+            (Some(view), _) => (
+                OwnerLoan {
+                    loan: view,
+                    scoped: false,
+                },
+                None,
+            ),
             // `rc.value.f`: a shared loan of the payload place (SPEC-0359).
             (None, Some(receiver)) if rc_payload => self.rc_payload_loan(receiver, span)?,
-            (None, _) => self.owner_loan(owner, LoanKind::Shared, span)?,
+            (None, _) => (self.owner_loan(owner, LoanKind::Shared, span)?, None),
         };
         let result = self.value(
             ROp::HeapFieldRead {
@@ -132,6 +189,9 @@ impl Builder<'_, '_> {
         )?;
         self.end_owner_loan(loan, span)?;
         // The receiver is read in place; its own drop point follows the read.
+        if let Some(read) = rc_view_read {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(read)))?;
+        }
         if let Some(receiver) = receiver {
             self.drops(UnitDropPoint::AfterExpression(self.unit(receiver)))?;
         }

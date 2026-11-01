@@ -1,4 +1,4 @@
-//! Shared capture formation and thunk-local view cleanup share the ordinary CFG carriers.
+//! Shared capture formation and owner-drop loan retirement for the legacy lowering path.
 use super::*;
 use crate::ssa::model::LoanId;
 
@@ -89,50 +89,6 @@ impl UnitExpressionLowerer<'_> {
                 self.capture_loans
                     .remove(&(plan.expression, field))
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Follow children end before their parent slots; entry environment and parameters belong
-    /// to the caller and are not ended here. IDs come from the current CFG state.
-    pub(in crate::ssa::unit_lower) fn end_thunk_capture_views(
-        &mut self,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        let Some(expression) = self.thunk_expression else {
-            return Ok(());
-        };
-        let plan = self
-            .callable_plans
-            .get(&(self.closure_scope, expression))
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        for (field, capture) in plan.captures.iter().enumerate().rev() {
-            let loan = self
-                .borrow_bindings
-                .remove(&capture.symbol)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::BorrowEnd { loan },
-                    Vec::new(),
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            if capture.mode == ClosureCaptureMode::Shared {
-                let loan = self
-                    .capture_loans
-                    .remove(&(expression, field))
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                self.function
-                    .append_instruction(
-                        self.block,
-                        Operation::BorrowEnd { loan },
-                        Vec::new(),
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             }
         }
         Ok(())

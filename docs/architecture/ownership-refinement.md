@@ -29,8 +29,8 @@ SPEC-0350 §3 的已实现清单与 SPEC-0356 为准。
 消费 0357 的 `WhenComparisonCompleted` 与 `WhenAlternativeNoMatch`，比较先于候选清理，
 直接 Borrow String 参数通过 caller loan 比较，未扩展 borrow-result binding/field/index/复杂候选；
 新增真实源/计数测试的官方 CI 结果见 [0360](../specs/active/0360-string-when-refinement.md)）、
-Copyable 非泛型且 payload 全为标量的 enum（case 构造、`is`/`!is`、无 payload case 等值、经
-`TaggedPayloadPlace` 读取窄化名、`this` 或隐式 `this` 的 payload）及 enum 方法的 receiver、`loop` 与 `break`/`continue`（跳转前结束本轮循环打开的 view）、inline nullable、字段只含标量/String 的非泛型 class 及其 pointer-like nullable、
+Copyable 且具体实例 payload 全为标量的 enum（含非泛型与泛型实例：case 构造、`is`/`!is`、无 payload case 等值、经
+`TaggedPayloadPlace` 读取窄化名、`this` 或隐式 `this` 的 payload）及 enum 方法的 receiver、`loop` 与 `break`/`continue`（跳转前结束本轮循环打开的 view）、inline nullable、具体实例字段只含标量/String 的 class（含非泛型与泛型实例，SPEC-0372）及其 pointer-like nullable、
 class 构造、Copyable 字段读取（经窄化 view、局部 owner 的临时 shared loan、Borrow/Inout 参数或当前
 receiver 的 loan）、`!!`（Consume，null 边 Abort）；赋值与 `Inout`（SPEC-0358）：标量 `Inout` 参数经
 `LoanMutate` 整体替换，`&local` 借出 root place 并在调用后读回（MoveOnly 经 `RootPlaceTake`），`&p` 继续
@@ -43,6 +43,34 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 对 owned 值做 `AggregateProject`，对 loan 经 `SharedFieldLoan` 读出，receiver 可为 Value 或 Borrow。
 `!!`（SPEC-0362）也接受括号名称与 `if` 临时 operand；Value 实参在调用点统一交付，实参中途的
 `return`/`break`/`continue` 在跳转边释放已求值的命名 owner 实参（`ControlTransfer` 的 `Temporary` 事实）。
+闭包家族（SPEC-0364/0365/0370、ADR-0034）：Borrow 函数参数接收 `CallableView` shared loan 并经
+`CallableInvokeView` 调用；lambda 字面量形成 `FunctionAddress` 或 `ClosureConstruct`（shared capture
+建立源借用，owned Move 捕获消费来源绑定），可直接借出为 view、作为函数返回值或绑定到局部 callable
+变量（经 `CallableInvoke` 调用或借出为 view）；lambda 体（thunk）同样由 `ssa::refine` 构建，入口按序
+投影环境字段借用（`SharedFieldLoan` 与 `SharedReferenceFollow`）并在 `Return` 前逆序 `BorrowEnd`。
+整数内建、整数区间与文本原语（SPEC-0371）：支持 `inv()`、八整数受检转换（`CheckedIntegerConvert`）、
+整数前缀 `+`/`-` 与位运算、`IntRange`/`LongRange` 值构造与 `in`/`!in`/`==`/`!=`、`String.clone()`
+及可信标准文本原语（`CopyBytes`/`CopySlice`/`Utf8ErrorOffset`/`ByteLength`/`ByteAt`）。
+局部解构与整数区间 `for`（SPEC-0373）：支持 Copyable/MoveOnly `value class` 的局部解构
+（`AggregateCopyExplode`/`AggregateExplode`）以及 `IntRange`/`LongRange` 升序 `for` 循环。
+所有权原语与 `const val` 物化（SPEC-0374）：支持局部可变根 `replace(&root, value)`（`RootReplace`）与
+`swap(&left, &right)`（`RootSwap`，Copyable 根与新值先经 `Copy` 隔离 SSA 值身份），以及 `Boolean`/整数/
+`String` 的 `const val` 使用点物化。顺序容器（SPEC-0375/0376）：支持 `Array<T>`、`List<T>`、`MutableList<T>`
+的字面量与空容器构造（`ContainerConstruct`）、运行时长度构造 `Array<T>(size, init)` 与 `List<T>(size, init)`
+（`ContainerGenerateBorrowed` 及负长度守卫）、`.size`（`ContainerLength`）、Copyable 下标读取与 MoveOnly
+元素借用实参（`ContainerElementPlace`）、元素赋值替换 `xs[i] = v`（`ContainerReplace` 消费 `AfterReplacement`
+析构）、`MutableList<T>` 的 `add`/`clear`/`removeAt`/`removeFirst`/`removeLast`/`insertAt`，以及具名顺序容器的
+`for` 遍历（`Discard`/`Name`/`Destructure`，按 `iteration_cleanup_at` 消费退出序列）。`Box<T>`、递归装箱枚举与
+`Map` 核心操作（SPEC-0377）：支持 `Box(payload)` 构造（`HeapAllocate`）、`Box<T>?` 窄化与 `!!` 解包、含 `Box<T>`
+负载的递归/MoveOnly `enum class` case 构造（`TaggedConstruct`）与参数/返回传递，以及 `Map<K, V>` /
+`MutableMap<K, V>` 的 `mapOf`/`mutableMapOf`（`MapConstruct`）、`.size`（`MapSize`）、`containsKey`（`MapContains`）
+与 `put`（`MapPut`）。复合 `class` 字段、通用 `Rc<T>` 负载与智能窄化接收者（SPEC-0378）：支持任意非递归 `storage_type`
+的 `class` 字段读取/替换与 `SharedHeapFieldLoan` 借用实参、任意非递归 `storage_type` 的 `Rc<T>` 负载与 `Rc<T>?` 证明视图、
+非条件位置的 MoveOnly 空值比较、智能窄化 `class` 接收者的成员调用以及完备双分支布尔字面量 `when`。MoveOnly 局部可变重赋值与
+MoveOnly `enum class` `when`（SPEC-0379）：支持任意 `storage_type` 局部 `var` 绑定的重赋值（结束旧证明视图、消费
+`BeforeOverwrite` 并恢复槽位活跃追踪），以及携带任意 `storage_type` 载荷的 MoveOnly `enum class` 的构造、`is`/`!is` 判别、
+`when (subject)` 分支匹配（当 `subject` 在 `AfterExpression` 提前释放时先快照 `TaggedDiscriminant`）、标量载荷投影与
+MoveOnly 载荷字段借用实参。
 
 ## inline nullable 布局
 

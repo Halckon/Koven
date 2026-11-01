@@ -6,9 +6,7 @@ use lang_frontend::{
     ownership_checking::UnitDropPoint,
     parser::{Expression, WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{
-        BuiltinType, IntegerRangeOperationKind, UnitExpressionId, UnitTypeId, UnitTypeKind,
-    },
+    type_checking::{BuiltinType, IntegerRangeOperationKind, UnitTypeId, UnitTypeKind},
 };
 
 use super::{Builder, Lowered};
@@ -17,6 +15,12 @@ use crate::ssa::{
     model::{ComparisonOperator, EntityType, SsaTypeId},
     refine::body::{BlockRef, RAbort, ROp, RTerm, Slot},
 };
+
+#[derive(Clone, Copy)]
+enum WhenSubject {
+    Value(Slot),
+    Tag(Slot),
+}
 
 impl Builder<'_, '_> {
     /// Each alternative consumes its `WhenAlternativeMatch` drops on the matched edge;
@@ -62,12 +66,19 @@ impl Builder<'_, '_> {
             })
             .transpose()?;
         let subject = match subject_expression {
-            Some(subject) => match self.when_subject(subject, string)? {
+            Some(subject) => match self.when_subject(subject, string, root)? {
                 Some(subject) => Some(subject),
                 None => return Ok(Lowered::Diverged),
             },
             None => None,
         };
+        if let Some(WhenSubject::Value(subject)) = subject
+            && let Some((true_arm, false_arm)) = self.boolean_two_arms(entries)
+        {
+            return self.lower_boolean_two_arm_when(
+                control, ty, result, subject, true_arm, false_arm, span,
+            );
+        }
         // One temporary is shared by mutually exclusive outgoing paths. Retain its
         // source identity/slot for the unmatched continuation while constructing a match.
         let subject_temporary = subject_expression.and_then(|expression| {
@@ -76,9 +87,12 @@ impl Builder<'_, '_> {
         });
         let join = self.body.block();
         self.body.blocks[join.0].origin = Some(span);
+        let outer_views = self.active_views.clone();
+        let mut joined_views = None;
         let mut reached = false;
         let mut falls_through = true;
         for (index, entry) in entries.iter().enumerate() {
+            self.active_views = outer_views.clone();
             let body = self.body.block();
             if entry.else_span.is_some() {
                 falls_through = false;
@@ -119,6 +133,7 @@ impl Builder<'_, '_> {
                 })?;
             }
             let unmatched = self.block;
+            self.active_views = outer_views.clone();
             let mark = self.enter(body);
             let value = self.branch_value(entry.body)?;
             self.leave(mark, span)?;
@@ -134,6 +149,7 @@ impl Builder<'_, '_> {
                     control,
                     branch: index,
                 })?;
+                joined_views = Some(self.active_views.clone());
                 self.goto(join, span)?;
                 reached = true;
             }
@@ -142,20 +158,134 @@ impl Builder<'_, '_> {
                 break;
             }
         }
-        if falls_through && result.is_some() && root.is_some() {
+        if falls_through
+            && (result.is_some()
+                || self.inputs.typed.expression_falls_through(control) == Some(false))
+            && root.is_some()
+        {
             // The frontend proved the enum cases covered: no value reaches this edge.
+            let fallthrough = self.collect_drops(UnitDropPoint::BranchExit {
+                control,
+                branch: entries.len(),
+            });
+            self.finish_drops(&fallthrough);
             self.terminate(RTerm::Abort(RAbort::UnmatchedWhen), span)?;
         } else if falls_through {
             if result.is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
+            self.active_views = outer_views;
             self.drops(UnitDropPoint::BranchExit {
                 control,
                 branch: entries.len(),
             })?;
+            joined_views = Some(self.active_views.clone());
             self.goto(join, span)?;
             reached = true;
         }
+        if let Some(joined) = joined_views {
+            self.active_views = joined;
+        }
+        if !self.pending_views.is_empty() {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        if !reached {
+            self.block = None;
+            return Ok(Lowered::Diverged);
+        }
+        self.block = Some(join);
+        Ok(result.map_or(Lowered::Unit, Lowered::Value))
+    }
+
+    fn boolean_two_arms(
+        &self,
+        entries: &[WhenEntry],
+    ) -> Option<(
+        (usize, lang_frontend::ast::StatementId),
+        (usize, lang_frontend::ast::StatementId),
+    )> {
+        let [first, second] = entries else {
+            return None;
+        };
+        if first.else_span.is_some() || second.else_span.is_some() {
+            return None;
+        }
+        let ([WhenCondition::Expression(left)], [WhenCondition::Expression(right)]) =
+            (first.conditions.as_slice(), second.conditions.as_slice())
+        else {
+            return None;
+        };
+        let (
+            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(a)), _)),
+            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(b)), _)),
+        ) = (self.node(*left), self.node(*right))
+        else {
+            return None;
+        };
+        match (a, b) {
+            (true, false) => Some(((0, first.body), (1, second.body))),
+            (false, true) => Some(((1, second.body), (0, first.body))),
+            _ => None,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn lower_boolean_two_arm_when(
+        &mut self,
+        control: lang_frontend::type_checking::UnitExpressionId,
+        ty: UnitTypeId,
+        result: Option<Slot>,
+        condition: Slot,
+        (true_index, true_body): (usize, lang_frontend::ast::StatementId),
+        (false_index, false_body): (usize, lang_frontend::ast::StatementId),
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let when_true = self.body.block();
+        let when_false = self.body.block();
+        let join = self.body.block();
+        self.body.blocks[join.0].origin = Some(span);
+        self.terminate(
+            RTerm::Branch {
+                condition,
+                when_true,
+                when_false,
+            },
+            span,
+        )?;
+        let outer_views = self.active_views.clone();
+        let mut joined_views = None;
+        let mut reached = false;
+        for (block, index, branch) in [
+            (when_true, true_index, true_body),
+            (when_false, false_index, false_body),
+        ] {
+            self.active_views = outer_views.clone();
+            let mark = self.enter(block);
+            let value = self.branch_value(branch)?;
+            self.leave(mark, span)?;
+            let Some(value) = value else {
+                continue;
+            };
+            if let Some(result) = result {
+                let (slot, source) =
+                    value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let slot = self.adapt(slot, source, ty)?;
+                self.deliver(source);
+                self.push(ROp::Alias { source: slot }, vec![result], span)?;
+            }
+            self.drops(UnitDropPoint::BranchExit {
+                control,
+                branch: index,
+            })?;
+            joined_views = Some(self.active_views.clone());
+            self.goto(join, span)?;
+            reached = true;
+        }
+        if let Some(joined) = joined_views {
+            self.active_views = joined;
+        }
+        let fallthrough = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 2 });
+        self.finish_drops(&fallthrough);
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
@@ -170,7 +300,7 @@ impl Builder<'_, '_> {
     /// Ends the current block with a branch to `matched` / `next`.
     fn when_condition(
         &mut self,
-        subject: Option<Slot>,
+        subject: Option<WhenSubject>,
         root: Option<UnitTypeId>,
         condition: &WhenCondition,
         edges: (BlockRef, BlockRef),
@@ -180,10 +310,10 @@ impl Builder<'_, '_> {
         let (matched, next) = edges;
         let (subject, condition) = match (subject, condition) {
             (None, WhenCondition::Expression(condition)) => {
-                return self.condition(*condition, matched, next);
+                return self.condition_with_views(*condition, matched, next, false);
             }
             (
-                Some(subject),
+                Some(WhenSubject::Value(subject)),
                 WhenCondition::Contains {
                     negated,
                     expression,
@@ -204,7 +334,15 @@ impl Builder<'_, '_> {
                 },
             ) => {
                 let root = root.ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-                let matches = self.type_test(subject, root, *type_ref, *negated, span)?;
+                let matches = match subject {
+                    WhenSubject::Value(owner) => {
+                        self.type_test(owner, root, *type_ref, *negated, span)?
+                    }
+                    WhenSubject::Tag(tag) => {
+                        let variant = self.type_test_variant(root, *type_ref, span)?;
+                        self.variant_tag_test(tag, variant, *negated, span)?
+                    }
+                };
                 return self.terminate(
                     RTerm::Branch {
                         condition: matches,
@@ -214,7 +352,9 @@ impl Builder<'_, '_> {
                     span,
                 );
             }
-            (Some(subject), WhenCondition::Expression(condition)) if root.is_some() => {
+            (Some(WhenSubject::Value(subject)), WhenCondition::Expression(condition))
+                if root.is_some() =>
+            {
                 let root = root.ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
                 let matches = self.case_value_test(subject, root, *condition, span)?;
                 return self.terminate(
@@ -226,7 +366,9 @@ impl Builder<'_, '_> {
                     span,
                 );
             }
-            (Some(subject), WhenCondition::Expression(condition)) => (subject, *condition),
+            (Some(WhenSubject::Value(subject)), WhenCondition::Expression(condition)) => {
+                (subject, *condition)
+            }
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
         };
         let condition = if completed.is_some() {
@@ -276,23 +418,78 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionId,
         string: bool,
-    ) -> Result<Option<Slot>, LoweringError> {
+        root: Option<UnitTypeId>,
+    ) -> Result<Option<WhenSubject>, LoweringError> {
         if string {
             let (payload, span) = self.node(expression)?;
-            if matches!(payload, Expression::Name) {
-                let symbol = self.reference(span)?;
-                if let Some(loan) = self.borrowed.get(&symbol).copied() {
-                    // The shared parameter remains owned by the caller. StringEqual can
-                    // observe its loan directly; never materialize an owned String read.
-                    self.drops(UnitDropPoint::AfterExpression(UnitExpressionId::new(
-                        self.inputs.source_unit,
-                        expression,
-                    )))?;
-                    return Ok(Some(loan));
+            let id = self.unit(expression);
+            if matches!(payload, Expression::Name)
+                && self
+                    .inputs
+                    .constant_owned
+                    .is_none_or(|owned| owned.materialization_at(id).is_none())
+                && let Some(&symbol) = self.inputs.references.get(&(span.start(), span.end()))
+                && let Some(loan) = self.borrowed.get(&symbol).copied()
+            {
+                // The shared parameter remains owned by the caller. StringEqual can
+                // observe its loan directly; never materialize an owned String read.
+                self.drops(UnitDropPoint::AfterExpression(id))?;
+                return Ok(Some(WhenSubject::Value(loan)));
+            }
+        }
+        if let Some(root_ty) = root
+            && self.move_only(root_ty)
+        {
+            let mut operands = Vec::new();
+            let mut current = expression;
+            while let (Expression::Group { expression: inner }, _) = self.node(current)? {
+                operands.push(current);
+                current = inner;
+            }
+            operands.push(current);
+            let (payload, leaf_span) = self.node(current)?;
+            if matches!(payload, Expression::Name)
+                && let Ok(symbol) = self.reference(leaf_span)
+            {
+                let snapshot_tag = operands.iter().any(|&op| {
+                    let point = UnitDropPoint::AfterExpression(self.unit(op));
+                    self.inputs.owned.drops().iter().any(|fact| {
+                        fact.point() == point
+                            && fact.target()
+                                == lang_frontend::ownership_checking::UnitDropTarget::Named(symbol)
+                    })
+                });
+                if snapshot_tag {
+                    let Some(owner) = (match self.expression_inner(current)? {
+                        Lowered::Value(slot) => Some(slot),
+                        Lowered::Diverged => None,
+                        Lowered::Unit => {
+                            return Err(error(LoweringErrorKind::MissingFact, leaf_span));
+                        }
+                    }) else {
+                        return Ok(None);
+                    };
+                    let integer = self
+                        .inputs
+                        .typed
+                        .types()
+                        .builtin(BuiltinType::Int)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, leaf_span))
+                        .and_then(|ty| self.ssa_type(ty, leaf_span))?;
+                    let tag = self.value(
+                        ROp::TaggedDiscriminant { owner },
+                        EntityType::Value(integer),
+                        leaf_span,
+                    )?;
+                    for op in operands.into_iter().rev() {
+                        self.register_temporary(op, owner)?;
+                        self.drops(UnitDropPoint::AfterExpression(self.unit(op)))?;
+                    }
+                    return Ok(Some(WhenSubject::Tag(tag)));
                 }
             }
         }
-        self.required(expression)
+        Ok(self.required(expression)?.map(WhenSubject::Value))
     }
 
     /// `subject in lo..hi` / `lo..<hi`: both endpoints are evaluated in order, then the

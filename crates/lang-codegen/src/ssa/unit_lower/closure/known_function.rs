@@ -73,7 +73,6 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let callable = self.callable_abi.expression_type(
             self.source_plan,
-            self.typed,
             self.owned,
             self.source_token,
             id,

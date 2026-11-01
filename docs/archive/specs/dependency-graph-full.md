@@ -358,6 +358,16 @@ subgraph Gactive["现行 active"]
   S0360["S0360<br/>String when 清理事实的 refinement 消费"]
   S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
   S0369["S0369<br/>CLI 最终调试产物与源码断点"]
+  S0370["S0370<br/>lambda 体（thunk）与局部 callable 绑定迁入所有权细化层"]
+  S0371["S0371<br/>整数内建、整数区间、String.clone() 与文本原语迁入所有权细化层"]
+  S0372["S0372<br/>泛型 class 与泛型 Copyable enum class 迁入所有权细化层"]
+  S0373["S0373<br/>局部解构与整数区间 for 循环迁入所有权细化层"]
+  S0374["S0374<br/>所有权原语与 const val 物化迁入所有权细化层"]
+  S0375["S0375<br/>顺序容器（Array/List/MutableList）迁入所有权细化层"]
+  S0376["S0376<br/>顺序容器 for 遍历与运行时长度构造迁入所有权细化层"]
+  S0377["S0377<br/>Box、递归装箱枚举与 Map 核心操作迁入所有权细化层"]
+  S0378["S0378<br/>复合 class 字段、通用 Rc 负载与智能窄化接收者迁入所有权细化层"]
+  S0379["S0379<br/>MoveOnly 局部可变重赋值与 MoveOnly 枚举 when 迁入所有权细化层"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1787,6 +1797,16 @@ S0366 --> S0367
 | SPEC-0360 | active | [0360-string-when-refinement.md](../../specs/active/0360-string-when-refinement.md) |
 | SPEC-0368 | active | [0368-text-byte-foundation.md](../../specs/active/0368-text-byte-foundation.md) |
 | SPEC-0369 | active | [0369-final-debug-artifacts.md](../../specs/active/0369-final-debug-artifacts.md) |
+| SPEC-0370 | active | [0370-refine-lambda-bodies.md](../../specs/active/0370-refine-lambda-bodies.md) |
+| SPEC-0371 | active | [0371-refine-integer-range-text.md](../../specs/active/0371-refine-integer-range-text.md) |
+| SPEC-0372 | active | [0372-refine-generic-class-enum.md](../../specs/active/0372-refine-generic-class-enum.md) |
+| SPEC-0373 | active | [0373-refine-destructuring-range-for.md](../../specs/active/0373-refine-destructuring-range-for.md) |
+| SPEC-0374 | active | [0374-refine-ownership-primitives-const.md](../../specs/active/0374-refine-ownership-primitives-const.md) |
+| SPEC-0375 | active | [0375-refine-sequential-containers.md](../../specs/active/0375-refine-sequential-containers.md) |
+| SPEC-0376 | active | [0376-refine-container-for-generate.md](../../specs/active/0376-refine-container-for-generate.md) |
+| SPEC-0377 | active | [0377-refine-box-map.md](../../specs/active/0377-refine-box-map.md) |
+| SPEC-0378 | active | [0378-refine-class-fields-rc-and-null-views.md](../../specs/active/0378-refine-class-fields-rc-and-null-views.md) |
+| SPEC-0379 | active | [0379-refine-reassignment-and-move-enum-when.md](../../specs/active/0379-refine-reassignment-and-move-enum-when.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

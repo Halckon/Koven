@@ -177,6 +177,7 @@ fn place(entity: EntityId, span: Span) -> Result<PlaceId, LoweringError> {
 struct Emitter<'f> {
     function: &'f mut Function,
     current: BTreeMap<Slot, EntityId>,
+    defined: BTreeMap<Slot, EntityId>,
 }
 
 impl Emitter<'_> {
@@ -189,6 +190,16 @@ impl Emitter<'_> {
 
     fn value(&self, slot: Slot, span: Span) -> Result<ValueId, LoweringError> {
         value(self.get(slot, span)?, span)
+    }
+
+    fn abort_divisor(&self, slot: Slot, span: Span) -> Result<ValueId, LoweringError> {
+        let entity = self
+            .current
+            .get(&slot)
+            .or_else(|| self.defined.get(&slot))
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        value(entity, span)
     }
 
     fn operation(&self, op: &ROp, span: Span) -> Result<Operation, LoweringError> {
@@ -238,6 +249,27 @@ impl Emitter<'_> {
             ROp::BooleanNot { operand } => Operation::BooleanNot {
                 operand: self.value(*operand, span)?,
             },
+            ROp::Binary {
+                operator,
+                left,
+                right,
+            } => Operation::Binary {
+                operator: *operator,
+                left: self.value(*left, span)?,
+                right: self.value(*right, span)?,
+            },
+            ROp::IntegerNot { operand } => Operation::IntegerNot {
+                operand: self.value(*operand, span)?,
+            },
+            ROp::IntegerBitwise {
+                operator,
+                left,
+                right,
+            } => Operation::IntegerBitwise {
+                operator: *operator,
+                left: self.value(*left, span)?,
+                right: self.value(*right, span)?,
+            },
             ROp::CheckedArithmetic {
                 operator,
                 left,
@@ -246,6 +278,47 @@ impl Emitter<'_> {
                 operator: *operator,
                 left: self.value(*left, span)?,
                 right: self.value(*right, span)?,
+            },
+            ROp::CheckedIntegerConvert { operand } => Operation::CheckedIntegerConvert {
+                operand: self.value(*operand, span)?,
+            },
+            ROp::IntegerRangeConstruct {
+                first,
+                bound,
+                inclusive,
+            } => Operation::IntegerRangeConstruct {
+                first: self.value(*first, span)?,
+                bound: self.value(*bound, span)?,
+                inclusive: *inclusive,
+            },
+            ROp::IntegerRangeContains { value, range } => Operation::IntegerRangeContains {
+                value: self.value(*value, span)?,
+                range: self.value(*range, span)?,
+            },
+            ROp::IntegerRangeEqual { left, right } => Operation::IntegerRangeEqual {
+                left: self.value(*left, span)?,
+                right: self.value(*right, span)?,
+            },
+            ROp::StringClone { source } => Operation::StringClone {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::StringCopyBytes { source } => Operation::StringCopyBytes {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::StringCopySlice { source, start, end } => Operation::StringCopySlice {
+                source: loan(self.get(*source, span)?, span)?,
+                start: self.value(*start, span)?,
+                end: self.value(*end, span)?,
+            },
+            ROp::Utf8ErrorOffset { source } => Operation::Utf8ErrorOffset {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::StringByteLength { source } => Operation::StringByteLength {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::StringByteAt { source, index } => Operation::StringByteAt {
+                source: loan(self.get(*source, span)?, span)?,
+                index: self.value(*index, span)?,
             },
             ROp::DirectCall {
                 callee,
@@ -312,9 +385,22 @@ impl Emitter<'_> {
                 base: loan(self.get(*base, span)?, span)?,
                 field: *field,
             },
+            ROp::SharedHeapFieldLoan { base, field } => Operation::SharedHeapFieldLoan {
+                base: loan(self.get(*base, span)?, span)?,
+                field: *field,
+            },
+            ROp::SharedReferenceFollow { source } => Operation::SharedReferenceFollow {
+                source: loan(self.get(*source, span)?, span)?,
+            },
             ROp::AggregateProject { aggregate, field } => Operation::AggregateProject {
                 aggregate: self.value(*aggregate, span)?,
                 field: *field,
+            },
+            ROp::AggregateCopyExplode { aggregate } => Operation::AggregateCopyExplode {
+                aggregate: self.value(*aggregate, span)?,
+            },
+            ROp::AggregateExplode { aggregate } => Operation::AggregateExplode {
+                aggregate: self.value(*aggregate, span)?,
             },
             ROp::SharedAllocate { owner, payload } => Operation::SharedAllocate {
                 owner: *owner,
@@ -364,9 +450,46 @@ impl Emitter<'_> {
                     .map(|slot| self.get(*slot, span))
                     .collect::<Result<_, _>>()?,
             },
+            ROp::CallableInvoke {
+                callable,
+                arguments,
+            } => Operation::CallableInvoke {
+                callable: self.value(*callable, span)?,
+                arguments: arguments
+                    .iter()
+                    .map(|slot| self.get(*slot, span))
+                    .collect::<Result<_, _>>()?,
+            },
             ROp::RootPlaceTake { owner, place: slot } => Operation::RootPlaceTake {
                 owner: self.value(*owner, span)?,
                 place: place(self.get(*slot, span)?, span)?,
+            },
+            ROp::Copy { source } => Operation::Copy {
+                source: self.value(*source, span)?,
+            },
+            ROp::RootReplace {
+                owner,
+                loan: slot,
+                replacement,
+            } => Operation::RootReplace {
+                owner: self.value(*owner, span)?,
+                loan: loan(self.get(*slot, span)?, span)?,
+                replacement: self.value(*replacement, span)?,
+            },
+            ROp::RootSwap {
+                left_owner,
+                right_owner,
+                left_loan,
+                right_loan,
+            } => Operation::RootSwap {
+                owners: [
+                    self.value(*left_owner, span)?,
+                    self.value(*right_owner, span)?,
+                ],
+                loans: [
+                    loan(self.get(*left_loan, span)?, span)?,
+                    loan(self.get(*right_loan, span)?, span)?,
+                ],
             },
             ROp::HeapFieldReplace {
                 receiver,
@@ -375,6 +498,82 @@ impl Emitter<'_> {
             } => Operation::HeapFieldReplace {
                 receiver: loan(self.get(*receiver, span)?, span)?,
                 field: *field,
+                value: self.value(*value, span)?,
+            },
+            ROp::ContainerConstruct {
+                container,
+                elements,
+            } => Operation::ContainerConstruct {
+                container: *container,
+                elements: elements
+                    .iter()
+                    .map(|slot| self.value(*slot, span))
+                    .collect::<Result<_, _>>()?,
+            },
+            ROp::ContainerLength { owner } => Operation::ContainerLength {
+                owner: self.get(*owner, span)?,
+            },
+            ROp::ContainerElementPlace { owner, index } => Operation::ContainerElementPlace {
+                owner: self.get(*owner, span)?,
+                index: self.value(*index, span)?,
+            },
+            ROp::ContainerAppend { owner, element } => Operation::ContainerAppend {
+                owner: self.value(*owner, span)?,
+                element: self.value(*element, span)?,
+            },
+            ROp::ContainerClear { owner } => Operation::ContainerClear {
+                owner: self.value(*owner, span)?,
+            },
+            ROp::ContainerRemoveAt { owner, index } => Operation::ContainerRemoveAt {
+                owner: self.value(*owner, span)?,
+                index: self.value(*index, span)?,
+            },
+            ROp::ContainerRemoveFirst { owner } => Operation::ContainerRemoveFirst {
+                owner: self.value(*owner, span)?,
+            },
+            ROp::ContainerRemoveLast { owner } => Operation::ContainerRemoveLast {
+                owner: self.value(*owner, span)?,
+            },
+            ROp::ContainerInsertAt {
+                owner,
+                index,
+                element,
+            } => Operation::ContainerInsertAt {
+                owner: self.value(*owner, span)?,
+                index: self.value(*index, span)?,
+                element: self.value(*element, span)?,
+            },
+            ROp::ContainerReplace {
+                owner,
+                index,
+                value,
+            } => Operation::ContainerReplace {
+                owner: self.value(*owner, span)?,
+                index: self.value(*index, span)?,
+                value: self.value(*value, span)?,
+            },
+            ROp::ContainerGenerateBorrowed {
+                container,
+                length,
+                initializer,
+            } => Operation::ContainerGenerateBorrowed {
+                container: *container,
+                length: self.value(*length, span)?,
+                initializer: loan(self.get(*initializer, span)?, span)?,
+            },
+            ROp::MapConstruct { map_type } => Operation::MapConstruct {
+                map_type: *map_type,
+            },
+            ROp::MapSize { owner } => Operation::MapSize {
+                owner: self.get(*owner, span)?,
+            },
+            ROp::MapContains { owner, key } => Operation::MapContains {
+                owner: self.get(*owner, span)?,
+                key: self.get(*key, span)?,
+            },
+            ROp::MapPut { owner, key, value } => Operation::MapPut {
+                owner: self.value(*owner, span)?,
+                key: self.value(*key, span)?,
                 value: self.value(*value, span)?,
             },
             ROp::LoanMutate { loan: slot, value } => Operation::LoanMutate {
@@ -437,6 +636,7 @@ pub(super) fn emit(
     let mut emitter = Emitter {
         function,
         current: BTreeMap::new(),
+        defined: BTreeMap::new(),
     };
     for block in &reachable {
         let target = blocks[block];
@@ -445,11 +645,15 @@ pub(super) fn emit(
             .copied()
             .zip(entities[block].iter().copied())
             .collect();
+        emitter
+            .defined
+            .extend(emitter.current.iter().map(|(k, v)| (*k, *v)));
         for statement in &body.blocks[block.0].statements {
             if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
             {
                 let entity = emitter.get(*source, statement.span)?;
                 emitter.current.insert(*result, entity);
+                emitter.defined.insert(*result, entity);
                 continue;
             }
             let operation = emitter.operation(&statement.op, statement.span)?;
@@ -464,6 +668,7 @@ pub(super) fn emit(
                 .map_err(|_| error(LoweringErrorKind::InvalidModel, statement.span))?;
             for (slot, entity) in statement.results.iter().zip(results) {
                 emitter.current.insert(*slot, entity);
+                emitter.defined.insert(*slot, entity);
             }
         }
         let (terminator, term_span) = body.blocks[block.0].terminator.as_ref().expect("reachable");
@@ -482,7 +687,7 @@ pub(super) fn emit(
         let model_error = |_| error(LoweringErrorKind::InvalidModel, *term_span);
         match terminator {
             RTerm::Abort(RAbort::CheckedArithmetic { operator, divisor }) => {
-                let divisor = emitter.value(*divisor, *term_span)?;
+                let divisor = emitter.abort_divisor(*divisor, *term_span)?;
                 emitter
                     .function
                     .set_abort_terminator(
@@ -496,9 +701,23 @@ pub(super) fn emit(
                     .map_err(model_error)?;
                 continue;
             }
-            RTerm::Abort(reason @ (RAbort::NullAssertion | RAbort::UnmatchedWhen)) => {
+            RTerm::Abort(RAbort::CheckedConversion { target: converted }) => {
+                emitter
+                    .function
+                    .set_abort_terminator(
+                        target,
+                        AbortReason::CheckedConversion { target: *converted },
+                        origin,
+                    )
+                    .map_err(model_error)?;
+                continue;
+            }
+            RTerm::Abort(
+                reason @ (RAbort::NullAssertion | RAbort::NegativeSize | RAbort::UnmatchedWhen),
+            ) => {
                 let text = match reason {
                     RAbort::NullAssertion => "null assertion failed",
+                    RAbort::NegativeSize => "negative size",
                     _ => "internal error: when subject matched no branch",
                 };
                 emitter

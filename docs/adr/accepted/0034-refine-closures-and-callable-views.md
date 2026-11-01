@@ -105,13 +105,11 @@ accepted
   的缺口，另开 frontend Spec 处理，不在 codegen 中推断。
 - 递归 closure 环境（[ADR-0025](../proposed/0025-recursive-closure-environment-handles.md)）、mutating closure
   的独占 capture、跨线程 `Transferable` 检查都不在本 ADR 范围。
-- 路由：外层函数按自身函数体的子集预检进入细化层；lambda 体在 thunk 迁入前仍由旧路径生成。
-  两者之间只隔着 ADR-0009 固定的 thunk ABI（环境 shared loan、用户参数 → 返回值），所以外层与
-  thunk 分属两条路径时不存在 ABI 差异（实施修订，2026-10-29，SPEC-0364 步 2）。thunk 迁入细化层后
-  旧的 thunk 生成随 E3 第 6 项删除。
-- 闭包家族迁入后，按 ADR-0032 删除被取代的旧模块，包括 `unit_lower/closure*` 和
-  `callable_abi` 里的 per-family 部分。容器构造器回调（`List(n, f)`）改用同一套 thunk 与 view
-  机制，随删除旧模块的那个 Spec 迁入。
+- 路由：外层函数与 lambda 体（thunk）各自按子集预检进入细化层（SPEC-0370）；两者之间只隔着
+  ADR-0009 固定的 thunk ABI（环境 shared loan、用户参数 → 返回值）。旧路径的 thunk 入口与返回捕获清理
+  （`bind_callable_entry`、`end_thunk_capture_views`）及函数参数单态化查询（`CallableAbi::parameter_type`）
+  随 SPEC-0370 删除；仅含未迁移 Map 迭代家族的无捕获 `() -> Unit` lambda 保留最小回退分支，待容器与
+  Map 迭代迁入细化层后彻底移除 `unit_lower/closure*`。
 
 ### 6. 逃逸分析：三层，各管一件事
 
@@ -195,7 +193,7 @@ project 模式下跨文件的同一 callee 也会让实例数膨胀。而且 Bor
 
 ## 关联
 
-- 相关 Spec：[SPEC-0363](../../archive/specs/0363-closure-scope-escape.md)（frontend scope 逃逸）；[SPEC-0364](../../archive/specs/0364-refine-closures.md)（E3 闭包家族，步 1–3 已交付）；q03 的 frontend overload Spec（待开）
+- 相关 Spec：[SPEC-0363](../../archive/specs/0363-closure-scope-escape.md)（frontend scope 逃逸）；[SPEC-0364](../../archive/specs/0364-refine-closures.md)（E3 闭包家族，步 1–3 已交付）；[SPEC-0365](../../archive/specs/0365-closure-return-facts.md)（闭包返回来源事实）；[SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)（lambda 体与局部 callable 迁入细化层）；q03 的 frontend overload Spec（待开）
 - 相关 ADR：[ADR-0009](0009-concrete-closure-internal-abi.md)（局部扩展：借用边界的 view）、[ADR-0025](../proposed/0025-recursive-closure-environment-handles.md)、[ADR-0032](0032-ownership-refinement-layer.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无

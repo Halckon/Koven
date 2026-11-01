@@ -1,5 +1,6 @@
-//! SPEC-0364 closures in the refinement layer (ADR-0034): Borrow function parameters are
-//! callable views; lambda literals are formed as function pointers or closures and lent.
+//! SPEC-0364, SPEC-0365, SPEC-0370 closures in the refinement layer (ADR-0034): Borrow
+//! function parameters are callable views, lambda literals and bodies (thunks) lower in
+//! `ssa::refine`, and local callable bindings call via `CallableInvoke` or lend as views.
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -75,6 +76,14 @@ fn lambda_arguments_reach_callees_as_views() {
             "{function}: {routed:?}"
         );
     }
+    assert_eq!(
+        routed
+            .iter()
+            .filter(|name| name.ends_with(".thunk"))
+            .count(),
+        5,
+        "all five lambda thunks lower in ssa::refine: {routed:?}"
+    );
     let module = &program.modules[0];
     let count = |predicate: fn(&Operation) -> bool| {
         module
@@ -114,12 +123,20 @@ fn a_factory_returns_a_move_closure_with_its_concrete_layout() {
         if (g(1) == 5) { println("data") }
     }"#;
     let (program, routed, entry) = lower(source);
-    for function in ["koven.p.make.d", "koven.p.adder.d"] {
+    for function in ["koven.p.main.d", "koven.p.make.d", "koven.p.adder.d"] {
         assert!(
             routed.iter().any(|name| name.starts_with(function)),
             "{function}: {routed:?}"
         );
     }
+    assert_eq!(
+        routed
+            .iter()
+            .filter(|name| name.ends_with(".thunk"))
+            .count(),
+        2,
+        "both factory thunks lower in ssa::refine: {routed:?}"
+    );
     let module = &program.modules[0];
     for name in ["koven.p.make.d", "koven.p.adder.d"] {
         let function = module
@@ -138,4 +155,35 @@ fn a_factory_returns_a_move_closure_with_its_concrete_layout() {
     // String literals do not allocate; the Data captured by `g` is freed exactly once, with
     // its closure.
     run_counted(&program, entry, 1, b"move\ndata\n");
+}
+
+#[test]
+fn local_callable_bindings_and_views_lower_in_refine() {
+    let source = r#"class Data(val v: Int)
+    fun apply(f: (Int) -> Int, x: Int): Int = f(x)
+    fun main(): Unit {
+        val d = Data(6)
+        val local: (Int) -> Int = { n -> n + d.v }
+        if (local(4) == 10 && apply(local, 9) == 15) { println("local") }
+        val e = Data(8)
+        val owned: (Int) -> Int = move { n -> n + e.v }
+        val moved = owned
+        if (moved(2) == 10 && apply(moved, 7) == 15) { println("moved") }
+    }"#;
+    let (program, routed, entry) = lower(source);
+    for function in ["koven.p.main.d", "koven.p.apply.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        routed
+            .iter()
+            .filter(|name| name.ends_with(".thunk"))
+            .count(),
+        2,
+        "both local callable thunks lower in ssa::refine: {routed:?}"
+    );
+    run_counted(&program, entry, 2, b"local\nmoved\n");
 }

@@ -593,7 +593,6 @@ pub(super) fn validate_ordinary_birth(
                 let callee = UnitExpressionId::new(expression.source_unit(), *callee);
                 let expected = lowerer.callable_abi.expression_type(
                     lowerer.source_plan,
-                    lowerer.typed,
                     lowerer.owned,
                     lowerer.source_token,
                     callee,

@@ -53,14 +53,16 @@ impl Checker<'_, '_> {
                     Expression::This => self.receiver_serves(mode),
                     Expression::Name => {
                         let symbol = self.reference(expression)?;
-                        if !self.known.contains(&symbol)
-                            || self
-                                .inputs
-                                .typed
-                                .non_null_use(self.id(expression))
-                                .is_some()
-                        {
+                        if !self.known.contains(&symbol) {
                             return None;
+                        }
+                        if let Some(fact) = self.inputs.typed.non_null_use(self.id(expression)) {
+                            let narrowed = self.c(fact.narrowed_type());
+                            return (fact.symbol() == symbol
+                                && mode == ParameterMode::Borrow
+                                && self.view_symbols.contains(&symbol)
+                                && self.class(narrowed))
+                            .then_some(narrowed);
                         }
                         let ty = self.symbol_type(symbol)?;
                         let serves = match (self.parameter_mode(symbol), mode) {

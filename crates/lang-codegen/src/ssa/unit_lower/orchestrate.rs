@@ -80,6 +80,7 @@ fn lower_unit_impl(
         .expect("new unit module must exist");
     let mut types = type_lower::UnitTypeLowering::new(names);
     let mut function_ids = BTreeMap::new();
+    let mut callable_returns = BTreeMap::new();
     let mut plans = Vec::new();
     type_plan::intern_map_result_types(module, &parsed_by_source, &instances, typed, &mut types)?;
     let callable_layouts = closure::layout::declare(
@@ -295,6 +296,7 @@ fn lower_unit_impl(
             instance.key().static_self(),
             instance.span(),
         )?;
+        let mut callable_return = None;
         let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()
         } else {
@@ -302,7 +304,13 @@ fn lower_unit_impl(
                 typed.types().get(return_type),
                 Some(UnitTypeKind::Function { .. })
             ) {
-                callable_abi.return_type(&source_plan, instance.source_token(), instance.span())?
+                let returned = callable_abi.return_type(
+                    &source_plan,
+                    instance.source_token(),
+                    instance.span(),
+                )?;
+                callable_return = Some(returned);
+                returned
             } else {
                 types.intern(module, typed, return_type, instance.span())?
             }]
@@ -319,6 +327,9 @@ fn lower_unit_impl(
             None => module.add_function(name, return_types, origin),
         }
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
+        if let Some(returned) = callable_return {
+            callable_returns.insert(id, returned);
+        }
         module
             .function_mut(id)
             .expect("new unit function must exist")
@@ -498,10 +509,11 @@ fn lower_unit_impl(
                 owned,
                 constant_owned,
                 function_ids: &function_ids,
+                callable_returns: &callable_returns,
                 source_plan: &source_plan,
                 source_token: plan.instance.source_token(),
                 references: &references,
-                function_item: plan.function_item,
+                function_item: Some(plan.function_item),
                 body: refine_body,
                 return_type: plan.return_type,
                 receiver: plan.receiver.as_ref().map(|receiver| {
@@ -751,6 +763,57 @@ fn lower_unit_impl(
         let parsed = parsed_by_source[plan.source_unit.index()];
         let references = symbol_references(names, plan.source_unit, Namespace::Value);
         let type_references = symbol_references(names, plan.source_unit, Namespace::Type);
+        let refine_callables = closure::refine_callables(&callable_plans, plan.thunk);
+        let entry = module.functions[plan.thunk.index()]
+            .entry_block()
+            .expect("planned unit closure thunk has entry");
+        let entities = module.functions[plan.thunk.index()]
+            .block(entry)
+            .expect("entry block exists")
+            .parameters
+            .clone();
+        let inputs = crate::ssa::refine::RefineInputs {
+            sources,
+            parsed,
+            source_unit: plan.source_unit,
+            names,
+            typed,
+            owned,
+            constant_owned,
+            function_ids: &function_ids,
+            callable_returns: &callable_returns,
+            source_plan: &source_plan,
+            source_token: plan.source_token,
+            references: &references,
+            function_item: None,
+            body: crate::ssa::refine::RefineBody::Lambda(closure::refine_thunk(plan)),
+            return_type: plan.return_type,
+            receiver: None,
+            parameters: plan.parameter_symbols.clone(),
+            modes: plan.parameter_modes.clone(),
+            span: plan.span,
+            substitutions: &plan.substitutions,
+            static_self: plan.static_self,
+            callables: &refine_callables,
+            views: callable_abi.views(),
+        };
+        if crate::ssa::refine::routes(&inputs) {
+            for ty in crate::ssa::refine::type_demands(&inputs) {
+                types.intern(module, typed, ty, plan.span)?;
+            }
+            let function = module
+                .functions
+                .get_mut(plan.thunk.index())
+                .expect("planned unit closure thunk exists");
+            let refine_types = crate::ssa::refine::RefineTypes {
+                type_ids: types.type_ids(),
+                heap_payloads: types.heap_payloads(),
+                field_indices: types.field_indices(),
+                enum_payloads: types.enum_payloads(),
+            };
+            crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
+            continue;
+        }
         let function = module
             .functions
             .get_mut(plan.thunk.index())

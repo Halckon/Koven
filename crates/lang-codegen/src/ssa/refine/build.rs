@@ -2,6 +2,8 @@
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
 mod callable;
 mod condition;
+mod container;
+mod container_for;
 mod expression;
 mod field;
 mod heap;
@@ -9,6 +11,7 @@ mod inout;
 mod place;
 mod rc;
 mod receiver;
+mod scalar_text;
 mod tagged;
 mod value;
 mod when;
@@ -52,6 +55,8 @@ pub(super) struct Builder<'i, 'a> {
     bindings: BTreeMap<UnitSymbolId, Slot>,
     /// Borrow and Inout parameters: the shared or exclusive loan the caller passed.
     borrowed: BTreeMap<UnitSymbolId, Slot>,
+    /// Thunk-entry capture loans (parent field loans and shared reference follow loans).
+    capture_loans: Vec<Slot>,
     /// The current receiver's value, or the shared loan of a Borrow receiver.
     receiver: Option<Slot>,
     /// Copyable inner values proven non-null on the current edge.
@@ -79,6 +84,17 @@ pub(super) struct LoopFrame {
     pub(super) exit: BlockRef,
     pub(super) views: usize,
     pub(super) broken: bool,
+    pub(super) seq_for: Option<SeqForFrame>,
+}
+
+/// Active sequential-container `for` provider loans and cursor slots.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SeqForFrame {
+    pub(super) source_loan: Slot,
+    pub(super) elem_loan: Slot,
+    pub(super) cursor: Slot,
+    pub(super) step: Slot,
+    pub(super) int_ty: SsaTypeId,
 }
 
 /// A shared proof view of a MoveOnly nullable binding's inner value.
@@ -101,6 +117,7 @@ pub(super) fn build(
         block: None,
         bindings: BTreeMap::new(),
         borrowed: BTreeMap::new(),
+        capture_loans: Vec::new(),
         receiver: None,
         narrowed: BTreeMap::new(),
         temporaries: BTreeMap::new(),
@@ -114,6 +131,13 @@ pub(super) fn build(
     };
     let entry = builder.body.block();
     builder.block = Some(entry);
+    let unit_return = builder.is_unit(inputs.return_type);
+    if let RefineBody::Lambda(thunk) = &inputs.body {
+        builder.bind_thunk_entry(thunk, entities)?;
+        builder.lower_thunk_body(thunk, unit_return)?;
+        builder.check_all_drops_consumed()?;
+        return Ok(builder.body);
+    }
     let receivers = usize::from(inputs.receiver.is_some());
     if entities.len() != inputs.parameters.len() + receivers {
         return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
@@ -133,52 +157,37 @@ pub(super) fn build(
         builder.body.parameters.push(slot);
         builder.receiver = Some(slot);
     }
-    if inputs.modes.len() != inputs.parameters.len() {
-        return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
-    }
-    for ((symbol, entity), mode) in inputs.parameters.iter().zip(entities).zip(&inputs.modes) {
-        let ty = builder.symbol_ssa_type(*symbol, inputs.span)?;
-        match (entity, loan_kind(*mode)) {
-            (crate::ssa::model::EntityId::Value(_), None) => {
-                let slot = builder.body.slot(EntityType::Value(ty));
-                builder.body.parameters.push(slot);
-                builder.bindings.insert(*symbol, slot);
-            }
-            (crate::ssa::model::EntityId::Loan(_), Some(kind)) => {
-                let slot = builder.body.slot(EntityType::Loan { kind, target: ty });
-                builder.body.parameters.push(slot);
-                builder.borrowed.insert(*symbol, slot);
-            }
-            _ => return Err(error(LoweringErrorKind::InvalidModel, inputs.span)),
-        }
-    }
+    builder.bind_parameters(entities)?;
+    let function_item = inputs
+        .function_item
+        .ok_or_else(|| error(LoweringErrorKind::MissingFact, inputs.span))?;
     builder.drops(UnitDropPoint::FunctionEntry(UnitItemId::new(
         inputs.source_unit,
-        inputs.function_item,
+        function_item,
     )))?;
-    let unit_return = builder.is_unit(inputs.return_type);
-    match inputs.body {
+    match &inputs.body {
         RefineBody::Expression(expression) => {
-            let result = match builder.expression(expression)? {
+            let result = match builder.expression(*expression)? {
                 Lowered::Diverged => None,
                 Lowered::Unit => Some(None),
                 Lowered::Value(value) => Some(Some(builder.adapt(
                     value,
-                    expression,
+                    *expression,
                     inputs.return_type,
                 )?)),
             };
             if let Some(result) = result {
-                builder.deliver(expression);
-                builder.drops(UnitDropPoint::ControlTransfer(builder.unit(expression)))?;
+                builder.deliver(*expression);
+                builder.drops(UnitDropPoint::ControlTransfer(builder.unit(*expression)))?;
                 builder.finish_return(result, unit_return, inputs.span)?;
             }
         }
         RefineBody::Block(statement) => {
-            if builder.statement(statement)? != Lowered::Diverged {
+            if builder.statement(*statement)? != Lowered::Diverged {
                 builder.finish_return(None, unit_return, inputs.span)?;
             }
         }
+        RefineBody::Lambda(_) => unreachable!(),
     }
     builder.check_all_drops_consumed()?;
     Ok(builder.body)
@@ -356,6 +365,38 @@ impl Builder<'_, '_> {
         Ok(())
     }
 
+    pub(super) fn bind_parameters(
+        &mut self,
+        entities: &[crate::ssa::model::EntityId],
+    ) -> Result<(), LoweringError> {
+        if self.inputs.modes.len() != self.inputs.parameters.len() {
+            return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+        }
+        for ((symbol, entity), mode) in self
+            .inputs
+            .parameters
+            .iter()
+            .zip(entities)
+            .zip(&self.inputs.modes)
+        {
+            let ty = self.symbol_ssa_type(*symbol, self.inputs.span)?;
+            match (entity, loan_kind(*mode)) {
+                (crate::ssa::model::EntityId::Value(_), None) => {
+                    let slot = self.body.slot(EntityType::Value(ty));
+                    self.body.parameters.push(slot);
+                    self.bindings.insert(*symbol, slot);
+                }
+                (crate::ssa::model::EntityId::Loan(_), Some(kind)) => {
+                    let slot = self.body.slot(EntityType::Loan { kind, target: ty });
+                    self.body.parameters.push(slot);
+                    self.borrowed.insert(*symbol, slot);
+                }
+                _ => return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span)),
+            }
+        }
+        Ok(())
+    }
+
     fn finish_return(
         &mut self,
         result: Option<Slot>,
@@ -367,6 +408,9 @@ impl Builder<'_, '_> {
         } else {
             Some(result.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?)
         };
+        for loan in self.capture_loans.clone().into_iter().rev() {
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
         self.terminate(RTerm::Return(result), span)
     }
 
@@ -374,6 +418,11 @@ impl Builder<'_, '_> {
 
     /// Consumes every drop fact published at `point`, in publication order.
     fn drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
+        if self.loops.iter().any(|frame| frame.seq_for.is_some())
+            && self.iteration_cleanup(point)?
+        {
+            return Ok(());
+        }
         let facts = self.collect_drops(point);
         self.emit_drops(&facts)?;
         if let UnitDropPoint::ControlTransfer(_) = point {
@@ -513,14 +562,16 @@ impl Builder<'_, '_> {
     fn check_all_drops_consumed(&self) -> Result<(), LoweringError> {
         let item = self
             .inputs
-            .parsed
-            .ast()
-            .items()
-            .get(self.inputs.function_item)
-            .map_err(|_| error(LoweringErrorKind::MissingFact, self.inputs.span))?
-            .span();
+            .scope_span()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, self.inputs.span))?;
         for (index, fact) in self.inputs.owned.drops().iter().enumerate() {
-            if self.consumed_drops.contains(&index) {
+            if self.consumed_drops.contains(&index)
+                || matches!(
+                    (&self.inputs.body, fact.target()),
+                    (RefineBody::Lambda(thunk), UnitDropTarget::Captured { closure, .. })
+                        if thunk.expression == closure
+                )
+            {
                 continue;
             }
             let origin = fact.value_origin();
@@ -528,6 +579,7 @@ impl Builder<'_, '_> {
                 && origin.source_id() == item.source_id()
                 && item.start() <= origin.start()
                 && origin.end() <= item.end()
+                && (!matches!(self.inputs.body, RefineBody::Lambda(_)) || origin != item)
                 && !self.inside_lambda(origin)
             {
                 return Err(error(LoweringErrorKind::MissingFact, origin));
@@ -571,7 +623,12 @@ impl Builder<'_, '_> {
 
     /// The named owner a pending argument value was moved out of.
     fn pending_symbol(&self, expression: UnitExpressionId) -> Option<UnitSymbolId> {
-        if expression.source_unit() != self.inputs.source_unit {
+        if expression.source_unit() != self.inputs.source_unit
+            || self
+                .inputs
+                .constant_owned
+                .is_some_and(|owned| owned.materialization_at(expression).is_some())
+        {
             return None;
         }
         let (payload, span) = self.node(expression.expression()).ok()?;
@@ -593,8 +650,13 @@ impl Builder<'_, '_> {
             matches!(fact.point(), UnitDropPoint::ControlTransfer(_))
                 && fact.target() == UnitDropTarget::Temporary(unit)
         });
+        let is_const_temp = self
+            .inputs
+            .constant_owned
+            .is_some_and(|owned| owned.materialization_at(unit).is_some());
         if self.move_only(ty)
             && (pending
+                || is_const_temp
                 || self.inputs.typed.expression_category(unit)
                     == Some(lang_frontend::type_checking::ExpressionCategory::Temporary))
         {
@@ -604,9 +666,15 @@ impl Builder<'_, '_> {
     }
 
     /// A recorded temporary now lives in `slot` (its adapted value).
-    fn repoint_temporary(&mut self, expression: ExpressionId, slot: Slot) {
+    fn repoint_temporary(&mut self, mut expression: ExpressionId, slot: Slot) {
         if let Some(recorded) = self.temporaries.get_mut(&self.unit(expression)) {
             *recorded = slot;
+        }
+        while let Ok((Expression::Group { expression: inner }, _)) = self.node(expression) {
+            expression = inner;
+            if let Some(recorded) = self.temporaries.get_mut(&self.unit(expression)) {
+                *recorded = slot;
+            }
         }
     }
 
@@ -617,6 +685,7 @@ impl Builder<'_, '_> {
         let mut root = expression;
         while let Ok((Expression::Group { expression: inner }, _)) = self.node(root) {
             root = inner;
+            self.temporaries.remove(&self.unit(root));
         }
         if let Some(symbol) = self.pending_symbol(self.unit(root))
             && self.bindings.contains_key(&symbol)
@@ -654,7 +723,9 @@ impl Builder<'_, '_> {
             .map_err(|_| error(LoweringErrorKind::MissingFact, self.inputs.span))?;
         let span = node.span();
         match node.payload().clone() {
-            Statement::Block { elements } | Statement::ControlBody { elements } => {
+            Statement::Block { elements }
+            | Statement::ControlBody { elements }
+            | Statement::LambdaBody { elements } => {
                 let mut last = Lowered::Unit;
                 for element in elements {
                     last = self.statement(element)?;
@@ -670,6 +741,12 @@ impl Builder<'_, '_> {
                 condition, body, ..
             } => self.while_loop(statement, condition, body, span),
             Statement::Loop { body, .. } => self.loop_statement(statement, body, span),
+            Statement::For { source, body, .. } => {
+                self.for_statement(statement, source, body, span)
+            }
+            Statement::LocalDestructuring { initializer, .. } => {
+                self.local_destructuring(statement, initializer, span)
+            }
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
@@ -696,15 +773,23 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
         let symbol = self.declared_symbol(name_span)?;
-        let Lowered::Value(value) = self.expression(initializer)? else {
-            return Ok(Lowered::Diverged);
-        };
         let declared = self
             .symbol_type(symbol)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if self.is_unit(declared) {
+            if self.expression(initializer)? == Lowered::Diverged {
+                return Ok(Lowered::Diverged);
+            }
+            return Ok(Lowered::Unit);
+        }
+        let Lowered::Value(value) = self.expression(initializer)? else {
+            return Ok(Lowered::Diverged);
+        };
         let value = self.adapt(value, initializer, declared)?;
         self.deliver(initializer);
-        let ty = self.ssa_type(declared, span)?;
+        let EntityType::Value(ty) = self.body.slots[value.0] else {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        };
         let binding = self.value(ROp::Alias { source: value }, EntityType::Value(ty), span)?;
         self.bindings.insert(symbol, binding);
         Ok(Lowered::Unit)
@@ -758,6 +843,7 @@ impl Builder<'_, '_> {
             exit,
             views: mark,
             broken: false,
+            seq_for: None,
         });
         let reached = self.statement(loop_body)? != Lowered::Diverged;
         self.loops.pop();
@@ -796,6 +882,7 @@ impl Builder<'_, '_> {
             exit,
             views: mark,
             broken: false,
+            seq_for: None,
         });
         let reached = self.statement(loop_body)? != Lowered::Diverged;
         let frame = self.loops.pop().expect("loop frame pushed above");
@@ -837,12 +924,27 @@ impl Builder<'_, '_> {
         for view in iteration {
             self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
         }
-        if is_break {
+        if !is_break && let Some(seq) = frame.seq_for {
+            let next = self.value(
+                ROp::Binary {
+                    operator: crate::ssa::model::BinaryOperator::Add,
+                    left: seq.cursor,
+                    right: seq.step,
+                },
+                EntityType::Value(seq.int_ty),
+                span,
+            )?;
+            self.push(ROp::Alias { source: next }, vec![seq.cursor], span)?;
+        }
+        if is_break && frame.seq_for.is_none() {
             // This path leaves the loop: owners dying at `LoopExit` drop here, ending any
             // outer view of theirs; the views stay registered for the other paths.
             for (_, target, fact_span) in
                 self.collect_drops(UnitDropPoint::LoopExit(frame.statement))
             {
+                if matches!(target, UnitDropTarget::Captured { .. }) {
+                    continue;
+                }
                 let UnitDropTarget::Named(symbol) = target else {
                     return Err(error(LoweringErrorKind::UnsupportedNode, fact_span));
                 };

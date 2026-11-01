@@ -2,14 +2,17 @@
 //! ownership facts plus AST construct kinds; it never runs lowering. Anything outside
 //! the subset keeps the existing per-family path.
 mod callable;
+mod container;
 mod drops;
 mod field;
 mod heap;
 mod inout;
 mod rc;
 mod receiver;
+mod scalar_text;
 mod tagged;
 mod value;
+mod when;
 
 use std::collections::BTreeSet;
 
@@ -18,11 +21,11 @@ use lang_frontend::{
     name_resolution::{SymbolKind, UnitSymbolId},
     parser::{
         AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, NameMarker,
-        PrefixOperator, Statement, WhenCondition, WhenEntry,
+        PrefixOperator, Statement,
     },
     type_checking::{
-        BuiltinType, Copyability, IntegerRangeOperationKind, NominalKind, ParameterMode,
-        UnitCallTarget, UnitExpressionId, UnitNominalSignature, UnitTypeId, UnitTypeKind,
+        BuiltinType, Copyability, NominalKind, ParameterMode, UnitCallTarget, UnitExpressionId,
+        UnitNominalSignature, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -35,6 +38,8 @@ struct Checker<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
     /// Parameters and locals declared so far, with whether they are `var`.
     known: BTreeSet<UnitSymbolId>,
+    /// Local bindings holding a concrete callable owner (function pointer or closure).
+    callables: BTreeSet<UnitSymbolId>,
     /// Expressions lowered in branch form, whose own drop points are never emitted.
     branch_form: BTreeSet<UnitExpressionId>,
     /// Pilot routing gate: the function touches a nullable value.
@@ -46,26 +51,49 @@ struct Checker<'i, 'a> {
     /// Field replacements in the subset; their `BeforeReplacement` drops are consumed by
     /// the replacement itself.
     replacements: BTreeSet<UnitExpressionId>,
+    /// Container element replacements (`xs[i] = v`) whose `AfterReplacement` drops are
+    /// consumed by `ContainerReplace`.
+    element_replacements: BTreeSet<UnitExpressionId>,
+    /// Element or component bindings introduced by a sequential `for` loop (`Borrow` loans).
+    for_borrowed: BTreeSet<UnitSymbolId>,
+    /// MoveOnly nullable bindings whose non-null proof view is active in the current branch.
+    view_symbols: BTreeSet<UnitSymbolId>,
 }
 
 pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
+    let mut known: BTreeSet<_> = inputs.parameters.iter().copied().collect();
+    if let RefineBody::Lambda(thunk) = &inputs.body {
+        known.extend(thunk.captures.iter().map(|capture| capture.symbol));
+    }
     let mut checker = Checker {
         inputs,
-        known: inputs.parameters.iter().copied().collect(),
+        known,
+        callables: BTreeSet::new(),
         branch_form: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,
         replacements: BTreeSet::new(),
+        element_replacements: BTreeSet::new(),
+        for_borrowed: BTreeSet::new(),
+        view_symbols: BTreeSet::new(),
     };
-    let signature_types: Vec<_> = inputs
+    let mut signature_types: Vec<_> = inputs
         .parameters
         .iter()
         .filter_map(|symbol| checker.symbol_type(*symbol))
         .chain([inputs.return_type])
         .collect();
+    if let RefineBody::Lambda(thunk) = &inputs.body {
+        signature_types.extend(thunk.captures.iter().map(|capture| capture.ty));
+    }
     for ty in signature_types {
         checker.note_nullable(ty);
+        checker.migrated |= checker.container_element(ty).is_some()
+            || checker.box_payload(ty).is_some()
+            || checker.box_enum_type(ty)
+            || checker.map_kv(ty).is_some()
+            || checker.rc_payload(ty).is_some();
     }
     // Copyable Borrow parameters are read by copy, except String when subjects read the
     // loan; Inout parameters are scalars or plain classes, read through and replaced under
@@ -82,12 +110,16 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                         || checker.storage_type(ty)
                         && match mode {
                             ParameterMode::Value => true,
-                            // A MoveOnly Borrow parameter is only lent on (a plain class
-                            // through its loan), never read by copy.
+                            // A MoveOnly Borrow parameter is only lent on (a plain class,
+                            // container, or boxed owner through its loan), never read by copy.
                             ParameterMode::Borrow => {
                                 checker.copyability_of(ty) == Copyability::Copyable
                                     || checker.class(ty)
                                     || checker.string(ty)
+                                    || checker.container_element(ty).is_some()
+                                    || checker.box_payload(ty).is_some()
+                                    || checker.box_enum_type(ty)
+                                    || checker.map_kv(ty).is_some()
                             }
                             ParameterMode::Inout => checker.scalar(ty) || checker.class(ty),
                         }
@@ -115,9 +147,10 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
             .receiver
             .is_some_and(|receiver| receiver.mode == ParameterMode::Inout);
     signature
-        && match inputs.body {
-            RefineBody::Expression(expression) => checker.expression(expression),
-            RefineBody::Block(statement) => checker.statement(statement),
+        && match &inputs.body {
+            RefineBody::Expression(expression) => checker.expression(*expression),
+            RefineBody::Block(statement) => checker.statement(*statement),
+            RefineBody::Lambda(thunk) => checker.thunk_body(thunk),
         }
         && checker.drops_supported()
         && (checker.nullable || checker.migrated)
@@ -128,16 +161,19 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
     let checker = Checker {
         inputs,
         known: BTreeSet::new(),
+        callables: BTreeSet::new(),
         branch_form: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,
         replacements: BTreeSet::new(),
+        element_replacements: BTreeSet::new(),
+        for_borrowed: BTreeSet::new(),
+        view_symbols: BTreeSet::new(),
     };
-    let Ok(item) = inputs.parsed.ast().items().get(inputs.function_item) else {
+    let Some(item) = inputs.scope_span() else {
         return Vec::new();
     };
-    let item = item.span();
     let typed = inputs.typed;
     let mut demands: Vec<UnitTypeId> = inputs
         .parameters
@@ -146,12 +182,20 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         .chain([inputs.return_type])
         .chain(inputs.receiver.map(|receiver| receiver.ty))
         .collect();
+    if let RefineBody::Lambda(thunk) = &inputs.body {
+        demands.extend(thunk.captures.iter().map(|capture| capture.ty));
+    }
     for (expression, node) in inputs.parsed.ast().expressions().iter() {
         let span = node.span();
         if item.start() <= span.start() && span.end() <= item.end() {
-            demands.extend(
-                checker.expression_type_of(UnitExpressionId::new(inputs.source_unit, expression)),
-            );
+            let id = UnitExpressionId::new(inputs.source_unit, expression);
+            if let Some(ty) = inputs.typed.expression_type(id) {
+                let ty = match checker.kind(ty) {
+                    Some(UnitTypeKind::EnumCase { root, .. }) => *root,
+                    _ => ty,
+                };
+                demands.extend(inputs.concrete(ty));
+            }
         }
     }
     demands.extend(typed.body_symbol_types().keys().filter_map(|symbol| {
@@ -160,24 +204,32 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
             .flatten()
     }));
     demands.extend(typed.types().builtin(BuiltinType::Boolean));
-    // Case tests compare the `Int` discriminant.
-    if demands.iter().any(|ty| checker.enum_type(*ty)) {
+    // Case tests compare the `Int` discriminant; numeric range `for` loops and container
+    // operations use `Int` lengths/indices.
+    if demands.iter().any(|ty| {
+        checker.enum_type(*ty)
+            || checker.box_enum_type(*ty)
+            || checker.container_element(*ty).is_some()
+            || checker.map_kv(*ty).is_some()
+            || matches!(
+                checker.kind(*ty),
+                Some(UnitTypeKind::Builtin(BuiltinType::IntRange))
+            )
+    }) {
         demands.extend(typed.types().builtin(BuiltinType::Int));
+    }
+    if demands.iter().any(|ty| {
+        matches!(
+            checker.kind(*ty),
+            Some(UnitTypeKind::Builtin(BuiltinType::LongRange))
+        )
+    }) {
+        demands.extend(typed.types().builtin(BuiltinType::Long));
     }
     let mut seen = BTreeSet::new();
     let mut ordered = Vec::new();
     for ty in demands {
-        if !(checker.unit(ty) || checker.storage_type(ty)) {
-            continue;
-        }
-        if let Some(UnitTypeKind::Nullable(inner)) = checker.kind(ty)
-            && seen.insert(*inner)
-        {
-            ordered.push(*inner);
-        }
-        if seen.insert(ty) {
-            ordered.push(ty);
-        }
+        checker.push_demand(ty, &mut seen, &mut ordered);
     }
     ordered
 }
@@ -223,22 +275,18 @@ impl Checker<'_, '_> {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if integer(*b))
     }
 
-    /// A non-generic `class` whose fields are scalars or String.
+    /// A concrete non-recursive `class` whose fields are supported storage types.
     fn class(&self, ty: UnitTypeId) -> bool {
-        self.class_fields(ty).is_some_and(|fields| {
-            fields
-                .iter()
-                .all(|field| self.scalar(*field) || self.string(*field))
-        })
+        self.class_seen(ty, &mut BTreeSet::new())
     }
 
-    /// Concrete field types of a non-generic `class`, in declaration order.
+    /// Concrete field types of a `class`, in declaration order.
     fn class_fields(&self, ty: UnitTypeId) -> Option<Vec<UnitTypeId>> {
-        let nominal = self.class_signature(ty)?;
-        resolve_nominal_runtime_field_types(self.inputs.typed, ty, nominal, &[]).ok()
+        let (nominal, arguments) = self.class_signature(ty)?;
+        resolve_nominal_runtime_field_types(self.inputs.typed, ty, nominal, &arguments).ok()
     }
 
-    fn class_signature(&self, ty: UnitTypeId) -> Option<&UnitNominalSignature> {
+    fn class_signature(&self, ty: UnitTypeId) -> Option<(&UnitNominalSignature, Vec<UnitTypeId>)> {
         let Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
@@ -252,30 +300,17 @@ impl Checker<'_, '_> {
             .signatures()
             .declaration(*declaration)?
             .nominal()?;
-        (arguments.is_empty()
-            && nominal.kind() == NominalKind::Class
-            && nominal.type_parameters().is_empty())
-        .then_some(nominal)
+        (nominal.kind() == NominalKind::Class).then(|| (nominal, arguments.clone()))
     }
 
     /// MoveOnly nullable inners are read through proof views.
     fn view_inner(&self, ty: UnitTypeId) -> bool {
-        self.string(ty) || self.class(ty)
+        self.view_inner_seen(ty, &mut BTreeSet::new())
     }
 
     /// Types a slot may hold: scalars, String, plain classes and their nullables.
     fn storage_type(&self, ty: UnitTypeId) -> bool {
-        match self.kind(ty) {
-            Some(UnitTypeKind::Builtin(BuiltinType::String)) => true,
-            Some(UnitTypeKind::Nullable(inner)) => self.scalar(*inner) || self.view_inner(*inner),
-            _ => {
-                self.scalar(ty)
-                    || self.class(ty)
-                    || self.enum_type(ty)
-                    || self.rc_payload(ty).is_some()
-                    || self.value_class(ty)
-            }
-        }
+        self.storage_type_seen(ty, &mut BTreeSet::new())
     }
 
     /// Records whether the function handles a nullable value at all.
@@ -325,6 +360,11 @@ impl Checker<'_, '_> {
         typed.construction(id).is_none()
             && typed.aggregate_projection(id).is_none()
             && typed.non_null_assertion(id).is_none()
+            && typed.ownership_primitive(id).is_none()
+            && self
+                .inputs
+                .constant_owned
+                .is_none_or(|owned| owned.materialization_at(id).is_none())
             && self.unspecialized(expression)
     }
 
@@ -337,10 +377,13 @@ impl Checker<'_, '_> {
             && typed.string_operation(id).is_none()
             && typed.rc_operation(id).is_none()
             && typed.range_size(id).is_none()
-            && typed.ownership_primitive(id).is_none()
             && typed.nullable_when(id).is_none()
+            && !self.has_container_fact(expression)
             && self.inputs.constant_owned.is_none_or(|owned| {
-                owned.materialization_at(id).is_none() && owned.short_circuit_at(id).is_none()
+                owned.short_circuit_at(id).is_none_or(|plan| {
+                    plan.rhs()
+                        == lang_frontend::ownership_checking::UnitShortCircuitRhs::Conditional
+                })
             })
     }
 
@@ -382,11 +425,41 @@ impl Checker<'_, '_> {
         if let Expression::Lambda { .. } = node.payload() {
             return self.returned_lambda(expression);
         }
-        // `Rc` operations carry their own typed fact (SPEC-0359).
+        if self.inputs.typed.constants().is_some_and(|facts| {
+            facts
+                .uses()
+                .binary_search_by_key(&id, |use_| use_.expression())
+                .is_ok()
+        }) {
+            return self.storage_type(ty) && self.constant_materialization(expression);
+        }
+        if self.inputs.typed.ownership_primitive(id).is_some() {
+            return (self.unit(ty) || self.storage_type(ty))
+                && self.ownership_primitive(expression);
+        }
+        if self.has_container_fact(expression) {
+            return (self.unit(ty) || self.storage_type(ty))
+                && self.container_operation(expression);
+        }
+        // `Rc`, integer, integer-range, and String operations carry their own typed facts.
         if self.inputs.typed.rc_operation(id).is_some() {
             return self.storage_type(ty) && self.rc_operation(expression);
         }
-        if !self.unspecialized(expression) || !(returns || self.unit(ty) || self.storage_type(ty)) {
+        if self.inputs.typed.integer_operation(id).is_some() {
+            return self.storage_type(ty) && self.integer_operation(expression);
+        }
+        if self.inputs.typed.integer_range_operation(id).is_some() {
+            return self.storage_type(ty) && self.integer_range_operation(expression);
+        }
+        if self.inputs.typed.string_operation(id).is_some() {
+            return self.storage_type(ty) && self.string_operation(expression);
+        }
+        if !self.unspecialized(expression)
+            || !(returns
+                || self.unit(ty)
+                || self.storage_type(ty)
+                || self.callable_value(expression))
+        {
             return false;
         }
         self.note_nullable(ty);
@@ -395,10 +468,15 @@ impl Checker<'_, '_> {
                 lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
                     return self.enum_construction(expression);
                 }
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox => {
+                    return self.box_construction(expression);
+                }
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
                     return self.rc_construction(expression);
                 }
-                _ if self.value_class(self.c(descriptor.result_type())) => {
+                _ if self.value_class(self.c(descriptor.result_type()))
+                    || self.move_value_class(self.c(descriptor.result_type())) =>
+                {
                     return self.value_construction(expression);
                 }
                 _ => {}
@@ -439,6 +517,15 @@ impl Checker<'_, '_> {
                 operand,
                 ..
             } => self.expression(operand),
+            Expression::Prefix {
+                operator: operator @ (PrefixOperator::Plus | PrefixOperator::Minus),
+                operand,
+                ..
+            } => {
+                self.integer_type(ty)
+                    && self.expression_type(operand) == Some(ty)
+                    && self.prefix_integer(operator, operand)
+            }
             Expression::Binary {
                 left,
                 operator,
@@ -451,8 +538,11 @@ impl Checker<'_, '_> {
                 else_branch,
                 ..
             } => {
-                self.condition(condition, true)
-                    && self.statement(then_branch)
+                let saved = self.view_symbols.clone();
+                let cond_ok = self.condition(condition, true);
+                let then_ok = cond_ok && self.statement(then_branch);
+                self.view_symbols = saved;
+                then_ok
                     && else_branch.is_none_or(|branch| self.statement(branch))
                     && (self.unit(ty) || else_branch.is_some())
                     && (!returns || else_branch.is_some())
@@ -469,13 +559,13 @@ impl Checker<'_, '_> {
             } => self.subject_when(ty, subject, &entries),
             Expression::Call { arguments, .. } => {
                 let values: Vec<_> = arguments.iter().map(|argument| argument.value).collect();
-                let through_view = self
+                let function_value = self
                     .inputs
                     .typed
                     .call(self.id(expression))
                     .is_some_and(|descriptor| descriptor.target() == UnitCallTarget::FunctionValue);
                 self.call(expression)
-                    && (!through_view || self.view_callee(expression))
+                    && (!function_value || self.function_callee(expression, &values))
                     && self.arguments(expression, &values)
             }
             Expression::Assignment {
@@ -489,7 +579,15 @@ impl Checker<'_, '_> {
                 operator: AssignmentOperator::Assign,
                 value,
                 ..
-            } => self.assignment(target) && self.expression(value),
+            } if self.is_element_target(target) => {
+                self.element_assignment(expression, target, value)
+            }
+            Expression::Assignment {
+                target,
+                operator: AssignmentOperator::Assign,
+                value,
+                ..
+            } => self.assignment(expression, target, value),
             Expression::Return { value, .. } => value.is_none_or(|value| self.expression(value)),
             Expression::Break { .. } | Expression::Continue { .. } => self.loops > 0,
             _ => false,
@@ -502,6 +600,13 @@ impl Checker<'_, '_> {
         };
         if !self.known.contains(&symbol) {
             return false;
+        }
+        if self.callables.contains(&symbol) {
+            return self
+                .inputs
+                .typed
+                .non_null_use(self.id(expression))
+                .is_none();
         }
         // A loan parameter is read by copy, so only a Copyable one is a value here.
         if matches!(
@@ -551,6 +656,12 @@ impl Checker<'_, '_> {
             | BinaryOperator::Multiply
             | BinaryOperator::Divide
             | BinaryOperator::Remainder
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
+            | BinaryOperator::Shl
+            | BinaryOperator::Shr
+            | BinaryOperator::Ushr
             | BinaryOperator::Less
             | BinaryOperator::LessEqual
             | BinaryOperator::Greater
@@ -564,14 +675,18 @@ impl Checker<'_, '_> {
         supported && self.operand(left, string) && self.operand(right, string)
     }
 
-    /// A String operand may be a MoveOnly non-null name, read through its proof view.
+    /// A String operand may be a Borrow String binding or a MoveOnly non-null name.
     fn operand(&mut self, expression: ExpressionId, string: bool) -> bool {
+        if string && self.borrowed_string_name(expression) {
+            return true;
+        }
         if string
             && let Some(fact) = self.inputs.typed.non_null_use(self.id(expression))
             && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
         {
             return self.reference(expression) == Some(fact.symbol())
-                && self.known.contains(&fact.symbol());
+                && self.known.contains(&fact.symbol())
+                && self.view_symbols.contains(&fact.symbol());
         }
         self.expression(expression)
     }
@@ -597,7 +712,12 @@ impl Checker<'_, '_> {
             let inner_ok = match self.kind(self.c(fact.nullable_type())) {
                 Some(UnitTypeKind::Nullable(inner)) if self.scalar(*inner) => true,
                 Some(UnitTypeKind::Nullable(inner)) if self.view_inner(*inner) => {
-                    views && fact.non_null_when_true()
+                    if views && fact.non_null_when_true() {
+                        self.view_symbols.insert(fact.symbol());
+                        true
+                    } else {
+                        !views
+                    }
                 }
                 _ => false,
             };
@@ -624,129 +744,18 @@ impl Checker<'_, '_> {
             } => {
                 self.branch_form.insert(id);
                 let views = views && operator == BinaryOperator::LogicalAnd;
-                boolean
+                let saved = self.view_symbols.clone();
+                let ok = boolean
                     && self.plain(expression)
                     && self.condition(left, views)
-                    && self.condition(right, views)
+                    && self.condition(right, views);
+                if !views {
+                    self.view_symbols = saved;
+                }
+                ok
             }
             _ => self.expression(expression),
         }
-    }
-
-    /// A scalar subject compared by value, an integer subject tested for Range membership,
-    /// or a Copyable enum subject tested for its case. A value-context `when` needs `else`
-    /// unless the subject is an enum, whose closed domain the frontend proved covered.
-    fn subject_when(
-        &mut self,
-        ty: UnitTypeId,
-        subject: ExpressionId,
-        entries: &[WhenEntry],
-    ) -> bool {
-        self.migrated = true;
-        let Some(subject_type) = self.expression_type(subject) else {
-            return false;
-        };
-        let tagged = self.enum_type(subject_type);
-        // SPEC-0357 already validated lifetime and candidate inventory. Keep the backend
-        // subset bounded to that literal kernel and its existing expression support.
-        let string = self.string(subject_type);
-        let subject_ok = if string {
-            self.string_when_subject(subject)
-        } else {
-            (self.scalar(subject_type) || tagged) && self.expression(subject)
-        };
-        let has_else = entries.iter().any(|entry| entry.else_span.is_some());
-        subject_ok
-            && (self.unit(ty) || has_else || tagged)
-            && entries.iter().all(|entry| {
-                entry.else_span.is_some() == entry.conditions.is_empty()
-                    && entry.conditions.iter().all(|condition| match condition {
-                        WhenCondition::Expression(condition) if string => {
-                            self.string_when_literal(*condition)
-                        }
-                        WhenCondition::Expression(condition) if tagged => {
-                            self.case_value_condition(*condition, subject_type)
-                        }
-                        WhenCondition::Expression(condition) => {
-                            self.expression_type(*condition) == Some(subject_type)
-                                && self.expression(*condition)
-                        }
-                        WhenCondition::Contains { expression, .. } => {
-                            !tagged && !string && self.range_condition(*expression, subject_type)
-                        }
-                        WhenCondition::TypeTest { type_ref, .. } => {
-                            tagged && self.type_test_target(*type_ref, subject_type)
-                        }
-                    })
-                    && self.statement(entry.body)
-            })
-    }
-
-    fn string_when_subject(&mut self, expression: ExpressionId) -> bool {
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
-        match node.payload() {
-            Expression::Group { expression } => self.string_when_subject(*expression),
-            Expression::Name
-                if self.reference(expression).is_some_and(|symbol| {
-                    self.known.contains(&symbol)
-                        && self.parameter_mode(symbol) == Some(ParameterMode::Borrow)
-                }) =>
-            {
-                true
-            }
-            Expression::Member { .. } | Expression::Index { .. } => false,
-            _ => self.expression(expression),
-        }
-    }
-
-    fn string_when_literal(&mut self, expression: ExpressionId) -> bool {
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
-        match node.payload() {
-            Expression::Group { expression } => self.string_when_literal(*expression),
-            Expression::String { .. } => self.expression(expression),
-            _ => false,
-        }
-    }
-
-    /// `in lo..hi` / `lo..<hi` over the subject's integer type.
-    fn range_condition(&mut self, range: ExpressionId, subject_type: UnitTypeId) -> bool {
-        let Some(operation) = self
-            .inputs
-            .typed
-            .integer_range_operation(self.id(range))
-            .copied()
-        else {
-            return false;
-        };
-        matches!(
-            operation.kind(),
-            IntegerRangeOperationKind::Inclusive | IntegerRangeOperationKind::Exclusive
-        ) && self.integer_type(subject_type)
-            && self.c(operation.left_type()) == subject_type
-            && self.c(operation.right_type()) == subject_type
-            && operation.left().source_unit() == self.inputs.source_unit
-            && operation.right().source_unit() == self.inputs.source_unit
-            && self.expression(operation.left().expression())
-            && self.expression(operation.right().expression())
-    }
-
-    /// Boolean alternatives tested in order; a value-context `when` needs `else`.
-    fn subjectless_when(&mut self, ty: UnitTypeId, entries: &[WhenEntry]) -> bool {
-        self.migrated = true;
-        let has_else = entries.iter().any(|entry| entry.else_span.is_some());
-        (self.unit(ty) || has_else)
-            && entries.iter().all(|entry| {
-                entry.else_span.is_some() == entry.conditions.is_empty()
-                    && entry.conditions.iter().all(|condition| {
-                        matches!(condition, WhenCondition::Expression(condition)
-                            if self.condition(*condition, false))
-                    })
-                    && self.statement(entry.body)
-            })
     }
 
     fn call(&self, expression: ExpressionId) -> bool {
@@ -774,6 +783,7 @@ impl Checker<'_, '_> {
                 });
         // A call through a function value is further restricted to view parameters.
         let target = descriptor.prints_line()
+            || descriptor.text_primitive().is_some()
             || descriptor.target() == UnitCallTarget::FunctionValue
             || (matches!(
                 descriptor.target(),
@@ -782,7 +792,10 @@ impl Checker<'_, '_> {
                 .inputs
                 .source_plan
                 .call_site(self.inputs.source_token, id)
-                .is_some_and(|site| self.inputs.function_ids.contains_key(site.key())));
+                .is_some_and(|site| {
+                    site.delegation().is_empty()
+                        && self.inputs.function_ids.contains_key(site.key())
+                }));
         simple && target
     }
 
@@ -813,6 +826,14 @@ impl Checker<'_, '_> {
             if mode == ParameterMode::Borrow && self.view_function(parameter) {
                 return self.callable_argument(value);
             }
+            if mode == ParameterMode::Borrow
+                && (self.borrowed_move_only_name(value, parameter)
+                    || self.borrowed_string_field(call, value, parameter)
+                    || self.borrowed_rc_payload(call, value, parameter)
+                    || self.borrowed_container_element(call, value, parameter))
+            {
+                return true;
+            }
             // A borrowed MoveOnly value is wrapped for a nullable parameter only when it is
             // a temporary whose drop obligation can move to the wrapper.
             if mode == ParameterMode::Borrow
@@ -821,6 +842,10 @@ impl Checker<'_, '_> {
                 })
                 && self.inputs.typed.expression_category(self.id(value))
                     != Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+                && self
+                    .inputs
+                    .constant_owned
+                    .is_none_or(|owned| owned.materialization_at(self.id(value)).is_none())
             {
                 return false;
             }
@@ -828,25 +853,13 @@ impl Checker<'_, '_> {
                 && let Some(fact) = self.inputs.typed.non_null_use(self.id(value))
                 && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
             {
-                return self.reference(value) == Some(fact.symbol())
-                    && self.known.contains(&fact.symbol());
+                return self.rc_payload(self.c(fact.narrowed_type())).is_none()
+                    && self.reference(value) == Some(fact.symbol())
+                    && self.known.contains(&fact.symbol())
+                    && self.view_symbols.contains(&fact.symbol());
             }
             self.expression(value)
         })
-    }
-
-    fn assignment(&mut self, target: ExpressionId) -> bool {
-        let Some(symbol) = self.reference(target) else {
-            return false;
-        };
-        // Replacing an Inout parameter's target is part of the migrated Inout family.
-        if self.parameter_mode(symbol) == Some(ParameterMode::Inout) {
-            self.migrated = true;
-        }
-        self.known.contains(&symbol)
-            && self
-                .symbol_type(symbol)
-                .is_some_and(|ty| self.copyability_of(ty) == Copyability::Copyable)
     }
 
     fn statement(&mut self, statement: StatementId) -> bool {
@@ -854,15 +867,29 @@ impl Checker<'_, '_> {
             return false;
         };
         match node.payload().clone() {
-            Statement::Block { elements } | Statement::ControlBody { elements } => {
+            Statement::Block { elements }
+            | Statement::ControlBody { elements }
+            | Statement::LambdaBody { elements } => {
                 elements.into_iter().all(|element| self.statement(element))
             }
             Statement::Expression { expression } => self.expression(expression),
             Statement::LocalVariable { declaration } => self.local_variable(declaration),
             Statement::While {
                 condition, body, ..
-            } => self.condition(condition, true) && self.loop_body(body),
+            } => {
+                let saved = self.view_symbols.clone();
+                let ok = self.condition(condition, true) && self.loop_body(body);
+                self.view_symbols = saved;
+                ok
+            }
             Statement::Loop { body, .. } => self.loop_body(body),
+            Statement::For { source, body, .. } => {
+                self.numeric_for(statement, source, body)
+                    || self.sequential_for(statement, source, body)
+            }
+            Statement::LocalDestructuring { initializer, .. } => {
+                self.local_destructuring(statement, initializer)
+            }
             _ => false,
         }
     }
@@ -899,7 +926,6 @@ impl Checker<'_, '_> {
                 .sources
                 .slice(name_span)
                 .is_ok_and(|name| name == "_")
-            || !self.expression(initializer)
         {
             return false;
         }
@@ -928,11 +954,15 @@ impl Checker<'_, '_> {
         let Some(symbol) = symbol else {
             return false;
         };
-        let declared = self.symbol_type(symbol);
-        if let Some(ty) = declared {
-            self.note_nullable(ty);
+        let Some(declared) = self.symbol_type(symbol) else {
+            return false;
+        };
+        self.note_nullable(declared);
+        if self.view_or_function(declared) {
+            return self.callable_local(symbol, initializer);
         }
-        let supported = declared.is_some_and(|ty| self.storage_type(ty));
+        let supported =
+            (self.unit(declared) || self.storage_type(declared)) && self.expression(initializer);
         self.known.insert(symbol);
         supported
     }

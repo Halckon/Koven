@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 
-IGNORED_DIRS = {".git", ".hg", ".svn", "node_modules", "target", ".venv", "venv"}
+IGNORED_DIRS = {".git", ".hg", ".svn", "node_modules", "target", ".venv", "venv", ".local-artifacts"}
 METADATA_FIELDS = ("**性质**", "**状态**", "**读取时机**", "**唯一真源**")
 SPEC_FILE_RE = re.compile(r"^(\d{4})-[a-z0-9][a-z0-9-]*\.md$")
 ADR_FILE_RE = SPEC_FILE_RE
