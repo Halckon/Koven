@@ -9,7 +9,10 @@ use crate::{
     },
     native::map_backend_error,
     native_tests::boxed_enum_tests::unit_source::UnitSource,
-    ssa::model::{MapContainerKind, SequentialContainerKind, SsaTypeId, SsaTypeKind},
+    ssa::model::{
+        EntityId, EntityType, LoanKind, MapContainerKind, SequentialContainerKind, SsaTypeId,
+        SsaTypeKind, TypeOrigin,
+    },
 };
 
 #[derive(Clone, Copy)]
@@ -161,4 +164,124 @@ fn container_origin_does_not_steal_its_nominal_element_declaration() {
         Container::Sequential(SequentialContainerKind::List),
         Some("Resource"),
     );
+}
+
+#[test]
+fn view_only_unit_parameter_supplies_its_synthetic_list_layout_origin() {
+    for (definition, element_name) in [("", "Int"), ("class Resource {}", "Resource")] {
+        // There is no List annotation or factory to fill in a missing origin later.
+        let text = format!("{definition}\nfun entry(view: View<{element_name}>): Unit {{}}");
+        let unit = UnitSource::analyze("view-only-origin.ko", &text)
+            .expect("strict original View parameter admission");
+        unit.assert_frontend_clean();
+        let declaration = unit.declaration("entry", SymbolKind::Function);
+        let signature = unit
+            .types()
+            .signatures()
+            .declaration(declaration)
+            .unwrap()
+            .callable()
+            .unwrap();
+        let [parameter] = signature.parameters() else {
+            panic!("one original View parameter");
+        };
+        let expected = TypeOrigin {
+            primary: parameter.span(),
+            declaration: parameter.span(),
+        };
+        let sources = unit.sources();
+        assert_eq!(expected.primary.source_id(), unit.parsed().source_id());
+        assert_eq!(
+            sources.source_text(expected.primary.source_id()),
+            Ok(text.as_str())
+        );
+        assert!(!sources.slice(expected.primary).unwrap().is_empty());
+        let (program, entry) = unit
+            .lower_entry(declaration)
+            .expect("real View-only Unit signature lowers to verified SSA");
+        let module = program.module(entry.module()).unwrap();
+        let views = module
+            .types
+            .iter()
+            .enumerate()
+            .filter_map(|(index, kind)| match kind {
+                SsaTypeKind::RangeView { source } => Some((
+                    SsaTypeId {
+                        module: entry.module(),
+                        index,
+                    },
+                    *source,
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(views.len(), 1, "one real parameter storage identity");
+        let (view, source) = views[0];
+        let function = module.function(entry).unwrap();
+        let [loan @ EntityId::Loan(_)] = function.blocks[0].parameters.as_slice() else {
+            panic!("View remains a Borrow parameter, not a newly owned value");
+        };
+        assert_eq!(
+            function.entity(*loan).unwrap().ty,
+            EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: view,
+            }
+        );
+        let Some(SsaTypeKind::SequentialContainer {
+            kind: SequentialContainerKind::List,
+            element,
+        }) = module.type_kind(source)
+        else {
+            panic!("View source is its existing synthetic List storage");
+        };
+        assert_eq!(program.type_origin(source), Some(expected));
+        assert_eq!(
+            program.type_origin(view),
+            None,
+            "no RangeView-origin expansion"
+        );
+        if element_name == "Resource" {
+            let nominal = unit
+                .names()
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|item| item.name() == "Resource")
+                .unwrap()
+                .name_span();
+            assert_eq!(program.type_origin(*element).unwrap().declaration, nominal);
+            assert_ne!(nominal, expected.declaration);
+        }
+        let failure = |ty| {
+            LlvmAdapterError::InvalidLayout(TargetLayoutError {
+                ty,
+                quantity: LayoutQuantity::Stride,
+                failure: LayoutFailure::ExceedsTarget {
+                    value: u128::MAX,
+                    maximum: u64::MAX.into(),
+                },
+            })
+        };
+        let error = map_backend_error(sources, &program, failure(source));
+        assert_eq!(error.kind(), NativeObjectErrorKind::TargetLayout);
+        assert_eq!(error.span(), Some(expected.primary));
+        let diagnostic = error
+            .diagnostic()
+            .expect("synthetic List has an L0145 origin");
+        assert_eq!(diagnostic.code().to_string(), "L0145");
+        assert_eq!(diagnostic.primary_span(), expected.primary);
+        assert!(
+            diagnostic
+                .details()
+                .iter()
+                .all(|detail| !matches!(detail, DiagnosticDetail::Label(_))),
+            "do not label the View or its element as a separate List declaration"
+        );
+        let unchanged = map_backend_error(sources, &program, failure(view));
+        assert_eq!(unchanged.kind(), NativeObjectErrorKind::Backend);
+        assert_eq!(unchanged.span(), None);
+        assert!(unchanged.diagnostic().is_none());
+    }
 }

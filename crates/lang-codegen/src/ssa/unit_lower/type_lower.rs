@@ -258,13 +258,13 @@ impl UnitTypeLowering {
                 constructor: IntrinsicTypeConstructor::View,
                 arguments,
             } => {
-                let [element] = arguments.as_slice() else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                };
-                let element = self.intern_inner(module, typed, *element, span)?;
-                let source = module
-                    .add_sequential_container_type(SsaContainerKind::List, element)
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                let source = self.intern_container(
+                    module,
+                    typed,
+                    IntrinsicTypeConstructor::List,
+                    &arguments,
+                    span,
+                )?;
                 module.intern_type(SsaTypeKind::RangeView { source })
             }
             UnitTypeKind::Intrinsic {
