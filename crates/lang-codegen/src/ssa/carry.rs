@@ -2,12 +2,12 @@
 mod columns;
 mod source_columns;
 
-pub(in crate::ssa) use columns::{
-    ColumnId, ColumnMatch, IncomingColumns, IncomingRole, record_type,
-};
-pub(in crate::ssa) use source_columns::{
-    SourceSlot, TypeAtMiss, associate_source, require_column_type, seed_slot,
-};
+#[cfg(test)]
+pub(in crate::ssa) use columns::record_type;
+pub(in crate::ssa) use columns::{ColumnId, ColumnMatch, IncomingColumns, IncomingRole};
+#[cfg(test)]
+pub(in crate::ssa) use source_columns::require_column_type;
+pub(in crate::ssa) use source_columns::{SourceSlot, TypeAtMiss, associate_source, seed_slot};
 
 use std::collections::BTreeMap;
 
