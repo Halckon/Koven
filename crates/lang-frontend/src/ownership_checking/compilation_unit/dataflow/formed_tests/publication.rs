@@ -1,5 +1,5 @@
 //! CI-only original-source and rejecting-source guards; never execute mutations locally.
-//! Stage A retains the legacy witness: this does not inject reversed/duplicate history.
+//! The legacy witness remains while the extracted production normalization gate is checked.
 
 use super::*;
 use crate::{
@@ -260,10 +260,28 @@ fn original_source_history_final_gate_preserves_each_rejection_combination() {
         } else {
             Vec::new()
         };
+        // Exercise the same private normalization gate used by dataflow, not a
+        // test-side sort. Leave raw history intact for the separate final-product gate.
+        let mut history = expected.iter().rev().copied().collect::<Vec<_>>();
+        history.extend_from_slice(&expected);
+        assert!(history.len() > expected.len());
+        assert!(history.windows(2).any(|pair| pair[0] > pair[1]));
+        let admitted = super::super::formed_publication::finalize(
+            fixture.typed.types(),
+            &diagnostics,
+            &deferred,
+            &mut history,
+        );
+        assert_eq!(admitted, !has_diagnostic && !has_deferred);
+        if admitted {
+            assert_eq!(history, expected, "production sort and deduplicate");
+        } else {
+            assert!(history.is_empty(), "rejected nonempty history is cleared");
+        }
         raw.diagnostics = diagnostics.clone();
         raw.deferred = deferred.clone();
-        // Final construction only gates publication; sorting/deduplication happens
-        // upstream. The legacy reversed/duplicate-input witness must remain.
+        // Final construction independently gates this still-nonempty raw history.
+        // Keep the legacy witness pending evidence review and official CI.
         let product = CompilationUnitOwnership::new(
             fixture.typed.types(),
             parts.bindings.into_values().collect(),
@@ -519,6 +537,33 @@ fn original_typed_error_preserves_diagnostics_and_blocks_history_publication() {
         };
         assert_eq!(rejected, original);
         assert!(typed.clone().validate().is_err());
+        let source_unit = names
+            .names()
+            .index()
+            .source_units()
+            .iter()
+            .find(|unit| unit.source_id() == source)
+            .unwrap()
+            .id();
+        let seed = names.names().source_units()[source_unit.index()]
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "seed")
+            .unwrap()
+            .id();
+        let mut history = vec![UnitSymbolId::new(source_unit, seed); 2];
+        assert!(!super::super::formed_publication::finalize(
+            &typed,
+            &[],
+            &[],
+            &mut history,
+        ));
+        assert!(
+            history.is_empty(),
+            "typed rejection alone clears nonempty history"
+        );
+        assert_eq!(typed.diagnostics(), original);
         let product = check_compilation_unit_ownership_recovering(
             &sources,
             &inputs,
