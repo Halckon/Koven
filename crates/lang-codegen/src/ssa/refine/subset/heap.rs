@@ -27,16 +27,25 @@ impl Checker<'_, '_> {
         let UnitConstructionTarget::Nominal(declaration) = descriptor.target() else {
             return false;
         };
-        let (Some(nominal), Some(fields)) =
+        let (Some((nominal, type_arguments)), Some(fields)) =
             (self.class_signature(result), self.class_fields(result))
         else {
             return false;
         };
+        let instance_arguments: Vec<_> = descriptor
+            .instance()
+            .type_arguments()
+            .iter()
+            .map(|ty| self.c(*ty))
+            .collect();
         let nominal_fields: Vec<_> = nominal
             .fields()
             .iter()
             .map(|field| field.symbol())
             .collect();
+        if !type_arguments.is_empty() {
+            self.migrated = true;
+        }
         let mut plans = self
             .inputs
             .owned
@@ -51,6 +60,7 @@ impl Checker<'_, '_> {
             Some(UnitTypeKind::Nominal { declaration: own, .. }) if *own == declaration
         ) && self.class(result)
             && self.expression_type(expression) == Some(result)
+            && instance_arguments == type_arguments
             && descriptor.arguments().len() == fields.len()
             && plan.target() == descriptor.target()
             && plan.terminating_operand().is_none()
@@ -155,7 +165,16 @@ impl Checker<'_, '_> {
                 self.owner_type(Owner::This(declaration), ParameterMode::Borrow)
             }
         };
-        owner.is_some_and(|owner| self.class_field(owner, projection.field()))
+        let Some(owner) = owner.filter(|owner| self.class_field(*owner, projection.field())) else {
+            return false;
+        };
+        if self
+            .class_signature(owner)
+            .is_some_and(|(_, arguments)| !arguments.is_empty())
+        {
+            self.migrated = true;
+        }
+        true
     }
 
     /// `field` is a field of the plain class `owner`.
@@ -165,7 +184,7 @@ impl Checker<'_, '_> {
         field: lang_frontend::name_resolution::UnitSymbolId,
     ) -> bool {
         self.class(owner)
-            && self.class_signature(owner).is_some_and(|nominal| {
+            && self.class_signature(owner).is_some_and(|(nominal, _)| {
                 nominal
                     .fields()
                     .iter()

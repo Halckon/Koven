@@ -699,3 +699,68 @@ fn integer_range_and_string_clone_lower_in_refine() {
     }
     assert_eq!(run(source), ("refined-ok\n".to_owned(), Some(0)));
 }
+
+#[test]
+fn generic_classes_and_enums_lower_in_refine() {
+    let source = r#"class Boxed<T>(var tag: Int, var v: T) {
+        fun get_tag(): Int = tag
+        inout fun set(own next_tag: Int, own next_v: T): Unit {
+            this.tag = next_tag
+            this.v = next_v
+        }
+    }
+    enum class Outcome<T> {
+        Ok(value: T),
+        Err(code: Int, fallback: T);
+        fun is_ok(): Boolean = this is Ok
+    }
+    fun unwrap_or(x: Outcome<Int>): Int = when (x) {
+        is Outcome.Ok -> x.value
+        is Outcome.Err -> x.code + x.fallback
+    }
+    fun main(): Unit {
+        var b = Boxed(1, 10)
+        b.set(21, 21)
+        b.v = b.get_tag() + b.v
+        val ok = Outcome.Ok(b.v)
+        val err = Outcome.Err(3, 4)
+        if (ok.is_ok() && !err.is_ok()) {
+            if (unwrap_or(ok) == 42 && unwrap_or(err) == 7) {
+                println("generic-class-enum")
+            }
+        }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("generic classes and Copyable enums lower in ssa::refine")
+    });
+    for function in [
+        "koven.p.main.d",
+        "koven.p.unwrap_or.d",
+        ".get_tag.",
+        ".set.",
+        ".is_ok.",
+    ] {
+        assert!(
+            routed.iter().any(|name| name.contains(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    counted(source, 1, b"generic-class-enum\n");
+}

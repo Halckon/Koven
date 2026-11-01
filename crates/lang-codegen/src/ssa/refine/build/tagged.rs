@@ -196,7 +196,7 @@ impl Builder<'_, '_> {
         else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
-        if own != root {
+        if self.c(own) != root {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         let (_, variant, _) = self.variant(root, case, span)?;
@@ -262,7 +262,9 @@ impl Builder<'_, '_> {
                 .receiver
                 .is_some_and(|receiver| self.is_enum(receiver.ty)),
             UnitAggregateProjectionReceiver::Expression(receiver) => matches!(
-                self.expression_type_of(receiver)
+                self.inputs
+                    .typed
+                    .expression_type(receiver)
                     .and_then(|ty| self.inputs.typed.types().get(ty)),
                 Some(UnitTypeKind::EnumCase { .. })
             ),
@@ -293,16 +295,17 @@ impl Builder<'_, '_> {
                 if receiver.source_unit() != self.inputs.source_unit {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
-                let receiver = receiver.expression();
                 let Some(UnitTypeKind::EnumCase { root, .. }) = self
                     .inputs
                     .typed
-                    .types()
-                    .get(self.expression_type(receiver)?)
+                    .expression_type(receiver)
+                    .and_then(|ty| self.inputs.typed.types().get(ty))
                     .cloned()
                 else {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 };
+                let root = self.c(root);
+                let receiver = receiver.expression();
                 let (payload, receiver_span) = self.node(receiver)?;
                 let owner = match payload {
                     Expression::This => self.this_value_of(root, receiver_span)?,

@@ -165,9 +165,14 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
     for (expression, node) in inputs.parsed.ast().expressions().iter() {
         let span = node.span();
         if item.start() <= span.start() && span.end() <= item.end() {
-            demands.extend(
-                checker.expression_type_of(UnitExpressionId::new(inputs.source_unit, expression)),
-            );
+            let id = UnitExpressionId::new(inputs.source_unit, expression);
+            if let Some(ty) = inputs.typed.expression_type(id) {
+                let ty = match checker.kind(ty) {
+                    Some(UnitTypeKind::EnumCase { root, .. }) => *root,
+                    _ => ty,
+                };
+                demands.extend(inputs.concrete(ty));
+            }
         }
     }
     demands.extend(typed.body_symbol_types().keys().filter_map(|symbol| {
@@ -239,7 +244,7 @@ impl Checker<'_, '_> {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if integer(*b))
     }
 
-    /// A non-generic `class` whose fields are scalars or String.
+    /// A concrete `class` whose fields are scalars or String.
     fn class(&self, ty: UnitTypeId) -> bool {
         self.class_fields(ty).is_some_and(|fields| {
             fields
@@ -248,13 +253,13 @@ impl Checker<'_, '_> {
         })
     }
 
-    /// Concrete field types of a non-generic `class`, in declaration order.
+    /// Concrete field types of a `class`, in declaration order.
     fn class_fields(&self, ty: UnitTypeId) -> Option<Vec<UnitTypeId>> {
-        let nominal = self.class_signature(ty)?;
-        resolve_nominal_runtime_field_types(self.inputs.typed, ty, nominal, &[]).ok()
+        let (nominal, arguments) = self.class_signature(ty)?;
+        resolve_nominal_runtime_field_types(self.inputs.typed, ty, nominal, &arguments).ok()
     }
 
-    fn class_signature(&self, ty: UnitTypeId) -> Option<&UnitNominalSignature> {
+    fn class_signature(&self, ty: UnitTypeId) -> Option<(&UnitNominalSignature, Vec<UnitTypeId>)> {
         let Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
@@ -268,10 +273,7 @@ impl Checker<'_, '_> {
             .signatures()
             .declaration(*declaration)?
             .nominal()?;
-        (arguments.is_empty()
-            && nominal.kind() == NominalKind::Class
-            && nominal.type_parameters().is_empty())
-        .then_some(nominal)
+        (nominal.kind() == NominalKind::Class).then(|| (nominal, arguments.clone()))
     }
 
     /// MoveOnly nullable inners are read through proof views.
