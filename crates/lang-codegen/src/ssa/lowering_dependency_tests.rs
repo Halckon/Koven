@@ -509,6 +509,16 @@ fn production_lowering_dependencies_remain_directional() {
             token.text
         );
     }
+    // The shared map helpers still serve Unit lowering; only the legacy
+    // single-file DropPoint adapter belongs to the retained test witnesses.
+    let source = fs::read_to_string(root.join("map_source.rs")).expect("real map source helpers");
+    for token in production_tokens(&source) {
+        assert!(
+            !matches!(token.text, "drop_event" | "DropPoint"),
+            "legacy single drop adapter in non-test map source helpers: {}",
+            token.text
+        );
+    }
 }
 
 fn check(path: &str, source: &str) -> Vec<String> {

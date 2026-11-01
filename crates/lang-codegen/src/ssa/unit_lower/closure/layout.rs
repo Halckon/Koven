@@ -2,6 +2,20 @@
 
 use super::*;
 
+#[cfg(test)]
+#[path = "layout_tests.rs"]
+mod tests;
+
+fn shared_capture_storage(
+    module: &mut Module,
+    target: SsaTypeId,
+    span: Span,
+) -> Result<SsaTypeId, LoweringError> {
+    module
+        .add_shared_reference_type(target)
+        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
+}
+
 pub(in crate::ssa::unit_lower) fn declare(
     module: &mut Module,
     parsed_by_source: &[&lang_frontend::parser::ParsedFile],
@@ -234,9 +248,7 @@ pub(in crate::ssa::unit_lower) fn declare(
                     ClosureCaptureMode::Owned => (SsaCaptureMode::Owned, ty),
                     ClosureCaptureMode::Shared => (
                         SsaCaptureMode::Shared,
-                        module.intern_type(crate::ssa::model::SsaTypeKind::SharedReference {
-                            target: ty,
-                        }),
+                        shared_capture_storage(module, ty, span)?,
                     ),
                 };
                 environment_fields.push(storage);
