@@ -78,7 +78,7 @@ fn lower_unit_impl(
     let module = program
         .module_mut(module_id)
         .expect("new unit module must exist");
-    let mut types = type_lower::UnitTypeLowering::new();
+    let mut types = type_lower::UnitTypeLowering::new(names);
     let mut function_ids = BTreeMap::new();
     let mut plans = Vec::new();
     type_plan::intern_map_result_types(module, &parsed_by_source, &instances, typed, &mut types)?;

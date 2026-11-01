@@ -137,6 +137,8 @@ mod unit_map_tests;
 mod unit_plan_tests;
 #[cfg(test)]
 mod unit_receiver_two_phase_tests;
+#[cfg(test)]
+mod unit_type_origin_tests;
 
 #[cfg(test)]
 mod verify_tests;

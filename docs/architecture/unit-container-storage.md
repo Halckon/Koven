@@ -120,3 +120,10 @@ Nullable<Int>已发布canonical但维持原null表达式的InvalidModel/MissingF
 原body-only MissingFact测试已迁移到真实成功；recursive-template/缺substitution保护保留。
 预算及消费者的实现验收保留在[冻结记录](../archive/specs/0276-unit-generic-body-type-normalization.md)；
 最终head及actual main双宿主CI已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276-delivery.json)。
+
+## 类型布局诊断来源
+
+Unit 类型 lowering 为 nominal、Box/Rc owner、class payload 与 enum case payload 保留首次类型需求的 source origin；
+声明标签使用 qualified declaration 或 case 的名称 span。目标布局错误桥接据此生成 L0145，
+而非因来源缺失退化为无 span 的 backend 错误；这不改变可接受类型或 E3/refine 能力。
+真实 Unit lowering 的来源断言与合成 InvalidLayout 的桥接断言分别覆盖运输和诊断映射，不代表自然源码布局溢出复现。
