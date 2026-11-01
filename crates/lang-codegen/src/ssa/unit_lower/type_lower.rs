@@ -500,9 +500,18 @@ impl UnitTypeLowering {
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
         let element = self.intern_inner(module, typed, *element, span)?;
-        module
+        let storage = module
             .add_sequential_container_type(kind, element)
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        // Intrinsic container storage has no source declaration of its own.
+        module.set_type_origin(
+            storage,
+            TypeOrigin {
+                primary: span,
+                declaration: span,
+            },
+        );
+        Ok(storage)
     }
 
     fn intern_map(
@@ -533,9 +542,18 @@ impl UnitTypeLowering {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        module
+        let storage = module
             .add_map_container_type(kind, key, val)
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        // Intrinsic container storage has no source declaration of its own.
+        module.set_type_origin(
+            storage,
+            TypeOrigin {
+                primary: span,
+                declaration: span,
+            },
+        );
+        Ok(storage)
     }
 
     fn intern_nominal(
