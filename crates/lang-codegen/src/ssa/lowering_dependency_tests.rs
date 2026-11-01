@@ -509,6 +509,24 @@ fn production_lowering_dependencies_remain_directional() {
             token.text
         );
     }
+    // Retained Single lowering owns these leaf gates and the provider rebind setter.
+    // Unit still consumes the shared column/transport algorithms and provider state.
+    let legacy_helpers: &[(&str, &[&str])] = &[
+        ("carry.rs", &["record_type", "require_column_type"]),
+        ("carry/columns.rs", &["record_type"]),
+        ("carry/source_columns.rs", &["require_column_type"]),
+        ("provider.rs", &["set_loan"]),
+    ];
+    for &(relative, identifiers) in legacy_helpers {
+        let source = fs::read_to_string(root.join(relative)).expect("real lowering helpers");
+        for token in production_tokens(&source) {
+            assert!(
+                !identifiers.contains(&token.text),
+                "legacy single helper in non-test {relative}: {}",
+                token.text
+            );
+        }
+    }
     // The shared map helpers still serve Unit lowering; only the legacy
     // single-file DropPoint adapter belongs to the retained test witnesses.
     let source = fs::read_to_string(root.join("map_source.rs")).expect("real map source helpers");
@@ -808,6 +826,23 @@ fn dependency_guard_skips_only_the_cfg_test_item() {
         );
         assert!(failures[0].contains(":2:"));
     }
+}
+
+#[test]
+fn dependency_guard_skips_test_only_methods_without_hiding_production_neighbors() {
+    let guarded = "impl Provider { #[cfg(test)] pub(crate) fn set_loan(&mut self) {} pub(crate) fn production_tail(&self) {} }";
+    let identifiers = |source: &str| {
+        production_tokens(source)
+            .iter()
+            .filter(|token| matches!(token.text, "set_loan" | "production_tail"))
+            .map(|token| token.text.to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(identifiers(guarded), ["production_tail"]);
+    assert_eq!(
+        identifiers(&guarded.replace("#[cfg(test)]", "")),
+        ["set_loan", "production_tail"]
+    );
 }
 
 #[test]

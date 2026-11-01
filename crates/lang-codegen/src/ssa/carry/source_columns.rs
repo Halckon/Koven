@@ -44,7 +44,8 @@ pub(in crate::ssa) fn associate_source<S: SourceSlot>(
     Ok(ColumnMatch::Added(seed_slot(slots, S::empty(source, ty))))
 }
 
-/// Only callers with an existing hit-type gate request this check.
+/// Only the retained Single lowering callers have this hit-type gate.
+#[cfg(test)]
 pub(in crate::ssa) fn require_column_type<S: SourceSlot>(
     slots: &[S],
     column: ColumnId,
