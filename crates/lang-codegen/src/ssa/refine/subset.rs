@@ -56,6 +56,8 @@ struct Checker<'i, 'a> {
     element_replacements: BTreeSet<UnitExpressionId>,
     /// Element or component bindings introduced by a sequential `for` loop (`Borrow` loans).
     for_borrowed: BTreeSet<UnitSymbolId>,
+    /// MoveOnly nullable bindings whose non-null proof view is active in the current branch.
+    view_symbols: BTreeSet<UnitSymbolId>,
 }
 
 pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
@@ -74,6 +76,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
         for_borrowed: BTreeSet::new(),
+        view_symbols: BTreeSet::new(),
     };
     let mut signature_types: Vec<_> = inputs
         .parameters
@@ -89,7 +92,8 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         checker.migrated |= checker.container_element(ty).is_some()
             || checker.box_payload(ty).is_some()
             || checker.box_enum_type(ty)
-            || checker.map_kv(ty).is_some();
+            || checker.map_kv(ty).is_some()
+            || checker.rc_payload(ty).is_some();
     }
     // Copyable Borrow parameters are read by copy, except String when subjects read the
     // loan; Inout parameters are scalars or plain classes, read through and replaced under
@@ -165,6 +169,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
         for_borrowed: BTreeSet::new(),
+        view_symbols: BTreeSet::new(),
     };
     let Some(item) = inputs.scope_span() else {
         return Vec::new();
@@ -270,13 +275,9 @@ impl Checker<'_, '_> {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if integer(*b))
     }
 
-    /// A concrete `class` whose fields are scalars or String.
+    /// A concrete non-recursive `class` whose fields are supported storage types.
     fn class(&self, ty: UnitTypeId) -> bool {
-        self.class_fields(ty).is_some_and(|fields| {
-            fields
-                .iter()
-                .all(|field| self.scalar(*field) || self.string(*field))
-        })
+        self.class_seen(ty, &mut BTreeSet::new())
     }
 
     /// Concrete field types of a `class`, in declaration order.
@@ -537,8 +538,11 @@ impl Checker<'_, '_> {
                 else_branch,
                 ..
             } => {
-                self.condition(condition, true)
-                    && self.statement(then_branch)
+                let saved = self.view_symbols.clone();
+                let cond_ok = self.condition(condition, true);
+                let then_ok = cond_ok && self.statement(then_branch);
+                self.view_symbols = saved;
+                then_ok
                     && else_branch.is_none_or(|branch| self.statement(branch))
                     && (self.unit(ty) || else_branch.is_some())
                     && (!returns || else_branch.is_some())
@@ -681,7 +685,8 @@ impl Checker<'_, '_> {
             && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
         {
             return self.reference(expression) == Some(fact.symbol())
-                && self.known.contains(&fact.symbol());
+                && self.known.contains(&fact.symbol())
+                && self.view_symbols.contains(&fact.symbol());
         }
         self.expression(expression)
     }
@@ -707,7 +712,12 @@ impl Checker<'_, '_> {
             let inner_ok = match self.kind(self.c(fact.nullable_type())) {
                 Some(UnitTypeKind::Nullable(inner)) if self.scalar(*inner) => true,
                 Some(UnitTypeKind::Nullable(inner)) if self.view_inner(*inner) => {
-                    views && fact.non_null_when_true()
+                    if views && fact.non_null_when_true() {
+                        self.view_symbols.insert(fact.symbol());
+                        true
+                    } else {
+                        !views
+                    }
                 }
                 _ => false,
             };
@@ -734,10 +744,15 @@ impl Checker<'_, '_> {
             } => {
                 self.branch_form.insert(id);
                 let views = views && operator == BinaryOperator::LogicalAnd;
-                boolean
+                let saved = self.view_symbols.clone();
+                let ok = boolean
                     && self.plain(expression)
                     && self.condition(left, views)
-                    && self.condition(right, views)
+                    && self.condition(right, views);
+                if !views {
+                    self.view_symbols = saved;
+                }
+                ok
             }
             _ => self.expression(expression),
         }
@@ -777,7 +792,10 @@ impl Checker<'_, '_> {
                 .inputs
                 .source_plan
                 .call_site(self.inputs.source_token, id)
-                .is_some_and(|site| self.inputs.function_ids.contains_key(site.key())));
+                .is_some_and(|site| {
+                    site.delegation().is_empty()
+                        && self.inputs.function_ids.contains_key(site.key())
+                }));
         simple && target
     }
 
@@ -811,6 +829,7 @@ impl Checker<'_, '_> {
             if mode == ParameterMode::Borrow
                 && (self.borrowed_move_only_name(value, parameter)
                     || self.borrowed_string_field(call, value, parameter)
+                    || self.borrowed_rc_payload(call, value, parameter)
                     || self.borrowed_container_element(call, value, parameter))
             {
                 return true;
@@ -834,8 +853,10 @@ impl Checker<'_, '_> {
                 && let Some(fact) = self.inputs.typed.non_null_use(self.id(value))
                 && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
             {
-                return self.reference(value) == Some(fact.symbol())
-                    && self.known.contains(&fact.symbol());
+                return self.rc_payload(self.c(fact.narrowed_type())).is_none()
+                    && self.reference(value) == Some(fact.symbol())
+                    && self.known.contains(&fact.symbol())
+                    && self.view_symbols.contains(&fact.symbol());
             }
             self.expression(value)
         })
@@ -869,7 +890,12 @@ impl Checker<'_, '_> {
             Statement::LocalVariable { declaration } => self.local_variable(declaration),
             Statement::While {
                 condition, body, ..
-            } => self.condition(condition, true) && self.loop_body(body),
+            } => {
+                let saved = self.view_symbols.clone();
+                let ok = self.condition(condition, true) && self.loop_body(body);
+                self.view_symbols = saved;
+                ok
+            }
             Statement::Loop { body, .. } => self.loop_body(body),
             Statement::For { source, body, .. } => {
                 self.numeric_for(statement, source, body)

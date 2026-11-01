@@ -48,6 +48,15 @@ impl Builder<'_, '_> {
                 match payload {
                     Expression::This => self.receiver,
                     Expression::Name => {
+                        if let Some(view) = self.narrowed_view(expression)? {
+                            if kind == LoanKind::Shared {
+                                return Ok(OwnerLoan {
+                                    loan: view,
+                                    scoped: false,
+                                });
+                            }
+                            return Err(error(LoweringErrorKind::InvalidModel, span));
+                        }
                         let symbol = self.reference(expression_span)?;
                         match self.borrowed.get(&symbol).copied() {
                             Some(loan) => Some(loan),

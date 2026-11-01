@@ -160,3 +160,59 @@ fn box_and_map_lower_in_refine() {
     }
     assert_eq!(run(source), ("box-map-ok\n".to_owned(), Some(0)));
 }
+
+#[test]
+fn class_fields_rc_and_smart_cast_receivers_lower_in_refine() {
+    let source = r#"class Data(val n: Int) { fun get(): Int = n }
+    class Bag(var items: List<Int>, val label: String)
+    fun sum_list(xs: List<Int>): Int = xs.size
+    fun use_rc(own r: Rc<Data>?, own s: String?): Int {
+        val has_s = s != null
+        val shared = Rc("rc-text")
+        println(shared.value)
+        val n = if (r != null) r.value.n else 0
+        return when (has_s) {
+            true -> n + 10
+            false -> n
+        }
+    }
+    fun main(): Unit {
+        var bag = Bag(listOf(1, 2, 3), "bag")
+        val len1 = sum_list(bag.items)
+        bag.items = listOf(4, 5)
+        val len2 = sum_list(bag.items)
+        val d: Data? = Data(7)
+        val got = if (d != null) d.get() else 0
+        val rc_res = use_rc(Rc(Data(5)), "present")
+        if (len1 == 3 && len2 == 2 && got == 7 && rc_res == 15) {
+            println("class-rc-ok")
+        }
+    }"#;
+    let (_, routed) = super::super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("class fields, Rc, and smart-cast receivers lower in ssa::refine")
+    });
+    for function in ["koven.p.main.d", "koven.p.use_rc.d", "koven.p.sum_list.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(run(source), ("rc-text\nclass-rc-ok\n".to_owned(), Some(0)));
+}

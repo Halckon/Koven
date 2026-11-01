@@ -64,7 +64,9 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 `Map` 核心操作（SPEC-0377）：支持 `Box(payload)` 构造（`HeapAllocate`）、`Box<T>?` 窄化与 `!!` 解包、含 `Box<T>`
 负载的递归/MoveOnly `enum class` case 构造（`TaggedConstruct`）与参数/返回传递，以及 `Map<K, V>` /
 `MutableMap<K, V>` 的 `mapOf`/`mutableMapOf`（`MapConstruct`）、`.size`（`MapSize`）、`containsKey`（`MapContains`）
-与 `put`（`MapPut`）。
+与 `put`（`MapPut`）。复合 `class` 字段、通用 `Rc<T>` 负载与智能窄化接收者（SPEC-0378）：支持任意非递归 `storage_type`
+的 `class` 字段读取/替换与 `SharedHeapFieldLoan` 借用实参、任意非递归 `storage_type` 的 `Rc<T>` 负载与 `Rc<T>?` 证明视图、
+非条件位置的 MoveOnly 空值比较、智能窄化 `class` 接收者的成员调用以及完备双分支布尔字面量 `when`。
 
 ## inline nullable 布局
 

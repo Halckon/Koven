@@ -71,6 +71,14 @@ fn nullable_functions_inside_the_subset_are_routed() {
          fun f(own c: Cell<Int>?): Int { if (c != null) { return 1 }; return 0 }",
         "enum class Opt<T> { Some(v: T), None }\n\
          fun f(o: Opt<Int>): Int = when (o) { is Opt.Some -> 1\n else -> 0 }",
+        "fun f(b: Boolean): Int = when (b) { true -> 1\n false -> 0 }",
+        "fun f(own s: String?): Boolean { val present = s != null; return present }",
+        "class Node(val v: Int) { fun get(): Int = v }\n\
+         fun f(own n: Node?): Int { if (n != null) { return n.get() }; return 0 }",
+        "fun f(): Int { val a = Rc(\"s\"); val b = a.share(); return 0 }",
+        "class Data(val n: Int)\nfun f(own r: Rc<Data>?): Int { if (r != null) { return r.value.n }; return 0 }",
+        "class Bag(val items: List<Int>)\n\
+         fun f(own b: Bag?): Int { if (b != null) { return 1 }; return 0 }",
     ] {
         let (result, routed) = route(source);
         assert!(routed, "{source}");
@@ -99,25 +107,12 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
              fun f(flag: Boolean): Int = outer(Node(), when (flag) { true -> return 1\n else -> 0 })",
         ),
         (
-            "value when without else",
-            "fun f(b: Boolean): Int = when (b) { true -> 1\n false -> 0 }",
-        ),
-        (
             "MoveOnly Borrow parameter",
             "fun f(s: String?): Int { if (s != null) { return 1 }; return 0 }",
         ),
         (
             "MoveOnly reassignment",
             "fun f(): Int { var s: String? = null; s = \"a\"; if (s != null) { return 1 }; return 0 }",
-        ),
-        (
-            "MoveOnly null test outside a condition",
-            "fun f(own s: String?): Boolean { val present = s != null; return present }",
-        ),
-        (
-            "receiver call on a smart-cast nullable",
-            "class Node(val v: Int) { fun get(): Int = v }\n\
-             fun f(own n: Node?): Int { if (n != null) { return n.get() }; return 0 }",
         ),
         (
             "Box with non-nominal payload",
@@ -132,26 +127,13 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "class Counter(var n: Int)\nfun f(inout c: Counter): Unit { c = Counter(1) }",
         ),
         (
-            "Rc with a String payload",
-            "fun f(): Int { val a = Rc(\"s\"); val b = a.share(); return 0 }",
-        ),
-        (
             "Borrow Rc parameter",
             "class Data(val n: Int)\nfun f(r: Rc<Data>): Int = r.value.n",
-        ),
-        (
-            "nullable Rc",
-            "class Data(val n: Int)\nfun f(own r: Rc<Data>?): Int { if (r != null) { return r.value.n }; return 0 }",
         ),
         (
             "MoveOnly enum subject",
             "enum class Tag { Named(n: String), Empty }\n\
              fun f(own t: Tag): Int = when (t) { is Tag.Named -> 1\n else -> 0 }",
-        ),
-        (
-            "non-scalar class field",
-            "class Bag(val items: List<Int>)\n\
-             fun f(own b: Bag?): Int { if (b != null) { return 1 }; return 0 }",
         ),
     ] {
         let (_, routed) = route(source);

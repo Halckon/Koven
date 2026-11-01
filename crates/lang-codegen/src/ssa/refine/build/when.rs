@@ -66,6 +66,13 @@ impl Builder<'_, '_> {
             },
             None => None,
         };
+        if let Some(subject) = subject
+            && let Some((true_arm, false_arm)) = self.boolean_two_arms(entries)
+        {
+            return self.lower_boolean_two_arm_when(
+                control, ty, result, subject, true_arm, false_arm, span,
+            );
+        }
         // One temporary is shared by mutually exclusive outgoing paths. Retain its
         // source identity/slot for the unmatched continuation while constructing a match.
         let subject_temporary = subject_expression.and_then(|expression| {
@@ -165,6 +172,99 @@ impl Builder<'_, '_> {
         Ok(result.map_or(Lowered::Unit, Lowered::Value))
     }
 
+    fn boolean_two_arms(
+        &self,
+        entries: &[WhenEntry],
+    ) -> Option<(
+        (usize, lang_frontend::ast::StatementId),
+        (usize, lang_frontend::ast::StatementId),
+    )> {
+        let [first, second] = entries else {
+            return None;
+        };
+        if first.else_span.is_some() || second.else_span.is_some() {
+            return None;
+        }
+        let ([WhenCondition::Expression(left)], [WhenCondition::Expression(right)]) =
+            (first.conditions.as_slice(), second.conditions.as_slice())
+        else {
+            return None;
+        };
+        let (
+            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(a)), _)),
+            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(b)), _)),
+        ) = (self.node(*left), self.node(*right))
+        else {
+            return None;
+        };
+        match (a, b) {
+            (true, false) => Some(((0, first.body), (1, second.body))),
+            (false, true) => Some(((1, second.body), (0, first.body))),
+            _ => None,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn lower_boolean_two_arm_when(
+        &mut self,
+        control: lang_frontend::type_checking::UnitExpressionId,
+        ty: UnitTypeId,
+        result: Option<Slot>,
+        condition: Slot,
+        (true_index, true_body): (usize, lang_frontend::ast::StatementId),
+        (false_index, false_body): (usize, lang_frontend::ast::StatementId),
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let when_true = self.body.block();
+        let when_false = self.body.block();
+        let join = self.body.block();
+        self.body.blocks[join.0].origin = Some(span);
+        self.terminate(
+            RTerm::Branch {
+                condition,
+                when_true,
+                when_false,
+            },
+            span,
+        )?;
+        let mut reached = false;
+        for (block, index, branch) in [
+            (when_true, true_index, true_body),
+            (when_false, false_index, false_body),
+        ] {
+            let mark = self.enter(block);
+            let value = self.branch_value(branch)?;
+            self.leave(mark, span)?;
+            let Some(value) = value else {
+                continue;
+            };
+            if let Some(result) = result {
+                let (slot, source) =
+                    value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let slot = self.adapt(slot, source, ty)?;
+                self.deliver(source);
+                self.push(ROp::Alias { source: slot }, vec![result], span)?;
+            }
+            self.drops(UnitDropPoint::BranchExit {
+                control,
+                branch: index,
+            })?;
+            self.goto(join, span)?;
+            reached = true;
+        }
+        let fallthrough = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 2 });
+        self.finish_drops(&fallthrough);
+        if !self.pending_views.is_empty() {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        if !reached {
+            self.block = None;
+            return Ok(Lowered::Diverged);
+        }
+        self.block = Some(join);
+        Ok(result.map_or(Lowered::Unit, Lowered::Value))
+    }
+
     /// Ends the current block with a branch to `matched` / `next`.
     fn when_condition(
         &mut self,
@@ -178,7 +278,7 @@ impl Builder<'_, '_> {
         let (matched, next) = edges;
         let (subject, condition) = match (subject, condition) {
             (None, WhenCondition::Expression(condition)) => {
-                return self.condition(*condition, matched, next);
+                return self.condition_with_views(*condition, matched, next, false);
             }
             (
                 Some(subject),

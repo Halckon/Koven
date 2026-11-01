@@ -245,14 +245,20 @@ impl Checker<'_, '_> {
             })
     }
 
-    /// `owner.field` of type `String` lent to a Borrow call parameter via `SharedHeapFieldLoan`.
+    /// `owner.field` of a MoveOnly type lent to a Borrow call parameter via `SharedHeapFieldLoan`.
     pub(super) fn borrowed_string_field(
         &self,
         call: ExpressionId,
         value: ExpressionId,
         parameter: UnitTypeId,
     ) -> bool {
-        if !self.string(parameter) {
+        let Ok(call_node) = self.inputs.parsed.ast().expressions().get(call) else {
+            return false;
+        };
+        if self.span_has_control_transfer(call_node.span())
+            || self.copyability_of(parameter) != Copyability::MoveOnly
+            || !self.storage_type(parameter)
+        {
             return false;
         }
         let root = self.ungrouped(value);
@@ -272,14 +278,37 @@ impl Checker<'_, '_> {
             UnitAggregateProjectionReceiver::Expression(receiver) => {
                 if receiver.source_unit() != self.inputs.source_unit
                     || !self.plain(receiver.expression())
-                    || typed.non_null_use(receiver).is_some()
                 {
                     return false;
                 }
-                self.owner_type(
-                    Owner::Expression(receiver.expression()),
-                    ParameterMode::Borrow,
-                )
+                let receiver_expr = receiver.expression();
+                let owner_ty =
+                    self.owner_type(Owner::Expression(receiver_expr), ParameterMode::Borrow);
+                let allowed_source = match self
+                    .inputs
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(receiver_expr)
+                    .map(|node| node.payload())
+                {
+                    Ok(Expression::This) => true,
+                    Ok(Expression::Name) => self.reference(receiver_expr).is_some_and(|symbol| {
+                        matches!(
+                            self.parameter_mode(symbol),
+                            Some(ParameterMode::Borrow | ParameterMode::Inout)
+                        ) || typed.non_null_use(receiver).is_some()
+                            || (self.parameter_mode(symbol).is_none()
+                                && owner_ty
+                                    .and_then(|ty| self.class_signature(ty))
+                                    .is_some_and(|(_, args)| args.is_empty()))
+                    }),
+                    _ => false,
+                };
+                if !allowed_source {
+                    return false;
+                }
+                owner_ty
             }
             UnitAggregateProjectionReceiver::This(declaration) => {
                 self.owner_type(Owner::This(declaration), ParameterMode::Borrow)

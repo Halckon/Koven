@@ -40,7 +40,7 @@ impl Checker<'_, '_> {
             || descriptor.operator() != AssignmentOperator::Assign
             || self.c(descriptor.target_type()) != field_type
             || projection.kind() != UnitAggregateProjectionKind::Field
-            || !(self.scalar(field_type) || self.string(field_type))
+            || !self.storage_type(field_type)
         {
             return false;
         }

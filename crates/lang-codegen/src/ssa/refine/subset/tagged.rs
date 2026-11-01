@@ -42,6 +42,9 @@ impl Checker<'_, '_> {
         else {
             return false;
         };
+        if !active.insert(ty) {
+            return true;
+        }
         let has_box = cases.iter().flatten().any(|payload| {
             matches!(
                 self.kind(*payload),
@@ -51,11 +54,13 @@ impl Checker<'_, '_> {
                 })
             )
         });
-        has_box
+        let ok = has_box
             && cases
                 .iter()
                 .flatten()
-                .all(|payload| self.storage_type_seen(*payload, active))
+                .all(|payload| self.storage_type_seen(*payload, active));
+        active.remove(&ty);
+        ok
     }
 
     pub(super) fn enum_signature(

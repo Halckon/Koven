@@ -366,6 +366,7 @@ subgraph Gactive["现行 active"]
   S0375["S0375<br/>顺序容器（Array/List/MutableList）迁入所有权细化层"]
   S0376["S0376<br/>顺序容器 for 遍历与运行时长度构造迁入所有权细化层"]
   S0377["S0377<br/>Box、递归装箱枚举与 Map 核心操作迁入所有权细化层"]
+  S0378["S0378<br/>复合 class 字段、通用 Rc 负载与智能窄化接收者迁入所有权细化层"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1803,6 +1804,7 @@ S0366 --> S0367
 | SPEC-0375 | active | [0375-refine-sequential-containers.md](../../specs/active/0375-refine-sequential-containers.md) |
 | SPEC-0376 | active | [0376-refine-container-for-generate.md](../../specs/active/0376-refine-container-for-generate.md) |
 | SPEC-0377 | active | [0377-refine-box-map.md](../../specs/active/0377-refine-box-map.md) |
+| SPEC-0378 | active | [0378-refine-class-fields-rc-and-null-views.md](../../specs/active/0378-refine-class-fields-rc-and-null-views.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

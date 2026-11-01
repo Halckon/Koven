@@ -31,10 +31,17 @@ impl Checker<'_, '_> {
             (self.scalar(subject_type) || tagged) && self.expression(subject)
         };
         let has_else = entries.iter().any(|entry| entry.else_span.is_some());
+        let boolean_exhaustive = matches!(
+            self.kind(subject_type),
+            Some(lang_frontend::type_checking::UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::Boolean
+            ))
+        ) && self.boolean_two_arms(entries);
         subject_ok
-            && (self.unit(ty) || has_else || tagged)
+            && (self.unit(ty) || has_else || tagged || boolean_exhaustive)
             && entries.iter().all(|entry| {
-                entry.else_span.is_some() == entry.conditions.is_empty()
+                let saved = self.view_symbols.clone();
+                let ok = entry.else_span.is_some() == entry.conditions.is_empty()
                     && entry.conditions.iter().all(|condition| match condition {
                         WhenCondition::Expression(condition) if string => {
                             self.string_when_literal(*condition)
@@ -53,8 +60,39 @@ impl Checker<'_, '_> {
                             tagged && self.type_test_target(*type_ref, subject_type)
                         }
                     })
-                    && self.statement(entry.body)
+                    && self.statement(entry.body);
+                self.view_symbols = saved;
+                ok
             })
+    }
+
+    fn boolean_two_arms(&self, entries: &[WhenEntry]) -> bool {
+        let [first, second] = entries else {
+            return false;
+        };
+        if first.else_span.is_some() || second.else_span.is_some() {
+            return false;
+        }
+        let ([WhenCondition::Expression(left)], [WhenCondition::Expression(right)]) =
+            (first.conditions.as_slice(), second.conditions.as_slice())
+        else {
+            return false;
+        };
+        let ast = self.inputs.parsed.ast().expressions();
+        matches!(
+            (
+                ast.get(*left).map(|n| n.payload()),
+                ast.get(*right).map(|n| n.payload())
+            ),
+            (
+                Ok(Expression::Literal(
+                    lang_frontend::parser::LiteralKind::Boolean(a)
+                )),
+                Ok(Expression::Literal(
+                    lang_frontend::parser::LiteralKind::Boolean(b)
+                ))
+            ) if a != b
+        )
     }
 
     fn string_when_subject(&mut self, expression: ExpressionId) -> bool {

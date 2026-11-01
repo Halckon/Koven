@@ -851,7 +851,7 @@ impl Checker<'_, '_> {
             })
     }
 
-    fn span_has_control_transfer(&self, span: Span) -> bool {
+    pub(super) fn span_has_control_transfer(&self, span: Span) -> bool {
         self.inputs
             .parsed
             .ast()

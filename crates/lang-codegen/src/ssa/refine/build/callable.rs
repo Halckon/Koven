@@ -318,18 +318,14 @@ impl Builder<'_, '_> {
             .flatten())
     }
 
-    /// `owner.field` of type `String` lent to a Borrow call parameter via `SharedHeapFieldLoan`.
+    /// `owner.field` of a MoveOnly type lent to a Borrow call parameter via `SharedHeapFieldLoan`.
     pub(super) fn borrowed_string_field_loan(
         &mut self,
         expression: ExpressionId,
         parameter: UnitTypeId,
         span: Span,
     ) -> Result<Option<LentArgument>, LoweringError> {
-        let is_string = matches!(
-            self.inputs.typed.types().get(parameter),
-            Some(UnitTypeKind::Builtin(BuiltinType::String))
-        );
-        if !is_string {
+        if !self.move_only(parameter) {
             return Ok(None);
         }
         let mut root = expression;
@@ -340,7 +336,9 @@ impl Builder<'_, '_> {
         let Some(projection) = self.inputs.typed.aggregate_projection(id) else {
             return Ok(None);
         };
-        if projection.kind() != UnitAggregateProjectionKind::Field {
+        if projection.kind() != UnitAggregateProjectionKind::Field
+            || self.c(projection.ty()) != parameter
+        {
             return Ok(None);
         }
         let (owner, owner_type, receiver) = self.projection_owner(projection.receiver(), span)?;
@@ -351,7 +349,7 @@ impl Builder<'_, '_> {
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let owner_loan = self.owner_loan(owner, LoanKind::Shared, span)?;
-        let string = self.ssa_type(parameter, span)?;
+        let target = self.ssa_type(parameter, span)?;
         let field_loan = self.value(
             ROp::SharedHeapFieldLoan {
                 base: owner_loan.loan,
@@ -359,7 +357,7 @@ impl Builder<'_, '_> {
             },
             EntityType::Loan {
                 kind: LoanKind::Shared,
-                target: string,
+                target,
             },
             self.span(expression),
         )?;

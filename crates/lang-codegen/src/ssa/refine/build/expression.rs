@@ -460,7 +460,7 @@ impl Builder<'_, '_> {
         let when_true = self.body.block();
         let when_false = self.body.block();
         let join = self.body.block();
-        self.condition(expression, when_true, when_false)?;
+        self.condition_with_views(expression, when_true, when_false, false)?;
         for (block, value) in [(when_true, true), (when_false, false)] {
             self.block = Some(block);
             self.push(
@@ -636,6 +636,19 @@ impl Builder<'_, '_> {
                 continue;
             }
             if argument.mode() == ParameterMode::Borrow
+                && let Some((loan, created, rc_receiver)) = self.borrowed_rc_payload_loan(
+                    value_expression,
+                    self.c(argument.parameter_type()),
+                    span,
+                )?
+            {
+                loans.extend(created);
+                lowered.push(loan);
+                view_reads.extend(rc_receiver);
+                view_reads.push(value_expression);
+                continue;
+            }
+            if argument.mode() == ParameterMode::Borrow
                 && let Some((loan, created, elem_arg)) = self.borrowed_container_element_loan(
                     value_expression,
                     self.c(argument.parameter_type()),
@@ -770,6 +783,14 @@ impl Builder<'_, '_> {
             self.drops(UnitDropPoint::AfterExpression(self.unit(callee)))?;
         }
         self.drops(UnitDropPoint::CallReturn(call))?;
+        if let Some(receiver_desc) = descriptor.receiver()
+            && receiver_desc.mode() != ParameterMode::Value
+            && let lang_frontend::type_checking::UnitCallReceiverOrigin::Expression(receiver_expr) =
+                receiver_desc.origin()
+            && receiver_expr.source_unit() == self.inputs.source_unit
+        {
+            self.drops(UnitDropPoint::AfterExpression(receiver_expr))?;
+        }
         for argument in view_reads {
             self.drops(UnitDropPoint::AfterExpression(self.unit(argument)))?;
         }

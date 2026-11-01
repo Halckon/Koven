@@ -24,15 +24,17 @@ impl Builder<'_, '_> {
         (left, right): (ExpressionId, ExpressionId),
         when_true: BlockRef,
         when_false: BlockRef,
+        views: bool,
     ) -> Result<(), LoweringError> {
+        let views = views && and;
         let span = self.span(expression);
         let control = self.unit(expression);
         let middle = self.body.block();
         let skip = self.body.block();
         if and {
-            self.condition(left, middle, skip)?;
+            self.condition_with_views(left, middle, skip, views)?;
         } else {
-            self.condition(left, skip, middle)?;
+            self.condition_with_views(left, skip, middle, views)?;
         }
         let skip_target = if and { when_false } else { when_true };
         let skipped = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 1 });
@@ -45,7 +47,7 @@ impl Builder<'_, '_> {
         let mark = self.enter(middle);
         let evaluated_true = self.body.block();
         let evaluated_false = self.body.block();
-        self.condition(right, evaluated_true, evaluated_false)?;
+        self.condition_with_views(right, evaluated_true, evaluated_false, views)?;
         let left_views: Vec<_> = self.active_views.drain(mark..).collect();
         let evaluated = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 0 });
         for (path, target) in [(evaluated_true, when_true), (evaluated_false, when_false)] {
@@ -87,16 +89,26 @@ impl Builder<'_, '_> {
         when_true: BlockRef,
         when_false: BlockRef,
     ) -> Result<(), LoweringError> {
+        self.condition_with_views(expression, when_true, when_false, true)
+    }
+
+    pub(super) fn condition_with_views(
+        &mut self,
+        expression: ExpressionId,
+        when_true: BlockRef,
+        when_false: BlockRef,
+        views: bool,
+    ) -> Result<(), LoweringError> {
         let (payload, span) = self.node(expression)?;
         match payload {
             Expression::Group { expression: inner } => {
-                return self.condition(inner, when_true, when_false);
+                return self.condition_with_views(inner, when_true, when_false, views);
             }
             Expression::Prefix {
                 operator: PrefixOperator::Not,
                 operand,
                 ..
-            } => return self.condition(operand, when_false, when_true),
+            } => return self.condition_with_views(operand, when_false, when_true, false),
             Expression::Binary {
                 left,
                 operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
@@ -109,6 +121,7 @@ impl Builder<'_, '_> {
                     (left, right),
                     when_true,
                     when_false,
+                    views,
                 );
             }
             _ => {}
@@ -133,12 +146,25 @@ impl Builder<'_, '_> {
             let Expression::Binary { left, right, .. } = payload else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
-            let operand_drops: Vec<_> = [left, right]
-                .into_iter()
-                .flat_map(|operand| {
-                    self.collect_drops(UnitDropPoint::AfterExpression(self.unit(operand)))
-                })
-                .collect();
+            let mut operand_drops = Vec::new();
+            for mut operand in [left, right] {
+                loop {
+                    if let Ok((Expression::Group { expression: inner }, _)) = self.node(operand) {
+                        operand_drops.extend(
+                            self.collect_drops(UnitDropPoint::AfterExpression(self.unit(operand))),
+                        );
+                        operand = inner;
+                    } else {
+                        operand_drops.extend(
+                            self.collect_drops(UnitDropPoint::AfterExpression(self.unit(operand))),
+                        );
+                        break;
+                    }
+                }
+            }
+            operand_drops.extend(
+                self.collect_drops(UnitDropPoint::AfterBinaryOperands(self.unit(expression))),
+            );
             let drops_owner = operand_drops.iter().any(|(_, target, _)| {
                 *target == lang_frontend::ownership_checking::UnitDropTarget::Named(fact.symbol())
             });
@@ -177,8 +203,9 @@ impl Builder<'_, '_> {
                     span,
                 )?;
                 self.narrowed.insert(fact.symbol(), narrowed);
-            } else if drops_owner {
-                // The owner dies right after the test: its proof ends before the drop.
+            } else if !views || !fact.non_null_when_true() || drops_owner {
+                // Outside a view-opening condition or when the owner dies right after the
+                // test, its proof ends immediately before the drop.
                 self.push(ROp::BorrowEnd { loan: view }, Vec::new(), span)?;
             } else {
                 // The view stays live in the branch it enters; Borrow uses read through it.

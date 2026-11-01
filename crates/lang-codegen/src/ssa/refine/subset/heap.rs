@@ -21,9 +21,33 @@ impl Checker<'_, '_> {
         active: &mut BTreeSet<UnitTypeId>,
     ) -> bool {
         self.string(ty)
-            || self.class(ty)
+            || self.class_seen(ty, active)
             || self.container_element_seen(ty, active).is_some()
             || self.box_payload_seen(ty, active).is_some()
+            || self.rc_payload_seen(ty, active).is_some()
+    }
+
+    pub(super) fn class_seen(&self, ty: UnitTypeId, active: &mut BTreeSet<UnitTypeId>) -> bool {
+        let Some(fields) = self.class_fields(ty) else {
+            return false;
+        };
+        if !active.insert(ty) {
+            return false;
+        }
+        let ok = fields
+            .iter()
+            .all(|field| self.storage_type_seen(*field, active));
+        active.remove(&ty);
+        ok
+    }
+
+    pub(super) fn class_has_non_scalar_field(&self, ty: UnitTypeId) -> bool {
+        self.class(ty)
+            && self.class_fields(ty).is_some_and(|fields| {
+                fields
+                    .iter()
+                    .any(|field| !(self.scalar(*field) || self.string(*field)))
+            })
     }
 
     pub(super) fn push_demand(
@@ -45,6 +69,16 @@ impl Checker<'_, '_> {
         if let Some(payload) = self.box_payload(ty) {
             self.push_demand(payload, seen, ordered);
         }
+        if let Some(payload) = self.rc_payload(ty) {
+            self.push_demand(payload, seen, ordered);
+        }
+        if self.class(ty)
+            && let Some(fields) = self.class_fields(ty)
+        {
+            for field in fields {
+                self.push_demand(field, seen, ordered);
+            }
+        }
         if self.box_enum_type(ty)
             && let Some(cases) = self.enum_payload_types(ty)
         {
@@ -63,10 +97,7 @@ impl Checker<'_, '_> {
         ty: UnitTypeId,
         active: &mut BTreeSet<UnitTypeId>,
     ) -> bool {
-        if !active.insert(ty) {
-            return true;
-        }
-        let ok = match self.kind(ty) {
+        match self.kind(ty) {
             Some(UnitTypeKind::Builtin(lang_frontend::type_checking::BuiltinType::String)) => true,
             Some(UnitTypeKind::Nullable(inner)) => {
                 self.scalar(*inner) || self.view_inner_seen(*inner, active)
@@ -74,19 +105,17 @@ impl Checker<'_, '_> {
             _ => {
                 self.scalar(ty)
                     || self.range_type(ty)
-                    || self.class(ty)
+                    || self.class_seen(ty, active)
                     || self.enum_type(ty)
                     || self.box_enum_type_seen(ty, active)
                     || self.box_payload_seen(ty, active).is_some()
-                    || self.rc_payload(ty).is_some()
+                    || self.rc_payload_seen(ty, active).is_some()
                     || self.value_class(ty)
                     || self.move_value_class(ty)
                     || self.container_element_seen(ty, active).is_some()
                     || self.map_kv(ty).is_some()
             }
-        };
-        active.remove(&ty);
-        ok
+        }
     }
 
     /// A concrete `Box<T>` whose payload is a supported `value class` or `enum class`.
@@ -208,7 +237,7 @@ impl Checker<'_, '_> {
             .iter()
             .map(|field| field.symbol())
             .collect();
-        if !type_arguments.is_empty() {
+        if !type_arguments.is_empty() || self.class_has_non_scalar_field(result) {
             self.migrated = true;
         }
         let mut plans = self
@@ -269,7 +298,7 @@ impl Checker<'_, '_> {
         })
     }
 
-    /// A Copyable scalar field read from a class owner: a narrowed name through its proof
+    /// A Copyable field read from a class owner: a narrowed name through its proof
     /// view, a known local, a Borrow/Inout parameter or the current receiver.
     pub(super) fn projection(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
@@ -279,7 +308,7 @@ impl Checker<'_, '_> {
         };
         if projection.kind() != UnitAggregateProjectionKind::Field
             || self.expression_type_of(id) != Some(self.c(projection.ty()))
-            || !self.scalar(self.c(projection.ty()))
+            || !self.storage_type(self.c(projection.ty()))
             || self.copyability_of(self.c(projection.ty())) != Copyability::Copyable
         {
             return false;
@@ -313,7 +342,8 @@ impl Checker<'_, '_> {
                             .is_ok_and(|node| matches!(node.payload(), Expression::Name));
                         (named
                             && self.reference(receiver_expression) == Some(fact.symbol())
-                            && self.known.contains(&fact.symbol()))
+                            && self.known.contains(&fact.symbol())
+                            && self.view_symbols.contains(&fact.symbol()))
                         .then(|| self.c(fact.narrowed_type()))
                     }
                     None => self.owner_type(
@@ -332,6 +362,8 @@ impl Checker<'_, '_> {
         if self
             .class_signature(owner)
             .is_some_and(|(_, arguments)| !arguments.is_empty())
+            || self.class_has_non_scalar_field(owner)
+            || !self.scalar(self.c(projection.ty()))
         {
             self.migrated = true;
         }

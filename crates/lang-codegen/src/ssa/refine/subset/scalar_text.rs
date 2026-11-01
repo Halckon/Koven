@@ -137,7 +137,8 @@ impl Checker<'_, '_> {
             && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
         {
             return self.reference(receiver) == Some(fact.symbol())
-                && self.known.contains(&fact.symbol());
+                && self.known.contains(&fact.symbol())
+                && self.view_symbols.contains(&fact.symbol());
         }
         self.expression(receiver)
     }

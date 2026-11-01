@@ -162,14 +162,17 @@ impl Builder<'_, '_> {
             Some(receiver) if !rc_payload => self.narrowed_view(receiver)?,
             _ => None,
         };
-        let loan = match (view, receiver) {
-            (Some(view), _) => OwnerLoan {
-                loan: view,
-                scoped: false,
-            },
+        let (loan, rc_view_read) = match (view, receiver) {
+            (Some(view), _) => (
+                OwnerLoan {
+                    loan: view,
+                    scoped: false,
+                },
+                None,
+            ),
             // `rc.value.f`: a shared loan of the payload place (SPEC-0359).
             (None, Some(receiver)) if rc_payload => self.rc_payload_loan(receiver, span)?,
-            (None, _) => self.owner_loan(owner, LoanKind::Shared, span)?,
+            (None, _) => (self.owner_loan(owner, LoanKind::Shared, span)?, None),
         };
         let result = self.value(
             ROp::HeapFieldRead {
@@ -181,6 +184,9 @@ impl Builder<'_, '_> {
         )?;
         self.end_owner_loan(loan, span)?;
         // The receiver is read in place; its own drop point follows the read.
+        if let Some(read) = rc_view_read {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(read)))?;
+        }
         if let Some(receiver) = receiver {
             self.drops(UnitDropPoint::AfterExpression(self.unit(receiver)))?;
         }
