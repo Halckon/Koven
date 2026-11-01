@@ -7,7 +7,7 @@
 | 状态 | in-progress |
 | Goal ID | `KOV-P4-0374` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
-| 语言规范 | [Guide v0.47 所有权与借用](../../guide/04-ownership-borrowing.md)、[类型与声明](../../guide/03-types-declarations.md) |
+| 语言规范 | [Guide v0.47 所有权、借用与析构](../../guide/10-ownership-borrowing-drop.md)、[声明与可调用体](../../guide/05-declarations-callables.md) |
 | 批准依据 | 用户确认按推荐优先级依次完成 E3 后续切片 |
 | 基线 | `feature/spec-0373-refine-destructuring-range-for` `9f13fb86` |
 | 分支 | `feature/spec-0374-refine-ownership-primitives-const` |

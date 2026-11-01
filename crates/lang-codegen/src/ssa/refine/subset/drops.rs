@@ -24,7 +24,10 @@ impl Checker<'_, '_> {
                 UnitDropPoint::LambdaEntry(lambda) => {
                     matches!(&self.inputs.body, RefineBody::Lambda(thunk) if thunk.expression == lambda)
                 }
-                UnitDropPoint::AfterReplacement(_) => false,
+                UnitDropPoint::AfterReplacement(assignment) => {
+                    self.element_replacements.contains(&assignment)
+                        && fact.target() == UnitDropTarget::ReplacedElement(assignment)
+                }
                 // A jump out of a call argument drops the earlier MoveOnly arguments it
                 // abandons; temporaries holding loans stay outside.
                 UnitDropPoint::ControlTransfer(_) => match fact.target() {
@@ -37,6 +40,9 @@ impl Checker<'_, '_> {
                 UnitDropTarget::Named(_)
                 | UnitDropTarget::Temporary(_)
                 | UnitDropTarget::ReplacedField { .. } => true,
+                UnitDropTarget::ReplacedElement(assignment) => {
+                    self.element_replacements.contains(&assignment)
+                }
                 // Released by the drop glue of a closure formed in this function.
                 UnitDropTarget::Captured { closure, .. } => {
                     self.inputs.callables.contains_key(&closure)

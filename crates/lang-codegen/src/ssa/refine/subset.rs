@@ -2,6 +2,7 @@
 //! ownership facts plus AST construct kinds; it never runs lowering. Anything outside
 //! the subset keeps the existing per-family path.
 mod callable;
+mod container;
 mod drops;
 mod field;
 mod heap;
@@ -50,6 +51,9 @@ struct Checker<'i, 'a> {
     /// Field replacements in the subset; their `BeforeReplacement` drops are consumed by
     /// the replacement itself.
     replacements: BTreeSet<UnitExpressionId>,
+    /// Container element replacements (`xs[i] = v`) whose `AfterReplacement` drops are
+    /// consumed by `ContainerReplace`.
+    element_replacements: BTreeSet<UnitExpressionId>,
 }
 
 pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
@@ -66,6 +70,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         loops: 0,
         migrated: false,
         replacements: BTreeSet::new(),
+        element_replacements: BTreeSet::new(),
     };
     let mut signature_types: Vec<_> = inputs
         .parameters
@@ -78,6 +83,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     }
     for ty in signature_types {
         checker.note_nullable(ty);
+        checker.migrated |= checker.container_element(ty).is_some();
     }
     // Copyable Borrow parameters are read by copy, except String when subjects read the
     // loan; Inout parameters are scalars or plain classes, read through and replaced under
@@ -95,11 +101,12 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                         && match mode {
                             ParameterMode::Value => true,
                             // A MoveOnly Borrow parameter is only lent on (a plain class
-                            // through its loan), never read by copy.
+                            // or sequential container through its loan), never read by copy.
                             ParameterMode::Borrow => {
                                 checker.copyability_of(ty) == Copyability::Copyable
                                     || checker.class(ty)
                                     || checker.string(ty)
+                                    || checker.container_element(ty).is_some()
                             }
                             ParameterMode::Inout => checker.scalar(ty) || checker.class(ty),
                         }
@@ -147,6 +154,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         loops: 0,
         migrated: false,
         replacements: BTreeSet::new(),
+        element_replacements: BTreeSet::new(),
     };
     let Some(item) = inputs.scope_span() else {
         return Vec::new();
@@ -181,9 +189,11 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
             .flatten()
     }));
     demands.extend(typed.types().builtin(BuiltinType::Boolean));
-    // Case tests compare the `Int` discriminant; numeric range `for` loops use endpoints.
+    // Case tests compare the `Int` discriminant; numeric range `for` loops and container
+    // operations use `Int` lengths/indices.
     if demands.iter().any(|ty| {
         checker.enum_type(*ty)
+            || checker.container_element(*ty).is_some()
             || matches!(
                 checker.kind(*ty),
                 Some(UnitTypeKind::Builtin(BuiltinType::IntRange))
@@ -202,17 +212,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
     let mut seen = BTreeSet::new();
     let mut ordered = Vec::new();
     for ty in demands {
-        if !(checker.unit(ty) || checker.storage_type(ty)) {
-            continue;
-        }
-        if let Some(UnitTypeKind::Nullable(inner)) = checker.kind(ty)
-            && seen.insert(*inner)
-        {
-            ordered.push(*inner);
-        }
-        if seen.insert(ty) {
-            ordered.push(ty);
-        }
+        checker.push_demand(ty, &mut seen, &mut ordered);
     }
     ordered
 }
@@ -292,7 +292,27 @@ impl Checker<'_, '_> {
 
     /// MoveOnly nullable inners are read through proof views.
     fn view_inner(&self, ty: UnitTypeId) -> bool {
-        self.string(ty) || self.class(ty)
+        self.string(ty) || self.class(ty) || self.container_element(ty).is_some()
+    }
+
+    fn push_demand(
+        &self,
+        ty: UnitTypeId,
+        seen: &mut BTreeSet<UnitTypeId>,
+        ordered: &mut Vec<UnitTypeId>,
+    ) {
+        if !(self.unit(ty) || self.storage_type(ty)) {
+            return;
+        }
+        if let Some(element) = self.container_element(ty) {
+            self.push_demand(element, seen, ordered);
+        }
+        if let Some(UnitTypeKind::Nullable(inner)) = self.kind(ty) {
+            self.push_demand(*inner, seen, ordered);
+        }
+        if seen.insert(ty) {
+            ordered.push(ty);
+        }
     }
 
     /// Types a slot may hold: scalars, String, plain classes and their nullables.
@@ -308,6 +328,7 @@ impl Checker<'_, '_> {
                     || self.rc_payload(ty).is_some()
                     || self.value_class(ty)
                     || self.move_value_class(ty)
+                    || self.container_element(ty).is_some()
             }
         }
     }
@@ -377,6 +398,7 @@ impl Checker<'_, '_> {
             && typed.rc_operation(id).is_none()
             && typed.range_size(id).is_none()
             && typed.nullable_when(id).is_none()
+            && !self.has_container_fact(expression)
             && self.inputs.constant_owned.is_none_or(|owned| {
                 owned.short_circuit_at(id).is_none_or(|plan| {
                     plan.rhs()
@@ -434,6 +456,10 @@ impl Checker<'_, '_> {
         if self.inputs.typed.ownership_primitive(id).is_some() {
             return (self.unit(ty) || self.storage_type(ty))
                 && self.ownership_primitive(expression);
+        }
+        if self.has_container_fact(expression) {
+            return (self.unit(ty) || self.storage_type(ty))
+                && self.container_operation(expression);
         }
         // `Rc`, integer, integer-range, and String operations carry their own typed facts.
         if self.inputs.typed.rc_operation(id).is_some() {
@@ -562,6 +588,14 @@ impl Checker<'_, '_> {
                 value,
                 ..
             } if self.is_field_target(target) => self.field_assignment(expression, target, value),
+            Expression::Assignment {
+                target,
+                operator: AssignmentOperator::Assign,
+                value,
+                ..
+            } if self.is_element_target(target) => {
+                self.element_assignment(expression, target, value)
+            }
             Expression::Assignment {
                 target,
                 operator: AssignmentOperator::Assign,
@@ -794,7 +828,8 @@ impl Checker<'_, '_> {
             }
             if mode == ParameterMode::Borrow
                 && (self.borrowed_move_only_name(value, parameter)
-                    || self.borrowed_string_field(call, value, parameter))
+                    || self.borrowed_string_field(call, value, parameter)
+                    || self.borrowed_container_element(call, value, parameter))
             {
                 return true;
             }

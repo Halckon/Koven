@@ -500,6 +500,58 @@ impl Emitter<'_> {
                 field: *field,
                 value: self.value(*value, span)?,
             },
+            ROp::ContainerConstruct {
+                container,
+                elements,
+            } => Operation::ContainerConstruct {
+                container: *container,
+                elements: elements
+                    .iter()
+                    .map(|slot| self.value(*slot, span))
+                    .collect::<Result<_, _>>()?,
+            },
+            ROp::ContainerLength { owner } => Operation::ContainerLength {
+                owner: self.get(*owner, span)?,
+            },
+            ROp::ContainerElementPlace { owner, index } => Operation::ContainerElementPlace {
+                owner: self.get(*owner, span)?,
+                index: self.value(*index, span)?,
+            },
+            ROp::ContainerAppend { owner, element } => Operation::ContainerAppend {
+                owner: self.value(*owner, span)?,
+                element: self.value(*element, span)?,
+            },
+            ROp::ContainerClear { owner } => Operation::ContainerClear {
+                owner: self.value(*owner, span)?,
+            },
+            ROp::ContainerRemoveAt { owner, index } => Operation::ContainerRemoveAt {
+                owner: self.value(*owner, span)?,
+                index: self.value(*index, span)?,
+            },
+            ROp::ContainerRemoveFirst { owner } => Operation::ContainerRemoveFirst {
+                owner: self.value(*owner, span)?,
+            },
+            ROp::ContainerRemoveLast { owner } => Operation::ContainerRemoveLast {
+                owner: self.value(*owner, span)?,
+            },
+            ROp::ContainerInsertAt {
+                owner,
+                index,
+                element,
+            } => Operation::ContainerInsertAt {
+                owner: self.value(*owner, span)?,
+                index: self.value(*index, span)?,
+                element: self.value(*element, span)?,
+            },
+            ROp::ContainerReplace {
+                owner,
+                index,
+                value,
+            } => Operation::ContainerReplace {
+                owner: self.value(*owner, span)?,
+                index: self.value(*index, span)?,
+                value: self.value(*value, span)?,
+            },
             ROp::LoanMutate { loan: slot, value } => Operation::LoanMutate {
                 loan: loan(self.get(*slot, span)?, span)?,
                 value: self.value(*value, span)?,

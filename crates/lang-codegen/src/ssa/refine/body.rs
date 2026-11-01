@@ -275,6 +275,54 @@ pub(super) enum ROp {
         field: usize,
         value: Slot,
     },
+    /// Consumes `elements` into a sequential container (`Array<T>`, `List<T>`, `MutableList<T>`).
+    ContainerConstruct {
+        container: SsaTypeId,
+        elements: Vec<Slot>,
+    },
+    /// Reads the element count of a sequential container through a loan or owned value.
+    ContainerLength {
+        owner: Slot,
+    },
+    /// Projects the element place at `index` of a sequential container owner or loan.
+    ContainerElementPlace {
+        owner: Slot,
+        index: Slot,
+    },
+    /// Consumes `owner` and `element`, returning the updated `MutableList<T>` owner.
+    ContainerAppend {
+        owner: Slot,
+        element: Slot,
+    },
+    /// Consumes `owner` and clears all elements, returning the updated `MutableList<T>` owner.
+    ContainerClear {
+        owner: Slot,
+    },
+    /// Consumes `owner` and `index`, returning `[removed_element, updated_owner]`.
+    ContainerRemoveAt {
+        owner: Slot,
+        index: Slot,
+    },
+    /// Consumes `owner`, returning `[first_element, updated_owner]`.
+    ContainerRemoveFirst {
+        owner: Slot,
+    },
+    /// Consumes `owner`, returning `[last_element, updated_owner]`.
+    ContainerRemoveLast {
+        owner: Slot,
+    },
+    /// Consumes `owner`, `index`, and `element`, returning the updated `MutableList<T>` owner.
+    ContainerInsertAt {
+        owner: Slot,
+        index: Slot,
+        element: Slot,
+    },
+    /// Replaces the element at `index` of a mutable container `owner` with `value`.
+    ContainerReplace {
+        owner: Slot,
+        index: Slot,
+        value: Slot,
+    },
 }
 
 impl ROp {
@@ -331,7 +379,11 @@ impl ROp {
             | Self::AggregateCopyExplode { aggregate: slot }
             | Self::AggregateExplode { aggregate: slot }
             | Self::SharedFieldLoan { base: slot, .. }
-            | Self::SharedHeapFieldLoan { base: slot, .. } => vec![*slot],
+            | Self::SharedHeapFieldLoan { base: slot, .. }
+            | Self::ContainerLength { owner: slot }
+            | Self::ContainerClear { owner: slot }
+            | Self::ContainerRemoveFirst { owner: slot }
+            | Self::ContainerRemoveLast { owner: slot } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::Binary { left, right, .. }
             | Self::IntegerBitwise { left, right, .. }
@@ -364,6 +416,18 @@ impl ROp {
             | Self::RootPlaceTake {
                 owner: left,
                 place: right,
+            }
+            | Self::ContainerElementPlace {
+                owner: left,
+                index: right,
+            }
+            | Self::ContainerAppend {
+                owner: left,
+                element: right,
+            }
+            | Self::ContainerRemoveAt {
+                owner: left,
+                index: right,
             } => {
                 vec![*left, *right]
             }
@@ -372,6 +436,16 @@ impl ROp {
                 owner: source,
                 loan: start,
                 replacement: end,
+            }
+            | Self::ContainerInsertAt {
+                owner: source,
+                index: start,
+                element: end,
+            }
+            | Self::ContainerReplace {
+                owner: source,
+                index: start,
+                value: end,
             } => vec![*source, *start, *end],
             Self::RootSwap {
                 left_owner,
@@ -387,6 +461,10 @@ impl ROp {
             } => receiver.iter().chain(arguments).copied().collect(),
             Self::AggregateConstruct {
                 fields: arguments, ..
+            }
+            | Self::ContainerConstruct {
+                elements: arguments,
+                ..
             } => arguments.clone(),
         }
     }

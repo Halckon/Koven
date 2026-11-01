@@ -2,6 +2,7 @@
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
 mod callable;
 mod condition;
+mod container;
 mod expression;
 mod field;
 mod heap;

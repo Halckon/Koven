@@ -88,6 +88,9 @@ impl Builder<'_, '_> {
         if typed.ownership_primitive(id).is_some() {
             return self.ownership_primitive(expression, span);
         }
+        if let Some(value) = self.container_operation(expression, span)? {
+            return Ok(value);
+        }
         if typed.rc_operation(id).is_some() {
             return self.rc_operation(expression, span);
         }
@@ -180,6 +183,14 @@ impl Builder<'_, '_> {
                 ..
             } if self.is_field_target(target) => {
                 self.field_assignment(expression, target, value, span)
+            }
+            Expression::Assignment {
+                target,
+                operator: AssignmentOperator::Assign,
+                value,
+                ..
+            } if self.is_element_target(target) => {
+                self.element_assignment(expression, target, value, span)
             }
             Expression::Assignment {
                 target,
@@ -619,6 +630,18 @@ impl Builder<'_, '_> {
                 lowered.push(loan);
                 view_reads.extend(field_receiver);
                 view_reads.push(value_expression);
+                continue;
+            }
+            if argument.mode() == ParameterMode::Borrow
+                && let Some((loan, created, elem_arg)) = self.borrowed_container_element_loan(
+                    value_expression,
+                    self.c(argument.parameter_type()),
+                    span,
+                )?
+            {
+                loans.extend(created);
+                lowered.push(loan);
+                view_reads.extend(elem_arg);
                 continue;
             }
             if argument.mode() == ParameterMode::Borrow

@@ -55,7 +55,10 @@ exclusive loan 在调用点激活。payload 为标量或普通 class 的 `Rc<T>`
 （`AggregateCopyExplode`/`AggregateExplode`）以及 `IntRange`/`LongRange` 升序 `for` 循环。
 所有权原语与 `const val` 物化（SPEC-0374）：支持局部可变根 `replace(&root, value)`（`RootReplace`）与
 `swap(&left, &right)`（`RootSwap`，Copyable 根与新值先经 `Copy` 隔离 SSA 值身份），以及 `Boolean`/整数/
-`String` 的 `const val` 使用点物化。
+`String` 的 `const val` 使用点物化。顺序容器（SPEC-0375）：支持 `Array<T>`、`List<T>`、`MutableList<T>`
+的字面量与空容器构造（`ContainerConstruct`）、`.size`（`ContainerLength`）、Copyable 下标读取与 MoveOnly
+元素借用实参（`ContainerElementPlace`）、元素赋值替换 `xs[i] = v`（`ContainerReplace` 消费 `AfterReplacement`
+析构）及 `MutableList<T>` 的 `add`/`clear`/`removeAt`/`removeFirst`/`removeLast`/`insertAt`。
 
 ## inline nullable 布局
 
