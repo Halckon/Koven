@@ -66,7 +66,7 @@ class CheckCiResultsTests(unittest.TestCase):
         workflow = (root / ".github/workflows/ci.yml").read_text()
         job = re.split(r"^  [a-z][a-z-]+:\s*$",
                        workflow.split("  test:\n", 1)[1], maxsplit=1, flags=re.M)[0]
-        self.assertIn("os: [macos-15, ubuntu-24.04]", job)
+        self.assertIn("os: [macos-15, ubuntu-26.04]", job)
         self.assertEqual(1, job.count("run: bash scripts/check_integration.sh\n"))
         composition = (root / "scripts/check_integration.sh").read_text()
         self.assertEqual(1, composition.count("bash scripts/check_core.sh\n"))
@@ -183,7 +183,7 @@ class CheckCiResultsTests(unittest.TestCase):
         workflow = (root / ".github/workflows/ci.yml").read_text()
         job = re.split(r"^  [a-z][a-z-]+:\s*$",
                        workflow.split("  test:\n", 1)[1], maxsplit=1, flags=re.M)[0]
-        self.assertIn("os: [macos-15, ubuntu-24.04]", job)
+        self.assertIn("os: [macos-15, ubuntu-26.04]", job)
         self.assertEqual(1, job.count("run: bash scripts/check_integration.sh\n"))
         composition = (root / "scripts/check_integration.sh").read_text()
         self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
@@ -219,7 +219,7 @@ class CheckCiResultsTests(unittest.TestCase):
         self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
         workflow = (root / ".github/workflows/ci.yml").read_text()
         job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
-        self.assertIn("os: [macos-15, ubuntu-24.04]", job)
+        self.assertIn("os: [macos-15, ubuntu-26.04]", job)
         self.assertIn("run: bash scripts/check_integration.sh", job)
 
     def test_final_type_admission_runs_once_without_filters_on_both_hosts(self):
@@ -236,7 +236,7 @@ class CheckCiResultsTests(unittest.TestCase):
         self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
         workflow = (root / ".github/workflows/ci.yml").read_text()
         job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
-        self.assertIn("os: [macos-15, ubuntu-24.04]", job)
+        self.assertIn("os: [macos-15, ubuntu-26.04]", job)
         self.assertIn("run: bash scripts/check_integration.sh", job)
 
     def test_enum_case_borrow_categories_runs_once_without_filters_on_both_hosts(self):
@@ -253,7 +253,7 @@ class CheckCiResultsTests(unittest.TestCase):
         self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
         workflow = (root / ".github/workflows/ci.yml").read_text()
         job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
-        self.assertIn("os: [macos-15, ubuntu-24.04]", job)
+        self.assertIn("os: [macos-15, ubuntu-26.04]", job)
         self.assertIn("run: bash scripts/check_integration.sh", job)
 
     def test_spec_0288_frontend_targets_are_selected_once_without_filters(self):
@@ -299,7 +299,7 @@ class CheckCiResultsTests(unittest.TestCase):
         self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
         workflow = (root / ".github/workflows/ci.yml").read_text()
         job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
-        self.assertIn("os: [macos-15, ubuntu-24.04]", job)
+        self.assertIn("os: [macos-15, ubuntu-26.04]", job)
         self.assertIn("run: bash scripts/check_integration.sh", job)
 
     def test_direct_call_loan_end_slice_runs_once_unfiltered_on_both_hosts(self):
@@ -316,7 +316,7 @@ class CheckCiResultsTests(unittest.TestCase):
         self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
         workflow = (root / ".github/workflows/ci.yml").read_text()
         job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
-        self.assertIn("os: [macos-15, ubuntu-24.04]", job)
+        self.assertIn("os: [macos-15, ubuntu-26.04]", job)
         self.assertIn("run: bash scripts/check_integration.sh", job)
 
     def test_lexical_alignment_targets_are_selected_once_without_filters(self):
@@ -450,7 +450,7 @@ class CheckCiResultsTests(unittest.TestCase):
     def test_workflow_preserves_both_matrices_and_required_summary(self):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/ci.yml").read_text()
-        self.assertEqual(2, workflow.count("os: [macos-15, ubuntu-24.04]"))
+        self.assertEqual(2, workflow.count("os: [macos-15, ubuntu-26.04]"))
         self.assertEqual(2, workflow.count("fail-fast: false"))
         for name in ("changes", "rust-size", "dependencies", "docs", "editors", "fmt", "clippy", "test", *PREVIEW_JOBS):
             self.assertIn(name, workflow.split('  ci-passed:\n', 1)[1].split('    if:', 1)[0])
@@ -463,7 +463,7 @@ class CheckCiResultsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/ci.yml").read_text()
         job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
-        self.assertIn("os: [macos-15, ubuntu-24.04]", job)
+        self.assertIn("os: [macos-15, ubuntu-26.04]", job)
         self.assertIn("run: bash scripts/check_integration.sh", job)
         composition = (root / "scripts/check_integration.sh").read_text()
         self.assertEqual(1, composition.count(
@@ -657,7 +657,7 @@ class CheckCiResultsTests(unittest.TestCase):
                      "- 'scripts/tests/test_conformance_gate.py'"):
             self.assertIn(item, rust_filters)
         job = re.split(r'^  [a-z][a-z-]+:\s*$', workflow.split('  test:\n', 1)[1], maxsplit=1, flags=re.M)[0]
-        self.assertIn('os: [macos-15, ubuntu-24.04]', job)
+        self.assertIn('os: [macos-15, ubuntu-26.04]', job)
         self.assertIn('python3 scripts/conformance_gate.py', job)
         self.assertIn('--baseline conformance/baseline-aef3f4f8.tsv', job)
         self.assertIn('--evidence "$RUNNER_TEMP/koven-conformance"', job)

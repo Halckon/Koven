@@ -100,7 +100,7 @@ impl Builder<'_, '_> {
         let Lowered::Value(value) = self.expression(initializer)? else {
             return Ok(Lowered::Diverged);
         };
-        let value = self.adapt(value, initializer, declared)?;
+        let value = self.adapt_with_span(value, initializer, declared, span)?;
         self.deliver(initializer);
         let crate::ssa::model::EntityType::Value(ty) = self.body.slots[value.0] else {
             return Err(error(LoweringErrorKind::InvalidModel, span));

@@ -154,10 +154,12 @@ impl Checker<'_, '_> {
         if !active.insert(ty) {
             return Some(*payload);
         }
-        let ok = self.value_class_seen(*payload, active)
+        let valid_payload = self.value_class_seen(*payload, active)
             || self.move_value_class_seen(*payload, active)
             || self.enum_type(*payload)
-            || self.box_enum_type_seen(*payload, active);
+            || self.box_enum_type_seen(*payload, active)
+            || active.contains(payload);
+        let ok = valid_payload && self.storage_type_seen(*payload, active);
         active.remove(&ty);
         ok.then_some(*payload)
     }

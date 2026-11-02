@@ -131,11 +131,18 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                                 ParameterMode::Borrow => {
                                     checker.copyability_of(ty) == Copyability::Copyable
                                         || checker.class(ty)
+                                        || checker.value_class(ty)
+                                        || checker.move_value_class(ty)
                                         || checker.string(ty)
                                         || checker.container_element(ty).is_some()
                                         || checker.box_payload(ty).is_some()
                                         || checker.box_enum_type(ty)
                                         || checker.map_kv(ty).is_some()
+                                        || (matches!(inputs.body, RefineBody::Lambda(_))
+                                            && matches!(
+                                                checker.kind(ty),
+                                                Some(UnitTypeKind::Nullable(inner)) if checker.storage_type(*inner)
+                                            ))
                                 }
                                 ParameterMode::Inout => {
                                     checker.copyability_of(ty) == Copyability::Copyable
@@ -174,14 +181,12 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                 || (receiver.mode == ParameterMode::Value
                     && checker.copyability_of(receiver.ty) == Copyability::MoveOnly)
         });
-    signature
-        && match &inputs.body {
-            RefineBody::Expression(expression) => checker.expression(*expression),
-            RefineBody::Block(statement) => checker.statement(*statement),
-            RefineBody::Lambda(thunk) => checker.thunk_body(thunk),
-        }
-        && checker.drops_supported()
-        && (checker.nullable || checker.migrated)
+    let body_ok = match &inputs.body {
+        RefineBody::Expression(expression) => checker.expression(*expression),
+        RefineBody::Block(statement) => checker.statement(*statement),
+        RefineBody::Lambda(thunk) => checker.thunk_body(thunk),
+    };
+    signature && body_ok && checker.drops_supported() && (checker.nullable || checker.migrated)
 }
 
 /// Every storage type an accepted body uses, plus nullable inners and Boolean flags.
@@ -443,19 +448,20 @@ impl Checker<'_, '_> {
         let Some(ty) = self.expression_type(expression) else {
             return false;
         };
-        // Jumps are typed `Nothing`; a `return` operand carries the value.
+        let id = self.id(expression);
+        // Jumps and abort calls are typed `Nothing`; a `return` operand carries the value.
         // A `Nothing`-typed `if` diverges on every branch.
-        let returns = matches!(
+        let returns = (matches!(
             node.payload(),
             Expression::Return { .. }
                 | Expression::Break { .. }
                 | Expression::Continue { .. }
                 | Expression::If { .. }
-        ) && matches!(
-            self.kind(ty),
-            Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
-        );
-        let id = self.id(expression);
+        ) || self.inputs.typed.call(id).is_some_and(|desc| desc.aborts()))
+            && matches!(
+                self.kind(ty),
+                Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
+            );
         if let Expression::Lambda { .. } = node.payload() {
             return self.returned_lambda(expression);
         }
@@ -796,13 +802,33 @@ impl Checker<'_, '_> {
         }
     }
 
+    fn is_extension_call(
+        &self,
+        descriptor: &lang_frontend::type_checking::UnitCallDescriptor,
+    ) -> bool {
+        match descriptor.target() {
+            UnitCallTarget::Declaration(id) => self
+                .inputs
+                .typed
+                .signatures()
+                .declaration(id)
+                .and_then(|signature| signature.callable())
+                .is_some_and(|callable| {
+                    callable.range_extension().is_some() || callable.text_extension().is_some()
+                }),
+            _ => false,
+        }
+    }
+
     fn call(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.call(id) else {
             return false;
         };
-        let simple = (descriptor.receiver().is_none() || self.receiver_call(expression))
-            && !descriptor.aborts()
+        let is_extension = self.is_extension_call(descriptor);
+        let simple = (descriptor.receiver().is_none()
+            || is_extension
+            || self.receiver_call(expression))
             && descriptor.range_construction().is_none()
             && descriptor.borrow_return().is_none()
             && descriptor
@@ -823,6 +849,7 @@ impl Checker<'_, '_> {
                 });
         // A call through a function value is further restricted to view parameters.
         let target = descriptor.prints_line()
+            || descriptor.aborts()
             || descriptor.text_primitive().is_some()
             || descriptor.target() == UnitCallTarget::FunctionValue
             || (matches!(
@@ -860,19 +887,30 @@ impl Checker<'_, '_> {
         let Some(descriptor) = self.inputs.typed.call(self.id(call)) else {
             return false;
         };
-        let modes: Vec<_> = descriptor
+        let is_extension = self.is_extension_call(descriptor);
+        let mut modes: Vec<_> = descriptor
             .arguments()
             .iter()
             .map(|argument| {
                 (
-                    argument.argument_index(),
+                    Some(argument.argument_index()),
                     argument.mode(),
                     self.c(argument.parameter_type()),
                 )
             })
             .collect();
+        let mut extension_rec = None;
+        if is_extension
+            && let Some(receiver) = descriptor.receiver()
+            && let lang_frontend::type_checking::UnitCallReceiverOrigin::Expression(expression) =
+                receiver.origin()
+            && expression.source_unit() == self.inputs.source_unit
+        {
+            extension_rec = Some(expression.expression());
+            modes.insert(0, (None, receiver.mode(), self.c(receiver.ty())));
+        }
         modes.into_iter().all(|(index, mode, parameter)| {
-            let Some(value) = values.get(index).copied() else {
+            let Some(value) = index.map_or(extension_rec, |i| values.get(i).copied()) else {
                 return false;
             };
             if mode == ParameterMode::Inout {

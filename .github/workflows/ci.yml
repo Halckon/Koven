@@ -31,7 +31,7 @@ jobs:
       contents: read
       pull-requests: read
       actions: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       docs: ${{ steps.filter.outputs.docs }}
       rust: ${{ steps.filter.outputs.rust }}
@@ -141,7 +141,7 @@ jobs:
 
   rust-size:
     name: Rust Physical Line Guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -167,7 +167,7 @@ jobs:
 
   dependencies:
     name: Direct Workspace Dependency Guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -181,7 +181,7 @@ jobs:
     name: Docs & Spec Structural Gate
     needs: changes
     if: github.event_name == 'pull_request' || needs.changes.outputs.docs == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -198,7 +198,7 @@ jobs:
     name: Editor lexical contracts
     needs: changes
     if: needs.changes.outputs.reuse != 'true' && (needs.changes.outputs.editors == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -223,7 +223,7 @@ jobs:
     name: Rust Code Formatting
     needs: changes
     if: needs.changes.outputs.reuse != 'true' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -246,7 +246,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, ubuntu-24.04]
+        os: [macos-15, ubuntu-26.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -260,7 +260,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm.sh', '.github/actions/setup-llvm/action.yml') }}
+          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}
       - name: Cargo Check
         run: cargo check --locked --workspace --all-targets
       - name: Cargo Clippy
@@ -278,7 +278,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, ubuntu-24.04]
+        os: [macos-15, ubuntu-26.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -291,7 +291,7 @@ jobs:
           toolchain: '1.96.0'
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm.sh', '.github/actions/setup-llvm/action.yml') }}
+          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
       - name: Word frequency byte and boundary contracts
@@ -597,7 +597,7 @@ jobs:
       always() && github.event_name == 'pull_request' &&
       needs.changes.outputs.reuse == 'false' && needs.changes.outputs.marker != '' &&
       (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || needs.changes.outputs.editors == 'true')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - name: Attest only physically successful required jobs
@@ -612,7 +612,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
         with:

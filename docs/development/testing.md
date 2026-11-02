@@ -27,6 +27,19 @@ cargo test -p <affected-crate> --lib <module-or-test-filter>
 跨 crate 检查使用 `cargo check --workspace --all-targets`。不固定要求每个切片运行整个 `--lib`、
 workspace check 或 CLI build；每项追加检查必须对应实际影响。
 
+## Linux CI 宿主分阶段迁移
+
+核心 workspace check/clippy 与 targeted tests 的 Linux 矩阵固定 `ubuntu-26.04` x86_64，
+辅助 job 同样固定该标签；macOS 保持 `macos-15`。LLVM 保持21.1.8，26.04使用Ubuntu
+Resolute精确版本和SHA256包校验，不混用Noble包源、不降级系统liblzma。
+这是待官方CI实际验收的宿主配置，不表示当前语言实现或已有失败已修复。
+
+Preview 的 producer/独立consumer仍固定 `ubuntu-24.04`，保留原安装器和已测ABI闭包；
+不是全量Ubuntu26迁移，也不宣称26构建产物兼容24。CI复用分别要求核心26与Preview24
+的实跑job，不接受旧24核心证据顶替26。迁移需核真实runner镜像、包身份、LLDB Python
+API及sanitizer，记录既有主线失败；不得删除旧合同或改变E3来取得迁移绿灯。
+回滚应整体撤销宿主、安装器分派及job-name契约改动，不能只回退显示名称。
+
 ## 证据保留
 
 验收要求可追溯，不等于把全部运行产物提交 Git。Spec 中保留一份简要账本：

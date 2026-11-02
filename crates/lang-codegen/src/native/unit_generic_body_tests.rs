@@ -223,7 +223,9 @@ fn unit_generic_body_native_nullable_int_keeps_control_rejection() {
                 .is_some(),
             "{container}<Int> must exist before accepting the existing null rejection"
         );
-        assert_nullable_int_rejection(&analysis);
+        crate::ssa::with_per_family_lowering(|| {
+            assert_nullable_int_rejection(&analysis);
+        });
     }
 }
 

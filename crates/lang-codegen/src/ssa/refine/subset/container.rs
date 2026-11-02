@@ -891,16 +891,20 @@ impl Checker<'_, '_> {
             .ast()
             .expressions()
             .iter()
-            .filter(|(_, candidate)| {
+            .filter(|(id, candidate)| {
                 span.source_id() == candidate.span().source_id()
                     && span.start() <= candidate.span().start()
                     && candidate.span().end() <= span.end()
-                    && matches!(
+                    && (matches!(
                         candidate.payload(),
                         Expression::Return { .. }
                             | Expression::Break { .. }
                             | Expression::Continue { .. }
-                    )
+                    ) || self
+                        .inputs
+                        .typed
+                        .call(self.id(*id))
+                        .is_some_and(|desc| desc.aborts()))
             })
             .any(|(_, candidate)| {
                 !self

@@ -421,7 +421,7 @@ pub(in super::super) fn check_source(text: &str, scenario: SourceScenario) {
     } else {
         &["main"]
     };
-    let (unit, program, _) = lower(text, functions);
+    let (unit, program, _) = crate::ssa::with_per_family_lowering(|| lower(text, functions));
     let cases: &[(&str, bool, bool, bool)] = match scenario {
         SourceScenario::NamedAfterUse => &[("main", true, false, true)],
         SourceScenario::NamedLoopExit => &[("main", false, true, true)],

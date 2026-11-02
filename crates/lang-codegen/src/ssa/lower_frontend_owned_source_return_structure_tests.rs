@@ -21,25 +21,39 @@ fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
         })
         .collect()
 }
-fn forwards(function: &Function, value: EntityId, expected: EntityId, depth: usize) -> bool {
-    if value == expected {
-        return true;
+fn forwards(function: &Function, value: EntityId, expected: EntityId, _depth: usize) -> bool {
+    fn check(
+        function: &Function,
+        value: EntityId,
+        expected: EntityId,
+        visited: &mut std::collections::BTreeSet<EntityId>,
+        found: &mut bool,
+    ) -> bool {
+        if value == expected {
+            *found = true;
+            return true;
+        }
+        if !visited.insert(value) {
+            return true;
+        }
+        let Some(ed) = function.entity(value) else {
+            return false;
+        };
+        let Definition::BlockParameter { block, index } = ed.definition else {
+            return false;
+        };
+        let incoming = edges(function)
+            .into_iter()
+            .filter(|(_, edge)| edge.target == block)
+            .collect::<Vec<_>>();
+        !incoming.is_empty()
+            && incoming
+                .iter()
+                .all(|(_, edge)| check(function, edge.arguments[index], expected, visited, found))
     }
-    if depth > function.blocks.len() {
-        return false;
-    }
-    let Definition::BlockParameter { block, index } = function.entity(value).unwrap().definition
-    else {
-        return false;
-    };
-    let incoming = edges(function)
-        .into_iter()
-        .filter(|(_, edge)| edge.target == block)
-        .collect::<Vec<_>>();
-    !incoming.is_empty()
-        && incoming
-            .iter()
-            .all(|(_, edge)| forwards(function, edge.arguments[index], expected, depth + 1))
+    let mut visited = std::collections::BTreeSet::new();
+    let mut found = false;
+    check(function, value, expected, &mut visited, &mut found) && found
 }
 pub(super) fn check(
     program: &Program,
@@ -220,7 +234,7 @@ pub(super) fn check(
         assert_eq!(advance.block, *block);
         assert!(
             matches!(advance.operation, Operation::Binary { operator: BinaryOperator::Add, left, right }
-            if forwards(f, EntityId::Value(left), body_cursor, 0) && EntityId::Value(right) == one)
+            if forwards(f, EntityId::Value(left), body_cursor, 0) && forwards(f, EntityId::Value(right), one, 0))
         );
         let ends = f
             .instructions

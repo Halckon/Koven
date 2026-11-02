@@ -88,7 +88,13 @@ impl Checker<'_, '_> {
                         };
                         serves.then_some(ty)
                     }
-                    _ => None,
+                    _ => {
+                        if mode == ParameterMode::Borrow {
+                            self.expression_type(expression)
+                        } else {
+                            None
+                        }
+                    }
                 }
             }
         }
@@ -155,6 +161,7 @@ impl Checker<'_, '_> {
                     || self.value_class(receiver_ty)
                     || self.move_value_class(receiver_ty)
                     || self.object_type(receiver_ty)
+                    || (receiver.mode() == ParameterMode::Borrow && self.string(receiver_ty))
             }
             ParameterMode::Inout => {
                 self.class(receiver_ty)

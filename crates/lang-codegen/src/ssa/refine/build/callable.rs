@@ -325,7 +325,18 @@ impl Builder<'_, '_> {
         parameter: UnitTypeId,
         span: Span,
     ) -> Result<Option<LentArgument>, LoweringError> {
-        if !self.move_only(parameter) {
+        let is_deinit = self.inputs.function_item.is_some_and(|item| {
+            matches!(
+                self.inputs
+                    .parsed
+                    .ast()
+                    .items()
+                    .get(item)
+                    .map(|node| node.payload()),
+                Ok(lang_frontend::parser::Item::Deinit { .. })
+            )
+        });
+        if !self.move_only(parameter) && !is_deinit {
             return Ok(None);
         }
         let mut root = expression;
@@ -395,7 +406,8 @@ impl Builder<'_, '_> {
             )?;
             return Ok(Some((field_loan, vec![field_loan], Some(receiver_expr))));
         }
-        let (field_loan, created, drops) = self.field_projection_loan(root, span)?;
+        let (field_loan, created, drops) =
+            self.field_projection_loan(root, self.span(expression))?;
         for intermediate in drops.iter().skip(1) {
             self.drops(UnitDropPoint::AfterExpression(self.unit(*intermediate)))?;
         }
@@ -479,7 +491,7 @@ impl Builder<'_, '_> {
                 kind: LoanKind::Shared,
                 target,
             },
-            self.span(expression),
+            span,
         )?;
         created.push(field_loan);
         Ok((field_loan, created, drops))

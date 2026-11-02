@@ -88,11 +88,13 @@ impl Builder<'_, '_> {
         let join = self.body.block();
         self.body.blocks[join.0].origin = Some(span);
         let outer_views = self.active_views.clone();
+        let outer_pending_loans = self.pending_call_loans.clone();
         let mut joined_views = None;
         let mut reached = false;
         let mut falls_through = true;
         for (index, entry) in entries.iter().enumerate() {
             self.active_views = outer_views.clone();
+            self.pending_call_loans = outer_pending_loans.clone();
             let body = self.body.block();
             if entry.else_span.is_some() {
                 falls_through = false;
@@ -186,6 +188,7 @@ impl Builder<'_, '_> {
         if let Some(joined) = joined_views {
             self.active_views = joined;
         }
+        self.pending_call_loans = outer_pending_loans;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
@@ -253,6 +256,7 @@ impl Builder<'_, '_> {
             span,
         )?;
         let outer_views = self.active_views.clone();
+        let outer_pending_loans = self.pending_call_loans.clone();
         let mut joined_views = None;
         let mut reached = false;
         for (block, index, branch) in [
@@ -260,6 +264,7 @@ impl Builder<'_, '_> {
             (when_false, false_index, false_body),
         ] {
             self.active_views = outer_views.clone();
+            self.pending_call_loans = outer_pending_loans.clone();
             let mark = self.enter(block);
             let value = self.branch_value(branch)?;
             self.leave(mark, span)?;
@@ -284,6 +289,7 @@ impl Builder<'_, '_> {
         if let Some(joined) = joined_views {
             self.active_views = joined;
         }
+        self.pending_call_loans = outer_pending_loans;
         let fallthrough = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 2 });
         self.finish_drops(&fallthrough);
         if !self.pending_views.is_empty() {

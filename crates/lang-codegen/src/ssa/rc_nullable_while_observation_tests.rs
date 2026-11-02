@@ -197,7 +197,11 @@ fn observe_with_inspector(unit: bool, inspect_identity: bool) -> (Observation, R
             }
             lower_attempted = true;
             println!("SPEC0332 STAGE unit={unit} lower=attempt");
-            lower_scalar_unit_with_entry(&sources, &inputs, &names, &types, &typed, &owned, entry)
+            crate::ssa::with_per_family_lowering(|| {
+                lower_scalar_unit_with_entry(
+                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+                )
+            })
         } else {
             let names = resolve_names(&sources, &file, &environment)
                 .map_err(|error| failure("names-api", error))?;

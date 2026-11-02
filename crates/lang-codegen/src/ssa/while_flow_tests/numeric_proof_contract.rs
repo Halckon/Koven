@@ -15,6 +15,7 @@ use crate::ssa::model::{
 
 struct Spans {
     outer: Span,
+    outer_condition: Span,
     numeric: Span,
     range: Span,
     branch: Span,
@@ -68,7 +69,11 @@ fn assert_layout_proof(program: &Program, source: &str, package_layout: bool, un
     let function = only(module.functions.iter().filter(|function| {
         function.blocks.iter().any(|block| {
             matches!(term(block), TerminatorKind::NullableBranch { .. })
-                && source_origin(&block.terminator.as_ref().unwrap().origin, spans.outer)
+                && (source_origin(&block.terminator.as_ref().unwrap().origin, spans.outer)
+                    || source_origin(
+                        &block.terminator.as_ref().unwrap().origin,
+                        spans.outer_condition,
+                    ))
         })
     }));
     let outer = only(
@@ -77,10 +82,13 @@ fn assert_layout_proof(program: &Program, source: &str, package_layout: bool, un
             .iter()
             .filter(|block| matches!(term(block), TerminatorKind::NullableBranch { .. })),
     );
-    assert!(source_origin(
-        &outer.terminator.as_ref().unwrap().origin,
-        spans.outer
-    ));
+    assert!(
+        source_origin(&outer.terminator.as_ref().unwrap().origin, spans.outer)
+            || source_origin(
+                &outer.terminator.as_ref().unwrap().origin,
+                spans.outer_condition
+            )
+    );
     let TerminatorKind::NullableBranch {
         owner,
         when_null,
@@ -870,8 +878,12 @@ fn source_spans(source: &str, unit: bool) -> Spans {
     let file = parse_file(&sources, &lexed).unwrap();
     assert!(file.diagnostics().is_empty());
     let ast = file.ast();
-    let outer = only(ast.statements().iter().filter_map(|(_, node)| {
-        matches!(node.payload(), Statement::While { .. }).then_some(node.span())
+    let (outer, outer_condition) = only(ast.statements().iter().filter_map(|(_, node)| {
+        let Statement::While { condition, .. } = node.payload() else {
+            return None;
+        };
+        let cond_span = ast.expressions().get(*condition).unwrap().span();
+        Some((node.span(), cond_span))
     }));
     let (numeric, mut range) = only(ast.statements().iter().filter_map(|(_, node)| {
         let Statement::For { source, .. } = node.payload() else {
@@ -902,6 +914,7 @@ fn source_spans(source: &str, unit: bool) -> Spans {
     };
     Spans {
         outer,
+        outer_condition,
         numeric,
         range,
         branch,

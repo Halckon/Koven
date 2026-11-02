@@ -1,5 +1,7 @@
 //! Subset rules for Copyable `value class` (SPEC-0361): inline construction, field reads by
 //! copy and value-class receivers. They mirror `build/value.rs`.
+use std::collections::BTreeSet;
+
 use lang_frontend::{
     ast::ExpressionId,
     parser::Expression,
@@ -52,13 +54,13 @@ impl Checker<'_, '_> {
 
     /// A concrete Copyable value class whose fields are supported storage types.
     pub(super) fn value_class(&self, ty: UnitTypeId) -> bool {
-        self.value_class_seen(ty, &mut std::collections::BTreeSet::new())
+        self.value_class_seen(ty, &mut BTreeSet::new())
     }
 
     pub(super) fn value_class_seen(
         &self,
         ty: UnitTypeId,
-        active: &mut std::collections::BTreeSet<UnitTypeId>,
+        active: &mut BTreeSet<UnitTypeId>,
     ) -> bool {
         let Some(fields) = self
             .value_fields(ty)
@@ -78,13 +80,13 @@ impl Checker<'_, '_> {
 
     /// A concrete MoveOnly value class whose fields are supported storage types.
     pub(super) fn move_value_class(&self, ty: UnitTypeId) -> bool {
-        self.move_value_class_seen(ty, &mut std::collections::BTreeSet::new())
+        self.move_value_class_seen(ty, &mut BTreeSet::new())
     }
 
     pub(super) fn move_value_class_seen(
         &self,
         ty: UnitTypeId,
-        active: &mut std::collections::BTreeSet<UnitTypeId>,
+        active: &mut BTreeSet<UnitTypeId>,
     ) -> bool {
         let Some(fields) = self
             .value_fields(ty)
@@ -340,7 +342,9 @@ impl Checker<'_, '_> {
             && self
                 .value_signature(owner_type)
                 .is_some_and(|(nominal, args)| {
-                    (!is_this || args.is_empty())
+                    (!self.inputs.receiver.is_some_and(|r| {
+                        r.mode == lang_frontend::type_checking::ParameterMode::Inout && is_this
+                    }) || args.is_empty())
                         && nominal
                             .fields()
                             .iter()

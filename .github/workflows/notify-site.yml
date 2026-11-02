@@ -15,7 +15,7 @@ permissions:
 jobs:
   notify:
     if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Dispatch content update to the configured site repository
         env:

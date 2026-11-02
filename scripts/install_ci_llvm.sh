@@ -3,6 +3,10 @@
 # Intentionally fail if this pinned build disappears; never drift to another LLVM.
 set -euo pipefail
 source /etc/os-release
+# Core CI migrates independently; the Preview producer/consumer remain on Noble.
+if [[ "$ID" == ubuntu && "$VERSION_ID" == 26.04 ]]; then
+  exec bash "$(dirname -- "${BASH_SOURCE[0]}")/install_ci_llvm_ubuntu26.sh"
+fi
 [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 && "$(uname -m)" == x86_64 ]] || {
   echo 'This installer requires Ubuntu 24.04 x86_64.' >&2
   exit 1
