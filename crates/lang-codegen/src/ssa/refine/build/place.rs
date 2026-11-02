@@ -68,7 +68,12 @@ impl Builder<'_, '_> {
                             }
                         }
                     }
-                    _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+                    _ => {
+                        let owner = self
+                            .required(expression)?
+                            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                        return self.lend(owner, kind, span);
+                    }
                 }
             }
         };

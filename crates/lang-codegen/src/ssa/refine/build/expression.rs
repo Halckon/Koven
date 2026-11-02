@@ -9,7 +9,7 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitCallTarget, UnitTypeId, UnitTypeKind},
 };
 
-use super::{Builder, Lowered};
+use super::{Builder, Lowered, View};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error, string_literal},
     model::{CheckedArithmeticOperator, ComparisonOperator, EntityType, LoanKind, ScalarConstant},
@@ -298,9 +298,13 @@ impl Builder<'_, '_> {
         if actual == expected {
             return Ok(value);
         }
+        let expected_ssa = self.ssa_type(expected, span)?;
+        if self.body.slots[value.0] == EntityType::Value(expected_ssa) {
+            return Ok(value);
+        }
         match self.inputs.typed.types().get(expected) {
             Some(UnitTypeKind::Nullable(inner)) if *inner == actual => {
-                let nullable = self.ssa_type(expected, span)?;
+                let nullable = expected_ssa;
                 let wrapped = self.value(
                     ROp::NullableWrap {
                         nullable,
@@ -493,15 +497,17 @@ impl Builder<'_, '_> {
         let when_true = self.body.block();
         let when_false = self.body.block();
         let join = self.body.block();
-        self.condition(condition, when_true, when_false)?;
+        self.condition_for_control(condition, when_true, when_false, span)?;
         let outer_views = self.active_views.clone();
-        let mut joined_views = None;
+        let outer_pending_loans = self.pending_call_loans.clone();
+        let mut branch_views = Vec::new();
         let mut reached = false;
         for (index, (block, branch)) in [(when_true, Some(then_branch)), (when_false, else_branch)]
             .into_iter()
             .enumerate()
         {
             self.active_views = outer_views.clone();
+            self.pending_call_loans = outer_pending_loans.clone();
             let mark = self.enter(block);
             let value = match branch {
                 Some(branch) => self.branch_value(branch)?,
@@ -522,12 +528,20 @@ impl Builder<'_, '_> {
                 control,
                 branch: index,
             })?;
-            joined_views = Some(self.active_views.clone());
+            branch_views.push(self.active_views.clone());
             self.goto(join, span)?;
             reached = true;
         }
-        if let Some(joined) = joined_views {
-            self.active_views = joined;
+        self.pending_call_loans = outer_pending_loans;
+        if branch_views.len() == 2 {
+            let common: Vec<View> = branch_views[0]
+                .iter()
+                .filter(|v| branch_views[1].iter().any(|other| other.slot == v.slot))
+                .copied()
+                .collect();
+            self.active_views = common;
+        } else if let Some(first) = branch_views.pop() {
+            self.active_views = first;
         }
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -591,84 +605,121 @@ impl Builder<'_, '_> {
         if descriptor.arguments().len() != arguments.len() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let receiver = self.receiver_before_arguments(&descriptor, span)?;
-        let mut lowered = Vec::with_capacity(arguments.len());
-        let mut loans = Vec::new();
-        let mut writebacks = Vec::new();
-        let mut view_reads = Vec::new();
-        let mut delivered = Vec::new();
+        let is_extension = match descriptor.target() {
+            UnitCallTarget::Declaration(id) => self
+                .inputs
+                .typed
+                .signatures()
+                .declaration(id)
+                .and_then(|signature| signature.callable())
+                .is_some_and(|callable| {
+                    callable.range_extension().is_some() || callable.text_extension().is_some()
+                }),
+            _ => false,
+        };
+        let receiver = if is_extension {
+            None
+        } else {
+            self.receiver_before_arguments(&descriptor, span)?
+        };
+        let mut scoped_receiver_loan = None;
+        if let Some(super::receiver::Receiver::Ready {
+            loan: Some(ref loan),
+            ..
+        }) = receiver
+            && loan.scoped
+        {
+            self.pending_call_loans.push(loan.loan);
+            scoped_receiver_loan = Some(loan.loan);
+        }
+        let mut call_args = Vec::with_capacity(arguments.len() + usize::from(is_extension));
+        if is_extension
+            && let Some(rec) = descriptor.receiver()
+            && let lang_frontend::type_checking::UnitCallReceiverOrigin::Expression(expression) =
+                rec.origin()
+            && expression.source_unit() == self.inputs.source_unit
+        {
+            call_args.push((expression.expression(), rec.mode(), rec.ty()));
+        }
         for argument in descriptor.arguments() {
             let value_expression = arguments
                 .get(argument.argument_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
                 .value;
-            if argument.mode() == ParameterMode::Inout {
+            call_args.push((value_expression, argument.mode(), argument.parameter_type()));
+        }
+        let mut lowered = Vec::with_capacity(call_args.len());
+        let mut loans = Vec::new();
+        let mut writebacks = Vec::new();
+        let mut view_reads = Vec::new();
+        let mut delivered = Vec::new();
+        for (value_expression, mode, parameter_type) in call_args {
+            if mode == ParameterMode::Inout {
                 let (loan, writeback) = self.inout_argument(value_expression)?;
                 lowered.push(loan);
                 if let Some(writeback) = writeback {
                     loans.push(loan);
+                    self.pending_call_loans.push(loan);
                     writebacks.push(writeback);
                 }
                 continue;
             }
-            if argument.mode() == ParameterMode::Borrow
-                && let Some(&view) = self.inputs.views.get(&self.c(argument.parameter_type()))
+            if mode == ParameterMode::Borrow
+                && let Some(&view) = self.inputs.views.get(&self.c(parameter_type))
             {
                 // ADR-0034: a Borrow function parameter receives a callable view.
                 let (lent, created, read_argument) =
                     self.callable_argument(value_expression, view, span)?;
-                loans.extend(created);
+                loans.extend(created.iter().copied());
+                self.pending_call_loans.extend(created);
                 lowered.push(lent);
                 view_reads.extend(read_argument);
                 continue;
             }
-            if argument.mode() == ParameterMode::Borrow
-                && let Some(loan) = self
-                    .borrowed_move_only_loan(value_expression, self.c(argument.parameter_type()))?
+            if mode == ParameterMode::Borrow
+                && let Some(loan) =
+                    self.borrowed_move_only_loan(value_expression, self.c(parameter_type))?
             {
                 lowered.push(loan);
                 view_reads.push(value_expression);
                 continue;
             }
-            if argument.mode() == ParameterMode::Borrow
-                && let Some((loan, created, field_receiver)) = self.borrowed_string_field_loan(
-                    value_expression,
-                    self.c(argument.parameter_type()),
-                    span,
-                )?
+            if mode == ParameterMode::Borrow
+                && let Some((loan, created, field_receiver)) =
+                    self.borrowed_string_field_loan(value_expression, self.c(parameter_type), span)?
             {
-                loans.extend(created);
+                loans.extend(created.iter().copied());
+                self.pending_call_loans.extend(created);
                 lowered.push(loan);
                 view_reads.extend(field_receiver);
                 view_reads.push(value_expression);
                 continue;
             }
-            if argument.mode() == ParameterMode::Borrow
-                && let Some((loan, created, rc_receiver)) = self.borrowed_rc_payload_loan(
-                    value_expression,
-                    self.c(argument.parameter_type()),
-                    span,
-                )?
+            if mode == ParameterMode::Borrow
+                && let Some((loan, created, rc_receiver)) =
+                    self.borrowed_rc_payload_loan(value_expression, self.c(parameter_type), span)?
             {
-                loans.extend(created);
+                loans.extend(created.iter().copied());
+                self.pending_call_loans.extend(created);
                 lowered.push(loan);
                 view_reads.extend(rc_receiver);
                 view_reads.push(value_expression);
                 continue;
             }
-            if argument.mode() == ParameterMode::Borrow
+            if mode == ParameterMode::Borrow
                 && let Some((loan, created, elem_arg)) = self.borrowed_container_element_loan(
                     value_expression,
-                    self.c(argument.parameter_type()),
+                    self.c(parameter_type),
                     span,
                 )?
             {
-                loans.extend(created);
+                loans.extend(created.iter().copied());
+                self.pending_call_loans.extend(created);
                 lowered.push(loan);
                 view_reads.extend(elem_arg);
                 continue;
             }
-            if argument.mode() == ParameterMode::Borrow
+            if mode == ParameterMode::Borrow
                 && let Some(view) = self.narrowed_view(value_expression)?
             {
                 // A MoveOnly non-null use borrows through the condition's proof view.
@@ -676,20 +727,53 @@ impl Builder<'_, '_> {
                 view_reads.push(value_expression);
                 continue;
             }
+            if mode == ParameterMode::Borrow {
+                let mut current = value_expression;
+                let mut source_loan = None;
+                while let Ok(node) = self.inputs.parsed.ast().expressions().get(current) {
+                    match node.payload() {
+                        Expression::Group { expression } => current = *expression,
+                        Expression::Name => {
+                            if let Ok(symbol) = self.reference(self.span(current)) {
+                                source_loan = self.borrowed.get(&symbol).copied();
+                            }
+                            break;
+                        }
+                        _ => break,
+                    }
+                }
+                if let Some(source_loan) = source_loan {
+                    let argument_span = self.span(value_expression);
+                    let EntityType::Loan { kind, target } = self.body.slots[source_loan.0] else {
+                        return Err(error(LoweringErrorKind::InvalidModel, argument_span));
+                    };
+                    let loan = self.value(
+                        ROp::SharedReborrow {
+                            source: source_loan,
+                        },
+                        EntityType::Loan { kind, target },
+                        argument_span,
+                    )?;
+                    loans.push(loan);
+                    self.pending_call_loans.push(loan);
+                    lowered.push(loan);
+                    continue;
+                }
+            }
             let Some(value) = self.required(value_expression)? else {
                 return Ok(Lowered::Diverged);
             };
-            match argument.mode() {
+            match mode {
                 ParameterMode::Value => {
-                    let value =
-                        self.adapt(value, value_expression, self.c(argument.parameter_type()))?;
+                    let mut value = self.adapt(value, value_expression, self.c(parameter_type))?;
+                    value = self.snapshot_binding_if_name(value_expression, value)?;
                     // Delivered at the call: a later argument's jump still drops it.
                     self.repoint_temporary(value_expression, value);
                     delivered.push(value_expression);
                     lowered.push(value);
                 }
                 ParameterMode::Borrow => {
-                    let value = self.adapt_borrowed(value, value_expression, argument)?;
+                    let value = self.adapt_borrowed(value, value_expression, parameter_type)?;
                     let target = self.body.slots[value.0];
                     let EntityType::Value(target) = target else {
                         return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -713,6 +797,7 @@ impl Builder<'_, '_> {
                         argument_span,
                     )?;
                     loans.push(loan);
+                    self.pending_call_loans.push(loan);
                     lowered.push(loan);
                 }
                 ParameterMode::Inout => {
@@ -730,6 +815,12 @@ impl Builder<'_, '_> {
             let (result, callee) = self.invoke_callable(expression, lowered, unit_return, span)?;
             invoked_callee = callee;
             result
+        } else if descriptor.aborts() {
+            let [message] = lowered.as_slice() else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            self.terminate(RTerm::Abort(RAbort::Error { message: *message }), span)?;
+            return Ok(Lowered::Diverged);
         } else if let Some(kind) = descriptor.text_primitive() {
             self.text_primitive_call(expression, kind, &lowered, span)?
         } else if descriptor.prints_line() {
@@ -780,9 +871,14 @@ impl Builder<'_, '_> {
         };
         for loan in loans.into_iter().rev() {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+            self.pending_call_loans.retain(|&active| active != loan);
         }
         if let Some(loan) = receiver_end {
             self.end_owner_loan(loan, span)?;
+            if scoped_receiver_loan.is_some() {
+                self.pending_call_loans
+                    .retain(|&active| active != loan.loan);
+            }
         }
         for writeback in writebacks {
             self.write_back(writeback)?;
@@ -811,11 +907,11 @@ impl Builder<'_, '_> {
         &mut self,
         value: Slot,
         expression: ExpressionId,
-        argument: &lang_frontend::type_checking::UnitCallArgumentDescriptor,
+        parameter_type: UnitTypeId,
     ) -> Result<Slot, LoweringError> {
         let id = self.unit(expression);
         let temporary = self.temporaries.contains_key(&id);
-        let adapted = self.adapt(value, expression, self.c(argument.parameter_type()))?;
+        let adapted = self.adapt(value, expression, self.c(parameter_type))?;
         if adapted != value && temporary {
             self.temporaries.insert(id, adapted);
         }
@@ -871,10 +967,36 @@ impl Builder<'_, '_> {
             }
             None => None,
         };
-        self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
+        for loan in std::mem::take(&mut self.pending_call_loans)
+            .into_iter()
+            .rev()
+        {
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
         self.end_all_views(span)?;
+        self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
         let unit_return = self.is_unit(self.inputs.return_type);
         self.finish_return(result, unit_return, span)?;
         Ok(Lowered::Diverged)
+    }
+
+    fn snapshot_binding_if_name(
+        &mut self,
+        expression: ExpressionId,
+        slot: Slot,
+    ) -> Result<Slot, LoweringError> {
+        let mut target = expression;
+        while let (Expression::Group { expression: inner }, _) = self.node(target)? {
+            target = inner;
+        }
+        if let (Expression::Name, span) = self.node(target)?
+            && let Ok(symbol) = self.reference(span)
+            && self.bindings.get(&symbol).copied() == Some(slot)
+        {
+            let snapshot = self.body.slot(self.body.slots[slot.0]);
+            self.push(ROp::Alias { source: slot }, vec![snapshot], span)?;
+            return Ok(snapshot);
+        }
+        Ok(slot)
     }
 }

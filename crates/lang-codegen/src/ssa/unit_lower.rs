@@ -807,6 +807,11 @@ impl UnitExpressionLowerer<'_> {
             .get(&expected)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if self.function.entity(EntityId::Value(value)).map(|e| e.ty)
+            == Some(EntityType::Value(nullable))
+        {
+            return Ok((value, false));
+        }
         if self.map_results.contains_key(&nullable)
             && self.typed.copyability(actual) == Copyability::Copyable
         {

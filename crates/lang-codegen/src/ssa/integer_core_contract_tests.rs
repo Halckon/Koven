@@ -205,7 +205,15 @@ fn contract(sources: &SourceMap, program: &Program, entry: FunctionId) -> Contra
                         panic!("fixture returns the checked result only on success");
                     };
                     assert_eq!(values.len(), 1);
-                    assert_eq!(definition(EntityId::Value(values[0])), value);
+                    let returned_def = definition(EntityId::Value(values[0]));
+                    let is_equivalent_param = matches!(
+                        function.entity(EntityId::Value(values[0])).unwrap().definition,
+                        Definition::BlockParameter { block, index }
+                            if block == success.id
+                                && when_false.arguments.get(index).map(|arg| definition(*arg))
+                                    == Some(value.clone())
+                    );
+                    assert!(returned_def == value || is_equivalent_param);
                 }
             }
             Operation::Read {
@@ -280,11 +288,39 @@ fn contract(sources: &SourceMap, program: &Program, entry: FunctionId) -> Contra
     }
     for block in &function.blocks {
         if let TerminatorKind::Return { values } = &block.terminator.as_ref().unwrap().kind {
-            result.returned.extend(
-                values
-                    .iter()
-                    .map(|value| definition(EntityId::Value(*value))),
-            );
+            result.returned.extend(values.iter().map(|value| {
+                let entity = EntityId::Value(*value);
+                if let Definition::BlockParameter { block: b, index } =
+                    function.entity(entity).unwrap().definition
+                {
+                    let incoming: Vec<_> = function
+                        .blocks
+                        .iter()
+                        .filter_map(|pred| match &pred.terminator.as_ref()?.kind {
+                            TerminatorKind::Branch(edge) if edge.target == b => {
+                                edge.arguments.get(index).copied()
+                            }
+                            TerminatorKind::Conditional { when_false, .. }
+                                if when_false.target == b =>
+                            {
+                                when_false.arguments.get(index).copied()
+                            }
+                            TerminatorKind::Conditional { when_true, .. }
+                                if when_true.target == b =>
+                            {
+                                when_true.arguments.get(index).copied()
+                            }
+                            _ => None,
+                        })
+                        .collect();
+                    if let Some(first) = incoming.first()
+                        && incoming.iter().all(|arg| arg == first)
+                    {
+                        return definition(*first);
+                    }
+                }
+                definition(entity)
+            }));
         }
     }
     result
