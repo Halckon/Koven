@@ -994,3 +994,4 @@ fn early_exit_move_only_reassignment_drops_both_owners_cleanly() {
 }
 
 mod container_tests;
+mod control_flow_tests;

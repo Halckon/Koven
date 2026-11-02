@@ -563,6 +563,10 @@ impl RTerm {
         match self {
             Self::Goto(_) | Self::Return(None) => Vec::new(),
             Self::Abort(RAbort::Error { message }) => vec![*message],
+            Self::Abort(RAbort::CheckedArithmetic {
+                operator: CheckedArithmeticOperator::Divide | CheckedArithmeticOperator::Remainder,
+                divisor,
+            }) => vec![*divisor],
             Self::Abort(_) => Vec::new(),
             Self::Branch { condition, .. } => vec![*condition],
             Self::NullBranch { owner, .. } => vec![*owner],
