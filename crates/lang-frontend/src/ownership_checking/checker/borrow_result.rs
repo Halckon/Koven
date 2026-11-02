@@ -1,12 +1,14 @@
 use super::{Checker, ExpressionUse, Flows, OwnershipCheckingError, State};
 use crate::ownership_checking::{
     LoanTarget,
-    borrow_result::{BorrowReturnOriginFact, ReturnSource, marker_span, origin_expression},
+    borrow_result::{
+        BorrowReturnOriginFact, ReturnSource, borrow_return_source, origin_expression,
+    },
 };
 use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, Severity, codes},
-    parser::{BorrowReturnSource, FunctionForm, NameMarker, ParameterModeMarker, ValueParameter},
+    parser::{FunctionForm, ValueParameter},
     type_checking::BorrowReturnOrigin,
 };
 
@@ -17,47 +19,8 @@ impl Checker<'_> {
         parameters: &[ValueParameter],
         receiver: Option<crate::name_resolution::SymbolId>,
     ) -> Option<ReturnSource<crate::name_resolution::SymbolId>> {
-        let FunctionForm::Explicit {
-            result_source: Some(syntax),
-            ..
-        } = form
-        else {
-            return None;
-        };
-        let (declared_source, marker, new_range) = match syntax {
-            crate::parser::FunctionResultSource::Borrow(syntax) => {
-                (syntax.source, syntax.borrow_span, false)
-            }
-            crate::parser::FunctionResultSource::Carrier(syntax) => {
-                (syntax.source, syntax.from_span, true)
-            }
-        };
-        let (symbol, span) = match declared_source {
-            BorrowReturnSource::Parameter(NameMarker::Present(span)) => {
-                let parameter = parameters.iter().find(|parameter| {
-                    self.sources.slice(marker_span(parameter.name)).ok()
-                        == self.sources.slice(span).ok()
-                });
-                let symbol = parameter
-                    .filter(|p| {
-                        !matches!(
-                            p.mode_marker,
-                            Some(ParameterModeMarker::Inout(_) | ParameterModeMarker::Own(_))
-                        )
-                    })
-                    .and_then(|p| self.marker_symbol(p.name));
-                (symbol, parameter.map_or(span, |p| marker_span(p.name)))
-            }
-            BorrowReturnSource::Receiver(span) => (receiver, span),
-            BorrowReturnSource::Parameter(NameMarker::Missing(span) | NameMarker::Error(span)) => {
-                (None, span)
-            }
-        };
-        Some(ReturnSource {
-            symbol,
-            span,
-            marker,
-            new_range,
+        borrow_return_source(self.sources, form, parameters, receiver, |marker| {
+            self.marker_symbol(marker)
         })
     }
 

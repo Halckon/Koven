@@ -13,6 +13,7 @@ mod const_handoff;
 mod constant;
 mod construction;
 mod error;
+mod element_index;
 mod handoff;
 mod iteration;
 mod iteration_source;
