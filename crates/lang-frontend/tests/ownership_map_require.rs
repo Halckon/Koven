@@ -10,7 +10,10 @@ use lang_frontend::{
     },
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{
+        check_compilation_unit_types, check_types, complete_compilation_unit_types,
+        standard_environments,
+    },
 };
 
 fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
@@ -47,6 +50,59 @@ fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
         .unwrap();
     let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
     (single, unit)
+}
+
+// Negative consumers use original bytes through both Unit entry modes. Positive
+// witnesses retain the independent Single helper and its ownership observations.
+fn checked_unit(text: &str) -> (CompilationUnitOwnership, CompilationUnitOwnership) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("map.ko", text).unwrap();
+    let lexed = lex(&sources, source).unwrap();
+    assert!(lexed.diagnostics().is_empty());
+    let file = parse_file(&sources, &lexed).unwrap();
+    assert!(file.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    let [memory, rooted] = [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "map.ko", source, &file),
+    ]
+    .map(|input| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty());
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+        assert!(names.diagnostics().is_empty());
+        let names = names.validate().unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(
+            typed.map_require_values().len(),
+            1,
+            "one original Map operation"
+        );
+        for descriptor in typed.map_require_values() {
+            assert_eq!(
+                descriptor.borrow_return().origin(),
+                lang_frontend::type_checking::BorrowReturnOrigin::Receiver
+            );
+            assert_eq!(
+                sources
+                    .slice(descriptor.borrow_return().marker_span())
+                    .unwrap(),
+                "requireValue"
+            );
+        }
+        let complete =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert!(complete.is_same_analysis(&typed));
+        let typed = typed.validate().unwrap();
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert!(owned.is_compatible_with(&typed));
+        owned
+    });
+    (memory, rooted)
 }
 
 #[test]
@@ -98,24 +154,25 @@ fn map_require_value_rejects_invalidation_and_owned_result_delivery() {
         let text = format!(
             "fun consume(own m: MutableMap<String, String>) {{}}\nfun run() {{ var m = mutableMapOf<String, String>(); val key = \"key\"; {body} }}"
         );
-        let (single, unit) = checked(&text);
+        let (memory, rooted) = checked_unit(&text);
         assert!(
-            single
+            memory
                 .diagnostics()
                 .iter()
                 .any(|d| d.code().to_string() == code),
             "{text}: {:?}",
-            single.diagnostics()
+            memory.diagnostics()
         );
         assert!(
-            unit.diagnostics()
+            rooted
+                .diagnostics()
                 .iter()
                 .any(|d| d.code().to_string() == code),
             "{text}: {:?}",
-            unit.diagnostics()
+            rooted.diagnostics()
         );
-        assert!(single.borrow_results().bindings().is_empty());
-        assert!(unit.borrow_results().bindings().is_empty());
+        assert!(memory.borrow_results().bindings().is_empty());
+        assert!(rooted.borrow_results().bindings().is_empty());
     }
 }
 
