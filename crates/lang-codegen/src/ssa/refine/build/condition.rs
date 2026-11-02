@@ -57,6 +57,7 @@ impl Builder<'_, '_> {
         let evaluated_true = self.body.block();
         let evaluated_false = self.body.block();
         self.condition_internal(right, evaluated_true, evaluated_false, views, None)?;
+        let mark = mark.min(self.active_views.len());
         let left_views: Vec<_> = self.active_views.drain(mark..).collect();
         let evaluated = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 0 });
         for (path, target) in [(evaluated_true, when_true), (evaluated_false, when_false)] {
@@ -79,6 +80,7 @@ impl Builder<'_, '_> {
         when_true: BlockRef,
         span: lang_frontend::source::Span,
     ) -> Result<(), LoweringError> {
+        let mark = mark.min(self.active_views.len());
         let views: Vec<_> = self.active_views.drain(mark..).collect();
         if target == when_true {
             self.pending_views
@@ -326,7 +328,12 @@ impl Builder<'_, '_> {
             self.sync_dead();
             let exit_block = self.current(span)?;
             branch_exits.push((exit_block, self.this_dead));
-            predecessors.push((exit_block, self.active_views.clone()));
+            predecessors.push(super::when::PredecessorBranch {
+                block: exit_block,
+                views: self.active_views.clone(),
+                dead: self.dead.clone(),
+                this_dead: self.this_dead,
+            });
         }
         if branch_exits.iter().any(|(_, dead)| *dead) {
             self.entry_this_dead.insert(join);
@@ -336,7 +343,7 @@ impl Builder<'_, '_> {
                     .receiver
                     .is_some_and(|r| r.mode == ParameterMode::Value && self.move_only(r.ty))
             {
-                for &(exit_block, dead) in &branch_exits {
+                for (i, &(exit_block, dead)) in branch_exits.iter().enumerate() {
                     if !dead {
                         self.body.blocks[exit_block.0].statements.push(
                             crate::ssa::refine::body::RStmt {
@@ -345,6 +352,9 @@ impl Builder<'_, '_> {
                                 span,
                             },
                         );
+                        if let Some(pred) = predecessors.get_mut(i) {
+                            pred.this_dead = true;
+                        }
                     }
                 }
             }

@@ -28,6 +28,9 @@
    - **一级字段 `replace(&holder.field, rhs)` 的 RHS 提前退出支持**（`subset/inout.rs`、`build/inout.rs`）：在求值 `rhs` 期间将字段独占借用推入 `pending_call_loans`，使 `rhs` 内的 `return`/`break`/`continue` 在析构父 owner 前自动发出 `BorrowEnd`，完成一级字段 replace 全路径向 `ssa::refine` 的收敛。
 2. **旧路径模块退休与保留边界**：
    - **已退休删除（共 705 行）**：删除已被 `ssa::refine` 覆盖的 `crates/lang-codegen/src/ssa/unit_lower/field_replace.rs`（385 行）与 `crates/lang-codegen/src/ssa/unit_lower/enum_type_test.rs`（320 行），并在 `unit_lower.rs` 与 `ownership_primitive.rs` 中收敛为显式 `UnsupportedNode` 边界拒绝。
+   - **兄弟字段借用与未闭合投影区分**（`subset/inout.rs`）：通过 `is_disjoint_sibling_field_borrow` 准入 RHS 将 owner 兄弟字段作为闭合共享借用实参（`LoanKind::Shared`）进行传参借用（如 `replace(&h.first, inspect(h.second))` 严格通过原生执行与两向求值顺序验证）；未闭合投影（如 `val old = replace(&h.a, h.b)`）维持预期的 `UnsupportedNode` 拒绝。
+   - **前驱分支 named dead 出口状态与协调**（`when.rs`、`condition.rs`）：通过 `PredecessorBranch` 携带每个分支出口的 named `dead` 集合与 `this_dead` 状态，在 `join_views` 回访前驱时恢复出口快照并同步 `dead_block`，消除了分支内消费或重赋值在合流时丢失状态导致 double-drop 或 live 状态失效的隐患。
+   - **分流门能力条件与配对测试**（`subset/container.rs`、`subset/callable.rs`）：`scope_has_field_replace` 与 `call_has_field_replace` 严格限定仅在作用域内存在字段替换时放行，既让已退休旧路径的字段替换无缝由 refine 接管，又保证纯标量临时容器循环保留在 legacy lowering 以维持既有白盒 CFG 契约。
    - **保留边界**：
      1. borrow 返回函数（`borrow_result.rs`、`map_result.rs`）与 `RangeView`（`range.rs`）；
      2. Map 剩余未迁操作（`map.rs`、`map_borrow.rs`、`map_consume.rs`、`map_iteration.rs`、`map_require.rs`）；
@@ -36,6 +39,6 @@
 
 ## 3. 验收标准
 
-- [x] `ssa::refine_`（64/64）全量通过。
+- [x] `ssa::refine_`（75/75，含 `control_flow_tests` 18/18 与 `refine_subset_tests` 7/7）全量通过。
 - [x] `ssa::unit_`（409/409，含 `unit_field_replace_tests` 13/13 与 `unit_field_borrow_tests`）全量通过。
 - [x] `python3 scripts/gen_roadmap.py`、`python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py` 与 `python3 scripts/check_rust_sizes.py --base main` 全部通过。

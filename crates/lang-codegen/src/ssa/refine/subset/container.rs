@@ -902,6 +902,14 @@ impl Checker<'_, '_> {
             })
     }
 
+    /// Returns true if the enclosing scope contains an active field replacement plan (`replace(&h.field, ...)`).
+    ///
+    /// Capability contract:
+    /// In SPEC-0381, `crates/lang-codegen/src/ssa/unit_lower/field_replace.rs` was permanently retired.
+    /// Consequently, scopes containing field replacements must be admitted to `ssa::refine` because
+    /// `unit_lower` now rejects them with `UnsupportedNode`.
+    /// Conversely, temporary sequential containers without field replacements remain on legacy
+    /// lowering to preserve existing white-box CFG block layout contracts (e.g. `sequential_for_lowering_tests`).
     fn scope_has_field_replace(&self) -> bool {
         let Some(scope) = self.inputs.scope_span() else {
             return !self.inputs.owned.field_replacements().is_empty();
