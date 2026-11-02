@@ -12,6 +12,7 @@ mod compilation_unit;
 mod const_handoff;
 mod constant;
 mod construction;
+mod element_index;
 mod error;
 mod handoff;
 mod iteration;

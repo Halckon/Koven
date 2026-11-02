@@ -190,3 +190,6 @@ fn readonly_map_require_value_publishes_the_same_receiver_contract() {
     assert_eq!(single.borrow_results().bindings().len(), 1);
     assert_eq!(unit.borrow_results().bindings().len(), 1);
 }
+
+#[path = "ownership_map_require/loan_end_unit.rs"]
+mod loan_end_unit;

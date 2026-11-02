@@ -2,9 +2,7 @@ use crate::{
     ast::{ExpressionId, StatementId},
     diagnostic::{Diagnostic, Severity},
     name_resolution::{SymbolId, SymbolKind},
-    parser::{
-        CallArgument, Expression, LiteralKind, ParameterModeMarker, PrefixOperator, VariableKind,
-    },
+    parser::{CallArgument, Expression, ParameterModeMarker, VariableKind},
     source::Span,
     type_checking::{
         AggregateProjectionKind, AggregateProjectionReceiver, ConstructionTarget, Copyability,
@@ -13,8 +11,7 @@ use crate::{
 };
 
 use crate::ownership_checking::{
-    ElementIndexIdentity, LoanFact, LoanKind, LoanTarget, OwnershipDeferredFact,
-    OwnershipDeferredReason, OwnershipPlace,
+    LoanFact, LoanKind, LoanTarget, OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace,
 };
 
 use super::{AccessKind, Checker, Flows, OwnershipCheckingError, State};
@@ -99,7 +96,11 @@ impl Checker<'_> {
                 let Some(mut place) = self.place(descriptor.receiver())? else {
                     return Ok(None);
                 };
-                let index = self.element_index_identity(descriptor.index())?;
+                let index = crate::ownership_checking::element_index::element_index_identity(
+                    self.sources,
+                    self.parsed,
+                    descriptor.index(),
+                )?;
                 place.push_element(index);
                 Ok(Some(place))
             }
@@ -169,43 +170,6 @@ impl Checker<'_> {
             return self.temporary_expression_origin(*expression);
         }
         Ok(None)
-    }
-
-    fn element_index_identity(
-        &self,
-        expression: ExpressionId,
-    ) -> Result<ElementIndexIdentity, OwnershipCheckingError> {
-        let node = self.parsed.ast().expressions().get(expression)?;
-        let value = match node.payload() {
-            Expression::Literal(LiteralKind::Integer(kind)) => {
-                crate::type_checking::integer_literal_magnitude(
-                    self.sources.slice(node.span())?,
-                    *kind,
-                )
-                .and_then(|value| i128::try_from(value).ok())
-            }
-            Expression::Group { expression } => {
-                return self.element_index_identity(*expression);
-            }
-            Expression::Prefix {
-                operator: PrefixOperator::Minus,
-                operand,
-                ..
-            } => match self.element_index_identity(*operand)? {
-                ElementIndexIdentity::Known(value) => value.checked_neg(),
-                ElementIndexIdentity::Unknown => None,
-            },
-            Expression::Prefix {
-                operator: PrefixOperator::Plus,
-                operand,
-                ..
-            } => match self.element_index_identity(*operand)? {
-                ElementIndexIdentity::Known(value) => Some(value),
-                ElementIndexIdentity::Unknown => None,
-            },
-            _ => None,
-        };
-        Ok(value.map_or(ElementIndexIdentity::Unknown, ElementIndexIdentity::Known))
     }
 
     pub(super) fn access_expression_place(

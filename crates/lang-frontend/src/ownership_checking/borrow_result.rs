@@ -8,6 +8,9 @@ use crate::{
 
 use super::OwnershipCheckingError;
 
+mod source;
+pub(crate) use source::borrow_return_source;
+
 /// 从实际返回表达式验证的来源；E/T 保持 single 与 source-qualified unit 的 ID 边界。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BorrowReturnOriginFact<E, T> {

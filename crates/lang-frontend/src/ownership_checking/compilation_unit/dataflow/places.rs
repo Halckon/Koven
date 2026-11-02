@@ -3,8 +3,8 @@
 use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, Severity},
-    ownership_checking::{ElementIndexIdentity, UnitValueDeliveryKind, UnitValueDeliverySource},
-    parser::{Expression, LiteralKind, PrefixOperator, VariableKind},
+    ownership_checking::{UnitValueDeliveryKind, UnitValueDeliverySource},
+    parser::{Expression, VariableKind},
     type_checking::{
         Copyability, ExpressionCategory, NominalKind, RcOperationKind, UnitAggregateProjectionKind,
         UnitExpressionId, UnitTypeKind,
@@ -326,46 +326,15 @@ impl Checker<'_> {
                 let Some(mut place) = self.place(descriptor.receiver().expression())? else {
                     return Ok(None);
                 };
-                let index = self.element_index_identity(descriptor.index().expression())?;
+                let index = crate::ownership_checking::element_index::element_index_identity(
+                    self.sources,
+                    self.parsed,
+                    descriptor.index().expression(),
+                )?;
                 Ok(place.push_element(index).then_some(place))
             }
             _ => Ok(None),
         }
-    }
-
-    fn element_index_identity(
-        &self,
-        expression: ExpressionId,
-    ) -> Result<ElementIndexIdentity, OwnershipCheckingError> {
-        let node = self.parsed.ast().expressions().get(expression)?;
-        let value = match node.payload() {
-            Expression::Literal(LiteralKind::Integer(kind)) => {
-                crate::type_checking::integer_literal_magnitude(
-                    self.sources.slice(node.span())?,
-                    *kind,
-                )
-                .and_then(|value| i128::try_from(value).ok())
-            }
-            Expression::Group { expression } => return self.element_index_identity(*expression),
-            Expression::Prefix {
-                operator: PrefixOperator::Minus,
-                operand,
-                ..
-            } => match self.element_index_identity(*operand)? {
-                ElementIndexIdentity::Known(value) => value.checked_neg(),
-                ElementIndexIdentity::Unknown => None,
-            },
-            Expression::Prefix {
-                operator: PrefixOperator::Plus,
-                operand,
-                ..
-            } => match self.element_index_identity(*operand)? {
-                ElementIndexIdentity::Known(value) => Some(value),
-                ElementIndexIdentity::Unknown => None,
-            },
-            _ => None,
-        };
-        Ok(value.map_or(ElementIndexIdentity::Unknown, ElementIndexIdentity::Known))
     }
 
     pub(super) fn is_mutable_place(

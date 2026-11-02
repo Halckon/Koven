@@ -1097,3 +1097,25 @@ D10/SPEC-0341/E2 继续 in-progress。
   选择的 `owned_compilation_unit_view`，不新增单独 CI 或改变执行顺序。
 - 格式及静态审查与行为验收分离；未运行本地 Cargo/build/test/Clippy，按用户授权准备发布 Draft PR 并验证精确头。
   当前 main 已有独立 E3 Targeted 失败，不能归因为本片或用旧绿 CI 代替精确头验证。
+
+## 58. 所有权语法规则共享与成功清理合同（2026-11-02）
+
+基于 main `f824daeb` 的本地候选，收敛 frontend 重复规则并补成功清理合同；不触 E3，
+不计作旧消费者退休。
+
+- 元素索引身份仅共享整数字面量、Group、正负号解释；source-qualified 准入、place
+  构造及错误传播仍由原入口保持。Single 多层索引与 Unit 单层索引能力差异不在本片修复。
+- borrow-return 来源仅共享现有声明语法选择，保留首匹配、marker/span 与两端 symbol
+  身份映射；既有 inout/own 排除及不支持来源的诊断边界保持，不借重构扩大语义。
+- `ownership_map_require/loan_end_unit` 对原成功源码走 MemoryDocument/Rooted：核真实
+  receiver 来源 loan、非 owning binding、planner 发布的实际 last-use end 及后续 owner 交付；
+  不将 `UnitLoanFact::end_span` 的调用源码范围冒充实际 loan-end。
+- `ownership_iteration/conditional_source_unit` 核 If/When 选择的临时 List source 在
+  normal/continue/break/return 与独立 exhaustion 上的 source-qualified 身份、完整动作序列
+  和 source drop；回边不得结束 provider/来源，分支 factory 不得重复析构。
+- 旧 Single 成功 witness 原样保留：Unit 的 temporary expression/value-origin 证据并不等同
+  Single 的 CleanupOwnerId/cleanup_conditions owner-table；本片不退休该独立合同。
+- `withValue` 正常返回尚无同范围可查询的实际结束事件，不能用 direct-call 发布切片替代；
+  不为补测试扩大其准入或修改执行语义。
+- 未运行本地 Cargo/build/test/Clippy；静态检查不替代精确头官方 CI。旧原件删除另待
+  等价覆盖与实际验收证据，D10/E2 保持 in-progress。
