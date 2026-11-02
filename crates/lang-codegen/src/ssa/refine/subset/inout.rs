@@ -136,22 +136,19 @@ impl Checker<'_, '_> {
                 return false;
             }
         }
-        if let Some(field_plan) = self.inputs.owned.field_replacement(id) {
-            if primitive.kind() != lang_frontend::type_checking::OwnershipPrimitiveKind::Replace
-                || field_plan.descriptor() != &primitive
-                || matches!(
-                    self.kind(value_ty),
-                    Some(lang_frontend::type_checking::UnitTypeKind::Nullable(inner))
-                        if self.rc_payload(*inner).is_some()
-                )
-            {
+        let projected = self.ungrouped(arguments[0].value);
+        let projection = self.inputs.typed.aggregate_projection(self.id(projected));
+        if primitive.kind() == lang_frontend::type_checking::OwnershipPrimitiveKind::Replace
+            && let Some(projection) = projection
+            && projection.kind() == lang_frontend::type_checking::UnitAggregateProjectionKind::Field
+        {
+            if matches!(
+                self.kind(value_ty),
+                Some(lang_frontend::type_checking::UnitTypeKind::Nullable(inner))
+                    if self.rc_payload(*inner).is_some()
+            ) {
                 return false;
             }
-            let projected = self.ungrouped(arguments[0].value);
-            let Some(projection) = self.inputs.typed.aggregate_projection(self.id(projected))
-            else {
-                return false;
-            };
             let lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(receiver) =
                 projection.receiver()
             else {
@@ -166,8 +163,7 @@ impl Checker<'_, '_> {
             let Some(owner_ty) = self.symbol_type(symbol) else {
                 return false;
             };
-            if projection.kind() != lang_frontend::type_checking::UnitAggregateProjectionKind::Field
-                || self.c(projection.ty()) != value_ty
+            if self.c(projection.ty()) != value_ty
                 || !self.known.contains(&symbol)
                 || self.callables.contains(&symbol)
                 || self.parameter_mode(symbol).is_some()
@@ -178,10 +174,6 @@ impl Checker<'_, '_> {
                         args.is_empty() && nominal.type_parameters().is_empty()
                     })
                 || !self.class_field(owner_ty, projection.field())
-                || field_plan.owner_type() != owner_ty
-                || field_plan.place().root() != symbol
-                || field_plan.place().fields() != [projection.field()]
-                || field_plan.place().element().is_some()
             {
                 return false;
             }
@@ -201,35 +193,53 @@ impl Checker<'_, '_> {
                 || !matches!(
                     fact.target(),
                     lang_frontend::ownership_checking::UnitLoanTarget::Place(place)
-                        if place == field_plan.place()
+                        if place.root() == symbol
+                            && place.fields() == [projection.field()]
+                            && place.element().is_none()
                 )
             {
                 return false;
             }
-            let Some(delivery) = self
-                .inputs
-                .owned
-                .value_deliveries()
-                .iter()
-                .find(|delivery| {
-                    delivery.call() == id && delivery.argument() == primitive.operands()[1]
-                })
-            else {
+            if let Some(field_plan) = self.inputs.owned.field_replacement(id) {
+                if field_plan.descriptor() != &primitive
+                    || field_plan.owner_type() != owner_ty
+                    || field_plan.place().root() != symbol
+                    || field_plan.place().fields() != [projection.field()]
+                    || field_plan.place().element().is_some()
+                {
+                    return false;
+                }
+                let Some(delivery) = self
+                    .inputs
+                    .owned
+                    .value_deliveries()
+                    .iter()
+                    .find(|delivery| {
+                        delivery.call() == id && delivery.argument() == primitive.operands()[1]
+                    })
+                else {
+                    return false;
+                };
+                let expected = match delivery.kind() {
+                    lang_frontend::ownership_checking::UnitValueDeliveryKind::Copy => {
+                        lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Copy
+                    }
+                    lang_frontend::ownership_checking::UnitValueDeliveryKind::Move => {
+                        lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Move
+                    }
+                    lang_frontend::ownership_checking::UnitValueDeliveryKind::Temporary => {
+                        lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Temporary
+                    }
+                };
+                if field_plan.new_value_transfer() != expected {
+                    return false;
+                }
+            } else if self.inputs.owned.value_deliveries().iter().any(|delivery| {
+                delivery.call() == id && delivery.argument() == primitive.operands()[1]
+            }) {
                 return false;
-            };
-            let expected = match delivery.kind() {
-                lang_frontend::ownership_checking::UnitValueDeliveryKind::Copy => {
-                    lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Copy
-                }
-                lang_frontend::ownership_checking::UnitValueDeliveryKind::Move => {
-                    lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Move
-                }
-                lang_frontend::ownership_checking::UnitValueDeliveryKind::Temporary => {
-                    lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Temporary
-                }
-            };
-            if field_plan.new_value_transfer() != expected
-                || self.field_replace_rhs_conflicts(arguments[1].value, symbol, projection.field())
+            }
+            if self.field_replace_rhs_conflicts(arguments[1].value, symbol, projection.field())
                 || !self.expression(arguments[1].value)
             {
                 return false;

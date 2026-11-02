@@ -348,7 +348,9 @@ impl UnitExpressionLowerer<'_> {
             Expression::This => self.lower_this(expression, span),
             Expression::Group { expression } => self.lower(*expression),
             Expression::NonNullAssert { .. } => self.lower_non_null_assertion(expression, span),
-            Expression::TypeTest { .. } => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            Expression::TypeTest { .. } => {
+                Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
+            }
             Expression::Call {
                 callee, arguments, ..
             } => self.lower_call(expression, *callee, arguments, span),

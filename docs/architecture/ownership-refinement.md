@@ -74,7 +74,7 @@ MoveOnly 载荷字段借用实参。`deinit` 析构体、多层字段借用、�
 析构体与带 `deinit()` 的资源 `class`、多层 `class` 字段读取与借用（按层 `SharedHeapFieldLoan` 与逆序 `BorrowEnd`，含字段路径上的
 `String.clone()`）、含复合存储字段的 `value class` 与 `Box<T>` 载荷、MoveOnly 类型上的 `Value` 接收者成员调用（`own fun`、`this` 借用与
 `this` 返回及 `UnitDropTarget::This` 释放）、临时 `Borrow`/`Value` 接收者、接口 `by` 委托链（`site.delegation()`）与 `StaticSelf`
-默认方法特化（含条件 `Value` 接收者交付与析构）、无状态 `object` 单例、`Map.withValue`（`ROp::MapWithValue`）、内联 `Inout` 接收者（`value class` 与 `enum class` 的 `inout fun`、`InlineFieldReplace` 及调用后写回）、一级非泛型 `class` 字段 `replace(&holder.field, value)`（`HeapFieldExchange`）以及任意 Copyable `storage_type` 的 `Inout` 参数与 `&local` 实参。
+默认方法特化（含条件 `Value` 接收者交付与析构）、无状态 `object` 单例、`Map.withValue`（`ROp::MapWithValue`）、内联 `Inout` 接收者（`value class` 与 `enum class` 的 `inout fun`、`InlineFieldReplace` 及调用后写回）、一级非泛型 `class` 字段 `replace(&holder.field, value)`（`HeapFieldExchange`）以及任意 Copyable `storage_type` 的 `Inout` 参数与 `&local` 实参。默认分流边界修复与旧路径退休（SPEC-0381）：按求值顺序与参数槽位映射正确支持命名实参乱序求值；`snapshot_binding_if_name` 仅对 Copyable 绑定生成快照，避免 MoveOnly 绑定残留槽位导致 InvalidSsa；短路逻辑运算（`&&`/`||`）按分支隔离 `self.dead` 与合流生命周期；一级字段 `replace(&holder.field, rhs)` 在求值 RHS 期间将字段独占借用纳入 `pending_call_loans`，完整支持 RHS 内提前退出（`return`/`break`/`continue`）；删除旧路径模块 `field_replace.rs` 与 `enum_type_test.rs`（共 705 行），并在 `unit_lower.rs` 与 `ownership_primitive.rs` 收敛为显式 `UnsupportedNode` 边界拒绝。
 
 ## inline nullable 布局
 

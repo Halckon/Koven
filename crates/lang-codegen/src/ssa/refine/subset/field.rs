@@ -74,7 +74,8 @@ impl Checker<'_, '_> {
         }
         self.migrated |= self.class_has_deinit(declared);
         let supported =
-            (self.unit(declared) || self.storage_type(declared)) && self.expression(initializer);
+            (self.unit(declared) || self.storage_type(declared) || self.nothing(declared))
+                && self.expression(initializer);
         self.known.insert(symbol);
         supported
     }

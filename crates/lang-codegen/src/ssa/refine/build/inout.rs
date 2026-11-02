@@ -157,7 +157,10 @@ impl Builder<'_, '_> {
         let value_ty = self.c(primitive.value_type());
         let target = self.ssa_type(value_ty, span)?;
         let copyable = !self.move_only(value_ty);
-        if self.inputs.owned.field_replacement(id).is_some() {
+        if primitive.kind() == lang_frontend::type_checking::OwnershipPrimitiveKind::Replace
+            && (self.inputs.owned.field_replacement(id).is_some()
+                || self.is_field_replace(arguments[0].value))
+        {
             return self.field_replace_primitive(id, &arguments, value_ty, target, copyable, span);
         }
         let modes = match primitive.kind() {
@@ -375,5 +378,19 @@ impl Builder<'_, '_> {
         } else {
             super::Lowered::Value(old_slot)
         })
+    }
+
+    fn is_field_replace(&self, arg0: ExpressionId) -> bool {
+        let mut projected = arg0;
+        while let Ok((Expression::Group { expression: inner }, _)) = self.node(projected) {
+            projected = inner;
+        }
+        self.inputs
+            .typed
+            .aggregate_projection(self.unit(projected))
+            .is_some_and(|projection| {
+                projection.kind()
+                    == lang_frontend::type_checking::UnitAggregateProjectionKind::Field
+            })
     }
 }

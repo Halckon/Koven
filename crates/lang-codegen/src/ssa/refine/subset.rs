@@ -299,6 +299,13 @@ impl Checker<'_, '_> {
         )
     }
 
+    fn nothing(&self, ty: UnitTypeId) -> bool {
+        matches!(
+            self.kind(ty),
+            Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
+        )
+    }
+
     fn scalar(&self, ty: UnitTypeId) -> bool {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if *b == BuiltinType::Boolean || integer(*b))
     }
@@ -474,7 +481,7 @@ impl Checker<'_, '_> {
             return self.storage_type(ty) && self.constant_materialization(expression);
         }
         if self.inputs.typed.ownership_primitive(id).is_some() {
-            return (self.unit(ty) || self.storage_type(ty))
+            return (self.unit(ty) || self.storage_type(ty) || self.nothing(ty))
                 && self.ownership_primitive(expression);
         }
         if self.has_container_fact(expression) {

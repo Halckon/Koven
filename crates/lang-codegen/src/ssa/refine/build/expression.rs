@@ -906,7 +906,9 @@ impl Builder<'_, '_> {
         }
         if let (Expression::Name, span) = self.node(target)?
             && let Ok(symbol) = self.reference(span)
-            && self.symbol_type(symbol).is_some_and(|ty| !self.move_only(ty))
+            && self
+                .symbol_type(symbol)
+                .is_some_and(|ty| !self.move_only(ty))
             && self.bindings.get(&symbol).copied() == Some(slot)
         {
             let snapshot = self.body.slot(self.body.slots[slot.0]);
