@@ -8,6 +8,9 @@ use crate::{
 
 use super::OwnershipCheckingError;
 
+mod call;
+pub(crate) use call::borrow_result_call;
+
 mod source;
 pub(crate) use source::borrow_return_source;
 

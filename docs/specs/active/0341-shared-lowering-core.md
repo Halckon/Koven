@@ -1100,7 +1100,8 @@ D10/SPEC-0341/E2 继续 in-progress。
 
 ## 58. 所有权语法规则共享与成功清理合同（2026-11-02）
 
-基于 main `f824daeb` 的本地候选，收敛 frontend 重复规则并补成功清理合同；不触 E3，
+本地准备基线为 `f824daeb`，#278 发布时对齐 `2370718c`，15 个文件与该基线变化无交集。
+本批收敛 frontend 重复规则并补成功清理合同；不触 E3，
 不计作旧消费者退休。
 
 - 元素索引身份仅共享整数字面量、Group、正负号解释；source-qualified 准入、place
@@ -1119,3 +1120,18 @@ D10/SPEC-0341/E2 继续 in-progress。
   不为补测试扩大其准入或修改执行语义。
 - 未运行本地 Cargo/build/test/Clippy；静态检查不替代精确头官方 CI。旧原件删除另待
   等价覆盖与实际验收证据，D10/E2 保持 in-progress。
+
+## 59. requireValue 成功消费者退休与借用调用寻址共享（2026-11-02）
+
+基于 #278 合后的 `6f7dedd`，本地候选只推进已具备等价覆盖的 frontend 切片。
+
+- `ownership_map_require` 两个旧成功测试的源码原件已由 `loan_end_unit` 保留：四种
+  MutableMap value 与 readonly Map，均走 MemoryDocument/Rooted。新的合同覆盖旧
+  Receiver marker、单结果 binding、真实来源 loan 和无诊断，并额外检查实际结束点与 owner 交付。
+- #278 精确头 PR CI `41414146989` 已在双平台实际通过这些合同；此次退休旧 Single helper
+  的 `resolve_names`、`check_types`、`check_ownership` 各一个静态调用点（各五次运行调用）。
+  保留所有拒绝测试，不将测试总数下降误写为行为覆盖下降。
+- `borrow_result_call` 两端重复的 Group-only 调用寻址共用私有函数，typed 来源资格仍由
+  原 Checker 提供；AST 查找失败仍返回 None，不穿透其他表达式、不扩大任何借用准入。
+- `withValue` 保持当前语义与原 witness；Single owner-table、多层索引和 inout 未等价合同不退休。
+- 本候选仅完成静态核验，未运行本地 Cargo/build/test/Clippy；#278 证据不冒充新头 CI。
