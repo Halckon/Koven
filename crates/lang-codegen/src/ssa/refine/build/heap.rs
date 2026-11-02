@@ -259,7 +259,8 @@ impl Builder<'_, '_> {
     }
 
     /// `operand!!`: one evaluation, a null edge that aborts and a non-null edge that takes
-    /// the inner owner, consuming the operand.
+    /// the inner owner (or `MapResultUnwrap` for Copyable `$map.result.tX`), consuming a
+    /// MoveOnly operand.
     pub(super) fn non_null_assertion(
         &mut self,
         expression: ExpressionId,
@@ -278,7 +279,10 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         if plan.descriptor() != &descriptor
             || descriptor.operand().source_unit() != self.inputs.source_unit
-            || plan.non_null_transfer() != NonNullAssertionTransferKind::Consume
+            || !matches!(
+                plan.non_null_transfer(),
+                NonNullAssertionTransferKind::Consume | NonNullAssertionTransferKind::Copy
+            )
             || !matches!(
                 self.inputs.typed.types().get(self.c(descriptor.nullable_type())),
                 Some(UnitTypeKind::Nullable(inner)) if *inner == self.c(descriptor.inner_type())
@@ -292,18 +296,32 @@ impl Builder<'_, '_> {
             Lowered::Diverged => return Ok(Lowered::Diverged),
             Lowered::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
         };
+        let nullable_ssa = self.ssa_type(self.c(descriptor.nullable_type()), span)?;
+        let inner = self.ssa_type(self.c(descriptor.inner_type()), span)?;
+        if plan.non_null_transfer() == NonNullAssertionTransferKind::Copy
+            && self.types.map_results.contains_key(&nullable_ssa)
+        {
+            let value = self.value(
+                ROp::MapResultUnwrap { result: owner },
+                EntityType::Value(inner),
+                span,
+            )?;
+            self.drops(UnitDropPoint::AfterExpression(self.unit(operand)))?;
+            return Ok(Lowered::Value(value));
+        }
         self.register_temporary(operand, owner)?;
         let mut root = operand;
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
         }
         let (payload, operand_span) = self.node(root)?;
-        if let Expression::Name = payload {
+        if plan.non_null_transfer() == NonNullAssertionTransferKind::Consume
+            && let Expression::Name = payload
+        {
             // The owner is consumed: no proof view of it may stay live.
             let symbol = self.reference(operand_span)?;
             self.end_views_of(symbol, span)?;
         }
-        let inner = self.ssa_type(self.c(descriptor.inner_type()), span)?;
         let null_block = self.body.block();
         let non_null_block = self.body.block();
         let view = self.body.slot(EntityType::Loan {
@@ -327,7 +345,9 @@ impl Builder<'_, '_> {
             EntityType::Value(inner),
             span,
         )?;
-        self.deliver(operand);
+        if plan.non_null_transfer() == NonNullAssertionTransferKind::Consume {
+            self.deliver(operand);
+        }
         self.drops(UnitDropPoint::AfterExpression(self.unit(operand)))?;
         Ok(Lowered::Value(value))
     }

@@ -175,6 +175,7 @@ impl Builder<'_, '_> {
         };
         let mut roots = Vec::with_capacity(2);
         let mut replacement = None;
+        let is_unit = self.is_unit(value_ty);
         for (index, argument) in arguments.iter().enumerate() {
             if modes[index] == lang_frontend::type_checking::ParameterMode::Inout {
                 let symbol = self.direct_place_symbol(argument.value, argument.span)?;
@@ -189,13 +190,24 @@ impl Builder<'_, '_> {
                 let begin_span = fact.begin_span();
                 self.end_views_of(symbol, begin_span)?;
                 self.narrowed.remove(&symbol);
-                let binding = *self
-                    .bindings
-                    .get(&symbol)
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
-                if copyable {
-                    self.push(ROp::Copy { source: binding }, vec![binding], argument.span)?;
-                }
+                let binding = if is_unit {
+                    let b = self.value(
+                        ROp::Constant(crate::ssa::model::ScalarConstant::Unit),
+                        EntityType::Value(target),
+                        argument.span,
+                    )?;
+                    self.push(ROp::Copy { source: b }, vec![b], argument.span)?;
+                    b
+                } else {
+                    let b = *self
+                        .bindings
+                        .get(&symbol)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
+                    if copyable {
+                        self.push(ROp::Copy { source: b }, vec![b], argument.span)?;
+                    }
+                    b
+                };
                 let place = self.value(
                     ROp::RootPlace { owner: binding },
                     EntityType::Place(target),
@@ -212,13 +224,27 @@ impl Builder<'_, '_> {
                     },
                     begin_span,
                 )?;
+                self.pending_call_loans.push(loan);
                 roots.push((symbol, binding, loan));
             } else {
-                let Some(value) = self.required(argument.value)? else {
-                    return Ok(super::Lowered::Diverged);
+                let value = if is_unit {
+                    match self.expression(argument.value)? {
+                        super::Lowered::Diverged => return Ok(super::Lowered::Diverged),
+                        super::Lowered::Unit => self.value(
+                            ROp::Constant(crate::ssa::model::ScalarConstant::Unit),
+                            EntityType::Value(target),
+                            argument.span,
+                        )?,
+                        super::Lowered::Value(slot) => slot,
+                    }
+                } else {
+                    let Some(value) = self.required(argument.value)? else {
+                        return Ok(super::Lowered::Diverged);
+                    };
+                    let value = self.adapt(value, argument.value, value_ty)?;
+                    self.deliver(argument.value);
+                    value
                 };
-                let value = self.adapt(value, argument.value, value_ty)?;
-                self.deliver(argument.value);
                 let value = if copyable {
                     self.value(
                         ROp::Copy { source: value },
@@ -230,6 +256,9 @@ impl Builder<'_, '_> {
                 };
                 replacement = Some(value);
             }
+        }
+        for (_, _, loan) in &roots {
+            self.pending_call_loans.retain(|&active| active != *loan);
         }
         let result = match (primitive.kind(), roots.as_slice(), replacement) {
             (
@@ -247,7 +276,11 @@ impl Builder<'_, '_> {
                     vec![*binding, old_slot],
                     span,
                 )?;
-                super::Lowered::Value(old_slot)
+                if is_unit {
+                    super::Lowered::Unit
+                } else {
+                    super::Lowered::Value(old_slot)
+                }
             }
             (
                 lang_frontend::type_checking::OwnershipPrimitiveKind::Swap,

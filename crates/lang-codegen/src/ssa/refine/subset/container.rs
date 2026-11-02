@@ -46,22 +46,6 @@ impl Checker<'_, '_> {
         self.storage_type_seen(*element, active).then_some(*element)
     }
 
-    /// A concrete `Map<K, V>` or `MutableMap<K, V>` with scalar or `String` keys and values.
-    pub(super) fn map_kv(&self, ty: UnitTypeId) -> Option<(UnitTypeId, UnitTypeId)> {
-        let Some(UnitTypeKind::Intrinsic {
-            constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
-            arguments,
-        }) = self.kind(ty)
-        else {
-            return None;
-        };
-        let [key, value] = arguments.as_slice() else {
-            return None;
-        };
-        ((self.scalar(*key) || self.string(*key)) && (self.scalar(*value) || self.string(*value)))
-            .then_some((*key, *value))
-    }
-
     /// Whether any sequential-container or map typed fact claims `expression`.
     pub(super) fn has_container_fact(&self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
@@ -75,14 +59,7 @@ impl Checker<'_, '_> {
             || typed.container_remove_first(id).is_some()
             || typed.container_remove_last(id).is_some()
             || typed.container_insert_at(id).is_some()
-            || typed.map_construction(id).is_some()
-            || typed.map_size(id).is_some()
-            || typed.map_contains(id).is_some()
-            || typed.map_put(id).is_some()
-            || typed.map_consume(id).is_some()
-            || typed.map_get(id).is_some()
-            || typed.map_remove(id).is_some()
-            || typed.map_with_value(id).is_some()
+            || self.has_map_fact(expression)
     }
 
     pub(super) fn container_operation(&mut self, expression: ExpressionId) -> bool {
@@ -115,175 +92,7 @@ impl Checker<'_, '_> {
         if typed.container_insert_at(id).is_some() {
             return self.container_insert_at(expression);
         }
-        if typed.map_construction(id).is_some() {
-            return self.map_construction(expression);
-        }
-        if typed.map_size(id).is_some() {
-            return self.map_size(expression);
-        }
-        if typed.map_contains(id).is_some() {
-            return self.map_contains(expression);
-        }
-        if typed.map_put(id).is_some() {
-            return self.map_put(expression);
-        }
-        if typed.map_with_value(id).is_some() {
-            return self.map_with_value(expression);
-        }
-        false
-    }
-
-    fn map_construction(&mut self, expression: ExpressionId) -> bool {
-        let id = self.id(expression);
-        let Some(descriptor) = self.inputs.typed.map_construction(id) else {
-            return false;
-        };
-        let map_ty = self.c(descriptor.map_type());
-        let Some((key_ty, value_ty)) = self.map_kv(map_ty) else {
-            return false;
-        };
-        let ok = descriptor.expression() == id
-            && self.expression_type(expression) == Some(map_ty)
-            && self.c(descriptor.key_type()) == key_ty
-            && self.c(descriptor.value_type()) == value_ty;
-        self.migrated |= ok;
-        ok
-    }
-
-    fn map_size(&mut self, expression: ExpressionId) -> bool {
-        let id = self.id(expression);
-        let Some(descriptor) = self.inputs.typed.map_size(id) else {
-            return false;
-        };
-        let map_ty = self.c(descriptor.map_type());
-        let ok = descriptor.expression() == id
-            && descriptor.receiver().source_unit() == self.inputs.source_unit
-            && self.map_kv(map_ty).is_some()
-            && self.expression_type(expression).is_some_and(|ty| {
-                matches!(self.kind(ty), Some(UnitTypeKind::Builtin(BuiltinType::Int)))
-            })
-            && self
-                .named_container_owner(descriptor.receiver().expression(), map_ty, true)
-                .is_some();
-        self.migrated |= ok;
-        ok
-    }
-
-    fn map_contains(&mut self, expression: ExpressionId) -> bool {
-        let id = self.id(expression);
-        let Some(descriptor) = self.inputs.typed.map_contains(id) else {
-            return false;
-        };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
-        let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
-            return false;
-        };
-        let Some((key_ty, _)) = self.map_kv(map_ty) else {
-            return false;
-        };
-        if descriptor.expression() != id
-            || descriptor.receiver().source_unit() != self.inputs.source_unit
-            || descriptor.key().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
-            || self.c(descriptor.key_type()) != key_ty
-            || self
-                .named_container_owner(descriptor.receiver().expression(), map_ty, true)
-                .is_none()
-        {
-            return false;
-        }
-        let key = descriptor.key().expression();
-        let ok = self.expression_type(key) == Some(key_ty)
-            && (self.borrowed_string_name(key) || self.expression(key));
-        self.migrated |= ok;
-        ok
-    }
-
-    fn map_put(&mut self, expression: ExpressionId) -> bool {
-        let id = self.id(expression);
-        let Some(descriptor) = self.inputs.typed.map_put(id) else {
-            return false;
-        };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
-        let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
-            return false;
-        };
-        let Some((key_ty, value_ty)) = self.map_kv(map_ty) else {
-            return false;
-        };
-        if descriptor.expression() != id
-            || descriptor.receiver().source_unit() != self.inputs.source_unit
-            || descriptor.key().source_unit() != self.inputs.source_unit
-            || descriptor.value().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
-            || self.c(descriptor.key_type()) != key_ty
-            || self.c(descriptor.value_type()) != value_ty
-            || !matches!(
-                self.kind(map_ty),
-                Some(UnitTypeKind::Intrinsic {
-                    constructor: IntrinsicTypeConstructor::MutableMap,
-                    ..
-                })
-            )
-            || self
-                .named_container_owner(descriptor.receiver().expression(), map_ty, false)
-                .is_none()
-        {
-            return false;
-        }
-        let key = descriptor.key().expression();
-        let value = descriptor.value().expression();
-        let ok = self.expression_type(key) == Some(key_ty)
-            && self.expression(key)
-            && self.adaptable_element(value, value_ty)
-            && self.expression(value);
-        self.migrated |= ok;
-        ok
-    }
-
-    fn map_with_value(&mut self, expression: ExpressionId) -> bool {
-        let id = self.id(expression);
-        let Some(descriptor) = self.inputs.typed.map_with_value(id).copied() else {
-            return false;
-        };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
-        let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
-            return false;
-        };
-        let Some((key_ty, _)) = self.map_kv(map_ty) else {
-            return false;
-        };
-        if descriptor.expression() != id
-            || descriptor.receiver().source_unit() != self.inputs.source_unit
-            || descriptor.key().source_unit() != self.inputs.source_unit
-            || descriptor.action().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
-            || self.c(descriptor.key_type()) != key_ty
-            || !self.expression_type(expression).is_some_and(|ty| {
-                matches!(
-                    self.kind(ty),
-                    Some(UnitTypeKind::Builtin(BuiltinType::Boolean))
-                )
-            })
-            || self
-                .named_container_owner(descriptor.receiver().expression(), map_ty, true)
-                .is_none()
-        {
-            return false;
-        }
-        let key = descriptor.key().expression();
-        let action = descriptor.action().expression();
-        let ok = self.expression_type(key) == Some(key_ty)
-            && (self.borrowed_string_name(key) || self.expression(key))
-            && self.runtime_initializer(action);
-        self.migrated |= ok;
-        ok
+        self.map_operation(expression)
     }
 
     fn container_construction(&mut self, expression: ExpressionId) -> bool {
@@ -363,7 +172,7 @@ impl Checker<'_, '_> {
         ok
     }
 
-    fn runtime_initializer(&mut self, value: ExpressionId) -> bool {
+    pub(super) fn runtime_initializer(&mut self, value: ExpressionId) -> bool {
         let root = self.ungrouped(value);
         let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
             return false;
@@ -718,7 +527,7 @@ impl Checker<'_, '_> {
                 .is_some()
     }
 
-    fn named_container_owner(
+    pub(super) fn named_container_owner(
         &self,
         expression: ExpressionId,
         container_ty: UnitTypeId,
@@ -764,7 +573,7 @@ impl Checker<'_, '_> {
             })
     }
 
-    fn adaptable_element(&self, value: ExpressionId, expected: UnitTypeId) -> bool {
+    pub(super) fn adaptable_element(&self, value: ExpressionId, expected: UnitTypeId) -> bool {
         self.expression_type(value).is_some_and(|actual| {
             actual == expected
                 || matches!(

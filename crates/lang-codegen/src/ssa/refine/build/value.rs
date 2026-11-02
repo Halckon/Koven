@@ -154,7 +154,18 @@ impl Builder<'_, '_> {
                 self.inputs.receiver.map(|receiver| receiver.ty)
             }
             UnitAggregateProjectionReceiver::Expression(receiver) => {
-                self.expression_type_of(receiver)
+                if receiver.source_unit() != self.inputs.source_unit {
+                    return false;
+                }
+                let mut inner = receiver.expression();
+                while let Ok((Expression::Group { expression }, _)) = self.node(inner) {
+                    inner = expression;
+                }
+                self.inputs
+                    .typed
+                    .non_null_use(self.unit(inner))
+                    .map(|fact| self.c(fact.narrowed_type()))
+                    .or_else(|| self.expression_type_of(receiver))
             }
         };
         owner.is_some_and(|owner| self.is_value_class(owner))
@@ -194,7 +205,10 @@ impl Builder<'_, '_> {
                 while let (Expression::Group { expression: inner }, _) = self.node(receiver)? {
                     receiver = inner;
                 }
-                let owner_type = self.expression_type(receiver)?;
+                let owner_type = match self.inputs.typed.non_null_use(self.unit(receiver)) {
+                    Some(fact) => self.c(fact.narrowed_type()),
+                    None => self.expression_type(receiver)?,
+                };
                 let (payload, receiver_span) = self.node(receiver)?;
                 let owner = match payload {
                     Expression::This => self

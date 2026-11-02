@@ -373,8 +373,9 @@ fn map_cross_function_routing_is_isolated() {
         "p/helper.ko",
         "package p\n\
          fun unmigrated_lookup(m: Map<String, Int>): Int {\n\
-             val v = m.get(\"k\")\n\
-             return if (v != null) v else 0\n\
+             var total = 0\n\
+             for ((k, v) in m) { total = total + v }\n\
+             return total\n\
          }",
     );
     let (main_id, main_file) = parsed(
@@ -412,7 +413,7 @@ fn map_cross_function_routing_is_isolated() {
             entry,
         )
     });
-    result.expect("inout and map functions succeed alongside unmigrated map.get function");
+    result.expect("inout and map functions succeed alongside unmigrated map iteration function");
     for function in ["koven.p.main.d", "koven.p.bump_with_map.d"] {
         assert!(
             routed.iter().any(|name| name.starts_with(function)),
@@ -625,6 +626,105 @@ fn deinit_nested_fields_box_payloads_and_move_receivers_lower_in_refine() {
         run(source),
         (
             "map-val\nL1\nold-field\nnew-field\ndeinit-nested-box-ok\nL1\nL2\nL2\nL1\n".to_owned(),
+            Some(0)
+        )
+    );
+}
+
+#[test]
+fn map_ops_general_values_and_unit_root_primitives_lower_in_refine() {
+    let source = r#"class Tracked(val tag: String, val code: Int) {
+        deinit() {
+            println(this.tag)
+        }
+    }
+    value class Score(val pts: Int)
+    fun make_unit(): Unit {
+        println("unit-rhs")
+    }
+    fun quiet_unit(): Unit {}
+    fun unit_primitives(early: Boolean): Int {
+        var left = quiet_unit()
+        var right = quiet_unit()
+        val old_u = replace(&left, make_unit())
+        swap(&left, &right)
+        val prev = replace(&left, if (early) { return 77 } else { quiet_unit() })
+        old_u
+        prev
+        return 88
+    }
+    fun inspect_readonly(m: Map<String, Tracked>): Int {
+        val has_b = m.withValue("b", { item -> println(item.tag) })
+        return if (has_b) m.size else 0
+    }
+    fun main(): Unit {
+        var scores = mutableMapOf<String, Score>()
+        scores["first"] = Score(10)
+        scores.put("second", Score(20))
+        val got_first = scores.get("first")
+        val got_missing = scores["missing"]
+        val first_ok = got_first != null && got_first.pts == 10
+        val missing_ok = got_missing == null
+        val removed_score = scores.remove("first")
+        val rem_present = ((removed_score)) != null
+        val rem_ok = rem_present && removed_score != null && removed_score.pts == 10
+
+        var nums = mutableMapOf<String, Int>()
+        nums["k"] = 42
+        val eq_ok = nums.get("k") == 42 && nums["none"] == null
+
+        var tracked = mutableMapOf<String, Tracked>()
+        tracked["a"] = Tracked("drop-a1", 1)
+        tracked["a"] = Tracked("drop-a2", 2)
+        tracked.put("b", Tracked("drop-b", 3))
+        val removed_a = tracked.remove("a")
+        val removed_none = tracked.remove("none")
+        val a_code = if (removed_a != null) removed_a.code else 0
+        val none_ok = removed_none == null
+        val frozen = tracked.consume()
+        val ro_count = inspect_readonly(frozen)
+
+        val u1 = unit_primitives(true)
+        val u2 = unit_primitives(false)
+        if (first_ok && missing_ok && rem_ok && eq_ok && a_code == 2 && none_ok && ro_count == 1 && u1 == 77 && u2 == 88) {
+            println("map-unit-ops-ok")
+        }
+    }"#;
+    let (_, routed) = super::super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("map ops, general map values, and unit root primitives lower in ssa::refine")
+    });
+    for function in [
+        "koven.p.main.d",
+        "koven.p.Tracked.deinit.d",
+        "koven.p.unit_primitives.d",
+        "koven.p.inspect_readonly.d",
+    ] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(
+        run(source),
+        (
+            "drop-a1\ndrop-b\nunit-rhs\nunit-rhs\nmap-unit-ops-ok\ndrop-b\ndrop-a2\n".to_owned(),
             Some(0)
         )
     );

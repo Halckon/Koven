@@ -29,6 +29,7 @@ subgraph Gactive["现行 active"]
   S0379["S0379<br/>MoveOnly 局部可变重赋值与 MoveOnly 枚举 when 迁入所有权细化层"]
   S0380["S0380<br/>deinit 析构体、多层字段借用、接口委托、无状态 object 与 Map.withValue 迁入所有权细化层"]
   S0381["S0381<br/>默认分流边界修复与旧路径退休"]
+  S0382["S0382<br/>Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -77,6 +78,7 @@ ARCH --> S0341
 | SPEC-0379 | active | [0379-refine-reassignment-and-move-enum-when.md](active/0379-refine-reassignment-and-move-enum-when.md) |
 | SPEC-0380 | active | [0380-refine-deinit-nested-fields-and-box-payloads.md](active/0380-refine-deinit-nested-fields-and-box-payloads.md) |
 | SPEC-0381 | active | [0381-refine-default-routing-and-legacy-retirement.md](active/0381-refine-default-routing-and-legacy-retirement.md) |
+| SPEC-0382 | active | [0382-refine-map-ops-and-primitive-retirement.md](active/0382-refine-map-ops-and-primitive-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

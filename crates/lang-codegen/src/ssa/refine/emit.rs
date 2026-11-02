@@ -639,6 +639,10 @@ impl Emitter<'_> {
             ROp::MapConstruct { map_type } => Operation::MapConstruct {
                 map_type: *map_type,
             },
+            ROp::MapConsume { owner, map_type } => Operation::MapConsume {
+                owner: self.value(*owner, span)?,
+                map_type: *map_type,
+            },
             ROp::MapSize { owner } => Operation::MapSize {
                 owner: self.get(*owner, span)?,
             },
@@ -646,10 +650,21 @@ impl Emitter<'_> {
                 owner: self.get(*owner, span)?,
                 key: self.get(*key, span)?,
             },
+            ROp::MapGet { owner, key } => Operation::MapGet {
+                owner: self.get(*owner, span)?,
+                key: self.get(*key, span)?,
+            },
+            ROp::MapResultUnwrap { result } => Operation::MapResultUnwrap {
+                result: self.value(*result, span)?,
+            },
             ROp::MapPut { owner, key, value } => Operation::MapPut {
                 owner: self.value(*owner, span)?,
                 key: self.value(*key, span)?,
                 value: self.value(*value, span)?,
+            },
+            ROp::MapRemove { owner, key } => Operation::MapRemove {
+                owner: self.value(*owner, span)?,
+                key: self.get(*key, span)?,
             },
             ROp::MapWithValue {
                 source,

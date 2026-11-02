@@ -105,6 +105,9 @@ fn nullable_functions_inside_the_subset_are_routed() {
          fun f(): Int = Resource().relay()",
         "class Holder(var text: String, val tag: Int)\n\
          fun f(): String { val h = Holder(\"old\", 7); return replace(&h.text, \"new\") }",
+        "fun f(m: Map<String, Int>): Int { val v = m.get(\"k\"); return if (v != null) v else 0 }",
+        "fun f(): Int { var m = mutableMapOf<String, String>(); m[\"k\"] = \"v\"; val r = m.remove(\"k\"); val ro = m.consume(); return ro.size }",
+        "fun make(): Unit {}\nfun f(): Unit { var a = make(); var b = make(); val old = replace(&a, make()); swap(&a, &b); old }",
     ] {
         let (result, routed) = route(source);
         assert!(routed, "{source}");

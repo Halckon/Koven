@@ -208,15 +208,54 @@ impl Builder<'_, '_> {
             let drops_owner = operand_drops.iter().any(|(_, target, _)| {
                 *target == lang_frontend::ownership_checking::UnitDropTarget::Named(fact.symbol())
             });
-            let Some(UnitTypeKind::Nullable(inner)) =
-                self.inputs.typed.types().get(self.c(fact.nullable_type()))
+            let nullable_ty = self.c(fact.nullable_type());
+            let nullable_ssa = self.ssa_type(nullable_ty, span)?;
+            let Some(UnitTypeKind::Nullable(inner)) = self.inputs.typed.types().get(nullable_ty)
             else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
             let inner = *inner;
             let inner_ssa = self.ssa_type(inner, span)?;
+            let (on_non_null, on_null) = if fact.non_null_when_true() {
+                (when_true, when_false)
+            } else {
+                (when_false, when_true)
+            };
             let null_block = self.body.block();
             let non_null_block = self.body.block();
+            if self.types.map_results.contains_key(&nullable_ssa) {
+                let bool_ty = self.ssa_type(self.expression_type(expression)?, span)?;
+                let present = self.value(
+                    ROp::AggregateProject {
+                        aggregate: owner,
+                        field: 0,
+                    },
+                    EntityType::Value(bool_ty),
+                    span,
+                )?;
+                self.terminate(
+                    RTerm::Branch {
+                        condition: present,
+                        when_true: non_null_block,
+                        when_false: null_block,
+                    },
+                    span,
+                )?;
+                self.block = Some(non_null_block);
+                let narrowed = self.value(
+                    ROp::MapResultUnwrap { result: owner },
+                    EntityType::Value(inner_ssa),
+                    span,
+                )?;
+                self.narrowed.insert(fact.symbol(), narrowed);
+                self.emit_drops(&operand_drops)?;
+                self.goto(on_non_null, span)?;
+                self.block = Some(null_block);
+                self.emit_drops(&operand_drops)?;
+                self.goto(on_null, span)?;
+                self.finish_drops(&operand_drops);
+                return Ok(());
+            }
             let view = self.body.slot(EntityType::Loan {
                 kind: LoanKind::Shared,
                 target: inner_ssa,
@@ -230,11 +269,6 @@ impl Builder<'_, '_> {
                 },
                 span,
             )?;
-            let (on_non_null, on_null) = if fact.non_null_when_true() {
-                (when_true, when_false)
-            } else {
-                (when_false, when_true)
-            };
             self.block = Some(non_null_block);
             if !self.move_only(inner) {
                 let narrowed = self.value(
@@ -256,9 +290,17 @@ impl Builder<'_, '_> {
                 });
             }
             self.emit_drops(&operand_drops)?;
+            self.entry_dead
+                .entry(on_non_null)
+                .or_default()
+                .extend(self.dead.iter().copied());
             self.goto(on_non_null, span)?;
             self.block = Some(null_block);
             self.emit_drops(&operand_drops)?;
+            self.entry_dead
+                .entry(on_null)
+                .or_default()
+                .extend(self.dead.iter().copied());
             self.goto(on_null, span)?;
             self.finish_drops(&operand_drops);
             return Ok(());

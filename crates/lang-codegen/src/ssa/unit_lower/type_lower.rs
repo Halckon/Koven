@@ -803,23 +803,37 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
     }
 }
 
-/// ADR-0033 inline inners admitted so far (SPEC-0350): Boolean, integers and String.
+/// ADR-0033 inline inners admitted so far (SPEC-0350): Boolean, integers, String, and value classes.
 fn is_inline_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
-    matches!(
-        typed.types().get(ty),
+    match typed.types().get(ty) {
         Some(UnitTypeKind::Builtin(
             BuiltinType::Boolean
-                | BuiltinType::String
-                | BuiltinType::Byte
-                | BuiltinType::Short
-                | BuiltinType::Int
-                | BuiltinType::Long
-                | BuiltinType::UByte
-                | BuiltinType::UShort
-                | BuiltinType::UInt
-                | BuiltinType::ULong
-        ))
-    )
+            | BuiltinType::String
+            | BuiltinType::Byte
+            | BuiltinType::Short
+            | BuiltinType::Int
+            | BuiltinType::Long
+            | BuiltinType::UByte
+            | BuiltinType::UShort
+            | BuiltinType::UInt
+            | BuiltinType::ULong,
+        )) => true,
+        Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) => typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .is_some_and(|nominal| {
+                nominal.kind() == NominalKind::ValueClass
+                    && arguments.len() == nominal.type_parameters().len()
+                    && (nominal.type_parameters().is_empty()
+                        || resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)
+                            .is_ok())
+            }),
+        _ => false,
+    }
 }
 
 /// Storage-recipe support stays pointer-like: inline nullable bodies are lowered only

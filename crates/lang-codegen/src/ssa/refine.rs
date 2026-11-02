@@ -199,6 +199,8 @@ pub(in crate::ssa) struct RefineTypes<'t> {
     pub(in crate::ssa) field_indices: &'t BTreeMap<(UnitTypeId, UnitSymbolId), usize>,
     /// (tagged union type, case value or type symbol) to (variant, payload aggregate).
     pub(in crate::ssa) enum_payloads: &'t BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
+    /// Registered `$map.result.tX` aggregate types mapped to their payload SSA types.
+    pub(in crate::ssa) map_results: &'t BTreeMap<SsaTypeId, SsaTypeId>,
 }
 
 /// Lowers an accepted function body into `function`, whose `entry` block holds

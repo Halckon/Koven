@@ -350,6 +350,11 @@ pub(super) enum ROp {
     MapConstruct {
         map_type: SsaTypeId,
     },
+    /// Consumes a `MutableMap<K, V>` owner into a readonly `Map<K, V>` owner.
+    MapConsume {
+        owner: Slot,
+        map_type: SsaTypeId,
+    },
     /// Reads the entry count of a `Map<K, V>` or `MutableMap<K, V>`.
     MapSize {
         owner: Slot,
@@ -359,11 +364,25 @@ pub(super) enum ROp {
         owner: Slot,
         key: Slot,
     },
+    /// Looks up `key` in `owner`, returning a Copyable `$map.result.tX` value.
+    MapGet {
+        owner: Slot,
+        key: Slot,
+    },
+    /// Extracts the Copyable payload from a `$map.result.tX`, aborting when absent.
+    MapResultUnwrap {
+        result: Slot,
+    },
     /// Consumes `owner`, `key`, and `value`, returning the updated `MutableMap<K, V>`.
     MapPut {
         owner: Slot,
         key: Slot,
         value: Slot,
+    },
+    /// Consumes `owner` and reads `key`, returning `[updated_owner, removed_result]`.
+    MapRemove {
+        owner: Slot,
+        key: Slot,
     },
     /// Invokes `action` with a shared loan of the value mapped to `key`, returning a Boolean.
     MapWithValue {
@@ -434,7 +453,9 @@ impl ROp {
             | Self::ContainerClear { owner: slot }
             | Self::ContainerRemoveFirst { owner: slot }
             | Self::ContainerRemoveLast { owner: slot }
-            | Self::MapSize { owner: slot } => vec![*slot],
+            | Self::MapConsume { owner: slot, .. }
+            | Self::MapSize { owner: slot }
+            | Self::MapResultUnwrap { result: slot } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::Binary { left, right, .. }
             | Self::IntegerBitwise { left, right, .. }
@@ -491,6 +512,14 @@ impl ROp {
                 ..
             }
             | Self::MapContains {
+                owner: left,
+                key: right,
+            }
+            | Self::MapGet {
+                owner: left,
+                key: right,
+            }
+            | Self::MapRemove {
                 owner: left,
                 key: right,
             } => {

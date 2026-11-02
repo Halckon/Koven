@@ -544,6 +544,7 @@ fn lower_unit_impl(
                     heap_payloads: types.heap_payloads(),
                     field_indices: types.field_indices(),
                     enum_payloads: types.enum_payloads(),
+                    map_results: &module.map_results,
                 };
                 crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
                 continue;
@@ -810,6 +811,7 @@ fn lower_unit_impl(
                 heap_payloads: types.heap_payloads(),
                 field_indices: types.field_indices(),
                 enum_payloads: types.enum_payloads(),
+                map_results: &module.map_results,
             };
             crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
             continue;
@@ -886,7 +888,7 @@ fn lower_unit_impl(
         );
     }
     verification.map_err(|_| LoweringError {
-        kind: LoweringErrorKind::InvalidSsa,
+        kind: LoweringErrorKind::InvalidModel,
         span: None,
     })?;
     Ok((program, entry_id))

@@ -8,6 +8,7 @@ mod expression;
 mod field;
 mod heap;
 mod inout;
+mod map;
 mod place;
 mod rc;
 mod receiver;

@@ -37,7 +37,6 @@ mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
 mod ownership;
-mod ownership_primitive;
 mod range;
 mod rc;
 mod receiver;
