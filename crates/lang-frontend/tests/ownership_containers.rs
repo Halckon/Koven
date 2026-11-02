@@ -731,17 +731,14 @@ fn mutable_list_clear_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_clear_rejects_use_after_move() {
-    mutable_unit::check_each(
+    let (_, _, owned) = checked(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun clear_it(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              list.clear()\n\
          }",
-        &["L0131"],
-        |_, _, _, owned| {
-            assert_eq!(codes(owned.diagnostics()), ["L0131"]);
-        },
     );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
 
 #[test]
@@ -785,17 +782,14 @@ fn mutable_list_remove_at_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_remove_at_rejects_use_after_move() {
-    mutable_unit::check_each(
+    let (_, _, owned) = checked(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun remove_it(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              val item = list.removeAt(0)\n\
          }",
-        &["L0131"],
-        |_, _, _, owned| {
-            assert_eq!(codes(owned.diagnostics()), ["L0131"]);
-        },
     );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
 
 #[test]
@@ -839,17 +833,14 @@ fn mutable_list_remove_last_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_remove_last_rejects_use_after_move() {
-    mutable_unit::check_each(
+    let (_, _, owned) = checked(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun remove_tail(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              val item = list.removeLast()\n\
          }",
-        &["L0131"],
-        |_, _, _, owned| {
-            assert_eq!(codes(owned.diagnostics()), ["L0131"]);
-        },
     );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
 
 #[test]
@@ -893,17 +884,14 @@ fn mutable_list_remove_first_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_remove_first_rejects_use_after_move() {
-    mutable_unit::check_each(
+    let (_, _, owned) = checked(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun remove_head(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              val item = list.removeFirst()\n\
          }",
-        &["L0131"],
-        |_, _, _, owned| {
-            assert_eq!(codes(owned.diagnostics()), ["L0131"]);
-        },
     );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
 
 #[test]
@@ -945,15 +933,12 @@ fn mutable_list_insert_at_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_insert_at_rejects_use_after_move() {
-    mutable_unit::check_each(
+    let (_, _, owned) = checked(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun insert_moved(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              list.insertAt(0, 42)\n\
          }",
-        &["L0131"],
-        |_, _, _, owned| {
-            assert_eq!(codes(owned.diagnostics()), ["L0131"]);
-        },
     );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
