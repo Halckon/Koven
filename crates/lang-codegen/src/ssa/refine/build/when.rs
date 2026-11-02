@@ -1,8 +1,11 @@
 //! `when`: alternatives tested in source order; the first match enters its body. A scalar
 //! subject is evaluated once and compared by value or by integer Range membership; a
 //! Copyable enum subject is tested by case.
+use std::collections::BTreeSet;
+
 use lang_frontend::{
     ast::ExpressionId,
+    name_resolution::UnitSymbolId,
     ownership_checking::UnitDropPoint,
     parser::{Expression, WhenCondition, WhenEntry},
     source::Span,
@@ -15,6 +18,14 @@ use crate::ssa::{
     model::{ComparisonOperator, EntityType, SsaTypeId},
     refine::body::{BlockRef, RAbort, ROp, RTerm, Slot},
 };
+
+#[derive(Clone, Debug)]
+pub(super) struct PredecessorBranch {
+    pub(super) block: BlockRef,
+    pub(super) views: Vec<View>,
+    pub(super) dead: BTreeSet<UnitSymbolId>,
+    pub(super) this_dead: bool,
+}
 
 #[derive(Clone, Copy)]
 enum WhenSubject {
@@ -150,8 +161,14 @@ impl Builder<'_, '_> {
                     control,
                     branch: index,
                 })?;
+                self.sync_dead();
                 if let Some(cur) = self.block {
-                    predecessors.push((cur, self.active_views.clone()));
+                    predecessors.push(PredecessorBranch {
+                        block: cur,
+                        views: self.active_views.clone(),
+                        dead: self.dead.clone(),
+                        this_dead: self.this_dead,
+                    });
                 }
             }
             self.block = unmatched;
@@ -180,8 +197,14 @@ impl Builder<'_, '_> {
                 control,
                 branch: entries.len(),
             })?;
+            self.sync_dead();
             if let Some(cur) = self.block {
-                predecessors.push((cur, self.active_views.clone()));
+                predecessors.push(PredecessorBranch {
+                    block: cur,
+                    views: self.active_views.clone(),
+                    dead: self.dead.clone(),
+                    this_dead: self.this_dead,
+                });
             }
         }
         self.pending_call_loans = outer_pending_loans;
@@ -276,8 +299,14 @@ impl Builder<'_, '_> {
                 control,
                 branch: index,
             })?;
+            self.sync_dead();
             if let Some(cur) = self.block {
-                predecessors.push((cur, self.active_views.clone()));
+                predecessors.push(PredecessorBranch {
+                    block: cur,
+                    views: self.active_views.clone(),
+                    dead: self.dead.clone(),
+                    this_dead: self.this_dead,
+                });
             }
         }
         self.pending_call_loans = outer_pending_loans;
@@ -574,7 +603,7 @@ impl Builder<'_, '_> {
     /// Non-common views in any predecessor end on that predecessor's edge before jumping.
     pub(super) fn join_views(
         &mut self,
-        predecessors: Vec<(BlockRef, Vec<View>)>,
+        predecessors: Vec<PredecessorBranch>,
         join: BlockRef,
         span: Span,
     ) -> Result<bool, LoweringError> {
@@ -583,19 +612,22 @@ impl Builder<'_, '_> {
             return Ok(false);
         }
         let mut common = Vec::new();
-        if let Some((_, first_views)) = predecessors.first() {
-            for v in first_views {
+        if let Some(first) = predecessors.first() {
+            for v in &first.views {
                 if predecessors[1..]
                     .iter()
-                    .all(|(_, other)| other.iter().any(|ov| ov.slot == v.slot))
+                    .all(|other| other.views.iter().any(|ov| ov.slot == v.slot))
                 {
                     common.push(*v);
                 }
             }
         }
-        for (block, views) in predecessors {
-            self.block = Some(block);
-            for v in views.iter().rev() {
+        for pred in predecessors {
+            self.block = Some(pred.block);
+            self.dead = pred.dead;
+            self.this_dead = pred.this_dead;
+            self.dead_block = Some(pred.block);
+            for v in pred.views.iter().rev() {
                 if !common.iter().any(|cv| cv.slot == v.slot) {
                     self.push(ROp::BorrowEnd { loan: v.slot }, Vec::new(), span)?;
                 }

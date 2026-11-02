@@ -368,3 +368,242 @@ fn loop_reassignment_without_outer_view_enters_refine_and_preserves_resources() 
     }"#;
     counted(source, 2, b"reassigned_in_loop\n");
 }
+
+#[test]
+fn join_views_named_dead_insert_preserves_resources_without_double_drop() {
+    // Direction A (P1 static candidate): When a MoveOnly local variable is consumed (deliver)
+    // inside one branch leading to dead.insert, the join_views exit snapshot must propagate
+    // this dead fact to the join block so outer scope exits will not double-drop it.
+    let source_true = r#"fun consume(text: String): Unit { println(text) }
+    fun test_branch(flag: Boolean): Unit {
+        val item: String? = "move_me".clone()
+        if (item != null) {
+            if (flag) {
+                consume(item)
+            } else {
+                println("did_not_consume")
+            }
+        }
+    }
+    fun main(): Unit {
+        test_branch(true)
+    }"#;
+    counted(source_true, 1, b"move_me\n");
+
+    let source_false = r#"fun consume(text: String): Unit { println(text) }
+    fun test_branch(flag: Boolean): Unit {
+        val item: String? = "move_me".clone()
+        if (item != null) {
+            if (flag) {
+                consume(item)
+            } else {
+                println("did_not_consume")
+            }
+        }
+    }
+    fun main(): Unit {
+        test_branch(false)
+    }"#;
+    counted(source_false, 1, b"did_not_consume\n");
+}
+
+#[test]
+fn join_views_named_dead_remove_on_reassignment_preserves_live_state() {
+    // Direction B (P1 static candidate): When a local variable is moved and then reassigned
+    // within branches (dead.remove), the join_views exit snapshot must coordinate with dead_block
+    // so the live state of the newly assigned values survives at the join block and is cleanly dropped.
+    let source_true = r#"fun consume(text: String): Unit { println(text) }
+    fun test_reassign(flag: Boolean): Unit {
+        var item: String? = "init_item".clone()
+        if (item != null) {
+            if (flag) {
+                consume(item)
+                item = "then_reassigned".clone()
+            } else {
+                consume(item)
+                item = "else_reassigned".clone()
+            }
+            if (item != null) {
+                println(item)
+            }
+        }
+    }
+    fun main(): Unit {
+        test_reassign(true)
+    }"#;
+    counted(source_true, 2, b"init_item\nthen_reassigned\n");
+
+    let source_false = r#"fun consume(text: String): Unit { println(text) }
+    fun test_reassign(flag: Boolean): Unit {
+        var item: String? = "init_item".clone()
+        if (item != null) {
+            if (flag) {
+                consume(item)
+                item = "then_reassigned".clone()
+            } else {
+                consume(item)
+                item = "else_reassigned".clone()
+            }
+            if (item != null) {
+                println(item)
+            }
+        }
+    }
+    fun main(): Unit {
+        test_reassign(false)
+    }"#;
+    counted(source_false, 2, b"init_item\nelse_reassigned\n");
+}
+
+#[test]
+fn join_views_single_arrival_with_divergent_predecessor_preserves_resources() {
+    // When one branch diverges (early return), join_views receives only a single predecessor.
+    // The exit snapshot must accurately reflect the surviving branch's dead set.
+    let source = r#"fun consume(text: String): Unit { println(text) }
+    fun test_diverge(flag: Boolean): Unit {
+        var item: String? = "diverge_test".clone()
+        if (item != null) {
+            if (flag) {
+                consume(item)
+                return
+            } else {
+                consume(item)
+                item = "surviving_branch".clone()
+            }
+            if (item != null) {
+                println(item)
+            }
+        }
+    }
+    fun main(): Unit {
+        test_diverge(false)
+        test_diverge(true)
+    }"#;
+    counted(source, 3, b"diverge_test\nsurviving_branch\ndiverge_test\n");
+}
+
+#[test]
+fn checked_remainder_by_zero_with_sibling_slot_reassignment() {
+    // Verifies `%` checked remainder divisor dominance in refine lowering.
+    let source = r#"fun test_rem(opt: Int?, flag: Boolean, input: Int): Int {
+        var d = input
+        val result: Int = if (flag) {
+            if (opt != null) {
+                val q = 100 % d
+                q
+            } else {
+                0
+            }
+        } else {
+            d = 50
+            val q = 200 % d
+            q
+        }
+        return result
+    }
+    fun main(): Unit {
+        val normal = test_rem(1, true, 3)
+        if (normal == 1) { println("rem-normal-ok") }
+        val branch_b = test_rem(null, false, 0)
+        if (branch_b == 0) { println("rem-branch-b-ok") }
+        val res = test_rem(1, true, 0)
+        if (res == 0) { println("unreachable") }
+    }"#;
+    let output = crate::native_tests::emit_link_and_run("rem_zero.ko", source, "main");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "rem-normal-ok\nrem-branch-b-ok\n"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: division by zero\n  at "),
+        "{stderr:?}"
+    );
+}
+
+#[test]
+fn checked_arithmetic_overflow_without_divisor_aborts_cleanly() {
+    // Negative control: Add/Multiply overflow aborts do not consume or require a divisor.
+    let source = r#"fun main(): Unit {
+        var x: Int? = 2147483647
+        if (x != null) {
+            val y = x + 1
+            if (y == 0) { println("unreachable") }
+        }
+    }"#;
+    let output = crate::native_tests::emit_link_and_run("add_overflow.ko", source, "main");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: integer overflow in +\n  at "),
+        "{stderr:?}"
+    );
+}
+
+#[test]
+fn checked_multiply_overflow_without_divisor_aborts_cleanly() {
+    let source = r#"fun main(): Unit {
+        var x: Int? = 1000000
+        if (x != null) {
+            val y = x * 1000000
+            if (y == 0) { println("unreachable") }
+        }
+    }"#;
+    let output = crate::native_tests::emit_link_and_run("mul_overflow.ko", source, "main");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: integer overflow in *\n  at "),
+        "{stderr:?}"
+    );
+}
+
+#[test]
+fn named_arguments_evaluation_order_and_slot_mapping() {
+    // Named arguments must evaluate in declaration argument order (side-effects)
+    // while filling target parameter slots by parameter_index.
+    let source = r#"
+    fun trace(tag: String, value: Int): Int {
+        println(tag)
+        return value
+    }
+    fun pair(first: Int, second: Int): Unit {
+        if (first == 1 && second == 2) {
+            println("pair-ok")
+        }
+    }
+    fun main(): Unit {
+        val dummy: String? = "refine_tag".clone()
+        if (dummy != null) {
+            // Evaluation order: second arg evaluated first, then first arg
+            pair(second = trace("eval-second", 2), first = trace("eval-first", 1))
+        }
+    }"#;
+    counted(source, 1, b"eval-second\neval-first\npair-ok\n");
+}
+
+#[test]
+fn logical_short_circuit_dead_isolation_and_early_exit() {
+    // Short-circuit `||` / `&&` must isolate dead state when RHS moves a MoveOnly binding.
+    let source = r#"
+    fun consume(text: String): Boolean {
+        println(text)
+        return true
+    }
+    fun test_short_circuit(dummy: Int?, skip_rhs: Boolean): Unit {
+        if (dummy != null) {
+            val text = "payload".clone()
+            if (skip_rhs || consume(text)) {
+                println("condition-true")
+            }
+        }
+    }
+    fun main(): Unit {
+        var flag: Int? = 1
+        if (flag != null) {
+            test_short_circuit(flag, true)
+            test_short_circuit(flag, false)
+        }
+    }"#;
+    counted(source, 2, b"condition-true\npayload\ncondition-true\n");
+}

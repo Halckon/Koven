@@ -235,3 +235,99 @@ fn outer_non_null_view_with_loop_reassignment_routes_to_legacy() {
     );
     assert!(res.is_ok());
 }
+
+#[test]
+fn sequential_for_temporary_container_scope_has_field_replace_routing_pairs() {
+    // Pair 1: Sequential for with temporary container but NO field replacement stays on unit_lower.
+    let source_no_replace = r#"
+    fun f(): Unit {
+        for (x in arrayOf("a", "b")) {
+            println(x)
+        }
+    }"#;
+    let (res, routed) = route(source_no_replace);
+    assert!(
+        !routed,
+        "temporary container without field replace remains on legacy lowering: {routed}"
+    );
+    assert!(res.is_ok());
+
+    // Pair 2: Scope containing field replacement MUST route to refine (unit_lower retired field_replace).
+    let source_with_replace = r#"
+    class Holder(var text: String)
+    fun f(): Unit {
+        for (x in arrayOf("a", "b")) {
+            println(x)
+        }
+        val h = Holder("init")
+        val old = replace(&h.text, "new")
+        println(old)
+    }"#;
+    let (res, routed) = route(source_with_replace);
+    assert!(
+        routed,
+        "scope with field replace must route to refine: {routed}"
+    );
+    assert!(res.is_ok());
+
+    // Pair 3: Unrelated field replace in sibling function does not pollute f's routing.
+    let source_unrelated = r#"
+    class Holder(var text: String)
+    fun g(): Unit {
+        val h = Holder("init")
+        val old = replace(&h.text, "new")
+        println(old)
+    }
+    fun f(): Unit {
+        for (x in arrayOf("a", "b")) {
+            println(x)
+        }
+    }"#;
+    let (res, routed) = route(source_unrelated);
+    assert!(
+        !routed,
+        "f has no field replace and must stay legacy even if sibling g has replace: {routed}"
+    );
+    assert!(res.is_ok());
+}
+
+#[test]
+fn call_has_field_replace_admission_pairs() {
+    // Direct call with control transfer in argument tree:
+    // When arguments involve field replace, it is admitted to refine.
+    let source_replace_call = r#"
+    class Holder(var a: String, var b: String)
+    fun helper(first: String, second: String): Unit {
+        println(first)
+        println(second)
+    }
+    fun f(): Unit {
+        val h = Holder("1", "2")
+        helper(first = replace(&h.a, "10"), second = replace(&h.b, "20"))
+    }"#;
+    let (res, routed) = route(source_replace_call);
+    assert!(
+        routed,
+        "call argument field replace must route to refine: {routed}"
+    );
+    assert!(res.is_ok());
+}
+
+#[test]
+fn deinit_default_route_equivalent_to_per_family() {
+    // Verifies that resource deinit constructs route to refine under default routing
+    // and lower cleanly with zero leaks.
+    let source = r#"
+    class Resource(val name: String)
+    fun f(own opt: Resource?): Unit {
+        if (opt != null) {
+            println(opt.name)
+        }
+    }"#;
+    let (res, routed) = route(source);
+    assert!(
+        routed,
+        "Resource deinit with nullable parameter routes to refine under default routing"
+    );
+    assert!(res.is_ok());
+}
