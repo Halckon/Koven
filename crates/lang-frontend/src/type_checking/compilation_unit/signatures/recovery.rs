@@ -18,21 +18,40 @@ pub(crate) fn collect_compilation_unit_signatures_recovering(
     unit_names: &CompilationUnitNames,
     environment: &TypeEnvironment,
 ) -> Result<CompilationUnitSignatures, CompilationUnitTypeError> {
+    collect_signatures_with_files(sources, inputs, unit_names, environment)
+        .map(|prepared| prepared.signatures)
+}
+
+/// 同次资格检查产生的签名与 canonical AST 借用；不构造新的源码或分析身份。
+pub(in crate::type_checking::compilation_unit) struct PreparedUnitSignatures<'a> {
+    pub(in crate::type_checking::compilation_unit) signatures: CompilationUnitSignatures,
+    pub(in crate::type_checking::compilation_unit) files: Vec<&'a ParsedFile>,
+}
+
+pub(in crate::type_checking::compilation_unit) fn collect_signatures_with_files<'a>(
+    sources: &'a SourceMap,
+    inputs: &[SourceUnitInput<'a>],
+    unit_names: &'a CompilationUnitNames,
+    environment: &'a TypeEnvironment,
+) -> Result<PreparedUnitSignatures<'a>, CompilationUnitTypeError> {
     let rebuilt = index_compilation_unit(sources, inputs)
         .map_err(|_| CompilationUnitTypeError::MismatchedInputs)?;
     if &rebuilt != unit_names.index() {
         return Err(CompilationUnitTypeError::MismatchedInputs);
     }
+    // 与 index 的 root/path 键排序一致；先保留原 index 错误优先级，再投影借用。
+    let mut ordered_inputs = inputs.to_vec();
+    ordered_inputs.sort_by_key(|input| input.key());
     let parsed = unit_names
         .index()
         .source_units()
         .iter()
-        .map(|source| {
-            inputs
-                .iter()
-                .find(|input| input.source_id() == source.source_id())
-                .map(|input| input.parsed())
-                .ok_or(CompilationUnitTypeError::MismatchedInputs)
+        .zip(ordered_inputs)
+        .map(|(source, input)| {
+            if input.source_id() != source.source_id() {
+                return Err(CompilationUnitTypeError::MismatchedInputs);
+            }
+            Ok(input.parsed())
         })
         .collect::<Result<Vec<_>, _>>()?;
     if unit_names.source_units().len() != parsed.len()
@@ -44,7 +63,13 @@ pub(crate) fn collect_compilation_unit_signatures_recovering(
     {
         return Err(CompilationUnitTypeError::MismatchedNameEnvironment);
     }
-    SignatureCollector::new(sources, parsed, unit_names, environment)?.run()
+    // 只复制 AST 借用向量，collector 消费后原向量继续移交 body；不复制 AST/facts。
+    let signatures =
+        SignatureCollector::new(sources, parsed.clone(), unit_names, environment)?.run()?;
+    Ok(PreparedUnitSignatures {
+        signatures,
+        files: parsed,
+    })
 }
 
 /// Only the parser's actual rejected name permits a declaration without an identity.
@@ -64,3 +89,6 @@ pub(in crate::type_checking::compilation_unit) fn diagnosed_missing_name(
             && primary.end() <= span.end()
     })
 }
+
+#[cfg(test)]
+mod alignment_tests;

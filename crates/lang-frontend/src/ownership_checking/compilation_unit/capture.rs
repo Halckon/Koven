@@ -18,6 +18,7 @@ use crate::{
 
 use super::super::{
     ClosureCaptureEffect, ClosureCaptureMode, OwnershipCheckingError, Transferability,
+    capture_rules::{ancestors, combine, contains, is_descendant},
 };
 
 /// compilation-unit closure 捕获来源的稳定身份。
@@ -430,44 +431,12 @@ fn input_for_source<'parsed>(
         })
 }
 
-fn ancestors(scope: ScopeId, names: &NameResolution) -> impl Iterator<Item = ScopeId> + '_ {
-    std::iter::successors(Some(scope), |scope| {
-        names
-            .scopes()
-            .get(scope.index())
-            .and_then(|scope| scope.parent())
-    })
-}
-
-fn is_descendant(scope: ScopeId, ancestor: ScopeId, names: &NameResolution) -> bool {
-    ancestors(scope, names).any(|scope| scope == ancestor)
-}
-
-fn contains(outer: Span, inner: Span) -> bool {
-    outer.source_id() == inner.source_id()
-        && outer.start() <= inner.start()
-        && inner.end() <= outer.end()
-}
-
 const fn transferability(value: UnitTransferability) -> Transferability {
     match value {
         UnitTransferability::Transferable => Transferability::Transferable,
         UnitTransferability::NotTransferable => Transferability::NotTransferable,
         UnitTransferability::Unknown => Transferability::Unknown,
         UnitTransferability::Error => Transferability::Error,
-    }
-}
-
-const fn combine(left: Transferability, right: Transferability) -> Transferability {
-    match (left, right) {
-        (Transferability::Error, _) | (_, Transferability::Error) => Transferability::Error,
-        (Transferability::Unknown, _) | (_, Transferability::Unknown) => Transferability::Unknown,
-        (Transferability::NotTransferable, _) | (_, Transferability::NotTransferable) => {
-            Transferability::NotTransferable
-        }
-        (Transferability::Transferable, Transferability::Transferable) => {
-            Transferability::Transferable
-        }
     }
 }
 

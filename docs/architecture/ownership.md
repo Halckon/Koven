@@ -125,7 +125,7 @@ drop facts 管理；这不代表 Phase 4 lowering 已接入。
 
 ## Capture、Transferability 与 drop
 
-closure capture 按 lambda identity 和 source binding 发布。普通 closure 借用 capture；`move` closure
+Single/Unit capture 共用私有 scope、同来源 Span 包含与 Transferability 合并规则，保留类型求值和身份适配；按 lambda identity/source binding 发布。普通 closure 借用 capture；`move` closure
 按 Copy/Move 获取 owner。跨线程 effect 检查完整环境的 `Transferability`，不从语法形状猜测。
 
 反向 liveness 产生 source-qualified drop plan，覆盖参数、local、temporary、replaced value、container

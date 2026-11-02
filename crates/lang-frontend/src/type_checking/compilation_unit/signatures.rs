@@ -38,7 +38,7 @@ mod recovery;
 mod text_extension;
 
 pub(crate) use recovery::collect_compilation_unit_signatures_recovering;
-pub(super) use recovery::diagnosed_missing_name;
+pub(super) use recovery::{collect_signatures_with_files, diagnosed_missing_name};
 
 /// 收集 canonical compilation unit 的全部顶层、nominal 与 callable signatures。
 ///

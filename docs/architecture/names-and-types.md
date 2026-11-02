@@ -146,7 +146,7 @@ environment 会在遍历前返回内部错误。
 对应覆盖位于 `compilation_unit_index` 与 `multifile_name_resolution` integration suites。
 
 ## Compilation-unit 类型链
-`type_checking::compilation_unit` 先冻结全 unit 签名图，再检查 body：
+`type_checking::compilation_unit` 保留原身份门，按稳定 root/path 对齐一次 AST 借用供签名与 body 共享；先冻结全 unit 签名图，再检查 body：
 1. 收集 classifier、type parameter、field、variant、top-level/member/companion callable 与常量签名；
 2. 建立 canonical unit type table、能力图和 owner/callable generic 参数环境；
 3. 按稳定 source/declaration 顺序检查 initializer 和 callable body；

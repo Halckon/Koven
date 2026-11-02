@@ -585,6 +585,7 @@ impl BodyChecker<'_> {
 
 #[cfg(test)]
 mod deinit_context_tests {
+    use super::super::collect_signatures_with_files;
     use super::BodyChecker;
     use crate::{
         lexer::lex,
@@ -593,7 +594,7 @@ mod deinit_context_tests {
         },
         parser::parse_file,
         source::SourceMap,
-        type_checking::{collect_compilation_unit_signatures, standard_environments},
+        type_checking::standard_environments,
     };
 
     #[test]
@@ -616,10 +617,15 @@ mod deinit_context_tests {
                 .unwrap()
                 .validate()
                 .unwrap();
-            let signatures =
-                collect_compilation_unit_signatures(&sources, &inputs, &names, &types).unwrap();
-            let mut checker =
-                BodyChecker::new(&sources, &inputs, names.names(), &types, signatures).unwrap();
+            let prepared =
+                collect_signatures_with_files(&sources, &inputs, names.names(), &types).unwrap();
+            let mut checker = BodyChecker::new(
+                &sources,
+                prepared.files,
+                names.names(),
+                &types,
+                prepared.signatures,
+            );
             // Exercise the callable boundary independently of currently unsupported local classifiers.
             checker.loop_depth = 1;
             checker.callable_loop_bases.push(0);
