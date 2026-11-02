@@ -124,8 +124,7 @@ impl UnitExpressionLowerer<'_> {
                     && matches!(loan.target(), UnitLoanTarget::Place(place) if !place.is_root())
             })
         {
-            return self
-                .lower_field_replace_in_frame(primitive, arguments, target, copyable, unit, span);
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let mut roots = Vec::new();
         let mut replacement = None;

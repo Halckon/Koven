@@ -106,9 +106,6 @@ impl Checker<'_, '_> {
             return false;
         }
         let call_span = node.span();
-        if self.span_has_control_transfer(call_span) {
-            return false;
-        }
         let value_ty = self.c(primitive.value_type());
         self.note_nullable(value_ty);
         if !self.storage_type(value_ty) {
@@ -239,6 +236,9 @@ impl Checker<'_, '_> {
             }
             self.migrated = true;
             return true;
+        }
+        if self.span_has_control_transfer(call_span) {
+            return false;
         }
         let Some(plan) = self.inputs.owned.ownership_primitive(id) else {
             return false;

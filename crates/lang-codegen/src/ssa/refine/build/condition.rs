@@ -40,11 +40,19 @@ impl Builder<'_, '_> {
         let skip_target = if and { when_false } else { when_true };
         let skipped = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 1 });
         let mark = self.enter(skip);
+        self.sync_dead();
+        let pre_skip_dead = self.dead.clone();
         self.emit_drops(&skipped)?;
         self.finish_drops(&skipped);
         self.route_views(mark, skip_target, when_true, span)?;
         self.goto(skip_target, span)?;
 
+        self.dead = pre_skip_dead;
+        self.dead_block = Some(middle);
+        self.entry_dead
+            .entry(middle)
+            .or_default()
+            .extend(self.dead.iter().copied());
         let mark = self.enter(middle);
         let evaluated_true = self.body.block();
         let evaluated_false = self.body.block();

@@ -343,9 +343,11 @@ impl Builder<'_, '_> {
             },
             begin_span,
         )?;
+        self.pending_call_loans.push(loan);
         let Some(value) = self.required(arguments[1].value)? else {
             return Ok(super::Lowered::Diverged);
         };
+        self.pending_call_loans.retain(|&active| active != loan);
         let value = self.adapt(value, arguments[1].value, value_ty)?;
         self.deliver(arguments[1].value);
         let replacement = if copyable {

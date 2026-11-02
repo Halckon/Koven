@@ -537,31 +537,39 @@ impl Builder<'_, '_> {
         if let Some(super::receiver::Receiver::Ready { ref loans, .. }) = receiver {
             self.pending_call_loans.extend(loans.iter().copied());
         }
-        let mut call_args = Vec::with_capacity(arguments.len() + usize::from(is_extension));
+        let ext_offset = usize::from(is_extension);
+        let mut call_args = Vec::with_capacity(arguments.len() + ext_offset);
         if is_extension
             && let Some(rec) = descriptor.receiver()
             && let lang_frontend::type_checking::UnitCallReceiverOrigin::Expression(expression) =
                 rec.origin()
             && expression.source_unit() == self.inputs.source_unit
         {
-            call_args.push((expression.expression(), rec.mode(), rec.ty()));
+            call_args.push((0, expression.expression(), rec.mode(), rec.ty()));
         }
-        for argument in descriptor.arguments() {
+        let mut sorted_args: Vec<_> = descriptor.arguments().iter().collect();
+        sorted_args.sort_by_key(|argument| argument.evaluation_index());
+        for argument in sorted_args {
             let value_expression = arguments
                 .get(argument.argument_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
                 .value;
-            call_args.push((value_expression, argument.mode(), argument.parameter_type()));
+            call_args.push((
+                argument.parameter_index() + ext_offset,
+                value_expression,
+                argument.mode(),
+                argument.parameter_type(),
+            ));
         }
-        let mut lowered = Vec::with_capacity(call_args.len());
+        let mut lowered_slots: Vec<Option<Slot>> = vec![None; call_args.len()];
         let mut loans = Vec::new();
         let mut writebacks = Vec::new();
         let mut view_reads = Vec::new();
         let mut delivered = Vec::new();
-        for (value_expression, mode, parameter_type) in call_args {
+        for (param_slot, value_expression, mode, parameter_type) in call_args {
             if mode == ParameterMode::Inout {
                 let (loan, writeback) = self.inout_argument(value_expression)?;
-                lowered.push(loan);
+                lowered_slots[param_slot] = Some(loan);
                 if let Some(writeback) = writeback {
                     loans.push(loan);
                     self.pending_call_loans.push(loan);
@@ -577,7 +585,7 @@ impl Builder<'_, '_> {
                     self.callable_argument(value_expression, view, span)?;
                 loans.extend(created.iter().copied());
                 self.pending_call_loans.extend(created);
-                lowered.push(lent);
+                lowered_slots[param_slot] = Some(lent);
                 view_reads.extend(read_argument);
                 continue;
             }
@@ -585,7 +593,7 @@ impl Builder<'_, '_> {
                 && let Some(loan) =
                     self.borrowed_move_only_loan(value_expression, self.c(parameter_type))?
             {
-                lowered.push(loan);
+                lowered_slots[param_slot] = Some(loan);
                 view_reads.push(value_expression);
                 continue;
             }
@@ -595,7 +603,7 @@ impl Builder<'_, '_> {
             {
                 loans.extend(created.iter().copied());
                 self.pending_call_loans.extend(created);
-                lowered.push(loan);
+                lowered_slots[param_slot] = Some(loan);
                 view_reads.extend(field_receiver);
                 view_reads.push(value_expression);
                 continue;
@@ -606,7 +614,7 @@ impl Builder<'_, '_> {
             {
                 loans.extend(created.iter().copied());
                 self.pending_call_loans.extend(created);
-                lowered.push(loan);
+                lowered_slots[param_slot] = Some(loan);
                 view_reads.extend(rc_receiver);
                 view_reads.push(value_expression);
                 continue;
@@ -620,7 +628,7 @@ impl Builder<'_, '_> {
             {
                 loans.extend(created.iter().copied());
                 self.pending_call_loans.extend(created);
-                lowered.push(loan);
+                lowered_slots[param_slot] = Some(loan);
                 view_reads.extend(elem_arg);
                 continue;
             }
@@ -628,7 +636,7 @@ impl Builder<'_, '_> {
                 && let Some(view) = self.narrowed_view(value_expression)?
             {
                 // A MoveOnly non-null use borrows through the condition's proof view.
-                lowered.push(view);
+                lowered_slots[param_slot] = Some(view);
                 view_reads.push(value_expression);
                 continue;
             }
@@ -661,7 +669,7 @@ impl Builder<'_, '_> {
                     )?;
                     loans.push(loan);
                     self.pending_call_loans.push(loan);
-                    lowered.push(loan);
+                    lowered_slots[param_slot] = Some(loan);
                     continue;
                 }
             }
@@ -675,7 +683,7 @@ impl Builder<'_, '_> {
                     // Delivered at the call: a later argument's jump still drops it.
                     self.repoint_temporary(value_expression, value);
                     delivered.push(value_expression);
-                    lowered.push(value);
+                    lowered_slots[param_slot] = Some(value);
                 }
                 ParameterMode::Borrow => {
                     let value = self.adapt_borrowed(value, value_expression, parameter_type)?;
@@ -703,13 +711,17 @@ impl Builder<'_, '_> {
                     )?;
                     loans.push(loan);
                     self.pending_call_loans.push(loan);
-                    lowered.push(loan);
+                    lowered_slots[param_slot] = Some(loan);
                 }
                 ParameterMode::Inout => {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 }
             }
         }
+        let lowered = lowered_slots
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         for value_expression in delivered {
             self.deliver(value_expression);
         }
@@ -894,6 +906,7 @@ impl Builder<'_, '_> {
         }
         if let (Expression::Name, span) = self.node(target)?
             && let Ok(symbol) = self.reference(span)
+            && self.symbol_type(symbol).is_some_and(|ty| !self.move_only(ty))
             && self.bindings.get(&symbol).copied() == Some(slot)
         {
             let snapshot = self.body.slot(self.body.slots[slot.0]);
