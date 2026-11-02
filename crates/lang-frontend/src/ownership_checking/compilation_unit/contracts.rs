@@ -666,30 +666,15 @@ fn source_parameter_span(
     parameter_index: usize,
     call: UnitExpressionId,
 ) -> Result<Option<Span>, OwnershipCheckingError> {
-    let signature = match target {
-        UnitCallTarget::Declaration(declaration) => typed
-            .signatures()
-            .declaration(declaration)
-            .and_then(|declaration| declaration.callable()),
-        UnitCallTarget::Symbol(symbol) => typed
-            .signatures()
-            .declarations()
-            .iter()
-            .flat_map(|declaration| {
-                declaration.callable().into_iter().chain(
-                    declaration.nominal().into_iter().flat_map(|nominal| {
-                        nominal.members().iter().chain(nominal.companion_members())
-                    }),
-                )
-            })
-            .find(|callable| {
-                callable.target() == crate::type_checking::UnitCallableTarget::Symbol(symbol)
-            }),
+    if matches!(
+        target,
         UnitCallTarget::External(_)
-        | UnitCallTarget::FunctionValue
-        | UnitCallTarget::StructuralComponent(_) => return Ok(None),
-    };
-    signature
+            | UnitCallTarget::FunctionValue
+            | UnitCallTarget::StructuralComponent(_)
+    ) {
+        return Ok(None);
+    }
+    source_callable_signature(typed, target)
         .and_then(|signature| signature.parameters().get(parameter_index))
         .map(|parameter| Some(parameter.span()))
         .ok_or(OwnershipCheckingError::InvalidUnitCallParameter {
@@ -859,3 +844,7 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+#[path = "contracts/source_signature_tests.rs"]
+mod source_signature_tests;
