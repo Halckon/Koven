@@ -127,6 +127,9 @@ impl Checker<'_, '_> {
         if typed.map_put(id).is_some() {
             return self.map_put(expression);
         }
+        if typed.map_with_value(id).is_some() {
+            return self.map_with_value(expression);
+        }
         false
     }
 
@@ -238,6 +241,47 @@ impl Checker<'_, '_> {
             && self.expression(key)
             && self.adaptable_element(value, value_ty)
             && self.expression(value);
+        self.migrated |= ok;
+        ok
+    }
+
+    fn map_with_value(&mut self, expression: ExpressionId) -> bool {
+        let id = self.id(expression);
+        let Some(descriptor) = self.inputs.typed.map_with_value(id).copied() else {
+            return false;
+        };
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
+            return false;
+        };
+        let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
+            return false;
+        };
+        let Some((key_ty, _)) = self.map_kv(map_ty) else {
+            return false;
+        };
+        if descriptor.expression() != id
+            || descriptor.receiver().source_unit() != self.inputs.source_unit
+            || descriptor.key().source_unit() != self.inputs.source_unit
+            || descriptor.action().source_unit() != self.inputs.source_unit
+            || self.span_has_control_transfer(node.span())
+            || self.c(descriptor.key_type()) != key_ty
+            || !self.expression_type(expression).is_some_and(|ty| {
+                matches!(
+                    self.kind(ty),
+                    Some(UnitTypeKind::Builtin(BuiltinType::Boolean))
+                )
+            })
+            || self
+                .named_container_owner(descriptor.receiver().expression(), map_ty, true)
+                .is_none()
+        {
+            return false;
+        }
+        let key = descriptor.key().expression();
+        let action = descriptor.action().expression();
+        let ok = self.expression_type(key) == Some(key_ty)
+            && (self.borrowed_string_name(key) || self.expression(key))
+            && self.runtime_initializer(action);
         self.migrated |= ok;
         ok
     }
@@ -750,17 +794,20 @@ impl Checker<'_, '_> {
         };
         let descriptor = plan.descriptor();
         let source_id = self.id(source);
-        let Some(UnitLoanTarget::Place(place)) = plan.source() else {
-            return false;
+        let (place_root, is_temporary) = match plan.source() {
+            Some(UnitLoanTarget::Place(place)) if place.is_root() => (Some(place.root()), false),
+            Some(UnitLoanTarget::Temporary(_)) => (None, true),
+            _ => return false,
         };
         if self.inputs.typed.sequential_iteration(statement_id) != Some(descriptor)
             || !matches!(descriptor.provider(), IterationProvider::Sequential(_))
             || descriptor.statement() != statement_id
             || descriptor.source() != source_id
-            || !place.is_root()
             || !matches!(
                 plan.source_access(),
-                UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Shared
+                UnitIterationSourceAccess::Owned
+                    | UnitIterationSourceAccess::Shared
+                    | UnitIterationSourceAccess::Temporary
             )
         {
             return false;
@@ -769,20 +816,34 @@ impl Checker<'_, '_> {
         let element_ty = self.c(descriptor.element_type());
         if self.container_element(container_ty) != Some(element_ty)
             || self.expression_type(source) != Some(container_ty)
-            || self.named_container_owner(source, container_ty, true) != Some(place.root())
-            || !plan.exits().iter().all(|exit| {
-                exit.actions().iter().all(|action| {
-                    matches!(
-                        action,
-                        Action::Drop(_)
-                            | Action::EndBinding { .. }
-                            | Action::EndElement(_)
-                            | Action::FinishProvider(_)
-                            | Action::EndSource(_)
-                    )
-                })
-            })
         {
+            return false;
+        }
+        if is_temporary {
+            if !self.scope_has_field_replace() || !self.expression(source) {
+                return false;
+            }
+        } else {
+            let Some(root) = place_root else {
+                return false;
+            };
+            if self.named_container_owner(source, container_ty, true) != Some(root) {
+                return false;
+            }
+        }
+        if !plan.exits().iter().all(|exit| {
+            exit.actions().iter().all(|action| {
+                matches!(
+                    action,
+                    Action::Drop(_)
+                        | Action::EndBinding { .. }
+                        | Action::EndElement(_)
+                        | Action::FinishProvider(_)
+                        | Action::EndSource(_)
+                        | Action::EndCallLoan(_)
+                )
+            })
+        }) {
             return false;
         }
         match descriptor.binding() {
@@ -841,22 +902,51 @@ impl Checker<'_, '_> {
             })
     }
 
+    fn scope_has_field_replace(&self) -> bool {
+        let Some(scope) = self.inputs.scope_span() else {
+            return !self.inputs.owned.field_replacements().is_empty();
+        };
+        self.inputs.owned.field_replacements().iter().any(|plan| {
+            let expr = plan.descriptor().expression();
+            if expr.source_unit() != self.inputs.source_unit {
+                return false;
+            }
+            let Ok(node) = self
+                .inputs
+                .parsed
+                .ast()
+                .expressions()
+                .get(expr.expression())
+            else {
+                return false;
+            };
+            let span = node.span();
+            scope.source_id() == span.source_id()
+                && scope.start() <= span.start()
+                && span.end() <= scope.end()
+        })
+    }
+
     pub(super) fn span_has_control_transfer(&self, span: Span) -> bool {
         self.inputs
             .parsed
             .ast()
             .expressions()
             .iter()
-            .filter(|(_, candidate)| {
+            .filter(|(id, candidate)| {
                 span.source_id() == candidate.span().source_id()
                     && span.start() <= candidate.span().start()
                     && candidate.span().end() <= span.end()
-                    && matches!(
+                    && (matches!(
                         candidate.payload(),
                         Expression::Return { .. }
                             | Expression::Break { .. }
                             | Expression::Continue { .. }
-                    )
+                    ) || self
+                        .inputs
+                        .typed
+                        .call(self.id(*id))
+                        .is_some_and(|desc| desc.aborts()))
             })
             .any(|(_, candidate)| {
                 !self

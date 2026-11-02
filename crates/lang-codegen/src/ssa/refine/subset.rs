@@ -17,11 +17,11 @@ mod when;
 use std::collections::BTreeSet;
 
 use lang_frontend::{
-    ast::{ExpressionId, ItemId, StatementId},
-    name_resolution::{SymbolKind, UnitSymbolId},
+    ast::{ExpressionId, StatementId},
+    name_resolution::UnitSymbolId,
     parser::{
-        AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, NameMarker,
-        PrefixOperator, Statement,
+        AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, PrefixOperator,
+        Statement,
     },
     type_checking::{
         BuiltinType, Copyability, NominalKind, ParameterMode, UnitCallTarget, UnitExpressionId,
@@ -83,6 +83,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         .iter()
         .filter_map(|symbol| checker.symbol_type(*symbol))
         .chain([inputs.return_type])
+        .chain(inputs.receiver.map(|receiver| receiver.ty))
         .collect();
     if let RefineBody::Lambda(thunk) = &inputs.body {
         signature_types.extend(thunk.captures.iter().map(|capture| capture.ty));
@@ -93,11 +94,26 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
             || checker.box_payload(ty).is_some()
             || checker.box_enum_type(ty)
             || checker.map_kv(ty).is_some()
-            || checker.rc_payload(ty).is_some();
+            || checker.rc_payload(ty).is_some()
+            || checker.class_has_deinit(ty)
+            || checker.move_value_class(ty);
+    }
+    if inputs.function_item.is_some_and(|item| {
+        matches!(
+            inputs
+                .parsed
+                .ast()
+                .items()
+                .get(item)
+                .map(|node| node.payload()),
+            Ok(Item::Deinit { .. })
+        )
+    }) {
+        checker.migrated = true;
     }
     // Copyable Borrow parameters are read by copy, except String when subjects read the
-    // loan; Inout parameters are scalars or plain classes, read through and replaced under
-    // the caller's exclusive loan.
+    // loan; Inout parameters are Copyable types or plain classes, read through and replaced
+    // under the caller's exclusive loan.
     let signature = inputs.parameters.len() == inputs.modes.len()
         && inputs
             .parameters
@@ -108,51 +124,63 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                     // ADR-0034: a Borrow function parameter is a callable view.
                     (*mode == ParameterMode::Borrow && checker.view_function(ty))
                         || checker.storage_type(ty)
-                        && match mode {
-                            ParameterMode::Value => true,
-                            // A MoveOnly Borrow parameter is only lent on (a plain class,
-                            // container, or boxed owner through its loan), never read by copy.
-                            ParameterMode::Borrow => {
-                                checker.copyability_of(ty) == Copyability::Copyable
-                                    || checker.class(ty)
-                                    || checker.value_class(ty)
-                                    || checker.move_value_class(ty)
-                                    || checker.string(ty)
-                                    || checker.container_element(ty).is_some()
-                                    || checker.box_payload(ty).is_some()
-                                    || checker.box_enum_type(ty)
-                                    || checker.map_kv(ty).is_some()
-                                    || (matches!(inputs.body, RefineBody::Lambda(_))
-                                        && matches!(
-                                            checker.kind(ty),
-                                            Some(UnitTypeKind::Nullable(inner)) if checker.storage_type(*inner)
-                                        ))
+                            && match mode {
+                                ParameterMode::Value => true,
+                                // A MoveOnly Borrow parameter is only lent on (a plain class,
+                                // container, or boxed owner through its loan), never read by copy.
+                                ParameterMode::Borrow => {
+                                    checker.copyability_of(ty) == Copyability::Copyable
+                                        || checker.class(ty)
+                                        || checker.value_class(ty)
+                                        || checker.move_value_class(ty)
+                                        || checker.string(ty)
+                                        || checker.container_element(ty).is_some()
+                                        || checker.box_payload(ty).is_some()
+                                        || checker.box_enum_type(ty)
+                                        || checker.map_kv(ty).is_some()
+                                        || (matches!(inputs.body, RefineBody::Lambda(_))
+                                            && matches!(
+                                                checker.kind(ty),
+                                                Some(UnitTypeKind::Nullable(inner)) if checker.storage_type(*inner)
+                                            ))
+                                }
+                                ParameterMode::Inout => {
+                                    checker.copyability_of(ty) == Copyability::Copyable
+                                        || checker.class(ty)
+                                }
                             }
-                            ParameterMode::Inout => checker.scalar(ty) || checker.class(ty),
-                        }
                 })
             })
         && (checker.unit(inputs.return_type)
             || checker.storage_type(inputs.return_type)
             || checker.callable_return())
-        // Receivers: Copyable enums by value or shared loan (SPEC-0356), plain classes by
-        // shared or exclusive loan (SPEC-0358).
         && inputs.receiver.is_none_or(|receiver| match receiver.mode {
-            ParameterMode::Value => {
-                checker.enum_type(receiver.ty) || checker.value_class(receiver.ty)
-            }
-            ParameterMode::Borrow => {
+            ParameterMode::Value | ParameterMode::Borrow => {
                 checker.enum_type(receiver.ty)
+                    || checker.box_enum_type(receiver.ty)
                     || checker.class(receiver.ty)
                     || checker.value_class(receiver.ty)
+                    || checker.move_value_class(receiver.ty)
+                    || checker.object_type(receiver.ty)
             }
-            ParameterMode::Inout => checker.class(receiver.ty),
+            ParameterMode::Inout => {
+                checker.class(receiver.ty)
+                    || checker.value_class(receiver.ty)
+                    || checker.move_value_class(receiver.ty)
+                    || checker.enum_type(receiver.ty)
+                    || checker.box_enum_type(receiver.ty)
+            }
         });
-    // An Inout parameter or receiver belongs to the migrated Inout family.
+    // An Inout parameter or receiver, a MoveOnly Value receiver, or a StaticSelf/object
+    // specialization belongs to the migrated subset.
     checker.migrated |= inputs.modes.contains(&ParameterMode::Inout)
-        || inputs
-            .receiver
-            .is_some_and(|receiver| receiver.mode == ParameterMode::Inout);
+        || inputs.static_self.is_some()
+        || inputs.receiver.is_some_and(|receiver| {
+            receiver.mode == ParameterMode::Inout
+                || checker.object_type(receiver.ty)
+                || (receiver.mode == ParameterMode::Value
+                    && checker.copyability_of(receiver.ty) == Copyability::MoveOnly)
+        });
     let body_ok = match &inputs.body {
         RefineBody::Expression(expression) => checker.expression(*expression),
         RefineBody::Block(statement) => checker.statement(*statement),
@@ -200,6 +228,12 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
                     _ => ty,
                 };
                 demands.extend(inputs.concrete(ty));
+            }
+            if let Some(site) = inputs.source_plan.call_site(inputs.source_token, id) {
+                for route in site.delegation() {
+                    demands.push(route.outer_receiver());
+                    demands.push(route.delegate_receiver());
+                }
             }
         }
     }
@@ -262,6 +296,13 @@ impl Checker<'_, '_> {
         matches!(
             self.kind(ty),
             Some(UnitTypeKind::Builtin(BuiltinType::Unit))
+        )
+    }
+
+    fn nothing(&self, ty: UnitTypeId) -> bool {
+        matches!(
+            self.kind(ty),
+            Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
         )
     }
 
@@ -440,7 +481,7 @@ impl Checker<'_, '_> {
             return self.storage_type(ty) && self.constant_materialization(expression);
         }
         if self.inputs.typed.ownership_primitive(id).is_some() {
-            return (self.unit(ty) || self.storage_type(ty))
+            return (self.unit(ty) || self.storage_type(ty) || self.nothing(ty))
                 && self.ownership_primitive(expression);
         }
         if self.has_container_fact(expression) {
@@ -600,7 +641,11 @@ impl Checker<'_, '_> {
         }
     }
 
-    fn name(&self, expression: ExpressionId) -> bool {
+    fn name(&mut self, expression: ExpressionId) -> bool {
+        if self.object_name(expression) {
+            self.migrated = true;
+            return true;
+        }
         let Some(symbol) = self.reference(expression) else {
             return false;
         };
@@ -782,7 +827,7 @@ impl Checker<'_, '_> {
         }
     }
 
-    fn call(&self, expression: ExpressionId) -> bool {
+    fn call(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.call(id) else {
             return false;
@@ -803,8 +848,10 @@ impl Checker<'_, '_> {
                             || self.view_function(self.c(argument.parameter_type()))
                     }
                     ParameterMode::Inout => {
-                        self.scalar(self.c(argument.parameter_type()))
-                            || self.class(self.c(argument.parameter_type()))
+                        let param = self.c(argument.parameter_type());
+                        (self.storage_type(param)
+                            && self.copyability_of(param) == Copyability::Copyable)
+                            || self.class(param)
                     }
                 });
         // A call through a function value is further restricted to view parameters.
@@ -820,8 +867,23 @@ impl Checker<'_, '_> {
                 .source_plan
                 .call_site(self.inputs.source_token, id)
                 .is_some_and(|site| {
-                    site.delegation().is_empty()
-                        && self.inputs.function_ids.contains_key(site.key())
+                    let delegation_ok = site.delegation().is_empty()
+                        || (descriptor
+                            .receiver()
+                            .is_some_and(|r| r.mode() == ParameterMode::Borrow)
+                            && site.delegation().first().is_some_and(|first| {
+                                Some(first.outer_receiver())
+                                    == descriptor.receiver().map(|r| self.c(r.ty()))
+                            })
+                            && site.delegation().iter().all(|route| {
+                                self.class(route.outer_receiver())
+                                    && self.class(route.delegate_receiver())
+                                    && self.class_field(route.outer_receiver(), route.field())
+                            }));
+                    if !site.delegation().is_empty() && delegation_ok {
+                        self.migrated = true;
+                    }
+                    delegation_ok && self.inputs.function_ids.contains_key(site.key())
                 }));
         simple && target
     }
@@ -936,72 +998,6 @@ impl Checker<'_, '_> {
         self.loops += 1;
         let supported = self.statement(body);
         self.loops -= 1;
-        supported
-    }
-
-    fn local_variable(&mut self, declaration: ItemId) -> bool {
-        let Ok(node) = self.inputs.parsed.ast().items().get(declaration) else {
-            return false;
-        };
-        let Item::Variable {
-            name: NameMarker::Present(name_span),
-            initializer,
-            ..
-        } = node.payload().clone()
-        else {
-            return false;
-        };
-        let initializer_id = self.id(initializer);
-        if self
-            .inputs
-            .owned
-            .borrow_results()
-            .bindings()
-            .iter()
-            .any(|fact| fact.initializer() == initializer_id)
-            || self
-                .inputs
-                .sources
-                .slice(name_span)
-                .is_ok_and(|name| name == "_")
-        {
-            return false;
-        }
-        let symbol = self
-            .inputs
-            .names
-            .names()
-            .source_units()
-            .get(self.inputs.source_unit.index())
-            .and_then(|source| {
-                source.resolution().symbols().iter().find(|symbol| {
-                    symbol.span() == name_span && symbol.kind() == SymbolKind::Variable
-                })
-            })
-            .and_then(|local| {
-                self.inputs
-                    .typed
-                    .body_symbol_types()
-                    .keys()
-                    .copied()
-                    .find(|symbol| {
-                        symbol.source_unit() == self.inputs.source_unit
-                            && symbol.symbol() == local.id()
-                    })
-            });
-        let Some(symbol) = symbol else {
-            return false;
-        };
-        let Some(declared) = self.symbol_type(symbol) else {
-            return false;
-        };
-        self.note_nullable(declared);
-        if self.view_or_function(declared) {
-            return self.callable_local(symbol, initializer);
-        }
-        let supported =
-            (self.unit(declared) || self.storage_type(declared)) && self.expression(initializer);
-        self.known.insert(symbol);
         supported
     }
 }

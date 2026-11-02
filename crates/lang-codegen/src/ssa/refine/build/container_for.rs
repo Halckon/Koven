@@ -75,9 +75,9 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let int_ty = self.ssa_type(int_unit, span)?;
         let bool_ty = self.ssa_type(bool_unit, span)?;
-        let symbol = self.named_container_symbol(source, span)?;
         let source_loan = match plan.source_access() {
             UnitIterationSourceAccess::Shared => {
+                let symbol = self.named_container_symbol(source, span)?;
                 let caller_loan = *self
                     .borrowed
                     .get(&symbol)
@@ -94,10 +94,32 @@ impl Builder<'_, '_> {
                 )?
             }
             UnitIterationSourceAccess::Owned => {
+                let symbol = self.named_container_symbol(source, span)?;
                 let owner = *self
                     .bindings
                     .get(&symbol)
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let place =
+                    self.value(ROp::RootPlace { owner }, EntityType::Place(container), span)?;
+                self.value(
+                    ROp::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: container,
+                    },
+                    span,
+                )?
+            }
+            UnitIterationSourceAccess::Temporary => {
+                let owner = match self.expression_inner(source)? {
+                    Lowered::Value(slot) => slot,
+                    Lowered::Diverged => return Ok(Lowered::Diverged),
+                    Lowered::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
+                };
+                self.register_temporary(source, owner)?;
                 let place =
                     self.value(ROp::RootPlace { owner }, EntityType::Place(container), span)?;
                 self.value(
@@ -305,7 +327,7 @@ impl Builder<'_, '_> {
                         )?;
                     }
                 }
-                Action::FinishProvider(_) => {}
+                Action::FinishProvider(_) | Action::EndCallLoan(_) => {}
                 Action::EndSource(statement) => {
                     let span = self.statement_span(statement.statement())?;
                     let seq = self

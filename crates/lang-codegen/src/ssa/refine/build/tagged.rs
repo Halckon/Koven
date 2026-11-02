@@ -3,6 +3,7 @@
 use lang_frontend::{
     ast::{ExpressionId, TypeRefId},
     name_resolution::UnitSymbolId,
+    ownership_checking::UnitDropPoint,
     parser::Expression,
     source::Span,
     type_checking::{
@@ -288,12 +289,28 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Lowered, LoweringError> {
         let root = self.expression_type(operand)?;
-        let Some(owner) = self.required(operand)? else {
-            return Ok(Lowered::Diverged);
+        let mut operands = vec![operand];
+        let mut inner = operand;
+        while let (Expression::Group { expression }, _) = self.node(inner)? {
+            inner = expression;
+            operands.push(inner);
+        }
+        let inner_span = self.span(inner);
+        let owner = match self.node(inner)?.0 {
+            Expression::This => self.this_value_of(root, inner_span)?,
+            Expression::Name => self.name(inner, inner_span)?,
+            _ => match self.expression_inner(inner)? {
+                Lowered::Value(slot) => slot,
+                Lowered::Diverged => return Ok(Lowered::Diverged),
+                Lowered::Unit => return Err(error(LoweringErrorKind::MissingFact, inner_span)),
+            },
         };
-        Ok(Lowered::Value(
-            self.type_test(owner, root, type_ref, negated, span)?,
-        ))
+        let result = self.type_test(owner, root, type_ref, negated, span)?;
+        for op in operands.into_iter().rev() {
+            self.register_temporary(op, owner)?;
+            self.drops(UnitDropPoint::AfterExpression(self.unit(op)))?;
+        }
+        Ok(Lowered::Value(result))
     }
 
     /// Whether the projection reads an enum payload (implicit `this` or a narrowed case).

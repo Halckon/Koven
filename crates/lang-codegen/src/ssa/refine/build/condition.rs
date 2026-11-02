@@ -1,17 +1,17 @@
 //! Branch-form conditions: `&&`/`||`/`!` short-circuit and null comparisons with proofs.
 use lang_frontend::{
-    ast::ExpressionId,
+    ast::{ExpressionId, StatementId},
     ownership_checking::UnitDropPoint,
-    parser::{BinaryOperator, Expression, PrefixOperator},
+    parser::{BinaryOperator, Expression, PrefixOperator, Statement},
     source::Span,
-    type_checking::UnitTypeKind,
+    type_checking::{ParameterMode, UnitTypeKind},
 };
 
 use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind},
-    refine::body::{BlockRef, ROp, RTerm},
+    refine::body::{BlockRef, ROp, RTerm, Slot},
 };
 
 impl Builder<'_, '_> {
@@ -40,11 +40,19 @@ impl Builder<'_, '_> {
         let skip_target = if and { when_false } else { when_true };
         let skipped = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 1 });
         let mark = self.enter(skip);
+        self.sync_dead();
+        let pre_skip_dead = self.dead.clone();
         self.emit_drops(&skipped)?;
         self.finish_drops(&skipped);
         self.route_views(mark, skip_target, when_true, span)?;
         self.goto(skip_target, span)?;
 
+        self.dead = pre_skip_dead;
+        self.dead_block = Some(middle);
+        self.entry_dead
+            .entry(middle)
+            .or_default()
+            .extend(self.dead.iter().copied());
         let mark = self.enter(middle);
         let evaluated_true = self.body.block();
         let evaluated_false = self.body.block();
@@ -264,5 +272,126 @@ impl Builder<'_, '_> {
             },
             control_span.unwrap_or(span),
         )
+    }
+
+    pub(super) fn if_expression(
+        &mut self,
+        expression: ExpressionId,
+        condition: ExpressionId,
+        then_branch: StatementId,
+        else_branch: Option<StatementId>,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let control = self.unit(expression);
+        let ty = self.expression_type(expression)?;
+        let result = if self.is_unit(ty) || self.is_nothing(ty) {
+            None
+        } else {
+            Some(self.body.slot(EntityType::Value(self.ssa_type(ty, span)?)))
+        };
+        let when_true = self.body.block();
+        let when_false = self.body.block();
+        let join = self.body.block();
+        self.condition_for_control(condition, when_true, when_false, span)?;
+        let outer_views = self.active_views.clone();
+        let outer_pending_loans = self.pending_call_loans.clone();
+        let mut predecessors = Vec::new();
+        let mut branch_exits = Vec::new();
+        for (index, (block, branch)) in [(when_true, Some(then_branch)), (when_false, else_branch)]
+            .into_iter()
+            .enumerate()
+        {
+            self.active_views = outer_views.clone();
+            self.pending_call_loans = outer_pending_loans.clone();
+            let mark = self.enter(block);
+            let value = match branch {
+                Some(branch) => self.branch_value(branch)?,
+                None => Some(None),
+            };
+            self.leave(mark, span)?;
+            let Some(value) = value else {
+                continue;
+            };
+            if let Some(result) = result {
+                let (slot, source) =
+                    value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let slot = self.adapt(slot, source, ty)?;
+                self.deliver(source);
+                self.push(ROp::Alias { source: slot }, vec![result], span)?;
+            }
+            self.drops(UnitDropPoint::BranchExit {
+                control,
+                branch: index,
+            })?;
+            self.sync_dead();
+            let exit_block = self.current(span)?;
+            branch_exits.push((exit_block, self.this_dead));
+            predecessors.push((exit_block, self.active_views.clone()));
+        }
+        if branch_exits.iter().any(|(_, dead)| *dead) {
+            self.entry_this_dead.insert(join);
+            if let Some(slot) = self.receiver
+                && self
+                    .inputs
+                    .receiver
+                    .is_some_and(|r| r.mode == ParameterMode::Value && self.move_only(r.ty))
+            {
+                for &(exit_block, dead) in &branch_exits {
+                    if !dead {
+                        self.body.blocks[exit_block.0].statements.push(
+                            crate::ssa::refine::body::RStmt {
+                                op: ROp::Drop { owner: slot },
+                                results: Vec::new(),
+                                span,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+        self.pending_call_loans = outer_pending_loans;
+        let reached = self.join_views(predecessors, join, span)?;
+        if !self.pending_views.is_empty() {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        if !reached {
+            return Ok(Lowered::Diverged);
+        }
+        Ok(result.map_or(Lowered::Unit, Lowered::Value))
+    }
+
+    /// Lowers a branch body; `None` when it diverges, else its tail value and expression.
+    pub(super) fn branch_value(
+        &mut self,
+        branch: StatementId,
+    ) -> Result<Option<Option<(Slot, ExpressionId)>>, LoweringError> {
+        let node = self
+            .inputs
+            .parsed
+            .ast()
+            .statements()
+            .get(branch)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, self.inputs.span))?;
+        let tail =
+            match node.payload() {
+                Statement::Expression { expression } => Some(*expression),
+                Statement::ControlBody { elements } => elements.last().and_then(|last| match self
+                    .inputs
+                    .parsed
+                    .ast()
+                    .statements()
+                    .get(*last)
+                    .map(|n| n.payload())
+                {
+                    Ok(Statement::Expression { expression }) => Some(*expression),
+                    _ => None,
+                }),
+                _ => None,
+            };
+        match self.statement(branch)? {
+            Lowered::Diverged => Ok(None),
+            Lowered::Value(slot) => Ok(Some(tail.map(|tail| (slot, tail)))),
+            Lowered::Unit => Ok(Some(None)),
+        }
     }
 }

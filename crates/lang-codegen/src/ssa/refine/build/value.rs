@@ -15,7 +15,7 @@ use crate::ssa::{
 };
 
 impl Builder<'_, '_> {
-    /// Whether `ty` is a value class (the subset admits only Copyable scalar ones).
+    /// Whether `ty` is a value class.
     pub(super) fn is_value_class(&self, ty: UnitTypeId) -> bool {
         let Some(UnitTypeKind::Nominal { declaration, .. }) = self.inputs.typed.types().get(ty)
         else {
@@ -27,6 +27,27 @@ impl Builder<'_, '_> {
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .is_some_and(|nominal| nominal.kind() == NominalKind::ValueClass)
+    }
+
+    /// Whether `ty` is a stateless `object` singleton.
+    pub(super) fn is_object_type(&self, ty: UnitTypeId) -> bool {
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = self.inputs.typed.types().get(ty)
+        else {
+            return false;
+        };
+        arguments.is_empty()
+            && self
+                .inputs
+                .typed
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|signature| signature.nominal())
+                .is_some_and(|nominal| {
+                    nominal.kind() == NominalKind::Object && nominal.fields().is_empty()
+                })
     }
 
     /// Fields evaluate in source order and land in declaration order in the aggregate.
@@ -182,8 +203,18 @@ impl Builder<'_, '_> {
                     Expression::Name => {
                         let symbol = self.reference(receiver_span)?;
                         match self.borrowed.get(&symbol).copied() {
-                            Some(loan) => loan,
-                            None => self
+                            Some(loan)
+                                if matches!(
+                                    self.body.slots[loan.0],
+                                    EntityType::Loan {
+                                        kind: LoanKind::Shared,
+                                        ..
+                                    }
+                                ) =>
+                            {
+                                loan
+                            }
+                            _ => self
                                 .required(receiver)?
                                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?,
                         }
@@ -202,12 +233,23 @@ impl Builder<'_, '_> {
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let result = self.ssa_type(self.expression_type(expression)?, span)?;
-        if let EntityType::Loan { kind, .. } = self.body.slots[owner.0] {
-            if kind != LoanKind::Shared {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            }
+        if let EntityType::Loan { kind, target } = self.body.slots[owner.0] {
+            let (base, reborrow) = match kind {
+                LoanKind::Shared => (owner, None),
+                LoanKind::Exclusive => {
+                    let reborrow = self.value(
+                        ROp::SharedReborrow { source: owner },
+                        EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target,
+                        },
+                        span,
+                    )?;
+                    (reborrow, Some(reborrow))
+                }
+            };
             let loan = self.value(
-                ROp::SharedFieldLoan { base: owner, field },
+                ROp::SharedFieldLoan { base, field },
                 EntityType::Loan {
                     kind: LoanKind::Shared,
                     target: result,
@@ -216,6 +258,9 @@ impl Builder<'_, '_> {
             )?;
             let value = self.value(ROp::ReadLoan { loan }, EntityType::Value(result), span)?;
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+            if let Some(reborrow) = reborrow {
+                self.push(ROp::BorrowEnd { loan: reborrow }, Vec::new(), span)?;
+            }
             return Ok(Lowered::Value(value));
         }
         Ok(Lowered::Value(self.value(

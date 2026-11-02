@@ -64,6 +64,9 @@ impl Builder<'_, '_> {
         if typed.map_put(id).is_some() {
             return self.map_put(expression, span).map(Some);
         }
+        if typed.map_with_value(id).is_some() {
+            return self.map_with_value(expression, span).map(Some);
+        }
         Ok(None)
     }
 
@@ -180,6 +183,108 @@ impl Builder<'_, '_> {
         self.drops(UnitDropPoint::AfterExpression(descriptor.value()))?;
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Unit)
+    }
+
+    fn map_with_value(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let id = self.unit(expression);
+        let descriptor = self
+            .inputs
+            .typed
+            .map_with_value(id)
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let receiver = descriptor.receiver().expression();
+        let receiver_span = self.span(receiver);
+        let symbol = self.named_container_symbol(receiver, span)?;
+        let map_ty = self.expression_type(receiver)?;
+        let map_ssa = self.ssa_type(map_ty, receiver_span)?;
+        let (map_loan, created_map) = if let Some(&loan) = self.borrowed.get(&symbol) {
+            (loan, None)
+        } else {
+            let owner = *self
+                .bindings
+                .get(&symbol)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, receiver_span))?;
+            let place = self.value(
+                ROp::RootPlace { owner },
+                EntityType::Place(map_ssa),
+                receiver_span,
+            )?;
+            let loan = self.value(
+                ROp::BorrowBegin {
+                    place,
+                    kind: LoanKind::Shared,
+                },
+                EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: map_ssa,
+                },
+                receiver_span,
+            )?;
+            (loan, Some(loan))
+        };
+        let key_expr = descriptor.key().expression();
+        let key_span = self.span(key_expr);
+        let key_ssa = self.ssa_type(self.c(descriptor.key_type()), key_span)?;
+        let (key_loan, created_key, key_read) =
+            if let Some(loan) = self.borrowed_string_loan(key_expr)? {
+                (loan, None, Some(key_expr))
+            } else {
+                let Some(owner) = self.required(key_expr)? else {
+                    return Ok(Lowered::Diverged);
+                };
+                let place = self.value(
+                    ROp::RootPlace { owner },
+                    EntityType::Place(key_ssa),
+                    key_span,
+                )?;
+                let loan = self.value(
+                    ROp::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: key_ssa,
+                    },
+                    key_span,
+                )?;
+                (loan, Some(loan), None)
+            };
+        let action_expr = descriptor.action().expression();
+        let action_span = self.span(action_expr);
+        let Some((action_loan, created_action, action_read)) =
+            self.runtime_initializer_loan(action_expr, action_span)?
+        else {
+            return Ok(Lowered::Diverged);
+        };
+        let result_ty = self.ssa_type(self.expression_type(expression)?, span)?;
+        let result = self.value(
+            ROp::MapWithValue {
+                source: map_loan,
+                key: key_loan,
+                action: action_loan,
+            },
+            EntityType::Value(result_ty),
+            span,
+        )?;
+        for loan in created_action
+            .into_iter()
+            .rev()
+            .chain(created_key)
+            .chain(created_map)
+        {
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
+        for arg in [key_read, action_read].into_iter().flatten() {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(arg)))?;
+        }
+        self.drops(UnitDropPoint::CallReturn(id))?;
+        Ok(Lowered::Value(result))
     }
 
     fn container_construction(

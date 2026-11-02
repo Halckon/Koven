@@ -82,6 +82,29 @@ fn nullable_functions_inside_the_subset_are_routed() {
         "fun f(): Int { var s: String? = null; s = \"a\"; if (s != null) { return 1 }; return 0 }",
         "enum class Tag { Named(n: String), Empty }\n\
          fun f(own t: Tag): Int = when (t) { is Tag.Named -> 1\n else -> 0 }",
+        "value class Entry(val label: String, val items: List<Int>)\n\
+         fun f(own b: Box<Entry>?): Int { if (b != null) { return 1 }; return 0 }",
+        "class Leaf(val name: String) { deinit() { println(this.name) } }\n\
+         class Guard(val first: Leaf) { deinit() { println(this.first.name) } }\n\
+         fun f(): Int { val g = Guard(Leaf(\"x\")); return 0 }",
+        "enum class Owned { Empty, Full(text: String); own fun score(): Int = 9 }\n\
+         fun f(): Int = Owned.Full(\"a\").score()",
+        "value class Wrapped(val n: Int)\n\
+         fun f(inout w: Wrapped): Unit { w = Wrapped(2) }",
+        "object Registry { fun ping(): Int = 7 }\n\
+         fun f(): Int = (Registry).ping()",
+        "interface Readable { fun read(message: String): Int = 1 }\n\
+         class Reader: Readable { override fun read(message: String): Int = 7 }\n\
+         class Host(val tag: Int, val delegate: Reader): Readable by delegate {}\n\
+         fun f(): Int = Host(0, Reader()).read(\"argument\")",
+        "fun f(m: Map<String, String>): Boolean = m.withValue(\"k\", { v -> println(v) })",
+        "value class Counter(var item: Int) { inout fun set(next: Int): Unit { item = next }; inout fun read(): Int = item }\n\
+         fun f(): Int { var c = Counter(1); c.set(7); return c.read() }",
+        "interface Finishable { own fun finish(): Int = 40; own fun relay(): Int = finish() }\n\
+         class Resource: Finishable {}\n\
+         fun f(): Int = Resource().relay()",
+        "class Holder(var text: String, val tag: Int)\n\
+         fun f(): String { val h = Holder(\"old\", 7); return replace(&h.text, \"new\") }",
     ] {
         let (result, routed) = route(source);
         assert!(routed, "{source}");

@@ -39,6 +39,10 @@ impl Checker<'_, '_> {
                 UnitDropTarget::Named(_)
                 | UnitDropTarget::Temporary(_)
                 | UnitDropTarget::ReplacedField { .. } => true,
+                UnitDropTarget::This(owner) => self.inputs.receiver.is_some_and(|receiver| {
+                    receiver.owner == owner
+                        && receiver.mode == lang_frontend::type_checking::ParameterMode::Value
+                }),
                 UnitDropTarget::ReplacedElement(assignment) => {
                     self.element_replacements.contains(&assignment)
                 }
@@ -50,7 +54,6 @@ impl Checker<'_, '_> {
                             RefineBody::Lambda(thunk) if thunk.expression == closure
                         )
                 }
-                _ => false,
             };
             !self.fact_in_function(fact.value_origin())
                 || self.inside_lambda(fact.value_origin())
@@ -60,7 +63,21 @@ impl Checker<'_, '_> {
             .owned
             .conditional_receiver_drops()
             .iter()
-            .all(|fact| !self.fact_in_function(fact.value_origin()))
+            .all(|fact| {
+                !self.fact_in_function(fact.value_origin())
+                    || self.inside_lambda(fact.value_origin())
+                    || (!match fact.point() {
+                        UnitDropPoint::AfterExpression(expression)
+                        | UnitDropPoint::AfterBinaryOperands(expression) => {
+                            self.branch_form.contains(&expression)
+                        }
+                        _ => false,
+                    } && self.inputs.receiver.is_some_and(|receiver| {
+                        receiver.owner == fact.owner()
+                            && receiver.mode == lang_frontend::type_checking::ParameterMode::Value
+                            && receiver.ty == self.c(fact.receiver_type())
+                    }))
+            })
     }
 
     /// A pending argument a jump may abandon: a MoveOnly named owner or non-borrowed

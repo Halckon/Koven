@@ -275,6 +275,23 @@ pub(super) enum ROp {
         field: usize,
         value: Slot,
     },
+    /// Replaces one inline aggregate field through an exclusive owner loan, dropping the old value.
+    InlineFieldReplace {
+        receiver: Slot,
+        field: usize,
+        value: Slot,
+    },
+    /// The heap payload place of a class owner.
+    HeapPayloadPlace {
+        owner: Slot,
+    },
+    /// Exchanges one heap class field through an exclusive field loan, returning the old field value.
+    HeapFieldExchange {
+        owner: Slot,
+        field: usize,
+        loan: Slot,
+        replacement: Slot,
+    },
     /// Consumes `elements` into a sequential container (`Array<T>`, `List<T>`, `MutableList<T>`).
     ContainerConstruct {
         container: SsaTypeId,
@@ -348,6 +365,12 @@ pub(super) enum ROp {
         key: Slot,
         value: Slot,
     },
+    /// Invokes `action` with a shared loan of the value mapped to `key`, returning a Boolean.
+    MapWithValue {
+        source: Slot,
+        key: Slot,
+        action: Slot,
+    },
 }
 
 impl ROp {
@@ -389,6 +412,7 @@ impl ROp {
             | Self::NullableWrap { owner: slot, .. }
             | Self::NullableIsNull { owner: slot }
             | Self::HeapAllocate { payload: slot, .. }
+            | Self::HeapPayloadPlace { owner: slot }
             | Self::HeapFieldRead { receiver: slot, .. }
             | Self::TaggedConstruct { payload: slot, .. }
             | Self::TaggedDiscriminant { owner: slot }
@@ -440,6 +464,11 @@ impl ROp {
                 value: right,
                 ..
             }
+            | Self::InlineFieldReplace {
+                receiver: left,
+                value: right,
+                ..
+            }
             | Self::RootPlaceTake {
                 owner: left,
                 place: right,
@@ -487,6 +516,17 @@ impl ROp {
                 owner: source,
                 key: start,
                 value: end,
+            }
+            | Self::MapWithValue {
+                source,
+                key: start,
+                action: end,
+            }
+            | Self::HeapFieldExchange {
+                owner: source,
+                loan: start,
+                replacement: end,
+                ..
             } => vec![*source, *start, *end],
             Self::RootSwap {
                 left_owner,

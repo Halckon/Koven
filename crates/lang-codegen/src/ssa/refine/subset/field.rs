@@ -1,8 +1,9 @@
 //! Subset rules for field replacement (SPEC-0358): `owner.f = v` on a plain class owner held
 //! by a known local, an Inout parameter or the Inout receiver. They mirror `build/field.rs`.
 use lang_frontend::{
-    ast::ExpressionId,
-    parser::{AssignmentOperator, Expression},
+    ast::{ExpressionId, ItemId},
+    name_resolution::SymbolKind,
+    parser::{AssignmentOperator, Expression, Item, NameMarker},
     type_checking::{
         Copyability, ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
     },
@@ -11,6 +12,74 @@ use lang_frontend::{
 use super::{Checker, receiver::Owner};
 
 impl Checker<'_, '_> {
+    pub(super) fn local_variable(&mut self, declaration: ItemId) -> bool {
+        let Ok(node) = self.inputs.parsed.ast().items().get(declaration) else {
+            return false;
+        };
+        let Item::Variable {
+            name: NameMarker::Present(name_span),
+            initializer,
+            ..
+        } = node.payload().clone()
+        else {
+            return false;
+        };
+        let initializer_id = self.id(initializer);
+        if self
+            .inputs
+            .owned
+            .borrow_results()
+            .bindings()
+            .iter()
+            .any(|fact| fact.initializer() == initializer_id)
+            || self
+                .inputs
+                .sources
+                .slice(name_span)
+                .is_ok_and(|name| name == "_")
+        {
+            return false;
+        }
+        let symbol = self
+            .inputs
+            .names
+            .names()
+            .source_units()
+            .get(self.inputs.source_unit.index())
+            .and_then(|source| {
+                source.resolution().symbols().iter().find(|symbol| {
+                    symbol.span() == name_span && symbol.kind() == SymbolKind::Variable
+                })
+            })
+            .and_then(|local| {
+                self.inputs
+                    .typed
+                    .body_symbol_types()
+                    .keys()
+                    .copied()
+                    .find(|symbol| {
+                        symbol.source_unit() == self.inputs.source_unit
+                            && symbol.symbol() == local.id()
+                    })
+            });
+        let Some(symbol) = symbol else {
+            return false;
+        };
+        let Some(declared) = self.symbol_type(symbol) else {
+            return false;
+        };
+        self.note_nullable(declared);
+        if self.view_or_function(declared) {
+            return self.callable_local(symbol, initializer);
+        }
+        self.migrated |= self.class_has_deinit(declared);
+        let supported =
+            (self.unit(declared) || self.storage_type(declared) || self.nothing(declared))
+                && self.expression(initializer);
+        self.known.insert(symbol);
+        supported
+    }
+
     pub(super) fn assignment(
         &mut self,
         assignment: ExpressionId,
@@ -96,18 +165,36 @@ impl Checker<'_, '_> {
         {
             return false;
         }
-        let owner = match projection.receiver() {
+        let (owner, is_this) = match projection.receiver() {
             UnitAggregateProjectionReceiver::Expression(receiver) => {
                 if receiver.source_unit() != self.inputs.source_unit {
                     return false;
                 }
-                Owner::Expression(receiver.expression())
+                let is_this = self
+                    .inputs
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(self.ungrouped(receiver.expression()))
+                    .is_ok_and(|node| matches!(node.payload(), Expression::This));
+                (Owner::Expression(receiver.expression()), is_this)
             }
-            UnitAggregateProjectionReceiver::This(declaration) => Owner::This(declaration),
+            UnitAggregateProjectionReceiver::This(declaration) => (Owner::This(declaration), true),
         };
         let owner_ok = self
             .owner_type(owner, ParameterMode::Inout)
-            .is_some_and(|owner| self.class_field(owner, projection.field()));
+            .is_some_and(|owner| {
+                self.class_field(owner, projection.field())
+                    || (is_this
+                        && (self.value_class(owner) || self.move_value_class(owner))
+                        && self.value_signature(owner).is_some_and(|(nominal, args)| {
+                            args.is_empty()
+                                && nominal
+                                    .fields()
+                                    .iter()
+                                    .any(|field| field.symbol() == projection.field())
+                        }))
+            });
         if !owner_ok || !self.expression(value) {
             return false;
         }

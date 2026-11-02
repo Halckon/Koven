@@ -13,11 +13,28 @@ use crate::ssa::{
 };
 
 /// A binding lent to an `Inout` parameter; its new value is read back from `place`.
+#[derive(Clone, Debug)]
 pub(super) struct Writeback {
     symbol: UnitSymbolId,
     place: Slot,
     move_only: bool,
     span: Span,
+}
+
+impl Writeback {
+    pub(super) const fn new(
+        symbol: UnitSymbolId,
+        place: Slot,
+        move_only: bool,
+        span: Span,
+    ) -> Self {
+        Self {
+            symbol,
+            place,
+            move_only,
+            span,
+        }
+    }
 }
 
 impl Builder<'_, '_> {
@@ -136,10 +153,16 @@ impl Builder<'_, '_> {
         };
         if arguments.len() != 2 {
             return Err(error(LoweringErrorKind::MissingFact, span));
-        }
+        };
         let value_ty = self.c(primitive.value_type());
         let target = self.ssa_type(value_ty, span)?;
         let copyable = !self.move_only(value_ty);
+        if primitive.kind() == lang_frontend::type_checking::OwnershipPrimitiveKind::Replace
+            && (self.inputs.owned.field_replacement(id).is_some()
+                || self.is_field_replace(arguments[0].value))
+        {
+            return self.field_replace_primitive(id, &arguments, value_ty, target, copyable, span);
+        }
         let modes = match primitive.kind() {
             lang_frontend::type_checking::OwnershipPrimitiveKind::Replace => [
                 lang_frontend::type_checking::ParameterMode::Inout,
@@ -247,5 +270,127 @@ impl Builder<'_, '_> {
         };
         self.drops(lang_frontend::ownership_checking::UnitDropPoint::CallReturn(id))?;
         Ok(result)
+    }
+
+    fn field_replace_primitive(
+        &mut self,
+        id: lang_frontend::type_checking::UnitExpressionId,
+        arguments: &[lang_frontend::parser::CallArgument],
+        value_ty: lang_frontend::type_checking::UnitTypeId,
+        target: crate::ssa::model::SsaTypeId,
+        copyable: bool,
+        span: Span,
+    ) -> Result<super::Lowered, LoweringError> {
+        let mut projected = arguments[0].value;
+        while let (Expression::Group { expression: inner }, _) = self.node(projected)? {
+            projected = inner;
+        }
+        let projection = self
+            .inputs
+            .typed
+            .aggregate_projection(self.unit(projected))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, arguments[0].span))?;
+        let lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(receiver) =
+            projection.receiver()
+        else {
+            return Err(error(LoweringErrorKind::MissingFact, arguments[0].span));
+        };
+        let symbol = self.direct_place_symbol(receiver.expression(), arguments[0].span)?;
+        let owner_ty = self
+            .symbol_type(symbol)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, arguments[0].span))?;
+        let owner_ssa = self.ssa_type(owner_ty, arguments[0].span)?;
+        let payload_ssa = *self
+            .types
+            .heap_payloads
+            .get(&owner_ssa)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, arguments[0].span))?;
+        let field = *self
+            .types
+            .field_indices
+            .get(&(owner_ty, projection.field()))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, arguments[0].span))?;
+        let arg0_id = self.unit(arguments[0].value);
+        let fact = self
+            .inputs
+            .owned
+            .loans()
+            .iter()
+            .find(|loan| loan.call() == id && loan.argument() == arg0_id)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, arguments[0].span))?;
+        let begin_span = fact.begin_span();
+        self.end_views_of(symbol, begin_span)?;
+        self.narrowed.remove(&symbol);
+        let owner = *self
+            .bindings
+            .get(&symbol)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, arguments[0].span))?;
+        let base = self.value(
+            ROp::HeapPayloadPlace { owner },
+            EntityType::Place(payload_ssa),
+            begin_span,
+        )?;
+        let place = self.value(
+            ROp::FieldPlace { base, field },
+            EntityType::Place(target),
+            begin_span,
+        )?;
+        let loan = self.value(
+            ROp::BorrowBegin {
+                place,
+                kind: LoanKind::Exclusive,
+            },
+            EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target,
+            },
+            begin_span,
+        )?;
+        self.pending_call_loans.push(loan);
+        let Some(value) = self.required(arguments[1].value)? else {
+            return Ok(super::Lowered::Diverged);
+        };
+        self.pending_call_loans.retain(|&active| active != loan);
+        let value = self.adapt(value, arguments[1].value, value_ty)?;
+        self.deliver(arguments[1].value);
+        let replacement = if copyable {
+            self.value(
+                ROp::Copy { source: value },
+                EntityType::Value(target),
+                arguments[1].span,
+            )?
+        } else {
+            value
+        };
+        let old_slot = self.value(
+            ROp::HeapFieldExchange {
+                owner,
+                field,
+                loan,
+                replacement,
+            },
+            EntityType::Value(target),
+            span,
+        )?;
+        self.drops(lang_frontend::ownership_checking::UnitDropPoint::CallReturn(id))?;
+        Ok(if self.is_unit(value_ty) {
+            super::Lowered::Unit
+        } else {
+            super::Lowered::Value(old_slot)
+        })
+    }
+
+    fn is_field_replace(&self, arg0: ExpressionId) -> bool {
+        let mut projected = arg0;
+        while let Ok((Expression::Group { expression: inner }, _)) = self.node(projected) {
+            projected = inner;
+        }
+        self.inputs
+            .typed
+            .aggregate_projection(self.unit(projected))
+            .is_some_and(|projection| {
+                projection.kind()
+                    == lang_frontend::type_checking::UnitAggregateProjectionKind::Field
+            })
     }
 }

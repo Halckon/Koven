@@ -245,7 +245,8 @@ impl Checker<'_, '_> {
             })
     }
 
-    /// `owner.field` of a MoveOnly type lent to a Borrow call parameter via `SharedHeapFieldLoan`.
+    /// `owner.field` (or nested `this.a.b` / `owner.a.b`) of a MoveOnly type lent to a Borrow
+    /// call parameter via `SharedHeapFieldLoan` / `SharedFieldLoan`.
     pub(super) fn borrowed_string_field(
         &self,
         call: ExpressionId,
@@ -255,7 +256,7 @@ impl Checker<'_, '_> {
         let Ok(call_node) = self.inputs.parsed.ast().expressions().get(call) else {
             return false;
         };
-        if self.span_has_control_transfer(call_node.span())
+        if (self.span_has_control_transfer(call_node.span()) && !self.call_has_field_replace(call))
             || self.copyability_of(parameter) != Copyability::MoveOnly
             || !self.storage_type(parameter)
         {
@@ -275,75 +276,146 @@ impl Checker<'_, '_> {
             return false;
         }
         let field_ok = match projection.receiver() {
-            UnitAggregateProjectionReceiver::Expression(receiver) => {
-                if receiver.source_unit() != self.inputs.source_unit
-                    || !self.plain(receiver.expression())
-                {
+            UnitAggregateProjectionReceiver::Expression(receiver)
+                if receiver.source_unit() == self.inputs.source_unit
+                    && matches!(
+                        typed.expression_type(receiver).and_then(|ty| self.kind(ty)),
+                        Some(lang_frontend::type_checking::UnitTypeKind::EnumCase { .. })
+                    ) =>
+            {
+                let Some(lang_frontend::type_checking::UnitTypeKind::EnumCase { root, .. }) =
+                    typed.expression_type(receiver).and_then(|ty| self.kind(ty))
+                else {
                     return false;
+                };
+                let receiver_expr = receiver.expression();
+                let root_ty = self.c(*root);
+                let is_name = self
+                    .inputs
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(receiver_expr)
+                    .is_ok_and(|node| matches!(node.payload(), Expression::Name));
+                self.plain(receiver_expr)
+                    && is_name
+                    && self.box_enum_type(root_ty)
+                    && self.payload_case(root_ty, projection.field()).is_some()
+                    && self.reference(receiver_expr).is_some_and(|symbol| {
+                        self.known.contains(&symbol)
+                            && matches!(
+                                self.parameter_mode(symbol),
+                                None | Some(ParameterMode::Value)
+                            )
+                            && self.symbol_type(symbol) == Some(root_ty)
+                    })
+            }
+            _ => {
+                let multi_hop = matches!(
+                    projection.receiver(),
+                    UnitAggregateProjectionReceiver::Expression(receiver)
+                        if receiver.source_unit() == self.inputs.source_unit
+                            && typed
+                                .aggregate_projection(
+                                    self.id(self.ungrouped(receiver.expression())),
+                                )
+                                .is_some()
+                );
+                self.field_loan_receiver(root, !multi_hop) == Some(parameter)
+            }
+        };
+        let loans_match = self.inputs.owned.loans().iter().any(|loan| {
+            loan.call() == self.id(call)
+                && (loan.argument() == self.id(value) || loan.argument() == id)
+                && loan.kind() == LoanKind::Shared
+        }) || self.inputs.owned.receiver_facts().iter().any(|fact| {
+            fact.call() == self.id(call)
+                && matches!(
+                    fact.source(),
+                    lang_frontend::type_checking::UnitCallReceiverOrigin::Expression(expr)
+                        if expr == self.id(value) || expr == id
+                )
+                && fact.kind()
+                    == lang_frontend::ownership_checking::UnitReceiverOwnershipKind::SharedLoan
+        });
+        field_ok && loans_match
+    }
+
+    /// Resolves the projected field type of a single- or multi-hop class/value-class field
+    /// projection `r.f1.f2...` that can be borrowed in place.
+    pub(super) fn field_loan_receiver(
+        &self,
+        expression: ExpressionId,
+        allow_local_root: bool,
+    ) -> Option<UnitTypeId> {
+        let root = self.ungrouped(expression);
+        let id = self.id(root);
+        let typed = self.inputs.typed;
+        let projection = typed.aggregate_projection(id)?;
+        let field_ty = self.c(projection.ty());
+        if projection.kind() != UnitAggregateProjectionKind::Field
+            || self.expression_type_of(id) != Some(field_ty)
+            || !self.storage_type(field_ty)
+            || !self.unspecialized(root)
+        {
+            return None;
+        }
+        let parent_ty = match projection.receiver() {
+            UnitAggregateProjectionReceiver::This(declaration) => {
+                self.owner_type(Owner::This(declaration), ParameterMode::Borrow)?
+            }
+            UnitAggregateProjectionReceiver::Expression(receiver) => {
+                if receiver.source_unit() != self.inputs.source_unit {
+                    return None;
                 }
                 let receiver_expr = receiver.expression();
-                if let Some(lang_frontend::type_checking::UnitTypeKind::EnumCase { root, .. }) =
-                    typed.expression_type(receiver).and_then(|ty| self.kind(ty))
+                if typed
+                    .aggregate_projection(self.id(self.ungrouped(receiver_expr)))
+                    .is_some()
                 {
-                    let root_ty = self.c(*root);
-                    let is_name = self
-                        .inputs
-                        .parsed
-                        .ast()
-                        .expressions()
-                        .get(receiver_expr)
-                        .is_ok_and(|node| matches!(node.payload(), Expression::Name));
-                    is_name
-                        && self.box_enum_type(root_ty)
-                        && self.payload_case(root_ty, projection.field()).is_some()
-                        && self.reference(receiver_expr).is_some_and(|symbol| {
-                            self.known.contains(&symbol)
-                                && matches!(
-                                    self.parameter_mode(symbol),
-                                    None | Some(ParameterMode::Value)
-                                )
-                                && self.symbol_type(symbol) == Some(root_ty)
-                        })
+                    let parent = self.field_loan_receiver(receiver_expr, allow_local_root)?;
+                    if !self.class(parent) {
+                        return None;
+                    }
+                    parent
                 } else {
+                    if !self.plain(receiver_expr) {
+                        return None;
+                    }
+                    let ungrouped = self.ungrouped(receiver_expr);
                     let owner_ty =
-                        self.owner_type(Owner::Expression(receiver_expr), ParameterMode::Borrow);
+                        self.owner_type(Owner::Expression(ungrouped), ParameterMode::Borrow)?;
                     let allowed_source = match self
                         .inputs
                         .parsed
                         .ast()
                         .expressions()
-                        .get(receiver_expr)
+                        .get(ungrouped)
                         .map(|node| node.payload())
                     {
                         Ok(Expression::This) => true,
-                        Ok(Expression::Name) => {
-                            self.reference(receiver_expr).is_some_and(|symbol| {
-                                matches!(
-                                    self.parameter_mode(symbol),
-                                    Some(ParameterMode::Borrow | ParameterMode::Inout)
-                                ) || typed.non_null_use(receiver).is_some()
-                                    || (self.parameter_mode(symbol).is_none()
-                                        && owner_ty
-                                            .and_then(|ty| self.class_signature(ty))
-                                            .is_some_and(|(_, args)| args.is_empty()))
-                            })
-                        }
+                        Ok(Expression::Name) => self.reference(ungrouped).is_some_and(|symbol| {
+                            matches!(
+                                self.parameter_mode(symbol),
+                                Some(ParameterMode::Borrow | ParameterMode::Inout)
+                            ) || typed.non_null_use(self.id(ungrouped)).is_some()
+                                || (allow_local_root
+                                    && self.parameter_mode(symbol).is_none()
+                                    && self
+                                        .class_signature(owner_ty)
+                                        .is_some_and(|(_, args)| args.is_empty()))
+                        }),
                         _ => false,
                     };
-                    allowed_source
-                        && owner_ty.is_some_and(|owner| self.class_field(owner, projection.field()))
+                    if !allowed_source {
+                        return None;
+                    }
+                    owner_ty
                 }
             }
-            UnitAggregateProjectionReceiver::This(declaration) => self
-                .owner_type(Owner::This(declaration), ParameterMode::Borrow)
-                .is_some_and(|owner| self.class_field(owner, projection.field())),
         };
-        field_ok
-            && self.inputs.owned.loans().iter().any(|loan| {
-                loan.call() == self.id(call)
-                    && (loan.argument() == self.id(value) || loan.argument() == id)
-                    && loan.kind() == LoanKind::Shared
-            })
+        self.class_field(parent_ty, projection.field())
+            .then_some(field_ty)
     }
 
     /// Shared captures borrow a known binding; owned captures copy a Copyable one or move
@@ -391,6 +463,29 @@ impl Checker<'_, '_> {
                             && strictly_contains(span, origin)
                     })
         })
+    }
+
+    fn call_has_field_replace(&self, call: ExpressionId) -> bool {
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(call) else {
+            return false;
+        };
+        let cspan = node.span();
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(expr_id, expr_node)| {
+                let span = expr_node.span();
+                cspan.source_id() == span.source_id()
+                    && cspan.start() <= span.start()
+                    && span.end() <= cspan.end()
+                    && self
+                        .inputs
+                        .owned
+                        .field_replacement(self.id(expr_id))
+                        .is_some()
+            })
     }
 }
 

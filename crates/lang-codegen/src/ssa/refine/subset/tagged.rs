@@ -97,11 +97,19 @@ impl Checker<'_, '_> {
             .find(|candidate| candidate.type_symbol() == *case)
     }
 
-    /// `this` of an enum method whose receiver is in the subset.
-    pub(super) fn this_expression(&self, expression: ExpressionId) -> bool {
-        self.inputs.receiver.is_some_and(|receiver| {
-            self.expression_type(expression) == Some(receiver.ty) && self.enum_type(receiver.ty)
-        })
+    /// `this` of a method whose receiver is in the subset and used by value or copy.
+    pub(super) fn this_expression(&mut self, expression: ExpressionId) -> bool {
+        let Some(receiver) = self.inputs.receiver else {
+            return false;
+        };
+        let ok = self.expression_type(expression) == Some(receiver.ty)
+            && self.storage_type(receiver.ty)
+            && (receiver.mode == lang_frontend::type_checking::ParameterMode::Value
+                || self.copyability_of(receiver.ty) == Copyability::Copyable);
+        if ok && !self.enum_type(receiver.ty) {
+            self.migrated = true;
+        }
+        ok
     }
 
     /// `E.C(...)` / `C`: fields delivered in source order, no root obligation (Copyable)
@@ -238,7 +246,7 @@ impl Checker<'_, '_> {
         let Some(operand_type) = self.expression_type(operand) else {
             return false;
         };
-        self.enum_type(operand_type)
+        (self.enum_type(operand_type) || self.box_enum_type(operand_type))
             && self.type_test_target(type_ref, operand_type)
             && self.enum_place(operand)
     }
@@ -251,6 +259,7 @@ impl Checker<'_, '_> {
         match node.payload() {
             Expression::This => self.this_expression(expression),
             Expression::Name => self.expression(expression),
+            Expression::Group { expression: inner } => self.enum_place(*inner),
             _ => false,
         }
     }

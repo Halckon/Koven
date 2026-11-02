@@ -50,6 +50,11 @@ impl Checker<'_, '_> {
             })
     }
 
+    pub(super) fn class_has_deinit(&self, ty: UnitTypeId) -> bool {
+        self.class_signature(ty)
+            .is_some_and(|(nominal, _)| nominal.deinit().is_some())
+    }
+
     pub(super) fn push_demand(
         &self,
         ty: UnitTypeId,
@@ -119,6 +124,7 @@ impl Checker<'_, '_> {
                     || self.rc_payload_seen(ty, active).is_some()
                     || self.value_class_seen(ty, active)
                     || self.move_value_class_seen(ty, active)
+                    || self.object_type(ty)
                     || self.container_element_seen(ty, active).is_some()
                     || self.map_kv(ty).is_some()
             }
@@ -145,12 +151,17 @@ impl Checker<'_, '_> {
         let [payload] = arguments.as_slice() else {
             return None;
         };
+        if !active.insert(ty) {
+            return Some(*payload);
+        }
         let valid_payload = self.value_class_seen(*payload, active)
             || self.move_value_class_seen(*payload, active)
             || self.enum_type(*payload)
             || self.box_enum_type_seen(*payload, active)
             || active.contains(payload);
-        (valid_payload && self.storage_type_seen(*payload, active)).then_some(*payload)
+        let ok = valid_payload && self.storage_type_seen(*payload, active);
+        active.remove(&ty);
+        ok.then_some(*payload)
     }
 
     /// `Box(payload)` constructing a single-owner heap box.
@@ -244,7 +255,10 @@ impl Checker<'_, '_> {
             .iter()
             .map(|field| field.symbol())
             .collect();
-        if !type_arguments.is_empty() || self.class_has_non_scalar_field(result) {
+        if !type_arguments.is_empty()
+            || self.class_has_non_scalar_field(result)
+            || self.class_has_deinit(result)
+        {
             self.migrated = true;
         }
         let mut plans = self
@@ -331,10 +345,24 @@ impl Checker<'_, '_> {
                 self.rc_value_owner(receiver.expression())
             }
             UnitAggregateProjectionReceiver::Expression(receiver) => {
+                if receiver.source_unit() != self.inputs.source_unit {
+                    return false;
+                }
                 let receiver_expression = receiver.expression();
-                if receiver.source_unit() != self.inputs.source_unit
-                    || !self.plain(receiver_expression)
+                if typed
+                    .aggregate_projection(self.id(self.ungrouped(receiver_expression)))
+                    .is_some()
                 {
+                    let Some(owner) = self.field_loan_receiver(receiver_expression, true) else {
+                        return false;
+                    };
+                    if !self.class_field(owner, projection.field()) {
+                        return false;
+                    }
+                    self.migrated = true;
+                    return true;
+                }
+                if !self.plain(receiver_expression) {
                     return false;
                 }
                 match typed.non_null_use(receiver) {
