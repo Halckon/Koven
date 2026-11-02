@@ -1190,15 +1190,20 @@ structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3
 - structural 的 projection kind/field/copyability/type、成员与结构调用 target、诊断顺序与
   primary/label span 必须保全；自定义环境不换 standard 环境，fixture 和 sidecar 不放宽。
 - 本地实施保留全部 12 个原测试：construction 迁七项、十个不同源码及一次重复分析，
-  退休 11 次 Single 执行，guarded-owner 原测试与旧 helper 逐字保留；structural 四项、
-  五源退休五次 Single 执行及三个旧分析 API 各一个静态调用点。合计 16 次执行，
-  construction 的静态旧调用点仍因保留合同存在。源码字节、custom 环境和 fixture/sidecar 不变。
+  退休 11 次 Single 执行，guarded-owner 原测试与旧 helper 逐字保留。structural 初版拟迁
+  四项五源，但精确头 `cd3bef82` 的 PR CI `41470688662` 在首轮 MemoryDocument 显示
+  自动 component1 的 L0132 不等价：field 测试六诊断仅有五个，partial-move fixture 缺
+  `214..224` 的第二个 L0132；Rooted 后轮未到达，不能据此推断其结果。
+- 修订版将这两个 structural 测试及三个原源完整恢复 Single（包括旧 helper、全部八项
+  projection、诊断与 fixture sidecar）。仅迁另外两个已在旧头通过的源；合计退休
+  13 次 Single 执行，三个旧分析 API 静态调用点净减少均为零。源码字节和 custom 环境不变。
 - construction 每入口在同一 SourceMap/AST 上重新分析，比较完整 construction plans；
-  structural 原八项 projection、receiver type、成员 Symbol 与 StructuralComponent 目标均保留。
+  structural 原八项 projection、receiver type、Source 与 StructuralComponent 目标在恢复的
+  Single 原件中保留，不再把失败的 Memory 原源观察声称为等价承接。
   source-qualified ID 先核来源，再索引实际原 AST/名称，不能跨来源裸比较。
-- 双向独立静审未发现候选阻塞；目标 rustfmt、git diff --check、文档检查（835 Markdown）
+- 初版双向静审未发现上述动态差异，不能当作等价证明；目标 rustfmt、git diff --check、文档检查（835 Markdown）
   与尺寸守卫（2070 Rust、41 项旧超限，无新增债）通过。未运行本地 Cargo/build/test/Clippy。
-  尚未编译或发布，精确诊断与新双入口行为仍待官方 CI；任何不等价项保留 Single，
+  修订版尚待新的精确头官方 CI；旧头 construction 八项通过不替代新头全套验证。任何不等价项保留 Single，
   不以其他源码同码、测试数或静审替代实际验收。
 
 D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。

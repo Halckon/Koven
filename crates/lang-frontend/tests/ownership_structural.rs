@@ -4,17 +4,23 @@ use std::{fs, path::Path};
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
-    name_resolution::{
-        CompilationUnitNames, NameEnvironment, SourceUnitInput, UnitSymbolId,
-        index_compilation_unit, resolve_compilation_unit_names,
-    },
-    ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
+    name_resolution::{NameEnvironment, NameResolution, resolve_names},
+    ownership_checking::{OwnershipCheckedFile, check_ownership},
+    parser::ParsedFile,
     source::SourceMap,
     type_checking::{
-        BuiltinType, Capability, CompilationUnitTypes, Copyability, IntrinsicTypeConstructor,
-        TypeEnvironment, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
-        UnitCallTarget, check_compilation_unit_types,
+        AggregateProjectionKind, AggregateProjectionReceiver, BuiltinType, CallableTarget,
+        Capability, Copyability, IntrinsicTypeConstructor, TypeEnvironment, TypedFile, check_types,
     },
+};
+
+use lang_frontend::{
+    name_resolution::{
+        CompilationUnitNames, SourceUnitInput, index_compilation_unit,
+        resolve_compilation_unit_names,
+    },
+    ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
+    type_checking::{CompilationUnitTypes, check_compilation_unit_types},
 };
 
 #[path = "support/parser_test_assertions.rs"]
@@ -64,8 +70,35 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
     (names, types)
 }
 
-// Each original oracle runs independently for both Unit entry modes. This
-// intentionally retires Single observations, not the original source contracts.
+fn checked(
+    text: &str,
+) -> (
+    SourceMap,
+    ParsedFile,
+    NameResolution,
+    TypedFile,
+    OwnershipCheckedFile,
+) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("structural.ko", text).expect("source");
+    let parsed = parse_file_twice(&sources, source, "structural ownership source");
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let (environment, types) = environments();
+    let names = resolve_names(&sources, &parsed, &environment).expect("names");
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
+    (sources, parsed, names, typed, owned)
+}
+
+// Only the first two supported contracts retire Single observations. The complete
+// projection and fixture tests below retain Single: Unit currently misses the
+// automatic component partial-move diagnostic, so their old oracles are not weakened.
 fn checked_each(
     text: &str,
     mut inspect: impl FnMut(
@@ -114,17 +147,6 @@ fn checked_each(
         }
         inspect(&sources, names.names(), typed.types(), &owned);
     }
-}
-
-fn symbol_name(names: &CompilationUnitNames, symbol: UnitSymbolId) -> &str {
-    let [entry] = names.index().source_units() else {
-        panic!("one original source for field and call targets")
-    };
-    assert_eq!(symbol.source_unit(), entry.id());
-    names.source_units()[symbol.source_unit().index()]
-        .resolution()
-        .symbols()[symbol.symbol().index()]
-    .name()
 }
 
 fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
@@ -229,121 +251,111 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
                     val holderWhole = takeHolder(holder)\n\
                     val holderMoved = takeHolder(holder)\n\
                 }";
-    checked_each(text, |sources, names, typed, checked| {
-        assert_eq!(
-            codes(checked.diagnostics()),
-            ["L0134", "L0132", "L0132", "L0131", "L0132", "L0131"]
-        );
-        assert_eq!(
-            checked
-                .diagnostics()
-                .iter()
-                .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
-                .collect::<Vec<_>>(),
-            ["&", "payload", "component1", "bundle", "payload", "holder"]
-        );
-        for diagnostic in checked
+    let (sources, _, names, typed, checked) = checked(text);
+    assert_eq!(
+        codes(checked.diagnostics()),
+        ["L0134", "L0132", "L0132", "L0131", "L0132", "L0131"]
+    );
+    assert_eq!(
+        checked
             .diagnostics()
             .iter()
-            .filter(|diagnostic| diagnostic.code().to_string() == "L0132")
-        {
-            let label = diagnostic
-                .details()
-                .iter()
-                .find_map(|detail| match detail {
-                    DiagnosticDetail::Label(label) => Some(label.span()),
-                    DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
-                })
-                .expect("field label");
-            assert_eq!(sources.slice(label).unwrap(), "payload");
-        }
+            .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
+            .collect::<Vec<_>>(),
+        ["&", "payload", "component1", "bundle", "payload", "holder"]
+    );
+    for diagnostic in checked
+        .diagnostics()
+        .iter()
+        .filter(|diagnostic| diagnostic.code().to_string() == "L0132")
+    {
+        let label = diagnostic
+            .details()
+            .iter()
+            .find_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => Some(label.span()),
+                DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+            })
+            .expect("field label");
+        assert_eq!(sources.slice(label).unwrap(), "payload");
+    }
 
-        let projections = typed.aggregate_projections();
+    let projections = typed.aggregate_projections();
+    assert_eq!(
+        projections
+            .iter()
+            .map(|projection| {
+                (
+                    projection.kind(),
+                    names.symbols()[projection.field().index()].name(),
+                    typed.copyability(projection.ty()).unwrap(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        [
+            (
+                AggregateProjectionKind::Field,
+                "payload",
+                Copyability::MoveOnly,
+            ),
+            (
+                AggregateProjectionKind::Field,
+                "payload",
+                Copyability::MoveOnly,
+            ),
+            (
+                AggregateProjectionKind::Field,
+                "count",
+                Copyability::Copyable,
+            ),
+            (
+                AggregateProjectionKind::StructuralComponent,
+                "count",
+                Copyability::Copyable,
+            ),
+            (
+                AggregateProjectionKind::Field,
+                "payload",
+                Copyability::MoveOnly,
+            ),
+            (
+                AggregateProjectionKind::StructuralComponent,
+                "payload",
+                Copyability::MoveOnly,
+            ),
+            (
+                AggregateProjectionKind::Field,
+                "payload",
+                Copyability::MoveOnly,
+            ),
+            (
+                AggregateProjectionKind::Field,
+                "payload",
+                Copyability::MoveOnly,
+            ),
+        ]
+    );
+    for projection in projections {
+        let AggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+            panic!("structural fixture only contains explicit projection receivers");
+        };
+        assert!(typed.expression_type(receiver).is_some());
         assert_eq!(
-            projections
-                .iter()
-                .map(|projection| {
-                    (
-                        projection.kind(),
-                        symbol_name(names, projection.field()),
-                        typed.copyability(projection.ty()),
-                    )
-                })
-                .collect::<Vec<_>>(),
-            [
-                (
-                    UnitAggregateProjectionKind::Field,
-                    "payload",
-                    Copyability::MoveOnly,
-                ),
-                (
-                    UnitAggregateProjectionKind::Field,
-                    "payload",
-                    Copyability::MoveOnly,
-                ),
-                (
-                    UnitAggregateProjectionKind::Field,
-                    "count",
-                    Copyability::Copyable,
-                ),
-                (
-                    UnitAggregateProjectionKind::StructuralComponent,
-                    "count",
-                    Copyability::Copyable,
-                ),
-                (
-                    UnitAggregateProjectionKind::Field,
-                    "payload",
-                    Copyability::MoveOnly,
-                ),
-                (
-                    UnitAggregateProjectionKind::StructuralComponent,
-                    "payload",
-                    Copyability::MoveOnly,
-                ),
-                (
-                    UnitAggregateProjectionKind::Field,
-                    "payload",
-                    Copyability::MoveOnly,
-                ),
-                (
-                    UnitAggregateProjectionKind::Field,
-                    "payload",
-                    Copyability::MoveOnly,
-                ),
-            ]
+            typed.expression_type(projection.expression()),
+            Some(projection.ty())
         );
-        for projection in projections {
-            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
-            else {
-                panic!("structural fixture only contains explicit projection receivers");
-            };
-            assert_eq!(
-                receiver.source_unit(),
-                projection.expression().source_unit()
-            );
-            assert!(typed.expression_type(receiver).is_some());
-            assert_eq!(
-                typed.expression_type(projection.expression()),
-                Some(projection.ty())
-            );
-        }
-        assert!(typed.calls().iter().any(|call| matches!(
-            call.target(),
-            UnitCallTarget::StructuralComponent(field)
-                if symbol_name(names, field) == "payload"
-        )));
-        assert!(typed.calls().iter().any(|call| matches!(
-            call.target(),
-            UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
-        )));
-        // The explicit member is a source Symbol, not the automatic component or
-        // a top-level Declaration. Keep that source-call route independently visible.
-        assert!(typed.calls().iter().any(|call| matches!(
-            call.target(), UnitCallTarget::Symbol(symbol)
-                if symbol_name(names, symbol) == "component1"
-        )));
-    });
+    }
+    assert!(typed.calls().iter().any(|call| matches!(
+        call.target(),
+        CallableTarget::StructuralComponent(field)
+            if names.symbols()[field.index()].name() == "payload"
+    )));
+    assert!(
+        typed
+            .calls()
+            .iter()
+            .any(|call| matches!(call.target(), CallableTarget::Source(_)))
+    );
 }
 
 #[test]
@@ -358,25 +370,24 @@ fn checked_in_phase3_structural_fixtures_execute_pass_and_fail_cases() {
         assert_eq!(files.len(), 1, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 structural fixture");
-            checked_each(&text, |_, _, _, checked| {
-                if should_pass {
-                    assert!(checked.diagnostics().is_empty(), "{path:?}");
-                } else {
-                    let expected = fs::read_to_string(path.with_extension("diag"))
-                        .expect("diagnostic sidecar");
-                    let actual = checked
-                        .diagnostics()
-                        .iter()
-                        .map(|diagnostic| {
-                            let span = diagnostic.primary_span();
-                            format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                        + "\n";
-                    assert_eq!(actual, expected, "{path:?}");
-                }
-            });
+            let (_, _, _, _, checked) = checked(&text);
+            if should_pass {
+                assert!(checked.diagnostics().is_empty(), "{path:?}");
+            } else {
+                let expected =
+                    fs::read_to_string(path.with_extension("diag")).expect("diagnostic sidecar");
+                let actual = checked
+                    .diagnostics()
+                    .iter()
+                    .map(|diagnostic| {
+                        let span = diagnostic.primary_span();
+                        format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    + "\n";
+                assert_eq!(actual, expected, "{path:?}");
+            }
         }
     }
 }
