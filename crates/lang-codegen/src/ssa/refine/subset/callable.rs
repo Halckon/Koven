@@ -465,6 +465,13 @@ impl Checker<'_, '_> {
         })
     }
 
+    /// Returns true if the call expression tree contains a field replacement (`replace(&h.field, ...)`).
+    ///
+    /// Capability contract:
+    /// Direct calls whose arguments involve field replacements require fine-grained loan management and
+    /// automatic `BorrowEnd` insertion on early-exit paths in `ssa::refine`.
+    /// Ordinary direct calls with control transfers but without field replacements remain on `unit_lower`
+    /// to preserve legacy prefix scope rejection contracts.
     fn call_has_field_replace(&self, call: ExpressionId) -> bool {
         let Ok(node) = self.inputs.parsed.ast().expressions().get(call) else {
             return false;
