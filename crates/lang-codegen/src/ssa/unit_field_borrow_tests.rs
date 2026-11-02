@@ -390,7 +390,7 @@ fn unit_field_borrow_parameter_projects_child_without_consuming_parent() {
 #[test]
 fn unit_field_borrow_sibling_replace_preserves_both_evaluation_orders() {
     for constants in [false, true] {
-        let error = lower(
+        run_native(
             r#"
             class Holder(var first: String, var second: String)
             fun inspect(text: String): String { println(text); return "next" }
@@ -405,9 +405,8 @@ fn unit_field_borrow_sibling_replace_preserves_both_evaluation_orders() {
             }
             "#,
             constants,
-        )
-        .err()
-        .expect("sibling replace during field borrow is an unsupported boundary");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+            3,
+            b"second!\nfirst!\nnext\nsecond!\nnext\nlast\n",
+        );
     }
 }

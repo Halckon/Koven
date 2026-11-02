@@ -368,11 +368,11 @@ impl Checker<'_, '_> {
                         owner_symbol,
                         field,
                     )
-                    && !self.is_disjoint_sibling_field_receiver(rhs_span, expr_id, field)
+                    && !self.is_disjoint_sibling_field_borrow(rhs_span, expr_id, field)
             })
     }
 
-    fn is_disjoint_sibling_field_receiver(
+    fn is_disjoint_sibling_field_borrow(
         &self,
         rhs_span: lang_frontend::source::Span,
         name_expr: ExpressionId,
@@ -383,27 +383,44 @@ impl Checker<'_, '_> {
             .ast()
             .expressions()
             .iter()
-            .any(|(proj_expr, proj_node)| {
-                let pspan = proj_node.span();
-                if rhs_span.source_id() != pspan.source_id()
-                    || pspan.start() < rhs_span.start()
-                    || pspan.end() > rhs_span.end()
+            .any(|(call_expr, call_node)| {
+                let cspan = call_node.span();
+                if rhs_span.source_id() != cspan.source_id()
+                    || cspan.start() < rhs_span.start()
+                    || cspan.end() > rhs_span.end()
                 {
                     return false;
                 }
-                let Some(projection) = self.inputs.typed.aggregate_projection(self.id(proj_expr))
-                else {
+                let Expression::Call { arguments, .. } = call_node.payload() else {
                     return false;
                 };
-                let lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(
-                    receiver,
-                ) = projection.receiver()
-                else {
-                    return false;
-                };
-                receiver.source_unit() == self.inputs.source_unit
-                    && self.ungrouped(receiver.expression()) == name_expr
-                    && projection.field() != outer_field
+                let call_id = self.id(call_expr);
+                arguments.iter().any(|arg| {
+                    let projected = self.ungrouped(arg.value);
+                    let Some(projection) =
+                        self.inputs.typed.aggregate_projection(self.id(projected))
+                    else {
+                        return false;
+                    };
+                    let lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(
+                        receiver,
+                    ) = projection.receiver()
+                    else {
+                        return false;
+                    };
+                    if receiver.source_unit() != self.inputs.source_unit
+                        || self.ungrouped(receiver.expression()) != name_expr
+                        || projection.field() == outer_field
+                    {
+                        return false;
+                    }
+                    let arg_id = self.id(arg.value);
+                    self.inputs.owned.loans().iter().any(|loan| {
+                        loan.call() == call_id
+                            && (loan.argument() == arg_id || loan.argument() == self.id(projected))
+                            && loan.kind() == lang_frontend::ownership_checking::LoanKind::Shared
+                    })
+                })
             })
     }
 

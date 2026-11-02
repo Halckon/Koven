@@ -820,7 +820,7 @@ impl Checker<'_, '_> {
             return false;
         }
         if is_temporary {
-            if !self.expression(source) {
+            if !self.scope_has_field_replace() || !self.expression(source) {
                 return false;
             }
         } else {
@@ -900,6 +900,31 @@ impl Checker<'_, '_> {
                         lang_frontend::parser::Statement::While { .. }
                     )
             })
+    }
+
+    fn scope_has_field_replace(&self) -> bool {
+        let Some(scope) = self.inputs.scope_span() else {
+            return !self.inputs.owned.field_replacements().is_empty();
+        };
+        self.inputs.owned.field_replacements().iter().any(|plan| {
+            let expr = plan.descriptor().expression();
+            if expr.source_unit() != self.inputs.source_unit {
+                return false;
+            }
+            let Ok(node) = self
+                .inputs
+                .parsed
+                .ast()
+                .expressions()
+                .get(expr.expression())
+            else {
+                return false;
+            };
+            let span = node.span();
+            scope.source_id() == span.source_id()
+                && scope.start() <= span.start()
+                && span.end() <= scope.end()
+        })
     }
 
     pub(super) fn span_has_control_transfer(&self, span: Span) -> bool {

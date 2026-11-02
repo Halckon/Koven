@@ -253,10 +253,12 @@ impl Checker<'_, '_> {
         value: ExpressionId,
         parameter: UnitTypeId,
     ) -> bool {
-        let Ok(_call_node) = self.inputs.parsed.ast().expressions().get(call) else {
+        let Ok(call_node) = self.inputs.parsed.ast().expressions().get(call) else {
             return false;
         };
-        if self.copyability_of(parameter) != Copyability::MoveOnly || !self.storage_type(parameter)
+        if (self.span_has_control_transfer(call_node.span()) && !self.call_has_field_replace(call))
+            || self.copyability_of(parameter) != Copyability::MoveOnly
+            || !self.storage_type(parameter)
         {
             return false;
         }
@@ -461,6 +463,29 @@ impl Checker<'_, '_> {
                             && strictly_contains(span, origin)
                     })
         })
+    }
+
+    fn call_has_field_replace(&self, call: ExpressionId) -> bool {
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(call) else {
+            return false;
+        };
+        let cspan = node.span();
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(expr_id, expr_node)| {
+                let span = expr_node.span();
+                cspan.source_id() == span.source_id()
+                    && cspan.start() <= span.start()
+                    && span.end() <= cspan.end()
+                    && self
+                        .inputs
+                        .owned
+                        .field_replacement(self.id(expr_id))
+                        .is_some()
+            })
     }
 }
 
