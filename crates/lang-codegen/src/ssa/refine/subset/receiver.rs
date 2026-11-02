@@ -148,7 +148,7 @@ impl Checker<'_, '_> {
         if fact.source() != receiver.origin()
             || self.c(fact.receiver_type()) != self.c(receiver.ty())
             || fact.is_receiver_reservation() != (receiver.mode() == ParameterMode::Inout)
-            || !fact.activation_point().is_none_or(|point| point == id)
+            || fact.activation_point().is_some_and(|point| point != id)
         {
             return false;
         }
