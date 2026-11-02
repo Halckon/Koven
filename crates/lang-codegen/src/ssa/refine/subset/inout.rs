@@ -368,6 +368,42 @@ impl Checker<'_, '_> {
                         owner_symbol,
                         field,
                     )
+                    && !self.is_disjoint_sibling_field_receiver(rhs_span, expr_id, field)
+            })
+    }
+
+    fn is_disjoint_sibling_field_receiver(
+        &self,
+        rhs_span: lang_frontend::source::Span,
+        name_expr: ExpressionId,
+        outer_field: UnitSymbolId,
+    ) -> bool {
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(proj_expr, proj_node)| {
+                let pspan = proj_node.span();
+                if rhs_span.source_id() != pspan.source_id()
+                    || pspan.start() < rhs_span.start()
+                    || pspan.end() > rhs_span.end()
+                {
+                    return false;
+                }
+                let Some(projection) = self.inputs.typed.aggregate_projection(self.id(proj_expr))
+                else {
+                    return false;
+                };
+                let lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(
+                    receiver,
+                ) = projection.receiver()
+                else {
+                    return false;
+                };
+                receiver.source_unit() == self.inputs.source_unit
+                    && self.ungrouped(receiver.expression()) == name_expr
+                    && projection.field() != outer_field
             })
     }
 

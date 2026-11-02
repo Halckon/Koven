@@ -253,12 +253,10 @@ impl Checker<'_, '_> {
         value: ExpressionId,
         parameter: UnitTypeId,
     ) -> bool {
-        let Ok(call_node) = self.inputs.parsed.ast().expressions().get(call) else {
+        let Ok(_call_node) = self.inputs.parsed.ast().expressions().get(call) else {
             return false;
         };
-        if self.span_has_control_transfer(call_node.span())
-            || self.copyability_of(parameter) != Copyability::MoveOnly
-            || !self.storage_type(parameter)
+        if self.copyability_of(parameter) != Copyability::MoveOnly || !self.storage_type(parameter)
         {
             return false;
         }
@@ -324,12 +322,21 @@ impl Checker<'_, '_> {
                 self.field_loan_receiver(root, !multi_hop) == Some(parameter)
             }
         };
-        field_ok
-            && self.inputs.owned.loans().iter().any(|loan| {
-                loan.call() == self.id(call)
-                    && (loan.argument() == self.id(value) || loan.argument() == id)
-                    && loan.kind() == LoanKind::Shared
-            })
+        let loans_match = self.inputs.owned.loans().iter().any(|loan| {
+            loan.call() == self.id(call)
+                && (loan.argument() == self.id(value) || loan.argument() == id)
+                && loan.kind() == LoanKind::Shared
+        }) || self.inputs.owned.receiver_facts().iter().any(|fact| {
+            fact.call() == self.id(call)
+                && matches!(
+                    fact.source(),
+                    lang_frontend::type_checking::UnitCallReceiverOrigin::Expression(expr)
+                        if expr == self.id(value) || expr == id
+                )
+                && fact.kind()
+                    == lang_frontend::ownership_checking::UnitReceiverOwnershipKind::SharedLoan
+        });
+        field_ok && loans_match
     }
 
     /// Resolves the projected field type of a single- or multi-hop class/value-class field

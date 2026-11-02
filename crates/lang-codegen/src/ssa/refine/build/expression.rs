@@ -239,7 +239,11 @@ impl Builder<'_, '_> {
     }
 
     /// A local or parameter read; a proven non-null use reads the narrowed inner value.
-    fn name(&mut self, expression: ExpressionId, span: Span) -> Result<Slot, LoweringError> {
+    pub(super) fn name(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
         let Ok(symbol) = self.reference(span) else {
             let ty = self.expression_type(expression)?;
             if self.is_object_type(ty) {

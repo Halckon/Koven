@@ -246,7 +246,7 @@ impl Checker<'_, '_> {
         let Some(operand_type) = self.expression_type(operand) else {
             return false;
         };
-        self.enum_type(operand_type)
+        (self.enum_type(operand_type) || self.box_enum_type(operand_type))
             && self.type_test_target(type_ref, operand_type)
             && self.enum_place(operand)
     }
@@ -259,6 +259,7 @@ impl Checker<'_, '_> {
         match node.payload() {
             Expression::This => self.this_expression(expression),
             Expression::Name => self.expression(expression),
+            Expression::Group { expression: inner } => self.enum_place(*inner),
             _ => false,
         }
     }

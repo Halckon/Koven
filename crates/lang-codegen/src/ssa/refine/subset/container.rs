@@ -794,17 +794,20 @@ impl Checker<'_, '_> {
         };
         let descriptor = plan.descriptor();
         let source_id = self.id(source);
-        let Some(UnitLoanTarget::Place(place)) = plan.source() else {
-            return false;
+        let (place_root, is_temporary) = match plan.source() {
+            Some(UnitLoanTarget::Place(place)) if place.is_root() => (Some(place.root()), false),
+            Some(UnitLoanTarget::Temporary(_)) => (None, true),
+            _ => return false,
         };
         if self.inputs.typed.sequential_iteration(statement_id) != Some(descriptor)
             || !matches!(descriptor.provider(), IterationProvider::Sequential(_))
             || descriptor.statement() != statement_id
             || descriptor.source() != source_id
-            || !place.is_root()
             || !matches!(
                 plan.source_access(),
-                UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Shared
+                UnitIterationSourceAccess::Owned
+                    | UnitIterationSourceAccess::Shared
+                    | UnitIterationSourceAccess::Temporary
             )
         {
             return false;
@@ -813,20 +816,34 @@ impl Checker<'_, '_> {
         let element_ty = self.c(descriptor.element_type());
         if self.container_element(container_ty) != Some(element_ty)
             || self.expression_type(source) != Some(container_ty)
-            || self.named_container_owner(source, container_ty, true) != Some(place.root())
-            || !plan.exits().iter().all(|exit| {
-                exit.actions().iter().all(|action| {
-                    matches!(
-                        action,
-                        Action::Drop(_)
-                            | Action::EndBinding { .. }
-                            | Action::EndElement(_)
-                            | Action::FinishProvider(_)
-                            | Action::EndSource(_)
-                    )
-                })
-            })
         {
+            return false;
+        }
+        if is_temporary {
+            if !self.expression(source) {
+                return false;
+            }
+        } else {
+            let Some(root) = place_root else {
+                return false;
+            };
+            if self.named_container_owner(source, container_ty, true) != Some(root) {
+                return false;
+            }
+        }
+        if !plan.exits().iter().all(|exit| {
+            exit.actions().iter().all(|action| {
+                matches!(
+                    action,
+                    Action::Drop(_)
+                        | Action::EndBinding { .. }
+                        | Action::EndElement(_)
+                        | Action::FinishProvider(_)
+                        | Action::EndSource(_)
+                        | Action::EndCallLoan(_)
+                )
+            })
+        }) {
             return false;
         }
         match descriptor.binding() {
