@@ -7,7 +7,7 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitTypeKind},
 };
 
-use super::{Builder, Lowered, View};
+use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind},
@@ -295,7 +295,7 @@ impl Builder<'_, '_> {
         self.condition_for_control(condition, when_true, when_false, span)?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
-        let mut branch_views = Vec::new();
+        let mut predecessors = Vec::new();
         let mut branch_exits = Vec::new();
         for (index, (block, branch)) in [(when_true, Some(then_branch)), (when_false, else_branch)]
             .into_iter()
@@ -323,10 +323,10 @@ impl Builder<'_, '_> {
                 control,
                 branch: index,
             })?;
-            branch_views.push(self.active_views.clone());
             self.sync_dead();
-            branch_exits.push((self.current(span)?, self.this_dead));
-            self.goto(join, span)?;
+            let exit_block = self.current(span)?;
+            branch_exits.push((exit_block, self.this_dead));
+            predecessors.push((exit_block, self.active_views.clone()));
         }
         if branch_exits.iter().any(|(_, dead)| *dead) {
             self.entry_this_dead.insert(join);
@@ -350,24 +350,13 @@ impl Builder<'_, '_> {
             }
         }
         self.pending_call_loans = outer_pending_loans;
-        if branch_views.len() == 2 {
-            let common: Vec<View> = branch_views[0]
-                .iter()
-                .filter(|v| branch_views[1].iter().any(|other| other.slot == v.slot))
-                .copied()
-                .collect();
-            self.active_views = common;
-        } else if let Some(first) = branch_views.pop() {
-            self.active_views = first;
-        }
+        let reached = self.join_views(predecessors, join, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
-        if branch_exits.is_empty() {
-            self.block = None;
+        if !reached {
             return Ok(Lowered::Diverged);
         }
-        self.block = Some(join);
         Ok(result.map_or(Lowered::Unit, Lowered::Value))
     }
 

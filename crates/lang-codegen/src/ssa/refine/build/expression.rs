@@ -548,7 +548,7 @@ impl Builder<'_, '_> {
             call_args.push((0, expression.expression(), rec.mode(), rec.ty()));
         }
         let mut sorted_args: Vec<_> = descriptor.arguments().iter().collect();
-        sorted_args.sort_by_key(|argument| argument.evaluation_index());
+        sorted_args.sort_by_key(|argument| argument.argument_index());
         for argument in sorted_args {
             let value_expression = arguments
                 .get(argument.argument_index())

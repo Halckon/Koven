@@ -9,7 +9,7 @@ use lang_frontend::{
     type_checking::{BuiltinType, IntegerRangeOperationKind, UnitTypeId, UnitTypeKind},
 };
 
-use super::{Builder, Lowered};
+use super::{Builder, Lowered, View};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{ComparisonOperator, EntityType, SsaTypeId},
@@ -89,8 +89,7 @@ impl Builder<'_, '_> {
         self.body.blocks[join.0].origin = Some(span);
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
-        let mut joined_views = None;
-        let mut reached = false;
+        let mut predecessors = Vec::new();
         let mut falls_through = true;
         for (index, entry) in entries.iter().enumerate() {
             self.active_views = outer_views.clone();
@@ -151,9 +150,9 @@ impl Builder<'_, '_> {
                     control,
                     branch: index,
                 })?;
-                joined_views = Some(self.active_views.clone());
-                self.goto(join, span)?;
-                reached = true;
+                if let Some(cur) = self.block {
+                    predecessors.push((cur, self.active_views.clone()));
+                }
             }
             self.block = unmatched;
             if entry.else_span.is_some() {
@@ -181,22 +180,18 @@ impl Builder<'_, '_> {
                 control,
                 branch: entries.len(),
             })?;
-            joined_views = Some(self.active_views.clone());
-            self.goto(join, span)?;
-            reached = true;
-        }
-        if let Some(joined) = joined_views {
-            self.active_views = joined;
+            if let Some(cur) = self.block {
+                predecessors.push((cur, self.active_views.clone()));
+            }
         }
         self.pending_call_loans = outer_pending_loans;
+        let reached = self.join_views(predecessors, join, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
         if !reached {
-            self.block = None;
             return Ok(Lowered::Diverged);
         }
-        self.block = Some(join);
         Ok(result.map_or(Lowered::Unit, Lowered::Value))
     }
 
@@ -257,8 +252,7 @@ impl Builder<'_, '_> {
         )?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
-        let mut joined_views = None;
-        let mut reached = false;
+        let mut predecessors = Vec::new();
         for (block, index, branch) in [
             (when_true, true_index, true_body),
             (when_false, false_index, false_body),
@@ -282,24 +276,20 @@ impl Builder<'_, '_> {
                 control,
                 branch: index,
             })?;
-            joined_views = Some(self.active_views.clone());
-            self.goto(join, span)?;
-            reached = true;
-        }
-        if let Some(joined) = joined_views {
-            self.active_views = joined;
+            if let Some(cur) = self.block {
+                predecessors.push((cur, self.active_views.clone()));
+            }
         }
         self.pending_call_loans = outer_pending_loans;
         let fallthrough = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 2 });
         self.finish_drops(&fallthrough);
+        let reached = self.join_views(predecessors, join, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
         if !reached {
-            self.block = None;
             return Ok(Lowered::Diverged);
         }
-        self.block = Some(join);
         Ok(result.map_or(Lowered::Unit, Lowered::Value))
     }
 
@@ -578,5 +568,42 @@ impl Builder<'_, '_> {
             .builtin(BuiltinType::Boolean)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         self.ssa_type(boolean, span)
+    }
+
+    /// Joins active views from reached branch predecessors at `join`.
+    /// Non-common views in any predecessor end on that predecessor's edge before jumping.
+    pub(super) fn join_views(
+        &mut self,
+        predecessors: Vec<(BlockRef, Vec<View>)>,
+        join: BlockRef,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        if predecessors.is_empty() {
+            self.block = None;
+            return Ok(false);
+        }
+        let mut common = Vec::new();
+        if let Some((_, first_views)) = predecessors.first() {
+            for v in first_views {
+                if predecessors[1..]
+                    .iter()
+                    .all(|(_, other)| other.iter().any(|ov| ov.slot == v.slot))
+                {
+                    common.push(*v);
+                }
+            }
+        }
+        for (block, views) in predecessors {
+            self.block = Some(block);
+            for v in views.iter().rev() {
+                if !common.iter().any(|cv| cv.slot == v.slot) {
+                    self.push(ROp::BorrowEnd { loan: v.slot }, Vec::new(), span)?;
+                }
+            }
+            self.goto(join, span)?;
+        }
+        self.block = Some(join);
+        self.active_views = common;
+        Ok(true)
     }
 }

@@ -32,6 +32,14 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub(super) fn new(texts: &[(&str, &str)]) -> Self {
+        Self::with_range_sources(texts, &[])
+    }
+
+    pub(super) fn range_source(texts: &[(&str, &str)], index: usize) -> Self {
+        Self::with_range_sources(texts, &[index])
+    }
+
+    fn with_range_sources(texts: &[(&str, &str)], range_sources: &[usize]) -> Self {
         let mut sources = SourceMap::new();
         let parsed = texts
             .iter()
@@ -59,12 +67,18 @@ impl Fixture {
                 SourceUnitInput::new("root", path.as_str(), parsed.source_id(), parsed)
             })
             .collect::<Vec<_>>();
-        let (ne, environment) = standard_environments();
+        let (ne, mut environment) = standard_environments();
+        for &index in range_sources {
+            // Authorize the actual loaded SourceId, never a package or path spelling.
+            environment
+                .authorize_range_source(&sources, parsed[index].source_id())
+                .unwrap();
+        }
         let index = index_compilation_unit(&sources, &inputs).unwrap();
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne)
-            .unwrap()
-            .validate()
-            .unwrap();
+        assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne).unwrap();
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().unwrap();
         let raw = check_compilation_unit_types(&sources, &inputs, &names, &environment).unwrap();
         assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
         let complete =

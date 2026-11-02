@@ -304,4 +304,107 @@ impl UnitExpressionLowerer<'_> {
         };
         Ok(field)
     }
+
+    /// Preserve Group identities so their existing cleanup points can be consumed in order.
+    pub(super) fn enum_operand_chain(
+        &self,
+        operand: ExpressionId,
+        span: Span,
+    ) -> Result<Vec<ExpressionId>, LoweringError> {
+        let mut operands = vec![operand];
+        let mut evaluated = operand;
+        loop {
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(evaluated)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let lang_frontend::parser::Expression::Group { expression } = *node.payload() else {
+                break;
+            };
+            evaluated = expression;
+            operands.push(evaluated);
+        }
+        Ok(operands)
+    }
+
+    pub(super) fn lower_enum_discriminant(
+        &mut self,
+        owner: ValueId,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let integer = self.ssa_builtin(lang_frontend::type_checking::BuiltinType::Int, span)?;
+        let (_, tag) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::TaggedDiscriminant { owner },
+                vec![EntityType::Value(integer)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        require_value(tag[0], span)
+    }
+
+    pub(super) fn lower_enum_tag_test(
+        &mut self,
+        owner: ValueId,
+        variant: usize,
+        negated: bool,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let tag = self.lower_enum_discriminant(owner, span)?;
+        self.lower_enum_discriminant_test(tag, variant, negated, span)
+    }
+
+    pub(super) fn lower_enum_discriminant_test(
+        &mut self,
+        tag: ValueId,
+        variant: usize,
+        negated: bool,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let integer = self.ssa_builtin(lang_frontend::type_checking::BuiltinType::Int, span)?;
+        let boolean = self.ssa_builtin(lang_frontend::type_checking::BuiltinType::Boolean, span)?;
+        let (_, expected) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::Constant(crate::ssa::model::ScalarConstant::Integer(
+                    i128::try_from(variant)
+                        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?,
+                )),
+                vec![EntityType::Value(integer)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let (_, matches) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::Compare {
+                    operator: crate::ssa::model::ComparisonOperator::Equal,
+                    left: tag,
+                    right: require_value(expected[0], span)?,
+                },
+                vec![EntityType::Value(boolean)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let matches = require_value(matches[0], span)?;
+        if !negated {
+            return Ok(matches);
+        }
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::BooleanNot { operand: matches },
+                vec![EntityType::Value(boolean)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        require_value(results[0], span)
+    }
 }

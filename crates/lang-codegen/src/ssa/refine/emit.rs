@@ -77,6 +77,30 @@ fn abort_siblings(
     siblings
 }
 
+/// Successor of a checked-arithmetic branch mapped to its sibling abort block.
+fn checked_arithmetic_siblings(
+    body: &RefinedBody,
+    reachable: &[BlockRef],
+) -> BTreeMap<BlockRef, BlockRef> {
+    let mut map = BTreeMap::new();
+    for block in reachable {
+        let Some((terminator, _)) = &body.blocks[block.0].terminator else {
+            continue;
+        };
+        if let [first, second] = terminator.successors()[..] {
+            for (abort, sibling) in [(first, second), (second, first)] {
+                if matches!(
+                    body.blocks[abort.0].terminator,
+                    Some((RTerm::Abort(RAbort::CheckedArithmetic { .. }), _))
+                ) {
+                    map.insert(sibling, abort);
+                }
+            }
+        }
+    }
+    map
+}
+
 /// Folds a block into its `Goto` predecessor when that predecessor is its only one, so
 /// no SSA block merely forwards its parameters.
 fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, LoweringError> {
@@ -133,6 +157,7 @@ fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
         .map(|block| (*block, uses_and_defs(body, *block)))
         .collect();
     let siblings = abort_siblings(body, &reachable);
+    let checked_siblings = checked_arithmetic_siblings(body, &reachable);
     let mut live_in: BTreeMap<BlockRef, BTreeSet<Slot>> = BTreeMap::new();
     loop {
         let mut changed = false;
@@ -147,6 +172,12 @@ fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
                     if !excluded.contains(slot) {
                         live.insert(*slot);
                     }
+                }
+            }
+            if let Some(abort) = checked_siblings.get(block) {
+                // Sibling carries abort operands to preserve symmetric branch arguments.
+                for slot in live_in.get(abort).into_iter().flatten() {
+                    live.insert(*slot);
                 }
             }
             let (terminator, _) = body.blocks[block.0].terminator.as_ref().expect("reachable");

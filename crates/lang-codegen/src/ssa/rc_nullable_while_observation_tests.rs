@@ -29,6 +29,7 @@ mod identity;
 const SOURCE: &str =
     "fun inspect(own owner: Rc<Int>?): Rc<Int>? { while (owner != null) { break }; return owner }";
 
+#[derive(Debug)]
 struct Failure {
     stage: &'static str,
     detail: String,
@@ -59,12 +60,22 @@ fn observe(unit: bool) -> Observation {
 }
 
 fn observe_with_inspector(unit: bool, inspect_identity: bool) -> (Observation, Result<(), String>) {
+    let (obs, identity, _) = observe_with_options(unit, inspect_identity, true);
+    (obs, identity)
+}
+
+fn observe_with_options(
+    unit: bool,
+    inspect_identity: bool,
+    per_family_only: bool,
+) -> (Observation, Result<(), String>, Vec<String>) {
     let mut complete_ok = false;
     let mut ownership_ok = false;
     let mut frontend_anchor_ok = false;
     let mut lower_attempted = false;
     let mut source_identity = Err("source identity query not reached".to_owned());
     let mut identity = Err("SSA identity query not reached".to_owned());
+    let mut routed_functions = Vec::new();
     let outcome = (|| {
         let mut sources = SourceMap::new();
         let (path, text) = if unit {
@@ -197,11 +208,24 @@ fn observe_with_inspector(unit: bool, inspect_identity: bool) -> (Observation, R
             }
             lower_attempted = true;
             println!("SPEC0332 STAGE unit={unit} lower=attempt");
-            crate::ssa::with_per_family_lowering(|| {
-                lower_scalar_unit_with_entry(
-                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+            let (lower_result, routed) = if per_family_only {
+                (
+                    crate::ssa::with_per_family_lowering(|| {
+                        lower_scalar_unit_with_entry(
+                            &sources, &inputs, &names, &types, &typed, &owned, entry,
+                        )
+                    }),
+                    Vec::new(),
                 )
-            })
+            } else {
+                crate::ssa::refine::observe_routing(|| {
+                    lower_scalar_unit_with_entry(
+                        &sources, &inputs, &names, &types, &typed, &owned, entry,
+                    )
+                })
+            };
+            routed_functions = routed;
+            lower_result
         } else {
             let names = resolve_names(&sources, &file, &environment)
                 .map_err(|error| failure("names-api", error))?;
@@ -325,7 +349,30 @@ fn observe_with_inspector(unit: bool, inspect_identity: bool) -> (Observation, R
             outcome,
         },
         identity,
+        routed_functions,
     )
+}
+
+#[test]
+fn rc_nullable_while_default_routing_matches_or_surpasses_per_family() {
+    let (obs, identity, routed) = observe_with_options(true, true, false);
+    assert!(
+        obs.outcome.is_ok(),
+        "default routing must pass and reach verified LLVM: {:?}",
+        obs.outcome
+    );
+    // Verified contrast with per-family legacy witness:
+    // Under default routing, `inspect` is lowered by refine (`routed`), reaching verified SSA and LLVM.
+    // The legacy `identity` oracle queries per-family synthetic blocks which are absent in refine's
+    // cleaner phi-based SSA, so it correctly reports absent rather than falsely claiming legacy structure.
+    assert!(
+        routed.iter().any(|name| name.contains("inspect")),
+        "inspect must route to refine under default routing: {routed:?}"
+    );
+    assert!(
+        identity.is_err(),
+        "legacy per-family structural oracle does not match refine SSA, as expected: {identity:?}"
+    );
 }
 
 #[test]

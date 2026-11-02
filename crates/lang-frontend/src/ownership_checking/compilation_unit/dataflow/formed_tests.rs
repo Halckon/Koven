@@ -1,5 +1,6 @@
 //! CI-only assignment rollback guard; inspect raw history before aggregate clearing.
 mod adjacent;
+mod adjacent_borrow_results;
 mod normalization;
 mod publication;
 
