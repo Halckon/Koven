@@ -297,15 +297,17 @@ fn observe_with_identity(
             println!(
                 "SPEC0332 BOUNDED STAGE case={case} unit={unit} complete=ok ownership=ok deferred=0 lower=attempt"
             );
-            lower_scalar_unit_with_entry(
-                &sources,
-                &inputs,
-                &names,
-                &types,
-                &typed,
-                &owned,
-                entry.id(),
-            )
+            crate::ssa::with_per_family_lowering(|| {
+                lower_scalar_unit_with_entry(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    &typed,
+                    &owned,
+                    entry.id(),
+                )
+            })
         } else {
             let names = resolve_names(&sources, &file, &environment)
                 .map_err(|error| failure("names-api", error))?;

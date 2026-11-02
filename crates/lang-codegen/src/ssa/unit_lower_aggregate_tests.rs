@@ -199,16 +199,25 @@ fn finite_value_class_recursion_through_a_heap_handle_lowers() {
     )];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let (program, _) = lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        declaration(&names, "test", "entry"),
-    )
-    .expect("a heap handle breaks the inline value-class recursion");
+    let ((program, _), routed) = super::refine::observe_routing(|| {
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "test", "entry"),
+        )
+        .expect("a heap handle breaks the inline value-class recursion")
+    });
+    // Record explicit boundary: value class containing heap class owner is MoveOnly,
+    // not supported by refine (which only supports Copyable value class), so it routes
+    // through the scalar lowering fallback path, not refine.
+    assert!(
+        routed.is_empty(),
+        "heap-handle recursive value class routes via fallback, not refine: {routed:?}"
+    );
 
     let module = &program.modules[0];
     assert_eq!(

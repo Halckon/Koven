@@ -50,8 +50,8 @@ fn original_payload_sources_keep_precise_memory_document_return_boundary() {
         );
         assert_eq!(expected.source_id(), unit.parsed().source_id());
         let entry = unit.declaration("entry", SymbolKind::Function);
-        let error = unit
-            .lower_entry(entry)
+        let lower_result = crate::ssa::with_per_family_lowering(|| unit.lower_entry(entry));
+        let error = lower_result
             .err()
             .expect("implementation boundary is rejection, not successful payload lowering");
         assert_eq!(
@@ -86,8 +86,8 @@ fn original_presence_sources_reach_source_anchored_memory_document_llvm() {
             .unwrap_or_else(|error| panic!("{case}: {}: {}", error.stage, error.detail));
         let entry = unit.declaration("entry", SymbolKind::Function);
         let entry_span = unit.declaration_span(entry);
-        let (program, entry) = unit
-            .lower_entry(entry)
+        let lower_result = crate::ssa::with_per_family_lowering(|| unit.lower_entry(entry));
+        let (program, entry) = lower_result
             .unwrap_or_else(|error| panic!("{case}: original presence source: {error:?}"));
         let function = program
             .module(entry.module())

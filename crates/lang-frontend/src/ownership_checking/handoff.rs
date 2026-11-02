@@ -5,7 +5,10 @@ use std::fmt;
 use crate::{
     name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit},
     source::SourceMap,
-    type_checking::{CompilationUnitTypes, TypeEnvironment, ValidatedCompilationUnitTypes},
+    type_checking::{
+        CompilationUnitSignatures, CompilationUnitTypes, TypeEnvironment,
+        ValidatedCompilationUnitTypes,
+    },
 };
 
 use super::{CompilationUnitOwnership, ValidatedCompilationUnitOwnership};
@@ -89,15 +92,14 @@ pub fn owned_compilation_unit_view<'view, 'parsed: 'view>(
     typed: &'view ValidatedCompilationUnitTypes,
     owned: &'view ValidatedCompilationUnitOwnership,
 ) -> Result<OwnedCompilationUnitView<'view, 'parsed>, OwnedCompilationUnitViewError> {
-    let rebuilt = index_compilation_unit(sources, inputs)
-        .map_err(|_| OwnedCompilationUnitViewError::MismatchedSource)?;
-    if &rebuilt != names.names().index()
-        || !typed
-            .types()
-            .signatures()
-            .is_compatible_with_index(&rebuilt, names, environment)
-        || !owned.ownership().is_compatible_with(typed)
-    {
+    validate_source_analysis(
+        sources,
+        inputs,
+        names,
+        environment,
+        typed.types().signatures(),
+    )?;
+    if !owned.ownership().is_compatible_with(typed) {
         return Err(OwnedCompilationUnitViewError::MismatchedAnalysis);
     }
     Ok(OwnedCompilationUnitView {
@@ -108,4 +110,23 @@ pub fn owned_compilation_unit_view<'view, 'parsed: 'view>(
         typed,
         owned,
     })
+}
+
+/// Basic 与 const handoff 共用来源门；不授予任一类型或所有权能力。
+/// 保留先验证输入、再比较分析身份的错误仲裁，且只重建一次 index。
+pub(super) fn validate_source_analysis(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    signatures: &CompilationUnitSignatures,
+) -> Result<(), OwnedCompilationUnitViewError> {
+    let rebuilt = index_compilation_unit(sources, inputs)
+        .map_err(|_| OwnedCompilationUnitViewError::MismatchedSource)?;
+    if &rebuilt != names.names().index()
+        || !signatures.is_compatible_with_index(&rebuilt, names, environment)
+    {
+        return Err(OwnedCompilationUnitViewError::MismatchedAnalysis);
+    }
+    Ok(())
 }

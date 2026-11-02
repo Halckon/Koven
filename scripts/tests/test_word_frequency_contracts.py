@@ -101,7 +101,7 @@ class WordFrequencyContracts(unittest.TestCase):
     def test_dual_host_acceptance_and_evidence_upload_cannot_be_skipped(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
         job = re.search(r'^  test:\n(.*?)(?=^  [a-z-]+:|\Z)', workflow, re.M | re.S)[1]
-        self.assertIn('os: [macos-15, ubuntu-24.04]', job)
+        self.assertIn('os: [macos-15, ubuntu-26.04]', job)
         acceptance = job.split('      - name: Word frequency byte and boundary contracts\n', 1)[1]
         step = acceptance.split('      - name:', 1)[0]
         self.assertNotIn('if:', step)

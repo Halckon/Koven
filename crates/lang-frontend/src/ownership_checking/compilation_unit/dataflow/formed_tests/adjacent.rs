@@ -1,7 +1,7 @@
 //! Inspect raw dataflow before outer publication gates can hide missing cleanup.
 use super::*;
 
-const SOURCE: &str = r#"
+pub(super) const SOURCE: &str = r#"
 class Node {}
 fun read(value: Node): Int = 1
 fun prior(own priorValue: Node?): Int = when (priorValue) { null -> 0; else -> read(priorValue) }

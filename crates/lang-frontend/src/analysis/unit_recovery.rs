@@ -72,3 +72,6 @@ impl Error for UnitRecoveryAnalysisError {
 
 #[cfg(test)]
 mod single_source_tests;
+
+#[cfg(test)]
+mod provenance_tests;

@@ -10,13 +10,57 @@ pub(super) fn assert_field_loan(program: &Program) {
         .functions
         .iter()
         .filter(|function| {
-            function.instructions.iter().any(|instruction| {
-                matches!(instruction.operation, Operation::HeapPayloadPlace { .. })
-            })
+            function.name.contains("entry")
+                && function.instructions.iter().any(|instruction| {
+                    matches!(
+                        instruction.operation,
+                        Operation::HeapPayloadPlace { .. } | Operation::SharedHeapFieldLoan { .. }
+                    )
+                })
         })
         .collect::<Vec<_>>();
     assert_eq!(functions.len(), 1, "the entry's ordinary owned field loan");
     let function = functions[0];
+    if let Some(shared_loan) = function
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction.operation, Operation::SharedHeapFieldLoan { .. }))
+    {
+        let Operation::SharedHeapFieldLoan { base: _, field } = shared_loan.operation else {
+            unreachable!()
+        };
+        assert_eq!(field, 0);
+        let EntityId::Loan(loan) = only(shared_loan.results.iter().copied()) else {
+            panic!("shared field loan")
+        };
+        let EntityType::Loan { kind, target } = function.entity(EntityId::Loan(loan)).unwrap().ty
+        else {
+            panic!("loan entity")
+        };
+        assert_eq!(kind, LoanKind::Shared);
+        assert!(matches!(
+            module.type_kind(target),
+            Some(SsaTypeKind::StringOwner)
+        ));
+        let read = only(function.instructions.iter().filter(|instruction| matches!(instruction.operation, Operation::PrintString { value } if value == loan)));
+        let end = only(function.instructions.iter().filter(|instruction| matches!(instruction.operation, Operation::BorrowEnd { loan: ended } if ended == loan)));
+        let block = function.block(shared_loan.block).unwrap();
+        let mut last = None;
+        for instruction in [shared_loan, read, end] {
+            assert_eq!(instruction.block, block.id);
+            let index = block
+                .instructions
+                .iter()
+                .position(|id| *id == instruction.id)
+                .unwrap();
+            if let Some(last) = last {
+                assert!(last < index);
+            }
+            last = Some(index);
+        }
+        assert!(!function.instructions.iter().any(|instruction| matches!(instruction.operation, Operation::Read { source: PlaceAccess::Loan(source) } if source == loan)), "String is borrowed rather than copied out");
+        return;
+    }
     let root =
         only(function.instructions.iter().filter(|instruction| {
             matches!(instruction.operation, Operation::HeapPayloadPlace { .. })

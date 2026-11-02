@@ -9,85 +9,87 @@ use super::{
 };
 
 fn observe(case: &Case, rooted: bool) -> Observation {
-    let (label, map, hash, text) = (case.label, case.map, case.source_hash, case.text);
-    let mut report = Report::default();
-    println!(
-        "SPEC0331 NESTED EXITS IDENTITY INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={hash} text={text:?}"
-    );
-    let outcome = ast::Input::new(text, map, case.exit).and_then(|input| {
-        let anchors = ast::collect(&input);
-        report.query(
-            "nested exits identity actual parent/child same-root AST anchors",
-            &anchors,
-        );
-        let mut inputs: Option<Result<query_inputs::Inputs, Failure>> = None;
-        let (program, entry) = pipeline::unit_input_observed(
-            &input.sources,
-            &input.parsed,
-            "provider.ko",
-            &mut report,
-            rooted,
-            |names, typed, owned, report| {
-                unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
-                let queried = anchors
-                    .as_ref()
-                    .map_err(|e| failure("nested exits identity AST for FE", e))
-                    .and_then(|a| query_inputs::unit(&input, a, names, typed, owned));
-                report.query(
-                    "nested exits identity same-analysis FE source/caller/component/cleanup bridge",
-                    &queried,
-                );
-                inputs = Some(queried);
-            },
-        )?;
+    crate::ssa::with_per_family_lowering(|| {
+        let (label, map, hash, text) = (case.label, case.map, case.source_hash, case.text);
+        let mut report = Report::default();
         println!(
-            "SPEC0331 NESTED EXITS IDENTITY SSA case={label} rooted={rooted}\n{}",
-            crate::ssa::render::render_program(&program)
+            "SPEC0331 NESTED EXITS IDENTITY INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={hash} text={text:?}"
         );
-        let reachable = anchors
-            .as_ref()
-            .map_err(|e| failure("nested exits identity actual AST roots", e))
-            .and_then(|a| {
-                identity::entry_sources(&input.sources, &program, entry, &a.functions_for_ssa())
+        let outcome = ast::Input::new(text, map, case.exit).and_then(|input| {
+            let anchors = ast::collect(&input);
+            report.query(
+                "nested exits identity actual parent/child same-root AST anchors",
+                &anchors,
+            );
+            let mut inputs: Option<Result<query_inputs::Inputs, Failure>> = None;
+            let (program, entry) = pipeline::unit_input_observed(
+                &input.sources,
+                &input.parsed,
+                "provider.ko",
+                &mut report,
+                rooted,
+                |names, typed, owned, report| {
+                    unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+                    let queried = anchors
+                        .as_ref()
+                        .map_err(|e| failure("nested exits identity AST for FE", e))
+                        .and_then(|a| query_inputs::unit(&input, a, names, typed, owned));
+                    report.query(
+                        "nested exits identity same-analysis FE source/caller/component/cleanup bridge",
+                        &queried,
+                    );
+                    inputs = Some(queried);
+                },
+            )?;
+            println!(
+                "SPEC0331 NESTED EXITS IDENTITY SSA case={label} rooted={rooted}\n{}",
+                crate::ssa::render::render_program(&program)
+            );
+            let reachable = anchors
+                .as_ref()
+                .map_err(|e| failure("nested exits identity actual AST roots", e))
+                .and_then(|a| {
+                    identity::entry_sources(&input.sources, &program, entry, &a.functions_for_ssa())
+                });
+            report.query(
+                "nested exits identity actual returned entry and reachable functions",
+                &reachable,
+            );
+            let inputs = inputs.unwrap_or_else(|| {
+                Err(failure(
+                    "nested exits identity same-analysis FE observer",
+                    "observer did not run",
+                ))
             });
-        report.query(
-            "nested exits identity actual returned entry and reachable functions",
-            &reachable,
-        );
-        let inputs = inputs.unwrap_or_else(|| {
-            Err(failure(
-                "nested exits identity same-analysis FE observer",
-                "observer did not run",
-            ))
+            let queried = inputs
+                .as_ref()
+                .map_err(|e| failure("nested exits identity FE bridge for SSA", e))
+                .and_then(|inputs| query_ssa::check(&program, entry, &input, inputs));
+            report.query(
+                "nested exits identity caller two Guard identities both leases all incoming full cleanup and complete uses",
+                &queried,
+            );
+            // 不使用 query 的 ?：保持原 verifier/LLVM 的真实到达与首错误。
+            crate::ssa::verify::verify_program(&program)
+                .map_err(|e| verify_failure(&input.sources, e))?;
+            report.check("nested exits identity original SSA verifier", true, entry);
+            let llvm = crate::llvm::render_verified_program(&program)
+                .map_err(|e| failure("LLVM render/verify", e))?;
+            report.check(
+                "nested exits identity original LLVM render/verify",
+                true,
+                llvm.len(),
+            );
+            println!("SPEC0331 NESTED EXITS IDENTITY LLVM case={label} rooted={rooted}\n{llvm}");
+            Ok(())
         });
-        let queried = inputs
-            .as_ref()
-            .map_err(|e| failure("nested exits identity FE bridge for SSA", e))
-            .and_then(|inputs| query_ssa::check(&program, entry, &input, inputs));
-        report.query(
-            "nested exits identity caller two Guard identities both leases all incoming full cleanup and complete uses",
-            &queried,
-        );
-        // 不使用 query 的 ?：保持原 verifier/LLVM 的真实到达与首错误。
-        crate::ssa::verify::verify_program(&program)
-            .map_err(|e| verify_failure(&input.sources, e))?;
-        report.check("nested exits identity original SSA verifier", true, entry);
-        let llvm = crate::llvm::render_verified_program(&program)
-            .map_err(|e| failure("LLVM render/verify", e))?;
-        report.check(
-            "nested exits identity original LLVM render/verify",
-            true,
-            llvm.len(),
-        );
-        println!("SPEC0331 NESTED EXITS IDENTITY LLVM case={label} rooted={rooted}\n{llvm}");
-        Ok(())
-    });
-    Observation {
-        label,
-        rooted,
-        report,
-        outcome,
-    }
+        Observation {
+            label,
+            rooted,
+            report,
+            outcome,
+        }
+    })
 }
 
 #[test]

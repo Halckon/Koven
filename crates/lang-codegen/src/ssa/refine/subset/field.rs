@@ -41,6 +41,7 @@ impl Checker<'_, '_> {
             || self.symbol_type(symbol) != Some(target_ty)
             || !self.storage_type(target_ty)
             || !self.adaptable(value, target_ty)
+            || (self.loops > 0 && self.view_symbols.contains(&symbol))
         {
             return false;
         }

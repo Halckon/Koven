@@ -23,7 +23,7 @@
 
 1. **MoveOnly 局部可变绑定重赋值（`refine/subset.rs`、`refine/build/expression.rs`）**：
    - `Checker::assignment` 放开局部 `var` 绑定的类型准入为任意 `storage_type`（含 `String`、`String?`、容器、`Rc<T>`、MoveOnly `enum class` 等），并在重赋值后清除该符号在 `view_symbols` 中的窄化证明视图状态。
-   - `Builder::assignment` 在写入新值前调用 `end_views_of(symbol)` 结束该符号已激活的证明视图，消费 `BeforeOverwrite` 清理事实（若旧值仍存活），并通过 `self.dead.remove(&symbol)` 重新激活该槽位的生命周期追踪，使新写入的 MoveOnly owner 在后续退出或覆写点被正常释放。
+   - `Builder::assignment` 在写入新值前调用 `end_views_of(symbol)` 结束该符号已激活的证明视图，消费前端 planner 在赋值表达式右侧求值完毕、覆写旧值前发布的 `AfterExpression(value)`（即重赋覆写前旧值析构）清理事实（若旧值仍存活），并通过 `self.dead.remove(&symbol)` 重新激活该槽位的生命周期追踪，使新写入的 MoveOnly owner 在后续退出或覆写点被正常释放。
 2. **通用 MoveOnly `enum class` 准入与标量载荷投影（`refine/subset/tagged.rs`、`refine/build/tagged.rs`）**：
    - 将 `box_enum_type_seen` 扩展为接纳任意载荷满足 `storage_type_seen` 的 MoveOnly `enum class`（如 `enum class Tag { Named(n: String), Empty }`、`enum class Reply<T> { Full(value: T, code: Int), Empty }`），保留 `active` 集合防递归死循环。
    - 允许在 `is Case` 窄化后对 MoveOnly `enum class` 具名绑定读取 Copyable 标量载荷字段（如 `item.code`），经 `ROp::TaggedPayloadPlace` 与 `ROp::SharedFieldLoan` 读取。

@@ -117,8 +117,8 @@ impl Checker<'_, '_> {
                     || self.box_enum_type_seen(ty, active)
                     || self.box_payload_seen(ty, active).is_some()
                     || self.rc_payload_seen(ty, active).is_some()
-                    || self.value_class(ty)
-                    || self.move_value_class(ty)
+                    || self.value_class_seen(ty, active)
+                    || self.move_value_class_seen(ty, active)
                     || self.container_element_seen(ty, active).is_some()
                     || self.map_kv(ty).is_some()
             }
@@ -145,8 +145,8 @@ impl Checker<'_, '_> {
         let [payload] = arguments.as_slice() else {
             return None;
         };
-        let valid_payload = self.value_class(*payload)
-            || self.move_value_class(*payload)
+        let valid_payload = self.value_class_seen(*payload, active)
+            || self.move_value_class_seen(*payload, active)
             || self.enum_type(*payload)
             || self.box_enum_type_seen(*payload, active)
             || active.contains(payload);

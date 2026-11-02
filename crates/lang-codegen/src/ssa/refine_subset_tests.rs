@@ -192,3 +192,23 @@ fn routing_and_refined_output_do_not_depend_on_input_order() {
         );
     }
 }
+
+#[test]
+fn outer_non_null_view_with_loop_reassignment_routes_to_legacy() {
+    let source = r#"fun f(): Unit {
+        var outer: String? = "first"
+        if (outer != null) {
+            var i = 0
+            while (i < 2) {
+                outer = "second"
+                break
+            }
+        }
+    }"#;
+    let (res, routed) = route(source);
+    assert!(
+        !routed,
+        "reassigning an outer-narrowed variable inside a loop must not route to refine"
+    );
+    assert!(res.is_ok());
+}

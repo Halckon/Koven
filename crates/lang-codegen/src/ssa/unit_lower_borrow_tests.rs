@@ -185,15 +185,17 @@ fn inout_and_non_root_borrows_remain_atomic_boundaries() {
         let (name_environment, type_environment) = standard_environments();
         let (names, typed, owned) =
             analyze(&sources, &inputs, &name_environment, &type_environment);
-        let error = match lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &type_environment,
-            &typed,
-            &owned,
-            declaration(&names, "test", "entry"),
-        ) {
+        let error = match crate::ssa::with_per_family_lowering(|| {
+            lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                declaration(&names, "test", "entry"),
+            )
+        }) {
             Ok(_) => panic!("{path} remains outside the shared-root Borrow core"),
             Err(error) => error,
         };
