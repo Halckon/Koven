@@ -9,7 +9,7 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitCallTarget, UnitTypeId, UnitTypeKind},
 };
 
-use super::{Builder, Lowered, View};
+use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error, string_literal},
     model::{CheckedArithmeticOperator, ComparisonOperator, EntityType, LoanKind, ScalarConstant},
@@ -500,8 +500,7 @@ impl Builder<'_, '_> {
         self.condition_for_control(condition, when_true, when_false, span)?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
-        let mut branch_views = Vec::new();
-        let mut reached = false;
+        let mut predecessors = Vec::new();
         for (index, (block, branch)) in [(when_true, Some(then_branch)), (when_false, else_branch)]
             .into_iter()
             .enumerate()
@@ -528,29 +527,18 @@ impl Builder<'_, '_> {
                 control,
                 branch: index,
             })?;
-            branch_views.push(self.active_views.clone());
-            self.goto(join, span)?;
-            reached = true;
+            if let Some(cur) = self.block {
+                predecessors.push((cur, self.active_views.clone()));
+            }
         }
         self.pending_call_loans = outer_pending_loans;
-        if branch_views.len() == 2 {
-            let common: Vec<View> = branch_views[0]
-                .iter()
-                .filter(|v| branch_views[1].iter().any(|other| other.slot == v.slot))
-                .copied()
-                .collect();
-            self.active_views = common;
-        } else if let Some(first) = branch_views.pop() {
-            self.active_views = first;
-        }
+        let reached = self.join_views(predecessors, join, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
         if !reached {
-            self.block = None;
             return Ok(Lowered::Diverged);
         }
-        self.block = Some(join);
         Ok(result.map_or(Lowered::Unit, Lowered::Value))
     }
 
