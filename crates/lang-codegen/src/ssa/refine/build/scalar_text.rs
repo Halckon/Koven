@@ -399,6 +399,7 @@ impl Builder<'_, '_> {
             continue_target: continuation,
             exit,
             views: mark,
+            loans: self.pending_call_loans.len(),
             broken: false,
             seq_for: None,
         });

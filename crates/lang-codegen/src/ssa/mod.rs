@@ -22,6 +22,8 @@ mod refine_subset_tests;
 mod refine_tests;
 #[cfg(test)]
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
+#[cfg(test)]
+pub(crate) use refine::with_per_family_lowering;
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
 pub(crate) mod model;

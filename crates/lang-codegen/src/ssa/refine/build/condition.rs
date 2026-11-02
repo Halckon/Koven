@@ -3,6 +3,7 @@ use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::UnitDropPoint,
     parser::{BinaryOperator, Expression, PrefixOperator},
+    source::Span,
     type_checking::UnitTypeKind,
 };
 
@@ -32,9 +33,9 @@ impl Builder<'_, '_> {
         let middle = self.body.block();
         let skip = self.body.block();
         if and {
-            self.condition_with_views(left, middle, skip, views)?;
+            self.condition_internal(left, middle, skip, views, None)?;
         } else {
-            self.condition_with_views(left, skip, middle, views)?;
+            self.condition_internal(left, skip, middle, views, None)?;
         }
         let skip_target = if and { when_false } else { when_true };
         let skipped = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 1 });
@@ -47,7 +48,7 @@ impl Builder<'_, '_> {
         let mark = self.enter(middle);
         let evaluated_true = self.body.block();
         let evaluated_false = self.body.block();
-        self.condition_with_views(right, evaluated_true, evaluated_false, views)?;
+        self.condition_internal(right, evaluated_true, evaluated_false, views, None)?;
         let left_views: Vec<_> = self.active_views.drain(mark..).collect();
         let evaluated = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 0 });
         for (path, target) in [(evaluated_true, when_true), (evaluated_false, when_false)] {
@@ -89,7 +90,17 @@ impl Builder<'_, '_> {
         when_true: BlockRef,
         when_false: BlockRef,
     ) -> Result<(), LoweringError> {
-        self.condition_with_views(expression, when_true, when_false, true)
+        self.condition_internal(expression, when_true, when_false, true, None)
+    }
+
+    pub(super) fn condition_for_control(
+        &mut self,
+        expression: ExpressionId,
+        when_true: BlockRef,
+        when_false: BlockRef,
+        control_span: Span,
+    ) -> Result<(), LoweringError> {
+        self.condition_internal(expression, when_true, when_false, true, Some(control_span))
     }
 
     pub(super) fn condition_with_views(
@@ -99,16 +110,35 @@ impl Builder<'_, '_> {
         when_false: BlockRef,
         views: bool,
     ) -> Result<(), LoweringError> {
+        self.condition_internal(expression, when_true, when_false, views, None)
+    }
+
+    fn condition_internal(
+        &mut self,
+        expression: ExpressionId,
+        when_true: BlockRef,
+        when_false: BlockRef,
+        views: bool,
+        control_span: Option<Span>,
+    ) -> Result<(), LoweringError> {
         let (payload, span) = self.node(expression)?;
         match payload {
             Expression::Group { expression: inner } => {
-                return self.condition_with_views(inner, when_true, when_false, views);
+                return self.condition_internal(inner, when_true, when_false, views, control_span);
             }
             Expression::Prefix {
                 operator: PrefixOperator::Not,
                 operand,
                 ..
-            } => return self.condition_with_views(operand, when_false, when_true, false),
+            } => {
+                return self.condition_internal(
+                    operand,
+                    when_false,
+                    when_true,
+                    false,
+                    control_span,
+                );
+            }
             Expression::Binary {
                 left,
                 operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
@@ -232,7 +262,7 @@ impl Builder<'_, '_> {
                 when_true,
                 when_false,
             },
-            span,
+            control_span.unwrap_or(span),
         )
     }
 }

@@ -82,7 +82,13 @@ impl Checker<'_, '_> {
                         };
                         serves.then_some(ty)
                     }
-                    _ => None,
+                    _ => {
+                        if mode == ParameterMode::Borrow {
+                            self.expression_type(expression)
+                        } else {
+                            None
+                        }
+                    }
                 }
             }
         }
@@ -114,12 +120,14 @@ impl Checker<'_, '_> {
             && fact.kind() == kind
             && fact.is_receiver_reservation() == (receiver.mode() == ParameterMode::Inout)
             && fact.activation_point().is_none_or(|point| point == id)
-            && !matches!(fact.target(), UnitReceiverOwnershipTarget::Temporary(_));
+            && (!matches!(fact.target(), UnitReceiverOwnershipTarget::Temporary(_))
+                || self.string(self.c(receiver.ty())));
         let kind_ok = match receiver.mode() {
             ParameterMode::Borrow => {
                 self.class(self.c(receiver.ty()))
                     || self.enum_type(self.c(receiver.ty()))
                     || self.value_class(self.c(receiver.ty()))
+                    || self.string(self.c(receiver.ty()))
             }
             ParameterMode::Inout => self.class(self.c(receiver.ty())),
             ParameterMode::Value => {
