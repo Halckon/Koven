@@ -225,17 +225,35 @@ fn nullable_rc_if_uses_one_shared_proof_and_returns_the_original_owner() {
     let [control] = controls.as_slice() else {
         panic!("one full original if expression")
     };
-    assert_eq!(
-        function
-            .block(*header)
-            .unwrap()
-            .terminator
-            .as_ref()
-            .unwrap()
-            .origin
-            .span(),
-        *control
-    );
+    let condition = source
+        .parsed
+        .ast()
+        .expressions()
+        .iter()
+        .find_map(|(_, node)| {
+            if let Expression::If { condition, .. } = node.payload() {
+                Some(
+                    source
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(*condition)
+                        .unwrap()
+                        .span(),
+                )
+            } else {
+                None
+            }
+        });
+    let actual_span = function
+        .block(*header)
+        .unwrap()
+        .terminator
+        .as_ref()
+        .unwrap()
+        .origin
+        .span();
+    assert!(actual_span == *control || Some(actual_span) == condition);
     let entry_block = function.block(function.entry_block().unwrap()).unwrap();
     let [input_owner] = entry_block.parameters.as_slice() else {
         panic!("the original function has exactly one owner parameter")

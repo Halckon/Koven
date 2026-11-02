@@ -247,6 +247,34 @@
       "owner": "lang-frontend callable selection",
       "split_plan": "后续按成员候选收集与调用匹配的完整职责边界独立拆分，保留 canonical 身份与既有回归。",
       "review": "SPEC-0368 独立审查核对 1001→1010 的九行接线，并确认其他超限文件仅模块或模型字段增长。超过 1010 行或新增算法职责前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/refine/build.rs": {
+      "max_lines": 1025,
+      "reason": "SPEC-0379 MoveOnly 局部可变重赋值生命周期追踪与 drop 编排；赋值前结束证明视图与重新激活死槽位。",
+      "owner": "lang-codegen refine lowering",
+      "split_plan": "后续按 statement/expression/terminator 构造职责进一步拆分独立 builder 模块。",
+      "review": "SPEC-0379 审查核对 MoveOnly 赋值与 drop 编排逻辑，锁定 1025 行；再次增长或职责变更前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/refine/build/expression.rs": {
+      "max_lines": 1025,
+      "reason": "SPEC-0379 extension call 接收者参数适配与 MoveOnly 赋值实参接线。",
+      "owner": "lang-codegen refine lowering",
+      "split_plan": "后续将 call 实参处理与运算表达式分流为独立子模块。",
+      "review": "SPEC-0379 审查核对 extension call 与 MoveOnly 实参接线，锁定 1025 行；再次增长或职责变更前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/refine/subset.rs": {
+      "max_lines": 1025,
+      "reason": "SPEC-0379 MoveOnly 局部可变重赋值准入与 extension call 准入扩展。",
+      "owner": "lang-codegen refine lowering",
+      "split_plan": "后续将 callable 与 expression subset 准入拆入专用子模块。",
+      "review": "SPEC-0379 审查核对 MoveOnly 局部重赋值准入与 extension call 检查，锁定 1025 行；再次增长或职责变更前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/while_flow_tests/numeric_proof_contract.rs": {
+      "max_lines": 1025,
+      "reason": "SPEC-0379 while 循环证明契约兼容 SPEC-0350 下 NullableBranch 归属于 condition span 的演进事实。",
+      "owner": "lang-codegen ssa tests",
+      "split_plan": "后续将证明断言提取为独立 verification helper。",
+      "review": "SPEC-0379 审查核对 while flow 证明契约兼容性，锁定 1025 行；再次增长或职责变更前重新审阅。"
     }
   },
   "generated": {}

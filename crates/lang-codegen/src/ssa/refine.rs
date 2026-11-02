@@ -173,7 +173,7 @@ thread_local! {
 /// Test-only: runs `lower` with every function on the per-family path, for tests that
 /// inspect or fault-inject that path's private guards.
 #[cfg(test)]
-pub(in crate::ssa) fn with_per_family_lowering<T>(lower: impl FnOnce() -> T) -> T {
+pub(crate) fn with_per_family_lowering<T>(lower: impl FnOnce() -> T) -> T {
     struct Reset;
     impl Drop for Reset {
         fn drop(&mut self) {
