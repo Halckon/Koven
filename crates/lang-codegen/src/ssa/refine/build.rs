@@ -74,6 +74,8 @@ pub(super) struct Builder<'i, 'a> {
     dead: BTreeSet<UnitSymbolId>,
     dead_block: Option<BlockRef>,
     entry_dead: BTreeMap<BlockRef, BTreeSet<UnitSymbolId>>,
+    /// Loans created for call arguments/receiver that are currently active in the AST evaluation stack.
+    pending_call_loans: Vec<Slot>,
 }
 
 /// Jump targets of one loop; views above `views` belong to its iteration.
@@ -83,6 +85,7 @@ pub(super) struct LoopFrame {
     pub(super) continue_target: BlockRef,
     pub(super) exit: BlockRef,
     pub(super) views: usize,
+    pub(super) loans: usize,
     pub(super) broken: bool,
     pub(super) seq_for: Option<SeqForFrame>,
 }
@@ -128,6 +131,7 @@ pub(super) fn build(
         dead: BTreeSet::new(),
         dead_block: None,
         entry_dead: BTreeMap::new(),
+        pending_call_loans: Vec::new(),
     };
     let entry = builder.body.block();
     builder.block = Some(entry);
@@ -458,6 +462,11 @@ impl Builder<'_, '_> {
         for (_, target, span) in facts {
             let slot = match target {
                 UnitDropTarget::Named(symbol) => {
+                    if let Some(ty) = self.symbol_type(*symbol)
+                        && !self.move_only(ty)
+                    {
+                        continue;
+                    }
                     if !self.dead.insert(*symbol) {
                         // This path already dropped the owner (inside a loop it left).
                         continue;
@@ -469,6 +478,11 @@ impl Builder<'_, '_> {
                 // satisfied by the closure's own drop at the same point.
                 UnitDropTarget::Captured { .. } => continue,
                 UnitDropTarget::Temporary(expression) => {
+                    if let Some(ty) = self.expression_type_of(*expression)
+                        && !self.move_only(ty)
+                    {
+                        continue;
+                    }
                     // A moved named argument: its owner is gone on this path.
                     if let Some(symbol) = self.pending_symbol(*expression) {
                         self.dead.insert(symbol);
@@ -507,6 +521,7 @@ impl Builder<'_, '_> {
 
     /// Leaves a branch normally: ends the views it activated that are still live.
     pub(super) fn leave(&mut self, mark: usize, span: Span) -> Result<(), LoweringError> {
+        let mark = mark.min(self.active_views.len());
         while self.active_views.len() > mark {
             let view = self.active_views.pop().expect("length checked");
             if self.block.is_some() {
@@ -522,10 +537,20 @@ impl Builder<'_, '_> {
         symbol: UnitSymbolId,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let (ended, kept): (Vec<View>, Vec<View>) = self
-            .active_views
-            .drain(..)
-            .partition(|view| view.symbol == symbol);
+        let mut ended = Vec::new();
+        let mut kept = Vec::new();
+        for view in self.active_views.drain(..) {
+            if view.symbol == symbol {
+                ended.push(view);
+                for frame in &mut self.loops {
+                    if frame.views > kept.len() {
+                        frame.views -= 1;
+                    }
+                }
+            } else {
+                kept.push(view);
+            }
+        }
         self.active_views = kept;
         for view in ended {
             self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
@@ -535,7 +560,7 @@ impl Builder<'_, '_> {
 
     /// A control transfer leaves every active view; they end before the terminator.
     pub(super) fn end_all_views(&mut self, span: Span) -> Result<(), LoweringError> {
-        for view in self.active_views.clone().into_iter().rev() {
+        for view in std::mem::take(&mut self.active_views).into_iter().rev() {
             self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
         }
         Ok(())
@@ -842,6 +867,7 @@ impl Builder<'_, '_> {
             continue_target: header,
             exit,
             views: mark,
+            loans: self.pending_call_loans.len(),
             broken: false,
             seq_for: None,
         });
@@ -881,6 +907,7 @@ impl Builder<'_, '_> {
             continue_target: header,
             exit,
             views: mark,
+            loans: self.pending_call_loans.len(),
             broken: false,
             seq_for: None,
         });
@@ -902,28 +929,33 @@ impl Builder<'_, '_> {
         Ok(Lowered::Unit)
     }
 
-    /// `break` / `continue`: the jump's drops, then the views of the loop's iteration end.
+    /// `break` / `continue`: pending call loans and views end before drops and branch.
     pub(super) fn loop_jump(
         &mut self,
         expression: ExpressionId,
         is_break: bool,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
-        self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
         let frame = self
             .loops
             .last_mut()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         frame.broken |= is_break;
         let frame = *frame;
-        let iteration: Vec<View> = self.active_views[frame.views..]
-            .iter()
-            .rev()
-            .copied()
-            .collect();
-        for view in iteration {
+        let loans_boundary = frame.loans.min(self.pending_call_loans.len());
+        while self.pending_call_loans.len() > loans_boundary {
+            let loan = self
+                .pending_call_loans
+                .pop()
+                .expect("loans boundary checked");
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
+        let views_boundary = frame.views.min(self.active_views.len());
+        while self.active_views.len() > views_boundary {
+            let view = self.active_views.pop().expect("views boundary checked");
             self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
         }
+        self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
         if !is_break && let Some(seq) = frame.seq_for {
             let next = self.value(
                 ROp::Binary {
@@ -951,7 +983,7 @@ impl Builder<'_, '_> {
                 if !self.dead.insert(symbol) {
                     continue;
                 }
-                let outer: Vec<View> = self.active_views[..frame.views]
+                let outer: Vec<View> = self.active_views[..views_boundary]
                     .iter()
                     .rev()
                     .copied()

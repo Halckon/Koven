@@ -10,7 +10,10 @@ use lang_frontend::{
     },
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{
+        check_compilation_unit_types, check_types, complete_compilation_unit_types,
+        standard_environments,
+    },
 };
 
 fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
@@ -59,6 +62,69 @@ fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
     (single, unit)
 }
 
+// Negative consumers use original bytes through both Unit entry modes. Positive
+// witnesses retain the independent Single helper and its ownership observations.
+fn checked_unit(text: &str) -> (CompilationUnitOwnership, CompilationUnitOwnership) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("map.ko", text).unwrap();
+    let lexed = lex(&sources, source).unwrap();
+    assert!(lexed.diagnostics().is_empty());
+    let file = parse_file(&sources, &lexed).unwrap();
+    assert!(file.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    let [memory, rooted] = [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "map.ko", source, &file),
+    ]
+    .map(|input| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty());
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+        assert!(names.diagnostics().is_empty());
+        let names = names.validate().unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(
+            typed.map_with_values().len(),
+            1,
+            "one original Map operation"
+        );
+        for descriptor in typed.map_with_values() {
+            let Some(lang_frontend::type_checking::UnitTypeKind::Function {
+                parameters,
+                return_type,
+                ..
+            }) = typed.types().get(descriptor.action_type())
+            else {
+                panic!("callback type missing");
+            };
+            assert_eq!(parameters.len(), 1);
+            assert_eq!(
+                parameters[0].mode(),
+                lang_frontend::type_checking::ParameterMode::Borrow
+            );
+            assert_eq!(parameters[0].ty(), descriptor.value_type());
+            assert_eq!(
+                Some(*return_type),
+                typed
+                    .types()
+                    .builtin(lang_frontend::type_checking::BuiltinType::Unit)
+            );
+        }
+        let complete =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert!(complete.is_same_analysis(&typed));
+        let typed = typed.validate().unwrap();
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert!(owned.is_compatible_with(&typed));
+        owned
+    });
+    (memory, rooted)
+}
+
 #[test]
 fn scoped_map_action_borrows_string_and_restores_receiver() {
     let text = "fun run() { var m = mutableMapOf<String, String>(); m.put(\"key\", \"value\"); val hit = m.withValue(\"key\", { value -> println(value) }); m.put(\"next\", \"after\") }";
@@ -85,8 +151,8 @@ fn scoped_map_action_rejects_source_invalidation_and_value_escape() {
         let text = format!(
             "class Holder(val value:String)\nfun consume(own value:String) {{}}\nfun consumeMap(own m:MutableMap<String,String>) {{}}\nfun sink(own action:move ()->Unit) {{}}\nfun save(own action:()->Unit) {{}}\nfun run() {{var m=mutableMapOf<String,String>();m.withValue(\"key\",{action})}}"
         );
-        let (single, unit) = checked(&text);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        let (memory, rooted) = checked_unit(&text);
+        for diagnostics in [memory.diagnostics(), rooted.diagnostics()] {
             assert!(!diagnostics.is_empty(), "must reject {text}");
             for d in diagnostics {
                 assert!(
@@ -130,19 +196,24 @@ fn scoped_map_action_rejects_returned_payload_at_type_boundary() {
         "fun run() {val m=mapOf<String,String>();m.withValue(\"key\",{value -> return value})}";
     let mut sources = SourceMap::new();
     let source = sources.add_source("map.ko", text).unwrap();
-    let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    let lexed = lex(&sources, source).unwrap();
+    assert!(lexed.diagnostics().is_empty());
+    let file = parse_file(&sources, &lexed).unwrap();
     assert!(file.diagnostics().is_empty());
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &file, &environment).unwrap();
-    let single = check_types(&sources, &file, &names, &types).unwrap();
-    let inputs = [SourceUnitInput::new("root", "map.ko", source, &file)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
-    for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+    for input in [
+        SourceUnitInput::new("root", "map.ko", source, &file),
+        SourceUnitInput::memory_document(source, &file),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty());
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+        assert!(names.diagnostics().is_empty());
+        let names = names.validate().unwrap();
+        let unit = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        let diagnostics = unit.diagnostics();
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         let d = &diagnostics[0];
         assert_eq!(d.code().to_string(), "L0087");

@@ -114,7 +114,7 @@ class ReuseTests(unittest.TestCase):
         self.assertEqual(expected, {name for name in CI.required_job_names(self.flags)
                                     if '(macos-' in name})
         workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text()
-        self.assertEqual(2, workflow.count('os: [macos-15, ubuntu-24.04]'))
+        self.assertEqual(2, workflow.count('os: [macos-15, ubuntu-26.04]'))
         self.assertEqual(2, workflow.count('runs-on: macos-15'))
         for name in ('Preview Producer', 'Preview Independent Consumer'):
             self.assertIn(f'name: {name} (macos-15)', workflow)
@@ -124,6 +124,13 @@ class ReuseTests(unittest.TestCase):
         jobs = copy.deepcopy(self.jobs)
         for job in jobs:
             job['name'] = job['name'].replace('(macos-15)', '(macos-14)')
+        self.assertFalse(CI.valid_evidence(self.run, jobs, self.context, self.flags,
+                                         lambda head, merge, base: 'd' * 64))
+
+    def test_ubuntu_24_core_evidence_cannot_satisfy_26_jobs(self):
+        jobs = copy.deepcopy(self.jobs)
+        for job in jobs:
+            job['name'] = job['name'].replace('(ubuntu-26.04)', '(ubuntu-24.04)')
         self.assertFalse(CI.valid_evidence(self.run, jobs, self.context, self.flags,
                                          lambda head, merge, base: 'd' * 64))
 
