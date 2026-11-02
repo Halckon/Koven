@@ -46,8 +46,8 @@ class GeneratedOwnerCiTests(unittest.TestCase):
 
     def test_full_batch_is_unconditional_in_existing_two_host_job(self):
         self.assertIn("name: Targeted Tests (${{ matrix.os }})", self.job)
-        self.assertIn("os: [macos-15, ubuntu-24.04]", self.job)
-        self.assertEqual(2, self.workflow.count("os: [macos-15, ubuntu-24.04]"))
+        self.assertIn("os: [macos-15, ubuntu-26.04]", self.job)
+        self.assertEqual(2, self.workflow.count("os: [macos-15, ubuntu-26.04]"))
         self.assertEqual(2, self.workflow.count("fail-fast: false"))
         self.assertNotIn("schedule:", section(self.workflow, "on", ""))
         self.assertNotIn("continue-on-error", self.job)
