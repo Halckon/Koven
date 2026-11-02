@@ -14,23 +14,12 @@ use crate::{
 };
 
 impl Checker<'_> {
-    pub(super) fn borrow_result_call(&self, mut expression: ExpressionId) -> Option<ExpressionId> {
-        loop {
-            match self
-                .parsed
-                .ast()
-                .expressions()
-                .get(expression)
-                .ok()?
-                .payload()
-            {
-                Expression::Group { expression: inner } => expression = *inner,
-                Expression::Call { .. } if self.borrowed_call_source(expression).is_some() => {
-                    return Some(expression);
-                }
-                _ => return None,
-            }
-        }
+    pub(super) fn borrow_result_call(&self, expression: ExpressionId) -> Option<ExpressionId> {
+        crate::ownership_checking::borrow_result::borrow_result_call(
+            self.parsed,
+            expression,
+            |call| self.borrowed_call_source(call).is_some(),
+        )
     }
 
     pub(super) fn canonical_borrow_place(
