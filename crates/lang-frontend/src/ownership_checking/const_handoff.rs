@@ -1,7 +1,7 @@
 //! 常量专用 owned unit 的封闭借用；完整物化与短路能力不转换为 basic。
 
 use crate::{
-    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit},
+    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
     source::SourceMap,
     type_checking::{CompilationUnitTypes, ConstEnabledTypedUnit, TypeEnvironment},
 };
@@ -70,15 +70,14 @@ pub fn const_owned_compilation_unit_view<'view, 'parsed: 'view>(
     typed: &'view ConstEnabledTypedUnit,
     owned: &'view ConstEnabledOwnedUnit,
 ) -> Result<ConstOwnedCompilationUnitView<'view, 'parsed>, OwnedCompilationUnitViewError> {
-    let rebuilt = index_compilation_unit(sources, inputs)
-        .map_err(|_| OwnedCompilationUnitViewError::MismatchedSource)?;
-    if &rebuilt != names.names().index()
-        || !typed
-            .types()
-            .signatures()
-            .is_compatible_with_index(&rebuilt, names, environment)
-        || !owned.is_compatible_with(typed)
-    {
+    super::handoff::validate_source_analysis(
+        sources,
+        inputs,
+        names,
+        environment,
+        typed.types().signatures(),
+    )?;
+    if !owned.is_compatible_with(typed) {
         return Err(OwnedCompilationUnitViewError::MismatchedAnalysis);
     }
     Ok(ConstOwnedCompilationUnitView {

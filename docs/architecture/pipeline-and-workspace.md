@@ -78,6 +78,9 @@ environment、validated types/ownership，返回 `OwnedCompilationUnitView<'view
 environment owner、owned 对应的 typed body owner，随后丢弃 rebuilt；下游读取 names 既有 index。
 签名 `is_compatible_with_index` 是 frontend crate-private 共享比较；旧 public compatibility 仍自行
 建 index。合法 clone、输入重排及同 T0 重做 ownership 保持有效，fresh T1 与 O0 仍拒绝。
+basic 与 const 工厂共用私有 source/name/signature 来源门；输入非法仍优先返回
+`MismatchedSource`，合法输入的分析身份不匹配返回 `MismatchedAnalysis`。两工厂分别核对
+各自的 ownership→typed owner，公共签名与能力隔离不变。
 
 ordinary native 从 view 直接到 view lower、私有 raw-facts driver 和 planner，不回旧校验入口。
 旧 native 保持八参签名，先调用用户 `entry.into()` 恰一次，再 factory 并转新入口；旧 lower/
