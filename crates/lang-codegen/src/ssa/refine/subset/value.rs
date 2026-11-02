@@ -1,5 +1,7 @@
 //! Subset rules for Copyable `value class` (SPEC-0361): inline construction, field reads by
 //! copy and value-class receivers. They mirror `build/value.rs`.
+use std::collections::BTreeSet;
+
 use lang_frontend::{
     ast::ExpressionId,
     parser::Expression,
@@ -49,20 +51,50 @@ impl Checker<'_, '_> {
 
     /// A concrete Copyable value class whose fields are all scalars.
     pub(super) fn value_class(&self, ty: UnitTypeId) -> bool {
-        self.inputs.typed.copyability(ty) == Copyability::Copyable
+        self.value_class_seen(ty, &mut BTreeSet::new())
+    }
+
+    pub(super) fn value_class_seen(
+        &self,
+        ty: UnitTypeId,
+        active: &mut BTreeSet<UnitTypeId>,
+    ) -> bool {
+        if !active.insert(ty) {
+            return false;
+        }
+        let ok = self.inputs.typed.copyability(ty) == Copyability::Copyable
             && self
                 .value_fields(ty)
-                .is_some_and(|fields| fields.iter().all(|field| self.scalar(*field)))
+                .is_some_and(|fields| fields.iter().all(|field| self.scalar(*field)));
+        active.remove(&ty);
+        ok
     }
 
     /// A concrete MoveOnly value class whose fields are scalars, String, or plain classes.
     pub(super) fn move_value_class(&self, ty: UnitTypeId) -> bool {
-        self.inputs.typed.copyability(ty) == Copyability::MoveOnly
+        self.move_value_class_seen(ty, &mut BTreeSet::new())
+    }
+
+    pub(super) fn move_value_class_seen(
+        &self,
+        ty: UnitTypeId,
+        active: &mut BTreeSet<UnitTypeId>,
+    ) -> bool {
+        if !active.insert(ty) {
+            return false;
+        }
+        let ok = self.inputs.typed.copyability(ty) == Copyability::MoveOnly
             && self.value_fields(ty).is_some_and(|fields| {
-                fields
-                    .iter()
-                    .all(|field| self.scalar(*field) || self.string(*field) || self.class(*field))
-            })
+                fields.iter().all(|field| {
+                    self.scalar(*field)
+                        || self.string(*field)
+                        || self.class_seen(*field, active)
+                        || self.value_class_seen(*field, active)
+                        || self.move_value_class_seen(*field, active)
+                })
+            });
+        active.remove(&ty);
+        ok
     }
 
     /// `V(fields...)`: every field delivered in evaluation order.

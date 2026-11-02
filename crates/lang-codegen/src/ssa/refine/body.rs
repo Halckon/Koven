@@ -534,6 +534,10 @@ pub(super) enum RAbort {
     /// The fall-through of a value `when` over a closed domain the frontend proved
     /// covered; unreachable at run time.
     UnmatchedWhen,
+    /// `error(message)` call.
+    Error {
+        message: Slot,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -557,7 +561,9 @@ pub(super) enum RTerm {
 impl RTerm {
     pub(super) fn operands(&self) -> Vec<Slot> {
         match self {
-            Self::Goto(_) | Self::Return(None) | Self::Abort(_) => Vec::new(),
+            Self::Goto(_) | Self::Return(None) => Vec::new(),
+            Self::Abort(RAbort::Error { message }) => vec![*message],
+            Self::Abort(_) => Vec::new(),
             Self::Branch { condition, .. } => vec![*condition],
             Self::NullBranch { owner, .. } => vec![*owner],
             Self::Return(Some(value)) => vec![*value],

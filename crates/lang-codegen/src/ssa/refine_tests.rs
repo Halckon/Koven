@@ -893,4 +893,104 @@ fn ownership_primitives_and_constants_lower_in_refine() {
     crate::native_tests::boxed_enum_tests::assert_success(&output, b"swapped\nfresh\nold\n");
 }
 
+#[test]
+fn checked_division_with_inactive_divisor_lowers_and_executes() {
+    let source = r#"fun compute(flag: Boolean, a: Int, b: Int, opt: Int?): Int {
+        if (flag && opt != null) {
+            val res = a / b
+            return res
+        }
+        return 0
+    }
+    fun main(): Unit {
+        val opt: Int? = 1
+        val r = compute(true, 42, 2, opt)
+        if (r == 21) {
+            println("div-pass")
+        }
+    }"#;
+    let (_, routed) = super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("checked division with inactive divisor lowers in refine")
+    });
+    for function in ["koven.p.main.d", "koven.p.compute.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    assert_eq!(run(source), ("div-pass\n".to_owned(), Some(0)));
+}
+
+#[test]
+fn loop_reassignment_with_outer_view_and_break_preserves_resources() {
+    let source = r#"fun main(): Unit {
+        var outer: String? = "first".clone()
+        var i = 0
+        while (i < 2) {
+            outer = "second".clone()
+            break
+        }
+        if (outer != null) {
+            println(outer)
+        }
+    }"#;
+    counted(source, 2, b"second\n");
+}
+
+#[test]
+fn branch_view_divergence_merging_clears_differing_views() {
+    let source = r#"fun main(): Unit {
+        val a: String? = "left".clone()
+        val b: String? = "right".clone()
+        val flag = true
+        if (flag) {
+            if (a != null) {
+                println(a)
+            }
+        } else {
+            if (b != null) {
+                println(b)
+            }
+        }
+        if (a != null) {
+            println(a)
+        }
+    }"#;
+    counted(source, 2, b"left\nleft\n");
+}
+
+#[test]
+fn early_exit_move_only_reassignment_drops_both_owners_cleanly() {
+    let source = r#"fun test_early_exit(flag: Boolean): Unit {
+        var a = "first".clone()
+        if (flag) {
+            a = "second".clone()
+            println(a)
+            return
+        }
+        println("not-reached")
+    }
+    fun main(): Unit {
+        test_early_exit(true)
+    }"#;
+    counted(source, 2, b"second\n");
+}
+
 mod container_tests;

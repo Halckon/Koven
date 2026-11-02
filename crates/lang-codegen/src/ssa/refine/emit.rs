@@ -56,8 +56,11 @@ fn uses_and_defs(body: &RefinedBody, block: BlockRef) -> (BTreeSet<Slot>, BTreeS
     (uses, defs)
 }
 
-/// Abort blocks reached from a two-way branch, mapped to the branch's other target.
-fn abort_siblings(body: &RefinedBody, reachable: &[BlockRef]) -> BTreeMap<BlockRef, BlockRef> {
+/// Abort blocks reached from a two-way branch, mapped to the branch block and the branch's other target.
+fn abort_siblings(
+    body: &RefinedBody,
+    reachable: &[BlockRef],
+) -> BTreeMap<BlockRef, (BlockRef, BlockRef)> {
     let mut siblings = BTreeMap::new();
     for block in reachable {
         let Some((terminator, _)) = &body.blocks[block.0].terminator else {
@@ -66,7 +69,7 @@ fn abort_siblings(body: &RefinedBody, reachable: &[BlockRef]) -> BTreeMap<BlockR
         if let [first, second] = terminator.successors()[..] {
             for (abort, other) in [(first, second), (second, first)] {
                 if matches!(body.blocks[abort.0].terminator, Some((RTerm::Abort(_), _))) {
-                    siblings.insert(abort, other);
+                    siblings.insert(abort, (*block, other));
                 }
             }
         }
@@ -110,6 +113,19 @@ fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, L
     }
 }
 
+fn excluded_abort_slots(body: &RefinedBody, pred: BlockRef, abort: BlockRef) -> BTreeSet<Slot> {
+    let mut excluded = BTreeSet::new();
+    if let Some((RTerm::Abort(RAbort::CheckedConversion { .. }), _)) =
+        &body.blocks[abort.0].terminator
+        && let Some(stmt) = body.blocks[pred.0].statements.last()
+        && matches!(stmt.op, ROp::CheckedIntegerConvert { .. })
+        && let Some(first) = stmt.results.first()
+    {
+        excluded.insert(*first);
+    }
+    excluded
+}
+
 fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
     let reachable = reachable(body, span)?;
     let local: BTreeMap<_, _> = reachable
@@ -123,10 +139,15 @@ fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
         for block in reachable.iter().rev() {
             let (uses, defs) = &local[block];
             let mut live = uses.clone();
-            if let Some(sibling) = siblings.get(block) {
+            if let Some((pred, sibling)) = siblings.get(block) {
                 // An abort edge carries every owner the other edge continues with, so
                 // nothing is left unaccounted at the branch.
-                live.extend(live_in.get(sibling).into_iter().flatten().copied());
+                let excluded = excluded_abort_slots(body, *pred, *block);
+                for slot in live_in.get(sibling).into_iter().flatten() {
+                    if !excluded.contains(slot) {
+                        live.insert(*slot);
+                    }
+                }
             }
             let (terminator, _) = body.blocks[block.0].terminator.as_ref().expect("reachable");
             for successor in terminator.successors() {
@@ -698,6 +719,17 @@ pub(super) fn emit(
                         },
                         origin,
                     )
+                    .map_err(model_error)?;
+                continue;
+            }
+            RTerm::Abort(RAbort::Error { message }) => {
+                let message = emitter.get(*message, *term_span)?;
+                let EntityId::Loan(message) = message else {
+                    return Err(error(LoweringErrorKind::InvalidModel, *term_span));
+                };
+                emitter
+                    .function
+                    .set_abort_terminator(target, AbortReason::Error { message }, origin)
                     .map_err(model_error)?;
                 continue;
             }
