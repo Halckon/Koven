@@ -415,6 +415,7 @@ impl Builder<'_, '_> {
             loans: self.pending_call_loans.len(),
             broken: false,
             seq_for: None,
+            map_for: None,
         });
         let reached = self.statement(loop_body)? != Lowered::Diverged;
         self.loops.pop();

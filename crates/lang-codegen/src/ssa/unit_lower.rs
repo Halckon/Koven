@@ -37,7 +37,6 @@ mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
 mod ownership;
-mod ownership_primitive;
 mod range;
 mod rc;
 mod receiver;
@@ -51,6 +50,8 @@ mod type_origin_cache_tests;
 mod type_plan;
 mod while_proof;
 
+#[cfg(test)]
+pub(crate) use borrow_result::validate_bindings_for_test as validate_bindings;
 pub(crate) use handoff::lower_owned_unit_with_entry;
 #[cfg_attr(
     not(test),

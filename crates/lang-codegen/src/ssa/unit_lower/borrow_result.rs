@@ -5,9 +5,8 @@ use lang_frontend::{
     type_checking::BorrowReturnOrigin,
 };
 
-pub(super) fn validate(
+pub(super) fn validate_declarations(
     parsed: &[&lang_frontend::parser::ParsedFile],
-    names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
 ) -> Result<(), LoweringError> {
@@ -46,6 +45,15 @@ pub(super) fn validate(
             }
         }
     }
+    Ok(())
+}
+
+pub(super) fn validate_bindings(
+    parsed: &[&lang_frontend::parser::ParsedFile],
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+) -> Result<(), LoweringError> {
     for fact in owned.borrow_results().bindings() {
         let file = parsed
             .iter()
@@ -702,4 +710,24 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(())
     }
+}
+
+pub(super) fn validate(
+    parsed: &[&lang_frontend::parser::ParsedFile],
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+) -> Result<(), LoweringError> {
+    validate_declarations(parsed, typed, owned)?;
+    validate_bindings(parsed, names, typed, owned)
+}
+
+#[cfg(test)]
+pub(crate) fn validate_bindings_for_test(
+    parsed: &[&lang_frontend::parser::ParsedFile],
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+) -> Result<(), LoweringError> {
+    validate_bindings(parsed, names, typed, owned)
 }

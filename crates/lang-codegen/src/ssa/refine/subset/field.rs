@@ -12,7 +12,17 @@ use lang_frontend::{
 use super::{Checker, receiver::Owner};
 
 impl Checker<'_, '_> {
-    pub(super) fn local_variable(&mut self, declaration: ItemId) -> bool {
+    pub(super) fn local_variable(&mut self, mut declaration: ItemId) -> bool {
+        while let Ok(node) = self.inputs.parsed.ast().items().get(declaration) {
+            if let Item::Modified {
+                declaration: inner, ..
+            } = node.payload()
+            {
+                declaration = *inner;
+            } else {
+                break;
+            }
+        }
         let Ok(node) = self.inputs.parsed.ast().items().get(declaration) else {
             return false;
         };
@@ -25,18 +35,21 @@ impl Checker<'_, '_> {
             return false;
         };
         let initializer_id = self.id(initializer);
-        if self
+        if let Some(fact) = self
             .inputs
             .owned
             .borrow_results()
             .bindings()
             .iter()
-            .any(|fact| fact.initializer() == initializer_id)
-            || self
-                .inputs
-                .sources
-                .slice(name_span)
-                .is_ok_and(|name| name == "_")
+            .find(|fact| fact.initializer() == initializer_id)
+        {
+            return self.local_borrow_binding(fact.binding(), initializer);
+        }
+        if self
+            .inputs
+            .sources
+            .slice(name_span)
+            .is_ok_and(|name| name == "_")
         {
             return false;
         }

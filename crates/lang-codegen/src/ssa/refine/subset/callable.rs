@@ -494,6 +494,163 @@ impl Checker<'_, '_> {
                         .is_some()
             })
     }
+
+    pub(super) fn is_extension_call(
+        &self,
+        descriptor: &lang_frontend::type_checking::UnitCallDescriptor,
+    ) -> bool {
+        match descriptor.target() {
+            UnitCallTarget::Declaration(id) => self
+                .inputs
+                .typed
+                .signatures()
+                .declaration(id)
+                .and_then(|signature| signature.callable())
+                .is_some_and(|callable| {
+                    callable.range_extension().is_some() || callable.text_extension().is_some()
+                }),
+            _ => false,
+        }
+    }
+
+    pub(super) fn call(&mut self, expression: ExpressionId) -> bool {
+        let id = self.id(expression);
+        let Some(descriptor) = self.inputs.typed.call(id) else {
+            return false;
+        };
+        let is_extension = self.is_extension_call(descriptor);
+        let simple = (descriptor.receiver().is_none()
+            || is_extension
+            || self.receiver_call(expression))
+            && descriptor.range_construction().is_none()
+            && descriptor.borrow_return().is_none()
+            && descriptor
+                .arguments()
+                .iter()
+                .all(|argument| match argument.mode() {
+                    ParameterMode::Value => self.storage_type(self.c(argument.parameter_type())),
+                    ParameterMode::Borrow => {
+                        self.storage_type(self.c(argument.parameter_type()))
+                            || self.view_function(self.c(argument.parameter_type()))
+                    }
+                    ParameterMode::Inout => {
+                        let param = self.c(argument.parameter_type());
+                        (self.storage_type(param)
+                            && self.copyability_of(param) == Copyability::Copyable)
+                            || self.class(param)
+                    }
+                });
+        // A call through a function value is further restricted to view parameters.
+        let target = descriptor.prints_line()
+            || descriptor.aborts()
+            || descriptor.text_primitive().is_some()
+            || descriptor.target() == UnitCallTarget::FunctionValue
+            || (matches!(
+                descriptor.target(),
+                UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+            ) && self
+                .inputs
+                .source_plan
+                .call_site(self.inputs.source_token, id)
+                .is_some_and(|site| {
+                    let delegation_ok = site.delegation().is_empty()
+                        || (descriptor
+                            .receiver()
+                            .is_some_and(|r| r.mode() == ParameterMode::Borrow)
+                            && site.delegation().first().is_some_and(|first| {
+                                Some(first.outer_receiver())
+                                    == descriptor.receiver().map(|r| self.c(r.ty()))
+                            })
+                            && site.delegation().iter().all(|route| {
+                                self.class(route.outer_receiver())
+                                    && self.class(route.delegate_receiver())
+                                    && self.class_field(route.outer_receiver(), route.field())
+                            }));
+                    if !site.delegation().is_empty() && delegation_ok {
+                        self.migrated = true;
+                    }
+                    delegation_ok && self.inputs.function_ids.contains_key(site.key())
+                }));
+        simple && target
+    }
+
+    /// Arguments are plain expressions, except that a Borrow argument may be a MoveOnly
+    /// non-null name read through its proof view.
+    pub(super) fn arguments(&mut self, call: ExpressionId, values: &[ExpressionId]) -> bool {
+        let Some(descriptor) = self.inputs.typed.call(self.id(call)) else {
+            return false;
+        };
+        let is_extension = self.is_extension_call(descriptor);
+        let mut modes: Vec<_> = descriptor
+            .arguments()
+            .iter()
+            .map(|argument| {
+                (
+                    Some(argument.argument_index()),
+                    argument.mode(),
+                    self.c(argument.parameter_type()),
+                )
+            })
+            .collect();
+        let mut extension_rec = None;
+        if is_extension
+            && let Some(receiver) = descriptor.receiver()
+            && let lang_frontend::type_checking::UnitCallReceiverOrigin::Expression(expression) =
+                receiver.origin()
+            && expression.source_unit() == self.inputs.source_unit
+        {
+            extension_rec = Some(expression.expression());
+            modes.insert(0, (None, receiver.mode(), self.c(receiver.ty())));
+        }
+        modes.into_iter().all(|(index, mode, parameter)| {
+            let Some(value) = index.map_or(extension_rec, |i| values.get(i).copied()) else {
+                return false;
+            };
+            if mode == ParameterMode::Inout {
+                return self.inout_argument(call, value);
+            }
+            if mode == ParameterMode::Borrow && self.view_function(parameter) {
+                return self.callable_argument(value);
+            }
+            if mode == ParameterMode::Borrow
+                && (self.nested_borrow_argument(call, value)
+                    || self.short_range_argument(value, parameter)
+                    || self.borrowed_move_only_name(value, parameter)
+                    || self.borrowed_string_field(call, value, parameter)
+                    || self.borrowed_rc_payload(call, value, parameter)
+                    || self.borrowed_container_element(call, value, parameter))
+            {
+                return true;
+            }
+            // A borrowed MoveOnly value is wrapped for a nullable parameter only when it is
+            // a temporary whose drop obligation can move to the wrapper.
+            if mode == ParameterMode::Borrow
+                && self.expression_type(value).is_some_and(|actual| {
+                    actual != parameter && self.copyability_of(actual) != Copyability::Copyable
+                })
+                && self.inputs.typed.expression_category(self.id(value))
+                    != Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+                && self
+                    .inputs
+                    .constant_owned
+                    .is_none_or(|owned| owned.materialization_at(self.id(value)).is_none())
+            {
+                return false;
+            }
+            if mode == ParameterMode::Borrow
+                && let Some(fact) = self.inputs.typed.non_null_use(self.id(value))
+                && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
+            {
+                return self.rc_payload(self.c(fact.narrowed_type())).is_none()
+                    && self.reference(value) == Some(fact.symbol())
+                    && self.known.contains(&fact.symbol())
+                    && self.view_symbols.contains(&fact.symbol())
+                    && (!self.is_map_remove_symbol(fact.symbol())
+                        || self.is_direct_statement_call(call));
+            }
+            self.expression(value)
+        })
+    }
 }
 
 fn span_contains(outer: Span, inner: Span) -> bool {

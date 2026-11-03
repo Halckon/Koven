@@ -255,9 +255,7 @@ impl Module {
             SsaTypeKind::NullableHandle { inner } | SsaTypeKind::InlineNullable { inner, .. } => {
                 Some(*inner)
             }
-            _ => self
-                .presence_payload_type(id)
-                .filter(|_| self.type_ownership(id) == Some(Ownership::MoveOnly)),
+            _ => self.presence_payload_type(id),
         }
     }
 

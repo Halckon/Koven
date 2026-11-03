@@ -65,8 +65,14 @@ impl Builder<'_, '_> {
         };
         Ok(Some(match receiver.mode() {
             ParameterMode::Borrow => {
-                let loan = self.owner_loan(owner, LoanKind::Shared, span)?;
-                let loan = self.shared_operand(loan, span)?;
+                let begin_span = self
+                    .inputs
+                    .owned
+                    .receiver_fact(call)
+                    .map(|fact| fact.begin_span())
+                    .unwrap_or(span);
+                let loan = self.owner_loan(owner, LoanKind::Shared, begin_span)?;
+                let loan = self.shared_operand(loan, begin_span)?;
                 let mut loans = Vec::new();
                 if loan.scoped {
                     loans.push(loan.loan);
@@ -94,7 +100,7 @@ impl Builder<'_, '_> {
                                 kind: LoanKind::Shared,
                                 target,
                             },
-                            span,
+                            begin_span,
                         )?;
                         operand = delegate;
                         loans.push(delegate);
