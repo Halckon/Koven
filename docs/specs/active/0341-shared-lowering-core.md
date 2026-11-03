@@ -1231,3 +1231,15 @@ D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner
   直接 rustfmt、`git diff --check`、文档检查（835 Markdown）和尺寸守卫（2072 Rust、41 项
   旧超限，无新增债）通过；目标文件由 638 行减为 501 行。未运行 Cargo/build/test/Clippy，
   未推送或发布；动态行为与正式 CI 尚未验证，D10/SPEC-0341/E2 继续 in-progress。
+
+### Primitive 候选首轮 CI 与本地修复
+
+Draft #291 精确头 `5f4505d9` 的正式 PR CI `41575210627` 在 macOS/Ubuntu 的
+Workspace Check 阶段均报 12 处 E0507：callback 借用 `&CompilationUnitTypes`，
+却直接调用消耗 `self` 的 `validate`。Targeted 与 Preview 跳过，未产生动态通过证据；
+此前静审未识别此编译错误。
+
+本地修复仅在这 12 处先 clone 同一 typed product 再 validate，保留每入口原成功/拒绝
+断言及原 product 的跨入口比较；其余持有 owned product 的校验不变。未修改生产 API、
+final admission、测试输入、两多源原件或 ownership witness。修复尚未推送、未运行本地
+Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替代编译和行为验证。

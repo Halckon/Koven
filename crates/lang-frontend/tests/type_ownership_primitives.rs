@@ -105,6 +105,8 @@ fn unit_with_contract(
                 expected_modes
             );
         }
+        // Contract callbacks borrow the original product retained for entry comparison.
+        // Consuming validation in a callback checks a clone of that same product.
         assert_contract(&typed);
         (typed, complete)
     };
@@ -218,7 +220,7 @@ fn source_functions_named_replace_and_swap_have_no_intrinsic_facts() {
                 .iter()
                 .all(|call| matches!(call.instance().target(), UnitCallTarget::Declaration(_)))
         );
-        assert!(typed.validate().is_ok());
+        assert!(typed.clone().validate().is_ok());
     });
 }
 
@@ -263,7 +265,7 @@ fn invalid_primitives_do_not_publish_partial_facts() {
         unit_with_contract(&[("invalid.ko", &text)], false, |typed| {
             assert!(!typed.diagnostics().is_empty(), "{call}");
             assert!(typed.ownership_primitives().is_empty(), "{call}");
-            assert!(typed.validate().is_err(), "{call}");
+            assert!(typed.clone().validate().is_err(), "{call}");
         });
     }
 }
@@ -274,7 +276,7 @@ fn invalid_expected_result_does_not_publish_ownership_primitives() {
     unit_with_contract(&[("invalid.ko", text)], false, |typed| {
         assert!(!typed.diagnostics().is_empty());
         assert!(typed.ownership_primitives().is_empty());
-        assert!(typed.validate().is_err());
+        assert!(typed.clone().validate().is_err());
     });
 }
 
@@ -284,7 +286,7 @@ fn overload_trials_commit_each_nested_primitive_once() {
     unit_with_contract(&[("trial.ko", text)], false, |typed| {
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         assert_eq!(typed.ownership_primitives().len(), 1);
-        assert!(typed.validate().is_ok());
+        assert!(typed.clone().validate().is_ok());
     });
 }
 
@@ -294,7 +296,7 @@ fn failed_overload_trials_do_not_leak_nested_primitives() {
     unit_with_contract(&[("trial.ko", text)], false, |typed| {
         assert!(!typed.diagnostics().is_empty());
         assert!(typed.ownership_primitives().is_empty());
-        assert!(typed.validate().is_err());
+        assert!(typed.clone().validate().is_err());
     });
 }
 
@@ -310,7 +312,7 @@ fn divergent_replace_preserves_static_primitive_and_call_identity() {
                 .is_some()
         );
         assert_eq!(typed.assignments().len(), 1);
-        assert!(typed.validate().is_ok());
+        assert!(typed.clone().validate().is_ok());
     });
 }
 
@@ -339,7 +341,7 @@ fn divergent_place_prefixes_preserve_replace_and_swap_structure() {
                 typed.diagnostics()
             );
             assert_eq!(typed.ownership_primitives().len(), 1, "{call}");
-            assert!(typed.validate().is_ok(), "{call}");
+            assert!(typed.clone().validate().is_ok(), "{call}");
         });
     }
 }
@@ -372,7 +374,7 @@ fn nominal_nullable_and_generic_values_keep_their_exact_exchange_type() {
                     &[fact.value_type()]
                 );
             }
-            assert!(typed.validate().is_ok(), "{text}");
+            assert!(typed.clone().validate().is_ok(), "{text}");
         });
     }
 }
@@ -446,7 +448,7 @@ fn errors_anywhere_prevent_partial_primitive_table_publication() {
             1,
             "recovery call structure remains available"
         );
-        assert!(typed.validate().is_err());
+        assert!(typed.clone().validate().is_err());
     });
 }
 
@@ -463,7 +465,7 @@ fn closures_with_divergent_bodies_keep_static_primitive_identity() {
                 typed.diagnostics()
             );
             assert_eq!(typed.ownership_primitives().len(), 1);
-            assert!(typed.validate().is_ok());
+            assert!(typed.clone().validate().is_ok());
         });
     }
 }
@@ -485,7 +487,7 @@ fn short_circuit_operands_keep_nested_static_primitive_identity() {
                 typed.diagnostics()
             );
             assert_eq!(typed.ownership_primitives().len(), 2);
-            assert!(typed.validate().is_ok());
+            assert!(typed.clone().validate().is_ok());
         });
     }
 }
@@ -496,6 +498,6 @@ fn divergent_if_condition_preserves_static_primitive_identity() {
     unit_with_contract(&[("condition.ko", text)], false, |typed| {
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         assert_eq!(typed.ownership_primitives().len(), 1);
-        assert!(typed.validate().is_ok());
+        assert!(typed.clone().validate().is_ok());
     });
 }
