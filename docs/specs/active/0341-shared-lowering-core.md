@@ -1227,3 +1227,9 @@ D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner
   final-admission。源码具备真实诊断差异时必须保留 witness，不放宽 oracle。
 - 未运行 Cargo/build/test/Clippy，尚无新头官方 CI；迁移仅完成静态准备，不能据此宣称
   行为等价或 D10/SPEC-0341/E2 完成。本片不改生产实现、E3 或 withValue。
+
+- #288 初版精确头 `98bdb187` 的 PR CI `41566478040` 双平台 Cargo Check 通过，
+  Clippy 因 `ownership_closures` 重复加载 parser assertion 模块及四个传递模块失败；
+  Targeted/Preview 未执行，不能视为行为已验收。本地修订把共享 helper 改为引用 crate 根
+  唯一 parser assertion 模块，two-phase 根补同一声明；源码、断言与迁移计数不变，
+  不添加 lint allow。修订仅静态核验，仍待新精确头官方 CI。

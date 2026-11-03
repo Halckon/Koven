@@ -11,8 +11,7 @@ use lang_frontend::{
     type_checking::{TypeEnvironment, check_compilation_unit_types},
 };
 
-#[path = "parser_test_assertions.rs"]
-mod parser_test_assertions;
+use crate::parser_test_assertions;
 
 pub(super) fn checked(
     text: &str,

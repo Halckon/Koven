@@ -11,6 +11,9 @@ use lang_frontend::{
     type_checking::{check_types, standard_environments},
 };
 
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
 #[path = "support/borrow_rejection_unit.rs"]
 mod borrow_rejection_unit;
 
