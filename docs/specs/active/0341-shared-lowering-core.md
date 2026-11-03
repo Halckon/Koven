@@ -1207,3 +1207,29 @@ structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3
   不以其他源码同码、测试数或静审替代实际验收。
 
 D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。
+
+## 63. two-phase 与 closure 拒绝合同迁移候选（2026-11-03）
+
+原候选 `cbef473d` 基于 main `4723ebc9` 独立重建，不声称恢复此前未发布的提交。
+本地组合现基于 main `be1022f3`，三个 borrow Rust 文件与已独审候选逐字相同；
+仅保留主干账本并顺延本节编号，不将旧静审升级为新头动态验收。
+
+- `ownership_two_phase_borrows` 的 10 个测试、21 个源码配置改由 MemoryDocument/Rooted
+  独立检查原诊断、span/label 与错误清空 oracle；原 Worker prelude、文件名和标准环境保持。
+  剩余 8 个 Single 测试保留，包括实际 loan-end、owner/temporary drop、activation 与
+  overload 选中事实，以及错误时 `loan_ends` 清空见证（Unit 无同名完整列表）；不以 Unit 源码范围代替这些独立 witness。
+- `ownership_closures` 的 6 个测试内 15 个分析源例迁至相同两入口，保留原限制性环境、
+  源码和全部诊断/空事实断言。混合测试的 `this` capture 成功 witness 仍 Single，
+  真实 closure last-use loan-end、owner cleanup、transferability、fixture 等不迁移。
+- 本片候选替换 36 次 Single 分析执行（21 + 15），每入口各 36 次，不等于删除 36 个测试。
+  两个旧 Single helper 仍有调用者，旧 API 静态调用点净减为 0。
+- 两入口分别满足原 oracle，不声称跨入口所有 facts 结构相等，也不声称完整 ownership
+  final-admission。源码具备真实诊断差异时必须保留 witness，不放宽 oracle。
+- 未运行 Cargo/build/test/Clippy，尚无新头官方 CI；迁移仅完成静态准备，不能据此宣称
+  行为等价或 D10/SPEC-0341/E2 完成。本片不改生产实现、E3 或 withValue。
+
+- #288 初版精确头 `98bdb187` 的 PR CI `41566478040` 双平台 Cargo Check 通过，
+  Clippy 因 `ownership_closures` 重复加载 parser assertion 模块及四个传递模块失败；
+  Targeted/Preview 未执行，不能视为行为已验收。本地修订把共享 helper 改为引用 crate 根
+  唯一 parser assertion 模块，two-phase 根补同一声明；源码、断言与迁移计数不变，
+  不添加 lint allow。修订仅静态核验，仍待新精确头官方 CI。
