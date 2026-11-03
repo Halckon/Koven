@@ -10,6 +10,10 @@ String Value 参数、非插值 String、Name/Group/local binding 与 checked ro
 使用 call/argument 配对。旧值在 commit 交给结果，新 RHS 值进入 root；事件在真实转换点
 记录，不从 drop、span 或 formed history 推导。`is_consistent()` 核对运输守恒与身份。
 
+观察整体的相等比较保留完整、有序的结构事实：只对应各自观察内的 token，逐项比较
+source-qualified callable、定义来源、局部编号、状态及全部事件字段。单个 token、
+定义、事件的相等与 `definition()` 查询仍严格核对产品身份；不同分析的 token 不可互换。
+
 不支持的控制流、普通调用、capture、swap 或其他值形态使该 callable 的观察标为
 Unsupported 并清空该观察的前缀；原合法性和 cleanup 产品不受这个状态影响。此层不提供
 capture lineage、条件 owner graph 或新的 Phase 4 执行能力，原 Single witness 保留。

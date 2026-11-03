@@ -160,7 +160,8 @@ pub enum UnitOwnerTransportEvent {
 }
 
 /// Whole-callable atomic observation. Unsupported observations expose no prefix facts.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Equality compares complete structural facts across analyses, not token interchangeability.
+#[derive(Clone, Debug, Eq)]
 pub struct UnitOwnerObservation {
     pub(super) identity: Arc<()>,
     pub(super) callable: UnitOwnerCallable,
@@ -190,5 +191,87 @@ impl UnitOwnerObservation {
         self.definitions
             .get(id.index)
             .filter(|definition| definition.id == id)
+    }
+}
+
+// Only the enclosing observation can relate its own product-local tokens across analyses.
+// Standalone tokens, definitions, events and lookup retain strict product identity.
+impl PartialEq for UnitOwnerObservation {
+    fn eq(&self, other: &Self) -> bool {
+        let owner_eq = |left: &UnitOwnerId, right: &UnitOwnerId| {
+            let left_local = Arc::ptr_eq(&left.identity, &self.identity);
+            let right_local = Arc::ptr_eq(&right.identity, &other.identity);
+            left.callable == right.callable
+                && left.index == right.index
+                && left_local == right_local
+                && (left_local || Arc::ptr_eq(&left.identity, &right.identity))
+        };
+        self.callable == other.callable
+            && self.status == other.status
+            && self.definitions.len() == other.definitions.len()
+            && self
+                .definitions
+                .iter()
+                .zip(&other.definitions)
+                .all(|(left, right)| left.origin == right.origin && owner_eq(&left.id, &right.id))
+            && self.events.len() == other.events.len()
+            && self
+                .events
+                .iter()
+                .zip(&other.events)
+                .all(|(left, right)| left.eq_facts(right, &owner_eq))
+    }
+}
+
+impl UnitOwnerTransportEvent {
+    // Exhaustive on the left so adding an event requires defining all of its fact equality.
+    fn eq_facts(
+        &self,
+        other: &Self,
+        owner_eq: &impl Fn(&UnitOwnerId, &UnitOwnerId) -> bool,
+    ) -> bool {
+        match self {
+            Self::Move {
+                expression,
+                symbol,
+                owner,
+            } => matches!(other,
+                Self::Move { expression: rhs_expression, symbol: rhs_symbol, owner: rhs_owner }
+                if expression == rhs_expression && symbol == rhs_symbol && owner_eq(owner, rhs_owner)),
+            Self::Drop {
+                point,
+                symbol,
+                owner,
+            } => matches!(other,
+                Self::Drop { point: rhs_point, symbol: rhs_symbol, owner: rhs_owner }
+                if point == rhs_point && symbol == rhs_symbol && owner_eq(owner, rhs_owner)),
+            Self::Result { expression, owner } => matches!(other,
+                Self::Result { expression: rhs_expression, owner: rhs_owner }
+                if expression == rhs_expression && owner_eq(owner, rhs_owner)),
+            Self::Binding {
+                symbol,
+                initializer,
+                owner,
+            } => matches!(other,
+                Self::Binding { symbol: rhs_symbol, initializer: rhs_initializer, owner: rhs_owner }
+                if symbol == rhs_symbol && initializer == rhs_initializer && owner_eq(owner, rhs_owner)),
+            Self::Pending {
+                call,
+                argument,
+                owner,
+            } => matches!(other,
+                Self::Pending { call: rhs_call, argument: rhs_argument, owner: rhs_owner }
+                if call == rhs_call && argument == rhs_argument && owner_eq(owner, rhs_owner)),
+            Self::Replace {
+                call,
+                root,
+                argument,
+                previous,
+                incoming,
+            } => matches!(other,
+                Self::Replace { call: rhs_call, root: rhs_root, argument: rhs_argument, previous: rhs_previous, incoming: rhs_incoming }
+                if call == rhs_call && root == rhs_root && argument == rhs_argument
+                    && owner_eq(previous, rhs_previous) && owner_eq(incoming, rhs_incoming)),
+        }
     }
 }

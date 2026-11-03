@@ -175,11 +175,15 @@ val second = replace(&a, "two")
 fn source_qualification_input_order_and_same_text_do_not_collapse_definitions() {
     let p = "package p\nfun run(): Unit { var a = \"same\"; val old = replace(&a, \"same\") }";
     let q = "package q\nfun run(): Unit { var a = \"same\"; val old = replace(&a, \"same\") }";
-    for texts in [[("p.ko", p), ("q.ko", q)], [("q.ko", q), ("p.ko", p)]] {
+    for texts in [
+        [("p/root.ko", p), ("q/root.ko", q)],
+        [("q/root.ko", q), ("p/root.ko", p)],
+    ] {
         let fixture = Fixture::new(&texts);
         let owned = fixture.shared();
         assert!(owned.clone().validate().is_ok());
         assert_eq!(owned.owner_observations().len(), 2);
+        assert_ne!(owned.owner_observations()[0], owned.owner_observations()[1]);
         let mut ids = Vec::new();
         for source in 0..2 {
             let observation = owned
@@ -414,4 +418,69 @@ val old = replace(&a, incoming)
         normalized.push(transfers);
     }
     assert_eq!(normalized[0], normalized[1]);
+}
+
+#[test]
+fn reanalysis_keeps_complete_facts_equal_without_making_tokens_interchangeable() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "fun run(own seed: String): Unit { var a = seed; val incoming = \"new\"; val old = replace(&a, incoming) }",
+    )]);
+    let first = fixture.shared();
+    let second = fixture.shared();
+    assert_eq!(
+        first, second,
+        "all ownership facts survive independent analysis"
+    );
+    assert!(!first.is_same_analysis(&second));
+    let left = &first.owner_observations()[0];
+    let right = &second.owner_observations()[0];
+    assert!(left.is_consistent());
+    assert!(right.is_consistent());
+    assert_eq!(left, right);
+    for (a, b) in left.definitions().iter().zip(right.definitions()) {
+        assert_ne!(a.id(), b.id());
+        assert!(left.definition(b.id()).is_none());
+        assert!(right.definition(a.id()).is_none());
+    }
+    let mut damaged = right.clone();
+    damaged.definitions[0].id = left.definitions()[0].id();
+    assert_ne!(
+        left, &damaged,
+        "foreign definition identity is a fact mismatch"
+    );
+    assert_ne!(right, &damaged);
+    assert_eq!(
+        damaged,
+        damaged.clone(),
+        "equality remains reflexive for invalid facts"
+    );
+    let mut damaged = right.clone();
+    let event = damaged
+        .events
+        .iter_mut()
+        .find_map(|event| match event {
+            UnitOwnerTransportEvent::Move { owner, .. } => Some(owner),
+            _ => None,
+        })
+        .expect("the seed is moved into a");
+    *event = left.definitions()[0].id();
+    assert_ne!(left, &damaged, "foreign event identity is a fact mismatch");
+    assert_ne!(right, &damaged);
+    let mut damaged = right.clone();
+    damaged.definitions[0].origin = right.definitions()[1].origin();
+    assert_ne!(left, &damaged, "definition origins are included");
+    let mut damaged = right.clone();
+    for event in &mut damaged.events {
+        if let UnitOwnerTransportEvent::Replace {
+            previous, incoming, ..
+        } = event
+        {
+            std::mem::swap(previous, incoming);
+        }
+    }
+    assert_ne!(left, &damaged, "transport direction is included");
+    let mut damaged = right.clone();
+    damaged.events.pop();
+    assert_ne!(left, &damaged, "the full ordered event stream is included");
 }

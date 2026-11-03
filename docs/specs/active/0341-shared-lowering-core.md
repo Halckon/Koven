@@ -1255,3 +1255,10 @@ D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner
   branch、loop、opaque 与原 capture 源；不得用 drop 数量或来源 span 代替 owner identity。
 - capture formation 输入、完整 Single owner graph、branch 条件与 loop phi 仍未交付。
   双入口行为、真实 producer mutation 实验和全套官方 CI 仍待验收；D10/E2 保持 in-progress。
+
+- PR #294 的 `03cc0f68` 官方 CI 暴露跨分析 owner token 使 recovery 完整事实比较失败，
+  以及双源 fixture 的包名与 rooted 路径不匹配。修订只在观察整体对应各自产物内的 token，
+  保留所有 source-qualified 结构字段、外来 token 隔离和既有完整事实 oracle；fixture
+  路径改为 `p/root.ko` / `q/root.ko`。新增重新分析全事实相等、token/查询不互通及损坏
+  事实不等断言；旧清理语义不变。仅完成静态检查，未运行本地 Cargo/build/test/Clippy，
+  动态验收仍待修订头官方 CI。
