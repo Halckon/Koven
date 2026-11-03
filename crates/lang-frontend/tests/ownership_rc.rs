@@ -2,14 +2,16 @@
 
 use lang_frontend::{
     diagnostic::Diagnostic,
-    name_resolution::resolve_names,
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
-        ConstructionRootKind, LoanKind, LoanTarget, OwnershipCheckedFile, RcOwnershipEffectKind,
-        check_ownership,
+        CompilationUnitOwnership, ConstructionRootKind, LoanKind, RcOwnershipEffectKind,
+        UnitLoanTarget, check_compilation_unit_ownership,
     },
-    parser::ParsedFile,
     source::SourceMap,
-    type_checking::{ConstructionTarget, TypedFile, check_types, standard_environments},
+    type_checking::{
+        UnitConstructionTarget, check_compilation_unit_types, complete_compilation_unit_types,
+        standard_environments,
+    },
 };
 
 #[path = "support/parser_test_assertions.rs"]
@@ -17,7 +19,10 @@ mod parser_test_assertions;
 
 use parser_test_assertions::parse_file_twice;
 
-fn checked(text: &str) -> (SourceMap, ParsedFile, TypedFile, OwnershipCheckedFile) {
+// Keep two independently analyzed entry forms. A second call reparses the exact
+// source and repeats each same entry, rather than treating cross-entry equality
+// as the original repeated-analysis stability witness.
+fn checked(text: &str) -> Vec<(usize, CompilationUnitOwnership)> {
     let mut sources = SourceMap::new();
     let source = sources.add_source("ownership-rc.ko", text).expect("source");
     let parsed = parse_file_twice(&sources, source, "Rc ownership source");
@@ -27,12 +32,41 @@ fn checked(text: &str) -> (SourceMap, ParsedFile, TypedFile, OwnershipCheckedFil
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
-    (sources, parsed, typed, owned)
+    let mut observations = Vec::new();
+    for input in [
+        SourceUnitInput::new("root", "ownership-rc.ko", source, &parsed),
+        SourceUnitInput::memory_document(source, &parsed),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).expect("index");
+        assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).expect("names");
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().expect("valid names");
+        let [indexed] = names.names().index().source_units() else {
+            panic!("one source")
+        };
+        assert_eq!(indexed.source_id(), source);
+        let unit = indexed.id();
+        let raw = check_compilation_unit_types(&sources, &inputs, &names, &types).expect("types");
+        assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
+        let complete = complete_compilation_unit_types(&sources, &inputs, &names, &types, &raw)
+            .expect("complete original types");
+        assert!(complete.is_same_analysis(&raw));
+        let operations = raw.rc_operations().len();
+        let typed = raw.validate().expect("valid types");
+        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+            .expect("ownership");
+        assert!(owned.is_compatible_with(&typed));
+        for effect in owned.rc_effects() {
+            assert_eq!(effect.expression().source_unit(), unit);
+            assert_eq!(effect.receiver().source_unit(), unit);
+        }
+        observations.push((operations, owned));
+    }
+    assert_eq!(observations.len(), 2);
+    observations
 }
 
 fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
@@ -55,42 +89,48 @@ fn share_preserves_owner_and_payload_reads_publish_stable_effects_and_loans() {
                     val copied = numbers.value
                     val moved = second
                 }";
-    let (_, _, typed, owned) = checked(text);
-    let (_, _, _, repeated) = checked(text);
-
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.rc_effects(), repeated.rc_effects());
-    assert_eq!(owned.rc_effects().len(), 4);
-    assert_eq!(
-        owned
-            .rc_effects()
+    let first = checked(text);
+    let repeated = checked(text);
+    for ((operations, owned), (_, repeated)) in first.iter().zip(&repeated) {
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert_eq!(owned.rc_effects(), repeated.rc_effects());
+        assert_eq!(owned.rc_effects().len(), 4);
+        assert_eq!(
+            owned
+                .rc_effects()
+                .iter()
+                .filter(|effect| effect.kind() == RcOwnershipEffectKind::Retain)
+                .count(),
+            2
+        );
+        assert_eq!(
+            owned
+                .rc_effects()
+                .iter()
+                .filter(|effect| effect.kind() == RcOwnershipEffectKind::BorrowPayload)
+                .count(),
+            2
+        );
+        let rc_roots = owned
+            .construction_plans()
             .iter()
-            .filter(|effect| effect.kind() == RcOwnershipEffectKind::Retain)
-            .count(),
-        2
-    );
-    assert_eq!(
-        owned
-            .rc_effects()
-            .iter()
-            .filter(|effect| effect.kind() == RcOwnershipEffectKind::BorrowPayload)
-            .count(),
-        2
-    );
-    let rc_roots = owned
-        .construction_plans()
-        .iter()
-        .filter(|plan| plan.target() == ConstructionTarget::IntrinsicRc)
-        .collect::<Vec<_>>();
-    assert_eq!(rc_roots.len(), 2);
-    assert!(rc_roots.iter().all(|plan| {
-        plan.root_obligation()
-            .is_some_and(|root| root.kind() == ConstructionRootKind::SharedOwner)
-    }));
-    assert_eq!(owned.loans().len(), 1);
-    assert_eq!(owned.loans()[0].kind(), LoanKind::Shared);
-    assert!(matches!(owned.loans()[0].target(), LoanTarget::Place(_)));
-    assert_eq!(typed.rc_operations().len(), owned.rc_effects().len());
+            .filter(|plan| plan.target() == UnitConstructionTarget::IntrinsicRc)
+            .collect::<Vec<_>>();
+        assert_eq!(rc_roots.len(), 2);
+        assert!(rc_roots.iter().all(|plan| {
+            plan.root_obligation()
+                .is_some_and(|root| root.kind() == ConstructionRootKind::SharedOwner)
+        }));
+        assert_eq!(owned.loans().len(), 1);
+        assert_eq!(owned.loans()[0].kind(), LoanKind::Shared);
+        assert!(matches!(
+            owned.loans()[0].target(),
+            UnitLoanTarget::Place(_)
+        ));
+        assert_eq!(*operations, owned.rc_effects().len());
+        assert!(owned.deferred().is_empty());
+        assert!(owned.clone().validate().is_ok());
+    }
 }
 
 #[test]
@@ -100,12 +140,12 @@ fn move_only_payload_cannot_be_extracted_from_rc() {
                     val owner = Rc(input)
                     val extracted = owner.value
                 }";
-    let (_, _, _, owned) = checked(text);
-
-    assert_eq!(codes(owned.diagnostics()), ["L0132"]);
-    assert!(owned.rc_effects().is_empty());
-    assert!(owned.construction_plans().is_empty());
-    assert!(owned.drops().is_empty());
+    for (_, owned) in checked(text) {
+        assert_eq!(codes(owned.diagnostics()), ["L0132"]);
+        assert!(owned.rc_effects().is_empty());
+        assert!(owned.construction_plans().is_empty());
+        assert!(owned.drops().is_empty());
+    }
 }
 
 #[test]
@@ -116,10 +156,10 @@ fn moved_rc_cannot_be_shared_again() {
                     val moved = owner
                     val shared = owner.share()
                 }";
-    let (_, _, _, owned) = checked(text);
-
-    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
-    assert!(owned.rc_effects().is_empty());
+    for (_, owned) in checked(text) {
+        assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+        assert!(owned.rc_effects().is_empty());
+    }
 }
 
 #[test]
@@ -130,8 +170,8 @@ fn rc_payload_is_not_an_inout_place() {
                     val owner = Rc(input)
                     val changed = mutate(&owner.value)
                 }";
-    let (_, _, _, owned) = checked(text);
-
-    assert_eq!(codes(owned.diagnostics()), ["L0134"]);
-    assert!(owned.rc_effects().is_empty());
+    for (_, owned) in checked(text) {
+        assert_eq!(codes(owned.diagnostics()), ["L0134"]);
+        assert!(owned.rc_effects().is_empty());
+    }
 }
