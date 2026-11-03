@@ -1223,3 +1223,10 @@ D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner
   原 `ownership_primitives.rs` Single witnesses 逐字保留；D10/E2 仍 in-progress。
 - 本地仅执行 direct rustfmt、diff-check、文档与尺寸静态门禁；未运行 Cargo/build/test/Clippy，
   测试新增断言尚未动态验证，不把该候选当作等价替换证明。后续需精确头官方 CI。
+
+- 首轮 Draft PR #292 的精确远端头 `c0e99ec9`（与本地候选同 tree）在官方 CI
+  `41575238625` 的 Ubuntu job `125718556173` 中，该套件 13 过、3 失败；三项均停在
+  新 oracle 把 Inout loan begin span 误比为名称值 span。既有 contract 明确使用源码 `&`
+  marker；修订仅从原 AST 的对应 CallArgument 提取 Inout marker，保留精确 span 相等并核对
+  源码为 `&`，原 event 身份、控制点和 drop 顺序断言不变。生产实现与 Single witness 不改。
+  修订仅经过 direct rustfmt 与静态检查，未本地动态验证，仍须新精确头官方 CI。

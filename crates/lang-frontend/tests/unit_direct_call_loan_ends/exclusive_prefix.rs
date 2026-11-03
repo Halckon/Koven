@@ -38,16 +38,23 @@ fn assert_prefixes(text: &str, calls_and_roots: &[(&str, &str)]) -> Observed {
                 .unwrap();
             assert_eq!(observed.sources.slice(call.span()), Ok(expected_call));
             assert_eq!(observed.sources.slice(argument.span()), Ok(expected_root));
-            assert_eq!(loan.begin_span(), argument.span());
             assert_eq!(loan.end_span(), call.span());
             let Expression::Call { arguments, .. } = call.payload() else {
                 panic!("actual call");
             };
-            assert!(
-                arguments
-                    .iter()
-                    .any(|arg| arg.value == loan.argument().expression())
-            );
+            let call_argument = arguments
+                .iter()
+                .find(|arg| arg.value == loan.argument().expression())
+                .expect("original call argument identity");
+            let Some(lang_frontend::parser::ParameterModeMarker::Inout(marker)) =
+                call_argument.mode_marker
+            else {
+                panic!("exclusive root has an explicit inout marker");
+            };
+            // Inout begins at its source `&`, not at the following value expression.
+            assert_eq!(loan.begin_span(), marker);
+            assert_eq!(observed.sources.slice(marker), Ok("&"));
+            assert_ne!(marker, argument.span());
             let UnitLoanTarget::Place(place) = loan.target() else {
                 panic!("owned root place");
             };
