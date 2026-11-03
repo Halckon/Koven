@@ -64,6 +64,8 @@ pub(super) struct Analysis {
             crate::ownership_checking::UnitDropPoint,
         >,
     >,
+    pub(super) exclusive_call_prefix_ends:
+        Vec<crate::ownership_checking::UnitExclusiveCallPrefixEndFact>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
@@ -126,6 +128,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         });
     }
     let direct_call_loan_ends = planner.direct_call_loan_ends();
+    let exclusive_call_prefix_ends = planner.exclusive_call_prefix_ends();
     let drops = planner
         .facts
         .into_iter()
@@ -138,6 +141,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         .collect();
     Ok(Analysis {
         direct_call_loan_ends,
+        exclusive_call_prefix_ends,
         borrow_ends: planner.borrow_ends,
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,

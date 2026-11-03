@@ -1,18 +1,16 @@
 //! Text extensions require host authority and preserve ordinary owned results.
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::parse_file,
-    source::SourceMap,
+    source::{SourceId, SourceMap},
     type_checking::{
-        CallableResultSource, CompilationUnitTypes, TextExtensionKind, TypedFile,
-        check_compilation_unit_types, check_types, standard_environments,
+        CallableResultSource, CompilationUnitTypes, TextExtensionKind,
+        check_compilation_unit_types, standard_environments,
     },
 };
 
-fn checked(text: &str, authorized: bool) -> (TypedFile, CompilationUnitTypes) {
+fn checked(text: &str, authorized: bool) -> (SourceId, CompilationUnitTypes, CompilationUnitTypes) {
     let mut sources = SourceMap::new();
     let source = sources
         .add_source(
@@ -30,22 +28,21 @@ fn checked(text: &str, authorized: bool) -> (TypedFile, CompilationUnitTypes) {
     if authorized {
         types.authorize_text_source(&sources, source).unwrap();
     }
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let single = check_types(&sources, &parsed, &names, &types).unwrap();
-    let inputs = [SourceUnitInput::new(
-        "koven-std",
-        "koven/text/text.ko",
-        source,
-        &parsed,
-    )];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
-    (single, unit)
+    // Keep the exact source, parse and host authority; only the source-unit mode differs.
+    let [memory, rooted] = [
+        SourceUnitInput::memory_document(source, &parsed),
+        SourceUnitInput::new("koven-std", "koven/text/text.ko", source, &parsed),
+    ]
+    .map(|input| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().unwrap();
+        check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap()
+    });
+    (source, memory, rooted)
 }
 
 #[test]
@@ -70,24 +67,27 @@ fn text_authority_belongs_to_the_exact_source_map_and_does_not_grant_range_acces
 
 #[test]
 fn trusted_text_receiver_uses_the_canonical_callable_and_owned_result() {
-    let (single, unit) = checked(
+    let (source, memory, unit) = checked(
         "borrow fun String.byteLength(): Int = 0\nfun run(text: String): Int = text.byteLength()",
         true,
     );
     assert!(
-        single.diagnostics().is_empty(),
+        memory.diagnostics().is_empty(),
         "{:?}",
-        single.diagnostics()
+        memory.diagnostics()
     );
     assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-    let callable = single
-        .callables()
+    let callable = memory
+        .signatures()
+        .declarations()
         .iter()
+        .filter_map(|d| d.callable())
         .find(|c| c.text_extension().is_some())
         .unwrap();
     let binding = callable.text_extension().unwrap();
     assert_eq!(binding.kind(), TextExtensionKind::ByteLength);
-    assert_eq!(binding.source(), single.source_id());
+    assert_eq!(binding.source(), source);
+    assert_eq!(binding.callable(), callable.target());
     assert_eq!(binding.receiver_type(), callable.receiver().unwrap().ty());
     assert_eq!(callable.result_source(), CallableResultSource::Owned);
     assert!(callable.range_extension().is_none());
@@ -102,9 +102,12 @@ fn trusted_text_receiver_uses_the_canonical_callable_and_owned_result() {
     let binding = callable.text_extension().unwrap();
     assert_eq!(binding.kind(), TextExtensionKind::ByteLength);
     assert_eq!(binding.callable(), callable.target());
+    assert_eq!(binding.source(), source);
+    assert_eq!(binding.receiver_type(), callable.receiver().unwrap().ty());
     assert_eq!(callable.result_source(), CallableResultSource::Owned);
     assert!(callable.range_extension().is_none());
     assert!(callable.extension_receiver_symbol().is_some());
+    assert!(memory.calls().iter().any(|c| c.receiver().is_some()));
     assert!(unit.calls().iter().any(|c| c.receiver().is_some()));
 }
 
@@ -122,24 +125,26 @@ fn owned_text_results_keep_receiver_identity_inside_the_body() {
             TextExtensionKind::CheckedPlus,
         ),
     ] {
-        let (single, unit) = checked(&format!("{declaration}\n{call}"), true);
+        let (_, memory, unit) = checked(&format!("{declaration}\n{call}"), true);
         assert!(
-            single.diagnostics().is_empty(),
+            memory.diagnostics().is_empty(),
             "{declaration}: {:?}",
-            single.diagnostics()
+            memory.diagnostics()
         );
         assert!(
             unit.diagnostics().is_empty(),
             "{declaration}: {:?}",
             unit.diagnostics()
         );
-        let single_callable = single
-            .callables()
+        let memory_callable = memory
+            .signatures()
+            .declarations()
             .iter()
+            .filter_map(|d| d.callable())
             .find(|c| c.text_extension().is_some())
             .unwrap();
-        assert_eq!(single_callable.text_extension().unwrap().kind(), kind);
-        assert_eq!(single_callable.result_source(), CallableResultSource::Owned);
+        assert_eq!(memory_callable.text_extension().unwrap().kind(), kind);
+        assert_eq!(memory_callable.result_source(), CallableResultSource::Owned);
         let unit_callable = unit
             .signatures()
             .declarations()
@@ -154,9 +159,9 @@ fn owned_text_results_keep_receiver_identity_inside_the_body() {
 
 #[test]
 fn a_matching_package_and_path_cannot_authorize_text_extensions() {
-    let (single, unit) = checked("borrow fun String.byteLength(): Int = 0", false);
+    let (_, memory, unit) = checked("borrow fun String.byteLength(): Int = 0", false);
     assert!(
-        single
+        memory
             .diagnostics()
             .iter()
             .any(|d| d.code().to_string() == "L0164")
@@ -167,9 +172,11 @@ fn a_matching_package_and_path_cannot_authorize_text_extensions() {
             .any(|d| d.code().to_string() == "L0164")
     );
     assert!(
-        single
-            .callables()
+        memory
+            .signatures()
+            .declarations()
             .iter()
+            .filter_map(|d| d.callable())
             .all(|c| c.text_extension().is_none())
     );
     assert!(
@@ -195,14 +202,14 @@ fn trusted_text_authority_does_not_admit_other_receivers_names_or_signatures() {
         "borrow fun String.checkedPlus(other: String): String = other.clone()",
         "borrow fun String.byteLength(): borrow String from this = this",
     ] {
-        let (single, unit) = checked(declaration, true);
+        let (_, memory, unit) = checked(declaration, true);
         assert!(
-            single
+            memory
                 .diagnostics()
                 .iter()
                 .any(|d| d.code().to_string() == "L0164"),
             "{declaration}: {:?}",
-            single.diagnostics()
+            memory.diagnostics()
         );
         assert!(
             unit.diagnostics()
@@ -395,19 +402,19 @@ fn storage_primitives_require_the_host_source_and_exact_borrow_shapes() {
         ),
     ] {
         for authorized in [false, true] {
-            let (single, unit) = checked(source, authorized);
+            let (_, memory, unit) = checked(source, authorized);
             if authorized {
                 assert!(
-                    single.diagnostics().is_empty(),
+                    memory.diagnostics().is_empty(),
                     "{source}: {:?}",
-                    single.diagnostics()
+                    memory.diagnostics()
                 );
                 assert!(
                     unit.diagnostics().is_empty(),
                     "{source}: {:?}",
                     unit.diagnostics()
                 );
-                let call = single
+                let call = memory
                     .calls()
                     .iter()
                     .find(|c| c.text_primitive().is_some())
@@ -430,9 +437,9 @@ fn storage_primitives_require_the_host_source_and_exact_borrow_shapes() {
                         .all(|a| a.mode() == ParameterMode::Borrow)
                 );
             } else {
-                assert!(!single.diagnostics().is_empty());
+                assert!(!memory.diagnostics().is_empty());
                 assert!(!unit.diagnostics().is_empty());
-                assert!(single.calls().iter().all(|c| c.text_primitive().is_none()));
+                assert!(memory.calls().iter().all(|c| c.text_primitive().is_none()));
                 assert!(unit.calls().iter().all(|c| c.text_primitive().is_none()));
             }
         }
@@ -449,22 +456,22 @@ fn text_storage_rejects_bad_operands_and_does_not_hijack_source_names() {
         "fun run(text: String): Int = textByteLength<Int>(text)",
         "fun run(text: String): Int = textByteLength(value = text)",
     ] {
-        let (single, unit) = checked(source, true);
-        assert!(!single.diagnostics().is_empty(), "{source}");
+        let (_, memory, unit) = checked(source, true);
+        assert!(!memory.diagnostics().is_empty(), "{source}");
         assert!(!unit.diagnostics().is_empty(), "{source}");
-        assert!(single.calls().iter().all(|c| c.text_primitive().is_none()));
+        assert!(memory.calls().iter().all(|c| c.text_primitive().is_none()));
         assert!(unit.calls().iter().all(|c| c.text_primitive().is_none()));
     }
-    let (single, unit) = checked(
+    let (_, memory, unit) = checked(
         "fun textByteLength(value: Int): Int = value\nfun run(): Int = textByteLength(7)",
         false,
     );
     assert!(
-        single.diagnostics().is_empty(),
+        memory.diagnostics().is_empty(),
         "{:?}",
-        single.diagnostics()
+        memory.diagnostics()
     );
     assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-    assert!(single.calls().iter().all(|c| c.text_primitive().is_none()));
+    assert!(memory.calls().iter().all(|c| c.text_primitive().is_none()));
     assert!(unit.calls().iter().all(|c| c.text_primitive().is_none()));
 }

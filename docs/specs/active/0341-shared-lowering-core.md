@@ -1181,7 +1181,8 @@ Draft #282 的精确头 `2ae1e859` 基于 `e89c363`，三个 frontend 测试文�
 
 ## 62. 聚合构造与解构下一批范围（2026-11-02）
 
-本地分支 `fix/spec-0341-aggregate-contract-retirement` 基于实际 main `4723ebc`。
+本批 #283 基于 main `4723ebc`，修订精确头 `8f9d0fb879bfdcdd9dd7f0d11f12eebc00d8072a`
+经 PR CI `41474073941` attempt 2 成功后，已合入 main `7f3f7fb4`。
 目标是以原源码、原环境、原诊断 sidecar 和独立 AST/typed oracle 承接 construction 与
 structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3。
 
@@ -1203,12 +1204,205 @@ structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3
   source-qualified ID 先核来源，再索引实际原 AST/名称，不能跨来源裸比较。
 - 初版双向静审未发现上述动态差异，不能当作等价证明；目标 rustfmt、git diff --check、文档检查（835 Markdown）
   与尺寸守卫（2070 Rust、41 项旧超限，无新增债）通过。未运行本地 Cargo/build/test/Clippy。
-  修订版尚待新的精确头官方 CI；旧头 construction 八项通过不替代新头全套验证。任何不等价项保留 Single，
+  修订版精确头 PR CI 已通过；此证据不冒充后续 #286 与 main 新组合验证。任何不等价项保留 Single，
   不以其他源码同码、测试数或静审替代实际验收。
 
 D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。
 
-## 63. View carrier 类型位置退休候选（2026-11-03）
+## 63. two-phase 与 closure 拒绝合同迁移候选（2026-11-03）
+
+原候选 `cbef473d` 基于 main `4723ebc9` 独立重建，不声称恢复此前未发布的提交。
+本地组合现基于 main `be1022f3`，三个 borrow Rust 文件与已独审候选逐字相同；
+仅保留主干账本并顺延本节编号，不将旧静审升级为新头动态验收。
+
+- `ownership_two_phase_borrows` 的 10 个测试、21 个源码配置改由 MemoryDocument/Rooted
+  独立检查原诊断、span/label 与错误清空 oracle；原 Worker prelude、文件名和标准环境保持。
+  剩余 8 个 Single 测试保留，包括实际 loan-end、owner/temporary drop、activation 与
+  overload 选中事实，以及错误时 `loan_ends` 清空见证（Unit 无同名完整列表）；不以 Unit 源码范围代替这些独立 witness。
+- `ownership_closures` 的 6 个测试内 15 个分析源例迁至相同两入口，保留原限制性环境、
+  源码和全部诊断/空事实断言。混合测试的 `this` capture 成功 witness 仍 Single，
+  真实 closure last-use loan-end、owner cleanup、transferability、fixture 等不迁移。
+- 本片候选替换 36 次 Single 分析执行（21 + 15），每入口各 36 次，不等于删除 36 个测试。
+  两个旧 Single helper 仍有调用者，旧 API 静态调用点净减为 0。
+- 两入口分别满足原 oracle，不声称跨入口所有 facts 结构相等，也不声称完整 ownership
+  final-admission。源码具备真实诊断差异时必须保留 witness，不放宽 oracle。
+- 未运行 Cargo/build/test/Clippy，尚无新头官方 CI；迁移仅完成静态准备，不能据此宣称
+  行为等价或 D10/SPEC-0341/E2 完成。本片不改生产实现、E3 或 withValue。
+
+- #288 初版精确头 `98bdb187` 的 PR CI `41566478040` 双平台 Cargo Check 通过，
+  Clippy 因 `ownership_closures` 重复加载 parser assertion 模块及四个传递模块失败；
+  Targeted/Preview 未执行，不能视为行为已验收。本地修订把共享 helper 改为引用 crate 根
+  唯一 parser assertion 模块，two-phase 根补同一声明；源码、断言与迁移计数不变，
+  不添加 lint allow。修订仅静态核验，仍待新精确头官方 CI。
+
+## 64. Nullable 旧测试双入口迁移候选（2026-11-03）
+
+Draft #286 原精确头 `6a582b0749382ea05ec2e09e82f4d6514786a44d` 基于 main `4723ebc`，
+PR CI `41555963781` 成功仅覆盖该旧基线组合。本地现将 #283 合后的 main `7f3f7fb4`
+三方合入：只解决本账本冲突，不改 nullable 测试语义；新组合尚未发布或获官方 CI 验证。
+本候选为重新构建而非此前未发布工作区的恢复；不修改生产实现、Guide 或 E3。
+
+- `ownership_nullable_when` 七个拒绝测试保留 11 个原源与全部原断言，改为分别执行
+  MemoryDocument/Rooted。其余 19 个 Single 成功/owner/loan/cleanup-condition 见证原样保留。
+- `ownership_checking` 的 12 个 `!!` 测试移入行为专属子模块，保留 25 个原源配置及一次
+  重复分析；每种入口执行原诊断、主 span、drop、transfer/Abort、错误清空及循环合同。
+  原 AST 查询只将 Unit operand identity 显式投影到同源 expression；helper 检查来源资格。
+- 两个测试目标各自保留原名称/类型环境：`!!` 仍使用原限制性 `environments()`，nullable
+  when 仍用 `standard_environments()`；不追加 provider 或改源码以让 Unit 通过。
+- 候选退休 37 次 Single 分析执行（11 + 25 + 1），不等于删除 37 个测试或旧公开 API。
+  两个原 Single helper 均仍有调用者；静态 API 调用点净减为 0。原测试函数叶名称、字符串 token
+  和断言数量逐项静态核对不变；源文件名保持。`!!` 的完整测试路径增加子模块前缀，
+  两个现有 CI target 已被 stage 全选，不依赖旧完整测试路径。
+- 每个入口独立检查同一原 oracle，不声称完整跨入口 facts 相等、完整 final-admission，
+  或与 Single 所有内部事实等价。保留的 owner/loan 独立见证不被 Unit span/临时事实替代。
+
+| 验收项 | 目标/选择 | 本候选结果 |
+|---|---|---|
+| 原源与断言保全 | 两原测试目标及 `ownership_checking/non_null_unit.rs`，共 57 个测试名称 | 静态字符串 token 与断言数量核对通过 |
+| 原候选格式与本次 diff | 原候选直接 rustfmt；本次 git diff --check | 原候选格式通过；本次仅解文档冲突，Rust 原字节保留、diff 通过；不运行 Cargo |
+| 原发布头行为及 Clippy | PR CI `41555963781`，精确头 `6a582b07` / 基线 `4723ebc` | 成功；不外推当前 main 组合 |
+| 当前 main 组合行为及 Clippy | main `7f3f7fb4` 与 #286 的本地合并 | 未运行；待发布授权及新精确头官方 CI |
+
+D10/SPEC-0341/E2 继续 in-progress；#286 仍为 Draft、未合入；本地新组合未发布，不将旧基线绿灯或本地静审作为组合验收完成。
+
+## 65. Map 查询与 consume 类型合同的本地候选（2026-11-03，基线 be1022f）
+
+本片独立基于已包含 #283/#284 的 main `be1022f`，不改写上方旧基线验收账本。
+仅迁移 `type_map` 中已有 Unit 对照的五项测试；D10/E2 仍为 in-progress。
+
+- nullable get/index、MoveOnly get/index、nullable borrow argument 三项共八个原源，
+  改为同一 SourceMap/ParsedFile 上 MemoryDocument/Rooted 分别分析。保留 L0130/L0136/L0084、
+  原 primary span 切片、withValue 消息谓词与 map_gets/non_null_uses 空事实。
+- consume 的四种 local-root K/V 与两个用户同名方法原源保持。两入口均精确核对
+  Map<K,V>；用户方法 target 保留 source-qualified Symbol，factory target 保留 Declaration
+  到原 symbol 的映射，方法返回 Int、调用数、构造数和 complete 原分析身份合同不变。
+  先独立补齐 Single/Unit 的 map_consumes 空事实，再退休 Single 对照；九张 Map 事实表
+  对普通用户 consume 均须为空，不能按方法拼写劫持为 intrinsic。
+- 合计候选退休 14 次 Single 执行；consume 文件 resolve_names/check_types 各少两个静态
+  调用点、complete_file_types 少一个。type_map 的旧 helper 与其他十项 Single-only 测试
+  原样保留；全目标仍为 17 项。生产、Guide、ownership witness、withValue 与 E3 不变。
+- 已运行目标直接 rustfmt、git diff --check、文档结构门（835 Markdown）及基于 be1022f
+  的尺寸门（2072 Rust、41 项既存超限，无新增债）；静态核对测试名称、原源码行及其余
+  十二项顶层测试逐字不变。未运行 Cargo/build/test/Clippy 或官方 CI，未推送；以上不构成
+  双入口动态等价证据，也不代表本片可合入。后续需精确头官方 type_map 全目标及相关门禁。
+
+
+## 66. Text extension 双模式消费者迁移候选（2026-11-03）
+
+Text 独立候选最初基于 main `4723ebc94f92412128490ea1f59706ba414fa1d4`；当时的
+候选不包含 #283/#286 变更或账本。当前 §68 合批已对齐 `be1022f`，其 main 基线已包含
+#283，不再将 #283 描述为尚未合入；本切片不判断 #286 的验收或合入状态，也不把其他
+批次的候选数量累加为本批完成量。此节仅记录 Text 切片，D10/E2/SPEC-0341 仍为 in-progress。
+
+- `type_text_extension` 的六个旧 Single 消费测试改为同一个 SourceMap、SourceId、
+  ParsedFile 和 standard environments 下独立运行 MemoryDocument/Rooted；保持原
+  `koven-std/koven/text/text.ko` 路径、`package koven.text` 前缀和精确宿主授权开关。
+- 保留原解析/名称无诊断、成功类型无诊断、L0164 拒绝、无 text binding/primitive、
+  owned result、receiver identity、非 range 扩展及 primitive 参数全 Borrow 等判据。
+  两模式均核 canonical callable，并以真实输入 SourceId 核 binding.source、以本轮
+  callable receiver 类型核 binding.receiver_type，不跨分析比较类型或 callable ID。
+- 来源授权隔离测试、显式/别名/wildcard import、缺失 import 与 shadowing，以及
+  builtin Result/foreign TextError 的真实多源测试原样保留；测试函数仍为十个。
+- 本片移除 `resolve_names`/`check_types` 各一个静态调用点；按原源码与授权组合展开，
+  六个测试分别为 1、2、1、10、10、7，共 31 次原 Single 调用，而非 31 个测试。
+  每个组合现在分别执行两种 Unit 输入模式。以上为静态盘点，不声称动态通过或最终退休验收。
+- 仅改测试与本文，不改生产语义；未运行本地 Cargo/build/test/Clippy，未发布或合并。
+  格式与静态门不替代后续精确头官方 CI/Slack 审查，也不代表完整诊断 golden、ownership
+  或 native 对等性；不据此关闭 D10/E2。
+
+## 67. 整数 Range 正例消费者退休候选（2026-11-03）
+
+独立本地基线 `4723ebc9`；本节不累计其他尚未合入的候选，也不宣称 D10/E2 完成。
+
+- `integer_range_values` 四组正例保留原源码与断言，改用 rooted/MemoryDocument 两个
+  真实 Unit producer，复用同一 SourceMap、SourceId 和 ParsedFile。四组分别有
+  4/6/8/8 个源码样本，移除 26 次 Single 分析执行，保留 52 次 Unit 分析；这是运行路径
+  的静态计数，不是已执行测试结果，六个测试函数均保留。旧 API 静态调用点未删除。
+- 原 comparator 隐含的结果 builtin、Boolean 标记、copyability、annotation identity、
+  range fact 数量改为固定预期；membership 为 2 个事实，equality 为 3 个事实，
+  普通构造与存储为 1 个事实。继续检查 AST/Unit-qualified operand/result 身份、操作种类、
+  空名称/raw 诊断、resolved 与绑定原分析的 final admission；两 Unit 模式完整比较现有
+  Observation 字段。shape 原本仅打印，未将其冒充结构化比较或扩大为所有 typed facts 等价。
+- public API 正反例与 L0082 特有的 Single builtin-declaration label 完整原样保留，
+  endpoint 拒绝测试不变。ownership loan、cleanup owner-table 等独立 witness 未改动；
+  本片不新增 ownership 证据，不修改任何生产语义、公开 API 或 CI 选择器。
+- 本地仅作 rustfmt、diff、文档图与 Rust 大小静态检查；未运行 Cargo/build/test/Clippy。
+  新候选仍须精确头官方 CI 行为验收，不能用旧基线结果替代。
+
+## 68. Text 与 Range 本地合批基线（2026-11-03）
+
+本地组合基线为 main `be1022f3251f45dfd2b47ebede98875638ba9b9f`，整合独立静审候选
+Text `bbed2b88b15cf21ca20527dfab20f86d75174eb0` 与 Range
+`61226192007abc9dd8eecf01f8f16cd6ced2d883`。上两节的 `4723ebc` 是各自准备基线，
+不是本组合基线；按当前 main 的既有账本保留第 60–62 节，新增节顺延，不覆盖历史记录。
+两份 Rust 测试文件与各自候选逐字一致，没有在合批中改写源码、断言或生产语义。
+
+本组合静态计数为十个迁移测试中的 57 次原 Single 执行（Text 31 + Range 26），
+不是 57 个测试，也不是动态通过证明；Text 仍十个测试、Range 仍六个测试，保留的
+多源与 Single 专属拒绝合同不动。没有累计 #283/#286 等其他候选的退休数量。
+本批仅本地准备、格式/差异/文档/尺寸核验和 bundle 交付；未运行 Cargo/build/test/Clippy，
+未推送、发布或合并，仍需后续授权及精确组合头官方 CI/独立审查。D10/E2 保持 in-progress。
+
+## 69. Primitive 类型合同族退休候选（2026-11-03）
+
+本地分支 `fix/spec-0341-primitive-contract-retirement` 基于 main `be1022f`，仅改
+`type_ownership_primitives` 测试与本账本；本节为待官方精确头 CI 验证的候选，不宣称已合入。
+
+- 保留全部 17 项测试与原源码字节；其中 15 项退休 33 次 Single 分析（按原循环静态展开），
+  `resolve_names`、`check_types` 各净少两个静态调用点。本文件不再调用旧 Single 分析 API。
+- 14 项标准环境单源测试将原独立 oracle 放入每入口 callback，在原 SourceMap/AST 上分别
+  检查 Rooted 与 MemoryDocument；custom binding 测试保留双入口及原自定义环境，
+  不以标准环境替换显式 external intrinsic 身份。
+- BASIC 的两条 replace/swap fact 分别在每入口实际类型表中断言 `Builtin(Int)`；
+  原 operand AST 顺序、来源资格、fact 查询、external target、type arguments 与 parameter
+  modes 保留。nominal/nullable/generic、trial rollback、错误原子性及静态发散事实不放宽。
+- 两项真实多源测试逐字保留，继续核输入顺序与 import alias 身份，不降为单源。
+  deferred 的 raw 无诊断不等同最终消费成功；原 final admission 结果比较和 Internal
+  错误分支保持，匹配拒绝不记作成功准入。
+- 这是有意退休原源码的 Single 观察，不声称双 Unit 证明全部 Single 等价。未修改生产代码、
+  `ownership_primitives` 的真实 loan-end/条件清理/owner lineage witness、withValue 或 E3；
+  Phase 2 静态 primitive descriptor 也不替代 Phase 3 commit/native 证据。
+- 静态核验保留 17 项测试身份（首项移除 `single_` 前缀）、全部源码字符串与两项多源原件。
+  直接 rustfmt、`git diff --check`、文档检查（835 Markdown）和尺寸守卫（2072 Rust、41 项
+  旧超限，无新增债）通过；目标文件由 638 行减为 501 行。未运行 Cargo/build/test/Clippy，
+  未推送或发布；动态行为与正式 CI 尚未验证，D10/SPEC-0341/E2 继续 in-progress。
+
+### Primitive 候选首轮 CI 与本地修复
+
+Draft #291 精确头 `5f4505d9` 的正式 PR CI `41575210627` 在 macOS/Ubuntu 的
+Workspace Check 阶段均报 12 处 E0507：callback 借用 `&CompilationUnitTypes`，
+却直接调用消耗 `self` 的 `validate`。Targeted 与 Preview 跳过，未产生动态通过证据；
+此前静审未识别此编译错误。
+
+本地修复仅在这 12 处先 clone 同一 typed product 再 validate，保留每入口原成功/拒绝
+断言及原 product 的跨入口比较；其余持有 owned product 的校验不变。未修改生产 API、
+final admission、测试输入、两多源原件或 ownership witness。修复尚未推送、未运行本地
+Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替代编译和行为验证。
+
+
+## 70. Exclusive root return 前缀事件观测（2026-11-03）
+
+基于 main `be1022f` 的本地候选仅增加 Unit 实际 planner 动作的只读观测，不退休 Single。
+
+- `exclusive_call_prefix_ends()` 仅接受无 receiver、owned-result 的直接 declaration/symbol/external
+  调用与 Exclusive owned 名称根；从真实 `EndCallLoan` 顺序提取 return 放弃前缀事件，
+  保留 source-qualified call/argument/target、控制点及同点先行普通 drop 数。
+- 不从 loan descriptor 或 `end_span` 推断执行，不更改注册、正常返回退休或 unwind 遍历。
+  provider、projection、borrowed binding/result、receiver 与正常完成不在此观测片内。
+- 新测试在 Rooted/MemoryDocument 原源上核对 replace return、嵌套逆序、直接 inout 调用、
+  abort 无 unwind、正常返回无前缀事件及未访问实参/借用根/投影/Shared 排除。
+  原 `ownership_primitives.rs` Single witnesses 逐字保留；D10/E2 仍 in-progress。
+- 本地仅执行 direct rustfmt、diff-check、文档与尺寸静态门禁；未运行 Cargo/build/test/Clippy，
+  测试新增断言尚未动态验证，不把该候选当作等价替换证明。后续需精确头官方 CI。
+
+- 首轮 Draft PR #292 的精确远端头 `c0e99ec9`（与本地候选同 tree）在官方 CI
+  `41575238625` 的 Ubuntu job `125718556173` 中，该套件 13 过、3 失败；三项均停在
+  新 oracle 把 Inout loan begin span 误比为名称值 span。既有 contract 明确使用源码 `&`
+  marker；修订仅从原 AST 的对应 CallArgument 提取 Inout marker，保留精确 span 相等并核对
+  源码为 `&`，原 event 身份、控制点和 drop 顺序断言不变。生产实现与 Single witness 不改。
+  修订仅经过 direct rustfmt 与静态检查，未本地动态验证，仍须新精确头官方 CI。
+
+## 71. View carrier 类型位置退休候选（2026-11-03）
 
 本候选基于 main `be1022f`，仅修改 `type_range_carrier` 前五测试的观察入口；尚未发布，
 尚待精确头官方 CI，不把静审当作运行等价证明，也不与其他候选累计作交付统计。

@@ -3,16 +3,13 @@
 use lang_frontend::{
     ast::ExpressionId,
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::{Expression, ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, CallableTarget, CompilationUnitTypes, FinalTypeAdmissionError,
-        OwnershipPrimitiveKind, ParameterMode, TypeKind, TypedFile, UnitCallTarget, UnitTypeKind,
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        standard_environments,
+        BuiltinType, CompilationUnitTypes, FinalTypeAdmissionError, OwnershipPrimitiveKind,
+        ParameterMode, UnitCallTarget, UnitTypeKind, check_compilation_unit_types,
+        complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -23,17 +20,15 @@ fn parse(sources: &mut SourceMap, name: &str, text: &str) -> (SourceId, ParsedFi
     (source, file)
 }
 
-fn single(text: &str) -> (SourceMap, ParsedFile, TypedFile) {
-    let mut sources = SourceMap::new();
-    let (_, file) = parse(&mut sources, "primitives.ko", text);
-    let (names, environment) = standard_environments();
-    let names = resolve_names(&sources, &file, &names).expect("names");
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &file, &names, &environment).expect("types");
-    (sources, file, typed)
+fn unit(texts: &[(&str, &str)], reverse: bool) -> CompilationUnitTypes {
+    unit_with_contract(texts, reverse, |_| {})
 }
 
-fn unit(texts: &[(&str, &str)], reverse: bool) -> CompilationUnitTypes {
+fn unit_with_contract(
+    texts: &[(&str, &str)],
+    reverse: bool,
+    assert_contract: impl Fn(&CompilationUnitTypes),
+) -> CompilationUnitTypes {
     let mut sources = SourceMap::new();
     let files = texts
         .iter()
@@ -110,6 +105,9 @@ fn unit(texts: &[(&str, &str)], reverse: bool) -> CompilationUnitTypes {
                 expected_modes
             );
         }
+        // Contract callbacks borrow the original product retained for entry comparison.
+        // Consuming validation in a callback checks a clone of that same product.
+        assert_contract(&typed);
         (typed, complete)
     };
     let (rooted, complete) = observe(&inputs);
@@ -140,57 +138,22 @@ const BASIC: &str =
     "fun run(): Unit {\nvar a = 1\nvar b = 2\nval old = replace<Int>(&a, 3)\nswap(&a, &b)\n}";
 
 #[test]
-fn single_primitives_publish_exact_intrinsic_operands_and_call_contracts() {
-    let (_, file, typed) = single(BASIC);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let unit = unit(&[("primitives.ko", BASIC)], false);
-    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-    assert_eq!(unit.ownership_primitives().len(), 2);
-    assert_eq!(
-        unit.ownership_primitives()[0].kind(),
-        OwnershipPrimitiveKind::Replace
-    );
-    assert_eq!(
-        unit.ownership_primitives()[1].kind(),
-        OwnershipPrimitiveKind::Swap
-    );
-    let facts = typed.ownership_primitives();
-    assert_eq!(facts.len(), 2);
-    for (fact, kind, modes) in [
-        (
-            facts[0],
-            OwnershipPrimitiveKind::Replace,
-            [ParameterMode::Inout, ParameterMode::Value],
-        ),
-        (
-            facts[1],
-            OwnershipPrimitiveKind::Swap,
-            [ParameterMode::Inout, ParameterMode::Inout],
-        ),
-    ] {
-        assert_eq!(fact.kind(), kind);
-        assert_eq!(fact.operands(), operands(&file, fact.expression()));
-        assert_eq!(typed.ownership_primitive(fact.expression()), Some(fact));
-        assert_eq!(
-            typed.types().get(fact.value_type()),
-            Some(&TypeKind::Builtin(BuiltinType::Int))
-        );
-        let call = typed
-            .call(fact.expression())
-            .expect("ordinary call contract");
-        assert!(matches!(
-            call.instance().target(),
-            CallableTarget::External(_)
-        ));
-        assert_eq!(call.instance().type_arguments(), &[fact.value_type()]);
-        assert_eq!(
-            call.arguments()
-                .iter()
-                .map(|arg| arg.mode())
-                .collect::<Vec<_>>(),
-            modes
-        );
-    }
+fn primitives_publish_exact_intrinsic_operands_and_call_contracts() {
+    unit_with_contract(&[("primitives.ko", BASIC)], false, |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let facts = typed.ownership_primitives();
+        assert_eq!(facts.len(), 2);
+        assert_eq!(facts[0].kind(), OwnershipPrimitiveKind::Replace);
+        assert_eq!(facts[1].kind(), OwnershipPrimitiveKind::Swap);
+        // Resolve each value type in this entry's actual table, not by equal IDs
+        // allocated by two independent analyses. AST/call contracts are checked above.
+        for fact in facts {
+            assert_eq!(
+                typed.types().get(fact.value_type()),
+                Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+            );
+        }
+    });
 }
 
 #[test]
@@ -247,27 +210,18 @@ fn unit_primitives_keep_source_qualified_identity_and_input_order_independence()
 #[test]
 fn source_functions_named_replace_and_swap_have_no_intrinsic_facts() {
     let text = "fun replace(value: Int): Int = value\nfun swap(value: Int): Int = value\nfun run(): Int = replace(swap(1))";
-    let (_, _, typed) = single(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(typed.ownership_primitives().is_empty());
-    assert_eq!(typed.calls().len(), 2);
-    assert!(
-        typed
-            .calls()
-            .iter()
-            .all(|call| matches!(call.instance().target(), CallableTarget::Source(_)))
-    );
-    let typed = unit(&[("source.ko", text)], false);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.calls().len(), 2);
-    assert!(typed.ownership_primitives().is_empty());
-    assert!(
-        typed
-            .calls()
-            .iter()
-            .all(|call| matches!(call.instance().target(), UnitCallTarget::Declaration(_)))
-    );
-    assert!(typed.validate().is_ok());
+    unit_with_contract(&[("source.ko", text)], false, |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.calls().len(), 2);
+        assert!(typed.ownership_primitives().is_empty());
+        assert!(
+            typed
+                .calls()
+                .iter()
+                .all(|call| matches!(call.instance().target(), UnitCallTarget::Declaration(_)))
+        );
+        assert!(typed.clone().validate().is_ok());
+    });
 }
 
 #[test]
@@ -308,86 +262,68 @@ fn invalid_primitives_do_not_publish_partial_facts() {
         "swap(&a, &flag)",
     ] {
         let text = format!("fun run(): Unit {{\nvar a = 1\nvar b = 2\nvar flag = true\n{call}\n}}");
-        let (_, _, typed) = single(&text);
-        assert!(!typed.diagnostics().is_empty(), "{call}");
-        assert!(typed.ownership_primitives().is_empty(), "{call}");
-        let typed = unit(&[("invalid.ko", &text)], false);
-        assert!(!typed.diagnostics().is_empty(), "{call}");
-        assert!(typed.ownership_primitives().is_empty(), "{call}");
-        assert!(typed.validate().is_err(), "{call}");
+        unit_with_contract(&[("invalid.ko", &text)], false, |typed| {
+            assert!(!typed.diagnostics().is_empty(), "{call}");
+            assert!(typed.ownership_primitives().is_empty(), "{call}");
+            assert!(typed.clone().validate().is_err(), "{call}");
+        });
     }
 }
 
 #[test]
 fn invalid_expected_result_does_not_publish_ownership_primitives() {
     let text = "fun run(): Unit {\nvar a = 1\nval wrong: Boolean = replace(&a, 2)\n}";
-    let (_, _, typed) = single(text);
-    assert!(!typed.diagnostics().is_empty());
-    assert!(typed.ownership_primitives().is_empty());
-    let typed = unit(&[("invalid.ko", text)], false);
-    assert!(!typed.diagnostics().is_empty());
-    assert!(typed.ownership_primitives().is_empty());
-    assert!(typed.validate().is_err());
+    unit_with_contract(&[("invalid.ko", text)], false, |typed| {
+        assert!(!typed.diagnostics().is_empty());
+        assert!(typed.ownership_primitives().is_empty());
+        assert!(typed.clone().validate().is_err());
+    });
 }
 
 #[test]
 fn overload_trials_commit_each_nested_primitive_once() {
     let text = "fun choose(callback: () -> Int): Int = 1\nfun choose(callback: () -> String): String = \"text\"\nfun run(): Int {\nvar a = 1\nreturn choose({ replace(&a, 2) })\n}";
-    let (_, _, typed) = single(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.ownership_primitives().len(), 1);
-    let typed = unit(&[("trial.ko", text)], false);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.ownership_primitives().len(), 1);
-    assert!(typed.validate().is_ok());
+    unit_with_contract(&[("trial.ko", text)], false, |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.ownership_primitives().len(), 1);
+        assert!(typed.clone().validate().is_ok());
+    });
 }
 
 #[test]
 fn failed_overload_trials_do_not_leak_nested_primitives() {
     let text = "fun choose(callback: () -> Boolean): Int = 1\nfun choose(callback: () -> String): String = \"text\"\nfun run(): Unit {\nvar a = 1\nchoose({ replace(&a, 2) })\n}";
-    let (_, _, typed) = single(text);
-    assert!(!typed.diagnostics().is_empty());
-    assert!(typed.ownership_primitives().is_empty());
-    let typed = unit(&[("trial.ko", text)], false);
-    assert!(!typed.diagnostics().is_empty());
-    assert!(typed.ownership_primitives().is_empty());
-    assert!(typed.validate().is_err());
+    unit_with_contract(&[("trial.ko", text)], false, |typed| {
+        assert!(!typed.diagnostics().is_empty());
+        assert!(typed.ownership_primitives().is_empty());
+        assert!(typed.clone().validate().is_err());
+    });
 }
 
 #[test]
 fn divergent_replace_preserves_static_primitive_and_call_identity() {
     let text = "fun run(): Unit {\nvar a = 1\nvar b = 2\nb = replace(&a, error(\"stop\"))\n}";
-    let (_, _, typed) = single(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.ownership_primitives().len(), 1);
-    assert!(
-        typed
-            .call(typed.ownership_primitives()[0].expression())
-            .is_some()
-    );
-    let typed = unit(&[("divergent.ko", text)], false);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.ownership_primitives().len(), 1);
-    assert!(
-        typed
-            .call(typed.ownership_primitives()[0].expression())
-            .is_some()
-    );
-    assert_eq!(typed.assignments().len(), 1);
-    assert!(typed.validate().is_ok());
+    unit_with_contract(&[("divergent.ko", text)], false, |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.ownership_primitives().len(), 1);
+        assert!(
+            typed
+                .call(typed.ownership_primitives()[0].expression())
+                .is_some()
+        );
+        assert_eq!(typed.assignments().len(), 1);
+        assert!(typed.clone().validate().is_ok());
+    });
 }
 
 #[test]
 fn deferred_primitive_operands_do_not_publish_successful_contracts() {
     let text = "fun run(): Unit {\nvar a = 1 as Int\nreplace(&a, 2)\n}";
-    let (_, _, typed) = single(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(typed.ownership_primitives().is_empty());
-    assert!(typed.calls().is_empty());
-    let typed = unit(&[("deferred.ko", text)], false);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(typed.ownership_primitives().is_empty());
-    assert!(typed.calls().is_empty());
+    unit_with_contract(&[("deferred.ko", text)], false, |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(typed.ownership_primitives().is_empty());
+        assert!(typed.calls().is_empty());
+    });
 }
 
 #[test]
@@ -398,21 +334,15 @@ fn divergent_place_prefixes_preserve_replace_and_swap_structure() {
         "swap(&b, &a[error(\"stop\")])",
     ] {
         let text = format!("fun run(): Unit {{\nval a = arrayOf<Int>(1)\nvar b = 2\n{call}\n}}");
-        let (_, _, typed) = single(&text);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{call}: {:?}",
-            typed.diagnostics()
-        );
-        assert_eq!(typed.ownership_primitives().len(), 1, "{call}");
-        let typed = unit(&[("divergent.ko", &text)], false);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{call}: {:?}",
-            typed.diagnostics()
-        );
-        assert_eq!(typed.ownership_primitives().len(), 1, "{call}");
-        assert!(typed.validate().is_ok(), "{call}");
+        unit_with_contract(&[("divergent.ko", &text)], false, |typed| {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{call}: {:?}",
+                typed.diagnostics()
+            );
+            assert_eq!(typed.ownership_primitives().len(), 1, "{call}");
+            assert!(typed.clone().validate().is_ok(), "{call}");
+        });
     }
 }
 
@@ -423,49 +353,29 @@ fn nominal_nullable_and_generic_values_keep_their_exact_exchange_type() {
         "fun run(): Unit {\nvar a: Int? = 1\nvar b: Int? = 2\nval old = replace(&a, 3)\nswap(&a, &b)\n}",
         "fun <T> change(inout a: T, own b: T): T = replace<T>(&a, b)\nfun <T> exchange(inout a: T, inout b: T): Unit = swap<T>(&a, &b)",
     ] {
-        let (_, _, typed) = single(text);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{text}: {:?}",
-            typed.diagnostics()
-        );
-        assert_eq!(typed.ownership_primitives().len(), 2);
-        for fact in typed.ownership_primitives() {
-            assert_eq!(
-                typed.expression_type(fact.operands()[0]),
-                Some(fact.value_type())
+        unit_with_contract(&[("values.ko", text)], false, |typed| {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{text}: {:?}",
+                typed.diagnostics()
             );
-            assert_eq!(
-                typed
-                    .call(fact.expression())
-                    .unwrap()
-                    .instance()
-                    .type_arguments(),
-                &[fact.value_type()]
-            );
-        }
-        let typed = unit(&[("values.ko", text)], false);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{text}: {:?}",
-            typed.diagnostics()
-        );
-        assert_eq!(typed.ownership_primitives().len(), 2);
-        for fact in typed.ownership_primitives() {
-            assert_eq!(
-                typed.expression_type(fact.operands()[0]),
-                Some(fact.value_type())
-            );
-            assert_eq!(
-                typed
-                    .call(fact.expression())
-                    .unwrap()
-                    .instance()
-                    .type_arguments(),
-                &[fact.value_type()]
-            );
-        }
-        assert!(typed.validate().is_ok(), "{text}");
+            assert_eq!(typed.ownership_primitives().len(), 2);
+            for fact in typed.ownership_primitives() {
+                assert_eq!(
+                    typed.expression_type(fact.operands()[0]),
+                    Some(fact.value_type())
+                );
+                assert_eq!(
+                    typed
+                        .call(fact.expression())
+                        .unwrap()
+                        .instance()
+                        .type_arguments(),
+                    &[fact.value_type()]
+                );
+            }
+            assert!(typed.clone().validate().is_ok(), "{text}");
+        });
     }
 }
 
@@ -490,18 +400,6 @@ fn explicit_environment_binding_identifies_intrinsics_independent_of_spelling() 
     environment
         .bind_intrinsic_callable(external, IntrinsicCallable::Replace)
         .unwrap();
-    let resolution = resolve_names(&sources, &file, &names).unwrap();
-    assert!(resolution.diagnostics().is_empty());
-    let typed = check_types(&sources, &file, &resolution, &environment).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.ownership_primitives().len(), 1);
-    let fact = typed.ownership_primitives()[0];
-    assert_eq!(fact.kind(), OwnershipPrimitiveKind::Replace);
-    assert_eq!(
-        typed.call(fact.expression()).unwrap().instance().target(),
-        CallableTarget::External(external)
-    );
-
     for input in [
         SourceUnitInput::new("root", "bound.ko", source, &file),
         SourceUnitInput::memory_document(source, &file),
@@ -542,23 +440,16 @@ fn explicit_environment_binding_identifies_intrinsics_independent_of_spelling() 
 #[test]
 fn errors_anywhere_prevent_partial_primitive_table_publication() {
     let text = "fun run(): Unit {\nvar a = 1\nval old = replace(&a, 2)\nval wrong: Boolean = 3\n}";
-    let (_, _, typed) = single(text);
-    assert!(!typed.diagnostics().is_empty());
-    assert!(typed.ownership_primitives().is_empty());
-    assert_eq!(
-        typed.calls().len(),
-        1,
-        "recovery call structure remains available"
-    );
-    let typed = unit(&[("invalid.ko", text)], false);
-    assert!(!typed.diagnostics().is_empty());
-    assert!(typed.ownership_primitives().is_empty());
-    assert_eq!(
-        typed.calls().len(),
-        1,
-        "recovery call structure remains available"
-    );
-    assert!(typed.validate().is_err());
+    unit_with_contract(&[("invalid.ko", text)], false, |typed| {
+        assert!(!typed.diagnostics().is_empty());
+        assert!(typed.ownership_primitives().is_empty());
+        assert_eq!(
+            typed.calls().len(),
+            1,
+            "recovery call structure remains available"
+        );
+        assert!(typed.clone().validate().is_err());
+    });
 }
 
 #[test]
@@ -567,25 +458,15 @@ fn closures_with_divergent_bodies_keep_static_primitive_identity() {
         let text = format!(
             "fun run(): Unit {{\nvar f: () -> Int = {{ 1 }}\nval old = replace(&f, {replacement})\n}}"
         );
-        let (_, file, typed) = single(&text);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{replacement}: {:?}",
-            typed.diagnostics()
-        );
-        assert_eq!(typed.ownership_primitives().len(), 1);
-        for fact in typed.ownership_primitives() {
-            assert_eq!(fact.operands(), operands(&file, fact.expression()));
-            assert!(typed.call(fact.expression()).is_some());
-        }
-        let typed = unit(&[("closure.ko", &text)], false);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{replacement}: {:?}",
-            typed.diagnostics()
-        );
-        assert_eq!(typed.ownership_primitives().len(), 1);
-        assert!(typed.validate().is_ok());
+        unit_with_contract(&[("closure.ko", &text)], false, |typed| {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{replacement}: {:?}",
+                typed.diagnostics()
+            );
+            assert_eq!(typed.ownership_primitives().len(), 1);
+            assert!(typed.clone().validate().is_ok());
+        });
     }
 }
 
@@ -599,40 +480,24 @@ fn short_circuit_operands_keep_nested_static_primitive_identity() {
         let text = format!(
             "fun run(condition: Boolean): Unit {{\nvar flag = true\nvar other = true\nreplace(&flag, {replacement})\n}}"
         );
-        let (_, file, typed) = single(&text);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{replacement}: {:?}",
-            typed.diagnostics()
-        );
-        assert_eq!(typed.ownership_primitives().len(), 2);
-        for fact in typed.ownership_primitives() {
-            assert_eq!(fact.operands(), operands(&file, fact.expression()));
-            assert!(typed.call(fact.expression()).is_some());
-        }
-        let typed = unit(&[("logical.ko", &text)], false);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{replacement}: {:?}",
-            typed.diagnostics()
-        );
-        assert_eq!(typed.ownership_primitives().len(), 2);
-        assert!(typed.validate().is_ok());
+        unit_with_contract(&[("logical.ko", &text)], false, |typed| {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{replacement}: {:?}",
+                typed.diagnostics()
+            );
+            assert_eq!(typed.ownership_primitives().len(), 2);
+            assert!(typed.clone().validate().is_ok());
+        });
     }
 }
 
 #[test]
 fn divergent_if_condition_preserves_static_primitive_identity() {
     let text = "fun run(): Unit {\nvar a = 1\nreplace(&a, if (error(\"stop\")) 2 else 3)\n}";
-    let (_, file, typed) = single(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.ownership_primitives().len(), 1);
-    for fact in typed.ownership_primitives() {
-        assert_eq!(fact.operands(), operands(&file, fact.expression()));
-        assert!(typed.call(fact.expression()).is_some());
-    }
-    let typed = unit(&[("condition.ko", text)], false);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.ownership_primitives().len(), 1);
-    assert!(typed.validate().is_ok());
+    unit_with_contract(&[("condition.ko", text)], false, |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.ownership_primitives().len(), 1);
+        assert!(typed.clone().validate().is_ok());
+    });
 }
