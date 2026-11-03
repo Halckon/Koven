@@ -1135,3 +1135,30 @@ D10/SPEC-0341/E2 继续 in-progress。
   原 Checker 提供；AST 查找失败仍返回 None，不穿透其他表达式、不扩大任何借用准入。
 - `withValue` 保持当前语义与原 witness；Single owner-table、多层索引和 inout 未等价合同不退休。
 - 本候选仅完成静态核验，未运行本地 Cargo/build/test/Clippy；#278 证据不冒充新头 CI。
+
+## Nullable 旧测试双入口迁移候选（2026-11-03）
+
+基线为 main `4723ebc94f92412128490ea1f59706ba414fa1d4`。这是重新构建的本地候选，
+不是此前未发布工作区的恢复提交；不修改生产实现、Guide 或 E3。
+
+- `ownership_nullable_when` 七个拒绝测试保留 11 个原源与全部原断言，改为分别执行
+  MemoryDocument/Rooted。其余 19 个 Single 成功/owner/loan/cleanup-condition 见证原样保留。
+- `ownership_checking` 的 12 个 `!!` 测试移入行为专属子模块，保留 25 个原源配置及一次
+  重复分析；每种入口执行原诊断、主 span、drop、transfer/Abort、错误清空及循环合同。
+  原 AST 查询只将 Unit operand identity 显式投影到同源 expression；helper 检查来源资格。
+- 两个测试目标各自保留原名称/类型环境：`!!` 仍使用原限制性 `environments()`，nullable
+  when 仍用 `standard_environments()`；不追加 provider 或改源码以让 Unit 通过。
+- 候选退休 37 次 Single 分析执行（11 + 25 + 1），不等于删除 37 个测试或旧公开 API。
+  两个原 Single helper 均仍有调用者；静态 API 调用点净减为 0。原测试函数叶名称、字符串 token
+  和断言数量逐项静态核对不变；源文件名保持。`!!` 的完整测试路径增加子模块前缀，
+  两个现有 CI target 已被 stage 全选，不依赖旧完整测试路径。
+- 每个入口独立检查同一原 oracle，不声称完整跨入口 facts 相等、完整 final-admission，
+  或与 Single 所有内部事实等价。保留的 owner/loan 独立见证不被 Unit span/临时事实替代。
+
+| 验收项 | 目标/选择 | 本候选结果 |
+|---|---|---|
+| 原源与断言保全 | 两原测试目标及 `ownership_checking/non_null_unit.rs`，共 57 个测试名称 | 静态字符串 token 与断言数量核对通过 |
+| 格式与 diff | 直接 rustfmt、git diff --check | 通过；不运行 Cargo |
+| 新头行为及 Clippy | `ownership_checking`、`ownership_nullable_when`、frontend Clippy | 未运行；待发布授权及精确头官方 CI |
+
+D10/SPEC-0341/E2 继续 in-progress；未发布、未 Ready、未合入，不将本地静审作为退休验收完成。
