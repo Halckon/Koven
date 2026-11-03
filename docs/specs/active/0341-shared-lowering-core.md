@@ -1423,3 +1423,28 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   （835 Markdown）、尺寸守卫（2072 Rust，41 项旧超限，无新增债）及 `git diff --check`
   通过。未运行 Cargo/build/test/Clippy，动态验收与后续组合验证均未完成。
   D10/SPEC-0341/E2 保持 in-progress。
+
+## 72. Receiver 接受/激活及 Map 接受合同退休候选（2026-11-03）
+
+本地基线 main `041e8238`；不依赖尚未合入的 #294 owner transport，也不累计其他并行候选。
+本片只修改两个 integration suite 的四项测试，生产算法、公开 API 和 E3 不变。
+
+- `ownership_two_phase_borrows` 的 completed nested reads 四源、disjoint fields 一源，
+  保留原无诊断谓词、源码和 standard environments，分别在 MemoryDocument/Rooted 执行。
+- 同文件 loop-exit 两源与 branch-return 一源改读既有真实 `receiver_facts()`。
+  Single 的 `Some(DropPoint::CallEntry(call))` 对应 Unit receiver 专用 activation identity
+  `Some(call)`，提前退出仍为 `None`；这不是从 loan `end_span` 推断实际结束事件。
+  loop 两 reservation 另外核对不同 call ID、原 receiver/call 源片段；branch 核对唯一外层
+  reservation 与原 call 源片段，避免仅用数量相等代替身份断言。现有
+  `multifile_two_phase_borrows` 的 loop/branch/activation 合同是 main 上的直接 Unit 参照，
+  不将该参照或静审称为本次原源码的动态通过证据。
+- `ownership_map_with` 仅迁 scoped String action/restored receiver 的无诊断消费者，复用
+  原双 Unit helper，继续检查 callback 参数模式/类型及同次 final type admission。
+  generic borrow 的四源、原 Single helper 和 loans 数量见证保持逐字不变。
+- 合计候选退休九次 Single 执行（4 + 1 + 3 + 1），不是删除九个测试或任何旧 API。
+  每个迁移源现在保留两个 Unit 输入模式。所有测试名、其他测试与原分析 helper 保全；
+  loan-end、owner/drop、overload 和 conditional-capture 的独立 Single 见证不动。
+  receiver activation 不证明 cleanup 完整性，也不授予未支持的 owner/loan graph 能力。
+- 直接 rustfmt、静态源码与未改见证/helper 保全、文档检查、尺寸守卫及 `git diff --check`
+  用于本地静审；按要求未运行 Cargo/build/test/Clippy。动态验收、精确组合头 CI 和独立
+  审查仍待完成，未推送或合入，D10/SPEC-0341/E2 继续 in-progress。

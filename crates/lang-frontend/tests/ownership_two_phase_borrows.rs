@@ -17,6 +17,7 @@ mod parser_test_assertions;
 #[path = "support/borrow_rejection_unit.rs"]
 mod borrow_rejection_unit;
 
+// Retain Single only for the independent loan-end, cleanup, overload and capture witnesses.
 fn checked(body: &str) -> (SourceMap, OwnershipCheckedFile) {
     let text = source_text(body);
     let mut sources = SourceMap::new();
@@ -73,20 +74,23 @@ fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
 
 #[test]
 fn receiver_reservation_allows_completed_nested_reads() {
-    for value in [
-        "worker.read()",
-        "worker.count",
-        "inspect(worker)",
-        "inspect(worker) + worker.read()",
-    ] {
-        let (_, owned) = checked(&format!(
-            "fun run(own worker: Worker): Unit {{ worker.update({value}) }}"
-        ));
-        assert!(
-            owned.diagnostics().is_empty(),
-            "{value}: {:?}",
-            owned.diagnostics()
-        );
+    for rooted in [false, true] {
+        for value in [
+            "worker.read()",
+            "worker.count",
+            "inspect(worker)",
+            "inspect(worker) + worker.read()",
+        ] {
+            let (_, owned) = checked_unit(
+                &format!("fun run(own worker: Worker): Unit {{ worker.update({value}) }}"),
+                rooted,
+            );
+            assert!(
+                owned.diagnostics().is_empty(),
+                "{value}: {:?}",
+                owned.diagnostics()
+            );
+        }
     }
 }
 
@@ -132,11 +136,14 @@ fn ordinary_inout_arguments_remain_immediately_exclusive() {
 
 #[test]
 fn receiver_reservation_allows_disjoint_fields_and_tracks_prefix_overlap() {
-    let (_, owned) = checked(
-        "class Pair(val left: Worker, val right: Worker)\n\
-         fun run(own pair: Pair): Unit { pair.left.update(pair.right.change()) }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    for rooted in [false, true] {
+        let (_, owned) = checked_unit(
+            "class Pair(val left: Worker, val right: Worker)\n\
+             fun run(own pair: Pair): Unit { pair.left.update(pair.right.change()) }",
+            rooted,
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    }
 }
 
 #[test]
@@ -211,39 +218,63 @@ fn phase_facts_activate_only_on_reachable_call_entry() {
 
 #[test]
 fn loop_exits_and_branch_returns_do_not_leak_reservations() {
-    for exit in ["break", "continue"] {
-        let (_, owned) = checked(&format!(
-            "fun run(own worker: Worker, flag: Boolean): Unit {{\n\
-                 while (flag) {{ worker.update({exit}) }}\n\
-                 worker.update(worker.read())\n\
-             }}"
-        ));
+    for rooted in [false, true] {
+        for exit in ["break", "continue"] {
+            let (sources, owned) = checked_unit(
+                &format!(
+                    "fun run(own worker: Worker, flag: Boolean): Unit {{\n\
+                     while (flag) {{ worker.update({exit}) }}\n\
+                     worker.update(worker.read())\n\
+                 }}"
+                ),
+                rooted,
+            );
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            let reservations: Vec<_> = owned
+                .receiver_facts()
+                .iter()
+                .filter(|fact| fact.is_receiver_reservation())
+                .collect();
+            assert_eq!(reservations.len(), 2);
+            // Bind each observed activation to its original call, not just a count.
+            assert_ne!(reservations[0].call(), reservations[1].call());
+            assert_eq!(
+                sources.slice(reservations[0].end_span()).unwrap(),
+                format!("worker.update({exit})")
+            );
+            assert_eq!(
+                sources.slice(reservations[1].end_span()).unwrap(),
+                "worker.update(worker.read())"
+            );
+            for reservation in &reservations {
+                assert_eq!(sources.slice(reservation.begin_span()).unwrap(), "worker");
+            }
+            assert_eq!(reservations[0].activation_point(), None);
+            assert_eq!(
+                reservations[1].activation_point(),
+                Some(reservations[1].call())
+            );
+        }
+        let (sources, owned) = checked_unit(
+            "fun run(own worker: Worker, flag: Boolean): Unit { worker.update(if (flag) { return } else { worker.read() }) }",
+            rooted,
+        );
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         let reservations: Vec<_> = owned
-            .loans()
+            .receiver_facts()
             .iter()
             .filter(|fact| fact.is_receiver_reservation())
             .collect();
-        assert_eq!(reservations.len(), 2);
-        assert_eq!(reservations[0].activation_point(), None);
+        let [reservation] = reservations.as_slice() else {
+            panic!("one actual outer receiver reservation");
+        };
+        assert_eq!(sources.slice(reservation.begin_span()).unwrap(), "worker");
         assert_eq!(
-            reservations[1].activation_point(),
-            Some(DropPoint::CallEntry(reservations[1].call()))
+            sources.slice(reservation.end_span()).unwrap(),
+            "worker.update(if (flag) { return } else { worker.read() })"
         );
+        assert_eq!(reservation.activation_point(), Some(reservation.call()));
     }
-    let (_, owned) = checked(
-        "fun run(own worker: Worker, flag: Boolean): Unit { worker.update(if (flag) { return } else { worker.read() }) }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let reservation = owned
-        .loans()
-        .iter()
-        .find(|fact| fact.is_receiver_reservation())
-        .unwrap();
-    assert_eq!(
-        reservation.activation_point(),
-        Some(DropPoint::CallEntry(reservation.call()))
-    );
 }
 
 #[test]
