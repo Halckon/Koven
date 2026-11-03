@@ -10,6 +10,7 @@ enum Location {
     Named(UnitSymbolId),
     Result(UnitExpressionId),
     Pending(UnitExpressionId, UnitExpressionId),
+    Captured(usize, UnitSymbolId),
     Dropped,
 }
 
@@ -49,6 +50,20 @@ impl UnitOwnerObservation {
         if !matches!(self.callable, UnitOwnerCallable::Function(_)) {
             return false;
         }
+        // Do not silently grant capture × branch composition through replay. An If
+        // nested anywhere requires a top-level If, and every capture has a Closure
+        // definition; reject this union even when its individual paths conserve owners.
+        if self
+            .definitions
+            .iter()
+            .any(|definition| matches!(definition.origin, UnitOwnerOrigin::Closure(_)))
+            && self
+                .events
+                .iter()
+                .any(|event| matches!(event, UnitOwnerTransportEvent::If { .. }))
+        {
+            return false;
+        }
         let mut locations = Vec::new();
         for (index, definition) in self.definitions.iter().enumerate() {
             if definition.id.callable != self.callable
@@ -64,7 +79,9 @@ impl UnitOwnerObservation {
                 UnitOwnerOrigin::Parameter(symbol) if symbol.source_unit() == source => {
                     Location::Named(symbol)
                 }
-                UnitOwnerOrigin::String(expression) if expression.source_unit() == source => {
+                UnitOwnerOrigin::String(expression) | UnitOwnerOrigin::Closure(expression)
+                    if expression.source_unit() == source =>
+                {
                     Location::Uncreated
                 }
                 _ => return false,
@@ -148,6 +165,54 @@ impl UnitOwnerObservation {
                         }
                     }
                 }
+                UnitOwnerTransportEvent::Capture {
+                    expression,
+                    environment,
+                    inputs,
+                } => {
+                    if !valid_owner(environment)
+                        || expression.source_unit() != source
+                        || self.definitions[environment.index].origin
+                            != UnitOwnerOrigin::Closure(*expression)
+                        || locations[environment.index] != Location::Uncreated
+                        || inputs.is_empty()
+                    {
+                        return false;
+                    }
+                    for (symbol, owner) in inputs {
+                        if !valid_owner(owner)
+                            || symbol.source_unit() != source
+                            || !matches!(
+                                self.definitions[owner.index].origin,
+                                UnitOwnerOrigin::String(_) | UnitOwnerOrigin::Parameter(_)
+                            )
+                            || locations[owner.index] != Location::Named(*symbol)
+                            || locations.contains(&Location::Captured(environment.index, *symbol))
+                        {
+                            return false;
+                        }
+                        locations[owner.index] = Location::Captured(environment.index, *symbol);
+                    }
+                    locations[environment.index] = Location::Result(*expression);
+                }
+                UnitOwnerTransportEvent::CaptureDrop {
+                    point,
+                    environment,
+                    source: symbol,
+                    owner,
+                } => {
+                    if !valid_owner(owner)
+                        || !valid_owner(environment)
+                        || point_source(*point) != source
+                        || symbol.source_unit() != source
+                        || !matches!(locations[environment.index], Location::Named(_))
+                        || locations[owner.index] != Location::Captured(environment.index, *symbol)
+                    {
+                        return false;
+                    }
+                    locations[owner.index] = Location::Dropped;
+                }
+
                 UnitOwnerTransportEvent::Move {
                     expression,
                     symbol,
@@ -173,6 +238,10 @@ impl UnitOwnerObservation {
                         || locations[owner.index] != Location::Named(*symbol)
                         || matches!(point, UnitDropPoint::BranchExit { control, branch }
                             if edge != Some((*control, *branch)))
+                        || locations.iter().any(|location| {
+                            matches!(location,
+                            Location::Captured(environment, _) if *environment == owner.index)
+                        })
                     {
                         return false;
                     }

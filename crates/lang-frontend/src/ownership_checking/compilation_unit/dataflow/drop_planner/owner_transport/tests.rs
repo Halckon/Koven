@@ -1,5 +1,6 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
 mod branch_boundaries;
+mod combination;
 
 use super::super::super::*;
 use super::super::plan_with_owner_observation;
@@ -91,6 +92,8 @@ fn owner_observation_never_changes_existing_cleanup_products() {
         r#"fun make(): String = "opaque"
 fun run(): Unit { var a = "old"; val old = replace(&a, "new"); val opaque = make() }"#,
         r#"fun run(): Unit { var a = "old"; val old = replace(&a, "new"); val callback = move { a + old }; callback() }"#,
+        r#"fun run(): Unit { var a = "old"; val old = replace(&a, "new"); val callback = move { a + old }; val forwarded = (callback) }"#,
+        r#"fun run(own a: String): Unit { val callback = move { a } }"#,
     ] {
         let fixture = Fixture::new(&[("root.ko", text)]);
         let shared = fixture.shared();

@@ -50,6 +50,8 @@ pub enum UnitOwnerOrigin {
     Parameter(UnitSymbolId),
     /// Completed non-interpolated String construction.
     String(UnitExpressionId),
+    /// Completed leaf move-closure environment with owned String captures.
+    Closure(UnitExpressionId),
 }
 
 /// One owner definition, never synthesized by Name, binding or replace.
@@ -111,6 +113,26 @@ pub enum UnitOwnerTransportEvent {
         then_events: Vec<UnitOwnerTransportEvent>,
         /// Explicit false path, including branch-exit cleanup.
         else_events: Vec<UnitOwnerTransportEvent>,
+    },
+    /// Formation consumes actual current binding tokens into a new environment.
+    Capture {
+        /// Source-qualified lambda evaluated at this transition.
+        expression: UnitExpressionId,
+        /// Newly constructed environment owner, distinct from its captured values.
+        environment: UnitOwnerId,
+        /// Checked capture order and the exact values removed by the planner.
+        inputs: Vec<(UnitSymbolId, UnitOwnerId)>,
+    },
+    /// Actual captured-value cleanup before the containing environment is dropped.
+    CaptureDrop {
+        /// Actual cleanup execution point.
+        point: UnitDropPoint,
+        /// Exact environment instance within this straight-line observation.
+        environment: UnitOwnerId,
+        /// Source-qualified capture slot key, not a source-span identity.
+        source: UnitSymbolId,
+        /// Exact owner placed into this slot at formation.
+        owner: UnitOwnerId,
     },
     /// A consuming Name removed this exact current binding value.
     Move {
@@ -266,6 +288,25 @@ impl UnitOwnerTransportEvent {
                 }
                 _ => false,
             },
+            Self::Capture {
+                expression,
+                environment,
+                inputs,
+            } => matches!(other,
+                Self::Capture { expression: rhs_expression, environment: rhs_environment, inputs: rhs_inputs }
+                if expression == rhs_expression && owner_eq(environment, rhs_environment)
+                    && inputs.len() == rhs_inputs.len()
+                    && inputs.iter().zip(rhs_inputs).all(|((source, owner), (rhs_source, rhs_owner))|
+                        source == rhs_source && owner_eq(owner, rhs_owner))),
+            Self::CaptureDrop {
+                point,
+                environment,
+                source,
+                owner,
+            } => matches!(other,
+                Self::CaptureDrop { point: rhs_point, environment: rhs_environment, source: rhs_source, owner: rhs_owner }
+                if point == rhs_point && source == rhs_source
+                    && owner_eq(environment, rhs_environment) && owner_eq(owner, rhs_owner)),
             Self::Move {
                 expression,
                 symbol,

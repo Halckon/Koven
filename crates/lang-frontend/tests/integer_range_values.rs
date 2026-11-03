@@ -1,5 +1,8 @@
 //! SPEC-0328 ordinary source probes: no fabricated facts or language execution.
 //! Positive ranges and endpoint rejection use Unit only; public API witnesses retain Single.
+#[path = "integer_range_values/builtin_argument_diagnostics.rs"]
+mod builtin_argument_diagnostics;
+
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
     lexer::lex,
@@ -235,26 +238,14 @@ fn assert_same_observation(single: &Observation, unit: &Observation) {
     assert_eq!(unit.root, single.root, "{unit:?}");
     assert_eq!(unit.operator_span, single.operator_span, "{unit:?}");
     assert_eq!(unit.names, single.names, "full name diagnostics: {unit:?}");
-    // L0082 intentionally differs: Single adds a builtin-declaration label, Unit
-    // does not. rejected_api independently freezes both complete diagnostics.
-    let builtin_arguments = single.mode == "single"
-        && single.raw.as_ref().is_some_and(|diagnostics| {
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.code().to_string() == "L0082")
-        });
-    if !builtin_arguments {
-        assert_eq!(unit.raw, single.raw, "full raw diagnostics: {unit:?}");
-    }
+    assert_eq!(unit.raw, single.raw, "full raw diagnostics: {unit:?}");
     match (&single.complete, &unit.complete) {
         (Some(Ok(())), Some(Ok(()))) => {}
         (
             Some(Err(FinalTypeAdmissionError::Diagnostics(expected))),
             Some(Err(FinalTypeAdmissionError::Diagnostics(actual))),
         ) => {
-            if !builtin_arguments {
-                assert_eq!(actual, expected, "full final diagnostics: {unit:?}");
-            }
+            assert_eq!(actual, expected, "full final diagnostics: {unit:?}");
         }
         _ => panic!("final admission mismatch or internal failure: {single:?} / {unit:?}"),
     }
@@ -675,7 +666,7 @@ fn rejected_api(
                 "L0161" => "Map key type must be Hashable",
                 _ => panic!("missing fixed diagnostic expectation for {code}"),
             };
-            let labels = if code == "L0082" && observation.mode == "single" {
+            let labels = if code == "L0082" {
                 let name_start = text[..start].rfind(": ").expect("return annotation") + 2;
                 vec![(
                     name_start..start - 1,

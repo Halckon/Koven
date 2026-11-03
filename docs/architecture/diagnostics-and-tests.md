@@ -11,6 +11,12 @@ note 与 help。
 Unit body 诊断的 nullable 类型名递归使用既有 inner 类型名并追加 `?`，不再将外层
 `Nullable(UnitTypeId)` Debug 形状作为标签；其他类型名规则、诊断码及 Span 不变。
 
+Unit signature 与 body 的 builtin 非法类型实参诊断 L0082 均保留原类型名位置的
+`builtin type declared here` label，primary 仍为第一实参；不改变合法类型或准入资格。
+`integer_range_values` 保留 Single 见证并完整比较 raw/final 诊断；其
+`builtin_argument_diagnostics` 子模块另锁定 producer 分层、有序 labels 与 source 身份。
+本批实现尚未经编译或动态验收，不能据此声明全域诊断等价。
+
 `ordered_diagnostics` 先用共同 SourceMap 验证全部 Span，再按 source 名称、范围、severity、code、
 message 和 details 建立稳定全序。顺序不依赖 `SourceId`、source 加载顺序或哈希容器迭代。
 

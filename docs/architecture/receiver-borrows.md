@@ -58,3 +58,13 @@ String 字段读取/clone 不由本片放行。non-null receiver（含多层 Gro
 unit 既有能力不回退。0299 组合只证明
 删除结果借给普通 Borrow 参数后，该参数内部调用本片方法，不证明任意 nullable receiver
 或参数退出 CFG。现有一般 CFG/条件借用边界保持。
+
+
+## 自动结构分量的 owned 结果
+
+Unit 类型阶段将自动 `componentN()` 记录为带真实字段身份的 `StructuralComponent`
+投影及 Borrow receiver 调用。所有权调用遍历只在正常 continuation 且本次调用尚无诊断时，
+对实际 MoveOnly 分量发布 L0132：primary 为 callee 的 member 名，唯一 label 指向原字段
+声明。Copyable 分量和显式同名源码方法不走该拒绝，receiver 已失败时不追加级联。
+直接回归位于 `ownership_structural/component_partial_move`，保留原 Single witness、
+原 partial-move fixture 与 sidecar；本批候选尚未经编译或动态验证，不外推 native 能力。
