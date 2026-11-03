@@ -1,4 +1,7 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
+mod branch_boundaries;
+mod combination;
+
 use super::super::super::*;
 use super::super::plan_with_owner_observation;
 use crate::ownership_checking::compilation_unit::formed_tests::{Fixture, Parts};

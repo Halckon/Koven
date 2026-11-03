@@ -1,4 +1,5 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
+mod branch;
 mod capture;
 #[cfg(test)]
 mod tests;
@@ -10,6 +11,13 @@ use crate::ownership_checking::{
     UnitOwnerUnsupportedReason,
 };
 use crate::type_checking::{OwnershipPrimitiveKind, UnitItemId};
+
+/// These slices are admitted separately; their composition needs its own contract.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum OwnerObservationFeature {
+    Branch,
+    Capture,
+}
 
 /// One evaluation frame owns its result. Nested calls cannot overwrite their parent's slot.
 pub(super) struct EvaluatedOwner {
@@ -28,6 +36,7 @@ impl DropPlanner<'_, '_> {
         if !self.owner_observation_enabled {
             return;
         }
+        self.owner_observation_feature = None;
         self.owner_observation = Some(UnitOwnerObservation {
             identity: std::sync::Arc::new(()),
             callable: UnitOwnerCallable::Function(UnitItemId::new(self.checker.source_unit, item)),
@@ -45,6 +54,7 @@ impl DropPlanner<'_, '_> {
         if !self.owner_observation_enabled {
             return;
         }
+        self.owner_observation_feature = None;
         self.owner_observation = Some(UnitOwnerObservation {
             identity: std::sync::Arc::new(()),
             callable,
@@ -219,6 +229,17 @@ impl DropPlanner<'_, '_> {
         Ok(())
     }
 
+    fn admit_owner_feature(&mut self, feature: OwnerObservationFeature) -> bool {
+        if self
+            .owner_observation_feature
+            .is_some_and(|prior| prior != feature)
+        {
+            return false;
+        }
+        self.owner_observation_feature = Some(feature);
+        true
+    }
+
     fn check_owner_expression(&mut self, id: ExpressionId) -> Result<(), OwnershipCheckingError> {
         if !self.owner_observation_active() {
             return Ok(());
@@ -229,7 +250,22 @@ impl DropPlanner<'_, '_> {
         }
         let supported = match self.checker.parsed.ast().expressions().get(id)?.payload() {
             Expression::Name | Expression::Group { .. } | Expression::Return { .. } => true,
-            Expression::Lambda { .. } => self.owner_capture_supported(id),
+            Expression::If {
+                else_branch: Some(_),
+                ..
+            } => {
+                self.admit_owner_feature(OwnerObservationFeature::Branch)
+                    && self
+                        .checker
+                        .typed
+                        .expression_type(self.checker.unit_expression(id))
+                        .and_then(|ty| self.checker.typed.types().get(ty))
+                        == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+            }
+            Expression::Lambda { .. } => {
+                self.admit_owner_feature(OwnerObservationFeature::Capture)
+                    && self.owner_capture_supported(id)
+            }
             Expression::Literal(_) => self
                 .checker
                 .typed
