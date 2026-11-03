@@ -25,6 +25,10 @@ impl DropPlanner<'_, '_> {
             return Ok(true);
         };
         if matches!(kind, crate::parser::VariableKind::BorrowVal(_)) {
+            self.reject_owner_expression(
+                initializer,
+                crate::ownership_checking::UnitOwnerUnsupportedReason::Syntax,
+            );
             if let Some(binding) = self.checker.marker_symbol(name).copied() {
                 self.binding_depths.insert(binding, self.scope_depth);
                 state.pending_borrow_results.push(binding);
@@ -45,7 +49,9 @@ impl DropPlanner<'_, '_> {
         }
         let closure = self.closure_origin(initializer, state)?;
         let closure_asap = self.closure_value_asap(initializer, state)?;
-        if !self.expression(initializer, DropExpressionUse::Consume, state)? {
+        let result =
+            self.evaluate_owner_expression(initializer, DropExpressionUse::Consume, state)?;
+        if !result.continues {
             return Ok(false);
         }
         if let Some(symbol) = self.checker.marker_symbol(name).copied()
@@ -53,6 +59,7 @@ impl DropPlanner<'_, '_> {
         {
             self.binding_depths.insert(symbol, self.scope_depth);
             state.insert(OwnedValue {
+                owner: self.bound_owner(symbol, initializer, result.owner),
                 symbol,
                 origin: marker_span(name),
                 declaration: marker_span(name),

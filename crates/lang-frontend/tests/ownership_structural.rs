@@ -23,6 +23,9 @@ use lang_frontend::{
     type_checking::{CompilationUnitTypes, check_compilation_unit_types},
 };
 
+#[path = "ownership_structural/component_partial_move.rs"]
+mod component_partial_move;
+
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
@@ -97,8 +100,8 @@ fn checked(
 }
 
 // Only the first two supported contracts retire Single observations. The complete
-// projection and fixture tests below retain Single: Unit currently misses the
-// automatic component partial-move diagnostic, so their old oracles are not weakened.
+// projection and fixture tests below retain Single; the component_partial_move module
+// adds independent Unit rejection evidence without retiring those original witnesses.
 fn checked_each(
     text: &str,
     mut inspect: impl FnMut(

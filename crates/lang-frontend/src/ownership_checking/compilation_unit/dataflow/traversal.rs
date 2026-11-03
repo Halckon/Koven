@@ -4,6 +4,7 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, Severity},
     parser::{Expression, FunctionBody, FunctionForm, Item, Statement, StringPart},
+    type_checking::{Copyability, UnitAggregateProjectionKind},
 };
 
 use super::{
@@ -900,6 +901,30 @@ impl Checker<'_> {
             .chain(arguments.iter().map(|argument| argument.value))
         {
             self.release_last_closure_use(expression, &mut flows)?;
+        }
+        // Automatic components return owned values; a Borrow receiver cannot transfer
+        // a MoveOnly field. Preserve the existing call-error and divergence precedence.
+        if flows.next.is_some()
+            && self.diagnostics.len() == diagnostic_count
+            && let Some(projection) = self.typed.aggregate_projection(call)
+            && projection.kind() == UnitAggregateProjectionKind::StructuralComponent
+            && self.typed.copyability(projection.ty()) == Copyability::MoveOnly
+            && let Expression::Member { name_span, .. } =
+                self.parsed.ast().expressions().get(callee)?.payload()
+        {
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.codes.partial_move,
+                "cannot move a non-Copyable component out of its owner",
+                *name_span,
+            )?;
+            diagnostic.add_label(
+                self.sources,
+                self.symbol_span(projection.field())?,
+                "non-Copyable component declared here",
+            )?;
+            self.diagnostics.push(diagnostic);
         }
         if self.is_nothing_expression(call) {
             flows.next = None;

@@ -16,7 +16,17 @@ impl DropPlanner<'_, '_> {
         parameters: &[Span],
         body: StatementId,
     ) -> Result<(), OwnershipCheckingError> {
-        self.plan_lambda_body_inner(lambda, parameters, body)
+        self.begin_unsupported_owner(
+            crate::ownership_checking::UnitOwnerCallable::Lambda(
+                self.checker.unit_expression(lambda),
+            ),
+            crate::ownership_checking::UnitDropPoint::LambdaEntry(
+                self.checker.unit_expression(lambda),
+            ),
+        );
+        let result = self.plan_lambda_body_inner(lambda, parameters, body);
+        self.finish_owner_observation();
+        result
     }
 
     fn plan_lambda_body_inner(
@@ -49,6 +59,7 @@ impl DropPlanner<'_, '_> {
             {
                 self.binding_depths.insert(symbol, frame);
                 state.insert(OwnedValue {
+                    owner: None,
                     symbol,
                     origin: parameter,
                     declaration: parameter,
