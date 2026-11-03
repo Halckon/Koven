@@ -1424,8 +1424,75 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   通过。未运行 Cargo/build/test/Clippy，动态验收与后续组合验证均未完成。
   D10/SPEC-0341/E2 保持 in-progress。
 
+## 72. E2 owner transport A 的本地纵切（2026-11-03）
 
-## Automatic component L0132 保全候选（2026-11-03）
+基线 `be1022f`；只扩展 Unit 的独立观察能力，不退休现有 Single owner/condition witness，
+不改变 Guide 或 Phase 4 消费边界。此次实现尚未编译或运行 Rust 测试，不算动态验收完成。
+
+- 普通函数的 String Value 参数与非插值 String 构造产生独立、source-qualified owner
+  definition；opaque token 带分析内身份，不能跨产物串用。Name 消耗实际当前值，Group
+  通过逐求值帧局部结果转交；binding 不重新分配 owner。
+- 已求值 Value 实参把同一个 token 放入本 call、本 argument 的 pending 槽；checked root
+  replace 的真实 commit 把 RHS owner 交给 root，把旧 owner 交给结果。嵌套调用没有共享
+  last-result 槽，commit 前后仍沿用原 cleanup 顺序。
+- branch、loop、opaque call、capture/closure、swap、赋值、聚合/解构与未建模类型不在
+  A 范围。遇到不支持转换，只回滚该 callable 的新 definitions/events，并保留独立状态；
+  不产生语言错误，不写 resource_deferred，不清空旧 drop/loan/iteration facts。
+- 新观测内一致性检查核 source/product identity、Name 消耗、binding/pending 槽及 replace
+  双向运输。测试覆盖嵌套/二次 replace、参数、Name/Group、同文本不同定义、双源与输入
+  换序、跨分析 token、缺失 pending/交换新旧值等损坏事实；这些是待运行测试，非已通过证明。
+- 同一已准入 Checker 开启/关闭观察后的旧 planner Analysis 全字段相等测试覆盖普通、
+  branch、loop、opaque 与原 capture 源；不得用 drop 数量或来源 span 代替 owner identity。
+- capture formation 输入、完整 Single owner graph、branch 条件与 loop phi 仍未交付。
+  双入口行为、真实 producer mutation 实验和全套官方 CI 仍待验收；D10/E2 保持 in-progress。
+
+- PR #294 的 `03cc0f68` 官方 CI 暴露跨分析 owner token 使 recovery 完整事实比较失败，
+  以及双源 fixture 的包名与 rooted 路径不匹配。修订只在观察整体对应各自产物内的 token，
+  保留所有 source-qualified 结构字段、外来 token 隔离和既有完整事实 oracle；fixture
+  路径改为 `p/root.ko` / `q/root.ko`。新增重新分析全事实相等、token/查询不互通及损坏
+  事实不等断言；旧清理语义不变。仅完成静态检查，未运行本地 Cargo/build/test/Clippy，
+  动态验收仍待修订头官方 CI。
+
+- #294 的 `bca2b9cb` 与 main `4c32d21f` 本地组合保留两类独立发布门控：owner 观察仅要求
+  successful；Exclusive prefix 仍额外要求 deferred 为空，resource_deferred 早返不发布该
+  prefix。补充原 replace-return 源的 owner 观察开启/关闭完整 planner 事实相等回归，明确
+  prefix 非空且 Unsupported owner 观察不干扰它。四处生产接线、两份账本冲突已本地整合；
+  本节顺延为72，既有64–71完整保留。compilation_unit 组合为1156行，登记精确增长例外，
+  待独立静审；仅执行静态门禁，未运行本地 Cargo/build/test/Clippy，未推送，组合动态验证待CI。
+
+## 73. L0082 builtin 实参标签保全候选（2026-11-03）
+
+独立分支 `fix/spec-0341-l0082-label-parity` 基于远端 main
+`041e8238fb8793ee7837fbbccdc704a77e83c1fd`，tree
+`226587cdddaec9ae697adaf78378e40dbf26caa0`。本片仅修 Phase 2 的真实诊断差距，
+不退休 Single，不改变类型接受性、final admission、ownership 或 E3。
+
+- 原 Range L0082 的 Single 带类型名 label，Unit signature 仅有主诊断；Unit body 对同一
+  builtin 身份已带 label。signature 的 `ExternalTypeBinding::Builtin` 非空实参一臂
+  复用现有 `emit_with_label`，label 取该轮真实 `segment.name_span`，primary、code、
+  message 和排序不变。未修改 capability、intrinsic 或 external Value 的独立诊断合同。
+- 保留 Range 原全部源码与 Single producer，将双预期收敛为保全既有 Single 的独立
+  label oracle，并恢复无例外的完整 raw/final Diagnostic 相等断言；不是只删比较差异。
+- 新子模块挂在既有 `integer_range_values` target 下，覆盖 Int/Boolean/IntRange/LongRange
+  的 signature 参数与 body 局部标注、return signature 与 body 混合顺序、Unicode/CRLF，
+  以及两真实源逆序输入的来源隔离。由源码 token 和固定消息构造完整独立 Diagnostic，
+  分别核 signature/body/raw/final 序列；成功或 Internal 均不得作为拒绝。
+- 新回归在生产修改前编写；本地禁止 Cargo/build/test/Clippy，未取得动态 red/green。
+  静态门与后续官方 CI 分开记账，D10/E2 仍 in-progress，不归档本 Spec。
+
+| 验收项 | 目标与结果 |
+|---|---|
+| 完整直接诊断与旧见证 | `integer_range_values` 全 target，含新增三个测试；待官方 CI，未本地执行 |
+| body 邻接与资格 | `multifile_type_checking`、`multifile_constant_qualification`、`final_type_admission`；待官方 CI |
+| 下游与工程门 | 既有 CLI/LSP、双宿主 check/clippy 与完整既有选择保持；待官方 CI |
+| 本地静态门 | 直接 rustfmt 与 diff 通过；文档检查 836 Markdown 通过；尺寸检查 2083 Rust、39 项既存超限通过，无新增例外 |
+
+签名文件从 1019 增为 1021 行；沿用现有 1036 行有限例外，不修改尺寸 policy。
+新增两行只把同一 L0082 的现有来源交给同文件既有发射接口，不增加签名职责或公开 API；
+此说明是本地变更范围核对，不冒称独立审查。未推送、发布、联系他人或合并。
+
+
+## 74. Automatic component L0132 保全候选（2026-11-03）
 
 独立分支 `fix/spec-0341-component-partial-move` 基于远端 main
 `041e8238fb8793ee7837fbbccdc704a77e83c1fd`，不叠加未合入的 L0082 或 owner 候选。

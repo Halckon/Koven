@@ -682,10 +682,12 @@ impl<'a> SignatureCollector<'a> {
                 if arguments.is_empty() {
                     Ok(self.builtin(builtin))
                 } else {
-                    self.emit(
+                    self.emit_with_label(
                         codes::BUILTIN_TYPE_ARGUMENTS,
                         "builtin type does not accept type arguments",
                         self.argument_primary(source, segment),
+                        segment.name_span,
+                        "builtin type declared here",
                     )?;
                     Ok(self.error_type())
                 }
