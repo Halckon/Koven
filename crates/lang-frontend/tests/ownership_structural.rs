@@ -14,6 +14,15 @@ use lang_frontend::{
     },
 };
 
+use lang_frontend::{
+    name_resolution::{
+        CompilationUnitNames, SourceUnitInput, index_compilation_unit,
+        resolve_compilation_unit_names,
+    },
+    ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
+    type_checking::{CompilationUnitTypes, check_compilation_unit_types},
+};
+
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
@@ -87,6 +96,59 @@ fn checked(
     (sources, parsed, names, typed, owned)
 }
 
+// Only the first two supported contracts retire Single observations. The complete
+// projection and fixture tests below retain Single: Unit currently misses the
+// automatic component partial-move diagnostic, so their old oracles are not weakened.
+fn checked_each(
+    text: &str,
+    mut inspect: impl FnMut(
+        &SourceMap,
+        &CompilationUnitNames,
+        &CompilationUnitTypes,
+        &CompilationUnitOwnership,
+    ),
+) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("structural.ko", text).expect("source");
+    let parsed = parse_file_twice(&sources, source, "structural ownership source");
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(sources.source_text(source), Ok(text));
+    let (environment, types) = environments();
+    for input in [
+        SourceUnitInput::memory_document(source, &parsed),
+        SourceUnitInput::new("root", "structural.ko", source, &parsed),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).expect("source index");
+        assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let [entry] = index.source_units() else {
+            panic!("one original source")
+        };
+        assert_eq!(entry.source_id(), source);
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).expect("names");
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().expect("valid names");
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).expect("types");
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        // Basic validation preserves the original Phase 2 boundary; the bodyless
+        // make() declaration below is not a final-admission witness.
+        let typed = typed.validate().expect("valid types");
+        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+            .expect("ownership");
+        assert!(owned.is_compatible_with(&typed));
+        for projection in typed.types().aggregate_projections() {
+            assert_eq!(projection.expression().source_unit(), entry.id());
+            assert_eq!(projection.field().source_unit(), entry.id());
+        }
+        inspect(&sources, names.names(), typed.types(), &owned);
+    }
+}
+
 fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
     diagnostics
         .iter()
@@ -120,8 +182,9 @@ fn conditional_copyability_drives_the_same_variable_state_machine() {
                     val choiceFirst = choice\n\
                     val choiceSecond = choice\n\
                 }";
-    let (_, _, _, _, checked) = checked(text);
-    assert_eq!(codes(checked.diagnostics()), vec!["L0131"; 4]);
+    checked_each(text, |_, _, _, checked| {
+        assert_eq!(codes(checked.diagnostics()), vec!["L0131"; 4]);
+    });
 }
 
 #[test]
@@ -145,16 +208,17 @@ fn destructuring_copies_or_atomically_consumes_the_source_and_enables_bindings()
                     val firstUse = take(resource)\n\
                     val secondUse = take(resource)\n\
                 }";
-    let (sources, _, _, _, checked) = checked(text);
-    assert_eq!(codes(checked.diagnostics()), vec!["L0131"; 3]);
-    assert_eq!(
-        checked
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
-            .collect::<Vec<_>>(),
-        ["pair", "resource", "resource"]
-    );
+    checked_each(text, |sources, _, _, checked| {
+        assert_eq!(codes(checked.diagnostics()), vec!["L0131"; 3]);
+        assert_eq!(
+            checked
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
+                .collect::<Vec<_>>(),
+            ["pair", "resource", "resource"]
+        );
+    });
 }
 
 #[test]

@@ -1100,7 +1100,8 @@ D10/SPEC-0341/E2 继续 in-progress。
 
 ## 58. 所有权语法规则共享与成功清理合同（2026-11-02）
 
-基于 main `f824daeb` 的本地候选，收敛 frontend 重复规则并补成功清理合同；不触 E3，
+本地准备基线为 `f824daeb`，#278 发布时对齐 `2370718c`，15 个文件与该基线变化无交集。
+本批收敛 frontend 重复规则并补成功清理合同；不触 E3，
 不计作旧消费者退休。
 
 - 元素索引身份仅共享整数字面量、Group、正负号解释；source-qualified 准入、place
@@ -1119,3 +1120,90 @@ D10/SPEC-0341/E2 继续 in-progress。
   不为补测试扩大其准入或修改执行语义。
 - 未运行本地 Cargo/build/test/Clippy；静态检查不替代精确头官方 CI。旧原件删除另待
   等价覆盖与实际验收证据，D10/E2 保持 in-progress。
+
+## 59. requireValue 成功消费者退休与借用调用寻址共享（2026-11-02）
+
+本地准备基线为 #278 合后的 `6f7dedd`，#280 发布前已同步 `e89c363`；
+精确头 `133316ea` 的 PR CI `41429518757` 全绿后，#280 合入 main `62966ec`。
+以下退休仅限本节明确的 frontend 消费者，不代表全部 Single 观察等价。
+
+- `ownership_map_require` 两个旧成功测试的源码原件已由 `loan_end_unit` 保留：四种
+  MutableMap value 与 readonly Map，均走 MemoryDocument/Rooted。新的合同覆盖旧
+  Receiver marker、单结果 binding、真实来源 loan 和无诊断，并额外检查实际结束点与 owner 交付。
+- #278 精确头 PR CI `41414146989` 已在双平台实际通过这些合同；此次退休旧 Single helper
+  的 `resolve_names`、`check_types`、`check_ownership` 各一个静态调用点（各五次运行调用）。
+  保留所有拒绝测试，不将测试总数下降误写为行为覆盖下降。
+- `borrow_result_call` 两端重复的 Group-only 调用寻址共用私有函数，typed 来源资格仍由
+  原 Checker 提供；AST 查找失败仍返回 None，不穿透其他表达式、不扩大任何借用准入。
+- `withValue` 保持当前语义与原 witness；Single owner-table、多层索引和 inout 未等价合同不退休。
+- #280 精确头双平台实际通过新增共享寻址合同与 require 三项测试、Preview；未运行本地
+  Cargo/build/test/Clippy。原源码 Single diagnostics/binding/loan 观察有意退休，保全的是
+  Unit 侧上述独立断言，不声称双 Unit 仍执行 Single 或保持其全部独立观察。
+
+
+## 60. Map、primitive 与字段替换合同族退休（2026-11-02）
+
+#281 基于 `e89c363`，精确头 `68e4938c`，已合入 main `4723ebc`。本节只记录
+frontend 测试观察面收敛，无生产、E3/refine 或 `withValue` 语义修改。
+
+- 四个测试文件（含一个 Unit helper）保留 38 个原主文件测试，退休 75 次 Single 分析：
+  Map 27、field replace 26、primitives 22；三个旧分析 API 各净少两个静态调用点。
+- Map 对原源分别执行 MemoryDocument/Rooted，null/key 清理从原 AST 定位表达式与边界，
+  独立核对 origin、调用返回点及消费/字段 root。并不声称每个测试都比较两入口完整结构。
+- field replace 保留已有完整双 Unit 对照，将原 sibling 计数固定成 Unit 独立 oracle；
+  global 拒绝差异、临时值与多源身份旧 witness 保留。
+- primitives 保留三个旧独立测试（六次 Single 执行）的 return loan-end、条件清理和
+  owner lineage；其他调用不先执行 Single 再过滤。replace/swap 参数数量及临时清理断言保留。
+- 这是有意移除对应原源码的 Single 观察。其他源码的 L0133/L0134/L0135 见证仍存在，
+  但不能冒充已退休原源码的 Single 等价证据。
+- 精确头 PR CI `41443578094` 成功：双平台 Map 13、primitives 14、field replace 14 项
+  实际通过（包含子模块与保留测试），Check/Clippy、Targeted、Preview 完整通过。
+  此处不将旧基线 PR CI 直接称作合后 main 组合验证；未运行本地 Rust 门禁。
+
+## 61. 资源与 Rc 合同族退休候选（2026-11-02）
+
+Draft #282 的精确头 `2ae1e859` 基于 `e89c363`，三个 frontend 测试文件，
+尚未在包含 #280/#281 的新 main 组合上验证或交付。不得由下列旧基线绿灯推断已合入。
+
+- resource 的 18 项测试、19 处普通 plans 调用、27 个循环展开源案例改为双 Unit，
+  保留 named-drop 的 name/boundary/text/order，并先核 source-unit 再投影原 AST 边界。
+  七项 inspected 测试、八处 callback 调用、15 个源案例保持，包含 owner/condition/field-parent、
+  精确 receiver 诊断及 deferred；不宣称 Unit named-drop 投影承接全部 owner graph。
+- Rc 四项测试、五次旧分析改走双 Unit，保持同入口重新分析稳定性、四个 effects、
+  SharedOwner root、Place loan 及 L0132/L0131/L0134 和拒绝时空产物。
+  额外完成门与 owned.validate 有效；is_same_analysis 自身份断言不算独立差分证据。
+- 合计退休 32 次 Single 执行，三个分析 API 各净少一个 Rc 静态调用点；resource 的
+  旧分析调用点因保留 inspected 等合同仍存在。withValue、生产代码与 E3 不变。
+- PR CI `41460279741` 对该精确头/旧基线成功，双平台 Rc 4 项、resource 30 项实际通过，
+  Check/Clippy、Targeted 与两平台 Preview 均成功，无重跑。本地 Rust 门禁未运行。
+- 非阻塞边界仍保留：resource 沿用 raw typed→validate（不等同 Rc 完成门）；Rc 是
+  同入口重复稳定性，并未额外证明跨入口完整 effects 结构相等。
+
+## 62. 聚合构造与解构下一批范围（2026-11-02）
+
+本地分支 `fix/spec-0341-aggregate-contract-retirement` 基于实际 main `4723ebc`。
+目标是以原源码、原环境、原诊断 sidecar 和独立 AST/typed oracle 承接 construction 与
+structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3。
+
+- construction 的 guarded-owner 条件与不同 owner 身份没有等价 Unit 公开事实，原 Single
+  witness 必须保留；其他构造 source-order、root、Nothing 前缀与精确拒绝合同逐项迁移。
+- structural 的 projection kind/field/copyability/type、成员与结构调用 target、诊断顺序与
+  primary/label span 必须保全；自定义环境不换 standard 环境，fixture 和 sidecar 不放宽。
+- 本地实施保留全部 12 个原测试：construction 迁七项、十个不同源码及一次重复分析，
+  退休 11 次 Single 执行，guarded-owner 原测试与旧 helper 逐字保留。structural 初版拟迁
+  四项五源，但精确头 `cd3bef82` 的 PR CI `41470688662` 在首轮 MemoryDocument 显示
+  自动 component1 的 L0132 不等价：field 测试六诊断仅有五个，partial-move fixture 缺
+  `214..224` 的第二个 L0132；Rooted 后轮未到达，不能据此推断其结果。
+- 修订版将这两个 structural 测试及三个原源完整恢复 Single（包括旧 helper、全部八项
+  projection、诊断与 fixture sidecar）。仅迁另外两个已在旧头通过的源；合计退休
+  13 次 Single 执行，三个旧分析 API 静态调用点净减少均为零。源码字节和 custom 环境不变。
+- construction 每入口在同一 SourceMap/AST 上重新分析，比较完整 construction plans；
+  structural 原八项 projection、receiver type、Source 与 StructuralComponent 目标在恢复的
+  Single 原件中保留，不再把失败的 Memory 原源观察声称为等价承接。
+  source-qualified ID 先核来源，再索引实际原 AST/名称，不能跨来源裸比较。
+- 初版双向静审未发现上述动态差异，不能当作等价证明；目标 rustfmt、git diff --check、文档检查（835 Markdown）
+  与尺寸守卫（2070 Rust、41 项旧超限，无新增债）通过。未运行本地 Cargo/build/test/Clippy。
+  修订版尚待新的精确头官方 CI；旧头 construction 八项通过不替代新头全套验证。任何不等价项保留 Single，
+  不以其他源码同码、测试数或静审替代实际验收。
+
+D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。
