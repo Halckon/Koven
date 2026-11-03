@@ -1207,3 +1207,25 @@ structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3
   不以其他源码同码、测试数或静审替代实际验收。
 
 D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。
+
+## 63. View carrier 类型位置退休候选（2026-11-03）
+
+本候选基于 main `be1022f`，仅修改 `type_range_carrier` 前五测试的观察入口；尚未发布，
+尚待精确头官方 CI，不把静审当作运行等价证明，也不与其他候选累计作交付统计。
+
+- 保留全部七项测试及原源码。前五项共 16 源：Borrow 形参三源、非法存储六源、普通
+  owned 结果一源、同名用户类型一源、local/generic 绕过五源。每源从三入口降为
+  MemoryDocument/Rooted 两入口，候选退休 16 次 Single 执行，观察次数 48→32。
+- 新 producer 在同一 SourceMap、SourceId、AST、`range_type.ko` 路径及 standard
+  环境上执行两入口；两次 names 均明确断言无诊断并 validate 后无条件进入 type 阶段。
+  保留原空诊断、L0162/L0163 的 code 存在谓词，不升级为完整 Diagnostic 等价或准入证明。
+- 原 `stage_codes` 返回 `(memory, unit, single)`；本次删除的是调用端旧名 `legacy`
+  所指的第三项 Single，并保留其余两项原 oracle。原 helper、第六项七源名称错误恢复
+  （含 `from missing`/`from this`）与第七项 from/参数映射、L0164 精确 span 及 qualified
+  拒绝边界逐字保留。`resolve_names`/`check_types` 静态调用点及调用文件净减少均为零。
+- Guide §N1a 的身份与使用位置边界不变；无生产、ownership、owner/loan-end/drop、E3
+  或 native 修改，不以类型事实替代后续阶段证明。
+- 直接 rustfmt --check、16 源字节/七测试名/原 helper 与末两测试保全静审、文档检查
+  （835 Markdown）、尺寸守卫（2072 Rust，41 项旧超限，无新增债）及 `git diff --check`
+  通过。未运行 Cargo/build/test/Clippy，动态验收与后续组合验证均未完成。
+  D10/SPEC-0341/E2 保持 in-progress。
