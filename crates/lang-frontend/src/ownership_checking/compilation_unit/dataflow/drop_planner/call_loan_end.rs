@@ -14,12 +14,19 @@ use std::collections::BTreeMap;
 
 impl DropPlanner<'_, '_> {
     fn observes_direct_call_loan(&self, loan: &UnitLoanFact) -> bool {
+        self.observes_root_call_loan(loan, LoanKind::Shared)
+    }
+
+    // Both observational slices use the same conservative operand boundary. This
+    // does not alter registration, normal-return retirement or unwind traversal.
+    fn observes_root_call_loan(&self, loan: &UnitLoanFact, kind: LoanKind) -> bool {
         let Some(call) = self.checker.typed.call(loan.call()) else {
             return false;
         };
-        if loan.kind() != LoanKind::Shared
+        if loan.kind() != kind
             || call.receiver().is_some()
-            || !matches!(call.target(), UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_))
+            || !(matches!(call.target(), UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_))
+                || kind == LoanKind::Exclusive && matches!(call.target(), UnitCallTarget::External(_)))
             || call.result_source() != CallableResultSource::Owned
             // 既有 borrow/range operand 已有来源交接；本片不能替它结束祖先。
             || self.checker.borrow_result_call(loan.argument().expression()).is_some()
@@ -69,7 +76,8 @@ impl DropPlanner<'_, '_> {
                 }
                 Expression::String { parts } => {
                     // plain String 自己求值成 owner；不接受 interpolation、投影或构造调用。
-                    return parts.iter().all(|part| matches!(part, StringPart::Text(_)))
+                    return kind == LoanKind::Shared
+                        && parts.iter().all(|part| matches!(part, StringPart::Text(_)))
                         && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());
                 }
                 _ => return false,
@@ -111,6 +119,44 @@ impl DropPlanner<'_, '_> {
                 Action::Drop(_) => *count += 1,
                 Action::EndCallLoan(loan) if self.observes_direct_call_loan(loan) => {
                     ends.push(UnitDirectCallLoanEndFact {
+                        loan: loan.clone(),
+                        point: point.into_unit(self.checker.source_unit),
+                        preceding_drops: *count,
+                    });
+                }
+                _ => {}
+            }
+        }
+        ends
+    }
+
+    /// Only actual unwind actions qualify; never infer execution from descriptors.
+    pub(super) fn exclusive_call_prefix_ends(
+        &self,
+    ) -> Vec<crate::ownership_checking::UnitExclusiveCallPrefixEndFact> {
+        let mut preceding_drops = BTreeMap::new();
+        let mut ends = Vec::new();
+        for (point, action) in &self.iteration_actions {
+            let PlannerDropPoint::ControlTransfer(transfer) = point else {
+                continue;
+            };
+            if !self
+                .checker
+                .parsed
+                .ast()
+                .expressions()
+                .get(*transfer)
+                .is_ok_and(|node| matches!(node.payload(), Expression::Return { .. }))
+            {
+                continue;
+            }
+            let count = preceding_drops.entry(transfer.index()).or_insert(0);
+            match action {
+                Action::Drop(_) => *count += 1,
+                Action::EndCallLoan(loan)
+                    if self.observes_root_call_loan(loan, LoanKind::Exclusive) =>
+                {
+                    ends.push(crate::ownership_checking::UnitExclusiveCallPrefixEndFact {
                         loan: loan.clone(),
                         point: point.into_unit(self.checker.source_unit),
                         preceding_drops: *count,

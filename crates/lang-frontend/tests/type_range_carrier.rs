@@ -76,6 +76,44 @@ fn stage_codes(text: &str) -> (Vec<String>, Vec<String>, Vec<String>) {
     (memory, unit, single)
 }
 
+// The first five tests have name-valid inputs and retain their original code oracles.
+// Use one SourceMap, parsed AST and standard environment for both Unit entries.
+fn unit_stage_codes(text: &str) -> (Vec<String>, Vec<String>) {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("range_type.ko", text).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let (environment, types) = standard_environments();
+    let analyze = |input, label| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
+        assert!(
+            names.diagnostics().is_empty(),
+            "{label} {text}: {:?}",
+            names.diagnostics()
+        );
+        let names = names.validate().unwrap();
+        check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .diagnostics()
+            .iter()
+            .map(|d| d.code().to_string())
+            .collect()
+    };
+    let memory = analyze(SourceUnitInput::memory_document(source, &parsed), "memory");
+    let unit = analyze(
+        SourceUnitInput::new("root", "range_type.ko", source, &parsed),
+        "unit",
+    );
+    (memory, unit)
+}
+
 #[test]
 fn compiler_bound_view_is_available_as_a_non_owning_parameter() {
     for text in [
@@ -83,10 +121,9 @@ fn compiler_bound_view_is_available_as_a_non_owning_parameter() {
         "fun inspect(borrow source: View<String>): Unit {}",
         "class Item(val number: Int) {}\nfun inspect(source: View<Item>): Unit {}",
     ] {
-        let (single, unit, legacy) = stage_codes(text);
-        assert!(single.is_empty(), "single {text}: {single:?}");
+        let (memory, unit) = unit_stage_codes(text);
+        assert!(memory.is_empty(), "memory {text}: {memory:?}");
         assert!(unit.is_empty(), "unit {text}: {unit:?}");
-        assert!(legacy.is_empty(), "legacy {text}: {legacy:?}");
     }
 }
 
@@ -100,8 +137,8 @@ fn range_type_cannot_be_optional_owned_or_stored_in_an_aggregate() {
         "fun reject(source: List<View<Int>>): Unit {}",
         "fun reject(source: Map<Int, View<String>>): Unit {}",
     ] {
-        let (single, unit, legacy) = stage_codes(text);
-        for (label, codes) in [("memory", single), ("unit", unit), ("legacy", legacy)] {
+        let (memory, unit) = unit_stage_codes(text);
+        for (label, codes) in [("memory", memory), ("unit", unit)] {
             assert!(
                 codes.iter().any(|c| c == "L0163"),
                 "{label} must reject non-escaping storage, {text}: {codes:?}"
@@ -113,8 +150,8 @@ fn range_type_cannot_be_optional_owned_or_stored_in_an_aggregate() {
 #[test]
 fn plain_result_cannot_deliver_a_range_as_an_owned_value() {
     let text = "fun reject(source: View<Int>): View<Int> = source";
-    let (single, unit, legacy) = stage_codes(text);
-    for codes in [single, unit, legacy] {
+    let (memory, unit) = unit_stage_codes(text);
+    for codes in [memory, unit] {
         assert!(codes.iter().any(|c| c == "L0162"), "{codes:?}");
     }
 }
@@ -122,10 +159,9 @@ fn plain_result_cannot_deliver_a_range_as_an_owned_value() {
 #[test]
 fn source_nominal_named_view_does_not_gain_carrier_restrictions() {
     let text = "class View(val value: Int) {}\nclass Holder(val value: View) {}\nfun ordinary(own source: View): View = source";
-    let (single, unit, legacy) = stage_codes(text);
-    assert!(single.is_empty(), "{single:?}");
+    let (memory, unit) = unit_stage_codes(text);
+    assert!(memory.is_empty(), "{memory:?}");
     assert!(unit.is_empty(), "{unit:?}");
-    assert!(legacy.is_empty(), "{legacy:?}");
 }
 
 #[test]
@@ -137,8 +173,8 @@ fn inferred_local_and_generic_argument_cannot_hide_a_range_carrier() {
         "fun <T> accept(source: T): Unit {}\nfun reject(source: View<Int>): Unit { accept(source) }",
         "fun <T> accept(source: T): Unit {}\nfun reject(source: View<Int>): Unit { accept<View<Int>>(source) }",
     ] {
-        let (single, unit, legacy) = stage_codes(text);
-        for (label, codes) in [("memory", single), ("unit", unit), ("legacy", legacy)] {
+        let (memory, unit) = unit_stage_codes(text);
+        for (label, codes) in [("memory", memory), ("unit", unit)] {
             assert!(
                 codes.iter().any(|c| c == "L0163"),
                 "{label} {text}: {codes:?}"

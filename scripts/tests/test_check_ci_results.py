@@ -61,6 +61,18 @@ def stage_command_is_unfiltered(command):
 
 
 class CheckCiResultsTests(unittest.TestCase):
+    def test_mutable_list_contracts_run_unfiltered_in_existing_stage_batch(self):
+        root = Path(__file__).resolve().parents[2]
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        for target in ("type_containers", "ownership_containers"):
+            selected = stage_target_occurrences(stage, target)
+            self.assertEqual(1, len(selected), f"{target} must execute exactly once")
+            self.assertTrue(selected[0].startswith(
+                "run cargo test --locked -p lang-frontend --no-fail-fast "))
+            self.assertTrue(stage_command_is_unfiltered(selected[0]),
+                            "all retained and migrated container contracts must run")
+            self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+
     def test_unit_migration_routes_and_exact_regressions_run_on_both_hosts(self):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/ci.yml").read_text()

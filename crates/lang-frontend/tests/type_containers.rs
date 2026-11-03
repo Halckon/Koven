@@ -15,6 +15,9 @@ use lang_frontend::{
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
+#[path = "type_containers/mutable_unit.rs"]
+mod mutable_unit;
+
 use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
@@ -357,16 +360,17 @@ fn container_size_publishes_receiver_identity_type_and_span() {
 #[test]
 fn mutable_list_add_member_is_typed() {
     let text = "fun append(own list: MutableList<Int>): Unit { list.add(42) }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_appends().len(), 1);
-    let append = typed.container_appends()[0];
-    assert_eq!(
-        typed.types().get(append.result_type()),
-        Some(&lang_frontend::type_checking::TypeKind::Builtin(
-            lang_frontend::type_checking::BuiltinType::Unit
-        ))
-    );
+    mutable_unit::check_each(text, &[], |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_appends().len(), 1);
+        let append = typed.container_appends()[0];
+        assert_eq!(
+            typed.types().get(append.result_type()),
+            Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::Unit
+            ))
+        );
+    });
 }
 
 #[test]
@@ -375,8 +379,9 @@ fn container_add_rejects_array_and_list() {
                     array.add(1)\n\
                     list.add(2)\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    mutable_unit::check_each(text, &["L0130", "L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    });
 }
 
 #[test]
@@ -384,8 +389,9 @@ fn container_add_rejects_property_access() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     val f = list.add\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    mutable_unit::check_each(text, &["L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    });
 }
 
 #[test]
@@ -393,23 +399,25 @@ fn container_add_rejects_mismatched_element_type() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     list.add(\"hello\")\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    mutable_unit::check_each(text, &["L0084"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    });
 }
 
 #[test]
 fn mutable_list_clear_member_is_typed() {
     let text = "fun clearList(own list: MutableList<Int>): Unit { list.clear() }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_clears().len(), 1);
-    let clear = typed.container_clears()[0];
-    assert_eq!(
-        typed.types().get(clear.result_type()),
-        Some(&lang_frontend::type_checking::TypeKind::Builtin(
-            lang_frontend::type_checking::BuiltinType::Unit
-        ))
-    );
+    mutable_unit::check_each(text, &[], |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_clears().len(), 1);
+        let clear = typed.container_clears()[0];
+        assert_eq!(
+            typed.types().get(clear.result_type()),
+            Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::Unit
+            ))
+        );
+    });
 }
 
 #[test]
@@ -418,8 +426,9 @@ fn container_clear_rejects_array_and_list() {
                     array.clear()\n\
                     list.clear()\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    mutable_unit::check_each(text, &["L0130", "L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    });
 }
 
 #[test]
@@ -427,27 +436,29 @@ fn container_clear_rejects_arguments() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     list.clear(1)\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0121"]);
+    mutable_unit::check_each(text, &["L0121"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0121"]);
+    });
 }
 
 #[test]
 fn mutable_list_remove_at_member_is_typed() {
     let text = "fun pop(own list: MutableList<Int>): Int { return list.removeAt(0) }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_remove_ats().len(), 1);
-    let remove_at = typed.container_remove_ats()[0];
-    assert_eq!(
-        typed.types().get(remove_at.result_type()),
-        Some(&lang_frontend::type_checking::TypeKind::Builtin(
-            lang_frontend::type_checking::BuiltinType::Int
-        ))
-    );
-    assert_eq!(
-        typed.container_remove_at(remove_at.expression()),
-        Some(remove_at)
-    );
+    mutable_unit::check_each(text, &[], |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_remove_ats().len(), 1);
+        let remove_at = typed.container_remove_ats()[0];
+        assert_eq!(
+            typed.types().get(remove_at.result_type()),
+            Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::Int
+            ))
+        );
+        assert_eq!(
+            typed.container_remove_at(remove_at.expression()),
+            Some(remove_at)
+        );
+    });
 }
 
 #[test]
@@ -456,8 +467,9 @@ fn container_remove_at_rejects_array_and_list() {
                     array.removeAt(0)\n\
                     list.removeAt(0)\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    mutable_unit::check_each(text, &["L0130", "L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    });
 }
 
 #[test]
@@ -465,8 +477,9 @@ fn container_remove_at_rejects_property_access() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     val f = list.removeAt\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    mutable_unit::check_each(text, &["L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    });
 }
 
 #[test]
@@ -476,27 +489,29 @@ fn container_remove_at_rejects_mismatched_index_and_arity() {
                     list.removeAt(0, 1)\n\
                     list.removeAt(\"zero\")\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0121", "L0121", "L0084"]);
+    mutable_unit::check_each(text, &["L0121", "L0121", "L0084"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0121", "L0121", "L0084"]);
+    });
 }
 
 #[test]
 fn mutable_list_remove_last_member_is_typed() {
     let text = "fun pop(own list: MutableList<Int>): Int { return list.removeLast() }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_remove_lasts().len(), 1);
-    let remove_last = typed.container_remove_lasts()[0];
-    assert_eq!(
-        typed.types().get(remove_last.result_type()),
-        Some(&lang_frontend::type_checking::TypeKind::Builtin(
-            lang_frontend::type_checking::BuiltinType::Int
-        ))
-    );
-    assert_eq!(
-        typed.container_remove_last(remove_last.expression()),
-        Some(remove_last)
-    );
+    mutable_unit::check_each(text, &[], |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_remove_lasts().len(), 1);
+        let remove_last = typed.container_remove_lasts()[0];
+        assert_eq!(
+            typed.types().get(remove_last.result_type()),
+            Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::Int
+            ))
+        );
+        assert_eq!(
+            typed.container_remove_last(remove_last.expression()),
+            Some(remove_last)
+        );
+    });
 }
 
 #[test]
@@ -505,8 +520,9 @@ fn container_remove_last_rejects_array_and_list() {
                     array.removeLast()\n\
                     list.removeLast()\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    mutable_unit::check_each(text, &["L0130", "L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    });
 }
 
 #[test]
@@ -514,8 +530,9 @@ fn container_remove_last_rejects_property_access() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     val f = list.removeLast\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    mutable_unit::check_each(text, &["L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    });
 }
 
 #[test]
@@ -523,27 +540,29 @@ fn container_remove_last_rejects_arguments() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     list.removeLast(0)\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0121"]);
+    mutable_unit::check_each(text, &["L0121"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0121"]);
+    });
 }
 
 #[test]
 fn mutable_list_remove_first_member_is_typed() {
     let text = "fun pop_front(own list: MutableList<Int>): Int { return list.removeFirst() }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_remove_firsts().len(), 1);
-    let remove_first = typed.container_remove_firsts()[0];
-    assert_eq!(
-        typed.types().get(remove_first.result_type()),
-        Some(&lang_frontend::type_checking::TypeKind::Builtin(
-            lang_frontend::type_checking::BuiltinType::Int
-        ))
-    );
-    assert_eq!(
-        typed.container_remove_first(remove_first.expression()),
-        Some(remove_first)
-    );
+    mutable_unit::check_each(text, &[], |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_remove_firsts().len(), 1);
+        let remove_first = typed.container_remove_firsts()[0];
+        assert_eq!(
+            typed.types().get(remove_first.result_type()),
+            Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::Int
+            ))
+        );
+        assert_eq!(
+            typed.container_remove_first(remove_first.expression()),
+            Some(remove_first)
+        );
+    });
 }
 
 #[test]
@@ -552,8 +571,9 @@ fn container_remove_first_rejects_array_and_list() {
                     array.removeFirst()\n\
                     list.removeFirst()\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    mutable_unit::check_each(text, &["L0130", "L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    });
 }
 
 #[test]
@@ -561,8 +581,9 @@ fn container_remove_first_rejects_property_access() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     val f = list.removeFirst\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    mutable_unit::check_each(text, &["L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    });
 }
 
 #[test]
@@ -570,27 +591,29 @@ fn container_remove_first_rejects_arguments() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     list.removeFirst(0)\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0121"]);
+    mutable_unit::check_each(text, &["L0121"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0121"]);
+    });
 }
 
 #[test]
 fn mutable_list_insert_at_member_is_typed() {
     let text = "fun insert(own list: MutableList<Int>): Unit { list.insertAt(0, 42) }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_insert_ats().len(), 1);
-    let insert_at = typed.container_insert_ats()[0];
-    assert_eq!(
-        typed.types().get(insert_at.result_type()),
-        Some(&lang_frontend::type_checking::TypeKind::Builtin(
-            lang_frontend::type_checking::BuiltinType::Unit
-        ))
-    );
-    assert_eq!(
-        typed.container_insert_at(insert_at.expression()),
-        Some(insert_at)
-    );
+    mutable_unit::check_each(text, &[], |typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_insert_ats().len(), 1);
+        let insert_at = typed.container_insert_ats()[0];
+        assert_eq!(
+            typed.types().get(insert_at.result_type()),
+            Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::Unit
+            ))
+        );
+        assert_eq!(
+            typed.container_insert_at(insert_at.expression()),
+            Some(insert_at)
+        );
+    });
 }
 
 #[test]
@@ -599,8 +622,9 @@ fn container_insert_at_rejects_array_and_list() {
                     array.insertAt(0, 1)\n\
                     list.insertAt(0, 1)\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    mutable_unit::check_each(text, &["L0130", "L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+    });
 }
 
 #[test]
@@ -608,8 +632,9 @@ fn container_insert_at_rejects_property_access() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     val f = list.insertAt\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    mutable_unit::check_each(text, &["L0130"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+    });
 }
 
 #[test]
@@ -617,8 +642,9 @@ fn container_insert_at_rejects_mismatched_element_type() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     list.insertAt(0, \"hello\")\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    mutable_unit::check_each(text, &["L0084"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    });
 }
 
 #[test]
@@ -626,6 +652,7 @@ fn container_insert_at_rejects_mismatched_index_type() {
     let text = "fun bad(own list: MutableList<Int>): Unit {\n\
                     list.insertAt(\"zero\", 42)\n\
                 }";
-    let (_sources, _parsed, _names, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    mutable_unit::check_each(text, &["L0084"], |typed| {
+        assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    });
 }

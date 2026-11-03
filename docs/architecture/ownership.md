@@ -140,9 +140,9 @@ source-qualified reference/generation 与实际 assignment 身份约束 view、B
 单文件原 plan 保留 body/alternative 提取区分；Nothing 无正常出口，Abort 不展开析构。
 
 调用前缀已建立的 loan 与 borrowed temporary 随 ValueState 分支传递，保持前序 owner 活到调用结束。
-`LoanEndFact` 区分 CallReturn 与 ControlTransfer，同边先结束 loan 再 drop。普通 Unit 无receiver的
-有界 direct declaration call 已消费实际前缀退出事实；root/temporary、当前 owner/loan 与 frame 身份均须匹配。
-这不授予 receiver、function-value、field/element 或任意借用结果新的控制流能力，也不以静态事实充当动态计数。
+`LoanEndFact` 区分 CallReturn 与 ControlTransfer，同边先结束 loan 再 drop。Unit 有界 direct declaration call 的 root/temporary、当前 owner/loan 与 frame 身份均须匹配。
+Unit `exclusive_call_prefix_ends()` 仅从实际 `EndCallLoan` 动作提取 return 放弃 Exclusive owned 名称根调用前缀事件，保留 source-qualified call/argument/target、控制点、事件顺序及同点先行普通 drop 数；不从 `end_span` 推断执行，Abort 不发布 unwind。
+观测片排除正常返回、break/continue、receiver、投影、provider 来源/绑定及借用结果；原 Shared 查询与 Single primitive witness 保留，不授予新的求值/cleanup/native 能力，不以静态事实充当动态计数。
 
 编译单元 drop planner 按调用身份在 ValueState 保存前序借用的具名 owner，使后续实参中的
 分支与嵌套调用不会提前析构它；正常 CallReturn 只解除当前调用的保护。字符串插值中的

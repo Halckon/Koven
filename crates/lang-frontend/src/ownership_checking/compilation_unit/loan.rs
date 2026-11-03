@@ -117,3 +117,33 @@ impl UnitDirectCallLoanEndFact {
         self.preceding_drops
     }
 }
+
+/// Exclusive 根实参因 return 放弃调用前缀的实际结束事件。
+/// 仅为观测切片，不覆盖正常返回、投影、receiver 或完整 owner 图。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitExclusiveCallPrefixEndFact {
+    pub(super) loan: UnitLoanFact,
+    pub(super) point: UnitDropPoint,
+    pub(super) preceding_drops: usize,
+}
+
+impl UnitExclusiveCallPrefixEndFact {
+    /// 返回原始 source-qualified loan 描述符，保留 call、argument 和 target 身份。
+    #[must_use]
+    pub const fn loan(&self) -> &UnitLoanFact {
+        &self.loan
+    }
+
+    /// 放弃调用前缀的实际控制转移点。
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        self.point
+    }
+
+    /// 同 point 普通 drops 中先于此事件的数量；事件间保持发布顺序。
+    /// 这不是 receiver 条件析构或 capture/provider 动作的统一执行索引。
+    #[must_use]
+    pub const fn preceding_drops(&self) -> usize {
+        self.preceding_drops
+    }
+}
