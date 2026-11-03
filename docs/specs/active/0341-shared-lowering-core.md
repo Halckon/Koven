@@ -1378,3 +1378,26 @@ Workspace Check 阶段均报 12 处 E0507：callback 借用 `&CompilationUnitTyp
 断言及原 product 的跨入口比较；其余持有 owned product 的校验不变。未修改生产 API、
 final admission、测试输入、两多源原件或 ownership witness。修复尚未推送、未运行本地
 Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替代编译和行为验证。
+
+
+## 70. Exclusive root return 前缀事件观测（2026-11-03）
+
+基于 main `be1022f` 的本地候选仅增加 Unit 实际 planner 动作的只读观测，不退休 Single。
+
+- `exclusive_call_prefix_ends()` 仅接受无 receiver、owned-result 的直接 declaration/symbol/external
+  调用与 Exclusive owned 名称根；从真实 `EndCallLoan` 顺序提取 return 放弃前缀事件，
+  保留 source-qualified call/argument/target、控制点及同点先行普通 drop 数。
+- 不从 loan descriptor 或 `end_span` 推断执行，不更改注册、正常返回退休或 unwind 遍历。
+  provider、projection、borrowed binding/result、receiver 与正常完成不在此观测片内。
+- 新测试在 Rooted/MemoryDocument 原源上核对 replace return、嵌套逆序、直接 inout 调用、
+  abort 无 unwind、正常返回无前缀事件及未访问实参/借用根/投影/Shared 排除。
+  原 `ownership_primitives.rs` Single witnesses 逐字保留；D10/E2 仍 in-progress。
+- 本地仅执行 direct rustfmt、diff-check、文档与尺寸静态门禁；未运行 Cargo/build/test/Clippy，
+  测试新增断言尚未动态验证，不把该候选当作等价替换证明。后续需精确头官方 CI。
+
+- 首轮 Draft PR #292 的精确远端头 `c0e99ec9`（与本地候选同 tree）在官方 CI
+  `41575238625` 的 Ubuntu job `125718556173` 中，该套件 13 过、3 失败；三项均停在
+  新 oracle 把 Inout loan begin span 误比为名称值 span。既有 contract 明确使用源码 `&`
+  marker；修订仅从原 AST 的对应 CallArgument 提取 Inout marker，保留精确 span 相等并核对
+  源码为 `&`，原 event 身份、控制点和 drop 顺序断言不变。生产实现与 Single witness 不改。
+  修订仅经过 direct rustfmt 与静态检查，未本地动态验证，仍须新精确头官方 CI。
