@@ -11,19 +11,14 @@ use lang_frontend::{
     type_checking::{check_types, standard_environments},
 };
 
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+#[path = "support/borrow_rejection_unit.rs"]
+mod borrow_rejection_unit;
+
 fn checked(body: &str) -> (SourceMap, OwnershipCheckedFile) {
-    let text = format!(
-        "class Worker(var count: Int) {{\n\
-             fun read(): Int = count\n\
-             inout fun update(own count: Int): Unit {{}}\n\
-             inout fun link(other: Worker): Unit {{}}\n\
-             inout fun change(): Int = 2\n\
-         }}\n\
-         fun inspect(item: Worker): Int = 1\n\
-         fun take(own item: Worker): Int = 1\n\
-         fun immediate(inout item: Worker, own count: Int): Unit {{}}\n\
-         {body}"
-    );
+    let text = source_text(body);
     let mut sources = SourceMap::new();
     let source = sources.add_source("two_phase.ko", &text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -38,6 +33,37 @@ fn checked(body: &str) -> (SourceMap, OwnershipCheckedFile) {
     let typed = check_types(&sources, &parsed, &names, &types).unwrap();
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
+    (sources, owned)
+}
+
+fn source_text(body: &str) -> String {
+    format!(
+        "class Worker(var count: Int) {{\n\
+             fun read(): Int = count\n\
+             inout fun update(own count: Int): Unit {{}}\n\
+             inout fun link(other: Worker): Unit {{}}\n\
+             inout fun change(): Int = 2\n\
+         }}\n\
+         fun inspect(item: Worker): Int = 1\n\
+         fun take(own item: Worker): Int = 1\n\
+         fun immediate(inout item: Worker, own count: Int): Unit {{}}\n\
+         {body}"
+    )
+}
+
+fn checked_unit(
+    body: &str,
+    rooted: bool,
+) -> (
+    SourceMap,
+    lang_frontend::ownership_checking::CompilationUnitOwnership,
+) {
+    let (sources, owned) = borrow_rejection_unit::checked(
+        &source_text(body),
+        "two_phase.ko",
+        rooted,
+        standard_environments(),
+    );
     (sources, owned)
 }
 
@@ -81,20 +107,27 @@ fn receiver_activation_keeps_callee_borrow_live_and_clears_invalid_facts() {
 
 #[test]
 fn receiver_reservation_forbids_nested_exclusive_and_move() {
-    for value in ["worker.change()", "take(worker)"] {
-        let (_, owned) = checked(&format!(
-            "fun run(own worker: Worker): Unit {{ worker.update({value}) }}"
-        ));
-        assert_eq!(codes(owned.diagnostics()), ["L0135"], "{value}");
-        assert!(owned.loans().is_empty());
+    for rooted in [false, true] {
+        for value in ["worker.change()", "take(worker)"] {
+            let (_, owned) = checked_unit(
+                &format!("fun run(own worker: Worker): Unit {{ worker.update({value}) }}"),
+                rooted,
+            );
+            assert_eq!(codes(owned.diagnostics()), ["L0135"], "{value}");
+            assert!(owned.loans().is_empty());
+        }
     }
 }
 
 #[test]
 fn ordinary_inout_arguments_remain_immediately_exclusive() {
-    let (_, owned) =
-        checked("fun run(inout worker: Worker): Unit { immediate(&worker, worker.read()) }");
-    assert_eq!(codes(owned.diagnostics()), ["L0135"]);
+    for rooted in [false, true] {
+        let (_, owned) = checked_unit(
+            "fun run(inout worker: Worker): Unit { immediate(&worker, worker.read()) }",
+            rooted,
+        );
+        assert_eq!(codes(owned.diagnostics()), ["L0135"]);
+    }
 }
 
 #[test]
@@ -108,29 +141,37 @@ fn receiver_reservation_allows_disjoint_fields_and_tracks_prefix_overlap() {
 
 #[test]
 fn this_reservation_blocks_nested_mutation_and_field_alias_arguments() {
-    for argument in ["change()", "this.change()", "takeThis(this)"] {
-        let (_, owned) = checked(&format!(
-            "class SelfWorker {{\n\
+    for rooted in [false, true] {
+        for argument in ["change()", "this.change()", "takeThis(this)"] {
+            let (_, owned) = checked_unit(
+                &format!(
+                    "class SelfWorker {{\n\
                  inout fun update(own value: Int): Unit {{}}\n\
                  inout fun change(): Int = 1\n\
                  inout fun run(): Unit {{ update({argument}) }}\n\
              }}\n\
              fun takeThis(own value: SelfWorker): Int = 1"
-        ));
-        assert_eq!(codes(owned.diagnostics()), ["L0135"], "{argument}");
+                ),
+                rooted,
+            );
+            assert_eq!(codes(owned.diagnostics()), ["L0135"], "{argument}");
+        }
     }
 }
 
 #[test]
 fn this_reservation_allows_nested_readonly_receiver() {
-    let (_, owned) = checked(
-        "class SelfWorker(var count: Int) {\n\
+    for rooted in [false, true] {
+        let (_, owned) = checked_unit(
+            "class SelfWorker(var count: Int) {\n\
              fun read(): Int = count\n\
              inout fun update(own value: Int): Unit {}\n\
              inout fun run(): Unit { update(read()); this.update(this.read()) }\n\
          }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            rooted,
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    }
 }
 
 #[test]
@@ -207,45 +248,56 @@ fn loop_exits_and_branch_returns_do_not_leak_reservations() {
 
 #[test]
 fn this_and_field_borrow_arguments_stay_live_until_activation() {
-    for operand in ["count", "this.count", "this", "(this)"] {
-        let param = if operand.contains("count") {
-            "Int"
-        } else {
-            "Counter"
-        };
-        let (sources, owned) = checked(&format!(
-            "class Counter(var count: Int) {{\n\
+    for rooted in [false, true] {
+        for operand in ["count", "this.count", "this", "(this)"] {
+            let param = if operand.contains("count") {
+                "Int"
+            } else {
+                "Counter"
+            };
+            let (sources, owned) = checked_unit(
+                &format!(
+                    "class Counter(var count: Int) {{\n\
                  inout fun set(value: {param}): Unit {{}}\n\
                  inout fun test(): Unit {{ set({operand}) }}\n\
              }}"
-        ));
-        assert_eq!(codes(owned.diagnostics()), ["L0135"], "{operand}");
-        assert_eq!(
-            sources
-                .slice(owned.diagnostics()[0].primary_span())
-                .unwrap(),
-            operand
-        );
-        assert!(owned.loans().is_empty());
+                ),
+                rooted,
+            );
+            assert_eq!(codes(owned.diagnostics()), ["L0135"], "{operand}");
+            assert_eq!(
+                sources
+                    .slice(owned.diagnostics()[0].primary_span())
+                    .unwrap(),
+                operand
+            );
+            assert!(owned.loans().is_empty());
+        }
     }
 }
 
 #[test]
 fn reservations_keep_known_and_unknown_index_alias_rules() {
-    for (index, expected) in [
-        ("0", vec!["L0135"]),
-        ("1", vec![]),
-        ("index", vec!["L0135"]),
-    ] {
-        let (_, owned) = checked(&format!(
-            "fun run(own workers: MutableList<Worker>, index: Int): Unit {{ workers[0].update(workers[{index}].change()) }}"
-        ));
-        assert_eq!(codes(owned.diagnostics()), expected, "{index}");
+    for rooted in [false, true] {
+        for (index, expected) in [
+            ("0", vec!["L0135"]),
+            ("1", vec![]),
+            ("index", vec!["L0135"]),
+        ] {
+            let (_, owned) = checked_unit(
+                &format!(
+                    "fun run(own workers: MutableList<Worker>, index: Int): Unit {{ workers[0].update(workers[{index}].change()) }}"
+                ),
+                rooted,
+            );
+            assert_eq!(codes(owned.diagnostics()), expected, "{index}");
+        }
+        let (_, owned) = checked_unit(
+            "fun run(own workers: MutableList<Worker>): Unit { workers[0].update(workers[0].read()) }",
+            rooted,
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     }
-    let (_, owned) = checked(
-        "fun run(own workers: MutableList<Worker>): Unit { workers[0].update(workers[0].read()) }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
 
 #[test]
@@ -288,9 +340,14 @@ fn receiver_reservation_holds_owner_and_borrow_temporary_through_call() {
 
 #[test]
 fn move_during_reservation_precedes_non_owning_move_diagnostic() {
-    let (_, owned) = checked("fun run(inout worker: Worker): Unit { worker.update(take(worker)) }");
-    assert_eq!(codes(owned.diagnostics()), ["L0135"]);
-    assert!(owned.loans().is_empty());
+    for rooted in [false, true] {
+        let (_, owned) = checked_unit(
+            "fun run(inout worker: Worker): Unit { worker.update(take(worker)) }",
+            rooted,
+        );
+        assert_eq!(codes(owned.diagnostics()), ["L0135"]);
+        assert!(owned.loans().is_empty());
+    }
 }
 
 #[test]
@@ -317,31 +374,39 @@ fn overload_trials_publish_only_selected_receiver_and_argument_facts() {
 
 #[test]
 fn owned_implicit_receiver_cannot_move_during_outer_reservation() {
-    for operand in ["finish()", "this.finish()"] {
-        let (_, owned) = checked(&format!(
-            "class Counter {{\n\
+    for rooted in [false, true] {
+        for operand in ["finish()", "this.finish()"] {
+            let (_, owned) = checked_unit(
+                &format!(
+                    "class Counter {{\n\
                  own fun finish(): Int = 1\n\
                  inout fun set(own value: Int): Unit {{}}\n\
                  inout fun run(): Unit {{ set({operand}) }}\n\
              }}"
-        ));
-        assert_eq!(codes(owned.diagnostics()), ["L0135"], "{operand}");
+                ),
+                rooted,
+            );
+            assert_eq!(codes(owned.diagnostics()), ["L0135"], "{operand}");
+        }
     }
 }
 
 #[test]
 fn conditional_capture_loan_cannot_disappear_before_receiver_activation() {
-    let (_, owned) = checked(
-        "class Counter {\n\
+    for rooted in [false, true] {
+        let (_, owned) = checked_unit(
+            "class Counter {\n\
              fun read(): Int = 1\n\
              inout fun set(action: () -> Unit): Unit {}\n\
          }\n\
          fun run(own counter: Counter, flag: Boolean): Unit {\n\
              counter.set(if (flag) ({ val n = counter.read() }) else ({}))\n\
          }",
-    );
-    assert_eq!(codes(owned.diagnostics()), ["L0135"]);
-    assert!(owned.loans().is_empty());
+            rooted,
+        );
+        assert_eq!(codes(owned.diagnostics()), ["L0135"]);
+        assert!(owned.loans().is_empty());
+    }
 }
 
 #[test]
@@ -370,17 +435,21 @@ fn completed_nested_call_releases_conditional_temporary_capture() {
 
 #[test]
 fn explicit_this_inout_is_immediate_and_respects_readonly_capability() {
-    let (_, owned) = checked(
-        "class Counter {\n\
+    for rooted in [false, true] {
+        let (_, owned) = checked_unit(
+            "class Counter {\n\
              fun read(): Int = 1\n\
              inout fun run(): Unit { exclusiveThis(&this, read()) }\n\
          }\n\
          fun exclusiveThis(inout target: Counter, own value: Int): Unit {}",
-    );
-    assert_eq!(codes(owned.diagnostics()), ["L0135"]);
-    let (_, owned) = checked(
-        "class Counter { fun run(): Unit { exclusiveThis(&this) } }\n\
+            rooted,
+        );
+        assert_eq!(codes(owned.diagnostics()), ["L0135"]);
+        let (_, owned) = checked_unit(
+            "class Counter { fun run(): Unit { exclusiveThis(&this) } }\n\
          fun exclusiveThis(inout target: Counter): Unit {}",
-    );
-    assert_eq!(codes(owned.diagnostics()), ["L0134"]);
+            rooted,
+        );
+        assert_eq!(codes(owned.diagnostics()), ["L0134"]);
+    }
 }
