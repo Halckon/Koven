@@ -1,5 +1,5 @@
 //! SPEC-0328 ordinary source probes: no fabricated facts or language execution.
-//! Endpoint rejection uses Unit only; the other five tests retain their Single witnesses.
+//! Positive ranges and endpoint rejection use Unit only; public API witnesses retain Single.
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
     lexer::lex,
@@ -34,6 +34,21 @@ struct Observation {
 }
 
 fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observation> {
+    observe_modes(text, root_text, annotation, true)
+}
+
+// Positive callers freeze the former comparator values independently of either Unit mode.
+// Public API/L0082 callers still use observe and retain their independent Single witness.
+fn observe_units(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observation> {
+    observe_modes(text, root_text, annotation, false)
+}
+
+fn observe_modes(
+    text: &str,
+    root_text: &str,
+    annotation: Option<&str>,
+    include_single: bool,
+) -> Vec<Observation> {
     let mut sources = SourceMap::new();
     let source = sources.add_source("range.ko", text).expect("source");
     let lexed = lex(&sources, source).expect("lex API");
@@ -70,45 +85,48 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
         found[0]
     });
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &file, &environment).expect("single names API");
-    let typed = check_types(&sources, &file, &names, &types).expect("single raw API");
-    let root_type = typed.expression_type(root_id);
-    let kind = root_type.and_then(|id| typed.types().get(id));
-    let single = Observation {
-        mode: "single",
-        root: root_node.span(),
-        operator_span,
-        range_fact_valid: typed.integer_range_operation(root_id).map(|fact| {
-            binary.is_some_and(|(left, right, operator, _)| {
-                fact.expression() == root_id
-                    && fact.left() == left
-                    && fact.right() == right
-                    && Some(fact.kind()) == range_kind(operator)
-                    && typed.expression_type(left) == Some(fact.left_type())
-                    && typed.expression_type(right) == Some(fact.right_type())
-                    && root_type == Some(fact.result_type())
-            })
-        }),
-        range_fact_count: typed.integer_range_operations().len(),
-        names: names.diagnostics().to_vec(),
-        raw: Some(typed.diagnostics().to_vec()),
-        shape: Some(format!("{kind:?}")),
-        resolved: matches!(kind, Some(kind) if !matches!(kind, TypeKind::Error | TypeKind::Deferred(_))),
-        boolean: matches!(kind, Some(TypeKind::Builtin(BuiltinType::Boolean))),
-        builtin: match kind {
-            Some(TypeKind::Builtin(builtin)) => Some(*builtin),
-            _ => None,
-        },
-        copyable: root_type.and_then(|id| typed.copyability(id)) == Some(Copyability::Copyable),
-        matches_annotation: annotation_id
-            .map(|id| root_type.is_some() && root_type == typed.type_ref_type(id)),
-        complete: Some(
-            complete_file_types(&sources, &file, &names, &types, &typed).map(|complete| {
-                assert!(complete.is_same_analysis(&typed));
+    let mut result = Vec::new();
+    if include_single {
+        let names = resolve_names(&sources, &file, &environment).expect("single names API");
+        let typed = check_types(&sources, &file, &names, &types).expect("single raw API");
+        let root_type = typed.expression_type(root_id);
+        let kind = root_type.and_then(|id| typed.types().get(id));
+        let single = Observation {
+            mode: "single",
+            root: root_node.span(),
+            operator_span,
+            range_fact_valid: typed.integer_range_operation(root_id).map(|fact| {
+                binary.is_some_and(|(left, right, operator, _)| {
+                    fact.expression() == root_id
+                        && fact.left() == left
+                        && fact.right() == right
+                        && Some(fact.kind()) == range_kind(operator)
+                        && typed.expression_type(left) == Some(fact.left_type())
+                        && typed.expression_type(right) == Some(fact.right_type())
+                        && root_type == Some(fact.result_type())
+                })
             }),
-        ),
-    };
-    let mut result = vec![single];
+            range_fact_count: typed.integer_range_operations().len(),
+            names: names.diagnostics().to_vec(),
+            raw: Some(typed.diagnostics().to_vec()),
+            shape: Some(format!("{kind:?}")),
+            resolved: matches!(kind, Some(kind) if !matches!(kind, TypeKind::Error | TypeKind::Deferred(_))),
+            boolean: matches!(kind, Some(TypeKind::Builtin(BuiltinType::Boolean))),
+            builtin: match kind {
+                Some(TypeKind::Builtin(builtin)) => Some(*builtin),
+                _ => None,
+            },
+            copyable: root_type.and_then(|id| typed.copyability(id)) == Some(Copyability::Copyable),
+            matches_annotation: annotation_id
+                .map(|id| root_type.is_some() && root_type == typed.type_ref_type(id)),
+            complete: Some(
+                complete_file_types(&sources, &file, &names, &types, &typed).map(|complete| {
+                    assert!(complete.is_same_analysis(&typed));
+                }),
+            ),
+        };
+        result.push(single);
+    }
     // Both Unit descriptors reuse the exact SourceMap, SourceId and parsed AST above.
     for (mode, input) in [
         (
@@ -193,13 +211,15 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
                 }
             }
         };
-        assert_same_observation(&result[0], &unit);
+        if let Some(first) = result.first() {
+            assert_same_observation(first, &unit);
+        }
         if result.len() == 2 {
             assert_same_observation(&result[1], &unit);
         }
         result.push(unit);
     }
-    assert_eq!(result.len(), 3, "Single, rooted Unit and MemoryDocument");
+    assert_eq!(result.len(), if include_single { 3 } else { 2 });
     for observation in &result {
         println!(
             "SOURCE {text:?} ROOT {root_text:?} MODE {} SPAN {:?} SHAPE {:?} OBS {observation:?}",
@@ -288,7 +308,7 @@ fn implicit_range_construction_has_resolved_copyable_value() {
             let root = format!("left {operator} right");
             let text = format!("fun probe(left: {ty}, right: {ty}): Unit {{ val range = {root} }}");
             all.extend(
-                observe(&text, &root, None)
+                observe_units(&text, &root, None)
                     .into_iter()
                     .map(|observation| (observation, range)),
             );
@@ -297,6 +317,8 @@ fn implicit_range_construction_has_resolved_copyable_value() {
     // Operand/result identities and the exact operation kind are checked with the AST.
     for (observation, range) in all {
         assert_eq!(observation.builtin, Some(range));
+        assert!(!observation.boolean, "{observation:?}");
+        assert_eq!(observation.matches_annotation, None);
         assert_eq!(observation.range_fact_count, 1);
         assert_complete(&observation);
         assert!(observation.copyable, "{observation:?}");
@@ -306,20 +328,37 @@ fn implicit_range_construction_has_resolved_copyable_value() {
 #[test]
 fn explicit_range_identity_and_capabilities_are_available() {
     let mut all = Vec::new();
-    for (ty, range) in [("Int", "IntRange"), ("Long", "LongRange")] {
+    for (ty, range, builtin) in [
+        ("Int", "IntRange", BuiltinType::IntRange),
+        ("Long", "LongRange", BuiltinType::LongRange),
+    ] {
         let text = format!("fun probe(left: {ty}, right: {ty}): {range} = left..right");
-        all.extend(observe(&text, "left..right", Some(range)));
+        all.extend(
+            observe_units(&text, "left..right", Some(range))
+                .into_iter()
+                .map(|observation| (observation, builtin)),
+        );
         // Ordinary bound checking exercises Transferable without starting a thread.
         let text = format!(
             "fun <T: Transferable> accept(value: T): Unit {{}}\nfun probe(left: {ty}, right: {ty}): Unit {{\n val range: {range} = left..right\n val copy = range\n accept(copy)\n accept(range)\n}}"
         );
-        all.extend(observe(&text, "left..right", Some(range)));
+        all.extend(
+            observe_units(&text, "left..right", Some(range))
+                .into_iter()
+                .map(|observation| (observation, builtin)),
+        );
         let text = format!(
             "fun accept(value: IntRange): Unit {{}}\nfun accept(value: LongRange): Unit {{}}\nfun probe(left: {ty}, right: {ty}): Unit {{ accept(left..right) }}"
         );
-        all.extend(observe(&text, "left..right", Some(range)));
+        all.extend(
+            observe_units(&text, "left..right", Some(range))
+                .into_iter()
+                .map(|observation| (observation, builtin)),
+        );
     }
-    for observation in all {
+    for (observation, builtin) in all {
+        assert_eq!(observation.builtin, Some(builtin));
+        assert!(!observation.boolean, "{observation:?}");
         assert_eq!(
             observation.range_fact_count, 1,
             "trial must not duplicate facts"
@@ -338,17 +377,26 @@ fn explicit_range_identity_and_capabilities_are_available() {
 fn range_membership_and_equality_publish_boolean_results() {
     let mut all = Vec::new();
     for ty in ["Int", "Long"] {
-        for root in [
-            "value in (left..right)",
-            "value !in (left..<right)",
-            "(left..right) == (left..<right)",
-            "(left..right) != (left..<right)",
+        // One fact per successful range binary: construction(s) plus membership/equality.
+        for (root, facts) in [
+            ("value in (left..right)", 2),
+            ("value !in (left..<right)", 2),
+            ("(left..right) == (left..<right)", 3),
+            ("(left..right) != (left..<right)", 3),
         ] {
             let text = format!("fun probe(left: {ty}, right: {ty}, value: {ty}): Boolean = {root}");
-            all.extend(observe(&text, root, None));
+            all.extend(
+                observe_units(&text, root, None)
+                    .into_iter()
+                    .map(|observation| (observation, facts)),
+            );
         }
     }
-    for observation in all {
+    for (observation, facts) in all {
+        assert_eq!(observation.range_fact_count, facts);
+        assert_eq!(observation.builtin, Some(BuiltinType::Boolean));
+        assert_eq!(observation.matches_annotation, None);
+        assert!(observation.copyable, "{observation:?}");
         assert_complete(&observation);
         assert!(observation.boolean, "{observation:?}");
     }
@@ -357,7 +405,10 @@ fn range_membership_and_equality_publish_boolean_results() {
 #[test]
 fn range_values_cross_existing_storage_boundaries() {
     let mut all = Vec::new();
-    for (ty, range) in [("Int", "IntRange"), ("Long", "LongRange")] {
+    for (ty, range, builtin) in [
+        ("Int", "IntRange", BuiltinType::IntRange),
+        ("Long", "LongRange", BuiltinType::LongRange),
+    ] {
         for text in [
             format!(
                 "fun accept(value: {range}): Unit {{}}\nfun probe(left: {ty}, right: {ty}): Unit {{\n val stored = left..right\n val copied = stored\n accept(copied)\n accept(stored)\n}}"
@@ -370,10 +421,18 @@ fn range_values_cross_existing_storage_boundaries() {
             ),
             format!("fun probe(left: {ty}, right: {ty}): List<{range}> = listOf(left..right)"),
         ] {
-            all.extend(observe(&text, "left..right", None));
+            all.extend(
+                observe_units(&text, "left..right", None)
+                    .into_iter()
+                    .map(|observation| (observation, builtin)),
+            );
         }
     }
-    for observation in all {
+    for (observation, builtin) in all {
+        assert_eq!(observation.builtin, Some(builtin));
+        assert!(!observation.boolean, "{observation:?}");
+        assert_eq!(observation.matches_annotation, None);
+        assert_eq!(observation.range_fact_count, 1);
         assert_complete(&observation);
         assert!(observation.copyable, "{observation:?}");
     }
