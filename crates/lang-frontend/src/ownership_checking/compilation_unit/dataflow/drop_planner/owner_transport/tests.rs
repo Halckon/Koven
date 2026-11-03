@@ -97,3 +97,25 @@ fun run(): Unit { var a = "old"; val old = replace(&a, "new"); val opaque = make
         compare(&fixture, &parts);
     }
 }
+
+#[test]
+fn owner_observation_preserves_exclusive_return_prefix_events() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "class Item(val n: Int)\nfun run(): Unit {\nvar a = Item(1)\nreplace(&a, return)\n}",
+    )]);
+    let shared = fixture.shared();
+    assert!(shared.clone().validate().is_ok());
+    assert_eq!(shared.exclusive_call_prefix_ends().len(), 1);
+    assert!(
+        shared
+            .owner_observations()
+            .iter()
+            .all(|observation| matches!(
+                observation.status(),
+                crate::ownership_checking::UnitOwnerObservationStatus::Unsupported { .. }
+            ))
+    );
+    let parts = fixture.parts(&shared);
+    compare(&fixture, &parts);
+}

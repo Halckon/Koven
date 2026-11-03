@@ -99,6 +99,7 @@ pub(super) struct Analysis {
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) formed_owned_locals: Vec<UnitSymbolId>,
     pub(super) owner_observations: Vec<super::UnitOwnerObservation>,
+    pub(super) exclusive_call_prefix_ends: Vec<super::UnitExclusiveCallPrefixEndFact>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
@@ -208,6 +209,7 @@ pub(super) fn analyze(
     let mut visited_lambdas = std::collections::BTreeSet::new();
     let mut owner_observations = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
+    let mut exclusive_call_prefix_ends = Vec::new();
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
     let mut receiver_facts = Vec::new();
@@ -299,6 +301,7 @@ pub(super) fn analyze(
         constant_materializations.extend(checker.constant_materializations.into_values());
         owner_observations.extend(drop_analysis.owner_observations);
         direct_call_loan_ends.extend(drop_analysis.direct_call_loan_ends);
+        exclusive_call_prefix_ends.extend(drop_analysis.exclusive_call_prefix_ends);
         drops.extend(drop_analysis.drops);
         conditional_receiver_drops.extend(drop_analysis.conditional_receiver_drops);
         deferred.extend(drop_analysis.deferred);
@@ -380,6 +383,7 @@ pub(super) fn analyze(
         loans,
         owner_observations,
         direct_call_loan_ends,
+        exclusive_call_prefix_ends,
         value_deliveries,
         receiver_facts,
         conditional_receiver_deliveries,

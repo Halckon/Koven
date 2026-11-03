@@ -66,6 +66,8 @@ pub(super) struct Analysis {
         >,
     >,
     pub(super) owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
+    pub(super) exclusive_call_prefix_ends:
+        Vec<crate::ownership_checking::UnitExclusiveCallPrefixEndFact>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
@@ -138,6 +140,7 @@ fn plan_with_owner_observation(
         });
     }
     let direct_call_loan_ends = planner.direct_call_loan_ends();
+    let exclusive_call_prefix_ends = planner.exclusive_call_prefix_ends();
     let drops = planner
         .facts
         .into_iter()
@@ -151,6 +154,7 @@ fn plan_with_owner_observation(
     Ok(Analysis {
         owner_observations: planner.owner_observations,
         direct_call_loan_ends,
+        exclusive_call_prefix_ends,
         borrow_ends: planner.borrow_ends,
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,

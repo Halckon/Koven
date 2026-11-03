@@ -17,4 +17,4 @@ source-qualified callable、定义来源、局部编号、状态及全部事件�
 不支持的控制流、普通调用、capture、swap 或其他值形态使该 callable 的观察标为
 Unsupported 并清空该观察的前缀；原合法性和 cleanup 产品不受这个状态影响。此层不提供
 capture lineage、条件 owner graph 或新的 Phase 4 执行能力，原 Single witness 保留。
-本地纵切的 Rust 编译/行为验收尚未执行，状态见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#64-e2-owner-transport-a-的本地纵切2026-11-03)。
+本地纵切的 Rust 编译/行为验收尚未执行，状态见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#72-e2-owner-transport-a-的本地纵切2026-11-03)。
