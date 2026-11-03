@@ -89,6 +89,8 @@ fn owner_observation_never_changes_existing_cleanup_products() {
         r#"fun make(): String = "opaque"
 fun run(): Unit { var a = "old"; val old = replace(&a, "new"); val opaque = make() }"#,
         r#"fun run(): Unit { var a = "old"; val old = replace(&a, "new"); val callback = move { a + old }; callback() }"#,
+        r#"fun run(): Unit { var a = "old"; val old = replace(&a, "new"); val callback = move { a + old }; val forwarded = (callback) }"#,
+        r#"fun run(own a: String): Unit { val callback = move { a } }"#,
     ] {
         let fixture = Fixture::new(&[("root.ko", text)]);
         let shared = fixture.shared();

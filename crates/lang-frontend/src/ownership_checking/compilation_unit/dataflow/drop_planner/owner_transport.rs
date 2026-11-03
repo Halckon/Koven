@@ -1,4 +1,5 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
+mod capture;
 #[cfg(test)]
 mod tests;
 
@@ -228,6 +229,7 @@ impl DropPlanner<'_, '_> {
         }
         let supported = match self.checker.parsed.ast().expressions().get(id)?.payload() {
             Expression::Name | Expression::Group { .. } | Expression::Return { .. } => true,
+            Expression::Lambda { .. } => self.owner_capture_supported(id),
             Expression::Literal(_) => self
                 .checker
                 .typed

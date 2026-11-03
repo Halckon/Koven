@@ -1550,3 +1550,30 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
 - 直接 rustfmt、静态源码与未改见证/helper 保全、文档检查、尺寸守卫及 `git diff --check`
   用于本地静审；按要求未运行 Cargo/build/test/Clippy。动态验收、精确组合头 CI 和独立
   审查仍待完成，未推送或合入，D10/SPEC-0341/E2 继续 in-progress。
+
+## 78. Capture formation 的保守后继候选（2026-11-03）
+
+基于 #294 精确头 `0bb1f84702c451f1be5f4e85589b9ea7ff4e4096` 的独立本地候选；
+仅扩展 Phase 3 Unit owner 观察，不退休 Single witness，不改变语言或 Phase 4 能力。
+
+- 支持普通函数直线路径中的 leaf move closure：捕获列表非空、全部为 Owned/Move 的
+  String binding。形成点保留原 `take_named` 次序，读取实际移出的 `OwnedValue.owner`；
+  不从 capture reference span、声明位置或旧 drop 数量生成 owner。
+- 环境构造产生单独 `Closure` token；`Capture` 保存当前环境与有序 `(source, owner)` 输入，
+  所以 replace 后捕获的是新 root owner，旧结果另有独立 token。Name/Group/binding 转交
+  环境 token，不重建捕获。实际 `Captured` drop 点发布 `CaptureDrop`，随后才发布环境的
+  named `Drop`；回放核对环境 token/source 槽、输入位置与先释放内容再释放环境。
+- Shared、Copyable capture、捕获 closure 值、空 capture、直接丢弃的 closure temporary、
+  调用执行和其他未支持转换仍使整个 callable 观察原子 Unsupported。lambda body 自身仍
+  不支持；观察 formation 不证明 body 执行、跨调用交付、动态实例、branch/loop phi 或 native。
+- 新定向测试核 replace 后两来源形成、环境别名运输、相同文本不同 owner、owned 参数，
+  并拒绝输入 token 交换、缺 capture release、外来分析 token；原完整 planner 开关对照另加
+  两项纯 formation 源。非法事实 mutation 仅写入测试，未本地执行。
+- direct rustfmt、`git diff --check`、尺寸守卫（2089 Rust、39 项既有超限，无新增超限）与
+  文档结构检查通过。未运行 Cargo/build/test/Clippy，未推送或合入；编译、行为和官方 CI
+  仍待验证，独立静审另行记录。D10/SPEC-0341/E2 保持 in-progress。
+
+- 独立静审未发现 P0/P1；补强 lambda observation 非空断言，另加环境形成 token 与
+  capture release 的 environment/owner 三处跨分析负控。两个实际同时存活的环境各保留
+  独立输入，测试在首环境释放点分别替换为另一环境、source 槽及 owner，要求全部拒绝。
+  共六项 capture 定向测试均只完成源码与静态检查，仍未编译或执行，不据此宣称动态通过。

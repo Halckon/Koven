@@ -659,14 +659,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 Ok(true)
             }
             Expression::Lambda { .. } => {
-                for capture in self.checker.captures_of(id) {
-                    if capture.mode() == ClosureCaptureMode::Owned
-                        && capture.effect() == ClosureCaptureEffect::Move
-                        && let UnitClosureCaptureSource::Symbol(symbol) = capture.source()
-                    {
-                        let _ = self.take_named(id, symbol, state);
-                    }
-                }
+                *owner_result = self.form_capture_owner(id, usage, state);
                 Ok(true)
             }
             Expression::Name => {
@@ -1254,13 +1247,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         let closure = state.take_closure(symbol);
         if let Some(value) = state.remove_value(symbol) {
-            if let Some(owner) = value.owner.as_ref() {
-                self.owner_event(crate::ownership_checking::UnitOwnerTransportEvent::Drop {
-                    point: point.into_unit(self.checker.source_unit),
-                    symbol,
-                    owner: owner.clone(),
-                });
-            }
             self.drop_owned_value(point, value, closure, state);
         }
     }
@@ -1288,6 +1274,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if capture.mode() == ClosureCaptureMode::Owned
                     && capture.effect() == ClosureCaptureEffect::Move
                 {
+                    self.drop_capture_owner(point, value.owner.as_ref(), capture.source());
                     self.push_fact(PlannerDropFact::new(
                         point,
                         PlannerDropTarget::Captured {
@@ -1302,6 +1289,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     shared_sources.push(source);
                 }
             }
+        }
+        if let Some(owner) = value.owner.as_ref() {
+            self.owner_event(crate::ownership_checking::UnitOwnerTransportEvent::Drop {
+                point: point.into_unit(self.checker.source_unit),
+                symbol: value.symbol,
+                owner: owner.clone(),
+            });
         }
         self.push_fact(PlannerDropFact::new(
             point,
