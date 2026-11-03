@@ -1207,3 +1207,60 @@ structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3
   不以其他源码同码、测试数或静审替代实际验收。
 
 D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。
+
+
+## 63. Text extension 双模式消费者迁移候选（2026-11-03）
+
+Text 独立候选最初基于 main `4723ebc94f92412128490ea1f59706ba414fa1d4`；当时的
+候选不包含 #283/#286 变更或账本。当前 §65 合批已对齐 `be1022f`，其 main 基线已包含
+#283，不再将 #283 描述为尚未合入；本切片不判断 #286 的验收或合入状态，也不把其他
+批次的候选数量累加为本批完成量。此节仅记录 Text 切片，D10/E2/SPEC-0341 仍为 in-progress。
+
+- `type_text_extension` 的六个旧 Single 消费测试改为同一个 SourceMap、SourceId、
+  ParsedFile 和 standard environments 下独立运行 MemoryDocument/Rooted；保持原
+  `koven-std/koven/text/text.ko` 路径、`package koven.text` 前缀和精确宿主授权开关。
+- 保留原解析/名称无诊断、成功类型无诊断、L0164 拒绝、无 text binding/primitive、
+  owned result、receiver identity、非 range 扩展及 primitive 参数全 Borrow 等判据。
+  两模式均核 canonical callable，并以真实输入 SourceId 核 binding.source、以本轮
+  callable receiver 类型核 binding.receiver_type，不跨分析比较类型或 callable ID。
+- 来源授权隔离测试、显式/别名/wildcard import、缺失 import 与 shadowing，以及
+  builtin Result/foreign TextError 的真实多源测试原样保留；测试函数仍为十个。
+- 本片移除 `resolve_names`/`check_types` 各一个静态调用点；按原源码与授权组合展开，
+  六个测试分别为 1、2、1、10、10、7，共 31 次原 Single 调用，而非 31 个测试。
+  每个组合现在分别执行两种 Unit 输入模式。以上为静态盘点，不声称动态通过或最终退休验收。
+- 仅改测试与本文，不改生产语义；未运行本地 Cargo/build/test/Clippy，未发布或合并。
+  格式与静态门不替代后续精确头官方 CI/Slack 审查，也不代表完整诊断 golden、ownership
+  或 native 对等性；不据此关闭 D10/E2。
+
+## 64. 整数 Range 正例消费者退休候选（2026-11-03）
+
+独立本地基线 `4723ebc9`；本节不累计其他尚未合入的候选，也不宣称 D10/E2 完成。
+
+- `integer_range_values` 四组正例保留原源码与断言，改用 rooted/MemoryDocument 两个
+  真实 Unit producer，复用同一 SourceMap、SourceId 和 ParsedFile。四组分别有
+  4/6/8/8 个源码样本，移除 26 次 Single 分析执行，保留 52 次 Unit 分析；这是运行路径
+  的静态计数，不是已执行测试结果，六个测试函数均保留。旧 API 静态调用点未删除。
+- 原 comparator 隐含的结果 builtin、Boolean 标记、copyability、annotation identity、
+  range fact 数量改为固定预期；membership 为 2 个事实，equality 为 3 个事实，
+  普通构造与存储为 1 个事实。继续检查 AST/Unit-qualified operand/result 身份、操作种类、
+  空名称/raw 诊断、resolved 与绑定原分析的 final admission；两 Unit 模式完整比较现有
+  Observation 字段。shape 原本仅打印，未将其冒充结构化比较或扩大为所有 typed facts 等价。
+- public API 正反例与 L0082 特有的 Single builtin-declaration label 完整原样保留，
+  endpoint 拒绝测试不变。ownership loan、cleanup owner-table 等独立 witness 未改动；
+  本片不新增 ownership 证据，不修改任何生产语义、公开 API 或 CI 选择器。
+- 本地仅作 rustfmt、diff、文档图与 Rust 大小静态检查；未运行 Cargo/build/test/Clippy。
+  新候选仍须精确头官方 CI 行为验收，不能用旧基线结果替代。
+
+## 65. Text 与 Range 本地合批基线（2026-11-03）
+
+本地组合基线为 main `be1022f3251f45dfd2b47ebede98875638ba9b9f`，整合独立静审候选
+Text `bbed2b88b15cf21ca20527dfab20f86d75174eb0` 与 Range
+`61226192007abc9dd8eecf01f8f16cd6ced2d883`。上两节的 `4723ebc` 是各自准备基线，
+不是本组合基线；按当前 main 的既有账本保留第 60–62 节，新增节顺延，不覆盖历史记录。
+两份 Rust 测试文件与各自候选逐字一致，没有在合批中改写源码、断言或生产语义。
+
+本组合静态计数为十个迁移测试中的 57 次原 Single 执行（Text 31 + Range 26），
+不是 57 个测试，也不是动态通过证明；Text 仍十个测试、Range 仍六个测试，保留的
+多源与 Single 专属拒绝合同不动。没有累计 #283/#286 等其他候选的退休数量。
+本批仅本地准备、格式/差异/文档/尺寸核验和 bundle 交付；未运行 Cargo/build/test/Clippy，
+未推送、发布或合并，仍需后续授权及精确组合头官方 CI/独立审查。D10/E2 保持 in-progress。
