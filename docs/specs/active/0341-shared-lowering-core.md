@@ -1207,3 +1207,27 @@ structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3
   不以其他源码同码、测试数或静审替代实际验收。
 
 D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。
+
+## 63. Primitive 类型合同族退休候选（2026-11-03）
+
+本地分支 `fix/spec-0341-primitive-contract-retirement` 基于 main `be1022f`，仅改
+`type_ownership_primitives` 测试与本账本；本节为待官方精确头 CI 验证的候选，不宣称已合入。
+
+- 保留全部 17 项测试与原源码字节；其中 15 项退休 33 次 Single 分析（按原循环静态展开），
+  `resolve_names`、`check_types` 各净少两个静态调用点。本文件不再调用旧 Single 分析 API。
+- 14 项标准环境单源测试将原独立 oracle 放入每入口 callback，在原 SourceMap/AST 上分别
+  检查 Rooted 与 MemoryDocument；custom binding 测试保留双入口及原自定义环境，
+  不以标准环境替换显式 external intrinsic 身份。
+- BASIC 的两条 replace/swap fact 分别在每入口实际类型表中断言 `Builtin(Int)`；
+  原 operand AST 顺序、来源资格、fact 查询、external target、type arguments 与 parameter
+  modes 保留。nominal/nullable/generic、trial rollback、错误原子性及静态发散事实不放宽。
+- 两项真实多源测试逐字保留，继续核输入顺序与 import alias 身份，不降为单源。
+  deferred 的 raw 无诊断不等同最终消费成功；原 final admission 结果比较和 Internal
+  错误分支保持，匹配拒绝不记作成功准入。
+- 这是有意退休原源码的 Single 观察，不声称双 Unit 证明全部 Single 等价。未修改生产代码、
+  `ownership_primitives` 的真实 loan-end/条件清理/owner lineage witness、withValue 或 E3；
+  Phase 2 静态 primitive descriptor 也不替代 Phase 3 commit/native 证据。
+- 静态核验保留 17 项测试身份（首项移除 `single_` 前缀）、全部源码字符串与两项多源原件。
+  直接 rustfmt、`git diff --check`、文档检查（835 Markdown）和尺寸守卫（2072 Rust、41 项
+  旧超限，无新增债）通过；目标文件由 638 行减为 501 行。未运行 Cargo/build/test/Clippy，
+  未推送或发布；动态行为与正式 CI 尚未验证，D10/SPEC-0341/E2 继续 in-progress。
