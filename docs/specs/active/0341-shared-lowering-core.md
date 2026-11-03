@@ -1423,3 +1423,35 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   （835 Markdown）、尺寸守卫（2072 Rust，41 项旧超限，无新增债）及 `git diff --check`
   通过。未运行 Cargo/build/test/Clippy，动态验收与后续组合验证均未完成。
   D10/SPEC-0341/E2 保持 in-progress。
+
+
+## 72. L0082 builtin 实参标签保全候选（2026-11-03）
+
+独立分支 `fix/spec-0341-l0082-label-parity` 基于远端 main
+`041e8238fb8793ee7837fbbccdc704a77e83c1fd`，tree
+`226587cdddaec9ae697adaf78378e40dbf26caa0`。本片仅修 Phase 2 的真实诊断差距，
+不退休 Single，不改变类型接受性、final admission、ownership 或 E3。
+
+- 原 Range L0082 的 Single 带类型名 label，Unit signature 仅有主诊断；Unit body 对同一
+  builtin 身份已带 label。signature 的 `ExternalTypeBinding::Builtin` 非空实参一臂
+  复用现有 `emit_with_label`，label 取该轮真实 `segment.name_span`，primary、code、
+  message 和排序不变。未修改 capability、intrinsic 或 external Value 的独立诊断合同。
+- 保留 Range 原全部源码与 Single producer，将双预期收敛为保全既有 Single 的独立
+  label oracle，并恢复无例外的完整 raw/final Diagnostic 相等断言；不是只删比较差异。
+- 新子模块挂在既有 `integer_range_values` target 下，覆盖 Int/Boolean/IntRange/LongRange
+  的 signature 参数与 body 局部标注、return signature 与 body 混合顺序、Unicode/CRLF，
+  以及两真实源逆序输入的来源隔离。由源码 token 和固定消息构造完整独立 Diagnostic，
+  分别核 signature/body/raw/final 序列；成功或 Internal 均不得作为拒绝。
+- 新回归在生产修改前编写；本地禁止 Cargo/build/test/Clippy，未取得动态 red/green。
+  静态门与后续官方 CI 分开记账，D10/E2 仍 in-progress，不归档本 Spec。
+
+| 验收项 | 目标与结果 |
+|---|---|
+| 完整直接诊断与旧见证 | `integer_range_values` 全 target，含新增三个测试；待官方 CI，未本地执行 |
+| body 邻接与资格 | `multifile_type_checking`、`multifile_constant_qualification`、`final_type_admission`；待官方 CI |
+| 下游与工程门 | 既有 CLI/LSP、双宿主 check/clippy 与完整既有选择保持；待官方 CI |
+| 本地静态门 | 直接 rustfmt 与 diff 通过；文档检查 836 Markdown 通过；尺寸检查 2083 Rust、39 项既存超限通过，无新增例外 |
+
+签名文件从 1019 增为 1021 行；沿用现有 1036 行有限例外，不修改尺寸 policy。
+新增两行只把同一 L0082 的现有来源交给同文件既有发射接口，不增加签名职责或公开 API；
+此说明是本地变更范围核对，不冒称独立审查。未推送、发布、联系他人或合并。
