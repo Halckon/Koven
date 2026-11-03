@@ -10,7 +10,7 @@ use super::{
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 
-fn run(source: &str) -> (String, Option<i32>) {
+pub(super) fn run(source: &str) -> (String, Option<i32>) {
     let output = crate::native_tests::emit_link_and_run("refine.ko", source, "main");
     assert!(
         output.stderr.is_empty() || !output.status.success(),
@@ -32,7 +32,7 @@ fn render(source: &str) -> String {
 
 /// Lowers twice, checks determinism and a `NullableBranch`; reports whether an inline
 /// nullable type was interned.
-fn render_branching(source: &str) -> (String, bool) {
+pub(super) fn render_branching(source: &str) -> (String, bool) {
     let mut sources = SourceMap::new();
     let text = format!("package p\n{source}");
     let (id, file) = parsed(&mut sources, "p/main.ko", &text);
@@ -132,7 +132,7 @@ fn checked_arithmetic_in_refined_function_aborts_with_message() {
     );
 }
 
-fn counted(source: &str, allocations: usize, stdout: &[u8]) {
+pub(super) fn counted(source: &str, allocations: usize, stdout: &[u8]) {
     let mut sources = SourceMap::new();
     let text = format!("package p\n{source}");
     let (id, file) = parsed(&mut sources, "p/main.ko", &text);
@@ -976,22 +976,6 @@ fn branch_view_divergence_merging_clears_differing_views() {
     counted(source, 2, b"left\nleft\n");
 }
 
-#[test]
-fn early_exit_move_only_reassignment_drops_both_owners_cleanly() {
-    let source = r#"fun test_early_exit(flag: Boolean): Unit {
-        var a = "first".clone()
-        if (flag) {
-            a = "second".clone()
-            println(a)
-            return
-        }
-        println("not-reached")
-    }
-    fun main(): Unit {
-        test_early_exit(true)
-    }"#;
-    counted(source, 2, b"second\n");
-}
-
 mod container_tests;
 mod control_flow_tests;
+mod map_condition_tests;
