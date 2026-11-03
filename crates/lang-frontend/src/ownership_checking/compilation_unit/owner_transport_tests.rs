@@ -1,4 +1,6 @@
 //! Producer regressions: no drop count/span inference and no Single witness retirement.
+mod capture;
+
 use super::formed_tests::Fixture;
 use super::*;
 
