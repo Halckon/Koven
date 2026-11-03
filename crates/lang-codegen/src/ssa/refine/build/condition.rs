@@ -223,7 +223,7 @@ impl Builder<'_, '_> {
             };
             let null_block = self.body.block();
             let non_null_block = self.body.block();
-            if self.types.map_results.contains_key(&nullable_ssa) {
+            if self.types.map_results.contains_key(&nullable_ssa) && !self.move_only(inner) {
                 let bool_ty = self.ssa_type(self.expression_type(expression)?, span)?;
                 let present = self.value(
                     ROp::AggregateProject {
@@ -249,9 +249,17 @@ impl Builder<'_, '_> {
                 )?;
                 self.narrowed.insert(fact.symbol(), narrowed);
                 self.emit_drops(&operand_drops)?;
+                self.entry_dead
+                    .entry(on_non_null)
+                    .or_default()
+                    .extend(self.dead.iter().copied());
                 self.goto(on_non_null, span)?;
                 self.block = Some(null_block);
                 self.emit_drops(&operand_drops)?;
+                self.entry_dead
+                    .entry(on_null)
+                    .or_default()
+                    .extend(self.dead.iter().copied());
                 self.goto(on_null, span)?;
                 self.finish_drops(&operand_drops);
                 return Ok(());
