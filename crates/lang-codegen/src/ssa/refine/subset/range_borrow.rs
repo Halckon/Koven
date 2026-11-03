@@ -78,6 +78,8 @@ impl Checker<'_, '_> {
         if typed.ownership_primitive(id).is_some()
             || self.inputs.owned.field_replacement(id).is_some()
             || typed.rc_operation(id).is_some()
+            || typed.map_with_value(id).is_some()
+            || typed.map_require_value(id).is_some()
             || typed.construction(id).is_some_and(|d| {
                 matches!(
                     d.target(),
@@ -220,8 +222,32 @@ impl Checker<'_, '_> {
         if !self.storage_type(ty) {
             return false;
         }
-        if self.inputs.typed.aggregate_projection(id).is_some() {
-            return self.field_loan_receiver(root, true) == Some(ty);
+        if let Some(projection) = self.inputs.typed.aggregate_projection(id) {
+            let lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(receiver) =
+                projection.receiver()
+            else {
+                return false;
+            };
+            if receiver.source_unit() != self.inputs.source_unit
+                || projection.kind()
+                    != lang_frontend::type_checking::UnitAggregateProjectionKind::Field
+                || self.c(projection.ty()) != ty
+                || !self.unspecialized(root)
+            {
+                return false;
+            }
+            let Some(owner_ty) = self.expression_type(receiver.expression()) else {
+                return false;
+            };
+            let has_field = self.class_field(owner_ty, projection.field())
+                || ((self.value_class(owner_ty) || self.move_value_class(owner_ty))
+                    && self.value_signature(owner_ty).is_some_and(|(nominal, _)| {
+                        nominal
+                            .fields()
+                            .iter()
+                            .any(|candidate| candidate.symbol() == projection.field())
+                    }));
+            return has_field && self.result_place(receiver.expression());
         }
         let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
             return false;

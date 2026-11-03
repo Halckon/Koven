@@ -529,7 +529,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if self.typed.map_require_value(id).is_some() {
-            return self.lower_map_require_result(expression, source, span);
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let node = self
             .parsed

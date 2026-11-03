@@ -343,7 +343,6 @@ impl Builder<'_, '_> {
         };
         let when_true = self.body.block();
         let when_false = self.body.block();
-        let join = self.body.block();
         self.condition_for_control(condition, when_true, when_false, span)?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
@@ -385,6 +384,7 @@ impl Builder<'_, '_> {
                 this_dead: self.this_dead,
             });
         }
+        let join = self.body.block();
         if branch_exits.iter().any(|(_, dead)| *dead) {
             self.entry_this_dead.insert(join);
             if let Some(slot) = self.receiver

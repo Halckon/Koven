@@ -96,6 +96,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     for ty in signature_types {
         checker.note_nullable(ty);
         checker.migrated |= checker.container_element(ty).is_some()
+            || checker.range_type(ty)
             || checker.box_payload(ty).is_some()
             || checker.box_enum_type(ty)
             || checker.map_kv(ty).is_some()
@@ -144,6 +145,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                                         || checker.box_payload(ty).is_some()
                                         || checker.box_enum_type(ty)
                                         || checker.map_kv(ty).is_some()
+                                        || checker.rc_payload(ty).is_some()
                                         || (matches!(inputs.body, RefineBody::Lambda(_))
                                             && matches!(
                                                 checker.kind(ty),
@@ -776,7 +778,8 @@ impl Checker<'_, '_> {
             && let Some(fact) = self.inputs.typed.non_null_use(self.id(expression))
             && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
         {
-            return self.reference(expression) == Some(fact.symbol())
+            let root = self.ungrouped(expression);
+            return self.reference(root) == Some(fact.symbol())
                 && self.known.contains(&fact.symbol())
                 && self.view_symbols.contains(&fact.symbol());
         }
@@ -803,7 +806,9 @@ impl Checker<'_, '_> {
             self.note_nullable(self.c(fact.nullable_type()));
             let inner_ok = match self.kind(self.c(fact.nullable_type())) {
                 Some(UnitTypeKind::Nullable(inner))
-                    if self.scalar(*inner) || self.value_class(*inner) =>
+                    if self.scalar(*inner)
+                        || self.range_type(*inner)
+                        || self.value_class(*inner) =>
                 {
                     true
                 }

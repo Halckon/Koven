@@ -85,7 +85,7 @@ impl Checker<'_, '_> {
         if self.view_or_function(declared) {
             return self.callable_local(symbol, initializer);
         }
-        self.migrated |= self.class_has_deinit(declared);
+        self.migrated |= self.class_has_deinit(declared) || self.range_type(declared);
         let supported =
             (self.unit(declared) || self.storage_type(declared) || self.nothing(declared))
                 && self.expression(initializer);

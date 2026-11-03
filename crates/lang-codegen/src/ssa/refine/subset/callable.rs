@@ -214,7 +214,7 @@ impl Checker<'_, '_> {
             .ast()
             .expressions()
             .get(root)
-            .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+            .is_ok_and(|node| matches!(node.payload(), Expression::Name | Expression::This))
             && self.inputs.typed.non_null_use(self.id(root)).is_none()
             && self.reference(root).is_some_and(|symbol| {
                 self.known.contains(&symbol)
@@ -235,7 +235,7 @@ impl Checker<'_, '_> {
             .ast()
             .expressions()
             .get(root)
-            .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+            .is_ok_and(|node| matches!(node.payload(), Expression::Name | Expression::This))
             && self.inputs.typed.non_null_use(self.id(root)).is_none()
             && self.copyability_of(parameter) == Copyability::MoveOnly
             && self.reference(root).is_some_and(|symbol| {
@@ -571,7 +571,9 @@ impl Checker<'_, '_> {
                     }
                     delegation_ok && self.inputs.function_ids.contains_key(site.key())
                 }));
-        simple && target
+        let ok = simple && target;
+        self.migrated |= ok && (is_extension || descriptor.text_primitive().is_some());
+        ok
     }
 
     /// Arguments are plain expressions, except that a Borrow argument may be a MoveOnly
@@ -641,8 +643,9 @@ impl Checker<'_, '_> {
                 && let Some(fact) = self.inputs.typed.non_null_use(self.id(value))
                 && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
             {
+                let root = self.ungrouped(value);
                 return self.rc_payload(self.c(fact.narrowed_type())).is_none()
-                    && self.reference(value) == Some(fact.symbol())
+                    && self.reference(root) == Some(fact.symbol())
                     && self.known.contains(&fact.symbol())
                     && self.view_symbols.contains(&fact.symbol())
                     && (!self.is_map_remove_symbol(fact.symbol())

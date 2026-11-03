@@ -402,7 +402,7 @@ impl Builder<'_, '_> {
         }
         let (payload, root_span) = self.node(root)?;
         let target = self.ssa_type(self.expression_type(expression)?, span)?;
-        if matches!(payload, Expression::Name) {
+        if matches!(payload, Expression::Name | Expression::This) {
             if let Some(view) = self.narrowed_view(root)? {
                 return Ok(Some((view, Vec::new(), Some(expression))));
             }
