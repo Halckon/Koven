@@ -10,6 +10,7 @@ mod heap;
 mod inout;
 mod map;
 mod place;
+mod range_borrow;
 mod rc;
 mod receiver;
 mod scalar_text;
@@ -79,6 +80,13 @@ pub(super) struct Builder<'i, 'a> {
     entry_this_dead: BTreeSet<BlockRef>,
     /// Loans created for call arguments/receiver that are currently active in the AST evaluation stack.
     pending_call_loans: Vec<Slot>,
+    /// Borrowed result/range source loans kept alive until a local `borrow val` binding ends.
+    result_source_loans: BTreeMap<UnitSymbolId, Vec<Slot>>,
+    /// Value slots of local `borrow val` `RangeView` descriptors (`NewRangeDescriptor`).
+    range_views: BTreeMap<UnitSymbolId, Slot>,
+    /// Short-lived `RangeView` temporaries created for call arguments or `for` iteration:
+    /// `(view_slot, protecting_loan, continued_loans)`.
+    short_ranges: BTreeMap<UnitExpressionId, (Slot, Slot, Vec<Slot>)>,
 }
 
 /// Jump targets of one loop; views above `views` belong to its iteration.
@@ -91,9 +99,10 @@ pub(super) struct LoopFrame {
     pub(super) loans: usize,
     pub(super) broken: bool,
     pub(super) seq_for: Option<SeqForFrame>,
+    pub(super) map_for: Option<MapForFrame>,
 }
 
-/// Active sequential-container `for` provider loans and cursor slots.
+/// Active sequential-container or `RangeView` `for` provider loans and cursor slots.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SeqForFrame {
     pub(super) source_loan: Slot,
@@ -101,6 +110,19 @@ pub(super) struct SeqForFrame {
     pub(super) cursor: Slot,
     pub(super) step: Slot,
     pub(super) int_ty: SsaTypeId,
+    pub(super) range_source: Option<ExpressionId>,
+}
+
+/// Active `Map` / `MutableMap` `for` provider loans and cursor slots.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct MapForFrame {
+    pub(super) source_loan: Slot,
+    pub(super) key_binding: UnitSymbolId,
+    pub(super) value_binding: UnitSymbolId,
+    pub(super) key_loan: Slot,
+    pub(super) value_loan: Slot,
+    pub(super) cursor: Slot,
+    pub(super) cursor_ty: SsaTypeId,
 }
 
 /// A shared proof view of a MoveOnly nullable binding's inner value.
@@ -137,6 +159,9 @@ pub(super) fn build(
         entry_dead: BTreeMap::new(),
         entry_this_dead: BTreeSet::new(),
         pending_call_loans: Vec::new(),
+        result_source_loans: BTreeMap::new(),
+        range_views: BTreeMap::new(),
+        short_ranges: BTreeMap::new(),
     };
     let entry = builder.body.block();
     builder.block = Some(entry);
@@ -176,19 +201,25 @@ pub(super) fn build(
     )))?;
     match &inputs.body {
         RefineBody::Expression(expression) => {
-            let result = match builder.expression(*expression)? {
-                Lowered::Diverged => None,
-                Lowered::Unit => Some(None),
-                Lowered::Value(value) => Some(Some(builder.adapt(
-                    value,
-                    *expression,
-                    inputs.return_type,
-                )?)),
-            };
-            if let Some(result) = result {
-                builder.deliver(*expression);
-                builder.drops(UnitDropPoint::ControlTransfer(builder.unit(*expression)))?;
-                builder.finish_return(result, unit_return, inputs.span)?;
+            if inputs.borrow_return.is_some() {
+                builder.lower_borrow_return(*expression, *expression, inputs.span)?;
+            } else if inputs.carrier_return.is_some() {
+                builder.lower_carrier_return(*expression, *expression, inputs.span)?;
+            } else {
+                let result = match builder.expression(*expression)? {
+                    Lowered::Diverged => None,
+                    Lowered::Unit => Some(None),
+                    Lowered::Value(value) => Some(Some(builder.adapt(
+                        value,
+                        *expression,
+                        inputs.return_type,
+                    )?)),
+                };
+                if let Some(result) = result {
+                    builder.deliver(*expression);
+                    builder.drops(UnitDropPoint::ControlTransfer(builder.unit(*expression)))?;
+                    builder.finish_return(result, unit_return, inputs.span)?;
+                }
             }
         }
         RefineBody::Block(statement) => {
@@ -433,7 +464,11 @@ impl Builder<'_, '_> {
 
     /// Consumes every drop fact published at `point`, in publication order.
     fn drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
-        if self.loops.iter().any(|frame| frame.seq_for.is_some())
+        self.end_result_bindings(point)?;
+        if self
+            .loops
+            .iter()
+            .any(|frame| frame.seq_for.is_some() || frame.map_for.is_some())
             && self.iteration_cleanup(point)?
         {
             return Ok(());
@@ -830,168 +865,5 @@ impl Builder<'_, '_> {
             }
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
-    }
-
-    fn while_loop(
-        &mut self,
-        statement: StatementId,
-        condition: ExpressionId,
-        loop_body: StatementId,
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let statement = UnitStatementId::new(self.inputs.source_unit, statement);
-        let header = self.body.block();
-        let body_block = self.body.block();
-        let finished = self.body.block();
-        let exit = self.body.block();
-        self.goto(header, span)?;
-        self.block = Some(header);
-        self.condition(condition, body_block, finished)?;
-        let mark = self.enter(body_block);
-        self.loops.push(LoopFrame {
-            statement,
-            continue_target: header,
-            exit,
-            views: mark,
-            loans: self.pending_call_loans.len(),
-            broken: false,
-            seq_for: None,
-        });
-        let reached = self.statement(loop_body)? != Lowered::Diverged;
-        self.loops.pop();
-        self.leave(mark, span)?;
-        if reached {
-            self.goto(header, span)?;
-        }
-        // The condition-false edge drops at `LoopExit` on its own path; each `break`
-        // dropped on its path before jumping to `exit`.
-        let facts = self.collect_drops(UnitDropPoint::LoopExit(statement));
-        let mark = self.enter(finished);
-        self.leave_unclaimed(mark, span)?;
-        self.emit_drops(&facts)?;
-        self.goto(exit, span)?;
-        self.finish_drops(&facts);
-        let mark = self.enter(exit);
-        self.leave_unclaimed(mark, span)?;
-        Ok(Lowered::Unit)
-    }
-
-    /// `loop { body }`: its exit is reached only through `break`.
-    fn loop_statement(
-        &mut self,
-        statement: StatementId,
-        loop_body: StatementId,
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let statement = UnitStatementId::new(self.inputs.source_unit, statement);
-        let header = self.body.block();
-        let exit = self.body.block();
-        self.goto(header, span)?;
-        let mark = self.enter(header);
-        self.loops.push(LoopFrame {
-            statement,
-            continue_target: header,
-            exit,
-            views: mark,
-            loans: self.pending_call_loans.len(),
-            broken: false,
-            seq_for: None,
-        });
-        let reached = self.statement(loop_body)? != Lowered::Diverged;
-        let frame = self.loops.pop().expect("loop frame pushed above");
-        self.leave(mark, span)?;
-        if reached {
-            self.goto(header, span)?;
-        }
-        // Every `break` already dropped at `LoopExit` on its own path.
-        let facts = self.collect_drops(UnitDropPoint::LoopExit(statement));
-        self.finish_drops(&facts);
-        if !frame.broken {
-            self.block = None;
-            return Ok(Lowered::Diverged);
-        }
-        let mark = self.enter(exit);
-        self.leave_unclaimed(mark, span)?;
-        Ok(Lowered::Unit)
-    }
-
-    /// `break` / `continue`: pending call loans and views end before drops and branch.
-    pub(super) fn loop_jump(
-        &mut self,
-        expression: ExpressionId,
-        is_break: bool,
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let frame = self
-            .loops
-            .last_mut()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        frame.broken |= is_break;
-        let frame = *frame;
-        let loans_boundary = frame.loans.min(self.pending_call_loans.len());
-        while self.pending_call_loans.len() > loans_boundary {
-            let loan = self
-                .pending_call_loans
-                .pop()
-                .expect("loans boundary checked");
-            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
-        }
-        let views_boundary = frame.views.min(self.active_views.len());
-        while self.active_views.len() > views_boundary {
-            let view = self.active_views.pop().expect("views boundary checked");
-            self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
-        }
-        self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
-        if !is_break && let Some(seq) = frame.seq_for {
-            let next = self.value(
-                ROp::Binary {
-                    operator: crate::ssa::model::BinaryOperator::Add,
-                    left: seq.cursor,
-                    right: seq.step,
-                },
-                EntityType::Value(seq.int_ty),
-                span,
-            )?;
-            self.push(ROp::Alias { source: next }, vec![seq.cursor], span)?;
-        }
-        if is_break && frame.seq_for.is_none() {
-            // This path leaves the loop: owners dying at `LoopExit` drop here, ending any
-            // outer view of theirs; the views stay registered for the other paths.
-            for (_, target, fact_span) in
-                self.collect_drops(UnitDropPoint::LoopExit(frame.statement))
-            {
-                if matches!(target, UnitDropTarget::Captured { .. }) {
-                    continue;
-                }
-                let UnitDropTarget::Named(symbol) = target else {
-                    return Err(error(LoweringErrorKind::UnsupportedNode, fact_span));
-                };
-                if !self.dead.insert(symbol) {
-                    continue;
-                }
-                let outer: Vec<View> = self.active_views[..views_boundary]
-                    .iter()
-                    .rev()
-                    .copied()
-                    .collect();
-                for view in outer {
-                    if view.symbol == symbol {
-                        self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), fact_span)?;
-                    }
-                }
-                let owner = *self
-                    .bindings
-                    .get(&symbol)
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact_span))?;
-                self.push(ROp::Drop { owner }, Vec::new(), fact_span)?;
-            }
-        }
-        let target = if is_break {
-            frame.exit
-        } else {
-            frame.continue_target
-        };
-        self.terminate(RTerm::Goto(target), span)?;
-        Ok(Lowered::Diverged)
     }
 }

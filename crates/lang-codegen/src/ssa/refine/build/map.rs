@@ -78,15 +78,23 @@ impl Builder<'_, '_> {
             .typed
             .map_size(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let symbol = self.named_container_symbol(descriptor.receiver().expression(), span)?;
-        let owner = self
-            .borrowed
-            .get(&symbol)
-            .or_else(|| self.bindings.get(&symbol))
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let receiver = descriptor.receiver().expression();
+        let symbol = self.named_container_symbol(receiver, span)?;
+        let view = self.narrowed_view(receiver)?;
+        let owner = if let Some(view) = view {
+            view
+        } else {
+            self.borrowed
+                .get(&symbol)
+                .or_else(|| self.bindings.get(&symbol))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+        };
         let result_ty = self.ssa_type(self.expression_type(expression)?, span)?;
         let result = self.value(ROp::MapSize { owner }, EntityType::Value(result_ty), span)?;
+        if view.is_some() {
+            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+        }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Value(result))
     }
@@ -102,13 +110,18 @@ impl Builder<'_, '_> {
             .typed
             .map_contains(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let symbol = self.named_container_symbol(descriptor.receiver().expression(), span)?;
-        let owner = self
-            .borrowed
-            .get(&symbol)
-            .or_else(|| self.bindings.get(&symbol))
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let receiver = descriptor.receiver().expression();
+        let symbol = self.named_container_symbol(receiver, span)?;
+        let view = self.narrowed_view(receiver)?;
+        let owner = if let Some(view) = view {
+            view
+        } else {
+            self.borrowed
+                .get(&symbol)
+                .or_else(|| self.bindings.get(&symbol))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+        };
         let key_expr = descriptor.key().expression();
         let key = if let Some(loan) = self.borrowed_string_loan(key_expr)? {
             loan
@@ -124,6 +137,9 @@ impl Builder<'_, '_> {
             EntityType::Value(result_ty),
             span,
         )?;
+        if view.is_some() {
+            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+        }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Value(result))
     }
@@ -188,6 +204,36 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let receiver = descriptor.receiver().expression();
         let symbol = self.named_container_symbol(receiver, span)?;
+        if let Some(view) = self.narrowed_view(receiver)? {
+            self.active_views.retain(|v| v.slot != view);
+            for frame in &mut self.loops {
+                frame.views = frame.views.min(self.active_views.len());
+            }
+            let wrapper = *self
+                .bindings
+                .get(&symbol)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let inner_ssa = self.ssa_type(self.c(descriptor.receiver_type()), span)?;
+            let owner = self.value(
+                ROp::NullableTake {
+                    owner: wrapper,
+                    proof: view,
+                },
+                EntityType::Value(inner_ssa),
+                self.span(receiver),
+            )?;
+            self.sync_dead();
+            self.dead.insert(symbol);
+            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+            let map_type = self.ssa_type(self.expression_type(expression)?, span)?;
+            let result = self.value(
+                ROp::MapConsume { owner, map_type },
+                EntityType::Value(map_type),
+                span,
+            )?;
+            self.drops(UnitDropPoint::CallReturn(id))?;
+            return Ok(Lowered::Value(result));
+        }
         let Some(owner) = self.required(receiver)? else {
             return Ok(Lowered::Diverged);
         };
@@ -211,13 +257,18 @@ impl Builder<'_, '_> {
             .typed
             .map_get(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let symbol = self.named_container_symbol(descriptor.receiver().expression(), span)?;
-        let owner = self
-            .borrowed
-            .get(&symbol)
-            .or_else(|| self.bindings.get(&symbol))
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let receiver = descriptor.receiver().expression();
+        let symbol = self.named_container_symbol(receiver, span)?;
+        let view = self.narrowed_view(receiver)?;
+        let owner = if let Some(view) = view {
+            view
+        } else {
+            self.borrowed
+                .get(&symbol)
+                .or_else(|| self.bindings.get(&symbol))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+        };
         let key_expr = descriptor.key().expression();
         let key = if let Some(loan) = self.borrowed_string_loan(key_expr)? {
             loan
@@ -233,6 +284,9 @@ impl Builder<'_, '_> {
             EntityType::Value(result_ty),
             span,
         )?;
+        if view.is_some() {
+            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+        }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Value(result))
     }
@@ -291,11 +345,14 @@ impl Builder<'_, '_> {
         let receiver = descriptor.receiver().expression();
         let receiver_span = self.span(receiver);
         let symbol = self.named_container_symbol(receiver, span)?;
-        let map_ty = self.expression_type(receiver)?;
-        let map_ssa = self.ssa_type(map_ty, receiver_span)?;
-        let (map_loan, created_map) = if let Some(&loan) = self.borrowed.get(&symbol) {
+        let view = self.narrowed_view(receiver)?;
+        let (map_loan, created_map) = if let Some(view) = view {
+            (view, None)
+        } else if let Some(&loan) = self.borrowed.get(&symbol) {
             (loan, None)
         } else {
+            let map_ty = self.expression_type(receiver)?;
+            let map_ssa = self.ssa_type(map_ty, receiver_span)?;
             let owner = *self
                 .bindings
                 .get(&symbol)
@@ -316,6 +373,7 @@ impl Builder<'_, '_> {
                 },
                 receiver_span,
             )?;
+            self.pending_call_loans.push(loan);
             (loan, Some(loan))
         };
         let key_expr = descriptor.key().expression();
@@ -344,6 +402,7 @@ impl Builder<'_, '_> {
                     },
                     key_span,
                 )?;
+                self.pending_call_loans.push(loan);
                 (loan, Some(loan), None)
             };
         let action_expr = descriptor.action().expression();
@@ -369,10 +428,14 @@ impl Builder<'_, '_> {
             .chain(created_key)
             .chain(created_map)
         {
+            self.pending_call_loans.retain(|&active| active != loan);
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
         }
         for arg in [key_read, action_read].into_iter().flatten() {
             self.drops(UnitDropPoint::AfterExpression(self.unit(arg)))?;
+        }
+        if view.is_some() {
+            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
         }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Value(result))

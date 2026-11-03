@@ -613,7 +613,9 @@ impl Checker<'_, '_> {
                 return self.callable_argument(value);
             }
             if mode == ParameterMode::Borrow
-                && (self.borrowed_move_only_name(value, parameter)
+                && (self.nested_borrow_argument(call, value)
+                    || self.short_range_argument(value, parameter)
+                    || self.borrowed_move_only_name(value, parameter)
                     || self.borrowed_string_field(call, value, parameter)
                     || self.borrowed_rc_payload(call, value, parameter)
                     || self.borrowed_container_element(call, value, parameter))

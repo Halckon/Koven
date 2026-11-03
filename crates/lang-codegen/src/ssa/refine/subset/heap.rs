@@ -24,6 +24,7 @@ impl Checker<'_, '_> {
             || self.class_seen(ty, active)
             || self.move_value_class_seen(ty, active)
             || self.container_element_seen(ty, active).is_some()
+            || (self.scope_requires_refine() && self.map_kv_seen(ty, active).is_some())
             || self.box_payload_seen(ty, active).is_some()
             || self.rc_payload_seen(ty, active).is_some()
     }
@@ -66,6 +67,9 @@ impl Checker<'_, '_> {
             return;
         }
         if let Some(element) = self.container_element(ty) {
+            self.push_demand(element, seen, ordered);
+        }
+        if let Some(element) = self.range_view_element(ty) {
             self.push_demand(element, seen, ordered);
         }
         if let Some((key, value)) = self.map_kv(ty) {
@@ -129,6 +133,8 @@ impl Checker<'_, '_> {
                     || self.move_value_class_seen(ty, active)
                     || self.object_type(ty)
                     || self.container_element_seen(ty, active).is_some()
+                    || (self.unit_requires_refine()
+                        && self.range_view_element_seen(ty, active).is_some())
                     || self.map_kv_seen(ty, active).is_some()
             }
         }

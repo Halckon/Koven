@@ -123,7 +123,8 @@ impl Checker<'_, '_> {
                     if *actual == constructor && args.as_slice() == [element_ty]
             )
             || arguments.len() != descriptor.parameter_modes().len()
-            || self.span_has_control_transfer(node.span())
+            || (descriptor.kind() == ContainerConstructionKind::RuntimeLength
+                && self.span_has_control_transfer(node.span()))
         {
             return false;
         }
@@ -336,12 +337,9 @@ impl Checker<'_, '_> {
         target: ExpressionId,
         value: ExpressionId,
     ) -> bool {
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(assignment) else {
+        let Ok(_) = self.inputs.parsed.ast().expressions().get(assignment) else {
             return false;
         };
-        if self.span_has_control_transfer(node.span()) {
-            return false;
-        }
         let assignment_id = self.id(assignment);
         let root_target = self.ungrouped(target);
         let target_id = self.id(root_target);
@@ -396,14 +394,10 @@ impl Checker<'_, '_> {
         let Some(descriptor) = self.inputs.typed.container_append(id) else {
             return false;
         };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
         let container_ty = self.c(descriptor.container_type());
         let element_ty = self.c(descriptor.element_type());
         if descriptor.expression() != id
             || descriptor.element().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
             || !self.mutable_list_owner(descriptor.receiver(), container_ty, element_ty)
         {
             return false;
@@ -432,15 +426,11 @@ impl Checker<'_, '_> {
         let Some(descriptor) = self.inputs.typed.container_remove_at(id) else {
             return false;
         };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
         let container_ty = self.c(descriptor.container_type());
         let element_ty = self.c(descriptor.element_type());
         if descriptor.expression() != id
             || descriptor.index().source_unit() != self.inputs.source_unit
             || self.expression_type(expression) != Some(element_ty)
-            || self.span_has_control_transfer(node.span())
             || !self.mutable_list_owner(descriptor.receiver(), container_ty, element_ty)
         {
             return false;
@@ -484,15 +474,11 @@ impl Checker<'_, '_> {
         let Some(descriptor) = self.inputs.typed.container_insert_at(id) else {
             return false;
         };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
         let container_ty = self.c(descriptor.container_type());
         let element_ty = self.c(descriptor.element_type());
         if descriptor.expression() != id
             || descriptor.index().source_unit() != self.inputs.source_unit
             || descriptor.element().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
             || !self.mutable_list_owner(descriptor.receiver(), container_ty, element_ty)
         {
             return false;
@@ -564,13 +550,13 @@ impl Checker<'_, '_> {
     }
 
     fn is_int_index(&self, expression: ExpressionId) -> bool {
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
-        !self.span_has_control_transfer(node.span())
-            && self.expression_type(expression).is_some_and(|ty| {
-                matches!(self.kind(ty), Some(UnitTypeKind::Builtin(BuiltinType::Int)))
-            })
+        self.expression_type(expression).is_some_and(|ty| {
+            matches!(self.kind(ty), Some(UnitTypeKind::Builtin(BuiltinType::Int)))
+                || matches!(
+                    self.kind(ty),
+                    Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
+                )
+        })
     }
 
     pub(super) fn adaptable_element(&self, value: ExpressionId, expected: UnitTypeId) -> bool {
@@ -595,7 +581,9 @@ impl Checker<'_, '_> {
             type_checking::{IterationProvider, UnitSequentialIterationBinding, UnitStatementId},
         };
         let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
-        if self.inputs.typed.map_iteration(statement_id).is_some() || self.scope_has_while_loop() {
+        if self.inputs.typed.map_iteration(statement_id).is_some()
+            || (self.scope_has_while_loop() && !self.scope_requires_refine())
+        {
             return false;
         }
         let Some(plan) = self.inputs.owned.iteration(statement_id) else {
@@ -629,7 +617,7 @@ impl Checker<'_, '_> {
             return false;
         }
         if is_temporary {
-            if !self.scope_has_field_replace() || !self.expression(source) {
+            if !self.scope_requires_refine() || !self.expression(source) {
                 return false;
             }
         } else {
@@ -650,6 +638,7 @@ impl Checker<'_, '_> {
                         | Action::FinishProvider(_)
                         | Action::EndSource(_)
                         | Action::EndCallLoan(_)
+                        | Action::EndReceiverLoan(_)
                 )
             })
         }) {
@@ -688,60 +677,6 @@ impl Checker<'_, '_> {
         let ok = self.loop_body(body);
         self.migrated |= ok;
         ok
-    }
-
-    fn scope_has_while_loop(&self) -> bool {
-        let Some(scope) = self.inputs.scope_span() else {
-            return true;
-        };
-        self.inputs
-            .parsed
-            .ast()
-            .statements()
-            .iter()
-            .any(|(_, node)| {
-                let span = node.span();
-                scope.source_id() == span.source_id()
-                    && scope.start() <= span.start()
-                    && span.end() <= scope.end()
-                    && matches!(
-                        node.payload(),
-                        lang_frontend::parser::Statement::While { .. }
-                    )
-            })
-    }
-
-    /// Returns true if the enclosing scope contains an active field replacement plan (`replace(&h.field, ...)`).
-    ///
-    /// Capability contract:
-    /// In SPEC-0381, `crates/lang-codegen/src/ssa/unit_lower/field_replace.rs` was permanently retired.
-    /// Consequently, scopes containing field replacements must be admitted to `ssa::refine` because
-    /// `unit_lower` now rejects them with `UnsupportedNode`.
-    /// Conversely, temporary sequential containers without field replacements remain on legacy
-    /// lowering to preserve existing white-box CFG block layout contracts (e.g. `sequential_for_lowering_tests`).
-    fn scope_has_field_replace(&self) -> bool {
-        let Some(scope) = self.inputs.scope_span() else {
-            return !self.inputs.owned.field_replacements().is_empty();
-        };
-        self.inputs.owned.field_replacements().iter().any(|plan| {
-            let expr = plan.descriptor().expression();
-            if expr.source_unit() != self.inputs.source_unit {
-                return false;
-            }
-            let Ok(node) = self
-                .inputs
-                .parsed
-                .ast()
-                .expressions()
-                .get(expr.expression())
-            else {
-                return false;
-            };
-            let span = node.span();
-            scope.source_id() == span.source_id()
-                && scope.start() <= span.start()
-                && span.end() <= scope.end()
-        })
     }
 
     pub(super) fn span_has_control_transfer(&self, span: Span) -> bool {

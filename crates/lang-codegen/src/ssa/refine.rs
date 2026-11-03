@@ -119,6 +119,10 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) views: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     /// Concrete callable return types of planned functions that return a callable.
     pub(in crate::ssa) callable_returns: &'a BTreeMap<FunctionId, SsaTypeId>,
+    /// Source parameter index when the function returns a shared borrow.
+    pub(in crate::ssa) borrow_return: Option<usize>,
+    /// Source parameter/receiver index when the function returns a `RangeView` carrier.
+    pub(in crate::ssa) carrier_return: Option<usize>,
 }
 
 impl RefineInputs<'_> {
@@ -201,6 +205,10 @@ pub(in crate::ssa) struct RefineTypes<'t> {
     pub(in crate::ssa) enum_payloads: &'t BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
     /// Registered `$map.result.tX` aggregate types mapped to their payload SSA types.
     pub(in crate::ssa) map_results: &'t BTreeMap<SsaTypeId, SsaTypeId>,
+    /// Registered nullable map handle types mapped to their inner `MapContainer` SSA types.
+    pub(in crate::ssa) nullable_maps: &'t BTreeMap<SsaTypeId, SsaTypeId>,
+    /// Frozen module SSA type table.
+    pub(in crate::ssa) ssa_types: &'t [super::model::SsaTypeKind],
 }
 
 /// Lowers an accepted function body into `function`, whose `entry` block holds

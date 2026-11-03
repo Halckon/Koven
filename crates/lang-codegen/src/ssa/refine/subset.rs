@@ -8,6 +8,7 @@ mod field;
 mod heap;
 mod inout;
 mod map;
+mod range_borrow;
 mod rc;
 mod receiver;
 mod scalar_text;
@@ -57,6 +58,8 @@ struct Checker<'i, 'a> {
     element_replacements: BTreeSet<UnitExpressionId>,
     /// Element or component bindings introduced by a sequential `for` loop (`Borrow` loans).
     for_borrowed: BTreeSet<UnitSymbolId>,
+    /// Local `borrow val` bindings holding a `RangeView` descriptor (`NewRangeDescriptor`).
+    range_view_bindings: BTreeSet<UnitSymbolId>,
     /// MoveOnly nullable bindings whose non-null proof view is active in the current branch.
     view_symbols: BTreeSet<UnitSymbolId>,
 }
@@ -77,6 +80,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
         for_borrowed: BTreeSet::new(),
+        range_view_bindings: BTreeSet::new(),
         view_symbols: BTreeSet::new(),
     };
     let mut signature_types: Vec<_> = inputs
@@ -136,6 +140,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                                         || checker.move_value_class(ty)
                                         || checker.string(ty)
                                         || checker.container_element(ty).is_some()
+                                        || checker.range_view_element(ty).is_some()
                                         || checker.box_payload(ty).is_some()
                                         || checker.box_enum_type(ty)
                                         || checker.map_kv(ty).is_some()
@@ -183,7 +188,15 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                     && checker.copyability_of(receiver.ty) == Copyability::MoveOnly)
         });
     let body_ok = match &inputs.body {
-        RefineBody::Expression(expression) => checker.expression(*expression),
+        RefineBody::Expression(expression) => {
+            if inputs.borrow_return.is_some() {
+                checker.borrow_return_body(*expression, *expression)
+            } else if inputs.carrier_return.is_some() {
+                checker.carrier_return_body(*expression, *expression)
+            } else {
+                checker.expression(*expression)
+            }
+        }
         RefineBody::Block(statement) => checker.statement(*statement),
         RefineBody::Lambda(thunk) => checker.thunk_body(thunk),
     };
@@ -203,6 +216,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
         for_borrowed: BTreeSet::new(),
+        range_view_bindings: BTreeSet::new(),
         view_symbols: BTreeSet::new(),
     };
     let Some(item) = inputs.scope_span() else {
@@ -253,6 +267,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         checker.enum_type(*ty)
             || checker.box_enum_type(*ty)
             || checker.container_element(*ty).is_some()
+            || checker.range_view_element(*ty).is_some()
             || checker.map_kv(*ty).is_some()
             || matches!(
                 checker.kind(*ty),
@@ -260,6 +275,9 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
             )
     }) {
         demands.extend(typed.types().builtin(BuiltinType::Int));
+    }
+    if demands.iter().any(|ty| checker.map_kv(*ty).is_some()) {
+        demands.extend(typed.types().builtin(BuiltinType::ULong));
     }
     if demands.iter().any(|ty| {
         matches!(
@@ -505,6 +523,9 @@ impl Checker<'_, '_> {
         if self.inputs.typed.string_operation(id).is_some() {
             return self.storage_type(ty) && self.string_operation(expression);
         }
+        if self.inputs.typed.range_size(id).is_some() {
+            return self.storage_type(ty) && self.range_size(expression);
+        }
         if !self.unspecialized(expression)
             || !(returns
                 || self.unit(ty)
@@ -644,7 +665,15 @@ impl Checker<'_, '_> {
                 value,
                 ..
             } => self.assignment(expression, target, value),
-            Expression::Return { value, .. } => value.is_none_or(|value| self.expression(value)),
+            Expression::Return { value, .. } => {
+                if self.inputs.borrow_return.is_some() {
+                    value.is_some_and(|value| self.borrow_return_body(expression, value))
+                } else if self.inputs.carrier_return.is_some() {
+                    value.is_some_and(|value| self.carrier_return_body(expression, value))
+                } else {
+                    value.is_none_or(|value| self.expression(value))
+                }
+            }
             Expression::Break { .. } | Expression::Continue { .. } => self.loops > 0,
             _ => false,
         }
@@ -840,15 +869,22 @@ impl Checker<'_, '_> {
             Statement::While {
                 condition, body, ..
             } => {
+                self.strip_reassigned_loop_views(node.span());
                 let saved = self.view_symbols.clone();
                 let ok = self.condition(condition, true) && self.loop_body(body);
                 self.view_symbols = saved;
                 ok
             }
-            Statement::Loop { body, .. } => self.loop_body(body),
+            Statement::Loop { body, .. } => {
+                self.strip_reassigned_loop_views(node.span());
+                self.loop_body(body)
+            }
             Statement::For { source, body, .. } => {
+                self.strip_reassigned_loop_views(node.span());
                 self.numeric_for(statement, source, body)
                     || self.sequential_for(statement, source, body)
+                    || self.range_view_for(statement, source, body)
+                    || self.map_for(statement, source, body)
             }
             Statement::LocalDestructuring { initializer, .. } => {
                 self.local_destructuring(statement, initializer)

@@ -492,9 +492,15 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let symbol = self.named_container_symbol(descriptor.receiver().expression(), span)?;
         let Some(index) = self.required(descriptor.index().expression())? else {
+            let replaced =
+                self.collect_drops(UnitDropPoint::AfterReplacement(self.unit(assignment)));
+            self.finish_drops(&replaced);
             return Ok(Lowered::Diverged);
         };
         let Some(replacement) = self.required(value)? else {
+            let replaced =
+                self.collect_drops(UnitDropPoint::AfterReplacement(self.unit(assignment)));
+            self.finish_drops(&replaced);
             return Ok(Lowered::Diverged);
         };
         let element_ty = self.c(descriptor.element_type());

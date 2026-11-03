@@ -101,6 +101,9 @@ impl Builder<'_, '_> {
         if typed.string_operation(id).is_some() {
             return self.string_operation(expression, span);
         }
+        if typed.range_size(id).is_some() {
+            return self.lower_range_size(expression, span);
+        }
         if let Some(descriptor) = typed.construction(id) {
             return match descriptor.target() {
                 lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
@@ -616,6 +619,30 @@ impl Builder<'_, '_> {
                 continue;
             }
             if mode == ParameterMode::Borrow
+                && let Some((loan, created)) =
+                    self.lower_nested_borrow_argument(call, value_expression, call_arg_span)?
+            {
+                loans.extend(created.iter().copied());
+                loans.push(loan);
+                self.pending_call_loans.extend(created);
+                self.pending_call_loans.push(loan);
+                lowered_slots[param_slot] = Some(loan);
+                continue;
+            }
+            if mode == ParameterMode::Borrow
+                && let Some((loan, created, read_expr)) = self.lower_short_range_argument(
+                    value_expression,
+                    self.c(parameter_type),
+                    call_arg_span,
+                )?
+            {
+                loans.extend(created.iter().copied());
+                self.pending_call_loans.extend(created);
+                lowered_slots[param_slot] = Some(loan);
+                view_reads.extend(read_expr);
+                continue;
+            }
+            if mode == ParameterMode::Borrow
                 && let Some(&view) = self.inputs.views.get(&self.c(parameter_type))
             {
                 // ADR-0034: a Borrow function parameter receives a callable view.
@@ -826,7 +853,7 @@ impl Builder<'_, '_> {
             }
         };
         for loan in loans.into_iter().rev() {
-            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+            self.end_short_call_loan(loan, span)?;
             self.pending_call_loans.retain(|&active| active != loan);
         }
         for loan in receiver_loans.into_iter().rev() {
@@ -909,6 +936,14 @@ impl Builder<'_, '_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        if self.inputs.borrow_return.is_some() {
+            let value = value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            return self.lower_borrow_return(expression, value, span);
+        }
+        if self.inputs.carrier_return.is_some() {
+            let value = value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            return self.lower_carrier_return(expression, value, span);
+        }
         let result = match value {
             Some(value) => {
                 let Some(slot) = self.required(value)? else {
@@ -933,7 +968,7 @@ impl Builder<'_, '_> {
         Ok(Lowered::Diverged)
     }
 
-    fn snapshot_binding_if_name(
+    pub(super) fn snapshot_binding_if_name(
         &mut self,
         expression: ExpressionId,
         slot: Slot,

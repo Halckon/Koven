@@ -41,6 +41,9 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         // Guide: the RHS is evaluated before the old value is dropped and replaced.
         let Some(replacement) = self.required(value)? else {
+            let replaced =
+                self.collect_drops(UnitDropPoint::BeforeReplacement(self.unit(assignment)));
+            self.finish_drops(&replaced);
             return Ok(Lowered::Diverged);
         };
         let replacement = self.adapt(replacement, value, self.c(projection.ty()))?;
@@ -68,9 +71,16 @@ impl Builder<'_, '_> {
 
     pub(super) fn local_variable(
         &mut self,
-        declaration: lang_frontend::ast::ItemId,
+        mut declaration: lang_frontend::ast::ItemId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        while let Ok(node) = self.inputs.parsed.ast().items().get(declaration)
+            && let lang_frontend::parser::Item::Modified {
+                declaration: inner, ..
+            } = node.payload()
+        {
+            declaration = *inner;
+        }
         let node = self
             .inputs
             .parsed
@@ -87,6 +97,16 @@ impl Builder<'_, '_> {
         let lang_frontend::parser::NameMarker::Present(name_span) = name else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
+        if let Some(fact) = self
+            .inputs
+            .owned
+            .borrow_results()
+            .bindings()
+            .iter()
+            .find(|fact| fact.initializer() == self.unit(initializer))
+        {
+            return self.local_borrow_binding(fact.binding(), initializer, span);
+        }
         let symbol = self.declared_symbol(name_span)?;
         let declared = self
             .symbol_type(symbol)

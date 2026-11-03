@@ -729,3 +729,138 @@ fn map_ops_general_values_and_unit_root_primitives_lower_in_refine() {
         )
     );
 }
+
+#[test]
+fn map_iteration_require_value_range_view_and_control_edges_lower_in_refine() {
+    let source = r#"
+    class Holder(var tag: String, val label: String)
+
+    fun borrow_label(h: Holder): borrow String from h = h.label
+
+    fun head_view(xs: List<Int>, n: Int): View<Int> from xs = rangeView(xs, 0, n)
+
+    fun sum_view(v: View<Int>): Int {
+        var acc = 0
+        for (x in v) {
+            acc = acc + x
+        }
+        return acc
+    }
+
+    fun operand_early_exits(flag: Boolean, inout marker: Int): Int {
+        var xs = mutableListOf(1, 2)
+        if (flag) {
+            xs[if (flag) { marker = 11; return 91 } else 0] = 99
+        }
+        var m = mutableMapOf<String, Int>()
+        m["a"] = if (!flag) { marker = 22; return 92 } else 1
+        return xs.size + m.size
+    }
+
+    fun main(): Unit {
+        val h = Holder("init", "header")
+        val old_tag = replace(&h.tag, "updated")
+        borrow val lbl = borrow_label(h)
+        println(old_tag)
+        println(lbl)
+
+        var raw: MutableMap<String, Int>? = mutableMapOf<String, Int>()
+        var m = raw!!
+        m["a"] = 10
+        m["b"] = 20
+        m["c"] = 30
+        var opt_m: MutableMap<String, Int>? = m
+        var iter_sum = 0
+        var req_val = 0
+        if (opt_m != null) {
+            val sz = opt_m.size
+            val frozen = opt_m.consume()
+            borrow val required_b = frozen.requireValue("b")
+            req_val = required_b + sz
+            for ((k, v) in frozen) {
+                if (k == "a") {
+                    continue
+                }
+                iter_sum = iter_sum + v
+                if (k == "c") {
+                    break
+                }
+            }
+        }
+
+        val xs = listOf(5, 15, 25, 35)
+        borrow val v1 = head_view(xs, 3)
+        borrow val v2 = v1
+        val v_sum = sum_view(v2) + sum_view(rangeView(xs, 1, 3)) + v1.size
+        var loop_view_sum = 0
+        for (item in rangeView(xs, 0, 2)) {
+            loop_view_sum = loop_view_sum + item
+        }
+
+        var outer: String? = "outer-before".clone()
+        if (outer != null) {
+            println(outer)
+            var idx = 0
+            while (idx < 2) {
+                outer = "outer-after".clone()
+                break
+            }
+            if (outer != null) {
+                println(outer)
+            }
+        }
+
+        var marker1 = 0
+        var marker2 = 0
+        val e1 = operand_early_exits(true, &marker1)
+        val e2 = operand_early_exits(false, &marker2)
+        if (req_val == 23 && iter_sum == 50 && v_sum == 88 && loop_view_sum == 20 && e1 == 91 && marker1 == 11 && e2 == 92 && marker2 == 22) {
+            println("e3-items-123-ok")
+        }
+    }"#;
+    let ((program, entry), routed) = super::super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_environment, mut type_environment) = standard_environments();
+        type_environment
+            .authorize_range_source(&sources, id)
+            .unwrap();
+        type_environment
+            .authorize_range_extension_source(&sources, id)
+            .unwrap();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("E3 items 1-3 lower in ssa::refine")
+    });
+    for function in [
+        "koven.p.main.d",
+        "koven.p.borrow_label.d",
+        "koven.p.head_view.d",
+        "koven.p.sum_view.d",
+        "koven.p.operand_early_exits.d",
+    ] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    let llvm =
+        crate::llvm::render_verified_program_with_entry(&program, entry).expect("verified LLVM");
+    let output = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 8);
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &output,
+        b"init\nheader\nouter-before\nouter-after\ne3-items-123-ok\n",
+    );
+}

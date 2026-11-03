@@ -390,6 +390,68 @@ pub(super) enum ROp {
         key: Slot,
         action: Slot,
     },
+    /// Borrows the value slot mapped to `key` in `source`, aborting when absent.
+    MapRequireValue {
+        source: Slot,
+        key: Slot,
+    },
+    /// Acquires the initial opaque cursor (`u64`) for iterating `source`.
+    MapIterationFirst {
+        source: Slot,
+    },
+    /// Tests whether `cursor` points to a valid entry in `source`.
+    MapIterationHasNext {
+        source: Slot,
+        cursor: Slot,
+    },
+    /// Advances `cursor` to the next entry in `source`.
+    MapIterationNext {
+        source: Slot,
+        cursor: Slot,
+    },
+    /// Borrows the key at `cursor` in `source`.
+    MapIterationKeyLoan {
+        source: Slot,
+        cursor: Slot,
+    },
+    /// Borrows the value at `cursor` in `source`.
+    MapIterationValueLoan {
+        source: Slot,
+        cursor: Slot,
+    },
+    /// Constructs a `RangeView` `[begin, end)` from `source`, returning `[view, protecting_loan]`.
+    RangeConstruct {
+        view: SsaTypeId,
+        source: Slot,
+        begin: Slot,
+        end: Slot,
+    },
+    /// Calls a carrier-returning `RangeView` function, returning `[view, protecting_loan]`.
+    RangeCall {
+        callee: FunctionId,
+        arguments: Vec<Slot>,
+        source: Slot,
+    },
+    /// Reads the element count of a `RangeView` value or shared loan.
+    RangeLength {
+        view: Slot,
+    },
+    /// Projects the element place at `index` of a shared `RangeView` loan.
+    RangeElementPlace {
+        view: Slot,
+        index: Slot,
+    },
+    /// Ends a `RangeView` descriptor `view` and its `source` protecting loan.
+    RangeEnd {
+        view: Slot,
+        source: Slot,
+    },
+    /// Calls a borrow-returning function, returning its shared result loan.
+    BorrowCall {
+        callee: FunctionId,
+        arguments: Vec<Slot>,
+        source: Slot,
+    },
 }
 
 impl ROp {
@@ -455,7 +517,9 @@ impl ROp {
             | Self::ContainerRemoveLast { owner: slot }
             | Self::MapConsume { owner: slot, .. }
             | Self::MapSize { owner: slot }
-            | Self::MapResultUnwrap { result: slot } => vec![*slot],
+            | Self::MapResultUnwrap { result: slot }
+            | Self::MapIterationFirst { source: slot }
+            | Self::RangeLength { view: slot } => vec![*slot],
             Self::Compare { left, right, .. }
             | Self::Binary { left, right, .. }
             | Self::IntegerBitwise { left, right, .. }
@@ -522,6 +586,34 @@ impl ROp {
             | Self::MapRemove {
                 owner: left,
                 key: right,
+            }
+            | Self::MapRequireValue {
+                source: left,
+                key: right,
+            }
+            | Self::MapIterationHasNext {
+                source: left,
+                cursor: right,
+            }
+            | Self::MapIterationNext {
+                source: left,
+                cursor: right,
+            }
+            | Self::MapIterationKeyLoan {
+                source: left,
+                cursor: right,
+            }
+            | Self::MapIterationValueLoan {
+                source: left,
+                cursor: right,
+            }
+            | Self::RangeElementPlace {
+                view: left,
+                index: right,
+            }
+            | Self::RangeEnd {
+                view: left,
+                source: right,
             } => {
                 vec![*left, *right]
             }
@@ -551,6 +643,12 @@ impl ROp {
                 key: start,
                 action: end,
             }
+            | Self::RangeConstruct {
+                source,
+                begin: start,
+                end,
+                ..
+            }
             | Self::HeapFieldExchange {
                 owner: source,
                 loan: start,
@@ -569,6 +667,16 @@ impl ROp {
                 arguments,
                 ..
             } => receiver.iter().chain(arguments).copied().collect(),
+            Self::RangeCall {
+                arguments, source, ..
+            }
+            | Self::BorrowCall {
+                arguments, source, ..
+            } => arguments
+                .iter()
+                .copied()
+                .chain(std::iter::once(*source))
+                .collect(),
             Self::AggregateConstruct {
                 fields: arguments, ..
             }
@@ -624,6 +732,13 @@ pub(super) enum RTerm {
         when_non_null: BlockRef,
     },
     Return(Option<Slot>),
+    BorrowReturn {
+        loan: Slot,
+    },
+    RangeReturn {
+        view: Slot,
+        source: Slot,
+    },
     Abort(RAbort),
 }
 
@@ -640,6 +755,8 @@ impl RTerm {
             Self::Branch { condition, .. } => vec![*condition],
             Self::NullBranch { owner, .. } => vec![*owner],
             Self::Return(Some(value)) => vec![*value],
+            Self::BorrowReturn { loan } => vec![*loan],
+            Self::RangeReturn { view, source } => vec![*view, *source],
         }
     }
 
@@ -656,7 +773,10 @@ impl RTerm {
                 when_non_null,
                 ..
             } => vec![*when_null, *when_non_null],
-            Self::Return(_) | Self::Abort(_) => Vec::new(),
+            Self::Return(_)
+            | Self::BorrowReturn { .. }
+            | Self::RangeReturn { .. }
+            | Self::Abort(_) => Vec::new(),
         }
     }
 }

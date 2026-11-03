@@ -102,15 +102,42 @@ impl Checker<'_, '_> {
         self.inputs.typed.map_put(self.id(target)).is_some()
     }
 
+    pub(super) fn named_map_owner(
+        &self,
+        expression: ExpressionId,
+        map_ty: UnitTypeId,
+        allow_borrow: bool,
+    ) -> Option<lang_frontend::name_resolution::UnitSymbolId> {
+        if let Some(symbol) = self.named_container_owner(expression, map_ty, allow_borrow) {
+            return Some(symbol);
+        }
+        if !allow_borrow || !self.scope_requires_refine() {
+            return None;
+        }
+        let root = self.ungrouped(expression);
+        let node = self.inputs.parsed.ast().expressions().get(root).ok()?;
+        if !matches!(node.payload(), Expression::Name) {
+            return None;
+        }
+        let id = self.id(root);
+        let fact = self.inputs.typed.non_null_use(id)?;
+        let symbol = self.reference(root)?;
+        (symbol == fact.symbol()
+            && self.c(fact.narrowed_type()) == map_ty
+            && self.known.contains(&symbol)
+            && self.view_symbols.contains(&symbol))
+        .then_some(symbol)
+    }
+
     pub(super) fn map_put_assignment(
         &mut self,
         assignment: ExpressionId,
         target: ExpressionId,
     ) -> bool {
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(assignment) else {
+        let Ok(_) = self.inputs.parsed.ast().expressions().get(assignment) else {
             return false;
         };
-        !self.span_has_control_transfer(node.span()) && self.map_put(target)
+        self.map_put(target)
     }
 
     fn map_construction(&mut self, expression: ExpressionId) -> bool {
@@ -143,7 +170,7 @@ impl Checker<'_, '_> {
                 matches!(self.kind(ty), Some(UnitTypeKind::Builtin(BuiltinType::Int)))
             })
             && self
-                .named_container_owner(descriptor.receiver().expression(), map_ty, true)
+                .named_map_owner(descriptor.receiver().expression(), map_ty, true)
                 .is_some();
         self.migrated |= ok;
         ok
@@ -152,9 +179,6 @@ impl Checker<'_, '_> {
     fn map_contains(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.map_contains(id) else {
-            return false;
-        };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
             return false;
         };
         let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
@@ -166,10 +190,9 @@ impl Checker<'_, '_> {
         if descriptor.expression() != id
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.key().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
             || self.c(descriptor.key_type()) != key_ty
             || self
-                .named_container_owner(descriptor.receiver().expression(), map_ty, true)
+                .named_map_owner(descriptor.receiver().expression(), map_ty, true)
                 .is_none()
         {
             return false;
@@ -186,9 +209,6 @@ impl Checker<'_, '_> {
         let Some(descriptor) = self.inputs.typed.map_put(id) else {
             return false;
         };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
         let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
             return false;
         };
@@ -199,7 +219,6 @@ impl Checker<'_, '_> {
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.key().source_unit() != self.inputs.source_unit
             || descriptor.value().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
             || self.c(descriptor.key_type()) != key_ty
             || self.c(descriptor.value_type()) != value_ty
             || !matches!(
@@ -235,13 +254,27 @@ impl Checker<'_, '_> {
         };
         let recv_ty = self.c(descriptor.receiver_type());
         let res_ty = self.c(descriptor.result_type());
+        let storage_ty = self.c(storage);
         let Some((key_ty, value_ty)) = self.map_kv(recv_ty) else {
             return false;
+        };
+        let receiver_expr = descriptor.receiver().expression();
+        let is_nullable_storage = matches!(
+            self.kind(storage_ty),
+            Some(UnitTypeKind::Nullable(inner)) if *inner == recv_ty
+        );
+        let owner_ok = if storage == descriptor.receiver_type() {
+            self.named_container_owner(receiver_expr, recv_ty, false) == Some(root)
+        } else {
+            is_nullable_storage
+                && self.scope_requires_refine()
+                && self.named_map_owner(receiver_expr, recv_ty, true) == Some(root)
+                && self.parameter_mode(root).is_none()
         };
         let ok = descriptor.expression() == id
             && descriptor.receiver().source_unit() == self.inputs.source_unit
             && root.source_unit() == self.inputs.source_unit
-            && storage == descriptor.receiver_type()
+            && owner_ok
             && self.expression_type(expression) == Some(res_ty)
             && self.c(descriptor.key_type()) == key_ty
             && self.c(descriptor.value_type()) == value_ty
@@ -260,8 +293,6 @@ impl Checker<'_, '_> {
                     ..
                 })
             )
-            && self.named_container_owner(descriptor.receiver().expression(), recv_ty, false)
-                == Some(root)
             && self.inputs.owned.receiver_fact(id).is_some_and(|fact| {
                 fact.call() == id
                     && fact.source() == UnitCallReceiverOrigin::Expression(descriptor.receiver())
@@ -273,6 +304,9 @@ impl Checker<'_, '_> {
                             if place.is_root() && place.root() == root
                     )
             });
+        if ok && is_nullable_storage {
+            self.view_symbols.remove(&root);
+        }
         self.migrated |= ok;
         ok
     }
@@ -280,9 +314,6 @@ impl Checker<'_, '_> {
     fn map_get(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.map_get(id) else {
-            return false;
-        };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
             return false;
         };
         let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
@@ -295,7 +326,6 @@ impl Checker<'_, '_> {
         if descriptor.expression() != id
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.key().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
             || self.c(descriptor.key_type()) != key_ty
             || self.c(descriptor.value_type()) != value_ty
             || self.expression_type(expression) != Some(res_ty)
@@ -306,7 +336,7 @@ impl Checker<'_, '_> {
                 Some(UnitTypeKind::Nullable(inner)) if *inner == value_ty
             )
             || self
-                .named_container_owner(descriptor.receiver().expression(), map_ty, true)
+                .named_map_owner(descriptor.receiver().expression(), map_ty, true)
                 .is_none()
         {
             return false;
@@ -324,9 +354,6 @@ impl Checker<'_, '_> {
         let Some(descriptor) = self.inputs.typed.map_remove(id) else {
             return false;
         };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
-            return false;
-        };
         let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
             return false;
         };
@@ -337,12 +364,11 @@ impl Checker<'_, '_> {
         if descriptor.expression() != id
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.key().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
             || self.c(descriptor.key_type()) != key_ty
             || self.c(descriptor.value_type()) != value_ty
             || self.expression_type(expression) != Some(res_ty)
             || matches!(self.kind(value_ty), Some(UnitTypeKind::Nullable(_)))
-            || self.map_kv(value_ty).is_some()
+            || (self.map_kv(value_ty).is_some() && !self.scope_requires_refine())
             || !(self.scalar(value_ty) || self.value_class(value_ty) || self.view_inner(value_ty))
             || !matches!(
                 self.kind(res_ty),
@@ -396,7 +422,7 @@ impl Checker<'_, '_> {
                 )
             })
             || self
-                .named_container_owner(descriptor.receiver().expression(), map_ty, true)
+                .named_map_owner(descriptor.receiver().expression(), map_ty, true)
                 .is_none()
         {
             return false;
@@ -589,5 +615,91 @@ impl Checker<'_, '_> {
                 }
                 _ => false,
             })
+    }
+
+    /// `for ((k, v) in map)` over a named or temporary `Map<K, V>` / `MutableMap<K, V>`.
+    pub(super) fn map_for(
+        &mut self,
+        statement: lang_frontend::ast::StatementId,
+        source: ExpressionId,
+        body: lang_frontend::ast::StatementId,
+    ) -> bool {
+        use lang_frontend::{
+            ownership_checking::{
+                IterationSource, UnitIterationCleanupAction as Action, UnitIterationSourceAccess,
+                UnitLoanTarget,
+            },
+            type_checking::UnitStatementId,
+        };
+        if !self.scope_requires_refine() {
+            return false;
+        }
+        let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
+        let (Some(plan), Some(descriptor)) = (
+            self.inputs.owned.map_iteration(statement_id),
+            self.inputs.typed.map_iteration(statement_id),
+        ) else {
+            return false;
+        };
+        let source_id = self.id(source);
+        if plan.descriptor() != descriptor
+            || descriptor.statement() != statement_id
+            || descriptor.source() != source_id
+        {
+            return false;
+        }
+        let container_ty = self.c(descriptor.source_type());
+        let key_ty = self.c(descriptor.key_type());
+        let value_ty = self.c(descriptor.value_type());
+        if self.map_kv(container_ty) != Some((key_ty, value_ty))
+            || self.expression_type(source) != Some(container_ty)
+        {
+            return false;
+        }
+        match (plan.source_access(), plan.source_kind()) {
+            (
+                UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Shared,
+                IterationSource::BorrowedSource(UnitLoanTarget::Place(place)),
+            ) if place.is_root() => {
+                if self.named_map_owner(source, container_ty, true) != Some(place.root()) {
+                    return false;
+                }
+            }
+            (UnitIterationSourceAccess::Temporary, _) => {
+                if !self.expression(source) {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+        if !plan.exits().iter().all(|exit| {
+            exit.actions().iter().all(|action| {
+                matches!(
+                    action,
+                    Action::Drop(_)
+                        | Action::EndBinding { .. }
+                        | Action::FinishProvider(_)
+                        | Action::EndSource(_)
+                        | Action::EndCallLoan(_)
+                        | Action::EndReceiverLoan(_)
+                )
+            })
+        }) {
+            return false;
+        }
+        for (symbol, ty) in [
+            (descriptor.key_binding(), key_ty),
+            (descriptor.value_binding(), value_ty),
+        ] {
+            if self.symbol_type(symbol) != Some(ty) || !self.storage_type(ty) {
+                return false;
+            }
+            self.note_nullable(ty);
+            self.known.insert(symbol);
+            self.for_borrowed.insert(symbol);
+        }
+        let ok = self.loop_body(body);
+        self.migrated |= ok;
+        ok
     }
 }
