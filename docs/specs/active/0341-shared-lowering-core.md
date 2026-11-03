@@ -1207,3 +1207,24 @@ structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3
   不以其他源码同码、测试数或静审替代实际验收。
 
 D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。
+
+### Map 查询与 consume 类型合同的本地候选（2026-11-03，基线 be1022f）
+
+本片独立基于已包含 #283/#284 的 main `be1022f`，不改写上方旧基线验收账本。
+仅迁移 `type_map` 中已有 Unit 对照的五项测试；D10/E2 仍为 in-progress。
+
+- nullable get/index、MoveOnly get/index、nullable borrow argument 三项共八个原源，
+  改为同一 SourceMap/ParsedFile 上 MemoryDocument/Rooted 分别分析。保留 L0130/L0136/L0084、
+  原 primary span 切片、withValue 消息谓词与 map_gets/non_null_uses 空事实。
+- consume 的四种 local-root K/V 与两个用户同名方法原源保持。两入口均精确核对
+  Map<K,V>；用户方法 target 保留 source-qualified Symbol，factory target 保留 Declaration
+  到原 symbol 的映射，方法返回 Int、调用数、构造数和 complete 原分析身份合同不变。
+  先独立补齐 Single/Unit 的 map_consumes 空事实，再退休 Single 对照；九张 Map 事实表
+  对普通用户 consume 均须为空，不能按方法拼写劫持为 intrinsic。
+- 合计候选退休 14 次 Single 执行；consume 文件 resolve_names/check_types 各少两个静态
+  调用点、complete_file_types 少一个。type_map 的旧 helper 与其他十项 Single-only 测试
+  原样保留；全目标仍为 17 项。生产、Guide、ownership witness、withValue 与 E3 不变。
+- 已运行目标直接 rustfmt、git diff --check、文档结构门（835 Markdown）及基于 be1022f
+  的尺寸门（2072 Rust、41 项既存超限，无新增债）；静态核对测试名称、原源码行及其余
+  十二项顶层测试逐字不变。未运行 Cargo/build/test/Clippy 或官方 CI，未推送；以上不构成
+  双入口动态等价证据，也不代表本片可合入。后续需精确头官方 type_map 全目标及相关门禁。
