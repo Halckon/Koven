@@ -9,6 +9,7 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub(super) struct PendingTemporary {
+    pub(super) owner: Option<crate::ownership_checking::UnitOwnerId>,
     pub(super) control: ExpressionId,
     target: PendingOwner,
     origin: Span,
@@ -176,6 +177,7 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) {
         state.pending_temporaries.push(PendingTemporary {
+            owner: None,
             control,
             target,
             origin,
@@ -242,5 +244,54 @@ impl DropPlanner<'_, '_> {
             }
             self.push_pending_drop(point, pending);
         }
+    }
+}
+
+impl DropPlanner<'_, '_> {
+    pub(super) fn register_pending_identity(
+        &mut self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        owner: Option<crate::ownership_checking::UnitOwnerId>,
+        state: &mut ValueState,
+    ) {
+        let Some(owner) = owner else {
+            return;
+        };
+        if let Some(pending) = state.pending_temporaries.iter_mut().rev().find(|pending| {
+            pending.control == call
+                && matches!(pending.target, PendingOwner::Temporary(id) if id == argument)
+                && pending.transfers_at_call
+        }) {
+            pending.owner = Some(owner.clone());
+            self.owner_event(
+                crate::ownership_checking::UnitOwnerTransportEvent::Pending {
+                    call: self.checker.unit_expression(call),
+                    argument: self.checker.unit_expression(argument),
+                    owner,
+                },
+            );
+        } else {
+            self.reject_owner_expression(
+                argument,
+                crate::ownership_checking::UnitOwnerUnsupportedReason::MissingOwner,
+            );
+        }
+    }
+    pub(super) fn take_pending_identity(
+        &self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        state: &mut ValueState,
+    ) -> Option<crate::ownership_checking::UnitOwnerId> {
+        state
+            .pending_temporaries
+            .iter_mut()
+            .find(|pending| {
+                pending.control == call
+                    && matches!(pending.target, PendingOwner::Temporary(id) if id == argument)
+                    && pending.transfers_at_call
+            })
+            .and_then(|pending| pending.owner.take())
     }
 }

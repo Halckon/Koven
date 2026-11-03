@@ -8,6 +8,7 @@ mod lambda;
 mod map;
 mod model;
 mod nullable_comparison;
+mod owner_transport;
 mod pending_call;
 mod resource;
 mod short_circuit;
@@ -38,7 +39,7 @@ use model::{
     merge_value_states,
 };
 
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub(super) struct Analysis {
     pub(super) iteration_conditional_scopes:
         Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
@@ -64,6 +65,7 @@ pub(super) struct Analysis {
             crate::ownership_checking::UnitDropPoint,
         >,
     >,
+    pub(super) owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
     pub(super) exclusive_call_prefix_ends:
         Vec<crate::ownership_checking::UnitExclusiveCallPrefixEndFact>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
@@ -73,6 +75,13 @@ pub(super) struct Analysis {
 }
 
 pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingError> {
+    plan_with_owner_observation(checker, true)
+}
+
+fn plan_with_owner_observation(
+    checker: &Checker<'_>,
+    enabled: bool,
+) -> Result<Analysis, OwnershipCheckingError> {
     let liveness = liveness::build(checker, true)?;
     let mut deferred: Vec<_> = liveness
         .deferred
@@ -82,7 +91,9 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
             UnitOwnershipDeferredFact::new(expression, OwnershipDeferredReason::IndexPlace)
         })
         .collect();
-    let planner = DropPlanner::new(checker, liveness).run()?;
+    let mut planner = DropPlanner::new(checker, liveness);
+    planner.owner_observation_enabled = enabled;
+    let planner = planner.run()?;
     let iterations = planner.iteration_plans()?;
     let map_iterations = planner.map_iteration_plans()?;
     let mut iteration_owner_scopes: Vec<_> = planner
@@ -123,6 +134,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
     deferred.extend(planner.resource_deferred.iter().copied());
     if !planner.resource_deferred.is_empty() {
         return Ok(Analysis {
+            owner_observations: planner.owner_observations,
             deferred,
             ..Analysis::default()
         });
@@ -140,6 +152,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         .map(|fact| fact.into_unit(checker.source_unit))
         .collect();
     Ok(Analysis {
+        owner_observations: planner.owner_observations,
         direct_call_loan_ends,
         exclusive_call_prefix_ends,
         borrow_ends: planner.borrow_ends,
@@ -156,6 +169,9 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
 }
 
 struct DropPlanner<'a, 'checker> {
+    owner_observation_enabled: bool,
+    owner_observation: Option<crate::ownership_checking::UnitOwnerObservation>,
+    owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
     iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     iteration_temporary_scopes: Vec<(
         UnitStatementId,
@@ -192,6 +208,9 @@ struct DropPlanner<'a, 'checker> {
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
         Self {
+            owner_observation_enabled: true,
+            owner_observation: None,
+            owner_observations: Vec::new(),
             iteration_conditional_scopes: Vec::new(),
             iteration_temporary_scopes: Vec::new(),
             iteration_scope_depths: BTreeMap::new(),
@@ -256,7 +275,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if self.liveness.skipped_functions.contains(&id.index()) {
                     return Ok(());
                 }
+                self.begin_owner_function(id);
                 let mut state = ValueState::default();
+                if self.checker.receiver_context(name).is_some() {
+                    self.reject_owner_callable(id);
+                }
                 if let Some(receiver) = self.checker.receiver_context(name)
                     && receiver.mode == ParameterMode::Value
                 {
@@ -280,6 +303,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     {
                         self.binding_depths.insert(symbol, 0);
                         state.insert(OwnedValue {
+                            owner: self.parameter_owner(id, symbol),
                             symbol,
                             origin: marker_span(parameter.name),
                             declaration: marker_span(parameter.name),
@@ -301,6 +325,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             ..
                         }
                 );
+                if !has_body {
+                    self.reject_owner_callable(id);
+                }
                 if has_body {
                     let unused_parameters = state
                         .values
@@ -344,6 +371,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                     },
                 }
+                self.finish_owner_observation();
             }
             Item::Classifier(classifier) => {
                 if let Some(body) = classifier.body {
@@ -358,10 +386,17 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 }
             }
             Item::Deinit { body, .. } => {
+                self.begin_unsupported_owner(
+                    crate::ownership_checking::UnitOwnerCallable::Deinit(
+                        crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
+                    ),
+                    PlannerDropPoint::FunctionEntry(id).into_unit(self.checker.source_unit),
+                );
                 let mut state = ValueState::default();
                 if self.statement(body, &mut state)? {
                     self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
                 }
+                self.finish_owner_observation();
             }
             Item::Error | Item::Variable { .. } | Item::Constant { .. } => {}
         }
@@ -373,6 +408,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         id: StatementId,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        self.check_owner_statement(id)?;
         match self
             .checker
             .parsed
@@ -421,6 +457,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             self.binding_depths.insert(symbol, self.scope_depth);
                             let origin = self.checker.symbol_span(symbol)?;
                             state.insert(OwnedValue {
+                                owner: None,
                                 symbol,
                                 origin,
                                 declaration: origin,
@@ -479,11 +516,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
     }
 
-    fn expression(
+    fn expression_inner(
         &mut self,
         id: ExpressionId,
         usage: DropExpressionUse,
         state: &mut ValueState,
+        owner_result: &mut Option<crate::ownership_checking::UnitOwnerId>,
     ) -> Result<bool, OwnershipCheckingError> {
         if self.checker.is_constant_use(id) {
             return Ok(true);
@@ -626,7 +664,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         && capture.effect() == ClosureCaptureEffect::Move
                         && let UnitClosureCaptureSource::Symbol(symbol) = capture.source()
                     {
-                        self.take_named(id, symbol, state);
+                        let _ = self.take_named(id, symbol, state);
                     }
                 }
                 Ok(true)
@@ -635,7 +673,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if let Some(symbol) = self.checker.reference_symbol(node.span()) {
                     match usage {
                         DropExpressionUse::Consume => {
-                            self.take_named(id, symbol, state);
+                            let value = self.take_named(id, symbol, state);
+                            *owner_result = self.moved_owner(id, value);
                         }
                         DropExpressionUse::Read => {
                             if !self.liveness.expression_after[id.index()].contains(&symbol) {
@@ -651,7 +690,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 }
                 Ok(true)
             }
-            Expression::Group { expression } => self.expression(expression, usage, state),
+            Expression::Group { expression } => {
+                let result = self.evaluate_owner_expression(expression, usage, state)?;
+                *owner_result = result.owner;
+                Ok(result.continues)
+            }
             Expression::String { parts } => {
                 for part in parts {
                     if let StringPart::Interpolation { expression, .. } = part {
@@ -673,6 +716,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                     }
                 }
+                *owner_result = self.define_string_owner(id);
                 // Release only interpolation inputs; the outer String and live named owners remain.
                 self.finish_pending_temporaries(id, PlannerDropPoint::AfterExpression(id), state);
                 Ok(true)
@@ -802,7 +846,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if let Some(place) = self.checker.place(id)? {
                     let root = place.root();
                     if usage == DropExpressionUse::Consume && place.is_root() {
-                        self.take_named(id, root, state);
+                        let _ = self.take_named(id, root, state);
                     } else if usage != DropExpressionUse::Place
                         && !self.liveness.expression_after[id.index()].contains(&root)
                     {
@@ -944,14 +988,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         .unwrap_or(UnitCallArgumentOwnershipKind::SharedLoan);
                     match kind {
                         UnitCallArgumentOwnershipKind::Value => {
-                            if !self.expression(
+                            let result = self.evaluate_owner_expression(
                                 argument.value,
                                 DropExpressionUse::Consume,
                                 state,
-                            )? {
+                            )?;
+                            if !result.continues {
                                 return Ok(false);
                             }
                             self.register_value_argument(id, argument.value, state)?;
+                            self.register_pending_identity(id, argument.value, result.owner, state);
                         }
                         UnitCallArgumentOwnershipKind::SharedLoan
                         | UnitCallArgumentOwnershipKind::ExclusiveLoan => {
@@ -1008,11 +1054,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if !returns {
                     return Ok(false);
                 }
-                if let Some(plan) =
-                    self.checker.ownership_primitives.iter().find(|plan| {
-                        plan.descriptor().expression() == self.checker.unit_expression(id)
-                    })
+                if let Some(plan) = self
+                    .checker
+                    .ownership_primitives
+                    .iter()
+                    .find(|plan| plan.descriptor().expression() == self.checker.unit_expression(id))
+                    .cloned()
                 {
+                    *owner_result = self.commit_owner_replace(id, state);
                     // Both roots remain initialized. Their old owners are returned/swapped,
                     // never destroyed by assignment replacement glue.
                     for place in plan.places() {
@@ -1205,6 +1254,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         let closure = state.take_closure(symbol);
         if let Some(value) = state.remove_value(symbol) {
+            if let Some(owner) = value.owner.as_ref() {
+                self.owner_event(crate::ownership_checking::UnitOwnerTransportEvent::Drop {
+                    point: point.into_unit(self.checker.source_unit),
+                    symbol,
+                    owner: owner.clone(),
+                });
+            }
             self.drop_owned_value(point, value, closure, state);
         }
     }

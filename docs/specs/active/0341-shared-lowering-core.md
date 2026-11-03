@@ -1423,3 +1423,39 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   （835 Markdown）、尺寸守卫（2072 Rust，41 项旧超限，无新增债）及 `git diff --check`
   通过。未运行 Cargo/build/test/Clippy，动态验收与后续组合验证均未完成。
   D10/SPEC-0341/E2 保持 in-progress。
+
+## 72. E2 owner transport A 的本地纵切（2026-11-03）
+
+基线 `be1022f`；只扩展 Unit 的独立观察能力，不退休现有 Single owner/condition witness，
+不改变 Guide 或 Phase 4 消费边界。此次实现尚未编译或运行 Rust 测试，不算动态验收完成。
+
+- 普通函数的 String Value 参数与非插值 String 构造产生独立、source-qualified owner
+  definition；opaque token 带分析内身份，不能跨产物串用。Name 消耗实际当前值，Group
+  通过逐求值帧局部结果转交；binding 不重新分配 owner。
+- 已求值 Value 实参把同一个 token 放入本 call、本 argument 的 pending 槽；checked root
+  replace 的真实 commit 把 RHS owner 交给 root，把旧 owner 交给结果。嵌套调用没有共享
+  last-result 槽，commit 前后仍沿用原 cleanup 顺序。
+- branch、loop、opaque call、capture/closure、swap、赋值、聚合/解构与未建模类型不在
+  A 范围。遇到不支持转换，只回滚该 callable 的新 definitions/events，并保留独立状态；
+  不产生语言错误，不写 resource_deferred，不清空旧 drop/loan/iteration facts。
+- 新观测内一致性检查核 source/product identity、Name 消耗、binding/pending 槽及 replace
+  双向运输。测试覆盖嵌套/二次 replace、参数、Name/Group、同文本不同定义、双源与输入
+  换序、跨分析 token、缺失 pending/交换新旧值等损坏事实；这些是待运行测试，非已通过证明。
+- 同一已准入 Checker 开启/关闭观察后的旧 planner Analysis 全字段相等测试覆盖普通、
+  branch、loop、opaque 与原 capture 源；不得用 drop 数量或来源 span 代替 owner identity。
+- capture formation 输入、完整 Single owner graph、branch 条件与 loop phi 仍未交付。
+  双入口行为、真实 producer mutation 实验和全套官方 CI 仍待验收；D10/E2 保持 in-progress。
+
+- PR #294 的 `03cc0f68` 官方 CI 暴露跨分析 owner token 使 recovery 完整事实比较失败，
+  以及双源 fixture 的包名与 rooted 路径不匹配。修订只在观察整体对应各自产物内的 token，
+  保留所有 source-qualified 结构字段、外来 token 隔离和既有完整事实 oracle；fixture
+  路径改为 `p/root.ko` / `q/root.ko`。新增重新分析全事实相等、token/查询不互通及损坏
+  事实不等断言；旧清理语义不变。仅完成静态检查，未运行本地 Cargo/build/test/Clippy，
+  动态验收仍待修订头官方 CI。
+
+- #294 的 `bca2b9cb` 与 main `4c32d21f` 本地组合保留两类独立发布门控：owner 观察仅要求
+  successful；Exclusive prefix 仍额外要求 deferred 为空，resource_deferred 早返不发布该
+  prefix。补充原 replace-return 源的 owner 观察开启/关闭完整 planner 事实相等回归，明确
+  prefix 非空且 Unsupported owner 观察不干扰它。四处生产接线、两份账本冲突已本地整合；
+  本节顺延为72，既有64–71完整保留。compilation_unit 组合为1156行，登记精确增长例外，
+  待独立静审；仅执行静态门禁，未运行本地 Cargo/build/test/Clippy，未推送，组合动态验证待CI。
