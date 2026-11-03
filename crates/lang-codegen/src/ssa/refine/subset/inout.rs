@@ -108,7 +108,7 @@ impl Checker<'_, '_> {
         let call_span = node.span();
         let value_ty = self.c(primitive.value_type());
         self.note_nullable(value_ty);
-        if !self.storage_type(value_ty) {
+        if !(self.unit(value_ty) || self.storage_type(value_ty)) {
             return false;
         }
         let modes = match primitive.kind() {
@@ -247,15 +247,10 @@ impl Checker<'_, '_> {
             self.migrated = true;
             return true;
         }
-        if self.span_has_control_transfer(call_span) {
-            return false;
-        }
-        let Some(plan) = self.inputs.owned.ownership_primitive(id) else {
-            return false;
-        };
-        if plan.descriptor() != &primitive {
-            return false;
-        }
+        let diverges = arguments.iter().any(|arg| {
+            self.expression_type(arg.value)
+                .is_some_and(|ty| self.nothing(ty))
+        });
         let mut roots = Vec::new();
         for (index, argument) in arguments.iter().enumerate() {
             let arg_id = self.id(argument.value);
@@ -297,44 +292,51 @@ impl Checker<'_, '_> {
                 return false;
             }
         }
-        if plan.places().len() != roots.len()
-            || plan
-                .places()
-                .iter()
-                .zip(&roots)
-                .any(|(place, symbol)| !place.is_root() || place.root() != *symbol)
-        {
-            return false;
-        }
-        let expected_transfer = match primitive.kind() {
-            lang_frontend::type_checking::OwnershipPrimitiveKind::Swap => None,
-            lang_frontend::type_checking::OwnershipPrimitiveKind::Replace => {
-                let Some(delivery) = self
-                    .inputs
-                    .owned
-                    .value_deliveries()
+        if !diverges {
+            let Some(plan) = self.inputs.owned.ownership_primitive(id) else {
+                return false;
+            };
+            if plan.descriptor() != &primitive
+                || plan.places().len() != roots.len()
+                || plan
+                    .places()
                     .iter()
-                    .find(|delivery| {
-                        delivery.call() == id && delivery.argument() == primitive.operands()[1]
-                    })
-                else {
-                    return false;
-                };
-                Some(match delivery.kind() {
-                    lang_frontend::ownership_checking::UnitValueDeliveryKind::Copy => {
-                        lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Copy
-                    }
-                    lang_frontend::ownership_checking::UnitValueDeliveryKind::Move => {
-                        lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Move
-                    }
-                    lang_frontend::ownership_checking::UnitValueDeliveryKind::Temporary => {
-                        lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Temporary
-                    }
-                })
+                    .zip(&roots)
+                    .any(|(place, symbol)| !place.is_root() || place.root() != *symbol)
+            {
+                return false;
             }
-        };
-        if plan.new_value_transfer() != expected_transfer {
-            return false;
+            let expected_transfer = match primitive.kind() {
+                lang_frontend::type_checking::OwnershipPrimitiveKind::Swap => None,
+                lang_frontend::type_checking::OwnershipPrimitiveKind::Replace => {
+                    let Some(delivery) =
+                        self.inputs
+                            .owned
+                            .value_deliveries()
+                            .iter()
+                            .find(|delivery| {
+                                delivery.call() == id
+                                    && delivery.argument() == primitive.operands()[1]
+                            })
+                    else {
+                        return false;
+                    };
+                    Some(match delivery.kind() {
+                        lang_frontend::ownership_checking::UnitValueDeliveryKind::Copy => {
+                            lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Copy
+                        }
+                        lang_frontend::ownership_checking::UnitValueDeliveryKind::Move => {
+                            lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Move
+                        }
+                        lang_frontend::ownership_checking::UnitValueDeliveryKind::Temporary => {
+                            lang_frontend::ownership_checking::OwnershipPrimitiveValueTransfer::Temporary
+                        }
+                    })
+                }
+            };
+            if plan.new_value_transfer() != expected_transfer {
+                return false;
+            }
         }
         self.migrated = true;
         true

@@ -544,7 +544,9 @@ fun entry(own subject: Cell?): Unit { when (subject) { null -> {}; else -> {} } 
 "#,
         stage: "lower",
         code: "UnsupportedNode",
-        green_span: (43, 61),
+        // Inline-nullable value classes now have layouts (SPEC-0382); inline-nullable When stays unsupported.
+        // Reject at the exact whole When before evaluating its subject.
+        green_span: (71, 112),
     },
     Negative {
         name: "complex-alternatives",

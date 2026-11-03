@@ -639,6 +639,10 @@ impl Emitter<'_> {
             ROp::MapConstruct { map_type } => Operation::MapConstruct {
                 map_type: *map_type,
             },
+            ROp::MapConsume { owner, map_type } => Operation::MapConsume {
+                owner: self.value(*owner, span)?,
+                map_type: *map_type,
+            },
             ROp::MapSize { owner } => Operation::MapSize {
                 owner: self.get(*owner, span)?,
             },
@@ -646,10 +650,21 @@ impl Emitter<'_> {
                 owner: self.get(*owner, span)?,
                 key: self.get(*key, span)?,
             },
+            ROp::MapGet { owner, key } => Operation::MapGet {
+                owner: self.get(*owner, span)?,
+                key: self.get(*key, span)?,
+            },
+            ROp::MapResultUnwrap { result } => Operation::MapResultUnwrap {
+                result: self.value(*result, span)?,
+            },
             ROp::MapPut { owner, key, value } => Operation::MapPut {
                 owner: self.value(*owner, span)?,
                 key: self.value(*key, span)?,
                 value: self.value(*value, span)?,
+            },
+            ROp::MapRemove { owner, key } => Operation::MapRemove {
+                owner: self.value(*owner, span)?,
+                key: self.get(*key, span)?,
             },
             ROp::MapWithValue {
                 source,
@@ -659,6 +674,75 @@ impl Emitter<'_> {
                 source: loan(self.get(*source, span)?, span)?,
                 key: EntityId::Loan(loan(self.get(*key, span)?, span)?),
                 action: loan(self.get(*action, span)?, span)?,
+            },
+            ROp::MapRequireValue { source, key } => Operation::MapRequireValue {
+                source: loan(self.get(*source, span)?, span)?,
+                key: EntityId::Loan(loan(self.get(*key, span)?, span)?),
+            },
+            ROp::MapIterationFirst { source } => Operation::MapIterationFirst {
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::MapIterationHasNext { source, cursor } => Operation::MapIterationHasNext {
+                source: loan(self.get(*source, span)?, span)?,
+                cursor: self.value(*cursor, span)?,
+            },
+            ROp::MapIterationNext { source, cursor } => Operation::MapIterationNext {
+                source: loan(self.get(*source, span)?, span)?,
+                cursor: self.value(*cursor, span)?,
+            },
+            ROp::MapIterationKeyLoan { source, cursor } => Operation::MapIterationKeyLoan {
+                source: loan(self.get(*source, span)?, span)?,
+                cursor: self.value(*cursor, span)?,
+            },
+            ROp::MapIterationValueLoan { source, cursor } => Operation::MapIterationValueLoan {
+                source: loan(self.get(*source, span)?, span)?,
+                cursor: self.value(*cursor, span)?,
+            },
+            ROp::RangeConstruct {
+                view,
+                source,
+                begin,
+                end,
+            } => Operation::RangeConstruct {
+                view: *view,
+                source: loan(self.get(*source, span)?, span)?,
+                begin: self.value(*begin, span)?,
+                end: self.value(*end, span)?,
+            },
+            ROp::RangeCall {
+                callee,
+                arguments,
+                source,
+            } => Operation::RangeCall {
+                callee: *callee,
+                arguments: arguments
+                    .iter()
+                    .map(|slot| self.get(*slot, span))
+                    .collect::<Result<_, _>>()?,
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::RangeLength { view } => Operation::RangeLength {
+                view: self.get(*view, span)?,
+            },
+            ROp::RangeElementPlace { view, index } => Operation::RangeElementPlace {
+                view: loan(self.get(*view, span)?, span)?,
+                index: self.value(*index, span)?,
+            },
+            ROp::RangeEnd { view, source } => Operation::RangeEnd {
+                view: self.value(*view, span)?,
+                source: loan(self.get(*source, span)?, span)?,
+            },
+            ROp::BorrowCall {
+                callee,
+                arguments,
+                source,
+            } => Operation::BorrowCall {
+                callee: *callee,
+                arguments: arguments
+                    .iter()
+                    .map(|slot| self.get(*slot, span))
+                    .collect::<Result<_, _>>()?,
+                source: loan(self.get(*source, span)?, span)?,
             },
             ROp::LoanMutate { loan: slot, value } => Operation::LoanMutate {
                 loan: loan(self.get(*slot, span)?, span)?,
@@ -870,6 +954,25 @@ pub(super) fn emit(
                     .into_iter()
                     .collect();
                 let kind = TerminatorKind::Return { values };
+                emitter
+                    .function
+                    .set_terminator(target, kind, origin)
+                    .map_err(model_error)?;
+            }
+            RTerm::BorrowReturn { loan: slot } => {
+                let kind = TerminatorKind::BorrowReturn {
+                    loan: loan(emitter.get(*slot, *term_span)?, *term_span)?,
+                };
+                emitter
+                    .function
+                    .set_terminator(target, kind, origin)
+                    .map_err(model_error)?;
+            }
+            RTerm::RangeReturn { view, source: slot } => {
+                let kind = TerminatorKind::RangeReturn {
+                    view: emitter.value(*view, *term_span)?,
+                    source: loan(emitter.get(*slot, *term_span)?, *term_span)?,
+                };
                 emitter
                     .function
                     .set_terminator(target, kind, origin)

@@ -22,7 +22,9 @@ impl Checker<'_, '_> {
     ) -> bool {
         self.string(ty)
             || self.class_seen(ty, active)
+            || self.move_value_class_seen(ty, active)
             || self.container_element_seen(ty, active).is_some()
+            || (self.scope_requires_refine() && self.map_kv_seen(ty, active).is_some())
             || self.box_payload_seen(ty, active).is_some()
             || self.rc_payload_seen(ty, active).is_some()
     }
@@ -65,6 +67,9 @@ impl Checker<'_, '_> {
             return;
         }
         if let Some(element) = self.container_element(ty) {
+            self.push_demand(element, seen, ordered);
+        }
+        if let Some(element) = self.range_view_element(ty) {
             self.push_demand(element, seen, ordered);
         }
         if let Some((key, value)) = self.map_kv(ty) {
@@ -112,7 +117,9 @@ impl Checker<'_, '_> {
         match self.kind(ty) {
             Some(UnitTypeKind::Builtin(lang_frontend::type_checking::BuiltinType::String)) => true,
             Some(UnitTypeKind::Nullable(inner)) => {
-                self.scalar(*inner) || self.view_inner_seen(*inner, active)
+                self.scalar(*inner)
+                    || self.value_class_seen(*inner, active)
+                    || self.view_inner_seen(*inner, active)
             }
             _ => {
                 self.scalar(ty)
@@ -126,7 +133,9 @@ impl Checker<'_, '_> {
                     || self.move_value_class_seen(ty, active)
                     || self.object_type(ty)
                     || self.container_element_seen(ty, active).is_some()
-                    || self.map_kv(ty).is_some()
+                    || (self.unit_requires_refine()
+                        && self.range_view_element_seen(ty, active).is_some())
+                    || self.map_kv_seen(ty, active).is_some()
             }
         }
     }
@@ -420,8 +429,8 @@ impl Checker<'_, '_> {
             })
     }
 
-    /// `operand!!` consuming a MoveOnly nullable owner: a (grouped) named root or a temporary
-    /// call or `if` result.
+    /// `operand!!` consuming a MoveOnly nullable owner or unwrapping a Copyable nullable:
+    /// a (grouped) named root or a temporary call, index, or `if` result.
     pub(super) fn non_null_assertion(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.non_null_assertion(id) else {
@@ -433,14 +442,18 @@ impl Checker<'_, '_> {
         let operand = descriptor.operand();
         let inner = self.c(descriptor.inner_type());
         self.note_nullable(self.c(descriptor.nullable_type()));
+        let transfer_ok = (plan.non_null_transfer() == NonNullAssertionTransferKind::Consume
+            && self.view_inner(inner))
+            || (plan.non_null_transfer() == NonNullAssertionTransferKind::Copy
+                && self.copyability_of(inner) == Copyability::Copyable
+                && self.storage_type(inner));
         let shape = plan.descriptor() == &descriptor
             && operand.source_unit() == self.inputs.source_unit
-            && plan.non_null_transfer() == NonNullAssertionTransferKind::Consume
+            && transfer_ok
             && matches!(
                 self.kind(self.c(descriptor.nullable_type())),
                 Some(UnitTypeKind::Nullable(nullable_inner)) if *nullable_inner == inner
             )
-            && self.view_inner(inner)
             && self.expression_type(expression) == Some(inner);
         if !shape {
             return false;
@@ -452,12 +465,13 @@ impl Checker<'_, '_> {
         };
         let source = match node.payload() {
             Expression::Name => {
-                descriptor.source_category() == NullableWhenSubjectCategory::OwnedRoot
+                (plan.non_null_transfer() == NonNullAssertionTransferKind::Copy
+                    || descriptor.source_category() == NullableWhenSubjectCategory::OwnedRoot)
                     && self.inputs.typed.non_null_use(self.id(root)).is_none()
             }
             // Temporaries, including branch results whose other branches leave the
             // enclosing call, loop or function before the assertion.
-            Expression::Call { .. } | Expression::If { .. } => {
+            Expression::Call { .. } | Expression::If { .. } | Expression::Index { .. } => {
                 descriptor.source_category() == NullableWhenSubjectCategory::Temporary
             }
             _ => false,

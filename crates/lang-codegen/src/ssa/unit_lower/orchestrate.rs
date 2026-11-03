@@ -44,9 +44,16 @@ fn lower_unit_impl(
     let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
     // Both sealed views have already checked the complete frontend identity chain.
-    // This whole-set capability check must precede instance planning and Module creation.
-    super::map_iteration::validate(&parsed_by_source, names, typed, owned)?;
-    super::borrow_result::validate(&parsed_by_source, names, typed, owned)?;
+    // Declarations are validated unconditionally for every unit.
+    super::borrow_result::validate_declarations(&parsed_by_source, typed, owned)?;
+    // Legacy whole-source binding/iteration checks precede instance planning and Module creation
+    // for legacy units; units using ssa::refine-exclusive constructs validate in refine.
+    let unit_has_refine_constructs =
+        !owned.field_replacements().is_empty() || !typed.ownership_primitives().is_empty();
+    if !unit_has_refine_constructs {
+        super::map_iteration::validate(&parsed_by_source, names, typed, owned)?;
+        super::borrow_result::validate_bindings(&parsed_by_source, names, typed, owned)?;
+    }
     // Runtime global initialization is not lowered yet. Check every source root,
     // including unused declarations, before reachability can discard its initializer.
     for parsed in &parsed_by_source {
@@ -466,9 +473,7 @@ fn lower_unit_impl(
                 .parameters
                 .clone();
             let receiver = plan.receiver.as_ref();
-            (function.borrow_return.is_none()
-                && function.carrier_return.is_none()
-                && entities.len() == plan.parameter_symbols.len() + usize::from(receiver.is_some())
+            (entities.len() == plan.parameter_symbols.len() + usize::from(receiver.is_some())
                 && entities
                     .iter()
                     .all(|entity| matches!(entity, EntityId::Value(_) | EntityId::Loan(_))))
@@ -487,11 +492,17 @@ fn lower_unit_impl(
                         },
                     )
                     .collect::<Vec<_>>();
-                (entry, entities, modes)
+                (
+                    entry,
+                    entities,
+                    modes,
+                    function.borrow_return,
+                    function.carrier_return,
+                )
             })
         };
         let refine_callables = closure::refine_callables(&callable_plans, plan.id);
-        if let Some((entry, entities, modes)) = refine_entry {
+        if let Some((entry, entities, modes, borrow_return, carrier_return)) = refine_entry {
             let refine_body = match &plan.body {
                 FunctionPlanBody::Expression(expression) => {
                     crate::ssa::refine::RefineBody::Expression(*expression)
@@ -530,6 +541,8 @@ fn lower_unit_impl(
                 static_self: plan.instance.key().static_self(),
                 callables: &refine_callables,
                 views: callable_abi.views(),
+                borrow_return,
+                carrier_return,
             };
             if crate::ssa::refine::routes(&inputs) {
                 for ty in crate::ssa::refine::type_demands(&inputs) {
@@ -544,6 +557,9 @@ fn lower_unit_impl(
                     heap_payloads: types.heap_payloads(),
                     field_indices: types.field_indices(),
                     enum_payloads: types.enum_payloads(),
+                    map_results: &module.map_results,
+                    nullable_maps: &module.nullable_maps,
+                    ssa_types: &module.types,
                 };
                 crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
                 continue;
@@ -796,6 +812,8 @@ fn lower_unit_impl(
             static_self: plan.static_self,
             callables: &refine_callables,
             views: callable_abi.views(),
+            borrow_return: None,
+            carrier_return: None,
         };
         if crate::ssa::refine::routes(&inputs) {
             for ty in crate::ssa::refine::type_demands(&inputs) {
@@ -810,6 +828,9 @@ fn lower_unit_impl(
                 heap_payloads: types.heap_payloads(),
                 field_indices: types.field_indices(),
                 enum_payloads: types.enum_payloads(),
+                map_results: &module.map_results,
+                nullable_maps: &module.nullable_maps,
+                ssa_types: &module.types,
             };
             crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
             continue;
@@ -886,7 +907,7 @@ fn lower_unit_impl(
         );
     }
     verification.map_err(|_| LoweringError {
-        kind: LoweringErrorKind::InvalidSsa,
+        kind: LoweringErrorKind::InvalidModel,
         span: None,
     })?;
     Ok((program, entry_id))

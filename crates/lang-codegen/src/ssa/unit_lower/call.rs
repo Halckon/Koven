@@ -106,7 +106,7 @@ impl UnitExpressionLowerer<'_> {
             .call(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if self.typed.ownership_primitive(call).is_some() {
-            return self.lower_ownership_primitive(expression, arguments, descriptor, span);
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
         if !self.supports_control_prefix(span)

@@ -59,11 +59,13 @@ impl Checker<'_, '_> {
                         }
                         if let Some(fact) = self.inputs.typed.non_null_use(self.id(expression)) {
                             let narrowed = self.c(fact.narrowed_type());
-                            return (fact.symbol() == symbol
+                            let view_ok = (self.class(narrowed) || self.move_value_class(narrowed))
                                 && mode == ParameterMode::Borrow
-                                && self.view_symbols.contains(&symbol)
-                                && self.class(narrowed))
-                            .then_some(narrowed);
+                                && self.view_symbols.contains(&symbol);
+                            let copy_ok = self.value_class(narrowed)
+                                && matches!(mode, ParameterMode::Borrow | ParameterMode::Value);
+                            return (fact.symbol() == symbol && (view_ok || copy_ok))
+                                .then_some(narrowed);
                         }
                         let ty = self.symbol_type(symbol)?;
                         let serves = match (self.parameter_mode(symbol), mode) {

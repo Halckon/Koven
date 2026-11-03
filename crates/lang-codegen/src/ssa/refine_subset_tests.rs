@@ -105,6 +105,9 @@ fn nullable_functions_inside_the_subset_are_routed() {
          fun f(): Int = Resource().relay()",
         "class Holder(var text: String, val tag: Int)\n\
          fun f(): String { val h = Holder(\"old\", 7); return replace(&h.text, \"new\") }",
+        "fun f(m: Map<String, Int>): Int { val v = m.get(\"k\"); return if (v != null) v else 0 }",
+        "fun f(): Int { var m = mutableMapOf<String, String>(); m[\"k\"] = \"v\"; val r = m.remove(\"k\"); val ro = m.consume(); return ro.size }",
+        "fun make(): Unit {}\nfun f(): Unit { var a = make(); var b = make(); val old = replace(&a, make()); swap(&a, &b); old }",
     ] {
         let (result, routed) = route(source);
         assert!(routed, "{source}");
@@ -330,4 +333,79 @@ fn deinit_default_route_equivalent_to_per_family() {
         "Resource deinit with nullable parameter routes to refine under default routing"
     );
     assert!(res.is_ok());
+}
+
+#[test]
+fn map_iteration_require_value_range_view_and_control_edges_route_to_refine() {
+    let source = r#"
+    class Holder(var tag: String, val label: String)
+
+    fun borrow_label(h: Holder): borrow String from h = h.label
+
+    fun head_view(xs: List<Int>, n: Int): View<Int> from xs = rangeView(xs, 0, n)
+
+    fun f(inout count: Int): Int {
+        val h = Holder("init", "lbl")
+        val old = replace(&h.tag, "next")
+        println(old)
+        borrow val lbl = borrow_label(h)
+        println(lbl)
+
+        var maybe_map: MutableMap<String, Int>? = mutableMapOf<String, Int>()
+        if (maybe_map != null) {
+            val frozen = maybe_map.consume()
+            for ((k, v) in frozen) {
+                if (v < 0) {
+                    continue
+                }
+                count = count + v
+            }
+        }
+
+        val xs = listOf(10, 20, 30)
+        borrow val slice = head_view(xs, 2)
+        for (item in slice) {
+            count = count + item
+        }
+
+        var outer: String? = "before"
+        if (outer != null) {
+            println(outer)
+            var i = 0
+            while (i < 1) {
+                outer = "after"
+                break
+            }
+        }
+        return slice.size
+    }"#;
+    let mut sources = SourceMap::new();
+    let text = format!("package p\n{source}");
+    let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+    let (name_environment, mut type_environment) = standard_environments();
+    type_environment
+        .authorize_range_source(&sources, id)
+        .unwrap();
+    type_environment
+        .authorize_range_extension_source(&sources, id)
+        .unwrap();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let entry = declaration(&names, "p", "f");
+    let (res, routed) = observe_routing(|| {
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+    });
+    assert!(
+        routed.iter().any(|name| name.starts_with("koven.p.f.d")),
+        "map iteration, rangeView, borrow_return/carrier_return, and loop view reassignment must route to refine: {routed:?}"
+    );
+    assert!(res.is_ok(), "{:?}", res.err());
 }

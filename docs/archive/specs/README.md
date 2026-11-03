@@ -529,3 +529,4 @@
 
 - [SPEC-0366](0366-text-io-guide.md)：已批准文本／同步 IO 合同的 Guide v0.47 迁移；生产 API 实现另验。
 - [SPEC-0367](0367-string-length-invariant.md)：String 字面量、常量、concat 与 argv 的 Int 字节长度边界，双宿主 native 与 preview 验收；公开文本 API 另验。
+- [SPEC-0382](0382-refine-map-ops-and-primitive-retirement.md)：Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休；完成 E3 收尾与 unit_lower/ownership_primitive.rs 删除。

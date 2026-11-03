@@ -101,6 +101,9 @@ impl Builder<'_, '_> {
         if typed.string_operation(id).is_some() {
             return self.string_operation(expression, span);
         }
+        if typed.range_size(id).is_some() {
+            return self.lower_range_size(expression, span);
+        }
         if let Some(descriptor) = typed.construction(id) {
             return match descriptor.target() {
                 lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
@@ -148,7 +151,13 @@ impl Builder<'_, '_> {
                     expression,
                 )?))
             }
-            Expression::Name => self.name(expression, span).map(Lowered::Value),
+            Expression::Name => {
+                if self.is_unit(self.expression_type(expression)?) {
+                    self.reference(span)?;
+                    return Ok(Lowered::Unit);
+                }
+                self.name(expression, span).map(Lowered::Value)
+            }
             // ADR-0034 §4: a returned lambda keeps its concrete callable identity.
             Expression::Lambda { .. } => self.form_callable(expression, span).map(Lowered::Value),
             Expression::This => self.this_value(expression, span).map(Lowered::Value),
@@ -193,6 +202,11 @@ impl Builder<'_, '_> {
             } if self.is_element_target(target) => {
                 self.element_assignment(expression, target, value, span)
             }
+            Expression::Assignment {
+                target,
+                operator: AssignmentOperator::Assign,
+                ..
+            } if self.is_map_put_target(target) => self.map_put(target, span),
             Expression::Assignment {
                 target,
                 operator: AssignmentOperator::Assign,
@@ -331,6 +345,9 @@ impl Builder<'_, '_> {
         match self.inputs.typed.types().get(expected) {
             Some(UnitTypeKind::Nullable(inner)) if *inner == actual => {
                 let nullable = expected_ssa;
+                if self.types.map_results.contains_key(&nullable) && !self.move_only(actual) {
+                    return self.wrap_map_result(value, nullable, span);
+                }
                 let wrapped = self.value(
                     ROp::NullableWrap {
                         nullable,
@@ -364,6 +381,11 @@ impl Builder<'_, '_> {
             .is_some()
         {
             return self.condition_value(expression);
+        }
+        if let Some(lowered) =
+            self.nullable_equality_binary(expression, left, operator, right, span)?
+        {
+            return Ok(lowered);
         }
         let string = matches!(
             self.inputs.typed.types().get(self.expression_type(left)?),
@@ -486,6 +508,9 @@ impl Builder<'_, '_> {
     /// Evaluates a branch-form condition into a Boolean slot.
     fn condition_value(&mut self, expression: ExpressionId) -> Result<Lowered, LoweringError> {
         let span = self.span(expression);
+        if let Some(lowered) = self.map_result_null_comparison_value(expression, span)? {
+            return Ok(lowered);
+        }
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;
         let result = self.body.slot(EntityType::Value(ty));
         let when_true = self.body.block();
@@ -494,6 +519,11 @@ impl Builder<'_, '_> {
         self.condition_with_views(expression, when_true, when_false, false)?;
         for (block, value) in [(when_true, true), (when_false, false)] {
             self.block = Some(block);
+            self.sync_dead();
+            self.entry_dead
+                .entry(join)
+                .or_default()
+                .extend(self.dead.iter().copied());
             self.push(
                 ROp::Constant(ScalarConstant::Boolean(value)),
                 vec![result],
@@ -502,6 +532,7 @@ impl Builder<'_, '_> {
             self.goto(join, span)?;
         }
         self.block = Some(join);
+        self.sync_dead();
         Ok(Lowered::Value(result))
     }
 
@@ -549,18 +580,24 @@ impl Builder<'_, '_> {
                 rec.origin()
             && expression.source_unit() == self.inputs.source_unit
         {
-            call_args.push((0, expression.expression(), rec.mode(), rec.ty()));
+            call_args.push((
+                0,
+                expression.expression(),
+                self.span(expression.expression()),
+                rec.mode(),
+                rec.ty(),
+            ));
         }
         let mut sorted_args: Vec<_> = descriptor.arguments().iter().collect();
         sorted_args.sort_by_key(|argument| argument.argument_index());
         for argument in sorted_args {
-            let value_expression = arguments
+            let call_argument = arguments
                 .get(argument.argument_index())
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-                .value;
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             call_args.push((
                 argument.parameter_index() + ext_offset,
-                value_expression,
+                call_argument.value,
+                call_argument.span,
                 argument.mode(),
                 argument.parameter_type(),
             ));
@@ -570,7 +607,7 @@ impl Builder<'_, '_> {
         let mut writebacks = Vec::new();
         let mut view_reads = Vec::new();
         let mut delivered = Vec::new();
-        for (param_slot, value_expression, mode, parameter_type) in call_args {
+        for (param_slot, value_expression, call_arg_span, mode, parameter_type) in call_args {
             if mode == ParameterMode::Inout {
                 let (loan, writeback) = self.inout_argument(value_expression)?;
                 lowered_slots[param_slot] = Some(loan);
@@ -579,6 +616,30 @@ impl Builder<'_, '_> {
                     self.pending_call_loans.push(loan);
                     writebacks.push(writeback);
                 }
+                continue;
+            }
+            if mode == ParameterMode::Borrow
+                && let Some((loan, created)) =
+                    self.lower_nested_borrow_argument(call, value_expression, call_arg_span)?
+            {
+                loans.extend(created.iter().copied());
+                loans.push(loan);
+                self.pending_call_loans.extend(created);
+                self.pending_call_loans.push(loan);
+                lowered_slots[param_slot] = Some(loan);
+                continue;
+            }
+            if mode == ParameterMode::Borrow
+                && let Some((loan, created, read_expr)) = self.lower_short_range_argument(
+                    value_expression,
+                    self.c(parameter_type),
+                    call_arg_span,
+                )?
+            {
+                loans.extend(created.iter().copied());
+                self.pending_call_loans.extend(created);
+                lowered_slots[param_slot] = Some(loan);
+                view_reads.extend(read_expr);
                 continue;
             }
             if mode == ParameterMode::Borrow
@@ -700,7 +761,7 @@ impl Builder<'_, '_> {
                     let place = self.value(
                         ROp::RootPlace { owner: value },
                         EntityType::Place(target),
-                        argument_span,
+                        call_arg_span,
                     )?;
                     let loan = self.value(
                         ROp::BorrowBegin {
@@ -792,7 +853,7 @@ impl Builder<'_, '_> {
             }
         };
         for loan in loans.into_iter().rev() {
-            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+            self.end_short_call_loan(loan, span)?;
             self.pending_call_loans.retain(|&active| active != loan);
         }
         for loan in receiver_loans.into_iter().rev() {
@@ -875,6 +936,14 @@ impl Builder<'_, '_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        if self.inputs.borrow_return.is_some() {
+            let value = value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            return self.lower_borrow_return(expression, value, span);
+        }
+        if self.inputs.carrier_return.is_some() {
+            let value = value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            return self.lower_carrier_return(expression, value, span);
+        }
         let result = match value {
             Some(value) => {
                 let Some(slot) = self.required(value)? else {
@@ -899,7 +968,7 @@ impl Builder<'_, '_> {
         Ok(Lowered::Diverged)
     }
 
-    fn snapshot_binding_if_name(
+    pub(super) fn snapshot_binding_if_name(
         &mut self,
         expression: ExpressionId,
         slot: Slot,
