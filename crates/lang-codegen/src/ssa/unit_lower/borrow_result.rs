@@ -48,7 +48,7 @@ pub(super) fn validate_declarations(
     Ok(())
 }
 
-pub(crate) fn validate_bindings(
+pub(super) fn validate_bindings(
     parsed: &[&lang_frontend::parser::ParsedFile],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
@@ -719,5 +719,15 @@ pub(super) fn validate(
     owned: &CompilationUnitOwnership,
 ) -> Result<(), LoweringError> {
     validate_declarations(parsed, typed, owned)?;
+    validate_bindings(parsed, names, typed, owned)
+}
+
+#[cfg(test)]
+pub(crate) fn validate_bindings_for_test(
+    parsed: &[&lang_frontend::parser::ParsedFile],
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+) -> Result<(), LoweringError> {
     validate_bindings(parsed, names, typed, owned)
 }

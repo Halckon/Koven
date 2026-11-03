@@ -58,24 +58,28 @@
 
 ### 3.3 Mutation 变异验证证据
 
-1. **MoveOnly Map 证明视图保护**：
+> 注：以下两项变异验证均为**作者本地环境验证结果**（macOS 15.x / Apple Silicon, rustc 1.96.0-nightly 2026-03-01）。
+
+1. **MoveOnly Map 证明视图保护**（本地执行验证）：
    - **变异改动**：在 `crates/lang-codegen/src/ssa/refine/build/condition.rs:226` 中，临时移除 `&& !self.move_only(inner)`；
-   - **验证命令**：`cargo test -p lang-codegen map_condition_tests`；
-   - **失败摘要**：`refined program lowers and verifies: LoweringError { kind: UnsupportedNode, span: ... }` 在借用参数解析处 panic 失败；
-   - **所保护修复**：保护了 commit `674bb526`，确保 MoveOnly Map 移除结果进入 `NullableBranch` 建立有效 shared proof view，而非错误走 `MapResultUnwrap` 丢失证明视图导致借用非法。
-2. **分流门禁收敛保护**：
-   - **变异改动**：在 `orchestrate.rs:51` 中恢复旧有的过宽判定 `!owned.inouts().is_empty()`；
-   - **验证结果**：`inout_reject_source` 中的非法借用重叠将跳过 `validate_bindings` 检查；
-   - **所保护修复**：保护了 commit `446f7529`，确保普通 inout 单元必须经历旧校验阶段把关。
+   - **执行环境与命令**：本地运行 `cargo test -p lang-codegen map_condition_tests`；
+   - **验证机制与保护**：保护了 commit `674bb526`。若移除该条件，MoveOnly Map 移除结果在参与条件判断时将错误分发至标量解包分支（`ROp::MapResultUnwrap`），从而未能建立 `ROp::NullableBranch` 对应的 shared proof view carrier，导致后续借用依赖证明视图的字段时无法合法借出。
+2. **分流门禁收敛保护**（本地静态推断与设计核实）：
+   - **性质说明**：**作者本地静态推断与设计合同核查**（无独立动态测试报错）。
+   - **变异改动**：在 commit `446f7529` 之前，`crates/lang-codegen/src/ssa/unit_lower/orchestrate.rs:51` 曾包含过宽的判定（只要单元内存在声明为 `Inout` 模式的参数或 receiver 即将 `unit_has_refine_constructs` 置为 true）；
+   - **推断事实与机制**：该过宽判定会导致包含常规 `inout` 参数的单元在编译单元顶层入口处跳过 53–56 行的 `validate_bindings` 全单元前置校验。虽然包含未迁入特性的函数在后续逐函数降级时仍会被 `lower_frontend` 内的 `borrow_result::validate` 最终拦截（因此未表现为动态 panic 漏判），但其违背了“仅 refine 专有节点（`field_replacements`/`ownership_primitives`）才豁免顶层旧校验”的设计初衷。commit `446f7529` 成功将门禁收窄，并在本次回归测试中通过直接调用 `validate_bindings` 确认了该阶段的独立防御能力。
 
 ## 4. 验收记录账本
 
-| 验收项 | 测试 / 命令 | 实际结果 | CI 链接 |
+> **受测 Head**：`ae8f05a6`（commit `ae8f05a606f33d73ef58de91570b5333e2eecf6a`）  
+> **官方 CI 运行记录**：[Run 41604036728](https://github.com/Halckon/Koven/actions/runs/41604036728)（双平台 Targeted 任务通过：[Linux 测试 Job](https://github.com/Halckon/Koven/actions/runs/41604036728/job/125811676417) / [macOS 测试 Job](https://github.com/Halckon/Koven/actions/runs/41604036728/job/125811676113)）
+
+| 验收项 | 验证命令与来源 | 实际结果 | CI 链接（Head: `ae8f05a6`） |
 |---|---|---|---|
-| MoveOnly Map 结果直接用于条件与分支退出 | `cargo test -p lang-codegen map_condition_tests::move_only_map_remove_direct_conditions_and_branch_exits` | 通过（覆盖 `!= null`、`== null`、`&&`、`||` 短路、`return`、`break`、`continue`、proof view 借用，stdout 与 drop 精确对齐） | [Run 41599455958](https://github.com/Halckon/Koven/actions/runs/41599455958) |
-| Refine 与 Legacy 校验门禁边界矩阵 | `cargo test -p lang-codegen map_condition_tests::refine_and_legacy_validation_gate_matrix_tests` | 通过（验证纯 inout 经过 legacy 全单元校验且函数进 refine、拒绝确切源自 `validate_bindings`、字段替换进 refine、混合单元正反路由断言） | [Run 41599455958](https://github.com/Halckon/Koven/actions/runs/41599455958) |
-| 旧 Ownership Primitive 退休边界与 RHS 控制转移 | `cargo test -p lang-codegen map_condition_tests::retired_ownership_primitive_boundary_tests` | 通过（验证默认入口自然回退拒绝、forced 模式拒绝、以及 RHS return/continue/break 下 MoveOnly 资源的确定性 cleanup） | [Run 41599455958](https://github.com/Halckon/Koven/actions/runs/41599455958) |
-| Refine 全量测试套件 | `cargo test -p lang-codegen refine_` | 81/81 通过（耗时约 89s，覆盖闭包、subset 路由、容器、控制流、Map 等全部细化测试） | [Run 41599455958](https://github.com/Halckon/Koven/actions/runs/41599455958) |
-| 代码行数软上限守则 | `python3 scripts/check_rust_sizes.py --base main` | 通过（2070 个手写 Rust 文件全部遵守 `<1000` 物理行软上限约束，`refine_tests.rs` 981 行） | [Run 41599455958](https://github.com/Halckon/Koven/actions/runs/41599455958) |
-| 文档结构一致性门禁 | `python3 scripts/check_docs.py` | 通过（836 个 Markdown 文件结构与引用检查全部通过） | [Run 41599455958](https://github.com/Halckon/Koven/actions/runs/41599455958) |
-| 代码格式与 Clippy 静态检查 | `cargo fmt --all -- --check` & `cargo clippy --locked --workspace --all-targets -- -D warnings` | 通过（零格式差异、零 warning 警告） | [Run 41599455958](https://github.com/Halckon/Koven/actions/runs/41599455958) |
+| MoveOnly Map 结果直接用于条件与分支退出 | 官方 CI: `cargo test -p lang-codegen map_condition_tests`<br>本地验证: macOS Apple Silicon, rustc 1.96.0-nightly | 通过（覆盖 `!= null`、`== null`、`&&`、`||` 短路、`return`、`break`、`continue`、proof view 借用，stdout 与 drop 精确对齐） | [Linux Job 125811676417](https://github.com/Halckon/Koven/actions/runs/41604036728/job/125811676417)<br>[macOS Job 125811676113](https://github.com/Halckon/Koven/actions/runs/41604036728/job/125811676113) |
+| Refine 与 Legacy 校验门禁边界矩阵 | 官方 CI: `cargo test -p lang-codegen map_condition_tests`<br>本地验证: macOS Apple Silicon, rustc 1.96.0-nightly | 通过（验证纯 inout 经过 legacy 全单元校验且函数进 refine、拒绝确切源自 `validate_bindings`、字段替换进 refine、混合单元正反路由断言） | [Linux Job 125811676417](https://github.com/Halckon/Koven/actions/runs/41604036728/job/125811676417)<br>[macOS Job 125811676113](https://github.com/Halckon/Koven/actions/runs/41604036728/job/125811676113) |
+| 旧 Ownership Primitive 退休边界与 RHS 控制转移 | 官方 CI: `cargo test -p lang-codegen map_condition_tests`<br>本地验证: macOS Apple Silicon, rustc 1.96.0-nightly | 通过（验证默认入口自然回退拒绝、forced 模式拒绝、以及 RHS return/continue/break 下 MoveOnly 资源的确定性 cleanup） | [Linux Job 125811676417](https://github.com/Halckon/Koven/actions/runs/41604036728/job/125811676417)<br>[macOS Job 125811676113](https://github.com/Halckon/Koven/actions/runs/41604036728/job/125811676113) |
+| Refine 全量测试套件 | 官方 CI Targeted 矩阵通过<br>本地执行: `cargo test -p lang-codegen refine_` (macOS Apple Silicon, rustc 1.96.0-nightly) | 81/81 全部通过（覆盖闭包、subset 路由、容器、控制流、Map 等全部细化测试） | [Run 41604036728](https://github.com/Halckon/Koven/actions/runs/41604036728) |
+| 代码行数软上限守则 | 官方 CI: `CI/Rust Physical Line Guard`<br>本地执行: `python3 scripts/check_rust_sizes.py --base main` | 通过（手写 Rust 文件遵守 `<1000` 物理行软上限约束；`refine_tests.rs` 981 行，`map_condition_tests.rs` 472 行） | [Run 41604036728](https://github.com/Halckon/Koven/actions/runs/41604036728) |
+| 文档结构一致性门禁 | 官方 CI: `CI/Docs & Spec Structural Guard`<br>本地执行: `python3 scripts/check_docs.py` | 通过（全量 Markdown 结构、索引与依赖图校验通过） | [Run 41604036728](https://github.com/Halckon/Koven/actions/runs/41604036728) |
+| 代码格式与 Clippy 静态检查 | 官方 CI: `CI/Rust Code Formatting (rustfmt)`<br>本地执行: `cargo fmt --all -- --check` & `cargo clippy --locked --workspace --all-targets -- -D warnings` | 通过（零格式差异、零 warning 警告） | [Run 41604036728](https://github.com/Halckon/Koven/actions/runs/41604036728) |
