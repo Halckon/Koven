@@ -32,7 +32,12 @@ mod materialization_tests;
 mod non_null_assertion;
 mod nullable_when;
 pub use nullable_when::*;
+mod owner_transport;
+mod owner_transport_validation;
 mod ownership_primitive;
+pub use owner_transport::*;
+#[cfg(test)]
+mod owner_transport_tests;
 #[cfg(test)]
 mod pending_temporary_tests;
 mod receiver;
@@ -608,6 +613,7 @@ pub struct CompilationUnitOwnership {
     receiver_facts: Vec<UnitReceiverOwnershipFact>,
     conditional_receiver_deliveries: Vec<UnitConditionalReceiverDeliveryFact>,
     delegations: Vec<UnitDelegationOwnershipPlan>,
+    owner_observations: Vec<UnitOwnerObservation>,
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     loans: Vec<UnitLoanFact>,
@@ -624,6 +630,12 @@ pub struct CompilationUnitOwnership {
 }
 
 impl CompilationUnitOwnership {
+    /// Whole-callable narrow owner transport observations; Unsupported is not a language error.
+    #[must_use]
+    pub fn owner_observations(&self) -> &[UnitOwnerObservation] {
+        &self.owner_observations
+    }
+
     /// 已检查的 source-qualified 一级字段原子置换。
     #[must_use]
     pub fn field_replacements(&self) -> &[super::UnitFieldReplaceOwnershipPlan] {
@@ -802,6 +814,11 @@ impl CompilationUnitOwnership {
                     })
                     .map(UnitStringOwnershipEffect::new)
                     .collect()
+            } else {
+                Vec::new()
+            },
+            owner_observations: if successful {
+                dataflow.owner_observations
             } else {
                 Vec::new()
             },

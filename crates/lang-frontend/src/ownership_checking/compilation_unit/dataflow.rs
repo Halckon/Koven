@@ -98,6 +98,7 @@ pub(super) struct Analysis {
     pub(super) constant_materializations: Vec<super::constant::UnitConstantMaterializationPlan>,
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) formed_owned_locals: Vec<UnitSymbolId>,
+    pub(super) owner_observations: Vec<super::UnitOwnerObservation>,
     pub(super) exclusive_call_prefix_ends: Vec<super::UnitExclusiveCallPrefixEndFact>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
@@ -206,6 +207,7 @@ pub(super) fn analyze(
     let mut constant_materializations = Vec::new();
     let mut short_circuits = Vec::new();
     let mut visited_lambdas = std::collections::BTreeSet::new();
+    let mut owner_observations = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
     let mut loans = Vec::new();
@@ -297,6 +299,7 @@ pub(super) fn analyze(
         short_circuits.extend(checker.short_circuits.into_values());
         visited_lambdas.extend(checker.visited_lambdas);
         constant_materializations.extend(checker.constant_materializations.into_values());
+        owner_observations.extend(drop_analysis.owner_observations);
         direct_call_loan_ends.extend(drop_analysis.direct_call_loan_ends);
         exclusive_call_prefix_ends.extend(drop_analysis.exclusive_call_prefix_ends);
         drops.extend(drop_analysis.drops);
@@ -378,6 +381,7 @@ pub(super) fn analyze(
         diagnostics,
         formed_owned_locals,
         loans,
+        owner_observations,
         direct_call_loan_ends,
         exclusive_call_prefix_ends,
         value_deliveries,
