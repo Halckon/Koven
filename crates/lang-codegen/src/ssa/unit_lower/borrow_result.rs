@@ -48,7 +48,7 @@ pub(super) fn validate_declarations(
     Ok(())
 }
 
-pub(super) fn validate_bindings(
+pub(crate) fn validate_bindings(
     parsed: &[&lang_frontend::parser::ParsedFile],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,

@@ -50,6 +50,8 @@ mod type_origin_cache_tests;
 mod type_plan;
 mod while_proof;
 
+#[cfg(test)]
+pub(crate) use borrow_result::validate_bindings;
 pub(crate) use handoff::lower_owned_unit_with_entry;
 #[cfg_attr(
     not(test),

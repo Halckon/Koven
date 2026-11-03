@@ -116,6 +116,17 @@ fn move_only_map_remove_direct_conditions_and_branch_exits() {
             println("s3-kept-ok")
         }
 
+        // 3b. Short-circuit ||
+        m["o1"] = Tracked("drop-o1", 1)
+        m["o2"] = Tracked("drop-o2", 1)
+        if (m.remove("o1") != null || m.remove("o2") != null) {
+            println("short-or-first-hit")
+        }
+        val o2_kept = m.withValue("o2", { it -> println("o2-kept") })
+        if (o2_kept) {
+            println("o2-kept-ok")
+        }
+
         // 4. Two-branch function return
         val r1 = branch_return("r_hit")
         val r2 = branch_return("r_miss")
@@ -165,6 +176,10 @@ fn move_only_map_remove_direct_conditions_and_branch_exits() {
             "short-first-miss\n",
             "s3-kept\n",
             "s3-kept-ok\n",
+            "drop-o1\n",
+            "short-or-first-hit\n",
+            "o2-kept\n",
+            "o2-kept-ok\n",
             "drop-r_hit\n",
             "ret-hit\n",
             "ret-miss\n",
@@ -176,6 +191,7 @@ fn move_only_map_remove_direct_conditions_and_branch_exits() {
             "map-condition-all-ok\n",
             "view-named1\n",
             "drop-s3\n",
+            "drop-o2\n",
         )
     );
 }
@@ -197,6 +213,22 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
         }
     }
     "#;
+    let ((program, entry), routed) = super::super::refine::observe_routing(|| {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{inout_ok_source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_env, type_env) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
+        let entry = declaration(&names, "p", "main");
+        lower_scalar_unit_with_entry(&sources, &inputs, &names, &type_env, &typed, &owned, entry)
+            .expect("inout-only unit lowers and verifies")
+    });
+    // Inout-only unit passes legacy whole-unit checks; inout functions still route to refine.
+    assert!(routed.iter().any(|name| name.starts_with("koven.p.main.d")));
+    assert!(routed.iter().any(|name| name.starts_with("koven.p.inc.d")));
+    let _llvm =
+        crate::llvm::render_verified_program_with_entry(&program, entry).expect("verified LLVM");
     let (stdout, code) = run(inout_ok_source);
     assert_eq!(code, Some(0));
     assert_eq!(stdout, "inout-ok\n");
@@ -235,6 +267,22 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
     assert_eq!(err.kind, LoweringErrorKind::UnsupportedNode);
     let span = err.span.expect("exact span of inout call");
     assert_eq!(sources.slice(span).unwrap(), "flag || change(&n)");
+
+    // Explicit proof that rejection originates specifically from the legacy validate_bindings stage:
+    let parsed_files = [&file];
+    let view = lang_frontend::ownership_checking::owned_compilation_unit_view(
+        &sources, &inputs, &names, &type_env, &typed, &owned,
+    )
+    .expect("view construction succeeds");
+    let direct_stage_err = crate::ssa::unit_lower::validate_bindings(
+        &parsed_files,
+        view.names(),
+        view.types(),
+        view.ownership(),
+    )
+    .expect_err("validate_bindings phase directly rejects this construct");
+    assert_eq!(direct_stage_err.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(direct_stage_err.span, err.span);
 
     // Case 2: Unit with replace/swap field replacement routes past legacy check and runs successfully.
     let replace_ok_source = r#"
@@ -278,8 +326,14 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
         lower_scalar_unit_with_entry(&sources, &inputs, &names, &type_env, &typed, &owned, entry)
             .expect("mixed unit lowers and verifies")
     });
-    // main routes to refine; helper does not require refine constructs
+    // main routes to refine; helper does not require refine constructs and stays in legacy
     assert!(routed.iter().any(|name| name.starts_with("koven.p.main.d")));
+    assert!(
+        !routed
+            .iter()
+            .any(|name| name.starts_with("koven.p.legacy_math_helper.d")),
+        "legacy_math_helper should remain in per-family lowering: {routed:?}"
+    );
     let _llvm =
         crate::llvm::render_verified_program_with_entry(&program, entry).expect("verified LLVM");
     let (stdout, code) = run(mixed_unit_source);
@@ -291,7 +345,40 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
 fn retired_ownership_primitive_boundary_tests() {
     use crate::ssa::LoweringErrorKind;
 
-    // Unit lowering with forced per-family lowering rejects ownership_primitive at the exact call span.
+    // Case 1: Natural routing under default entry. A function containing replace(&x, ...)
+    // alongside an unmigrated construct (nullable subject when) naturally falls out of the
+    // refine subset into legacy lowering, which rejects ownership_primitive at the exact call span.
+    let natural_legacy_source = r#"
+    fun natural_unmigrated(): Int {
+        var x = 10
+        val old = replace(&x, 20)
+        val opt: Int? = 1
+        val res = when (opt) {
+            null -> 0
+            else -> 1
+        }
+        return old + res
+    }
+    fun main(): Unit {
+        natural_unmigrated()
+    }
+    "#;
+    let mut sources = SourceMap::new();
+    let text = format!("package p\n{natural_legacy_source}");
+    let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+    let (name_env, type_env) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
+    let entry = declaration(&names, "p", "main");
+    let err =
+        lower_scalar_unit_with_entry(&sources, &inputs, &names, &type_env, &typed, &owned, entry)
+            .err()
+            .expect("natural legacy routing must reject ownership_primitive at unit lowering");
+    assert_eq!(err.kind, LoweringErrorKind::UnsupportedNode);
+    let span = err.span.expect("exact span of replace call");
+    assert_eq!(sources.slice(span).unwrap(), "replace(&x, 20)");
+
+    // Case 2: Unit lowering with forced per-family lowering also rejects ownership_primitive at the exact call span.
     let primitive_source = r#"
     fun main(): Unit {
         var x = 10
@@ -315,23 +402,71 @@ fn retired_ownership_primitive_boundary_tests() {
     let span = err.span.expect("exact span of replace call");
     assert_eq!(sources.slice(span).unwrap(), "replace(&x, 20)");
 
-    // Positive check: refine correctly handles replace with RHS early control transfer (return/break/cleanup)
-    let rhs_early_exit_source = r#"
-    fun early_exit_in_replace_rhs(flag: Boolean): Int {
+    // Case 3: Positive verification: refine correctly handles replace with RHS early control transfer
+    // (return, break, continue) and performs deterministic cleanup of enclosing MoveOnly resources.
+    let rhs_move_only_cleanup_source = r#"
+    class Res(val name: String) {
+        deinit() {
+            println(this.name)
+        }
+    }
+
+    fun test_return_cleanup(flag: Boolean): Int {
+        val res = Res("drop-ret")
         var a = 1
         var b = 2
         val old = replace(&a, if (flag) { return 42 } else { b + 10 })
         return a + old
     }
+
+    fun test_loop_cleanup(): Int {
+        var count = 0
+        while (count < 2) {
+            val loop_res = Res("drop-loop")
+            var a = 10
+            count = count + 1
+            val old = replace(&a, if (count == 1) { continue } else { 20 })
+            if (old == 10 && a == 20) {
+                println("loop-normal-end")
+            }
+        }
+        return count
+    }
+
+    fun test_break_cleanup(): Int {
+        var count = 0
+        while (count < 3) {
+            val break_res = Res("drop-break")
+            var a = 10
+            count = count + 1
+            val old = replace(&a, if (count == 2) { break } else { 30 })
+        }
+        return count
+    }
+
     fun main(): Unit {
-        val r1 = early_exit_in_replace_rhs(true)
-        val r2 = early_exit_in_replace_rhs(false)
-        if (r1 == 42 && r2 == 13) {
-            println("rhs-early-exit-ok")
+        val r1 = test_return_cleanup(true)
+        val r2 = test_return_cleanup(false)
+        val l1 = test_loop_cleanup()
+        val l2 = test_break_cleanup()
+        if (r1 == 42 && r2 == 13 && l1 == 2 && l2 == 2) {
+            println("rhs-cleanup-all-ok")
         }
     }
     "#;
-    let (stdout, code) = run(rhs_early_exit_source);
+    let (stdout, code) = run(rhs_move_only_cleanup_source);
     assert_eq!(code, Some(0));
-    assert_eq!(stdout, "rhs-early-exit-ok\n");
+    assert_eq!(
+        stdout,
+        concat!(
+            "drop-ret\n",
+            "drop-ret\n",
+            "drop-loop\n",
+            "loop-normal-end\n",
+            "drop-loop\n",
+            "drop-break\n",
+            "drop-break\n",
+            "rhs-cleanup-all-ok\n",
+        )
+    );
 }
