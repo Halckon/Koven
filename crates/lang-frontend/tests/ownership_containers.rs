@@ -17,6 +17,9 @@ use lang_frontend::{
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
+#[path = "ownership_containers/mutable_unit.rs"]
+mod mutable_unit;
+
 use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
@@ -570,83 +573,108 @@ fn moved_container_size_reports_the_owner_move() {
 
 #[test]
 fn container_size_in_assignment_rhs_keeps_old_owner_until_rhs_completes() {
-    let (sources, parsed, owned) =
-        checked("fun replace(): Unit { var values = listOf(1); values = listOf(values.size) }");
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
-    let loan = owned
-        .loans()
-        .iter()
-        .find(|loan| {
-            sources
-                .slice(parsed.ast().expressions().get(loan.call()).unwrap().span())
-                .unwrap()
-                == "values.size"
-        })
-        .expect("size read loan");
-    let LoanTarget::Place(place) = loan.target() else {
-        panic!("named receiver")
+    use lang_frontend::{
+        ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget},
+        type_checking::UnitExpressionId,
     };
-    let rhs = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .find_map(|(id, node)| {
-            (sources.slice(node.span()).unwrap() == "listOf(values.size)").then_some(id)
-        })
-        .expect("complete replacement RHS");
-    let old_drops = owned
-        .drops()
-        .iter()
-        .filter(|drop| {
-            drop.target() == DropTarget::Named(place.root())
-                && sources.slice(drop.value_origin()).unwrap() == "values"
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(old_drops.len(), 1, "old owner must be dropped exactly once");
-    assert_eq!(
-        old_drops[0].point(),
-        DropPoint::AfterExpression(rhs),
-        "the replacement container must be complete before destroying the old owner"
-    );
-    assert!(
-        !owned.drops().iter().any(|drop| {
-            drop.target() == DropTarget::Named(place.root())
-                && drop.point() == DropPoint::CallReturn(loan.call())
-        }),
-        "a synchronous header read must not commit replacement cleanup"
+    mutable_unit::check_each(
+        "fun replace(): Unit { var values = listOf(1); values = listOf(values.size) }",
+        &[],
+        |sources, parsed, unit, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+            let loan = owned
+                .loans()
+                .iter()
+                .find(|loan| {
+                    assert_eq!(loan.call().source_unit(), unit);
+                    sources
+                        .slice(
+                            parsed
+                                .ast()
+                                .expressions()
+                                .get(loan.call().expression())
+                                .unwrap()
+                                .span(),
+                        )
+                        .unwrap()
+                        == "values.size"
+                })
+                .expect("size read loan");
+            let UnitLoanTarget::Place(place) = loan.target() else {
+                panic!("named receiver")
+            };
+            let rhs = parsed
+                .ast()
+                .expressions()
+                .iter()
+                .find_map(|(id, node)| {
+                    (sources.slice(node.span()).unwrap() == "listOf(values.size)").then_some(id)
+                })
+                .expect("complete replacement RHS");
+            assert_eq!(place.root().source_unit(), unit);
+            let rhs = UnitExpressionId::new(unit, rhs);
+            let old_drops = owned
+                .drops()
+                .iter()
+                .filter(|drop| {
+                    drop.target() == UnitDropTarget::Named(place.root())
+                        && sources.slice(drop.value_origin()).unwrap() == "values"
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(old_drops.len(), 1, "old owner must be dropped exactly once");
+            assert_eq!(
+                old_drops[0].point(),
+                UnitDropPoint::AfterExpression(rhs),
+                "the replacement container must be complete before destroying the old owner"
+            );
+            assert!(
+                !owned.drops().iter().any(|drop| {
+                    drop.target() == UnitDropTarget::Named(place.root())
+                        && drop.point() == UnitDropPoint::CallReturn(loan.call())
+                }),
+                "a synchronous header read must not commit replacement cleanup"
+            );
+        },
     );
 }
 
 #[test]
 fn mutable_list_add_valid_ownership_succeeds() {
-    let (_, _, owned) =
-        checked("fun append(): Unit { var list = mutableListOf(1); list.add(2); list.add(3) }");
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    mutable_unit::check_each(
+        "fun append(): Unit { var list = mutableListOf(1); list.add(2); list.add(3) }",
+        &[],
+        |_, _, _, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        },
+    );
 }
 
 #[test]
 fn mutable_list_add_conflicts_with_active_element_borrow() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun conflict(inout item: Int, action: Unit): Unit {}\n\
          fun append(): Unit {\n\
              var list = mutableListOf(1)\n\
              conflict(&list[0], list.add(2))\n\
          }",
-    );
-    assert_eq!(
-        owned
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0135"]
+        &["L0135"],
+        |_, _, _, owned| {
+            assert_eq!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0135"]
+            );
+        },
     );
 }
 
 #[test]
 fn mutable_list_add_transfers_move_only_elements() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "class Resource { deinit() {} }\n\
          fun consume(own r: Resource): Unit {}\n\
          fun append(own r: Resource): Unit {\n\
@@ -654,40 +682,50 @@ fn mutable_list_add_transfers_move_only_elements() {
              list.add(r)\n\
              consume(r)\n\
          }",
-    );
-    assert_eq!(
-        owned
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0131"]
+        &["L0131"],
+        |_, _, _, owned| {
+            assert_eq!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0131"]
+            );
+        },
     );
 }
 
 #[test]
 fn mutable_list_clear_valid_ownership_succeeds() {
-    let (_, _, owned) =
-        checked("fun clear_it(): Unit { var list = mutableListOf(1, 2); list.clear() }");
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    mutable_unit::check_each(
+        "fun clear_it(): Unit { var list = mutableListOf(1, 2); list.clear() }",
+        &[],
+        |_, _, _, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        },
+    );
 }
 
 #[test]
 fn mutable_list_clear_conflicts_with_active_element_borrow() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun conflict(inout item: Int, action: Unit): Unit {}\n\
          fun clear_it(): Unit {\n\
              var list = mutableListOf(1)\n\
              conflict(&list[0], list.clear())\n\
          }",
-    );
-    assert_eq!(
-        owned
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0135"]
+        &["L0135"],
+        |_, _, _, owned| {
+            assert_eq!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0135"]
+            );
+        },
     );
 }
 
@@ -705,7 +743,7 @@ fn mutable_list_clear_rejects_use_after_move() {
 
 #[test]
 fn mutable_list_remove_at_valid_ownership_succeeds() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "class Resource { deinit() {} }\n\
          fun consume(own r: Resource): Unit {}\n\
          fun remove_it(): Unit {\n\
@@ -713,26 +751,32 @@ fn mutable_list_remove_at_valid_ownership_succeeds() {
              val item = list.removeAt(0)\n\
              consume(item)\n\
          }",
+        &[],
+        |_, _, _, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        },
     );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
 
 #[test]
 fn mutable_list_remove_at_conflicts_with_active_element_borrow() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun conflict(inout item: Int, action: Int): Unit {}\n\
          fun remove_it(): Unit {\n\
              var list = mutableListOf(1, 2)\n\
              conflict(&list[0], list.removeAt(1))\n\
          }",
-    );
-    assert_eq!(
-        owned
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0135"]
+        &["L0135"],
+        |_, _, _, owned| {
+            assert_eq!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0135"]
+            );
+        },
     );
 }
 
@@ -750,7 +794,7 @@ fn mutable_list_remove_at_rejects_use_after_move() {
 
 #[test]
 fn mutable_list_remove_last_valid_ownership_succeeds() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "class Resource { deinit() {} }\n\
          fun consume(own r: Resource): Unit {}\n\
          fun remove_tail(): Unit {\n\
@@ -758,26 +802,32 @@ fn mutable_list_remove_last_valid_ownership_succeeds() {
              val item = list.removeLast()\n\
              consume(item)\n\
          }",
+        &[],
+        |_, _, _, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        },
     );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
 
 #[test]
 fn mutable_list_remove_last_conflicts_with_active_element_borrow() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun conflict(inout item: Int, action: Int): Unit {}\n\
          fun remove_tail(): Unit {\n\
              var list = mutableListOf(1, 2)\n\
              conflict(&list[0], list.removeLast())\n\
          }",
-    );
-    assert_eq!(
-        owned
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0135"]
+        &["L0135"],
+        |_, _, _, owned| {
+            assert_eq!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0135"]
+            );
+        },
     );
 }
 
@@ -795,7 +845,7 @@ fn mutable_list_remove_last_rejects_use_after_move() {
 
 #[test]
 fn mutable_list_remove_first_valid_ownership_succeeds() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "class Resource { deinit() {} }\n\
          fun consume(own r: Resource): Unit {}\n\
          fun remove_head(): Unit {\n\
@@ -803,26 +853,32 @@ fn mutable_list_remove_first_valid_ownership_succeeds() {
              val item = list.removeFirst()\n\
              consume(item)\n\
          }",
+        &[],
+        |_, _, _, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        },
     );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
 
 #[test]
 fn mutable_list_remove_first_conflicts_with_active_element_borrow() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun conflict(inout item: Int, action: Int): Unit {}\n\
          fun remove_head(): Unit {\n\
              var list = mutableListOf(1, 2)\n\
              conflict(&list[0], list.removeFirst())\n\
          }",
-    );
-    assert_eq!(
-        owned
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0135"]
+        &["L0135"],
+        |_, _, _, owned| {
+            assert_eq!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0135"]
+            );
+        },
     );
 }
 
@@ -840,32 +896,38 @@ fn mutable_list_remove_first_rejects_use_after_move() {
 
 #[test]
 fn mutable_list_insert_at_valid_ownership_succeeds() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "class Resource { deinit() {} }\n\
          fun insert_resource(): Unit {\n\
              var list = mutableListOf(Resource())\n\
              list.insertAt(0, Resource())\n\
          }",
+        &[],
+        |_, _, _, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        },
     );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
 
 #[test]
 fn mutable_list_insert_at_conflicts_with_active_element_borrow() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun conflict(inout item: Int, action: Unit): Unit {}\n\
          fun insert_conflict(): Unit {\n\
              var list = mutableListOf(1, 2)\n\
              conflict(&list[0], list.insertAt(0, 42))\n\
          }",
-    );
-    assert_eq!(
-        owned
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0135"]
+        &["L0135"],
+        |_, _, _, owned| {
+            assert_eq!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0135"]
+            );
+        },
     );
 }
 
