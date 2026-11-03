@@ -129,10 +129,12 @@ impl DropPlanner<'_, '_> {
             let old_closure = state.take_closure(symbol);
             if self.checker.is_move_only_variable(symbol) {
                 state.insert(OwnedValue {
+                    owner: None,
                     symbol,
                     origin: self.checker.parsed.ast().expressions().get(id)?.span(),
                     declaration: self.checker.symbol_span(symbol)?,
                     scope_depth: old
+                        .as_ref()
                         .map(|value| value.scope_depth)
                         .or_else(|| self.binding_depths.get(&symbol).copied())
                         .unwrap_or(self.scope_depth),

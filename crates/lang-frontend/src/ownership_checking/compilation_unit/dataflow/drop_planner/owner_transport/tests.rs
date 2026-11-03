@@ -1,0 +1,99 @@
+//! Compare the exact same admitted checker with observation enabled/disabled.
+use super::super::super::*;
+use super::super::plan_with_owner_observation;
+use crate::ownership_checking::compilation_unit::formed_tests::{Fixture, Parts};
+
+fn compare(fixture: &Fixture, parts: &Parts) {
+    let inputs = fixture.inputs();
+    let fields = traversal::collect_field_mutability(&inputs, fixture.names.names()).unwrap();
+    let constructions = collect_construction_descriptors(
+        fixture.typed.types().constructions(),
+        fixture.names.names().index().source_units().len(),
+    )
+    .unwrap();
+    let empty = BTreeMap::new();
+    let catalog = codes::catalog().unwrap();
+    let codes = Codes {
+        use_after_move: catalog.resolve(codes::USE_AFTER_MOVE).unwrap(),
+        partial_move: catalog.resolve(codes::PARTIAL_MOVE).unwrap(),
+        borrowed_move: catalog.resolve(codes::MOVE_FROM_BORROWED_BINDING).unwrap(),
+        loan_conflict: catalog.resolve(codes::LOAN_CONFLICT).unwrap(),
+        immutable_inout: catalog.resolve(codes::IMMUTABLE_INOUT_PLACE).unwrap(),
+        container_element_move: catalog.resolve(codes::MOVE_FROM_CONTAINER_ELEMENT).unwrap(),
+        borrowed_closure_escape: catalog.resolve(codes::BORROWED_CLOSURE_ESCAPE).unwrap(),
+        illegal_owned_capture: catalog.resolve(codes::ILLEGAL_OWNED_CAPTURE).unwrap(),
+        non_transferable_delivery: catalog.resolve(codes::NON_TRANSFERABLE_DELIVERY).unwrap(),
+    };
+    let mut diagnostics = Vec::new();
+    let mut loans = Vec::new();
+    let mut deliveries = Vec::new();
+    let mut receivers = Vec::new();
+    let mut conditional = Vec::new();
+    let mut rc = Vec::new();
+    let mut construction_plans = Vec::new();
+    let mut assertions = Vec::new();
+    let mut callable_sources = callable_provenance::Collection::default();
+    let mut checker = Checker::new(
+        &fixture.sources,
+        &fixture.parsed[0],
+        fixture.source(0),
+        fixture.names.names(),
+        fixture.typed.types(),
+        &parts.bindings,
+        &fields,
+        &parts.arguments,
+        &parts.receivers,
+        &parts.capture.captures,
+        &parts.capture.closures,
+        &parts.capture.transferabilities,
+        constructions.get(&fixture.source(0)).unwrap_or(&empty),
+        codes,
+        &mut diagnostics,
+        &mut loans,
+        &mut deliveries,
+        &mut receivers,
+        &mut conditional,
+        &mut rc,
+        &mut construction_plans,
+        &mut assertions,
+        &mut callable_sources,
+    )
+    .unwrap();
+    checker.range_producers = crate::ownership_checking::range_producer::collect_unit(
+        &fixture.sources,
+        &inputs,
+        fixture.names.names(),
+        fixture.typed.types(),
+    )
+    .unwrap();
+    let drop_analysis = checker.run().unwrap();
+    assert!(drop_analysis.deferred.is_empty());
+    assert!(checker.primitive_deferred.is_empty());
+    let mut observed = plan_with_owner_observation(&checker, true).unwrap();
+    let disabled = plan_with_owner_observation(&checker, false).unwrap();
+    assert!(!observed.owner_observations.is_empty());
+    assert!(disabled.owner_observations.is_empty());
+    observed.owner_observations.clear();
+    assert_eq!(
+        observed, disabled,
+        "all legacy cleanup fields, their identities and order must be identical"
+    );
+}
+
+#[test]
+fn owner_observation_never_changes_existing_cleanup_products() {
+    for text in [
+        r#"fun run(): Unit { var a = "old"; val incoming = "new"; val old = replace(&a, incoming) }"#,
+        r#"fun run(flag: Boolean): Unit { var a = "old"; val old = replace(&a, "new"); if (flag) { val x = "branch" } }"#,
+        r#"fun run(flag: Boolean): Unit { var a = "old"; val old = replace(&a, "new"); while (flag) { break } }"#,
+        r#"fun make(): String = "opaque"
+fun run(): Unit { var a = "old"; val old = replace(&a, "new"); val opaque = make() }"#,
+        r#"fun run(): Unit { var a = "old"; val old = replace(&a, "new"); val callback = move { a + old }; callback() }"#,
+    ] {
+        let fixture = Fixture::new(&[("root.ko", text)]);
+        let shared = fixture.shared();
+        assert!(shared.clone().validate().is_ok());
+        let parts = fixture.parts(&shared);
+        compare(&fixture, &parts);
+    }
+}

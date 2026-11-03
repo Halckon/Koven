@@ -196,8 +196,9 @@ impl PlannerDropFact {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct OwnedValue {
+    pub(super) owner: Option<crate::ownership_checking::UnitOwnerId>,
     pub(super) symbol: UnitSymbolId,
     pub(super) origin: Span,
     pub(super) declaration: Span,

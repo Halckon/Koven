@@ -104,7 +104,7 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         symbol: UnitSymbolId,
         state: &mut ValueState,
-    ) {
+    ) -> Option<super::OwnedValue> {
         if !self.is_asap_owner(symbol, state)
             && let Some(&depth) = self.loop_boundaries.last()
             && state
@@ -114,7 +114,7 @@ impl DropPlanner<'_, '_> {
         {
             self.defer_resource(expression);
         }
-        state.take(symbol);
+        state.take(symbol)
     }
 
     pub(super) fn merge_resource_states(
