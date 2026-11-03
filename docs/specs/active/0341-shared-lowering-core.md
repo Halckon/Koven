@@ -1423,3 +1423,38 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   （835 Markdown）、尺寸守卫（2072 Rust，41 项旧超限，无新增债）及 `git diff --check`
   通过。未运行 Cargo/build/test/Clippy，动态验收与后续组合验证均未完成。
   D10/SPEC-0341/E2 保持 in-progress。
+
+
+## Automatic component L0132 保全候选（2026-11-03）
+
+独立分支 `fix/spec-0341-component-partial-move` 基于远端 main
+`041e8238fb8793ee7837fbbccdc704a77e83c1fd`，不叠加未合入的 L0082 或 owner 候选。
+
+- 静态根因：Unit Phase 2 已生成 `StructuralComponent(field)` 调用与同一调用的真实
+  aggregate projection（泛型字段类型已替换）；Phase 3 的 `check_call` 没有 Single
+  `checker/call.rs` 既有的末端 partial-move 拒绝。因此 MoveOnly 结果未按原合同报 L0132。
+- 只在 `dataflow/traversal.rs` 的正常 call 尾部补拒绝：先结束本次 call loan 与最后使用
+  closure，要求存在正常 continuation、diagnostic count 自 call 开始未变、投影确为
+  StructuralComponent、实际类型为 MoveOnly；primary 取 callee Member 的 name span，
+  label 由原 source-qualified field symbol 查询。保持 Single 的时点及错误抑制规则，
+  不新增部分移动状态，不改变 receiver/loan、owner/capture、drop planner 或类型 producer。
+- 原四个 structural 测试、custom environment、源码及 fixture/sidecar 保留，未退休 Single。
+  新子模块四项分别核原 fixture 的两条精确 code/span 与完整 component Diagnostic、
+  borrowed owner 拒绝、Copyable 分量与显式同名 owned-result 方法通过、receiver L0131
+  优先且无 L0132 级联。错误源另断言不发布 drop plan；不把此断言外推为全域资源等价。
+- 原 fixture 的字段错误先于 component 错误，新增断言保留两者，防止误用全局空诊断门
+  漏掉第二条。完整 component 期望由固定消息、旧 sidecar 的 `214..224` 与原字段源码
+  位置建立；Single 和两种 Unit 各自接受相同完整期望，不从新 producer 重录。
+- 已只读核对 owner Draft #294 的 `0bb1f84702c451f1be5f4e85589b9ea7ff4e4096`：
+  其改动没有 `dataflow/traversal.rs`、`ownership_structural.rs` 或新子模块，双方共同修改
+  SPEC-0341 追加账本。未发布的云端 capture/分支/循环改动无法核对；合批前仍须复核。
+
+| 验收项 | 目标与状态 |
+|---|---|
+| 原回归与四项新增普通源码 | `ownership_structural` 全 target；待官方精确头 CI，未本地执行 |
+| 邻接调用/receiver 行为 | `ownership_checking`、`ownership_two_phase_borrows`、`multifile_two_phase_borrows`、`multifile_ownership_checking`；待官方 CI |
+| 下游与错误门禁 | 既有 frontend/codegen/CLI/LSP、双宿主门禁保持；待官方 CI |
+| 本地静态检查 | rustfmt、diff、836 Markdown 文档检查均通过；2083 Rust、39 项既存超限的尺寸检查通过；原四测试与 fixture/sidecar 逐字保全 |
+
+新回归先于生产修复编写；用户禁止本机 Cargo/build/test/Clippy，未取得动态 red/green。
+没有独立审查或官方 CI 结果，不发布、不推送、不合并；D10/E2 继续 in-progress。
