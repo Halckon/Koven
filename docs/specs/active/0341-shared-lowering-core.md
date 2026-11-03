@@ -1181,7 +1181,8 @@ Draft #282 的精确头 `2ae1e859` 基于 `e89c363`，三个 frontend 测试文�
 
 ## 62. 聚合构造与解构下一批范围（2026-11-02）
 
-本地分支 `fix/spec-0341-aggregate-contract-retirement` 基于实际 main `4723ebc`。
+本批 #283 基于 main `4723ebc`，修订精确头 `8f9d0fb879bfdcdd9dd7f0d11f12eebc00d8072a`
+经 PR CI `41474073941` attempt 2 成功后，已合入 main `7f3f7fb4`。
 目标是以原源码、原环境、原诊断 sidecar 和独立 AST/typed oracle 承接 construction 与
 structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3。
 
@@ -1203,12 +1204,68 @@ structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3
   source-qualified ID 先核来源，再索引实际原 AST/名称，不能跨来源裸比较。
 - 初版双向静审未发现上述动态差异，不能当作等价证明；目标 rustfmt、git diff --check、文档检查（835 Markdown）
   与尺寸守卫（2070 Rust、41 项旧超限，无新增债）通过。未运行本地 Cargo/build/test/Clippy。
-  修订版尚待新的精确头官方 CI；旧头 construction 八项通过不替代新头全套验证。任何不等价项保留 Single，
+  修订版精确头 PR CI 已通过；此证据不冒充后续 #286 与 main 新组合验证。任何不等价项保留 Single，
   不以其他源码同码、测试数或静审替代实际验收。
 
 D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。
 
-### Map 查询与 consume 类型合同的本地候选（2026-11-03，基线 be1022f）
+## 63. two-phase 与 closure 拒绝合同迁移候选（2026-11-03）
+
+原候选 `cbef473d` 基于 main `4723ebc9` 独立重建，不声称恢复此前未发布的提交。
+本地组合现基于 main `be1022f3`，三个 borrow Rust 文件与已独审候选逐字相同；
+仅保留主干账本并顺延本节编号，不将旧静审升级为新头动态验收。
+
+- `ownership_two_phase_borrows` 的 10 个测试、21 个源码配置改由 MemoryDocument/Rooted
+  独立检查原诊断、span/label 与错误清空 oracle；原 Worker prelude、文件名和标准环境保持。
+  剩余 8 个 Single 测试保留，包括实际 loan-end、owner/temporary drop、activation 与
+  overload 选中事实，以及错误时 `loan_ends` 清空见证（Unit 无同名完整列表）；不以 Unit 源码范围代替这些独立 witness。
+- `ownership_closures` 的 6 个测试内 15 个分析源例迁至相同两入口，保留原限制性环境、
+  源码和全部诊断/空事实断言。混合测试的 `this` capture 成功 witness 仍 Single，
+  真实 closure last-use loan-end、owner cleanup、transferability、fixture 等不迁移。
+- 本片候选替换 36 次 Single 分析执行（21 + 15），每入口各 36 次，不等于删除 36 个测试。
+  两个旧 Single helper 仍有调用者，旧 API 静态调用点净减为 0。
+- 两入口分别满足原 oracle，不声称跨入口所有 facts 结构相等，也不声称完整 ownership
+  final-admission。源码具备真实诊断差异时必须保留 witness，不放宽 oracle。
+- 未运行 Cargo/build/test/Clippy，尚无新头官方 CI；迁移仅完成静态准备，不能据此宣称
+  行为等价或 D10/SPEC-0341/E2 完成。本片不改生产实现、E3 或 withValue。
+
+- #288 初版精确头 `98bdb187` 的 PR CI `41566478040` 双平台 Cargo Check 通过，
+  Clippy 因 `ownership_closures` 重复加载 parser assertion 模块及四个传递模块失败；
+  Targeted/Preview 未执行，不能视为行为已验收。本地修订把共享 helper 改为引用 crate 根
+  唯一 parser assertion 模块，two-phase 根补同一声明；源码、断言与迁移计数不变，
+  不添加 lint allow。修订仅静态核验，仍待新精确头官方 CI。
+
+## 64. Nullable 旧测试双入口迁移候选（2026-11-03）
+
+Draft #286 原精确头 `6a582b0749382ea05ec2e09e82f4d6514786a44d` 基于 main `4723ebc`，
+PR CI `41555963781` 成功仅覆盖该旧基线组合。本地现将 #283 合后的 main `7f3f7fb4`
+三方合入：只解决本账本冲突，不改 nullable 测试语义；新组合尚未发布或获官方 CI 验证。
+本候选为重新构建而非此前未发布工作区的恢复；不修改生产实现、Guide 或 E3。
+
+- `ownership_nullable_when` 七个拒绝测试保留 11 个原源与全部原断言，改为分别执行
+  MemoryDocument/Rooted。其余 19 个 Single 成功/owner/loan/cleanup-condition 见证原样保留。
+- `ownership_checking` 的 12 个 `!!` 测试移入行为专属子模块，保留 25 个原源配置及一次
+  重复分析；每种入口执行原诊断、主 span、drop、transfer/Abort、错误清空及循环合同。
+  原 AST 查询只将 Unit operand identity 显式投影到同源 expression；helper 检查来源资格。
+- 两个测试目标各自保留原名称/类型环境：`!!` 仍使用原限制性 `environments()`，nullable
+  when 仍用 `standard_environments()`；不追加 provider 或改源码以让 Unit 通过。
+- 候选退休 37 次 Single 分析执行（11 + 25 + 1），不等于删除 37 个测试或旧公开 API。
+  两个原 Single helper 均仍有调用者；静态 API 调用点净减为 0。原测试函数叶名称、字符串 token
+  和断言数量逐项静态核对不变；源文件名保持。`!!` 的完整测试路径增加子模块前缀，
+  两个现有 CI target 已被 stage 全选，不依赖旧完整测试路径。
+- 每个入口独立检查同一原 oracle，不声称完整跨入口 facts 相等、完整 final-admission，
+  或与 Single 所有内部事实等价。保留的 owner/loan 独立见证不被 Unit span/临时事实替代。
+
+| 验收项 | 目标/选择 | 本候选结果 |
+|---|---|---|
+| 原源与断言保全 | 两原测试目标及 `ownership_checking/non_null_unit.rs`，共 57 个测试名称 | 静态字符串 token 与断言数量核对通过 |
+| 原候选格式与本次 diff | 原候选直接 rustfmt；本次 git diff --check | 原候选格式通过；本次仅解文档冲突，Rust 原字节保留、diff 通过；不运行 Cargo |
+| 原发布头行为及 Clippy | PR CI `41555963781`，精确头 `6a582b07` / 基线 `4723ebc` | 成功；不外推当前 main 组合 |
+| 当前 main 组合行为及 Clippy | main `7f3f7fb4` 与 #286 的本地合并 | 未运行；待发布授权及新精确头官方 CI |
+
+D10/SPEC-0341/E2 继续 in-progress；#286 仍为 Draft、未合入；本地新组合未发布，不将旧基线绿灯或本地静审作为组合验收完成。
+
+## 65. Map 查询与 consume 类型合同的本地候选（2026-11-03，基线 be1022f）
 
 本片独立基于已包含 #283/#284 的 main `be1022f`，不改写上方旧基线验收账本。
 仅迁移 `type_map` 中已有 Unit 对照的五项测试；D10/E2 仍为 in-progress。
