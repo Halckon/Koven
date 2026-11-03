@@ -832,3 +832,6 @@ fn cross_source_events_preserve_caller_target_and_callee_parameter_lineage() {
         unit.validate().unwrap();
     }
 }
+
+#[path = "unit_direct_call_loan_ends/exclusive_prefix.rs"]
+mod exclusive_prefix;

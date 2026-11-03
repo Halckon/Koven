@@ -3,7 +3,9 @@ mod drop_point;
 pub use drop_point::UnitDropPoint;
 
 mod loan;
-pub use loan::{UnitDirectCallLoanEndFact, UnitLoanFact, UnitLoanTarget};
+pub use loan::{
+    UnitDirectCallLoanEndFact, UnitExclusiveCallPrefixEndFact, UnitLoanFact, UnitLoanTarget,
+};
 
 mod analysis;
 mod binding;
@@ -606,6 +608,7 @@ pub struct CompilationUnitOwnership {
     receiver_facts: Vec<UnitReceiverOwnershipFact>,
     conditional_receiver_deliveries: Vec<UnitConditionalReceiverDeliveryFact>,
     delegations: Vec<UnitDelegationOwnershipPlan>,
+    exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
@@ -802,6 +805,11 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
+            exclusive_call_prefix_ends: if successful && dataflow.deferred.is_empty() {
+                dataflow.exclusive_call_prefix_ends
+            } else {
+                Vec::new()
+            },
             direct_call_loan_ends: if successful && dataflow.deferred.is_empty() {
                 dataflow.direct_call_loan_ends
             } else {
@@ -945,6 +953,15 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn direct_call_loan_ends(&self) -> &[UnitDirectCallLoanEndFact] {
         &self.direct_call_loan_ends
+    }
+
+    /// 无 receiver、owned-result 的 declaration/symbol/external 调用中，Exclusive
+    /// owned 名称根实参因 return 放弃调用前缀的实际结束事件。
+    /// 排除借用绑定、provider 来源/绑定、投影、临时值和借用结果。
+    /// 保持真实动作顺序；空列表不证明其它 loan 的状态，abort 不产生 unwind。
+    #[must_use]
+    pub fn exclusive_call_prefix_ends(&self) -> &[UnitExclusiveCallPrefixEndFact] {
+        &self.exclusive_call_prefix_ends
     }
 
     /// 返回源码/调用顺序稳定的有效同步 loans。

@@ -1207,3 +1207,19 @@ structural 的可等价合同，不更改生产能力、Guide、withValue 或 E3
   不以其他源码同码、测试数或静审替代实际验收。
 
 D10/SPEC-0341/E2 继续 in-progress；以上局部退休不关闭未等价 owner、loan、索引或 E3 边界。
+
+
+## 63. Exclusive root return 前缀事件观测（2026-11-03）
+
+基于 main `be1022f` 的本地候选仅增加 Unit 实际 planner 动作的只读观测，不退休 Single。
+
+- `exclusive_call_prefix_ends()` 仅接受无 receiver、owned-result 的直接 declaration/symbol/external
+  调用与 Exclusive owned 名称根；从真实 `EndCallLoan` 顺序提取 return 放弃前缀事件，
+  保留 source-qualified call/argument/target、控制点及同点先行普通 drop 数。
+- 不从 loan descriptor 或 `end_span` 推断执行，不更改注册、正常返回退休或 unwind 遍历。
+  provider、projection、borrowed binding/result、receiver 与正常完成不在此观测片内。
+- 新测试在 Rooted/MemoryDocument 原源上核对 replace return、嵌套逆序、直接 inout 调用、
+  abort 无 unwind、正常返回无前缀事件及未访问实参/借用根/投影/Shared 排除。
+  原 `ownership_primitives.rs` Single witnesses 逐字保留；D10/E2 仍 in-progress。
+- 本地仅执行 direct rustfmt、diff-check、文档与尺寸静态门禁；未运行 Cargo/build/test/Clippy，
+  测试新增断言尚未动态验证，不把该候选当作等价替换证明。后续需精确头官方 CI。
