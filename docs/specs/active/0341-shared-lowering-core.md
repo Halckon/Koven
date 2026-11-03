@@ -1459,3 +1459,48 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   prefix 非空且 Unsupported owner 观察不干扰它。四处生产接线、两份账本冲突已本地整合；
   本节顺延为72，既有64–71完整保留。compilation_unit 组合为1156行，登记精确增长例外，
   待独立静审；仅执行静态门禁，未运行本地 Cargo/build/test/Clippy，未推送，组合动态验证待CI。
+
+## 73. E2 分支 owner 观察边界测试批次（2026-11-03）
+
+基线为 #294 `0bb1f84702c451f1be5f4e85589b9ea7ff4e4096`。本片不开放分支观察，
+不修改生产产品或退休 Single witness；D10/E2 继续 in-progress。
+
+- 新增七种真实分支源：if 值、嵌套 if、两支 replace、Boolean subject when、无 subject
+  when、单支 return 与隐式 else。每种在成功 replace 前缀之后检查首个不支持点为精确
+  source-qualified control expression，definitions/events 整体回滚，旁侧 callable 仍完整。
+- 同批源码复用既有 enabled/disabled planner 比较 helper，比较清空独立 owner 观察后的
+  全部旧 Analysis 字段、身份与顺序；不是 drop 数量或 Span oracle。损坏观察测试分别
+  注入定义与事件，防止 Unsupported 暴露前缀或旁侧 callable lineage。
+- 可达性：`owner_transport_tests::branch_boundaries` 与
+  `drop_planner::owner_transport::tests::branch_boundaries` 已登记到既有 `cfg(test)` 链。
+- 静态检查：独立 rustfmt（只格式化新增文件）、`git diff --check` 和
+  `python3 scripts/check_docs.py`。具体执行结果以本片交付记录为准。
+- 遵守本轮限制，未运行 Cargo/build/test/Clippy。上列 Rust 行为断言均为新增而未执行，
+  需后续精确组合头官方 CI；不据此证明分支 owner graph 已实现或 gate 已通过。
+
+
+## 74. E2 显式 Unit If 无 phi 观察候选（2026-11-03）
+
+基于 §73 本地边界提交 `76776732`（#294 基线 `0bb1f847`）；不假设 capture #298 已合入。
+本片只扩展 Phase 3 的独立观察，不改变合法性/旧 cleanup 产品，不退休 Single witness。
+
+- 显式 else、Unit 结果、两边均继续且 cleanup 后同 symbol 的 owner token 全部相同才
+  准入。真实 then/else 事件分别存储并从同一父 location 重放；没有 Choice/phi，更不
+  从 span、drop 数量或 symbol 交集伪造 owner identity。
+- 原 If cleanup 求值、边界 Drop、continuation 与 merge 顺序移入专用 branch 子模块，
+  观察关闭时走相同路径。隐式 else 仍执行真实 branch cleanup，但不进入新观察切片。
+- 新测试覆盖分支局部定义和 Drop、两支消费同一个输入 token、原 owner 保持到 join
+  后 replace、嵌套 If；损坏测试覆盖扁平化、缺失消费边、外来嵌套 token、重复静态定义
+  创建、错配 BranchExit。保留 §73 七源拒绝矩阵并增加支持源全 planner 开关等价比较。
+- 独立静审后补充两个真实回滚源：成功 then 后 else 遇 Unsupported，以及成功 If 后
+  suffix 遇 Unsupported；均检查精确失败点、全部 prefix/branch 清空、旁侧 callable
+  独立完整。它们与双支 replace 不同 token 拒绝源复用相同源码常量，额外比较完整
+  planner on/off Analysis，防止仅由观察状态或 drop 数量证明 cleanup 不变。
+- 不同存活 token 的 join、String-valued If、return/隐式 else、When/loop/capture
+  保持 Unsupported。后续 Choice 需只引用先前定义、禁止前向和循环引用；return payload
+  必须先 Consume/交付再进行退出 cleanup，非继续边不得伪装成缺失输入。
+- 静态门：独立 rustfmt、文档检查、diff check；结果见本片交接。共用 drop_planner
+  文件缩小，未提升尺寸例外。公开 event 与 validator 将和 capture 分支产生集成交叉，
+  必须在精确组合头独立审查，不能据各片静态检查宣布组合正确。
+- 按本轮限制未运行 Cargo/build/test/Clippy，新增 Rust 断言尚未动态验证；未推送/合入，
+  D10/E2 保持 in-progress，不据此关闭分支身份整体欠账。

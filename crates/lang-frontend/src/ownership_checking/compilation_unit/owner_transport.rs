@@ -6,7 +6,7 @@ use crate::{
 };
 use std::sync::Arc;
 
-/// Callable whose straight-line evaluation owns this observation transaction.
+/// Callable whose evaluation owns this observation transaction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnitOwnerCallable {
     /// Ordinary function body.
@@ -72,7 +72,7 @@ impl UnitOwnerDefinition {
 /// Reason this observation cannot describe a whole callable; not a language error.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnitOwnerUnsupportedReason {
-    /// Branch, loop, destructuring, capture, assignment or another unmodelled node.
+    /// Unsupported control flow, destructuring, capture, assignment or another node.
     Syntax,
     /// A call without the supported checked root-replace contract.
     OpaqueCall,
@@ -101,6 +101,17 @@ pub enum UnitOwnerObservationStatus {
 /// Events emitted at real evaluation/registration/commit transitions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UnitOwnerTransportEvent {
+    /// A Unit-valued If with two continuing paths and identical surviving identities.
+    /// The condition precedes this event. Each ordered arm includes its real cleanup;
+    /// arm 0 is true and arm 1 is false. These are alternatives, never a linear trace.
+    If {
+        /// Source-qualified control expression.
+        control: UnitExpressionId,
+        /// True path, including branch-exit cleanup.
+        then_events: Vec<UnitOwnerTransportEvent>,
+        /// Explicit false path, including branch-exit cleanup.
+        else_events: Vec<UnitOwnerTransportEvent>,
+    },
     /// A consuming Name removed this exact current binding value.
     Move {
         /// Source-qualified evaluated expression.
@@ -231,6 +242,30 @@ impl UnitOwnerTransportEvent {
         owner_eq: &impl Fn(&UnitOwnerId, &UnitOwnerId) -> bool,
     ) -> bool {
         match self {
+            Self::If {
+                control,
+                then_events,
+                else_events,
+            } => match other {
+                Self::If {
+                    control: rhs_control,
+                    then_events: rhs_then,
+                    else_events: rhs_else,
+                } => {
+                    control == rhs_control
+                        && then_events.len() == rhs_then.len()
+                        && else_events.len() == rhs_else.len()
+                        && then_events
+                            .iter()
+                            .zip(rhs_then)
+                            .all(|(left, right)| left.eq_facts(right, owner_eq))
+                        && else_events
+                            .iter()
+                            .zip(rhs_else)
+                            .all(|(left, right)| left.eq_facts(right, owner_eq))
+                }
+                _ => false,
+            },
             Self::Move {
                 expression,
                 symbol,

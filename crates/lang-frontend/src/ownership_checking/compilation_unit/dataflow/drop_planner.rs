@@ -726,33 +726,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 then_branch,
                 else_branch,
                 ..
-            } => {
-                let branch_usage = self.control_result_usage(id);
-                if !self.expression(condition, DropExpressionUse::Read, state)? {
-                    return Ok(false);
-                }
-                let base = state.clone();
-                let mut branch_states = Vec::new();
-                let mut then_state = base.clone();
-                if self.control_body(then_branch, branch_usage, &mut then_state)? {
-                    self.drop_branch_exit(id, 0, &mut then_state);
-                    branch_states.push(then_state);
-                }
-                if let Some(else_branch) = else_branch {
-                    let mut else_state = base;
-                    if self.control_body(else_branch, branch_usage, &mut else_state)? {
-                        self.drop_branch_exit(id, 1, &mut else_state);
-                        branch_states.push(else_state);
-                    }
-                } else {
-                    let mut implicit = base;
-                    self.drop_branch_exit(id, 1, &mut implicit);
-                    branch_states.push(implicit);
-                }
-                let continues = !branch_states.is_empty();
-                *state = self.merge_resource_states(id, branch_states);
-                Ok(continues)
-            }
+            } => self.owner_if_expression(id, condition, then_branch, else_branch, state),
             Expression::When {
                 subject, entries, ..
             } => self.when_expression(id, subject, &entries, state),

@@ -1,4 +1,5 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
+mod branch;
 #[cfg(test)]
 mod tests;
 
@@ -228,6 +229,16 @@ impl DropPlanner<'_, '_> {
         }
         let supported = match self.checker.parsed.ast().expressions().get(id)?.payload() {
             Expression::Name | Expression::Group { .. } | Expression::Return { .. } => true,
+            Expression::If {
+                else_branch: Some(_),
+                ..
+            } => {
+                self.checker
+                    .typed
+                    .expression_type(self.checker.unit_expression(id))
+                    .and_then(|ty| self.checker.typed.types().get(ty))
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+            }
             Expression::Literal(_) => self
                 .checker
                 .typed

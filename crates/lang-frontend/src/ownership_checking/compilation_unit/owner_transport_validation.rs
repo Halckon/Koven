@@ -32,7 +32,7 @@ fn point_source(point: UnitDropPoint) -> SourceUnitId {
 }
 
 impl UnitOwnerObservation {
-    /// Check source/product identity and linear binding/pending/replace conservation.
+    /// Check source/product identity and path-local binding/pending/replace conservation.
     /// This does not grant unsupported syntax or replace ordinary ownership validation.
     pub fn is_consistent(&self) -> bool {
         let source = match self.callable {
@@ -74,9 +74,80 @@ impl UnitOwnerObservation {
             }
             locations.push(location);
         }
-        for event in &self.events {
+        let mut created = locations
+            .iter()
+            .map(|location| *location != Location::Uncreated)
+            .collect::<Vec<_>>();
+        self.replay_owner_events(
+            &self.events,
+            source,
+            &mut locations,
+            &mut created,
+            &mut Vec::new(),
+            None,
+        ) && !locations
+            .iter()
+            .any(|location| matches!(location, Location::Uncreated | Location::Pending(..)))
+    }
+
+    fn replay_owner_events(
+        &self,
+        events: &[UnitOwnerTransportEvent],
+        source: SourceUnitId,
+        locations: &mut [Location],
+        created: &mut [bool],
+        controls: &mut Vec<UnitExpressionId>,
+        edge: Option<(UnitExpressionId, usize)>,
+    ) -> bool {
+        for event in events {
             let valid_owner = |id: &UnitOwnerId| self.definition(id.clone()).is_some();
             match event {
+                UnitOwnerTransportEvent::If {
+                    control,
+                    then_events,
+                    else_events,
+                } => {
+                    if control.source_unit() != source || controls.contains(control) {
+                        return false;
+                    }
+                    controls.push(*control);
+                    let mut left = locations.to_vec();
+                    let mut right = locations.to_vec();
+                    if !self.replay_owner_events(
+                        then_events,
+                        source,
+                        &mut left,
+                        created,
+                        controls,
+                        Some((*control, 0)),
+                    ) || !self.replay_owner_events(
+                        else_events,
+                        source,
+                        &mut right,
+                        created,
+                        controls,
+                        Some((*control, 1)),
+                    ) {
+                        return false;
+                    }
+                    for ((joined, left), right) in locations.iter_mut().zip(left).zip(right) {
+                        if left == right {
+                            *joined = left;
+                        } else if *joined == Location::Uncreated
+                            && matches!(
+                                (left, right),
+                                (Location::Uncreated, Location::Dropped)
+                                    | (Location::Dropped, Location::Uncreated)
+                            )
+                        {
+                            // This static definition exists on one edge only and was really
+                            // dropped there. It is unavailable after either continuation.
+                            *joined = Location::Dropped;
+                        } else {
+                            return false;
+                        }
+                    }
+                }
                 UnitOwnerTransportEvent::Move {
                     expression,
                     symbol,
@@ -100,6 +171,8 @@ impl UnitOwnerObservation {
                         || point_source(*point) != source
                         || symbol.source_unit() != source
                         || locations[owner.index] != Location::Named(*symbol)
+                        || matches!(point, UnitDropPoint::BranchExit { control, branch }
+                            if edge != Some((*control, *branch)))
                     {
                         return false;
                     }
@@ -112,7 +185,13 @@ impl UnitOwnerObservation {
                     match locations[owner.index] {
                         Location::Uncreated
                             if self.definitions[owner.index].origin
-                                == UnitOwnerOrigin::String(*expression) => {}
+                                == UnitOwnerOrigin::String(*expression) =>
+                        {
+                            if created[owner.index] {
+                                return false;
+                            }
+                            created[owner.index] = true;
+                        }
                         Location::Result(_) => {}
                         _ => return false,
                     }
@@ -171,8 +250,6 @@ impl UnitOwnerObservation {
                 }
             }
         }
-        !locations
-            .iter()
-            .any(|location| matches!(location, Location::Uncreated | Location::Pending(..)))
+        true
     }
 }
