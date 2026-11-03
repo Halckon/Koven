@@ -44,7 +44,9 @@ fn lower_unit_impl(
     let (sources, inputs) = source_inputs;
     let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
     // Both sealed views have already checked the complete frontend identity chain.
-    // This whole-set capability check must precede instance planning and Module creation
+    // Declarations are validated unconditionally for every unit.
+    super::borrow_result::validate_declarations(&parsed_by_source, typed, owned)?;
+    // Legacy whole-source binding/iteration checks precede instance planning and Module creation
     // for legacy units; units using ssa::refine-exclusive constructs validate in refine.
     let unit_has_refine_constructs = !owned.field_replacements().is_empty()
         || !typed.ownership_primitives().is_empty()
@@ -68,7 +70,7 @@ fn lower_unit_impl(
             });
     if !unit_has_refine_constructs {
         super::map_iteration::validate(&parsed_by_source, names, typed, owned)?;
-        super::borrow_result::validate(&parsed_by_source, names, typed, owned)?;
+        super::borrow_result::validate_bindings(&parsed_by_source, names, typed, owned)?;
     }
     // Runtime global initialization is not lowered yet. Check every source root,
     // including unused declarations, before reachability can discard its initializer.
