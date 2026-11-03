@@ -1460,7 +1460,98 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   本节顺延为72，既有64–71完整保留。compilation_unit 组合为1156行，登记精确增长例外，
   待独立静审；仅执行静态门禁，未运行本地 Cargo/build/test/Clippy，未推送，组合动态验证待CI。
 
-### Capture formation 的保守后继候选（2026-11-03）
+## 73. L0082 builtin 实参标签保全候选（2026-11-03）
+
+独立分支 `fix/spec-0341-l0082-label-parity` 基于远端 main
+`041e8238fb8793ee7837fbbccdc704a77e83c1fd`，tree
+`226587cdddaec9ae697adaf78378e40dbf26caa0`。本片仅修 Phase 2 的真实诊断差距，
+不退休 Single，不改变类型接受性、final admission、ownership 或 E3。
+
+- 原 Range L0082 的 Single 带类型名 label，Unit signature 仅有主诊断；Unit body 对同一
+  builtin 身份已带 label。signature 的 `ExternalTypeBinding::Builtin` 非空实参一臂
+  复用现有 `emit_with_label`，label 取该轮真实 `segment.name_span`，primary、code、
+  message 和排序不变。未修改 capability、intrinsic 或 external Value 的独立诊断合同。
+- 保留 Range 原全部源码与 Single producer，将双预期收敛为保全既有 Single 的独立
+  label oracle，并恢复无例外的完整 raw/final Diagnostic 相等断言；不是只删比较差异。
+- 新子模块挂在既有 `integer_range_values` target 下，覆盖 Int/Boolean/IntRange/LongRange
+  的 signature 参数与 body 局部标注、return signature 与 body 混合顺序、Unicode/CRLF，
+  以及两真实源逆序输入的来源隔离。由源码 token 和固定消息构造完整独立 Diagnostic，
+  分别核 signature/body/raw/final 序列；成功或 Internal 均不得作为拒绝。
+- 新回归在生产修改前编写；本地禁止 Cargo/build/test/Clippy，未取得动态 red/green。
+  静态门与后续官方 CI 分开记账，D10/E2 仍 in-progress，不归档本 Spec。
+
+| 验收项 | 目标与结果 |
+|---|---|
+| 完整直接诊断与旧见证 | `integer_range_values` 全 target，含新增三个测试；待官方 CI，未本地执行 |
+| body 邻接与资格 | `multifile_type_checking`、`multifile_constant_qualification`、`final_type_admission`；待官方 CI |
+| 下游与工程门 | 既有 CLI/LSP、双宿主 check/clippy 与完整既有选择保持；待官方 CI |
+| 本地静态门 | 直接 rustfmt 与 diff 通过；文档检查 836 Markdown 通过；尺寸检查 2083 Rust、39 项既存超限通过，无新增例外 |
+
+签名文件从 1019 增为 1021 行；沿用现有 1036 行有限例外，不修改尺寸 policy。
+新增两行只把同一 L0082 的现有来源交给同文件既有发射接口，不增加签名职责或公开 API；
+此说明是本地变更范围核对，不冒称独立审查。未推送、发布、联系他人或合并。
+
+
+## 74. Automatic component L0132 保全候选（2026-11-03）
+
+独立分支 `fix/spec-0341-component-partial-move` 基于远端 main
+`041e8238fb8793ee7837fbbccdc704a77e83c1fd`，不叠加未合入的 L0082 或 owner 候选。
+
+- 静态根因：Unit Phase 2 已生成 `StructuralComponent(field)` 调用与同一调用的真实
+  aggregate projection（泛型字段类型已替换）；Phase 3 的 `check_call` 没有 Single
+  `checker/call.rs` 既有的末端 partial-move 拒绝。因此 MoveOnly 结果未按原合同报 L0132。
+- 只在 `dataflow/traversal.rs` 的正常 call 尾部补拒绝：先结束本次 call loan 与最后使用
+  closure，要求存在正常 continuation、diagnostic count 自 call 开始未变、投影确为
+  StructuralComponent、实际类型为 MoveOnly；primary 取 callee Member 的 name span，
+  label 由原 source-qualified field symbol 查询。保持 Single 的时点及错误抑制规则，
+  不新增部分移动状态，不改变 receiver/loan、owner/capture、drop planner 或类型 producer。
+- 原四个 structural 测试、custom environment、源码及 fixture/sidecar 保留，未退休 Single。
+  新子模块四项分别核原 fixture 的两条精确 code/span 与完整 component Diagnostic、
+  borrowed owner 拒绝、Copyable 分量与显式同名 owned-result 方法通过、receiver L0131
+  优先且无 L0132 级联。错误源另断言不发布 drop plan；不把此断言外推为全域资源等价。
+- 原 fixture 的字段错误先于 component 错误，新增断言保留两者，防止误用全局空诊断门
+  漏掉第二条。完整 component 期望由固定消息、旧 sidecar 的 `214..224` 与原字段源码
+  位置建立；Single 和两种 Unit 各自接受相同完整期望，不从新 producer 重录。
+- 已只读核对 owner Draft #294 的 `0bb1f84702c451f1be5f4e85589b9ea7ff4e4096`：
+  其改动没有 `dataflow/traversal.rs`、`ownership_structural.rs` 或新子模块，双方共同修改
+  SPEC-0341 追加账本。未发布的云端 capture/分支/循环改动无法核对；合批前仍须复核。
+
+| 验收项 | 目标与状态 |
+|---|---|
+| 原回归与四项新增普通源码 | `ownership_structural` 全 target；待官方精确头 CI，未本地执行 |
+| 邻接调用/receiver 行为 | `ownership_checking`、`ownership_two_phase_borrows`、`multifile_two_phase_borrows`、`multifile_ownership_checking`；待官方 CI |
+| 下游与错误门禁 | 既有 frontend/codegen/CLI/LSP、双宿主门禁保持；待官方 CI |
+| 本地静态检查 | rustfmt、diff、836 Markdown 文档检查均通过；2083 Rust、39 项既存超限的尺寸检查通过；原四测试与 fixture/sidecar 逐字保全 |
+
+新回归先于生产修复编写；用户禁止本机 Cargo/build/test/Clippy，未取得动态 red/green。
+没有独立审查或官方 CI 结果，不发布、不推送、不合并；D10/E2 继续 in-progress。
+
+## 75. Receiver 接受/激活及 Map 接受合同退休候选（2026-11-03）
+
+本地基线 main `041e8238`；不依赖尚未合入的 #294 owner transport，也不累计其他并行候选。
+本片只修改两个 integration suite 的四项测试，生产算法、公开 API 和 E3 不变。
+
+- `ownership_two_phase_borrows` 的 completed nested reads 四源、disjoint fields 一源，
+  保留原无诊断谓词、源码和 standard environments，分别在 MemoryDocument/Rooted 执行。
+- 同文件 loop-exit 两源与 branch-return 一源改读既有真实 `receiver_facts()`。
+  Single 的 `Some(DropPoint::CallEntry(call))` 对应 Unit receiver 专用 activation identity
+  `Some(call)`，提前退出仍为 `None`；这不是从 loan `end_span` 推断实际结束事件。
+  loop 两 reservation 另外核对不同 call ID、原 receiver/call 源片段；branch 核对唯一外层
+  reservation 与原 call 源片段，避免仅用数量相等代替身份断言。现有
+  `multifile_two_phase_borrows` 的 loop/branch/activation 合同是 main 上的直接 Unit 参照，
+  不将该参照或静审称为本次原源码的动态通过证据。
+- `ownership_map_with` 仅迁 scoped String action/restored receiver 的无诊断消费者，复用
+  原双 Unit helper，继续检查 callback 参数模式/类型及同次 final type admission。
+  generic borrow 的四源、原 Single helper 和 loans 数量见证保持逐字不变。
+- 合计候选退休九次 Single 执行（4 + 1 + 3 + 1），不是删除九个测试或任何旧 API。
+  每个迁移源现在保留两个 Unit 输入模式。所有测试名、其他测试与原分析 helper 保全；
+  loan-end、owner/drop、overload 和 conditional-capture 的独立 Single 见证不动。
+  receiver activation 不证明 cleanup 完整性，也不授予未支持的 owner/loan graph 能力。
+- 直接 rustfmt、静态源码与未改见证/helper 保全、文档检查、尺寸守卫及 `git diff --check`
+  用于本地静审；按要求未运行 Cargo/build/test/Clippy。动态验收、精确组合头 CI 和独立
+  审查仍待完成，未推送或合入，D10/SPEC-0341/E2 继续 in-progress。
+
+## 78. Capture formation 的保守后继候选（2026-11-03）
 
 基于 #294 精确头 `0bb1f84702c451f1be5f4e85589b9ea7ff4e4096` 的独立本地候选；
 仅扩展 Phase 3 Unit owner 观察，不退休 Single witness，不改变语言或 Phase 4 能力。

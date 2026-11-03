@@ -62,8 +62,8 @@ fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
     (single, unit)
 }
 
-// Negative consumers use original bytes through both Unit entry modes. Positive
-// witnesses retain the independent Single helper and its ownership observations.
+// Diagnostic-only consumers use original bytes through both Unit entry modes.
+// The generic loan witness retains the independent Single helper and its facts.
 fn checked_unit(text: &str) -> (CompilationUnitOwnership, CompilationUnitOwnership) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("map.ko", text).unwrap();
@@ -128,13 +128,10 @@ fn checked_unit(text: &str) -> (CompilationUnitOwnership, CompilationUnitOwnersh
 #[test]
 fn scoped_map_action_borrows_string_and_restores_receiver() {
     let text = "fun run() { var m = mutableMapOf<String, String>(); m.put(\"key\", \"value\"); val hit = m.withValue(\"key\", { value -> println(value) }); m.put(\"next\", \"after\") }";
-    let (single, unit) = checked(text);
-    assert!(
-        single.diagnostics().is_empty(),
-        "{:?}",
-        single.diagnostics()
-    );
-    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+    let (memory, rooted) = checked_unit(text);
+    for owned in [&memory, &rooted] {
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    }
 }
 
 #[test]
