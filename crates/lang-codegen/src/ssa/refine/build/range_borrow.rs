@@ -21,6 +21,8 @@ use crate::ssa::{
     refine::body::{ROp, RTerm, Slot},
 };
 
+type BorrowCallOperand = (Slot, Vec<Slot>, Option<ExpressionId>);
+
 impl Builder<'_, '_> {
     pub(super) fn ungrouped_expr(
         &self,
@@ -388,7 +390,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionId,
         span: Span,
-    ) -> Result<Option<(Slot, Vec<Slot>, Option<ExpressionId>)>, LoweringError> {
+    ) -> Result<Option<BorrowCallOperand>, LoweringError> {
         let root = self.ungrouped_expr(expression)?;
         let id = self.unit(root);
         if self.inputs.typed.aggregate_projection(id).is_some() {
@@ -700,7 +702,7 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         parameter: UnitTypeId,
         span: Span,
-    ) -> Result<Option<(Slot, Vec<Slot>, Option<ExpressionId>)>, LoweringError> {
+    ) -> Result<Option<BorrowCallOperand>, LoweringError> {
         let actual = self.ungrouped_expr(expression)?;
         if let (Expression::Name, root_span) = self.node(actual)?
             && let Ok(symbol) = self.reference(root_span)
