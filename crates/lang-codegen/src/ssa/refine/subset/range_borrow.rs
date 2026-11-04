@@ -77,6 +77,9 @@ impl Checker<'_, '_> {
         let typed = self.inputs.typed;
         if typed.ownership_primitive(id).is_some()
             || self.inputs.owned.field_replacement(id).is_some()
+            || typed
+                .non_null_assertion(id)
+                .is_some_and(|d| self.map_kv(self.c(d.inner_type())).is_some())
             || typed.rc_operation(id).is_some()
             || typed.map_with_value(id).is_some()
             || typed.map_require_value(id).is_some()

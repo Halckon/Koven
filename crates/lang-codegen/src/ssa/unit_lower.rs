@@ -19,7 +19,6 @@ mod container;
 mod control;
 mod deinit;
 mod deinit_borrow;
-mod enum_lower;
 mod field_borrow;
 mod handoff;
 mod loop_control;
@@ -28,7 +27,6 @@ mod map_borrow;
 mod map_consume;
 mod map_iteration;
 mod map_result;
-mod non_null_assertion;
 mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
@@ -308,7 +306,7 @@ impl UnitExpressionLowerer<'_> {
                     self.lower_aggregate_construction(expression, span)
                 }
                 lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
-                    self.lower_enum_construction(expression, span)
+                    Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
                 }
             };
         }
@@ -341,8 +339,7 @@ impl UnitExpressionLowerer<'_> {
             Expression::Name => self.lower_name(expression, span),
             Expression::This => self.lower_this(expression, span),
             Expression::Group { expression } => self.lower(*expression),
-            Expression::NonNullAssert { .. } => self.lower_non_null_assertion(expression, span),
-            Expression::TypeTest { .. } => {
+            Expression::NonNullAssert { .. } | Expression::TypeTest { .. } => {
                 Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
             Expression::Call {

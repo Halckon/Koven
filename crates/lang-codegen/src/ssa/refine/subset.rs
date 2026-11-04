@@ -98,6 +98,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         checker.migrated |= checker.container_element(ty).is_some()
             || checker.range_type(ty)
             || checker.box_payload(ty).is_some()
+            || checker.enum_type(ty)
             || checker.box_enum_type(ty)
             || checker.map_kv(ty).is_some()
             || checker.rc_payload(ty).is_some()
@@ -615,9 +616,12 @@ impl Checker<'_, '_> {
                 let saved = self.view_symbols.clone();
                 let cond_ok = self.condition(condition, true);
                 let then_ok = cond_ok && self.statement(then_branch);
+                self.view_symbols = saved.clone();
+                self.note_else_view(condition);
+                let else_ok = else_branch.is_none_or(|branch| self.statement(branch));
                 self.view_symbols = saved;
                 then_ok
-                    && else_branch.is_none_or(|branch| self.statement(branch))
+                    && else_ok
                     && (self.unit(ty) || else_branch.is_some())
                     && (!returns || else_branch.is_some())
             }
@@ -815,10 +819,8 @@ impl Checker<'_, '_> {
                 Some(UnitTypeKind::Nullable(inner)) if self.view_inner(*inner) => {
                     if views && fact.non_null_when_true() {
                         self.view_symbols.insert(fact.symbol());
-                        true
-                    } else {
-                        !views
                     }
+                    true
                 }
                 _ => false,
             };
@@ -856,6 +858,20 @@ impl Checker<'_, '_> {
                 ok
             }
             _ => self.expression(expression),
+        }
+    }
+
+    fn note_else_view(&mut self, condition: ExpressionId) {
+        let root = self.ungrouped(condition);
+        let id = self.id(root);
+        if let Some(fact) = self.inputs.typed.null_comparison(id)
+            && !fact.non_null_when_true()
+            && self.known.contains(&fact.symbol())
+            && (self.scope_requires_refine() || self.is_map_remove_symbol(fact.symbol()))
+            && let Some(UnitTypeKind::Nullable(inner)) = self.kind(self.c(fact.nullable_type()))
+            && self.view_inner(*inner)
+        {
+            self.view_symbols.insert(fact.symbol());
         }
     }
 

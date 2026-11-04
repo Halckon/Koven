@@ -265,16 +265,7 @@ impl UnitExpressionLowerer<'_> {
             self.typed.types().get(receiver_type),
             Some(UnitTypeKind::EnumCase { .. })
         ) {
-            let Some(receiver) = explicit_receiver else {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            };
-            return self.lower_enum_projection(
-                expression,
-                projection,
-                receiver,
-                receiver_type,
-                span,
-            );
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let Some(UnitTypeKind::Nominal {
             declaration,

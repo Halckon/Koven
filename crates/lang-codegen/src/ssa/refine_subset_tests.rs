@@ -409,3 +409,45 @@ fn map_iteration_require_value_range_view_and_control_edges_route_to_refine() {
     );
     assert!(res.is_ok(), "{:?}", res.err());
 }
+
+#[test]
+fn enum_construction_for_borrowed_string_when_and_else_views_route_to_refine() {
+    for source in [
+        "enum class Shape { Circle(r: Int), Point }\n\
+         fun f(): Shape = Shape.Circle(2)",
+        "enum class Code { Bad(offset: Int), Other }\n\
+         enum class Reply { Ok(text: String), Err(error: Code) }\n\
+         fun f(own r: Reply): Int = when (r) {\n\
+             is Reply.Ok -> 0\n\
+             is Reply.Err -> {\n\
+                 val c = r.error\n\
+                 when (c) { is Code.Bad -> c.offset; else -> 1 }\n\
+             }\n\
+         }",
+        "fun f(): Int {\n\
+             var total = 0\n\
+             val xs = listOf(\"a\".clone(), \"b\".clone())\n\
+             for (item in xs) {\n\
+                 total = total + when (item) { \"a\" -> 1; else -> 2 }\n\
+             }\n\
+             return total\n\
+         }",
+        "class Node(val v: Int)\n\
+         fun make(): Node? = Node(7)\n\
+         fun f(flag: Boolean, own probe: Node?, own n: Node?): Int {\n\
+             val chosen = (when (flag) { true, false -> if (probe == null) { n } else { make() } })!!\n\
+             return chosen.v\n\
+         }",
+        "fun observe(s: String): Unit { println(s) }\n\
+         fun f(): Unit {\n\
+             var m = mutableMapOf<Int, String>()\n\
+             m.put(1, \"v\".clone())\n\
+             val first = m.remove(1)\n\
+             if ((first == null)) { println(\"none\") } else { observe(first) }\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}

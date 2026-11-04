@@ -285,7 +285,10 @@ impl Builder<'_, '_> {
                     span,
                 )?;
                 self.narrowed.insert(fact.symbol(), narrowed);
-            } else if !views || !fact.non_null_when_true() || drops_owner {
+            } else if !views
+                || (!fact.non_null_when_true() && control_span.is_none())
+                || drops_owner
+            {
                 // Outside a view-opening condition or when the owner dies right after the
                 // test, its proof ends immediately before the drop.
                 self.push(ROp::BorrowEnd { loan: view }, Vec::new(), span)?;

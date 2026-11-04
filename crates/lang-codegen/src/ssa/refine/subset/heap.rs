@@ -472,7 +472,10 @@ impl Checker<'_, '_> {
             }
             // Temporaries, including branch results whose other branches leave the
             // enclosing call, loop or function before the assertion.
-            Expression::Call { .. } | Expression::If { .. } | Expression::Index { .. } => {
+            Expression::Call { .. }
+            | Expression::If { .. }
+            | Expression::When { .. }
+            | Expression::Index { .. } => {
                 descriptor.source_category() == NullableWhenSubjectCategory::Temporary
             }
             _ => false,

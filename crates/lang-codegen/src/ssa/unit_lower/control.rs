@@ -5,21 +5,16 @@ mod conditional;
 mod nullable_if;
 #[cfg(test)]
 mod result_tests;
-mod when_subject;
-
-use when_subject::{OwnedWhenSubject, WhenSubjectValue};
 
 use std::collections::BTreeMap;
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
-    ownership_checking::{UnitDropPoint, UnitDropTarget, UnitShortCircuitRhs},
-    parser::{Expression, LiteralKind, TypeRef, WhenCondition, WhenEntry},
+    ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
+    parser::{Expression, LiteralKind, WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{
-        BuiltinType, Copyability, UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
-    },
+    type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitTypeId, UnitTypeKind},
 };
 
 use super::{
@@ -291,30 +286,25 @@ impl UnitExpressionLowerer<'_> {
             ) {
                 return self.missing_nullable_when_descriptor(entries, span);
             }
-            let subject_ssa = self.expression_ssa_type(subject, span)?;
-            let is_boolean = builtin_type(self.typed, subject_type) == Some(BuiltinType::Boolean);
-            let is_tagged = self
-                .enum_payloads
-                .keys()
-                .any(|(tagged, _)| *tagged == subject_ssa);
-            if !is_boolean && !is_tagged {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
-            if is_tagged {
-                let subject_root = if self.typed.copyability(subject_type) == Copyability::MoveOnly
-                {
-                    Some(self.owned_when_subject(subject, span)?)
-                } else {
-                    None
-                };
-                return self.lower_when_chain(
-                    expression,
-                    Some((subject, Some(subject_ssa))),
-                    subject_root,
-                    entries,
-                    span,
-                    result,
-                );
+            if builtin_type(self.typed, subject_type) != Some(BuiltinType::Boolean) {
+                let rejection_span = entries
+                    .iter()
+                    .flat_map(|entry| &entry.conditions)
+                    .find_map(|condition| match condition {
+                        WhenCondition::Expression(expr) => self
+                            .parsed
+                            .ast()
+                            .expressions()
+                            .get(*expr)
+                            .ok()
+                            .map(|node| node.span()),
+                        _ => None,
+                    })
+                    .unwrap_or(span);
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    rejection_span,
+                ));
             }
             if let Some(arms) = self.boolean_literal_arms(entries)? {
                 return match (arms.when_true, arms.when_false) {
@@ -346,25 +336,13 @@ impl UnitExpressionLowerer<'_> {
                         span,
                         result,
                     ),
-                    (None, Some(_)) | (None, None) => self.lower_when_chain(
-                        expression,
-                        Some((subject, None)),
-                        None,
-                        entries,
-                        span,
-                        result,
-                    ),
+                    (None, Some(_)) | (None, None) => {
+                        self.lower_when_chain(expression, Some(subject), entries, span, result)
+                    }
                 };
             }
         }
-        self.lower_when_chain(
-            expression,
-            subject.map(|subject| (subject, None)),
-            None,
-            entries,
-            span,
-            result,
-        )
+        self.lower_when_chain(expression, subject, entries, span, result)
     }
 
     fn boolean_literal_arms(
@@ -449,14 +427,14 @@ impl UnitExpressionLowerer<'_> {
     fn lower_when_chain(
         &mut self,
         expression: ExpressionId,
-        subject: Option<(ExpressionId, Option<SsaTypeId>)>,
-        subject_root: Option<OwnedWhenSubject>,
+        subject: Option<ExpressionId>,
         entries: &[WhenEntry],
         span: Span,
         result: ControlResult,
     ) -> Result<LoweredValue, LoweringError> {
-        let (subject, subject_root) =
-            self.lower_when_subject(subject, subject_root, entries, span)?;
+        let subject = subject
+            .map(|expression| self.require_expression_value(expression))
+            .transpose()?;
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let baseline_closures = self.closure_bindings.clone();
@@ -550,20 +528,7 @@ impl UnitExpressionLowerer<'_> {
                 self.pending_call_frames = next_frames;
                 let entry_temporaries = next_temporaries.keys().copied().collect::<Vec<_>>();
                 self.temporaries = next_temporaries;
-                // Owned subjects cross each condition edge through the ordinary binding carry.
-                let current_subject = if let Some(root) = subject_root {
-                    let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
-                        return Err(lowering_error(LoweringErrorKind::MissingFact, entry.span));
-                    };
-                    let Some(WhenSubjectValue::TaggedOwner { tagged, .. }) = subject else {
-                        return Err(lowering_error(LoweringErrorKind::MissingFact, entry.span));
-                    };
-                    Some(WhenSubjectValue::TaggedOwner { owner, tagged })
-                } else {
-                    subject
-                };
-                let condition =
-                    self.lower_when_condition(current_subject, condition, entry.span)?;
+                let condition = self.lower_when_condition(subject, condition, entry.span)?;
                 if self.temporaries.keys().copied().ne(entry_temporaries) {
                     return Err(lowering_error(
                         LoweringErrorKind::UnsupportedNode,
@@ -721,20 +686,7 @@ impl UnitExpressionLowerer<'_> {
         )) = unmatched
         {
             if result.required || self.typed.expression_falls_through(control) == Some(false) {
-                if subject.and_then(WhenSubjectValue::tagged_type).is_some() {
-                    self.function
-                        .set_abort_terminator(
-                            unmatched_block,
-                            crate::ssa::model::AbortReason::Text(
-                                "internal error: when subject matched no branch".to_owned(),
-                            ),
-                            Origin::Source(span),
-                        )
-                        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                } else {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
-                return self.merge_unit_exits(exits, span);
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             self.block = unmatched_block;
             self.current_receiver = unmatched_receiver;
@@ -773,84 +725,15 @@ impl UnitExpressionLowerer<'_> {
 
     fn lower_when_condition(
         &mut self,
-        subject: Option<WhenSubjectValue>,
+        subject: Option<ValueId>,
         condition: &WhenCondition,
         span: Span,
     ) -> Result<ValueId, LoweringError> {
-        if let WhenCondition::TypeTest {
-            negated, type_ref, ..
-        } = condition
-        {
-            let Some((subject, tagged)) =
-                subject.and_then(|subject| subject.tagged_type().map(|tagged| (subject, tagged)))
-            else {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            };
-            let node = self
-                .parsed
-                .ast()
-                .type_refs()
-                .get(*type_ref)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let TypeRef::Qualified { segments, .. } = node.payload() else {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    node.span(),
-                ));
-            };
-            let symbol = segments
-                .last()
-                .and_then(|segment| {
-                    self.type_references
-                        .get(&super::span_key(segment.name_span))
-                })
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            let target = self
-                .typed
-                .type_ref_type(UnitTypeRefId::new(self.source_unit, *type_ref))
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            let Some(UnitTypeKind::EnumCase { case, root }) = self.typed.types().get(target) else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
-            };
-            let root = resolve_concrete_type(
-                self.typed,
-                *root,
-                self.substitutions,
-                self.static_self,
-                node.span(),
-            )?;
-            if *case != symbol || self.type_ids.get(&root) != Some(&tagged) {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
-            }
-            let (variant, _) = self
-                .enum_payloads
-                .get(&(tagged, symbol))
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            return match subject {
-                WhenSubjectValue::TaggedOwner { owner, .. } => {
-                    self.lower_enum_tag_test(owner, variant, *negated, span)
-                }
-                WhenSubjectValue::TaggedDiscriminant { tag, .. } => {
-                    self.lower_enum_discriminant_test(tag, variant, *negated, span)
-                }
-                WhenSubjectValue::Boolean(_) => {
-                    Err(lowering_error(LoweringErrorKind::MissingFact, span))
-                }
-            };
-        }
         let WhenCondition::Expression(expression) = condition else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        if let Some(WhenSubjectValue::TaggedOwner { owner, tagged }) = subject {
-            return self.lower_copyable_enum_case_condition(owner, tagged, *expression, span);
-        }
-        if matches!(subject, Some(WhenSubjectValue::TaggedDiscriminant { .. })) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let candidate = self.require_expression_value(*expression)?;
-        let Some(WhenSubjectValue::Boolean(subject)) = subject else {
+        let Some(subject) = subject else {
             return Ok(candidate);
         };
         let boolean = self.expression_ssa_type(*expression, span)?;

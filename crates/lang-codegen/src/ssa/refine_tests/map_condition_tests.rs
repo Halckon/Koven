@@ -470,3 +470,64 @@ fn retired_ownership_primitive_boundary_tests() {
         )
     );
 }
+
+#[test]
+fn retired_enum_when_non_null_assertion_and_mutable_list_boundary_tests() {
+    use crate::ssa::LoweringErrorKind;
+
+    for (source, expected_slice) in [
+        (
+            "enum class Shape { Circle(r: Int), Point }\nfun main(): Unit { val s = Shape.Circle(2) }",
+            "Shape.Circle(2)",
+        ),
+        (
+            "enum class Shape { Circle(r: Int), Point }\nfun main(s: Shape): Boolean = s is Shape.Circle",
+            "s is Shape.Circle",
+        ),
+        ("class Node()\nfun main(own n: Node?): Node = n!!", "n!!"),
+        (
+            "fun main(): Unit { var xs = mutableListOf<Int>(); xs.add(1) }",
+            "xs.add(1)",
+        ),
+        (
+            "fun main(): Unit { var xs = mutableListOf<Int>(); xs.clear() }",
+            "xs.clear()",
+        ),
+        (
+            "fun main(): Int { var xs = mutableListOf<Int>(); return xs.removeAt(0) }",
+            "xs.removeAt(0)",
+        ),
+        (
+            "fun main(): Int { var xs = mutableListOf<Int>(); return xs.removeFirst() }",
+            "xs.removeFirst()",
+        ),
+        (
+            "fun main(): Int { var xs = mutableListOf<Int>(); return xs.removeLast() }",
+            "xs.removeLast()",
+        ),
+        (
+            "fun main(): Unit { var xs = mutableListOf<Int>(); xs.insertAt(0, 1) }",
+            "xs.insertAt(0, 1)",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_env, type_env) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
+        let entry = declaration(&names, "p", "main");
+        let err = crate::ssa::with_per_family_lowering(|| {
+            lower_scalar_unit_with_entry(
+                &sources, &inputs, &names, &type_env, &typed, &owned, entry,
+            )
+        })
+        .err()
+        .unwrap_or_else(|| {
+            panic!("expected UnsupportedNode under per-family lowering for: {source}")
+        });
+        assert_eq!(err.kind, LoweringErrorKind::UnsupportedNode, "{source}");
+        let span = err.span.expect("exact rejection span");
+        assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
+    }
+}

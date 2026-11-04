@@ -256,7 +256,15 @@ impl Checker<'_, '_> {
         let Ok(call_node) = self.inputs.parsed.ast().expressions().get(call) else {
             return false;
         };
-        if (self.span_has_control_transfer(call_node.span()) && !self.call_has_field_replace(call))
+        let is_extension = self
+            .inputs
+            .typed
+            .call(self.id(call))
+            .is_some_and(|d| self.is_extension_call(d));
+        if (self.span_has_control_transfer(call_node.span())
+            && !self.call_has_field_replace(call)
+            && !is_extension
+            && !self.scope_requires_refine())
             || self.copyability_of(parameter) != Copyability::MoveOnly
             || !self.storage_type(parameter)
         {
