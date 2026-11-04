@@ -31,14 +31,26 @@ struct Ids {
 fn fixture() -> (Model, Ids) {
     let fixture = Fixture::new(&[("root.ko", SOURCE)]);
     let owned = fixture.shared();
-    let catalog = owned.owner_observations()[0].clone();
+    model_from(&fixture, &owned)
+}
+
+fn model_from(fixture: &Fixture, owned: &CompilationUnitOwnership) -> (Model, Ids) {
+    let catalog = owned
+        .owner_observations()
+        .iter()
+        .find(|observation| {
+            matches!(observation.callable(), UnitOwnerCallable::Function(item)
+            if item.source_unit() == fixture.source(0))
+        })
+        .expect("the root source's callable observation")
+        .clone();
     assert_eq!(catalog.status(), UnitOwnerObservationStatus::Complete);
     assert!(catalog.is_consistent());
     let expr = |text| UnitExpressionId::new(fixture.source(0), fixture.expression(0, text));
-    let old = literal_owner(&fixture, 0, &catalog, "\"old\"");
-    let left = literal_owner(&fixture, 0, &catalog, "\"left\"");
-    let right = literal_owner(&fixture, 0, &catalog, "\"right\"");
-    let next = literal_owner(&fixture, 0, &catalog, "\"next\"");
+    let old = literal_owner(fixture, 0, &catalog, "\"old\"");
+    let left = literal_owner(fixture, 0, &catalog, "\"left\"");
+    let right = literal_owner(fixture, 0, &catalog, "\"right\"");
+    let next = literal_owner(fixture, 0, &catalog, "\"next\"");
     let root = fixture.symbol(0, "root");
     let incoming = fixture.symbol(0, "incoming");
     let previous = fixture.symbol(0, "previous");
@@ -327,9 +339,14 @@ fn choice_join_cannot_overwrite_an_existing_result_slot() {
 
 #[test]
 fn foreign_source_callable_and_unknown_choice_are_not_transport_values() {
-    let (model, ids) = fixture();
     let sources = Fixture::new(&[("root.ko", SOURCE), ("other.ko", "fun other(): Unit {}")]);
     let owned = sources.shared();
+    let (model, ids) = model_from(&sources, &owned);
+    assert_ne!(
+        sources.source(1),
+        model.source(),
+        "foreign source in the same analysis"
+    );
     let other = owned
         .owner_observations()
         .iter()
