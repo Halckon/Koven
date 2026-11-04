@@ -686,6 +686,109 @@ impl ROp {
             } => arguments.clone(),
         }
     }
+
+    /// If this operation is a direct call, function value invocation, or borrow/range call,
+    /// returns the optional receiver and argument slots whose value arguments are consumed.
+    pub(super) fn call_operands(&self) -> Option<(Option<Slot>, &[Slot])> {
+        match self {
+            Self::DirectCall {
+                receiver,
+                arguments,
+                ..
+            } => Some((*receiver, arguments.as_slice())),
+            Self::CallableInvoke { arguments, .. }
+            | Self::CallableInvokeView { arguments, .. }
+            | Self::BorrowCall { arguments, .. }
+            | Self::RangeCall { arguments, .. } => Some((None, arguments.as_slice())),
+            _ => None,
+        }
+    }
+
+    /// Every slot consumed by value or whose loan ended at this operation.
+    pub(super) fn retired_slots(&self, slots: &[EntityType]) -> Vec<Slot> {
+        let is_value = |s: &Slot| matches!(slots.get(s.0), Some(EntityType::Value(_)));
+
+        if let Some((receiver, arguments)) = self.call_operands() {
+            let mut consumed = Vec::new();
+            if let Some(r) = receiver
+                && is_value(&r)
+            {
+                consumed.push(r);
+            }
+            consumed.extend(arguments.iter().copied().filter(is_value));
+            return consumed;
+        }
+
+        match self {
+            Self::Drop { owner }
+            | Self::BorrowEnd { loan: owner }
+            | Self::AggregateExplode { aggregate: owner }
+            | Self::HeapAllocate { payload: owner, .. }
+            | Self::TaggedConstruct { payload: owner, .. }
+            | Self::SharedAllocate { payload: owner, .. }
+            | Self::ContainerClear { owner }
+            | Self::ContainerRemoveFirst { owner }
+            | Self::ContainerRemoveLast { owner }
+            | Self::MapConsume { owner, .. }
+            | Self::MapResultUnwrap { result: owner }
+            | Self::NullableWrap { owner, .. }
+            | Self::NullableTake { owner, .. } => vec![*owner],
+
+            Self::RangeEnd { view, source } => vec![*view, *source],
+
+            Self::AggregateConstruct { fields, .. } => fields.clone(),
+            Self::ContainerConstruct { elements, .. } => elements.clone(),
+
+            Self::ContainerAppend { owner, element }
+            | Self::ContainerRemoveAt {
+                owner,
+                index: element,
+            }
+            | Self::MapRemove {
+                owner,
+                key: element,
+            } => vec![*owner, *element],
+
+            Self::ContainerInsertAt {
+                owner,
+                index,
+                element,
+            }
+            | Self::ContainerReplace {
+                owner,
+                index,
+                value: element,
+            }
+            | Self::MapPut {
+                owner,
+                key: index,
+                value: element,
+            } => vec![*owner, *index, *element],
+
+            Self::HeapFieldReplace { value, .. }
+            | Self::InlineFieldReplace { value, .. }
+            | Self::HeapFieldExchange {
+                replacement: value, ..
+            }
+            | Self::LoanMutate { value, .. } => vec![*value],
+
+            Self::RootReplace {
+                owner, replacement, ..
+            } => vec![*owner, *replacement],
+
+            Self::RootSwap {
+                left_owner,
+                right_owner,
+                ..
+            } => vec![*left_owner, *right_owner],
+
+            Self::ClosureConstruct { captures, .. } => {
+                captures.iter().copied().filter(is_value).collect()
+            }
+
+            _ => Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

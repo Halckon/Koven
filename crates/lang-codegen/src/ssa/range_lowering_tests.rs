@@ -549,3 +549,34 @@ fn range_verifier_rejects_erasure_and_premature_source_end_without_emitting_ir()
         // No defective Program is ever given to an LLVM or native API.
     }
 }
+
+#[test]
+fn abort_predecessor_range_end_source_loan_then_both_abort() {
+    let program = unit(
+        r#"package app
+        import koven.algorithms.take
+        fun test_case(source: List<String>, flag: Boolean): Unit {
+            var marker = 10
+            replace(&marker, 20)
+            {
+                borrow val part = take(source, 1)
+                val len = part.size
+            }
+            if (flag) {
+                error("abort-range-a")
+            } else {
+                error("abort-range-b")
+            }
+        }
+        fun main(): Unit {
+            test_case(listOf("item-a", "item-b"), true)
+        }"#,
+    );
+    let module = &program.modules[0];
+    assert!(module.functions.iter().any(|f| {
+        f.instructions
+            .iter()
+            .any(|i| matches!(i.operation, Operation::RangeEnd { .. }))
+    }));
+    crate::llvm::render_verified_program(&program).unwrap();
+}

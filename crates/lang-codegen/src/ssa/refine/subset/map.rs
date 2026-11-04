@@ -369,7 +369,10 @@ impl Checker<'_, '_> {
             || self.expression_type(expression) != Some(res_ty)
             || matches!(self.kind(value_ty), Some(UnitTypeKind::Nullable(_)))
             || (self.map_kv(value_ty).is_some() && !self.scope_requires_refine())
-            || !(self.scalar(value_ty) || self.value_class(value_ty) || self.view_inner(value_ty))
+            || !(self.scalar(value_ty)
+                || self.range_type(value_ty)
+                || self.value_class(value_ty)
+                || self.view_inner(value_ty))
             || !matches!(
                 self.kind(res_ty),
                 Some(UnitTypeKind::Nullable(inner)) if *inner == value_ty
@@ -482,7 +485,11 @@ impl Checker<'_, '_> {
                 return false;
             };
             let inner = *inner;
-            if !(self.scalar(inner) || self.value_class(inner) || self.view_inner(inner)) {
+            if !(self.scalar(inner)
+                || self.range_type(inner)
+                || self.value_class(inner)
+                || self.view_inner(inner))
+            {
                 return false;
             }
             if self.copyability_of(inner) == Copyability::MoveOnly {

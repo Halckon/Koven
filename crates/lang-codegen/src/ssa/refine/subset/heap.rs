@@ -118,6 +118,7 @@ impl Checker<'_, '_> {
             Some(UnitTypeKind::Builtin(lang_frontend::type_checking::BuiltinType::String)) => true,
             Some(UnitTypeKind::Nullable(inner)) => {
                 self.scalar(*inner)
+                    || self.range_type(*inner)
                     || self.value_class_seen(*inner, active)
                     || self.view_inner_seen(*inner, active)
             }

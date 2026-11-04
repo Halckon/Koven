@@ -301,11 +301,12 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionId,
     ) -> Result<Option<Slot>, LoweringError> {
-        let (payload, span) = self.node(expression)?;
+        let root = self.ungrouped_expr(expression)?;
+        let (payload, span) = self.node(root)?;
         let Expression::Name = payload else {
             return Ok(None);
         };
-        let Some(fact) = self.inputs.typed.non_null_use(self.unit(expression)) else {
+        let Some(fact) = self.inputs.typed.non_null_use(self.unit(root)) else {
             return Ok(None);
         };
         if !self.move_only(self.c(fact.narrowed_type())) {
