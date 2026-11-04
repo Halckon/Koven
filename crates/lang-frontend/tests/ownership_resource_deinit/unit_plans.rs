@@ -4,14 +4,23 @@ use lang_frontend::{
     lexer::lex,
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
-        DropPoint, UnitDropPoint, UnitDropTarget, check_compilation_unit_ownership,
+        CompilationUnitOwnership, DropPoint, UnitDropPoint, UnitDropTarget,
+        check_compilation_unit_ownership,
     },
-    parser::parse_file,
+    parser::{ParsedFile, parse_file},
     source::SourceMap,
     type_checking::{check_compilation_unit_types, standard_environments},
 };
 
 pub(super) fn plans(text: &str) -> [Vec<NamedDrop>; 2] {
+    inspected_plans(text, |_, _, _| {})
+}
+
+// Inspect actual Unit facts before projecting named drops; no Single owner graph is inferred.
+pub(super) fn inspected_plans(
+    text: &str,
+    mut inspect: impl FnMut(&SourceMap, &ParsedFile, &CompilationUnitOwnership),
+) -> [Vec<NamedDrop>; 2] {
     let mut sources = SourceMap::new();
     let source = sources.add_source("resource-drop.ko", text).unwrap();
     let lexed = lex(&sources, source).unwrap();
@@ -48,6 +57,7 @@ pub(super) fn plans(text: &str) -> [Vec<NamedDrop>; 2] {
         assert!(owned.is_compatible_with(&typed));
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+        inspect(&sources, &parsed, &owned);
         owned
             .drops()
             .iter()
