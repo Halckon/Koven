@@ -687,8 +687,38 @@ impl ROp {
         }
     }
 
+    /// If this operation is a direct call, function value invocation, or borrow/range call,
+    /// returns the optional receiver and argument slots whose value arguments are consumed.
+    pub(super) fn call_operands(&self) -> Option<(Option<Slot>, &[Slot])> {
+        match self {
+            Self::DirectCall {
+                receiver,
+                arguments,
+                ..
+            } => Some((*receiver, arguments.as_slice())),
+            Self::CallableInvoke { arguments, .. }
+            | Self::CallableInvokeView { arguments, .. }
+            | Self::BorrowCall { arguments, .. }
+            | Self::RangeCall { arguments, .. } => Some((None, arguments.as_slice())),
+            _ => None,
+        }
+    }
+
     /// Every slot consumed by value or whose loan ended at this operation.
     pub(super) fn retired_slots(&self, slots: &[EntityType]) -> Vec<Slot> {
+        let is_value = |s: &Slot| matches!(slots.get(s.0), Some(EntityType::Value(_)));
+
+        if let Some((receiver, arguments)) = self.call_operands() {
+            let mut consumed = Vec::new();
+            if let Some(r) = receiver
+                && is_value(&r)
+            {
+                consumed.push(r);
+            }
+            consumed.extend(arguments.iter().copied().filter(is_value));
+            return consumed;
+        }
+
         match self {
             Self::Drop { owner }
             | Self::BorrowEnd { loan: owner }
@@ -751,29 +781,8 @@ impl ROp {
                 ..
             } => vec![*left_owner, *right_owner],
 
-            Self::ClosureConstruct { captures, .. } => captures
-                .iter()
-                .copied()
-                .filter(|s| matches!(slots.get(s.0), Some(EntityType::Value(_))))
-                .collect(),
-
-            Self::DirectCall {
-                receiver,
-                arguments,
-                ..
-            } => {
-                let mut consumed = Vec::new();
-                if let Some(r) = receiver
-                    && matches!(slots.get(r.0), Some(EntityType::Value(_)))
-                {
-                    consumed.push(*r);
-                }
-                for a in arguments {
-                    if matches!(slots.get(a.0), Some(EntityType::Value(_))) {
-                        consumed.push(*a);
-                    }
-                }
-                consumed
+            Self::ClosureConstruct { captures, .. } => {
+                captures.iter().copied().filter(is_value).collect()
             }
 
             _ => Vec::new(),

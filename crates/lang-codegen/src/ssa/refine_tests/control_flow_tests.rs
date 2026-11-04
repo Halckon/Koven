@@ -661,3 +661,95 @@ fn abort_predecessor_aggregate_construct_then_both_abort() {
         "{stderr:?}"
     );
 }
+
+#[test]
+fn abort_predecessor_callable_invoke_consume_then_both_abort() {
+    let source = r#"
+    fun test_view(f: (own String) -> Unit, opt: Int?, flag: Boolean, own text: String): Unit {
+        if (opt != null) {
+            f(text)
+            if (flag) {
+                error("abort-callable-view-a")
+            } else {
+                error("abort-callable-view-b")
+            }
+        }
+    }
+    fun main(): Unit {
+        val consumer: (own String) -> Unit = { s -> println(s) }
+        test_view(consumer, 1, true, "view-callable-arg".clone())
+    }"#;
+    let output = crate::native_tests::emit_link_and_run("callable_then_abort.ko", source, "main");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "view-callable-arg\n"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: abort-callable-view-a\n  at "),
+        "{stderr:?}"
+    );
+}
+
+#[test]
+fn abort_predecessor_callable_invoke_local_consume_then_both_abort() {
+    let source = r#"
+    fun test_local(opt: Int?, flag: Boolean, own text: String): Unit {
+        if (opt != null) {
+            val local: (own String) -> Unit = { s -> println(s) }
+            local(text)
+            if (flag) {
+                error("abort-callable-local-a")
+            } else {
+                error("abort-callable-local-b")
+            }
+        }
+    }
+    fun main(): Unit {
+        test_local(1, false, "local-callable-arg".clone())
+    }"#;
+    let output =
+        crate::native_tests::emit_link_and_run("callable_local_then_abort.ko", source, "main");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "local-callable-arg\n"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: abort-callable-local-b\n  at "),
+        "{stderr:?}"
+    );
+}
+
+#[test]
+fn abort_predecessor_borrow_call_consume_then_both_abort() {
+    let source = r#"
+    fun borrow_and_consume(source: String, own extra: String): borrow String from source = source
+    fun test_case(opt: Int?, flag: Boolean, own extra: String): Unit {
+        var marker = 10
+        replace(&marker, 20)
+        if (opt != null) {
+            val source = "source-text".clone()
+            {
+                borrow val item = borrow_and_consume(source, extra)
+                println(item)
+            }
+            if (flag) {
+                error("abort-borrow-call-a")
+            } else {
+                error("abort-borrow-call-b")
+            }
+        }
+    }
+    fun main(): Unit {
+        test_case(1, false, "extra-consumed".clone())
+    }"#;
+    let output =
+        crate::native_tests::emit_link_and_run("borrow_call_then_abort.ko", source, "main");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "source-text\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: abort-borrow-call-b\n  at "),
+        "{stderr:?}"
+    );
+}
