@@ -1,6 +1,7 @@
 //! Producer regressions: no drop count/span inference and no Single witness retirement.
 pub(super) mod branch_boundaries;
 mod capture;
+pub(super) mod choice_model;
 pub(super) mod combination;
 pub(super) mod if_observation;
 pub(super) mod loop_boundaries;

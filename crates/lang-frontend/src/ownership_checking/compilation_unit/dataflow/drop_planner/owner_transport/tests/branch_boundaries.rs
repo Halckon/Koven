@@ -67,3 +67,18 @@ fn rejected_if_joins_and_rollback_keep_identical_complete_cleanup_products() {
         compare(&fixture, &parts);
     }
 }
+
+#[test]
+fn choice_model_consumers_preserve_complete_analysis_while_still_unsupported() {
+    use crate::ownership_checking::compilation_unit::owner_transport_tests::choice_model::{
+        CONSUMERS, consumer_source,
+    };
+    for body in CONSUMERS {
+        let text = consumer_source(body);
+        let fixture = Fixture::new(&[("root.ko", &text)]);
+        let shared = fixture.shared();
+        assert!(shared.clone().validate().is_ok());
+        let parts = fixture.parts(&shared);
+        compare(&fixture, &parts);
+    }
+}
