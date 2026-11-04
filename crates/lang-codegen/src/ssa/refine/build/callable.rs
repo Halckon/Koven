@@ -262,7 +262,7 @@ impl Builder<'_, '_> {
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
         }
-        let (Expression::Name, span) = self.node(root)? else {
+        let (Expression::Name | Expression::This, span) = self.node(root)? else {
             return Ok(None);
         };
         let id = self.unit(root);
@@ -300,7 +300,7 @@ impl Builder<'_, '_> {
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
         }
-        let (Expression::Name, span) = self.node(root)? else {
+        let (Expression::Name | Expression::This, span) = self.node(root)? else {
             return Ok(None);
         };
         let id = self.unit(root);

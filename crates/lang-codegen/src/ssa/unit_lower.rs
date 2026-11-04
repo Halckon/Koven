@@ -22,16 +22,12 @@ mod deinit_borrow;
 mod enum_lower;
 mod field_borrow;
 mod handoff;
-mod integer;
-mod integer_range;
 mod loop_control;
 mod map;
 mod map_borrow;
 mod map_consume;
 mod map_iteration;
-mod map_require;
 mod map_result;
-mod map_with;
 mod non_null_assertion;
 mod nullable_comparison;
 mod nullable_proof;
@@ -43,7 +39,6 @@ mod receiver;
 mod scalar;
 mod statement;
 mod string_clone;
-mod text_primitive;
 mod type_lower;
 #[cfg(test)]
 mod type_origin_cache_tests;
@@ -321,11 +316,9 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .integer_range_operation(unit_expression)
             .is_some()
+            || self.typed.integer_operation(unit_expression).is_some()
         {
-            return self.lower_integer_range(expression, span);
-        }
-        if self.typed.integer_operation(unit_expression).is_some() {
-            return self.lower_integer_operation(expression, span);
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if self.typed.string_operation(unit_expression).is_some() {
             return self.lower_string_clone(expression, span);

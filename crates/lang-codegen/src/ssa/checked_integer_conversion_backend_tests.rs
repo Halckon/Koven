@@ -200,20 +200,25 @@ fn assert_conversion_cfg(program: &Program, source: &str, target: &str, receiver
                 assert!(!when_true.arguments.contains(&EntityId::Value(*result)));
                 assert_ne!(when_true.target, when_false.target);
                 let success = function.block(when_false.target).unwrap();
+                let used_result = when_false
+                    .arguments
+                    .iter()
+                    .position(|arg| arg == &EntityId::Value(*result))
+                    .map_or(EntityId::Value(*result), |pos| success.parameters[pos]);
                 assert!(
                     success.instructions.iter().any(|id| function
                         .instruction(*id)
                         .unwrap()
                         .operation
                         .entities()
-                        .contains(&EntityId::Value(*result)))
+                        .contains(&used_result))
                         || success
                             .terminator
                             .as_ref()
                             .unwrap()
                             .kind
                             .entities()
-                            .contains(&EntityId::Value(*result))
+                            .contains(&used_result)
                 );
                 for owner in function
                     .instructions

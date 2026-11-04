@@ -56,10 +56,31 @@ fn uses_and_defs(body: &RefinedBody, block: BlockRef) -> (BTreeSet<Slot>, BTreeS
     (uses, defs)
 }
 
+fn abort_blocks(body: &RefinedBody, reachable: &[BlockRef]) -> BTreeSet<BlockRef> {
+    let mut aborts: BTreeSet<BlockRef> = reachable
+        .iter()
+        .copied()
+        .filter(|block| matches!(body.blocks[block.0].terminator, Some((RTerm::Abort(_), _))))
+        .collect();
+    while reachable.iter().rev().any(|&block| {
+        !aborts.contains(&block)
+            && body.blocks[block.0]
+                .terminator
+                .as_ref()
+                .is_some_and(|(term, _)| {
+                    let succs = term.successors();
+                    !succs.is_empty() && succs.iter().all(|succ| aborts.contains(succ))
+                })
+            && aborts.insert(block)
+    }) {}
+    aborts
+}
+
 /// Abort blocks reached from a two-way branch, mapped to the branch block and the branch's other target.
 fn abort_siblings(
     body: &RefinedBody,
     reachable: &[BlockRef],
+    aborts: &BTreeSet<BlockRef>,
 ) -> BTreeMap<BlockRef, (BlockRef, BlockRef)> {
     let mut siblings = BTreeMap::new();
     for block in reachable {
@@ -68,7 +89,7 @@ fn abort_siblings(
         };
         if let [first, second] = terminator.successors()[..] {
             for (abort, other) in [(first, second), (second, first)] {
-                if matches!(body.blocks[abort.0].terminator, Some((RTerm::Abort(_), _))) {
+                if aborts.contains(&abort) {
                     siblings.insert(abort, (*block, other));
                 }
             }
@@ -156,8 +177,27 @@ fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
         .iter()
         .map(|block| (*block, uses_and_defs(body, *block)))
         .collect();
-    let siblings = abort_siblings(body, &reachable);
+    let aborts = abort_blocks(body, &reachable);
+    let siblings = abort_siblings(body, &reachable, &aborts);
     let checked_siblings = checked_arithmetic_siblings(body, &reachable);
+    let mut abort_preds: BTreeMap<BlockRef, Vec<(BlockRef, BTreeSet<Slot>)>> = BTreeMap::new();
+    for &pred in &aborts {
+        let retired: BTreeSet<Slot> = body.blocks[pred.0]
+            .statements
+            .iter()
+            .flat_map(|s| s.op.retired_slots(&body.slots))
+            .collect();
+        if let Some((term, _)) = &body.blocks[pred.0].terminator {
+            for succ in term.successors() {
+                if aborts.contains(&succ) {
+                    abort_preds
+                        .entry(succ)
+                        .or_default()
+                        .push((pred, retired.clone()));
+                }
+            }
+        }
+    }
     let mut live_in: BTreeMap<BlockRef, BTreeSet<Slot>> = BTreeMap::new();
     loop {
         let mut changed = false;
@@ -165,8 +205,6 @@ fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
             let (uses, defs) = &local[block];
             let mut live = uses.clone();
             if let Some((pred, sibling)) = siblings.get(block) {
-                // An abort edge carries every owner the other edge continues with, so
-                // nothing is left unaccounted at the branch.
                 let excluded = excluded_abort_slots(body, *pred, *block);
                 for slot in live_in.get(sibling).into_iter().flatten() {
                     if !excluded.contains(slot) {
@@ -174,8 +212,16 @@ fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
                     }
                 }
             }
+            if let Some(preds) = abort_preds.get(block) {
+                for (pred, retired) in preds {
+                    for slot in live_in.get(pred).into_iter().flatten() {
+                        if !retired.contains(slot) {
+                            live.insert(*slot);
+                        }
+                    }
+                }
+            }
             if let Some(abort) = checked_siblings.get(block) {
-                // Sibling carries abort operands to preserve symmetric branch arguments.
                 for slot in live_in.get(abort).into_iter().flatten() {
                     live.insert(*slot);
                 }
@@ -853,80 +899,42 @@ pub(super) fn emit(
             })
         };
         let model_error = |_| error(LoweringErrorKind::InvalidModel, *term_span);
-        match terminator {
-            RTerm::Abort(RAbort::CheckedArithmetic { operator, divisor }) => {
-                let divisor = emitter.abort_divisor(*divisor, *term_span)?;
-                emitter
-                    .function
-                    .set_abort_terminator(
-                        target,
-                        AbortReason::CheckedArithmetic {
-                            operator: *operator,
-                            divisor,
-                        },
-                        origin,
-                    )
-                    .map_err(model_error)?;
-                continue;
-            }
-            RTerm::Abort(RAbort::Error { message }) => {
-                let message = emitter.get(*message, *term_span)?;
-                let EntityId::Loan(message) = message else {
-                    return Err(error(LoweringErrorKind::InvalidModel, *term_span));
-                };
-                emitter
-                    .function
-                    .set_abort_terminator(target, AbortReason::Error { message }, origin)
-                    .map_err(model_error)?;
-                continue;
-            }
-            RTerm::Abort(RAbort::CheckedConversion { target: converted }) => {
-                emitter
-                    .function
-                    .set_abort_terminator(
-                        target,
-                        AbortReason::CheckedConversion { target: *converted },
-                        origin,
-                    )
-                    .map_err(model_error)?;
-                continue;
-            }
-            RTerm::Abort(
-                reason @ (RAbort::NullAssertion | RAbort::NegativeSize | RAbort::UnmatchedWhen),
-            ) => {
-                let text = match reason {
-                    RAbort::NullAssertion => "null assertion failed",
-                    RAbort::NegativeSize => "negative size",
-                    _ => "internal error: when subject matched no branch",
-                };
-                emitter
-                    .function
-                    .set_abort_terminator(target, AbortReason::Text(text.to_owned()), origin)
-                    .map_err(model_error)?;
-                continue;
-            }
-            RTerm::Goto(successor) => {
-                let kind = TerminatorKind::Branch(edge(&emitter, *successor)?);
-                emitter
-                    .function
-                    .set_terminator(target, kind, origin)
-                    .map_err(model_error)?;
-            }
+        if let RTerm::Abort(reason) = terminator {
+            let reason = match reason {
+                RAbort::CheckedArithmetic { operator, divisor } => AbortReason::CheckedArithmetic {
+                    operator: *operator,
+                    divisor: emitter.abort_divisor(*divisor, *term_span)?,
+                },
+                RAbort::Error { message } => AbortReason::Error {
+                    message: loan(emitter.get(*message, *term_span)?, *term_span)?,
+                },
+                RAbort::CheckedConversion { target: converted } => {
+                    AbortReason::CheckedConversion { target: *converted }
+                }
+                RAbort::NullAssertion => AbortReason::Text("null assertion failed".to_owned()),
+                RAbort::NegativeSize => AbortReason::Text("negative size".to_owned()),
+                RAbort::UnmatchedWhen => {
+                    AbortReason::Text("internal error: when subject matched no branch".to_owned())
+                }
+            };
+            emitter
+                .function
+                .set_abort_terminator(target, reason, origin)
+                .map_err(model_error)?;
+            continue;
+        }
+        let kind = match terminator {
+            RTerm::Abort(_) => unreachable!(),
+            RTerm::Goto(successor) => TerminatorKind::Branch(edge(&emitter, *successor)?),
             RTerm::Branch {
                 condition,
                 when_true,
                 when_false,
-            } => {
-                let kind = TerminatorKind::Conditional {
-                    condition: emitter.value(*condition, *term_span)?,
-                    when_true: edge(&emitter, *when_true)?,
-                    when_false: edge(&emitter, *when_false)?,
-                };
-                emitter
-                    .function
-                    .set_terminator(target, kind, origin)
-                    .map_err(model_error)?;
-            }
+            } => TerminatorKind::Conditional {
+                condition: emitter.value(*condition, *term_span)?,
+                when_true: edge(&emitter, *when_true)?,
+                when_false: edge(&emitter, *when_false)?,
+            },
             RTerm::NullBranch {
                 owner,
                 when_null,
@@ -936,49 +944,32 @@ pub(super) fn emit(
                     .last()
                     .copied()
                     .ok_or_else(|| error(LoweringErrorKind::InvalidModel, *term_span))?;
-                let kind = TerminatorKind::NullableBranch {
+                TerminatorKind::NullableBranch {
                     owner: emitter.value(*owner, *term_span)?,
                     when_null: edge(&emitter, *when_null)?,
                     when_non_null: edge(&emitter, *when_non_null)?,
                     view: loan(view, *term_span)?,
-                };
-                emitter
-                    .function
-                    .set_terminator(target, kind, origin)
-                    .map_err(model_error)?;
+                }
             }
-            RTerm::Return(result) => {
-                let values = result
+            RTerm::Return(result) => TerminatorKind::Return {
+                values: result
                     .map(|slot| emitter.value(slot, *term_span))
                     .transpose()?
                     .into_iter()
-                    .collect();
-                let kind = TerminatorKind::Return { values };
-                emitter
-                    .function
-                    .set_terminator(target, kind, origin)
-                    .map_err(model_error)?;
-            }
-            RTerm::BorrowReturn { loan: slot } => {
-                let kind = TerminatorKind::BorrowReturn {
-                    loan: loan(emitter.get(*slot, *term_span)?, *term_span)?,
-                };
-                emitter
-                    .function
-                    .set_terminator(target, kind, origin)
-                    .map_err(model_error)?;
-            }
-            RTerm::RangeReturn { view, source: slot } => {
-                let kind = TerminatorKind::RangeReturn {
-                    view: emitter.value(*view, *term_span)?,
-                    source: loan(emitter.get(*slot, *term_span)?, *term_span)?,
-                };
-                emitter
-                    .function
-                    .set_terminator(target, kind, origin)
-                    .map_err(model_error)?;
-            }
-        }
+                    .collect(),
+            },
+            RTerm::BorrowReturn { loan: slot } => TerminatorKind::BorrowReturn {
+                loan: loan(emitter.get(*slot, *term_span)?, *term_span)?,
+            },
+            RTerm::RangeReturn { view, source: slot } => TerminatorKind::RangeReturn {
+                view: emitter.value(*view, *term_span)?,
+                source: loan(emitter.get(*slot, *term_span)?, *term_span)?,
+            },
+        };
+        emitter
+            .function
+            .set_terminator(target, kind, origin)
+            .map_err(model_error)?;
     }
     Ok(())
 }

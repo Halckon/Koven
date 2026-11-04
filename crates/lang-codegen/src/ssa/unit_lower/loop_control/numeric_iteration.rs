@@ -170,10 +170,44 @@ impl UnitExpressionLowerer<'_> {
         let boolean = self.ssa_builtin(BuiltinType::Boolean, span)?;
         // Evaluate the real source once, including its AfterExpression cleanup, before
         // acquiring this provider. Copyable projections detach the iteration snapshot.
-        let source = match self.lower(descriptor.source().expression())? {
-            LoweredValue::Value(value) => value,
-            LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
-            LoweredValue::Unit => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        let source_expr = descriptor.source().expression();
+        let source = if let Some(op) = self
+            .typed
+            .integer_range_operation(descriptor.source())
+            .copied()
+        {
+            let source_span = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(source_expr)
+                .map_or(span, |n| n.span());
+            let left = match self.lower(op.left().expression())? {
+                LoweredValue::Value(v) => v,
+                LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+                LoweredValue::Unit => {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, source_span));
+                }
+            };
+            let right = match self.lower(op.right().expression())? {
+                LoweredValue::Value(v) => v,
+                LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+                LoweredValue::Unit => {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, source_span));
+                }
+            };
+            let (operation, _) = crate::ssa::integer_range::operation(op.kind(), left, right);
+            let value = self.numeric_iteration_value(operation, range_type, source_span)?;
+            self.emit_drops(UnitDropPoint::AfterExpression(descriptor.source()))?;
+            value
+        } else {
+            match self.lower(source_expr)? {
+                LoweredValue::Value(value) => value,
+                LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+                LoweredValue::Unit => {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
+            }
         };
         if self
             .function

@@ -294,7 +294,9 @@ impl Checker<'_, '_> {
         let field_type = self.c(projection.ty());
         if projection.kind() != UnitAggregateProjectionKind::Field
             || self.expression_type_of(id) != Some(field_type)
-            || !self.scalar(field_type)
+            || !(self.scalar(field_type)
+                || self.range_type(field_type)
+                || self.value_class(field_type))
         {
             return false;
         }

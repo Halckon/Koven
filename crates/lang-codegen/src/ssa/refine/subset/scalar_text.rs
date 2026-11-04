@@ -62,7 +62,7 @@ impl Checker<'_, '_> {
             IntegerOperationKind::Invert => receiver_ty == result_ty,
             IntegerOperationKind::CheckedConvert => true,
         };
-        descriptor.expression() == id
+        let ok = descriptor.expression() == id
             && descriptor.receiver().source_unit() == self.inputs.source_unit
             && self.integer_type(receiver_ty)
             && self.integer_type(result_ty)
@@ -74,7 +74,9 @@ impl Checker<'_, '_> {
                 expression,
                 descriptor.receiver().expression(),
             )
-            && self.expression(descriptor.receiver().expression())
+            && self.expression(descriptor.receiver().expression());
+        self.migrated |= ok;
+        ok
     }
 
     pub(super) fn integer_range_operation(&mut self, expression: ExpressionId) -> bool {
@@ -89,7 +91,7 @@ impl Checker<'_, '_> {
             Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
             _ => None,
         });
-        descriptor.expression() == id
+        let ok = descriptor.expression() == id
             && descriptor.left().source_unit() == self.inputs.source_unit
             && descriptor.right().source_unit() == self.inputs.source_unit
             && self.expression_type_of(descriptor.left()) == Some(left_ty)
@@ -104,7 +106,9 @@ impl Checker<'_, '_> {
                 types,
             )
             && self.expression(descriptor.left().expression())
-            && self.expression(descriptor.right().expression())
+            && self.expression(descriptor.right().expression());
+        self.migrated |= ok;
+        ok
     }
 
     pub(super) fn string_operation(&mut self, expression: ExpressionId) -> bool {
@@ -131,20 +135,26 @@ impl Checker<'_, '_> {
         let receiver = descriptor.receiver().expression();
         let receiver_id = self.id(receiver);
         if self.borrowed_string_name(receiver) {
+            self.migrated = true;
             return true;
         }
         if let Some(fact) = self.inputs.typed.non_null_use(receiver_id)
             && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
         {
-            return self.reference(receiver) == Some(fact.symbol())
+            let root = self.ungrouped(receiver);
+            let ok = self.reference(root) == Some(fact.symbol())
                 && self.known.contains(&fact.symbol())
                 && self.view_symbols.contains(&fact.symbol());
+            self.migrated |= ok;
+            return ok;
         }
         if self.field_loan_receiver(receiver, true) == Some(self.c(descriptor.receiver_type())) {
             self.migrated = true;
             return true;
         }
-        self.expression(receiver)
+        let ok = self.expression(receiver);
+        self.migrated |= ok;
+        ok
     }
 
     pub(super) fn numeric_for(
@@ -200,7 +210,9 @@ impl Checker<'_, '_> {
                 return false;
             }
         }
-        self.loop_body(body)
+        let ok = self.loop_body(body);
+        self.migrated |= ok;
+        ok
     }
 
     pub(super) fn constant_materialization(&mut self, expression: ExpressionId) -> bool {
