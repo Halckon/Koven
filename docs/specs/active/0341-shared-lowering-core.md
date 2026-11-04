@@ -1747,3 +1747,21 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
 普通 When/replace 消费者回归，并比较完整 Analysis observation on/off 产品。
 仅执行静态检查；本地 Cargo/build/test/Clippy 禁止运行，Rust 动态结果待获准发布后的
 精确头官方 CI。本片为内部前置，不代表 D10/E2 或 Choice 生产能力完成。
+
+## 86. Container 诊断消费者迁移候选（2026-11-04）
+
+基于 main `58479df5`，仅迁 `ownership_containers` 三项测试、四次 Single 分析：
+相同/未知 element index 冲突两源、已 move 容器 element 读取一源、size 读取一源。
+复用既有 `mutable_unit::check_each` 的 MemoryDocument/Rooted 真 Unit 路径，不改 helper。
+
+- 保留原源码、测试名、诊断序列 L0135/L0131、size 主 span `value` 与原失败 loan/drop
+  空表期望。原 helper 仅有 parse/name/type 成功和 ownership 分析，无隐藏 owner/loan-end
+  validator；本片不删除其余 Single 使用或 field/element lifetime 事实。
+- Unit helper 逐源核 names/types、final admission、typed identity、完整诊断 code 序列和
+  ownership 失败资格；增加的准入检查尚待本精确组合动态验收，不把类型错误当所有权成功。
+- 不改生产、Choice/capture/loop、resource 或 receiver 测试、Guide、CI、target。
+  不宣称所有容器消费者退休；此处只保留既有 code/span oracle，不声称完整 Diagnostic 比较。
+- 原测试名、源码字面量与非候选代码静态保全、尺寸守卫、diff 检查通过。
+  独立静审无阻断；rustfmt 命令不可用，尚未执行，未运行本地 Cargo/build/test/Clippy。
+  已获准发布 Draft PR 并运行官方 CI；与并行候选分节记录，合批时保留各节。
+  D10/E2 继续 in-progress，正式准入和四源码行为仍需精确候选官方 CI。
