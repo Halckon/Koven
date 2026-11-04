@@ -1,6 +1,7 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
 mod branch_boundaries;
 mod combination;
+mod control_tail;
 mod loop_boundaries;
 
 use super::super::super::*;
@@ -8,6 +9,10 @@ use super::super::plan_with_owner_observation;
 use crate::ownership_checking::compilation_unit::formed_tests::{Fixture, Parts};
 
 fn compare(fixture: &Fixture, parts: &Parts) {
+    compare_and_inspect(fixture, parts, |_| {});
+}
+
+fn compare_and_inspect(fixture: &Fixture, parts: &Parts, inspect: impl FnOnce(&Checker<'_>)) {
     let inputs = fixture.inputs();
     let fields = traversal::collect_field_mutability(&inputs, fixture.names.names()).unwrap();
     let constructions = collect_construction_descriptors(
@@ -73,6 +78,7 @@ fn compare(fixture: &Fixture, parts: &Parts) {
     let drop_analysis = checker.run().unwrap();
     assert!(drop_analysis.deferred.is_empty());
     assert!(checker.primitive_deferred.is_empty());
+    inspect(&checker);
     let mut observed = plan_with_owner_observation(&checker, true).unwrap();
     let disabled = plan_with_owner_observation(&checker, false).unwrap();
     assert!(!observed.owner_observations.is_empty());

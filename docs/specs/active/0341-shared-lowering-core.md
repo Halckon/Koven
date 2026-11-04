@@ -1724,3 +1724,26 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
 （837 Markdown）、Rust 尺寸守卫（2101 文件、39 项旧超限，无新增超限）与
 `git diff --check` 通过。新增八项模型/真实边界测试和一项完整 Analysis 差分测试，
 其中恶意图十九种；这些 Rust 测试尚未执行，不能当作动态通过记录。
+
+## 85. Choice 前置：真实 control tail 内部通道（2026-11-04）
+
+基于 main `58479df5`，本片仅保留实际 control body 求值产生的尾表达式及已有
+`EvaluatedOwner`，不开放不同 owner 的 String-result If，不新增公开协议。
+
+- `control_body` 保留原 bool 包装；私有 `evaluate_control_body` 只在表达式尾部
+  返回实际 expression 与单次求值结果，空体、非表达式尾部及前缀退出不制造尾值。
+- `control_tail` 直接复用 `evaluate_owner_expression`；Read 不交付 owner，尤其不能
+  把已执行 temporary cleanup 的值返回为可交付身份。原临时清理、作用域清理、分支
+  出口与 borrow 处理顺序不变。此通道既不从最后一个 event 猜身份，也不新增 producer。
+- 原公开 `UnitOwnerId`、事件及 observer API 不变。String-result If 仍精确 Unsupported、
+  definitions/events 全事务清空；现有 Single cleanup 见证不退休。真实 body adapter 的
+  独立测试不等同于完整 String If 的生产准入证明。
+- 后续兼容方向为独立版本化 value observation，旧 observer 对 Choice 继续 Unsupported。
+  新层须把 Definition/Choice 区分贯通 Binding/Pending/Replace 两端及 Drop，并验证
+  两边实际 tail、正常继续、外部存活身份及完整 continuation，不能仅接 producer。
+  在该协议及验证完整前，不放宽现有准入或承诺公开 API 形状。
+
+候选新增实际 literal/local Group 尾身份、Read 临时清理、空/非表达式/退出体与
+普通 When/replace 消费者回归，并比较完整 Analysis observation on/off 产品。
+仅执行静态检查；本地 Cargo/build/test/Clippy 禁止运行，Rust 动态结果待获准发布后的
+精确头官方 CI。本片为内部前置，不代表 D10/E2 或 Choice 生产能力完成。
