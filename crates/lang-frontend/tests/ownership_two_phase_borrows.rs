@@ -17,7 +17,7 @@ mod parser_test_assertions;
 #[path = "support/borrow_rejection_unit.rs"]
 mod borrow_rejection_unit;
 
-// Retain Single only for the independent loan-end, cleanup, overload and capture witnesses.
+// Retain Single for the independent loan-end, cleanup and overload witnesses.
 fn checked(body: &str) -> (SourceMap, OwnershipCheckedFile) {
     let text = source_text(body);
     let mut sources = SourceMap::new();
@@ -442,26 +442,34 @@ fn conditional_capture_loan_cannot_disappear_before_receiver_activation() {
 
 #[test]
 fn completed_nested_call_releases_conditional_temporary_capture() {
-    let (_, owned) = checked(
-        "class Counter {\n\
-             fun read(): Int = 1\n\
-             inout fun set(own value: Int): Unit {}\n\
-         }\n\
-         fun inspectAction(action: () -> Unit): Int = 0\n\
-         fun run(own counter: Counter, flag: Boolean): Unit {\n\
-             counter.set(inspectAction(if (flag) ({ val n = counter.read() }) else ({})))\n\
-         }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let reservation = owned
-        .loans()
-        .iter()
-        .find(|fact| fact.is_receiver_reservation())
-        .unwrap();
-    assert_eq!(
-        reservation.activation_point(),
-        Some(DropPoint::CallEntry(reservation.call()))
-    );
+    for rooted in [false, true] {
+        let (sources, owned) = checked_unit(
+            "class Counter {\n\
+                 fun read(): Int = 1\n\
+                 inout fun set(own value: Int): Unit {}\n\
+             }\n\
+             fun inspectAction(action: () -> Unit): Int = 0\n\
+             fun run(own counter: Counter, flag: Boolean): Unit {\n\
+                 counter.set(inspectAction(if (flag) ({ val n = counter.read() }) else ({})))\n\
+             }",
+            rooted,
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        let reservations: Vec<_> = owned
+            .receiver_facts()
+            .iter()
+            .filter(|fact| fact.is_receiver_reservation())
+            .collect();
+        let [reservation] = reservations.as_slice() else {
+            panic!("one original outer reservation");
+        };
+        assert_eq!(sources.slice(reservation.begin_span()), Ok("counter"));
+        assert_eq!(
+            sources.slice(reservation.end_span()),
+            Ok("counter.set(inspectAction(if (flag) ({ val n = counter.read() }) else ({})))")
+        );
+        assert_eq!(reservation.activation_point(), Some(reservation.call()));
+    }
 }
 
 #[test]

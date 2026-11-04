@@ -40,6 +40,42 @@ Preview 的 producer/独立consumer仍固定 `ubuntu-24.04`，保留原安装器
 API及sanitizer，记录既有主线失败；不得删除旧合同或改变E3来取得迁移绿灯。
 回滚应整体撤销宿主、安装器分派及job-name契约改动，不能只回退显示名称。
 
+## Linux CI 磁盘故障诊断
+
+Linux targeted tests 在 checkout 后、缓存恢复后和 bounded composition 结束后记录只读
+磁盘聚合；执行 composition 时至多采样 360 轮，每轮后等待 60 秒，`du` 每五轮一次。
+每个 `df`/`du` 子命令最多运行 15 秒，输出直接进入 job 日志，不创建额外本地证据文件。
+容量与 inode 分别记录，`du -sx` 仅测 workspace、target、runner temp、Cargo home、
+`/tmp` 与 runner cached 目录；聚合可能重叠，不能相加当作总占用。采样不删除文件、
+不执行 sudo，不改变测试命令、编译 profile、缓存或门禁；测量失败不代替测试退出码。
+
+[PR #303 的 Ubuntu job](https://github.com/Halckon/Koven/actions/runs/41747282342/job/126305497097)
+曾在 runner 写诊断日志时报告 ENOSPC，但这不是日志占满空间的证据。本候选只补充
+可归因数据，尚未修复或验证该容量问题；严重耗尽仍可能使末次采样/日志上传不可用。
+先对比容量、inode 和各类聚合的增长，再决定产物生命周期或 runner 容量策略；不要盲删
+系统目录、cache 或日志，也不以减少测试/调低 debug 信息绕过既有 DWARF 与 native 合同。
+
+## Linux CI 测试编译调试信息
+
+Linux targeted tests 的 CI job 设置 `CARGO_PROFILE_DEV_DEBUG=1` 与
+`CARGO_PROFILE_TEST_DEBUG=1`；macOS 保持 `2`。Cargo 的 `1` 是 limited，并非
+`line-tables-only`：Rust 变量与类型调试信息减少，但不改变 Koven 生成的 DWARF。
+本地开发配置、release/preview、Clippy、全部测试命令与汇总门禁保持不变。
+Linux 测试使用稳定 `v1-test-debug1` cache prefix，避免恢复旧 debug=2 产物；
+保留 rust-cache 的增量禁用与缓存保存行为。不共用不同 job 的 target，不删除测试。
+
+[对照 PR #305](https://github.com/Halckon/Koven/pull/305) 的精确头
+`26a976e4afd474614cdc7e2f737099006b96ef14` 在
+[run 41760807462](https://github.com/Halckon/Koven/actions/runs/41760807462) 全部通过。
+同次运行的两个冷缓存 Linux 臂均使用 ubuntu-26.04 镜像 20261025.179.1、Rust 1.96.0、
+LLVM 21.1.8，初始盘容量 145GiB、空闲 88GiB；composition 末 target 从 debug=2 的
+20,759,192KiB 降至 debug=1 的 12,034,036KiB，约减少 42.0%（8.32GiB）。
+采样最低空闲从 67GiB 变为 76GiB，不是整个 job 的精确峰值；不保证固定节省比例，
+也不据此宣称 #303 的 ENOSPC 已复现或根因完全解决。
+
+正式候选恢复原两宿主矩阵，不保留额外对照臂。它继承 #304 的只读采样与 stub 环境
+隔离修复；本次正式配置仍须精确头全套 CI，不能把 #305 实验绿灯当成新头验收。
+
 ## 证据保留
 
 验收要求可追溯，不等于把全部运行产物提交 Git。Spec 中保留一份简要账本：
