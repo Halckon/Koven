@@ -64,3 +64,12 @@ callable 观察原子 Unsupported；lambda body 保持独立 Unsupported。此�
 重复 control mutation；同源开关比较保留完整旧 Analysis。上文各候选阶段的未运行说明
 不代表组合已有动态验收；本地组合仍待精确官方 CI，见
 [SPEC-0341 整合记录](../specs/active/0341-shared-lowering-core.md#79-capture-与-if-分立观察整合候选2026-11-03)。
+
+## 循环拒绝回归切片
+
+循环 owner 仍未准入。新增静态回归固定 While/Loop 在外层 statement 原子 Unsupported：
+常量 false 的零轮边界、未改变条件的正常回边、continue、break 与嵌套循环都清空整个
+callable 的观察前缀；独立 sibling 仍完整。另用独立准入前缀与非法事实注入检查防止空测。
+同组源码比较 observation on/off 的完整旧 Analysis，要求 cleanup 的身份、次序与全部
+字段不变。测试只分析源码，不运行循环，也不把有限回放前缀当作真实多轮终止证据。
+本片不改生产支持；编译和行为仍待官方 CI，静态检查不替代执行。

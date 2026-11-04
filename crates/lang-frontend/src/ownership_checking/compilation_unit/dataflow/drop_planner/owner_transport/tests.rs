@@ -1,6 +1,7 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
 mod branch_boundaries;
 mod combination;
+mod loop_boundaries;
 
 use super::super::super::*;
 use super::super::plan_with_owner_observation;

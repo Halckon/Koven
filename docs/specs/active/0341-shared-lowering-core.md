@@ -1634,3 +1634,15 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   同源 observation on/off 完整 Analysis 对照。既有两片所有正负例和 Single witness 保留。
 - 本地不运行 Cargo/build/test/Clippy。组合静态检查、独立审查与精确官方 PR CI 结果
   分别登记，不能把两片历史绿灯转写为本组合已通过。D10/E2 保持 in-progress。
+
+## 80. 循环拒绝边界测试候选（2026-11-04）
+
+- 基线 main `ba9d61f5`；生产逻辑不变。八种 While/Loop 输入覆盖常量 false 零轮、
+  未改变条件的回边、continue/break 和嵌套循环，精确核对外层 statement Syntax 拒绝，
+  完整清空观察前缀并保持 sibling；另核独立前缀确实准入及 Unsupported 事实注入拒绝。
+- `owner_transport_tests::loop_boundaries` 与 planner `tests::loop_boundaries` 分别承担
+  admission 和完整 Analysis differential；后者保留 cleanup 全字段、身份与次序。
+- 本地仅静态检查，禁止 Cargo/build/test/Clippy；编译和行为未执行，官方精确头 CI 待验。
+  不宣称真实多轮运行或终止，不开放 loop owner/phi/capture 组合；D10/E2 继续未闭合。
+- 本地 direct rustfmt check、`git diff --check`、文档结构检查（837 文件）及 Rust 尺寸
+  守卫通过；独立静态审查未发现阻断项。以上不替代尚未执行的编译/行为验证。

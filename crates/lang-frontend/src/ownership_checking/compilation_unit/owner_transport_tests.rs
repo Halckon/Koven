@@ -3,6 +3,7 @@ pub(super) mod branch_boundaries;
 mod capture;
 pub(super) mod combination;
 pub(super) mod if_observation;
+pub(super) mod loop_boundaries;
 
 use super::formed_tests::Fixture;
 use super::*;
