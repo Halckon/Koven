@@ -325,12 +325,12 @@ fn same_and_unknown_element_indices_conflict_but_distinct_constants_do_not() {
         "class Resource {}\nfun mutate(inout first: Resource, inout second: Resource): Unit {}\nfun invalid(own list: MutableList<Resource>): Unit { val result = mutate(&list[0], &list[0]) }",
         "class Resource {}\nfun mutate(inout first: Resource, inout second: Resource): Unit {}\nfun invalid(own list: MutableList<Resource>, first: Int, second: Int): Unit { val result = mutate(&list[first], &list[second]) }",
     ] {
-        let (_, _, owned) = checked(text);
-        assert_eq!(codes(owned.diagnostics()), ["L0135"]);
-        assert!(
-            owned.loans().is_empty(),
-            "invalid plan must not be published"
-        );
+        mutable_unit::check_each(text, &["L0135"], |_, _, _, owned| {
+            assert!(
+                owned.loans().is_empty(),
+                "invalid plan must not be published"
+            );
+        });
     }
 }
 
@@ -437,8 +437,7 @@ fn already_moved_container_reports_only_the_root_cause_for_element_access() {
                     val moved = takeList(list)\n\
                     val element = list[0]\n\
                 }";
-    let (_, _, owned) = checked(text);
-    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+    mutable_unit::check_each(text, &["L0131"], |_, _, _, _| {});
 }
 
 #[test]
@@ -553,22 +552,21 @@ fn temporary_container_size_cleans_up_at_the_read() {
 
 #[test]
 fn moved_container_size_reports_the_owner_move() {
-    let (sources, _, owned) = checked(
-        "fun take(own value: List<Int>): Unit {}\n\
+    let text = "fun take(own value: List<Int>): Unit {}\n\
          fun sizes(own value: List<Int>): Unit {\n\
              val moved = take(value)\n\
              val invalid = value.size\n\
-         }",
-    );
-    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
-    assert_eq!(
-        sources
-            .slice(owned.diagnostics()[0].primary_span())
-            .unwrap(),
-        "value"
-    );
-    assert!(owned.loans().is_empty());
-    assert!(owned.drops().is_empty());
+         }";
+    mutable_unit::check_each(text, &["L0131"], |sources, _, _, owned| {
+        assert_eq!(
+            sources
+                .slice(owned.diagnostics()[0].primary_span())
+                .unwrap(),
+            "value"
+        );
+        assert!(owned.loans().is_empty());
+        assert!(owned.drops().is_empty());
+    });
 }
 
 #[test]

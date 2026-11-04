@@ -81,3 +81,7 @@ callable 的观察前缀；独立 sibling 仍完整。另用独立准入前缀�
 分别验证两条替代路径及完整后续；Choice 不成为新 String producer。模型不证明 AST 类型、
 实际尾值交付或未记录的调用/退出，生产 String-result If 仍 Unsupported。实际消费者的
 cleanup 和 Single witness 保留，准入接线须另立合同；验收见 SPEC-0341 §83。
+
+Control body 的私有结果通道保留实际尾表达式与既有求值帧 owner；旧 bool 调用方
+仍只消费是否继续。Read 尾值不交付 owner，原 temporary/scope cleanup 不变。
+该内部通道不改变 String-result If 的 Unsupported 边界，也不发布 Choice 协议。
