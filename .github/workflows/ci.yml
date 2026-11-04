@@ -280,6 +280,9 @@ jobs:
       matrix:
         os: [macos-15, ubuntu-26.04]
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_PROFILE_DEV_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
+      CARGO_PROFILE_TEST_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
     steps:
       - uses: actions/checkout@v7
       - name: Observe initial Linux disk usage
@@ -294,6 +297,7 @@ jobs:
           toolchain: '1.96.0'
       - uses: Swatinem/rust-cache@v2
         with:
+          prefix-key: ${{ runner.os == 'Linux' && 'v1-test-debug1' || 'v0-rust' }}
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
