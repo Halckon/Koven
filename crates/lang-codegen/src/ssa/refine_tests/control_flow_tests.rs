@@ -662,6 +662,118 @@ fn abort_predecessor_aggregate_construct_then_both_abort() {
     );
 }
 
+fn assert_refine_function_op_and_abort_clean(
+    source: &str,
+    function_name: &str,
+    expected_op_check: impl Fn(&crate::ssa::model::Operation) -> bool,
+    consumed_parameter_index: usize,
+) {
+    let mut sources = SourceMap::new();
+    let text = format!("package p\n{source}");
+    let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+    let (name_environment, mut type_environment) = standard_environments();
+    type_environment
+        .authorize_range_source(&sources, id)
+        .unwrap();
+    type_environment
+        .authorize_range_extension_source(&sources, id)
+        .unwrap();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let entry = declaration(&names, "p", "main");
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry,
+    )
+    .expect("refined program lowers and verifies");
+
+    let function = program.modules[0]
+        .functions
+        .iter()
+        .find(|f| f.name.contains(function_name))
+        .unwrap_or_else(|| panic!("function {function_name} not found"));
+
+    assert!(
+        function
+            .instructions
+            .iter()
+            .any(|inst| expected_op_check(&inst.operation)),
+        "function {function_name} must contain expected operation; instructions:\n{}",
+        super::render_program(&program)
+    );
+
+    let entry_block = &function.blocks[0];
+    let consumed_entity = entry_block.parameters[consumed_parameter_index];
+    let abort_blocks: Vec<_> = function
+        .blocks
+        .iter()
+        .filter(|b| {
+            matches!(
+                b.terminator.as_ref().map(|t| &t.kind),
+                Some(TerminatorKind::Abort)
+            )
+        })
+        .collect();
+    assert!(
+        !abort_blocks.is_empty(),
+        "function {function_name} must have at least one abort block"
+    );
+    for abort_block in abort_blocks {
+        assert!(
+            !abort_block.parameters.contains(&consumed_entity),
+            "abort block {:?} parameters {:?} must not contain consumed entity {:?}",
+            abort_block.id,
+            abort_block.parameters,
+            consumed_entity
+        );
+    }
+}
+
+fn emit_link_and_run_authorized(
+    source_name: &str,
+    text: &str,
+    entry_name: &str,
+) -> std::process::Output {
+    let analysis = crate::native_tests::boxed_enum_tests::unit_source::UnitSource::analyze_with_type_environment(
+        source_name,
+        text,
+        |sources, source, env| {
+            env.authorize_range_source(sources, source).unwrap();
+            env.authorize_range_extension_source(sources, source).unwrap();
+        },
+    )
+    .expect("original source must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+
+    let directory = crate::native_tests::TestDirectory::create();
+    let object = directory.join("program.o");
+    let executable = directory.join("program");
+    analysis
+        .emit(
+            analysis.declaration(
+                entry_name,
+                lang_frontend::name_resolution::SymbolKind::Function,
+            ),
+            &object,
+        )
+        .expect("accepted source must emit a native object");
+    let linked = std::process::Command::new(crate::test_support::clang())
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    std::process::Command::new(&executable)
+        .output()
+        .expect("linked executable must launch")
+}
+
 #[test]
 fn abort_predecessor_callable_invoke_consume_then_both_abort() {
     let source = r#"
@@ -679,6 +791,12 @@ fn abort_predecessor_callable_invoke_consume_then_both_abort() {
         val consumer: (own String) -> Unit = { s -> println(s) }
         test_view(consumer, 1, true, "view-callable-arg".clone())
     }"#;
+    assert_refine_function_op_and_abort_clean(
+        source,
+        "test_view",
+        |op| matches!(op, crate::ssa::model::Operation::CallableInvokeView { .. }),
+        3,
+    );
     let output = crate::native_tests::emit_link_and_run("callable_then_abort.ko", source, "main");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
@@ -708,6 +826,12 @@ fn abort_predecessor_callable_invoke_local_consume_then_both_abort() {
     fun main(): Unit {
         test_local(1, false, "local-callable-arg".clone())
     }"#;
+    assert_refine_function_op_and_abort_clean(
+        source,
+        "test_local",
+        |op| matches!(op, crate::ssa::model::Operation::CallableInvoke { .. }),
+        2,
+    );
     let output =
         crate::native_tests::emit_link_and_run("callable_local_then_abort.ko", source, "main");
     assert_eq!(
@@ -744,12 +868,58 @@ fn abort_predecessor_borrow_call_consume_then_both_abort() {
     fun main(): Unit {
         test_case(1, false, "extra-consumed".clone())
     }"#;
+    assert_refine_function_op_and_abort_clean(
+        source,
+        "test_case",
+        |op| matches!(op, crate::ssa::model::Operation::BorrowCall { .. }),
+        2,
+    );
     let output =
         crate::native_tests::emit_link_and_run("borrow_call_then_abort.ko", source, "main");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "source-text\n");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.starts_with("abort: abort-borrow-call-b\n  at "),
+        "{stderr:?}"
+    );
+}
+
+#[test]
+fn abort_predecessor_range_call_consume_then_both_abort() {
+    let source = r#"
+    fun head_and_consume(source: List<String>, n: Int, own extra: String): View<String> from source = rangeView(source, 0, n)
+    fun test_range_call(opt: Int?, flag: Boolean, own extra: String): Unit {
+        var marker = 10
+        replace(&marker, 20)
+        if (opt != null) {
+            val list = listOf("elem-10".clone(), "elem-20".clone(), "elem-30".clone())
+            {
+                borrow val item = head_and_consume(list, 1, extra)
+                for (x in item) {
+                    println(x)
+                }
+            }
+            if (flag) {
+                error("abort-range-call-a")
+            } else {
+                error("abort-range-call-b")
+            }
+        }
+    }
+    fun main(): Unit {
+        test_range_call(1, false, "extra-range-consumed".clone())
+    }"#;
+    assert_refine_function_op_and_abort_clean(
+        source,
+        "test_range_call",
+        |op| matches!(op, crate::ssa::model::Operation::RangeCall { .. }),
+        2,
+    );
+    let output = emit_link_and_run_authorized("range_call_then_abort.ko", source, "main");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "elem-10\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: abort-range-call-b\n  at "),
         "{stderr:?}"
     );
 }

@@ -38,9 +38,9 @@
 
 ## 3. 验收标准
 
-- [x] `ssa::` 全量单元测试（包含新增的 4 项 abort 前驱退役定向回归）100% 通过。
+- [x] `ssa::` 全量单元测试（包含新增的 7 项 abort 前驱退役定向回归及 4 类调用族 SSA 指令与块参数干净性断言）100% 通过。
 - [x] `llvm::` 全量 74 项单元测试 100% 通过。
-- [x] 手写 Rust 文件尺寸护栏保持在 1000 行软上限内（`emit.rs` 975 行，`numeric_iteration.rs` 529 行）。
+- [x] 手写 Rust 文件尺寸护栏保持在 1000 行软上限内（`emit.rs` 975 行，`control_flow_tests.rs` 946 行，`numeric_iteration.rs` 529 行）。
 - [x] `python3 scripts/gen_roadmap.py`、`python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`cargo fmt --all -- --check` 与 `cargo clippy --locked --workspace --all-targets -- -D warnings` 全部通过。
 
 ## 4. 验收记录账本
@@ -49,5 +49,7 @@
 |---|---|---|
 | CI run 41758961251 | GitHub Actions PR-event（head `68157824`） | 14 项 job 全部 success |
 | CI run 41790617837 | GitHub Actions PR-event（head `7bc90dd9`） | 14 项 job 全部 success（Linux/macOS Targeted Tests、Preview Producer/Consumer 全绿） |
-| 变异测试证据 | 本地注释 `call_operands` 中的 `CallableInvoke`/`BorrowCall` | `abort_predecessor_callable_invoke_consume_then_both_abort` 与 `abort_predecessor_borrow_call_consume_then_both_abort` 立即稳定失败报 `InvalidModel`；恢复后全绿，证明回归具有动态鉴别力 |
+| CI run 41797160301 | GitHub Actions PR-event（head `638dd72d`） | 14 项 job 全部 success（Linux/macOS Targeted Tests、Preview Producer/Consumer 全绿） |
+| 本地 abort 前驱定向回归 | `cargo test -p lang-codegen ssa::refine_tests::control_flow_tests::abort_predecessor_` | 7 项回归全绿（覆盖 DirectCall、聚合构造、CallableInvokeView、CallableInvoke、BorrowCall、RangeCall 与 LoanMutate），且 4 类调用族均显式断言目标 SSA 操作存在及 abort 块参数中绝无已消费 owner |
+| 变异测试证据 | 本地注释 `call_operands` 中的 `CallableInvoke`/`BorrowCall`/`RangeCall` | `abort_predecessor_callable_invoke_consume_then_both_abort` 与 `abort_predecessor_borrow_call_consume_then_both_abort` 立即稳定失败报 `InvalidModel`；`assert_refine_function_op_and_abort_clean` 在操作降级或遗漏 `retired_slots` 时立即失败，证明回归具有动态鉴别力 |
 | CI Evidence 状态 | `scripts/pr_ci_reuse.py` 执行日志 | `code-evidence` 因 PR 合并 parents 严格检验未找到匹配物理证据产物而按设计 skipped，不属于 CI 失败，且全部 14 项实体测试 job 均独立执行通过 |
