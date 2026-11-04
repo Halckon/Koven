@@ -769,7 +769,8 @@ impl ROp {
             | Self::InlineFieldReplace { value, .. }
             | Self::HeapFieldExchange {
                 replacement: value, ..
-            } => vec![*value],
+            }
+            | Self::LoanMutate { value, .. } => vec![*value],
 
             Self::RootReplace {
                 owner, replacement, ..

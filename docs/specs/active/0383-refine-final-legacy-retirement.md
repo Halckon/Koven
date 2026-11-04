@@ -17,25 +17,37 @@
 
 ## 1. Goal
 
-将 SPEC-0371/0373/0378/0380 已实现但尚未接入默认 `migrated` 门禁的家族（整数内建运算、整数区间值与升序 `for`、`String.clone()`、可信文本原语、扩展函数调用、`Borrow Rc<T>` 参数、`IntRange?`/`LongRange?` 可空存储与判空、`Map.withValue`/`Map.requireValue`）全量切换至 `ssa::refine` 默认路由，补齐默认路由暴露的扩展函数 `this` 借用、`borrow val` 下 `value class` 字段投影、多跳短路 `Abort` 路径活跃 owner 传播与 `if` 汇聚块拓扑编号，并彻底删除已 100% 由细化层接管的 5 个旧 `unit_lower` 模块（`integer.rs`、`integer_range.rs`、`text_primitive.rs`、`map_with.rs`、`map_require.rs`，共 755 行）。
+将 SPEC-0371/0373/0378/0380 已实现但尚未接入默认 `migrated` 门禁的家族（整数内建运算、整数区间值与升序 `for`、`String.clone()`、可信文本原语、扩展函数调用、`Borrow Rc<T>` 参数、`IntRange?`/`LongRange?` 可空存储与判空、`Map.withValue`/`Map.requireValue`）全量切换至 `ssa::refine` 默认路由，补齐默认路由暴露的扩展函数 `this` 借用、`borrow val` 下 `value class` 字段投影、多跳短路 `Abort` 路径活跃 owner 传播与 `if` 汇聚块拓扑编号，并彻底删除已 100% 由细化层接管的 5 个旧 `unit_lower` 模块（`integer.rs` 100 行、`integer_range.rs` 74 行、`text_primitive.rs` 118 行、`map_with.rs` 108 行、`map_require.rs` 84 行，基线共 484 行手写代码；commit 45edf6b 整体 diff 为 -739 行）。
 
 ## 2. 实施内容
 
 1. **全量默认路由收敛（`refine/subset.rs`、`subset/scalar_text.rs`、`subset/callable.rs`、`subset/range_borrow.rs`、`subset/heap.rs`、`subset/field.rs`、`subset/value.rs`、`subset/map.rs`）**：
    - **默认 `migrated` 激活**：在 `integer_operation`、`integer_range_operation`、`string_operation`（`String.clone()`）、`numeric_for`、`signature_types` / `local_variable` 的 `range_type`、以及 `call` 中的 `is_extension_call` 与 `descriptor.text_primitive().is_some()` 处激活 `self.migrated |= ok`；在 `expr_requires_refine` 中纳入 `map_with_value` 与 `map_require_value`。
+   - **`numeric_for` 所有权与访问契约**：严格校验 `plan.source_access() == UnitIterationSourceAccess::Owned` 与 `plan.source_kind() == OwnedSnapshot(source_id)`，维持与原有所有权检查器的一致性契约。
    - **`Borrow Rc<T>` 参数与 `IntRange?`/`LongRange?` 可空支持**：`ParameterMode::Borrow` 接纳 `rc_payload(ty).is_some()`；`heap.rs`（`UnitTypeKind::Nullable`）、`subset.rs`（`condition`）、`value.rs`（`value_projection`）与 `map.rs`（`map_remove`、`nullable_equality`）全面纳入 `range_type`。
    - **扩展函数 `Expression::This` 借用与括号解包**：`subset/callable.rs`、`build/callable.rs` 与 `build/range_borrow.rs` 在 `borrowed_string_name`、`borrowed_move_only_name` 及对应 loan 提取中同时支持 `Expression::Name | Expression::This`，并对操作数、接收者与窄化视图做 `ungroup` 解包。
    - **`borrow val` / 借用返回的 `value class` 字段投影**：`subset/range_borrow.rs` 的 `result_place` 递归支持 `class` 与 `value class`（含 `move_value_class`）字段投影链，打通 `borrow val` 绑定在 `Map` 借用槽位与 `value class` 字段上的组合读取与有序 `BorrowEnd`。
-2. **多跳 `Abort` 活跃性传播与 `if` 汇聚块拓扑序修复（`refine/emit.rs`、`refine/build/condition.rs`）**：
+2. **多跳 `Abort` 活跃性传播与调用/突变族消费统一（`refine/emit.rs`、`refine/body.rs`、`refine/build/condition.rs`）**：
    - **多跳 `Abort` 块活跃性传播**（`refine/emit.rs`）：计算必然到达 `RTerm::Abort` 的块集合 `abort_blocks`，并在 `shape` 不动点迭代中将前驱块的出口存活集合（`live_in[pred] - retired[pred]`）经 `abort_preds` 单调传播至多跳 `Abort` 路径（如 `if (A || B) { error(...) }` 短路汇聚的 `when_true` 块），确保在 `Abort` 边上所有存活的 MoveOnly owner 都具有合法的块参数归属，消除 `MissingOwnedExit`。
+   - **调用族与突变族退役槽位统一计算**（`refine/body.rs`）：在 `ROp::retired_slots` 中统一抽取调用族（`DirectCall`、`CallableInvoke`、`CallableInvokeView`、`BorrowCall`、`RangeCall`）的 receiver 与按值参数，以及 `LoanMutate` 等载荷值槽位，避免未登记退役导致已消费或已交付 owner 错误向双 abort 块续传；补充覆盖视图函数调用、本地 lambda 调用、借用返回调用及 inout 突变后双分支 abort 的 4 项定向回归。
    - **`if` 汇聚块延迟分配**（`refine/build/condition.rs`）：在 `if_expression` 中将 `join` 块分配推迟至条件与分支块构建完成之后，保证 `merge_straight_lines` 折叠单前驱块后 `join` 的 `BlockRef` 索引始终大于条件及分支块，维持线性扫描借用结束点的拓扑顺序。
-3. **旧路径模块退休（共删除 5 个模块、755 行）**：
-   - 删除 `crates/lang-codegen/src/ssa/unit_lower/integer.rs`（143 行）、`integer_range.rs`（195 行）、`text_primitive.rs`（200 行）、`map_with.rs`（121 行）与 `map_require.rs`（96 行）。
-   - `unit_lower/call.rs` 与 `unit_lower/map.rs` 对已退休家族统一收敛为结构化 `UnsupportedNode` 拒绝；`unit_lower/loop_control/numeric_iteration.rs` 内联处理旧路径 `map_for`（`P16-for`）测试所需的字面量区间源构造，彻底移除对 `integer_range.rs` 的依赖；`unit_lower/map_consume.rs` 仅保留 `lower_map_consume` 供遗留 `map_for` 与 `with_per_family_lowering` 测试使用。
+3. **旧路径模块退休与边界保留（共删除 5 个具名模块、484 行手写代码）**：
+   - 删除 `crates/lang-codegen/src/ssa/unit_lower/integer.rs`（100 行）、`integer_range.rs`（74 行）、`text_primitive.rs`（118 行）、`map_with.rs`（108 行）与 `map_require.rs`（84 行），基线 `041e8238` 上合计 484 行手写代码。
+   - `unit_lower/call.rs` 与 `unit_lower/map.rs` 对已退休家族统一收敛为结构化 `UnsupportedNode` 拒绝。
+   - **边界说明**：本 Spec 聚焦于收敛上述 5 个具名语法家族并退休对应 legacy 模块；`map_for` 迭代暂未迁入 `refine`，`map_consume.rs`（保留 `lower_map_consume`）与 `numeric_iteration.rs`（529 行，基线 495 行，通过内联区间源构造自聚解耦已删的 `integer_range.rs`）明确保留供遗留 `map_for` 及其独立测试使用，后续将在专项目标中独立推进迁移与旧循环模块退役。
 
 ## 3. 验收标准
 
-- [x] `ssa::` 全量 1,854 项单元测试（1,819 项主套件 + 35 项 `text_copy_tests`，含 `integer_range_value_tests` 15/15、`checked_integer_conversion_backend_tests` 25/25、`borrow_storage_contract_tests`、`map_provider_exits_pipeline_tests` 与 `refine_tests`）100% 通过。
+- [x] `ssa::` 全量单元测试（包含新增的 4 项 abort 前驱退役定向回归）100% 通过。
 - [x] `llvm::` 全量 74 项单元测试 100% 通过。
-- [x] 手写 Rust 文件尺寸护栏保持在 1000 行软上限内（`emit.rs` 975 行，`numeric_iteration.rs` 244 行）。
+- [x] 手写 Rust 文件尺寸护栏保持在 1000 行软上限内（`emit.rs` 975 行，`numeric_iteration.rs` 529 行）。
 - [x] `python3 scripts/gen_roadmap.py`、`python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`cargo fmt --all -- --check` 与 `cargo clippy --locked --workspace --all-targets -- -D warnings` 全部通过。
+
+## 4. 验收记录账本
+
+| 检查项 | 证据来源 | 结论 |
+|---|---|---|
+| CI run 41758961251 | GitHub Actions PR-event（head `68157824`） | 14 项 job 全部 success |
+| CI run 41790617837 | GitHub Actions PR-event（head `7bc90dd9`） | 14 项 job 全部 success（Linux/macOS Targeted Tests、Preview Producer/Consumer 全绿） |
+| 变异测试证据 | 本地注释 `call_operands` 中的 `CallableInvoke`/`BorrowCall` | `abort_predecessor_callable_invoke_consume_then_both_abort` 与 `abort_predecessor_borrow_call_consume_then_both_abort` 立即稳定失败报 `InvalidModel`；恢复后全绿，证明回归具有动态鉴别力 |
+| CI Evidence 状态 | `scripts/pr_ci_reuse.py` 执行日志 | `code-evidence` 因 PR 合并 parents 严格检验未找到匹配物理证据产物而按设计 skipped，不属于 CI 失败，且全部 14 项实体测试 job 均独立执行通过 |

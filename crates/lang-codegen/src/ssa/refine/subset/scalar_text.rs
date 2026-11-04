@@ -182,6 +182,8 @@ impl Checker<'_, '_> {
             )
             || descriptor.statement() != statement_id
             || descriptor.source() != source_id
+            || plan.source_access()
+                != lang_frontend::ownership_checking::UnitIterationSourceAccess::Owned
             || plan.source_kind()
                 != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(source_id)
         {

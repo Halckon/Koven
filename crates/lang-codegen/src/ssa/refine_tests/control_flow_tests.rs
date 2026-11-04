@@ -753,3 +753,29 @@ fn abort_predecessor_borrow_call_consume_then_both_abort() {
         "{stderr:?}"
     );
 }
+
+#[test]
+fn abort_predecessor_loan_mutate_then_both_abort() {
+    let source = r#"
+    fun test_loan_mutate(inout target: Int, opt: Int?, flag: Boolean, next: Int): Unit {
+        if (opt != null) {
+            target = next
+            if (flag) {
+                error("abort-loan-mutate-a")
+            } else {
+                error("abort-loan-mutate-b")
+            }
+        }
+    }
+    fun main(): Unit {
+        var x = 10
+        test_loan_mutate(&x, 1, true, 42)
+    }"#;
+    let output =
+        crate::native_tests::emit_link_and_run("loan_mutate_then_abort.ko", source, "main");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: abort-loan-mutate-a\n  at "),
+        "{stderr:?}"
+    );
+}
