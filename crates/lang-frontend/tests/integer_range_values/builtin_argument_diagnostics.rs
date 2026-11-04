@@ -1,16 +1,15 @@
 //! SPEC-0341: independent complete L0082 oracles for signature and body producers.
+//! The parent suite retains the original Single public-API diagnostic witnesses.
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     parser::parse_file,
     source::{SourceId, SourceMap},
     type_checking::{
-        FinalTypeAdmissionError, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, complete_file_types, standard_environments,
+        FinalTypeAdmissionError, check_compilation_unit_types, complete_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -49,7 +48,7 @@ fn rejected(result: Result<(), FinalTypeAdmissionError>) -> Vec<Diagnostic> {
     }
 }
 
-fn assert_single_and_units(text: &str, signature_count: usize) {
+fn assert_units(text: &str, signature_count: usize) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("builtin-arguments.ko", text).unwrap();
     let lexed = lex(&sources, source).unwrap();
@@ -59,14 +58,6 @@ fn assert_single_and_units(text: &str, signature_count: usize) {
     let expected = expected(&sources, source, text);
     assert!(!expected.is_empty());
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty());
-    let single = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert_eq!(single.diagnostics(), expected);
-    assert_eq!(
-        rejected(complete_file_types(&sources, &parsed, &names, &types, &single).map(|_| ())),
-        expected
-    );
     for input in [
         SourceUnitInput::memory_document(source, &parsed),
         SourceUnitInput::new("root", "builtin-arguments.ko", source, &parsed),
@@ -84,7 +75,6 @@ fn assert_single_and_units(text: &str, signature_count: usize) {
         );
         assert_eq!(unit.body_diagnostics(), &expected[signature_count..]);
         assert_eq!(unit.diagnostics(), expected);
-        assert_eq!(unit.diagnostics(), single.diagnostics());
         assert_eq!(
             rejected(
                 complete_compilation_unit_types(&sources, &inputs, &names, &types, &unit)
@@ -98,11 +88,11 @@ fn assert_single_and_units(text: &str, signature_count: usize) {
 #[test]
 fn signature_and_body_builtin_arguments_keep_the_same_complete_label() {
     for builtin in ["Int", "Boolean", "IntRange", "LongRange"] {
-        assert_single_and_units(
+        assert_units(
             &format!("fun probe(value: {builtin}<String>): Unit {{}}"),
             1,
         );
-        assert_single_and_units(
+        assert_units(
             &format!("fun probe(): Unit {{ val bad: {builtin}<String> = return }}"),
             0,
         );
@@ -111,7 +101,7 @@ fn signature_and_body_builtin_arguments_keep_the_same_complete_label() {
 
 #[test]
 fn return_signature_and_body_labels_keep_raw_final_order_with_crlf_and_unicode() {
-    assert_single_and_units(
+    assert_units(
         "// 界é😀\r\nfun probe(): IntRange<String> {\r\nval bad: Boolean<String> = return\r\n}",
         1,
     );
