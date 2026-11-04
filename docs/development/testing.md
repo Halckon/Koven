@@ -55,6 +55,24 @@ Linux targeted tests 在 checkout 后、缓存恢复后和 bounded composition �
 先对比容量、inode 和各类聚合的增长，再决定产物生命周期或 runner 容量策略；不要盲删
 系统目录、cache 或日志，也不以减少测试/调低 debug 信息绕过既有 DWARF 与 native 合同。
 
+## CI-only debug 对照候选
+
+本实验在同一提交的 Linux targeted tests 增加 `debug=1` 臂，原 Linux 臂显式使用
+`debug=2`；macOS 仍为 `debug=2`。仅该 job 设置 `CARGO_PROFILE_DEV_DEBUG` 与
+`CARGO_PROFILE_TEST_DEBUG`，不改 Cargo.toml、Clippy、release、优化等级或测试选择。
+`1` 是 Cargo 的 limited，不等同于 `line-tables-only`，Rust 变量/类型调试信息会减少；
+Koven 自己生成的 DWARF、LLDB 与全部 native 合同仍必须通过。
+
+两个 Linux 臂以 run ID、attempt 和 debug 值隔离 cache prefix，并禁止保存实验 cache；
+因此不恢复 Clippy 或历史编译产物，保持 rust-cache 的 `CARGO_INCREMENTAL=0` 行为。
+与 #304 的热缓存观测不能直接计算节省比例。比较两臂 checkout、工具链、LLVM、runner
+image/容量、缓存 miss、composition 前后 target、采样中最低可用空间及步骤耗时；
+若 runner 容量或工具链不同，先说明差异，不宣称因果。采样有间隔，最低值仅是观测值，
+不能声称精确峰值；最终体积也不能替代峰值。保留其余全部步骤及原有失败行为，全部矩阵臂成功才算通过。
+
+本地只做静态/Python 合同检查，尚无 debug=1 运行结论或固定节省比例。
+实验需要独立发布及 CI 授权；它不是永久配置，不得因本候选存在就直接推广或合入。
+
 ## 证据保留
 
 验收要求可追溯，不等于把全部运行产物提交 Git。Spec 中保留一份简要账本：
