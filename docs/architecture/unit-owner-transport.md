@@ -73,3 +73,11 @@ callable 的观察前缀；独立 sibling 仍完整。另用独立准入前缀�
 同组源码比较 observation on/off 的完整旧 Analysis，要求 cleanup 的身份、次序与全部
 字段不变。测试只分析源码，不运行循环，也不把有限回放前缀当作真实多轮终止证据。
 本片不改生产支持；编译和行为仍待官方 CI，静态检查不替代执行。
+
+## Test-only Choice 模型
+
+`owner_transport_tests::choice_model` 保存私有、单选择的候选事件模型，仅在 `cfg(test)`
+路径可达，不改变公开 owner API 或生产准入。它用真 definition catalog 的身份构造手工图，
+分别验证两条替代路径及完整后续；Choice 不成为新 String producer。模型不证明 AST 类型、
+实际尾值交付或未记录的调用/退出，生产 String-result If 仍 Unsupported。实际消费者的
+cleanup 和 Single witness 保留，准入接线须另立合同；验收见 SPEC-0341 §83。

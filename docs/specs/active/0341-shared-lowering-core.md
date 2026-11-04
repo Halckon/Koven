@@ -1696,3 +1696,31 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
 - 本片仅静态开发与独立静审；按要求不运行本地 Cargo/build/test/Clippy，动态验收仍待
   精确组合头官方 CI。候选尚未发布，不将历史 main CI 转写为本候选通过。
   D10/SPEC-0341/E2 继续 in-progress；owner/loan-end/conditional cleanup 等缺口不关闭。
+
+## 83. E2 Choice 测试模型前置（2026-11-04）
+
+基线 main `8b2e9e18`；本批不开放 String-result If，不改变公开 API、生产 planner、cleanup
+或 Single witness。候选仍处于模型验证阶段，不代表语言路径或下游 lowering 已可使用。
+
+- `owner_transport_tests::choice_model` 仅由已有 `cfg(test)` 路径编译。私有 ChoiceId 具有
+  product/callable/control 身份，Value 区分真实 definition 与选择引用；选择不新增 producer。
+  真 Unit If 观察提供 source-qualified definition catalog，手工事件图只验证传输合同，
+  不声称这份源码已经产生 String-result Choice；也不从图推断缺席的 Return/opaque call。
+- 模型仅有一个选择、两条 String 定义输入及完整后续，拒绝前向/循环选择引用；分别回放
+  两边的 Pending/Binding/Move/Forward/Replace/Drop，Replace 的 incoming/previous 均覆盖。
+  静态创建区域唯一，未执行分支定义必须保持 Uncreated，其余定义须实际 Drop；终态 Result
+  不冒充返回或 temporary cleanup。Create 和 join 的结果槽都核对唯一占用。
+- 两项真实 String-result replace 消费者仍核精确 Unsupported 点/原因、定义/事件全清空、
+  sibling Complete 及原 cleanup 数量。对应源码通过同输入 observation on/off helper
+  比较清空独立观察后的完整 Analysis；原 `ownership_primitives` Single cleanup 见证不改。
+- 对抗图覆盖反置/错误边输入、错误尾值、外来 product/source/callable、未定义 choice、
+  已 drop/未创建输入、前向/循环引用、重复消费、错误 Pending/Binding 槽、未消费结果、
+  未选边重建，以及先占用 Result 再创建/合流的槽冲突。
+- 独立静审指出的 Create/join 短暂结果槽冲突已补防护与两项回归。按用户约束未运行本地
+  Cargo/build/test/Clippy；Rust 动态验收与官方精确头 CI 均未完成，不能以静态模型宣称通过。
+  正式生产接入仍需独立接口兼容合同、真实 tail 交付证据和准入验证。
+
+本候选静态验收：独立复核未发现剩余 P0/P1；直接 rustfmt --check、文档结构检查
+（837 Markdown）、Rust 尺寸守卫（2101 文件、39 项旧超限，无新增超限）与
+`git diff --check` 通过。新增八项模型/真实边界测试和一项完整 Analysis 差分测试，
+其中恶意图十九种；这些 Rust 测试尚未执行，不能当作动态通过记录。
