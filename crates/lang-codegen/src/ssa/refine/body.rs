@@ -686,6 +686,99 @@ impl ROp {
             } => arguments.clone(),
         }
     }
+
+    /// Every slot consumed by value or whose loan ended at this operation.
+    pub(super) fn retired_slots(&self, slots: &[EntityType]) -> Vec<Slot> {
+        match self {
+            Self::Drop { owner }
+            | Self::BorrowEnd { loan: owner }
+            | Self::AggregateExplode { aggregate: owner }
+            | Self::HeapAllocate { payload: owner, .. }
+            | Self::TaggedConstruct { payload: owner, .. }
+            | Self::SharedAllocate { payload: owner, .. }
+            | Self::ContainerClear { owner }
+            | Self::ContainerRemoveFirst { owner }
+            | Self::ContainerRemoveLast { owner }
+            | Self::MapConsume { owner, .. }
+            | Self::MapResultUnwrap { result: owner }
+            | Self::NullableWrap { owner, .. }
+            | Self::NullableTake { owner, .. } => vec![*owner],
+
+            Self::RangeEnd { view, source } => vec![*view, *source],
+
+            Self::AggregateConstruct { fields, .. } => fields.clone(),
+            Self::ContainerConstruct { elements, .. } => elements.clone(),
+
+            Self::ContainerAppend { owner, element }
+            | Self::ContainerRemoveAt {
+                owner,
+                index: element,
+            }
+            | Self::MapRemove {
+                owner,
+                key: element,
+            } => vec![*owner, *element],
+
+            Self::ContainerInsertAt {
+                owner,
+                index,
+                element,
+            }
+            | Self::ContainerReplace {
+                owner,
+                index,
+                value: element,
+            }
+            | Self::MapPut {
+                owner,
+                key: index,
+                value: element,
+            } => vec![*owner, *index, *element],
+
+            Self::HeapFieldReplace { value, .. }
+            | Self::InlineFieldReplace { value, .. }
+            | Self::HeapFieldExchange {
+                replacement: value, ..
+            } => vec![*value],
+
+            Self::RootReplace {
+                owner, replacement, ..
+            } => vec![*owner, *replacement],
+
+            Self::RootSwap {
+                left_owner,
+                right_owner,
+                ..
+            } => vec![*left_owner, *right_owner],
+
+            Self::ClosureConstruct { captures, .. } => captures
+                .iter()
+                .copied()
+                .filter(|s| matches!(slots.get(s.0), Some(EntityType::Value(_))))
+                .collect(),
+
+            Self::DirectCall {
+                receiver,
+                arguments,
+                ..
+            } => {
+                let mut consumed = Vec::new();
+                if let Some(r) = receiver
+                    && matches!(slots.get(r.0), Some(EntityType::Value(_)))
+                {
+                    consumed.push(*r);
+                }
+                for a in arguments {
+                    if matches!(slots.get(a.0), Some(EntityType::Value(_))) {
+                        consumed.push(*a);
+                    }
+                }
+                consumed
+            }
+
+            _ => Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

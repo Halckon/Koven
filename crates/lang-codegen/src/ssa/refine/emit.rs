@@ -185,12 +185,7 @@ fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
         let retired: BTreeSet<Slot> = body.blocks[pred.0]
             .statements
             .iter()
-            .filter_map(|s| match s.op {
-                ROp::Drop { owner }
-                | ROp::BorrowEnd { loan: owner }
-                | ROp::RangeEnd { view: owner, .. } => Some(owner),
-                _ => None,
-            })
+            .flat_map(|s| s.op.retired_slots(&body.slots))
             .collect();
         if let Some((term, _)) = &body.blocks[pred.0].terminator {
             for succ in term.successors() {

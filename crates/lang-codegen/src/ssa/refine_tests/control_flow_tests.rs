@@ -607,3 +607,57 @@ fn logical_short_circuit_dead_isolation_and_early_exit() {
     }"#;
     counted(source, 2, b"condition-true\npayload\ncondition-true\n");
 }
+
+#[test]
+fn abort_predecessor_string_consume_then_both_abort() {
+    let source = r#"
+    fun consume(text: String): Unit {
+        println(text)
+    }
+    fun test_case(opt: Int?, flag: Boolean, text: String): Unit {
+        if (opt != null) {
+            consume(text)
+            if (flag) {
+                error("abort-branch-a")
+            } else {
+                error("abort-branch-b")
+            }
+        }
+    }
+    fun main(): Unit {
+        test_case(1, true, "hello".clone())
+    }"#;
+    let output = crate::native_tests::emit_link_and_run("consume_then_abort.ko", source, "main");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "hello\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: abort-branch-a\n  at "),
+        "{stderr:?}"
+    );
+}
+
+#[test]
+fn abort_predecessor_aggregate_construct_then_both_abort() {
+    let source = r#"
+    class BoxedPayload(val text: String)
+    fun test_case(flag: Boolean): Unit {
+        val text = "boxed-payload".clone()
+        val boxed = BoxedPayload(text)
+        println(boxed.text)
+        if (flag) {
+            error("abort-aggregate-a")
+        } else {
+            error("abort-aggregate-b")
+        }
+    }
+    fun main(): Unit {
+        test_case(false)
+    }"#;
+    let output = crate::native_tests::emit_link_and_run("aggregate_then_abort.ko", source, "main");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "boxed-payload\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("abort: abort-aggregate-b\n  at "),
+        "{stderr:?}"
+    );
+}
