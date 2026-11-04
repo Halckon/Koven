@@ -267,7 +267,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
   test:
-    name: Targeted Tests (${{ matrix.os }})
+    name: Targeted Tests (${{ matrix.os }})${{ matrix.debug == '1' && ' debug=1 experiment' || '' }}
     needs: [changes, clippy]
     if: |
       needs.changes.outputs.reuse != 'true' &&
@@ -279,9 +279,19 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, ubuntu-26.04]
+        debug: ['2']
+        include:
+          - os: ubuntu-26.04
+            debug: '1'
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_PROFILE_DEV_DEBUG: ${{ matrix.debug }}
+      CARGO_PROFILE_TEST_DEBUG: ${{ matrix.debug }}
     steps:
       - uses: actions/checkout@v7
+      - name: Observe initial Linux disk usage
+        if: runner.os == 'Linux'
+        run: python3 scripts/ci_disk_usage.py before-setup || true
       - name: Set up LLVM 21
         id: llvm
         uses: ./.github/actions/setup-llvm
@@ -291,16 +301,22 @@ jobs:
           toolchain: '1.96.0'
       - uses: Swatinem/rust-cache@v2
         with:
+          # Cold, separate Linux arms on every attempt; no fallback to production caches.
+          prefix-key: ${{ runner.os == 'Linux' && format('debug-comparison-{0}-{1}-{2}', github.run_id, github.run_attempt, matrix.debug) || 'v0-rust' }}
+          save-if: ${{ runner.os != 'Linux' }}
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
+      - name: Observe final Linux composition disk usage
+        if: always() && runner.os == 'Linux'
+        run: python3 scripts/ci_disk_usage.py after-composition || true
       - name: Word frequency byte and boundary contracts
         run: python3 scripts/check_word_frequency.py --evidence "$RUNNER_TEMP/koven-word-frequency"
       - name: Preserve word frequency evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: word-frequency-${{ runner.os }}-${{ github.sha }}
+          name: word-frequency-${{ runner.os }}-${{ github.sha }}-debug-${{ matrix.debug }}
           path: ${{ runner.temp }}/koven-word-frequency
           if-no-files-found: error
       - name: Public-entry conformance oracle and regression gate
@@ -313,7 +329,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: conformance-${{ runner.os }}-${{ github.sha }}
+          name: conformance-${{ runner.os }}-${{ github.sha }}-debug-${{ matrix.debug }}
           path: ${{ runner.temp }}/koven-conformance
           if-no-files-found: error
       - name: Linux native sanitizer contracts
@@ -324,7 +340,7 @@ jobs:
         if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v7
         with:
-          name: native-sanitizers-${{ runner.os }}-${{ github.sha }}
+          name: native-sanitizers-${{ runner.os }}-${{ github.sha }}-debug-${{ matrix.debug }}
           path: ${{ runner.temp }}/koven-sanitizers
           if-no-files-found: error
       - name: Generated resource program contracts
@@ -334,7 +350,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: generated-owners-${{ runner.os }}-${{ github.sha }}
+          name: generated-owners-${{ runner.os }}-${{ github.sha }}-debug-${{ matrix.debug }}
           path: ${{ runner.temp }}/koven-generated-owners
           if-no-files-found: error
 
