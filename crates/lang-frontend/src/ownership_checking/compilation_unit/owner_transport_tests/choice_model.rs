@@ -243,10 +243,10 @@ impl Model {
             (3, self.suffix.as_slice()),
         ] {
             for event in events {
-                if let Event::Create(_, id) = event {
-                    if !self.valid_id(id) || regions[id.index].replace(region).is_some() {
-                        return None;
-                    }
+                if let Event::Create(_, id) = event
+                    && (!self.valid_id(id) || regions[id.index].replace(region).is_some())
+                {
+                    return None;
                 }
             }
         }
