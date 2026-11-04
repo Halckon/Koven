@@ -1634,3 +1634,27 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   同源 observation on/off 完整 Analysis 对照。既有两片所有正负例和 Single witness 保留。
 - 本地不运行 Cargo/build/test/Clippy。组合静态检查、独立审查与精确官方 PR CI 结果
   分别登记，不能把两片历史绿灯转写为本组合已通过。D10/E2 保持 in-progress。
+
+## 80. Component 与 builtin 诊断重复 Single 观察退休候选（2026-11-04）
+
+基于 main `ba9d61f5` 的本地候选，只迁六项测试、十三次重复 Single 执行；不改生产、
+公开 API、fixture、Guide、CI 选择或 E3，不依赖新 owner observation 扩张。
+
+- `ownership_structural/component_partial_move.rs` 四项测试各去掉一次 Single producer。
+  原 MemoryDocument/Rooted 循环、fixed Diagnostic、fixture/sidecar、完整 component label、
+  L0131 主 span、projection/call target 身份、copyability 与失败 drop 空表原断言保留。
+  父 suite 的原综合 projection/fixture Single 测试及 helper 不动。此处仍是 basic
+  names/typed validation，不升级为 final-admission 或 cleanup 完整性证明。
+- `integer_range_values/builtin_argument_diagnostics.rs` 前两测试去掉九次 Single producer：
+  四 builtin 的 signature/body 各一源，共八源，另有 CRLF/Unicode 的复合源一项。
+  两入口各自对源码 token 独立构造的完整 Diagnostic 检查 signature/body 分区、raw 与
+  final Diagnostics；不接受 Internal 或成功冒充拒绝。删除的跨 Single 相等检查由原已存在
+  的独立 expected 约束覆盖，不以双 Unit 互相比对替代固定 oracle。
+- 第三项反序多源诊断测试原样保留且不计退休量；父 suite 的 public API/L0082 Single
+  消费者和隐含 comparator 字段不动。两个子模块全部测试名及原源码保留。
+- 独立只读静审未发现 P0/P1；直接 rustfmt --check、测试名/源码及原父 suite/fixture
+  字节保全、第三项 Unit-only 测试保全、文档检查（837 Markdown）、尺寸守卫
+  （2097 Rust、39 项旧超限，无新增债）和 `git diff --check` 通过。
+- 本片仅静态开发与独立静审；按要求不运行本地 Cargo/build/test/Clippy，动态验收仍待
+  精确组合头官方 CI。候选尚未发布，不将历史 main CI 转写为本候选通过。
+  D10/SPEC-0341/E2 继续 in-progress；owner/loan-end/conditional cleanup 等缺口不关闭。

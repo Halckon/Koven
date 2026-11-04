@@ -1,4 +1,5 @@
-//! SPEC-0341: preserve the automatic component partial-move rejection, not its spelling.
+//! SPEC-0341: preserve automatic component rejection with independent Unit oracles.
+//! The parent suite retains its original Single projection and fixture witnesses.
 
 use super::*;
 use lang_frontend::{
@@ -13,7 +14,6 @@ fn observe(
         &SourceMap,
         SourceId,
         &[Diagnostic],
-        &[Diagnostic],
         &CompilationUnitTypes,
         &CompilationUnitOwnership,
     ),
@@ -23,11 +23,6 @@ fn observe(
     let parsed = parse_file_twice(&sources, source, "component partial-move source");
     assert!(parsed.diagnostics().is_empty());
     let (environment, types) = environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty());
-    let single_types = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(single_types.diagnostics().is_empty());
-    let single = check_ownership(&sources, &parsed, &names, &single_types).unwrap();
     for input in [
         SourceUnitInput::memory_document(source, &parsed),
         SourceUnitInput::new("root", "structural.ko", source, &parsed),
@@ -45,14 +40,7 @@ fn observe(
         let owned =
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
         assert!(owned.is_compatible_with(&typed));
-        inspect(
-            &sources,
-            source,
-            single.diagnostics(),
-            owned.diagnostics(),
-            typed.types(),
-            &owned,
-        );
+        inspect(&sources, source, owned.diagnostics(), typed.types(), &owned);
     }
 }
 
@@ -85,23 +73,22 @@ fn expected_component(
 fn original_partial_move_fixture_keeps_both_errors_and_complete_component_label() {
     let text = include_str!("../fixtures/phase3/structural-fail/partial-move.ko");
     let sidecar = include_str!("../fixtures/phase3/structural-fail/partial-move.diag");
-    observe(text, |sources, source, single, unit, typed, owned| {
-        for diagnostics in [single, unit] {
-            let actual = diagnostics
-                .iter()
-                .map(|diagnostic| {
-                    let span = diagnostic.primary_span();
-                    assert_eq!(span.source_id(), source);
-                    format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-                + "\n";
-            assert_eq!(actual, sidecar);
-            let field = text.find("first").unwrap();
-            let expected = expected_component(sources, source, 214..224, field..field + 5);
-            assert_eq!(diagnostics[1], expected);
-        }
+    observe(text, |sources, source, unit, typed, owned| {
+        let diagnostics = unit;
+        let actual = diagnostics
+            .iter()
+            .map(|diagnostic| {
+                let span = diagnostic.primary_span();
+                assert_eq!(span.source_id(), source);
+                format!("{}\t{}\t{}", diagnostic.code(), span.start(), span.end())
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        assert_eq!(actual, sidecar);
+        let field = text.find("first").unwrap();
+        let expected = expected_component(sources, source, 214..224, field..field + 5);
+        assert_eq!(diagnostics[1], expected);
         let components = typed
             .aggregate_projections()
             .iter()
@@ -126,7 +113,7 @@ fn original_partial_move_fixture_keeps_both_errors_and_complete_component_label(
 #[test]
 fn borrowed_owner_still_cannot_return_an_owned_automatic_component() {
     let text = "class Resource {}\nvalue class Pair(val first: Resource)\nfun fail(pair: Pair): Unit { val value = pair.component1() }";
-    observe(text, |sources, source, single, unit, _, owned| {
+    observe(text, |sources, source, unit, _, owned| {
         let primary = text.find("component1").unwrap();
         let field = text.find("first").unwrap();
         let expected = [expected_component(
@@ -135,7 +122,6 @@ fn borrowed_owner_still_cannot_return_an_owned_automatic_component() {
             primary..primary + 10,
             field..field + 5,
         )];
-        assert_eq!(single, expected);
         assert_eq!(unit, expected);
         assert!(owned.drops().is_empty());
     });
@@ -144,8 +130,7 @@ fn borrowed_owner_still_cannot_return_an_owned_automatic_component() {
 #[test]
 fn copyable_component_and_explicit_owned_result_are_not_partial_moves() {
     let text = "class Resource {}\nvalue class Pair(val first: Resource, val second: Int)\nvalue class Custom(val first: Resource) { fun component1(): Resource = Resource() }\nfun pass(own pair: Pair, own custom: Custom): Unit { val copied = pair.component2(); val created = custom.component1() }";
-    observe(text, |_, _, single, unit, typed, _| {
-        assert!(single.is_empty(), "{single:?}");
+    observe(text, |_, _, unit, typed, _| {
         assert!(unit.is_empty(), "{unit:?}");
         let components = typed
             .aggregate_projections()
@@ -164,11 +149,10 @@ fn copyable_component_and_explicit_owned_result_are_not_partial_moves() {
 #[test]
 fn receiver_use_after_move_precedes_component_rejection_without_a_cascade() {
     let text = "class Resource {}\nvalue class Pair(val first: Resource)\nfun take(own value: Pair): Unit {}\nfun fail(own pair: Pair): Unit { take(pair); val value = pair.component1() }";
-    observe(text, |sources, _, single, unit, _, owned| {
-        for diagnostics in [single, unit] {
-            assert_eq!(codes(diagnostics), ["L0131"]);
-            assert_eq!(sources.slice(diagnostics[0].primary_span()), Ok("pair"));
-        }
+    observe(text, |sources, _, unit, _, owned| {
+        let diagnostics = unit;
+        assert_eq!(codes(diagnostics), ["L0131"]);
+        assert_eq!(sources.slice(diagnostics[0].primary_span()), Ok("pair"));
         assert!(owned.drops().is_empty());
     });
 }
