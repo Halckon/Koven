@@ -282,6 +282,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+      - name: Observe initial Linux disk usage
+        if: runner.os == 'Linux'
+        run: python3 scripts/ci_disk_usage.py before-setup || true
       - name: Set up LLVM 21
         id: llvm
         uses: ./.github/actions/setup-llvm
@@ -294,6 +297,9 @@ jobs:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
+      - name: Observe final Linux composition disk usage
+        if: always() && runner.os == 'Linux'
+        run: python3 scripts/ci_disk_usage.py after-composition || true
       - name: Word frequency byte and boundary contracts
         run: python3 scripts/check_word_frequency.py --evidence "$RUNNER_TEMP/koven-word-frequency"
       - name: Preserve word frequency evidence
