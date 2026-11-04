@@ -1696,3 +1696,21 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
 - 本片仅静态开发与独立静审；按要求不运行本地 Cargo/build/test/Clippy，动态验收仍待
   精确组合头官方 CI。候选尚未发布，不将历史 main CI 转写为本候选通过。
   D10/SPEC-0341/E2 继续 in-progress；owner/loan-end/conditional cleanup 等缺口不关闭。
+
+## 84. Resource terminal 重复 Single 观察退休候选（2026-11-04）
+
+基于 main `8b2e9e18`，仅迁 `ownership_resource_deinit` 三测试、六次 Single 执行：
+root replace 返回一源、field replace 返回一源、field replace 中断四源
+（return、Abort、break、continue）。不改生产、公开模型、Guide、CI、target 或 E3。
+
+- 原源码、测试名及独立 drop 数量、target、顺序、原 AST 边界期望保留。三测试改用
+  MemoryDocument/Rooted 两种真实 Unit 分析，既有 helper 在 named-drop 投影前提供
+  实际 ownership facts 检查；不能用投影后的 NamedDrop 冒充完整 drop 表。
+- 保留 names/typed 校验、无诊断/无 deferred、typed identity 相容和 source-qualified
+  drop 原 AST 校验。field 返回案例原 ownership validate 仍在；不扩张其他案例门禁。
+- 同文件 distinct owner origins、old/new owner 不同、field parent owner identity、
+  resource 条件 deferred 差异及旧 inspected_plans 均保留。本片不证明新 owner graph
+  已支持 resource、field replacement、Return terminal 或 Loop，不替代这些独立合同。
+- 文档结构检查、尺寸守卫、diff 检查及原测试名/源码字面量/非候选代码静态保全通过。
+  本地 Cargo/build/test/Clippy 未运行；获准发布 Draft PR，动态验收待精确候选头 CI。
+  D10/E2 继续 in-progress，不以历史 main CI 计入本候选通过。
