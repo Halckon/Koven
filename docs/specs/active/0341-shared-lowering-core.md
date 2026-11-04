@@ -1635,7 +1635,45 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
 - 本地不运行 Cargo/build/test/Clippy。组合静态检查、独立审查与精确官方 PR CI 结果
   分别登记，不能把两片历史绿灯转写为本组合已通过。D10/E2 保持 in-progress。
 
-## 80. Component 与 builtin 诊断重复 Single 观察退休候选（2026-11-04）
+## 80. 循环拒绝边界测试候选（2026-11-04）
+
+- 基线 main `ba9d61f5`；生产逻辑不变。八种 While/Loop 输入覆盖常量 false 零轮、
+  未改变条件的回边、continue/break 和嵌套循环，精确核对外层 statement Syntax 拒绝，
+  完整清空观察前缀并保持 sibling；另核独立前缀确实准入及 Unsupported 事实注入拒绝。
+- `owner_transport_tests::loop_boundaries` 与 planner `tests::loop_boundaries` 分别承担
+  admission 和完整 Analysis differential；后者保留 cleanup 全字段、身份与次序。
+- 本地仅静态检查，禁止 Cargo/build/test/Clippy；编译和行为未执行，官方精确头 CI 待验。
+  不宣称真实多轮运行或终止，不开放 loop owner/phi/capture 组合；D10/E2 继续未闭合。
+- 本地 direct rustfmt check、`git diff --check`、文档结构检查（837 文件）及 Rust 尺寸
+  守卫通过；独立静态审查未发现阻断项。以上不替代尚未执行的编译/行为验证。
+
+## 81. Range 接受与 receiver activation 的有界退休候选（2026-11-04）
+
+基于 main `ba9d61f5`，与独立诊断候选分开；仅两项测试、三次 Single 执行退休候选。
+不改生产、公开 API、fixture、CI 选择、E3 或其他 Single witness。
+
+- `integer_range_values::range_identity_does_not_enable_extra_public_apis` 仅把 IntRange/
+  LongRange 两个合法正例改为原有双 Unit helper。独立冻结旧 comparator 的 range fact
+  数量、builtin、boolean、copyable，保留 `assert_complete` 对空 names/raw、resolved、
+  final success、真实 range fact 的检查及 annotation identity；原 AST root/operator 与
+  operand/result identity 检查仍在 helper 内。十八个拒绝源、原 Single producer、完整
+  raw/final Diagnostic oracle 与隐含 comparator 字段均保留，不宣称整个 public API 族退休。
+- `ownership_two_phase_borrows::completed_nested_call_releases_conditional_temporary_capture`
+  原源分别走两种 Unit 输入，读真实 receiver_facts，保持无诊断和 activation=call，另核
+  唯一外层 reservation 与原 receiver/call 源片段。现有 multifile 同类正例是实现参照，
+  不是本候选原源码的动态通过证据。仍只 names/typed basic validation，不执行 ownership
+  validate 或 final admission，不冒称 capture cleanup/loan-end 等价；其他测试及旧
+  Single helper 不变。
+- 盘点中撤回 numeric snapshot 十源候选：其旧 helper 的 Single iteration validator 还
+  检查 AST/typed provider、exit condition 对应 cleanup_conditions、AST Return 枚举。
+  Unit template/required_exits validator 不能代替这些完整隐含 oracle，原文件逐字保留。
+- 最终候选独立只读静审无 P0/P1；直接 rustfmt --check、源码/测试名/helper 保全、
+  十八拒绝源与 numeric 文件保全、文档检查（837 Markdown）、尺寸守卫（2097 Rust，
+  39 项旧超限、无新增债）及 `git diff --check` 通过。
+- 本地不运行 Cargo/build/test/Clippy，不推送或创建 PR；静审不能替代本精确组合的动态
+  验收。D10/SPEC-0341/E2 继续 in-progress；不累计其他未合入候选的退休量。
+
+## 82. Component 与 builtin 诊断重复 Single 观察退休候选（2026-11-04）
 
 基于 main `ba9d61f5` 的本地候选，只迁六项测试、十三次重复 Single 执行；不改生产、
 公开 API、fixture、Guide、CI 选择或 E3，不依赖新 owner observation 扩张。

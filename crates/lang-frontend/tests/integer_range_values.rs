@@ -1,5 +1,5 @@
 //! SPEC-0328 ordinary source probes: no fabricated facts or language execution.
-//! Positive ranges and endpoint rejection use Unit only; public API witnesses retain Single.
+//! Positive ranges and endpoint rejection use Unit only; public API rejections retain Single.
 #[path = "integer_range_values/builtin_argument_diagnostics.rs"]
 mod builtin_argument_diagnostics;
 
@@ -41,7 +41,7 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
 }
 
 // Positive callers freeze the former comparator values independently of either Unit mode.
-// Public API/L0082 callers still use observe and retain their independent Single witness.
+// Public API rejection callers still use observe and retain their independent Single witness.
 fn observe_units(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observation> {
     observe_modes(text, root_text, annotation, false)
 }
@@ -698,9 +698,16 @@ fn rejected_api(
 fn range_identity_does_not_enable_extra_public_apis() {
     let mut positive = Vec::new();
     let mut negative = Vec::new();
-    for (ty, range) in [("Int", "IntRange"), ("Long", "LongRange")] {
+    for (ty, range, builtin) in [
+        ("Int", "IntRange", BuiltinType::IntRange),
+        ("Long", "LongRange", BuiltinType::LongRange),
+    ] {
         let text = format!("fun probe(left: {ty}, right: {ty}): {range} = left..right");
-        positive.extend(observe(&text, "left..right", Some(range)));
+        positive.extend(
+            observe_units(&text, "left..right", Some(range))
+                .into_iter()
+                .map(|observation| (observation, builtin)),
+        );
         let call = format!("{range}()");
         negative.extend(rejected_api(
             &format!("fun probe(): Unit {{ val bad = {call} }}"),
@@ -732,8 +739,14 @@ fn range_identity_does_not_enable_extra_public_apis() {
             ));
         }
     }
-    for observation in positive {
+    for (observation, builtin) in positive {
+        // Freeze every former positive comparator field independently of either Unit mode.
+        // Root/operator/operand identities are still checked against the original AST.
         assert_complete(&observation);
+        assert_eq!(observation.range_fact_count, 1, "{observation:?}");
+        assert!(!observation.boolean, "{observation:?}");
+        assert_eq!(observation.builtin, Some(builtin), "{observation:?}");
+        assert!(observation.copyable, "{observation:?}");
         assert_eq!(
             observation.matches_annotation,
             Some(true),
