@@ -9,6 +9,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("dependencies", ROOT / "scripts/check_workspace_dependencies.py")
@@ -82,8 +83,15 @@ class CompositionContracts(unittest.TestCase):
                 executable.write_text(stub)
                 executable.chmod(0o755)
             result = subprocess.run(["bash", "scripts/check_integration.sh"], cwd=ROOT,
-                                    env={**os.environ, "PATH": f"{path}:{os.environ['PATH']}", "CALL_LOG": str(log), "FAIL_MATCH": fail}, capture_output=True)
+                                    # Stub tests model composition, not the hosting runner.
+                                    env={**os.environ, "GITHUB_ACTIONS": "false", "PATH": f"{path}:{os.environ['PATH']}", "CALL_LOG": str(log), "FAIL_MATCH": fail}, capture_output=True)
             return result.returncode, log.read_text().splitlines()
+
+    def test_host_ci_environment_does_not_pollute_stub_contract(self):
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Linux"}):
+            status, calls = self.invoke()
+        self.assertEqual(0, status)
+        self.assertFalse(any("ci_disk_usage.py" in line for line in calls))
 
     def test_selection_is_unique_and_bounded(self):
         status, calls = self.invoke()
