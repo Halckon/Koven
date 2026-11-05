@@ -388,7 +388,11 @@ impl Builder<'_, '_> {
                 })
                 .and(self.receiver)
                 .or_else(|| {
-                    let symbol = self.inputs.references.get(&(span.start(), span.end())).copied()?;
+                    let symbol = self
+                        .inputs
+                        .references
+                        .get(&(span.start(), span.end()))
+                        .copied()?;
                     (self.symbol_type(symbol) == Some(parameter))
                         .then(|| self.borrowed.get(&symbol).copied())
                         .flatten()

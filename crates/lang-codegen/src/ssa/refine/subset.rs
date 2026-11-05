@@ -245,7 +245,8 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
                     Some(UnitTypeKind::EnumCase { root, .. }) => *root,
                     _ => ty,
                 };
-                if !matches!(checker.kind(ty), Some(UnitTypeKind::Nullable(inner)) if checker.nothing(*inner)) {
+                if !matches!(checker.kind(ty), Some(UnitTypeKind::Nullable(inner)) if checker.nothing(*inner))
+                {
                     demands.extend(inputs.concrete(ty));
                 }
             }

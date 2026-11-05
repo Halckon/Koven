@@ -163,11 +163,7 @@ impl Builder<'_, '_> {
             span,
         )?;
         let current = self.body.slot(EntityType::Value(ssa_element_ty));
-        self.push(
-            ROp::ReadPlace { place },
-            vec![current],
-            span,
-        )?;
+        self.push(ROp::ReadPlace { place }, vec![current], span)?;
         let boolean = self
             .inputs
             .typed

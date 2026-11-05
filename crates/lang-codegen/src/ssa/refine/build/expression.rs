@@ -243,8 +243,11 @@ impl Builder<'_, '_> {
             } else {
                 self.ssa_type(self.expression_type(expression)?, span)?
             };
-            let slot =
-                self.value(ROp::NullableNull { nullable }, EntityType::Value(nullable), span)?;
+            let slot = self.value(
+                ROp::NullableNull { nullable },
+                EntityType::Value(nullable),
+                span,
+            )?;
             return Ok(Lowered::Value(slot));
         }
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;

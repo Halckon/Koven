@@ -131,7 +131,9 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
         .parameters
         .iter()
         .find_map(|param| {
-            let EntityId::Value(val) = param else { return None; };
+            let EntityId::Value(val) = param else {
+                return None;
+            };
             success_block
                 .instructions
                 .iter()

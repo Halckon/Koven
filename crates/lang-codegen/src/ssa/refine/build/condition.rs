@@ -347,8 +347,10 @@ impl Builder<'_, '_> {
         let result = if self.is_unit(ty) || self.is_nothing(ty) {
             None
         } else {
-            let ssa_ty = if matches!(self.inputs.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner)) if self.is_nothing(*inner)) {
-                self.expected_nullable.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+            let ssa_ty = if matches!(self.inputs.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner)) if self.is_nothing(*inner))
+            {
+                self.expected_nullable
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
             } else {
                 self.ssa_type(ty, span)?
             };
