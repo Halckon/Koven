@@ -47,7 +47,7 @@ impl UnitExpressionLowerer<'_> {
             ));
         }
         if self.element_place_descriptor(target)?.is_some() {
-            return self.lower_container_assignment(expression, target, operator, value, span);
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let target_node = self
             .parsed

@@ -55,9 +55,7 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .filter(|fact| fact.call() == call && fact.argument() == argument_id);
         let Some(fact) = facts.next() else {
-            return self
-                .lower_known_function_borrow(call, argument, target, span, call_span)?
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span));
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
         if facts.next().is_some()
             || fact.kind() != FrontendLoanKind::Shared
@@ -499,11 +497,6 @@ impl UnitExpressionLowerer<'_> {
             let EntityId::Place(place) = places[0] else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };
-            return Ok(place);
-        }
-        if let Some(place) =
-            self.lower_borrowed_container_element(argument, loan_target, target, span)?
-        {
             return Ok(place);
         }
         if let UnitLoanTarget::Place(place) = loan_target

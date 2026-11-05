@@ -143,6 +143,40 @@ impl Checker<'_, '_> {
         ok
     }
 
+    pub(super) fn compound_assignment(
+        &mut self,
+        target: ExpressionId,
+        _operator: AssignmentOperator,
+        value: ExpressionId,
+    ) -> bool {
+        let Ok(target_node) = self.inputs.parsed.ast().expressions().get(target) else {
+            return false;
+        };
+        if !matches!(target_node.payload(), Expression::Name) {
+            return false;
+        }
+        let Some(symbol) = self.reference(target) else {
+            return false;
+        };
+        let Some(target_ty) = self.expression_type(target) else {
+            return false;
+        };
+        if !self.known.contains(&symbol)
+            || self.callables.contains(&symbol)
+            || self.for_borrowed.contains(&symbol)
+            || self.parameter_mode(symbol).is_some()
+            || self.symbol_type(symbol) != Some(target_ty)
+            || !self.integer_type(target_ty)
+            || self.expression_type(value) != Some(target_ty)
+            || (self.loops > 0 && self.view_symbols.contains(&symbol))
+        {
+            return false;
+        }
+        let ok = self.expression(value);
+        self.view_symbols.remove(&symbol);
+        ok
+    }
+
     /// Whether the assignment target is a field projection (not a binding).
     pub(super) fn is_field_target(&self, target: ExpressionId) -> bool {
         self.inputs

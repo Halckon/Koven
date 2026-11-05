@@ -213,6 +213,17 @@ impl Builder<'_, '_> {
                 value,
                 ..
             } => self.assignment(target, value, span),
+            Expression::Assignment {
+                target,
+                operator:
+                    operator @ (AssignmentOperator::AddAssign
+                    | AssignmentOperator::SubtractAssign
+                    | AssignmentOperator::MultiplyAssign
+                    | AssignmentOperator::DivideAssign
+                    | AssignmentOperator::RemainderAssign),
+                value,
+                ..
+            } => self.compound_assignment(target, operator, value, span),
             Expression::Return { value, .. } => self.return_expression(expression, value, span),
             Expression::Break { .. } => self.loop_jump(expression, true, span),
             Expression::Continue { .. } => self.loop_jump(expression, false, span),
@@ -258,6 +269,9 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<Slot, LoweringError> {
+        if let Some((slot, _)) = self.form_known_function(expression, span)? {
+            return Ok(slot);
+        }
         let Ok(symbol) = self.reference(span) else {
             let ty = self.expression_type(expression)?;
             if self.is_object_type(ty) {
@@ -927,6 +941,77 @@ impl Builder<'_, '_> {
         self.sync_dead();
         self.dead.remove(&symbol);
         self.push(ROp::Alias { source: slot }, vec![binding], span)?;
+        self.narrowed.remove(&symbol);
+        Ok(Lowered::Unit)
+    }
+
+    fn compound_assignment(
+        &mut self,
+        target: ExpressionId,
+        operator: AssignmentOperator,
+        value: ExpressionId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let symbol = self.reference(self.span(target))?;
+        let binding = *self
+            .bindings
+            .get(&symbol)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let Some(right) = self.required(value)? else {
+            return Ok(Lowered::Diverged);
+        };
+        let ty = self.ssa_type(self.expression_type(target)?, span)?;
+        let boolean = self
+            .inputs
+            .typed
+            .types()
+            .builtin(lang_frontend::type_checking::BuiltinType::Boolean)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let boolean = self.ssa_type(boolean, span)?;
+        let operator = match operator {
+            AssignmentOperator::AddAssign => CheckedArithmeticOperator::Add,
+            AssignmentOperator::SubtractAssign => CheckedArithmeticOperator::Subtract,
+            AssignmentOperator::MultiplyAssign => CheckedArithmeticOperator::Multiply,
+            AssignmentOperator::DivideAssign => CheckedArithmeticOperator::Divide,
+            AssignmentOperator::RemainderAssign => CheckedArithmeticOperator::Remainder,
+            AssignmentOperator::Assign => {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+        };
+        let result = self.body.slot(EntityType::Value(ty));
+        let failed = self.body.slot(EntityType::Value(boolean));
+        self.push(
+            ROp::CheckedArithmetic {
+                operator,
+                left: binding,
+                right,
+            },
+            vec![result, failed],
+            span,
+        )?;
+        let abort = self.body.block();
+        let success = self.body.block();
+        self.terminate(
+            RTerm::Branch {
+                condition: failed,
+                when_true: abort,
+                when_false: success,
+            },
+            span,
+        )?;
+        self.block = Some(abort);
+        self.terminate(
+            RTerm::Abort(RAbort::CheckedArithmetic {
+                operator,
+                divisor: right,
+            }),
+            span,
+        )?;
+        self.block = Some(success);
+        self.end_views_of(symbol, span)?;
+        self.sync_dead();
+        self.dead.remove(&symbol);
+        self.push(ROp::Alias { source: result }, vec![binding], span)?;
         self.narrowed.remove(&symbol);
         Ok(Lowered::Unit)
     }

@@ -731,8 +731,9 @@ impl ROp {
             | Self::ContainerRemoveLast { owner }
             | Self::MapConsume { owner, .. }
             | Self::MapResultUnwrap { result: owner }
-            | Self::NullableWrap { owner, .. }
-            | Self::NullableTake { owner, .. } => vec![*owner],
+            | Self::NullableWrap { owner, .. } => vec![*owner],
+
+            Self::NullableTake { owner, proof } => vec![*owner, *proof],
 
             Self::RangeEnd { view, source } => vec![*view, *source],
 
@@ -767,20 +768,27 @@ impl ROp {
 
             Self::HeapFieldReplace { value, .. }
             | Self::InlineFieldReplace { value, .. }
-            | Self::HeapFieldExchange {
-                replacement: value, ..
-            }
             | Self::LoanMutate { value, .. } => vec![*value],
 
+            Self::HeapFieldExchange {
+                owner,
+                loan,
+                replacement,
+                ..
+            } => vec![*owner, *loan, *replacement],
+
             Self::RootReplace {
-                owner, replacement, ..
-            } => vec![*owner, *replacement],
+                owner,
+                loan,
+                replacement,
+            } => vec![*owner, *loan, *replacement],
 
             Self::RootSwap {
                 left_owner,
                 right_owner,
-                ..
-            } => vec![*left_owner, *right_owner],
+                left_loan,
+                right_loan,
+            } => vec![*left_owner, *right_owner, *left_loan, *right_loan],
 
             Self::ClosureConstruct { captures, .. } => {
                 captures.iter().copied().filter(is_value).collect()

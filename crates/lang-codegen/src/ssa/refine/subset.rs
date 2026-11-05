@@ -671,6 +671,17 @@ impl Checker<'_, '_> {
                 value,
                 ..
             } => self.assignment(expression, target, value),
+            Expression::Assignment {
+                target,
+                operator:
+                    operator @ (AssignmentOperator::AddAssign
+                    | AssignmentOperator::SubtractAssign
+                    | AssignmentOperator::MultiplyAssign
+                    | AssignmentOperator::DivideAssign
+                    | AssignmentOperator::RemainderAssign),
+                value,
+                ..
+            } => self.compound_assignment(target, operator, value),
             Expression::Return { value, .. } => {
                 if self.inputs.borrow_return.is_some() {
                     value.is_some_and(|value| self.borrow_return_body(expression, value))
@@ -686,7 +697,7 @@ impl Checker<'_, '_> {
     }
 
     fn name(&mut self, expression: ExpressionId) -> bool {
-        if self.object_name(expression) {
+        if self.object_name(expression) || self.known_function(expression) {
             self.migrated = true;
             return true;
         }
@@ -912,7 +923,7 @@ impl Checker<'_, '_> {
                             )
                         })
                     {
-                        if iter.next().is_some() {
+                        if iter.any(|stmt| self.stmt_has_runtime_container(stmt)) {
                             self.migrated = true;
                         }
                         break;
@@ -947,6 +958,32 @@ impl Checker<'_, '_> {
             }
             _ => false,
         }
+    }
+
+    fn stmt_has_runtime_container(&self, statement: StatementId) -> bool {
+        let Ok(stmt) = self.inputs.parsed.ast().statements().get(statement) else {
+            return false;
+        };
+        let span = stmt.span();
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(expr_id, node)| {
+                let expr_span = node.span();
+                span.source_id() == expr_span.source_id()
+                    && span.start() <= expr_span.start()
+                    && expr_span.end() <= span.end()
+                    && self
+                        .inputs
+                        .typed
+                        .container_construction(self.id(expr_id))
+                        .is_some_and(|d| {
+                            d.kind()
+                                == lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
+                        })
+            })
     }
 
     fn loop_body(&mut self, body: StatementId) -> bool {

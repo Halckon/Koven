@@ -455,6 +455,7 @@ fn lower_unit_impl(
             kind: LoweringErrorKind::MissingFact,
             span: None,
         })?;
+    let known_functions = callable_abi.known_functions(&function_ids, &source_plan);
 
     for plan in plans {
         let parsed = parsed_by_source[plan.instance.source_unit().index()];
@@ -521,6 +522,7 @@ fn lower_unit_impl(
                 constant_owned,
                 function_ids: &function_ids,
                 callable_returns: &callable_returns,
+                known_functions: &known_functions,
                 source_plan: &source_plan,
                 source_token: plan.instance.source_token(),
                 references: &references,
@@ -807,6 +809,7 @@ fn lower_unit_impl(
             constant_owned,
             function_ids: &function_ids,
             callable_returns: &callable_returns,
+            known_functions: &known_functions,
             source_plan: &source_plan,
             source_token: plan.source_token,
             references: &references,

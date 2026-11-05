@@ -288,6 +288,9 @@ impl UnitExpressionLowerer<'_> {
         let Some(receiver) = explicit_receiver else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
+        if self.typed.aggregate_projection(receiver).is_some() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if let Some(value) = self.read_borrowed_heap_field(receiver, field, result_type, span)? {
             return Ok(value);
         }

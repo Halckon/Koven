@@ -290,6 +290,18 @@ impl UnitExpressionLowerer<'_> {
                     result,
                 );
             }
+            if matches!(
+                self.typed.types().get(subject_type),
+                Some(UnitTypeKind::Nominal { .. })
+            ) && let Some(lang_frontend::parser::WhenCondition::Expression(cond)) =
+                entries.first().and_then(|entry| entry.conditions.first())
+                && let Ok(cond_node) = self.parsed.ast().expressions().get(*cond)
+            {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    cond_node.span(),
+                ));
+            }
         }
         Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
     }

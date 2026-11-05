@@ -9,7 +9,6 @@ mod borrow_result;
 mod call;
 mod call_lifetimes;
 mod callable_abi;
-mod callable_view;
 mod cfg;
 mod checked;
 mod closure;
@@ -312,9 +311,11 @@ impl UnitExpressionLowerer<'_> {
             .integer_range_operation(unit_expression)
             .is_some()
             || self.typed.integer_operation(unit_expression).is_some()
-            || self.typed.string_operation(unit_expression).is_some()
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        if self.typed.string_operation(unit_expression).is_some() {
+            return self.lower_string_operation(expression, span);
         }
         if self.typed.rc_operation(unit_expression).is_some() {
             return self.lower_rc_operation(expression, span);

@@ -584,3 +584,29 @@ fn numeric_for_runtime_container_and_map_diverging_keys_route_to_refine() {
         res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
 }
+
+#[test]
+fn known_function_unit_container_and_nested_value_projection_route_to_refine() {
+    for source in [
+        "fun step(index: Int): Int = index + 1\n\
+         fun apply(cb: (Int) -> Int): Int = cb(41)\n\
+         fun f(): Int = apply(step)",
+        "fun step(index: Int): Int = index + 2\n\
+         fun f(): Int {\n\
+             val xs = Array<Int>(2, step)\n\
+             return xs[1]\n\
+         }",
+        "fun touch(index: Int): Unit {}\n\
+         fun f(): Int {\n\
+             val xs = Array<Unit>(2, touch)\n\
+             return xs.size\n\
+         }",
+        "value class Inner(val code: Int)\n\
+         value class Outer(val inner: Inner)\n\
+         fun f(o: Outer): Int = o.inner.code",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}

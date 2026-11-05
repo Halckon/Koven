@@ -43,7 +43,7 @@ impl Checker<'_, '_> {
         let [element] = arguments.as_slice() else {
             return None;
         };
-        self.storage_type_seen(*element, active).then_some(*element)
+        (self.unit(*element) || self.storage_type_seen(*element, active)).then_some(*element)
     }
 
     /// Whether any sequential-container or map typed fact claims `expression`.
@@ -130,15 +130,17 @@ impl Checker<'_, '_> {
         }
         let ok = match descriptor.kind() {
             ContainerConstructionKind::EmptyMutableList => {
-                descriptor.container() == SequentialContainerKind::MutableList
+                !self.unit(element_ty)
+                    && descriptor.container() == SequentialContainerKind::MutableList
                     && arguments.is_empty()
                     && descriptor.parameter_modes().is_empty()
             }
             ContainerConstructionKind::ListForm => {
-                descriptor
-                    .parameter_modes()
-                    .iter()
-                    .all(|mode| *mode == ParameterMode::Value)
+                !self.unit(element_ty)
+                    && descriptor
+                        .parameter_modes()
+                        .iter()
+                        .all(|mode| *mode == ParameterMode::Value)
                     && arguments.iter().all(|argument| {
                         argument.named_prefix.is_none()
                             && argument.mode_marker.is_none()
@@ -194,10 +196,12 @@ impl Checker<'_, '_> {
             return false;
         }
         match node.payload() {
-            Expression::Name => self.reference(root).is_some_and(|symbol| {
-                self.known.contains(&symbol)
-                    && (self.view_parameter(symbol) || self.callables.contains(&symbol))
-            }),
+            Expression::Name => {
+                self.reference(root).is_some_and(|symbol| {
+                    self.known.contains(&symbol)
+                        && (self.view_parameter(symbol) || self.callables.contains(&symbol))
+                }) || self.known_function(root)
+            }
             Expression::Lambda { .. } => {
                 self.inputs.owned.callable_origin(self.id(root)).is_some()
                     && self.lambda_formation(root)
@@ -267,6 +271,7 @@ impl Checker<'_, '_> {
         if descriptor.expression() != id
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.index().source_unit() != self.inputs.source_unit
+            || self.unit(element_ty)
             || self.container_element(container_ty) != Some(element_ty)
             || self.expression_type(expression) != Some(element_ty)
             || self.copyability_of(element_ty) != Copyability::Copyable
@@ -308,6 +313,7 @@ impl Checker<'_, '_> {
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.index().source_unit() != self.inputs.source_unit
             || element_ty != parameter
+            || self.unit(element_ty)
             || self.container_element(container_ty) != Some(element_ty)
             || self.expression_type_of(id) != Some(element_ty)
         {
@@ -365,6 +371,7 @@ impl Checker<'_, '_> {
         if !place_desc.is_mutable()
             || place_desc.receiver().source_unit() != self.inputs.source_unit
             || place_desc.index().source_unit() != self.inputs.source_unit
+            || self.unit(element_ty)
             || self.container_element(container_ty) != Some(element_ty)
             || self
                 .named_container_owner(place_desc.receiver().expression(), container_ty, false)
@@ -511,7 +518,8 @@ impl Checker<'_, '_> {
         container_ty: UnitTypeId,
         element_ty: UnitTypeId,
     ) -> bool {
-        receiver.source_unit() == self.inputs.source_unit
+        !self.unit(element_ty)
+            && receiver.source_unit() == self.inputs.source_unit
             && self.container_element(container_ty) == Some(element_ty)
             && matches!(
                 self.kind(container_ty),
@@ -623,7 +631,8 @@ impl Checker<'_, '_> {
         }
         let container_ty = self.c(descriptor.source_type());
         let element_ty = self.c(descriptor.element_type());
-        if self.container_element(container_ty) != Some(element_ty)
+        if self.unit(element_ty)
+            || self.container_element(container_ty) != Some(element_ty)
             || self.expression_type(source) != Some(container_ty)
         {
             return false;

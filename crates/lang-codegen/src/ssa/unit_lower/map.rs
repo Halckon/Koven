@@ -32,11 +32,14 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<LoweredValue>, LoweringError> {
         let id = UnitExpressionId::new(self.source_unit, expression);
-        if self.typed.map_with_value(id).is_some()
-            || self.typed.map_consume(id).is_some()
-            || self.typed.map_get(id).is_some()
-        {
+        if self.typed.map_with_value(id).is_some() || self.typed.map_get(id).is_some() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        if self.typed.map_consume(id).is_some() {
+            if self.typed.map_iterations().is_empty() {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            return self.lower_map_consume(expression, span).map(Some);
         }
         if self.typed.map_construction(id).is_some() {
             return self.lower_map_construction(expression, span).map(Some);

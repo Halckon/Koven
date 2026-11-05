@@ -60,6 +60,12 @@ impl UnitExpressionLowerer<'_> {
                                 self.iteration_end_loan(loan, span)?;
                             }
                         }
+                        IterationState::Numeric { .. } => {
+                            if !matches!(self.bindings.remove(symbol), Some(LoweredValue::Value(_)))
+                            {
+                                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                            }
+                        }
                     }
                 }
                 Action::EndElement(statement) => {
@@ -72,6 +78,7 @@ impl UnitExpressionLowerer<'_> {
                             let loan = self.iteration_pending_loan(element, span)?;
                             self.iteration_end_loan(loan, span)?;
                         }
+                        IterationState::Numeric { .. } => {}
                     }
                 }
                 Action::FinishProvider(statement) => {

@@ -119,6 +119,9 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) views: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     /// Concrete callable return types of planned functions that return a callable.
     pub(in crate::ssa) callable_returns: &'a BTreeMap<FunctionId, SsaTypeId>,
+    /// Sealed known-function targets mapped to their `(FunctionId, FunctionPointer SsaTypeId)`.
+    pub(in crate::ssa) known_functions:
+        &'a BTreeMap<lang_frontend::type_checking::UnitCallableTarget, (FunctionId, SsaTypeId)>,
     /// Source parameter index when the function returns a shared borrow.
     pub(in crate::ssa) borrow_return: Option<usize>,
     /// Source parameter/receiver index when the function returns a `RangeView` carrier.

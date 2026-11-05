@@ -543,7 +543,7 @@ fn retired_deinit_borrow_and_heap_nullable_if_boundary_tests() {
         ),
         (
             "class Inner(val code: Int)\nclass Outer(val inner: Inner) { deinit() { if (this.inner.code == 1) {} } }\nfun main(): Unit { val o = Outer(Inner(1)) }",
-            "this.inner",
+            "this.inner.code",
         ),
         (
             "class Node(val code: Int)\nfun inspect(n: Node): Unit {}\nfun main(own n: Node?): Unit { if (n != null) { inspect(n) } }",
@@ -629,10 +629,7 @@ fn retired_string_clone_box_value_field_borrow_and_when_boundary_tests() {
     use crate::ssa::LoweringErrorKind;
 
     for (source, expected_slice) in [
-        (
-            "fun main(): String = \"hello\".clone()",
-            "\"hello\".clone()",
-        ),
+        ("fun main(): Int = 1.inv()", "1.inv()"),
         (
             "value class Token(val item: Int)\nfun main(): Box<Token> = Box(Token(9))",
             "Box(Token(9))",
@@ -692,6 +689,52 @@ fn retired_numeric_for_runtime_container_map_get_and_consume_boundary_tests() {
         (
             "fun main(): Map<Int, Int> { val m = mutableMapOf<Int, Int>(); return m.consume() }",
             "m.consume()",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_env, type_env) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
+        let entry = declaration(&names, "p", "main");
+        let err = crate::ssa::with_per_family_lowering(|| {
+            lower_scalar_unit_with_entry(
+                &sources, &inputs, &names, &type_env, &typed, &owned, entry,
+            )
+        })
+        .err()
+        .unwrap_or_else(|| panic!("expected rejection under per-family lowering for: {source}"));
+        assert_eq!(err.kind, LoweringErrorKind::UnsupportedNode, "{source}");
+        let span = err.span.expect("exact rejection span");
+        assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
+    }
+}
+
+#[test]
+fn retired_known_function_shared_capture_callable_view_and_container_element_boundary_tests() {
+    use crate::ssa::LoweringErrorKind;
+
+    for (source, expected_slice) in [
+        (
+            "fun step(index: Int): Int = index\nfun apply(cb: (Int) -> Int): Int = 0\nfun main(): Int = apply(step)",
+            "step",
+        ),
+        (
+            "class Boxed(val text: String)\nfun main(): Unit { val b = Boxed(\"a\"); val f = { println(b.text) } }",
+            "b",
+        ),
+        (
+            "fun apply(action: () -> Int): Int = 0\nfun main(): Int { val f = { 7 }; return apply(f) }",
+            "f",
+        ),
+        (
+            "fun main(): Int { val xs = listOf(1, 2); return xs[0] }",
+            "xs[0]",
+        ),
+        (
+            "fun main(): Unit { var xs = mutableListOf<Int>(); xs[0] = 1 }",
+            "xs[0] = 1",
         ),
     ] {
         let mut sources = SourceMap::new();
