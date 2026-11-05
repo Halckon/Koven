@@ -27,6 +27,10 @@ fn actual_choice_is_delivered_bound_and_dropped_while_legacy_stays_unsupported()
         let graph = legacy
             .value_observation_v1()
             .expect("actual narrow Choice collection");
+        let mut without_capability = legacy.clone();
+        without_capability.choice_value = None;
+        assert_eq!(legacy, &without_capability);
+        assert!(without_capability.value_observation_v1().is_none());
         assert!(graph.is_consistent());
         let choice = graph.choice().unwrap();
         assert_eq!(graph.producers().definitions().len(), 2);

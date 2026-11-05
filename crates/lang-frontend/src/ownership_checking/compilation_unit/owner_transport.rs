@@ -200,7 +200,7 @@ pub enum UnitOwnerTransportEvent {
 
 /// Whole-callable atomic observation. Unsupported observations expose no prefix facts.
 /// Equality compares complete structural facts across analyses, not token interchangeability.
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Debug)]
 pub struct UnitOwnerObservation {
     pub(super) identity: Arc<()>,
     pub(super) callable: UnitOwnerCallable,
@@ -237,6 +237,8 @@ impl UnitOwnerObservation {
 // Only the enclosing observation can relate its own product-local tokens across analyses.
 // Standalone tokens, definitions, events and lookup retain strict product identity.
 // This legacy equality intentionally excludes the separately validated V1 capability.
+impl Eq for UnitOwnerObservation {}
+
 impl PartialEq for UnitOwnerObservation {
     fn eq(&self, other: &Self) -> bool {
         let owner_eq = |left: &UnitOwnerId, right: &UnitOwnerId| {

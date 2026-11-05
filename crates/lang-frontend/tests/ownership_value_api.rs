@@ -7,6 +7,8 @@ use lang_frontend::ownership_checking::{
 
 #[test]
 fn value_api_is_nameable_and_matchable_without_private_modules() {
+    fn require_eq<T: Eq>() {}
+    require_eq::<UnitOwnerObservation>();
     let project: fn(&UnitOwnerObservation) -> Option<UnitOwnerValueObservationV1> =
         UnitOwnerObservation::value_observation_v1;
     let catalog: fn(&UnitOwnerValueObservationV1) -> &UnitOwnerProducerCatalogV1 =

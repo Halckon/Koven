@@ -1862,3 +1862,12 @@ owner_transport 子模块，大型 compilation_unit 根文件无差异，尺寸�
 控制完成与实际 Drop 的 fail-closed 合同。直接 rustfmt --check、文档检查（838
 Markdown）、尺寸守卫（2103 文件、39 项历史超限，无新增增长）及 diff 检查通过。
 这些是静态结果，不能替代待运行的 Rust 编译与动态验收。
+
+首轮 [PR #312 CI](https://github.com/Halckon/Koven/actions/runs/41946609850) 的发布头
+`8a72b91842cc5d4ae1ad0ae58c335b12a84bd81a` 与原 `8ad81194` 候选 tree 一致，
+双宿主 Cargo check 均暴露 E0277：旧 observation 派生 Eq 对独立 V1 能力增加了
+不应有的字段 trait 约束。修复改为显式实现旧 observation 的 Eq marker，原定制
+PartialEq 字节不变，不为 V1 能力增加结构相等或改写身份规则。既有公开 API 编译
+见证补 Eq 约束，真实 Choice 正例补移除能力后的旧事实相等与能力缺失断言。
+格式、文档及 diff 静态检查通过；本地 Cargo/build/test/Clippy 仍未运行，新头官方
+CI 尚待验证。首轮测试与 Preview 因编译失败未执行，不能记为通过。
