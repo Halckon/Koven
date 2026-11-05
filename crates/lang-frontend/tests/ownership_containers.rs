@@ -181,18 +181,19 @@ fn runtime_generator_size_borrow_precedes_initializer_nested_inout() {
              fun invalid(): Unit {{ var size = 1\n\
              val items = {container}<Int>(size, initializer(&size))\n}}"
         );
-        let (sources, _, owned) = checked(&text);
-        assert_eq!(
-            codes(owned.diagnostics()),
-            ["L0135"],
-            "the first constructor Borrow must protect size while the second operand is evaluated"
-        );
-        assert_eq!(
-            sources
-                .slice(owned.diagnostics()[0].primary_span())
-                .expect("conflicting operand span"),
-            "&"
-        );
+        mutable_unit::check_each(&text, &["L0135"], |sources, _, _, owned| {
+            assert_eq!(
+                codes(owned.diagnostics()),
+                ["L0135"],
+                "the first constructor Borrow must protect size while the second operand is evaluated"
+            );
+            assert_eq!(
+                sources
+                    .slice(owned.diagnostics()[0].primary_span())
+                    .expect("conflicting operand span"),
+                "&"
+            );
+        });
     }
 }
 
