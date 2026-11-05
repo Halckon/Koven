@@ -193,7 +193,11 @@ fn ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs() {
 
 #[test]
 fn value_delivery_moves_only_once_while_copy_and_borrow_preserve_sources() {
-    let text = "class Resource {}\n\
+    for rooted in [false, true] {
+        let checked =
+            |text: &str| nullable_unit::checked(text, "ownership.ko", rooted, environments());
+
+        let text = "class Resource {}\n\
                 fun take(own item: Resource): Unit {}\n\
                 fun create(): Resource\n\
                 fun inspect(item: Resource): Unit {}\n\
@@ -235,22 +239,23 @@ fn value_delivery_moves_only_once_while_copy_and_borrow_preserve_sources() {
                     { local = local }\n\
                     val fourth = take(local)\n\
                 }";
-    let (sources, _, checked) = checked(text);
-    assert_eq!(codes(checked.diagnostics()), vec!["L0131"; 7]);
-    let expected_primaries = [
-        "input", "input", "input", "local", "local", "local", "local",
-    ];
-    for (diagnostic, expected) in checked.diagnostics().iter().zip(expected_primaries) {
-        assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), expected);
-        let label = diagnostic
-            .details()
-            .iter()
-            .find_map(|detail| match detail {
-                DiagnosticDetail::Label(label) => Some(label.span()),
-                DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
-            })
-            .expect("move label");
-        assert_eq!(sources.slice(label).unwrap(), expected);
+        let (sources, _, checked) = checked(text);
+        assert_eq!(codes(checked.diagnostics()), vec!["L0131"; 7]);
+        let expected_primaries = [
+            "input", "input", "input", "local", "local", "local", "local",
+        ];
+        for (diagnostic, expected) in checked.diagnostics().iter().zip(expected_primaries) {
+            assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), expected);
+            let label = diagnostic
+                .details()
+                .iter()
+                .find_map(|detail| match detail {
+                    DiagnosticDetail::Label(label) => Some(label.span()),
+                    DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+                })
+                .expect("move label");
+            assert_eq!(sources.slice(label).unwrap(), expected);
+        }
     }
 }
 
@@ -275,7 +280,11 @@ fn error_nodes_do_not_create_ownership_cascades() {
 
 #[test]
 fn control_flow_joins_possible_moves_but_ignores_returning_paths() {
-    let text = "class Resource {}\n\
+    for rooted in [false, true] {
+        let checked =
+            |text: &str| nullable_unit::checked(text, "ownership.ko", rooted, environments());
+
+        let text = "class Resource {}\n\
                 fun take(own item: Resource): Unit {}\n\
                 fun branch(flag: Boolean, own input: Resource): Unit {\n\
                     if (flag) { take(input) }\n\
@@ -299,10 +308,11 @@ fn control_flow_joins_possible_moves_but_ignores_returning_paths() {
                     if (flag) { return input }\n\
                     return input\n\
                 }";
-    let (sources, _, checked) = checked(text);
-    assert_eq!(codes(checked.diagnostics()), vec!["L0131"; 3]);
-    for diagnostic in checked.diagnostics() {
-        assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), "input");
+        let (sources, _, checked) = checked(text);
+        assert_eq!(codes(checked.diagnostics()), vec!["L0131"; 3]);
+        for diagnostic in checked.diagnostics() {
+            assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), "input");
+        }
     }
 }
 
@@ -407,7 +417,11 @@ fn parameter_bindings_and_successful_call_loans_are_queryable() {
 
 #[test]
 fn call_loans_apply_in_source_order_and_use_field_path_overlap() {
-    let passing = "class Resource {}\n\
+    for rooted in [false, true] {
+        let checked =
+            |text: &str| nullable_unit::checked(text, "ownership.ko", rooted, environments());
+
+        let passing = "class Resource {}\n\
                    class Pair(var left: Resource, var right: Resource)\n\
                    fun readBoth(left: Resource, right: Resource): Unit {}\n\
                    fun mutateBoth(inout left: Resource, inout right: Resource): Unit {}\n\
@@ -415,25 +429,26 @@ fn call_loans_apply_in_source_order_and_use_field_path_overlap() {
                        val first = readBoth(pair.left, pair.left)\n\
                        val second = mutateBoth(&pair.left, &pair.right)\n\
                    }";
-    let (_, _, passing_checked) = checked(passing);
-    assert!(
-        passing_checked.diagnostics().is_empty(),
-        "{:?}",
-        passing_checked.diagnostics()
-    );
-
-    for failing in [
-        "class Resource {}\nclass Pair(var left: Resource, var right: Resource)\nfun conflict(inout first: Resource, inout second: Resource): Unit {}\nfun bad(own pair: Pair): Unit { val result = conflict(&pair.left, &pair.left) }",
-        "class Resource {}\nfun mixed(inout first: Resource, second: Resource): Unit {}\nfun bad(own input: Resource): Unit { var local = input\n val result = mixed(&local, local) }",
-        "class Resource {}\nfun mixed(first: Resource, inout second: Resource): Unit {}\nfun bad(own input: Resource): Unit { var local = input\n val result = mixed(local, &local) }",
-        "class Resource {}\nfun take(own input: Resource): Unit {}\nfun outer(first: Resource, own second: Unit): Unit {}\nfun bad(own input: Resource): Unit { var local = input\n val result = outer(local, take(local)) }",
-    ] {
-        let (_, _, checked) = checked(failing);
-        assert_eq!(codes(checked.diagnostics()), ["L0135"]);
+        let (_, _, passing_checked) = checked(passing);
         assert!(
-            checked.loans().is_empty(),
-            "invalid plan must not be published"
+            passing_checked.diagnostics().is_empty(),
+            "{:?}",
+            passing_checked.diagnostics()
         );
+
+        for failing in [
+            "class Resource {}\nclass Pair(var left: Resource, var right: Resource)\nfun conflict(inout first: Resource, inout second: Resource): Unit {}\nfun bad(own pair: Pair): Unit { val result = conflict(&pair.left, &pair.left) }",
+            "class Resource {}\nfun mixed(inout first: Resource, second: Resource): Unit {}\nfun bad(own input: Resource): Unit { var local = input\n val result = mixed(&local, local) }",
+            "class Resource {}\nfun mixed(first: Resource, inout second: Resource): Unit {}\nfun bad(own input: Resource): Unit { var local = input\n val result = mixed(local, &local) }",
+            "class Resource {}\nfun take(own input: Resource): Unit {}\nfun outer(first: Resource, own second: Unit): Unit {}\nfun bad(own input: Resource): Unit { var local = input\n val result = outer(local, take(local)) }",
+        ] {
+            let (_, _, checked) = checked(failing);
+            assert_eq!(codes(checked.diagnostics()), ["L0135"]);
+            assert!(
+                checked.loans().is_empty(),
+                "invalid plan must not be published"
+            );
+        }
     }
 }
 
@@ -705,7 +720,11 @@ fn moved_copyable_and_non_owning_values_never_gain_unique_drop_facts() {
 
 #[test]
 fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
-    let passing = "class Resource {}\n\
+    for rooted in [false, true] {
+        let checked =
+            |text: &str| nullable_unit::checked(text, "ownership.ko", rooted, environments());
+
+        let passing = "class Resource {}\n\
                    class Holder(var payload: Resource)\n\
                    value class Inline(var payload: Resource)\n\
                    fun mutate(inout item: Resource): Unit {}\n\
@@ -718,21 +737,22 @@ fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
                        var inline = Inline(replacement)\n\
                        val inlineChanged = mutate(&inline.payload)\n\
                    }";
-    let (_, _, passing_checked) = checked(passing);
-    assert!(
-        passing_checked.diagnostics().is_empty(),
-        "{:?}",
-        passing_checked.diagnostics()
-    );
+        let (_, _, passing_checked) = checked(passing);
+        assert!(
+            passing_checked.diagnostics().is_empty(),
+            "{:?}",
+            passing_checked.diagnostics()
+        );
 
-    let failing = "class Resource {}\n\
+        let failing = "class Resource {}\n\
                    class Holder(var payload: Resource)\n\
                    value class Inline(var payload: Resource)\n\
                    fun mutate(inout item: Resource): Unit {}\n\
                    fun borrowed(holder: Holder): Unit { val bad = mutate(&holder.payload) }\n\
                    fun inlineField(own item: Inline): Unit { val bad = mutate(&item.payload) }";
-    let (_, _, checked) = checked(failing);
-    assert_eq!(codes(checked.diagnostics()), ["L0134", "L0134"]);
+        let (_, _, checked) = checked(failing);
+        assert_eq!(codes(checked.diagnostics()), ["L0134", "L0134"]);
+    }
 }
 
 #[test]
