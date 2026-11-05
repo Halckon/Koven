@@ -65,6 +65,7 @@ impl DropPlanner<'_, '_> {
                 declaration: marker_span(name),
                 scope_depth: self.scope_depth,
             });
+            self.inserted_owner(symbol, initializer);
             if let Some(closure) = closure {
                 state.closures.insert(symbol, closure);
                 state
