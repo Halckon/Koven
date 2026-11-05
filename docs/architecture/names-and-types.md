@@ -163,7 +163,7 @@ Group/直接 control body 透传该 role；Map 写目标按写入角色准入，
 unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、
 不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
 
-对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、`multifile_type_member_graph` 与 `multifile_type_capability_graph`。
+对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、`multifile_type_member_graph`、`multifile_type_capability_graph` 与 `type_map`（Map 双入口原诊断，无 Single 消费者）。
 `multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。
 
 ### Unit 关联常量选择
