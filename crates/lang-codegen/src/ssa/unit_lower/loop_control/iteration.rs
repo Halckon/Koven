@@ -29,11 +29,6 @@ pub(super) enum IterationState {
         step: ValueId,
         int_type: SsaTypeId,
     },
-    Numeric {
-        current: usize,
-        last: usize,
-        endpoint_type: SsaTypeId,
-    },
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -60,21 +55,13 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        if plan.source_access() == UnitIterationSourceAccess::Exclusive {
+        if plan.source_access() == UnitIterationSourceAccess::Exclusive
+            || matches!(
+                descriptor.provider(),
+                lang_frontend::type_checking::IterationProvider::NumericRange(_)
+            )
+        {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        if matches!(
-            descriptor.provider(),
-            lang_frontend::type_checking::IterationProvider::NumericRange(_)
-        ) {
-            if plan.source_kind()
-                != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(
-                    descriptor.source(),
-                )
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            return self.lower_numeric_for(&plan, body, span);
         }
         let container = self.iteration_type(descriptor.source_type(), span)?;
         let element_type = self.iteration_type(descriptor.element_type(), span)?;

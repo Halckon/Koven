@@ -127,12 +127,19 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
         let id = self.unit(expression);
-        let int_ty = self.ssa_type(self.expression_type(size.value)?, size.span)?;
+        let int_unit = self
+            .inputs
+            .typed
+            .types()
+            .builtin(lang_frontend::type_checking::BuiltinType::Int)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let int_ty = self.ssa_type(int_unit, size.span)?;
         let Some((size_loan, created_size, size_read)) =
             self.runtime_size_loan(size.value, int_ty, size.span)?
         else {
             return Ok(Lowered::Diverged);
         };
+        self.pending_call_loans.extend(created_size.iter().copied());
         let length = self.value(
             ROp::ReadLoan { loan: size_loan },
             EntityType::Value(int_ty),
@@ -188,6 +195,7 @@ impl Builder<'_, '_> {
         )?;
         for loan in created_init.into_iter().chain(created_size) {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+            self.pending_call_loans.retain(|&active| active != loan);
         }
         for arg in [size_read, init_read].into_iter().flatten() {
             self.drops(UnitDropPoint::AfterExpression(self.unit(arg)))?;

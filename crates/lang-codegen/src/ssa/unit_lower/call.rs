@@ -54,15 +54,6 @@ impl UnitExpressionLowerer<'_> {
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if let Some(value) = self.bindings.get(&symbol).copied() {
-            if self
-                .typed
-                .non_null_use(UnitExpressionId::new(self.source_unit, expression))
-                .is_some()
-                && let LoweredValue::Value(result) = value
-                && self.is_map_result_value(result)
-            {
-                return self.unwrap_map_result(result, span);
-            }
             return Ok(value);
         }
         let loan = self

@@ -39,6 +39,8 @@ pub(super) struct ControlResult {
     string: Option<(UnitTypeId, SsaTypeId)>,
 }
 
+type BooleanWhenArms = ((StatementId, usize), (StatementId, usize));
+
 impl UnitExpressionLowerer<'_> {
     pub(super) fn lower_short_circuit(
         &mut self,
@@ -295,7 +297,7 @@ impl UnitExpressionLowerer<'_> {
     fn boolean_literal_two_arms(
         &self,
         entries: &[WhenEntry],
-    ) -> Result<Option<((StatementId, usize), (StatementId, usize))>, LoweringError> {
+    ) -> Result<Option<BooleanWhenArms>, LoweringError> {
         let mut when_true = None;
         let mut when_false = None;
         for (index, entry) in entries.iter().enumerate() {

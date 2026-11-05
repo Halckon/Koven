@@ -671,3 +671,45 @@ fn retired_string_clone_box_value_field_borrow_and_when_boundary_tests() {
         assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
     }
 }
+
+#[test]
+fn retired_numeric_for_runtime_container_map_get_and_consume_boundary_tests() {
+    use crate::ssa::LoweringErrorKind;
+
+    for (source, expected_slice) in [
+        (
+            "fun main(r: IntRange): Unit { for (i in r) { val copy = i } }",
+            "for (i in r) { val copy = i }",
+        ),
+        (
+            "fun main(): Array<Int> = Array<Int>(2, { index -> index })",
+            "Array<Int>(2, { index -> index })",
+        ),
+        (
+            "fun main(): Unit { val m = mapOf<Int, Int>(); val v = m.get(1) }",
+            "m.get(1)",
+        ),
+        (
+            "fun main(): Map<Int, Int> { val m = mutableMapOf<Int, Int>(); return m.consume() }",
+            "m.consume()",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_env, type_env) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
+        let entry = declaration(&names, "p", "main");
+        let err = crate::ssa::with_per_family_lowering(|| {
+            lower_scalar_unit_with_entry(
+                &sources, &inputs, &names, &type_env, &typed, &owned, entry,
+            )
+        })
+        .err()
+        .unwrap_or_else(|| panic!("expected rejection under per-family lowering for: {source}"));
+        assert_eq!(err.kind, LoweringErrorKind::UnsupportedNode, "{source}");
+        let span = err.span.expect("exact rejection span");
+        assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
+    }
+}

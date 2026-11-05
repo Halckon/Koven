@@ -25,7 +25,6 @@ mod map;
 mod map_borrow;
 mod map_consume;
 mod map_iteration;
-mod map_result;
 mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
@@ -798,10 +797,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok((value, false));
         }
-        if self.map_results.contains_key(&nullable)
-            && self.typed.copyability(actual) == Copyability::Copyable
-        {
-            return Ok((self.wrap_map_result(value, nullable, span)?, false));
+        if self.map_results.contains_key(&nullable) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         self.transfer_owned_expression(expression, value, span)?;
         let (_, results) = self

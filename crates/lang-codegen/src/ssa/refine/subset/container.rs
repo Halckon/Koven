@@ -124,7 +124,7 @@ impl Checker<'_, '_> {
             )
             || arguments.len() != descriptor.parameter_modes().len()
             || (descriptor.kind() == ContainerConstructionKind::RuntimeLength
-                && self.span_has_control_transfer(node.span()))
+                && self.span_has_non_abort_jump(node.span()))
         {
             return false;
         }
@@ -150,6 +150,9 @@ impl Checker<'_, '_> {
                 let [size, initializer] = arguments.as_slice() else {
                     return false;
                 };
+                let size_diverges = self
+                    .expression_type(size.value)
+                    .is_some_and(|ty| self.nothing(ty));
                 matches!(
                     descriptor.container(),
                     SequentialContainerKind::Array | SequentialContainerKind::List
@@ -166,7 +169,7 @@ impl Checker<'_, '_> {
                     )
                     && self.is_int_index(size.value)
                     && self.expression(size.value)
-                    && self.runtime_initializer(initializer.value)
+                    && (size_diverges || self.runtime_initializer(initializer.value))
             }
         };
         self.migrated |= ok;
@@ -178,6 +181,15 @@ impl Checker<'_, '_> {
         let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
             return false;
         };
+        if self.span_has_non_abort_jump(node.span()) {
+            return false;
+        }
+        if self
+            .expression_type(root)
+            .is_some_and(|ty| self.nothing(ty))
+        {
+            return self.expression(value);
+        }
         if self.span_has_control_transfer(node.span()) {
             return false;
         }
@@ -700,23 +712,44 @@ impl Checker<'_, '_> {
                         .call(self.id(*id))
                         .is_some_and(|desc| desc.aborts()))
             })
-            .any(|(_, candidate)| {
-                !self
-                    .inputs
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .iter()
-                    .any(|(_, boundary)| {
-                        let bspan = boundary.span();
-                        matches!(boundary.payload(), Expression::Lambda { .. })
-                            && bspan != candidate.span()
-                            && span.source_id() == bspan.source_id()
-                            && span.start() <= bspan.start()
-                            && bspan.end() <= span.end()
-                            && bspan.start() <= candidate.span().start()
-                            && candidate.span().end() <= bspan.end()
-                    })
+            .any(|(_, candidate)| !self.inside_enclosing_lambda(span, candidate.span()))
+    }
+
+    pub(super) fn span_has_non_abort_jump(&self, span: Span) -> bool {
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .filter(|(_, candidate)| {
+                span.source_id() == candidate.span().source_id()
+                    && span.start() <= candidate.span().start()
+                    && candidate.span().end() <= span.end()
+                    && matches!(
+                        candidate.payload(),
+                        Expression::Return { .. }
+                            | Expression::Break { .. }
+                            | Expression::Continue { .. }
+                    )
+            })
+            .any(|(_, candidate)| !self.inside_enclosing_lambda(span, candidate.span()))
+    }
+
+    fn inside_enclosing_lambda(&self, span: Span, target: Span) -> bool {
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(_, boundary)| {
+                let bspan = boundary.span();
+                matches!(boundary.payload(), Expression::Lambda { .. })
+                    && bspan != target
+                    && span.source_id() == bspan.source_id()
+                    && span.start() <= bspan.start()
+                    && bspan.end() <= span.end()
+                    && bspan.start() <= target.start()
+                    && target.end() <= bspan.end()
             })
     }
 }

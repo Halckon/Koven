@@ -3,7 +3,7 @@
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget, UnitValueDeliveryKind},
-    parser::{AssignmentOperator, Expression, ParameterModeMarker},
+    parser::{AssignmentOperator, Expression},
     source::Span,
     type_checking::{
         BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory,
@@ -23,8 +23,6 @@ use crate::ssa::{
         SsaTypeId, ValueId,
     },
 };
-
-mod runtime;
 
 struct ElementOperands {
     owner: EntityId,
@@ -541,10 +539,10 @@ impl UnitExpressionLowerer<'_> {
         let Expression::Call { arguments, .. } = node.payload() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        self.validate_container_construction(&descriptor, arguments, span)?;
         if descriptor.kind() == ContainerConstructionKind::RuntimeLength {
-            return self.lower_runtime_container(expression, arguments, span);
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        self.validate_container_construction(&descriptor, arguments, span)?;
 
         let pending_start = self.pending_operands.len();
         for argument in arguments {
@@ -633,21 +631,7 @@ impl UnitExpressionLowerer<'_> {
                 }
             }
             ContainerConstructionKind::RuntimeLength => {
-                if !matches!(
-                    descriptor.container(),
-                    SequentialContainerKind::Array | SequentialContainerKind::List
-                ) || descriptor.parameter_modes()
-                    != [ParameterMode::Borrow, ParameterMode::Borrow]
-                    || arguments.iter().any(|argument| {
-                        argument.named_prefix.is_some()
-                            || !matches!(
-                                argument.mode_marker,
-                                None | Some(ParameterModeMarker::Borrow(_))
-                            )
-                    })
-                {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                }
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         }
         Ok(())

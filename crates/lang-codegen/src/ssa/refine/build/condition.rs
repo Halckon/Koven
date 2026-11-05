@@ -269,13 +269,18 @@ impl Builder<'_, '_> {
                 target: inner_ssa,
             });
             self.body.blocks[non_null_block.0].view = Some(view);
+            let branch_span = if self.types.nullable_maps.contains_key(&nullable_ssa) {
+                control_span.unwrap_or(span)
+            } else {
+                span
+            };
             self.terminate(
                 RTerm::NullBranch {
                     owner,
                     when_null: null_block,
                     when_non_null: non_null_block,
                 },
-                span,
+                branch_span,
             )?;
             self.block = Some(non_null_block);
             if !self.move_only(inner) {

@@ -1,6 +1,7 @@
 //! Consume each frontend cleanup sequence once, preserving provider/call/drop ordering.
 use super::{iteration::IterationState, *};
-use crate::ssa::model::{EntityId, EntityType, LoanId, Operation};
+use crate::ssa::model::{EntityId, LoanId, Operation};
+
 use lang_frontend::{
     ownership_checking::UnitIterationCleanupAction as Action,
     type_checking::{BorrowReturnOrigin, CallableResultSource, UnitCallReceiverOrigin},
@@ -59,20 +60,6 @@ impl UnitExpressionLowerer<'_> {
                                 self.iteration_end_loan(loan, span)?;
                             }
                         }
-                        IterationState::Numeric { endpoint_type, .. } => {
-                            let Some(LoweredValue::Value(value)) = self.bindings.remove(symbol)
-                            else {
-                                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                            };
-                            if self
-                                .function
-                                .entity(EntityId::Value(value))
-                                .map(|value| value.ty)
-                                != Some(EntityType::Value(endpoint_type))
-                            {
-                                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                            }
-                        }
                     }
                 }
                 Action::EndElement(statement) => {
@@ -84,14 +71,6 @@ impl UnitExpressionLowerer<'_> {
                         IterationState::Borrowed { element, .. } => {
                             let loan = self.iteration_pending_loan(element, span)?;
                             self.iteration_end_loan(loan, span)?;
-                        }
-                        IterationState::Numeric {
-                            current,
-                            last,
-                            endpoint_type,
-                        } => {
-                            self.numeric_pending_value(current, endpoint_type, span)?;
-                            self.numeric_pending_value(last, endpoint_type, span)?;
                         }
                     }
                 }

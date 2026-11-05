@@ -548,3 +548,39 @@ fn string_clone_value_field_borrow_box_and_when_route_to_refine() {
         res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
 }
+
+#[test]
+fn numeric_for_runtime_container_and_map_diverging_keys_route_to_refine() {
+    for source in [
+        "fun f(r: IntRange): Int {\n\
+             var sum = 0\n\
+             for (i in r) { sum = sum + i }\n\
+             return sum\n\
+         }",
+        "fun f(): Int {\n\
+             val unused = Array<Int>(error(\"size\"), { index -> index })\n\
+             return 0\n\
+         }",
+        "fun f(): Int {\n\
+             val unused = List<Int>(1, error(\"initializer\"))\n\
+             return 0\n\
+         }",
+        "fun f(): Int {\n\
+             val scale = 7\n\
+             return 0\n\
+             val unused = Array<Int>(1, { index -> index + scale })\n\
+         }",
+        "fun f(): Unit {\n\
+             var m = mutableMapOf<Int, Int>()\n\
+             m.get(return)\n\
+         }",
+        "fun f(flag: Boolean): Unit {\n\
+             var m = mutableMapOf<Int, Int>()\n\
+             m.put(if (flag) { return } else { return }, 8)\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}

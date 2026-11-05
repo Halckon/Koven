@@ -214,8 +214,20 @@ fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
             }
             if let Some(preds) = abort_preds.get(block) {
                 for (pred, retired) in preds {
-                    for slot in live_in.get(pred).into_iter().flatten() {
-                        if !retired.contains(slot) {
+                    let excluded = excluded_abort_slots(body, *pred, *block);
+                    for slot in live_in
+                        .get(pred)
+                        .into_iter()
+                        .flatten()
+                        .chain(local[pred].1.iter())
+                    {
+                        if !retired.contains(slot)
+                            && !excluded.contains(slot)
+                            && !matches!(
+                                body.slots[slot.0],
+                                crate::ssa::model::EntityType::Place(_)
+                            )
+                        {
                             live.insert(*slot);
                         }
                     }

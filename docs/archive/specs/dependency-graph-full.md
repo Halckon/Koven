@@ -376,6 +376,7 @@ subgraph Gactive["现行 active"]
   S0385["S0385<br/>deinit 字段借用、独立堆对象可空 if 与字符串字段接收者旧路径退役"]
   S0386["S0386<br/>Inout 接收者、接口委托、无状态 object 与局部解构旧路径退役"]
   S0387["S0387<br/>String.clone()、装箱构造、value class 字段借用与通用 when 旧路径退役"]
+  S0388["S0388<br/>数值区间 for、运行时长度容器构造、Map.get、非可空 Map.consume 与 $map.result 旧路径退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1823,6 +1824,7 @@ S0366 --> S0367
 | SPEC-0385 | active | [0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md](../../specs/active/0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
 | SPEC-0386 | active | [0386-refine-inout-delegation-object-destructuring-retirement.md](../../specs/active/0386-refine-inout-delegation-object-destructuring-retirement.md) |
 | SPEC-0387 | active | [0387-refine-string-clone-box-value-field-when-retirement.md](../../specs/active/0387-refine-string-clone-box-value-field-when-retirement.md) |
+| SPEC-0388 | active | [0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

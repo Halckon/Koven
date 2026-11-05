@@ -891,7 +891,34 @@ impl Checker<'_, '_> {
             Statement::Block { elements }
             | Statement::ControlBody { elements }
             | Statement::LambdaBody { elements } => {
-                elements.into_iter().all(|element| self.statement(element))
+                let mut iter = elements.into_iter();
+                while let Some(element) = iter.next() {
+                    if !self.statement(element) {
+                        return false;
+                    }
+                    if self
+                        .inputs
+                        .parsed
+                        .ast()
+                        .statements()
+                        .get(element)
+                        .is_ok_and(|stmt| {
+                            matches!(
+                                stmt.payload(),
+                                Statement::Expression { expression }
+                                    if self
+                                        .expression_type(*expression)
+                                        .is_some_and(|ty| self.nothing(ty))
+                            )
+                        })
+                    {
+                        if iter.next().is_some() {
+                            self.migrated = true;
+                        }
+                        break;
+                    }
+                }
+                true
             }
             Statement::Expression { expression } => self.expression(expression),
             Statement::LocalVariable { declaration } => self.local_variable(declaration),

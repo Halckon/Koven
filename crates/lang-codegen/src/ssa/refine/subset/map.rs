@@ -198,7 +198,7 @@ impl Checker<'_, '_> {
             return false;
         }
         let key = descriptor.key().expression();
-        let ok = self.expression_type(key) == Some(key_ty)
+        let ok = self.key_or_nothing(key, key_ty)
             && (self.borrowed_string_name(key) || self.expression(key));
         self.migrated |= ok;
         ok
@@ -236,12 +236,22 @@ impl Checker<'_, '_> {
         }
         let key = descriptor.key().expression();
         let value = descriptor.value().expression();
-        let ok = self.expression_type(key) == Some(key_ty)
+        let key_diverges = self.expression_type(key).is_some_and(|ty| self.nothing(ty));
+        let ok = self.key_or_nothing(key, key_ty)
             && self.expression(key)
-            && self.adaptable_element(value, value_ty)
-            && self.expression(value);
+            && (key_diverges
+                || ((self.adaptable_element(value, value_ty)
+                    || self
+                        .expression_type(value)
+                        .is_some_and(|ty| self.nothing(ty)))
+                    && self.expression(value)));
         self.migrated |= ok;
         ok
+    }
+
+    fn key_or_nothing(&self, key: ExpressionId, key_ty: UnitTypeId) -> bool {
+        self.expression_type(key)
+            .is_some_and(|ty| ty == key_ty || self.nothing(ty))
     }
 
     fn map_consume(&mut self, expression: ExpressionId) -> bool {
@@ -343,7 +353,7 @@ impl Checker<'_, '_> {
         }
         self.note_nullable(res_ty);
         let key = descriptor.key().expression();
-        let ok = self.expression_type(key) == Some(key_ty)
+        let ok = self.key_or_nothing(key, key_ty)
             && (self.borrowed_string_name(key) || self.expression(key));
         self.migrated |= ok;
         ok
@@ -392,7 +402,7 @@ impl Checker<'_, '_> {
         }
         self.note_nullable(res_ty);
         let key = descriptor.key().expression();
-        let ok = self.expression_type(key) == Some(key_ty)
+        let ok = self.key_or_nothing(key, key_ty)
             && (self.borrowed_string_name(key) || self.expression(key));
         self.migrated |= ok;
         ok
