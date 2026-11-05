@@ -792,7 +792,18 @@ impl Builder<'_, '_> {
                     continue;
                 }
             }
-            let Some(value) = self.required(value_expression)? else {
+            let saved_expected = self.expected_nullable;
+            if matches!(
+                self.inputs.typed.types().get(self.c(parameter_type)),
+                Some(UnitTypeKind::Nullable(_))
+            ) {
+                self.expected_nullable = self.ssa_type(self.c(parameter_type), span).ok();
+            } else {
+                self.expected_nullable = None;
+            }
+            let value = self.required(value_expression);
+            self.expected_nullable = saved_expected;
+            let Some(value) = value? else {
                 return Ok(Lowered::Diverged);
             };
             match mode {
@@ -969,7 +980,14 @@ impl Builder<'_, '_> {
         let result = match value {
             Some(value) => {
                 let saved_expected = self.expected_nullable;
-                self.expected_nullable = self.ssa_type(self.inputs.return_type, span).ok();
+                self.expected_nullable = if matches!(
+                    self.inputs.typed.types().get(self.inputs.return_type),
+                    Some(UnitTypeKind::Nullable(_))
+                ) {
+                    self.ssa_type(self.inputs.return_type, span).ok()
+                } else {
+                    None
+                };
                 let slot = self.required(value)?;
                 self.expected_nullable = saved_expected;
                 let Some(slot) = slot else {

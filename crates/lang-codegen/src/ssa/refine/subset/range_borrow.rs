@@ -86,6 +86,18 @@ impl Checker<'_, '_> {
             || typed.container_construction(id).is_some_and(|d| {
                 d.kind() == lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
             })
+            || typed
+                .aggregate_projection(id)
+                .is_some_and(|p| match p.receiver() {
+                    lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(
+                        recv_expr,
+                    ) => self.expression_type_of(recv_expr).is_some_and(|ty| {
+                        (self.value_class(ty) || self.move_value_class(ty))
+                            && self.copyability_of(self.c(p.ty()))
+                                == lang_frontend::type_checking::Copyability::MoveOnly
+                    }),
+                    _ => false,
+                })
             || typed.construction(id).is_some_and(|d| {
                 matches!(
                     d.target(),
