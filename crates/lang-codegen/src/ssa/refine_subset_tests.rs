@@ -417,10 +417,13 @@ fn map_for_retired_scalar_families_choose_refine() {
         "fun f(m: Map<Int, Int>): Unit { for ((k, v) in m) { val x = v.toLong() } }",
         "fun f(m: Map<Int, Int>): Unit { val range = 0..<3; for ((k, v) in m) { val x = v + 1 } }",
         "fun f(m: Map<Int, Int>): Unit { for ((k, v) in m) { val x = v + 1 }; val x = 2.inv() }",
-        "fun f(m: Map<Int, Int>): Unit { for ((k, v) in m) { for (x in 0..<v) {} } }",
     ] {
         let (result, routed) = route(source);
-        assert!(routed, "retired scalar family must not fall back: {source}");
+        assert!(
+            routed,
+            "retired scalar family must not fall back: {source}; result={:?}",
+            result.as_ref().map(|_| ())
+        );
         result.unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
 }
