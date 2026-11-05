@@ -53,3 +53,43 @@
 | 本地 abort 前驱定向回归 | `cargo test -p lang-codegen ssa::refine_tests::control_flow_tests::abort_predecessor_` | 7 项回归全绿（覆盖 DirectCall、聚合构造、CallableInvokeView、CallableInvoke、BorrowCall、RangeCall 与 LoanMutate），且 4 类调用族均显式断言目标 SSA 操作存在及 abort 块参数中绝无已消费 owner |
 | 变异测试证据 | 本地注释 `call_operands` 中的 `CallableInvoke`/`BorrowCall`/`RangeCall` | `abort_predecessor_callable_invoke_consume_then_both_abort` 与 `abort_predecessor_borrow_call_consume_then_both_abort` 立即稳定失败报 `InvalidModel`；`assert_refine_function_op_and_abort_clean` 在操作降级或遗漏 `retired_slots` 时立即失败，证明回归具有动态鉴别力 |
 | CI Evidence 状态 | `scripts/pr_ci_reuse.py` 执行日志 | `code-evidence` 因 PR 合并 parents 严格检验未找到匹配物理证据产物而按设计 skipped，不属于 CI 失败，且全部 14 项实体测试 job 均独立执行通过 |
+
+## 5. Map-for 与整数家族的组合路由修复
+
+本地候选基于 main `e1cde85f907553053c1d6ef699ea4ddd81d0a18e`。真实 CLI 对照中，
+同一 Borrow `Map<Int, Int>` 的 `for` 内 `v + 1` 可 build/run；改为 `v.inv()`，或仅在
+循环前绑定 `val range = 0..<3`，均在已退休的 legacy 家族入口报 `UnsupportedNode`。
+原因是 `map_for` 的 `scope_requires_refine` 尚未识别整数内建与 Range operation facts，
+导致整个函数未通过 Refine 预检而落回已不具备对应操作的路径。
+
+修复仅在共享 scope predicate 中纳入这两类既有 typed facts，不恢复旧 lowering、不移除
+Map-for 的 scope gate。各消费者的类型、来源、descriptor、ownership 与 cleanup 检查保持；
+共享 predicate 也服务 sequential temporary/while、nullable Map 与借用返回等组合准入，
+不能将本修改描述为只影响 Map-for。纯 Map-for 及无关 sibling 中整数操作的原分派保留。
+
+新增 `native_map_provider_tests::scalar_routing_tests` 覆盖 Map/MutableMap 的 Borrow、Own
+及 temporary 六种来源，分别组合 `inv`、`toLong`、循环前 Range，保留加法对照和
+continue/break/return。SSA 查询定位实际 scan 函数，检查 provider 与目标 operation 共存、
+两次输出确定性和 LLVM verifier；native 使用原 MemoryDocument 与 rooted Unit helper。
+`refine_subset_tests` 新增两项 route 断言，包括循环后 operation 与 sibling 隔离。
+所有新增源码只执行正常路径，不含故障注入、计数校准或预期 Abort。
+
+| 检查 | 本地结果 |
+|---|---|
+| main CLI 三源对照 | 加法 build/run 0；inv 与 Range build 2 / UnsupportedNode |
+| 修改前新增回归 | 七项 scalar 回归 UnsupportedNode；route 一红一绿；加法 native 暂因缺 Clang 未执行 |
+| 修复后 `cargo test --locked --offline -p lang-codegen --lib map_for_` | 10/10；六来源的 SSA/LLVM 与 84 次双布局 native 全绿 |
+| 既有相邻回归（逐 exact） | 9/9；原 Map 三路径/whole-source-set、Range 40 格、双布局 native、Refine 正负路由保留 |
+| fmt、docs、尺寸、diff | 全部通过；无新超限文件或额度增长 |
+| `cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings` | 通过；默认 dev debug=2 |
+| `cargo build --locked --offline -p lang-codegen -p lang-cli` | 通过；默认 dev debug=2 |
+| 修复后相同 CLI 三源 | 加法、inv、Range 均 build/run 0，stdout 均为 `visited` |
+
+本轮 Linux x86_64 使用 Rust 1.96.0、LLVM/Clang 21.1.8；工具隔离在工作区。
+默认 debug=2 的 libtest 编译曾被 SIGKILL，后按现行 Linux CI 的 dev/test debug=1 与
+单 Cargo 编译成功。此处不据此声称默认调试配置或 macOS/官方 CI 已通过。
+
+额外探针发现 Map-for 内嵌 numeric-for 仍 `UnsupportedNode`（精确为外层 for 范围）。
+主干也拒绝此源码，#300 前已有 `map_iteration/nested.rs` 对非 Map 子 provider 的拒绝；
+本轮不将它当成 integer/Range-value 回退的已修复正例，也不扩大循环资格。原始探针失败
+保留在本地验证记录；未修改任何既有回归来吸收该边界。

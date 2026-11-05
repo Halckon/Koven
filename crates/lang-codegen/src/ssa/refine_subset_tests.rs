@@ -440,6 +440,43 @@ fn map_iteration_require_value_range_view_and_control_edges_route_to_refine() {
 }
 
 #[test]
+fn map_for_retired_scalar_families_choose_refine() {
+    for source in [
+        "fun f(m: Map<Int, Int>): Unit { for ((k, v) in m) { val x = v.inv() } }",
+        "fun f(m: Map<Int, Int>): Unit { for ((k, v) in m) { val x = v.toLong() } }",
+        "fun f(m: Map<Int, Int>): Unit { val range = 0..<3; for ((k, v) in m) { val x = v + 1 } }",
+        "fun f(m: Map<Int, Int>): Unit { for ((k, v) in m) { val x = v + 1 }; val x = 2.inv() }",
+    ] {
+        let (result, routed) = route(source);
+        assert!(
+            routed,
+            "retired scalar family must not fall back: {source}; result={:?}",
+            result.as_ref().map(|_| ())
+        );
+        result.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn map_for_unrelated_scalar_scope_keeps_legacy_routing() {
+    for sibling in [
+        "",
+        "fun other(n: Int): Int = n.inv()",
+        "fun other(): IntRange = 0..<3",
+    ] {
+        let source = format!(
+            "{sibling}\nfun f(m: Map<Int, Int>): Unit {{ for ((k, v) in m) {{ val x = v + 1 }} }}"
+        );
+        let (result, routed) = route(&source);
+        assert!(
+            !routed,
+            "unrelated sibling must not expand Map-for routing: {source}"
+        );
+        result.expect("original Map-for addition remains supported");
+    }
+}
+
+#[test]
 fn enum_construction_for_borrowed_string_when_and_else_views_route_to_refine() {
     for source in [
         "enum class Shape { Circle(r: Int), Point }\n\

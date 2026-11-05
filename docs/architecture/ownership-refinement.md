@@ -14,6 +14,10 @@ receiver 只接受 Copyable enum（Value/Borrow）与普通 class（Borrow/Inout
 拒绝（unit planning 已为 `Inout` 参数分配 exclusive loan 实体）。精确子集以
 SPEC-0350 §3 的已实现清单与 SPEC-0356 为准。
 
+Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed facts 激活现有
+`scope_requires_refine`，仍逐项校验 Map provider 与完整函数子集；无关 sibling 中的操作
+不改变纯 Map-for 路由。验证范围见 [SPEC-0383 §5](../specs/active/0383-refine-final-legacy-retirement.md#5-map-for-与整数家族的组合路由修复)。
+
 ## 两段 lowering
 
 - 细化（`refine/build`）：facts 映射为槽位 CFG。析构点、Borrow 实参 loan、Value 交付、null 比较的
