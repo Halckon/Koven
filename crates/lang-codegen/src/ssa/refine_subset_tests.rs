@@ -1,7 +1,9 @@
 //! SPEC-0350 routing: which functions the refinement layer lowers, and that the choice
 //! and its output are independent of input order.
 use lang_frontend::{
-    name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+    source::SourceMap,
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 
 use super::{
@@ -140,10 +142,6 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "fun f(s: String?): Int { if (s != null) { return 1 }; return 0 }",
         ),
         (
-            "Box with non-nominal payload",
-            "fun f(own b: Box<Int>?): Int { if (b != null) { return 1 }; return 0 }",
-        ),
-        (
             "MoveOnly Inout parameter",
             "fun f(inout s: String): Unit { s = \"a\" }",
         ),
@@ -159,6 +157,37 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
         let (_, routed) = route(source);
         assert!(!routed, "{reason}: {source}");
     }
+}
+
+#[test]
+fn non_nominal_box_payload_is_rejected_before_refinement() {
+    // This original routing fixture is invalid under Guide 11. Keep its source as a
+    // frontend rejection boundary instead of asking a validated lowering entry to accept it.
+    let source = "fun f(own b: Box<Int>?): Int { if (b != null) { return 1 }; return 0 }";
+    let mut sources = SourceMap::new();
+    let text = format!("package p\n{source}");
+    let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).expect("valid unit input");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+        .expect("name resolution succeeds internally")
+        .validate()
+        .expect("valid names");
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("type checking succeeds internally");
+    let [diagnostic] = typed.signatures().diagnostics() else {
+        panic!("one Box signature rejection: {:?}", typed.diagnostics())
+    };
+    assert_eq!(diagnostic.code().to_string(), "L0117");
+    assert_eq!(
+        sources.slice(diagnostic.primary_span()).expect("span"),
+        "Int"
+    );
+    assert!(
+        typed.validate().is_err(),
+        "invalid Box cannot enter lowering"
+    );
 }
 
 #[test]

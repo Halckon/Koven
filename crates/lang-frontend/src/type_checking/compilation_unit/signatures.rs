@@ -1,3 +1,4 @@
+mod box_arguments;
 mod callable;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -16,8 +17,8 @@ use crate::{
     },
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, DeferredReason, EnvironmentType, ExternalTypeBinding, NominalKind,
-        ParameterMode, TypeCheckingError, TypeEnvironment,
+        BuiltinType, DeferredReason, EnvironmentType, ExternalTypeBinding,
+        IntrinsicTypeConstructor, NominalKind, ParameterMode, TypeCheckingError, TypeEnvironment,
     },
 };
 
@@ -706,6 +707,9 @@ impl<'a> SignatureCollector<'a> {
             }
             Some(ExternalTypeBinding::Intrinsic(constructor)) => {
                 if arguments.len() == constructor.expected_type_argument_count() {
+                    if constructor == IntrinsicTypeConstructor::Box {
+                        return self.instantiate_box_type(source, segment);
+                    }
                     Ok(self.types.intern(UnitTypeKind::Intrinsic {
                         constructor,
                         arguments,
