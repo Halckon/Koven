@@ -373,10 +373,10 @@ impl Builder<'_, '_> {
             self.short_ranges = outer_short_ranges.clone();
             let mark = self.enter(block);
             let saved_expected = self.expected_nullable;
-            if let Some(res) = result {
-                if let EntityType::Value(ssa_ty) = self.body.slots[res.0] {
-                    self.expected_nullable = Some(ssa_ty);
-                }
+            if let Some(res) = result
+                && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
+            {
+                self.expected_nullable = Some(ssa_ty);
             }
             let value = match branch {
                 Some(branch) => self.branch_value(branch)?,

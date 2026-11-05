@@ -160,10 +160,10 @@ impl Builder<'_, '_> {
             self.active_views = outer_views.clone();
             let mark = self.enter(body);
             let saved_expected = self.expected_nullable;
-            if let Some(res) = result {
-                if let EntityType::Value(ssa_ty) = self.body.slots[res.0] {
-                    self.expected_nullable = Some(ssa_ty);
-                }
+            if let Some(res) = result
+                && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
+            {
+                self.expected_nullable = Some(ssa_ty);
             }
             let value = self.branch_value(entry.body)?;
             self.expected_nullable = saved_expected;
@@ -282,10 +282,10 @@ impl Builder<'_, '_> {
         self.short_ranges = outer_short_ranges.clone();
         let mark = self.enter(arm_block);
         let saved_expected = self.expected_nullable;
-        if let Some(res) = result {
-            if let EntityType::Value(ssa_ty) = self.body.slots[res.0] {
-                self.expected_nullable = Some(ssa_ty);
-            }
+        if let Some(res) = result
+            && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
+        {
+            self.expected_nullable = Some(ssa_ty);
         }
         let value = self.branch_value(branch)?;
         self.expected_nullable = saved_expected;
@@ -391,10 +391,10 @@ impl Builder<'_, '_> {
             self.short_ranges = outer_short_ranges.clone();
             let mark = self.enter(block);
             let saved_expected = self.expected_nullable;
-            if let Some(res) = result {
-                if let EntityType::Value(ssa_ty) = self.body.slots[res.0] {
-                    self.expected_nullable = Some(ssa_ty);
-                }
+            if let Some(res) = result
+                && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
+            {
+                self.expected_nullable = Some(ssa_ty);
             }
             let value = self.branch_value(branch)?;
             self.expected_nullable = saved_expected;
