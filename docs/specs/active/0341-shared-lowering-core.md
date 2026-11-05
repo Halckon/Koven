@@ -2461,3 +2461,33 @@ target、23 次 Cargo 调用（此前实际已有 131 个，本片仅新增 1 �
 未运行本地 Cargo/build/test/Clippy；Draft 发布后的精确头官方 CI 结果另行核验。
 本批不删除旧 helper，不替代 owner、loan-end 或 cleanup graph 的独立完整证据；
 D10/E2 继续 in-progress，发布不授权自动合入。
+
+## 110. Map 类型诊断旧消费者退休（2026-11-05）
+
+本片独立基于已合入五批后继 PR 的 main `c36c4e85449df69ff1f5fb553313a7ea2dbb2ead`。
+承接 §65 明确保留的十项 Single-only 测试，不重复计入其已退休的十四次分析。
+
+- 十项测试原位使用既有 `checked_entries`：同一 SourceMap/ParsedFile 与显式标准环境，
+  MemoryDocument/Rooted 各自产生真实 Unit index、已验证 names 和 raw types；两入口
+  均核 source identity；validate 前显式要求 names 诊断全空，保全旧前置。完整保留原源码、
+  测试名和断言，只增加双入口循环，不增加或
+  放宽 final/ownership 准入，也不改生产、Guide、target 注册或 CI。
+- 构造/成员正例仍无诊断；两类非 Hashable key 各为 L0161×1；类型实参数量为 L0091×1；
+  readonly mutation 保持 L0129/L0130/L0130 顺序；method 未调用为 L0130×1；六个
+  key/value mismatch 全为 L0084；class index/get 与 String get 各为 L0136×1。
+- 删除最后一个旧 `checked` helper 和对应 resolve_names/check_types/TypedFile 导入，
+  保留 consume 所需 NameResolution。其余五项父文件测试、consume 两项与 parser helper
+  逐字节保全；入口 helper 仅补上述名称全空前置。全目标仍十七项，退休十次 Single 执行，改为二十次 Unit
+  分析；不是新增二十个测试或生产能力扩张。
+- frontend integration tests 中直接 check_types 静态调用由 110 次/55 文件降至
+  109 次/54 文件，check_ownership 保持 44 次/33 文件；两类旧 checker 消费文件并集
+  由 55 降为 54。这是调用点盘点，不是 D10/E2 完成比例；旧 API 与独立差异见证仍保留。
+
+云端固定 Rust 1.96.0、独立 Cargo target、locked/offline 验收：frontend lib 编译通过；
+`cargo test -p lang-frontend --test type_map --no-run` 编译通过；同目标实际执行
+17 passed、0 failed、0 ignored、0 filtered out；同目标 Clippy `-D warnings` 通过。
+十项原源码与 oracle（仅循环缩进变化）、全部测试名、parser helper 和 consume 的机械保全检查通过。
+直接 rustfmt、diff、文档结构（838 Markdown）及基于上述 main 的尺寸守卫通过
+（2114 Rust 文件、39 项历史超限，无新增债）；独立只读复审未发现阻断或原 oracle 遗漏。
+未运行故障注入、校准、含 Abort 的整项测试、Mac 构建、native 或全工作区门禁。
+本地结果不替代精确头官方双平台 CI；本片未发布或创建 PR，D10/E2 与本 Spec 保持 in-progress。
