@@ -592,10 +592,9 @@ impl UnitExpressionLowerer<'_> {
                     self.lower_for(statement, *source, *body, span)
                 }
             }
-            Statement::LocalDestructuring { initializer, .. } => {
-                self.lower_destructuring(statement, *initializer, span)
+            Statement::LocalDestructuring { .. } | Statement::Error => {
+                Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
-            Statement::Error => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
 

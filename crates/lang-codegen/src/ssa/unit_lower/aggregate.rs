@@ -1,14 +1,12 @@
 //! concrete nominal aggregate 与 intrinsic Box lowering。
 
 use lang_frontend::{
-    ast::{ExpressionId, StatementId},
-    name_resolution::UnitSymbolId,
+    ast::ExpressionId,
     source::Span,
     type_checking::{
-        Copyability, DestructuringMode, ExpressionCategory, IntrinsicTypeConstructor, NominalKind,
-        ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
-        UnitConstructionDescriptor, UnitConstructionTarget, UnitExpressionId, UnitStatementId,
-        UnitTypeId, UnitTypeKind,
+        Copyability, ExpressionCategory, IntrinsicTypeConstructor, NominalKind, ParameterMode,
+        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitConstructionDescriptor,
+        UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
     },
 };
 
@@ -22,19 +20,13 @@ use crate::ssa::{
 };
 
 pub(super) enum CurrentReceiverFieldStorage {
-    Heap {
-        receiver: LoanId,
-        receiver_kind: LoanKind,
-    },
+    Heap { receiver: LoanId },
     Inline,
 }
 
 pub(super) struct CurrentReceiverField {
     pub(super) storage: CurrentReceiverFieldStorage,
-    pub(super) owner_ty: UnitTypeId,
-    pub(super) ty: UnitTypeId,
     pub(super) ssa_type: SsaTypeId,
-    pub(super) symbol: UnitSymbolId,
     pub(super) field: usize,
 }
 
@@ -470,29 +462,22 @@ impl UnitExpressionLowerer<'_> {
                 let EntityId::Loan(receiver) = current.entity else {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 };
-                let receiver_kind = match current.mode {
-                    ParameterMode::Borrow => LoanKind::Shared,
-                    ParameterMode::Inout => LoanKind::Exclusive,
-                    ParameterMode::Value => {
-                        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                    }
-                };
+                if current.mode != ParameterMode::Borrow {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
                 if self
                     .function
                     .entity(EntityId::Loan(receiver))
                     .map(|entity| entity.ty)
                     != Some(EntityType::Loan {
-                        kind: receiver_kind,
+                        kind: LoanKind::Shared,
                         target: receiver_ssa,
                     })
                     || !self.heap_payloads.contains_key(&receiver_ssa)
                 {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 }
-                CurrentReceiverFieldStorage::Heap {
-                    receiver,
-                    receiver_kind,
-                }
+                CurrentReceiverFieldStorage::Heap { receiver }
             }
             NominalKind::ValueClass => {
                 if self.heap_payloads.contains_key(&receiver_ssa) {
@@ -528,10 +513,7 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         Ok(Some(CurrentReceiverField {
             storage,
-            owner_ty: current.ty,
-            ty: projection.ty(),
             ssa_type,
-            symbol: projection.field(),
             field,
         }))
     }
@@ -567,42 +549,18 @@ impl UnitExpressionLowerer<'_> {
                     .get(&receiver.ty)
                     .copied()
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                let receiver_kind = self
-                    .function
-                    .entity(EntityId::Loan(base))
-                    .and_then(|data| match data.ty {
-                        EntityType::Loan { kind, target } if target == receiver_type => Some(kind),
-                        EntityType::Value(_) | EntityType::Place(_) | EntityType::Loan { .. } => {
-                            None
-                        }
-                    })
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-                let (base, reborrow) = match (receiver.mode, receiver_kind) {
-                    (ParameterMode::Borrow, LoanKind::Shared) => (base, None),
-                    (ParameterMode::Inout, LoanKind::Exclusive) => {
-                        let (_, loans) = self
-                            .function
-                            .append_instruction(
-                                self.block,
-                                Operation::SharedReborrow { source: base },
-                                vec![EntityType::Loan {
-                                    kind: LoanKind::Shared,
-                                    target: receiver_type,
-                                }],
-                                Origin::Source(span),
-                            )
-                            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                        let EntityId::Loan(reborrow) = loans[0] else {
-                            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-                        };
-                        (reborrow, Some(reborrow))
-                    }
-                    (ParameterMode::Value, _)
-                    | (ParameterMode::Borrow, LoanKind::Exclusive)
-                    | (ParameterMode::Inout, LoanKind::Shared) => {
-                        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                    }
-                };
+                if receiver.mode != ParameterMode::Borrow
+                    || self
+                        .function
+                        .entity(EntityId::Loan(base))
+                        .map(|data| data.ty)
+                        != Some(EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target: receiver_type,
+                        })
+                {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
                 let (_, loans) = self
                     .function
                     .append_instruction(
@@ -637,60 +595,9 @@ impl UnitExpressionLowerer<'_> {
                         Origin::Source(span),
                     )
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                if let Some(reborrow) = reborrow {
-                    self.function
-                        .append_instruction(
-                            self.block,
-                            Operation::BorrowEnd { loan: reborrow },
-                            Vec::new(),
-                            Origin::Source(span),
-                        )
-                        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                }
                 Ok(LoweredValue::Value(require_value(results[0], span)?))
             }
             EntityId::Place(_) => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
         }
-    }
-
-    pub(super) fn lower_destructuring(
-        &mut self,
-        statement: StatementId,
-        initializer: ExpressionId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let descriptor = self
-            .typed
-            .destructuring(UnitStatementId::new(self.source_unit, statement))
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let source = self.require_expression_value(initializer)?;
-        let result_types = descriptor
-            .components()
-            .iter()
-            .map(|component| {
-                self.type_ids
-                    .get(&component.ty())
-                    .copied()
-                    .map(EntityType::Value)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let operation = match descriptor.mode() {
-            DestructuringMode::Copy => Operation::AggregateCopyExplode { aggregate: source },
-            DestructuringMode::Consume => Operation::AggregateExplode { aggregate: source },
-        };
-        let (_, results) = self
-            .function
-            .append_instruction(self.block, operation, result_types, Origin::Source(span))
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        if descriptor.mode() == DestructuringMode::Consume {
-            self.transfer_owned_expression(initializer, source, span)?;
-        }
-        for (component, entity) in descriptor.components().iter().zip(results) {
-            let value = require_value(entity, span)?;
-            self.bindings
-                .insert(component.symbol(), LoweredValue::Value(value));
-        }
-        Ok(LoweredValue::Unit)
     }
 }

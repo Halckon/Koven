@@ -240,17 +240,9 @@ impl UnitExpressionLowerer<'_> {
             }
         });
         let receiver = self.lower_call_receiver(call, descriptor, span)?;
-        let receiver = if resolved.delegation().is_empty() {
-            receiver
-        } else {
-            self.lower_delegated_call_receiver(
-                call,
-                descriptor,
-                receiver,
-                resolved.delegation(),
-                span,
-            )?
-        };
+        if !resolved.delegation().is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let mut receiver = receiver;
         if let (Some(origin), Some(receiver)) = (pending_receiver, &receiver) {
             // Value receiver 在实参全部完成前仍由当前调用方持有。

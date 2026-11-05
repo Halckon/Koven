@@ -480,3 +480,38 @@ fn deinit_borrow_heap_nullable_if_and_string_field_receiver_route_to_refine() {
         res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
 }
+
+#[test]
+fn inout_receiver_delegation_object_and_destructuring_route_to_refine() {
+    for source in [
+        "class Counter(var item: Int) {\n\
+             inout fun set(own next: Int): Int {\n\
+                 val ignored: Unit = (this).item = next\n\
+                 return item\n\
+             }\n\
+         }\n\
+         fun f(): Int {\n\
+             var c = Counter(1)\n\
+             return c.set(42)\n\
+         }",
+        "interface Readable { fun read(message: String): Int = 1 }\n\
+         class Reader: Readable { override fun read(message: String): Int = 7 }\n\
+         class Host(val tag: Int, val delegate: Reader): Readable by delegate {}\n\
+         fun f(): Int {\n\
+             val host = Host(0, Reader())\n\
+             return host.read(\"arg\")\n\
+         }",
+        "object Registry { fun ping(): Int = 7 }\n\
+         fun f(): Int = (Registry).ping()",
+        "value class Pair(val a: Int, val b: String)\n\
+         fun f(): Int {\n\
+             val (x, y) = Pair(10, \"ok\")\n\
+             println(y)\n\
+             return x\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}

@@ -583,11 +583,20 @@ fn lower_unit_impl(
                 plan.instance.span(),
             ));
         }
-        // Inout parameters are lowered only by the refinement layer (SPEC-0358).
+        // Inout parameters and Inout receivers are lowered only by the refinement layer (SPEC-0358).
         if let Some(parameter) = plan.inout_parameter {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,
                 parameter,
+            ));
+        }
+        if let Some(receiver) = plan
+            .receiver
+            .filter(|receiver| receiver.mode == ParameterMode::Inout)
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                receiver.origin,
             ));
         }
         let (current_receiver, parameters) = match (plan.receiver, parameters.split_first()) {
