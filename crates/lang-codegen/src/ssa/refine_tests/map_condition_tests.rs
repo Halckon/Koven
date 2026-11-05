@@ -623,3 +623,51 @@ fn retired_inout_receiver_delegation_object_and_destructuring_boundary_tests() {
         assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
     }
 }
+
+#[test]
+fn retired_string_clone_box_value_field_borrow_and_when_boundary_tests() {
+    use crate::ssa::LoweringErrorKind;
+
+    for (source, expected_slice) in [
+        (
+            "fun main(): String = \"hello\".clone()",
+            "\"hello\".clone()",
+        ),
+        (
+            "value class Token(val item: Int)\nfun main(): Box<Token> = Box(Token(9))",
+            "Box(Token(9))",
+        ),
+        (
+            "value class Holder(val text: String)\nfun inspect(text: String): Unit {}\nfun observe(holder: Holder): Unit { inspect(holder.text) }\nfun main(): Unit { val h = Holder(\"a\"); observe(h) }",
+            "holder.text",
+        ),
+        (
+            "fun main(flag: Boolean): Int = when {\n    flag -> 1\n    else -> 2\n}",
+            "when {\n    flag -> 1\n    else -> 2\n}",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_env, type_env) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
+        let entry = declaration(&names, "p", "main");
+        let err = crate::ssa::with_per_family_lowering(|| {
+            lower_scalar_unit_with_entry(
+                &sources, &inputs, &names, &type_env, &typed, &owned, entry,
+            )
+        })
+        .err()
+        .unwrap_or_else(|| panic!("expected rejection under per-family lowering for: {source}"));
+        assert!(
+            matches!(
+                err.kind,
+                LoweringErrorKind::UnsupportedNode | LoweringErrorKind::MissingFact
+            ),
+            "{source}: {err:?}"
+        );
+        let span = err.span.expect("exact rejection span");
+        assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
+    }
+}

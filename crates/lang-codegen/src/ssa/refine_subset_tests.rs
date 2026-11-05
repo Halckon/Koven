@@ -515,3 +515,36 @@ fn inout_receiver_delegation_object_and_destructuring_route_to_refine() {
         res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
 }
+
+#[test]
+fn string_clone_value_field_borrow_box_and_when_route_to_refine() {
+    for source in [
+        "value class Tag(val label: String)\n\
+         fun f(t: Tag): String = t.label.clone()",
+        "fun f(): String {\n\
+             val shared = Rc(\"rc\".clone())\n\
+             return shared.value.clone()\n\
+         }",
+        "fun f(): String {\n\
+             val xs = listOf(\"head\".clone(), \"tail\".clone())\n\
+             return xs[1].clone()\n\
+         }",
+        "value class Packet(val label: String)\n\
+         fun inspect(p: Packet): Int {\n\
+             println(p.label)\n\
+             return 7\n\
+         }\n\
+         fun f(): Int = inspect(Packet(\"msg\".clone()))",
+        "enum class Node { Empty, Step(next: Box<Node>) }\n\
+         fun f(): Node = Node.Step(Box(Node.Empty))",
+        "fun f(x: Int): Int = when (x) {\n\
+             1 -> 10\n\
+             2, 3 -> 20\n\
+             else -> 30\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}

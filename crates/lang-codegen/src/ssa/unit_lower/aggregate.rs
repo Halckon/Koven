@@ -4,9 +4,9 @@ use lang_frontend::{
     ast::ExpressionId,
     source::Span,
     type_checking::{
-        Copyability, ExpressionCategory, IntrinsicTypeConstructor, NominalKind, ParameterMode,
-        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitConstructionDescriptor,
-        UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
+        Copyability, ExpressionCategory, NominalKind, ParameterMode, UnitAggregateProjectionKind,
+        UnitAggregateProjectionReceiver, UnitConstructionDescriptor, UnitConstructionTarget,
+        UnitExpressionId, UnitTypeKind,
     },
 };
 
@@ -87,25 +87,9 @@ impl UnitExpressionLowerer<'_> {
                     payload
                 }
             }
-            UnitConstructionTarget::IntrinsicBox => {
-                let [payload] = fields.as_slice() else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                };
-                let (_, results) = self
-                    .function
-                    .append_instruction(
-                        self.block,
-                        Operation::HeapAllocate {
-                            owner: result_type,
-                            payload: *payload,
-                        },
-                        vec![EntityType::Value(result_type)],
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                require_value(results[0], span)?
-            }
-            UnitConstructionTarget::IntrinsicRc | UnitConstructionTarget::EnumCase(_) => {
+            UnitConstructionTarget::IntrinsicBox
+            | UnitConstructionTarget::IntrinsicRc
+            | UnitConstructionTarget::EnumCase(_) => {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         };
@@ -160,29 +144,9 @@ impl UnitExpressionLowerer<'_> {
                 }
                 Ok(())
             }
-            UnitConstructionTarget::IntrinsicBox => {
-                let [type_argument] = descriptor.instance().type_arguments() else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                };
-                let [argument] = descriptor.arguments() else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                };
-                let Some(UnitTypeKind::Intrinsic {
-                    constructor: IntrinsicTypeConstructor::Box,
-                    arguments,
-                }) = self.typed.types().get(descriptor.result_type())
-                else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                };
-                if arguments.as_slice() != [*type_argument]
-                    || *type_argument != argument.parameter_type()
-                    || argument.parameter_symbol().is_some()
-                {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                }
-                Ok(())
-            }
-            UnitConstructionTarget::IntrinsicRc | UnitConstructionTarget::EnumCase(_) => {
+            UnitConstructionTarget::IntrinsicBox
+            | UnitConstructionTarget::IntrinsicRc
+            | UnitConstructionTarget::EnumCase(_) => {
                 Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
         }
@@ -303,11 +267,6 @@ impl UnitExpressionLowerer<'_> {
                 return self.lower_this_value_field(field, result_type, span);
             }
             let receiver = explicit_receiver.expect("explicit receiver was checked");
-            if let Some(value) =
-                self.read_borrowed_inline_field(receiver, field, result_type, span)?
-            {
-                return Ok(value);
-            }
             let receiver_value = self.require_expression_value(receiver.expression())?;
             let (_, results) = self
                 .function

@@ -248,7 +248,7 @@ impl Checker<'_, '_> {
     /// `owner.field` (or nested `this.a.b` / `owner.a.b`) of a MoveOnly type lent to a Borrow
     /// call parameter via `SharedHeapFieldLoan` / `SharedFieldLoan`.
     pub(super) fn borrowed_string_field(
-        &self,
+        &mut self,
         call: ExpressionId,
         value: ExpressionId,
         parameter: UnitTypeId,
@@ -330,6 +330,7 @@ impl Checker<'_, '_> {
                                 .is_some()
                 );
                 self.field_loan_receiver(root, !multi_hop) == Some(parameter)
+                    || (!multi_hop && self.borrowed_value_parameter_field(call, root, parameter))
             }
         };
         let loans_match = self.inputs.owned.loans().iter().any(|loan| {
@@ -346,7 +347,109 @@ impl Checker<'_, '_> {
                 && fact.kind()
                     == lang_frontend::ownership_checking::UnitReceiverOwnershipKind::SharedLoan
         });
-        field_ok && loans_match
+        let ok = field_ok && loans_match;
+        self.migrated |= ok;
+        ok
+    }
+
+    fn borrowed_value_parameter_field(
+        &self,
+        call: ExpressionId,
+        field_expr: ExpressionId,
+        parameter: UnitTypeId,
+    ) -> bool {
+        if matches!(self.inputs.body, RefineBody::Lambda(_))
+            || self.field_is_result_source(call, field_expr)
+        {
+            return false;
+        }
+        let id = self.id(field_expr);
+        let Some(projection) = self.inputs.typed.aggregate_projection(id) else {
+            return false;
+        };
+        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+            return false;
+        };
+        if receiver.source_unit() != self.inputs.source_unit || !self.plain(receiver.expression()) {
+            return false;
+        }
+        let ungrouped = self.ungrouped(receiver.expression());
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(ungrouped) else {
+            return false;
+        };
+        if !matches!(node.payload(), Expression::Name)
+            || self.inputs.typed.non_null_use(self.id(ungrouped)).is_some()
+        {
+            return false;
+        }
+        let Some(symbol) = self.reference(ungrouped) else {
+            return false;
+        };
+        if !self.known.contains(&symbol)
+            || self.parameter_mode(symbol) != Some(ParameterMode::Borrow)
+        {
+            return false;
+        }
+        let Some(owner_ty) = self.symbol_type(symbol) else {
+            return false;
+        };
+        (self.value_class(owner_ty) || self.move_value_class(owner_ty))
+            && self
+                .value_signature(owner_ty)
+                .is_some_and(|(nominal, args)| {
+                    args.is_empty()
+                        && nominal.type_parameters().is_empty()
+                        && nominal.fields().iter().any(|f| {
+                            f.symbol() == projection.field() && self.c(f.ty()) == parameter
+                        })
+                })
+    }
+
+    fn field_is_result_source(&self, call: ExpressionId, field_expression: ExpressionId) -> bool {
+        use lang_frontend::type_checking::{
+            BorrowReturnOrigin, CallableResultSource, UnitCallReceiverOrigin,
+        };
+        let call_id = self.id(call);
+        let Some(descriptor) = self.inputs.typed.call(call_id) else {
+            return false;
+        };
+        let origin = match descriptor.result_source() {
+            CallableResultSource::Owned => return false,
+            CallableResultSource::Borrow(contract) => contract.origin(),
+            CallableResultSource::Carrier(contract) => contract.origin(),
+        };
+        let source = match origin {
+            BorrowReturnOrigin::Parameter(index) => {
+                let Ok(node) = self.inputs.parsed.ast().expressions().get(call) else {
+                    return true;
+                };
+                let Expression::Call { arguments, .. } = node.payload() else {
+                    return true;
+                };
+                let Some(arg) = descriptor
+                    .arguments()
+                    .iter()
+                    .find(|mapping| mapping.parameter_index() == index)
+                    .and_then(|mapping| arguments.get(mapping.argument_index()))
+                else {
+                    return true;
+                };
+                arg.value
+            }
+            BorrowReturnOrigin::Receiver => {
+                let Some(receiver) = descriptor.receiver() else {
+                    return true;
+                };
+                let UnitCallReceiverOrigin::Expression(source) = receiver.origin() else {
+                    return false;
+                };
+                if source.source_unit() != self.inputs.source_unit {
+                    return true;
+                }
+                source.expression()
+            }
+        };
+        self.ungrouped(source) == field_expression
     }
 
     /// Resolves the projected field type of a single- or multi-hop class/value-class field

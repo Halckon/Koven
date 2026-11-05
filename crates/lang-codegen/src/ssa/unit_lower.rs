@@ -35,7 +35,6 @@ mod rc;
 mod receiver;
 mod scalar;
 mod statement;
-mod string_clone;
 mod type_lower;
 #[cfg(test)]
 mod type_origin_cache_tests;
@@ -300,11 +299,11 @@ impl UnitExpressionLowerer<'_> {
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
                     self.lower_rc_construction(expression, span)
                 }
-                lang_frontend::type_checking::UnitConstructionTarget::Nominal(_)
-                | lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox => {
+                lang_frontend::type_checking::UnitConstructionTarget::Nominal(_) => {
                     self.lower_aggregate_construction(expression, span)
                 }
-                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox
+                | lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
                     Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
                 }
             };
@@ -314,11 +313,9 @@ impl UnitExpressionLowerer<'_> {
             .integer_range_operation(unit_expression)
             .is_some()
             || self.typed.integer_operation(unit_expression).is_some()
+            || self.typed.string_operation(unit_expression).is_some()
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        if self.typed.string_operation(unit_expression).is_some() {
-            return self.lower_string_clone(expression, span);
         }
         if self.typed.rc_operation(unit_expression).is_some() {
             return self.lower_rc_operation(expression, span);

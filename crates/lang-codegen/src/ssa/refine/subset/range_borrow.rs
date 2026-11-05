@@ -81,6 +81,7 @@ impl Checker<'_, '_> {
                 .non_null_assertion(id)
                 .is_some_and(|d| self.map_kv(self.c(d.inner_type())).is_some())
             || typed.rc_operation(id).is_some()
+            || typed.string_operation(id).is_some()
             || typed.map_with_value(id).is_some()
             || typed.map_require_value(id).is_some()
             || typed.construction(id).is_some_and(|d| {

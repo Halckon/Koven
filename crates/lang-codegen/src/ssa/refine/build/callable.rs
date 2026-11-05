@@ -543,11 +543,19 @@ impl Builder<'_, '_> {
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let target = self.ssa_type(self.c(projection.ty()), span)?;
-        let field_loan = self.value(
+        let op = if self.is_value_class(owner_type) {
+            ROp::SharedFieldLoan {
+                base: base_loan,
+                field,
+            }
+        } else {
             ROp::SharedHeapFieldLoan {
                 base: base_loan,
                 field,
-            },
+            }
+        };
+        let field_loan = self.value(
+            op,
             EntityType::Loan {
                 kind: LoanKind::Shared,
                 target,

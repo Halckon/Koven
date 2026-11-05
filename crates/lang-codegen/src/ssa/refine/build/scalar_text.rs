@@ -233,6 +233,7 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         let receiver = descriptor.receiver().expression();
+        let receiver_ty = self.c(descriptor.receiver_type());
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;
         let mut ungrouped = receiver;
         while let (Expression::Group { expression: inner }, _) = self.node(ungrouped)? {
@@ -243,6 +244,14 @@ impl Builder<'_, '_> {
                 (loan, Vec::new(), vec![receiver])
             } else if let Some(view) = self.narrowed_view(receiver)? {
                 (view, Vec::new(), vec![receiver])
+            } else if let Some((loan, created, read)) =
+                self.borrowed_rc_payload_loan(receiver, receiver_ty, span)?
+            {
+                (loan, created, read.into_iter().collect())
+            } else if let Some((loan, created, read)) =
+                self.borrowed_container_element_loan(receiver, receiver_ty, span)?
+            {
+                (loan, created, read.into_iter().collect())
             } else if self
                 .inputs
                 .typed
