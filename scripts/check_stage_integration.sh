@@ -39,7 +39,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test multifile_constant_selection --test lexer \
   --test ownership_two_phase_borrows --test multifile_two_phase_borrows \
   --test resource_deinit_type_facts --test ownership_resource_deinit \
-  --test ownership_checking --test ownership_containers \
+  --test ownership_checking --test ownership_containers --test ownership_value_api \
   --test ownership_construction --test ownership_closures \
   --test ownership_constants --test ownership_structural --test ownership_nullable_when \
   --test unit_closure_assignment_recovery --test closure_assignment_safety_rebuild \

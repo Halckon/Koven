@@ -14,6 +14,22 @@ impl DropPlanner<'_, '_> {
         if !self.expression(condition, DropExpressionUse::Read, state)? {
             return Ok(false);
         }
+        // Restore depth even when legacy traversal returns an error. Only the real
+        // branch bodies and their cleanup run inside this admission boundary.
+        self.owner_branch_depth += 1;
+        let result = self.owner_if_edges(id, then_branch, else_branch, branch_usage, state);
+        self.owner_branch_depth -= 1;
+        result
+    }
+
+    fn owner_if_edges(
+        &mut self,
+        id: ExpressionId,
+        then_branch: StatementId,
+        else_branch: Option<StatementId>,
+        branch_usage: DropExpressionUse,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
         let checkpoint = self.owner_observation.as_ref().and_then(|observation| {
             self.owner_observation_active()
                 .then_some(observation.events.len())
@@ -21,16 +37,36 @@ impl DropPlanner<'_, '_> {
         let base = state.clone();
         let mut branch_states = Vec::new();
         let mut then_state = base.clone();
-        if self.control_body(then_branch, branch_usage, &mut then_state)? {
+        let (then_tail, then_result) =
+            self.evaluate_control_body(then_branch, branch_usage, &mut then_state)?;
+        if then_result.continues {
             self.drop_branch_exit(id, 0, &mut then_state);
             branch_states.push(then_state);
+        }
+        if let Some(choice) = &mut self.owner_choice {
+            choice.edge_completed(
+                self.checker.unit_expression(id),
+                0,
+                then_tail.map(|tail| self.checker.unit_expression(tail)),
+                then_result.continues,
+            );
         }
         let then_events = self.take_owner_edge(checkpoint);
         if let Some(else_branch) = else_branch {
             let mut else_state = base;
-            if self.control_body(else_branch, branch_usage, &mut else_state)? {
+            let (else_tail, else_result) =
+                self.evaluate_control_body(else_branch, branch_usage, &mut else_state)?;
+            if else_result.continues {
                 self.drop_branch_exit(id, 1, &mut else_state);
                 branch_states.push(else_state);
+            }
+            if let Some(choice) = &mut self.owner_choice {
+                choice.edge_completed(
+                    self.checker.unit_expression(id),
+                    1,
+                    else_tail.map(|tail| self.checker.unit_expression(tail)),
+                    else_result.continues,
+                );
             }
         } else {
             // Legacy cleanup still executes on this real edge, even though this slice

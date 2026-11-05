@@ -1,11 +1,12 @@
-//! Separate supported slices must not silently enable capture × branch composition.
+//! Top-level sequences are admitted; captures inside real If edges remain unsupported.
 use super::*;
 
-pub(in crate::ownership_checking::compilation_unit) const MIXED_BODIES: &[(&str, &str)] = &[
+pub(in crate::ownership_checking::compilation_unit) const SEQUENTIAL_BODIES: &[(&str, &str)] = &[
     (
         r#"val text = "capture"
 val callback = move { text }
-if (flag) { val left = "left" } else { val right = "right" }"#,
+if (flag) { val left = "left" } else { val right = "right" }
+val forwarded = (callback)"#,
         r#"if (flag) { val left = "left" } else { val right = "right" }"#,
     ),
     (
@@ -14,6 +15,16 @@ val text = "capture"
 val callback = move { text }"#,
         "move { text }",
     ),
+    (
+        r#"if (flag) { if (flag) { val inner = "inner" } else { val other = "other" } }
+else { val outer = "outer" }
+val text = "capture"
+val callback = move { text }"#,
+        "move { text }",
+    ),
+];
+
+pub(in crate::ownership_checking::compilation_unit) const MIXED_BODIES: &[(&str, &str)] = &[
     (
         r#"if (flag) { val text = "capture"; val callback = move { text } }
 else { val right = "right" }"#,
@@ -46,7 +57,7 @@ if (flag) {{ val left = "sibling left" }} else {{ val right = "sibling right" }}
 }
 
 #[test]
-fn mixed_features_reject_at_second_feature_and_reset_for_sibling_functions() {
+fn branch_capture_rejects_at_formation_and_resets_for_sibling_functions() {
     for (body, rejected_text) in MIXED_BODIES {
         let text = mixed_source(body);
         let fixture = Fixture::new(&[("root.ko", &text)]);
@@ -94,7 +105,7 @@ fn mixed_features_reject_at_second_feature_and_reset_for_sibling_functions() {
 }
 
 #[test]
-fn validator_rejects_capture_with_even_an_empty_if_event() {
+fn validator_rejects_an_entire_capture_sequence_moved_inside_an_if_edge() {
     let text = mixed_source(MIXED_BODIES[0].0);
     let fixture = Fixture::new(&[("root.ko", &text)]);
     let owned = fixture.shared();
@@ -117,14 +128,31 @@ fn validator_rejects_capture_with_even_an_empty_if_event() {
             r#"if (flag) { val left = "sibling left" } else { val right = "sibling right" }"#,
         ),
     );
+    let mut event_inside_branch = capture.clone();
+    let index = event_inside_branch
+        .events
+        .iter()
+        .position(|event| matches!(event, UnitOwnerTransportEvent::Capture { .. }))
+        .unwrap();
+    let event = event_inside_branch.events[index].clone();
+    event_inside_branch.events[index] = UnitOwnerTransportEvent::If {
+        control,
+        then_events: vec![event.clone()],
+        else_events: vec![event],
+    };
+    assert!(
+        !event_inside_branch.is_consistent(),
+        "matching final locations cannot admit capture formation inside either edge"
+    );
+    let then_events = std::mem::take(&mut capture.events);
     capture.events.push(UnitOwnerTransportEvent::If {
         control,
-        then_events: vec![],
+        then_events,
         else_events: vec![],
     });
     assert!(
         !capture.is_consistent(),
-        "conservation alone cannot grant mixed-feature admission"
+        "conservation alone cannot admit branch-local capture formation or release"
     );
 }
 
@@ -227,4 +255,78 @@ fn nested_if_keeps_actual_control_tree_and_rejects_repeated_control() {
         else_events: vec![],
     });
     assert!(!repeated.is_consistent());
+}
+
+pub(in crate::ownership_checking::compilation_unit) const BRANCH_RELEASE: &str = r#"fun run(flag: Boolean): Unit {
+val text = "capture"
+val callback = move { text }
+if (flag) { val left = callback } else { val right = callback }
+}"#;
+
+#[test]
+fn top_level_capture_and_if_sequences_preserve_environment_identity() {
+    for (body, _) in SEQUENTIAL_BODIES {
+        let text = mixed_source(body);
+        let fixture = Fixture::new(&[("root.ko", &text)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        let observation = owned
+            .owner_observations()
+            .iter()
+            .find(|observation| matches!(observation.callable(), UnitOwnerCallable::Function(_)))
+            .unwrap();
+        assert_eq!(observation.status(), UnitOwnerObservationStatus::Complete);
+        assert!(observation.is_consistent());
+        let environment = observation
+            .events()
+            .iter()
+            .find_map(|event| match event {
+                UnitOwnerTransportEvent::Capture { environment, .. } => Some(environment.clone()),
+                _ => None,
+            })
+            .expect("the original leaf capture must remain observable");
+        assert!(
+            observation
+                .events()
+                .iter()
+                .any(|event| matches!(event, UnitOwnerTransportEvent::If { .. }))
+        );
+        assert!(observation.events().iter().any(|event| matches!(event,
+            UnitOwnerTransportEvent::CaptureDrop { environment: released, .. }
+                if released == &environment)));
+        if body.contains("forwarded") {
+            let branch = observation
+                .events()
+                .iter()
+                .position(|event| matches!(event, UnitOwnerTransportEvent::If { .. }))
+                .unwrap();
+            let forwarded = observation
+                .events()
+                .iter()
+                .position(|event| {
+                    matches!(event,
+                UnitOwnerTransportEvent::Binding { symbol, owner, .. }
+                    if *symbol == fixture.symbol(0, "forwarded") && owner == &environment)
+                })
+                .unwrap();
+            assert!(
+                branch < forwarded,
+                "the same environment survives both real edges"
+            );
+        }
+    }
+}
+
+#[test]
+fn both_branches_release_a_top_level_capture_environment() {
+    let fixture = Fixture::new(&[("root.ko", BRANCH_RELEASE)]);
+    let owned = fixture.shared();
+    assert!(owned.clone().validate().is_ok());
+    let observation = owned
+        .owner_observations()
+        .iter()
+        .find(|observation| matches!(observation.callable(), UnitOwnerCallable::Function(_)))
+        .unwrap();
+    assert_eq!(observation.status(), UnitOwnerObservationStatus::Complete);
+    assert!(observation.is_consistent());
 }
