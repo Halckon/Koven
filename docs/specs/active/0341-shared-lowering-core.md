@@ -2269,3 +2269,8 @@ target、23 次 Cargo 调用（此前实际已有 131 个，本片仅新增 1 �
 `choice_capture_isolation` 的测试使用 `UnitStatementId`，但未导入该类型。
 本片仅在三个测试模块补充既有公开类型的导入，保留全部 fixture、断言与生产代码。
 首轮未进入动态测试，不能当作通过；补验接线与 import 修复一并等待新头的官方 CI。
+
+接线后的 [CI 41990424491](https://github.com/Halckon/Koven/actions/runs/41990424491)
+在组合策略的精确目标计数处失败：排除两个按单测过滤的 target 后，计数由 129 增为 130。
+同步该固定期望并显式锁定 `ownership_value_api` 恰好出现一次，保留唯一性、23 次 Cargo
+调用及全部失败传播断言；不通过删除或放宽门禁解决。该轮未开始 Rust 编译或测试。
