@@ -3,12 +3,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     ast::TypeRefId,
     diagnostic::{Diagnostic, Severity, codes},
-    name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId},
+    name_resolution::{DeclarationId, Namespace, SourceUnitId, UnitReferenceTarget, UnitSymbolId},
     parser::{Item, TypeRef},
     source::Span,
     type_checking::{
-        BuiltinType, Capability, DeferredReason, IntrinsicTypeConstructor, NominalKind,
-        TypeCheckingError, UnitTypeRefId,
+        BuiltinType, Capability, DeferredReason, ExternalTypeBinding, IntrinsicTypeConstructor,
+        NominalKind, TypeCheckingError, UnitTypeRefId,
     },
 };
 
@@ -158,6 +158,19 @@ impl SignatureCollector<'_> {
                 self.mark_type_ref_tree(source, *return_type, output)?;
             }
             TypeRef::Qualified { segments, .. } => {
+                // A valid-arity intrinsic Box payload is runtime even in a static bound.
+                // Its typed result may already be Error, so use the resolved external identity.
+                if segments.last().is_some_and(|segment| {
+                    segment.arguments.len() == 1
+                        && matches!(
+                            self.reference(source, segment.name_span, Namespace::Type),
+                            Some(UnitReferenceTarget::External(external))
+                                if matches!(self.environment.binding(*external),
+                                    Some(ExternalTypeBinding::Intrinsic(IntrinsicTypeConstructor::Box)))
+                        )
+                }) {
+                    return Ok(());
+                }
                 for argument in segments.iter().flat_map(|segment| &segment.arguments) {
                     self.mark_type_ref_tree(source, *argument, output)?;
                 }
