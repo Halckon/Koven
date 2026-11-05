@@ -384,3 +384,32 @@ val forwarded_second = second
         assert_ne!(observation, &damaged);
     }
 }
+
+#[test]
+fn linear_capture_release_rejects_a_forged_same_source_branch_exit() {
+    let fixture = Fixture::new(&[(
+        "root.ko",
+        "fun run(own seed: String): Unit { val callback = move { seed } }",
+    )]);
+    let owned = fixture.shared();
+    assert!(owned.clone().validate().is_ok());
+    let observation = function(&owned);
+    assert_eq!(observation.status(), UnitOwnerObservationStatus::Complete);
+    assert!(observation.is_consistent());
+    let control = UnitExpressionId::new(fixture.source(0), fixture.expression(0, "move { seed }"));
+    for branch in [0, 1] {
+        let mut damaged = observation.clone();
+        let point = damaged
+            .events
+            .iter_mut()
+            .find_map(|event| match event {
+                UnitOwnerTransportEvent::CaptureDrop { point, .. } => Some(point),
+                _ => None,
+            })
+            .expect("the actual capture must release its input");
+        // Keep every owner, slot, source and event position intact. There is no If
+        // in this observation, so neither branch can own this release point.
+        *point = UnitDropPoint::BranchExit { control, branch };
+        assert!(!damaged.is_consistent(), "forged same-source edge {branch}");
+    }
+}

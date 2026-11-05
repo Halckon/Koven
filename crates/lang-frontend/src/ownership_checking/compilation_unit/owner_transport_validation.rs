@@ -14,7 +14,7 @@ enum Location {
     Dropped,
 }
 
-fn point_source(point: UnitDropPoint) -> SourceUnitId {
+pub(super) fn point_source(point: UnitDropPoint) -> SourceUnitId {
     match point {
         UnitDropPoint::AfterExpression(id)
         | UnitDropPoint::AfterBinaryOperands(id)
@@ -48,20 +48,6 @@ impl UnitOwnerObservation {
                 && self.events.is_empty();
         }
         if !matches!(self.callable, UnitOwnerCallable::Function(_)) {
-            return false;
-        }
-        // Do not silently grant capture × branch composition through replay. An If
-        // nested anywhere requires a top-level If, and every capture has a Closure
-        // definition; reject this union even when its individual paths conserve owners.
-        if self
-            .definitions
-            .iter()
-            .any(|definition| matches!(definition.origin, UnitOwnerOrigin::Closure(_)))
-            && self
-                .events
-                .iter()
-                .any(|event| matches!(event, UnitOwnerTransportEvent::If { .. }))
-        {
             return false;
         }
         let mut locations = Vec::new();
@@ -170,7 +156,8 @@ impl UnitOwnerObservation {
                     environment,
                     inputs,
                 } => {
-                    if !valid_owner(environment)
+                    if edge.is_some()
+                        || !valid_owner(environment)
                         || expression.source_unit() != source
                         || self.definitions[environment.index].origin
                             != UnitOwnerOrigin::Closure(*expression)
@@ -205,6 +192,8 @@ impl UnitOwnerObservation {
                         || !valid_owner(environment)
                         || point_source(*point) != source
                         || symbol.source_unit() != source
+                        || matches!(point, UnitDropPoint::BranchExit { control, branch }
+                            if edge != Some((*control, *branch)))
                         || !matches!(locations[environment.index], Location::Named(_))
                         || locations[owner.index] != Location::Captured(environment.index, *symbol)
                     {
