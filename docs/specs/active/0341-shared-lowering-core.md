@@ -2538,3 +2538,24 @@ D10/E2 继续 in-progress，发布不授权自动合入。
 首版 sibling 丢诊断、错误的新 span 预期及修正后的真实日志保留于仓库外证据，不改写为通过。
 本片未运行故障注入、校准、含 Abort 的整项套件、Mac 本地构建或官方双平台 CI。
 候选仅本地保存，未推送或创建 PR；D10/E2 与本 Spec 保持 in-progress。
+
+### §111 官方 CI 的非法路由夹具对齐（2026-11-05）
+
+首次发布为 [PR #319](https://github.com/Halckon/Koven/pull/319)，远端
+`d43af0eaecfc89db3deec3c0b57d8617183443ec` 与本地 `fe10b0e5` 的完整树相同。
+[官方 run 42043391556](https://github.com/Halckon/Koven/actions/runs/42043391556)
+的双平台 Check/Clippy 通过，Targeted Tests 同因失败：旧 codegen
+`functions_outside_the_subset_keep_the_per_family_path` 把 `Box<Int>?` 当合法输入，
+在进入路由观察前因修正后的 L0117 无法取得 validated types。Ubuntu 为 2611 passed/1 failed，
+macOS 为 2610 passed/1 failed/1 ignored；后续证据上传失败是前序中止后产物未生成，不据此重跑或放宽语义。
+
+补片仅调整该测试文件及本账本：原非法源码、package、路径和标准环境原样移至独立
+`non_nominal_box_payload_is_rejected_before_refinement`，要求 signature 恰一条 L0117、
+primary 精确为 `Int` 且 raw types 无法 validate。其他八个负向 case 及原 `!routed` 断言、
+全部正向/顺序/邻接路由测试逐字节保留；不让非法类型进入 lowering，也不撤销 Box kind 检查。
+
+云端 Rust 1.96.0 / LLVM 21.1.8 下，frontend lib 与 codegen lib 测试目标真实编译通过；
+定向 `ssa::refine_subset_tests::` 实跑九项全通过（2604 项被过滤），`type_copyability`
+十六项全部通过（零过滤）。独立只读复审无阻断，窄范围清点未见第二个同类非法 Box fixture。
+codegen all-targets Clippy（`-D warnings`）通过，测试文件现 440 行，没有新增尺寸债。
+该补片尚未推送或由官方 CI 运行，首轮失败不改写为通过。
