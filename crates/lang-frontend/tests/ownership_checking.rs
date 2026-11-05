@@ -19,6 +19,9 @@ use lang_frontend::{
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
+#[path = "support/borrow_rejection_unit.rs"]
+mod borrow_rejection_unit;
+
 #[path = "ownership_checking/non_null_unit.rs"]
 mod non_null_unit;
 #[path = "support/nullable_ownership_unit.rs"]
@@ -318,37 +321,41 @@ fn shadowed_symbols_keep_independent_move_origins() {
                     }\n\
                     val outer = take(input)\n\
                 }";
-    let (sources, _, checked) = checked(text);
-    assert_eq!(codes(checked.diagnostics()), ["L0131", "L0131"]);
+    for rooted in [false, true] {
+        let (sources, checked) =
+            borrow_rejection_unit::checked(text, "ownership.ko", rooted, environments());
+        assert_eq!(codes(checked.diagnostics()), ["L0131", "L0131"]);
 
-    let outer_origin = text.find("val input = input").unwrap() + "val input = ".len();
-    let inner_origin = text.find("val first = take(input)").unwrap() + "val first = take(".len();
-    let inner_use = text.find("val second = take(input)").unwrap() + "val second = take(".len();
-    let outer_use = text.find("val outer = take(input)").unwrap() + "val outer = take(".len();
-    for (diagnostic, primary, origin) in [
-        (&checked.diagnostics()[0], inner_use, inner_origin),
-        (&checked.diagnostics()[1], outer_use, outer_origin),
-    ] {
-        assert_eq!(
-            (
-                diagnostic.primary_span().start(),
-                diagnostic.primary_span().end()
-            ),
-            (primary, primary + "input".len())
-        );
-        let label = diagnostic
-            .details()
-            .iter()
-            .find_map(|detail| match detail {
-                DiagnosticDetail::Label(label) => Some(label.span()),
-                DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
-            })
-            .expect("move label");
-        assert_eq!(
-            (label.start(), label.end()),
-            (origin, origin + "input".len())
-        );
-        assert_eq!(sources.slice(label).unwrap(), "input");
+        let outer_origin = text.find("val input = input").unwrap() + "val input = ".len();
+        let inner_origin =
+            text.find("val first = take(input)").unwrap() + "val first = take(".len();
+        let inner_use = text.find("val second = take(input)").unwrap() + "val second = take(".len();
+        let outer_use = text.find("val outer = take(input)").unwrap() + "val outer = take(".len();
+        for (diagnostic, primary, origin) in [
+            (&checked.diagnostics()[0], inner_use, inner_origin),
+            (&checked.diagnostics()[1], outer_use, outer_origin),
+        ] {
+            assert_eq!(
+                (
+                    diagnostic.primary_span().start(),
+                    diagnostic.primary_span().end()
+                ),
+                (primary, primary + "input".len())
+            );
+            let label = diagnostic
+                .details()
+                .iter()
+                .find_map(|detail| match detail {
+                    DiagnosticDetail::Label(label) => Some(label.span()),
+                    DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+                })
+                .expect("move label");
+            assert_eq!(
+                (label.start(), label.end()),
+                (origin, origin + "input".len())
+            );
+            assert_eq!(sources.slice(label).unwrap(), "input");
+        }
     }
 }
 
@@ -453,26 +460,29 @@ fn non_owning_move_and_immutable_inout_have_dedicated_diagnostics() {
                     val moved = take(input)\n\
                     val invalid = mutate(&input)\n\
                 }";
-    let (sources, _, checked) = checked(text);
-    assert_eq!(
-        codes(checked.diagnostics()),
-        ["L0133", "L0133", "L0134", "L0134", "L0131"]
-    );
-    for diagnostic in checked.diagnostics() {
-        assert!(
-            matches!(
-                sources.slice(diagnostic.primary_span()).unwrap(),
-                "input" | "&"
-            ),
-            "{:?}",
-            diagnostic
+    for rooted in [false, true] {
+        let (sources, checked) =
+            borrow_rejection_unit::checked(text, "ownership.ko", rooted, environments());
+        assert_eq!(
+            codes(checked.diagnostics()),
+            ["L0133", "L0133", "L0134", "L0134", "L0131"]
         );
-        assert!(
-            diagnostic
-                .details()
-                .iter()
-                .any(|detail| matches!(detail, DiagnosticDetail::Label(_)))
-        );
+        for diagnostic in checked.diagnostics() {
+            assert!(
+                matches!(
+                    sources.slice(diagnostic.primary_span()).unwrap(),
+                    "input" | "&"
+                ),
+                "{:?}",
+                diagnostic
+            );
+            assert!(
+                diagnostic
+                    .details()
+                    .iter()
+                    .any(|detail| matches!(detail, DiagnosticDetail::Label(_)))
+            );
+        }
     }
 }
 
