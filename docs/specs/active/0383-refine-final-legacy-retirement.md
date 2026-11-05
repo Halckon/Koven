@@ -38,7 +38,8 @@
 
 ## 3. 验收标准
 
-- [x] `ssa::` 全量单元测试（包含新增的 7 项 abort 前驱退役定向回归及 4 类调用族 SSA 指令与块参数干净性断言）100% 通过。
+- [x] 原分支记录的 `ssa::` 全量单元测试通过，包含 7 项 abort 前驱退役回归；其中 4 类调用族的旧参数断言存在下述鉴别力缺口，不作为修复后的验收。
+- [ ] PR #300 复审：按 CFG edge 实参位置追踪重命名 owner，补充独立 oracle 正反例；动态验收仅由 CI 执行。
 - [x] `llvm::` 全量 74 项单元测试 100% 通过。
 - [x] 手写 Rust 文件尺寸护栏保持在 1000 行软上限内（`emit.rs` 975 行，`control_flow_tests.rs` 946 行，`numeric_iteration.rs` 529 行）。
 - [x] `python3 scripts/gen_roadmap.py`、`python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`cargo fmt --all -- --check` 与 `cargo clippy --locked --workspace --all-targets -- -D warnings` 全部通过。
@@ -50,6 +51,29 @@
 | CI run 41758961251 | GitHub Actions PR-event（head `68157824`） | 14 项 job 全部 success |
 | CI run 41790617837 | GitHub Actions PR-event（head `7bc90dd9`） | 14 项 job 全部 success（Linux/macOS Targeted Tests、Preview Producer/Consumer 全绿） |
 | CI run 41797160301 | GitHub Actions PR-event（head `638dd72d`） | 14 项 job 全部 success（Linux/macOS Targeted Tests、Preview Producer/Consumer 全绿） |
-| 本地 abort 前驱定向回归 | `cargo test -p lang-codegen ssa::refine_tests::control_flow_tests::abort_predecessor_` | 7 项回归全绿（覆盖 DirectCall、聚合构造、CallableInvokeView、CallableInvoke、BorrowCall、RangeCall 与 LoanMutate），且 4 类调用族均显式断言目标 SSA 操作存在及 abort 块参数中绝无已消费 owner |
-| 变异测试证据 | 本地注释 `call_operands` 中的 `CallableInvoke`/`BorrowCall`/`RangeCall` | `abort_predecessor_callable_invoke_consume_then_both_abort` 与 `abort_predecessor_borrow_call_consume_then_both_abort` 立即稳定失败报 `InvalidModel`；`assert_refine_function_op_and_abort_clean` 在操作降级或遗漏 `retired_slots` 时立即失败，证明回归具有动态鉴别力 |
+| 本地 abort 前驱定向回归 | `cargo test -p lang-codegen ssa::refine_tests::control_flow_tests::abort_predecessor_` | 历史记录为 7 项回归全绿（DirectCall、聚合构造、CallableInvokeView、CallableInvoke、BorrowCall、RangeCall 与 LoanMutate）。旧 4 类调用族断言只比较入口 entity 与新分配参数 ID，不能证明 owner 未经重命名续传；本次未复跑 |
+| 变异测试证据 | 本地注释 `call_operands` 中的 `CallableInvoke`/`BorrowCall`/`RangeCall` | 历史记录中的 callable/borrow 回归在 lowering 阶段报 `InvalidModel`；该失败先于参数断言，不能证明旧参数断言自身的动态鉴别力。本次未执行此变异 |
 | CI Evidence 状态 | `scripts/pr_ci_reuse.py` 执行日志 | `code-evidence` 因 PR 合并 parents 严格检验未找到匹配物理证据产物而按设计 skipped，不属于 CI 失败，且全部 14 项实体测试 job 均独立执行通过 |
+
+## 5. PR #300 参数身份断言复审
+
+复审基线为 `main` `e1cde85f`。按 ADR-0006，跨边 owner 由 argument 的位置映射到
+目标 block 的新参数身份；`add_block` 为各参数重新分配 entity。因此旧
+`abort_block.parameters.contains(entry_entity)` 即使在 owner 被错误续传时也可能恒为假。
+
+测试 helper 现在沿 `Branch`、`Conditional`、`NullableBranch` 的配对位置求入口 owner
+的重命名闭包，要求预期调用实际按值消费该 owner，并禁止调用后的可达出边再次携带它。
+调用前 Abort 与其他未消费 owner 不受此限制；真实源码回归要求消费后至少两个 Abort 出口。
+这是四个有界回归的专用 oracle，不替代通用 SSA verifier，也不修改生产 lowering。
+
+`abort_owner_assertions` 的独立 fixture 保留以下 CI 正反例：合法的调用前 Abort 与另一
+存活 owner；消费后经中间块、重排位置和新 ID 再传入双 Abort 的错误图；存在预期操作但
+消费了另一个 owner；预期操作缺失。错误图同时显式证明旧 contains 断言会接受它。
+这些校准及所有含 Abort 的测试仅留给 CI；编译成功不表示它们已执行或已通过。
+
+| 本次检查 | 实际结果 |
+|---|---|
+| `cargo test --offline --locked -p lang-codegen --lib --no-run` | Rust 1.96.0、LLVM 21.1.8、默认 debug=2；完整 libtest 编译链接成功，未启动测试二进制 |
+| `cargo clippy --offline --locked -p lang-codegen --all-targets -- -D warnings` | 通过 |
+| `cargo fmt --all -- --check`、docs、`check_rust_sizes.py --base e1cde85f`、diff | 通过；无新增尺寸债务 |
+| 四项 oracle 校准、原七项 Abort 回归、官方双宿主 CI | 未执行；依当前测试限制留给 CI，不能报告动态负控或 native 已通过 |
