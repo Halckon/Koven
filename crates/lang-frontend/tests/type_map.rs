@@ -3,11 +3,10 @@
 use lang_frontend::{
     name_resolution::{
         NameResolution, SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
     },
     parser::ParsedFile,
     source::SourceMap,
-    type_checking::{TypedFile, check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 
 #[path = "support/parser_test_assertions.rs"]
@@ -28,19 +27,6 @@ fn parsed(text: &str) -> (SourceMap, ParsedFile) {
         parsed.diagnostics()
     );
     (sources, parsed)
-}
-
-fn checked(text: &str) -> (SourceMap, ParsedFile, NameResolution, TypedFile) {
-    let (sources, parsed) = parsed(text);
-    let (names, types) = standard_environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    assert!(
-        resolution.diagnostics().is_empty(),
-        "{:?}",
-        resolution.diagnostics()
-    );
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    (sources, parsed, resolution, typed)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -92,9 +78,9 @@ fn checked_entries(
         let index = index_compilation_unit(&sources, &inputs).expect("unit index");
         entry.assert_identity(&index, &file, "map_test.ko");
         let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-            .expect("unit names")
-            .validate()
-            .expect("valid names");
+            .expect("unit names");
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().expect("valid names");
         check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit types")
     });
     (sources, results)
@@ -196,8 +182,9 @@ fn test_map_and_mutable_map_construction_and_members() {
             mm["key2"] = 100
         }
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    for typed in checked_entries(text).1 {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    }
 }
 
 #[test]
@@ -205,10 +192,11 @@ fn test_map_key_must_be_hashable() {
     let text = r#"
         fun bad_key(m: Map<List<Int>, String>) {}
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    let diagnostics = typed.diagnostics();
-    assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
-    assert_eq!(diagnostics[0].code().to_string(), "L0161");
+    for typed in checked_entries(text).1 {
+        let diagnostics = typed.diagnostics();
+        assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
+        assert_eq!(diagnostics[0].code().to_string(), "L0161");
+    }
 }
 
 #[test]
@@ -216,10 +204,11 @@ fn test_mutable_map_key_must_be_hashable() {
     let text = r#"
         fun bad_key(m: MutableMap<List<Int>, String>) {}
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    let diagnostics = typed.diagnostics();
-    assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
-    assert_eq!(diagnostics[0].code().to_string(), "L0161");
+    for typed in checked_entries(text).1 {
+        let diagnostics = typed.diagnostics();
+        assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
+        assert_eq!(diagnostics[0].code().to_string(), "L0161");
+    }
 }
 
 #[test]
@@ -227,10 +216,11 @@ fn test_map_type_argument_arity_check() {
     let text = r#"
         fun bad_arity_1(m: Map<Int>) {}
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    let diagnostics = typed.diagnostics();
-    assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
-    assert_eq!(diagnostics[0].code().to_string(), "L0091");
+    for typed in checked_entries(text).1 {
+        let diagnostics = typed.diagnostics();
+        assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
+        assert_eq!(diagnostics[0].code().to_string(), "L0091");
+    }
 }
 
 #[test]
@@ -242,12 +232,13 @@ fn test_map_readonly_mutation_disallowed() {
             m.remove(1)
         }
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    let diagnostics = typed.diagnostics();
-    assert_eq!(diagnostics.len(), 3, "{:?}", diagnostics);
-    assert_eq!(diagnostics[0].code().to_string(), "L0129");
-    assert_eq!(diagnostics[1].code().to_string(), "L0130");
-    assert_eq!(diagnostics[2].code().to_string(), "L0130");
+    for typed in checked_entries(text).1 {
+        let diagnostics = typed.diagnostics();
+        assert_eq!(diagnostics.len(), 3, "{:?}", diagnostics);
+        assert_eq!(diagnostics[0].code().to_string(), "L0129");
+        assert_eq!(diagnostics[1].code().to_string(), "L0130");
+        assert_eq!(diagnostics[2].code().to_string(), "L0130");
+    }
 }
 
 #[test]
@@ -257,10 +248,11 @@ fn test_map_method_must_be_called() {
             val f = m.get
         }
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    let diagnostics = typed.diagnostics();
-    assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
-    assert_eq!(diagnostics[0].code().to_string(), "L0130");
+    for typed in checked_entries(text).1 {
+        let diagnostics = typed.diagnostics();
+        assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
+        assert_eq!(diagnostics[0].code().to_string(), "L0130");
+    }
 }
 
 #[test]
@@ -275,11 +267,12 @@ fn test_map_key_and_value_type_mismatches() {
             mm[1] = "not_int"
         }
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    let diagnostics = typed.diagnostics();
-    assert_eq!(diagnostics.len(), 6, "{:?}", diagnostics);
-    for d in diagnostics {
-        assert_eq!(d.code().to_string(), "L0084");
+    for typed in checked_entries(text).1 {
+        let diagnostics = typed.diagnostics();
+        assert_eq!(diagnostics.len(), 6, "{:?}", diagnostics);
+        for d in diagnostics {
+            assert_eq!(d.code().to_string(), "L0084");
+        }
     }
 }
 
@@ -292,10 +285,11 @@ fn test_move_only_value_index_read_disallowed() {
             val item = m[1]
         }
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    let diagnostics = typed.diagnostics();
-    assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
-    assert_eq!(diagnostics[0].code().to_string(), "L0136");
+    for typed in checked_entries(text).1 {
+        let diagnostics = typed.diagnostics();
+        assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
+        assert_eq!(diagnostics[0].code().to_string(), "L0136");
+    }
 }
 
 #[test]
@@ -307,10 +301,11 @@ fn test_move_only_value_get_disallowed() {
             val item = m.get(1)
         }
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    let diagnostics = typed.diagnostics();
-    assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
-    assert_eq!(diagnostics[0].code().to_string(), "L0136");
+    for typed in checked_entries(text).1 {
+        let diagnostics = typed.diagnostics();
+        assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
+        assert_eq!(diagnostics[0].code().to_string(), "L0136");
+    }
 }
 
 #[test]
@@ -320,10 +315,11 @@ fn test_string_value_map_get_is_move_only() {
             val s = m.get(1)
         }
     "#;
-    let (_sources, _parsed, _resolution, typed) = checked(text);
-    let diagnostics = typed.diagnostics();
-    assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
-    assert_eq!(diagnostics[0].code().to_string(), "L0136");
+    for typed in checked_entries(text).1 {
+        let diagnostics = typed.diagnostics();
+        assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
+        assert_eq!(diagnostics[0].code().to_string(), "L0136");
+    }
 }
 
 #[test]
