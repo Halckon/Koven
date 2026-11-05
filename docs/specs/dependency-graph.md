@@ -31,6 +31,7 @@ subgraph Gactive["现行 active"]
   S0381["S0381<br/>默认分流边界修复与旧路径退休"]
   S0383["S0383<br/>最终默认路由收敛与旧路径退休收尾"]
   S0384["S0384<br/>枚举、非空断言与可变列表变更旧路径退役及细化层准入补齐"]
+  S0385["S0385<br/>deinit 字段借用、独立堆对象可空 if 与字符串字段接收者旧路径退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -81,6 +82,7 @@ ARCH --> S0341
 | SPEC-0381 | active | [0381-refine-default-routing-and-legacy-retirement.md](active/0381-refine-default-routing-and-legacy-retirement.md) |
 | SPEC-0383 | active | [0383-refine-final-legacy-retirement.md](active/0383-refine-final-legacy-retirement.md) |
 | SPEC-0384 | active | [0384-refine-legacy-module-retirement.md](active/0384-refine-legacy-module-retirement.md) |
+| SPEC-0385 | active | [0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md](active/0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

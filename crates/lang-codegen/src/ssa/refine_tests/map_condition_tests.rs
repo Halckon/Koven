@@ -531,3 +531,47 @@ fn retired_enum_when_non_null_assertion_and_mutable_list_boundary_tests() {
         assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
     }
 }
+
+#[test]
+fn retired_deinit_borrow_and_heap_nullable_if_boundary_tests() {
+    use crate::ssa::LoweringErrorKind;
+
+    for (source, expected_slice) in [
+        (
+            "class Inner(val text: String)\nclass Outer(val inner: Inner) { deinit() { println(this.inner.text) } }\nfun main(): Unit { val o = Outer(Inner(\"x\")) }",
+            "this.inner",
+        ),
+        (
+            "class Inner(val code: Int)\nclass Outer(val inner: Inner) { deinit() { if (this.inner.code == 1) {} } }\nfun main(): Unit { val o = Outer(Inner(1)) }",
+            "this.inner",
+        ),
+        (
+            "class Node(val code: Int)\nfun inspect(n: Node): Unit {}\nfun main(own n: Node?): Unit { if (n != null) { inspect(n) } }",
+            "n",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_env, type_env) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
+        let entry = declaration(&names, "p", "main");
+        let err = crate::ssa::with_per_family_lowering(|| {
+            lower_scalar_unit_with_entry(
+                &sources, &inputs, &names, &type_env, &typed, &owned, entry,
+            )
+        })
+        .err()
+        .unwrap_or_else(|| panic!("expected rejection under per-family lowering for: {source}"));
+        assert!(
+            matches!(
+                err.kind,
+                LoweringErrorKind::UnsupportedNode | LoweringErrorKind::MissingFact
+            ),
+            "{source}: {err:?}"
+        );
+        let span = err.span.expect("exact rejection span");
+        assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
+    }
+}

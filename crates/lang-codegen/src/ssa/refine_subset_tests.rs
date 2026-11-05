@@ -451,3 +451,32 @@ fn enum_construction_for_borrowed_string_when_and_else_views_route_to_refine() {
         res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
 }
+
+#[test]
+fn deinit_borrow_heap_nullable_if_and_string_field_receiver_route_to_refine() {
+    for source in [
+        "class Inner(val text: String, val code: Int) { deinit() { println(this.text) } }\n\
+         class Outer(val inner: Inner) {\n\
+             deinit() {\n\
+                 if (this.inner.code == 7) {\n\
+                     println(this.inner.text.clone())\n\
+                 }\n\
+             }\n\
+         }\n\
+         fun f(): Int { val o = Outer(Inner(\"leaf\", 7)); return 0 }",
+        "class Node(val text: String)\n\
+         fun inspect(n: Node): Unit { println(n.text) }\n\
+         fun f(own n: Node?): Unit {\n\
+             if (n != null) { inspect(n) }\n\
+         }",
+        "class Node(val text: String)\n\
+         fun inspect(n: Node): Unit { println(n.text) }\n\
+         fun f(own n: Node?): Unit {\n\
+             if (n == null) {} else { inspect(n) }\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}

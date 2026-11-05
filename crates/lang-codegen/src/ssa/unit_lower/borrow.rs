@@ -136,11 +136,6 @@ impl UnitExpressionLowerer<'_> {
         )? {
             return Ok((loan, vec![loan], fact.end_span()));
         }
-        if let Some((loan, created)) =
-            self.lower_this_field_borrow(argument, fact.target(), target, fact.begin_span())?
-        {
-            return Ok((loan, created, fact.end_span()));
-        }
         if let UnitLoanTarget::This(owner) = fact.target() {
             return self
                 .lower_this_borrow_argument(

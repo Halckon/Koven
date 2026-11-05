@@ -867,7 +867,15 @@ impl Checker<'_, '_> {
         if let Some(fact) = self.inputs.typed.null_comparison(id)
             && !fact.non_null_when_true()
             && self.known.contains(&fact.symbol())
-            && (self.scope_requires_refine() || self.is_map_remove_symbol(fact.symbol()))
+            && (self.scope_requires_refine()
+                || self.is_map_remove_symbol(fact.symbol())
+                || self.inputs.owned.loans().iter().any(|loan| {
+                    matches!(
+                        loan.target(),
+                        lang_frontend::ownership_checking::UnitLoanTarget::Place(place)
+                            if place.is_root() && place.root() == fact.symbol()
+                    )
+                }))
             && let Some(UnitTypeKind::Nullable(inner)) = self.kind(self.c(fact.nullable_type()))
             && self.view_inner(*inner)
         {

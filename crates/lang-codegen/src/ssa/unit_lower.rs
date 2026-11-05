@@ -18,7 +18,6 @@ mod construction;
 mod container;
 mod control;
 mod deinit;
-mod deinit_borrow;
 mod field_borrow;
 mod handoff;
 mod loop_control;

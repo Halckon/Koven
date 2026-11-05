@@ -46,9 +46,7 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
             .span();
         let ty = self.expression_ssa_type(expression, span)?;
-        let (source, created) = if self.clone_field_projection(receiver)?.is_some()
-            && !self.is_this_field_path(receiver, receiver_span)?
-        {
+        let (source, created) = if self.clone_field_projection(receiver)?.is_some() {
             let mut created = Vec::new();
             let source = self.clone_field_loan(receiver, &mut created, span)?;
             (source, created)
