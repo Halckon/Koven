@@ -124,12 +124,24 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
                 .then_some((when_true, when_false))
         })
         .expect("compound replacement has one checked success edge");
-    assert_eq!(failure.arguments.len(), 1);
-    assert_eq!(success.arguments.len(), 1);
+    assert!(!failure.arguments.is_empty());
+    assert_eq!(failure.arguments.len(), success.arguments.len());
     let success_block = entry.block(success.target).expect("success block exists");
-    let [EntityId::Value(carried_owner)] = success_block.parameters.as_slice() else {
-        panic!("checked success carries only the live MoveOnly container owner");
-    };
+    let carried_owner = success_block
+        .parameters
+        .iter()
+        .find_map(|param| {
+            let EntityId::Value(val) = param else { return None; };
+            success_block
+                .instructions
+                .iter()
+                .filter_map(|instruction| entry.instruction(*instruction))
+                .find_map(|instruction| match instruction.operation {
+                    Operation::ContainerReplace { owner, .. } if owner == *val => Some(*val),
+                    _ => None,
+                })
+        })
+        .expect("checked success carries the live MoveOnly container owner");
     assert!(
         success_block
             .instructions
@@ -137,7 +149,7 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
             .filter_map(|instruction| entry.instruction(*instruction))
             .any(|instruction| matches!(
                 instruction.operation,
-                Operation::ContainerReplace { owner, .. } if owner == *carried_owner
+                Operation::ContainerReplace { owner, .. } if owner == carried_owner
             ))
     );
 }

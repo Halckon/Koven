@@ -386,7 +386,13 @@ impl Builder<'_, '_> {
                     receiver.mode == lang_frontend::type_checking::ParameterMode::Borrow
                         && receiver.ty == parameter
                 })
-                .and(self.receiver)),
+                .and(self.receiver)
+                .or_else(|| {
+                    let symbol = self.inputs.references.get(&(span.start(), span.end())).copied()?;
+                    (self.symbol_type(symbol) == Some(parameter))
+                        .then(|| self.borrowed.get(&symbol).copied())
+                        .flatten()
+                })),
             _ => Ok(None),
         }
     }

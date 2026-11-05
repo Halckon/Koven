@@ -223,7 +223,7 @@ impl Builder<'_, '_> {
                     | AssignmentOperator::RemainderAssign),
                 value,
                 ..
-            } => self.compound_assignment(target, operator, value, span),
+            } => self.compound_assignment(expression, target, operator, value, span),
             Expression::Return { value, .. } => self.return_expression(expression, value, span),
             Expression::Break { .. } => self.loop_jump(expression, true, span),
             Expression::Continue { .. } => self.loop_jump(expression, false, span),
@@ -237,9 +237,19 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
+        if let LiteralKind::Null = literal {
+            let nullable = if let Some(nullable) = self.expected_nullable {
+                nullable
+            } else {
+                self.ssa_type(self.expression_type(expression)?, span)?
+            };
+            let slot =
+                self.value(ROp::NullableNull { nullable }, EntityType::Value(nullable), span)?;
+            return Ok(Lowered::Value(slot));
+        }
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;
         let op = match literal {
-            LiteralKind::Null => ROp::NullableNull { nullable: ty },
+            LiteralKind::Null => unreachable!(),
             LiteralKind::Boolean(value) => ROp::Constant(ScalarConstant::Boolean(value)),
             LiteralKind::Integer(kind) => {
                 let text = self
@@ -373,6 +383,21 @@ impl Builder<'_, '_> {
                 )?;
                 self.repoint_temporary(expression, wrapped);
                 Ok(wrapped)
+            }
+            Some(UnitTypeKind::Nullable(_))
+                if matches!(
+                    self.inputs.typed.types().get(actual),
+                    Some(UnitTypeKind::Nullable(inner)) if self.is_nothing(*inner)
+                ) =>
+            {
+                let nullable = expected_ssa;
+                let null_slot = self.value(
+                    ROp::NullableNull { nullable },
+                    EntityType::Value(nullable),
+                    span,
+                )?;
+                self.repoint_temporary(expression, null_slot);
+                Ok(null_slot)
             }
             _ => Err(error(LoweringErrorKind::MissingFact, span)),
         }
@@ -732,19 +757,30 @@ impl Builder<'_, '_> {
                             }
                             break;
                         }
+                        Expression::This => {
+                            source_loan = if let Ok(symbol) = self.reference(self.span(current)) {
+                                self.borrowed.get(&symbol).copied()
+                            } else {
+                                self.receiver
+                            };
+                            break;
+                        }
                         _ => break,
                     }
                 }
                 if let Some(source_loan) = source_loan {
                     let argument_span = self.span(value_expression);
-                    let EntityType::Loan { kind, target } = self.body.slots[source_loan.0] else {
+                    let EntityType::Loan { target, .. } = self.body.slots[source_loan.0] else {
                         return Err(error(LoweringErrorKind::InvalidModel, argument_span));
                     };
                     let loan = self.value(
                         ROp::SharedReborrow {
                             source: source_loan,
                         },
-                        EntityType::Loan { kind, target },
+                        EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target,
+                        },
                         argument_span,
                     )?;
                     loans.push(loan);
@@ -913,109 +949,6 @@ impl Builder<'_, '_> {
         Ok(adapted)
     }
 
-    fn assignment(
-        &mut self,
-        target: ExpressionId,
-        value: ExpressionId,
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let symbol = self.reference(self.span(target))?;
-        let Some(slot) = self.required(value)? else {
-            return Ok(Lowered::Diverged);
-        };
-        let declared = self
-            .symbol_type(symbol)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let slot = self.adapt(slot, value, declared)?;
-        self.deliver(value);
-        if let Some(loan) = self.inout_loan(symbol) {
-            // The caller's place now holds the new value; nothing is rebound here.
-            self.push(ROp::LoanMutate { loan, value: slot }, Vec::new(), span)?;
-            return Ok(Lowered::Unit);
-        }
-        let binding = *self
-            .bindings
-            .get(&symbol)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        self.end_views_of(symbol, span)?;
-        self.sync_dead();
-        self.dead.remove(&symbol);
-        self.push(ROp::Alias { source: slot }, vec![binding], span)?;
-        self.narrowed.remove(&symbol);
-        Ok(Lowered::Unit)
-    }
-
-    fn compound_assignment(
-        &mut self,
-        target: ExpressionId,
-        operator: AssignmentOperator,
-        value: ExpressionId,
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let symbol = self.reference(self.span(target))?;
-        let binding = *self
-            .bindings
-            .get(&symbol)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let Some(right) = self.required(value)? else {
-            return Ok(Lowered::Diverged);
-        };
-        let ty = self.ssa_type(self.expression_type(target)?, span)?;
-        let boolean = self
-            .inputs
-            .typed
-            .types()
-            .builtin(lang_frontend::type_checking::BuiltinType::Boolean)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let boolean = self.ssa_type(boolean, span)?;
-        let operator = match operator {
-            AssignmentOperator::AddAssign => CheckedArithmeticOperator::Add,
-            AssignmentOperator::SubtractAssign => CheckedArithmeticOperator::Subtract,
-            AssignmentOperator::MultiplyAssign => CheckedArithmeticOperator::Multiply,
-            AssignmentOperator::DivideAssign => CheckedArithmeticOperator::Divide,
-            AssignmentOperator::RemainderAssign => CheckedArithmeticOperator::Remainder,
-            AssignmentOperator::Assign => {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            }
-        };
-        let result = self.body.slot(EntityType::Value(ty));
-        let failed = self.body.slot(EntityType::Value(boolean));
-        self.push(
-            ROp::CheckedArithmetic {
-                operator,
-                left: binding,
-                right,
-            },
-            vec![result, failed],
-            span,
-        )?;
-        let abort = self.body.block();
-        let success = self.body.block();
-        self.terminate(
-            RTerm::Branch {
-                condition: failed,
-                when_true: abort,
-                when_false: success,
-            },
-            span,
-        )?;
-        self.block = Some(abort);
-        self.terminate(
-            RTerm::Abort(RAbort::CheckedArithmetic {
-                operator,
-                divisor: right,
-            }),
-            span,
-        )?;
-        self.block = Some(success);
-        self.end_views_of(symbol, span)?;
-        self.sync_dead();
-        self.dead.remove(&symbol);
-        self.push(ROp::Alias { source: result }, vec![binding], span)?;
-        self.narrowed.remove(&symbol);
-        Ok(Lowered::Unit)
-    }
-
     fn return_expression(
         &mut self,
         expression: ExpressionId,
@@ -1032,7 +965,11 @@ impl Builder<'_, '_> {
         }
         let result = match value {
             Some(value) => {
-                let Some(slot) = self.required(value)? else {
+                let saved_expected = self.expected_nullable;
+                self.expected_nullable = self.ssa_type(self.inputs.return_type, span).ok();
+                let slot = self.required(value)?;
+                self.expected_nullable = saved_expected;
+                let Some(slot) = slot else {
                     return Ok(Lowered::Diverged);
                 };
                 let slot = self.adapt(slot, value, self.inputs.return_type)?;
@@ -1045,35 +982,12 @@ impl Builder<'_, '_> {
             .into_iter()
             .rev()
         {
-            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+            self.end_short_call_loan(loan, span)?;
         }
         self.end_all_views(span)?;
         self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
         let unit_return = self.is_unit(self.inputs.return_type);
         self.finish_return(result, unit_return, span)?;
         Ok(Lowered::Diverged)
-    }
-
-    pub(super) fn snapshot_binding_if_name(
-        &mut self,
-        expression: ExpressionId,
-        slot: Slot,
-    ) -> Result<Slot, LoweringError> {
-        let mut target = expression;
-        while let (Expression::Group { expression: inner }, _) = self.node(target)? {
-            target = inner;
-        }
-        if let (Expression::Name, span) = self.node(target)?
-            && let Ok(symbol) = self.reference(span)
-            && self
-                .symbol_type(symbol)
-                .is_some_and(|ty| !self.move_only(ty))
-            && self.bindings.get(&symbol).copied() == Some(slot)
-        {
-            let snapshot = self.body.slot(self.body.slots[slot.0]);
-            self.push(ROp::Alias { source: slot }, vec![snapshot], span)?;
-            return Ok(snapshot);
-        }
-        Ok(slot)
     }
 }

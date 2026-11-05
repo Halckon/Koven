@@ -300,9 +300,19 @@ impl Checker<'_, '_> {
                     && self.parameter_mode(symbol) == Some(ParameterMode::Borrow)
                     && self.symbol_type(symbol) == Some(parameter)
             }),
-            Expression::This => self.inputs.receiver.is_some_and(|receiver| {
-                receiver.mode == ParameterMode::Borrow && receiver.ty == parameter
-            }),
+            Expression::This => {
+                self.inputs.receiver.is_some_and(|receiver| {
+                    matches!(receiver.mode, ParameterMode::Borrow | ParameterMode::Inout)
+                        && receiver.ty == parameter
+                }) || self.reference(root).is_some_and(|symbol| {
+                    self.known.contains(&symbol)
+                        && matches!(
+                            self.parameter_mode(symbol),
+                            Some(ParameterMode::Borrow | ParameterMode::Inout)
+                        )
+                        && self.symbol_type(symbol) == Some(parameter)
+                })
+            }
             _ => false,
         }
     }
@@ -357,6 +367,7 @@ impl Checker<'_, '_> {
         {
             return false;
         }
+        let mut is_migrated_field = false;
         let field_ok = match projection.receiver() {
             UnitAggregateProjectionReceiver::Expression(receiver)
                 if receiver.source_unit() == self.inputs.source_unit
@@ -379,7 +390,7 @@ impl Checker<'_, '_> {
                     .expressions()
                     .get(receiver_expr)
                     .is_ok_and(|node| matches!(node.payload(), Expression::Name));
-                self.plain(receiver_expr)
+                let ok = self.plain(receiver_expr)
                     && is_name
                     && self.box_enum_type(root_ty)
                     && self.payload_case(root_ty, projection.field()).is_some()
@@ -390,7 +401,11 @@ impl Checker<'_, '_> {
                                 None | Some(ParameterMode::Value)
                             )
                             && self.symbol_type(symbol) == Some(root_ty)
-                    })
+                    });
+                if ok {
+                    is_migrated_field = true;
+                }
+                ok
             }
             _ => {
                 let multi_hop = matches!(
@@ -403,8 +418,12 @@ impl Checker<'_, '_> {
                                 )
                                 .is_some()
                 );
-                self.field_loan_receiver(root, !multi_hop) == Some(parameter)
-                    || (!multi_hop && self.borrowed_value_parameter_field(call, root, parameter))
+                let value_param =
+                    !multi_hop && self.borrowed_value_parameter_field(call, root, parameter);
+                if value_param {
+                    is_migrated_field = true;
+                }
+                self.field_loan_receiver(root, !multi_hop) == Some(parameter) || value_param
             }
         };
         let loans_match = self.inputs.owned.loans().iter().any(|loan| {
@@ -422,7 +441,9 @@ impl Checker<'_, '_> {
                     == lang_frontend::ownership_checking::UnitReceiverOwnershipKind::SharedLoan
         });
         let ok = field_ok && loans_match;
-        self.migrated |= ok;
+        if ok && is_migrated_field {
+            self.migrated = true;
+        }
         ok
     }
 

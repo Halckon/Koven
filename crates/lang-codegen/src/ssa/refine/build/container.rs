@@ -450,13 +450,18 @@ impl Builder<'_, '_> {
             .element_place(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let receiver = descriptor.receiver().expression();
-        let symbol = self.named_container_symbol(receiver, span)?;
-        let owner = self
-            .borrowed
-            .get(&symbol)
-            .or_else(|| self.bindings.get(&symbol))
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let owner = if let Ok(symbol) = self.named_container_symbol(receiver, span) {
+            self.borrowed
+                .get(&symbol)
+                .or_else(|| self.bindings.get(&symbol))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+        } else {
+            let Some(owner) = self.required(receiver)? else {
+                return Ok(Lowered::Diverged);
+            };
+            owner
+        };
         let Some(index) = self.required(descriptor.index().expression())? else {
             return Ok(Lowered::Diverged);
         };
@@ -489,13 +494,18 @@ impl Builder<'_, '_> {
             return Ok(None);
         }
         let receiver = descriptor.receiver().expression();
-        let symbol = self.named_container_symbol(receiver, span)?;
-        let owner = self
-            .borrowed
-            .get(&symbol)
-            .or_else(|| self.bindings.get(&symbol))
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let owner = if let Ok(symbol) = self.named_container_symbol(receiver, span) {
+            self.borrowed
+                .get(&symbol)
+                .or_else(|| self.bindings.get(&symbol))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+        } else {
+            let Some(owner) = self.required(receiver)? else {
+                return Ok(None);
+            };
+            owner
+        };
         let index = self
             .required(descriptor.index().expression())?
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;

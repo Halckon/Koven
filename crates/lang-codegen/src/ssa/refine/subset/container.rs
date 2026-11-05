@@ -319,22 +319,28 @@ impl Checker<'_, '_> {
         {
             return false;
         }
-        let Some(symbol) =
-            self.named_container_owner(descriptor.receiver().expression(), container_ty, true)
-        else {
-            return false;
+        let symbol =
+            self.named_container_owner(descriptor.receiver().expression(), container_ty, true);
+        let temporary_ok = symbol.is_none() && {
+            let receiver_expr = descriptor.receiver().expression();
+            self.expression(receiver_expr)
         };
+        if symbol.is_none() && !temporary_ok {
+            return false;
+        }
         let loan_ok = self.inputs.owned.loans().iter().any(|loan| {
             loan.call() == self.id(call)
                 && (loan.argument() == self.id(value) || loan.argument() == id)
                 && loan.kind() == LoanKind::Shared
-                && matches!(
-                    loan.target(),
-                    UnitLoanTarget::Place(place)
-                        if place.root() == symbol
+                && match (symbol, loan.target()) {
+                    (Some(sym), UnitLoanTarget::Place(place)) => {
+                        place.root() == sym
                             && place.fields().is_empty()
                             && place.element().is_some()
-                )
+                    }
+                    (None, UnitLoanTarget::Temporary(_)) => true,
+                    _ => false,
+                }
         });
         let index = descriptor.index().expression();
         let ok = loan_ok && self.is_int_index(index) && self.expression(index);
@@ -401,6 +407,58 @@ impl Checker<'_, '_> {
             || !self.adaptable_element(value, element_ty)
             || !self.expression(value)
         {
+            return false;
+        }
+        self.element_replacements.insert(assignment_id);
+        self.migrated = true;
+        true
+    }
+
+    /// `xs[i] += v` on an integer element of an owned local mutable container.
+    pub(super) fn element_compound_assignment(
+        &mut self,
+        assignment: ExpressionId,
+        target: ExpressionId,
+        _operator: lang_frontend::parser::AssignmentOperator,
+        value: ExpressionId,
+    ) -> bool {
+        let Ok(_) = self.inputs.parsed.ast().expressions().get(assignment) else {
+            return false;
+        };
+        let assignment_id = self.id(assignment);
+        let root_target = self.ungrouped(target);
+        let target_id = self.id(root_target);
+        let Some(place_desc) = self.inputs.typed.element_place(target_id) else {
+            return false;
+        };
+        let Some(container_ty) = self.expression_type_of(place_desc.receiver()) else {
+            return false;
+        };
+        let element_ty = self.c(place_desc.element_type());
+        if !place_desc.is_mutable()
+            || place_desc.receiver().source_unit() != self.inputs.source_unit
+            || place_desc.index().source_unit() != self.inputs.source_unit
+            || !self.integer_type(element_ty)
+            || self.container_element(container_ty) != Some(element_ty)
+            || self
+                .named_container_owner(place_desc.receiver().expression(), container_ty, false)
+                .is_none()
+            || self.expression_type(value) != Some(element_ty)
+        {
+            return false;
+        }
+        let facts: Vec<_> = self
+            .inputs
+            .owned
+            .drops()
+            .iter()
+            .filter(|fact| fact.point() == UnitDropPoint::AfterReplacement(assignment_id))
+            .collect();
+        if !facts.is_empty() {
+            return false;
+        }
+        let index = place_desc.index().expression();
+        if !self.is_int_index(index) || !self.expression(index) || !self.expression(value) {
             return false;
         }
         self.element_replacements.insert(assignment_id);

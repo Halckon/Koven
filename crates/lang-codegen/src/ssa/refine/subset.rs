@@ -245,7 +245,9 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
                     Some(UnitTypeKind::EnumCase { root, .. }) => *root,
                     _ => ty,
                 };
-                demands.extend(inputs.concrete(ty));
+                if !matches!(checker.kind(ty), Some(UnitTypeKind::Nullable(inner)) if checker.nothing(*inner)) {
+                    demands.extend(inputs.concrete(ty));
+                }
             }
             if let Some(site) = inputs.source_plan.call_site(inputs.source_token, id) {
                 for route in site.delegation() {
@@ -324,7 +326,7 @@ impl Checker<'_, '_> {
         )
     }
 
-    fn nothing(&self, ty: UnitTypeId) -> bool {
+    pub(super) fn nothing(&self, ty: UnitTypeId) -> bool {
         matches!(
             self.kind(ty),
             Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
@@ -342,7 +344,7 @@ impl Checker<'_, '_> {
         )
     }
 
-    fn integer_type(&self, ty: UnitTypeId) -> bool {
+    pub(super) fn integer_type(&self, ty: UnitTypeId) -> bool {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if integer(*b))
     }
 
@@ -681,7 +683,13 @@ impl Checker<'_, '_> {
                     | AssignmentOperator::RemainderAssign),
                 value,
                 ..
-            } => self.compound_assignment(target, operator, value),
+            } => {
+                if self.is_element_target(target) {
+                    self.element_compound_assignment(expression, target, operator, value)
+                } else {
+                    self.compound_assignment(target, operator, value)
+                }
+            }
             Expression::Return { value, .. } => {
                 if self.inputs.borrow_return.is_some() {
                     value.is_some_and(|value| self.borrow_return_body(expression, value))
@@ -830,8 +838,10 @@ impl Checker<'_, '_> {
                 Some(UnitTypeKind::Nullable(inner)) if self.view_inner(*inner) => {
                     if views && fact.non_null_when_true() {
                         self.view_symbols.insert(fact.symbol());
+                        true
+                    } else {
+                        !views
                     }
-                    true
                 }
                 _ => false,
             };

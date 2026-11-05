@@ -63,6 +63,9 @@ impl Checker<'_, '_> {
         seen: &mut BTreeSet<UnitTypeId>,
         ordered: &mut Vec<UnitTypeId>,
     ) {
+        if matches!(self.kind(ty), Some(UnitTypeKind::Nullable(inner)) if self.nothing(*inner)) {
+            return;
+        }
         if !(self.unit(ty) || self.storage_type(ty)) || !seen.insert(ty) {
             return;
         }
@@ -117,7 +120,8 @@ impl Checker<'_, '_> {
         match self.kind(ty) {
             Some(UnitTypeKind::Builtin(lang_frontend::type_checking::BuiltinType::String)) => true,
             Some(UnitTypeKind::Nullable(inner)) => {
-                self.scalar(*inner)
+                self.nothing(*inner)
+                    || self.scalar(*inner)
                     || self.range_type(*inner)
                     || self.value_class_seen(*inner, active)
                     || self.view_inner_seen(*inner, active)

@@ -347,13 +347,19 @@ impl Builder<'_, '_> {
         let result = if self.is_unit(ty) || self.is_nothing(ty) {
             None
         } else {
-            Some(self.body.slot(EntityType::Value(self.ssa_type(ty, span)?)))
+            let ssa_ty = if matches!(self.inputs.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner)) if self.is_nothing(*inner)) {
+                self.expected_nullable.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+            } else {
+                self.ssa_type(ty, span)?
+            };
+            Some(self.body.slot(EntityType::Value(ssa_ty)))
         };
         let when_true = self.body.block();
         let when_false = self.body.block();
         self.condition_for_control(condition, when_true, when_false, span)?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
+        let outer_short_ranges = self.short_ranges.clone();
         let mut predecessors = Vec::new();
         let mut branch_exits = Vec::new();
         for (index, (block, branch)) in [(when_true, Some(then_branch)), (when_false, else_branch)]
@@ -362,11 +368,19 @@ impl Builder<'_, '_> {
         {
             self.active_views = outer_views.clone();
             self.pending_call_loans = outer_pending_loans.clone();
+            self.short_ranges = outer_short_ranges.clone();
             let mark = self.enter(block);
+            let saved_expected = self.expected_nullable;
+            if let Some(res) = result {
+                if let EntityType::Value(ssa_ty) = self.body.slots[res.0] {
+                    self.expected_nullable = Some(ssa_ty);
+                }
+            }
             let value = match branch {
                 Some(branch) => self.branch_value(branch)?,
                 None => Some(None),
             };
+            self.expected_nullable = saved_expected;
             self.leave(mark, span)?;
             let Some(value) = value else {
                 continue;
@@ -418,6 +432,7 @@ impl Builder<'_, '_> {
             }
         }
         self.pending_call_loans = outer_pending_loans;
+        self.short_ranges = outer_short_ranges;
         let reached = self.join_views(predecessors, join, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));

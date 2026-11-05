@@ -499,6 +499,29 @@ impl UnitExpressionLowerer<'_> {
             };
             return Ok(place);
         }
+        if let Some(descriptor) = self.element_place_descriptor(argument)? {
+            let mut receiver_expr = descriptor.receiver().expression();
+            while let Ok(node) = self.parsed.ast().expressions().get(receiver_expr) {
+                if let Expression::Group { expression } = node.payload() {
+                    receiver_expr = *expression;
+                } else {
+                    break;
+                }
+            }
+            let receiver_node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(receiver_expr)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if !matches!(receiver_node.payload(), Expression::Name) {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    receiver_node.span(),
+                ));
+            }
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if let UnitLoanTarget::Place(place) = loan_target
             && !place.is_root()
         {

@@ -156,7 +156,7 @@ impl Builder<'_, '_> {
                 .pending_call_loans
                 .pop()
                 .expect("loans boundary checked");
-            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+            self.end_short_call_loan(loan, span)?;
         }
         let views_boundary = frame.views.min(self.active_views.len());
         while self.active_views.len() > views_boundary {
