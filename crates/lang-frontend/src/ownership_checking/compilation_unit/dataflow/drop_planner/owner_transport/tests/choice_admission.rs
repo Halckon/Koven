@@ -4,6 +4,7 @@ use crate::ownership_checking::{
     UnitDropPoint, UnitDropTarget, UnitOwnerObservationStatus, UnitOwnerOrigin,
     UnitOwnerUnsupportedReason, UnitOwnerValueEventV1 as Event, UnitOwnerValueV1 as Value,
 };
+use crate::type_checking::UnitStatementId;
 
 #[test]
 fn actual_choice_is_delivered_bound_and_dropped_while_legacy_stays_unsupported() {

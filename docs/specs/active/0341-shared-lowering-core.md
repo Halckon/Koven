@@ -2250,3 +2250,22 @@ CallReturn 来源提交的最终字节相同；`choice_admission` 只添加四�
 这些检查不证明 Rust 编译、借用检查、断言执行或 Capture/branch-local 组合动态通过。
 独立静审核对两项修复、五处 replay 调用、独立 cleanup oracle 与负控，以及后继
 Capture/branch-local 保全，未发现新增阻断；此结论同样不替代精确候选动态验收。
+
+## 108. Choice API 编译见证的实际测试接线（2026-11-05）
+
+在 [PR #314](https://github.com/Halckon/Koven/pull/314) 的后继候选中，仅向既有
+`check_stage_integration.sh` 前端测试列表加入 `ownership_value_api`，不移除原目标、
+不改变失败传播或双平台门禁；实数现有组合并纠正文档陈旧总数为 132 个前端 integration
+target、23 次 Cargo 调用（此前实际已有 131 个，本片仅新增 1 个）。
+
+此前 workspace check/Clippy 的 all-targets 已包含该文件的类型检查，但既有 test 脚本
+未执行此 integration target。唯一测试 `value_api_is_nameable_and_matchable_without_private_modules`
+是公开 API 与 Eq 约束的编译见证，不替代真实 Choice 行为回归。后续验收须在双端官方
+日志中确认完整测试名及 1 passed、0 failed、0 ignored、0 filtered out，拒绝零命中。
+本次仅完成接线，尚未取得新头的执行结果；记录真实 head、base、merge SHA/tree 后再判定。
+
+首轮 [CI 41989629757](https://github.com/Halckon/Koven/actions/runs/41989629757)
+在两个宿主均报 E0433：`choice_admission`、`choice_branch_local` 与
+`choice_capture_isolation` 的测试使用 `UnitStatementId`，但未导入该类型。
+本片仅在三个测试模块补充既有公开类型的导入，保留全部 fixture、断言与生产代码。
+首轮未进入动态测试，不能当作通过；补验接线与 import 修复一并等待新头的官方 CI。

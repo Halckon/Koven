@@ -5,7 +5,7 @@ use crate::ownership_checking::{
     UnitOwnerObservationStatus, UnitOwnerOrigin, UnitOwnerTransportEvent,
     UnitOwnerUnsupportedReason, UnitOwnerValueEventV1 as Event, UnitOwnerValueV1 as Value,
 };
-use crate::type_checking::UnitItemId;
+use crate::type_checking::{UnitItemId, UnitStatementId};
 
 fn choice_source(suffix: &str) -> String {
     format!(
