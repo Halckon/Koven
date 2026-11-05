@@ -6,7 +6,7 @@
 
 Unit 产物另外保存逐 callable 的 `owner_observations()`。当前实现限普通函数内的
 String Value 参数、非插值 String、Name/Group/local binding 与 checked root replace，
-以及下节限定的显式双支 Unit If 或 leaf capture（同 callable 不混用）。
+以及下节限定的显式双支 Unit If 与顶层 leaf capture 顺序组合。
 定义 token 带 source-qualified callable 与分析内身份；结果使用逐求值帧局部槽，pending
 使用 call/argument 配对。旧值在 commit 交给结果，新 RHS 值进入 root；事件在真实转换点
 记录，不从 drop、span 或 formed history 推导。`is_consistent()` 核对运输守恒与身份。
@@ -47,23 +47,32 @@ Rust 行为尚未执行，静态检查不代表精确头官方 CI 验收。
 的 leaf 环境。形成点在实际 `take_named` 移出处保存当前 token，单独定义环境 token，
 以 source-qualified binding 标识 capture 槽。Name/Group/binding 转交同一环境 token；
 slot 输入不会随原 binding 的声明位置重建。实际 captured cleanup 发布内容释放，再发布
-环境释放。共享和独占资源的旧清理顺序不变。
+环境释放。CaptureDrop 的 BranchExit 与普通 Drop 一样必须属于当前 replay 边；
+线性事件不能借用同源的伪分支出口。共享和独占资源的旧清理顺序不变。
 
 Shared/Copy/closure-valued capture、空环境、直接丢弃的 temporary 与调用执行仍使整个
 callable 观察原子 Unsupported；lambda body 保持独立 Unsupported。此候选尚未编译或
 动态验证，不表示旧 cleanup、Single witness、循环实例或 native 已完成迁移。
 
-## 两片整合的 admission 边界
+## 顶层 capture 与 If 顺序组合
 
-同一 callable 只接纳 If 或 capture 中的一类；首次遇另一类即 Syntax Unsupported，
-真实 traversal/cleanup 仍照旧执行。该标记在每个 callable 开始时重置，不随事件子序列
-暂存而遗失，因此嵌套分支 capture 也不会被机械放行。validator 独立拒绝 Closure 定义
-与 If 树并存；这里只保留两片分别支持的集合，不声称 capture×branch 组合可用。
+同 callable 允许顶层 leaf capture 在显式 Unit If 前后形成和释放。跨 If 存活的环境与
+captured slots 由同一父 replay state 分叉，两支 join 后必须保持相同 location 与 token；
+不生成 phi 或重建 capture 来源。producer 只在真实 branch body 及其 cleanup 内增加深度，
+退出时包括错误返回恢复深度，后续顶层 capture 不继承已结束的分支上下文。
 
-新增回归核双向/嵌套拒绝、完整前缀回滚、sibling 隔离、Copyable 跨 join、嵌套控制树及
-重复 control mutation；同源开关比较保留完整旧 Analysis。上文各候选阶段的未运行说明
-不代表组合已有动态验收；本地组合仍待精确官方 CI，见
-[SPEC-0341 整合记录](../specs/active/0341-shared-lowering-core.md#79-capture-与-if-分立观察整合候选2026-11-03)。
+分支内形成 capture 仍使整个 callable 的观察原子 Unsupported；已在顶层形成的环境可在
+显式 If 两边分别释放，真实 traversal 与 cleanup 照旧执行。每条实际路径按原顺序释放
+capture slot 再释放环境，BranchExit 必须属于当前边，join 的全部 location 必须一致。
+validator 独立拒绝任何 If 子树中的 Capture，即使最终守恒；此处不准入 branch-local
+或嵌套 capture 形成。共享/Copy、closure-valued、
+调用执行与直接丢弃临时环境的原边界保留，lambda body 仍独立 Unsupported。
+
+回归覆盖两种顺序、存活环境跨 join、嵌套 If 后深度恢复、分支形成拒绝、sibling 隔离、
+双边和嵌套边释放，以及错边、漏释放、重复释放 mutation。释放仍从顶层形成事件按当前
+环境 token 与 source-qualified slot 精确定位，不搜索无路径约束的递归历史。所有源码
+保留 observation on/off 完整旧 Analysis 比较。此候选尚未运行 Rust 行为验收，不宣称支持分支内 capture 形成、
+循环或新 Phase 4 执行能力。
 
 ## 循环拒绝回归切片
 
@@ -74,10 +83,41 @@ callable 的观察前缀；独立 sibling 仍完整。另用独立准入前缀�
 字段不变。测试只分析源码，不运行循环，也不把有限回放前缀当作真实多轮终止证据。
 本片不改生产支持；编译和行为仍待官方 CI，静态检查不替代执行。
 
-## Test-only Choice 模型
+## Choice 图验证边界
 
-`owner_transport_tests::choice_model` 保存私有、单选择的候选事件模型，仅在 `cfg(test)`
-路径可达，不改变公开 owner API 或生产准入。它用真 definition catalog 的身份构造手工图，
-分别验证两条替代路径及完整后续；Choice 不成为新 String producer。模型不证明 AST 类型、
-实际尾值交付或未记录的调用/退出，生产 String-result If 仍 Unsupported。实际消费者的
-cleanup 和 Single witness 保留，准入接线须另立合同；验收见 SPEC-0341 §83。
+`owner_transport_tests::choice_model` 保存单选择的手工图测试，用真 definition catalog
+身份构造图，分别验证两条替代路径及完整后续；Choice 不成为新 String producer。
+原测试内算法已迁入 V1 库 validator，手工图仍只在测试中构造，不代表生产发出 Choice。
+模型不证明 AST 类型、实际尾值交付或未记录的调用/退出，生产 String-result If 仍
+Unsupported。实际消费者的 cleanup 和 Single witness 保留，准入接线须另立合同；
+历史模型验收见 SPEC-0341 §83，本次迁移边界见 §87。
+
+Control body 的私有结果通道保留实际尾表达式与既有求值帧 owner；旧 bool 调用方
+仍只消费是否继续。Read 尾值不交付 owner，原 temporary/scope cleanup 不变。
+该内部通道不改变 String-result If 的 Unsupported 边界，也不发布 Choice 协议。
+
+## V1 value 投影与受限 Choice
+
+V1 使用独立只读 String producer catalog，Definition 与 Choice 分离。旧 Complete 且全部
+定义最终 named Drop 的直线观察可按需投影；另有真实 planner 事务接纳严格限定的
+单绑定 Choice：顶层无修饰、非泛型 Unit 函数、一个无模式 marker 的 Boolean 参数、
+函数体唯一 `val`、initializer 是以该参数为条件的显式 If，目标 binding 必须精确
+String/MoveOnly。每边独立允许 String literal/Group literal（可包单尾 ControlBody），
+或恰一条不可变、精确 String/MoveOnly 局部 `val` 后接唯一 Name/Group 消费尾。局部
+initializer 仅无插值 literal/Group；两种边可以混搭，不接受额外语句或后续使用。
+
+String 构造完成登记真定义，逐层 Group/If 完成及双边实际 tail 交付必须唯一且有序，
+局部 initializer 与 tail 各有独立结果帧和完成计数；每边独立 symbol→value 槽仅在
+真实 state.insert 返回后接收 Binding，实际 take_named 返回 Some 后才转移到 Name
+结果并清空局部槽。边出口不得残留 initializer 或 named owner，不复用旧 owner=None、
+不从事件或 cleanup 重建 token。chosen 同样在实际插入后绑定，最后由真实移除后的
+精确 AfterStatement drop 闭合。任意退出、遗漏、重复、
+错误交付/cleanup 清空新事务。旧观察仍原子 Unsupported，不接收新定义或 Choice；
+原 cleanup/Single 见证保持。新能力与旧 observation 的 product/callable 绑定，旧 Eq
+只比较旧协议事实，新能力必须单独验证。新 Drop 带实际 point；未覆盖的 BranchExit、
+控制退出、When 等 point 不被 V1 图 validator 接受。
+
+图守恒不等于 typed AST 准入。生产能力只由上述私有门禁和实际事件构造；手工图测试
+仍可测试更一般的 Binding/Pending/Replace 守恒，不意味着这些 Choice 消费者已接线。
+本地仅静态检查，编译与行为待官方精确头 CI；范围见 SPEC-0341 §87/§88/§101。
+branch-local 是未发布生产代码候选，§89 的前置验收依赖保留，不表示动态准入或 D10 完成。

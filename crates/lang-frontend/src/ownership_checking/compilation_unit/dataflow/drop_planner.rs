@@ -170,7 +170,8 @@ fn plan_with_owner_observation(
 
 struct DropPlanner<'a, 'checker> {
     owner_observation_enabled: bool,
-    owner_observation_feature: Option<owner_transport::OwnerObservationFeature>,
+    owner_choice: Option<owner_transport::choice::ChoiceTransaction>,
+    owner_branch_depth: usize,
     owner_observation: Option<crate::ownership_checking::UnitOwnerObservation>,
     owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
     iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
@@ -210,7 +211,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
         Self {
             owner_observation_enabled: true,
-            owner_observation_feature: None,
+            owner_choice: None,
+            owner_branch_depth: 0,
             owner_observation: None,
             owner_observations: Vec::new(),
             iteration_conditional_scopes: Vec::new(),
@@ -992,27 +994,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                 )? {
                                     return Ok(false);
                                 }
-                                if let Some(temporary) = self
-                                    .checker
-                                    .temporary_element_owner(argument.value)?
-                                    .map(UnitExpressionId::expression)
-                                    .or_else(|| {
-                                        (kind == UnitCallArgumentOwnershipKind::SharedLoan
-                                            && self.is_move_only_temporary(argument.value))
-                                        .then_some(argument.value)
-                                    })
-                                {
-                                    let origin = self
-                                        .checker
-                                        .parsed
-                                        .ast()
-                                        .expressions()
-                                        .get(temporary)?
-                                        .span();
-                                    self.register_pending_temporary(
-                                        id, temporary, origin, false, state,
-                                    )?;
-                                }
+                                self.register_borrow_temporary_argument(
+                                    id,
+                                    argument.value,
+                                    kind,
+                                    state,
+                                )?;
                             }
                         }
                     }
@@ -1265,6 +1252,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     shared_sources.push(source);
                 }
             }
+        }
+        if let Some(choice) = &mut self.owner_choice {
+            choice.dropped(point.into_unit(self.checker.source_unit), value.symbol);
         }
         if let Some(owner) = value.owner.as_ref() {
             self.owner_event(crate::ownership_checking::UnitOwnerTransportEvent::Drop {

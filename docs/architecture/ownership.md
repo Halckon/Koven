@@ -75,10 +75,10 @@ drop planner 都按 Consume 交付尾值。返回值、Inout 根/字段/元素�
 在实际 If/When 交付分支中检查 borrowed closure 逃逸，分支内声明也参与检查。纯递归 phi 来源经条件 RHS 合流时，即使没有树形 `result_closures`，内部 planner 仍从已知 phi 根建立 Snapshot；`value_inputs` 保存完整 RHS 的旧 owner 版本，根选择条件复制后由第二循环 Entry 关联同一个 Snapshot 句柄与各有限图根节点。同循环新 closure owned/move 捕获可释放 phi owner，且其 lambda 属于该循环有限图时，形成 owner 也成为实例释放根；直接 RHS 快照保留该形成来源，条件 return 从当前具名 binding 发出一个根动作而不重复释放旧 phi 捕获。图外 closure 同时持有不同循环递归根时，内部根动作选 File 布局，按当次实例的 closure 身份读取单文件已检查 capture；快照来源与紧邻环境捕获按实际来源槽追溯，不能凭父 owner 的其他槽误分类；循环内根仍用 Iteration(statement) 布局。生产逐实例释放未接通，递归 deferred 继续阻止这些内部事实作为公开可执行计划发布。测试专用 `iteration/instance_replay.rs` 已独立消费候选 DropPlan 与公开 capture，执行 owned 自链和交替链的形成、快照、binding 提交、phi 旧状态复制、完整退出及 Iteration/File 释放；Named 根按 target 定位当次 binding，并沿实际 snapshot 来源验证 owner。双递归根条件快照也已接入同一消费者，覆盖两支选根、跨循环 0/1/2/7 轮与耗尽/continue/break/return，验证分支释放未选链及调用入口后选中链仍存活；提前至 CallEntry 的释放变异被拒绝。并存 owned 双子实例及普通 MoveOnly 资源也已在同一消费者覆盖两个循环各自的退出；展平 phi 槽从旧实例地址读取后并行提交，按活实例核对完整写集，captured drop 读取真实槽并验证必需别名。并存 shared 子实例也在同一消费者覆盖两循环的零轮、多轮及各自退出；形成时保存源句柄并建立逐实例 loan，源 phi 缺席后保留源义务，按根地址结束所有借用后才释放源。loan 候选在实际 closure 布局不匹配或路径槽有明确 Move/captured drop 消耗记录且无同点释放边凭据时跳过，其余缺失路径或匹配布局的槽仍失败；最后借用者查询的未选中路径写 false。同点内保留已释放边和 loan 源的读取凭据。header 的 shared 源输入按 source phi availability 拆成互斥 named/retained 路径，修复第二循环 return 漏清理。递归自链/交替链的 shared 具名源和 Copyable 参数也已接入独立消费者的零轮、多轮及各退出；按完整捕获布局逐实例结束 loan，参数 place 只参与借用账本而不取得析构义务。递归 phi 的有限 held_sources 摘要随条件快照运输，保留仍被链持有的具名源出口 phi；摘要不是根 capture 槽，不生成静态后代 loan-end。根动作后重新检查其他环境的持有关系，再清理可结束的具名源；耗尽入边使用出口清理后的 version 条件防止零轮源复活。双递归根条件快照的无 shared 源、同源及不同源模式已在独立消费者各覆盖 168 组两循环退出场景；分支先释放未选根，同源仍由选中根持有，不同源仅清理对应已结束全部借用的源；首循环 return 不进入快照及第二循环。篡改 shared 来源为另一源句柄的反例被拒绝。跨循环 File 父根已在同一消费者覆盖纯 owned、循环后 shared 子环境、循环前单/双 shared 子环境的 896 个参数组合，包括两循环各自退出、父根条件 return 及完整函数收尾；Pass 从稳定 callee 的唯一可用 owner 传递实际函数值；可证明时附带唯一 lambda，否则保留动态入口。参数求值后复核同一 binding/owner，mutable 及已消费 callee 不发布。Bind 以实际实例建立调用期环境别名，返回恢复映射。File/Iteration 根遍历保留同点已释放边，并生成按实际 loan 结束顺序排列的 root 批次；完整外层 owner 收尾后，由 ReleaseRetainedClosureSources 恰好一次消费 source/last 凭据。根覆盖的有限 retained TestLast/Drop 不再同时发布，独立树形路径仍保留。最后借用者查询读取实际环境实例/槽在 loan 结束时保存的 source 与 1→0 结果，防止兄弟 loan 全结束后延迟查询同时选中；凭据在清理点结束后清空。错误 lambda、漏 Pass、调用入口提前释放及函数末重复释放变异被拒绝。直接 outer→inner 紧邻环境新增相同 896 组矩阵，实际消费内层从外层槽 Move 及两级调用；显式消耗记录使外层析构仅跳过已移空槽，漏形成仍失败。Lambda body 仅携入环境树实际涉及的 retained source metadata，内层释放可在自己的接收槽完成源清理；caller 不沿已移空路径再次读取。循环前 retained 源先于 outer 释放，仍具名的循环后源在 outer 返回后清理。条件 seed 的两个选择、自链/交替链及无源/具名源/Copyable 参数模式也已在独立消费者覆盖 192 个退出组合；同 lambda 普通/phi 快照以真实循环元素选择赋值，覆盖 168 个两循环退出组合，源码级模型核对替换旧链、未选链及选中链的精确释放；同 lambda 句柄互换的故障被拒绝；替换 RHS 完成点前后分别核对旧链存活、旧链释放及新 binding，整组延迟 Drop/Commit 至分支出口的变异被拒绝。File 父根在循环前条件选择两个 shared 源之一，直接/outer→inner 路径也已在独立消费者覆盖 896 个退出参数组合；未选源在分支完成时释放，选中源在最后 loan 结束后由实际路径清理，删除内层选中源清理的变异被拒绝。递归 retained source 现已覆盖完整跳转回放矩阵：前置循环 0/1/2/7 轮正常耗尽后转移源义务，并扩展前置预热循环支持 continue 与条件 break 跳转边（新增 scoped_source_warmup_jump_matrix 覆盖 3 种前置出口 × 4 种第二循环出口 × 0/1/2 轮次 × 3 类 source 共 324 个动态用例）；源可为普通资源、持 owned payload 的 closure 或继续 shared 借用 retained payload 的 closure，并覆盖单/双兄弟借用。动态配对只消费本根结束当刻 last=true 的 retained 义务；closure 源以 File 布局释放后继续按新凭据级联，未选根保留空批次，漏配对/重复配对均失败。phi 缺席但仍有 capture loan 的旧具名源转移唯一析构义务，不立即 drop；Shared closure source 保留句柄但不沿 owned 图运输其子环境。跨轮旧环境已覆盖 32 组实际调用：两种交替选择、0/1/2/7 轮、Borrow/owning 来源及可选 Copyable 捕获，形成新环境后调用旧环境并转移其子捕获；条件/shared 紧邻子闭包由接收环境的 File 根释放，避免普通 Drop 漏 loan。Borrow 来源消费公开产物，owning 来源仍由 AmbiguousClosureInstanceTransport 原子阻断并只回放候选事实；nullable 提取已发布动态 Pass，但尚无 nullable 全路径回放；普通父包裹递归子根的独立排序源码用例尚缺。
 
 iteration source 以 place 求值后显式建立 Shared loan；temporary-container element source
-沿 Index/Group 链定位实际 backing owner，source target 与退出析构指向外层 temporary。
+沿 Index/Group 链定位实际 backing owner，source target 与退出析构指向外层 temporary；Unit 同类查询逐层核 source-unit，并供 Copy/Value、Borrow/Inout 与 L0136 来源标签复用，不把中间 element view 当作 owner。
 Index 求值前登记已求值 owner 的 pending 义务，提前 return 清理，Abort 不展开；正常完成
-后由调用者或 provider 接管。named source 的连续 Index 保存完整索引路径，按逐层 alias
-与前缀关系保护 owner；末级 `element()` 查询不替代完整 `elements()` 身份。控制结果先赋给
+后由调用者或 provider 接管。Single/Unit 的 named source 连续 Index 保存完整路径，按逐层 alias
+与前缀保护 owner；`element()` 仍是末项。Unit nested receiver lowering 仍拒绝，新增回归未运行，见 [§103](../specs/active/0341-shared-lowering-core.md#103-unit-具名多层-index-place-完整路径2026-11-05)。控制结果先赋给
 局部别名后，checker 按 AST index 排序合并成功分支的 closure origins 与潜在 capture loan，
 按后继 liveness 释放已死 binding；控制结果和每个 pending call 独立持有其所需 origins。
 callee/较早实参的 capture 保持到对应调用完成或退出，不因后续实参的控制表达式提前结束。
@@ -148,9 +148,9 @@ Unit `exclusive_call_prefix_ends()` 仅从实际 `EndCallLoan` 动作提取 retu
 分支与嵌套调用不会提前析构它；正常 CallReturn 只解除当前调用的保护。字符串插值中的
 Nothing 传播无正常出口，callable 退出时清除未提交调用的保护，避免阻止最终 owner 清理。
 
-unit 调用的 Borrow temporary 与尚未提交的 MoveOnly Value 实参也保存在 ValueState，随分支
-保留。正常提交时 Value 不再清理，Borrow 在 CallReturn 逆序清理；return 和离开调用前缀
-所在循环的 break/continue 先清理后建 local，再逆序清理前缀 owner，最后清理旧 local。
+unit 将 Borrow temporary（含 typed receiver 与实际 Shared loan target 同源同身份的一层直接 MoveOnly 临时父字段）
+及未提交的 MoveOnly Value 实参随 ValueState 分支保留。正常提交时 Value 不再清理，Borrow 在 CallReturn 逆序清理；
+return 和离开调用前缀所在循环的 break/continue 先清理后建 local，再逆序清理前缀 owner，最后清理旧 local。
 内层循环跳转保留外层调用 owner，Abort 不展开清理；return operand 自身不继续时也不生成
 return cleanup。专用 unit native 已消费新增 pending Value operand，按这些事实清理
 未提交 owner；实际 SSA/LLVM 与 native 计数证据见常量交付验收。临时 capture 收尾见 [move literal 前端事实](expected-move-literals.md)。

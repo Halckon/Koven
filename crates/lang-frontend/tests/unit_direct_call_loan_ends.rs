@@ -835,3 +835,6 @@ fn cross_source_events_preserve_caller_target_and_callee_parameter_lineage() {
 
 #[path = "unit_direct_call_loan_ends/exclusive_prefix.rs"]
 mod exclusive_prefix;
+
+#[path = "unit_direct_call_loan_ends/temporary_field_pending.rs"]
+mod temporary_field_pending;

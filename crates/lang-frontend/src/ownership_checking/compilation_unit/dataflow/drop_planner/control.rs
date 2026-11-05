@@ -6,6 +6,8 @@ use crate::{
     parser::{Statement, WhenCondition, WhenEntry},
 };
 
+use super::owner_transport::EvaluatedOwner;
+
 use super::{
     DropExpressionUse, DropPlanner, PlannerDropFact, PlannerDropPoint, PlannerDropTarget,
     ValueState,
@@ -131,6 +133,18 @@ impl DropPlanner<'_, '_> {
         usage: DropExpressionUse,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        Ok(self.evaluate_control_body(id, usage, state)?.1.continues)
+    }
+
+    /// Preserve the actual tail expression and its evaluation-frame token. This does
+    /// not admit result-valued control flow or add an owner/choice definition.
+    /// Callers must still prove delivery before interpreting the optional token.
+    pub(super) fn evaluate_control_body(
+        &mut self,
+        id: StatementId,
+        usage: DropExpressionUse,
+        state: &mut ValueState,
+    ) -> Result<(Option<ExpressionId>, EvaluatedOwner), OwnershipCheckingError> {
         let payload = self
             .checker
             .parsed
@@ -144,30 +158,56 @@ impl DropPlanner<'_, '_> {
             Statement::Expression { expression } => {
                 return self.control_tail(expression, usage, state);
             }
-            _ => return self.statement(id, state),
+            _ => {
+                return Ok((
+                    None,
+                    EvaluatedOwner {
+                        continues: self.statement(id, state)?,
+                        owner: None,
+                    },
+                ));
+            }
         };
         self.scope_depth += 1;
         let frame = self.scope_depth;
         let Some((&tail, prefix)) = elements.split_last() else {
             self.scope_depth -= 1;
-            return Ok(true);
+            return Ok((
+                None,
+                EvaluatedOwner {
+                    continues: true,
+                    owner: None,
+                },
+            ));
         };
         for &element in prefix {
             if !self.statement(element, state)? {
                 self.scope_depth -= 1;
-                return Ok(false);
+                return Ok((
+                    None,
+                    EvaluatedOwner {
+                        continues: false,
+                        owner: None,
+                    },
+                ));
             }
         }
         let tail_node = self.checker.parsed.ast().statements().get(tail)?;
-        let continues = match tail_node.payload() {
+        let result = match tail_node.payload() {
             Statement::Expression { expression } => self.control_tail(*expression, usage, state)?,
-            _ => self.statement(tail, state)?,
+            _ => (
+                None,
+                EvaluatedOwner {
+                    continues: self.statement(tail, state)?,
+                    owner: None,
+                },
+            ),
         };
-        if continues {
+        if result.1.continues {
             self.drop_scope(frame, PlannerDropPoint::AfterStatement(id), state);
         }
         self.scope_depth -= 1;
-        Ok(continues)
+        Ok(result)
     }
 
     fn control_tail(
@@ -175,9 +215,11 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         usage: DropExpressionUse,
         state: &mut ValueState,
-    ) -> Result<bool, OwnershipCheckingError> {
-        let continues = self.expression(expression, usage, state)?;
-        if continues && usage == DropExpressionUse::Read && self.is_move_only_temporary(expression)
+    ) -> Result<(Option<ExpressionId>, EvaluatedOwner), OwnershipCheckingError> {
+        let mut result = self.evaluate_owner_expression(expression, usage, state)?;
+        if result.continues
+            && usage == DropExpressionUse::Read
+            && self.is_move_only_temporary(expression)
         {
             let span = self
                 .checker
@@ -192,7 +234,11 @@ impl DropPlanner<'_, '_> {
                 span,
             ));
         }
-        Ok(continues)
+        // Read does not deliver an owner, including a temporary just cleaned above.
+        if usage != DropExpressionUse::Consume {
+            result.owner = None;
+        }
+        Ok((Some(expression), result))
     }
 
     pub(super) fn control_result_usage(&self, expression: ExpressionId) -> DropExpressionUse {

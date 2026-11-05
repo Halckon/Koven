@@ -343,7 +343,7 @@ fn ownership_codes(text: &str) -> [Vec<String>; 2] {
 #[test]
 fn deinit_cannot_consume_this_or_move_a_field() {
     for body in ["val stolen = this", "val stolen = this.payload"] {
-        for codes in ownership_codes(&format!(
+        for codes in unit_plans::consume_rejection_codes(&format!(
             "class Payload {{}}\nclass Guard(val payload: Payload) {{ deinit() {{ {body} }} }}"
         )) {
             assert!(
@@ -864,17 +864,10 @@ fn returning_replaced_old_resource_transfers_it_without_a_second_drop() {
     let text = format!(
         "{HEADER}fun run(): Guard {{ var root = Guard(); return replace(&root, Guard()) }}"
     );
-    inspected_plans(&text, |_, _, single, unit| {
-        assert_eq!(single.ownership_primitives().len(), 1);
+    unit_plans::inspected_plans(&text, |_, _, unit| {
         assert_eq!(unit.ownership_primitives().len(), 1);
-        assert_eq!(single.drops().len(), 1);
         assert_eq!(unit.drops().len(), 1);
-        assert!(matches!(single.drops()[0].target(), DropTarget::Named(_)));
         assert!(matches!(unit.drops()[0].target(), UnitDropTarget::Named(_)));
-        assert!(matches!(
-            single.drops()[0].point(),
-            DropPoint::ControlTransfer(_)
-        ));
         assert!(matches!(
             unit.drops()[0].point(),
             UnitDropPoint::ControlTransfer(_)
@@ -956,12 +949,9 @@ fn direct_field_resource_return_transfers_old_and_cleans_only_complete_parent() 
     let text = format!(
         "{HEADER}class Holder(var state: Guard)\nfun run(): Guard {{ val holder = Holder(Guard()); return replace(&holder.state, Guard()) }}"
     );
-    let plans = inspected_plans(&text, |_, _, single, unit| {
-        assert_eq!(single.field_replacements().len(), 1);
+    let plans = unit_plans::inspected_plans(&text, |_, _, unit| {
         assert_eq!(unit.field_replacements().len(), 1);
-        assert_eq!(single.drops().len(), 1);
         assert_eq!(unit.drops().len(), 1);
-        assert!(matches!(single.drops()[0].target(), DropTarget::Named(_)));
         assert!(matches!(unit.drops()[0].target(), UnitDropTarget::Named(_)));
         assert!(unit.clone().validate().is_ok());
     });
@@ -983,12 +973,9 @@ fn direct_field_resource_interrupted_replacement_never_commits_or_unwinds_abort(
         let text = format!(
             "{HEADER}class Holder(var state: Guard)\nfun run(): Unit {{ val holder = Holder(Guard()); val sibling = Guard(); replace(&holder.state, {exit}) }}"
         );
-        let plans = inspected_plans(&text, |_, _, single, unit| {
-            assert!(single.field_replacements().is_empty());
+        let plans = unit_plans::inspected_plans(&text, |_, _, unit| {
             assert!(unit.field_replacements().is_empty());
-            assert!(single.ownership_primitives().is_empty());
             assert!(unit.ownership_primitives().is_empty());
-            assert_eq!(single.drops().len(), if exit == "return" { 2 } else { 0 });
             assert_eq!(unit.drops().len(), if exit == "return" { 2 } else { 0 });
         });
         for drops in plans {
@@ -1019,10 +1006,8 @@ fn direct_field_resource_interrupted_replacement_never_commits_or_unwinds_abort(
         );
         let text =
             format!("{HEADER}class Holder(var state: Guard)\nfun run(flag: Boolean): Unit {body}");
-        for drops in inspected_plans(&text, |_, _, single, unit| {
-            assert!(single.field_replacements().is_empty());
+        for drops in unit_plans::inspected_plans(&text, |_, _, unit| {
             assert!(unit.field_replacements().is_empty());
-            assert_eq!(single.drops().len(), 2);
             assert_eq!(unit.drops().len(), 2);
         }) {
             assert_eq!(

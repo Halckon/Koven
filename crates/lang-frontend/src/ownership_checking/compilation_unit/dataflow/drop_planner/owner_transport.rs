@@ -1,6 +1,7 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
 mod branch;
 mod capture;
+pub(super) mod choice;
 #[cfg(test)]
 mod tests;
 
@@ -11,13 +12,6 @@ use crate::ownership_checking::{
     UnitOwnerUnsupportedReason,
 };
 use crate::type_checking::{OwnershipPrimitiveKind, UnitItemId};
-
-/// These slices are admitted separately; their composition needs its own contract.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum OwnerObservationFeature {
-    Branch,
-    Capture,
-}
 
 /// One evaluation frame owns its result. Nested calls cannot overwrite their parent's slot.
 pub(super) struct EvaluatedOwner {
@@ -36,13 +30,16 @@ impl DropPlanner<'_, '_> {
         if !self.owner_observation_enabled {
             return;
         }
-        self.owner_observation_feature = None;
+        let identity = std::sync::Arc::new(());
+        self.owner_choice = choice::ChoiceTransaction::begin(self.checker, item, identity.clone());
+        self.owner_branch_depth = 0;
         self.owner_observation = Some(UnitOwnerObservation {
-            identity: std::sync::Arc::new(()),
+            identity,
             callable: UnitOwnerCallable::Function(UnitItemId::new(self.checker.source_unit, item)),
             status: UnitOwnerObservationStatus::Complete,
             definitions: Vec::new(),
             events: Vec::new(),
+            choice_value: None,
         });
     }
 
@@ -54,7 +51,8 @@ impl DropPlanner<'_, '_> {
         if !self.owner_observation_enabled {
             return;
         }
-        self.owner_observation_feature = None;
+        self.owner_choice = None;
+        self.owner_branch_depth = 0;
         self.owner_observation = Some(UnitOwnerObservation {
             identity: std::sync::Arc::new(()),
             callable,
@@ -64,11 +62,17 @@ impl DropPlanner<'_, '_> {
             },
             definitions: Vec::new(),
             events: Vec::new(),
+            choice_value: None,
         });
     }
 
     pub(super) fn finish_owner_observation(&mut self) {
+        let choice = self
+            .owner_choice
+            .take()
+            .and_then(choice::ChoiceTransaction::finish);
         if let Some(mut observation) = self.owner_observation.take() {
+            observation.choice_value = choice.map(Box::new);
             if !observation.is_consistent() {
                 let point = match observation.callable {
                     UnitOwnerCallable::Function(item) | UnitOwnerCallable::Deinit(item) => {
@@ -166,6 +170,9 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn define_string_owner(&mut self, expression: ExpressionId) -> Option<UnitOwnerId> {
+        if let Some(choice) = &mut self.owner_choice {
+            choice.string_completed(self.checker.unit_expression(expression));
+        }
         self.define_owner(UnitOwnerOrigin::String(
             self.checker.unit_expression(expression),
         ))
@@ -176,6 +183,12 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<OwnedValue>,
     ) -> Option<UnitOwnerId> {
+        if let Some(choice) = &mut self.owner_choice {
+            choice.moved(
+                self.checker.unit_expression(expression),
+                value.as_ref().map(|value| value.symbol),
+            );
+        }
         let owner = value.as_ref().and_then(|value| value.owner.clone());
         if let (Some(value), Some(owner)) = (value, owner.as_ref()) {
             self.owner_event(UnitOwnerTransportEvent::Move {
@@ -208,6 +221,12 @@ impl DropPlanner<'_, '_> {
         owner
     }
 
+    pub(super) fn inserted_owner(&mut self, symbol: UnitSymbolId, initializer: ExpressionId) {
+        if let Some(choice) = &mut self.owner_choice {
+            choice.bound(symbol, self.checker.unit_expression(initializer));
+        }
+    }
+
     pub(super) fn check_owner_statement(
         &mut self,
         id: StatementId,
@@ -229,17 +248,6 @@ impl DropPlanner<'_, '_> {
         Ok(())
     }
 
-    fn admit_owner_feature(&mut self, feature: OwnerObservationFeature) -> bool {
-        if self
-            .owner_observation_feature
-            .is_some_and(|prior| prior != feature)
-        {
-            return false;
-        }
-        self.owner_observation_feature = Some(feature);
-        true
-    }
-
     fn check_owner_expression(&mut self, id: ExpressionId) -> Result<(), OwnershipCheckingError> {
         if !self.owner_observation_active() {
             return Ok(());
@@ -254,17 +262,14 @@ impl DropPlanner<'_, '_> {
                 else_branch: Some(_),
                 ..
             } => {
-                self.admit_owner_feature(OwnerObservationFeature::Branch)
-                    && self
-                        .checker
-                        .typed
-                        .expression_type(self.checker.unit_expression(id))
-                        .and_then(|ty| self.checker.typed.types().get(ty))
-                        == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+                self.checker
+                    .typed
+                    .expression_type(self.checker.unit_expression(id))
+                    .and_then(|ty| self.checker.typed.types().get(ty))
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
             }
             Expression::Lambda { .. } => {
-                self.admit_owner_feature(OwnerObservationFeature::Capture)
-                    && self.owner_capture_supported(id)
+                self.owner_branch_depth == 0 && self.owner_capture_supported(id)
             }
             Expression::Literal(_) => self
                 .checker
@@ -320,6 +325,13 @@ impl DropPlanner<'_, '_> {
         self.check_owner_expression(id)?;
         let mut owner = None;
         let continues = self.expression_inner(id, usage, state, &mut owner)?;
+        if let Some(choice) = &mut self.owner_choice {
+            choice.expression_completed(
+                self.checker.unit_expression(id),
+                matches!(usage, DropExpressionUse::Consume),
+                continues,
+            );
+        }
         if !continues || !self.owner_observation_active() {
             owner = None;
         }

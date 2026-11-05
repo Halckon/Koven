@@ -4,7 +4,8 @@ use lang_frontend::{
     lexer::lex,
     name_resolution::resolve_names,
     ownership_checking::{
-        DropPoint, DropTarget, LoanEndPoint, OwnershipCheckedFile, check_ownership,
+        DropPoint, LoanEndPoint, OwnershipCheckedFile, UnitDropPoint, UnitDropTarget,
+        UnitReceiverOwnershipKind, check_ownership,
     },
     parser::parse_file,
     source::SourceMap,
@@ -17,7 +18,7 @@ mod parser_test_assertions;
 #[path = "support/borrow_rejection_unit.rs"]
 mod borrow_rejection_unit;
 
-// Retain Single for the independent loan-end, cleanup and overload witnesses.
+// Retain Single for the independent complete loan-end and failed-fact witnesses.
 fn checked(body: &str) -> (SourceMap, OwnershipCheckedFile) {
     let text = source_text(body);
     let mut sources = SourceMap::new();
@@ -333,40 +334,48 @@ fn reservations_keep_known_and_unknown_index_alias_rules() {
 
 #[test]
 fn receiver_reservation_holds_owner_and_borrow_temporary_through_call() {
-    let (sources, owned) = checked(
-        "class Holder { inout fun update(text: String, own count: Int): Unit {}\nfun read(): Int = 1 }\n\
+    for rooted in [false, true] {
+        let (sources, owned) = checked_unit(
+            "class Holder { inout fun update(text: String, own count: Int): Unit {}\nfun read(): Int = 1 }\n\
          fun run(own holder: Holder): Unit { holder.update(\"a\" + \"b\", holder.read()) }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let reservation = owned
-        .loans()
-        .iter()
-        .find(|fact| fact.is_receiver_reservation())
-        .unwrap();
-    let holder_drop = owned
-        .drops()
-        .iter()
-        .find(|fact| {
-            matches!(fact.target(), DropTarget::Named(_))
-                && sources
-                    .slice(fact.value_origin())
-                    .unwrap()
-                    .contains("holder")
-        })
-        .unwrap();
-    assert_eq!(
-        holder_drop.point(),
-        DropPoint::CallReturn(reservation.call())
-    );
-    let text_drop = owned
-        .drops()
-        .iter()
-        .find(|fact| {
-            matches!(fact.target(), DropTarget::Temporary(_))
-                && sources.slice(fact.value_origin()).unwrap() == "\"a\" + \"b\""
-        })
-        .unwrap();
-    assert_eq!(text_drop.point(), DropPoint::CallReturn(reservation.call()));
+            rooted,
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+        let reservation = owned
+            .receiver_facts()
+            .iter()
+            .find(|fact| fact.is_receiver_reservation())
+            .unwrap();
+        let holder_drop = owned
+            .drops()
+            .iter()
+            .find(|fact| {
+                matches!(fact.target(), UnitDropTarget::Named(_))
+                    && sources
+                        .slice(fact.value_origin())
+                        .unwrap()
+                        .contains("holder")
+            })
+            .unwrap();
+        assert_eq!(
+            holder_drop.point(),
+            UnitDropPoint::CallReturn(reservation.call())
+        );
+        let text_drop = owned
+            .drops()
+            .iter()
+            .find(|fact| {
+                matches!(fact.target(), UnitDropTarget::Temporary(_))
+                    && sources.slice(fact.value_origin()).unwrap() == "\"a\" + \"b\""
+            })
+            .unwrap();
+        assert_eq!(
+            text_drop.point(),
+            UnitDropPoint::CallReturn(reservation.call())
+        );
+        assert!(owned.validate().is_ok());
+    }
 }
 
 #[test]
@@ -383,24 +392,55 @@ fn move_during_reservation_precedes_non_owning_move_diagnostic() {
 
 #[test]
 fn overload_trials_publish_only_selected_receiver_and_argument_facts() {
-    let (_, owned) = checked(
-        "class Counter {\n\
+    for rooted in [false, true] {
+        let (sources, owned) = checked_unit(
+            "class Counter {\n\
              fun read(): Int = 1\n\
              inout fun set(own next: Int): Unit {}\n\
              fun set(next: String): Unit {}\n\
          }\n\
          fun run(own counter: Counter): Unit { counter.set(counter.read()) }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.loans().len(), 2);
-    assert_eq!(
-        owned
-            .loans()
-            .iter()
-            .filter(|fact| fact.is_receiver_reservation())
-            .count(),
-        1
-    );
+            rooted,
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+        // Unit publishes receiver effects separately from argument loans. Preserve
+        // both selected receivers and reject any leaked argument-overload facts.
+        assert!(owned.loans().is_empty());
+        assert_eq!(owned.receiver_facts().len(), 2);
+        assert_eq!(
+            owned
+                .receiver_facts()
+                .iter()
+                .filter(|fact| fact.is_receiver_reservation())
+                .count(),
+            1
+        );
+        for (call, kind, reserved) in [
+            (
+                "counter.set(counter.read())",
+                UnitReceiverOwnershipKind::ExclusiveLoan,
+                true,
+            ),
+            (
+                "counter.read()",
+                UnitReceiverOwnershipKind::SharedLoan,
+                false,
+            ),
+        ] {
+            let matching: Vec<_> = owned
+                .receiver_facts()
+                .iter()
+                .filter(|fact| sources.slice(fact.end_span()).unwrap() == call)
+                .collect();
+            let [fact] = matching.as_slice() else {
+                panic!("one selected receiver for {call}: {matching:?}");
+            };
+            assert_eq!(fact.kind(), kind);
+            assert_eq!(fact.is_receiver_reservation(), reserved);
+        }
+        assert!(owned.validate().is_ok());
+    }
 }
 
 #[test]

@@ -122,3 +122,7 @@ AggregateProject，不产生多级 loan。新路径拒绝 capture/结果绑定�
 Borrow/Carrier 结果来源的情况；非来源参数仍同步结束，来源判断保留 named/Group/receiver
 真实身份。owned inline direct-field、generic 与 MoveOnly 多级投影边界不扩。
 [0309 合同](../archive/specs/0309-borrow-value-class-fields.md)记录两入口普通源码回归与交付状态。
+
+Resource terminal 的 field 返回与中断测试使用 MemoryDocument/Rooted Unit 完整 drop 表、
+原 AST 边界与固定顺序期望；parent owner identity、old/new owner 不同的独立 Single
+witness 仍保留。此为测试观察入口收敛，不扩张 owner transport graph 的 field/terminal 能力。

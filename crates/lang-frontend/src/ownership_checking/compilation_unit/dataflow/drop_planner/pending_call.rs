@@ -1,10 +1,16 @@
 //! Evaluated call/interpolation operands remain owned until completion or control transfer.
 use super::{
     DropExpressionUse, DropPlanner, OwnedThis, OwnershipCheckingError, PlannerDropFact,
-    PlannerDropPoint, PlannerDropTarget, ValueState,
+    PlannerDropPoint, PlannerDropTarget, UnitCallArgumentOwnershipKind, ValueState,
 };
 use crate::{
-    ast::ExpressionId, name_resolution::UnitSymbolId, source::Span, type_checking::Copyability,
+    ast::ExpressionId,
+    name_resolution::UnitSymbolId,
+    ownership_checking::{LoanKind, UnitLoanTarget},
+    source::Span,
+    type_checking::{
+        Copyability, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitExpressionId,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -76,6 +82,77 @@ impl DropPlanner<'_, '_> {
             self.register_pending_temporary(call, argument, origin, true, state)?;
         }
         Ok(())
+    }
+
+    pub(super) fn register_borrow_temporary_argument(
+        &mut self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        kind: UnitCallArgumentOwnershipKind,
+        state: &mut ValueState,
+    ) -> Result<(), OwnershipCheckingError> {
+        // 保留既有 element backing 与直接 temporary 的选择顺序和独立生命周期路径。
+        if let Some(temporary) = self
+            .checker
+            .temporary_element_owner(argument)?
+            .map(UnitExpressionId::expression)
+            .or_else(|| {
+                (kind == UnitCallArgumentOwnershipKind::SharedLoan
+                    && self.is_move_only_temporary(argument))
+                .then_some(argument)
+            })
+            .or_else(|| self.direct_temporary_field_owner(call, argument, kind))
+        {
+            let origin = self
+                .checker
+                .parsed
+                .ast()
+                .expressions()
+                .get(temporary)?
+                .span();
+            self.register_pending_temporary(call, temporary, origin, false, state)?;
+        }
+        Ok(())
+    }
+
+    fn direct_temporary_field_owner(
+        &self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        kind: UnitCallArgumentOwnershipKind,
+    ) -> Option<ExpressionId> {
+        if kind != UnitCallArgumentOwnershipKind::SharedLoan
+            || self.checker.borrow_result_call(argument).is_some()
+            || self.checker.range_use(argument).is_some()
+        {
+            return None;
+        }
+        let argument = self.checker.unit_expression(argument);
+        let projection = self.checker.typed.aggregate_projection(argument)?;
+        if projection.expression() != argument
+            || projection.kind() != UnitAggregateProjectionKind::Field
+        {
+            return None;
+        }
+        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+            return None;
+        };
+        // 只接受一层直接父；不沿 nested field、element 或 Rc.value 重新追溯 owner。
+        if receiver.source_unit() != self.checker.source_unit {
+            return None;
+        }
+        let call = self.checker.unit_expression(call);
+        self.checker.loans.iter().find_map(|loan| {
+            if loan.call() != call || loan.argument() != argument || loan.kind() != LoanKind::Shared
+            {
+                return None;
+            }
+            let UnitLoanTarget::Temporary(owner) = loan.target() else {
+                return None;
+            };
+            (*owner == receiver && self.is_move_only_temporary(owner.expression()))
+                .then_some(owner.expression())
+        })
     }
 
     pub(super) fn register_pending_temporary(
