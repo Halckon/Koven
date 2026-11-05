@@ -1871,3 +1871,12 @@ PartialEq 字节不变，不为 V1 能力增加结构相等或改写身份规则
 见证补 Eq 约束，真实 Choice 正例补移除能力后的旧事实相等与能力缺失断言。
 格式、文档及 diff 静态检查通过；本地 Cargo/build/test/Clippy 仍未运行，新头官方
 CI 尚待验证。首轮测试与 Preview 因编译失败未执行，不能记为通过。
+
+第二轮 [PR #312 CI](https://github.com/Halckon/Koven/actions/runs/41947413924) 的头
+`192c7be48663234b0972da122b9916cd565d0d68` 双宿主 check/clippy 通过；frontend
+库内测试各 311 通过、1 失败，定位到直线 nested replace 的合法 CallReturn cleanup
+被 V1 point 白名单遗漏。保留原 fixture、真实清理和原断言，仅为无 Choice 的旧事实投影
+接受紧邻已回放 Replace 的同 call/root/incoming owner 清理；单事件 adapter 显式传入
+前一条已完成事件，不用未来事件作证明。真实测试固定两次 CallReturn 与独立 AST/literal
+身份，并补错误调用、缺少 Replace 及 Choice 仍拒绝 CallReturn 的负控。
+本地仅静态检查，未运行 Cargo/build/test/Clippy；新头动态验收仍待官方 CI。

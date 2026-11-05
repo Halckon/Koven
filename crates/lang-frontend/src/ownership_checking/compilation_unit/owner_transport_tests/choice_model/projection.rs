@@ -13,7 +13,11 @@ val moved = (old)
 }"#;
     let fixture = Fixture::new(&[("root.ko", source)]);
     let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    assert!(owned.clone().validate().is_ok());
     let legacy = &owned.owner_observations()[0];
+    assert_eq!(legacy.status(), UnitOwnerObservationStatus::Complete);
+    assert!(legacy.is_consistent());
     let projection = legacy
         .value_observation_v1()
         .expect("straight-line String transport");
@@ -25,6 +29,7 @@ val moved = (old)
     let mut creates = Vec::new();
     let mut replacements = 0;
     let mut drops = 0;
+    let mut call_drops = Vec::new();
     for event in projection.prefix() {
         match event {
             Event::Create(expression, owner) => {
@@ -50,6 +55,16 @@ val moved = (old)
             Event::Drop(point, _, Value::Definition(owner)) => {
                 assert!(legacy.definition(owner.clone()).is_some());
                 assert!(legacy.events().iter().any(|event| matches!(event, UnitOwnerTransportEvent::Drop { point: actual, owner: token, .. } if actual == point && token == owner)));
+                if let UnitDropPoint::CallReturn(call) = point {
+                    call_drops.push((
+                        *call,
+                        projection
+                            .producers()
+                            .definition(owner.clone())
+                            .unwrap()
+                            .origin(),
+                    ));
+                }
                 drops += 1;
             }
             _ => {}
@@ -58,6 +73,77 @@ val moved = (old)
     assert_eq!(creates.len(), 3);
     assert_eq!(replacements, 2);
     assert_eq!(drops, 3);
+    let inner = UnitExpressionId::new(
+        fixture.source(0),
+        fixture.expression(0, "replace(&b, (forwarded))"),
+    );
+    let outer = UnitExpressionId::new(
+        fixture.source(0),
+        fixture.expression(0, "replace(&a, replace(&b, (forwarded)))"),
+    );
+    assert_eq!(
+        call_drops,
+        vec![
+            (
+                inner,
+                UnitOwnerOrigin::String(UnitExpressionId::new(
+                    fixture.source(0),
+                    fixture.expression(0, "\"new\"")
+                ))
+            ),
+            (
+                outer,
+                UnitOwnerOrigin::String(UnitExpressionId::new(
+                    fixture.source(0),
+                    fixture.expression(0, "\"old b\"")
+                ))
+            ),
+        ]
+    );
+    let mut wrong_call = projection.clone();
+    let event = wrong_call
+        .prefix
+        .iter_mut()
+        .find(|event| matches!(event, Event::Drop(UnitDropPoint::CallReturn(_), ..)))
+        .unwrap();
+    let Event::Drop(point, ..) = event else {
+        unreachable!()
+    };
+    *point = UnitDropPoint::CallReturn(outer);
+    assert!(
+        !wrong_call.is_consistent(),
+        "later replacement cannot prove an earlier root cleanup"
+    );
+    let drop_index = projection
+        .prefix
+        .iter()
+        .position(|event| matches!(event, Event::Drop(UnitDropPoint::CallReturn(_), ..)))
+        .unwrap();
+    let mut wrong_root = projection.clone();
+    let Event::Drop(_, root, _) = &mut wrong_root.prefix[drop_index] else {
+        unreachable!()
+    };
+    *root = fixture.symbol(0, "a");
+    assert!(!wrong_root.is_consistent());
+    let mut wrong_owner = projection.clone();
+    let Event::Drop(_, _, owner) = &mut wrong_owner.prefix[drop_index] else {
+        unreachable!()
+    };
+    *owner = Value::Definition(literal_owner(&fixture, 0, legacy, "\"old a\""));
+    assert!(!wrong_owner.is_consistent());
+    let mut non_adjacent = projection.clone();
+    non_adjacent.prefix.insert(
+        drop_index,
+        Event::Forward(
+            inner,
+            inner,
+            Value::Definition(literal_owner(&fixture, 0, legacy, "\"old b\"")),
+        ),
+    );
+    assert!(
+        !non_adjacent.is_consistent(),
+        "CallReturn needs the immediately preceding replacement, not any earlier match"
+    );
     let independent = fixture.shared();
     assert!(
         independent.owner_observations()[0]
@@ -116,6 +202,19 @@ fn value_projection_validator_rejects_missing_duplicate_and_foreign_transport() 
     let graph = owned.owner_observations()[0]
         .value_observation_v1()
         .unwrap();
+    let mut unproven_call = graph.clone();
+    let event = unproven_call.prefix.last_mut().unwrap();
+    let Event::Drop(point, ..) = event else {
+        unreachable!()
+    };
+    *point = UnitDropPoint::CallReturn(UnitExpressionId::new(
+        fixture.source(0),
+        fixture.expression(0, "\"owned\""),
+    ));
+    assert!(
+        !unproven_call.is_consistent(),
+        "CallReturn requires an earlier matching replacement"
+    );
     let mut missing = graph.clone();
     missing.prefix.pop();
     assert!(!missing.is_consistent());

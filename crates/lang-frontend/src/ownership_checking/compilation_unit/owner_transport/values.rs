@@ -137,11 +137,12 @@ impl UnitOwnerValueObservationV1 {
         }
     }
 
-    fn replay(
+    fn replay<'event>(
         &self,
-        events: &[UnitOwnerValueEventV1],
+        events: &'event [UnitOwnerValueEventV1],
         selected: Option<usize>,
         slots: &mut [Slot],
+        mut preceding: Option<&'event UnitOwnerValueEventV1>,
     ) -> bool {
         for event in events {
             let valid = match event {
@@ -187,12 +188,22 @@ impl UnitOwnerValueObservationV1 {
                 ),
                 UnitOwnerValueEventV1::Drop(point, symbol, value) => {
                     super::super::owner_transport_validation::point_source(*point) == self.source()
-                        && matches!(
-                            point,
+                        && match point {
                             UnitDropPoint::AfterStatement(_)
-                                | UnitDropPoint::AfterExpression(_)
-                                | UnitDropPoint::FunctionEntry(_)
-                        )
+                            | UnitDropPoint::AfterExpression(_)
+                            | UnitDropPoint::FunctionEntry(_) => true,
+                            // Only closed legacy replacement traces carry this proof.
+                            UnitDropPoint::CallReturn(call) if self.choice.is_none() => matches!(
+                                preceding,
+                                Some(UnitOwnerValueEventV1::Replace {
+                                    call: committed, root, incoming, ..
+                                }) if committed == call && root == symbol
+                                    && self.resolve(incoming, selected)
+                                        .zip(self.resolve(value, selected))
+                                        .is_some_and(|(installed, dropped)| installed == dropped)
+                            ),
+                            _ => false,
+                        }
                         && self.transition(
                             value,
                             selected,
@@ -232,6 +243,7 @@ impl UnitOwnerValueObservationV1 {
             if !valid {
                 return false;
             }
+            preceding = Some(event);
         }
         true
     }
@@ -284,7 +296,7 @@ impl UnitOwnerValueObservationV1 {
         let Some(choice) = self.choice.as_ref() else {
             let mut slots = vec![Slot::Uncreated; self.catalog.definitions.len()];
             if !self.suffix.is_empty()
-                || !self.replay(&self.prefix, None, &mut slots)
+                || !self.replay(&self.prefix, None, &mut slots, None)
                 || slots.iter().any(|slot| *slot != Slot::Dropped)
             {
                 return None;
@@ -325,7 +337,7 @@ impl UnitOwnerValueObservationV1 {
             return None;
         }
         let mut base = vec![Slot::Uncreated; count];
-        if !self.replay(&self.prefix, None, &mut base) {
+        if !self.replay(&self.prefix, None, &mut base, None) {
             return None;
         }
         let mut arms = [base.clone(), base];
@@ -334,7 +346,7 @@ impl UnitOwnerValueObservationV1 {
             if input.edge != edge
                 || !self.valid_id(&input.owner)
                 || input.tail.source_unit() != self.source()
-                || !self.replay(&choice.events[edge], None, arm)
+                || !self.replay(&choice.events[edge], None, arm, None)
                 || arm[input.owner.index] != Slot::Result(input.tail)
             {
                 return None;
@@ -357,7 +369,7 @@ impl UnitOwnerValueObservationV1 {
             }
         }
         for (edge, arm) in arms.iter_mut().enumerate() {
-            if !self.replay(&self.suffix, Some(edge), arm) {
+            if !self.replay(&self.suffix, Some(edge), arm, None) {
                 return None;
             }
             for (index, slot) in arm.iter().enumerate() {
@@ -453,7 +465,12 @@ impl UnitOwnerObservation {
                 | UnitOwnerTransportEvent::Capture { .. }
                 | UnitOwnerTransportEvent::CaptureDrop { .. } => return None,
             };
-            if !graph.replay(std::slice::from_ref(&projected), None, &mut slots) {
+            if !graph.replay(
+                std::slice::from_ref(&projected),
+                None,
+                &mut slots,
+                graph.prefix.last(),
+            ) {
                 return None;
             }
             graph.prefix.push(projected);

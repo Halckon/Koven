@@ -448,4 +448,24 @@ fn choice_graph_rejects_uncovered_branch_cleanup_points() {
         !model.is_consistent(),
         "V1 has no branch-exit cleanup proof contract yet"
     );
+    let (mut model, ids) = fixture();
+    let root_drop = model
+        .suffix
+        .iter()
+        .position(|event| matches!(event, Event::Drop(_, root, _) if *root == ids.root))
+        .unwrap();
+    let drop = model.suffix.remove(root_drop);
+    model.suffix.insert(2, drop);
+    assert!(
+        model.is_consistent(),
+        "adjacent cleanup still conserves both selected paths"
+    );
+    let Event::Drop(point, _, _) = &mut model.suffix[2] else {
+        unreachable!()
+    };
+    *point = UnitDropPoint::CallReturn(ids.call);
+    assert!(
+        !model.is_consistent(),
+        "legacy CallReturn support must not widen Choice cleanup"
+    );
 }
