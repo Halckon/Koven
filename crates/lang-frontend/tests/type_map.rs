@@ -43,63 +43,6 @@ fn checked(text: &str) -> (SourceMap, ParsedFile, NameResolution, TypedFile) {
     (sources, parsed, resolution, typed)
 }
 
-#[derive(Clone, Copy, Debug)]
-enum Entry {
-    MemoryDocument,
-    Rooted,
-}
-
-const ENTRIES: [Entry; 2] = [Entry::MemoryDocument, Entry::Rooted];
-
-impl Entry {
-    fn input<'a>(self, file: &'a ParsedFile, path: &'a str) -> SourceUnitInput<'a> {
-        match self {
-            Self::MemoryDocument => SourceUnitInput::memory_document(file.source_id(), file),
-            Self::Rooted => SourceUnitInput::new("root", path, file.source_id(), file),
-        }
-    }
-
-    fn assert_identity(
-        self,
-        index: &lang_frontend::name_resolution::CompilationUnitIndex,
-        file: &ParsedFile,
-        path: &str,
-    ) {
-        use lang_frontend::name_resolution::SourceUnitKey;
-        let [source] = index.source_units() else {
-            panic!("one original source")
-        };
-        assert_eq!(source.source_id(), file.source_id());
-        assert!(match (self, source.key()) {
-            (Self::MemoryDocument, SourceUnitKey::MemoryDocument) => true,
-            (Self::Rooted, SourceUnitKey::Rooted { root, logical_path }) =>
-                root.as_str() == "root" && logical_path.as_str() == path,
-            _ => false,
-        });
-    }
-}
-
-fn checked_entries(
-    text: &str,
-) -> (
-    SourceMap,
-    [lang_frontend::type_checking::CompilationUnitTypes; 2],
-) {
-    let (sources, file) = parsed(text);
-    let (environment, types) = standard_environments();
-    let results = ENTRIES.map(|entry| {
-        let inputs = [entry.input(&file, "map_test.ko")];
-        let index = index_compilation_unit(&sources, &inputs).expect("unit index");
-        entry.assert_identity(&index, &file, "map_test.ko");
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-            .expect("unit names")
-            .validate()
-            .expect("valid names");
-        check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit types")
-    });
-    (sources, results)
-}
-
 fn checked_unit(text: &str) -> lang_frontend::type_checking::CompilationUnitTypes {
     checked_unit_with_sources(text).1
 }
@@ -149,9 +92,12 @@ fn unit_map_signatures_check_hashable_and_storable_arguments() {
 fn map_nullable_value_queries_require_scoped_access_with_diagnostic_span() {
     for (query, code) in [("m.get(1)", "L0130"), ("m[1]", "L0130")] {
         let text = format!("fun read(m: Map<Int, Int?>): Unit {{ val result = {query} }}");
-        let (sources, entries) = checked_entries(&text);
-        for unit in &entries {
-            let diagnostics = unit.diagnostics();
+        let (sources, _, _, single) = checked(&text);
+        let (unit_sources, unit) = checked_unit_with_sources(&text);
+        for (sources, diagnostics) in [
+            (&sources, single.diagnostics()),
+            (&unit_sources, unit.diagnostics()),
+        ] {
             let diagnostic = diagnostics
                 .iter()
                 .find(|d| d.code().to_string() == code)
@@ -159,7 +105,8 @@ fn map_nullable_value_queries_require_scoped_access_with_diagnostic_span() {
             assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), query);
             assert!(diagnostic.message().contains("withValue"));
         }
-        assert!(entries.iter().all(|unit| unit.map_gets().is_empty()));
+        assert!(single.map_gets().is_empty());
+        assert!(unit.map_gets().is_empty());
     }
 }
 
@@ -168,9 +115,12 @@ fn map_move_only_get_contract_stays_rejected_including_nullable_values() {
     for value in ["String", "String?"] {
         for query in ["m.get(1)", "m[1]"] {
             let text = format!("fun read(m: Map<Int, {value}>): Unit {{ val result = {query} }}");
-            let (sources, entries) = checked_entries(&text);
-            for unit in &entries {
-                let diagnostics = unit.diagnostics();
+            let (sources, _, _, single) = checked(&text);
+            let (unit_sources, unit) = checked_unit_with_sources(&text);
+            for (sources, diagnostics) in [
+                (&sources, single.diagnostics()),
+                (&unit_sources, unit.diagnostics()),
+            ] {
                 let diagnostic = diagnostics
                     .iter()
                     .find(|d| d.code().to_string() == "L0136")
@@ -374,15 +324,19 @@ fn map_nullable_borrow_argument_requires_a_non_null_proof() {
         let text = format!(
             "fun observe(value: Int): Unit {{}}\nfun entry(): Unit {{\n var values = mutableMapOf<Int, Int>()\n val result = {query}\n observe(result)\n}}"
         );
-        let (sources, entries) = checked_entries(&text);
-        for unit in &entries {
-            let diagnostics = unit.diagnostics();
+        let (sources, _, _, single) = checked(&text);
+        let (unit_sources, unit) = checked_unit_with_sources(&text);
+        for (sources, diagnostics) in [
+            (&sources, single.diagnostics()),
+            (&unit_sources, unit.diagnostics()),
+        ] {
             let error = diagnostics
                 .iter()
                 .find(|diagnostic| diagnostic.code().to_string() == "L0084")
                 .unwrap_or_else(|| panic!("{query}: {diagnostics:?}"));
             assert_eq!(sources.slice(error.primary_span()).unwrap(), "result");
         }
-        assert!(entries.iter().all(|unit| unit.non_null_uses().is_empty()));
+        assert!(single.non_null_uses().is_empty());
+        assert!(unit.non_null_uses().is_empty());
     }
 }

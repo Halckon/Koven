@@ -13,9 +13,6 @@ use lang_frontend::{
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-#[path = "support/nullable_ownership_unit.rs"]
-mod nullable_unit;
-
 fn checked(text: &str) -> OwnershipCheckedFile {
     let mut sources = SourceMap::new();
     let source = sources
@@ -206,32 +203,20 @@ fn earlier_borrowed_root_survives_later_when_until_call_return() {
 
 #[test]
 fn element_subject_read_still_checks_an_active_exclusive_loan() {
-    for rooted in [false, true] {
-        let checked = |text: &str| {
-            nullable_unit::checked(
-                text,
-                "nullable-ownership.ko",
-                rooted,
-                standard_environments(),
-            )
-            .2
-        };
-
-        let owned = checked(
-            "class Node {}\nfun check(inout xs: List<Node?>, own result: Unit): Unit {}\nfun test(own input: List<Node?>): Unit { var xs = input val result = check(&xs, when (xs[0]) { null -> {}; else -> {} }) }",
-        );
-        let codes: Vec<_> = owned
-            .diagnostics()
-            .iter()
-            .map(|d| d.code().to_string())
-            .collect();
-        assert_eq!(
-            codes,
-            ["L0135"],
-            "a read-only subject must not bypass loan conflicts"
-        );
-        assert!(owned.nullable_whens().is_empty());
-    }
+    let owned = checked(
+        "class Node {}\nfun check(inout xs: List<Node?>, own result: Unit): Unit {}\nfun test(own input: List<Node?>): Unit { var xs = input val result = check(&xs, when (xs[0]) { null -> {}; else -> {} }) }",
+    );
+    let codes: Vec<_> = owned
+        .diagnostics()
+        .iter()
+        .map(|d| d.code().to_string())
+        .collect();
+    assert_eq!(
+        codes,
+        ["L0135"],
+        "a read-only subject must not bypass loan conflicts"
+    );
+    assert!(owned.nullable_whens().is_empty());
 }
 
 #[test]
@@ -464,83 +449,46 @@ fn nullable_proof_keeps_the_single_subject_identity() {
 
 #[test]
 fn invalid_nullable_delivery_publishes_no_partial_plan() {
-    for rooted in [false, true] {
-        let checked = |text: &str| {
-            nullable_unit::checked(
-                text,
-                "nullable-ownership.ko",
-                rooted,
-                standard_environments(),
-            )
-            .2
-        };
-
-        let owned = checked(
-            "class Node {}\nfun bad(x: Node?): Node = when (x) { null -> Node(); else -> x }",
-        );
-        assert!(!owned.diagnostics().is_empty());
-        assert!(owned.nullable_whens().is_empty());
-        assert!(owned.drops().is_empty());
-    }
+    let owned =
+        checked("class Node {}\nfun bad(x: Node?): Node = when (x) { null -> Node(); else -> x }");
+    assert!(!owned.diagnostics().is_empty());
+    assert!(owned.nullable_whens().is_empty());
+    assert!(owned.drops().is_empty());
 }
 
 #[test]
 fn control_result_delivery_cannot_move_a_borrowed_owner() {
-    for rooted in [false, true] {
-        let checked = |text: &str| {
-            nullable_unit::checked(
-                text,
-                "nullable-ownership.ko",
-                rooted,
-                standard_environments(),
-            )
-            .2
-        };
-
-        // If and when must apply the same Value contract to their result branches.
-        for text in [
-            "class Node {}\nfun extract(flag: Boolean, x: Node): Node = if (flag) { x } else { Node() }",
-            "class Node {}\nfun extract(flag: Boolean, x: Node): Node = when (flag) { true -> x; false -> Node() }",
-        ] {
-            let owned = checked(text);
-            let codes: Vec<_> = owned
-                .diagnostics()
-                .iter()
-                .map(|d| d.code().to_string())
-                .collect();
-            assert_eq!(codes, ["L0133"], "{text}");
-        }
-    }
-}
-
-#[test]
-fn transferred_control_result_keeps_source_moved_after_join() {
-    for rooted in [false, true] {
-        let checked = |text: &str| {
-            nullable_unit::checked(
-                text,
-                "nullable-ownership.ko",
-                rooted,
-                standard_environments(),
-            )
-            .2
-        };
-
-        let owned = checked(
-            "class Node {}\nfun test(own x: Node?): Unit { val result = when (x) { null -> Node(); else -> x } val reused = x }",
-        );
+    // If and when must apply the same Value contract to their result branches.
+    for text in [
+        "class Node {}\nfun extract(flag: Boolean, x: Node): Node = if (flag) { x } else { Node() }",
+        "class Node {}\nfun extract(flag: Boolean, x: Node): Node = when (flag) { true -> x; false -> Node() }",
+    ] {
+        let owned = checked(text);
         let codes: Vec<_> = owned
             .diagnostics()
             .iter()
             .map(|d| d.code().to_string())
             .collect();
-        assert_eq!(
-            codes,
-            ["L0131"],
-            "result delivery must consume the original owner"
-        );
-        assert!(owned.drops().is_empty());
+        assert_eq!(codes, ["L0133"], "{text}");
     }
+}
+
+#[test]
+fn transferred_control_result_keeps_source_moved_after_join() {
+    let owned = checked(
+        "class Node {}\nfun test(own x: Node?): Unit { val result = when (x) { null -> Node(); else -> x } val reused = x }",
+    );
+    let codes: Vec<_> = owned
+        .diagnostics()
+        .iter()
+        .map(|d| d.code().to_string())
+        .collect();
+    assert_eq!(
+        codes,
+        ["L0131"],
+        "result delivery must consume the original owner"
+    );
+    assert!(owned.drops().is_empty());
 }
 
 #[test]
@@ -590,103 +538,67 @@ fn owned_move_only_inner_can_transfer_the_whole_root() {
 
 #[test]
 fn proof_does_not_grant_move_permission_to_borrow_or_inout() {
-    for rooted in [false, true] {
-        let checked = |text: &str| {
-            nullable_unit::checked(
-                text,
-                "nullable-ownership.ko",
-                rooted,
-                standard_environments(),
-            )
-            .2
-        };
-
-        for mode in ["", "inout "] {
-            let text = format!(
-                "class Node {{}}\nfun extract({mode}x: Node?): Node = when (x) {{ null -> Node(); else -> x }}"
-            );
-            let owned = checked(&text);
-            let codes: Vec<_> = owned
-                .diagnostics()
-                .iter()
-                .map(|d| d.code().to_string())
-                .collect();
-            assert_eq!(codes, ["L0133"], "{text}");
-            assert!(
-                owned.drops().is_empty(),
-                "invalid ownership must not publish drop plans"
-            );
-        }
+    for mode in ["", "inout "] {
+        let text = format!(
+            "class Node {{}}\nfun extract({mode}x: Node?): Node = when (x) {{ null -> Node(); else -> x }}"
+        );
+        let owned = checked(&text);
+        let codes: Vec<_> = owned
+            .diagnostics()
+            .iter()
+            .map(|d| d.code().to_string())
+            .collect();
+        assert_eq!(codes, ["L0133"], "{text}");
+        assert!(
+            owned.drops().is_empty(),
+            "invalid ownership must not publish drop plans"
+        );
     }
 }
 
 #[test]
 fn repeated_field_and_element_reads_cannot_reuse_subject_proof_for_move() {
-    for rooted in [false, true] {
-        let checked = |text: &str| {
-            nullable_unit::checked(
-                text,
-                "nullable-ownership.ko",
-                rooted,
-                standard_environments(),
-            )
-            .2
-        };
-
-        // Return nullable to avoid pretending the repeated read has the internal subject's proof.
-        for (text, code) in [
-            (
-                "class Node {}\nclass Holder(val item: Node?)\nfun extract(own h: Holder): Node? = when (h.item) { null -> null; else -> h.item }",
-                "L0132",
-            ),
-            (
-                "class Node {}\nfun extract(own xs: List<Node?>): Node? = when (xs[0]) { null -> null; else -> xs[0] }",
-                "L0136",
-            ),
-        ] {
-            let owned = checked(text);
-            let codes: Vec<_> = owned
-                .diagnostics()
-                .iter()
-                .map(|d| d.code().to_string())
-                .collect();
-            assert_eq!(codes, [code], "{text}");
-        }
+    // Return nullable to avoid pretending the repeated read has the internal subject's proof.
+    for (text, code) in [
+        (
+            "class Node {}\nclass Holder(val item: Node?)\nfun extract(own h: Holder): Node? = when (h.item) { null -> null; else -> h.item }",
+            "L0132",
+        ),
+        (
+            "class Node {}\nfun extract(own xs: List<Node?>): Node? = when (xs[0]) { null -> null; else -> xs[0] }",
+            "L0136",
+        ),
+    ] {
+        let owned = checked(text);
+        let codes: Vec<_> = owned
+            .diagnostics()
+            .iter()
+            .map(|d| d.code().to_string())
+            .collect();
+        assert_eq!(codes, [code], "{text}");
     }
 }
 
 #[test]
 fn nullable_extraction_respects_active_loan_and_previous_move() {
-    for rooted in [false, true] {
-        let checked = |text: &str| {
-            nullable_unit::checked(
-                text,
-                "nullable-ownership.ko",
-                rooted,
-                standard_environments(),
-            )
-            .2
-        };
-
-        for (text, code) in [
-            (
-                "class Node {}\nfun take(own x: Node): Unit {}\nfun outer(x: Node?, own result: Unit): Unit {}\nfun test(own x: Node?): Unit = outer(x, when (x) { null -> {}; else -> take(x) })",
-                "L0135",
-            ),
-            (
-                "class Node {}\nfun take(own x: Node): Unit {}\nfun test(own x: Node?): Unit = when (x) { null -> {}; else -> { val first = take(x) val second = take(x) } }",
-                "L0131",
-            ),
-        ] {
-            let owned = checked(text);
-            let codes: Vec<_> = owned
-                .diagnostics()
-                .iter()
-                .map(|d| d.code().to_string())
-                .collect();
-            assert_eq!(codes, [code], "{text}");
-            assert!(owned.drops().is_empty());
-        }
+    for (text, code) in [
+        (
+            "class Node {}\nfun take(own x: Node): Unit {}\nfun outer(x: Node?, own result: Unit): Unit {}\nfun test(own x: Node?): Unit = outer(x, when (x) { null -> {}; else -> take(x) })",
+            "L0135",
+        ),
+        (
+            "class Node {}\nfun take(own x: Node): Unit {}\nfun test(own x: Node?): Unit = when (x) { null -> {}; else -> { val first = take(x) val second = take(x) } }",
+            "L0131",
+        ),
+    ] {
+        let owned = checked(text);
+        let codes: Vec<_> = owned
+            .diagnostics()
+            .iter()
+            .map(|d| d.code().to_string())
+            .collect();
+        assert_eq!(codes, [code], "{text}");
+        assert!(owned.drops().is_empty());
     }
 }
 

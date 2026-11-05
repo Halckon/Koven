@@ -21,9 +21,9 @@ struct NamedDrop {
     text: String,
 }
 
-#[path = "ownership_resource_deinit/unit_plans.rs"]
-mod unit_plans;
-use unit_plans::plans;
+fn plans(text: &str) -> [Vec<NamedDrop>; 2] {
+    inspected_plans(text, |_, _, _, _| {})
+}
 
 fn inspected_plans(
     text: &str,

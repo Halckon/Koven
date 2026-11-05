@@ -1,10 +1,12 @@
 //! SPEC-0291: ordinary local receivers retain both concrete Map type arguments.
 
 use lang_frontend::{
-    name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
+    name_resolution::{
+        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+    },
     type_checking::{
-        BuiltinType, IntrinsicTypeConstructor, UnitExpressionId, UnitTypeKind,
-        check_compilation_unit_types, standard_environments,
+        BuiltinType, IntrinsicTypeConstructor, TypeKind, UnitExpressionId, UnitTypeKind,
+        check_compilation_unit_types, check_types, standard_environments,
     },
 };
 
@@ -81,35 +83,59 @@ fn observe_both(
     assert_eq!(calls.len(), 1, "{label}: one actual consume expression");
     let call = calls[0];
     let (environment, types) = standard_environments();
-    super::ENTRIES.map(|entry| {
-        let inputs = [entry.input(&file, "map_test.ko")];
-        let index = index_compilation_unit(&sources, &inputs).expect("unit index");
-        entry.assert_identity(&index, &file, "map_test.ko");
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-            .expect("unit names")
-            .validate()
-            .expect("valid unit names");
-        let source_unit = names.names().index().source_units()[0].id();
-        let unit =
-            check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit raw types");
-        let unit_expected = UnitTypeKind::Intrinsic {
-            constructor: IntrinsicTypeConstructor::Map,
-            arguments: vec![
-                unit.types().builtin(key).expect("standard key type"),
-                unit.types().builtin(value).expect("standard value type"),
-            ],
-        };
-        let unit_actual = unit
-            .expression_type(UnitExpressionId::new(source_unit, call))
-            .and_then(|ty| unit.types().get(ty));
-        (
-            format!(
-                "{label}/{entry:?}: expected {unit_expected:?}, actual {unit_actual:?}, diagnostics {:?}",
-                unit.diagnostics()
-            ),
-            unit.diagnostics().is_empty() && unit_actual == Some(&unit_expected),
-        )
-    })
+    let names = resolve_names(&sources, &file, &environment).expect("single names");
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let single = check_types(&sources, &file, &names, &types).expect("single raw types");
+    let single_expected = TypeKind::Intrinsic {
+        constructor: IntrinsicTypeConstructor::Map,
+        arguments: vec![
+            single.types().builtin(key).expect("standard key type"),
+            single.types().builtin(value).expect("standard value type"),
+        ],
+    };
+    let single_actual = single
+        .expression_type(call)
+        .and_then(|ty| single.types().get(ty));
+    let single_observation = (
+        format!(
+            "{label}/single: expected {single_expected:?}, actual {single_actual:?}, diagnostics {:?}",
+            single.diagnostics()
+        ),
+        single.diagnostics().is_empty() && single_actual == Some(&single_expected),
+    );
+
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "map_test.ko",
+        file.source_id(),
+        &file,
+    )];
+    let index = index_compilation_unit(&sources, &inputs).expect("unit index");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .expect("unit names")
+        .validate()
+        .expect("valid unit names");
+    let source_unit = names.names().index().source_units()[0].id();
+    let unit =
+        check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit raw types");
+    let unit_expected = UnitTypeKind::Intrinsic {
+        constructor: IntrinsicTypeConstructor::Map,
+        arguments: vec![
+            unit.types().builtin(key).expect("standard key type"),
+            unit.types().builtin(value).expect("standard value type"),
+        ],
+    };
+    let unit_actual = unit
+        .expression_type(UnitExpressionId::new(source_unit, call))
+        .and_then(|ty| unit.types().get(ty));
+    let unit_observation = (
+        format!(
+            "{label}/unit: expected {unit_expected:?}, actual {unit_actual:?}, diagnostics {:?}",
+            unit.diagnostics()
+        ),
+        unit.diagnostics().is_empty() && unit_actual == Some(&unit_expected),
+    );
+    [single_observation, unit_observation]
 }
 
 #[test]
@@ -143,12 +169,14 @@ fun run(): Unit {
             .add_source("user_consume.ko", text)
             .expect("fixed source");
         let file = super::parse_file_twice(&sources, source, label);
-        for entry in super::ENTRIES {
-            observations.push((
-                format!("{label}/{entry:?}"),
-                observe_user_unit(&sources, &file, call_text, factory, entry),
-            ));
-        }
+        observations.push((
+            format!("{label}/single"),
+            observe_user_single(&sources, &file, call_text, factory),
+        ));
+        observations.push((
+            format!("{label}/unit"),
+            observe_user_unit(&sources, &file, call_text, factory),
+        ));
     }
     assert_eq!(observations.len(), 4);
     assert!(
@@ -191,12 +219,102 @@ fn user_symbol(
         .map(|symbol| symbol.id())
 }
 
+fn observe_user_single(
+    sources: &super::SourceMap,
+    file: &super::ParsedFile,
+    call_text: &str,
+    factory: bool,
+) -> Result<(bool, String), String> {
+    use lang_frontend::type_checking::{CallableTarget, complete_file_types};
+    if !file.diagnostics().is_empty() {
+        return Err(format!(
+            "parse {:?}; names/raw/complete not reached",
+            file.diagnostics()
+        ));
+    }
+    let (environment, types) = standard_environments();
+    let names = resolve_names(sources, file, &environment)
+        .map_err(|error| format!("names internal: {error:?}"))?;
+    if !names.diagnostics().is_empty() {
+        return Err(format!(
+            "names {:?}; raw/complete not reached",
+            names.diagnostics()
+        ));
+    }
+    let typed = check_types(sources, file, &names, &types)
+        .map_err(|error| format!("raw internal: {error:?}"))?;
+    let calls = user_calls(sources, file, call_text);
+    let method = user_symbol(&names, "consume");
+    let method_descriptors = typed
+        .calls()
+        .iter()
+        .filter(|descriptor| calls.contains(&descriptor.expression()))
+        .collect::<Vec<_>>();
+    let mut accepted = typed.diagnostics().is_empty()
+        && calls.len() == 1
+        && method_descriptors.len() == 1
+        && method.is_some()
+        && method_descriptors.iter().all(|descriptor| {
+            matches!(descriptor.target(), CallableTarget::Source(symbol) if Some(symbol) == method)
+                && typed.expression_type(descriptor.expression())
+                    == typed.types().builtin(BuiltinType::Int)
+        });
+    let mut details = format!(
+        "parse/names qualified; raw {:?}; method symbol {method:?}, calls {calls:?}, descriptors {method_descriptors:?}",
+        typed.diagnostics()
+    );
+    if factory {
+        let calls = user_calls(sources, file, "make()");
+        let target = user_symbol(&names, "make");
+        let descriptors = typed
+            .calls()
+            .iter()
+            .filter(|descriptor| calls.contains(&descriptor.expression()))
+            .collect::<Vec<_>>();
+        accepted &= calls.len() == 1 && descriptors.len() == 1 && target.is_some()
+            && descriptors.iter().all(|descriptor| matches!(descriptor.target(), CallableTarget::Source(symbol) if Some(symbol) == target));
+        details.push_str(&format!(
+            "; factory symbol {target:?}, calls {calls:?}, descriptors {descriptors:?}"
+        ));
+    }
+    // The consume-specific descriptor API does not exist yet. These are the actual
+    // published Map collections; add that API's zero-count check when it is introduced.
+    let map_counts = [
+        typed.map_constructions().len(),
+        typed.map_sizes().len(),
+        typed.map_contains_calls().len(),
+        typed.map_gets().len(),
+        typed.map_require_values().len(),
+        typed.map_with_values().len(),
+        typed.map_puts().len(),
+        typed.map_removes().len(),
+    ];
+    accepted &= map_counts.iter().all(|count| *count == 0)
+        && typed.calls().len() == (if factory { 2 } else { 1 })
+        && typed.constructions().len() == 1;
+    details.push_str(&format!(
+        "; Map counts {map_counts:?}; calls {:?}; constructions {:?}",
+        typed.calls(),
+        typed.constructions()
+    ));
+    match complete_file_types(sources, file, &names, &types, &typed) {
+        Ok(complete) => {
+            accepted &= complete.is_same_analysis(&typed);
+            details.push_str("; complete original analysis");
+        }
+        Err(error) => {
+            accepted = false;
+            details.push_str(&format!("; complete {error:?}"));
+        }
+    }
+    Ok((accepted, details))
+}
+
 fn observe_user_unit(
     sources: &super::SourceMap,
     file: &super::ParsedFile,
     call_text: &str,
     factory: bool,
-    entry: super::Entry,
 ) -> Result<(bool, String), String> {
     use lang_frontend::type_checking::{UnitCallTarget, complete_compilation_unit_types};
     if !file.diagnostics().is_empty() {
@@ -206,10 +324,14 @@ fn observe_user_unit(
         ));
     }
     let (environment, types) = standard_environments();
-    let inputs = [entry.input(file, "user_consume.ko")];
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "user_consume.ko",
+        file.source_id(),
+        file,
+    )];
     let index = index_compilation_unit(sources, &inputs)
         .map_err(|error| format!("index internal: {error:?}"))?;
-    entry.assert_identity(&index, file, "user_consume.ko");
     let names = resolve_compilation_unit_names(sources, &inputs, &index, &environment)
         .map_err(|error| format!("names internal: {error:?}"))?
         .validate()
@@ -275,7 +397,6 @@ fn observe_user_unit(
         typed.map_with_values().len(),
         typed.map_puts().len(),
         typed.map_removes().len(),
-        typed.map_consumes().len(),
     ];
     accepted &= map_counts.iter().all(|count| *count == 0)
         && typed.calls().len() == (if factory { 2 } else { 1 })

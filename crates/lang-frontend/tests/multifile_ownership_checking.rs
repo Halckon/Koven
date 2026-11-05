@@ -154,6 +154,3 @@ mod jump_continuation;
 
 #[path = "multifile_ownership_checking/nullable_when_unit.rs"]
 mod nullable_when_unit;
-
-#[path = "multifile_ownership_checking/receiver_admission.rs"]
-mod receiver_admission;

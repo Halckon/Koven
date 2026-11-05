@@ -19,10 +19,12 @@ use lang_frontend::{
 };
 
 struct Observed {
+    environment: lang_frontend::name_resolution::NameEnvironment,
     sources: SourceMap,
     parsed: ParsedFile,
     units: Vec<CompilationUnitOwnership>,
     unit_names: Vec<ValidatedCompilationUnitNames>,
+    unit_types: Vec<lang_frontend::type_checking::ValidatedCompilationUnitTypes>,
 }
 
 fn observe(text: &str) -> Observed {
@@ -37,6 +39,7 @@ fn observe(text: &str) -> Observed {
     let (environment, types) = standard_environments();
     let mut units = Vec::new();
     let mut unit_names = Vec::new();
+    let mut unit_types = Vec::new();
     for input in [
         SourceUnitInput::new("root", "call_ends.ko", source, &parsed),
         SourceUnitInput::memory_document(source, &parsed),
@@ -55,12 +58,15 @@ fn observe(text: &str) -> Observed {
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap(),
         );
         unit_names.push(names);
+        unit_types.push(typed);
     }
     Observed {
+        environment,
         sources,
         parsed,
         units,
         unit_names,
+        unit_types,
     }
 }
 

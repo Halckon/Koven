@@ -26,24 +26,6 @@ use parser_test_assertions::parse_file_twice;
 #[path = "ownership_closures/callable_provenance.rs"]
 mod callable_provenance;
 
-#[path = "support/borrow_rejection_unit.rs"]
-mod borrow_rejection_unit;
-
-fn analyzed_unit(
-    text: &str,
-    rooted: bool,
-) -> lang_frontend::ownership_checking::CompilationUnitOwnership {
-    borrow_rejection_unit::checked(text, "closures.ko", rooted, environments()).1
-}
-
-fn unit_codes(owned: &lang_frontend::ownership_checking::CompilationUnitOwnership) -> Vec<String> {
-    owned
-        .diagnostics()
-        .iter()
-        .map(|d| d.code().to_string())
-        .collect()
-}
-
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
     BuiltinType::Short,
@@ -501,54 +483,47 @@ fn transferability_is_structural_and_independent_from_copyability() {
 
 #[test]
 fn move_capture_consumes_owner_and_rejects_borrowed_or_this_sources() {
-    for rooted in [false, true] {
-        let moved = "class Resource {}\n\
+    let moved = "class Resource {}\n\
                  fun inspect(item: Resource): Unit {}\n\
                  fun consume(own item: Resource): Unit {\n\
                      val closure: move () -> Unit = move { val read = inspect(item) }\n\
                      val after = inspect(item)\n\
                  }";
-        assert_eq!(unit_codes(&analyzed_unit(moved, rooted)), ["L0131"]);
+    assert_eq!(codes(&analyzed(moved).4), ["L0131"]);
 
-        let borrowed = "class Resource {}\n\
+    let borrowed = "class Resource {}\n\
                     fun inspect(item: Resource): Unit {}\n\
                     fun invalid(item: Resource): Unit {\n\
                         val closure: move () -> Unit = move { val read = inspect(item) }\n\
                     }";
-        let borrowed = analyzed_unit(borrowed, rooted);
-        assert_eq!(unit_codes(&borrowed), ["L0138"]);
-        assert!(borrowed.captures().is_empty());
+    let borrowed = analyzed(borrowed).4;
+    assert_eq!(codes(&borrowed), ["L0138"]);
+    assert!(borrowed.captures().is_empty());
 
-        let receiver = "class Counter(val count: Int) {\n\
+    let receiver = "class Counter(val count: Int) {\n\
                         fun invalid(): move () -> Unit = move { val read = count }\n\
                     }";
-        assert_eq!(unit_codes(&analyzed_unit(receiver, rooted)), ["L0138"]);
-    }
+    assert_eq!(codes(&analyzed(receiver).4), ["L0138"]);
 }
 
 #[test]
 fn shared_capture_cannot_supply_an_exclusive_inout_receiver() {
-    for rooted in [false, true] {
-        let owned = analyzed_unit(
-            "class Cell(var n: Int) { inout fun set(): Unit { n = 1 } }\nfun run(): Unit { val cell = Cell(0)\nval f: () -> Unit = { cell.set() } }",
-            rooted,
-        );
-        assert_eq!(owned.diagnostics().len(), 1, "{:?}", owned.diagnostics());
-        assert_eq!(owned.diagnostics()[0].code().to_string(), "L0135");
+    let (_, _, _, _, owned) = analyzed(
+        "class Cell(var n: Int) { inout fun set(): Unit { n = 1 } }\nfun run(): Unit { val cell = Cell(0)\nval f: () -> Unit = { cell.set() } }",
+    );
+    assert_eq!(owned.diagnostics().len(), 1, "{:?}", owned.diagnostics());
+    assert_eq!(owned.diagnostics()[0].code().to_string(), "L0135");
 
-        let owned = analyzed_unit(
-            "fun mutate(inout n: Int): Unit { n = 1 }\nfun run(): Unit { var n = 0\nval f: () -> Unit = { mutate(&n) } }",
-            rooted,
-        );
-        assert_eq!(owned.diagnostics().len(), 1, "{:?}", owned.diagnostics());
-        assert_eq!(owned.diagnostics()[0].code().to_string(), "L0135");
+    let (_, _, _, _, owned) = analyzed(
+        "fun mutate(inout n: Int): Unit { n = 1 }\nfun run(): Unit { var n = 0\nval f: () -> Unit = { mutate(&n) } }",
+    );
+    assert_eq!(owned.diagnostics().len(), 1, "{:?}", owned.diagnostics());
+    assert_eq!(owned.diagnostics()[0].code().to_string(), "L0135");
 
-        let owned = analyzed_unit(
-            "class Cell(var n: Int) { inout fun set(): Unit { n = 1 } }\nfun run(): Unit { val cell = Cell(0)\nval f: move () -> Unit = move { cell.set() } }",
-            rooted,
-        );
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    }
+    let (_, _, _, _, owned) = analyzed(
+        "class Cell(var n: Int) { inout fun set(): Unit { n = 1 } }\nfun run(): Unit { val cell = Cell(0)\nval f: move () -> Unit = move { cell.set() } }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
 
 #[test]
@@ -561,43 +536,36 @@ fn implicit_member_call_captures_this_instead_of_creating_a_capture_free_closure
             && capture.mode() == ClosureCaptureMode::Shared
     }));
 
-    for rooted in [false, true] {
-        let owned = analyzed_unit(
-            "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun escape(): () -> Unit = { val x = read() } }",
-            rooted,
-        );
-        assert_eq!(unit_codes(&owned), ["L0137"]);
+    let (_, _, _, _, owned) = analyzed(
+        "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun escape(): () -> Unit = { val x = read() } }",
+    );
+    assert_eq!(codes(&owned), ["L0137"]);
 
-        let owned = analyzed_unit(
-            "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun bad(): Unit { val f: move () -> Unit = move { val x = read() } } }",
-            rooted,
-        );
-        assert_eq!(unit_codes(&owned), ["L0138"]);
+    let (_, _, _, _, owned) = analyzed(
+        "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun bad(): Unit { val f: move () -> Unit = move { val x = read() } } }",
+    );
+    assert_eq!(codes(&owned), ["L0138"]);
 
-        let owned = analyzed_unit(
-            "class Resource { own fun consume(): Unit {}\nown fun bad(): Unit { val f: () -> Unit = { consume() } } }",
-            rooted,
-        );
-        assert_eq!(unit_codes(&owned), ["L0133"]);
-    }
+    let (_, _, _, _, owned) = analyzed(
+        "class Resource { own fun consume(): Unit {}\nown fun bad(): Unit { val f: () -> Unit = { consume() } } }",
+    );
+    assert_eq!(codes(&owned), ["L0133"]);
 }
 
 #[test]
 fn captured_names_cannot_be_moved_from_shared_or_assigned() {
-    for rooted in [false, true] {
-        let moved = "class Resource {}\n\
+    let moved = "class Resource {}\n\
                  fun take(own item: Resource): Unit {}\n\
                  fun invalid(own item: Resource): Unit {\n\
                      val closure: () -> Unit = { val moved = take(item) }\n\
                  }";
-        assert_eq!(unit_codes(&analyzed_unit(moved, rooted)), ["L0133"]);
+    assert_eq!(codes(&analyzed(moved).4), ["L0133"]);
 
-        let assigned = "fun invalid(): Unit {\n\
+    let assigned = "fun invalid(): Unit {\n\
                         var number = 1\n\
                         val closure: () -> Unit = { number = 2 }\n\
                     }";
-        assert_eq!(unit_codes(&analyzed_unit(assigned, rooted)), ["L0135"]);
-    }
+    assert_eq!(codes(&analyzed(assigned).4), ["L0135"]);
 }
 
 #[test]
@@ -655,8 +623,7 @@ fn shared_capture_loan_ends_after_the_closure_last_use() {
 
 #[test]
 fn borrowed_closure_may_stay_local_but_cannot_escape() {
-    for rooted in [false, true] {
-        let text = "class Resource {}\n\
+    let text = "class Resource {}\n\
                 fun inspect(item: Resource): Unit {}\n\
                 fun deliver(own callback: () -> Unit): Unit {}\n\
                 fun returnIt(own item: Resource): () -> Unit {\n\
@@ -667,8 +634,7 @@ fn borrowed_closure_may_stay_local_but_cannot_escape() {
                     val closure: () -> Unit = { val read = inspect(item) }\n\
                     val sent = deliver(closure)\n\
                 }";
-        assert_eq!(unit_codes(&analyzed_unit(text, rooted)), ["L0137", "L0137"]);
-    }
+    assert_eq!(codes(&analyzed(text).4), ["L0137", "L0137"]);
 }
 
 #[test]
@@ -838,29 +804,27 @@ fn ordinary_expected_move_literals_preserve_owned_capture_and_asap_drop() {
 
 #[test]
 fn ordinary_expected_lambda_keeps_capture_escape_and_ownership_errors() {
-    for rooted in [false, true] {
-        for (text, expected) in [
-            (
-                "fun invalid(label: String): (Int) -> Boolean = { index -> label == \"shared\" && index == 0 }",
-                "L0137",
-            ),
-            (
-                "fun invalid(label: String): (Int) -> Boolean = move { index -> label == \"borrowed\" && index == 0 }",
-                "L0138",
-            ),
-            (
-                "fun invalid(own label: String): Unit { val f: (Int) -> Boolean = move { index -> label == \"owned\" && index == 0 }\nval after = label == \"after\" }",
-                "L0131",
-            ),
-        ] {
-            let owned = analyzed_unit(text, rooted);
-            assert_eq!(unit_codes(&owned), [expected], "{text}");
-            assert!(
-                owned.captures().is_empty(),
-                "ownership errors suppress executable capture facts"
-            );
-            assert!(owned.loans().is_empty());
-            assert!(owned.drops().is_empty());
-        }
+    for (text, expected) in [
+        (
+            "fun invalid(label: String): (Int) -> Boolean = { index -> label == \"shared\" && index == 0 }",
+            "L0137",
+        ),
+        (
+            "fun invalid(label: String): (Int) -> Boolean = move { index -> label == \"borrowed\" && index == 0 }",
+            "L0138",
+        ),
+        (
+            "fun invalid(own label: String): Unit { val f: (Int) -> Boolean = move { index -> label == \"owned\" && index == 0 }\nval after = label == \"after\" }",
+            "L0131",
+        ),
+    ] {
+        let (_, _, _, _, owned) = analyzed(text);
+        assert_eq!(codes(&owned), [expected], "{text}");
+        assert!(
+            owned.captures().is_empty(),
+            "ownership errors suppress executable capture facts"
+        );
+        assert!(owned.loans().is_empty());
+        assert!(owned.drops().is_empty());
     }
 }

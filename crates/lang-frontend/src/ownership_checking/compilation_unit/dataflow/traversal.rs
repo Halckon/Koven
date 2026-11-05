@@ -785,8 +785,7 @@ impl Checker<'_> {
         } else {
             self.check_expression(callee, state, ExpressionUse::Read)?
         };
-        if receiver_admitted
-            && self.diagnostics.len() == diagnostic_count
+        if (!consume || (receiver_admitted && self.diagnostics.len() == diagnostic_count))
             && let (Some(contract), Some(next)) = (receiver_contract, flows.next.as_mut())
         {
             self.apply_receiver_contract(contract, next)?;
