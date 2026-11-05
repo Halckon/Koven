@@ -22,7 +22,7 @@ use super::Checker;
 
 impl Checker<'_, '_> {
     /// Returns true if the current function scope uses a construct that requires `ssa::refine`
-    /// (`Inout` parameter/receiver, `replace`/`swap`, `Rc`, `Box`, or field/element/map mutation).
+    /// (`Inout`, ownership operations, or integer/range families retired from legacy lowering).
     pub(super) fn scope_requires_refine(&self) -> bool {
         if self.inputs.modes.contains(&ParameterMode::Inout)
             || self
@@ -78,6 +78,8 @@ impl Checker<'_, '_> {
         if typed.ownership_primitive(id).is_some()
             || self.inputs.owned.field_replacement(id).is_some()
             || typed.rc_operation(id).is_some()
+            || typed.integer_operation(id).is_some()
+            || typed.integer_range_operation(id).is_some()
             || typed.map_with_value(id).is_some()
             || typed.map_require_value(id).is_some()
             || typed.construction(id).is_some_and(|d| {
