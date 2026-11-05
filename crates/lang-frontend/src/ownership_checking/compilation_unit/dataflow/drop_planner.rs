@@ -994,27 +994,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                 )? {
                                     return Ok(false);
                                 }
-                                if let Some(temporary) = self
-                                    .checker
-                                    .temporary_element_owner(argument.value)?
-                                    .map(UnitExpressionId::expression)
-                                    .or_else(|| {
-                                        (kind == UnitCallArgumentOwnershipKind::SharedLoan
-                                            && self.is_move_only_temporary(argument.value))
-                                        .then_some(argument.value)
-                                    })
-                                {
-                                    let origin = self
-                                        .checker
-                                        .parsed
-                                        .ast()
-                                        .expressions()
-                                        .get(temporary)?
-                                        .span();
-                                    self.register_pending_temporary(
-                                        id, temporary, origin, false, state,
-                                    )?;
-                                }
+                                self.register_borrow_temporary_argument(
+                                    id,
+                                    argument.value,
+                                    kind,
+                                    state,
+                                )?;
                             }
                         }
                     }

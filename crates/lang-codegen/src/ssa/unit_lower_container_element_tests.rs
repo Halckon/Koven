@@ -183,6 +183,67 @@ fn field_backed_elements_and_temporary_compound_remain_atomic_boundaries() {
     }
 }
 
+#[test]
+fn named_nested_element_borrow_passes_p3_but_keeps_the_p4_receiver_boundary() {
+    use lang_frontend::{
+        ownership_checking::{ElementIndexIdentity, LoanKind, UnitLoanTarget},
+        type_checking::complete_compilation_unit_types,
+    };
+
+    let mut sources = SourceMap::new();
+    let text = "package test\n\
+                fun inspect(n: Int): Int = 1\n\
+                fun entry(own xs: List<List<Int>>): Int = inspect(xs[0][1])";
+    let (source, parsed) = parsed(&mut sources, "test/nested.ko", text);
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "test/nested.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, typed.types())
+        .expect("legal nested Borrow also passes the final type gate");
+    let [loan] = owned.ownership().loans() else {
+        panic!("actual P3 publishes exactly the nested Borrow");
+    };
+    assert_eq!(loan.kind(), LoanKind::Shared);
+    let UnitLoanTarget::Place(place) = loan.target() else {
+        panic!("named container keeps its place");
+    };
+    assert_eq!(place.root().source_unit(), loan.argument().source_unit());
+    assert_eq!(
+        place.elements(),
+        &[
+            ElementIndexIdentity::Known(0),
+            ElementIndexIdentity::Known(1)
+        ]
+    );
+    let error = match lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    ) {
+        Ok(_) => panic!("P3 path support does not grant a nested P4 container owner"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    let receiver = text.find("xs[0]").unwrap();
+    assert_eq!(
+        error.span,
+        Some(
+            sources
+                .span(source, receiver, receiver + "xs[0]".len())
+                .unwrap()
+        )
+    );
+}
+
 fn function<'a>(module: &'a super::model::Module, name: &str) -> &'a Function {
     module
         .functions
