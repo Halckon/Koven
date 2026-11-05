@@ -343,7 +343,7 @@ fn ownership_codes(text: &str) -> [Vec<String>; 2] {
 #[test]
 fn deinit_cannot_consume_this_or_move_a_field() {
     for body in ["val stolen = this", "val stolen = this.payload"] {
-        for codes in ownership_codes(&format!(
+        for codes in unit_plans::consume_rejection_codes(&format!(
             "class Payload {{}}\nclass Guard(val payload: Payload) {{ deinit() {{ {body} }} }}"
         )) {
             assert!(

@@ -145,14 +145,14 @@ fn list_form_construction_moves_only_move_only_elements() {
                     val numbers = listOf(number)\n\
                     val copied = number\n\
                 }";
-    let (sources, _, owned) = checked(text);
-    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
-    assert_eq!(
-        sources
-            .slice(owned.diagnostics()[0].primary_span())
-            .unwrap(),
-        "endpoint"
-    );
+    mutable_unit::check_each(text, &["L0131"], |sources, _, _, owned| {
+        assert_eq!(
+            sources
+                .slice(owned.diagnostics()[0].primary_span())
+                .unwrap(),
+            "endpoint"
+        );
+    });
 }
 
 #[test]
@@ -181,18 +181,19 @@ fn runtime_generator_size_borrow_precedes_initializer_nested_inout() {
              fun invalid(): Unit {{ var size = 1\n\
              val items = {container}<Int>(size, initializer(&size))\n}}"
         );
-        let (sources, _, owned) = checked(&text);
-        assert_eq!(
-            codes(owned.diagnostics()),
-            ["L0135"],
-            "the first constructor Borrow must protect size while the second operand is evaluated"
-        );
-        assert_eq!(
-            sources
-                .slice(owned.diagnostics()[0].primary_span())
-                .expect("conflicting operand span"),
-            "&"
-        );
+        mutable_unit::check_each(&text, &["L0135"], |sources, _, _, owned| {
+            assert_eq!(
+                codes(owned.diagnostics()),
+                ["L0135"],
+                "the first constructor Borrow must protect size while the second operand is evaluated"
+            );
+            assert_eq!(
+                sources
+                    .slice(owned.diagnostics()[0].primary_span())
+                    .expect("conflicting operand span"),
+                "&"
+            );
+        });
     }
 }
 
@@ -375,28 +376,21 @@ fn active_element_loan_blocks_owner_move_and_overlapping_replacement() {
                   fun invalid(own list: MutableList<Resource>): Unit {\n\
                       val result = outer(list[0], takeList(list))\n\
                   }";
-    let (_, _, moving) = checked(moving);
-    assert_eq!(codes(moving.diagnostics()), ["L0135"]);
+    mutable_unit::check_each(moving, &["L0135"], |_, _, _, _| {});
 
     let replacement = "class Resource {}\n\
                        fun outer(first: Resource, own second: Unit): Unit {}\n\
                        fun invalid(own list: MutableList<Resource>, own replacement: Resource): Unit {\n\
                            val result = outer(list[0], (list[0] = replacement))\n\
                        }";
-    let (_, _, replacement) = checked(replacement);
-    assert_eq!(codes(replacement.diagnostics()), ["L0135"]);
+    mutable_unit::check_each(replacement, &["L0135"], |_, _, _, _| {});
 
     let sibling = "class Resource {}\n\
                    fun outer(first: Resource, own second: Unit): Unit {}\n\
                    fun valid(own list: MutableList<Resource>, own replacement: Resource): Unit {\n\
                        val result = outer(list[0], (list[1] = replacement))\n\
                    }";
-    let (_, _, sibling) = checked(sibling);
-    assert!(
-        sibling.diagnostics().is_empty(),
-        "{:?}",
-        sibling.diagnostics()
-    );
+    mutable_unit::check_each(sibling, &[], |_, _, _, _| {});
 }
 
 #[test]
@@ -731,14 +725,15 @@ fn mutable_list_clear_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_clear_rejects_use_after_move() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun clear_it(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              list.clear()\n\
          }",
+        &["L0131"],
+        |_, _, _, _| {},
     );
-    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
 
 #[test]
@@ -782,14 +777,15 @@ fn mutable_list_remove_at_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_remove_at_rejects_use_after_move() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun remove_it(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              val item = list.removeAt(0)\n\
          }",
+        &["L0131"],
+        |_, _, _, _| {},
     );
-    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
 
 #[test]
@@ -833,14 +829,15 @@ fn mutable_list_remove_last_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_remove_last_rejects_use_after_move() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun remove_tail(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              val item = list.removeLast()\n\
          }",
+        &["L0131"],
+        |_, _, _, _| {},
     );
-    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
 
 #[test]
@@ -884,14 +881,15 @@ fn mutable_list_remove_first_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_remove_first_rejects_use_after_move() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun remove_head(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              val item = list.removeFirst()\n\
          }",
+        &["L0131"],
+        |_, _, _, _| {},
     );
-    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
 
 #[test]
@@ -933,12 +931,13 @@ fn mutable_list_insert_at_conflicts_with_active_element_borrow() {
 
 #[test]
 fn mutable_list_insert_at_rejects_use_after_move() {
-    let (_, _, owned) = checked(
+    mutable_unit::check_each(
         "fun consume(own l: MutableList<Int>): Unit {}\n\
          fun insert_moved(own list: MutableList<Int>): Unit {\n\
              consume(list)\n\
              list.insertAt(0, 42)\n\
          }",
+        &["L0131"],
+        |_, _, _, _| {},
     );
-    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }

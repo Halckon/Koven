@@ -7,6 +7,8 @@ pub(in crate::ownership_checking::compilation_unit) const LOOPS: &[&str] = &[
     // The condition is unchanged: these are syntax/back-edge boundaries, not executions.
     r#"while (flag) { var local = "body"; val old = replace(&local, "next") }"#,
     r#"while (true) { val local = "unbounded body" }"#,
+    r#"while (flag) { val local = "return body"; return }"#,
+    r#"while (flag) { val local = replace(&root, "carried") }"#,
     r#"while (flag) { val local = "continue body"; continue }"#,
     r#"while (flag) { val local = "break body"; break }"#,
     r#"loop { val local = "explicit break"; break }"#,
@@ -73,6 +75,7 @@ fn loops_reject_at_outer_statement_and_atomically_discard_observed_prefix() {
         );
         assert!(rejected.definitions().is_empty(), "{control}");
         assert!(rejected.events().is_empty(), "{control}");
+        assert!(rejected.value_observation_v1().is_none(), "{control}");
         assert!(rejected.is_consistent(), "{control}");
         assert_eq!(sibling.status(), UnitOwnerObservationStatus::Complete);
         assert!(sibling.is_consistent());

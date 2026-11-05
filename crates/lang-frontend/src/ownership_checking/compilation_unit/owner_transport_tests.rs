@@ -1,10 +1,14 @@
 //! Producer regressions: no drop count/span inference and no Single witness retirement.
 pub(super) mod branch_boundaries;
 mod capture;
+pub(super) mod capture_branch_release;
+pub(super) mod capture_composition;
 pub(super) mod choice_model;
 pub(super) mod combination;
 pub(super) mod if_observation;
 pub(super) mod loop_boundaries;
+mod loop_closed_model;
+mod loop_continuation_model;
 
 use super::formed_tests::Fixture;
 use super::*;
