@@ -1,4 +1,10 @@
 //! Narrow owner identity observations, independent of cleanup eligibility.
+pub(super) mod values;
+pub use values::{
+    UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,
+    UnitOwnerValueEventV1, UnitOwnerValueObservationV1, UnitOwnerValueV1,
+};
+
 use super::UnitDropPoint;
 use crate::{
     name_resolution::UnitSymbolId,
@@ -201,6 +207,7 @@ pub struct UnitOwnerObservation {
     pub(super) status: UnitOwnerObservationStatus,
     pub(super) definitions: Vec<UnitOwnerDefinition>,
     pub(super) events: Vec<UnitOwnerTransportEvent>,
+    pub(super) choice_value: Option<Box<UnitOwnerValueObservationV1>>,
 }
 impl UnitOwnerObservation {
     /// Source-qualified callable.
@@ -229,6 +236,7 @@ impl UnitOwnerObservation {
 
 // Only the enclosing observation can relate its own product-local tokens across analyses.
 // Standalone tokens, definitions, events and lookup retain strict product identity.
+// This legacy equality intentionally excludes the separately validated V1 capability.
 impl PartialEq for UnitOwnerObservation {
     fn eq(&self, other: &Self) -> bool {
         let owner_eq = |left: &UnitOwnerId, right: &UnitOwnerId| {

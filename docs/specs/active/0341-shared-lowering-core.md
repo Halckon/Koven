@@ -1783,3 +1783,82 @@ root replace 返回一源、field replace 返回一源、field replace 中断四
   独立静审无阻断；rustfmt 命令不可用，尚未执行，未运行本地 Cargo/build/test/Clippy。
   已获准发布 Draft PR 并运行官方 CI；与并行候选分节记录，合批时保留各节。
   D10/E2 继续 in-progress，正式准入和四源码行为仍需精确候选官方 CI。
+
+## 87. Choice 前置：V1 value 投影与库内双路径验证（2026-11-04）
+
+基于 main `d7021580`，仅新增向后兼容、按需调用的
+`UnitOwnerObservation::value_observation_v1`；不更改旧公开 owner 事件或现有 observer
+准入，不接线 String-result If 的生产求值，也不触及 capture/loop 候选。
+
+- 新 V1 类型区分真实 Definition 与 Choice。Choice 使用独立 product/callable/control
+  身份，比较使用 Arc 指针而非结构值相等；不往 producer catalog 添加伪 String 定义。
+  对外只有只读 getter，图、边输入及 Choice 身份不可外部构造或改写；事件枚举可被匹配，
+  但单独构造事件不能发布新的 observation。旧 API 的形状与行为保持不变。
+- 首个生产 adapter 只投影旧 Complete 的直线 String 事实：Create、Move、Forward、
+  Binding、Pending、Replace 两端和 named Drop 均使用原 token；不从 span 或 drop
+  计数重建身份。完整原 catalog 与 cleanup point/events 原样保留，value Drop 只是
+  守恒位置投影，不替代 cleanup 计划。参数、If、capture、unsupported 和未消费结果
+  返回 None，不发布半个前缀；现有 Analysis 与 Single 见证不变。
+- 原 cfg(test) Choice 回放迁到实际库 validator；不是保留两套算法。单 Choice 分别回放
+  两边及完整 continuation，检查真实 producer、边序/尾值、prefix 存活状态、Pending/
+  Binding/Replace/Drop 消费、source/product/callable 和未选边未创建。全部实际路径
+  必须终止于 Dropped；未消费 Result、跨分析 token、重复/缺少事件和多余 suffix 拒绝。
+- 图守恒不证明 AST 类型、正常继续、Unit 函数结果或未记录的 Return/opaque call。
+  本片生产 adapter 不产生 Choice；手工 Choice 图借用真实 catalog 仅为 validator 负控，
+  不声称该图对应 catalog 的原 AST/cleanup 路径。未来正式接线必须同时保存 typed
+  admission 和实际两边 tail/cleanup 证据，仍拒绝嵌套 Choice、When、循环、Return、
+  swap、capture×If 与任意调用；不得以图通过放宽这些边界。
+
+验收目标：保留原八项模型/边界测试及原 Analysis 差分；新增真实 nested-replace producer
+映射、跨产品 token、未消费/重复/缺失图、unsupported/non-String 投影三组测试；增加
+外部消费者 API 可命名/匹配的编译见证。禁止本地 Cargo/build/test/Clippy，Rust 行为与
+编译均待获准发布后的官方精确头 CI，静态检查不等于动态通过。本片不代表 Choice
+生产能力或 D10/E2 完成。
+
+本候选静态验收：独立复核未发现剩余 P0/P1；直接 rustfmt、文档检查（838 Markdown）、
+Rust 尺寸守卫（2100 文件、39 项历史超限且无新增增长）和 diff 检查通过。实现自然归属
+owner_transport 子模块，大型 compilation_unit 根文件无差异，尺寸政策未修改。
+正式 Choice 接线还需独立真实 producer 收集事务：旧 Unsupported 已原子清空 catalog，
+不能复用旧入口的空事实制造 Choice，也不能改变旧入口合同来绕过此缺口。
+
+## 88. Choice 首片：独立 producer 事务与单绑定 typed 准入（2026-11-04）
+
+基于未发布的 §87 本地候选 `89bca6e7`；V1 尚未对外发布，因此本片先修正其 catalog
+边界：`producers()` 返回独立只读 producer catalog，而非旧 event observation；Drop
+显式携带真实 UnitDropPoint。旧公开 owner API、既有 cleanup 与 Single 见证均不改变。
+
+- 准入仅为无修饰的顶层非泛型普通 Unit 函数，一个无模式 marker 的 Boolean 参数；
+  函数 block 唯一不可变 `val`，binding 精确 String/MoveOnly，initializer 是该参数
+  条件的显式 If。两边仅无插值 String literal / 多层 Group literal，可包单尾 ControlBody。
+  不接受 var、nullable binding、多语句、后续使用、branch 局部声明、Return、
+  隐式 String 函数结果、调用、replace、capture、循环、When 或嵌套控制。
+- 独立事务复用本轮 product 关联但拥有独立定义表；真实 String 完成点创建 token，
+  每层实际求值完成才记录 Group 转交。两边实际 tail/正常继续、每层完成计数、If
+  自身 Consume 完成以及先 true 后 false 的收集顺序均须成立，不能只凭 AST计划
+  补发 producer 或跳过未发生的 frame 完成。
+- `bound_owner` 的实际绑定阶段登记 Choice；旧 OwnedValue.owner 仍为 None，不把
+  Choice 伪装真实 producer。仅在真实值移除后的 drop hook 登记精确 local statement
+  AfterStatement；唯一本片 binding 没有后续用途，因此其 ASAP 清理必须在此处闭合。
+  重复/遗漏/Read/退出/错槽/错清理均原子清空新事务，成功也要再经双路径 validator。
+- 新图只作为密封的私有能力挂在原观察上，getter 同时核 product 指针、callable 和图
+  守恒。旧 Unsupported 的 definitions/events 仍空，新定义不能通过旧 lookup 解析。
+  旧 Eq 保持旧协议事实比较，新能力单独检验；不能用旧 Analysis 相等代替新图验收。
+- catalog 自检 product/callable/dense index/唯一 String origin/source；导入旧完整事实
+  时保留原 token。Drop 仅支持目前覆盖的 AfterStatement/AfterExpression/FunctionEntry，
+  不因 source 相同接受错边 BranchExit 或未验证控制退出。完整清理仍由原 owned facts
+  承担，V1 图不反向推导 typed admission 或改变原诊断/清理。
+
+新增真实两边 literal/Group 的端到端绑定与精确 Drop、旧 Unsupported/lookup/sibling
+隔离、完整 Analysis observation on/off 比较；拒绝 nullable、参数 mode、多语句、
+后续使用、退出、调用与嵌套控制。另有九种手工事务 trace（包含正常trace及八种遗漏/
+重复/Read/退出/错清理负控）、跨 product/callable 错附、独立 catalog 恶意索引/源头/
+身份与未覆盖 cleanup point 负控。手工 trace 不充当实际执行证明。
+
+未运行本地 Cargo/build/test/Clippy，未推送。Rust 编译、端到端行为与官方精确头 CI
+均待授权发布后验收，不宣称 Choice 通用生产支持或 D10/E2 完成。Pending/Replace
+消费、branch-local binding、多次 Choice 和后续使用仍是后续独立合同。
+
+本片独立静审未发现剩余 P0/P1；根据审阅补强能力错附、精确 binding 类型、逐层完成、
+控制完成与实际 Drop 的 fail-closed 合同。直接 rustfmt --check、文档检查（838
+Markdown）、尺寸守卫（2103 文件、39 项历史超限，无新增增长）及 diff 检查通过。
+这些是静态结果，不能替代待运行的 Rust 编译与动态验收。

@@ -1,5 +1,6 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
 mod branch_boundaries;
+mod choice_admission;
 mod combination;
 mod control_tail;
 mod loop_boundaries;

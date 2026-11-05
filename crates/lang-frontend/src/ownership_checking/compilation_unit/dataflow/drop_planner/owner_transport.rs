@@ -1,6 +1,7 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
 mod branch;
 mod capture;
+pub(super) mod choice;
 #[cfg(test)]
 mod tests;
 
@@ -36,13 +37,16 @@ impl DropPlanner<'_, '_> {
         if !self.owner_observation_enabled {
             return;
         }
+        let identity = std::sync::Arc::new(());
+        self.owner_choice = choice::ChoiceTransaction::begin(self.checker, item, identity.clone());
         self.owner_observation_feature = None;
         self.owner_observation = Some(UnitOwnerObservation {
-            identity: std::sync::Arc::new(()),
+            identity,
             callable: UnitOwnerCallable::Function(UnitItemId::new(self.checker.source_unit, item)),
             status: UnitOwnerObservationStatus::Complete,
             definitions: Vec::new(),
             events: Vec::new(),
+            choice_value: None,
         });
     }
 
@@ -54,6 +58,7 @@ impl DropPlanner<'_, '_> {
         if !self.owner_observation_enabled {
             return;
         }
+        self.owner_choice = None;
         self.owner_observation_feature = None;
         self.owner_observation = Some(UnitOwnerObservation {
             identity: std::sync::Arc::new(()),
@@ -64,11 +69,17 @@ impl DropPlanner<'_, '_> {
             },
             definitions: Vec::new(),
             events: Vec::new(),
+            choice_value: None,
         });
     }
 
     pub(super) fn finish_owner_observation(&mut self) {
+        let choice = self
+            .owner_choice
+            .take()
+            .and_then(choice::ChoiceTransaction::finish);
         if let Some(mut observation) = self.owner_observation.take() {
+            observation.choice_value = choice.map(Box::new);
             if !observation.is_consistent() {
                 let point = match observation.callable {
                     UnitOwnerCallable::Function(item) | UnitOwnerCallable::Deinit(item) => {
@@ -166,6 +177,9 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn define_string_owner(&mut self, expression: ExpressionId) -> Option<UnitOwnerId> {
+        if let Some(choice) = &mut self.owner_choice {
+            choice.string_completed(self.checker.unit_expression(expression));
+        }
         self.define_owner(UnitOwnerOrigin::String(
             self.checker.unit_expression(expression),
         ))
@@ -196,6 +210,9 @@ impl DropPlanner<'_, '_> {
         initializer: ExpressionId,
         owner: Option<UnitOwnerId>,
     ) -> Option<UnitOwnerId> {
+        if let Some(choice) = &mut self.owner_choice {
+            choice.bound(symbol, self.checker.unit_expression(initializer));
+        }
         if let Some(owner) = owner.as_ref() {
             self.owner_event(UnitOwnerTransportEvent::Binding {
                 symbol,
@@ -320,6 +337,13 @@ impl DropPlanner<'_, '_> {
         self.check_owner_expression(id)?;
         let mut owner = None;
         let continues = self.expression_inner(id, usage, state, &mut owner)?;
+        if let Some(choice) = &mut self.owner_choice {
+            choice.expression_completed(
+                self.checker.unit_expression(id),
+                matches!(usage, DropExpressionUse::Consume),
+                continues,
+            );
+        }
         if !continues || !self.owner_observation_active() {
             owner = None;
         }

@@ -14,7 +14,7 @@ enum Location {
     Dropped,
 }
 
-fn point_source(point: UnitDropPoint) -> SourceUnitId {
+pub(super) fn point_source(point: UnitDropPoint) -> SourceUnitId {
     match point {
         UnitDropPoint::AfterExpression(id)
         | UnitDropPoint::AfterBinaryOperands(id)

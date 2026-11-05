@@ -82,12 +82,15 @@ fn model_from(fixture: &Fixture, owned: &CompilationUnitOwnership) -> (Model, Id
     };
     let selected = Value::Choice(choice.id.clone());
     let model = Model {
-        catalog,
+        catalog: super::super::super::owner_transport::UnitOwnerProducerCatalogV1::from_legacy(
+            &catalog,
+        )
+        .unwrap(),
         prefix: vec![
             Event::Create(expr("\"old\""), old.clone()),
             Event::Bind(root, expr("\"old\""), Value::Definition(old.clone())),
         ],
-        choice,
+        choice: Some(choice),
         suffix: vec![
             Event::Pending(call, control, selected.clone()),
             Event::Replace {
@@ -109,11 +112,19 @@ fn model_from(fixture: &Fixture, owned: &CompilationUnitOwnership) -> (Model, Id
                 expr("(previous)"),
                 Value::Definition(old.clone()),
             ),
-            Event::Drop(forwarded, Value::Definition(old.clone())),
-            Event::Drop(root, selected),
+            Event::Drop(
+                UnitDropPoint::AfterExpression(control),
+                forwarded,
+                Value::Definition(old.clone()),
+            ),
+            Event::Drop(UnitDropPoint::AfterExpression(control), root, selected),
             Event::Create(expr("\"next\""), next.clone()),
             Event::Bind(incoming, expr("\"next\""), Value::Definition(next.clone())),
-            Event::Drop(incoming, Value::Definition(next.clone())),
+            Event::Drop(
+                UnitDropPoint::AfterExpression(control),
+                incoming,
+                Value::Definition(next.clone()),
+            ),
         ],
     };
     (
@@ -158,12 +169,18 @@ fn choice_pending_replace_and_drop_replay_each_selected_owner_only() {
 #[test]
 fn choice_binding_becomes_previous_replace_result_without_new_definition() {
     let (mut model, ids) = fixture();
-    let selected = Value::Choice(model.choice.id.clone());
-    model
-        .prefix
-        .push(Event::Drop(ids.root, Value::Definition(ids.old)));
+    let selected = Value::Choice(model.choice.as_ref().unwrap().id.clone());
+    model.prefix.push(Event::Drop(
+        UnitDropPoint::AfterExpression(ids.old_literal),
+        ids.root,
+        Value::Definition(ids.old),
+    ));
     model.suffix = vec![
-        Event::Bind(ids.root, model.choice.id.control, selected.clone()),
+        Event::Bind(
+            ids.root,
+            model.choice.as_ref().unwrap().id.control,
+            selected.clone(),
+        ),
         Event::Create(ids.next_literal, ids.next.clone()),
         Event::Bind(
             ids.incoming,
@@ -191,8 +208,16 @@ fn choice_binding_becomes_previous_replace_result_without_new_definition() {
         Event::Move(ids.previous_use, ids.previous, selected.clone()),
         Event::Forward(ids.previous_use, ids.group, selected.clone()),
         Event::Bind(ids.forwarded, ids.group, selected.clone()),
-        Event::Drop(ids.forwarded, selected),
-        Event::Drop(ids.root, Value::Definition(ids.next)),
+        Event::Drop(
+            UnitDropPoint::AfterExpression(ids.old_literal),
+            ids.forwarded,
+            selected,
+        ),
+        Event::Drop(
+            UnitDropPoint::AfterExpression(ids.old_literal),
+            ids.root,
+            Value::Definition(ids.next),
+        ),
     ];
     assert!(model.validate().is_some());
 }
@@ -203,30 +228,36 @@ fn malformed_edges_inputs_and_identity_fail_closed() {
     let (foreign, foreign_ids) = fixture();
     let mut cases = Vec::new();
     let mut graph = model.clone();
-    graph.choice.inputs.swap(0, 1);
+    graph.choice.as_mut().unwrap().inputs.swap(0, 1);
     cases.push(graph);
     let mut graph = model.clone();
-    graph.choice.inputs[0].owner = ids.right.clone();
+    graph.choice.as_mut().unwrap().inputs[0].owner = ids.right.clone();
     cases.push(graph);
     let mut graph = model.clone();
-    graph.choice.inputs[0].tail = ids.old_literal;
+    graph.choice.as_mut().unwrap().inputs[0].tail = ids.old_literal;
     cases.push(graph);
     let mut graph = model.clone();
-    graph.choice.inputs[0].owner = foreign_ids.left;
+    graph.choice.as_mut().unwrap().inputs[0].owner = foreign_ids.left;
     cases.push(graph);
     let mut graph = model.clone();
-    graph.choice.id.identity = foreign.choice.id.identity;
+    graph.choice.as_mut().unwrap().id.identity =
+        foreign.choice.as_ref().unwrap().id.identity.clone();
     cases.push(graph);
     let mut graph = model.clone();
-    graph.choice.events[0].clear();
+    graph.choice.as_mut().unwrap().events[0].clear();
     cases.push(graph);
     let mut graph = model.clone();
-    graph.choice.events[0].push(Event::Bind(
+    let tail = graph.choice.as_ref().unwrap().inputs[0].tail;
+    graph.choice.as_mut().unwrap().events[0].push(Event::Bind(
         ids.incoming,
-        graph.choice.inputs[0].tail,
+        tail,
         Value::Definition(ids.left.clone()),
     ));
-    graph.choice.events[0].push(Event::Drop(ids.incoming, Value::Definition(ids.left)));
+    graph.choice.as_mut().unwrap().events[0].push(Event::Drop(
+        UnitDropPoint::AfterExpression(ids.old_literal),
+        ids.incoming,
+        Value::Definition(ids.left),
+    ));
     cases.push(graph);
     for (index, graph) in cases.iter().enumerate() {
         assert!(graph.validate().is_none(), "malformed input case {index}");
@@ -236,24 +267,29 @@ fn malformed_edges_inputs_and_identity_fail_closed() {
 #[test]
 fn forward_choice_double_consumption_and_wrong_slots_fail_closed() {
     let (model, ids) = fixture();
-    let selected = Value::Choice(model.choice.id.clone());
+    let selected = Value::Choice(model.choice.as_ref().unwrap().id.clone());
     let mut cases = Vec::new();
     let mut graph = model.clone();
     graph.prefix.push(Event::Bind(
         ids.incoming,
-        model.choice.id.control,
+        model.choice.as_ref().unwrap().id.control,
         selected.clone(),
     ));
     cases.push(graph);
     let mut graph = model.clone();
-    graph.choice.events[0].push(Event::Forward(
-        graph.choice.inputs[0].tail,
-        model.choice.id.control,
+    let tail = graph.choice.as_ref().unwrap().inputs[0].tail;
+    graph.choice.as_mut().unwrap().events[0].push(Event::Forward(
+        tail,
+        model.choice.as_ref().unwrap().id.control,
         selected.clone(),
     ));
     cases.push(graph); // Cyclic/self choice input is unavailable before the choice finishes.
     let mut graph = model.clone();
-    graph.suffix.push(Event::Drop(ids.root, selected.clone()));
+    graph.suffix.push(Event::Drop(
+        UnitDropPoint::AfterExpression(ids.old_literal),
+        ids.root,
+        selected.clone(),
+    ));
     cases.push(graph);
     let mut graph = model.clone();
     graph.suffix[0] = Event::Pending(ids.call, ids.next_literal, selected.clone());
@@ -265,9 +301,10 @@ fn forward_choice_double_consumption_and_wrong_slots_fail_closed() {
     graph.suffix.clear();
     cases.push(graph); // Unconsumed Result is not a proved implicit return or temporary drop.
     let mut graph = model.clone();
-    graph
-        .suffix
-        .push(Event::Create(model.choice.inputs[0].tail, ids.left));
+    graph.suffix.push(Event::Create(
+        model.choice.as_ref().unwrap().inputs[0].tail,
+        ids.left,
+    ));
     cases.push(graph); // Must not recreate the unselected branch producer after the join.
     for (index, graph) in cases.iter().enumerate() {
         assert!(
@@ -320,14 +357,14 @@ fn choice_join_cannot_overwrite_an_existing_result_slot() {
     model.prefix.pop();
     model.prefix.push(Event::Forward(
         ids.old_literal,
-        model.choice.id.control,
+        model.choice.as_ref().unwrap().id.control,
         Value::Definition(ids.old.clone()),
     ));
     model.suffix.insert(
         1,
         Event::Bind(
             ids.root,
-            model.choice.id.control,
+            model.choice.as_ref().unwrap().id.control,
             Value::Definition(ids.old),
         ),
     );
@@ -344,7 +381,7 @@ fn foreign_source_callable_and_unknown_choice_are_not_transport_values() {
     let (model, ids) = model_from(&sources, &owned);
     assert_ne!(
         sources.source(1),
-        model.source(),
+        model.choice.as_ref().unwrap().id.control.source_unit(),
         "foreign source in the same analysis"
     );
     let other = owned
@@ -354,16 +391,22 @@ fn foreign_source_callable_and_unknown_choice_are_not_transport_values() {
         .expect("second source callable")
         .callable();
     let mut graph = model.clone();
-    graph.choice.id.callable = other;
+    graph.choice.as_mut().unwrap().id.callable = other;
     assert!(graph.validate().is_none());
     let mut graph = model.clone();
-    graph.choice.inputs[0].tail =
-        UnitExpressionId::new(sources.source(1), graph.choice.inputs[0].tail.expression());
+    graph.choice.as_mut().unwrap().inputs[0].tail = UnitExpressionId::new(
+        sources.source(1),
+        graph.choice.as_mut().unwrap().inputs[0].tail.expression(),
+    );
     assert!(graph.validate().is_none());
     let mut graph = model.clone();
-    let mut unknown = graph.choice.id.clone();
+    let mut unknown = graph.choice.as_mut().unwrap().id.clone();
     unknown.control = ids.next_literal;
-    graph.suffix[0] = Event::Pending(ids.call, graph.choice.id.control, Value::Choice(unknown));
+    graph.suffix[0] = Event::Pending(
+        ids.call,
+        graph.choice.as_mut().unwrap().id.control,
+        Value::Choice(unknown),
+    );
     assert!(graph.validate().is_none());
 }
 
@@ -385,5 +428,24 @@ fn a_producer_cannot_overwrite_an_existing_result_slot() {
     assert!(
         model.validate().is_none(),
         "creation must not alias two owners in one Result slot"
+    );
+}
+
+#[test]
+fn choice_graph_rejects_uncovered_branch_cleanup_points() {
+    let (mut model, _) = fixture();
+    let control = model.choice.as_ref().unwrap().id.control;
+    let event = model
+        .suffix
+        .iter_mut()
+        .find(|event| matches!(event, Event::Drop(..)))
+        .unwrap();
+    let Event::Drop(point, _, _) = event else {
+        unreachable!()
+    };
+    *point = UnitDropPoint::BranchExit { control, branch: 1 };
+    assert!(
+        !model.is_consistent(),
+        "V1 has no branch-exit cleanup proof contract yet"
     );
 }

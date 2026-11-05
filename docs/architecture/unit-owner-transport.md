@@ -74,14 +74,34 @@ callable 的观察前缀；独立 sibling 仍完整。另用独立准入前缀�
 字段不变。测试只分析源码，不运行循环，也不把有限回放前缀当作真实多轮终止证据。
 本片不改生产支持；编译和行为仍待官方 CI，静态检查不替代执行。
 
-## Test-only Choice 模型
+## Choice 图验证边界
 
-`owner_transport_tests::choice_model` 保存私有、单选择的候选事件模型，仅在 `cfg(test)`
-路径可达，不改变公开 owner API 或生产准入。它用真 definition catalog 的身份构造手工图，
-分别验证两条替代路径及完整后续；Choice 不成为新 String producer。模型不证明 AST 类型、
-实际尾值交付或未记录的调用/退出，生产 String-result If 仍 Unsupported。实际消费者的
-cleanup 和 Single witness 保留，准入接线须另立合同；验收见 SPEC-0341 §83。
+`owner_transport_tests::choice_model` 保存单选择的手工图测试，用真 definition catalog
+身份构造图，分别验证两条替代路径及完整后续；Choice 不成为新 String producer。
+原测试内算法已迁入 V1 库 validator，手工图仍只在测试中构造，不代表生产发出 Choice。
+模型不证明 AST 类型、实际尾值交付或未记录的调用/退出，生产 String-result If 仍
+Unsupported。实际消费者的 cleanup 和 Single witness 保留，准入接线须另立合同；
+历史模型验收见 SPEC-0341 §83，本次迁移边界见 §87。
 
 Control body 的私有结果通道保留实际尾表达式与既有求值帧 owner；旧 bool 调用方
 仍只消费是否继续。Read 尾值不交付 owner，原 temporary/scope cleanup 不变。
 该内部通道不改变 String-result If 的 Unsupported 边界，也不发布 Choice 协议。
+
+## V1 value 投影与受限 Choice
+
+V1 使用独立只读 String producer catalog，Definition 与 Choice 分离。旧 Complete 且全部
+定义最终 named Drop 的直线观察可按需投影；另有真实 planner 事务接纳严格限定的
+单绑定 Choice：顶层无修饰、非泛型 Unit 函数、一个无模式 marker 的 Boolean 参数、
+函数体唯一 `val`、initializer 是以该参数为条件的显式 If，两个尾仅 String literal/
+Group literal（允许单尾 ControlBody），目标 binding 必须精确 String/MoveOnly。
+
+String 构造完成登记真定义，逐层 Group/If 完成及双边实际 tail 交付必须唯一且有序，
+最后由真实绑定与实际移除后的精确 AfterStatement drop 闭合。任意退出、遗漏、重复、
+错误交付/cleanup 清空新事务。旧观察仍原子 Unsupported，不接收新定义或 Choice；
+原 cleanup/Single 见证保持。新能力与旧 observation 的 product/callable 绑定，旧 Eq
+只比较旧协议事实，新能力必须单独验证。新 Drop 带实际 point；未覆盖的 BranchExit、
+控制退出、When 等 point 不被 V1 图 validator 接受。
+
+图守恒不等于 typed AST 准入。生产能力只由上述私有门禁和实际事件构造；手工图测试
+仍可测试更一般的 Binding/Pending/Replace 守恒，不意味着这些 Choice 消费者已接线。
+本地仅静态检查，编译与行为待官方精确头 CI；范围见 SPEC-0341 §87/§88。
