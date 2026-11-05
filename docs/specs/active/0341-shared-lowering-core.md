@@ -2491,3 +2491,50 @@ D10/E2 继续 in-progress，发布不授权自动合入。
 （2114 Rust 文件、39 项历史超限，无新增债）；独立只读复审未发现阻断或原 oracle 遗漏。
 未运行故障注入、校准、含 Abort 的整项测试、Mac 构建、native 或全工作区门禁。
 本地结果不替代精确头官方双平台 CI；本片未发布或创建 PR，D10/E2 与本 Spec 保持 in-progress。
+
+## 111. Copyability 消费者退休与 Box signature 漏诊断修复（2026-11-05）
+
+本片独立基于 main `e1cde85f907553053c1d6ef699ea4ddd81d0a18e`，不重复计入 §110 的 Map 退休。
+先迁移原 `type_copyability` 八项，真实云端编译通过后运行得到 7 passed/1 failed：原 Box
+测试要求 L0117×4、L0091×2，Unit signature 仅发布两条 L0091。保留失败证据及原 oracle，
+不删除该测试或放宽诊断，按 Guide 11 已启用的 Box 实参合同补最小生产漏检。
+
+- 原八份源码、测试名称、33 个 assertion 位置、自定义十六 builtin 与能力/可选 Box
+  环境、重复解析和 names 诊断全空前置均保留。八次 Single 分析替换为十六次真实
+  MemoryDocument/Rooted 分析；仍观察 raw types，不添加原测试的 final/ownership 前置。
+- copyability、精确诊断顺序/数量/primary、Box 与源码同名 class 身份、解构 mode、分量
+  类型/真实 symbol、原 AST statement 和 Error/Deferred 恢复全部保全。Unit ID 取实际
+  declaration、parameter 或 body facts，并核 source/local identity，不新增公开构造 API。
+- SignatureCollector 只在真实 intrinsic Box 且原 arity 合法时接入私有实参检查。
+  已预声明 nominal kind 足以接受 value/enum；非法 kind 在实参 TypeRef span 报 L0117
+  并返回 Error。原 L0091 路径、其他 intrinsic、Single/body 与构造入口不改。
+- Box payload 的局部后序检查按实际参数语法与缓存传播失败，外层 Box 成为 Error。
+  名义节点只重新 intern 含 Error 子实参的恢复形状，保留其他实参的独立 bound 检查；
+  不修改原共享 interned 项。Interface 的 L0094/声明 label 仍由原后置 pass 发布。
+  静态 bound/supertype 仅对真实外部 intrinsic Box 且 arity=1 停止标记 payload 为 static，
+  同名源码 Box 与错误 arity 保持原路径；不增加全局状态/去重或遍历 nominal 字段/layout。
+  内层 Box 与 Nullable(Box) 均复用已检查的 payload，不逐层重复遍历。
+- 新增八项回归，覆盖字段/enum payload/参数/返回/function/nullable、arity 与嵌套根因、
+  interface 在 runtime/静态 bound/supertype、多兄弟与自身独立 bound 中的恢复、泛型名义
+  payload、nullable 嵌套，以及真实跨文件前向/递归 Box、输入倒序和 signatures-only/full
+  Unit。独立 sibling 的 L0115/L0093 先在原 main 对照确认，再保全于修复；首版整体 poison
+  的真实失败保留。八项新增回归不计旧消费者退休；目标现十六项，原八项成功标准不变。
+- frontend integration 直接 check_types 从 109 次/54 文件降至 108 次/53 文件；
+  check_ownership 仍 44 次/33 文件；旧 checker 消费文件并集 54→53。旧 API 与独立差异
+  witness 保留；此盘点不是 D10/E2 完成比例，也不宣称关闭其他 signature recovery 差异。
+
+验证在获准云端 Rust 1.96.0 执行，命令均使用 `--locked --offline -p lang-frontend`：
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 生产与目标编译 | `cargo build --lib`；`cargo test --test type_copyability --no-run` | 通过 |
+| 直接行为与邻接合同 | `type_copyability`、`type_map`、`multifile_type_capability_graph` 三完整 target | 16 + 17 + 4 项通过，均零过滤 |
+| 安全精确邻居 | `multifile_type_checking` 中 `unit_intrinsic_box_and_rc_publish_complete_value_construction_facts`、`source_box_and_rc_names_never_gain_unit_intrinsic_identity`、`invalid_generic_body_type_refs_keep_existing_codes_and_recovery`，均完整模块名加 `--exact` | 各实际运行 1 项并通过 |
+| 静态质量 | frontend `cargo clippy --all-targets -- -D warnings`、格式、docs、Rust 尺寸、diff | 通过；未执行 Clippy 编译出的其他测试 |
+| 独立复审与保全 | 原八项/33 assertion/源码与环境；新增回归及三处生产文件 | 无阻断；旧 Spec 完整前缀保留 |
+
+共实际运行 40 项允许范围测试。`signatures.rs` 1021→1025 行，仍在既有 1036 行例外内；
+新职责位于 152 行私有模块，仅在父模块接线，未提高额度或新增尺寸债。首轮缺诊断、
+首版 sibling 丢诊断、错误的新 span 预期及修正后的真实日志保留于仓库外证据，不改写为通过。
+本片未运行故障注入、校准、含 Abort 的整项套件、Mac 本地构建或官方双平台 CI。
+候选仅本地保存，未推送或创建 PR；D10/E2 与本 Spec 保持 in-progress。
