@@ -205,12 +205,13 @@ fn element_owned_read_copies_copyable_and_rejects_move_only() {
                        val second = takeInt(list[1])\n\
                        val third = list[0]\n\
                    }";
-    let (_, _, passing) = checked(passing);
-    assert!(
-        passing.diagnostics().is_empty(),
-        "{:?}",
-        passing.diagnostics()
-    );
+    mutable_unit::check_each(passing, &[], |_, _, _, passing| {
+        assert!(
+            passing.diagnostics().is_empty(),
+            "{:?}",
+            passing.diagnostics()
+        );
+    });
 
     let failing = "class Resource {}\n\
                    fun take(own item: Resource): Unit {}\n\
@@ -218,22 +219,22 @@ fn element_owned_read_copies_copyable_and_rejects_move_only() {
                        val first = list[0]\n\
                        val second = take(list[1])\n\
                    }";
-    let (sources, _, failing) = checked(failing);
-    assert_eq!(codes(failing.diagnostics()), ["L0136", "L0136"]);
-    for diagnostic in failing.diagnostics() {
-        assert!(
-            sources
-                .slice(diagnostic.primary_span())
-                .unwrap()
-                .starts_with("list[")
-        );
-        assert!(
-            diagnostic
-                .details()
-                .iter()
-                .any(|detail| matches!(detail, DiagnosticDetail::Label(_)))
-        );
-    }
+    mutable_unit::check_each(failing, &["L0136", "L0136"], |sources, _, _, failing| {
+        for diagnostic in failing.diagnostics() {
+            assert!(
+                sources
+                    .slice(diagnostic.primary_span())
+                    .unwrap()
+                    .starts_with("list[")
+            );
+            assert!(
+                diagnostic
+                    .details()
+                    .iter()
+                    .any(|detail| matches!(detail, DiagnosticDetail::Label(_)))
+            );
+        }
+    });
 }
 
 #[test]
@@ -301,23 +302,24 @@ fn borrow_and_inout_cover_each_intrinsic_container_capability() {
                     val arrayWrite = mutate(&array[0])\n\
                     val mutableWrite = mutate(&mutable[0])\n\
                 }";
-    let (_, _, owned) = checked(text);
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.loans().len(), 5);
-    assert_eq!(
-        owned
-            .loans()
-            .iter()
-            .map(|loan| loan.kind())
-            .collect::<Vec<_>>(),
-        [
-            LoanKind::Shared,
-            LoanKind::Shared,
-            LoanKind::Shared,
-            LoanKind::Exclusive,
-            LoanKind::Exclusive,
-        ]
-    );
+    mutable_unit::check_each(text, &[], |_, _, _, owned| {
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert_eq!(owned.loans().len(), 5);
+        assert_eq!(
+            owned
+                .loans()
+                .iter()
+                .map(|loan| loan.kind())
+                .collect::<Vec<_>>(),
+            [
+                LoanKind::Shared,
+                LoanKind::Shared,
+                LoanKind::Shared,
+                LoanKind::Exclusive,
+                LoanKind::Exclusive,
+            ]
+        );
+    });
 }
 
 #[test]

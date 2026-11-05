@@ -2274,3 +2274,29 @@ target、23 次 Cargo 调用（此前实际已有 131 个，本片仅新增 1 �
 在组合策略的精确目标计数处失败：排除两个按单测过滤的 target 后，计数由 129 增为 130。
 同步该固定期望并显式锁定 `ownership_value_api` 恰好出现一次，保留唯一性、23 次 Cargo
 调用及全部失败传播断言；不通过删除或放宽门禁解决。该轮未开始 Rust 编译或测试。
+
+## 109. Container access 与 move diagnostics 消费者迁移（2026-11-04）
+
+基于 main `d7021580`，合并两个已独立静审候选，仅迁移四项测试、五次原 Single
+源分析；每份原源码与原环境分别通过 MemoryDocument、Rooted 真实 Unit 入口。
+不改生产、公开 API、helper、Guide、CI、target，不涉及 resource、Mac receiver、
+循环或 Choice 生产工作。
+
+| 验收项 | 测试目标 / 过滤器 | 实际结果 |
+|---|---|---|
+| Copyable / MoveOnly element 读取 | `ownership_containers::element_owned_read_copies_copyable_and_rejects_move_only` | 两源；保留正例无诊断，负例精确 L0136×2、primary span 的 list[ 前缀与每条 Label；静态核对，动态待 CI |
+| 三容器 borrow/inout | `ownership_containers::borrow_and_inout_cover_each_intrinsic_container_capability` | 保留无诊断、五条 loan 与 Shared×3/Exclusive×2 完整顺序；静态核对，动态待 CI |
+| 遮蔽符号 move 来源 | `ownership_checking::shadowed_symbols_keep_independent_move_origins` | 保留两个 L0131 顺序、每个主 Span 与 Label 精确字节边界和原源片段；静态核对，动态待 CI |
+| 非拥有 move 与不可变 inout | `ownership_checking::non_owning_move_and_immutable_inout_have_dedicated_diagnostics` | 保留 L0133/L0133/L0134/L0134/L0131 顺序、主 Span 集合及每项 Label；静态核对，动态待 CI |
+
+容器批次复用既有 `mutable_unit::check_each`，要求 final type admission、同轮身份；
+正例无 deferred 且 ownership validate 成功，负例精确 code 序列且不能取得 owned
+资格。新增前置必须动态通过，不放宽门禁换绿。move 批次复用既有
+`borrow_rejection_unit::checked`，保留 parse 两次、原源码字节、names/types 无诊断、
+基础 validate 与 typed/owned 身份；基础 validate 不等于 final admission。
+
+两批独立静审未见 P0/P1；组合保持已审测试文件逐字节一致。原源码、测试名、全部
+原 oracle 与候选外代码静态保全通过；直接 rustfmt、文档、尺寸、diff 检查通过。
+未运行本地 Cargo/build/test/Clippy；Draft 发布后的精确头官方 CI 结果另行核验。
+本批不删除旧 helper，不替代 owner、loan-end 或 cleanup graph 的独立完整证据；
+D10/E2 继续 in-progress，发布不授权自动合入。
