@@ -224,7 +224,12 @@ impl Checker<'_> {
                 expression: expression.index(),
             });
         }
-        self.temporary_expression_origin(receiver.expression())
+        if let Some(owner) = self.temporary_expression_origin(receiver.expression())? {
+            Ok(Some(owner))
+        } else {
+            // Nested element views keep the original backing owner, not the intermediate element.
+            self.temporary_element_owner(receiver.expression())
+        }
     }
 
     pub(super) fn temporary_projection_owner(
@@ -331,7 +336,8 @@ impl Checker<'_> {
                     self.parsed,
                     descriptor.index().expression(),
                 )?;
-                Ok(place.push_element(index).then_some(place))
+                place.push_element(index);
+                Ok(Some(place))
             }
             _ => Ok(None),
         }

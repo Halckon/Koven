@@ -42,6 +42,9 @@ mod owner_transport_tests;
 mod pending_temporary_tests;
 mod receiver;
 
+mod place;
+pub use place::UnitOwnershipPlace;
+
 pub use binding::UnitOwnershipBindingDescriptor;
 pub use capture::{UnitClosureCaptureDescriptor, UnitClosureCaptureSource, UnitClosureDescriptor};
 pub use constant::{
@@ -75,8 +78,8 @@ use crate::{
 };
 
 use super::{
-    ElementIndexIdentity, LoanKind, OwnershipBindingKind, OwnershipCheckingError,
-    OwnershipDeferredReason, RcOwnershipEffectKind, Transferability, UnitStringOwnershipEffect,
+    LoanKind, OwnershipBindingKind, OwnershipCheckingError, OwnershipDeferredReason,
+    RcOwnershipEffectKind, Transferability, UnitStringOwnershipEffect,
 };
 
 /// typed call argument 在 ownership 阶段采用的规范契约。
@@ -172,83 +175,6 @@ impl UnitCallArgumentOwnershipContract {
     #[must_use]
     pub const fn loan_begin_span(self) -> Span {
         self.loan_begin_span
-    }
-}
-
-/// compilation-unit 中由根 binding、字段路径及可选 terminal element 组成的稳定 place。
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct UnitOwnershipPlace {
-    root: UnitSymbolId,
-    fields: Vec<UnitSymbolId>,
-    element: Option<ElementIndexIdentity>,
-}
-
-impl UnitOwnershipPlace {
-    pub(super) fn new(root: UnitSymbolId, fields: Vec<UnitSymbolId>) -> Self {
-        Self {
-            root,
-            fields,
-            element: None,
-        }
-    }
-
-    pub(super) fn push_field(&mut self, field: UnitSymbolId) -> bool {
-        if self.element.is_some() {
-            return false;
-        }
-        self.fields.push(field);
-        true
-    }
-
-    pub(super) fn push_element(&mut self, element: ElementIndexIdentity) -> bool {
-        if self.element.is_some() {
-            return false;
-        }
-        self.element = Some(element);
-        true
-    }
-
-    /// 返回拥有该 place 的 source-qualified 根 binding。
-    #[must_use]
-    pub const fn root(&self) -> UnitSymbolId {
-        self.root
-    }
-
-    /// 返回从根到目标的字段路径。
-    #[must_use]
-    pub fn fields(&self) -> &[UnitSymbolId] {
-        &self.fields
-    }
-
-    /// 返回 terminal 顺序容器逻辑索引。
-    #[must_use]
-    pub const fn element(&self) -> Option<ElementIndexIdentity> {
-        self.element
-    }
-
-    /// 返回该 place 是否精确表示根 binding 自身。
-    #[must_use]
-    pub const fn is_root(&self) -> bool {
-        self.fields.is_empty() && self.element.is_none()
-    }
-
-    pub(super) fn overlaps(&self, other: &Self) -> bool {
-        if self.root != other.root
-            || !self
-                .fields
-                .iter()
-                .zip(&other.fields)
-                .all(|(left, right)| left == right)
-        {
-            return false;
-        }
-        if self.fields.len() != other.fields.len() {
-            return true;
-        }
-        match (self.element, other.element) {
-            (Some(left), Some(right)) => left.may_alias(right),
-            (None, _) | (_, None) => true,
-        }
     }
 }
 

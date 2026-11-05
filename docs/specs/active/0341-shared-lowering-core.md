@@ -1783,3 +1783,164 @@ root replace 返回一源、field replace 返回一源、field replace 中断四
   独立静审无阻断；rustfmt 命令不可用，尚未执行，未运行本地 Cargo/build/test/Clippy。
   已获准发布 Draft PR 并运行官方 CI；与并行候选分节记录，合批时保留各节。
   D10/E2 继续 in-progress，正式准入和四源码行为仍需精确候选官方 CI。
+
+## 102. Unit 多层 Index 的 temporary backing owner 修复候选（2026-11-05）
+
+独立基于 main 对象 `d7021580f0aee33391acab70c43651dc459dc988`，不叠加未合入的
+Choice 候选或依赖其协议。保留本基线既有 Spec 全文；本节编号预留给并行切片，未来合批
+时协调新增节编号，不能用本节覆盖其他候选的历史记录。
+
+- 静态调用链发现：合法嵌套临时容器的末级 Index 及其中间 Group 都是 Place，既有
+  Unit helper 只查询直接 receiver 的 temporary 类别，导致 Borrow 找不到 backing
+  而进入 `InvalidUnitArgumentPlace`。这是源码推导，未动态复现。
+- 最小生产改动仅在直接 temporary 查询未命中时递归 receiver 的 element owner；每层
+  仍经 typed descriptor、Group 透传与 source-unit guard，不改公开 place、loan、drop
+  模型或 Single witness，不改 Choice、E3/native、Guide、CI 或测试 target。
+- 新增 `ownership_containers::nested_temporary_unit` 五项真实源码回归，复用原
+  `mutable_unit::check_each` 的 MemoryDocument/Rooted、parse/name/type 检查、final type
+  admission、typed identity 与 owned validate 前置，不改共享 helper 或迁移旧 Single 测试。
+  覆盖 Int 普通复制/Value、String Borrow、Array/MutableList Inout、普通 owned read/Value
+  的 L0136 及最外层 owner/参数标签、后级 index 的 conditional return。
+- 期望从源码 AST 的唯一 Call/Index/Group/Return 身份独立构造，硬比 source-qualified
+  loan/delivery target、完整 backing drop 表及 origin：Copy 在末级 Index 的
+  AfterExpression，Borrow/Inout 在 CallReturn，后级 return 在 ControlTransfer。
+  不允许中间 Index/Group、内层构造或重复 owner drop；Unit target 不冒充 Single
+  CleanupOwnerId，也不据 loan 的 end span 推断完整 loan-end 流。
+- 本片未涉及根构造外 Group 的 owner 归一、具名多索引 place、Index 后字段投影或
+  provider/全域 cleanup。既有 Single 的多索引 owner-table/cleanup witness 原样保留。
+
+验收仅限静态：三份改动 Rust 的直接 rustfmt --check、文档结构检查（838 Markdown）、
+明确基线的 Rust 尺寸守卫（2098 文件、39 项既有超限，无新增债）和 `git diff --check`
+通过，独立静审未发现剩余 P0/P1。本地 Cargo/build/test/Clippy/rustc
+及官方 CI 均未运行，新增源码前置和断言尚待动态验收。未 push、PR、发布或远端合并；
+D10/SPEC-0341/E2 继续 in-progress，不以历史 main CI 代替本候选精确头验证。
+
+## 103. Unit 具名多层 Index place 完整路径（2026-11-05）
+
+独立基线为 main `d7021580f0aee33391acab70c43651dc459dc988`；本节编号与并行候选协调，
+不代表缺席的 §87–102 已合入，也不覆盖或改写基线全文及 §58 的历史差异记录。
+本片按 §1–3 的既有能力保全目标补齐 P3，不引入语言决定，不吸纳其他未验候选。
+
+- `UnitOwnershipPlace` 的完整身份与 overlap 职责移入 `compilation_unit/place.rs`，保持原
+  public 导出路径及内部 `ownership_checking` 可见域。root、fields 与 const root/element/
+  is_root 查询保持；新增只读 `elements()`，`element()` 仍给末层，不以末层替代完整身份。
+- named Index builder 沿原 typed descriptor 核对 receiver/index 来源后递归追加路径；
+  overlap 与 Single 一致，逐层 `may_alias`，短路径保留 parent-prefix 重叠；不同已知前缀
+  即使末项相同也可分离，同前缀不同已知末项亦可分离。字段前缀及索引后字段拒绝不变。
+- `canonical_borrow_place` 仍返回原 origin 整 lease；不改 temporary owner/Group 归一、
+  cleanup、类型规则、Choice、refine/E3 或 codegen 生产路径。原 Single multi-index、
+  one-index 与 field-prefix 测试及共享 `mutable_unit::check_each` 原样保留。
+- 真 Unit 回归复用 MemoryDocument/Rooted 与 final type gate：Copy Value、Shared、Inout
+  的 source-qualified 根与索引顺序由原 AST 参数和固定路径校验；known sibling、same、
+  两层 Unknown、ancestor 与借用期间移动根覆盖正反例，错误比较完整 L0135 Diagnostic；nested MoveOnly Value 保留 L0136 及原根 label。
+  Copy 正例另核具名 receiver Group 透明性；成功 cleanup 仅归原 named owner，不生成嵌套 temporary owner。
+- 单项既有 codegen harness 回归先检查真实 P3 与 final gate，再固定 nested Borrow 的
+  `UnsupportedNode` 及内层 receiver `xs[0]` Span。`container_owner_operand` 的 expected-root
+  Index 拒绝、MoveOnly 中间容器 read、refine 非 Name owner 与 loop 非 root 门禁均保留；
+  这不是 native 成功证明，不将旧能力缺口改为语言拒绝。
+
+| 验收项 | 目标 | 本片实际状态 |
+|---|---|---|
+| 路径、逐层 alias、完整诊断与 cleanup | `ownership_containers::named_index_places` 五测试、八源码，两种 Unit 输入 | 新增断言未运行 |
+| P3/P4 边界 | `named_nested_element_borrow_passes_p3_but_keeps_the_p4_receiver_boundary` | 新增断言未运行 |
+| 生产模型、可见度、const 与消费者 | 独立只读静审 | 未发现阻断问题；不代替 Rust 编译 |
+| 格式、文档、尺寸与 diff | 固定 Rust 1.96.0 rustfmt `--check`、Python docs/尺寸、diff check | 通过：838 Markdown、2099 Rust 文件；39 项历史超限未扩大 |
+
+按用户本次“主线ci先跳过，先继续实施”范围，本地 Cargo/build/test/Clippy/rustc、官方 CI、
+push/PR/发布及远端合并均未执行。旧 `compilation_unit.rs` 为 1156 行，本片降至 1082 行，
+仍属历史超限；完整 place 模块为 90 行，无机械切片或新增尺寸例外。动态验收仍待后续授权，
+D10/E2 和本 Spec 保持 in-progress，不能将静态实现或旧 CI 计为本精确头通过。
+
+## 104. Unit 两类多层 Index 切片静态组合（2026-11-05）
+
+本地组合仅纳入 §102 的 `d510680c5b88245ec127c551ca8d78e317e36087` 与 §103 的
+`2754f04b5c0c82f1c009c732e17381bce0038d42`，共同基线为
+`d7021580f0aee33391acab70c43651dc459dc988`；双亲提交保留两个独立来源。
+基线全文和 §102/§103 逐字保留；前两节的独立范围与验收记录不反向改写。
+
+- production 仅联合原两片：temporary backing 的递归查询与 named place 的完整索引路径；
+  named place 仍优先，temporary fallback 沿具名链终止于 Name，不创建具名根的临时 owner。
+  不改 canonical origin lease、drop 算法、共享 helper、Single witness 或 P4 生产边界。
+- 精确保全两份新 frontend 模块及其注册、原有全部测试、完整 place 模块与 P3/P4 拒绝回归；
+  architecture 合流两项实现说明，没有额外生产修复或新增测试。
+- 静态格式通过：固定 Rust 1.96.0 直接 rustfmt `--edition 2024 --check --config
+  skip_children=true` 检查相对共同基线的全部七份 Rust 改动；文档结构检查通过（838
+  Markdown），Rust 尺寸守卫通过（2100 文件、39 项历史超限），没有新增尺寸债。
+  diff、逐字节保全和独立临时 index 补丁重建检查通过；不代替 Rust 编译或行为验收。
+
+本轮仍未运行 Cargo/build/test/Clippy/rustc、本地构建或任何官方 CI；所有新增 Rust
+断言与组合后实际行为均未动态验证。没有 push、PR、发布或远端合并，不吸纳
+Choice/capture/loop、Mac 消费者或其他候选。nested native 仍不受支持，D10/E2 与
+本 Spec 保持 in-progress，静态组合不等于最终能力验收。
+
+## 105. 一层临时父字段 Borrow 的 pending 清理修复候选（2026-11-05）
+
+独立基线 `d7021580f0aee33391acab70c43651dc459dc988`。本节保留基线正文完整，
+§87–104 为并行工作预留；这些节在本树缺席不代表已合入。本片只补 Phase 3 已准入
+字段实参的清理登记，不吸纳其他 Choice/capture/index 候选，不改 Phase 4 或 Group 准入。
+
+- 静态缺口：Unit 对 `read(Holder("field").text, 0)` 已产生 Shared loan，target 为
+  temporary Holder parent；但原 pending 登记只识别 element backing 或实参自身的
+  MoveOnly temporary。字段为 Place，两者均不命中。此为源码静审结论，未执行泄漏复现。
+- 将原 Borrow temporary 登记职责迁至 `drop_planner/pending_call.rs`，保留原两分支
+  顺序及行为；只在均未命中时追加 field-only fallback。要求 SharedLoan、精确 argument
+  的 typed aggregate projection 为 Field/Expression，排除 borrow-result call 与 range use；
+  同 source-qualified call/argument 的实际 Shared loan 必须指向 Temporary，且 target
+  与 projection receiver 完整相等、来源属于本 planner、父通过既有 MoveOnly temporary
+  判断。父正常求值后才登记，不按字段类型判断析构，也不按 AST 名字猜 owner。
+- 只接一层直接临时父，不递归追踪 Rc.value、nested field/element parent 链，不接
+  Inout、Value 或 receiver；不加通用 Temporary loan fallback，避免重复 range continuation
+  已改挂到外层 call 的 pending owner。`temporary_projection_owner`、
+  `temporary_expression_origin` 逐字保留，既有 constructor Group 的父身份和 P4 alias
+  补偿不变；本片不声称全部投影 cleanup 闭合。
+- 正常 CallReturn、逆序完成、loop depth、提前 return/break/continue 与 Abort 不展开
+  全部复用原 pending 算法。`loan.end_span` 仅为源码元数据；`direct_call_loan_ends` 仍
+  排除字段，不能用其空表证明字段 loan-end 顺序或声称完整 loan-end/native 闭合。
+  原真实 temporary-field Unit 准入/Single MemberReceiver deferred
+  witness、pending lifetime、range continuation 及 direct-call 原 oracle 全部保留。
+- 新 `unit_direct_call_loan_ends/temporary_field_pending.rs` 复用原 Rooted/MemoryDocument
+  双 Unit helper、完整类型 final gate 与 ownership validate。六个测试函数包含有限真实
+  源：普通/Group 父、MoveOnly 父的 Copyable 字段、两父逆序、后续 return/break/continue、
+  内层 loop 跳转保留外层父、后续 Abort、父构造自身 Abort、Copyable value-class 父。
+  期望由独立源码/AST 确定，核 source-qualified call/argument/parent、实际 loan target、
+  完整 drop 表的 point/target/value_origin/顺序及其他 drop/观测空表；不由产物生成 oracle。
+
+| 验收项 | 目标 | 本候选状态 |
+|---|---|---|
+| 字段父 pending 与退出清理 | 新模块六项测试及原 `unit_direct_call_loan_ends` | 全部未运行；尚无动态失败或通过证据 |
+| 原 pending/range 邻控 | 原 `multifile_ownership_checking/pending_lifetime`、`ownership_range_construction` 等 | 逐字保全，未运行 |
+| 格式与静态结构 | 固定 Rust 1.96.0 rustfmt `--check --config skip_children=true`、Python docs/size、diff/保全 | 静态通过：838 Markdown、2098 Rust，39 项历史超限未扩大 |
+| 编译、Clippy、native 与 CI | 受影响 frontend/下游及精确头门禁 | 按用户约束未运行，不触发 CI、不推送或建 PR |
+
+独立静审未发现阻断；原生产分支、pending 完成算法、Single witness 与基线 Spec 正文保全。
+D10/SPEC-0341/E2 继续 in-progress；静态修复及测试接线不代表动态资源证据、native 支持
+或精确头验收完成。
+
+## 106. Unit Index 与临时父字段候选的静态组合（2026-11-05）
+
+本地组合的第一父为 §104 的 `75b78d750b434d50102e7d30a199625885ac9697`，第二父为
+§105 的 `ebf7aa374cb926452f24ff0d8b905254fcf6e68e`，共同基线为
+`d7021580f0aee33391acab70c43651dc459dc988`。基线全文与 §102/§103/§104/§105
+原文依序逐字保留；各节对独立切片的历史范围和验收状态不反向改写。
+
+- 本片仅组合既有两候选，不新增生产行为、测试或能力准入；生产和测试文件各自完整
+  沿用对应父提交。architecture 同时保留多层 Index 与一层临时父字段的现行事实。
+- named place 仍先于 temporary fallback；临时链仍按 element backing、直接 temporary、
+  精确一层 Field 的顺序选择。Field fallback 保留 source-qualified call/argument、Shared
+  loan 的真实 owner 等于直接 typed receiver 及 MoveOnly guards，不泛化为任意 Temporary
+  loan，也不为 range continuation 重复登记 pending；既有 pending 完成与退出算法不改。
+- Index 后 Field 的 liveness deferred、整函数 skipped gate、ownership validate 挡板
+  及 `push_field` 拒绝原样保留。恢复路径可查得 loan origin，不代表可发布 validated P3。
+  nested native 仍拒绝；provider、完整 loan-end/cleanup 与新投影形状不在本片范围。
+- 原有注册与 helper 全部保留，三个新增 frontend 模块合计 16 个测试函数，以及一项
+  codegen P3/P4 边界测试均来自两父，17 项全部未运行。本轮不添加新的 oracle 或源码例。
+
+静态验收：固定 Rust 1.96.0 直接 rustfmt `--edition 2024 --check --config
+skip_children=true` 覆盖相对共同基线的全部 11 份 Rust 改动并通过；文档结构检查通过
+（838 Markdown），明确基线的 Rust 尺寸守卫通过（2101 文件、39 项历史超限，无新增债）。
+完整 diff、20 组保全检查与补丁反向适用通过；独立临时 index 从共同基线加完整补丁可
+重建精确组合 tree。原五个源/main 工作树身份与干净状态不变；这些不替代编译和动态验收。
+
+未运行 Cargo/build/test/Clippy/rustc、本地构建、native 或任何官方 CI；未 push、PR、发布
+或远端合并。不吸纳 #312/#313、Choice/capture/loop、Mac 或其他独立候选。D10/E2 与
+本 Spec 保持 in-progress；本片只是待验输入收敛，不是能力完成或精确头动态通过证明。

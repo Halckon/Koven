@@ -20,6 +20,12 @@ mod parser_test_assertions;
 #[path = "ownership_containers/mutable_unit.rs"]
 mod mutable_unit;
 
+#[path = "ownership_containers/named_index_places.rs"]
+mod named_index_places;
+
+#[path = "ownership_containers/nested_temporary_unit.rs"]
+mod nested_temporary_unit;
+
 use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
