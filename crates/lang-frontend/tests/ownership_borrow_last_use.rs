@@ -1,4 +1,4 @@
-//! Restricted straight-line loan last-use on source-qualified MemoryDocument Unit facts.
+//! Restricted straight-line loan last-use on source-qualified MemoryDocument/Rooted Unit facts.
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -12,17 +12,6 @@ use lang_frontend::{
     source::SourceMap,
     type_checking::{check_compilation_unit_types, standard_environments},
 };
-
-fn checked(
-    body: &str,
-) -> (
-    SourceMap,
-    ParsedFile,
-    SourceUnitId,
-    CompilationUnitOwnership,
-) {
-    checked_entry(body, false)
-}
 
 fn checked_entry(
     body: &str,
@@ -139,78 +128,27 @@ fn unused_result_ends_after_its_initializer() {
 
 #[test]
 fn last_use_ends_children_before_parents_and_source_cleanup() {
-    let (sources, parsed, source_unit, unit) = checked(
-        r#"fun run() { val source = "kept"; borrow val parent = wrap(source); borrow val alias = parent; borrow val child = view(alias); println(child) }"#,
-    );
-    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-    let bindings = unit.borrow_results().bindings();
-    assert_eq!(bindings.len(), 3);
-    assert_eq!(bindings[1].parent(), Some(bindings[0].binding()));
-    assert_eq!(bindings[2].parent(), Some(bindings[1].binding()));
-    let ends = unit.borrow_results().ends();
-    assert_eq!(
-        ends.iter().map(|end| end.binding()).collect::<Vec<_>>(),
-        bindings
-            .iter()
-            .rev()
-            .map(|binding| binding.binding())
-            .collect::<Vec<_>>()
-    );
-    assert!(ends.iter().all(|end| end.point() == ends[0].point()));
-    let UnitDropPoint::AfterStatement(statement) = ends[0].point() else {
-        panic!("statement endpoint")
-    };
-    assert_eq!(statement.source_unit(), source_unit);
-    assert_eq!(
-        sources
-            .slice(
-                parsed
-                    .ast()
-                    .statements()
-                    .get(statement.statement())
-                    .unwrap()
-                    .span()
-            )
-            .unwrap(),
-        "println(child)"
-    );
-    let UnitLoanTarget::Place(origin) = bindings[0].origin() else {
-        panic!("source place")
-    };
-    let source_drops = unit
-        .drops()
-        .iter()
-        .filter(|drop| drop.target() == UnitDropTarget::Named(origin.root()))
-        .collect::<Vec<_>>();
-    assert_eq!(source_drops.len(), 1);
-    assert_eq!(source_drops[0].point(), ends[0].point());
-    assert!(
-        !unit
-            .drops()
-            .iter()
-            .any(|drop| bindings.iter().any(|binding| drop.target()
-                == UnitDropTarget::Named(binding.binding())
-                || drop.target() == UnitDropTarget::Temporary(binding.initializer())))
-    );
-}
-
-#[test]
-fn independent_results_have_distinct_last_use_points() {
-    let (sources, parsed, source_unit, unit) = checked(
-        r#"fun run() { val source = "kept"; borrow val first = view(source); borrow val second = wrap(source); println(first); println(second) }"#,
-    );
-    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-    for (index, text) in ["println(first)", "println(second)"]
-        .into_iter()
-        .enumerate()
-    {
-        let end = unit
-            .borrow_results()
-            .ends()
-            .iter()
-            .find(|end| end.binding() == unit.borrow_results().bindings()[index].binding())
-            .unwrap();
-        let UnitDropPoint::AfterStatement(statement) = end.point() else {
+    for rooted in [false, true] {
+        let (sources, parsed, source_unit, unit) = checked_entry(
+            r#"fun run() { val source = "kept"; borrow val parent = wrap(source); borrow val alias = parent; borrow val child = view(alias); println(child) }"#,
+            rooted,
+        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let bindings = unit.borrow_results().bindings();
+        assert_eq!(bindings.len(), 3);
+        assert_eq!(bindings[1].parent(), Some(bindings[0].binding()));
+        assert_eq!(bindings[2].parent(), Some(bindings[1].binding()));
+        let ends = unit.borrow_results().ends();
+        assert_eq!(
+            ends.iter().map(|end| end.binding()).collect::<Vec<_>>(),
+            bindings
+                .iter()
+                .rev()
+                .map(|binding| binding.binding())
+                .collect::<Vec<_>>()
+        );
+        assert!(ends.iter().all(|end| end.point() == ends[0].point()));
+        let UnitDropPoint::AfterStatement(statement) = ends[0].point() else {
             panic!("statement endpoint")
         };
         assert_eq!(statement.source_unit(), source_unit);
@@ -225,99 +163,168 @@ fn independent_results_have_distinct_last_use_points() {
                         .span()
                 )
                 .unwrap(),
-            text
+            "println(child)"
         );
+        let UnitLoanTarget::Place(origin) = bindings[0].origin() else {
+            panic!("source place")
+        };
+        let source_drops = unit
+            .drops()
+            .iter()
+            .filter(|drop| drop.target() == UnitDropTarget::Named(origin.root()))
+            .collect::<Vec<_>>();
+        assert_eq!(source_drops.len(), 1);
+        assert_eq!(source_drops[0].point(), ends[0].point());
+        assert!(
+            !unit
+                .drops()
+                .iter()
+                .any(|drop| bindings.iter().any(|binding| drop.target()
+                    == UnitDropTarget::Named(binding.binding())
+                    || drop.target() == UnitDropTarget::Temporary(binding.initializer())))
+        );
+    }
+}
+
+#[test]
+fn independent_results_have_distinct_last_use_points() {
+    for rooted in [false, true] {
+        let (sources, parsed, source_unit, unit) = checked_entry(
+            r#"fun run() { val source = "kept"; borrow val first = view(source); borrow val second = wrap(source); println(first); println(second) }"#,
+            rooted,
+        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        for (index, text) in ["println(first)", "println(second)"]
+            .into_iter()
+            .enumerate()
+        {
+            let end = unit
+                .borrow_results()
+                .ends()
+                .iter()
+                .find(|end| end.binding() == unit.borrow_results().bindings()[index].binding())
+                .unwrap();
+            let UnitDropPoint::AfterStatement(statement) = end.point() else {
+                panic!("statement endpoint")
+            };
+            assert_eq!(statement.source_unit(), source_unit);
+            assert_eq!(
+                sources
+                    .slice(
+                        parsed
+                            .ast()
+                            .statements()
+                            .get(statement.statement())
+                            .unwrap()
+                            .span()
+                    )
+                    .unwrap(),
+                text
+            );
+        }
     }
 }
 
 #[test]
 fn future_alias_projection_and_child_uses_keep_the_source_borrowed() {
-    for body in [
-        r#"fun run() { val source = "kept"; borrow val parent = source; borrow val alias = parent; consume(source); println(alias) }"#,
-        r#"fun run() { val source = Holder("kept"); borrow val projected = source.text; borrow val alias = projected; consumeHolder(source); println(alias) }"#,
-        r#"fun run() { val source = "kept"; borrow val parent = view(source); borrow val alias = parent; println(parent); consume(source); println(alias) }"#,
-        r#"fun run() { val source = Holder("kept"); borrow val parent = viewHolder(source); borrow val projected = parent.text; consumeHolder(source); println(projected) }"#,
-        r#"fun run() { val source = "kept"; borrow val parent = view(source); borrow val child = wrap(parent); println(parent); consume(source); println(child) }"#,
-        r#"fun run() { val source = "kept"; borrow val parent = view(source); borrow val child = wrap(parent); println(child); consume(source); println(parent) }"#,
-        r#"fun run() { val source = "kept"; borrow val parent = view(source); println(parent); consume(source); borrow val child = wrap(parent); println(child) }"#,
-        r#"fun run() { val source = "kept"; borrow val first = view(source); borrow val second = view(source); println(first); consume(source); println(second) }"#,
-    ] {
-        let (sources, _, _, unit) = checked(body);
-        {
-            let diagnostics = unit.diagnostics();
-            let conflict = diagnostics
-                .iter()
-                .find(|d| d.code().to_string() == "L0135")
-                .unwrap_or_else(|| panic!("{body}: {diagnostics:?}"));
-            assert_eq!(
-                sources.slice(conflict.primary_span()).unwrap(),
-                "source",
-                "{body}"
-            );
-            assert!(
-                conflict.details().iter().any(|detail| matches!(
-                    detail,
-                    lang_frontend::diagnostic::DiagnosticDetail::Label(_)
-                )),
-                "{body}"
-            );
+    for rooted in [false, true] {
+        for body in [
+            r#"fun run() { val source = "kept"; borrow val parent = source; borrow val alias = parent; consume(source); println(alias) }"#,
+            r#"fun run() { val source = Holder("kept"); borrow val projected = source.text; borrow val alias = projected; consumeHolder(source); println(alias) }"#,
+            r#"fun run() { val source = "kept"; borrow val parent = view(source); borrow val alias = parent; println(parent); consume(source); println(alias) }"#,
+            r#"fun run() { val source = Holder("kept"); borrow val parent = viewHolder(source); borrow val projected = parent.text; consumeHolder(source); println(projected) }"#,
+            r#"fun run() { val source = "kept"; borrow val parent = view(source); borrow val child = wrap(parent); println(parent); consume(source); println(child) }"#,
+            r#"fun run() { val source = "kept"; borrow val parent = view(source); borrow val child = wrap(parent); println(child); consume(source); println(parent) }"#,
+            r#"fun run() { val source = "kept"; borrow val parent = view(source); println(parent); consume(source); borrow val child = wrap(parent); println(child) }"#,
+            r#"fun run() { val source = "kept"; borrow val first = view(source); borrow val second = view(source); println(first); consume(source); println(second) }"#,
+        ] {
+            let (sources, _, _, unit) = checked_entry(body, rooted);
+            {
+                let diagnostics = unit.diagnostics();
+                let conflict = diagnostics
+                    .iter()
+                    .find(|d| d.code().to_string() == "L0135")
+                    .unwrap_or_else(|| panic!("{body}: {diagnostics:?}"));
+                assert_eq!(
+                    sources.slice(conflict.primary_span()).unwrap(),
+                    "source",
+                    "{body}"
+                );
+                assert!(
+                    conflict.details().iter().any(|detail| matches!(
+                        detail,
+                        lang_frontend::diagnostic::DiagnosticDetail::Label(_)
+                    )),
+                    "{body}"
+                );
+            }
+            assert!(unit.borrow_results().bindings().is_empty());
         }
-        assert!(unit.borrow_results().bindings().is_empty());
     }
 }
 
 #[test]
 fn live_map_payload_keeps_invalidation_blocked() {
-    let (_, _, _, unit) = checked(
-        r#"fun run() { var source = mutableMapOf<String, String>(); source.put("key", "first"); borrow val item = source.requireValue("key"); source.put("key", "second"); println(item) }"#,
-    );
-    {
-        let diagnostics = unit.diagnostics();
-        assert!(
-            diagnostics.iter().any(|d| d.code().to_string() == "L0135"),
-            "{diagnostics:?}"
+    for rooted in [false, true] {
+        let (_, _, _, unit) = checked_entry(
+            r#"fun run() { var source = mutableMapOf<String, String>(); source.put("key", "first"); borrow val item = source.requireValue("key"); source.put("key", "second"); println(item) }"#,
+            rooted,
         );
+        {
+            let diagnostics = unit.diagnostics();
+            assert!(
+                diagnostics.iter().any(|d| d.code().to_string() == "L0135"),
+                "{diagnostics:?}"
+            );
+        }
     }
 }
 
 #[test]
 fn call_inputs_remain_borrowed_until_the_call_returns() {
-    let (_, _, _, unit) = checked(
-        r#"fun run() { val source = "kept"; borrow val item = view(source); touch(item, source) }"#,
-    );
-    {
-        let diagnostics = unit.diagnostics();
-        assert!(
-            diagnostics.iter().any(|d| d.code().to_string() == "L0135"),
-            "{diagnostics:?}"
+    for rooted in [false, true] {
+        let (_, _, _, unit) = checked_entry(
+            r#"fun run() { val source = "kept"; borrow val item = view(source); touch(item, source) }"#,
+            rooted,
         );
+        {
+            let diagnostics = unit.diagnostics();
+            assert!(
+                diagnostics.iter().any(|d| d.code().to_string() == "L0135"),
+                "{diagnostics:?}"
+            );
+        }
+        let (_, _, _, unit) = checked_entry(
+            r#"fun run() { val source = "kept"; borrow val item = view(source); touch(item, "tail"); consume(source) }"#,
+            rooted,
+        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
     }
-    let (_, _, _, unit) = checked(
-        r#"fun run() { val source = "kept"; borrow val item = view(source); touch(item, "tail"); consume(source) }"#,
-    );
-    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
 }
 
 #[test]
 fn control_flow_keeps_the_scope_endpoint_conservative() {
-    let (_, parsed, source_unit, unit) = checked(
-        r#"fun run(flag: Boolean) { val source = "kept"; borrow val item = view(source); if (flag) { println(item) } }"#,
-    );
-    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-    let [end] = unit.borrow_results().ends() else {
-        panic!("one scope result")
-    };
-    let UnitDropPoint::AfterStatement(statement) = end.point() else {
-        panic!("scope endpoint")
-    };
-    assert_eq!(statement.source_unit(), source_unit);
-    assert!(matches!(
-        parsed
-            .ast()
-            .statements()
-            .get(statement.statement())
-            .unwrap()
-            .payload(),
-        Statement::Block { .. }
-    ));
+    for rooted in [false, true] {
+        let (_, parsed, source_unit, unit) = checked_entry(
+            r#"fun run(flag: Boolean) { val source = "kept"; borrow val item = view(source); if (flag) { println(item) } }"#,
+            rooted,
+        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let [end] = unit.borrow_results().ends() else {
+            panic!("one scope result")
+        };
+        let UnitDropPoint::AfterStatement(statement) = end.point() else {
+            panic!("scope endpoint")
+        };
+        assert_eq!(statement.source_unit(), source_unit);
+        assert!(matches!(
+            parsed
+                .ast()
+                .statements()
+                .get(statement.statement())
+                .unwrap()
+                .payload(),
+            Statement::Block { .. }
+        ));
+    }
 }

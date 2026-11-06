@@ -32,5 +32,5 @@ LLVM adapter继续使用既有多个Loan pointer参数和单一storage pointer�
 foreign/temporary 来源拒绝、借用存活期间禁止 source move，以及普通 val 不隐式拥有借用结果。
 `ownership_borrow_origins` 五项消费者在双入口保留 direct/projected/nullable/wrapper 的
 实际来源数量、未证明路径与错误交付的原子拒绝、精确 primary/来源 label 断言。
-`ownership_borrow_last_use` 的同作用域原八源与未使用结果 endpoint 原测试覆盖双入口，
-保留未使用结果在其原 initializer statement 结束的精确 source-qualified 身份；其余案例仍保原入口。
+`ownership_borrow_last_use` 全八项原测试覆盖双入口，保留父子逆序/独立结果的精确
+source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与保守 scope endpoint。

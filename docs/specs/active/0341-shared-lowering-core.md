@@ -2917,3 +2917,13 @@ MemoryDocument；helper 只参数化入口并加真实 key/root/path 检查，�
 String clone 14、borrow types 3、frontier 2，共36项无过滤通过；目标编译、all-targets
 Clippy（`-D warnings`）、fmt、文档/尺寸/diff及独立审查通过。故障注入/Abort/Mac构建/native
 未运行，官方 CI 尚未运行，不将本片双入口覆盖表述为 Single 退休。
+
+
+#### 同批补齐：last-use 其余消费者
+
+余下六测试的14份原输入也运行 Rooted，保留父子 binding/逆序 ends、source 清理唯一性、
+独立 statement 身份、L0135 primary/label、错误 bindings 清空、Map失效、call-return
+正反例及保守 Block endpoint。前两项双入口不变，删除仅默认 MemoryDocument 的未使用包装。
+全部八项现均双入口，不改分析算法，不将 scoped 保守行为升级成任意 CFG/NLL 能力。
+云端固定 Rust 1.96.0/default debug=2/locked/offline，六目标36项无过滤重跑通过，
+all-targets Clippy（`-D warnings`）通过；同批累计未发布，不单独开 PR。
