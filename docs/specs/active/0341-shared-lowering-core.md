@@ -2646,3 +2646,16 @@ Phase 3，不改变 Value/Inout、普通借用结果或其他投影族的资格�
   合计 19 项重跑全部通过，无过滤；frontend all-targets Clippy（`-D warnings`）通过。
   本片只补拒绝边界覆盖，不删除原 witness，不授予新声明能力；随当前未发布批次积累，
   不新增单独 PR，不把本地结果当作官方 CI。
+
+#### 同批追加：普通借用来源与权限恢复
+
+在保留前四提交的独立分支中无冲突同步 main `6272d3e5`；不等待 #331 CI，不改其分支。
+`ownership_borrow_result` 四项原消费者、六份源码由单一 MemoryDocument 补为真实双入口，
+检查实际 source_id 与 root/path。保留 wrapper/local scope 的空诊断与 deferred、
+foreign/temporary 来源 L0162、source move L0135 和普通 val L0163 原断言。
+无生产或新语言能力变化，不移除 Single witness；同批继续累积，不单片创建 PR。
+独立静审保全通过；最初编辑的分号错误经 fmt 捕获并修正，动态验收以下列实际结果为准。
+云端固定 Rust 1.96.0/default debug=2/locked/offline：ownership_borrow_result 4、
+String clone 14、borrow-result 类型 3、frontier 2，共 23 项通过（无过滤）；编译、
+all-targets Clippy（`-D warnings`）、fmt、文档/尺寸/diff 通过。未运行故障注入、Abort、
+Mac 构建或 native；本批尚未发布，官方 CI 未运行。

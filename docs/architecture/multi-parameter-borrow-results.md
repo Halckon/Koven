@@ -28,3 +28,5 @@ LLVM adapter继续使用既有多个Loan pointer参数和单一storage pointer�
 `type_borrow_result` 三项原签名与实参映射测试使用 MemoryDocument/Rooted 双入口，
 保留可空/inout/this 来源正例、L0162 拒绝以及 Parameter(1)/named argument 映射断言。
 这些 raw 类型事实不额外授予 ownership 或 native 能力。
+`ownership_borrow_result` 的四项原消费者也覆盖双入口：wrapper/local scope 恢复、实际
+foreign/temporary 来源拒绝、借用存活期间禁止 source move，以及普通 val 不隐式拥有借用结果。
