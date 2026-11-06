@@ -128,7 +128,22 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
     assert!(!failure.arguments.is_empty());
     assert_eq!(failure.arguments.len(), success.arguments.len());
     let success_block = entry.block(success.target).expect("success block exists");
-    let carried_owner = success_block
+    let failure_block = entry.block(failure.target).expect("failure block exists");
+    assert_eq!(success.arguments.len(), success_block.parameters.len());
+    assert_eq!(failure.arguments.len(), failure_block.parameters.len());
+    for (arg, param) in success.arguments.iter().zip(&success_block.parameters) {
+        assert_eq!(
+            entry.entity(*arg).unwrap().ty,
+            entry.entity(*param).unwrap().ty
+        );
+    }
+    for (arg, param) in failure.arguments.iter().zip(&failure_block.parameters) {
+        assert_eq!(
+            entry.entity(*arg).unwrap().ty,
+            entry.entity(*param).unwrap().ty
+        );
+    }
+    let (carried_owner, replace_value) = success_block
         .parameters
         .iter()
         .find_map(|param| {
@@ -140,7 +155,9 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
                 .iter()
                 .filter_map(|instruction| entry.instruction(*instruction))
                 .find_map(|instruction| match instruction.operation {
-                    Operation::ContainerReplace { owner, .. } if owner == *val => Some(*val),
+                    Operation::ContainerReplace { owner, value, .. } if owner == *val => {
+                        Some((*val, value))
+                    }
                     _ => None,
                 })
         })
@@ -152,9 +169,14 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
             .filter_map(|instruction| entry.instruction(*instruction))
             .any(|instruction| matches!(
                 instruction.operation,
-                Operation::ContainerReplace { owner, .. } if owner == carried_owner
+                Operation::ContainerReplace { owner, value, .. }
+                    if owner == carried_owner && value == replace_value
             ))
     );
+    // 验证 carried_owner 在 success.arguments 中有对应的存活前驱实参
+    assert!(success.arguments.iter().any(
+        |arg| matches!(arg, EntityId::Value(v) if entry.entity(EntityId::Value(*v)).is_some())
+    ));
 }
 
 #[test]

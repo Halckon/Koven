@@ -676,3 +676,52 @@ fn known_function_unit_container_and_nested_value_projection_route_to_refine() {
         res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
 }
+
+#[test]
+fn mixed_temporary_container_and_map_with_closures_route_to_refine() {
+    for source in [
+        "fun f(): Int {\n\
+             val xs = listOf(10, 20)\n\
+             val sz = listOf(1, 2, 3).size\n\
+             return xs[0] + sz\n\
+         }",
+        "fun f(): Int {\n\
+             val v = mutableMapOf<Int, Int>().get(0)\n\
+             return if (v == null) { 0 } else { v }\n\
+         }",
+        "fun f(): Int {\n\
+             val factor = 3\n\
+             val calc: (Int) -> Int = { x -> x * factor }\n\
+             val xs = mutableListOf(1, 2)\n\
+             xs[0] = calc(4)\n\
+             return xs[0]\n\
+         }",
+        "fun f(): Unit {\n\
+             var m = mutableMapOf<String, Int>()\n\
+             for (w in arrayOf(\"a\", \"b\", \"a\")) {\n\
+                 if (w == \"b\") { continue }\n\
+                 val prev = m.get(w)\n\
+                 m.put(w.clone(), if (prev == null) { 1 } else { prev + 1 })\n\
+             }\n\
+         }",
+        "fun f(): Unit {\n\
+             var xs = mutableListOf<String>()\n\
+             for (a in arrayOf(\"x\", \"y\")) { xs.add(a.clone()) }\n\
+             for (s in xs) { println(s) }\n\
+         }",
+        "fun f(): Int {\n\
+             var m = mutableMapOf<String, Int>()\n\
+             for (w in arrayOf(\"x\", \"y\")) {\n\
+                 val prev = m.get(w)\n\
+                 m.put(w.clone(), if (prev == null) { 1 } else { prev + 1 })\n\
+             }\n\
+             var best = 0\n\
+             for ((k, v) in m) { if (v > best) { best = v } }\n\
+             return best\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}

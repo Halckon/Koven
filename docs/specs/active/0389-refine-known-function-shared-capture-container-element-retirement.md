@@ -38,5 +38,19 @@
 ## 3. 验收标准
 
 - [x] 补齐 `crates/lang-codegen/src/ssa/refine/{mod.rs,body.rs,emit.rs,subset.rs}`、`refine/subset/{callable.rs,container.rs,field.rs,range_borrow.rs,value.rs}` 与 `refine/build/{callable.rs,container.rs,expression.rs}`，删除 `unit_lower/closure/known_function.rs`、`unit_lower/closure/shared.rs` 与 `unit_lower/callable_view.rs`，并精简 `unit_lower/{container.rs,assignment.rs,borrow.rs,call.rs,closure.rs,ownership.rs}`（净减约 670 行 legacy 代码）。
-- [x] 新增 `ssa::refine_subset_tests::known_function_unit_container_and_nested_value_projection_route_to_refine` 与 `ssa::refine_tests::map_condition_tests::retired_known_function_shared_capture_callable_view_and_container_element_boundary_tests` 回归测试并全部通过。
+- [x] 新增 `ssa::refine_subset_tests::known_function_unit_container_and_nested_value_projection_route_to_refine`、`ssa::refine_subset_tests::mixed_temporary_container_and_map_with_closures_route_to_refine` 与 `ssa::refine_tests::map_condition_tests::retired_known_function_shared_capture_callable_view_and_container_element_boundary_tests` 回归测试并全部通过。
+- [x] 加强 `unit_lower_container_element_tests` 中 `ContainerReplace` 边参数与目标块参数的一致性及存活 owner 传递断言。
+- [x] 3 个 public-entry conformance 用例（`t05_map_loop_continue`、`u02_list_add_loop_string`、`w11_word_count`）在 single 与 project 双入口下全部通过。
 - [x] `python3 scripts/gen_roadmap.py`、`python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`cargo fmt --all -- --check` 与 `cargo clippy --locked --workspace --all-targets -- -D warnings` 全部通过。
+
+## 4. 验收记录账本
+
+| 检查项 | 状态 | 证明/结论 |
+|---|---|---|
+| 旧版 11 项 native 失败恢复 | 通过 | 针对旧提交 `378f52f0` 的 11 个失败用例在当前基准下全部通过，详见 CI run 42147051337 |
+| P1: 3 个 public-entry 用例双入口恢复 | 通过 | 定位根因为 `subset/range_borrow.rs` 的 `expr_requires_refine` 缺少被退役容器变异操作（`container_append`、`map_get`、`element_place` 等）的准入，导致 temporary 容器遍历未识别为 refine 而退回 legacy 触发 `BE:UnsupportedNode`；补齐后 `t05`、`u02`、`w11` 在 single/project 双入口下 100% 通过（`conformance_gate.py` pass_run=3/3，全量 138/154 ok，0 regression） |
+| P1: 解决主线冲突 | 通过 | 已合入最新 `origin/main`（包含 PR #322 和 PR #324），完成图表与路线图同步生成，合并树代码编译通过 |
+| P2: ContainerReplace 边参数与存活 owner 断言加强 | 通过 | 在 `unit_lower_container_element_tests.rs` 中断言 success/failure 边与目标块参数实体类型、数量一一匹配，并验证 carried_owner 为前驱存活实体 |
+| P2: 混合函数回归覆盖 | 通过 | 在 `refine_subset_tests.rs` 新增 `mixed_temporary_container_and_map_with_closures_route_to_refine`，覆盖临时容器 size + 具名下标、临时 Map receiver、捕获闭包 + 容器写入等场景 |
+| 保留 legacy 回退范围标注 | 明确 | 保留旧路径中尚未完全退役的 nullable-if / map provider 辅助代码（如 `unit_lower/control/nullable_if/heap.rs`、`unit_lower/loop_control/map_iteration.rs`），仅供未迁移遗留单元测试隔离使用，不向 public-entry 暴露 |
+| 根因归因说明 | 确认 | 撤回审查者早期推测的“缺 Phi/def_map”与“view_inner 未覆盖”假设；实际根因为 refine subset 门控漏标退役操作导致回退遗留路径 |
