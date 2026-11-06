@@ -39,7 +39,7 @@ native/sanitizer 产物路径与简短状态提示保持。目标 SPEC-0389 正�
 | 独立审阅 | 完整审阅及修正复审通过；补齐遗漏 IR 输出、移除双重失败包装、修正 equality 语义 |
 | 格式、Clippy、尺寸、文档 | fmt、Clippy all-targets -D warnings、尺寸、文档、diff 检查通过；尺寸策略47项测试通过 |
 | 全量/native/CI-only/Linux | 未运行全量及 Linux；CI-only 用例不在本地定向选择中，不删除/ignore/修改原门禁 |
-| SPEC-0389 合入与推送 | 已授权；目标工作树干净，原测试已结束，集成与远端验证待完成 |
+| SPEC-0389 集成验收 | 已合入 cb51678d；相同201项测试及 Clippy/fmt/docs/尺寸检查通过，CI待验收 |
 
 ## 本机验证输入与方法
 
@@ -66,3 +66,18 @@ native/sanitizer 产物路径与简短状态提示保持。目标 SPEC-0389 正�
 
 用户已授权提交修复、合入 SPEC-0389 工作树并推送对应远端分支；不授权合入 main。
 本 Spec 保持 active，远端 CI 与主干交付尚未验收。
+
+## 目标工作树集成验证
+
+用户授权后，修复提交 `d70a27fc` cherry-pick 到 `wt-spec-0389`，生成 `cb51678d`，
+父提交为 `390fc42a`。两个交叠测试文件仅替换诊断宏，目标 lowering 调用与断言输入保持。
+文档冲突按目标原26项 active记录追加0391，再生成 roadmap/依赖图；独立审阅确认原记录全保留。
+
+目标工作树重新编译完整 lib test 目标，复跑与开发分支逐项相同的201个具名测试：
+201 passed、0 failed、0 ignored、2446 filtered，26.58秒。输出82,819字节、866行，
+完整诊断139,514,969字节；所有数据来自目标分支本次运行。
+Clippy all-targets -D warnings、fmt、845份 Markdown 文档检查、相对父提交的尺寸与 diff 检查通过。
+随后仅追加本段验收记录，不改变已验证 Rust 输入。
+
+交付目标为远端 `feature/spec-0389-refine-container-element-closure-range-retirement`。
+不合入 main；未运行全量 codegen/native/CI-only 或 Linux，不能将本机定向结果称为全量 CI 通过。
