@@ -970,32 +970,6 @@ impl Checker<'_, '_> {
         }
     }
 
-    fn stmt_has_runtime_container(&self, statement: StatementId) -> bool {
-        let Ok(stmt) = self.inputs.parsed.ast().statements().get(statement) else {
-            return false;
-        };
-        let span = stmt.span();
-        self.inputs
-            .parsed
-            .ast()
-            .expressions()
-            .iter()
-            .any(|(expr_id, node)| {
-                let expr_span = node.span();
-                span.source_id() == expr_span.source_id()
-                    && span.start() <= expr_span.start()
-                    && expr_span.end() <= span.end()
-                    && self
-                        .inputs
-                        .typed
-                        .container_construction(self.id(expr_id))
-                        .is_some_and(|d| {
-                            d.kind()
-                                == lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
-                        })
-            })
-    }
-
     fn loop_body(&mut self, body: StatementId) -> bool {
         self.loops += 1;
         let supported = self.statement(body);
