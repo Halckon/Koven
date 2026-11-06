@@ -763,8 +763,8 @@ fn retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary
 
     for (source, expected_slice) in [
         (
-            "class Boxed(val text: String)\nfun pick(source: Boxed): borrow String from source = source.text\nfun main(): Unit { val b = Boxed(\"a\"); println(pick(b)) }",
-            "pick(b)",
+            "class Boxed(val text: String)\nfun pick(source: Boxed): borrow String from source = source.text\nfun use_str(s: String): Unit {}\nfun main(): Unit { val b = Boxed(\"a\"); use_str(pick(b)) }",
+            "fun pick(source: Boxed): borrow String from source = source.text",
         ),
         (
             "class Boxed(val text: String)\nfun main(): Unit { val b = Boxed(\"a\"); borrow val t = b.text }",
