@@ -55,7 +55,47 @@
 | 变异测试证据 | 本地注释 `call_operands` 中的 `CallableInvoke`/`BorrowCall`/`RangeCall` | 历史记录中的 callable/borrow 回归在 lowering 阶段报 `InvalidModel`；该失败先于参数断言，不能证明旧参数断言自身的动态鉴别力。本次未执行此变异 |
 | CI Evidence 状态 | `scripts/pr_ci_reuse.py` 执行日志 | `code-evidence` 因 PR 合并 parents 严格检验未找到匹配物理证据产物而按设计 skipped，不属于 CI 失败，且全部 14 项实体测试 job 均独立执行通过 |
 
-## 5. PR #300 参数身份断言复审
+## 5. Map-for 与整数家族的组合路由修复
+
+本地候选基于 main `e1cde85f907553053c1d6ef699ea4ddd81d0a18e`。真实 CLI 对照中，
+同一 Borrow `Map<Int, Int>` 的 `for` 内 `v + 1` 可 build/run；改为 `v.inv()`，或仅在
+循环前绑定 `val range = 0..<3`，均在已退休的 legacy 家族入口报 `UnsupportedNode`。
+原因是 `map_for` 的 `scope_requires_refine` 尚未识别整数内建与 Range operation facts，
+导致整个函数未通过 Refine 预检而落回已不具备对应操作的路径。
+
+修复仅在共享 scope predicate 中纳入这两类既有 typed facts，不恢复旧 lowering、不移除
+Map-for 的 scope gate。各消费者的类型、来源、descriptor、ownership 与 cleanup 检查保持；
+共享 predicate 也服务 sequential temporary/while、nullable Map 与借用返回等组合准入，
+不能将本修改描述为只影响 Map-for。纯 Map-for 及无关 sibling 中整数操作的原分派保留。
+
+新增 `native_map_provider_tests::scalar_routing_tests` 覆盖 Map/MutableMap 的 Borrow、Own
+及 temporary 六种来源，分别组合 `inv`、`toLong`、循环前 Range，保留加法对照和
+continue/break/return。SSA 查询定位实际 scan 函数，检查 provider 与目标 operation 共存、
+两次输出确定性和 LLVM verifier；native 使用原 MemoryDocument 与 rooted Unit helper。
+`refine_subset_tests` 新增两项 route 断言，包括循环后 operation 与 sibling 隔离。
+所有新增源码只执行正常路径，不含故障注入、计数校准或预期 Abort。
+
+| 检查 | 本地结果 |
+|---|---|
+| main CLI 三源对照 | 加法 build/run 0；inv 与 Range build 2 / UnsupportedNode |
+| 修改前新增回归 | 七项 scalar 回归 UnsupportedNode；route 一红一绿；加法 native 暂因缺 Clang 未执行 |
+| 修复后 `cargo test --locked --offline -p lang-codegen --lib map_for_` | 10/10；六来源的 SSA/LLVM 与 84 次双布局 native 全绿 |
+| 既有相邻回归（逐 exact） | 9/9；原 Map 三路径/whole-source-set、Range 40 格、双布局 native、Refine 正负路由保留 |
+| fmt、docs、尺寸、diff | 全部通过；无新超限文件或额度增长 |
+| `cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings` | 通过；默认 dev debug=2 |
+| `cargo build --locked --offline -p lang-codegen -p lang-cli` | 通过；默认 dev debug=2 |
+| 修复后相同 CLI 三源 | 加法、inv、Range 均 build/run 0，stdout 均为 `visited` |
+
+本轮 Linux x86_64 使用 Rust 1.96.0、LLVM/Clang 21.1.8；工具隔离在工作区。
+默认 debug=2 的 libtest 编译曾被 SIGKILL，后按现行 Linux CI 的 dev/test debug=1 与
+单 Cargo 编译成功。此处不据此声称默认调试配置或 macOS/官方 CI 已通过。
+
+额外探针发现 Map-for 内嵌 numeric-for 仍 `UnsupportedNode`（精确为外层 for 范围）。
+主干也拒绝此源码，#300 前已有 `map_iteration/nested.rs` 对非 Map 子 provider 的拒绝；
+本轮不将它当成 integer/Range-value 回退的已修复正例，也不扩大循环资格。原始探针失败
+保留在本地验证记录；未修改任何既有回归来吸收该边界。
+
+## 6. PR #300 参数身份断言复审
 
 复审基线为 `main` `e1cde85f`。按 ADR-0006，跨边 owner 由 argument 的位置映射到
 目标 block 的新参数身份；`add_block` 为各参数重新分配 entity。因此旧
@@ -77,3 +117,11 @@
 | `cargo clippy --offline --locked -p lang-codegen --all-targets -- -D warnings` | 通过 |
 | `cargo fmt --all -- --check`、docs、`check_rust_sizes.py --base e1cde85f`、diff | 通过；无新增尺寸债务 |
 | 四项 oracle 校准、原七项 Abort 回归、官方双宿主 CI | 未执行；依当前测试限制留给 CI，不能报告动态负控或 native 已通过 |
+
+官方 CI 后续记录：PR #322 原 head `e0fad80609da7f0ac51547030fac434b53a1048d`、
+基线 `e1cde85f907553053c1d6ef699ea4ddd81d0a18e`、merge `109e2c30` 的
+[run 42053294080](https://github.com/Halckon/Koven/actions/runs/42053294080) 全绿；
+四项 oracle 校准与七项 Abort 前驱回归在 Linux/macOS 实际通过，Preview 生产与独立消费均通过。
+上述“未执行”是原本地检查记录，不覆盖这次官方运行；该结果不扩大为通用路径敏感验证器的验收。
+本次冲突组合基于实际 main `3f88b1aa6e7365480d4ed1cafcb1e8f2e00da772`（已含 PR #321），
+已核验源码树与预期基线一致。组合后的新 CI 待运行，不能复用原 head 绿灯宣称组合已通过。

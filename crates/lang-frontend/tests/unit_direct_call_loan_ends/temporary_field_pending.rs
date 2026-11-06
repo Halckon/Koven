@@ -1,4 +1,4 @@
-//! 已准入的一层临时父字段 Borrow 清理；不扩大 direct-call loan-end 观测片。
+//! Field/Group 临时父 Borrow 清理；不扩大 direct-call loan-end 观测片。
 use super::*;
 use lang_frontend::ast::ExpressionId;
 
@@ -53,10 +53,28 @@ fn assert_field_cleanup(
             let parent_id = expression(observed, parent_text);
             let field = observed.parsed.ast().expressions().get(field_id).unwrap();
             let parent = observed.parsed.ast().expressions().get(parent_id).unwrap();
-            let Expression::Member { receiver, .. } = field.payload() else {
-                panic!("actual one-level field operand")
-            };
-            assert_eq!(*receiver, parent_id);
+            let mut receiver = field_id;
+            let mut fields = 0;
+            while receiver != parent_id {
+                receiver = match observed
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(receiver)
+                    .unwrap()
+                    .payload()
+                {
+                    Expression::Group { expression } => *expression,
+                    Expression::Member { receiver, .. } => {
+                        fields += 1;
+                        *receiver
+                    }
+                    other => {
+                        panic!("only source field/group steps before the expected owner: {other:?}")
+                    }
+                };
+            }
+            assert!(fields > 0);
             assert!(matches!(
                 parent.payload(),
                 Expression::Call { .. } | Expression::Group { .. }
@@ -254,4 +272,164 @@ fn copyable_value_class_parent_has_no_unique_drop_obligation() {
         "value class Holder(val number: Int)\nfun read(number: Int, own n: Int): Unit {{}}\nfun run(): Unit {{ {call} }}"
     ));
     assert_field_cleanup(&observed, call, &[("Holder(1).number", "Holder(1)")], &[]);
+}
+
+#[test]
+fn grouped_temporary_field_keeps_the_original_parent_owner() {
+    for (field, parent) in [
+        ("(Holder(\"field\").text)", "Holder(\"field\")"),
+        ("((Holder(\"field\").text))", "Holder(\"field\")"),
+        ("((Holder(\"field\")).text)", "(Holder(\"field\"))"),
+    ] {
+        let call = format!("read({field}, 0)");
+        let observed = observe(&format!(
+            "class Holder(val text: String)\nfun read(text: String, own n: Int): Unit {{}}\nfun run(): Unit {{ {call} }}"
+        ));
+        assert_field_cleanup(
+            &observed,
+            &call,
+            &[(field, parent)],
+            &[(Cleanup::Returned(&call), parent)],
+        );
+    }
+}
+
+#[test]
+fn nested_temporary_field_drops_the_complete_outer_owner() {
+    for field in [
+        "Outer(Holder(\"field\")).inner.text",
+        "(Outer(Holder(\"field\")).inner.text)",
+        "((Outer(Holder(\"field\")).inner).text)",
+    ] {
+        let call = format!("read({field}, 0)");
+        let observed = observe(&format!(
+            "class Holder(val text: String)\nclass Outer(val inner: Holder)\nfun read(text: String, own n: Int): Unit {{}}\nfun run(): Unit {{ {call} }}"
+        ));
+        assert_field_cleanup(
+            &observed,
+            &call,
+            &[(field, "Outer(Holder(\"field\"))")],
+            &[(Cleanup::Returned(&call), "Outer(Holder(\"field\"))")],
+        );
+    }
+}
+
+#[test]
+fn nested_resource_field_prefix_survives_or_releases_on_the_actual_exit() {
+    for transfer in ["return", "break", "continue", "loop { break }; 0"] {
+        let first = "(Outer(Holder(\"first\")).inner.text)";
+        let second = "((Outer(Holder(\"second\")).inner).text)";
+        let call = format!("read({first}, {second}, if (flag) {{ {transfer} }} else {{ 0 }})");
+        let body = if matches!(transfer, "break" | "continue") {
+            format!("while (flag) {{ {call} }}")
+        } else {
+            call.clone()
+        };
+        let observed = observe(&format!(
+            "class Holder(val text: String) {{ deinit() {{}} }}\nclass Outer(val inner: Holder)\nfun read(first: String, second: String, own n: Int): Unit {{}}\nfun run(flag: Boolean): Unit {{ {body} }}"
+        ));
+        let mut drops = Vec::new();
+        if !transfer.starts_with("loop") {
+            drops.extend([
+                (Cleanup::Transfer(transfer), "Outer(Holder(\"second\"))"),
+                (Cleanup::Transfer(transfer), "Outer(Holder(\"first\"))"),
+            ]);
+        }
+        drops.extend([
+            (Cleanup::Returned(&call), "Outer(Holder(\"second\"))"),
+            (Cleanup::Returned(&call), "Outer(Holder(\"first\"))"),
+        ]);
+        assert_field_cleanup(
+            &observed,
+            &call,
+            &[
+                (first, "Outer(Holder(\"first\"))"),
+                (second, "Outer(Holder(\"second\"))"),
+            ],
+            &drops,
+        );
+    }
+}
+
+#[test]
+fn incomplete_outer_construction_releases_only_its_completed_resource_operand() {
+    let call = "read((Outer(Holder(\"field\"), return).inner.text), 0)";
+    let observed = observe(&format!(
+        "class Holder(val text: String) {{ deinit() {{}} }}\nclass Outer(val inner: Holder, val number: Int)\nfun read(text: String, own n: Int): Unit {{}}\nfun run(): Unit {{ {call} }}"
+    ));
+    assert_field_cleanup(
+        &observed,
+        call,
+        &[],
+        &[(Cleanup::Transfer("return"), "Holder(\"field\")")],
+    );
+}
+
+#[test]
+fn grouped_field_inout_and_owned_move_do_not_gain_borrow_admission() {
+    for (body, code, primary) in [
+        (
+            "change(&(Outer(Holder(\"field\")).inner.text))",
+            "L0134",
+            "&",
+        ),
+        (
+            "val outer = Outer(Holder(\"field\")); consume((outer.inner.text))",
+            "L0132",
+            "text",
+        ),
+    ] {
+        let observed = observe(&format!(
+            "class Holder(var text: String) {{ deinit() {{}} }}\nclass Outer(val inner: Holder)\nfun change(inout text: String): Unit {{}}\nfun consume(own text: String): Unit {{}}\nfun run(): Unit {{ {body} }}"
+        ));
+        for unit in &observed.units {
+            assert_eq!(
+                unit.diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect::<Vec<_>>(),
+                [code]
+            );
+            assert_eq!(
+                observed.sources.slice(unit.diagnostics()[0].primary_span()),
+                Ok(primary)
+            );
+            assert!(unit.loans().is_empty());
+            assert!(unit.value_deliveries().is_empty());
+            assert!(unit.drops().is_empty());
+            assert!(unit.clone().validate().is_err());
+        }
+    }
+}
+
+#[test]
+fn later_invalid_argument_clears_the_completed_nested_field_prefix() {
+    let observed = observe(
+        "class Holder(val text: String) { deinit() {} }\nclass Outer(val inner: Holder)\nfun read(text: String, own n: Int): Unit {}\nfun consume(own text: String): Int = 0\nfun run(): Unit { val outer = Outer(Holder(\"named\")); read((Outer(Holder(\"temporary\")).inner.text), consume((outer.inner.text))) }",
+    );
+    for unit in &observed.units {
+        let [diagnostic] = unit.diagnostics() else {
+            panic!("one forbidden partial move: {:?}", unit.diagnostics())
+        };
+        assert_eq!(diagnostic.code().to_string(), "L0132");
+        assert_eq!(
+            observed.sources.slice(diagnostic.primary_span()),
+            Ok("text")
+        );
+        assert!(unit.loans().is_empty());
+        assert!(unit.value_deliveries().is_empty());
+        assert!(unit.drops().is_empty());
+        assert!(unit.direct_call_loan_ends().is_empty());
+        assert!(unit.clone().validate().is_err());
+    }
+}
+
+#[test]
+fn nested_copyable_field_parent_has_no_unique_drop_obligation() {
+    let field = "((Outer(Holder(1)).inner).number)";
+    let call = format!("read({field}, 0)");
+    let observed = observe(&format!(
+        "value class Holder(val number: Int)\nvalue class Outer(val inner: Holder)\nfun read(number: Int, own n: Int): Unit {{}}\nfun run(): Unit {{ {call} }}"
+    ));
+    assert_field_cleanup(&observed, &call, &[(field, "Outer(Holder(1))")], &[]);
 }

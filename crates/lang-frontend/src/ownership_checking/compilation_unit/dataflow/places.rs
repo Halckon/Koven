@@ -254,6 +254,48 @@ impl Checker<'_> {
         self.temporary_element_owner(expression)
     }
 
+    /// Resolve only Field/Group chains to their evaluated temporary parent.
+    /// Other projection families keep their own lifetime and continuation contracts.
+    pub(super) fn temporary_field_owner(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<UnitExpressionId>, OwnershipCheckingError> {
+        if let Expression::Group { expression } =
+            self.parsed.ast().expressions().get(expression)?.payload()
+        {
+            return self.temporary_field_owner(*expression);
+        }
+        let argument = self.unit_expression(expression);
+        let Some(projection) = self.typed.aggregate_projection(argument) else {
+            return Ok(None);
+        };
+        if projection.expression() != argument
+            || projection.kind() != UnitAggregateProjectionKind::Field
+        {
+            return Ok(None);
+        }
+        let crate::type_checking::UnitAggregateProjectionReceiver::Expression(receiver) =
+            projection.receiver()
+        else {
+            return Ok(None);
+        };
+        if receiver.source_unit() != self.source_unit {
+            return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                source_unit: self.source_unit.index(),
+                expression: expression.index(),
+            });
+        }
+        if self.borrow_result_call(receiver.expression()).is_some()
+            || self.range_use(receiver.expression()).is_some()
+        {
+            return Ok(None);
+        }
+        if let Some(owner) = self.temporary_expression_origin(receiver.expression())? {
+            return Ok(Some(owner));
+        }
+        self.temporary_field_owner(receiver.expression())
+    }
+
     pub(super) fn temporary_expression_origin(
         &self,
         expression: ExpressionId,
