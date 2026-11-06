@@ -1,0 +1,177 @@
+name: CI Toolchain Image
+run-name: CI toolchain image ${{ github.event_name }} ${{ github.sha }}
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/ci-toolchain/**'
+      - '.github/workflows/ci-toolchain-image.yml'
+      - '.github/workflows/ci.yml'
+      - 'scripts/install_ci_llvm*.sh'
+      - 'scripts/*ci*image*.sh'
+      - 'scripts/tests/test_ci_toolchain_image.py'
+      - 'rust-toolchain.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-toolchain-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Build and validate CI image
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    outputs:
+      image_id: ${{ steps.build.outputs.image_id }}
+      image_artifact: ${{ steps.image.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Build from a minimal public-input context
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          context="$RUNNER_TEMP/image-context"
+          mkdir "$context"
+          cp .github/ci-toolchain/Dockerfile "$context/"
+          cp scripts/install_ci_llvm_ubuntu26.sh scripts/install_ci_image_rust.sh \
+            scripts/verify_ci_toolchain_image.sh "$context/"
+          docker build --platform linux/amd64 --pull \
+            --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --tag koven-ci-toolchain:validated "$context"
+          image_id="$(docker image inspect --format '{{.Id}}' koven-ci-toolchain:validated)"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "image_id=$image_id" >> "$GITHUB_OUTPUT"
+      - name: Run all Linux core gates in that exact image
+        shell: bash
+        env:
+          IMAGE_ID: ${{ steps.build.outputs.image_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/image-home" "$RUNNER_TEMP/image-run"
+          # No credentials, Docker socket, elevated capabilities, or host caches.
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/workspace" \
+            --mount "type=bind,src=$RUNNER_TEMP/image-home,dst=/github/home" \
+            --mount "type=bind,src=$RUNNER_TEMP/image-run,dst=/run/koven-ci" \
+            --workdir /workspace \
+            --env HOME=/github/home --env CARGO_HOME=/github/home/.cargo \
+            --env RUNNER_TEMP=/run/koven-ci --env RUNNER_OS=Linux \
+            --env GITHUB_ACTIONS=true --env CARGO_INCREMENTAL=0 \
+            --env CARGO_TERM_COLOR=always --env RUST_BACKTRACE=1 \
+            "$IMAGE_ID" bash scripts/check_ci_toolchain_image.sh
+      - name: Preserve image and native validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-toolchain-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/image-run/toolchain-evidence
+            ${{ runner.temp }}/image-run/koven-word-frequency
+            ${{ runner.temp }}/image-run/koven-conformance
+            ${{ runner.temp }}/image-run/koven-sanitizers
+            ${{ runner.temp }}/image-run/koven-generated-owners
+          if-no-files-found: warn
+      - name: Save only the validated image for trusted publication
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'Halckon/Koven'
+        env:
+          IMAGE_ID: ${{ steps.build.outputs.image_id }}
+        run: docker save --output "$RUNNER_TEMP/ci-toolchain-image.tar" "$IMAGE_ID"
+      - uses: actions/upload-artifact@v7
+        id: image
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'Halckon/Koven'
+        with:
+          name: ci-toolchain-image-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-toolchain-image.tar
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: Publish validated main image
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'Halckon/Koven'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    steps:
+      # No checkout or execution of repository scripts in the write-permission job.
+      - name: Require successful exact-source main CI on both platforms
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          repo, sha = os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_SHA']
+          def get(path):
+              request = urllib.request.Request('https://api.github.com/repos/' + repo + path,
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                           'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+          runs = get('/actions/workflows/ci.yml/runs?event=push&status=success&head_sha=' + sha)['workflow_runs']
+          required = {'Workspace Check & Clippy (macos-15)', 'Workspace Check & Clippy (ubuntu-26.04)',
+                      'Targeted Tests (macos-15)', 'Targeted Tests (ubuntu-26.04)',
+                      'Preview Producer (macos-15)', 'Preview Independent Consumer (macos-15)',
+                      'Preview Producer (ubuntu-24.04)', 'Preview Independent Consumer (ubuntu-24.04)',
+                      'CI Passed'}
+          for run in runs:
+              if (run['head_sha'], run['head_branch'], run['event'], run['conclusion']) != (sha, 'main', 'push', 'success'):
+                  continue
+              jobs = []
+              page = 1
+              while True:
+                  batch = get(f"/actions/runs/{run['id']}/attempts/{run['run_attempt']}/jobs?per_page=100&page={page}")['jobs']
+                  jobs.extend(batch)
+                  if len(batch) < 100:
+                      break
+                  page += 1
+              if all(len(matches := [job for job in jobs if job['name'] == name]) == 1 and matches[0]['conclusion'] == 'success' for name in required):
+                  print('Verified exact-source main CI:', run['html_url'])
+                  break
+          else:
+              raise SystemExit('Exact-source main CI with all real Linux/macOS/Preview gates is required before publication.')
+          PY
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.validate.outputs.image_artifact }}
+          path: ${{ runner.temp }}/validated-image
+      - name: Publish the same bytes and report immutable digest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_ID: ${{ needs.validate.outputs.image_id }}
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
+          export DOCKER_CONFIG="$RUNNER_TEMP/publish-docker-config"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          docker load --input "$RUNNER_TEMP/validated-image/ci-toolchain-image.tar"
+          [[ "$(docker image inspect --format '{{.Id}}' "$IMAGE_ID")" == "$IMAGE_ID" ]]
+          image="ghcr.io/halckon/koven-ci-toolchain"
+          tag="$image:source-$GITHUB_SHA-run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker tag "$IMAGE_ID" "$tag"
+          docker push "$tag"
+          digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$tag")"
+          [[ "$digest" =~ ^ghcr.io/halckon/koven-ci-toolchain@sha256:[0-9a-f]{64}$ ]]
+          # The pull must resolve to the exact image that passed validation above.
+          docker pull "$digest"
+          [[ "$(docker image inspect --format '{{.Id}}' "$digest")" == "$IMAGE_ID" ]]
+          docker run --rm --network none "$digest" bash /opt/koven-ci/verify_ci_toolchain_image.sh
+          printf 'Source: `%s`\n\nValidated image: `%s`\n' "$GITHUB_SHA" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          # Fork PR consumers need anonymous pull, not a token with package writes.
+          docker --config "$RUNNER_TEMP/anonymous-docker-config" manifest inspect "$digest" > /dev/null
+          echo 'Anonymous pull metadata verified. Core CI has not been switched.' >> "$GITHUB_STEP_SUMMARY"

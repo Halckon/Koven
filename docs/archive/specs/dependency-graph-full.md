@@ -372,6 +372,7 @@ subgraph Gactive["现行 active"]
   S0380["S0380<br/>deinit 析构体、多层字段借用、接口委托、无状态 object 与 Map.withValue 迁入所有权细化层"]
   S0381["S0381<br/>默认分流边界修复与旧路径退休"]
   S0383["S0383<br/>最终默认路由收敛与旧路径退休收尾"]
+  S0390["S0390<br/>预置 Linux CI 工具链镜像"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1815,6 +1816,7 @@ S0366 --> S0367
 | SPEC-0380 | active | [0380-refine-deinit-nested-fields-and-box-payloads.md](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md) |
 | SPEC-0381 | active | [0381-refine-default-routing-and-legacy-retirement.md](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md) |
 | SPEC-0383 | active | [0383-refine-final-legacy-retirement.md](../../specs/active/0383-refine-final-legacy-retirement.md) |
+| SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](../../specs/active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

@@ -40,6 +40,17 @@ Preview 的 producer/独立consumer仍固定 `ubuntu-24.04`，保留原安装器
 API及sanitizer，记录既有主线失败；不得删除旧合同或改变E3来取得迁移绿灯。
 回滚应整体撤销宿主、安装器分派及job-name契约改动，不能只回退显示名称。
 
+## 预置工具链候选
+
+[SPEC-0390](../specs/active/0390-prebuilt-ci-toolchain.md)先独立构建并验收 Ubuntu26/Rust1.96/LLVM21.1.8
+工具链镜像，再取得可信发布的真实 digest 后切换核心 job。当前核心 CI 尚未切换。
+PR 镜像 workflow 不持有发布凭据，沿用完整 Linux 门禁；main 手动发布必须核同源码的
+双平台与 Preview CI，发布同一次已验证 image ID，不重新构建另一份字节。
+镜像不含仓库、Cargo 缓存或凭据，官方基础镜像及 Rust payload 固定 digest/SHA，LLVM
+沿用原严格安装器。构建输入固定不等于整个 APT 闭包可逐字节重建，消费身份是最终镜像 digest。
+默认容器安全设置保持，LLDB/native/sanitizer 失败不得跳过；正式切换还必须实际验收
+Actions HOME、checkout、缓存与产物上传。Preview24 继续独立生产和消费，不能复用核心镜像证明发布 ABI。
+
 ## Linux CI 磁盘故障诊断
 
 Linux targeted tests 在 checkout 后、缓存恢复后和 bounded composition 结束后记录只读
