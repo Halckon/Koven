@@ -12,7 +12,10 @@ class CiDebugProfileTests(unittest.TestCase):
 
     def test_only_original_two_host_matrix(self):
         self.assertIn('os: [macos-15, ubuntu-26.04]', self.job)
-        self.assertNotIn('        include:', self.job)
+        matrix = self.job.split('      matrix:\n', 1)[1].split('    runs-on:', 1)[0]
+        self.assertEqual(1, matrix.count('          - os: '))
+        self.assertIn('          - os: ubuntu-26.04\n            container:', matrix)
+        self.assertIn('              options: --user 1001:1001', matrix)
         self.assertNotIn('matrix.debug', self.job)
         self.assertIn('name: Targeted Tests (${{ matrix.os }})\n', self.job)
         self.assertNotIn('continue-on-error', self.job)

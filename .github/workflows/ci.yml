@@ -60,6 +60,8 @@ jobs:
               - '*.md'
               - 'LICENSE*'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-toolchain-image.yml'
+              - '.github/ci-toolchain/**'
               - '.github/actions/setup-llvm/**'
             rust:
               - '.cargo/**'
@@ -71,6 +73,8 @@ jobs:
               - 'Cargo.*'
               - 'rust-toolchain.toml'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-toolchain-image.yml'
+              - '.github/ci-toolchain/**'
               - '.github/actions/setup-llvm/**'
               - 'editors/**'
               - 'docs/tutorials/**'
@@ -100,6 +104,8 @@ jobs:
             editors:
               - 'editors/**'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-toolchain-image.yml'
+              - '.github/ci-toolchain/**'
               - 'scripts/check_ci_results.py'
               - 'scripts/tests/test_check_ci_results.py'
               - 'docs/guide/01-lexical.md'
@@ -109,6 +115,8 @@ jobs:
               - 'Cargo.*'
               - 'rust-toolchain.toml'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/ci-toolchain-image.yml'
+              - '.github/ci-toolchain/**'
               - '.github/actions/setup-llvm/**'
               - 'docs/tutorials/**'
               - 'scripts/check_tutorial.py'
@@ -247,20 +255,45 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, ubuntu-26.04]
+        include:
+          - os: ubuntu-26.04
+            container:
+              image: ghcr.io/halckon/koven-ci-toolchain@sha256:b5ce8a4479579ecc57194e385f13109a52022114f0e19cab93fc426bdbb9500e
+              options: --user 1001:1001
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || '' }}
+    defaults:
+      run:
+        shell: bash
     steps:
+      - name: Verify unprivileged container mounts
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          [[ "$(id -u)" == 1001 ]]
+          for directory in "$HOME" "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            [[ -d "$directory" && -w "$directory" && -x "$directory" ]]
+          done
+          [[ -f "$GITHUB_ENV" && -w "$GITHUB_ENV" ]]
+          mkdir -p "$HOME/.cargo"
+          echo "CARGO_HOME=$HOME/.cargo" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
+      - name: Verify the pinned Linux toolchain offline
+        if: runner.os == 'Linux'
+        run: bash scripts/verify_ci_toolchain_image.sh
       - name: Set up LLVM 21
+        if: runner.os == 'macOS'
         id: llvm
         uses: ./.github/actions/setup-llvm
         timeout-minutes: 10
       - uses: dtolnay/rust-toolchain@stable
+        if: runner.os == 'macOS'
         with:
           toolchain: '1.96.0'
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}
+          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Cargo Check
         run: cargo check --locked --workspace --all-targets
       - name: Cargo Clippy
@@ -279,26 +312,51 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, ubuntu-26.04]
+        include:
+          - os: ubuntu-26.04
+            container:
+              image: ghcr.io/halckon/koven-ci-toolchain@sha256:b5ce8a4479579ecc57194e385f13109a52022114f0e19cab93fc426bdbb9500e
+              options: --user 1001:1001
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || '' }}
+    defaults:
+      run:
+        shell: bash
     env:
       CARGO_PROFILE_DEV_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
       CARGO_PROFILE_TEST_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
     steps:
+      - name: Verify unprivileged container mounts
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          [[ "$(id -u)" == 1001 ]]
+          for directory in "$HOME" "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            [[ -d "$directory" && -w "$directory" && -x "$directory" ]]
+          done
+          [[ -f "$GITHUB_ENV" && -w "$GITHUB_ENV" ]]
+          mkdir -p "$HOME/.cargo"
+          echo "CARGO_HOME=$HOME/.cargo" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
+      - name: Verify the pinned Linux toolchain offline
+        if: runner.os == 'Linux'
+        run: bash scripts/verify_ci_toolchain_image.sh
       - name: Observe initial Linux disk usage
         if: runner.os == 'Linux'
         run: python3 scripts/ci_disk_usage.py before-setup || true
       - name: Set up LLVM 21
+        if: runner.os == 'macOS'
         id: llvm
         uses: ./.github/actions/setup-llvm
         timeout-minutes: 10
       - uses: dtolnay/rust-toolchain@stable
+        if: runner.os == 'macOS'
         with:
           toolchain: '1.96.0'
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: ${{ runner.os == 'Linux' && 'v1-test-debug1' || 'v0-rust' }}
-          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}
+          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
       - name: Observe final Linux composition disk usage

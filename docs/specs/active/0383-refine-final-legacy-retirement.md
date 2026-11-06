@@ -125,3 +125,13 @@ continue/break/return。SSA 查询定位实际 scan 函数，检查 provider 与
 上述“未执行”是原本地检查记录，不覆盖这次官方运行；该结果不扩大为通用路径敏感验证器的验收。
 本次冲突组合基于实际 main `3f88b1aa6e7365480d4ed1cafcb1e8f2e00da772`（已含 PR #321），
 已核验源码树与预期基线一致。组合后的新 CI 待运行，不能复用原 head 绿灯宣称组合已通过。
+
+### PR #322 直接迁移核心 CI（2026-11-06）
+
+head `d84051e2` 与 main `3f88b1aa` 的组合在 [run 42133927775](https://github.com/Halckon/Koven/actions/runs/42133927775)
+完成双宿主 check/Clippy，macOS 实际通过四项 oracle 校准及七项 Abort 前驱回归；
+Ubuntu 测试因 LLVM 包下载超时尚未启动，Preview 未执行，不记作组合验收通过。
+按用户最新要求，现基于 main `c80e9e38` 将 [SPEC-0390](0390-prebuilt-ci-toolchain.md) 的
+已发布固定 digest 直接整合本 PR：Linux 核心 job 使用非 root 容器，保留原测试和
+macOS/Preview 门禁。三个 owner 测试/helper 文件与 `d84051e2` 逐字一致；新组合的
+精确头 CI、权限测试、Actions 挂载/缓存/产物验收仍待实际运行，旧结果不替代新验收。

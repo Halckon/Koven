@@ -85,12 +85,37 @@ fn project_multiple_roots_retain_unicode_source_breakpoint() {
     assert_source_breakpoint(&executable, &source, 3, "app.show");
 }
 
+fn source_debugger_command() -> Command {
+    let mut command = Command::new(if cfg!(target_os = "macos") {
+        "/usr/bin/lldb"
+    } else {
+        "lldb"
+    });
+    command.arg("--batch");
+    if cfg!(target_os = "linux") {
+        // Source/frame assertions need no fixed load address. Preserve ASLR so
+        // launch does not request a personality change blocked by containers.
+        command.args(["-o", "settings set target.disable-aslr false"]);
+    }
+    command
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_source_debugger_preserves_aslr() {
+    let command = source_debugger_command();
+    assert_eq!(command.get_program(), "lldb");
+    assert_eq!(
+        command.get_args().collect::<Vec<_>>(),
+        ["--batch", "-o", "settings set target.disable-aslr false"]
+    );
+}
+
 fn assert_source_breakpoint(executable: &Path, source: &Path, line: u32, function: &str) {
     let source = fs::canonicalize(source).expect("canonical source");
     assert_final_line_table(executable, line);
-    let debugger = Command::new(if cfg!(target_os = "macos") { "/usr/bin/lldb" } else { "lldb" })
+    let debugger = source_debugger_command()
         .current_dir(std::env::temp_dir())
-        .arg("--batch")
         .args(["-o", &format!("target create '{}'", executable.display())])
         .args([
             "-o",
