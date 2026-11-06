@@ -40,7 +40,7 @@ fun main():Unit{{scan(true,true);scan(true,false);scan(false,true);scan(false,fa
                 let lowered = lower_positive(&consumer, &expression, pipeline);
                 let span = lowered.expected_span;
                 let (program, entry) = lowered.require_success(&label);
-                assertions::short_circuit_receiver_transport(&program, span, and);
+                assertions::short_circuit_branch(&program, span);
                 let mut expected = String::new();
                 for (left, right) in [(true, true), (true, false), (false, true), (false, false)] {
                     expected.push_str("lhs\n");

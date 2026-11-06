@@ -86,6 +86,13 @@ impl Checker<'_, '_> {
                 .non_null_assertion(id)
                 .is_some_and(|d| self.map_kv(self.c(d.inner_type())).is_some())
             || typed.rc_operation(id).is_some()
+            // `RangeView.size` lowers only here (SPEC-0393).
+            || typed.range_size(id).is_some()
+            // Borrow-result and `RangeView` calls lower only here (SPEC-0393).
+            || typed.call(id).is_some_and(|call| {
+                call.borrow_return().is_some()
+                    || matches!(call.result_source(), CallableResultSource::Carrier(_))
+            })
             || typed.integer_operation(id).is_some()
             || typed.integer_range_operation(id).is_some()
             || typed.map_with_value(id).is_some()
@@ -202,6 +209,16 @@ impl Checker<'_, '_> {
         if place.element().is_some() {
             return false;
         }
+        // A direct alias of a Borrow parameter stays on the per-family path that the legacy
+        // `Map` borrowed iteration shares, unless the scope already needs this layer.
+        if fact.storage() == BorrowBindingStorage::BorrowedStorage
+            && fact.source_loan().is_none()
+            && place.is_root()
+            && self.parameter_mode(place.root()) == Some(ParameterMode::Borrow)
+            && !self.scope_requires_refine()
+        {
+            return false;
+        }
         if fact.storage() == BorrowBindingStorage::NewRangeDescriptor {
             if fact.source_loan().is_none() || !place.is_root() || !self.range_call(initializer) {
                 return false;
@@ -228,7 +245,7 @@ impl Checker<'_, '_> {
         let Some(declared) = self.symbol_type(symbol) else {
             return false;
         };
-        if !self.storage_type(declared) {
+        if !self.storage_type(declared) && !self.nullable_storage(declared) {
             return false;
         }
         let ok = match fact.source_loan() {
@@ -415,7 +432,9 @@ impl Checker<'_, '_> {
             let Some(src_ty) = self.expression_type(src) else {
                 return false;
             };
-            return self.container_element(src_ty) == Some(elem_ty)
+            // The source is the root container or a view of it (`take(view, n)`).
+            return (self.container_element(src_ty) == Some(elem_ty)
+                || self.range_view_element(src_ty) == Some(elem_ty))
                 && (self.borrowed_move_only_name(src, src_ty) || self.expression(src))
                 && self.expression(arguments[1].value)
                 && self.expression(arguments[2].value);
@@ -445,6 +464,25 @@ impl Checker<'_, '_> {
             return false;
         }
         let root = self.ungrouped(descriptor.receiver().expression());
+        // `this.size` in a `View<T>` receiver function reads the receiver loan.
+        if self.reference(root).is_none()
+            && matches!(
+                self.inputs
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(root)
+                    .map(|node| node.payload()),
+                Ok(Expression::This)
+            )
+        {
+            let ok = self.inputs.receiver.is_some_and(|receiver| {
+                receiver.mode == ParameterMode::Borrow
+                    && self.range_view_element(receiver.ty).is_some()
+            });
+            self.migrated |= ok;
+            return ok;
+        }
         let Some(symbol) = self.reference(root) else {
             return false;
         };
@@ -475,7 +513,9 @@ impl Checker<'_, '_> {
             || descriptor.source() != source_id
             || !matches!(
                 plan.source_access(),
-                UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Shared
+                UnitIterationSourceAccess::Owned
+                    | UnitIterationSourceAccess::Shared
+                    | UnitIterationSourceAccess::Temporary
             )
         {
             return false;

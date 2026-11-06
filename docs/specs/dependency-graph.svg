@@ -187,8 +187,8 @@
   <rect x="7268" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="7388" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0393</text>
   <text x="7388" y="105" text-anchor="middle" font-size="13">RangeView、借用结果</text>
-  <text x="7388" y="123" text-anchor="middle" font-size="13">函数与绑定、Rc 操作、St</text>
-  <text x="7388" y="141" text-anchor="middle" font-size="13">ring.clone() …</text>
+  <text x="7388" y="123" text-anchor="middle" font-size="13">函数与绑定、Rc 操作及带捕</text>
+  <text x="7388" y="141" text-anchor="middle" font-size="13">获闭包旧路径退役</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">archive，341 份</text>

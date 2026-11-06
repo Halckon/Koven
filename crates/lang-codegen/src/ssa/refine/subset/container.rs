@@ -600,7 +600,8 @@ impl Checker<'_, '_> {
     ) -> Option<UnitSymbolId> {
         let root = self.ungrouped(expression);
         let node = self.inputs.parsed.ast().expressions().get(root).ok()?;
-        let Expression::Name = node.payload() else {
+        // An extension receiver `this` names its Borrow parameter.
+        let (Expression::Name | Expression::This) = node.payload() else {
             return None;
         };
         let id = self.id(root);

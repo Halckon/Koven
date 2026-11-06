@@ -919,12 +919,8 @@ fn ordinary_direct_prefix_scope_negatives_keep_exact_call_rejections() {
             "val host = Host()",
             format!("host.method(Leaf(), {control})"),
         ),
-        (
-            "function-value",
-            "",
-            "val action: (Leaf, own Int) -> Unit = { item, number -> }",
-            format!("action(Leaf(), {control})"),
-        ),
+        // SPEC-0393: a function-value call with a returning argument lowers in the
+        // refinement layer (captured closures no longer have a per-family path).
     ] {
         let text = format!(
             "class Leaf\n{definitions}\n\

@@ -12,6 +12,7 @@ mod inout;
 mod map;
 mod place;
 mod range_borrow;
+mod range_view;
 mod rc;
 mod receiver;
 mod scalar_text;

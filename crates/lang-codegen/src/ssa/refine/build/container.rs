@@ -14,7 +14,7 @@ use super::{Builder, Lowered, callable::LentArgument};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind},
-    refine::body::ROp,
+    refine::body::{ROp, Slot},
 };
 
 impl Builder<'_, '_> {
@@ -398,7 +398,9 @@ impl Builder<'_, '_> {
         let receiver_span = self.span(receiver);
         let container_ty = self.c(descriptor.container_type());
         let target = self.ssa_type(container_ty, receiver_span)?;
-        let (loan, created) = if let Ok(symbol) = self.named_container_symbol(receiver, span) {
+        let (loan, created) = if let Some(loan) = self.this_receiver_loan(receiver)? {
+            (loan, None)
+        } else if let Ok(symbol) = self.named_container_symbol(receiver, span) {
             if let Some(&loan) = self.borrowed.get(&symbol) {
                 (loan, None)
             } else {
@@ -792,6 +794,28 @@ impl Builder<'_, '_> {
         self.drops(UnitDropPoint::AfterExpression(descriptor.element()))?;
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Unit)
+    }
+
+    /// The borrowed `this` of a receiver function, read through its loan (`this.size`).
+    pub(super) fn this_receiver_loan(
+        &self,
+        mut expression: ExpressionId,
+    ) -> Result<Option<Slot>, LoweringError> {
+        loop {
+            match self.node(expression)?.0 {
+                Expression::Group { expression: inner } => expression = inner,
+                Expression::This => {
+                    // An extension receiver is a Borrow parameter named by `this`.
+                    if let Ok(symbol) = self.reference(self.span(expression))
+                        && let Some(&loan) = self.borrowed.get(&symbol)
+                    {
+                        return Ok(Some(loan));
+                    }
+                    return Ok(self.receiver);
+                }
+                _ => return Ok(None),
+            }
+        }
     }
 
     pub(super) fn named_container_symbol(
