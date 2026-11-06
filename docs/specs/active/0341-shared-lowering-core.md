@@ -1802,6 +1802,37 @@ root replace 返回一源、field replace 返回一源、field replace 中断四
   已获准发布 Draft PR 并运行官方 CI；与并行候选分节记录，合批时保留各节。
   D10/E2 继续 in-progress，正式准入和四源码行为仍需精确候选官方 CI。
 
+### Phase 2 核心容器消费者后继（2026-11-06）
+
+基于 main `c4ba670a76a567e1475deee47378fa791d25f419`，独立分支
+`feature/spec-0341-container-consumers`，不叠加 #326/#327 或修改 #323。
+
+- `type_containers` 六项原测试原位迁移：核心构造与 element identity、构造推导失败、
+  索引/size/get/set 诊断矩阵、源码同名符号、嵌套容器泛型推导、size receiver/type/span。
+  原六份源码、测试名、自定义十六 builtin 与原 intrinsic 环境、重复解析和原 oracle
+  保留；六次 Single 分析替换为十二次 MemoryDocument/Rooted 分析，不新增测试数量。
+- helper 复用同一 AST/环境，核 source ID 和精确 root/path，名称无诊断后 validate，
+  只观察 raw types。size 的 AST ID 由实际 Unit facts 配对，先核 source-unit 再投影局部
+  ID；MoveOnly 只适配 Unit API 的非 Option 返回。不增加 final/ownership 前置。
+- 原源码同名符号测试此前没有 names 空断言；Unit 公共 API 必需的 names.validate
+  及明确空诊断断言收紧名称前置，最终实际通过，不据此改变其原类型/构造 oracle。
+- 首轮尝试七项迁移，target 实际 31 passed/1 failed：signature 的 `List<Nothing>`、
+  `Array<Any>` 缺两条原 L0125，只产生 L0094/L0091。该项已完整恢复原 Single witness，
+  不改预期或生产图算法；deferred callable reference 的原 Single witness 同样保留。
+  首轮失败是有界已验证缺口，不是最终迁移通过，后续应独立修复 signature storage 检查。
+- 既有二十四项 MutableList 测试与 `mutable_unit` helper 不变。直接 check_types
+  静态调用由两处降为一处，剩余 helper 仅服务上述两项 witness；不宣称全仓退休比例。
+
+| 验收项 | 检查 / 命令 | 实际结果 |
+|---|---|---|
+| 云端编译 | Rust 1.96.0、默认 debug=2，`cargo test --offline --locked -p lang-frontend --test type_containers --no-run`、frontend lib build | 编译链接通过；首轮 Option API 适配错误已修正 |
+| 直接与共享邻控 | 完整 `type_containers` | 32 passed、0 failed、0 filtered；包含六项双入口与原两项 witness、二十四项 MutableList |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 全部通过；839 Markdown、2119 Rust 文件、39 项历史超限，无新增债 |
+| 原合同保全 | 原源码、测试名、断言与范围外测试/helper | 独立只读复核无阻断；原名称前置差异如上披露 |
+
+未运行故障注入、含 Abort 的整项、Mac 构建或官方 CI；本片未推送或开 PR，
+D10/E2 与本 Spec 保持 in-progress，不自动合并。
+
 ## 87. Choice 前置：V1 value 投影与库内双路径验证（2026-11-04）
 
 基于 main `d7021580`，仅新增向后兼容、按需调用的
