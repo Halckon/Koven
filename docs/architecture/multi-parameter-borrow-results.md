@@ -24,3 +24,15 @@ LLVM adapter继续使用既有多个Loan pointer参数和单一storage pointer�
 语言合同见[Guide10](../guide/10-ownership-borrowing-drop.md#普通借用结果与显式局部绑定)，
 本片不修改现行语义或ADR。普通结果的基础storage及词法/last-use规则见
 [原实现快照](map-native-execution.md#普通借用返回与-caller-continuation)。
+
+`type_borrow_result` 三项原签名与实参映射测试使用 MemoryDocument/Rooted 双入口，
+保留可空/inout/this 来源正例、L0162 拒绝以及 Parameter(1)/named argument 映射断言。
+这些 raw 类型事实不额外授予 ownership 或 native 能力。
+`ownership_borrow_result` 的四项原消费者也覆盖双入口：wrapper/local scope 恢复、实际
+foreign/temporary 来源拒绝、借用存活期间禁止 source move，以及普通 val 不隐式拥有借用结果。
+`ownership_borrow_origins` 五项消费者在双入口保留 direct/projected/nullable/wrapper 的
+实际来源数量、未证明路径与错误交付的原子拒绝、精确 primary/来源 label 断言。
+`ownership_borrow_last_use` 全八项原测试覆盖双入口，保留父子逆序/独立结果的精确
+source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与保守 scope endpoint。
+`ownership_borrow_continuation` 的 capture/conditional/nested-call/temporary/loop 五项拒绝
+消费者也覆盖双入口，错误时 bindings/ends 不发布；独立 Single loan-end witnesses 保留。

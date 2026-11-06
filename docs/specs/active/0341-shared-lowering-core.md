@@ -2854,3 +2854,86 @@ Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
 总数为 131，并保留全局唯一性与全部原目标断言。不是放宽重复/过滤资格。
 本地相关 45 项 Python（selector 与 composition 成功路径）和完整 signature 17 项均通过；
 不运行注入失败的整项门禁，新的官方动态结果仍须精确新头实跑。
+
+### Borrow-result 与 String clone 入口补全候选（2026-11-06）
+
+基于 main `c4ba670a`，独立于 #331 源码与 #323；同分支保留两项逻辑提交后批量验收，
+不按小片重复创建 PR。不修改生产、Guide、CI 或既有 Single witnesses。
+
+- `type_borrow_result` 三项原 MemoryDocument 测试补 Rooted：四个来源/可空性正例、
+  三个无效来源反例及三组调用合同样例，保留原源码、空诊断/L0162 与 Parameter(1)、
+  named argument 参数位置断言。检查实际单源 source_id 与 key/root/path。
+- String clone 主 helper 本已双入口，本片不改。仅最后一项 Rooted last-use receiver
+  测试补 MemoryDocument，保留 class field/Rc payload 原源码、两项 effect、实际
+  receiver loan/root 与唯一 CallReturn drop 断言；不将 descriptor 等同独立 loan-end 事件。
+- 这是入口覆盖补全，不宣称 Single 退休或新 borrow-return/native 能力。
+  云端 Rust 1.96.0、默认 debug=2、locked/offline：borrow-result 3 项、String clone
+  14 项全部通过（无过滤）；目标编译、frontend lib build、all-targets Clippy
+  （`-D warnings`）、fmt、文档结构、尺寸与 diff 检查通过，独立只读审查无阻断。
+  未执行故障注入、Abort 整项、Mac 构建或 native；未推送、未开 PR，官方 CI 未运行，
+  D10/E2 保持 in-progress。
+
+#### 同批追加：声明拒绝的严格入口对照
+
+- `type_declaration_frontier` 的原四个声明在 MemoryDocument/Rooted 均检查完整诊断、
+  marker span、无 borrow-return、final admission 拒绝、ownership 未启动和 raw facts
+  不变。原 Rooted 单源 witness 与固定 expected diagnostics 函数字节保留。
+- 云端同工具链与默认 debug=2 下，frontier 2、borrow-result 3、String clone 14，
+  合计 19 项重跑全部通过，无过滤；frontend all-targets Clippy（`-D warnings`）通过。
+  本片只补拒绝边界覆盖，不删除原 witness，不授予新声明能力；随当前未发布批次积累，
+  不新增单独 PR，不把本地结果当作官方 CI。
+
+#### 同批追加：普通借用来源与权限恢复
+
+在保留前四提交的独立分支中无冲突同步 main `6272d3e5`；不等待 #331 CI，不改其分支。
+`ownership_borrow_result` 四项原消费者、六份源码由单一 MemoryDocument 补为真实双入口，
+检查实际 source_id 与 root/path。保留 wrapper/local scope 的空诊断与 deferred、
+foreign/temporary 来源 L0162、source move L0135 和普通 val L0163 原断言。
+无生产或新语言能力变化，不移除 Single witness；同批继续累积，不单片创建 PR。
+独立静审保全通过；最初编辑的分号错误经 fmt 捕获并修正，动态验收以下列实际结果为准。
+云端固定 Rust 1.96.0/default debug=2/locked/offline：ownership_borrow_result 4、
+String clone 14、borrow-result 类型 3、frontier 2，共 23 项通过（无过滤）；编译、
+all-targets Clippy（`-D warnings`）、fmt、文档/尺寸/diff 通过。未运行故障注入、Abort、
+Mac 构建或 native；本批尚未发布，官方 CI 未运行。
+
+#### 同批追加：借用实际来源与原子拒绝 oracle
+
+`ownership_borrow_origins` 五项原测试、18 组原样例补为真实 MemoryDocument/Rooted；
+保留原来源数量、空 deferred、L0162/L0163/L0164、错误时空 origins/drops，以及
+primary/来源 label 的原文本断言。原两阶段诊断门、typed validate 与实际 ownership
+分析均保留，增加 source_id/key/root/path 身份检查；不把两入口通过升级为跨文件/native 能力。
+云端同工具链/default debug=2/locked/offline，origins 5 加前批 23，共28项通过（无过滤），
+目标编译与 all-targets Clippy（`-D warnings`）通过。未运行故障注入或 Abort，未发布或新建PR。
+
+#### 新 main 上继续：last-use 同作用域与未使用结果
+
+保留本批已有提交，合入已含 #331 的 main `751efd6a`；Rust 无冲突，Spec 仅末尾追加
+冲突，双方历史与后续批次记录均完整保留。`ownership_borrow_last_use` 两项原测试补
+Rooted：同作用域八份原 source 与无诊断/deferred oracle，及未使用结果的单一 end、
+AfterStatement、source_unit 和精确 initializer statement 文本。其余六测试仍走原
+MemoryDocument；helper 只参数化入口并加真实 key/root/path 检查，不改生产、源码或 oracle。
+本片不声称任意 CFG/NLL 或 native 支持，随借用批次累计，尚未发布、未单开 PR。
+云端 Rust 1.96.0/default debug=2/locked/offline：last-use 8、origins 5、borrow ownership 4、
+String clone 14、borrow types 3、frontier 2，共36项无过滤通过；目标编译、all-targets
+Clippy（`-D warnings`）、fmt、文档/尺寸/diff及独立审查通过。故障注入/Abort/Mac构建/native
+未运行，官方 CI 尚未运行，不将本片双入口覆盖表述为 Single 退休。
+
+
+#### 同批补齐：last-use 其余消费者
+
+余下六测试的14份原输入也运行 Rooted，保留父子 binding/逆序 ends、source 清理唯一性、
+独立 statement 身份、L0135 primary/label、错误 bindings 清空、Map失效、call-return
+正反例及保守 Block endpoint。前两项双入口不变，删除仅默认 MemoryDocument 的未使用包装。
+全部八项现均双入口，不改分析算法，不将 scoped 保守行为升级成任意 CFG/NLL 能力。
+云端固定 Rust 1.96.0/default debug=2/locked/offline，六目标36项无过滤重跑通过，
+all-targets Clippy（`-D warnings`）通过；同批累计未发布，不单独开 PR。
+
+#### 同批收尾：caller-continuation 关闭边界
+
+仅将共享 `assert_ownership_rejects` 的五项原消费者补 Rooted：capture、conditional
+initializer、nested call、temporary source 与 loop binding。原五源、L0162/L0164、
+bindings/ends 清空断言保留；其余测试与独立 Single loan-end helper 不改，默认 checked
+仍为 MemoryDocument。此补覆盖不开放新来源或 CFG 能力。
+云端固定 Rust 1.96.0/default debug=2/locked/offline，continuation 14 加前六目标36，
+共50项无过滤通过；目标编译、all-targets Clippy（`-D warnings`）通过。所有七目标本已在
+stage selector，未增加目标或修改计数；保留多逻辑提交统一交付，官方 CI 尚未运行。
