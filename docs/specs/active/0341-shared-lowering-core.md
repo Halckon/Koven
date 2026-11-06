@@ -2937,3 +2937,16 @@ bindings/ends 清空断言保留；其余测试与独立 Single loan-end helper 
 云端固定 Rust 1.96.0/default debug=2/locked/offline，continuation 14 加前六目标36，
 共50项无过滤通过；目标编译、all-targets Clippy（`-D warnings`）通过。所有七目标本已在
 stage selector，未增加目标或修改计数；保留多逻辑提交统一交付，官方 CI 尚未运行。
+
+### 新 main 后续：continuation 普通消费者双入口收束（2026-11-06）
+
+基于已含 #332 的 main `8c9778aa`，新分支以两个逻辑提交补余下五项普通 Unit 测试：
+nested/alias scope 权限恢复、live-result/child 跨分支冲突、scope/return 逆序清理、
+mutation/exclusive 冲突 span，以及 nullable/generic/copyable shared binding。
+原源码、L0135/空诊断/deferred、origin/parent/end顺序、owner cleanup、真实span/details
+及binding/end数量全部保留。所有普通 Unit 消费者现均走真实两入口；原三项独立
+Single loan-end witnesses、对应helper和parser-only测试不改，不宣称其已退休。
+未修改生产、Guide、selector或计数，不扩张CFG/NLL/native能力，不单片创建PR。
+云端 Rust 1.96.0/default debug=2/locked/offline：首片完整continuation14通过；组合
+continuation14、last-use8、origins5、borrow-result4，共31项无过滤通过，目标编译及
+all-targets Clippy（`-D warnings`）通过。官方 CI 尚未运行，本批仍在本地累计。
