@@ -97,58 +97,80 @@ fn unit_frontier_rejects_at_the_marker_without_publishing_borrow_return_or_owner
         let source = sources.add_source("frontier.ko", text).unwrap();
         let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
         assert!(parsed.diagnostics().is_empty());
-        let inputs = [SourceUnitInput::memory_document(source, &parsed)];
-        let (environment, types) = standard_environments();
-        let index = index_compilation_unit(&sources, &inputs).unwrap();
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-            .unwrap()
-            .validate()
-            .unwrap();
-        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
-        assert_eq!(
-            typed.diagnostics(),
-            expected_diagnostics(&sources, source, marker)
-        );
-        let rejection = typed
-            .diagnostics()
-            .iter()
-            .find(|d| d.code().to_string() == "L0164")
-            .expect("new declaration must not become an ordinary owned callable");
-        let start = text.find(marker).unwrap();
-        assert_eq!(
-            rejection.primary_span(),
-            sources.span(source, start, start + marker.len()).unwrap()
-        );
-        assert_eq!(sources.slice(rejection.primary_span()).unwrap(), marker);
-        assert!(
-            typed
-                .signatures()
-                .declarations()
+        for rooted in [false, true] {
+            let inputs = [if rooted {
+                SourceUnitInput::new("root", "frontier.ko", source, &parsed)
+            } else {
+                SourceUnitInput::memory_document(source, &parsed)
+            }];
+            let (environment, types) = standard_environments();
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let [indexed] = index.source_units() else {
+                panic!("one original source")
+            };
+            assert_eq!(indexed.source_id(), source);
+            match (rooted, indexed.key()) {
+                (false, lang_frontend::name_resolution::SourceUnitKey::MemoryDocument) => {}
+                (
+                    true,
+                    lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path },
+                ) => {
+                    assert_eq!(root.as_str(), "root");
+                    assert_eq!(logical_path.as_str(), "frontier.ko");
+                }
+                _ => panic!("requested entry identity"),
+            }
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+            assert_eq!(
+                typed.diagnostics(),
+                expected_diagnostics(&sources, source, marker)
+            );
+            let rejection = typed
+                .diagnostics()
                 .iter()
-                .filter_map(|declaration| declaration.callable())
-                .all(|callable| callable.borrow_return().is_none())
-        );
-        let before = typed.clone();
-        let mut ownership_started = false;
-        let result = (|| {
-            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)?;
-            ownership_started = true;
-            let _ = analyze_basic_unit_ownership(&sources, &inputs, &names, &types, typed.clone())
-                .expect("ownership internal failures are not source rejection");
-            Ok::<(), FinalTypeAdmissionError>(())
-        })();
-        let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
-            panic!("frontier must fail with real final type diagnostics")
-        };
-        assert_eq!(diagnostics, before.diagnostics());
-        assert!(
-            !ownership_started,
-            "final admission precedes actual ownership"
-        );
-        assert_eq!(typed, before, "strict failure cannot rewrite raw facts");
-        let rejected = typed
-            .validate()
-            .expect_err("unsupported syntax must not acquire backend capability");
-        assert_eq!(*rejected, before);
+                .find(|d| d.code().to_string() == "L0164")
+                .expect("new declaration must not become an ordinary owned callable");
+            let start = text.find(marker).unwrap();
+            assert_eq!(
+                rejection.primary_span(),
+                sources.span(source, start, start + marker.len()).unwrap()
+            );
+            assert_eq!(sources.slice(rejection.primary_span()).unwrap(), marker);
+            assert!(
+                typed
+                    .signatures()
+                    .declarations()
+                    .iter()
+                    .filter_map(|declaration| declaration.callable())
+                    .all(|callable| callable.borrow_return().is_none())
+            );
+            let before = typed.clone();
+            let mut ownership_started = false;
+            let result = (|| {
+                complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)?;
+                ownership_started = true;
+                let _ =
+                    analyze_basic_unit_ownership(&sources, &inputs, &names, &types, typed.clone())
+                        .expect("ownership internal failures are not source rejection");
+                Ok::<(), FinalTypeAdmissionError>(())
+            })();
+            let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+                panic!("frontier must fail with real final type diagnostics")
+            };
+            assert_eq!(diagnostics, before.diagnostics());
+            assert!(
+                !ownership_started,
+                "final admission precedes actual ownership"
+            );
+            assert_eq!(typed, before, "strict failure cannot rewrite raw facts");
+            let rejected = typed
+                .validate()
+                .expect_err("unsupported syntax must not acquire backend capability");
+            assert_eq!(*rejected, before);
+        }
     }
 }

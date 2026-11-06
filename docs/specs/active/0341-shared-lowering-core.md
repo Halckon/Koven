@@ -2636,3 +2636,13 @@ Phase 3，不改变 Value/Inout、普通借用结果或其他投影族的资格�
   （`-D warnings`）、fmt、文档结构、尺寸与 diff 检查通过，独立只读审查无阻断。
   未执行故障注入、Abort 整项、Mac 构建或 native；未推送、未开 PR，官方 CI 未运行，
   D10/E2 保持 in-progress。
+
+#### 同批追加：声明拒绝的严格入口对照
+
+- `type_declaration_frontier` 的原四个声明在 MemoryDocument/Rooted 均检查完整诊断、
+  marker span、无 borrow-return、final admission 拒绝、ownership 未启动和 raw facts
+  不变。原 Rooted 单源 witness 与固定 expected diagnostics 函数字节保留。
+- 云端同工具链与默认 debug=2 下，frontier 2、borrow-result 3、String clone 14，
+  合计 19 项重跑全部通过，无过滤；frontend all-targets Clippy（`-D warnings`）通过。
+  本片只补拒绝边界覆盖，不删除原 witness，不授予新声明能力；随当前未发布批次积累，
+  不新增单独 PR，不把本地结果当作官方 CI。
