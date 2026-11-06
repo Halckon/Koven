@@ -185,7 +185,7 @@ L0157。SCC 使用与单文件相同的显式栈算法，诊断及 labels 按稳
 L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成后，声明计数、值完整性、读取
 类型/category 和诊断共同控制 `UnitConstantFacts` 的原子发布；错误时不保留部分常量事实。
 `validate_constants()` 发布独立 `ConstEnabledTypedUnit`，只暴露相同分析的 recovery 视图；
-解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。
+解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。 `type_constants` 三项求值消费者以双入口保留算术失败、短路/依赖边界与关联常量字宽的诊断/span oracle。
 
 同文件已绑定 classifier/object 的两段常量路径复用 static member 选择并补全 terminal symbol；不存在的本地静态成员报 L0080。
 private 非常量成员可见性、普通值接收者及同名参数遮蔽仍走原类型路径。

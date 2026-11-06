@@ -2778,3 +2778,19 @@ codegen 或 PR #323 的 E3 退休工作；D10/E2 与本 Spec 继续 in-progress�
 
 没有执行故障注入、校准、含 Abort 的整项测试或用户 Mac 构建。目标中的其他测试未执行，
 本地通过不替代官方双平台 CI；本片未推送、未开 PR、未合并。
+
+### 常量求值消费者双入口补全（2026-11-06）
+
+基于 main `c4ba670a`，仅补齐 `type_constants` 三项既有 MemoryDocument 求值消费者的
+Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
+
+- 十个 checked arithmetic 失败、四个短路成功、一个非法依赖与五个关联常量整数宽度
+  样例均在真实双入口运行。原源码、L0158/空诊断和运算符 `+` primary span 断言保留。
+- 私有 helper 参数化既有分析路径，明确检查单源 source_id 和入口 key/root/path；
+  仍经无诊断名称解析与 validate 后观察 raw Unit types，不新增 final/ownership 准入。
+  其他既有 analyzed 消费者继续默认 MemoryDocument，全部 legacy helpers/witnesses 不变。
+- 独立静态审查无阻断；不修改生产、Guide、CI、故障注入或 #323，不据本片宣称
+  常量 ownership/native 或整个 D10/E2 已完成。
+- 云端 Rust 1.96.0、默认 debug=2、locked/offline 的目标编译、三项定向测试及整个
+  `type_constants` 24 项（无过滤）通过，frontend lib build、all-targets Clippy
+  （`-D warnings`）、fmt、文档结构、尺寸与 diff 检查通过；官方 CI 未运行，尚未发布或创建 PR。
