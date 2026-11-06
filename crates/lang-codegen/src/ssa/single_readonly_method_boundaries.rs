@@ -1,5 +1,6 @@
 //! Scope controls use only original frontend-produced source facts.
 use super::*;
+use crate::test_support::diagnostics::assert_eq_diagnostic;
 use lang_frontend::{
     name_resolution::resolve_names, ownership_checking::check_ownership, type_checking::check_types,
 };
@@ -37,12 +38,12 @@ fn rejected(source: &str, fragment: &str) {
     let error = result
         .err()
         .expect("unselected single receiver slice remains rejected");
-    assert_eq!(
+    assert_eq_diagnostic!(
         error.kind,
         LoweringErrorKind::UnsupportedNode,
         "{source}: {error:?}"
     );
-    assert_eq!(
+    assert_eq_diagnostic!(
         error.span.and_then(|span| sources.slice(span).ok()),
         Some(fragment),
         "{source}: {error:?}"

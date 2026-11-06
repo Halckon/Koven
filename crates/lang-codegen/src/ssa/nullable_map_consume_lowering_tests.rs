@@ -3,6 +3,7 @@
 //! Resource identity contracts are explicit, and resource::runtime is separate CI-only
 //! object/native/count/Abort coverage rather than part of the ordinary collectors.
 
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::ExpressionId,
     diagnostic::Diagnostic,
@@ -258,15 +259,17 @@ fn collect_layer(cases: &[Case], expected: usize) {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "NULLABLE MAP {}\n{}",
             observation.label,
             observation.trace.stages.join("\n")
         );
-        println!("input failures={:?}", observation.trace.input_failures);
+        diagnostic!("input failures={:?}", observation.trace.input_failures);
         match &observation.outcome {
-            Ok(()) => println!("pipeline outcome=verified LLVM"),
-            Err(failure) => println!("failed stage={}; detail={}", failure.stage, failure.detail),
+            Ok(()) => diagnostic!("pipeline outcome=verified LLVM"),
+            Err(failure) => {
+                diagnostic!("failed stage={}; detail={}", failure.stage, failure.detail)
+            }
         }
     }
     // These assertions happen only after every ordinary observation in this layer returned.

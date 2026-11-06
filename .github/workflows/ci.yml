@@ -203,6 +203,7 @@ jobs:
         run: git diff --check
 
   editors:
+    # Keep physical job names/matrices aligned with the pr_ci_reuse.py contract tests.
     name: Editor lexical contracts
     needs: changes
     if: needs.changes.outputs.reuse != 'true' && (needs.changes.outputs.editors == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')

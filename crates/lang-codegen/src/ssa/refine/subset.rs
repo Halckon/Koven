@@ -98,6 +98,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         checker.migrated |= checker.container_element(ty).is_some()
             || checker.range_type(ty)
             || checker.box_payload(ty).is_some()
+            || checker.enum_type(ty)
             || checker.box_enum_type(ty)
             || checker.map_kv(ty).is_some()
             || checker.rc_payload(ty).is_some()
@@ -244,7 +245,10 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
                     Some(UnitTypeKind::EnumCase { root, .. }) => *root,
                     _ => ty,
                 };
-                demands.extend(inputs.concrete(ty));
+                if !matches!(checker.kind(ty), Some(UnitTypeKind::Nullable(inner)) if checker.nothing(*inner))
+                {
+                    demands.extend(inputs.concrete(ty));
+                }
             }
             if let Some(site) = inputs.source_plan.call_site(inputs.source_token, id) {
                 for route in site.delegation() {
@@ -323,7 +327,7 @@ impl Checker<'_, '_> {
         )
     }
 
-    fn nothing(&self, ty: UnitTypeId) -> bool {
+    pub(super) fn nothing(&self, ty: UnitTypeId) -> bool {
         matches!(
             self.kind(ty),
             Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
@@ -341,7 +345,7 @@ impl Checker<'_, '_> {
         )
     }
 
-    fn integer_type(&self, ty: UnitTypeId) -> bool {
+    pub(super) fn integer_type(&self, ty: UnitTypeId) -> bool {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if integer(*b))
     }
 
@@ -615,9 +619,12 @@ impl Checker<'_, '_> {
                 let saved = self.view_symbols.clone();
                 let cond_ok = self.condition(condition, true);
                 let then_ok = cond_ok && self.statement(then_branch);
+                self.view_symbols = saved.clone();
+                self.note_else_view(condition);
+                let else_ok = else_branch.is_none_or(|branch| self.statement(branch));
                 self.view_symbols = saved;
                 then_ok
-                    && else_branch.is_none_or(|branch| self.statement(branch))
+                    && else_ok
                     && (self.unit(ty) || else_branch.is_some())
                     && (!returns || else_branch.is_some())
             }
@@ -667,6 +674,23 @@ impl Checker<'_, '_> {
                 value,
                 ..
             } => self.assignment(expression, target, value),
+            Expression::Assignment {
+                target,
+                operator:
+                    operator @ (AssignmentOperator::AddAssign
+                    | AssignmentOperator::SubtractAssign
+                    | AssignmentOperator::MultiplyAssign
+                    | AssignmentOperator::DivideAssign
+                    | AssignmentOperator::RemainderAssign),
+                value,
+                ..
+            } => {
+                if self.is_element_target(target) {
+                    self.element_compound_assignment(expression, target, operator, value)
+                } else {
+                    self.compound_assignment(target, operator, value)
+                }
+            }
             Expression::Return { value, .. } => {
                 if self.inputs.borrow_return.is_some() {
                     value.is_some_and(|value| self.borrow_return_body(expression, value))
@@ -682,7 +706,7 @@ impl Checker<'_, '_> {
     }
 
     fn name(&mut self, expression: ExpressionId) -> bool {
-        if self.object_name(expression) {
+        if self.object_name(expression) || self.known_function(expression) {
             self.migrated = true;
             return true;
         }
@@ -815,10 +839,8 @@ impl Checker<'_, '_> {
                 Some(UnitTypeKind::Nullable(inner)) if self.view_inner(*inner) => {
                     if views && fact.non_null_when_true() {
                         self.view_symbols.insert(fact.symbol());
-                        true
-                    } else {
-                        !views
                     }
+                    true
                 }
                 _ => false,
             };
@@ -859,6 +881,28 @@ impl Checker<'_, '_> {
         }
     }
 
+    fn note_else_view(&mut self, condition: ExpressionId) {
+        let root = self.ungrouped(condition);
+        let id = self.id(root);
+        if let Some(fact) = self.inputs.typed.null_comparison(id)
+            && !fact.non_null_when_true()
+            && self.known.contains(&fact.symbol())
+            && (self.scope_requires_refine()
+                || self.is_map_remove_symbol(fact.symbol())
+                || self.inputs.owned.loans().iter().any(|loan| {
+                    matches!(
+                        loan.target(),
+                        lang_frontend::ownership_checking::UnitLoanTarget::Place(place)
+                            if place.is_root() && place.root() == fact.symbol()
+                    )
+                }))
+            && let Some(UnitTypeKind::Nullable(inner)) = self.kind(self.c(fact.nullable_type()))
+            && self.view_inner(*inner)
+        {
+            self.view_symbols.insert(fact.symbol());
+        }
+    }
+
     fn statement(&mut self, statement: StatementId) -> bool {
         let Ok(node) = self.inputs.parsed.ast().statements().get(statement) else {
             return false;
@@ -867,7 +911,34 @@ impl Checker<'_, '_> {
             Statement::Block { elements }
             | Statement::ControlBody { elements }
             | Statement::LambdaBody { elements } => {
-                elements.into_iter().all(|element| self.statement(element))
+                let mut iter = elements.into_iter();
+                while let Some(element) = iter.next() {
+                    if !self.statement(element) {
+                        return false;
+                    }
+                    if self
+                        .inputs
+                        .parsed
+                        .ast()
+                        .statements()
+                        .get(element)
+                        .is_ok_and(|stmt| {
+                            matches!(
+                                stmt.payload(),
+                                Statement::Expression { expression }
+                                    if self
+                                        .expression_type(*expression)
+                                        .is_some_and(|ty| self.nothing(ty))
+                            )
+                        })
+                    {
+                        if iter.any(|stmt| self.stmt_has_runtime_container(stmt)) {
+                            self.migrated = true;
+                        }
+                        break;
+                    }
+                }
+                true
             }
             Statement::Expression { expression } => self.expression(expression),
             Statement::LocalVariable { declaration } => self.local_variable(declaration),

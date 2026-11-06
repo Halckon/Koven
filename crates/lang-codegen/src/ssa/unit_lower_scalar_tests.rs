@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic, assert_text_eq};
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -72,7 +73,7 @@ pub(super) fn assert_real_scalar_expression_roots_through_verified_unit_ssa_and_
             "negate" => vec![CheckedArithmeticOperator::Subtract],
             _ => vec![],
         };
-        assert_eq!(checked, expected_checked, "{name}: {ssa}");
+        assert_eq_diagnostic!(checked, expected_checked, "{name}: {ssa}");
         assert_eq!(
             assert_borrowed_root_checked_failure_edges(function),
             expected_checked.len()
@@ -99,12 +100,12 @@ pub(super) fn assert_real_scalar_expression_roots_through_verified_unit_ssa_and_
             );
         }
         let aborts = aborts.len();
-        assert_eq!(aborts, expected_checked.len(), "{name}: {ssa}");
+        assert_eq_diagnostic!(aborts, expected_checked.len(), "{name}: {ssa}");
         // Count each independently selected root once, not invoke's reachable add again.
         root_aborts.push(aborts);
         match name {
-            "add" => assert!(ssa.contains("checked.add"), "{ssa}"),
-            "negate" => assert!(ssa.contains("checked.sub"), "{ssa}"),
+            "add" => assert_diagnostic!(ssa.contains("checked.add"), "{ssa}"),
+            "negate" => assert_diagnostic!(ssa.contains("checked.sub"), "{ssa}"),
             "ordered" => {
                 assert!(function.instructions.iter().any(|instruction| matches!(
                     instruction.operation,
@@ -124,8 +125,8 @@ pub(super) fn assert_real_scalar_expression_roots_through_verified_unit_ssa_and_
                         .count(),
                     1
                 );
-                assert!(ssa.contains("cmp.ge"), "{ssa}");
-                assert!(ssa.contains("not %v"), "{ssa}");
+                assert_diagnostic!(ssa.contains("cmp.ge"), "{ssa}");
+                assert_diagnostic!(ssa.contains("not %v"), "{ssa}");
             }
             "invoke" => {
                 let add_origin = Origin::Source(
@@ -176,10 +177,10 @@ pub(super) fn assert_real_scalar_expression_roots_through_verified_unit_ssa_and_
         verify_program(&repeated).expect("repeated Unit SSA verifies");
         assert_eq!(entry.index(), repeated_entry.index());
         assert_eq!(entry.module().index(), repeated_entry.module().index());
-        assert_eq!(ssa, render_program(&repeated), "deterministic SSA: {name}");
+        assert_text_eq!(ssa, render_program(&repeated), "deterministic SSA: {name}");
         // These source roots take arguments and/or return scalars, not a native main ABI.
         let llvm = render_verified_program(&program).expect("original root Unit LLVM verifies");
-        assert_eq!(
+        assert_text_eq!(
             llvm,
             render_verified_program(&repeated).expect("repeated Unit LLVM verifies"),
             "deterministic LLVM: {name}"
@@ -232,7 +233,7 @@ fn lowers_cross_file_scalar_operations_with_checked_failure_edges_deterministica
         entry,
     )
     .expect("input permutation preserves scalar lowering");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let compute = forward.modules[0]
         .functions

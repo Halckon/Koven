@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 #[path = "native_runtime_constructor_tests.rs"]
 pub(crate) mod runtime_constructor_tests;
 
@@ -265,7 +266,7 @@ fn borrowed_argv_entry_accepts_utf8_boundaries_and_rejects_invalid_sequences_bef
         .args(["first", "", "你好", "last"])
         .output()
         .expect("linked executable must launch");
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, "first\n\n你好\nlast\n".as_bytes());
 }
 
@@ -1042,7 +1043,7 @@ fn comma_when_match_edge_cleanup_links_and_runs() {
             "class Node {{}}\nfun probe(own node: Node): Boolean = false\nfun choose(flag: Boolean, own node: Node): Int = when {{ flag, probe(node) -> 7; else -> 8 }}\nfun main(): Unit {{ val result = choose({flag}, Node()) if (result != {expected}) {{ error(\"wrong branch\") }} }}"
         );
         let output = emit_link_and_run("comma-match.ko", &text, "main");
-        assert!(output.status.success(), "{output:?}");
+        assert_diagnostic!(output.status.success(), "{output:?}");
     }
 }
 

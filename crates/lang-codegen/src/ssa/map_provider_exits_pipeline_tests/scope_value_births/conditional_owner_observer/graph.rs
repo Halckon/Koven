@@ -1,4 +1,5 @@
 //! Actual Unit conditional deliveries and ordinary control cleanup, never a fabricated If Call.
+use crate::test_support::diagnostics::diagnostic;
 mod provider;
 use super::super::super::{
     fixture::{Failure, failure, need},
@@ -25,9 +26,11 @@ pub(super) fn check(
     let scan = function(module, i.scan)?;
     let make = function(module, i.make)?;
     let g = Graph::new(scan)?;
-    println!(
+    diagnostic!(
         "SCOPE B IF SSA label={} unit=true function={:#?} edges={:#?}",
-        c.label, scan, g.edges
+        c.label,
+        scan,
+        g.edges
     );
     let parameters = &g.block(scan.entry_block().unwrap())?.parameters;
     let [flag] = parameters.as_slice() else {

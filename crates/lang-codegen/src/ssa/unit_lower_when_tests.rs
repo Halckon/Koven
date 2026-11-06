@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput,
     ownership_checking::{UnitDropPoint, UnitDropTarget},
@@ -58,7 +59,7 @@ fn boolean_subject_else_preserves_semantic_edges() {
         entry,
     )
     .expect("source permutation preserves Boolean-else SSA");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let select = function_named(&forward, "koven.p.select.d");
     let (when_true, when_false) = select
@@ -319,7 +320,7 @@ fn subjectless_paths_merge_after_each_consumes_the_same_owner() {
         entry,
     )
     .expect("source permutation preserves subjectless owner SSA");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
     let route = function_named(&forward, "koven.p.route.d");
     assert_eq!(
         route

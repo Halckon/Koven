@@ -1,4 +1,5 @@
 //! Independent live-owner neighbor: two Resource providers reuse the same formed root.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 use super::*;
 
@@ -29,9 +30,11 @@ fn sources() -> Vec<Case> {
 }
 
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "G2 RESOURCE REPEAT INPUT case={} unit={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -55,7 +58,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == 4 && owned.map_iterations().len() == 4,
                     (typed.map_iterations(), owned.map_iterations()),
                 );
-                println!(
+                diagnostic!(
                     "G2 RESOURCE REPEAT UNIT case={} plans={:#?} drops={:#?}",
                     case.label,
                     owned.map_iterations(),
@@ -75,7 +78,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == 4 && owned.map_iterations().len() == 4,
                     (typed.map_iterations(), owned.map_iterations()),
                 );
-                println!(
+                diagnostic!(
                     "G2 RESOURCE REPEAT UNIT case={} plans={:#?} drops={:#?}",
                     case.label,
                     owned.map_iterations(),
@@ -84,7 +87,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     };
-    println!(
+    diagnostic!(
         "G2 RESOURCE REPEAT REPORT {} unit={unit} report={report:#?}",
         case.label
     );
@@ -107,14 +110,14 @@ fn repeated_resource_local_keeps_live_original_owner() {
     for case in sources() {
         for unit in [false, true] {
             let result = observe(&case, unit);
-            println!(
+            diagnostic!(
                 "G2 RESOURCE REPEAT CASE {} unit={unit} result={result:?}",
                 case.label
             );
             outcomes.push((case.label.clone(), unit, result));
         }
     }
-    assert!(
+    assert_diagnostic!(
         outcomes.len() == 4 && outcomes.iter().all(|(_, _, r)| r.is_ok()),
         "{outcomes:#?}"
     );

@@ -1,4 +1,5 @@
 //! SPEC-0350 refinement layer: inline nullable functions lower through slots and liveness.
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -12,7 +13,7 @@ use super::{
 
 pub(super) fn run(source: &str) -> (String, Option<i32>) {
     let output = crate::native_tests::emit_link_and_run("refine.ko", source, "main");
-    assert!(
+    assert_diagnostic!(
         output.stderr.is_empty() || !output.status.success(),
         "{output:?}"
     );
@@ -26,7 +27,7 @@ pub(super) fn run(source: &str) -> (String, Option<i32>) {
 /// and returns the rendered program.
 fn render(source: &str) -> String {
     let (rendered, inline) = render_branching(source);
-    assert!(inline, "{rendered}");
+    assert_diagnostic!(inline, "{rendered}");
     rendered
 }
 
@@ -55,13 +56,13 @@ pub(super) fn render_branching(source: &str) -> (String, bool) {
     let (program, _) = lower();
     let (again, _) = lower();
     let rendered = render_program(&program);
-    assert_eq!(rendered, render_program(&again), "deterministic output");
+    assert_text_eq!(rendered, render_program(&again), "deterministic output");
     let module = &program.modules[0];
     let inline = module
         .types
         .iter()
         .any(|kind| matches!(kind, SsaTypeKind::InlineNullable { .. }));
-    assert!(
+    assert_diagnostic!(
         module
             .functions
             .iter()
@@ -124,7 +125,7 @@ fn checked_arithmetic_in_refined_function_aborts_with_message() {
         if (x != null) { val y = x + 1; if (y == 0) { println("unreachable") } }
     }"#;
     let output = crate::native_tests::emit_link_and_run("refine.ko", source, "main");
-    assert!(output.stdout.is_empty(), "{output:?}");
+    assert_diagnostic!(output.stdout.is_empty(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.starts_with("abort: integer overflow in +\n  at "),
@@ -196,11 +197,11 @@ fn class_nullable_view_field_read_and_bang_bang_free_each_owner_once() {
     }}"#
     );
     let (rendered, inline) = render_branching(&source);
-    assert!(
+    assert_diagnostic!(
         !inline,
         "a pointer-like nullable needs no inline type: {rendered}"
     );
-    assert!(rendered.contains("heap.field_read"), "{rendered}");
+    assert_diagnostic!(rendered.contains("heap.field_read"), "{rendered}");
     counted(&source, 3, b"smart\nbangbang\nroot\n");
 }
 
@@ -210,7 +211,7 @@ fn bang_bang_on_null_aborts_at_the_assertion() {
         r#"{NODE}fun main(): Unit {{ val b = pick(false)!!; if (b.v == 5) {{ println("unreachable") }} }}"#
     );
     let output = crate::native_tests::emit_link_and_run("refine.ko", &source, "main");
-    assert!(output.stdout.is_empty(), "{output:?}");
+    assert_diagnostic!(output.stdout.is_empty(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.starts_with("abort: null assertion failed\n  at "),
@@ -228,7 +229,7 @@ fn checked_arithmetic_abort_edge_carries_live_owners() {
     }"#;
     render(source);
     let output = crate::native_tests::emit_link_and_run("refine.ko", source, "main");
-    assert!(output.stdout.is_empty(), "{output:?}");
+    assert_diagnostic!(output.stdout.is_empty(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.starts_with("abort: integer overflow in +\n  at "),
@@ -353,7 +354,7 @@ fn subject_when_compares_scalars_and_range_membership() {
     let rendered = render_program(&program);
     // `in 0..9` tests `>=` then `<=`; `!in 0..<100` tests `>=` then `<`.
     for comparison in ["cmp.ge", "cmp.le", "cmp.lt"] {
-        assert!(rendered.contains(comparison), "{comparison}: {rendered}");
+        assert_diagnostic!(rendered.contains(comparison), "{comparison}: {rendered}");
     }
     for function in ["koven.p.name.d", "koven.p.bucket.d", "koven.p.main.d"] {
         assert!(
@@ -472,7 +473,7 @@ fn inout_scalar_parameters_replace_the_callers_binding() {
         .expect("inout lowers and verifies")
     });
     let rendered = render_program(&program);
-    assert!(rendered.contains("borrow.exclusive"), "{rendered}");
+    assert_diagnostic!(rendered.contains("borrow.exclusive"), "{rendered}");
     for function in ["koven.p.bump.d", "koven.p.add_to.d", "koven.p.main.d"] {
         assert!(
             routed.iter().any(|name| name.starts_with(function)),

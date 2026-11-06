@@ -1,4 +1,5 @@
 //! Legal alternate formation histories must not be mistaken for missing frontend facts.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod alias;
 pub(in super::super) mod formation;
@@ -79,7 +80,7 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
         .filter_map(|(_, n)| matches!(n.payload(), Statement::For { .. }).then_some(n.span()))
         .collect::<Vec<_>>();
     assert_eq!(spans.len(), 1);
-    println!(
+    diagnostic!(
         "G2 ALTERNATE ORIGINAL FOR case={label} unit={unit} span={:?}",
         spans[0]
     );
@@ -129,7 +130,7 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
             },
         )
     };
-    println!(
+    diagnostic!(
         "G2 ALTERNATE unit={unit} source={source:?} report={report:#?} result={:?}",
         result.as_ref().map(|(_, id)| id)
     );
@@ -184,11 +185,11 @@ fn legal_alternate_histories_reach_verified_llvm() {
     for (label, source) in super::alternate_sources() {
         for unit in [false, true] {
             let result = observe(label, &source, unit);
-            println!("G2 ALTERNATE CASE {label} unit={unit} result={result:?}");
+            diagnostic!("G2 ALTERNATE CASE {label} unit={unit} result={result:?}");
             outcomes.push((label, unit, result));
         }
     }
-    assert!(
+    assert_diagnostic!(
         outcomes.len() == 10 && outcomes.iter().all(|(_, _, r)| r.is_ok()),
         "{outcomes:#?}"
     );

@@ -2,6 +2,7 @@
 //! 原 Single 列使用 MemoryDocument Unit；源码字节、六/五观察格与全部阶段义务保留。
 //! whole-set 在同一 sealed view 逐真实根完成 SSA/LLVM，不拼接 Program，不执行 native。
 
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod facts;
 mod fixture;
 mod group;
@@ -112,19 +113,22 @@ fn observe(
 fn assert_observations(observations: &[Observation], expected: usize) {
     // 每条真实阶段链已结束，才输出和断言；首个失败不得遮住其他观察。
     for observation in observations {
-        println!(
+        diagnostic!(
             "{}\n{:#?}\n{:#?}",
-            observation.label, observation.result, observation.report
+            observation.label,
+            observation.result,
+            observation.report
         );
         if let Err(stopped) = &observation.result {
-            println!(
+            diagnostic!(
                 "LOWER_NOT_ATTEMPTED stage={} original={}",
-                stopped.stage, stopped.original
+                stopped.stage,
+                stopped.original
             );
         }
     }
     assert_eq!(observations.len(), expected);
-    assert!(
+    assert_diagnostic!(
         observations.iter().all(Observation::passed),
         "Map 和 MutableMap Borrow 必须完整 frontend 成功；\
          二者必须返回真实入口并通过 SSA 与完整 LLVM；\

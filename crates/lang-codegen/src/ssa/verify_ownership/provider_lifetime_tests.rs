@@ -2,6 +2,7 @@ use super::*;
 use crate::ssa::model::{
     Edge, EntityType, LoanKind, Origin, Program, SequentialContainerKind, SsaTypeId, SsaTypeKind,
 };
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 fn fixture(loans: usize, flags: usize) -> (Function, EntityType, SsaTypeId, Origin) {
@@ -140,7 +141,7 @@ fn different_provider_loans_and_places_remain_correlated_on_actual_edges() {
         .unwrap();
     let mut errors = Vec::new();
     verify(&function, &mut errors);
-    assert!(errors.is_empty(), "{errors:?}");
+    assert_diagnostic!(errors.is_empty(), "{errors:?}");
 }
 
 #[test]
@@ -210,7 +211,7 @@ fn path_state_budget_exhaustion_fails_closed() {
         .unwrap();
     let mut errors = Vec::new();
     verify(&function, &mut errors);
-    assert!(
+    assert_diagnostic!(
         errors.iter().any(|error| matches!(
             error.kind,
             VerifyErrorKind::OperationContract {

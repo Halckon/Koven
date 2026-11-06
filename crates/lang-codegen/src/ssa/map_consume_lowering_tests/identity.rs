@@ -1,5 +1,6 @@
 //! Read-only identity checks on the original ordinary-source Program and LLVM text.
 //! No production consume proof, fact edits, IR edits, or additional lowering are used.
+use crate::test_support::diagnostics::diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::source::SourceMap;
@@ -157,7 +158,7 @@ pub(super) fn assert_identity(
             aliases: &aliases,
         },
     );
-    println!(
+    diagnostic!(
         "MAP CONSUME IDENTITY {label}: source={owner:?}, result={result:?}, puts={}, result aliases={}, unique Drop={:?}; six unchanged LLVM fields and pure transfer",
         chain.puts.len(),
         aliases.len(),

@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 use crate::ssa::model::{
@@ -139,23 +140,23 @@ fn borrowed_arguments_plan_builds_checked_argv_owner_wrapper() {
         },
     )
     .expect("verified borrowed argv plan");
-    assert!(llvm.contains("define i32 @main(i32 %0, ptr %1)"), "{llvm}");
-    assert!(llvm.contains("@koven.utf8.error_offset"), "{llvm}");
-    assert!(llvm.contains("argv.preflight"), "{llvm}");
-    assert!(llvm.contains("argv.construct"), "{llvm}");
-    assert!(
+    assert_diagnostic!(llvm.contains("define i32 @main(i32 %0, ptr %1)"), "{llvm}");
+    assert_diagnostic!(llvm.contains("@koven.utf8.error_offset"), "{llvm}");
+    assert_diagnostic!(llvm.contains("argv.preflight"), "{llvm}");
+    assert_diagnostic!(llvm.contains("argv.construct"), "{llvm}");
+    assert_diagnostic!(
         llvm.contains("%argv.length_exceeded = icmp ugt i64 %argv.preflight.length, 2147483647"),
         "argv must enforce the language limit: {llvm}"
     );
-    assert!(
+    assert_diagnostic!(
         llvm.contains(
             "br i1 %argv.length_exceeded, label %argv.invalid, label %argv.preflight.length_valid"
         ),
         "oversize argv must return failure before UTF-8 reads or owner construction: {llvm}"
     );
-    assert!(llvm.contains("call void @f0.app(ptr"), "{llvm}");
-    assert!(llvm.contains("call void @koven.drop.t"), "{llvm}");
-    assert!(
+    assert_diagnostic!(llvm.contains("call void @f0.app(ptr"), "{llvm}");
+    assert_diagnostic!(llvm.contains("call void @koven.drop.t"), "{llvm}");
+    assert_diagnostic!(
         llvm.contains(
             "br i1 %argv.preflight.remains, label %argv.preflight.body, label %argv.allocate"
         ),

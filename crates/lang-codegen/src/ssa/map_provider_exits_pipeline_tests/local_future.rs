@@ -1,4 +1,5 @@
 //! Real local formation plus future uses: preserve every public FE/lowering observation.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
 mod graph;
@@ -12,9 +13,11 @@ use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 pub(crate) use sources::{Case, sources};
 
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "LOCAL FUTURE INPUT case={} unit={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -41,7 +44,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == if case.form == 2 { 4 } else { 2 },
                     typed.map_iterations(),
                 );
-                println!(
+                diagnostic!(
                     "LOCAL FUTURE UNIT FACTS case={} formed={:#?} plans={:#?} drops={:#?} deliveries={:#?} loans={:#?}",
                     case.label,
                     owned.formed_owned_locals(),
@@ -65,7 +68,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == if case.form == 2 { 4 } else { 2 },
                     typed.map_iterations(),
                 );
-                println!(
+                diagnostic!(
                     "LOCAL FUTURE UNIT FACTS case={} formed={:#?} plans={:#?} drops={:#?} deliveries={:#?} loans={:#?}",
                     case.label,
                     owned.formed_owned_locals(),
@@ -77,7 +80,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     };
-    println!(
+    diagnostic!(
         "LOCAL FUTURE LOWER case={} unit={unit} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
@@ -95,7 +98,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     let llvm =
         crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e));
     report.query("local future actual LLVM verifier", &llvm);
-    println!(
+    diagnostic!(
         "LOCAL FUTURE FINAL case={} unit={unit} report={report:#?}",
         case.label
     );
@@ -112,7 +115,7 @@ fn local_sources_follow_actual_future_uses() {
     for case in sources() {
         for unit in [false, true] {
             let result = observe(&case, unit);
-            println!(
+            diagnostic!(
                 "LOCAL FUTURE CASE {} unit={unit} result={result:?}",
                 case.label
             );
@@ -120,7 +123,7 @@ fn local_sources_follow_actual_future_uses() {
         }
     }
     assert_eq!(observations.len(), 108);
-    assert!(
+    assert_diagnostic!(
         observations.iter().all(|(_, _, result)| result.is_ok()),
         "{observations:#?}"
     );

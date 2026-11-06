@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput,
     ownership_checking::{UnitDropPoint, UnitDropTarget},
@@ -70,7 +71,7 @@ fn jump_free_while_carries_a_string_owner_on_a_deterministic_backedge() {
         entry,
     )
     .expect("source permutation preserves while SSA");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let spin = forward.modules[0]
         .functions

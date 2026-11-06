@@ -2,6 +2,7 @@
 use crate::llvm::render_verified_program;
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use crate::ssa::{model::Origin, verify::verify_program};
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::name_resolution::SymbolKind;
 
 #[test]
@@ -28,7 +29,7 @@ fn later_argument_transfer_ends_earlier_temporary_borrow_before_drop() {
         let analysis = UnitSource::analyze("lowering.ko", &source)
             .unwrap_or_else(|error| panic!("{body}: strict Unit admission: {error:?}"));
         analysis.assert_frontend_clean();
-        assert!(
+        assert_diagnostic!(
             analysis.ownership().deferred().is_empty(),
             "{body}: {:?}",
             analysis.ownership().deferred()
@@ -49,7 +50,7 @@ fn later_argument_transfer_ends_earlier_temporary_borrow_before_drop() {
                 .and_then(|module| module.function(root))
                 .expect("the real root belongs to its own lowered Program");
             assert_eq!(function.origin, Origin::Source(span));
-            assert!(
+            assert_diagnostic!(
                 !function.blocks.is_empty(),
                 "{body}: root {name} has a body"
             );

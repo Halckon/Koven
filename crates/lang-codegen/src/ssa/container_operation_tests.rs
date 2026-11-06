@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::source::SourceMap;
 
 use super::{
@@ -228,7 +229,7 @@ fn container_types_preserve_kind_element_identity_and_move_only_ownership() {
 
     verify_program(&program).expect("container type definitions must verify");
     let rendered = render_program(&program);
-    assert_eq!(rendered, render_program(&program));
+    assert_text_eq!(rendered, render_program(&program));
     assert!(rendered.contains("container Array<!t1>"));
     assert!(rendered.contains("container List<!t1>"));
     assert!(rendered.contains("container MutableList<!t1>"));
@@ -687,7 +688,7 @@ fn provider_cfg_carries_owner_and_source_loan_and_ends_each_element_loan() {
 
     verify_program(&program).expect("provider owner and loan must remain linear across CFG");
     let rendered = render_program(&program);
-    assert_eq!(rendered, render_program(&program));
+    assert_text_eq!(rendered, render_program(&program));
     assert_eq!(rendered.matches("container.length").count(), 1);
     assert_eq!(rendered.matches("container.element_place").count(), 1);
     assert!(rendered.contains("cmp.lt"));

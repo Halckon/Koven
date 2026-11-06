@@ -1,4 +1,5 @@
 //! SPEC-0332 bounded ordinary sources; SSA/LLVM only, no native execution.
+use crate::test_support::diagnostics::diagnostic;
 use std::fmt::Debug;
 
 #[path = "rc_nullable_while_memory_document_tests.rs"]
@@ -135,7 +136,7 @@ fn verify_entry_sources(
         let [function] = matches.as_slice() else {
             return Err(failure("entry-identity", (name, span, matches.len())));
         };
-        println!(
+        diagnostic!(
             "SPEC0332 BOUNDED FUNCTION source_name={name} id={:?} name={:?} span={span:?} text={:?}",
             function.id,
             function.name,
@@ -180,7 +181,7 @@ fn verify_entry_sources(
                     )
                 })?;
                 if let Operation::DirectCall { callee, .. } = &instruction.operation {
-                    println!(
+                    diagnostic!(
                         "SPEC0332 BOUNDED CALL caller={id:?} block={block_id:?} callee={callee:?} origin={:?}",
                         instruction.origin
                     );
@@ -222,7 +223,7 @@ fn observe_with_identity(
         } else {
             (format!("{case}.ko"), source_text.to_owned())
         };
-        println!("SPEC0332 BOUNDED INPUT case={case} unit={unit} path={path:?} source={text:?}");
+        diagnostic!("SPEC0332 BOUNDED INPUT case={case} unit={unit} path={path:?} source={text:?}");
         let source = sources
             .add_source(&path, &text)
             .map_err(|error| failure("source-map", error))?;
@@ -235,7 +236,7 @@ fn observe_with_identity(
             return Err(failure("parse-diagnostics", file.diagnostics()));
         }
         let function_spans = source_functions(&sources, &file)?;
-        println!("SPEC0332 BOUNDED STAGE case={case} unit={unit} parse-and-source-identity=ok");
+        diagnostic!("SPEC0332 BOUNDED STAGE case={case} unit={unit} parse-and-source-identity=ok");
         let (environment, types) = standard_environments();
         let lowered = if unit {
             let inputs = [SourceUnitInput::new("root", &path, source, &file)];
@@ -268,7 +269,7 @@ fn observe_with_identity(
             if inspect_identity {
                 source_identity =
                     identity_facts::unit(&sources, &file, &names, &typed, owned.ownership(), case);
-                println!(
+                diagnostic!(
                     "SPEC0332 PRESENCE FE IDENTITY case={case} unit={unit} query={:?}",
                     source_identity.as_ref().map(|_| ())
                 );
@@ -294,7 +295,7 @@ fn observe_with_identity(
                 return Err(failure("entry-selection", "expected exactly one p.entry"));
             };
             lower_attempted = true;
-            println!(
+            diagnostic!(
                 "SPEC0332 BOUNDED STAGE case={case} unit={unit} complete=ok ownership=ok deferred=0 lower=attempt"
             );
             crate::ssa::with_per_family_lowering(|| {
@@ -331,7 +332,7 @@ fn observe_with_identity(
             if inspect_identity {
                 source_identity =
                     identity_facts::single(&sources, &file, &names, &typed, &owned, case);
-                println!(
+                diagnostic!(
                     "SPEC0332 PRESENCE FE IDENTITY case={case} unit={unit} query={:?}",
                     source_identity.as_ref().map(|_| ())
                 );
@@ -345,7 +346,7 @@ fn observe_with_identity(
                 return Err(failure("entry-selection", "expected exactly one entry"));
             };
             lower_attempted = true;
-            println!(
+            diagnostic!(
                 "SPEC0332 BOUNDED STAGE case={case} unit={unit} complete=ok ownership=ok deferred=0 lower=attempt"
             );
             lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry.id())
@@ -356,7 +357,7 @@ fn observe_with_identity(
             lower: Some(error),
             span_text: error.span.map(|span| format!("{:?}", sources.slice(span))),
         })?;
-        println!(
+        diagnostic!(
             "SPEC0332 BOUNDED SSA case={case} unit={unit}\n{}",
             render_program(&program)
         );
@@ -365,14 +366,16 @@ fn observe_with_identity(
                 .as_ref()
                 .map_err(Clone::clone)
                 .and_then(|facts| identity::inspect_program(&program, entry, case, facts));
-            println!("SPEC0332 PRESENCE SSA IDENTITY case={case} unit={unit} query={identity:?}");
+            diagnostic!(
+                "SPEC0332 PRESENCE SSA IDENTITY case={case} unit={unit} query={identity:?}"
+            );
         }
         verify_entry_sources(&sources, &program, entry, &function_spans)?;
         entry_identity_ok = true;
         verify_program(&program).map_err(|error| failure("ssa-verify", error))?;
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|error| failure("llvm-render-verify", error))?;
-        println!("SPEC0332 BOUNDED LLVM case={case} unit={unit}\n{llvm}");
+        diagnostic!("SPEC0332 BOUNDED LLVM case={case} unit={unit}\n{llvm}");
         Ok(())
     })();
     (
@@ -402,7 +405,7 @@ fn bounded_payload_and_owner_return_sources_record_current_stage_boundary() {
     for observation in &observations {
         let case = observation.case;
         let unit = observation.unit;
-        println!(
+        diagnostic!(
             "SPEC0332 BOUNDED PRECONDITIONS case={case} unit={unit} complete={} ownership={} lower_attempted={} entry_identity={}",
             observation.complete_ok,
             observation.ownership_ok,
@@ -410,12 +413,15 @@ fn bounded_payload_and_owner_return_sources_record_current_stage_boundary() {
             observation.entry_identity_ok
         );
         match &observation.outcome {
-            Ok(()) => println!(
+            Ok(()) => diagnostic!(
                 "SPEC0332 BOUNDED OUTCOME case={case} unit={unit} stage=llvm-render-verify result=ok"
             ),
-            Err(error) => println!(
+            Err(error) => diagnostic!(
                 "SPEC0332 BOUNDED OUTCOME case={case} unit={unit} stage={} result=err detail={} lower={:?} span_text={:?}",
-                error.stage, error.detail, error.lower, error.span_text
+                error.stage,
+                error.detail,
+                error.lower,
+                error.span_text
             ),
         }
     }
@@ -495,7 +501,7 @@ fn bounded_presence_rc_nullable_while_sources_reach_verified_llvm() {
     for observation in &observations {
         let case = observation.case;
         let unit = observation.unit;
-        println!(
+        diagnostic!(
             "SPEC0332 PRESENCE PRECONDITIONS case={case} unit={unit} complete={} ownership={} lower_attempted={} entry_identity={}",
             observation.complete_ok,
             observation.ownership_ok,
@@ -503,12 +509,15 @@ fn bounded_presence_rc_nullable_while_sources_reach_verified_llvm() {
             observation.entry_identity_ok
         );
         match &observation.outcome {
-            Ok(()) => println!(
+            Ok(()) => diagnostic!(
                 "SPEC0332 PRESENCE OUTCOME case={case} unit={unit} stage=llvm-render-verify result=ok"
             ),
-            Err(error) => println!(
+            Err(error) => diagnostic!(
                 "SPEC0332 PRESENCE OUTCOME case={case} unit={unit} stage={} result=err detail={} lower={:?} span_text={:?}",
-                error.stage, error.detail, error.lower, error.span_text
+                error.stage,
+                error.detail,
+                error.lower,
+                error.span_text
             ),
         }
     }

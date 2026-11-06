@@ -1,6 +1,7 @@
 //! SPEC-0288 Map/MutableMap 原生可执行文件运行测试。
 
 use super::emit_link_and_run;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[path = "native_map_constant_operand_tests.rs"]
 mod constant_operand_tests;
@@ -183,7 +184,7 @@ fn native_map_drops_move_only_entries_on_overwrite_and_scope_exit() {
     let run = emit_link_and_run("map_drop.ko", text, "main");
     assert!(run.status.success(), "{run:?}");
     let output = String::from_utf8(run.stdout).unwrap();
-    assert!(
+    assert_diagnostic!(
         output.starts_with("1\n"),
         "overwritten value must drop at replacement: {output}"
     );

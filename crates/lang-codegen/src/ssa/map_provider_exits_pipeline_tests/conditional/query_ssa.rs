@@ -10,6 +10,7 @@ use super::{
     query_inputs::Inputs,
 };
 use crate::ssa::model::*;
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::source::Span;
 use std::collections::BTreeSet;
 
@@ -675,9 +676,10 @@ pub(super) fn check(
     let return_value = returned_value
         .ok_or_else(|| failure("conditional identity operand Return missing", returned))?;
     uses.check(&graph, Some((returned, return_value)))?;
-    println!(
+    diagnostic!(
         "SPEC0331 CONDITIONAL IDENTITY SSA scan={:?} blocks={roles:?} paths={paths:?} edges={:#?}",
-        scan.id, graph.edges
+        scan.id,
+        graph.edges
     );
     Ok(())
 }

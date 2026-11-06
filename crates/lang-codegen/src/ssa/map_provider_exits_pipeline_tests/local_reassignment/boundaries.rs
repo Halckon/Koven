@@ -1,4 +1,5 @@
 //! Ordinary legal neighbors distinguish transparent RHS groups from unproved epoch arity.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 use super::*;
 
@@ -38,7 +39,7 @@ fun makeWithArg(number:Int):Map<String,Resource>{val actual:Int=number;println("
 
 fn observe(label: &str, source: &str, grouped: Option<&Case>, unit: bool) -> Result<(), Failure> {
     let golden = grouped.map(|case| case.golden.as_str());
-    println!(
+    diagnostic!(
         "LOCAL REASSIGN NEIGHBOR INPUT case={label} unit={unit} source={source:?} golden={golden:?}"
     );
     let mut sources = SourceMap::new();
@@ -73,7 +74,7 @@ fn observe(label: &str, source: &str, grouped: Option<&Case>, unit: bool) -> Res
                         && owned.map_iterations().len() == expected,
                     (typed.map_iterations(), owned.map_iterations()),
                 );
-                println!(
+                diagnostic!(
                     "LOCAL REASSIGN NEIGHBOR UNIT case={label} plans={:#?} drops={:#?}",
                     owned.map_iterations(),
                     owned.drops()
@@ -99,7 +100,7 @@ fn observe(label: &str, source: &str, grouped: Option<&Case>, unit: bool) -> Res
                         && owned.map_iterations().len() == expected,
                     (typed.map_iterations(), owned.map_iterations()),
                 );
-                println!(
+                diagnostic!(
                     "LOCAL REASSIGN NEIGHBOR UNIT case={label} plans={:#?} drops={:#?}",
                     owned.map_iterations(),
                     owned.drops()
@@ -107,7 +108,7 @@ fn observe(label: &str, source: &str, grouped: Option<&Case>, unit: bool) -> Res
             },
         )
     };
-    println!(
+    diagnostic!(
         "LOCAL REASSIGN NEIGHBOR LOWER case={label} unit={unit} report={report:#?} outcome={:?}",
         lowered.as_ref().map(|(_, entry)| entry)
     );
@@ -128,7 +129,7 @@ fn observe(label: &str, source: &str, grouped: Option<&Case>, unit: bool) -> Res
     let llvm =
         crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e));
     report.query("neighbor actual LLVM verifier", &llvm);
-    println!("LOCAL REASSIGN NEIGHBOR FINAL case={label} unit={unit} report={report:#?}");
+    diagnostic!("LOCAL REASSIGN NEIGHBOR FINAL case={label} unit={unit} report={report:#?}");
     if report.passed() {
         Ok(())
     } else {
@@ -142,7 +143,7 @@ fn grouped_replacement_rhs_preserves_both_verified_pipelines() {
     for case in grouped_sources() {
         for unit in [false, true] {
             let result = observe(&case.label, &case.source, Some(&case), unit);
-            println!(
+            diagnostic!(
                 "LOCAL REASSIGN GROUP CASE {} unit={unit} result={result:?}",
                 case.label
             );
@@ -150,7 +151,7 @@ fn grouped_replacement_rhs_preserves_both_verified_pipelines() {
         }
     }
     assert_eq!(observations.len(), 12);
-    assert!(
+    assert_diagnostic!(
         observations.iter().all(|(_, _, result)| result.is_ok()),
         "{observations:#?}"
     );
@@ -162,12 +163,12 @@ fn ordinary_other_epoch_arguments_keep_validated_call_delivery() {
     for (label, source) in arity_sources() {
         for unit in [false, true] {
             let result = observe(label, &source, None, unit);
-            println!("LOCAL REASSIGN ARITY CASE {label} unit={unit} result={result:?}");
+            diagnostic!("LOCAL REASSIGN ARITY CASE {label} unit={unit} result={result:?}");
             observations.push((label, unit, result));
         }
     }
     assert_eq!(observations.len(), 4);
-    assert!(
+    assert_diagnostic!(
         observations.iter().all(|(_, _, result)| result.is_ok()),
         "{observations:#?}"
     );

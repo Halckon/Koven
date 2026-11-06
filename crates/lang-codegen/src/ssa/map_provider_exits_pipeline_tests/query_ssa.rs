@@ -523,7 +523,7 @@ pub(super) fn check(program: &Program, input: &Inputs) -> Result<(), Failure> {
     // Every seed alias and provider capability use is accounted for, including false/merge paths.
     // In Borrow mode only the original seed may feed the initial reborrow; no alias is ended.
     uses.check(&graph, returned.map(|value| (body, value)))?;
-    println!(
+    crate::test_support::diagnostics::diagnostic!(
         "SPEC0331 EXIT IDENTITY SSA scan={:?} roles={roles:?} seed_aliases={seeds:?} source={:?} cursor={:?} edges={:#?} returned={returned:?}",
         scan.id,
         [

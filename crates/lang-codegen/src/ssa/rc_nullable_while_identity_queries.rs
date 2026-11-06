@@ -1,4 +1,5 @@
 //! Read-only identities for the exact original SPEC-0332 source, never synthetic SSA.
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::{ExpressionId, ItemId},
     name_resolution::{
@@ -570,7 +571,7 @@ fn original_rc_nullable_while_preserves_return_owner_identity() {
         super::observe_with_inspector(true, true),
     ];
     for (observation, identity) in &observations {
-        println!(
+        diagnostic!(
             "SPEC0332 IDENTITY unit={} query={identity:?} complete={} ownership={} frontend_anchor={} lower_attempted={} pipeline={}",
             observation.unit,
             observation.complete_ok,
@@ -584,9 +585,13 @@ fn original_rc_nullable_while_preserves_return_owner_identity() {
             }
         );
         if let Err(error) = &observation.outcome {
-            println!(
+            diagnostic!(
                 "SPEC0332 IDENTITY PIPELINE ERROR unit={} stage={} detail={} lower={:?} span_text={:?}",
-                observation.unit, error.stage, error.detail, error.lower, error.span_text
+                observation.unit,
+                error.stage,
+                error.detail,
+                error.lower,
+                error.span_text
             );
         }
     }

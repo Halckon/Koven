@@ -1,5 +1,6 @@
 use super::*;
 use crate::ssa::container_lowering_tests::runtime_matrix_support;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn runtime_generator_unit_matrix_preserves_element_capture_and_storage_contracts() {
@@ -59,7 +60,7 @@ fn runtime_generator_unit_matrix_preserves_element_capture_and_storage_contracts
             }
         }
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "all 144 selected unit cases must reach their concrete ABI: {failures:?}"
     );

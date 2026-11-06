@@ -5,6 +5,7 @@ use super::{
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{analyze, declaration, parsed},
 };
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -278,8 +279,8 @@ fn fixture(provider: &str, consumer: &str) -> Program {
         entry,
     )
     .expect("source identity must survive input permutation");
-    assert_eq!(render_program(&program), render_program(&permuted));
-    assert_eq!(
+    assert_text_eq!(render_program(&program), render_program(&permuted));
+    assert_text_eq!(
         crate::llvm::render_verified_program(&program).unwrap(),
         crate::llvm::render_verified_program(&permuted).unwrap()
     );

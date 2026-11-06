@@ -1,5 +1,6 @@
 //! SPEC-0244：单文件 owned root 原语的 SSA 与 LLVM 闭环。
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 fn lower_primitive(text: &str) -> crate::ssa::model::Program {
     let analysis = crate::native_tests::boxed_enum_tests::unit_source::UnitSource::analyze(
@@ -31,8 +32,8 @@ fn root_primitive_single_replace_swap_string() {
     "#,
     );
     let ssa = render_program(&program);
-    assert!(ssa.contains("root_replace"), "{ssa}");
-    assert!(ssa.contains("root_swap"), "{ssa}");
+    assert_diagnostic!(ssa.contains("root_replace"), "{ssa}");
+    assert_diagnostic!(ssa.contains("root_swap"), "{ssa}");
     render_verified_program(&program).expect("root owners verify through LLVM");
 }
 

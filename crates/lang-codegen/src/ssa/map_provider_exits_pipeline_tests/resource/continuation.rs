@@ -1,4 +1,5 @@
 //! Real Resource Map continuations: lexical owner lifetime is independent of statement shape.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 pub(super) mod borrowed;
 pub(super) mod graph;
 use super::super::{
@@ -114,13 +115,13 @@ pub(super) fn observe_with(
             );
         },
     );
-    println!(
+    diagnostic!(
         "RESOURCE CONTINUATION case={} rooted={unit} report={report:#?} outcome={:?}",
         case.label,
         outcome.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = outcome?;
-    assert!(report.passed(), "{report:#?}");
+    assert_diagnostic!(report.passed(), "{report:#?}");
     if case.owned {
         graph::check(&program, &input, &sources, &parsed)?;
     } else {
@@ -139,5 +140,5 @@ fn resource_continuations_reach_both_verified_pipelines() {
         .flat_map(|case| [false, true].map(|unit| (case.label, unit, observe(case, unit))))
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 10);
-    assert!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
+    assert_diagnostic!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
 }

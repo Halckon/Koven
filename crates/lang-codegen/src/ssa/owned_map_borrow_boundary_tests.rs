@@ -1,5 +1,6 @@
 //! Normal source negative controls; no malformed facts or IR.
 use super::unit_lower_test_support::parsed;
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     analysis::{UnitSourceDescriptor, analyze_parsed_unit_names, analyze_unit_recovery},
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
@@ -50,7 +51,7 @@ fn diagnostics(source: &str, unit: bool) -> String {
                 assert!(owned.is_compatible_with(&typed));
             }
             Err(raw) => {
-                eprintln!(
+                diagnostic!(
                     "MemoryDocument basic qualification rejected: {:?}",
                     raw.diagnostics()
                 );
@@ -109,7 +110,9 @@ fn observe_complete_types(
             assert!(std::ptr::eq(complete.types(), raw));
         }
         Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
-            eprintln!("Unit complete admission diagnostics (not the raw oracle): {diagnostics:?}");
+            diagnostic!(
+                "Unit complete admission diagnostics (not the raw oracle): {diagnostics:?}"
+            );
         }
         Err(error) => panic!("original Unit complete admission failed internally: {error:?}"),
     }
@@ -130,7 +133,7 @@ fn owned_map_borrow_frontend_negative_controls() {
     ] {
         for unit in [false, true] {
             let diagnostics = diagnostics(&source, unit);
-            eprintln!("{label}/unit={unit}: {diagnostics}");
+            diagnostic!("{label}/unit={unit}: {diagnostics}");
             assert!(diagnostics.contains("Diagnostic {"), "must reject {label}/unit={unit}");
             let expected = match label {
                 "get-move-only" => "L0136", "consumed-owner" => "L0131",
@@ -167,7 +170,7 @@ fn owned_map_borrow_unit_bounded_result_and_nested_positions() {
         let error = super::borrow_storage_contract_tests::unit(&source)
             .err()
             .expect("bounded source must reject");
-        eprintln!("{label}: {error:?}; source={source}");
+        diagnostic!("{label}: {error:?}; source={source}");
         assert_eq!(
             error.kind,
             super::LoweringErrorKind::UnsupportedNode,

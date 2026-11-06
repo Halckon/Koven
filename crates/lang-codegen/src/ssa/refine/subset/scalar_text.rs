@@ -134,7 +134,11 @@ impl Checker<'_, '_> {
         }
         let receiver = descriptor.receiver().expression();
         let receiver_id = self.id(receiver);
-        if self.borrowed_string_name(receiver) {
+        let receiver_ty = self.c(descriptor.receiver_type());
+        if self.borrowed_string_name(receiver)
+            || self.borrowed_rc_payload(expression, receiver, receiver_ty)
+            || self.borrowed_container_element(expression, receiver, receiver_ty)
+        {
             self.migrated = true;
             return true;
         }
@@ -148,13 +152,100 @@ impl Checker<'_, '_> {
             self.migrated |= ok;
             return ok;
         }
-        if self.field_loan_receiver(receiver, true) == Some(self.c(descriptor.receiver_type())) {
+        if self.clone_field_receiver(receiver) == Some(receiver_ty) {
             self.migrated = true;
             return true;
         }
         let ok = self.expression(receiver);
         self.migrated |= ok;
         ok
+    }
+
+    fn clone_field_receiver(&self, expression: ExpressionId) -> Option<UnitTypeId> {
+        use super::receiver::Owner;
+        use lang_frontend::type_checking::{
+            UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
+        };
+        let root = self.ungrouped(expression);
+        let id = self.id(root);
+        let typed = self.inputs.typed;
+        let projection = typed.aggregate_projection(id)?;
+        let field_ty = self.c(projection.ty());
+        if projection.kind() != UnitAggregateProjectionKind::Field
+            || self.expression_type_of(id) != Some(field_ty)
+            || !self.storage_type(field_ty)
+            || !self.unspecialized(root)
+        {
+            return None;
+        }
+        let parent_ty = match projection.receiver() {
+            UnitAggregateProjectionReceiver::This(declaration) => {
+                self.owner_type(Owner::This(declaration), ParameterMode::Borrow)?
+            }
+            UnitAggregateProjectionReceiver::Expression(receiver) => {
+                if receiver.source_unit() != self.inputs.source_unit {
+                    return None;
+                }
+                let receiver_expr = receiver.expression();
+                if typed
+                    .aggregate_projection(self.id(self.ungrouped(receiver_expr)))
+                    .is_some()
+                {
+                    let parent = self.clone_field_receiver(receiver_expr)?;
+                    if !(self.class(parent)
+                        || self.value_class(parent)
+                        || self.move_value_class(parent))
+                    {
+                        return None;
+                    }
+                    parent
+                } else {
+                    if !self.plain(receiver_expr) {
+                        return None;
+                    }
+                    let ungrouped = self.ungrouped(receiver_expr);
+                    let owner_ty =
+                        self.owner_type(Owner::Expression(ungrouped), ParameterMode::Borrow)?;
+                    let allowed_source = match self
+                        .inputs
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(ungrouped)
+                        .map(|node| node.payload())
+                    {
+                        Ok(Expression::This) => true,
+                        Ok(Expression::Name) => self.reference(ungrouped).is_some_and(|symbol| {
+                            matches!(
+                                self.parameter_mode(symbol),
+                                Some(ParameterMode::Borrow | ParameterMode::Inout)
+                            ) || typed.non_null_use(self.id(ungrouped)).is_some()
+                                || (self.parameter_mode(symbol).is_none()
+                                    && (self
+                                        .class_signature(owner_ty)
+                                        .is_some_and(|(_, args)| args.is_empty())
+                                        || self
+                                            .value_signature(owner_ty)
+                                            .is_some_and(|(_, args)| args.is_empty())))
+                        }),
+                        _ => false,
+                    };
+                    if !allowed_source {
+                        return None;
+                    }
+                    owner_ty
+                }
+            }
+        };
+        let is_field = self.class_field(parent_ty, projection.field())
+            || ((self.value_class(parent_ty) || self.move_value_class(parent_ty))
+                && self.value_signature(parent_ty).is_some_and(|(nominal, _)| {
+                    nominal
+                        .fields()
+                        .iter()
+                        .any(|candidate| candidate.symbol() == projection.field())
+                }));
+        is_field.then_some(field_ty)
     }
 
     pub(super) fn numeric_for(
@@ -244,8 +335,11 @@ impl Checker<'_, '_> {
                 Some(UnitTypeKind::Builtin(BuiltinType::Boolean))
             ),
             lang_frontend::type_checking::ConstValue::Integer { .. } => self.integer_type(ty),
+            lang_frontend::type_checking::ConstValue::Char(_) => matches!(
+                self.kind(ty),
+                Some(UnitTypeKind::Builtin(BuiltinType::Char))
+            ),
             lang_frontend::type_checking::ConstValue::String(_) => self.string(ty),
-            _ => false,
         };
         if supported {
             self.migrated = true;

@@ -77,11 +77,42 @@ impl Checker<'_, '_> {
         let typed = self.inputs.typed;
         if typed.ownership_primitive(id).is_some()
             || self.inputs.owned.field_replacement(id).is_some()
+            || self
+                .inputs
+                .callables
+                .get(&id)
+                .is_some_and(|callable| !callable.captures.is_empty())
+            || typed
+                .non_null_assertion(id)
+                .is_some_and(|d| self.map_kv(self.c(d.inner_type())).is_some())
             || typed.rc_operation(id).is_some()
             || typed.integer_operation(id).is_some()
             || typed.integer_range_operation(id).is_some()
             || typed.map_with_value(id).is_some()
             || typed.map_require_value(id).is_some()
+            || typed.map_get(id).is_some()
+            || typed.container_append(id).is_some()
+            || typed.container_clear(id).is_some()
+            || typed.container_remove_at(id).is_some()
+            || typed.container_remove_first(id).is_some()
+            || typed.container_remove_last(id).is_some()
+            || typed.container_insert_at(id).is_some()
+            || typed.element_place(id).is_some()
+            || typed.container_construction(id).is_some_and(|d| {
+                d.kind() == lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
+            })
+            || typed
+                .aggregate_projection(id)
+                .is_some_and(|p| match p.receiver() {
+                    lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(
+                        recv_expr,
+                    ) => self.expression_type_of(recv_expr).is_some_and(|ty| {
+                        (self.value_class(ty) || self.move_value_class(ty))
+                            && self.copyability_of(self.c(p.ty()))
+                                == lang_frontend::type_checking::Copyability::MoveOnly
+                    }),
+                    _ => false,
+                })
             || typed.construction(id).is_some_and(|d| {
                 matches!(
                     d.target(),
@@ -148,12 +179,17 @@ impl Checker<'_, '_> {
         self.storage_type_seen(*element, active).then_some(*element)
     }
 
+    fn unit_has_standalone_map_consume(&self) -> bool {
+        !self.inputs.owned.borrow_return_origins().is_empty()
+            && !self.inputs.typed.map_consumes().is_empty()
+    }
+
     pub(super) fn local_borrow_binding(
         &mut self,
         symbol: UnitSymbolId,
         initializer: ExpressionId,
     ) -> bool {
-        if !self.scope_requires_refine() {
+        if !self.scope_requires_refine() && !self.unit_has_standalone_map_consume() {
             return false;
         }
         let id = self.id(initializer);
@@ -597,7 +633,9 @@ impl Checker<'_, '_> {
         control_expr: ExpressionId,
         value_expr: ExpressionId,
     ) -> bool {
-        if !self.unit_requires_refine() || self.inputs.borrow_return.is_none() {
+        if self.inputs.borrow_return.is_none()
+            || (!self.unit_requires_refine() && !self.unit_has_standalone_map_consume())
+        {
             return false;
         }
         let return_id = self.id(control_expr);

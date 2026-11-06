@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn inout_class_receiver_replaces_and_reads_the_same_payload_field() {
@@ -433,7 +434,7 @@ fn generic_nullable_receiver_replaces_pointer_like_values_with_conditional_drop(
         .map(|offset| nullable_drop + offset)
         .expect("new nullable is stored after conditional drop");
     assert!(old_load < nullable_drop && nullable_drop < replacement_store);
-    assert!(
+    assert_diagnostic!(
         llvm.contains("is_null = icmp eq ptr") && llvm.contains("br i1 %is_null"),
         "nullable drop glue must check the niche before dropping:\n{llvm}"
     );

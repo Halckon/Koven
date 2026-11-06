@@ -1,4 +1,5 @@
 //! Read-only Phase 3 observation, deliberately stopping before either lowering entrance.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic, expect, failure};
 use std::collections::BTreeSet;
 
 use lang_frontend::{
@@ -36,9 +37,9 @@ fn nullable_if_retest_cleanup_facts_are_observed_before_lowering() {
     let mut outcomes = Vec::new();
     for (case, source) in [source, grouped].iter().enumerate() {
         for unit in [false, true] {
-            println!("IF CLEANUP BEGIN case={case} unit={unit}");
+            diagnostic!("IF CLEANUP BEGIN case={case} unit={unit}");
             let outcome = observe_source(source, unit);
-            println!("IF CLEANUP OUTCOME case={case} unit={unit} {outcome:?}");
+            diagnostic!("IF CLEANUP OUTCOME case={case} unit={unit} {outcome:?}");
             outcomes.push(outcome);
         }
     }
@@ -51,18 +52,21 @@ fn nullable_if_retest_cleanup_facts_are_observed_before_lowering() {
         .map(|(index, outcome)| {
             outcome.unwrap_or_else(|error| {
                 panic!(
-                    "ordinary frontend prerequisites failed: case={} unit={}: {error}",
-                    index / 2,
-                    index % 2 == 1
+                    "{}",
+                    failure(format_args!(
+                        "ordinary frontend prerequisites failed: case={} unit={}: {error}",
+                        index / 2,
+                        index % 2 == 1
+                    ))
                 )
             })
         })
         .collect::<Vec<_>>();
     for (index, observation) in observations.into_iter().enumerate() {
-        assert!(observation.nullable_current_storage, "{observation:?}");
-        assert!(observation.current_drops > 0, "{observation:?}");
+        assert_diagnostic!(observation.nullable_current_storage, "{observation:?}");
+        assert_diagnostic!(observation.current_drops > 0, "{observation:?}");
         if index % 2 == 0 {
-            assert!(
+            assert_diagnostic!(
                 observation
                     .conditional_current_drops
                     .is_some_and(|count| count > 0),
@@ -85,7 +89,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
     let source = sources
         .add_source(path, &text)
         .map_err(|error| format!("source: {error:?}"))?;
-    println!("IF CLEANUP SOURCE unit={unit} id={source:?} path={path} {text:?}");
+    diagnostic!("IF CLEANUP SOURCE unit={unit} id={source:?} path={path} {text:?}");
     let lexed = lex(&sources, source).map_err(|error| format!("lex API: {error:?}"))?;
     if !lexed.diagnostics().is_empty() {
         return Err(format!("lex diagnostics: {:?}", lexed.diagnostics()));
@@ -95,14 +99,14 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
         return Err(format!("parse diagnostics: {:?}", file.diagnostics()));
     }
     for (expression, node) in file.ast().expressions().iter() {
-        println!(
+        diagnostic!(
             "IF CLEANUP AST EXPRESSION id={expression:?} span={:?} payload={:?}",
             node.span(),
             node.payload()
         );
     }
     for (statement, node) in file.ast().statements().iter() {
-        println!(
+        diagnostic!(
             "IF CLEANUP AST STATEMENT id={statement:?} span={:?} payload={:?}",
             node.span(),
             node.payload()
@@ -127,23 +131,23 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
             .map_err(|error| format!("types validation: {error:?}"))?;
         let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
             .map_err(|error| format!("ownership API: {error:?}"))?;
-        println!(
+        diagnostic!(
             "IF CLEANUP UNIT SYMBOLS {:#?}",
             names.names().source_units()
         );
-        println!(
+        diagnostic!(
             "IF CLEANUP UNIT REFERENCES {:#?}",
             names.names().references()
         );
-        println!("IF CLEANUP UNIT TYPE TABLE {:#?}", typed.types().types());
-        println!("CLEANUP UNIT ITERATION PLANS {:#?}", owned.iterations());
+        diagnostic!("IF CLEANUP UNIT TYPE TABLE {:#?}", typed.types().types());
+        diagnostic!("CLEANUP UNIT ITERATION PLANS {:#?}", owned.iterations());
         print_unit_iterations(owned.iterations());
-        println!(
+        diagnostic!(
             "IF CLEANUP UNIT STORAGE {:#?}",
             typed.types().body_symbol_types()
         );
-        println!("IF CLEANUP UNIT DROPS {:#?}", owned.drops());
-        println!(
+        diagnostic!("IF CLEANUP UNIT DROPS {:#?}", owned.drops());
+        diagnostic!(
             "IF CLEANUP UNIT PUBLIC CAPABILITY: UnitDropFact exposes point, target and \
              value_origin; owner/version and condition DAG are not published"
         );
@@ -152,7 +156,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
                 UnitDropTarget::Named(symbol) => typed.types().symbol_type(symbol),
                 _ => None,
             };
-            println!(
+            diagnostic!(
                 "IF CLEANUP UNIT DROP index={index} point={:?} target/root={:?} \
                  storage={storage:?} kind={:?} value_origin={:?} full={fact:?}",
                 fact.point(),
@@ -178,7 +182,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
             .ok_or_else(|| "current Name has no resolved unit symbol".to_owned())?;
         let storage = typed.types().symbol_type(current);
         let storage_kind = storage.and_then(|ty| typed.types().types().get(ty));
-        println!(
+        diagnostic!(
             "IF CLEANUP UNIT CURRENT symbol={current:?} name_span={current_span:?} \
              storage={storage:?} kind={storage_kind:?}"
         );
@@ -191,7 +195,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
             {
                 let expression = UnitExpressionId::new(current.source_unit(), expression);
                 let ty = typed.types().expression_type(expression);
-                println!(
+                diagnostic!(
                     "IF CLEANUP UNIT CURRENT NAME expression={expression:?} span={:?} \
                      type={ty:?} kind={:?}",
                     node.span(),
@@ -205,7 +209,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
             .iter()
             .filter(|fact| fact.target() == UnitDropTarget::Named(current))
             .collect::<Vec<_>>();
-        println!("IF CLEANUP UNIT CURRENT DROPS symbol={current:?} {current_drops:#?}");
+        diagnostic!("IF CLEANUP UNIT CURRENT DROPS symbol={current:?} {current_drops:#?}");
         Ok(Observation {
             nullable_current_storage: matches!(storage_kind, Some(UnitTypeKind::Nullable(_))),
             current_drops: current_drops.len(),
@@ -224,27 +228,27 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
             .map_err(|error| format!("complete: {error:?}"))?;
         let owned = check_ownership(&sources, &file, &names, &typed)
             .map_err(|error| format!("ownership API: {error:?}"))?;
-        println!("IF CLEANUP SINGLE SYMBOLS {:#?}", names.symbols());
-        println!("IF CLEANUP SINGLE REFERENCES {:#?}", names.references());
-        println!("IF CLEANUP SINGLE TYPE TABLE {:#?}", typed.types());
+        diagnostic!("IF CLEANUP SINGLE SYMBOLS {:#?}", names.symbols());
+        diagnostic!("IF CLEANUP SINGLE REFERENCES {:#?}", names.references());
+        diagnostic!("IF CLEANUP SINGLE TYPE TABLE {:#?}", typed.types());
         for symbol in names.symbols() {
             let storage = typed.symbol_type(symbol.id());
-            println!(
+            diagnostic!(
                 "IF CLEANUP SINGLE STORAGE symbol={:?} type={storage:?} kind={:?}",
                 symbol.id(),
                 storage.and_then(|ty| typed.types().get(ty)),
             );
         }
-        println!("IF CLEANUP SINGLE DROPS {:#?}", owned.drops());
-        println!("CLEANUP SINGLE ITERATION PLANS {:#?}", owned.iterations());
+        diagnostic!("IF CLEANUP SINGLE DROPS {:#?}", owned.drops());
+        diagnostic!("CLEANUP SINGLE ITERATION PLANS {:#?}", owned.iterations());
         let table = owned.cleanup_conditions();
         // Debug retains the complete published table, including every owner definition.
-        println!("IF CLEANUP SINGLE CONDITION TABLE {table:#?}");
-        println!("IF CLEANUP SINGLE CONDITION NODES {:#?}", table.nodes());
-        println!("IF CLEANUP SINGLE SELECTORS {:#?}", table.selectors());
+        diagnostic!("IF CLEANUP SINGLE CONDITION TABLE {table:#?}");
+        diagnostic!("IF CLEANUP SINGLE CONDITION NODES {:#?}", table.nodes());
+        diagnostic!("IF CLEANUP SINGLE SELECTORS {:#?}", table.selectors());
         print_single_iterations(owned.iterations(), table);
         for (index, fact) in owned.drops().iter().enumerate() {
-            println!(
+            diagnostic!(
                 "IF CLEANUP SINGLE DROP index={index} point={:?} target/root={:?} \
                  owner/version={:?} owner_node={:?} condition={:?} value_origin={:?} full={fact:?}",
                 fact.point(),
@@ -278,7 +282,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
             .ok_or_else(|| "current Name has no resolved file symbol".to_owned())?;
         let storage = typed.symbol_type(current);
         let storage_kind = storage.and_then(|ty| typed.types().get(ty));
-        println!(
+        diagnostic!(
             "IF CLEANUP SINGLE CURRENT symbol={current:?} name_span={current_span:?} \
              storage={storage:?} kind={storage_kind:?}"
         );
@@ -290,7 +294,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
                 })
             {
                 let ty = typed.expression_type(expression);
-                println!(
+                diagnostic!(
                     "IF CLEANUP SINGLE CURRENT NAME expression={expression:?} span={:?} \
                      type={ty:?} kind={:?}",
                     node.span(),
@@ -303,7 +307,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
             .iter()
             .filter(|fact| fact.target() == DropTarget::Named(current))
             .collect::<Vec<_>>();
-        println!("IF CLEANUP SINGLE CURRENT DROPS symbol={current:?} {current_drops:#?}");
+        diagnostic!("IF CLEANUP SINGLE CURRENT DROPS symbol={current:?} {current_drops:#?}");
         let conditional_current_drops = current_drops
             .iter()
             .filter(|fact| {
@@ -346,18 +350,20 @@ fn print_condition(
     seen: &mut BTreeSet<CleanupConditionId>,
 ) {
     if !seen.insert(condition) {
-        println!("IF CLEANUP DAG REFERENCE condition={condition:?}");
+        diagnostic!("IF CLEANUP DAG REFERENCE condition={condition:?}");
         return;
     }
     let node = table.get(condition);
-    println!("IF CLEANUP DAG condition={condition:?} node={node:?}");
+    diagnostic!("IF CLEANUP DAG condition={condition:?} node={node:?}");
     if let Some(CleanupCondition::Choice { selector, branches }) = node {
-        println!(
+        diagnostic!(
             "IF CLEANUP DAG SELECTOR condition={condition:?} selector={selector:?} node={:?}",
             table.selector(*selector)
         );
         for (branch, child) in branches.iter().copied().enumerate() {
-            println!("IF CLEANUP DAG EDGE condition={condition:?} branch={branch} child={child:?}");
+            diagnostic!(
+                "IF CLEANUP DAG EDGE condition={condition:?} branch={branch} child={child:?}"
+            );
             print_condition(table, child, seen);
         }
     }
@@ -370,17 +376,17 @@ fn nullable_numeric_for_cleanup_facts_are_observed_before_lowering() {
     let mut outcomes = Vec::new();
     for (case, source) in [source, grouped].iter().enumerate() {
         for unit in [false, true] {
-            println!("NUMERIC CLEANUP BEGIN case={case} unit={unit}");
+            diagnostic!("NUMERIC CLEANUP BEGIN case={case} unit={unit}");
             let outcome = observe_source(source, unit);
-            println!("NUMERIC CLEANUP OUTCOME case={case} unit={unit} {outcome:?}");
+            diagnostic!("NUMERIC CLEANUP OUTCOME case={case} unit={unit} {outcome:?}");
             outcomes.push(outcome);
         }
     }
     assert_eq!(outcomes.len(), 4);
     for outcome in outcomes {
-        let observation = outcome.expect("ordinary numeric frontend prerequisites succeed");
-        assert!(observation.nullable_current_storage, "{observation:?}");
-        assert!(observation.current_drops > 0, "{observation:?}");
+        let observation = expect(outcome, "ordinary numeric frontend prerequisites succeed");
+        assert_diagnostic!(observation.nullable_current_storage, "{observation:?}");
+        assert_diagnostic!(observation.current_drops > 0, "{observation:?}");
     }
 }
 
@@ -393,23 +399,23 @@ fn nullable_borrowed_for_cleanup_facts_are_observed_before_lowering() {
     let mut outcomes = Vec::new();
     for (case, source) in relations.iter().flatten().enumerate() {
         for unit in [false, true] {
-            println!("BORROWED CLEANUP BEGIN case={case} unit={unit}");
+            diagnostic!("BORROWED CLEANUP BEGIN case={case} unit={unit}");
             let outcome = observe_source(source, unit);
-            println!("BORROWED CLEANUP OUTCOME case={case} unit={unit} {outcome:?}");
+            diagnostic!("BORROWED CLEANUP OUTCOME case={case} unit={unit} {outcome:?}");
             outcomes.push(outcome);
         }
     }
     // Observe both relations, changing only the for source Group, before any oracle.
     assert_eq!(outcomes.len(), 8);
     for outcome in outcomes {
-        let observation = outcome.expect("ordinary borrowed frontend prerequisites succeed");
-        assert!(observation.nullable_current_storage, "{observation:?}");
-        assert!(observation.current_drops > 0, "{observation:?}");
+        let observation = expect(outcome, "ordinary borrowed frontend prerequisites succeed");
+        assert_diagnostic!(observation.nullable_current_storage, "{observation:?}");
+        assert_diagnostic!(observation.current_drops > 0, "{observation:?}");
     }
 }
 
 fn print_unit_iterations(plans: &[UnitIterationOwnershipPlan]) {
-    println!(
+    diagnostic!(
         "CLEANUP UNIT ITERATION PUBLIC CAPABILITY: provider/source/root/element delivery, \
          bindings and ordered exits/actions are published; Header/Exit owner phis, \
          incoming conditions, exit conditions and their condition DAG are not published"
@@ -417,7 +423,7 @@ fn print_unit_iterations(plans: &[UnitIterationOwnershipPlan]) {
     for plan in plans {
         let descriptor = plan.descriptor();
         let statement = descriptor.statement();
-        println!(
+        diagnostic!(
             "CLEANUP UNIT ITERATION statement={statement:?} provider={:?} source={:?} \
              source_type={:?} source_kind={:?} source/root={:?} source_access={:?} \
              element_type={:?} element_delivery={:?} element_binding={:?}",
@@ -432,14 +438,14 @@ fn print_unit_iterations(plans: &[UnitIterationOwnershipPlan]) {
             descriptor.binding(),
         );
         for binding in plan.bindings() {
-            println!(
+            diagnostic!(
                 "CLEANUP UNIT ELEMENT statement={statement:?} symbol={:?} mode={:?}",
                 binding.symbol(),
                 binding.kind(),
             );
         }
         for exit in plan.exits() {
-            println!(
+            diagnostic!(
                 "CLEANUP UNIT EXIT statement={statement:?} kind={:?} point={:?} actions={:#?}",
                 exit.kind(),
                 exit.point(),
@@ -453,7 +459,7 @@ fn print_single_iterations(plans: &[IterationOwnershipPlan], table: &CleanupCond
     for plan in plans {
         let descriptor = plan.descriptor();
         let statement = descriptor.statement();
-        println!(
+        diagnostic!(
             "CLEANUP SINGLE ITERATION statement={statement:?} provider={:?} source={:?} \
              source_type={:?} source_kind={:?} source/root={:?} element_type={:?} \
              element_delivery={:?} element_binding={:?}",
@@ -467,19 +473,19 @@ fn print_single_iterations(plans: &[IterationOwnershipPlan], table: &CleanupCond
             descriptor.binding(),
         );
         for binding in plan.bindings() {
-            println!(
+            diagnostic!(
                 "CLEANUP SINGLE ELEMENT statement={statement:?} symbol={:?} mode={:?}",
                 binding.symbol(),
                 binding.kind(),
             );
         }
-        println!(
+        diagnostic!(
             "CLEANUP SINGLE PHIS statement={statement:?} count={} incomings={}",
             plan.closure_phis().len(),
             plan.closure_phi_incomings().len(),
         );
         for phi in plan.closure_phis() {
-            println!(
+            diagnostic!(
                 "CLEANUP SINGLE PHI statement={statement:?} boundary={:?} root={:?} \
                  owner/version={:?} owner_node={:?} selector={:?} selector_node={:?} \
                  condition={:?} full={phi:#?}",
@@ -494,7 +500,7 @@ fn print_single_iterations(plans: &[IterationOwnershipPlan], table: &CleanupCond
             print_condition(table, phi.availability_condition(), &mut BTreeSet::new());
         }
         for incoming in plan.closure_phi_incomings() {
-            println!(
+            diagnostic!(
                 "CLEANUP SINGLE INCOMING statement={statement:?} boundary={:?} kind={:?} \
                  point={:?} condition={:?} bindings={:#?}",
                 incoming.boundary(),
@@ -505,7 +511,7 @@ fn print_single_iterations(plans: &[IterationOwnershipPlan], table: &CleanupCond
             );
             print_condition(table, incoming.condition(), &mut BTreeSet::new());
             for binding in incoming.bindings() {
-                println!(
+                diagnostic!(
                     "CLEANUP SINGLE INCOMING BINDING target={:?} owner_node={:?} \
                      available_when={:?}",
                     binding.target(),
@@ -514,7 +520,7 @@ fn print_single_iterations(plans: &[IterationOwnershipPlan], table: &CleanupCond
                 );
                 print_condition(table, binding.available_when(), &mut BTreeSet::new());
                 for value in binding.values() {
-                    println!(
+                    diagnostic!(
                         "CLEANUP SINGLE INCOMING VALUE source={:?} owner_node={:?} condition={:?}",
                         value.source(),
                         table.owner_value(value.source()),
@@ -525,7 +531,7 @@ fn print_single_iterations(plans: &[IterationOwnershipPlan], table: &CleanupCond
             }
         }
         for exit in plan.exits() {
-            println!(
+            diagnostic!(
                 "CLEANUP SINGLE EXIT statement={statement:?} kind={:?} point={:?} \
                  condition={:?} actions={:#?}",
                 exit.kind(),

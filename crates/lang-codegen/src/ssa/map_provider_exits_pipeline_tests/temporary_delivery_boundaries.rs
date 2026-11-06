@@ -5,6 +5,7 @@ use super::{
     pipeline,
     temporary_delivery::{Delivery, sources},
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 
 fn observe(text: &str, rooted: bool) -> Result<(), Failure> {
@@ -26,7 +27,7 @@ fn observe(text: &str, rooted: bool) -> Result<(), Failure> {
         |_, _, _, _| {},
     );
     let input = super::input_label(rooted);
-    println!(
+    diagnostic!(
         "DELIVERY BOUNDARY INPUT input={input} source={text:?} report={report:#?} outcome={:?}",
         result.as_ref().map(|(_, entry)| entry)
     );
@@ -63,7 +64,7 @@ fn same_root_borrow_then_owned_delivery_is_rejected_before_lowering() {
             for rooted in [false, true] {
                 let result = observe(&text, rooted);
                 let input = super::input_label(rooted);
-                println!(
+                diagnostic!(
                     "DELIVERY BOUNDARY SAME ROOT {} input={input} control={control} result={result:?}",
                     case.label
                 );
@@ -76,7 +77,7 @@ fn same_root_borrow_then_owned_delivery_is_rejected_before_lowering() {
         }
     }
     assert_eq!(outcomes.len(), 8);
-    assert!(outcomes.iter().all(|&passed| passed), "{outcomes:?}");
+    assert_diagnostic!(outcomes.iter().all(|&passed| passed), "{outcomes:?}");
 }
 
 // This observer is exclusive to the retired Legacy-rejection contract below.
@@ -100,13 +101,15 @@ fn observe_local_result_unit(text: &str, rooted: bool) -> Result<(), Failure> {
         |_, _, _, _| {},
     );
     let input = super::input_label(rooted);
-    println!(
+    diagnostic!(
         "DELIVERY LOCAL RESULT INPUT input={input} stages_passed={} outcome={:?}",
         report.passed(),
         result.as_ref().map(|(_, entry)| entry)
     );
     if result.is_err() || !report.passed() {
-        eprintln!("DELIVERY LOCAL RESULT FAILURE input={input} source={text:?} report={report:#?}");
+        diagnostic!(
+            "DELIVERY LOCAL RESULT FAILURE input={input} source={text:?} report={report:#?}"
+        );
     }
     let (program, _) = result?;
     if !report.passed() {
@@ -130,9 +133,9 @@ fn local_borrow_result_is_not_an_original_entry_slot() {
     for rooted in [false, true] {
         let result = observe_local_result_unit(source, rooted);
         let input = super::input_label(rooted);
-        println!("DELIVERY BOUNDARY LOCAL RESULT input={input} result={result:?}");
+        diagnostic!("DELIVERY BOUNDARY LOCAL RESULT input={input} result={result:?}");
         outcomes.push(result.is_ok());
     }
     assert_eq!(outcomes.len(), 2);
-    assert!(outcomes.iter().all(|&passed| passed), "{outcomes:?}");
+    assert_diagnostic!(outcomes.iter().all(|&passed| passed), "{outcomes:?}");
 }

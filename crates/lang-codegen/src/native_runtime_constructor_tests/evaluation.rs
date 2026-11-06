@@ -1,5 +1,6 @@
 //! Normal source sequencing, including a language-level negative-length Abort.
 use super::*;
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 
 pub(crate) struct EvaluationCase {
     pub(crate) label: String,
@@ -89,11 +90,11 @@ pub(crate) fn nothing_operand_cases() -> Vec<EvaluationCase> {
 
 pub(crate) fn assert_evaluation_output(case: &EvaluationCase, output: &std::process::Output) {
     if case.aborts {
-        assert!(!output.status.success(), "{}: {output:?}", case.label);
+        assert_diagnostic!(!output.status.success(), "{}: {output:?}", case.label);
         #[cfg(unix)]
         {
             use std::os::unix::process::ExitStatusExt;
-            assert_eq!(
+            assert_eq_diagnostic!(
                 output.status.signal(),
                 Some(6),
                 "{}: {output:?}",
@@ -103,8 +104,8 @@ pub(crate) fn assert_evaluation_output(case: &EvaluationCase, output: &std::proc
         // Do not use a stderr-empty oracle for SIGABRT: platform crash reporting
         // is independent of whether size/factory/callback language effects ran.
     } else {
-        assert!(output.status.success(), "{}: {output:?}", case.label);
-        assert!(output.stderr.is_empty(), "{}: {output:?}", case.label);
+        assert_diagnostic!(output.status.success(), "{}: {output:?}", case.label);
+        assert_diagnostic!(output.stderr.is_empty(), "{}: {output:?}", case.label);
     }
     assert_eq!(output.stdout, case.expected, "{}", case.label);
 }

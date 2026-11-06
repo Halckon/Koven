@@ -1,6 +1,7 @@
 //! Original MemoryDocument contracts for the migrated Map control consumers.
 //! Every original non-generic function is an independent Unit root, even if uncalled.
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{SourceUnitKey, SymbolKind},
     parser::Item,
@@ -26,7 +27,7 @@ pub(super) fn assert_return_controls(name: &str, text: &str, roots: &[&str]) {
     for root in lower_roots(&analysis, "lowering.ko", text, roots) {
         assert_returned_owner_not_dropped(&root.program);
     }
-    println!("CONTROL {name}: VERIFIED_LLVM");
+    diagnostic!("CONTROL {name}: VERIFIED_LLVM");
 }
 
 pub(super) fn assert_outer_resource(name: &str, text: &str) {
@@ -82,7 +83,7 @@ pub(super) fn assert_outer_resource(name: &str, text: &str) {
         matches!(instruction.operation, Operation::HeapAllocate { owner, .. } if owner == target)
             && analysis.sources().slice(instruction.origin.span()).unwrap() == "Guard(\"outer\")"
     }), "the emitted deinit belongs to the actual original outer Guard owner");
-    println!("CONTROL {name}: VERIFIED_LLVM");
+    diagnostic!("CONTROL {name}: VERIFIED_LLVM");
 }
 
 pub(super) fn assert_trusted_range(text: &str) {

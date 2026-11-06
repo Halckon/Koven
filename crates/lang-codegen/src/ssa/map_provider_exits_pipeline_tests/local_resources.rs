@@ -1,4 +1,5 @@
 //! Factory-formed Resource Map locals retain their original owner through all exits.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod boundaries;
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
@@ -139,9 +140,11 @@ fun entry():Unit{{println("nonempty");val first=scan();if(first==7){{println("se
 }
 
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "G2 RESOURCE INPUT case={} unit={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -166,7 +169,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == 2 && owned.map_iterations().len() == 2,
                     (typed.map_iterations(), owned.map_iterations()),
                 );
-                println!(
+                diagnostic!(
                     "G2 RESOURCE UNIT case={} nullable={} formed={:#?} plans={:#?} drops={:#?}",
                     case.label,
                     case.nullable,
@@ -189,7 +192,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == 2 && owned.map_iterations().len() == 2,
                     (typed.map_iterations(), owned.map_iterations()),
                 );
-                println!(
+                diagnostic!(
                     "G2 RESOURCE UNIT case={} nullable={} formed={:#?} plans={:#?} drops={:#?}",
                     case.label,
                     case.nullable,
@@ -200,7 +203,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     };
-    println!(
+    diagnostic!(
         "G2 RESOURCE REPORT {} unit={unit} report={report:#?}",
         case.label
     );
@@ -224,14 +227,14 @@ fn resource_locals_keep_actual_formation_and_cleanup() {
     for case in sources() {
         for unit in [false, true] {
             let result = observe(&case, unit);
-            println!(
+            diagnostic!(
                 "G2 RESOURCE CASE {} unit={unit} result={result:?}",
                 case.label
             );
             outcomes.push((case.label.clone(), unit, result));
         }
     }
-    assert!(
+    assert_diagnostic!(
         outcomes.len() == 96 && outcomes.iter().all(|(_, _, r)| r.is_ok()),
         "{outcomes:#?}"
     );

@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::{assert_eq_diagnostic, assert_text_eq, diagnostic};
 use lang_frontend::{
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::check_compilation_unit_constant_ownership,
@@ -96,7 +97,7 @@ fn scalar_materializations_use_exact_values_and_reject_foreign_analysis() {
             entry,
         )
         .unwrap();
-        assert_eq!(render_program(&forward), render_program(&reverse));
+        assert_text_eq!(render_program(&forward), render_program(&reverse));
         // No declaration initializer function or storage root may appear at runtime.
         assert_eq!(forward.modules[0].functions.len(), 1, "{ty}");
         let expected_type = match ty {
@@ -265,7 +266,7 @@ fn string_uses_materialize_independent_owners_with_literal_cleanup() {
                     _ => None,
                 })
                 .collect::<Vec<_>>();
-            assert_eq!(owners.len(), literals, "{body}");
+            assert_eq_diagnostic!(owners.len(), literals, "{body}");
             assert_eq!(
                 owners
                     .iter()
@@ -282,9 +283,9 @@ fn string_uses_materialize_independent_owners_with_literal_cleanup() {
                     _ => None,
                 })
                 .collect::<Vec<_>>();
-            assert_eq!(dropped.len(), drops, "{body}");
+            assert_eq_diagnostic!(dropped.len(), drops, "{body}");
             if drops == literals {
-                assert_eq!(
+                assert_eq_diagnostic!(
                     dropped,
                     owners.iter().copied().rev().collect::<Vec<_>>(),
                     "{body}"
@@ -909,12 +910,12 @@ fn pending_copyable_argument_keeps_its_pre_loop_snapshot() {
         ("model", format!("{:#?}", program.modules)),
         ("llvm", llvm),
     ] {
-        println!(
+        diagnostic!(
             "\nBEGIN copyable-snapshot case=0 entry=unit kind={kind} bytes={}",
             text.len()
         );
         print!("{text}");
-        println!("\nEND copyable-snapshot case=0 entry=unit kind={kind}");
+        diagnostic!("\nEND copyable-snapshot case=0 entry=unit kind={kind}");
     }
 
     use super::{

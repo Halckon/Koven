@@ -1,4 +1,5 @@
 //! G8 source-only nested-provider contracts, with every real observation collected.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod facts;
 mod query;
 mod runtime;
@@ -110,7 +111,7 @@ fn observe(label: &str, text: &str, unit: bool) -> Result<(), Failure> {
             );
         },
     );
-    println!(
+    diagnostic!(
         "G8 STACK LOWER case={label} rooted={unit} report={report:#?} result={:?}",
         lowered.as_ref().map(|(_, entry)| entry)
     );
@@ -124,15 +125,15 @@ fn observe(label: &str, text: &str, unit: bool) -> Result<(), Failure> {
                 .map_err(|e| failure("stack original FE bridge", e))
         })
         .and_then(|input| query::check(&sources, &parsed, &program, input, true));
-    println!("G8 STACK QUERY case={label} rooted={unit} result={queried:?}");
+    diagnostic!("G8 STACK QUERY case={label} rooted={unit} result={queried:?}");
     report.query("stack independent complete identities", &queried);
     crate::ssa::verify::verify_program(&program).map_err(|e| verify_failure(&sources, e))?;
     let llvm = crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
-    println!(
+    diagnostic!(
         "G8 STACK SSA case={label} rooted={unit}\n{}",
         crate::ssa::render::render_program(&program)
     );
-    println!("G8 STACK LLVM case={label} rooted={unit}\n{llvm}");
+    diagnostic!("G8 STACK LLVM case={label} rooted={unit}\n{llvm}");
     if !report.passed() {
         return Err(failure("stack FE/SSA identities", report));
     }
@@ -143,14 +144,14 @@ fn group(index: usize, expected: usize) {
     let mut observations = Vec::new();
     for (label, source) in originals(index) {
         for unit in [false, true] {
-            println!("G8 STACK INPUT case={label} rooted={unit} source={source:?}");
+            diagnostic!("G8 STACK INPUT case={label} rooted={unit} source={source:?}");
             let result = observe(label, source, unit);
-            println!("G8 STACK CASE case={label} rooted={unit} result={result:?}");
+            diagnostic!("G8 STACK CASE case={label} rooted={unit} result={result:?}");
             observations.push(result);
         }
     }
     assert_eq!(observations.len(), expected);
-    assert!(observations.iter().all(Result::is_ok), "{observations:#?}");
+    assert_diagnostic!(observations.iter().all(Result::is_ok), "{observations:#?}");
 }
 
 #[test]
@@ -188,12 +189,14 @@ fn runtime_group(cases: Vec<Case>, count: usize) {
     let mut observations = Vec::new();
     for case in cases {
         for unit in [false, true] {
-            println!(
+            diagnostic!(
                 "G8 STACK RUNTIME INPUT case={} rooted={unit} source={:?} golden={:?}",
-                case.label, case.source, case.golden
+                case.label,
+                case.source,
+                case.golden
             );
             let result = observe(&case.label, &case.source, unit);
-            println!(
+            diagnostic!(
                 "G8 STACK RUNTIME CASE case={} rooted={unit} result={result:?}",
                 case.label
             );
@@ -201,5 +204,5 @@ fn runtime_group(cases: Vec<Case>, count: usize) {
         }
     }
     assert_eq!(observations.len(), count * 2);
-    assert!(observations.iter().all(Result::is_ok), "{observations:#?}");
+    assert_diagnostic!(observations.iter().all(Result::is_ok), "{observations:#?}");
 }

@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 
 #[test]
 fn runtime_generator_unit_nothing_operand_stops_before_borrow_and_initializer() {
@@ -74,7 +75,7 @@ fn runtime_generator_unit_nothing_operand_stops_before_borrow_and_initializer() 
             assert_eq!(typed.types().types().len(), arena);
         }
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "Nothing must stop before demanding later callable facts: {failures:?}"
     );
@@ -217,7 +218,7 @@ fn runtime_generator_unit_cross_file_generic_helper_preserves_three_callable_env
                         declaration(&reverse_names, "a", "entry"),
                     )
                     .expect("reordered helper inputs");
-                    assert_eq!(
+                    assert_text_eq!(
                         render_program(&program),
                         render_program(&reverse),
                         "caller-first source order cannot change concrete helper identity"
@@ -232,7 +233,7 @@ fn runtime_generator_unit_cross_file_generic_helper_preserves_three_callable_env
             );
         }
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "cross-file generic Borrow Fn helper must retain each environment: {failures:?}"
     );

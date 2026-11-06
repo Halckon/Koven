@@ -43,7 +43,10 @@ impl Builder<'_, '_> {
                 }
                 self.receiver
             }
-            OwnerRef::Expression(expression) => {
+            OwnerRef::Expression(mut expression) => {
+                while let (Expression::Group { expression: inner }, _) = self.node(expression)? {
+                    expression = inner;
+                }
                 let (payload, expression_span) = self.node(expression)?;
                 match payload {
                     Expression::This => self.receiver,

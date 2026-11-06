@@ -7,6 +7,7 @@ use super::{
     Case,
     ast::{sites, span},
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
     ownership_checking::{CompilationUnitOwnership, UnitDropPoint, UnitDropTarget},
@@ -100,7 +101,7 @@ pub(super) fn unit(
                 d,
             )?;
         }
-        println!("COMPLETED EPOCH UNIT old={old:#?} new={new:#?}");
+        diagnostic!("COMPLETED EPOCH UNIT old={old:#?} new={new:#?}");
     }
     Ok(())
 }

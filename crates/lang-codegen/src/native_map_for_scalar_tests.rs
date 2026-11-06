@@ -1,6 +1,7 @@
 //! Ordinary Map-for composition with retired integer/range families, without another
 //! construct forcing refinement. Native cases only take successful runtime paths.
 
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::name_resolution::SymbolKind;
 
 use crate::{
@@ -55,7 +56,7 @@ fn verified(mode: &str, text: &str, expected: fn(&Operation) -> bool) {
     let (again, _) = analysis
         .lower_entry(declaration)
         .expect("deterministic second lowering");
-    assert_eq!(render_program(&program), render_program(&again));
+    assert_text_eq!(render_program(&program), render_program(&again));
     let scan_span = analysis.declaration_span(analysis.declaration("scan", SymbolKind::Function));
     let scan = program
         .modules
