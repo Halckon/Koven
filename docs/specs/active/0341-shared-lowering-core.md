@@ -1715,6 +1715,33 @@ call 的 External `replace` symbol 身份，避免仅由空 primitive 表推断�
   精确组合头官方 CI。候选尚未发布，不将历史 main CI 转写为本候选通过。
   D10/SPEC-0341/E2 继续 in-progress；owner/loan-end/conditional cleanup 等缺口不关闭。
 
+### Expected move literal 类型消费者后继（2026-11-06）
+
+基于 main `c4ba670a76a567e1475deee47378fa791d25f419`，独立分支
+`feature/spec-0341-move-literal-consumers`。本片不依赖 #326–329，不改 #323 或生产。
+
+- `type_callable/expected_move_literals.rs` 两项原测试改走同一 AST、原自定义 builtin/
+  capability 环境的 MemoryDocument/Rooted 双入口；两个 Single 分析改为四个 Unit 分析。
+  保留原源码与测试名称，父 target、其余十九项测试和既有多文件对照均不改。
+- 正例保留 local/argument/return 三个 lambda 与同一 ordinary Function canonical
+  identity 的相等性、Int→Boolean、三个真实参数的 Borrow mode 和 Int 类型。
+  反例保持六条 L0084 顺序及 primary 文本、shared/first/second 的 mode 为 None，
+  无 expected 的 inferred 仍为零参数 move Function→Int。
+- names 原已要求无诊断；Unit helper validate 后仅取 raw types，不增加 final/ownership
+  前置。UnitSymbolId 从真实 body_symbol_types 按 source-unit 与原 local symbol 匹配，
+  包含错误 lambda 参数的类型恢复事实；不伪造符号或用名称直接代替类型身份。
+  lambda 仍从原 AST 枚举并严格核数量，再由已验证源身份限定 UnitExpressionId。
+
+| 验收项 | 检查 / 命令 | 实际结果 |
+|---|---|---|
+| 云端编译与直接行为 | Rust1.96.0、默认debug=2、locked/offline，`type_callable expected_move_literals::` | 目标编译通过，2 passed；各含双入口，19项未执行 |
+| 共享邻控 | `multifile_type_checking lambdas::` | 4 passed，150项未执行 |
+| 静态质量 | frontend lib build、all-targets Clippy、fmt、docs、尺寸、diff | 全通过；839 Markdown、2118 Rust、39项历史超限，无新增债 |
+| 原合同保全 | 原源码/测试名/事实断言与父target | 机械保全与独立只读复核无阻断；测试模块174行 |
+
+未执行故障注入、含 Abort 的整项、Mac 构建、native 或官方双平台 CI；未推送或开 PR。
+本片不是新的 closure/native 能力，D10/E2 保持 in-progress，不等待其他 CI，不自动合并。
+
 ## 83. E2 Choice 测试模型前置（2026-11-04）
 
 基线 main `8b2e9e18`；本批不开放 String-result If，不改变公开 API、生产 planner、cleanup
