@@ -13,10 +13,6 @@ use lang_frontend::{
     type_checking::{check_compilation_unit_types, check_types, standard_environments},
 };
 
-fn checked(body: &str) -> (SourceMap, CompilationUnitOwnership) {
-    checked_entry(body, false)
-}
-
 fn checked_entry(body: &str, rooted: bool) -> (SourceMap, CompilationUnitOwnership) {
     let text = format!(
         "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) {{}}\n{body}"
@@ -216,51 +212,58 @@ fn results_continue_original_source_loans_and_never_own_the_payload() {
 
 #[test]
 fn children_end_before_parents_and_owner_cleanup_on_scope_and_return_edges() {
-    use lang_frontend::ownership_checking::{UnitDropTarget, UnitLoanTarget};
-    for exit in ["", "return"] {
-        let (_, unit) = checked(&format!(
-            "fun run() {{ val source = \"kept\"; borrow val parent = view(source); borrow val child = view(parent); println(child); {exit} }}"
-        ));
-        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let bindings = unit.borrow_results().bindings();
-        assert_eq!(bindings.len(), 2);
-        assert_eq!(bindings[1].parent(), Some(bindings[0].binding()));
-        assert_eq!(bindings[1].origin(), bindings[0].origin());
-        let ends = unit.borrow_results().ends();
-        assert_eq!(
-            ends.iter().map(|end| end.binding()).collect::<Vec<_>>(),
-            vec![bindings[1].binding(), bindings[0].binding()]
-        );
-        let UnitLoanTarget::Place(origin) = bindings[0].origin() else {
-            panic!("stable unit source");
-        };
-        assert!(
-            unit.drops()
-                .iter()
-                .any(|drop| drop.target() == UnitDropTarget::Named(origin.root())
-                    && drop.point() == ends[1].point())
-        );
+    for rooted in [false, true] {
+        use lang_frontend::ownership_checking::{UnitDropTarget, UnitLoanTarget};
+        for exit in ["", "return"] {
+            let (_, unit) = checked_entry(
+                &format!(
+                    "fun run() {{ val source = \"kept\"; borrow val parent = view(source); borrow val child = view(parent); println(child); {exit} }}"
+                ),
+                rooted,
+            );
+            assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+            let bindings = unit.borrow_results().bindings();
+            assert_eq!(bindings.len(), 2);
+            assert_eq!(bindings[1].parent(), Some(bindings[0].binding()));
+            assert_eq!(bindings[1].origin(), bindings[0].origin());
+            let ends = unit.borrow_results().ends();
+            assert_eq!(
+                ends.iter().map(|end| end.binding()).collect::<Vec<_>>(),
+                vec![bindings[1].binding(), bindings[0].binding()]
+            );
+            let UnitLoanTarget::Place(origin) = bindings[0].origin() else {
+                panic!("stable unit source");
+            };
+            assert!(
+                unit.drops()
+                    .iter()
+                    .any(|drop| drop.target() == UnitDropTarget::Named(origin.root())
+                        && drop.point() == ends[1].point())
+            );
+        }
     }
 }
 
 #[test]
 fn source_mutation_and_exclusive_reborrow_conflicts_keep_real_spans() {
-    for body in [
-        "fun run() { var source = \"kept\"; borrow val item = view(source); source = \"changed\"; println(item) }",
-        "fun mutate(inout source: String) {}\nfun run() { var source = \"kept\"; borrow val item = view(source); mutate(&source); println(item) }",
-        "class Record(var text: String)\nfun run() { val source = Record(\"kept\"); borrow val item = source; item.text = \"changed\"; println(item.text) }",
-    ] {
-        let (sources, unit) = checked(body);
-        {
-            let diagnostics = unit.diagnostics();
-            let conflict = diagnostics
-                .iter()
-                .find(|d| d.code().to_string() == "L0135")
-                .unwrap_or_else(|| panic!("{body}: {diagnostics:?}"));
-            assert!(!sources.slice(conflict.primary_span()).unwrap().is_empty());
-            assert!(!conflict.details().is_empty());
+    for rooted in [false, true] {
+        for body in [
+            "fun run() { var source = \"kept\"; borrow val item = view(source); source = \"changed\"; println(item) }",
+            "fun mutate(inout source: String) {}\nfun run() { var source = \"kept\"; borrow val item = view(source); mutate(&source); println(item) }",
+            "class Record(var text: String)\nfun run() { val source = Record(\"kept\"); borrow val item = source; item.text = \"changed\"; println(item.text) }",
+        ] {
+            let (sources, unit) = checked_entry(body, rooted);
+            {
+                let diagnostics = unit.diagnostics();
+                let conflict = diagnostics
+                    .iter()
+                    .find(|d| d.code().to_string() == "L0135")
+                    .unwrap_or_else(|| panic!("{body}: {diagnostics:?}"));
+                assert!(!sources.slice(conflict.primary_span()).unwrap().is_empty());
+                assert!(!conflict.details().is_empty());
+            }
+            assert!(unit.borrow_results().bindings().is_empty());
         }
-        assert!(unit.borrow_results().bindings().is_empty());
     }
 }
 
@@ -337,19 +340,21 @@ fn loop_borrow_binding_remains_closed_in_ownership() {
 
 #[test]
 fn nullable_generic_and_copyable_bindings_keep_shared_capability() {
-    for body in [
-        "fun nullableView(source: String?): borrow String? from source = source\nfun observe(source: String?) {}\nfun run(source: String?) { borrow val item = nullableView(source); observe(item) }",
-        "fun <T> genericView(source: T): borrow T from source = source\nclass Resource { deinit() {} }\nfun run() { val source = Resource(); { borrow val item = genericView(source) } }",
-        "fun intView(source: Int): borrow Int from source = source\nfun observe(own item: Int) {}\nfun run(source: Int) { borrow val item = intView(source); observe(item) }",
-    ] {
-        let (_, unit) = checked(body);
-        assert!(
-            unit.diagnostics().is_empty(),
-            "{body}: {:?}",
-            unit.diagnostics()
-        );
-        assert_eq!(unit.borrow_results().bindings().len(), 1);
-        assert_eq!(unit.borrow_results().ends().len(), 1);
+    for rooted in [false, true] {
+        for body in [
+            "fun nullableView(source: String?): borrow String? from source = source\nfun observe(source: String?) {}\nfun run(source: String?) { borrow val item = nullableView(source); observe(item) }",
+            "fun <T> genericView(source: T): borrow T from source = source\nclass Resource { deinit() {} }\nfun run() { val source = Resource(); { borrow val item = genericView(source) } }",
+            "fun intView(source: Int): borrow Int from source = source\nfun observe(own item: Int) {}\nfun run(source: Int) { borrow val item = intView(source); observe(item) }",
+        ] {
+            let (_, unit) = checked_entry(body, rooted);
+            assert!(
+                unit.diagnostics().is_empty(),
+                "{body}: {:?}",
+                unit.diagnostics()
+            );
+            assert_eq!(unit.borrow_results().bindings().len(), 1);
+            assert_eq!(unit.borrow_results().ends().len(), 1);
+        }
     }
 }
 
