@@ -1,5 +1,6 @@
 //! SPEC-0244 compilation-unit owned-root atomic replace/swap regressions.
 
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::check_compilation_unit_constant_ownership,
@@ -174,7 +175,7 @@ fn unit_root_primitive_cross_file_input_order_is_deterministic() {
         declaration(&reverse_names, "q", "entry"),
     )
     .unwrap();
-    assert_eq!(render_program(&forward), render_program(&reverse));
+    assert_text_eq!(render_program(&forward), render_program(&reverse));
 }
 
 #[test]

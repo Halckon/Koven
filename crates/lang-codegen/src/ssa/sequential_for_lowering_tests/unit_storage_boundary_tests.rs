@@ -1,5 +1,6 @@
 //! Unit storage never erases the SSA operation's concrete type contract.
 
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 use super::super::{
@@ -39,7 +40,7 @@ fn unit_constant_with_integer_result_fails_operation_contract() {
         .set_terminator(entry, TerminatorKind::Return { values: vec![] }, origin)
         .unwrap();
     let errors = verify_program(&program).expect_err("Unit constant cannot masquerade as Int");
-    assert!(
+    assert_diagnostic!(
         errors.errors.iter().any(|error| {
             error.location == VerifyLocation::Instruction(instruction)
                 && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
@@ -106,7 +107,7 @@ fn unit_operand_for_integer_array_fails_operation_contract() {
         )
         .unwrap();
     let errors = verify_program(&program).expect_err("Unit operand cannot inhabit Array<Int>");
-    assert!(
+    assert_diagnostic!(
         errors.errors.iter().any(|error| {
             error.location == VerifyLocation::Instruction(instruction)
                 && matches!(error.kind, VerifyErrorKind::OperationContract { .. })

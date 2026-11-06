@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use lang_frontend::source::SourceMap;
 
 use super::{
@@ -413,14 +414,14 @@ fn direct_borrow_call_preserves_move_only_owner_and_uses_pointer_abi() {
 
     verify_program(&program).expect("borrow call must not consume its MoveOnly owner");
     let rendered = render_program(&program);
-    assert!(rendered.contains("call @f0(%l0)"), "{rendered}");
+    assert_diagnostic!(rendered.contains("call @f0(%l0)"), "{rendered}");
     let llvm = render_verified_program(&program).expect("borrow call must lower to LLVM");
-    assert!(
+    assert_diagnostic!(
         llvm.contains("define internal void @f0.inspect(ptr %l0)"),
         "{llvm}"
     );
-    assert!(llvm.contains("call void @f0.inspect(ptr %p0)"), "{llvm}");
-    assert_eq!(llvm.matches("call void @free").count(), 1, "{llvm}");
+    assert_diagnostic!(llvm.contains("call void @f0.inspect(ptr %p0)"), "{llvm}");
+    assert_eq_diagnostic!(llvm.matches("call void @free").count(), 1, "{llvm}");
 }
 
 #[test]
@@ -543,16 +544,16 @@ fn instance_direct_call_models_receiver_before_explicit_arguments() {
 
     verify_program(&program).expect("matching instance receiver must verify");
     let rendered = render_program(&program);
-    assert!(
+    assert_diagnostic!(
         rendered.contains("call @f0(receiver %l0; %v1)"),
         "{rendered}"
     );
-    assert!(
+    assert_diagnostic!(
         rendered.contains("func \"inspect\"(receiver "),
         "{rendered}"
     );
     let llvm = render_verified_program(&program).expect("instance receiver must lower to LLVM");
-    assert!(
+    assert_diagnostic!(
         llvm.contains("call void @f0.inspect(ptr %p0, i32 %v1)"),
         "{llvm}"
     );
@@ -807,11 +808,11 @@ fn entry_borrow_parameter_is_function_scoped_across_cfg_blocks() {
 
     verify_program(&program).expect("entry Borrow parameter must dominate the callable CFG");
     let llvm = render_verified_program(&program).expect("entry Borrow parameter must lower");
-    assert!(
+    assert_diagnostic!(
         llvm.contains("define internal i32 @f0.read(ptr %l0)"),
         "{llvm}"
     );
-    assert!(llvm.contains("load i32, ptr %l0"), "{llvm}");
+    assert_diagnostic!(llvm.contains("load i32, ptr %l0"), "{llvm}");
 }
 
 #[test]
@@ -951,17 +952,17 @@ fn function_pointer_borrow_invoke_preserves_loan_delivery_and_pointer_abi() {
 
     verify_program(&program).expect("Borrow function pointer invoke must verify");
     let rendered = render_program(&program);
-    assert!(
+    assert_diagnostic!(
         rendered.contains("function_pointer (loan.shared !t0) -> (!t0)"),
         "{rendered}"
     );
-    assert!(rendered.contains("invoke %v1(%l0)"), "{rendered}");
+    assert_diagnostic!(rendered.contains("invoke %v1(%l0)"), "{rendered}");
     let llvm = render_verified_program(&program).expect("Borrow invoke must lower to LLVM");
-    assert!(
+    assert_diagnostic!(
         llvm.contains("define internal i32 @f0.inspect(ptr %l0)"),
         "{llvm}"
     );
-    assert!(llvm.contains("call i32 @f0.inspect(ptr %p0)"), "{llvm}");
+    assert_diagnostic!(llvm.contains("call i32 @f0.inspect(ptr %p0)"), "{llvm}");
 }
 
 #[test]
@@ -1038,7 +1039,7 @@ fn function_pointer_rejects_borrow_signature_and_invoke_mode_mismatches() {
         .expect("caller return");
 
     let errors = verify_program(&program).expect_err("Borrow mode mismatches must fail");
-    assert_eq!(
+    assert_eq_diagnostic!(
         errors
             .errors
             .iter()
@@ -1161,7 +1162,7 @@ fn direct_call_rejects_value_for_borrow_and_wrong_loan_kind() {
         .expect("caller abort");
 
     let errors = verify_program(&program).expect_err("delivery mode mismatches must fail");
-    assert_eq!(
+    assert_eq_diagnostic!(
         errors
             .errors
             .iter()
@@ -1259,7 +1260,7 @@ fn direct_call_rejects_inactive_borrow_argument() {
         .expect("caller abort");
 
     let errors = verify_program(&program).expect_err("inactive loan call must fail");
-    assert!(
+    assert_diagnostic!(
         errors
             .errors
             .iter()

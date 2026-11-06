@@ -1,5 +1,6 @@
 //! Independent, read-only identity queries for the six frozen ordinary C observations.
 //! No qualification/proof helper, program mutation, object emission or native execution.
+use crate::test_support::diagnostics::diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
@@ -554,7 +555,7 @@ fn nullable_map_consumes_keep_source_take_result_cleanup_identity() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "NULLABLE CONSUME IDENTITY {}\n{}\ninput failures={:?}\nfinal outcome={:#?}",
             observation.label,
             observation.trace.stages.join("\n"),

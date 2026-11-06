@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn narrow_target_checks_physical_buffer_and_logical_length_bridge() {
@@ -110,16 +111,16 @@ fn narrow_target_checks_physical_buffer_and_logical_length_bridge() {
     llvm.verify().expect("narrow-size LLVM verifies");
     let ir = llvm.print_to_string().to_string();
     assert_eq!(index_bits, 16);
-    assert!(ir.contains("icmp ugt i16 %buffer.bytes, 32767"), "{ir}");
-    assert!(
+    assert_diagnostic!(ir.contains("icmp ugt i16 %buffer.bytes, 32767"), "{ir}");
+    assert_diagnostic!(
         ir.contains("br i1 %buffer.too_large, label %buffer.abort"),
         "{ir}"
     );
-    assert!(ir.contains("llvm.umul.with.overflow.i16"), "{ir}");
-    assert!(ir.contains("icmp slt i32 %length, 0"), "{ir}");
-    assert!(ir.contains("icmp ugt i32 %length, 65535"), "{ir}");
-    assert!(ir.contains("trunc i32 %length to i16"), "{ir}");
-    assert!(ir.contains("zext i16"), "{ir}");
+    assert_diagnostic!(ir.contains("llvm.umul.with.overflow.i16"), "{ir}");
+    assert_diagnostic!(ir.contains("icmp slt i32 %length, 0"), "{ir}");
+    assert_diagnostic!(ir.contains("icmp ugt i32 %length, 65535"), "{ir}");
+    assert_diagnostic!(ir.contains("trunc i32 %length to i16"), "{ir}");
+    assert_diagnostic!(ir.contains("zext i16"), "{ir}");
 }
 
 #[test]

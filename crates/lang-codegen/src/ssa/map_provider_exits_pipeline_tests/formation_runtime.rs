@@ -1,5 +1,6 @@
 //! Ordinary resource witnesses make source evaluation and cleanup visible without fault instrumentation.
 
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum History {
     ParameterMove,
@@ -146,7 +147,7 @@ fn ordinary_resource_formations_reach_verified_llvm() {
     let mut outcomes = vec![];
     for case in sources() {
         for rooted in [false, true] {
-            println!(
+            diagnostic!(
                 "FORMATION RESOURCE INPUT label={} rooted={rooted} axes={:?} source={:?} golden={:?}",
                 case.label,
                 (case.history, case.mutable, case.populated),
@@ -194,7 +195,7 @@ fn ordinary_resource_formations_reach_verified_llvm() {
                             .map_err(|e| failure("LLVM", e)),
                     );
                 }
-                println!(
+                diagnostic!(
                     "FORMATION RESOURCE OBSERVED label={} rooted={rooted} report={report:#?} result={:?}",
                     case.label,
                     result.as_ref().map(|(_, entry)| entry)
@@ -205,7 +206,7 @@ fn ordinary_resource_formations_reach_verified_llvm() {
                 result?;
                 Ok(())
             })();
-            println!(
+            diagnostic!(
                 "FORMATION RESOURCE CASE label={} rooted={rooted} result={observed:?}",
                 case.label
             );
@@ -213,5 +214,5 @@ fn ordinary_resource_formations_reach_verified_llvm() {
         }
     }
     assert_eq!(outcomes.len(), 28);
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }

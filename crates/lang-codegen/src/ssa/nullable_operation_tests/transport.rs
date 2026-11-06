@@ -1,6 +1,7 @@
 //! CFG transport must preserve each owner/proof pairing, not merely origin sets.
 use super::*;
 use crate::ssa::model::{AbortReason, ScalarConstant};
+use crate::test_support::diagnostics::assert_diagnostic;
 
 fn paired_transport_program(swapped_proofs: bool, permute_owners: bool, backedge: bool) -> Program {
     let origin = origin();
@@ -237,7 +238,7 @@ fn nullable_take_rejects_swapped_pairs_even_with_identical_origin_sets() {
             .iter()
             .filter(|instruction| matches!(instruction.operation, Operation::NullableTake { .. }));
         for take in takes {
-            assert!(
+            assert_diagnostic!(
                 errors.iter().any(|error| error.location
                     == super::super::verify::VerifyLocation::Instruction(take.id)
                     && matches!(error.kind, VerifyErrorKind::OperationContract { .. })),
@@ -266,7 +267,7 @@ fn nullable_take_local_contract_preserves_pairs_under_simultaneous_permutation()
                 );
             }
         }
-        assert!(errors.is_empty(), "{errors:?}");
+        assert_diagnostic!(errors.is_empty(), "{errors:?}");
     }
 }
 
@@ -327,7 +328,7 @@ fn nullable_take_rejects_an_ungrounded_cycle_even_beside_real_births() {
         function.instruction(take_id).unwrap(),
         &mut errors,
     );
-    assert!(
+    assert_diagnostic!(
         errors.iter().any(|error| error.location
             == super::super::verify::VerifyLocation::Instruction(take_id)
             && matches!(error.kind, VerifyErrorKind::OperationContract { .. })),

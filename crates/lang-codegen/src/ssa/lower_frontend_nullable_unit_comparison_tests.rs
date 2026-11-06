@@ -12,6 +12,7 @@ use super::{
     render::render_program,
     verify::verify_program,
 };
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use crate::{
     llvm::render_verified_program, native_tests::boxed_enum_tests::unit_source::UnitSource,
 };
@@ -188,12 +189,12 @@ fn lowers_nullable_class_parameter_smart_cast_to_non_null_borrow_view_unit_compa
     );
     let program = lower_roots(&analysis, &["observe", "inspect"], 1);
     let ssa = render_program(&program);
-    assert!(ssa.contains("nullable_handle<"), "{ssa}");
-    assert!(ssa.contains("nullable.branch"), "{ssa}");
-    assert!(ssa.contains("view %l"), "{ssa}");
+    assert_diagnostic!(ssa.contains("nullable_handle<"), "{ssa}");
+    assert_diagnostic!(ssa.contains("nullable.branch"), "{ssa}");
+    assert_diagnostic!(ssa.contains("view %l"), "{ssa}");
     let llvm = render_verified_program(&program).expect("nullable smart cast LLVM");
-    assert!(llvm.contains("icmp eq ptr"), "{llvm}");
-    assert!(llvm.contains("phi ptr"), "{llvm}");
+    assert_diagnostic!(llvm.contains("icmp eq ptr"), "{llvm}");
+    assert_diagnostic!(llvm.contains("phi ptr"), "{llvm}");
 }
 
 #[test]
@@ -258,12 +259,12 @@ fn lowers_nullable_rc_operations_through_the_proven_non_null_view_unit_compariso
         );
     }
     let ssa = render_program(&program);
-    assert!(ssa.contains("shared.retain %l"), "{ssa}");
-    assert!(ssa.contains("shared.payload_place %l"), "{ssa}");
-    assert!(ssa.contains("end_borrow"), "{ssa}");
+    assert_diagnostic!(ssa.contains("shared.retain %l"), "{ssa}");
+    assert_diagnostic!(ssa.contains("shared.payload_place %l"), "{ssa}");
+    assert_diagnostic!(ssa.contains("end_borrow"), "{ssa}");
     let llvm = render_verified_program(&program).expect("nullable Rc view LLVM");
-    assert!(llvm.contains("icmp eq ptr"), "{llvm}");
-    assert!(llvm.contains(".next = add i64"), "{llvm}");
+    assert_diagnostic!(llvm.contains("icmp eq ptr"), "{llvm}");
+    assert_diagnostic!(llvm.contains(".next = add i64"), "{llvm}");
 }
 
 #[test]
@@ -289,23 +290,23 @@ fn nullable_when_read_views_preserve_owned_subject_for_reuse_unit_comparison() {
         );
         let program = lower_roots(&analysis, &["observe", "inspect"], 2);
         let ssa = render_program(&program);
-        assert_eq!(ssa.matches("nullable.branch").count(), 2, "{ssa}");
-        assert!(
+        assert_eq_diagnostic!(ssa.matches("nullable.branch").count(), 2, "{ssa}");
+        assert_diagnostic!(
             !ssa.contains("nullable.take"),
             "a view must not consume the owner: {ssa}"
         );
-        assert!(
+        assert_diagnostic!(
             !ssa.contains("shared.retain"),
             "read views must not share: {ssa}"
         );
-        assert!(
+        assert_diagnostic!(
             !ssa.contains("heap.allocate"),
             "proofs must not allocate: {ssa}"
         );
         let llvm = render_verified_program(&program)
             .expect("both nullable branches must pass LLVM lowering");
-        assert!(!llvm.contains("call ptr @malloc"), "{llvm}");
-        assert!(
+        assert_diagnostic!(!llvm.contains("call ptr @malloc"), "{llvm}");
+        assert_diagnostic!(
             !llvm.contains("%koven.enum"),
             "pointer nullable needs no tag: {llvm}"
         );
@@ -330,7 +331,7 @@ fn nullable_when_consumes_inner_without_duplicate_owner_unit_comparison() {
         );
         let program = lower_roots(&analysis, &["consume", "inspect"], 1);
         let ssa = render_program(&program);
-        assert_eq!(ssa.matches("nullable.take").count(), 1, "{ssa}");
+        assert_eq_diagnostic!(ssa.matches("nullable.take").count(), 1, "{ssa}");
         render_verified_program(&program).expect("unique extracted owner verifies in LLVM");
     }
 }
@@ -378,13 +379,13 @@ fn non_null_assertion_owned_pointer_uses_proven_take_and_direct_abort_unit_compa
         );
         let program = lower_roots(&analysis, &["inspect"], 0);
         let ssa = render_program(&program);
-        assert_eq!(ssa.matches("nullable.take").count(), 1, "{ssa}");
-        assert_eq!(ssa.matches("abort @source(").count(), 1, "{ssa}");
+        assert_eq_diagnostic!(ssa.matches("nullable.take").count(), 1, "{ssa}");
+        assert_eq_diagnostic!(ssa.matches("abort @source(").count(), 1, "{ssa}");
         let llvm = render_verified_program(&program).expect("assertion SSA verifies before LLVM");
-        assert!(!llvm.contains("call ptr @malloc"), "{llvm}");
-        assert!(!ssa.contains("rc.retain"), "{ssa}");
+        assert_diagnostic!(!llvm.contains("call ptr @malloc"), "{llvm}");
+        assert_diagnostic!(!ssa.contains("rc.retain"), "{ssa}");
         // Preserve the legacy spelling above, but actually forbid the current retain opcode.
-        assert!(
+        assert_diagnostic!(
             program
                 .modules
                 .iter()

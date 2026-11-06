@@ -1,5 +1,6 @@
 //! SPEC-0330: ordinary-source downstream observations; no native/object execution.
 use super::{integer_range_value_tests::collect_sources, verify::verify_program};
+use crate::test_support::diagnostics::{diagnostic, expect};
 
 #[test]
 fn while_refined_enum_and_nullable_sources_reach_verified_llvm() {
@@ -76,14 +77,14 @@ fun entry(): Unit {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                println!(
+                diagnostic!(
                     "WHILE LLVM case={} unit={} {llvm}",
                     index / 2,
                     index % 2 == 1
                 );
                 Ok(())
             });
-            println!(
+            diagnostic!(
                 "WHILE OUTCOME case={} unit={} {result:?}",
                 index / 2,
                 index % 2 == 1
@@ -93,7 +94,7 @@ fun entry(): Unit {
         .collect::<Vec<_>>();
     // Every ordinary-source phase outcome has been retained before any oracle.
     for result in outcomes {
-        result.expect("refined while body reaches verified SSA and LLVM");
+        expect(result, "refined while body reaches verified SSA and LLVM");
     }
 }
 
@@ -128,7 +129,7 @@ fun entry(own initial: Holder?): Unit {
     let observations = collect_sources(&sources);
     assert_eq!(observations.len(), 8);
     for (index, result) in observations.iter().enumerate() {
-        println!(
+        diagnostic!(
             "NULLABLE BOUNDARY case={} unit={} stage={}",
             index / 2,
             index % 2 == 1,
@@ -158,15 +159,18 @@ fn enum_type_tests_preserve_last_use_cleanup_for_owned_roots() {
                 verify_last_enum_read_precedes_drop(&program)?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                println!("ENUM LAST USE LLVM case={index} {llvm}");
+                diagnostic!("ENUM LAST USE LLVM case={index} {llvm}");
                 Ok(())
             });
-            println!("ENUM LAST USE OUTCOME case={index} {result:?}");
+            diagnostic!("ENUM LAST USE OUTCOME case={index} {result:?}");
             result
         })
         .collect::<Vec<_>>();
     for result in outcomes {
-        result.expect("ordinary enum test reads tag before final owner cleanup");
+        expect(
+            result,
+            "ordinary enum test reads tag before final owner cleanup",
+        );
     }
 }
 
@@ -202,16 +206,19 @@ fun entry(): Unit { val _ = Holder(42) }"#,
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                println!("LOCAL STORAGE LLVM case={index} {llvm}");
+                diagnostic!("LOCAL STORAGE LLVM case={index} {llvm}");
                 Ok(())
             });
-            println!("LOCAL STORAGE OUTCOME case={index} {result:?}");
+            diagnostic!("LOCAL STORAGE OUTCOME case={index} {result:?}");
             result
         })
         .collect::<Vec<_>>();
     for (index, result) in outcomes.into_iter().enumerate() {
         if index < 6 {
-            result.expect("direct nullable storage and reachability controls lower normally");
+            expect(
+                result,
+                "direct nullable storage and reachability controls lower normally",
+            );
         } else {
             // The original f85 baseline has the same discard-owner cleanup gap.
             let start = if index == 6 { 53 } else { 63 };
@@ -296,13 +303,13 @@ fn bounded_while_fixture_reaches_verified_llvm_before_native() {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(())
             });
-            println!("BOUNDED WHILE unit={} {result:?}", index == 1);
+            diagnostic!("BOUNDED WHILE unit={} {result:?}", index == 1);
             result
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 2);
     for outcome in outcomes {
-        outcome.expect("complete bounded fixture reaches verified LLVM");
+        expect(outcome, "complete bounded fixture reaches verified LLVM");
     }
 }
 
@@ -320,13 +327,16 @@ fn bounded_pending_child_fixture_reaches_verified_llvm_before_native() {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(())
             });
-            println!("BOUNDED PENDING unit={} {result:?}", index == 1);
+            diagnostic!("BOUNDED PENDING unit={} {result:?}", index == 1);
             result
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 2);
     for outcome in outcomes {
-        outcome.expect("complete bounded pending fixture reaches verified LLVM");
+        expect(
+            outcome,
+            "complete bounded pending fixture reaches verified LLVM",
+        );
     }
 }
 
@@ -346,13 +356,16 @@ fn bounded_if_retest_fixture_reaches_verified_llvm_before_native() {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(())
             });
-            println!("BOUNDED IF RETEST unit={} {result:?}", index == 1);
+            diagnostic!("BOUNDED IF RETEST unit={} {result:?}", index == 1);
             result
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 2);
     for outcome in outcomes {
-        outcome.expect("complete bounded if-retest fixture reaches verified LLVM");
+        expect(
+            outcome,
+            "complete bounded if-retest fixture reaches verified LLVM",
+        );
     }
 }
 
@@ -372,13 +385,16 @@ fn bounded_numeric_proof_fixture_reaches_verified_llvm_before_native() {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(())
             });
-            println!("BOUNDED NUMERIC PROOF unit={} {result:?}", index == 1);
+            diagnostic!("BOUNDED NUMERIC PROOF unit={} {result:?}", index == 1);
             result
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 2);
     for outcome in outcomes {
-        outcome.expect("complete bounded numeric proof fixture reaches verified LLVM");
+        expect(
+            outcome,
+            "complete bounded numeric proof fixture reaches verified LLVM",
+        );
     }
 }
 
@@ -398,13 +414,16 @@ fn bounded_borrowed_for_fixture_reaches_verified_llvm_before_native() {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(())
             });
-            println!("BOUNDED BORROWED FOR unit={} {result:?}", index == 1);
+            diagnostic!("BOUNDED BORROWED FOR unit={} {result:?}", index == 1);
             result
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 2);
     for outcome in outcomes {
-        outcome.expect("complete bounded borrowed for fixture reaches verified LLVM");
+        expect(
+            outcome,
+            "complete bounded borrowed for fixture reaches verified LLVM",
+        );
     }
 }
 
@@ -424,12 +443,15 @@ fn bounded_outer_borrowed_for_fixture_reaches_verified_llvm_before_native() {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(())
             });
-            println!("BOUNDED OUTER BORROWED FOR unit={} {result:?}", index == 1);
+            diagnostic!("BOUNDED OUTER BORROWED FOR unit={} {result:?}", index == 1);
             result
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 2);
     for outcome in outcomes {
-        outcome.expect("complete bounded outer borrowed for fixture reaches verified LLVM");
+        expect(
+            outcome,
+            "complete bounded outer borrowed for fixture reaches verified LLVM",
+        );
     }
 }

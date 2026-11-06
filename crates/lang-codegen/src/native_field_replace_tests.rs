@@ -1,5 +1,6 @@
 //! SPEC-0246：单文件一级 class 字段 replace 的真实运行与唯一释放。
 use super::{TestDirectory, UnitSource, emit_link_and_run};
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::name_resolution::SymbolKind;
 use std::{fs, process::Command};
 
@@ -22,7 +23,7 @@ fn field_replace_native_evaluates_once_preserves_parent_and_returns_old() {
     "#,
         "entry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(
         output.stdout,
         b"evaluate-new\noldvalue\nnewvalue\nparent-live\nlast\nlast\n"
@@ -56,7 +57,7 @@ fn field_replace_native_copyable_snapshots_and_owned_class_return() {
     "#,
         "entry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, b"snapshots\nreturned-owner\n");
 }
 
@@ -101,7 +102,7 @@ fn field_replace_native_control_exit_keeps_field_initialized() {
     "#,
         "entry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(
         output.stdout,
         b"oldbreak\noldbreak\nnew\noldreturn\nnew\noldcontinue\n"

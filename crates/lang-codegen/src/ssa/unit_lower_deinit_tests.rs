@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::check_compilation_unit_constant_ownership,
@@ -84,7 +85,7 @@ fn unit_resource_deinit_body_and_its_calls_are_reachable_from_layout() {
         entry,
     )
     .expect("input order cannot alter hidden deinit identities");
-    assert_eq!(render_program(&program), render_program(&reordered));
+    assert_text_eq!(render_program(&program), render_program(&reordered));
 }
 
 #[test]

@@ -1,4 +1,5 @@
 //! Same-analysis public facts, including the complete cleanup facts before lowering.
+use crate::test_support::diagnostics::diagnostic;
 mod provider;
 use super::super::super::{
     fixture::{Failure, failure, need},
@@ -90,7 +91,7 @@ pub(super) fn check(
         .copied()
         .filter(|d| inside(i.scan, d.value_origin()))
         .collect::<Vec<_>>();
-    println!(
+    diagnostic!(
         "SCOPE B IF FE label={} unit=true conditional={:?} condition={:?} arms={:?} if_type={:?} if_category={:?} condition_type={:?} local={local:?} local_type={:?} formed={:?} scan_drops={drops:#?} all_drops={:#?}",
         c.label,
         e(i.conditional),
@@ -104,7 +105,7 @@ pub(super) fn check(
         o.drops()
     );
     for drop in &drops {
-        println!(
+        diagnostic!(
             "SCOPE B IF DROP label={} unit=true target={:?} point={:?} origin={:?}",
             c.label,
             drop.target(),
@@ -113,7 +114,7 @@ pub(super) fn check(
         );
     }
     for birth in i.births {
-        println!(
+        diagnostic!(
             "SCOPE B IF BIRTH label={} unit=true expression={:?} span={:?} type={:?} category={:?} call={:#?}",
             c.label,
             e(birth),
@@ -125,7 +126,7 @@ pub(super) fn check(
     }
     if let Some((statement, source)) = i.site {
         let statement = UnitStatementId::new(unit, statement);
-        println!(
+        diagnostic!(
             "SCOPE B IF PLAN label={} unit=true statement={statement:?} surface={:?} surface_type={:?} surface_category={:?} descriptor={:#?} ownership={:#?}",
             c.label,
             e(source),
@@ -135,7 +136,7 @@ pub(super) fn check(
             o.map_iteration(statement)
         );
         if let Some(plan) = o.map_iteration(statement) {
-            println!(
+            diagnostic!(
                 "SCOPE B IF CANONICAL label={} unit=true source_kind={:?} source={:?} access={:?} bindings={:?} loans={:#?} exits={:#?}",
                 c.label,
                 plan.source_kind(),
@@ -146,7 +147,7 @@ pub(super) fn check(
                 plan.exits()
             );
             for exit in plan.exits() {
-                println!(
+                diagnostic!(
                     "SCOPE B IF EXIT label={} unit=true exit={exit:#?} published_actions={:#?}",
                     c.label,
                     o.iteration_cleanup_at(exit.point())
@@ -155,7 +156,7 @@ pub(super) fn check(
         }
     }
     for &(call, arg) in &i.observes {
-        println!(
+        diagnostic!(
             "SCOPE B IF OBSERVE label={} unit=true expression={:?} argument={:?} typed={:#?} contracts={:#?} loans={:#?}",
             c.label,
             e(call),
@@ -207,7 +208,7 @@ pub(super) fn check(
             span(p, birth),
         )
         .map_err(|err| failure("If actual make Call instance", err))?;
-        println!(
+        diagnostic!(
             "SCOPE B IF INSTANCE label={} unit=true expression={:?} instance={:?} resolved={:?} delegation={:?}",
             c.label,
             e(birth),

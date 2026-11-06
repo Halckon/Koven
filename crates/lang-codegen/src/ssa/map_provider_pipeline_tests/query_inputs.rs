@@ -3,6 +3,7 @@ use super::{
     fixture::{Failure, Fixture, failure, loop_site},
     identity,
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{SymbolKind, UnitReferenceTarget, ValidatedCompilationUnitNames},
@@ -322,6 +323,6 @@ fn finish(f: &Fixture, inputs: Inputs) -> Result<Inputs, Failure> {
         "FE actual symbols map to original scan/read roots",
         &inputs,
     )?;
-    println!("SPEC0331 PROVIDER IDENTITY FE {inputs:#?}");
+    diagnostic!("SPEC0331 PROVIDER IDENTITY FE {inputs:#?}");
     Ok(inputs)
 }

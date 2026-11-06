@@ -1,4 +1,5 @@
 //! SPEC-0329 ordinary source probes; no object emission or native execution.
+use crate::test_support::diagnostics::diagnostic;
 mod cfg_contract;
 
 use super::{integer_range_value_tests::collect_sources, verify::verify_program};
@@ -13,7 +14,7 @@ fn require_verified_sources(sources: &[String], llvm: bool) {
         if llvm {
             let rendered = crate::llvm::render_verified_program(&program)
                 .expect("numeric iteration LLVM verifies in memory");
-            println!("NUMERIC ITERATION LLVM {rendered}");
+            diagnostic!("NUMERIC ITERATION LLVM {rendered}");
         }
     }
 }

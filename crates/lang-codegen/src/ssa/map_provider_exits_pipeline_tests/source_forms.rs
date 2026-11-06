@@ -1,4 +1,5 @@
 //! Source mode and transparent Group must preserve the original provider program.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 pub(super) mod facts;
 pub(super) mod graph;
 use super::{
@@ -192,7 +193,7 @@ fn observe(text: &str, unit: bool, expected_owned_mutable: bool) -> Result<Strin
         unit,
         |names, typed, owned, report| facts::unit(&sources, &parsed, names, typed, owned, report),
     );
-    println!(
+    diagnostic!(
         "SOURCE FORMS rooted={unit} report={report:#?} outcome={:?}",
         result.as_ref().map(|(_, id)| id)
     );
@@ -204,7 +205,7 @@ fn observe(text: &str, unit: bool, expected_owned_mutable: bool) -> Result<Strin
     if expected_owned_mutable {
         graph::owned_map(&sources, &parsed, &program, true)?;
     }
-    assert!(report.passed(), "{report:#?}");
+    assert_diagnostic!(report.passed(), "{report:#?}");
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))
 }
@@ -225,7 +226,7 @@ fn owned_mutable_and_group_sources_preserve_verified_programs() {
                 (None, Ok(_)) => true,
                 _ => false,
             };
-            println!(
+            diagnostic!(
                 "SOURCE FORMS CASE {} rooted={unit} equivalent={same} result={:?}",
                 case.label,
                 result.as_ref().map(|s| s.len())
@@ -233,8 +234,8 @@ fn owned_mutable_and_group_sources_preserve_verified_programs() {
             results.push((case.label.clone(), unit, same, result.map(|s| s.len())));
         }
     }
-    println!("SOURCE FORMS total={}", results.len());
-    assert!(
+    diagnostic!("SOURCE FORMS total={}", results.len());
+    assert_diagnostic!(
         results.len() == 82 && results.iter().all(|(_, _, same, r)| *same && r.is_ok()),
         "{results:#?}"
     );

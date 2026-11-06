@@ -1,4 +1,5 @@
 //! SPEC-0321: ordinary-source append delivery; no constructed or mutated SSA.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -329,7 +330,7 @@ fn unit(case: &Case, extra: Option<bool>) -> Result<(), String> {
             owned.ownership(),
             main_source.id(),
         )?;
-        eprintln!(
+        diagnostic!(
             "{} unit constant: frontend and exact delivery passed",
             case.name
         );
@@ -359,7 +360,7 @@ fn unit(case: &Case, extra: Option<bool>) -> Result<(), String> {
             owned.ownership(),
             main_source.id(),
         )?;
-        eprintln!(
+        diagnostic!(
             "{} unit basic: frontend and exact delivery passed",
             case.name
         );
@@ -399,9 +400,9 @@ fn paired(case: &Case) {
         ("unit-constant", unit(case, Some(true))),
     ];
     for (entry, result) in &results {
-        eprintln!("{} {entry}: {result:?}", case.name);
+        diagnostic!("{} {entry}: {result:?}", case.name);
     }
-    assert!(
+    assert_diagnostic!(
         results.iter().all(|(_, result)| result.is_ok()),
         "{} expected-positive entries: {results:?}",
         case.name

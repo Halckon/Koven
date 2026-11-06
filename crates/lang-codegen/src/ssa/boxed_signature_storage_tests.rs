@@ -1,5 +1,6 @@
 //! Signature-only storage mapping without construction demand.
 use super::{analyze, lower_scalar_file, render_program, render_verified_program};
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 
 #[test]
 fn boxed_enum_signature_only_storage_accepts_box_or_enum_first() {
@@ -28,9 +29,9 @@ fn boxed_enum_signature_only_storage_accepts_box_or_enum_first() {
         };
         let program = lower();
         let rendered = render_program(&program);
-        assert!(rendered.contains("heap_owner"), "{rendered}");
-        assert!(rendered.contains("tagged_union"), "{rendered}");
-        assert_eq!(rendered, render_program(&lower()));
+        assert_diagnostic!(rendered.contains("heap_owner"), "{rendered}");
+        assert_diagnostic!(rendered.contains("tagged_union"), "{rendered}");
+        assert_text_eq!(rendered, render_program(&lower()));
         render_verified_program(&program).expect("signature-only recursive Box/enum LLVM verifies");
     }
 }
@@ -164,8 +165,8 @@ fn boxed_enum_signature_only_unit_roots_accept_box_or_enum_first() {
                     panic!("{first}/{second}: {name}: full Unit SSA verification: {error:?}")
                 });
                 let rendered = render_program(&program);
-                assert!(rendered.contains("heap_owner"), "{name}: {rendered}");
-                assert!(rendered.contains("tagged_union"), "{name}: {rendered}");
+                assert_diagnostic!(rendered.contains("heap_owner"), "{name}: {rendered}");
+                assert_diagnostic!(rendered.contains("tagged_union"), "{name}: {rendered}");
                 render_verified_program(&program).unwrap_or_else(|error| {
                     panic!("{first}/{second}: {name}: full Unit LLVM verification: {error:?}")
                 });

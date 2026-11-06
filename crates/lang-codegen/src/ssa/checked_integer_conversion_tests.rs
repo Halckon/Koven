@@ -3,6 +3,7 @@ use super::{
     unit_lower::lower_owned_unit_with_entry, unit_lower_test_support::parsed,
     verify::verify_program,
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,
     lexer::lex,
@@ -113,7 +114,7 @@ fn unit_conversion_identity_reaches_verified_llvm() {
 fn assert_verified_llvm(program: &super::model::Program) {
     verify_program(program).unwrap();
     let llvm = crate::llvm::render_verified_program(program).unwrap();
-    println!("verified conversion LLVM: {llvm}");
+    diagnostic!("verified conversion LLVM: {llvm}");
     assert!(llvm.contains("icmp slt i128"));
     assert!(llvm.contains("icmp sgt i128"));
     assert!(llvm.contains("call void @koven.abort.report"));

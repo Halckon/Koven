@@ -1,5 +1,6 @@
 //! 同根双层正常遍历两源 × MemoryDocument/rooted Unit-basic；四次 fresh 观察后统一硬成功。
 //! Map Borrow 独立记账；golden 是预测，复杂 owner/exit/cleanup 先完整观察，不预填拓扑。
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod query_body;
 mod query_callers;
@@ -57,7 +58,7 @@ fn observe(
 ) -> Observation {
     let mut report = Report::default();
     // SHA 是仓外核验的冻结输入标识；不声称这里进行了运行时哈希或 native 求值。
-    println!(
+    diagnostic!(
         "SPEC0331 NESTED INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={source_hash} text={text:?}"
     );
     let outcome = ast::Input::new(text, map).and_then(|input| {
@@ -76,7 +77,7 @@ fn observe(
                 unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
             },
         )?;
-        println!(
+        diagnostic!(
             "SPEC0331 NESTED SSA case={label} rooted={rooted}\n{}",
             crate::ssa::render::render_program(&program)
         );
@@ -98,7 +99,7 @@ fn observe(
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|e| failure("LLVM render/verify", e))?;
         report.check("nested LLVM render/verify", true, llvm.len());
-        println!("SPEC0331 NESTED LLVM case={label} rooted={rooted}\n{llvm}");
+        diagnostic!("SPEC0331 NESTED LLVM case={label} rooted={rooted}\n{llvm}");
         Ok(())
     });
     Observation {
@@ -118,16 +119,18 @@ fn map_and_mutable_map_nested_borrow_sources_reach_verified_llvm() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 NESTED OUTCOME case={} rooted={} report={:#?}",
-            observation.label, observation.rooted, observation.report
+            observation.label,
+            observation.rooted,
+            observation.report
         );
         match &observation.outcome {
-            Ok(()) => println!("stage=LLVM render/verify result=ok"),
-            Err(error) => println!("stage={} original={}", error.stage, error.original),
+            Ok(()) => diagnostic!("stage=LLVM render/verify result=ok"),
+            Err(error) => diagnostic!("stage={} original={}", error.stage, error.original),
         }
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 4
             && observations
                 .iter()

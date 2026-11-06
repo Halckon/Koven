@@ -8,6 +8,7 @@ use crate::ssa::{
     },
     verify::verify_program,
 };
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::{
     name_resolution::{SymbolKind, UnitReferenceTarget, UnitSymbolId},
     ownership_checking::{
@@ -498,7 +499,7 @@ fn independent_replacement_facts_ssa_and_verified_llvm_preserve_current_owners()
         assert_owner_transport(&source, choose, constant);
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
             .expect("unmodified source-derived LLVM verifies");
-        assert!(llvm.contains("define i32 @main("), "{llvm}");
+        assert_diagnostic!(llvm.contains("define i32 @main("), "{llvm}");
     }
 }
 

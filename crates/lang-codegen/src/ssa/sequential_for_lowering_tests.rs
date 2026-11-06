@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod cleanup_tests;
 mod determinism_tests;
 mod provider_lifetime_tests;
@@ -148,7 +149,7 @@ fn analyze_case(filename: &str, source_text: &str, entry_name: &str) -> SourcePr
         typed.types().diagnostics(),
         owned.ownership().diagnostics(),
     ] {
-        assert!(diagnostics.is_empty(), "{filename}: {diagnostics:?}");
+        assert_diagnostic!(diagnostics.is_empty(), "{filename}: {diagnostics:?}");
     }
     let mut entries = names
         .names()
@@ -204,10 +205,10 @@ fn borrowed_named_array_iteration_lowers_to_verified_ssa_cfg() {
     "#;
     let analysis = analyze(text, "sum");
     let ssa = render_program(&analysis.program);
-    assert!(ssa.contains("container.length"), "{ssa}");
-    assert!(ssa.contains("container.element_place"), "{ssa}");
-    assert!(ssa.contains("borrow.shared"), "{ssa}");
-    assert!(ssa.contains("end_borrow"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.length"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.element_place"), "{ssa}");
+    assert_diagnostic!(ssa.contains("borrow.shared"), "{ssa}");
+    assert_diagnostic!(ssa.contains("end_borrow"), "{ssa}");
 }
 
 #[test]
@@ -223,9 +224,9 @@ fn discard_binding_lowers_to_verified_ssa() {
     "#;
     let analysis = analyze(text, "count");
     let ssa = render_program(&analysis.program);
-    assert!(ssa.contains("container.length"), "{ssa}");
-    assert!(ssa.contains("container.element_place"), "{ssa}");
-    assert!(ssa.contains("end_borrow"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.length"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.element_place"), "{ssa}");
+    assert_diagnostic!(ssa.contains("end_borrow"), "{ssa}");
 }
 
 #[test]
@@ -241,9 +242,9 @@ fn temporary_list_source_iteration_lowers_to_verified_ssa() {
     "#;
     let analysis = analyze(text, "test");
     let ssa = render_program(&analysis.program);
-    assert!(ssa.contains("container.length"), "{ssa}");
-    assert!(ssa.contains("container.element_place"), "{ssa}");
-    assert!(ssa.contains("end_borrow"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.length"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.element_place"), "{ssa}");
+    assert_diagnostic!(ssa.contains("end_borrow"), "{ssa}");
 }
 
 #[test]
@@ -265,8 +266,8 @@ fn mutable_list_with_break_and_continue_lowers_to_verified_ssa() {
     "#;
     let analysis = analyze(text, "test");
     let ssa = render_program(&analysis.program);
-    assert!(ssa.contains("container.length"), "{ssa}");
-    assert!(ssa.contains("container.element_place"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.length"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.element_place"), "{ssa}");
 }
 
 #[test]
@@ -283,8 +284,8 @@ fn early_return_from_for_loop_lowers_to_verified_ssa() {
     "#;
     let analysis = analyze(text, "find_first_even");
     let ssa = render_program(&analysis.program);
-    assert!(ssa.contains("container.length"), "{ssa}");
-    assert!(ssa.contains("return %"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.length"), "{ssa}");
+    assert_diagnostic!(ssa.contains("return %"), "{ssa}");
 }
 
 #[test]
@@ -301,8 +302,8 @@ fn borrowed_destructuring_iteration_lowers_to_verified_ssa() {
     "#;
     let analysis = analyze(text, "sum_pairs");
     let ssa = render_program(&analysis.program);
-    assert!(ssa.contains("container.length"), "{ssa}");
-    assert!(ssa.contains("container.element_place"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.length"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.element_place"), "{ssa}");
 }
 
 #[test]
@@ -320,7 +321,7 @@ fn nested_for_loops_lower_to_verified_ssa() {
     "#;
     let analysis = analyze(text, "matrix_sum");
     let ssa = render_program(&analysis.program);
-    assert!(ssa.contains("container.length"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.length"), "{ssa}");
 }
 
 fn defining_instruction(function: &Function, entity: EntityId) -> &Instruction {
@@ -393,7 +394,7 @@ fn temporary_source_boundaries_keep_call_and_length_in_preheader() {
                 }}
             "#
         );
-        eprintln!("temporary_{provider}_{cardinality}.ko:\n{text}");
+        diagnostic!("temporary_{provider}_{cardinality}.ko:\n{text}");
         let analysis = analyze(&text, "run");
         let source = analysis.function("source");
         let run = analysis.function("run");

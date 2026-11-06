@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn early_exit_move_only_reassignment_drops_both_owners_cleanly() {
@@ -149,7 +150,7 @@ fn move_only_map_remove_direct_conditions_and_branch_exits() {
         lower_scalar_unit_with_entry(&sources, &inputs, &names, &type_env, &typed, &owned, entry)
             .expect("refined program lowers and verifies");
     let rendered = render_program(&program);
-    assert!(
+    assert_diagnostic!(
         rendered.contains("cond ") || rendered.contains("branch"),
         "program must contain conditional branching: {rendered}"
     );

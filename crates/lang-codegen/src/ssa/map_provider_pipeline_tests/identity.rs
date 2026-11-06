@@ -1,6 +1,7 @@
 //! 返回的真实 entry ID、源码 Origin 与从 entry block 出发的 CFG/DirectCall 可达身份。
 use super::fixture::{Failure, Fixture, failure, location};
 use crate::ssa::model::{FunctionId, Operation, Origin, Program};
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     parser::{Item, NameMarker},
     source::{SourceMap, Span},
@@ -78,7 +79,7 @@ pub(super) fn entry_sources(
                 (name, location(sources, *span), matches.len()),
             ));
         };
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER FUNCTION source_name={name} id={:?} lowered_name={:?} {}",
             function.id,
             function.name,
@@ -134,7 +135,7 @@ pub(super) fn entry_sources(
                     )
                 })?;
                 if let Operation::DirectCall { callee, .. } = &instruction.operation {
-                    println!(
+                    diagnostic!(
                         "SPEC0331 PROVIDER CALL caller={id:?} block={block_id:?} callee={callee:?} origin={:?}",
                         instruction.origin
                     );

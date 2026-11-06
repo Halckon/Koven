@@ -1,5 +1,6 @@
 //! Ordinary source object/link/run: logical callback count, length, and Resource cleanup.
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[path = "native_runtime_constructor_tests/evaluation.rs"]
 pub(crate) mod evaluation;
@@ -111,8 +112,8 @@ pub(crate) fn cases() -> Vec<RuntimeCase> {
 }
 
 pub(crate) fn assert_output(case: &RuntimeCase, output: &Output) {
-    assert!(output.status.success(), "{}: {output:?}", case.label);
-    assert!(output.stderr.is_empty(), "{}: {output:?}", case.label);
+    assert_diagnostic!(output.status.success(), "{}: {output:?}", case.label);
+    assert_diagnostic!(output.stderr.is_empty(), "{}: {output:?}", case.label);
     let text = std::str::from_utf8(&output.stdout).expect("fixture stdout is UTF-8");
     let calls = text.lines().filter(|line| *line == "call").count();
     let drops = text.lines().filter(|line| *line == "leaf").count();
@@ -190,9 +191,9 @@ fun entry(): Unit {{
 fn runtime_constructor_native_single_orders_callbacks_elements_and_environment_cleanup() {
     for (text, expected) in ordered_resource_cases() {
         let output = emit_link_and_run("runtime-order.ko", &text, "entry");
-        assert!(output.status.success(), "{output:?}");
+        assert_diagnostic!(output.status.success(), "{output:?}");
         assert_eq!(output.stdout, expected.as_bytes());
-        assert!(output.stderr.is_empty(), "{output:?}");
+        assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
     }
 }
 

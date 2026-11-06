@@ -1,5 +1,6 @@
 //! Deferred Inout/field providers and the supported natural captured-Borrow iteration path.
 use super::*;
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use lang_frontend::ownership_checking::check_compilation_unit_constant_ownership;
 
 #[test]
@@ -85,7 +86,7 @@ fn unit_for_deferred_sources_reject_both_native_views_without_artifact_changes()
                     )
                     .unwrap_err()
                 };
-                assert_eq!(
+                assert_eq_diagnostic!(
                     error.kind(),
                     NativeObjectErrorKind::UnsupportedSource,
                     "{error}"
@@ -126,9 +127,9 @@ fn unit_for_captured_borrow_closure_executes_and_releases_each_iteration() {
         for constants in [false, true] {
             let (output, _) =
                 super::resource_exchange_tests::run_unit(&provider, consumer, constants);
-            assert!(output.status.success(), "{output:?}");
+            assert_diagnostic!(output.status.success(), "{output:?}");
             assert_eq!(output.stdout, expected.as_bytes());
-            assert!(output.stderr.is_empty(), "{output:?}");
+            assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
         }
     }
 }

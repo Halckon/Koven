@@ -1,4 +1,5 @@
 //! Ordinary source construction contracts; source text and ABI oracles remain unchanged.
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,
     lexer::lex,
@@ -66,7 +67,7 @@ fn runtime_generator_single_source_accepts_pointer_and_shared_initializers() {
             }
         }
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "existing synchronous Borrow constructors must reach verified source SSA: {failures:?}"
     );
@@ -266,8 +267,8 @@ fn lowers_string_list_forms_in_source_order_and_drops_each_container_once() {
     );
 
     let ssa = render_program(&program);
-    assert_eq!(ssa.matches("container.construct").count(), 4, "{ssa}");
-    assert_eq!(ssa.matches("drop ").count(), 4, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("container.construct").count(), 4, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("drop ").count(), 4, "{ssa}");
 }
 
 #[test]

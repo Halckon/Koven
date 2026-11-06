@@ -1,4 +1,5 @@
 //! Existing ordinary parameter delivery is shared by no-For controls and temporary sources.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod facts;
 mod graph;
@@ -112,7 +113,7 @@ fn observe(case: &Case, rooted: bool, control: bool) -> Result<(), Failure> {
     } else {
         (&case.source, &case.golden)
     };
-    println!(
+    diagnostic!(
         "DELIVERY INPUT case={} rooted={rooted} control={control} source={text:?} golden={golden:?}",
         case.label
     );
@@ -139,7 +140,7 @@ fn observe(case: &Case, rooted: bool, control: bool) -> Result<(), Failure> {
             );
         },
     );
-    println!(
+    diagnostic!(
         "DELIVERY LOWER {} rooted={rooted} control={control} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
@@ -151,7 +152,7 @@ fn observe(case: &Case, rooted: bool, control: bool) -> Result<(), Failure> {
     );
     let deep = graph::check(case, &sources, &parsed, &program, control);
     report.query("delivery actual SSA owner/argument graph", &deep);
-    println!(
+    diagnostic!(
         "DELIVERY GRAPH {} rooted={rooted} control={control} deep={deep:?}",
         case.label
     );
@@ -168,7 +169,7 @@ fn check(control: bool) {
     for case in sources() {
         for rooted in [false, true] {
             let result = observe(&case, rooted, control);
-            println!(
+            diagnostic!(
                 "DELIVERY CASE {} rooted={rooted} control={control} result={result:?}",
                 case.label
             );
@@ -176,7 +177,7 @@ fn check(control: bool) {
         }
     }
     assert_eq!(outcomes.len(), 12);
-    assert!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
 }
 
 #[test]

@@ -9,6 +9,7 @@ use super::{
     ast::{Input, span},
 };
 use crate::ssa::model::*;
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::ExpressionId,
     parser::{Expression, ParsedFile},
@@ -95,9 +96,10 @@ pub(super) fn check(c: &Case, p: &ParsedFile, i: &Input, program: &Program) -> R
     let scan = function(module, i.scan)?;
     let observer = function(module, i.observer)?;
     let g = Graph::new(scan)?;
-    println!(
+    diagnostic!(
         "SCOPE C UPDATE SSA label={} function={scan:#?} edges={:#?}",
-        c.label, g.edges
+        c.label,
+        g.edges
     );
     let entry = scan.entry_block().unwrap();
     let parameters = &g.block(entry)?.parameters;
@@ -432,9 +434,11 @@ pub(super) fn check(c: &Case, p: &ParsedFile, i: &Input, program: &Program) -> R
                         "update each required path epoch has exactly one real cleanup and no moved-name duplicate",
                         (&actual, &expected_drops),
                     )?;
-                    println!(
+                    diagnostic!(
                         "SCOPE C UPDATE PATH label={} flag={flag} births={:?} drops={:?} blocks={path:?}",
-                        c.label, state.births, state.drops
+                        c.label,
+                        state.births,
+                        state.drops
                     );
                     break;
                 }

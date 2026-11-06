@@ -1,6 +1,7 @@
 //! SPEC-0291: the unchanged native fixture must pass complete analysis and LLVM.
 //! Collect both ordinary entries before asserting; this test never emits or runs an object.
 
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -561,25 +562,27 @@ fn complete_map_consume_fixture_reaches_verified_llvm() {
         .any(|observation| observation.outcome.is_err());
     for observation in &observations {
         if !failed {
-            println!(
+            diagnostic!(
                 "MAP CONSUME FIXTURE {}: verified LLVM ({} recorded stages)",
                 observation.entry,
                 observation.stages.len(),
             );
             continue;
         }
-        println!(
+        diagnostic!(
             "MAP CONSUME FIXTURE {}\n{}",
             observation.entry,
             observation.stages.join("\n")
         );
         match &observation.outcome {
-            Ok(()) => println!("outcome=verified LLVM"),
-            Err(failure) => println!("failed stage={}; detail={}", failure.stage, failure.detail),
+            Ok(()) => diagnostic!("outcome=verified LLVM"),
+            Err(failure) => {
+                diagnostic!("failed stage={}; detail={}", failure.stage, failure.detail)
+            }
         }
     }
     assert_eq!(observations.len(), 2);
-    assert!(
+    assert_diagnostic!(
         observations
             .iter()
             .all(|observation| observation.outcome.is_ok()),

@@ -5,6 +5,7 @@ use crate::ssa::model::{
     Definition, EntityId, EntityType, Function, Instruction, LoanKind, Origin, Program,
     SsaTypeKind, ValueId,
 };
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::{
     name_resolution::SymbolKind,
     ownership_checking::{ConstructionDeliveryKind, UnitDropPoint, UnitDropTarget},
@@ -40,8 +41,8 @@ fn field_replace_single_uses_dedicated_exchange_and_preserves_parent() {
     );
     let program = lower_field(&analysis).expect("direct field exchange");
     let rendered = render_program(&program);
-    assert!(rendered.contains("heap.field_exchange"), "{rendered}");
-    assert!(!rendered.contains("root_replace"), "{rendered}");
+    assert_diagnostic!(rendered.contains("heap.field_exchange"), "{rendered}");
+    assert_diagnostic!(!rendered.contains("root_replace"), "{rendered}");
     render_verified_program(&program).expect("dedicated exchange verifies");
 }
 

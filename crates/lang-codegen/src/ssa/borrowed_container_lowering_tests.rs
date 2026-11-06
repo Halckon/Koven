@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,
     lexer::lex,
@@ -78,9 +79,9 @@ fn source_borrowed_array_string_index_lowers_to_checked_element_loan() {
     let (program, _) = lower_owned_unit_with_entry(&unit, entry)
         .expect("borrowed Array<String> indexing must lower");
     let ssa = render_program(&program);
-    assert!(ssa.contains("container.element_place %l0"), "{ssa}");
-    assert!(ssa.contains("borrow.shared %p0"), "{ssa}");
-    assert!(ssa.contains("print.string"), "{ssa}");
+    assert_diagnostic!(ssa.contains("container.element_place %l0"), "{ssa}");
+    assert_diagnostic!(ssa.contains("borrow.shared %p0"), "{ssa}");
+    assert_diagnostic!(ssa.contains("print.string"), "{ssa}");
     let llvm = render_verified_program(&program).expect("borrowed index LLVM must verify");
     let negative = llvm
         .find("icmp slt i32")

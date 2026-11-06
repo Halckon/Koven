@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 use crate::ssa::model::{
@@ -251,7 +252,7 @@ fn fixed_headers_and_list_construction_use_one_checked_continuous_allocation() {
 
     let first = render_verified_program(&program).expect("container LLVM must verify");
     let second = render_verified_program(&program).expect("container LLVM must be deterministic");
-    assert_eq!(first, second);
+    crate::test_support::diagnostics::assert_text_eq!(first, second);
     assert!(first.contains("%koven.container.t2 = type { ptr, i64 }"));
     assert!(first.contains("%koven.container.t3 = type { ptr, i64, i64 }"));
     assert_eq!(first.matches("call ptr @malloc").count(), 1);
@@ -342,7 +343,7 @@ fn runtime_length_generation_calls_initializer_in_an_explicit_loop() {
     assert!(llvm.contains("call i32 @f0.identity"));
     assert!(llvm.contains("icmp slt i32 %v0, 0"));
     assert!(llvm.contains("zext i32 %v0 to i64"));
-    assert!(!llvm.contains("icmp slt i64"), "size_t is unsigned: {llvm}");
+    assert_diagnostic!(!llvm.contains("icmp slt i64"), "size_t is unsigned: {llvm}");
     assert!(llvm.contains("icmp ult i64 %v1.index, %v1.size"));
     assert_eq!(llvm.matches("call ptr @malloc").count(), 1);
     assert!(!llvm.contains("landingpad"));
@@ -426,9 +427,9 @@ fn zst_container_uses_aligned_sentinel_without_allocation_or_addressing() {
     assert!(!llvm.contains("call ptr @malloc"));
     assert!(!llvm.contains("getelementptr"));
     assert!(!llvm.contains("store %koven.t0"));
-    assert!(llvm.contains("icmp sge i32"), "{llvm}");
+    assert_diagnostic!(llvm.contains("icmp sge i32"), "{llvm}");
     // SPEC-0355: the bounds failure reports index and size before abort().
-    assert!(
+    assert_diagnostic!(
         llvm.contains("call void @koven.abort.report_index("),
         "{llvm}"
     );

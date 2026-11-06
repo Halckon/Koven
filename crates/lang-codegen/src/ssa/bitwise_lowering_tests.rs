@@ -1,5 +1,6 @@
 //! Integer bitwise lowering retains typed, eager operations for both source shapes.
 //! Existing test names distinguish memory/package inputs, not separate lowering engines.
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,
     name_resolution::{
@@ -81,15 +82,15 @@ fn assert_binary_matrix(lower: fn(&str) -> Program) {
                 "fun entry(left: {ty}, right: {ty}): {ty} = left {operator} right"
             ));
             let ssa = render_program(&program);
-            assert!(
+            assert_diagnostic!(
                 ssa.contains(&format!("bitwise.{operator}")),
                 "{ty} {operator}: {ssa}"
             );
-            assert!(!ssa.contains("checked."), "{ssa}");
+            assert_diagnostic!(!ssa.contains("checked."), "{ssa}");
             let llvm = render_verified_program(&program).expect("bitwise LLVM verifies");
-            assert!(!llvm.contains("poison"), "{llvm}");
-            assert!(!llvm.contains(" nsw ") && !llvm.contains(" nuw "), "{llvm}");
-            assert!(!llvm.contains(" exact "), "{llvm}");
+            assert_diagnostic!(!llvm.contains("poison"), "{llvm}");
+            assert_diagnostic!(!llvm.contains(" nsw ") && !llvm.contains(" nuw "), "{llvm}");
+            assert_diagnostic!(!llvm.contains(" exact "), "{llvm}");
             let bits = match *ty {
                 "Byte" | "UByte" => 8,
                 "Short" | "UShort" => 16,
@@ -101,9 +102,9 @@ fn assert_binary_matrix(lower: fn(&str) -> Program) {
                 "shr" | "ushr" => "lshr",
                 other => other,
             };
-            assert!(llvm.contains(&format!("{instruction} i{bits}")), "{llvm}");
+            assert_diagnostic!(llvm.contains(&format!("{instruction} i{bits}")), "{llvm}");
             if matches!(*operator, "shl" | "shr" | "ushr") {
-                assert!(
+                assert_diagnostic!(
                     llvm.contains(&format!("and i{bits} %v1, {}", bits - 1)),
                     "{llvm}"
                 );
@@ -126,10 +127,10 @@ fn assert_inv_matrix(lower: fn(&str) -> Program) {
     for ty in TYPES {
         let program = lower(&format!("fun entry(value: {ty}): {ty} = value.inv()"));
         let rendered = render_program(&program);
-        assert!(rendered.contains("bitwise.inv"), "{rendered}");
-        assert!(!rendered.contains("checked."), "{rendered}");
+        assert_diagnostic!(rendered.contains("bitwise.inv"), "{rendered}");
+        assert_diagnostic!(!rendered.contains("checked."), "{rendered}");
         let llvm = render_verified_program(&program).expect("integer inv LLVM verifies");
-        assert!(llvm.contains("xor i"), "{llvm}");
+        assert_diagnostic!(llvm.contains("xor i"), "{llvm}");
     }
 }
 
@@ -148,10 +149,10 @@ fn bitwise_lowering_preserves_adjacent_checked_arithmetic() {
     for lower in [lower_memory_unit as fn(&str) -> Program, lower_package_unit] {
         let program = lower("fun entry(left: Int, right: Int): Int = (left shl right) + 1");
         let rendered = render_program(&program);
-        assert_eq!(rendered.matches("bitwise.shl").count(), 1, "{rendered}");
-        assert_eq!(rendered.matches("checked.add").count(), 1, "{rendered}");
+        assert_eq_diagnostic!(rendered.matches("bitwise.shl").count(), 1, "{rendered}");
+        assert_eq_diagnostic!(rendered.matches("checked.add").count(), 1, "{rendered}");
         let llvm = render_verified_program(&program).expect("checked neighbor LLVM");
-        assert!(llvm.contains("llvm.sadd.with.overflow.i32"), "{llvm}");
+        assert_diagnostic!(llvm.contains("llvm.sadd.with.overflow.i32"), "{llvm}");
     }
 }
 

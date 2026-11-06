@@ -1,6 +1,7 @@
 //! Both concrete Function identity and its mode labels remain frontend-owned.
 
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn canonical_callable_unit_specialization_keeps_modes_move_and_container_return() {
@@ -62,7 +63,7 @@ fn canonical_callable_unit_specialization_keeps_modes_move_and_container_return(
             Some(UnitTypeKind::Function { .. })
         ));
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "all canonical Function shapes must resolve: {failures:?}"
     );

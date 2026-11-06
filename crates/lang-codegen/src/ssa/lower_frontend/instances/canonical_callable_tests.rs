@@ -1,6 +1,7 @@
 //! Borrow Fn helper specialization must reuse frontend identities without weakening Fn modes.
 
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::{
     lexer::lex,
     name_resolution::resolve_names,
@@ -67,7 +68,7 @@ fn canonical_callable_single_specialization_keeps_modes_move_and_container_retur
             Some(TypeKind::Function { .. })
         ));
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "all canonical Function shapes must resolve: {failures:?}"
     );

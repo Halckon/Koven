@@ -1,6 +1,7 @@
 //! SPEC-0283: native MutableList.removeLast tail removal and empty list abort.
 
 use super::*;
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 
 #[test]
 fn unit_container_remove_last_native_primitive_sequential() {
@@ -126,7 +127,7 @@ fn run(analysis: &UnitAnalysis, expected: &[u8]) {
         .arg(&executable)
         .output()
         .expect("native link runs");
-    assert!(
+    assert_diagnostic!(
         linked.status.success(),
         "{}",
         String::from_utf8_lossy(&linked.stderr)
@@ -134,7 +135,7 @@ fn run(analysis: &UnitAnalysis, expected: &[u8]) {
     let output = Command::new(&executable)
         .output()
         .expect("native program runs");
-    assert!(
+    assert_diagnostic!(
         output.status.success(),
         "{}",
         String::from_utf8_lossy(&output.stderr)
@@ -165,7 +166,7 @@ fn run_abort(analysis: &UnitAnalysis, expected_stdout: &[u8]) {
         .arg(&executable)
         .output()
         .expect("native link runs");
-    assert!(
+    assert_diagnostic!(
         linked.status.success(),
         "{}",
         String::from_utf8_lossy(&linked.stderr)
@@ -181,6 +182,6 @@ fn run_abort(analysis: &UnitAnalysis, expected_stdout: &[u8]) {
     #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt;
-        assert_eq!(output.status.signal(), Some(6), "{output:?}");
+        assert_eq_diagnostic!(output.status.signal(), Some(6), "{output:?}");
     }
 }

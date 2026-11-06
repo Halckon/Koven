@@ -1,4 +1,5 @@
 use super::emit_link_and_run;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn string_clone_preserves_utf8_nul_empty_and_borrowed_source() {
@@ -17,7 +18,7 @@ fn string_clone_preserves_utf8_nul_empty_and_borrowed_source() {
         "#,
         "stringCloneEntry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, "界\0é\n界\0é\nliteral\n\n".as_bytes());
 }
 
@@ -36,7 +37,7 @@ fn string_clone_copies_owned_container_elements_without_moving_them() {
         "#,
         "stringCloneEntry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, "leftright\nleftright\n界\n".as_bytes());
 }
 
@@ -143,7 +144,7 @@ fn string_clone_evaluates_temporary_receiver_once_and_survives_source_return_dro
         "#,
         "stringCloneEntry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(
         output.stdout,
         "made\ndynamicsource\n前后\n元素值\n元素值\n\nnested\n".as_bytes()
@@ -210,7 +211,7 @@ fn string_clone_borrows_temporary_container_element() {
     "#,
         "stringCloneEntry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, "元素\n".as_bytes());
 }
 
@@ -234,7 +235,7 @@ fn string_clone_borrows_named_fields_and_rc_payloads() {
     "#,
         "stringCloneEntry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(
         output.stdout,
         b"fieldvalue\nfieldvalue\ninline\nsharedvalue\n"
@@ -281,7 +282,7 @@ fn string_clone_owned_result_supports_move_capture_and_early_return() {
     "#,
         "stringCloneEntry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, b"capturedcopy\ncapturedcopy\n");
 }
 

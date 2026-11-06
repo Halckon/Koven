@@ -1,4 +1,5 @@
 //! ADR-0033 inline nullable: tagged `{present, payload}` and the String/container pointer niche.
+use crate::test_support::diagnostics::assert_diagnostic;
 use std::{
     fs,
     path::PathBuf,
@@ -386,8 +387,8 @@ fn inline_int_nullable_uses_present_tag_and_runs_both_edges() {
     verify_program(&program).expect("Int? program verifies");
     let ir = render_verified_program_with_entry(&program, main).expect("Int? lowers");
     let name = format!("%koven.nullable.t{} = type {{ i1, i32 }}", nullable.index());
-    assert!(ir.contains(&name), "{ir}");
-    assert!(
+    assert_diagnostic!(ir.contains(&name), "{ir}");
+    assert_diagnostic!(
         !ir.contains("@koven.drop"),
         "Copyable Int? needs no drop glue: {ir}"
     );
@@ -399,11 +400,11 @@ fn inline_string_nullable_uses_pointer_niche_and_frees_once() {
     let (program, main) = string_program();
     verify_program(&program).expect("String? program verifies");
     let ir = render_verified_program_with_entry(&program, main).expect("String? lowers");
-    assert!(
+    assert_diagnostic!(
         !ir.contains("koven.nullable"),
         "niche keeps the String layout: {ir}"
     );
-    assert!(
+    assert_diagnostic!(
         ir.contains("icmp ne ptr"),
         "niche drop tests the data pointer: {ir}"
     );
@@ -462,8 +463,8 @@ fn inline_boolean_and_char_nullables_use_present_tag_and_run_both_edges() {
             "%koven.nullable.t{} = type {{ i1, {payload} }}",
             nullable.index()
         );
-        assert!(ir.contains(&name), "{ir}");
-        assert!(
+        assert_diagnostic!(ir.contains(&name), "{ir}");
+        assert_diagnostic!(
             !ir.contains("@koven.drop"),
             "Copyable needs no drop glue: {ir}"
         );

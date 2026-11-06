@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::source::SourceMap;
 
 use super::{
@@ -125,7 +126,7 @@ fn boxed_enum_payload_definitions_verify_recursive_indirection() {
         Some(Ownership::MoveOnly)
     );
     verify_program(&program).expect("Box handles break the enum's inline cycle");
-    assert_eq!(render_program(&program), render_program(&program));
+    assert_text_eq!(render_program(&program), render_program(&program));
 
     let module = program.module_mut(module_id).unwrap();
     let SsaTypeKind::HeapOwner { payload, .. } = &mut module.types[boxed.index()] else {

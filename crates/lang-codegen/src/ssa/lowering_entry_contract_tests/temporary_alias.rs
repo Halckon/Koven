@@ -1,5 +1,6 @@
 //! Ordinary Borrow temporaries: real producer identity and checked edge columns.
 use super::*;
+use crate::test_support::diagnostics::diagnostic;
 
 #[test]
 fn paired_borrowed_group_temporaries_keep_distinct_current_columns() {
@@ -29,7 +30,7 @@ fn paired_borrowed_group_temporaries_keep_distinct_current_columns() {
     let mut failures = Vec::new();
     for (index, result) in observations.into_iter().enumerate() {
         match result {
-            Ok(()) => println!("temporary alias observation {}: ok", index + 1),
+            Ok(()) => diagnostic!("temporary alias observation {}: ok", index + 1),
             Err(payload) => {
                 let message = payload
                     .downcast_ref::<String>()
@@ -37,7 +38,7 @@ fn paired_borrowed_group_temporaries_keep_distinct_current_columns() {
                     .or_else(|| payload.downcast_ref::<&str>().copied())
                     .unwrap_or("non-string query panic payload");
                 let failure = format!("temporary alias observation {}: {message}", index + 1);
-                println!("{failure}");
+                diagnostic!("{failure}");
                 failures.push(failure);
             }
         }

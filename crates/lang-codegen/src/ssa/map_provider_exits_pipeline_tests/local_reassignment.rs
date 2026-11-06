@@ -1,4 +1,5 @@
 //! Legal source replacement histories: ordinary FE/lowering observations precede repairs.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod boundaries;
 mod completed_epoch;
@@ -18,13 +19,17 @@ pub(crate) use ordinary_routes::{ordinary_route_controls, ordinary_route_sources
 pub(crate) use sources::{Case, sources};
 
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "LOCAL REASSIGN INPUT case={} unit={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
-    println!(
+    diagnostic!(
         "LOCAL REASSIGN AXES mutable={} payload={} history={}",
-        case.mutable, case.payload, case.history
+        case.mutable,
+        case.payload,
+        case.history
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -55,7 +60,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == expected,
                     typed.map_iterations(),
                 );
-                println!(
+                diagnostic!(
                     "LOCAL REASSIGN UNIT FACTS case={} formed={:#?} plans={:#?} drops={:#?} deliveries={:#?} loans={:#?}",
                     case.label,
                     owned.formed_owned_locals(),
@@ -82,7 +87,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == expected,
                     typed.map_iterations(),
                 );
-                println!(
+                diagnostic!(
                     "LOCAL REASSIGN UNIT FACTS case={} formed={:#?} plans={:#?} drops={:#?} deliveries={:#?} loans={:#?}",
                     case.label,
                     owned.formed_owned_locals(),
@@ -94,7 +99,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     };
-    println!(
+    diagnostic!(
         "LOCAL REASSIGN LOWER case={} unit={unit} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
@@ -114,7 +119,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     let llvm =
         crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e));
     report.query("reassignment actual LLVM verifier", &llvm);
-    println!(
+    diagnostic!(
         "LOCAL REASSIGN FINAL case={} unit={unit} report={report:#?}",
         case.label
     );
@@ -131,7 +136,7 @@ fn reassigned_sources_preserve_actual_value_histories() {
     for case in sources() {
         for unit in [false, true] {
             let result = observe(&case, unit);
-            println!(
+            diagnostic!(
                 "LOCAL REASSIGN CASE {} unit={unit} result={result:?}",
                 case.label
             );
@@ -139,7 +144,7 @@ fn reassigned_sources_preserve_actual_value_histories() {
         }
     }
     assert_eq!(observations.len(), 36);
-    assert!(
+    assert_diagnostic!(
         observations.iter().all(|(_, _, result)| result.is_ok()),
         "{observations:#?}"
     );

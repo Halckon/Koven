@@ -6,6 +6,7 @@ use crate::ssa::model::{
     Block, Definition, Edge, EntityId, EntityType, Function, Instruction, LoanKind,
     MapContainerKind, Module, Operation, Origin, Ownership, SsaTypeKind, TerminatorKind, ValueId,
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::StatementId,
     parser::{Item, NameMarker, Statement},
@@ -591,7 +592,7 @@ fn nullable_map_read_owner_view_cleanup_identity() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "NULLABLE MAP IDENTITY {}\n{}\ninput failures={:?}\nquery outcome={:#?}",
             observation.label,
             observation.trace.stages.join("\n"),

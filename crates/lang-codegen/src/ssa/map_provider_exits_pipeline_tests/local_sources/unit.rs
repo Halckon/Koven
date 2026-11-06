@@ -3,6 +3,7 @@ use super::{
     super::Report,
     ast::{Anchors, Call, Function, Input},
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{
@@ -121,7 +122,7 @@ pub(super) fn observe(
     owned: &CompilationUnitOwnership,
     report: &mut Report,
 ) {
-    println!(
+    diagnostic!(
         "SPEC0331 LOCAL UNIT REAL typed_maps={:#?} maps={:#?} formed={:#?} drops={:#?} conditional_drops={:#?} contracts={:#?} loans={:#?} deliveries={:#?}",
         typed.map_iterations(),
         owned.map_iterations(),
@@ -369,13 +370,13 @@ pub(super) fn observe(
             .iter()
             .filter(|d| matches!(d.target(), UnitDropTarget::Named(id) if Some(id) == root))
             .collect::<Vec<_>>();
-        println!(
+        diagnostic!(
             "SPEC0331 LOCAL UNIT OWNER site={statement:?} root={root:?} initializer={:?} drops={drops:#?} plan={p:#?}",
             expression(site.local.initializer)
         );
         for exit in p.exits() {
             let actual = owned.iteration_cleanup_at(exit.point());
-            println!(
+            diagnostic!(
                 "SPEC0331 LOCAL UNIT EXIT site={statement:?} root={root:?} exit={exit:#?} actual_at_point={actual:#?}"
             );
             // 这个 getter 是同计划表一致性，不声称第二份 unit cleanup 存储或 single 条件模型。

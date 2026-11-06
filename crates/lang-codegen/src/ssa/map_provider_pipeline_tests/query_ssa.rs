@@ -4,6 +4,7 @@ use super::{
     query_inputs::{Inputs, need, one},
 };
 use crate::ssa::model::*;
+use crate::test_support::diagnostics::diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug)]
@@ -674,7 +675,7 @@ pub(super) fn check(program: &Program, input: &Inputs) -> Result<Shape, Failure>
         edges,
     };
     super::query_owner::check(module, scan, input, &shape)?;
-    println!("SPEC0331 PROVIDER IDENTITY SSA {shape:#?}");
+    diagnostic!("SPEC0331 PROVIDER IDENTITY SSA {shape:#?}");
     Ok(shape)
 }
 
