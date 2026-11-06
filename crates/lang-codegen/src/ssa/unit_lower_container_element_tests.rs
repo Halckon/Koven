@@ -102,10 +102,11 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
             Operation::ContainerReplace { .. }
         )
     )));
-    let (failure, success) = entry
+    let (pred_block_idx, failure, success) = entry
         .blocks
         .iter()
-        .find_map(|block| {
+        .enumerate()
+        .find_map(|(idx, block)| {
             let TerminatorKind::Conditional {
                 when_true,
                 when_false,
@@ -122,7 +123,7 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
                 .any(|instruction| {
                     matches!(instruction.operation, Operation::ContainerReplace { .. })
                 })
-                .then_some((when_true, when_false))
+                .then_some((idx, when_true, when_false))
         })
         .expect("compound replacement has one checked success edge");
     assert!(!failure.arguments.is_empty());
@@ -143,10 +144,11 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
             entry.entity(*param).unwrap().ty
         );
     }
-    let (carried_owner, replace_value) = success_block
+    let (carried_param_idx, carried_owner, replace_value) = success_block
         .parameters
         .iter()
-        .find_map(|param| {
+        .enumerate()
+        .find_map(|(idx, param)| {
             let EntityId::Value(val) = param else {
                 return None;
             };
@@ -156,7 +158,7 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
                 .filter_map(|instruction| entry.instruction(*instruction))
                 .find_map(|instruction| match instruction.operation {
                     Operation::ContainerReplace { owner, value, .. } if owner == *val => {
-                        Some((*val, value))
+                        Some((idx, *val, value))
                     }
                     _ => None,
                 })
@@ -173,10 +175,66 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
                     if owner == carried_owner && value == replace_value
             ))
     );
-    // 验证 carried_owner 在 success.arguments 中有对应的存活前驱实参
-    assert!(success.arguments.iter().any(
-        |arg| matches!(arg, EntityId::Value(v) if entry.entity(EntityId::Value(*v)).is_some())
-    ));
+
+    // 逐边绑定 carried owner 与前驱实参，验证身份与未提前消费
+    let pred_arg_success = success.arguments[carried_param_idx];
+    let pred_arg_failure = failure.arguments[carried_param_idx];
+    assert_eq!(
+        pred_arg_success, pred_arg_failure,
+        "carried owner edge argument must match across both branches"
+    );
+    let EntityId::Value(pred_owner_val) = pred_arg_success else {
+        panic!("carried owner edge argument must be a value");
+    };
+    assert!(
+        entry.entity(EntityId::Value(pred_owner_val)).is_some(),
+        "carried owner must be a valid live entity in entry"
+    );
+
+    // 验证前驱块在跳转前未提前 drop 或 consume 该 owner
+    let pred_block = &entry.blocks[pred_block_idx];
+    for inst_id in &pred_block.instructions {
+        if let Some(inst) = entry.instruction(*inst_id) {
+            match inst.operation {
+                Operation::Drop { owner } => {
+                    assert_ne!(
+                        owner, pred_owner_val,
+                        "carried owner was dropped prematurely in predecessor block"
+                    );
+                }
+                Operation::Consume { owner } => {
+                    assert_ne!(
+                        owner, pred_owner_val,
+                        "carried owner was consumed prematurely in predecessor block"
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // 反例验证：若将 carried owner 替换为同类型但已消费/错误的 owner，SSA 验证必定失败
+    let mut bad_program = backward;
+    let bad_module = &mut bad_program.modules[0];
+    let bad_entry = bad_module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == entry.name)
+        .expect("entry found in backward");
+    let bad_pred_block = &mut bad_entry.blocks[pred_block_idx];
+    if let Some(terminator) = &mut bad_pred_block.terminator
+        && let TerminatorKind::Conditional { when_false, .. } = &mut terminator.kind
+    {
+        when_false.arguments[carried_param_idx] = EntityId::Value(crate::ssa::model::ValueId {
+            function: bad_entry.id,
+            index: usize::MAX,
+        });
+    }
+    let bad_verify = crate::ssa::verify::verify_program(&bad_program);
+    assert!(
+        bad_verify.is_err(),
+        "passing an invalid owner across replacement edge must fail SSA verification"
+    );
 }
 
 #[test]
