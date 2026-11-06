@@ -10,7 +10,8 @@ cp /opt/koven-ci/{installed-packages.txt,input-sha256.txt} "$RUNNER_TEMP/toolcha
 debugger_probe="$RUNNER_TEMP/toolchain-evidence/debugger-probe"
 printf 'int main(void) { return 0; }\n' > "$debugger_probe.c"
 /usr/bin/cc -g "$debugger_probe.c" -o "$debugger_probe"
-lldb --batch -o "target create '$debugger_probe'" -o 'breakpoint set --name main' \
+# Keep host ASLR enabled: default container seccomp rejects disabling it.
+lldb --batch -o 'settings set target.disable-aslr false' -o "target create '$debugger_probe'" -o 'breakpoint set --name main' \
   -o run -o 'frame info' 2>&1 | tee "$debugger_probe.log"
 grep -Fq 'stop reason = breakpoint' "$debugger_probe.log"
 # Separate Clippy and test targets just as the production jobs do.

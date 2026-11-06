@@ -138,6 +138,38 @@ tar() { echo EXTRACTED; return 99; }
         self.assertIn("-o run -o 'frame info'", check)
         self.assertIn("grep -Fq 'stop reason = breakpoint'", check)
 
+    def test_debugger_preflight_preserves_aslr_and_requires_breakpoint(self):
+        script = (ROOT / 'scripts/check_ci_toolchain_image.sh').read_text()
+        probe = script[script.index('debugger_probe='):script.index('# Separate Clippy')]
+        # Compile the actual C probe; emulate only LLDB's constrained launch and
+        # output, so absence of the preserving-ASLR setting reproduces the failure.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'toolchain-evidence').mkdir()
+            debugger = root / 'lldb'
+            debugger.write_text("#!/usr/bin/env python3\n" + textwrap.dedent("""\
+                import os, sys
+                args = sys.argv[1:]
+                try:
+                    setting = args.index('settings set target.disable-aslr false')
+                    launch = args.index('run')
+                    assert setting < launch
+                except (ValueError, AssertionError):
+                    print('personality set failed: Operation not permitted', file=sys.stderr)
+                    sys.exit(1)
+                print('stop reason = breakpoint' if os.environ['PROBE_BREAKPOINT'] == 'yes' else 'exited')
+                """))
+            debugger.chmod(0o755)
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
+                       RUNNER_TEMP=temporary, PROBE_BREAKPOINT='yes')
+            for expected, breakpoint in ((0, 'yes'), (1, 'no')):
+                with self.subTest(breakpoint=breakpoint):
+                    env['PROBE_BREAKPOINT'] = breakpoint
+                    result = subprocess.run(['bash', '-euo', 'pipefail', '-c', probe],
+                                            env=env, capture_output=True, text=True, timeout=20)
+                    self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
+            self.assertTrue((root / 'toolchain-evidence/debugger-probe').is_file())
+
     def test_core_is_not_switched_before_real_digest_publication(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
         self.assertNotIn('container:', workflow)

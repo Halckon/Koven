@@ -39,7 +39,9 @@ Rust 1.96.0、LLVM 21.1.8；减少每个核心 job 重复安装，不降低任�
 1. PR 的独立 workflow 仅有 contents read，构建并以精确 image ID 运行原 Linux
    workspace check/Clippy、完整 bounded composition、词频、conformance、sanitizer
    和 generated-owner 门禁。Clippy 与测试 target 分开，测试保持 debug=1、incremental=0。
-   默认容器安全设置不放宽；编译前先做真实 C/LLDB launch 预检。LLDB 等如被容器阻断，应报失败并重新审议，而非跳过测试。
+   默认容器安全设置不放宽；编译前先做真实 C/LLDB launch 预检。Linux 调试启动
+   显式保留 ASLR，不请求容器禁止的 personality 变更；源码断点、文件/行号/函数断言
+   全部保留，macOS 启动参数不变。其他阻断仍报失败，不跳过测试。
 2. 原 CI 的 macOS/Linux 和 Preview24 producer/独立 consumer 保持；镜像相关文件变化
    触发现有门禁。PR 镜像构建成功不等于完整双平台或 Preview 验收成功。
 3. 第一阶段经审核合入后，仅主仓库 main 的手动 dispatch 可发布。构建/验收 job 无
@@ -58,9 +60,10 @@ Rust 1.96.0、LLVM 21.1.8；减少每个核心 job 重复安装，不降低任�
 |---|---|---|
 | 云端受影响源码编译 | Rust 1.96.0/LLVM21.1.8 `cargo check --locked --workspace --all-targets` | 通过；Debian13，不是 Ubuntu 容器验收 |
 | 严格 Clippy 与实际测试目标编译链接 | workspace Clippy；codegen/CLI/LSP/std `cargo test --no-run` | 通过；默认 debug=2 完成实际编译链接，未执行 Rust 测试 |
-| 失败关闭与接线合同 | `python3 -m unittest scripts.tests.test_ci_toolchain_image -v` | 7 项通过，含错误 Rust payload 和非精确 main CI 拒绝；不运行包安装或 Docker |
-| 全部脚本合同、文档、语法、尺寸 | scripts unittest、docs checker、bash/YAML、size、diff | 脚本合同 503 项通过；839 Markdown、语法、尺寸与 diff 通过，39 项历史尺寸债务无新增 |
-| PR 镜像实际构建与全部 Linux gate | `CI Toolchain Image` workflow | 待官方 CI；云端无 Docker daemon |
+| 失败关闭与接线合同 | `python3 -m unittest scripts.tests.test_ci_toolchain_image -v` | 8 项通过，含错误 Rust payload、非精确 main CI 拒绝及保留 ASLR/必须命中断点；C probe 真实编译，LLDB 用 stub，不冒充容器运行 |
+| 全部脚本合同、文档、语法、尺寸 | scripts unittest、docs checker、bash/YAML、size、diff | 脚本合同 504 项通过；839 Markdown、语法、尺寸与 diff 通过，39 项历史尺寸债务无新增 |
+| PR 镜像实际构建与全部 Linux gate | 初始 head `2c9a5a0e` 的 [run 42146554505](https://github.com/Halckon/Koven/actions/runs/42146554505/job/127659317342) | 镜像构建与严格校验通过；LLDB launch 因 `personality set failed` 失败，后续 Cargo/native gates 未运行。ASLR 修复后的完整 CI 待验证 |
+| Linux LLDB 启动回归与受影响目标编译 | `cargo test --offline --locked -p lang-cli --test native_cli final_debug_artifacts::linux_source_debugger_preserves_aslr -- --exact`；CLI Clippy/build | 新增回归修复前失败、修复后 1 项通过；native_cli 实际编译链接、严格 CLI Clippy 和 CLI build 通过。真实源码断点依赖 CI，本地无 LLDB |
 | 原双宿主和两套 Preview | 原 `CI` workflow | 待本 PR 精确头 |
 | 可信 main 发布、真实 digest、匿名读取 | main 手动 workflow | 尚未发布，等待第一阶段审核/合入 |
 | 核心 job 切换、真实 Actions container/cache 验收 | 后续独立提交 | 未开始；不能宣称预置迁移完成 |

@@ -48,7 +48,9 @@ PR 镜像 workflow 不持有发布凭据，沿用完整 Linux 门禁；main 手�
 双平台与 Preview CI，发布同一次已验证 image ID，不重新构建另一份字节。
 镜像不含仓库、Cargo 缓存或凭据，官方基础镜像及 Rust payload 固定 digest/SHA，LLVM
 沿用原严格安装器。构建输入固定不等于整个 APT 闭包可逐字节重建，消费身份是最终镜像 digest。
-默认容器安全设置保持，LLDB/native/sanitizer 失败不得跳过；正式切换还必须实际验收
+Linux LLDB 测试显式保留 ASLR，避免为固定地址请求 personality 变更；完整源码/行号/函数
+断点断言与 macOS 参数不变。默认容器安全设置保持，LLDB/native/sanitizer 失败不得跳过；
+正式切换还必须实际验收
 Actions HOME、checkout、缓存与产物上传。Preview24 继续独立生产和消费，不能复用核心镜像证明发布 ABI。
 
 ## Linux CI 磁盘故障诊断
