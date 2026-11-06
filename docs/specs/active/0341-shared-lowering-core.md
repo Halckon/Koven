@@ -2847,3 +2847,10 @@ Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
 云端固定 Rust 1.96.0/default debug=2/locked/offline 首次编译因自有缓存 ENOSPC
 失败（未进入测试）；获准清理该闲置 incremental 后重新编译成功，完整 signature
 17 项通过，含全部九项 container_storage、零过滤。故障日志保留，不将失败尝试算通过。
+
+追加头 `c551d87e` 的官方 run `42231702822` 因独立 composition 合同仍期待 130 个目标、
+实际 131 而失败，动态门禁跳过；此前只跑 selector 合同文件漏掉这项计数验证。
+本次复现该失败后，明确要求新增 signature 目标恰好一次、剔除它后的原集合仍为 130，
+总数为 131，并保留全局唯一性与全部原目标断言。不是放宽重复/过滤资格。
+本地相关 45 项 Python（selector 与 composition 成功路径）和完整 signature 17 项均通过；
+不运行注入失败的整项门禁，新的官方动态结果仍须精确新头实跑。

@@ -101,7 +101,13 @@ class CompositionContracts(unittest.TestCase):
         other_targets = [target for target in targets
                          if target not in ("compilation_unit_index", "multifile_name_resolution")]
         self.assertEqual(len(other_targets), len(set(other_targets)))
-        self.assertEqual(130, len(other_targets))
+        # SPEC-0341 adds the complete signature target to the existing 130;
+        # retain the original target count and uniqueness independently.
+        self.assertEqual(1, other_targets.count("multifile_type_signatures"))
+        retained_targets = [target for target in other_targets
+                            if target != "multifile_type_signatures"]
+        self.assertEqual(130, len(retained_targets))
+        self.assertEqual(131, len(other_targets))
         self.assertEqual(1, targets.count("ownership_value_api"))
         self.assertEqual(1, other_targets.count("type_text_extension"))
         self.assertEqual(1, targets.count("unit_direct_call_loan_ends"))
