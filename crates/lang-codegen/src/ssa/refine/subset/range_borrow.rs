@@ -152,19 +152,11 @@ impl Checker<'_, '_> {
         self.storage_type_seen(*element, active).then_some(*element)
     }
 
-    fn unit_has_standalone_map_consume(&self) -> bool {
-        !self.inputs.owned.borrow_return_origins().is_empty()
-            && !self.inputs.typed.map_consumes().is_empty()
-    }
-
     pub(super) fn local_borrow_binding(
         &mut self,
         symbol: UnitSymbolId,
         initializer: ExpressionId,
     ) -> bool {
-        if !self.scope_requires_refine() && !self.unit_has_standalone_map_consume() {
-            return false;
-        }
         let id = self.id(initializer);
         let Some(fact) = self
             .inputs
@@ -413,9 +405,6 @@ impl Checker<'_, '_> {
     }
 
     pub(super) fn range_size(&mut self, expression: ExpressionId) -> bool {
-        if !self.unit_requires_refine() {
-            return false;
-        }
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.range_size(id) else {
             return false;
@@ -447,9 +436,6 @@ impl Checker<'_, '_> {
         source: ExpressionId,
         body: StatementId,
     ) -> bool {
-        if !self.unit_requires_refine() {
-            return false;
-        }
         let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
         let Some(plan) = self.inputs.owned.iteration(statement_id) else {
             return false;
@@ -554,9 +540,6 @@ impl Checker<'_, '_> {
         call: ExpressionId,
         argument: ExpressionId,
     ) -> bool {
-        if !self.scope_requires_refine() {
-            return false;
-        }
         let call_id = self.id(call);
         let argument_id = self.id(argument);
         let Some(fact) = self
@@ -581,7 +564,7 @@ impl Checker<'_, '_> {
         argument: ExpressionId,
         parameter: UnitTypeId,
     ) -> bool {
-        if !self.scope_requires_refine() || self.range_view_element(parameter).is_none() {
+        if self.range_view_element(parameter).is_none() {
             return false;
         }
         let actual = self.ungrouped(argument);
@@ -606,9 +589,7 @@ impl Checker<'_, '_> {
         control_expr: ExpressionId,
         value_expr: ExpressionId,
     ) -> bool {
-        if self.inputs.borrow_return.is_none()
-            || (!self.unit_requires_refine() && !self.unit_has_standalone_map_consume())
-        {
+        if self.inputs.borrow_return.is_none() {
             return false;
         }
         let return_id = self.id(control_expr);
@@ -655,7 +636,7 @@ impl Checker<'_, '_> {
         control_expr: ExpressionId,
         value_expr: ExpressionId,
     ) -> bool {
-        if !self.unit_requires_refine() || self.inputs.carrier_return.is_none() {
+        if self.inputs.carrier_return.is_none() {
             return false;
         }
         let return_id = self.id(control_expr);

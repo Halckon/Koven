@@ -1,9 +1,6 @@
-//! source-qualified 普通 Borrow/Value 参数 shared 结果；与 single 保持相同事实边界。
+//! source-qualified 普通 Borrow/Value 参数 shared 结果；非 refine 路径仅保留全单元校验与 Map 借用 root 绑定。
 use super::*;
-use lang_frontend::{
-    ownership_checking::{BorrowSourceLoan, UnitLoanTarget},
-    type_checking::BorrowReturnOrigin,
-};
+use lang_frontend::{ownership_checking::UnitLoanTarget, type_checking::BorrowReturnOrigin};
 
 pub(super) fn validate_declarations(
     parsed: &[&lang_frontend::parser::ParsedFile],
@@ -185,75 +182,6 @@ pub(super) fn validate_bindings(
 }
 
 impl UnitExpressionLowerer<'_> {
-    /// Keep created ancestors in the existing call carrier, without owning the payload.
-    pub(super) fn lower_nested_borrow_argument(
-        &mut self,
-        call: UnitExpressionId,
-        argument: ExpressionId,
-        span: Span,
-    ) -> Result<Option<(LoanId, Vec<LoanId>)>, LoweringError> {
-        let argument_id = UnitExpressionId::new(self.source_unit, argument);
-        let mut uses = self
-            .owned
-            .borrow_results()
-            .call_uses()
-            .iter()
-            .filter(|fact| fact.call() == call && fact.argument() == argument_id);
-        let Some(fact) = uses.next() else {
-            return Ok(None);
-        };
-        let source = fact.source_loan();
-        let actual = crate::ssa::borrow_result_support::ungroup(self.parsed, argument, span)?;
-        if uses.next().is_some()
-            || call.source_unit() != self.source_unit
-            || fact.expression() != UnitExpressionId::new(self.source_unit, actual)
-            || source.call() != fact.expression()
-            || fact.end_point() != UnitDropPoint::CallReturn(call)
-            || fact
-                .parent()
-                .is_some_and(|parent| !self.borrow_bindings.contains_key(&parent))
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        for (owner_call, operand) in [(call, argument_id), (source.call(), source.argument())] {
-            let mut loans = self
-                .owned
-                .loans()
-                .iter()
-                .filter(|loan| loan.call() == owner_call && loan.argument() == operand);
-            if !loans.next().is_some_and(|loan| {
-                loan.target() == fact.origin()
-                    && loan.kind() == lang_frontend::ownership_checking::LoanKind::Shared
-            }) || loans.next().is_some()
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-        }
-        let descriptor = self
-            .typed
-            .call(call)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if descriptor.borrow_return().is_some()
-            || descriptor.receiver().is_some()
-            || !matches!(
-                descriptor.target(),
-                lang_frontend::type_checking::UnitCallTarget::Declaration(_)
-                    | lang_frontend::type_checking::UnitCallTarget::Symbol(_)
-            )
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let call_span = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(call.expression())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
-            .span();
-        crate::ssa::borrow_result_support::argument(self.parsed, call_span)?;
-        self.lower_result_call(actual, source, span).map(Some)
-    }
-
     pub(super) fn lower_result_binding(
         &mut self,
         symbol: UnitSymbolId,
@@ -268,76 +196,29 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .find(|fact| fact.binding() == symbol && fact.initializer() == id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if fact.storage()
-            == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor
-        {
-            return self.lower_range_binding(symbol, initializer, span);
-        }
-        if fact.storage()
-            == lang_frontend::ownership_checking::BorrowBindingStorage::BorrowedCarrierMetadata
-            && fact.source_loan().is_none()
-            && let Some(loan) = self.lower_range_metadata_alias(initializer, fact.parent(), span)?
-        {
-            self.borrow_bindings.insert(symbol, loan);
-            return Ok(LoweredValue::Unit);
-        }
-        let Some(source) = fact.source_loan() else {
-            let (loan, created) = self.lower_result_place(symbol, initializer, span)?;
-            self.borrow_bindings.insert(symbol, loan);
-            self.result_source_loans.insert(symbol, created);
-            return Ok(LoweredValue::Unit);
-        };
-        if !self.owned.loans().iter().any(|loan| {
-            loan.call() == source.call()
-                && loan.argument() == source.argument()
-                && loan.target() == fact.origin()
-        }) {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let (loan, created) = self.lower_result_call(initializer, source, span)?;
-        self.borrow_bindings.insert(symbol, loan);
-        self.result_source_loans.insert(symbol, created);
-        Ok(LoweredValue::Unit)
-    }
-
-    fn lower_result_place(
-        &mut self,
-        symbol: UnitSymbolId,
-        initializer: ExpressionId,
-        span: Span,
-    ) -> Result<(LoanId, Vec<LoanId>), LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, initializer);
-        let fact = self
-            .owned
-            .borrow_results()
-            .bindings()
-            .iter()
-            .find(|fact| fact.binding() == symbol && fact.initializer() == id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let UnitLoanTarget::Place(origin) = fact.origin() else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        if let Some(parent) = fact.parent() {
-            if !self
-                .owned
-                .borrow_results()
-                .bindings()
-                .iter()
-                .any(|source| source.binding() == parent && source.origin() == fact.origin())
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            // Canonical origin is the parent's source lease; projection starts at its actual payload.
-            self.validate_initializer_root(initializer, parent, span)?;
-        } else {
-            self.validate_return_place(initializer, origin.root(), origin.fields(), span)?;
+        // Non-root/call/range `borrow val` bindings lower through `ssa::refine` (SPEC-0390);
+        // only direct root Borrow parameter aliases used by legacy map iteration remain here.
+        if fact.storage()
+            != lang_frontend::ownership_checking::BorrowBindingStorage::BorrowedStorage
+            || fact.source_loan().is_some()
+            || fact.parent().is_some()
+            || !origin.is_root()
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if self.direct_name_symbol(initializer, span)? != Some(origin.root()) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let Some(source) = self.borrow_bindings.get(&origin.root()).copied() else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
         let ty = EntityType::Loan {
             kind: LoanKind::Shared,
             target: self.expression_ssa_type(initializer, span)?,
         };
-        let mut created = Vec::new();
-        let source = self.clone_field_loan(initializer, &mut created, span)?;
         if self
             .function
             .entity(EntityId::Loan(source))
@@ -346,317 +227,21 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        // Keep new root/projection ancestors until the binding ends; never end a pre-existing parent.
-        let loan = if created.last() == Some(&source) {
-            created.pop();
-            source
-        } else {
-            let (_, results) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::SharedReborrow { source },
-                    vec![ty],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let EntityId::Loan(loan) = results[0] else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            loan
-        };
-        Ok((loan, created))
-    }
-
-    fn validate_initializer_root(
-        &self,
-        expression: ExpressionId,
-        root: UnitSymbolId,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        use lang_frontend::type_checking::UnitAggregateProjectionReceiver;
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if let Expression::Group { expression } = node.payload() {
-            return self.validate_initializer_root(*expression, root, span);
-        }
-        if let Some(projection) = self
-            .typed
-            .aggregate_projection(UnitExpressionId::new(self.source_unit, expression))
-        {
-            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
-            else {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            };
-            if receiver.source_unit() != self.source_unit {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            return self.validate_initializer_root(receiver.expression(), root, span);
-        }
-        if !matches!(node.payload(), Expression::Name)
-            || self.references.get(&span_key(node.span())) != Some(&root)
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        Ok(())
-    }
-
-    pub(super) fn lower_result_return(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let fact = self
-            .owned
-            .borrow_return_origins()
-            .iter()
-            .find(|fact| fact.expression() == id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let UnitLoanTarget::Place(place) = fact.origin() else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        if place.element().is_some() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let source_parameter = self
-            .borrow_bindings
-            .get(&place.root())
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if crate::ssa::verify_borrow_result::parameter(self.function).map(|(loan, _)| loan)
-            != Some(source_parameter)
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let return_id = id;
-        // The return-origin fact belongs to the outer expression; forwarding belongs to its call.
-        let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let loan = match node.payload() {
-            Expression::Name | Expression::Member { .. } => {
-                self.validate_return_place(expression, place.root(), place.fields(), span)?;
-                let mut created = Vec::new();
-                self.clone_field_loan(expression, &mut created, span)?
-            }
-            Expression::Call { .. } => {
-                let source = self
-                    .owned
-                    .borrow_results()
-                    .forwarded_source_loans()
-                    .iter()
-                    .find(|source| source.call() == id)
-                    .copied()
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-                self.lower_result_call(expression, source, node.span())?.0
-            }
-            _ => {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    node.span(),
-                ));
-            }
-        };
-        self.emit_drops(UnitDropPoint::ControlTransfer(return_id))?;
-        self.function
-            .set_terminator(
-                self.block,
-                TerminatorKind::BorrowReturn { loan },
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
-    }
-
-    /// Match every published field identity and the actual source name before forming loans.
-    fn validate_return_place(
-        &self,
-        expression: ExpressionId,
-        root: UnitSymbolId,
-        fields: &[UnitSymbolId],
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        use lang_frontend::type_checking::UnitAggregateProjectionReceiver;
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if let Expression::Group { expression } = node.payload() {
-            return self.validate_return_place(*expression, root, fields, span);
-        }
-        if let Some((last, prefix)) = fields.split_last() {
-            let projection = self
-                .typed
-                .aggregate_projection(UnitExpressionId::new(self.source_unit, expression))
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
-            else {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            };
-            if projection.field() != *last || receiver.source_unit() != self.source_unit {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            return self.validate_return_place(receiver.expression(), root, prefix, span);
-        }
-        if !matches!(node.payload(), Expression::Name)
-            || self.references.get(&span_key(node.span())) != Some(&root)
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        Ok(())
-    }
-
-    fn lower_result_call(
-        &mut self,
-        expression: ExpressionId,
-        source: BorrowSourceLoan<UnitExpressionId>,
-        span: Span,
-    ) -> Result<(LoanId, Vec<LoanId>), LoweringError> {
-        let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        if source.call() != id {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        if self.typed.map_require_value(id).is_some() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Expression::Call { arguments, .. } = node.payload() else {
-            return Err(lowering_error(
-                LoweringErrorKind::UnsupportedNode,
-                node.span(),
-            ));
-        };
-        let descriptor = self
-            .typed
-            .call(id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let index = crate::ssa::borrow_result_support::source_index(
-            descriptor
-                .borrow_return()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
-                .origin(),
-            span,
-        )?;
-        if descriptor.receiver().is_some()
-            || descriptor
-                .arguments()
-                .iter()
-                .any(|mapping| mapping.mode() == ParameterMode::Inout)
-            || self.owned.borrow_results().range_uses().iter().any(|fact| {
-                fact.site() == lang_frontend::ownership_checking::RangeUseSite::Call(id)
-            })
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        crate::ssa::borrow_result_support::binding(
-            self.parsed,
-            node.span(),
-            false,
-            &[],
-            None,
-            |_| None,
-            |_, _| false,
-            |_| false,
-        )?;
-        for mapping in descriptor.arguments() {
-            let concrete = resolve_concrete_type(
-                self.typed,
-                mapping.parameter_type(),
-                self.substitutions,
-                self.static_self,
-                span,
-            )?;
-            if matches!(
-                self.typed.types().get(concrete),
-                Some(UnitTypeKind::Function { .. })
-            ) {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
-        }
-        let selected = descriptor
-            .arguments()
-            .iter()
-            .find(|mapping| mapping.parameter_index() == index)
-            .and_then(|mapping| arguments.get(mapping.argument_index()))
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if UnitExpressionId::new(self.source_unit, selected.value) != source.argument() {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let route = self
-            .source_plan
-            .call_site(self.source_token, id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let callee = *self
-            .function_ids
-            .get(route.key())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let target = self.expression_ssa_type(expression, span)?;
-        // Reuse the ordinary call frame for projected arguments, but extend its loans
-        // with the borrowed result instead of ending them at the synchronous call boundary.
-        for argument in arguments {
-            crate::ssa::borrow_result_support::argument(self.parsed, argument.span)?;
-        }
-        let blocks = self.function.blocks.len();
-        let mut lowered = self
-            .lower_call_arguments(id, arguments, descriptor, node.span())?
-            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        if self.function.blocks.len() != blocks || !lowered.abi_owners.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let Some(EntityId::Loan(source_loan)) = lowered.arguments.get(index) else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        };
-        let source_loan = *source_loan;
-        let continued = lowered
-            .argument_loans
-            .remove(&source.argument())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let (_, results) = self
             .function
             .append_instruction(
                 self.block,
-                Operation::BorrowCall {
-                    callee,
-                    arguments: lowered.arguments,
-                    source: source_loan,
-                },
-                vec![EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target,
-                }],
-                Origin::Source(node.span()),
+                Operation::SharedReborrow { source },
+                vec![ty],
+                Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let [EntityId::Loan(result)] = results.as_slice() else {
+        let EntityId::Loan(loan) = results[0] else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        let result = *result;
-        // End every unrelated created chain before executing any owner drop.
-        for (loan, end_span) in lowered.created_loans.into_iter().rev() {
-            if !continued.contains(&loan) {
-                self.end_short_call_loan(loan, end_span)?;
-            }
-        }
-        self.emit_borrow_argument_expression_drops(id)?;
-        self.emit_drops(UnitDropPoint::CallReturn(id))?;
-        Ok((result, continued))
+        self.borrow_bindings.insert(symbol, loan);
+        self.result_source_loans.insert(symbol, Vec::new());
+        Ok(LoweredValue::Unit)
     }
 
     pub(super) fn end_result_bindings(
@@ -686,182 +271,15 @@ impl UnitExpressionLowerer<'_> {
             self.function
                 .append_instruction(
                     self.block,
-                    if let Some(LoweredValue::Value(view)) = self.bindings.remove(&fact.binding()) {
-                        Operation::RangeEnd { view, source: loan }
-                    } else {
-                        Operation::BorrowEnd { loan }
-                    },
+                    Operation::BorrowEnd { loan },
                     Vec::new(),
                     Origin::Source(span),
                 )
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            if let Some(sources) = self.result_source_loans.remove(&fact.binding()) {
-                for loan in sources.into_iter().rev() {
-                    self.function
-                        .append_instruction(
-                            self.block,
-                            Operation::BorrowEnd { loan },
-                            Vec::new(),
-                            Origin::Source(span),
-                        )
-                        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                }
-            }
+            self.result_source_loans.remove(&fact.binding());
         }
         Ok(())
     }
-
-    fn clone_field_projection(
-        &self,
-        expression: ExpressionId,
-    ) -> Result<
-        Option<lang_frontend::type_checking::UnitAggregateProjectionDescriptor>,
-        LoweringError,
-    > {
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
-        if let Expression::Group { expression } = node.payload() {
-            return self.clone_field_projection(*expression);
-        }
-        Ok(self
-            .typed
-            .aggregate_projection(UnitExpressionId::new(self.source_unit, expression)))
-    }
-
-    fn clone_field_loan(
-        &mut self,
-        expression: ExpressionId,
-        created: &mut Vec<LoanId>,
-        span: Span,
-    ) -> Result<LoanId, LoweringError> {
-        use lang_frontend::type_checking::{NominalKind, UnitAggregateProjectionReceiver};
-        let target = self.expression_ssa_type(expression, span)?;
-        if let Some(projection) = self.clone_field_projection(expression)? {
-            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
-            else {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            };
-            if receiver.source_unit() != self.source_unit {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            let receiver_type = self
-                .typed
-                .expression_type(receiver)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let receiver_type = resolve_concrete_type(
-                self.typed,
-                receiver_type,
-                self.substitutions,
-                self.static_self,
-                span,
-            )?;
-            let Some(UnitTypeKind::Nominal { declaration, .. }) =
-                self.typed.types().get(receiver_type)
-            else {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            };
-            let nominal = self
-                .typed
-                .signatures()
-                .declaration(*declaration)
-                .and_then(|signature| signature.nominal())
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let field = self
-                .field_indices
-                .get(&(receiver_type, projection.field()))
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let kind = nominal.kind();
-            let base = self.clone_field_loan(receiver.expression(), created, span)?;
-            let operation = match kind {
-                NominalKind::Class => Operation::SharedHeapFieldLoan { base, field },
-                NominalKind::ValueClass => Operation::SharedFieldLoan { base, field },
-                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
-            };
-            let (_, results) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    operation,
-                    vec![EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target,
-                    }],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let EntityId::Loan(loan) = results[0] else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            created.push(loan);
-            return Ok(loan);
-        }
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if let Expression::Group { expression } = node.payload() {
-            return self.clone_field_loan(*expression, created, span);
-        }
-        if matches!(node.payload(), Expression::Name)
-            && let Some(symbol) = self.references.get(&span_key(node.span()))
-            && let Some(loan) = self.borrow_bindings.get(symbol).copied()
-        {
-            return Ok(loan);
-        }
-        let owner = self.require_expression_value(expression)?;
-        let (_, root) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::RootPlace { owner },
-                vec![EntityType::Place(target)],
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let EntityId::Place(place) = root[0] else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        };
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::BorrowBegin {
-                    place,
-                    kind: LoanKind::Shared,
-                },
-                vec![EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target,
-                }],
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let EntityId::Loan(loan) = results[0] else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        };
-        created.push(loan);
-        Ok(loan)
-    }
-}
-
-pub(super) fn validate(
-    parsed: &[&lang_frontend::parser::ParsedFile],
-    names: &ValidatedCompilationUnitNames,
-    typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
-) -> Result<(), LoweringError> {
-    validate_declarations(parsed, typed, owned)?;
-    validate_bindings(parsed, names, typed, owned)
 }
 
 #[cfg(test)]

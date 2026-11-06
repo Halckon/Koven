@@ -287,6 +287,33 @@ impl Builder<'_, '_> {
             .source_plan
             .call_site(self.inputs.source_token, id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if self
+            .inputs
+            .owned
+            .borrow_results()
+            .range_uses()
+            .iter()
+            .any(|fact| fact.site() == RangeUseSite::Call(id))
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, call_span));
+        }
+        if self.inputs.owned.field_replacements().is_empty()
+            && self.inputs.typed.ownership_primitives().is_empty()
+        {
+            crate::ssa::borrow_result_support::binding(
+                self.inputs.parsed,
+                call_span,
+                false,
+                &[],
+                None,
+                |_| None,
+                |_, _| false,
+                |_| false,
+            )?;
+            for argument in &arguments {
+                crate::ssa::borrow_result_support::argument(self.inputs.parsed, argument.span)?;
+            }
+        }
         let callee = *self
             .inputs
             .function_ids
@@ -767,13 +794,11 @@ impl Builder<'_, '_> {
         loan: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let short_id = self
+        let short_view = self
             .short_ranges
-            .iter()
-            .find_map(|(&id, &(_, protecting, _))| (protecting == loan).then_some(id));
-        if let Some(id) = short_id
-            && let Some((view, _, _)) = self.short_ranges.remove(&id)
-        {
+            .values()
+            .find_map(|&(view, protecting, _)| (protecting == loan).then_some(view));
+        if let Some(view) = short_view {
             self.push(ROp::RangeEnd { view, source: loan }, Vec::new(), span)
         } else {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)
@@ -787,7 +812,7 @@ impl Builder<'_, '_> {
     ) -> Result<(), LoweringError> {
         let actual = self.ungrouped_expr(expression)?;
         let id = self.unit(actual);
-        let Some((view, protecting, continued)) = self.short_ranges.remove(&id) else {
+        let Some((view, protecting, continued)) = self.short_ranges.get(&id).cloned() else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
         self.push(

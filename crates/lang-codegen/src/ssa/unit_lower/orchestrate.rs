@@ -721,21 +721,12 @@ fn lower_unit_impl(
             plan.instance.source_unit(),
             plan.function_item,
         )))?;
-        if lowerer.function.borrow_return.is_some() {
-            let FunctionPlanBody::Expression(expression) = plan.body else {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    plan.instance.span(),
-                ));
-            };
-            lowerer.lower_result_return(expression, plan.instance.span())?;
-            continue;
-        }
-        if lowerer.function.carrier_return.is_some()
-            && let FunctionPlanBody::Expression(expression) = plan.body
-        {
-            lowerer.lower_range_return(expression, plan.instance.span())?;
-            continue;
+        // `borrow_return` and `carrier_return` functions lower through `ssa::refine` (SPEC-0390).
+        if lowerer.function.borrow_return.is_some() || lowerer.function.carrier_return.is_some() {
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                plan.instance.span(),
+            ));
         }
         let (mut result, result_expression) = match plan.body {
             FunctionPlanBody::Expression(expression) => {

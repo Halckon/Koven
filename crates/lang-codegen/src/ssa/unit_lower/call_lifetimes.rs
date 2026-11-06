@@ -400,7 +400,14 @@ impl UnitExpressionLowerer<'_> {
                 let Some(EntityId::Loan(loan)) = self.pending_operands.get(index).copied() else {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 };
-                self.end_short_call_loan(loan, span)?;
+                self.function
+                    .append_instruction(
+                        self.block,
+                        Operation::BorrowEnd { loan },
+                        Vec::new(),
+                        Origin::Source(span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 self.pending_call_frames[frame_index]
                     .nullable_children
                     .retain(|child| child.slot != index);

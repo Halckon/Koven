@@ -28,7 +28,6 @@ mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
 mod ownership;
-mod range;
 mod rc;
 mod receiver;
 mod scalar;
@@ -269,8 +268,6 @@ impl UnitExpressionLowerer<'_> {
                 }
                 _ => false,
             };
-            let rc_share = matches!(node.payload(), Expression::Call { .. })
-                && self.can_share_with_nullable_rc_proof(unit_expression, span)?;
             // A plain literal owns static bytes and cannot invalidate a String If view.
             // Interpolation still uses the ordinary carrier/transfer gate.
             let plain_string = self.has_only_string_if_proofs()
@@ -282,12 +279,20 @@ impl UnitExpressionLowerer<'_> {
                 }
                 _ => false,
             };
-            if !root_borrow_call && !rc_share && !plain_string && !string_if_return {
+            if !root_borrow_call && !plain_string && !string_if_return {
                 self.reject_live_if_proof(span)?;
             }
         }
-        if self.typed.range_size(unit_expression).is_some() {
-            return self.lower_range_size(expression, span);
+        if self.typed.range_size(unit_expression).is_some()
+            || self.typed.string_operation(unit_expression).is_some()
+            || self.typed.rc_operation(unit_expression).is_some()
+            || self
+                .typed
+                .integer_range_operation(unit_expression)
+                .is_some()
+            || self.typed.integer_operation(unit_expression).is_some()
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if let Some(value) = self.lower_constant(unit_expression, span)? {
             return Ok(value);
@@ -305,20 +310,6 @@ impl UnitExpressionLowerer<'_> {
                     Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
                 }
             };
-        }
-        if self
-            .typed
-            .integer_range_operation(unit_expression)
-            .is_some()
-            || self.typed.integer_operation(unit_expression).is_some()
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        if self.typed.string_operation(unit_expression).is_some() {
-            return self.lower_string_operation(expression, span);
-        }
-        if self.typed.rc_operation(unit_expression).is_some() {
-            return self.lower_rc_operation(expression, span);
         }
         if let Some(value) = self.lower_container_expression(expression, span)? {
             return Ok(value);
@@ -454,10 +445,7 @@ impl UnitExpressionLowerer<'_> {
             self.reject_live_if_proof(span)?;
         }
         if self.function.carrier_return.is_some() {
-            return self.lower_range_return(
-                value.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
-                span,
-            );
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let (mut result, nullable_owner_return) = match value {
             Some(value) => self.lower_proven_owner_return(expression, value, span)?,

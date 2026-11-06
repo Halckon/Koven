@@ -96,6 +96,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     for ty in signature_types {
         checker.note_nullable(ty);
         checker.migrated |= checker.container_element(ty).is_some()
+            || checker.range_view_element(ty).is_some()
             || checker.range_type(ty)
             || checker.box_payload(ty).is_some()
             || checker.enum_type(ty)

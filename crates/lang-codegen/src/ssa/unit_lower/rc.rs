@@ -1,19 +1,19 @@
-//! compilation-unit intrinsic `Rc<T>` construction 与 owner operation lowering。
+//! compilation-unit intrinsic `Rc<T>` construction 与 effect 事实校验。
 
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::RcOwnershipEffectKind,
     source::Span,
     type_checking::{
-        Copyability, ExpressionCategory, IntrinsicTypeConstructor, RcOperationKind,
-        UnitConstructionTarget, UnitExpressionId, UnitRcOperationDescriptor, UnitTypeKind,
+        ExpressionCategory, IntrinsicTypeConstructor, RcOperationKind, UnitConstructionTarget,
+        UnitExpressionId, UnitRcOperationDescriptor, UnitTypeKind,
     },
 };
 
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, Operation, Origin, PlaceAccess},
+    model::{EntityType, Operation, Origin},
 };
 
 impl UnitExpressionLowerer<'_> {
@@ -65,67 +65,6 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
-    }
-
-    pub(super) fn lower_rc_operation(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let descriptor =
-            self.validated_rc_operation(UnitExpressionId::new(self.source_unit, expression), span)?;
-        let owner = match self.nullable_rc_operand(descriptor.receiver(), span)? {
-            Some(loan) => EntityId::Loan(loan),
-            None => match self.lower(descriptor.receiver().expression())? {
-                LoweredValue::Value(owner) => EntityId::Value(owner),
-                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-            },
-        };
-        match descriptor.kind() {
-            RcOperationKind::Share => {
-                let result_type = self.expression_ssa_type(expression, span)?;
-                let (_, results) = self
-                    .function
-                    .append_instruction(
-                        self.block,
-                        Operation::SharedRetain { owner },
-                        vec![EntityType::Value(result_type)],
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                Ok(LoweredValue::Value(require_value(results[0], span)?))
-            }
-            RcOperationKind::Value => {
-                if self.typed.copyability(descriptor.payload_type()) != Copyability::Copyable {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
-                let payload = self.expression_ssa_type(expression, span)?;
-                let (_, places) = self
-                    .function
-                    .append_instruction(
-                        self.block,
-                        Operation::SharedPayloadPlace { owner },
-                        vec![EntityType::Place(payload)],
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                let EntityId::Place(place) = places[0] else {
-                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-                };
-                let (_, results) = self
-                    .function
-                    .append_instruction(
-                        self.block,
-                        Operation::Read {
-                            source: PlaceAccess::Place(place),
-                        },
-                        vec![EntityType::Value(payload)],
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                Ok(LoweredValue::Value(require_value(results[0], span)?))
-            }
-        }
     }
 
     pub(super) fn validated_rc_operation(

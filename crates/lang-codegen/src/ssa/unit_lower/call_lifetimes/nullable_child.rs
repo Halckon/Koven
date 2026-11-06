@@ -228,7 +228,14 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         for (loan, end_span) in created_loans.into_iter().rev() {
-            self.end_short_call_loan(loan, end_span)?;
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::BorrowEnd { loan },
+                    Vec::new(),
+                    Origin::Source(end_span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
             if let Some(index) = children.iter().position(|child| child.loan == loan) {
                 children.remove(index);
             }

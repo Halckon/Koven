@@ -1,7 +1,6 @@
 //! Ordinary Rc if proofs come from real null-comparison, Rc-effect and non-null-use facts.
 //! This does not change the separate nullable While/When or generic call gates.
 use super::*;
-use lang_frontend::type_checking::RcOperationKind;
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn prepare_rc_nullable_if_entry(
@@ -183,103 +182,5 @@ impl UnitExpressionLowerer<'_> {
             non_null_when_true: true,
             consume: None,
         }))
-    }
-
-    /// Only this intrinsic Share can cross the existing live-If call gate.
-    pub(in crate::ssa::unit_lower) fn can_share_with_nullable_rc_proof(
-        &self,
-        expression: UnitExpressionId,
-        span: Span,
-    ) -> Result<bool, LoweringError> {
-        if self.nullable_proofs.is_empty() {
-            return Ok(false);
-        }
-        let Some(descriptor) = self.typed.rc_operation(expression) else {
-            return Ok(false);
-        };
-        if descriptor.kind() != RcOperationKind::Share {
-            return Ok(false);
-        }
-        let descriptor = self.validated_rc_operation(expression, span)?;
-        Ok(self
-            .nullable_rc_operand(descriptor.receiver(), span)?
-            .is_some())
-    }
-
-    /// A non-null view never substitutes for an owned Value. Both Rc operations borrow it.
-    pub(in crate::ssa::unit_lower) fn nullable_rc_operand(
-        &self,
-        receiver: UnitExpressionId,
-        span: Span,
-    ) -> Result<Option<LoanId>, LoweringError> {
-        let Some(use_fact) = self.typed.non_null_use(receiver) else {
-            return Ok(None);
-        };
-        let root = use_fact.symbol();
-        let proof = self
-            .nullable_proofs
-            .get(&root)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
-        let declared = resolve_concrete_type(
-            self.typed,
-            use_fact.declared_type(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        let narrowed = resolve_concrete_type(
-            self.typed,
-            use_fact.narrowed_type(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        if proof.if_scope().is_none()
-            || root.source_unit() != self.source_unit
-            || self.typed.symbol_type(root) != Some(use_fact.declared_type())
-            || !matches!(self.typed.types().get(declared), Some(UnitTypeKind::Nullable(inner)) if *inner == narrowed)
-            || self.type_ids.get(&narrowed) != Some(&proof.inner)
-            || !matches!(
-                self.ssa_types.get(proof.inner.index()),
-                Some(SsaTypeKind::SharedOwner { .. })
-            )
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let mut operand = receiver;
-        loop {
-            let fact = self
-                .typed
-                .non_null_use(operand)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if operand.source_unit() != self.source_unit
-                || fact.expression() != operand
-                || fact.symbol() != root
-                || fact.declared_type() != use_fact.declared_type()
-                || fact.narrowed_type() != use_fact.narrowed_type()
-                || self.typed.expression_type(operand) != Some(fact.narrowed_type())
-                || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(operand.expression())
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            match node.payload() {
-                Expression::Group { expression } => {
-                    operand = UnitExpressionId::new(self.source_unit, *expression)
-                }
-                Expression::Name if self.references.get(&span_key(node.span())) == Some(&root) => {
-                    break;
-                }
-                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-            }
-        }
-        Ok(Some(proof.loan))
     }
 }

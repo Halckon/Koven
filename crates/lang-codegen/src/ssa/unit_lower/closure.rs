@@ -26,8 +26,8 @@ use super::{
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{
-        ClosureCaptureMode as SsaCaptureMode, ClosureCaptureOperand, ClosureCaptureType, EntityId,
-        EntityType, FunctionId, LoanKind, Module, Operation, Origin, SsaTypeId, TerminatorKind,
+        ClosureCaptureMode as SsaCaptureMode, ClosureCaptureType, EntityId, EntityType, FunctionId,
+        LoanKind, Module, Operation, Origin, SsaTypeId, TerminatorKind,
     },
 };
 
@@ -214,81 +214,20 @@ impl UnitExpressionLowerer<'_> {
             ))
             .cloned()
             .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        if !self.closure_binding_context && !plan.captures.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let mut captures = Vec::with_capacity(plan.captures.len());
-        for capture in &plan.captures {
-            if capture.mode == ClosureCaptureMode::Shared {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    capture.span,
-                ));
-            }
-            let value = match capture.effect {
-                ClosureCaptureEffect::Copy => {
-                    if let Some(LoweredValue::Value(value)) =
-                        self.bindings.get(&capture.symbol).copied()
-                    {
-                        value
-                    } else if let Some(loan) = self.borrow_bindings.get(&capture.symbol).copied() {
-                        let (_, results) = self
-                            .function
-                            .append_instruction(
-                                self.block,
-                                Operation::Read {
-                                    source: crate::ssa::model::PlaceAccess::Loan(loan),
-                                },
-                                vec![EntityType::Value(capture.ty)],
-                                Origin::Source(capture.span),
-                            )
-                            .map_err(|_| {
-                                lowering_error(LoweringErrorKind::InvalidModel, capture.span)
-                            })?;
-                        require_value(results[0], capture.span)?
-                    } else {
-                        return Err(lowering_error(LoweringErrorKind::MissingFact, capture.span));
-                    }
-                }
-                ClosureCaptureEffect::Move => {
-                    let Some(LoweredValue::Value(value)) =
-                        self.bindings.get(&capture.symbol).copied()
-                    else {
-                        return Err(lowering_error(LoweringErrorKind::MissingFact, capture.span));
-                    };
-                    self.take_owned_binding(capture.symbol, value, capture.span)?;
-                    value
-                }
-                ClosureCaptureEffect::Borrow | ClosureCaptureEffect::Unknown => {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        capture.span,
-                    ));
-                }
+        // Captured closures are lowered by `ssa::refine` (SPEC-0370 / SPEC-0390).
+        if let Some(capture) = plan.captures.first() {
+            let err_span = if self.closure_binding_context {
+                capture.span
+            } else {
+                span
             };
-            captures.push(ClosureCaptureOperand::Owned(value));
-        }
-        if captures.is_empty() {
-            let (_, results) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::FunctionAddress { target: plan.thunk },
-                    vec![EntityType::Value(plan.callable)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            return Ok(LoweredValue::Value(require_value(results[0], span)?));
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, err_span));
         }
         let (_, results) = self
             .function
             .append_instruction(
                 self.block,
-                Operation::ClosureConstruct {
-                    closure: plan.callable,
-                    thunk: plan.thunk,
-                    captures,
-                },
+                Operation::FunctionAddress { target: plan.thunk },
                 vec![EntityType::Value(plan.callable)],
                 Origin::Source(span),
             )

@@ -639,3 +639,25 @@ fn known_function_unit_container_and_nested_value_projection_route_to_refine() {
         res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
 }
+
+#[test]
+fn range_view_borrow_return_and_borrow_val_route_to_refine() {
+    for source in [
+        "class Boxed(val text: String)\n\
+         fun pick(source: Boxed): borrow String from source = source.text\n\
+         fun f(): Unit {\n\
+             val b = Boxed(\"hi\")\n\
+             borrow val text = pick(b)\n\
+             println(text)\n\
+         }",
+        "class Boxed(val text: String)\n\
+         fun f(b: Boxed): Unit {\n\
+             borrow val text = b.text\n\
+             println(text)\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}

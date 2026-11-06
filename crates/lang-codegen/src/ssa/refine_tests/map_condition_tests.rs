@@ -756,3 +756,46 @@ fn retired_known_function_shared_capture_callable_view_and_container_element_bou
         assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
     }
 }
+
+#[test]
+fn retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary_tests() {
+    use crate::ssa::LoweringErrorKind;
+
+    for (source, expected_slice) in [
+        (
+            "class Boxed(val text: String)\nfun pick(source: Boxed): borrow String from source = source.text\nfun main(): Unit { val b = Boxed(\"a\"); println(pick(b)) }",
+            "pick(b)",
+        ),
+        (
+            "class Boxed(val text: String)\nfun main(): Unit { val b = Boxed(\"a\"); borrow val t = b.text }",
+            "borrow val t = b.text",
+        ),
+        (
+            "fun main(): Int { val r = Rc(7); val s = r.share(); return r.value + s.value }",
+            "r.share()",
+        ),
+        (
+            "fun main(): String { val s = \"hi\"; return s.clone() }",
+            "s.clone()",
+        ),
+        ("fun main(): Unit { val x = 7; val f = { x } }", "x"),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!("package p\n{source}");
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (name_env, type_env) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
+        let entry = declaration(&names, "p", "main");
+        let err = crate::ssa::with_per_family_lowering(|| {
+            lower_scalar_unit_with_entry(
+                &sources, &inputs, &names, &type_env, &typed, &owned, entry,
+            )
+        })
+        .err()
+        .unwrap_or_else(|| panic!("expected rejection under per-family lowering for: {source}"));
+        assert_eq!(err.kind, LoweringErrorKind::UnsupportedNode, "{source}");
+        let span = err.span.expect("exact rejection span");
+        assert_eq!(sources.slice(span).unwrap(), expected_slice, "{source}");
+    }
+}

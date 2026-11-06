@@ -21,33 +21,19 @@ impl UnitExpressionLowerer<'_> {
         call_span: Span,
     ) -> Result<(LoanId, Vec<LoanId>, Span), LoweringError> {
         let argument_id = UnitExpressionId::new(self.source_unit, argument);
-        if let Some((loan, mut sources)) =
-            self.lower_nested_borrow_argument(call, argument, span)?
+        // Nested borrow-result call arguments and short-range arguments lower in `ssa::refine` (SPEC-0390).
+        if self
+            .owned
+            .borrow_results()
+            .call_uses()
+            .iter()
+            .any(|fact| fact.call() == call && fact.argument() == argument_id)
+            || self.owned.borrow_results().range_uses().iter().any(|fact| {
+                fact.expression() == argument_id
+                    && fact.site() == lang_frontend::ownership_checking::RangeUseSite::Call(call)
+            })
         {
-            if self
-                .function
-                .entity(EntityId::Loan(loan))
-                .map(|data| data.ty)
-                != Some(EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target,
-                })
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            sources.push(loan);
-            return Ok((loan, sources, call_span));
-        }
-        if self.owned.borrow_results().range_uses().iter().any(|fact| {
-            fact.expression() == argument_id
-                && fact.site() == lang_frontend::ownership_checking::RangeUseSite::Call(call)
-        }) {
-            let loan = self.lower_short_range(argument, target, span)?;
-            return Ok((
-                loan,
-                self.short_range_call_loans(argument, loan, span)?,
-                call_span,
-            ));
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let mut facts = self
             .owned
@@ -79,40 +65,8 @@ impl UnitExpressionLowerer<'_> {
         if matches!(
             self.ssa_types.get(target.index()),
             Some(SsaTypeKind::RangeView { .. })
-        ) && let Some(symbol) = self.direct_name_symbol(argument, span)?
-            && let Some(LoweredValue::Value(value)) = self.bindings.get(&symbol).copied()
-        {
-            let (_, place) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::RootPlace { owner: value },
-                    vec![EntityType::Place(target)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let [EntityId::Place(place)] = place.as_slice() else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            let (_, loan) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::BorrowBegin {
-                        place: *place,
-                        kind: LoanKind::Shared,
-                    },
-                    vec![EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target,
-                    }],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let [EntityId::Loan(loan)] = loan.as_slice() else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            return Ok((*loan, vec![*loan], fact.end_span()));
+        ) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if let Some(symbol) = self.direct_name_symbol(argument, span)?
             && self
@@ -475,29 +429,12 @@ impl UnitExpressionLowerer<'_> {
         if let Expression::Group { expression } = node.payload() {
             return self.lower_borrow_place(*expression, loan_target, target, span);
         }
-        if let Some(operation) = self
+        if self
             .typed
             .rc_operation(UnitExpressionId::new(self.source_unit, argument))
-            && operation.kind() == lang_frontend::type_checking::RcOperationKind::Value
+            .is_some()
         {
-            let receiver = operation.receiver().expression();
-            let owner = match self.lower(receiver)? {
-                LoweredValue::Value(owner) => EntityId::Value(owner),
-                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
-            };
-            let (_, places) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::SharedPayloadPlace { owner },
-                    vec![EntityType::Place(target)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let EntityId::Place(place) = places[0] else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            return Ok(place);
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if let Some(descriptor) = self.element_place_descriptor(argument)? {
             let mut receiver_expr = descriptor.receiver().expression();

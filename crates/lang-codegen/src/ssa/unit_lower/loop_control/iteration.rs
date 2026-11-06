@@ -79,11 +79,10 @@ impl UnitExpressionLowerer<'_> {
         let inherited = BorrowedWhileProof::qualify(self, &plan, container, int_type, span)?;
         let outer_temporaries = self.temporaries.keys().copied().collect();
         let retained_start = self.pending_operands.len();
-        let source_loan = if descriptor.provider()
-            == lang_frontend::type_checking::IterationProvider::RangeView
-        {
-            self.range_iteration_loan(source, container, span)?
-        } else {
+        if descriptor.provider() == lang_frontend::type_checking::IterationProvider::RangeView {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let source_loan = {
             match plan
                 .source()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
