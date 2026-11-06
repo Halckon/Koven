@@ -7,8 +7,8 @@ use lang_frontend::{
     source::SourceMap,
     type_checking::{
         BuiltinType, CallableTarget, Capability, EnvironmentFunction, EnvironmentParameter,
-        ExpressionCategory, ParameterMode, TypeEnvironment, TypeKind, check_types,
-        standard_environments,
+        ExpressionCategory, ParameterMode, TypeEnvironment, TypeKind, UnitCallTarget, UnitTypeKind,
+        check_types, standard_environments,
     },
 };
 
@@ -16,6 +16,10 @@ use lang_frontend::{
 mod parser_test_assertions;
 
 use parser_test_assertions::parse_file_twice;
+
+#[path = "type_callable/unit_entries.rs"]
+mod unit_entries;
+use unit_entries::checked_entries;
 
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
@@ -140,29 +144,29 @@ fn standard_error_has_a_stable_abort_identity_and_nothing_result() {
 fn standard_println_has_a_stable_borrow_effect_and_source_shadowing_has_none() {
     let (sources, parsed_file) = parsed("fun output(): Unit { println(\"hello\") }");
     let (names, types) = standard_environments();
-    let resolution = resolve_names(&sources, &parsed_file, &names).expect("names");
-    let typed = check_types(&sources, &parsed_file, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.calls().len(), 1);
-    let call = &typed.calls()[0];
-    assert!(matches!(call.target(), CallableTarget::External(_)));
-    assert!(call.prints_line());
-    assert!(!call.aborts());
-    assert_eq!(call.arguments()[0].mode(), ParameterMode::Borrow);
-    assert!(matches!(
-        typed.types().get(call.return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Unit))
-    ));
+    for typed in checked_entries(&sources, &parsed_file, &names, &types) {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.calls().len(), 1);
+        let call = &typed.calls()[0];
+        assert!(matches!(call.target(), UnitCallTarget::External(_)));
+        assert!(call.prints_line());
+        assert!(!call.aborts());
+        assert_eq!(call.arguments()[0].mode(), ParameterMode::Borrow);
+        assert!(matches!(
+            typed.types().get(call.return_type()),
+            Some(UnitTypeKind::Builtin(BuiltinType::Unit))
+        ));
+    }
 
     let shadowing =
         "fun println(message: String): Unit {}\nfun output(): Unit { println(\"hello\") }";
     let (sources, parsed_file) = parsed(shadowing);
-    let resolution = resolve_names(&sources, &parsed_file, &names).expect("shadow names");
-    let typed = check_types(&sources, &parsed_file, &resolution, &types).expect("shadow types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let call = typed.calls().last().expect("source println call");
-    assert!(matches!(call.target(), CallableTarget::Source(_)));
-    assert!(!call.prints_line());
+    for typed in checked_entries(&sources, &parsed_file, &names, &types) {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let call = typed.calls().last().expect("source println call");
+        assert!(matches!(call.target(), UnitCallTarget::Declaration(_)));
+        assert!(!call.prints_line());
+    }
 }
 
 #[test]
@@ -177,41 +181,40 @@ fn source_member_and_function_value_calls_record_stable_mappings() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    assert!(resolution.diagnostics().is_empty());
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.calls().len(), 3);
-    assert!(matches!(
-        typed.calls()[0].target(),
-        CallableTarget::Source(_)
-    ));
-    assert_eq!(
-        typed.calls()[0]
-            .arguments()
-            .iter()
-            .map(|argument| argument.parameter_index())
-            .collect::<Vec<_>>(),
-        [0, 1]
-    );
-    assert_eq!(typed.calls()[0].arguments()[0].mode(), ParameterMode::Value);
-    assert_eq!(
-        typed.calls()[0].arguments()[1].mode(),
-        ParameterMode::Borrow
-    );
-    assert_eq!(
-        typed.calls()[0].arguments()[0].category(),
-        ExpressionCategory::Place
-    );
-    assert!(matches!(
-        typed.calls()[1].target(),
-        CallableTarget::Source(_)
-    ));
-    assert_eq!(typed.calls()[2].target(), CallableTarget::FunctionValue);
-    assert!(typed.calls().iter().all(|call| matches!(
-        typed.types().get(call.return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Long))
-    )));
+    for typed in checked_entries(&sources, &parsed, &names, &types) {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.calls().len(), 3);
+        assert!(matches!(
+            typed.calls()[0].target(),
+            UnitCallTarget::Declaration(_)
+        ));
+        assert_eq!(
+            typed.calls()[0]
+                .arguments()
+                .iter()
+                .map(|argument| argument.parameter_index())
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+        assert_eq!(typed.calls()[0].arguments()[0].mode(), ParameterMode::Value);
+        assert_eq!(
+            typed.calls()[0].arguments()[1].mode(),
+            ParameterMode::Borrow
+        );
+        assert_eq!(
+            typed.calls()[0].arguments()[0].category(),
+            ExpressionCategory::Place
+        );
+        assert!(matches!(
+            typed.calls()[1].target(),
+            UnitCallTarget::Symbol(_)
+        ));
+        assert_eq!(typed.calls()[2].target(), UnitCallTarget::FunctionValue);
+        assert!(typed.calls().iter().all(|call| matches!(
+            typed.types().get(call.return_type()),
+            Some(UnitTypeKind::Builtin(BuiltinType::Long))
+        )));
+    }
 }
 
 #[test]
@@ -230,16 +233,16 @@ fn parameter_modes_accept_only_the_phase2_contract_matrix() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(codes(typed.diagnostics()), ["L0122", "L0122"]);
-    assert_eq!(typed.calls().len(), 4);
-    assert_eq!(typed.calls()[2].arguments()[0].mode(), ParameterMode::Value);
-    assert_eq!(
-        typed.calls()[3].arguments()[0].category(),
-        ExpressionCategory::Place
-    );
-    assert_eq!(typed.calls()[3].arguments()[0].mode(), ParameterMode::Inout);
+    for typed in checked_entries(&sources, &parsed, &names, &types) {
+        assert_eq!(codes(typed.diagnostics()), ["L0122", "L0122"]);
+        assert_eq!(typed.calls().len(), 4);
+        assert_eq!(typed.calls()[2].arguments()[0].mode(), ParameterMode::Value);
+        assert_eq!(
+            typed.calls()[3].arguments()[0].category(),
+            ExpressionCategory::Place
+        );
+        assert_eq!(typed.calls()[3].arguments()[0].mode(), ParameterMode::Inout);
+    }
 }
 
 #[test]

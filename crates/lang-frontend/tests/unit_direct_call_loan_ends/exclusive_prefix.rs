@@ -102,7 +102,22 @@ fn replace_return_exposes_actual_exclusive_prefix_end_in_both_entries() {
         "class Item(val n: Int)\nfun run(): Unit {\nvar a = Item(1)\nreplace(&a, return)\n}",
         &[("replace(&a, return)", "a")],
     );
-    for unit in observed.units {
+    for (unit, typed) in observed.units.iter().zip(&observed.unit_types) {
+        assert!(unit.is_compatible_with(typed));
+        let [event] = unit.exclusive_call_prefix_ends() else {
+            panic!("exactly one actual replace-prefix event");
+        };
+        let call = typed
+            .types()
+            .call(event.loan().call())
+            .expect("same typed call");
+        let UnitCallTarget::External(external) = call.target() else {
+            panic!("builtin replace must use the External target branch");
+        };
+        assert_eq!(
+            observed.environment.symbol(external).unwrap().name(),
+            "replace"
+        );
         assert!(
             unit.ownership_primitives().is_empty(),
             "no committed replacement"
@@ -176,4 +191,80 @@ fn declaration_return_exposes_exclusive_owned_root_prefix() {
         "class Item(val n: Int)\nfun edit(inout item: Item, next: Unit): Unit {}\nfun run(): Unit {\nvar a = Item(1)\nedit(&a, return)\n}",
         &[("edit(&a, return)", "a")],
     );
+}
+
+#[test]
+fn established_exclusive_prefixes_on_break_and_continue_are_excluded() {
+    for jump in ["break", "continue"] {
+        let call_text = format!("replace(&a, {jump})");
+        let text = format!(
+            "class Item(val n: Int)\nfun run(): Unit {{ loop {{ var a = Item(1); {call_text} }} }}"
+        );
+        let observed = assert_prefixes(&text, &[]);
+        for ((unit, typed), names) in observed
+            .units
+            .iter()
+            .zip(&observed.unit_types)
+            .zip(&observed.unit_names)
+        {
+            assert!(unit.is_compatible_with(typed));
+            let [source] = names.names().index().source_units() else {
+                panic!("one original source");
+            };
+            let loans: Vec<_> = unit
+                .loans()
+                .iter()
+                .filter(|loan| loan.kind() == LoanKind::Exclusive)
+                .collect();
+            let [loan] = loans.as_slice() else {
+                panic!("the excluded call really established one Exclusive loan");
+            };
+            assert_eq!(loan.call().source_unit(), source.id());
+            assert_eq!(loan.argument().source_unit(), source.id());
+            let call = observed
+                .parsed
+                .ast()
+                .expressions()
+                .get(loan.call().expression())
+                .unwrap();
+            assert_eq!(observed.sources.slice(call.span()), Ok(call_text.as_str()));
+            assert!(matches!(
+                typed.types().call(loan.call()).unwrap().target(),
+                UnitCallTarget::External(_)
+            ));
+            let UnitLoanTarget::Place(place) = loan.target() else {
+                panic!("owned root");
+            };
+            assert_eq!(place.root().source_unit(), source.id());
+            assert!(place.is_root());
+            assert!(unit.formed_owned_locals().contains(&place.root()));
+            let (transfer, _) = observed
+                .parsed
+                .ast()
+                .expressions()
+                .iter()
+                .find(|(_, node)| {
+                    matches!(
+                        (jump, node.payload()),
+                        ("break", Expression::Break { .. })
+                            | ("continue", Expression::Continue { .. })
+                    )
+                })
+                .expect("original loop control transfer");
+            let point = UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                loan.call().source_unit(),
+                transfer,
+            ));
+            assert!(
+                unit.drops().iter().any(|drop| {
+                    drop.point() == point && drop.target() == UnitDropTarget::Named(place.root())
+                }),
+                "the established owner is actually cleaned at the excluded jump"
+            );
+            assert!(
+                unit.ownership_primitives().is_empty(),
+                "replacement never commits"
+            );
+        }
+    }
 }

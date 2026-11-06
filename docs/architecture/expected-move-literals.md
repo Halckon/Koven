@@ -5,7 +5,7 @@
 两入口 lambda expected gate 已按启用的 v0.41 对齐：普通 Function 上下文中的 move literal
 保留该 expected canonical identity；AST 的 move 身份继续交给 ownership。strong move、已定型
 named Function 的身份、arity 和参数 mode 仍有精确 L0084 反例。直接覆盖位于
-`type_callable/expected_move_literals` 与 `multifile_type_checking/lambdas`。
+`type_callable/expected_move_literals`（同源 MemoryDocument/Rooted，保留原 canonical identity、模式与诊断 oracle）与 `multifile_type_checking/lambdas`（跨文件邻控）。
 
 两 ownership 入口继续按捕获事实发布 Owned/Move；返回环境交付给 caller，不在 factory
 内重复释放源参数。局部及临时 callback 的 Shared 参数 loan 保持到自身调用返回，最终

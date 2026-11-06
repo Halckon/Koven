@@ -1,5 +1,6 @@
 mod box_arguments;
 mod callable;
+mod container_arguments;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
@@ -710,6 +711,7 @@ impl<'a> SignatureCollector<'a> {
                     if constructor == IntrinsicTypeConstructor::Box {
                         return self.instantiate_box_type(source, segment);
                     }
+                    self.check_sequential_element(source, segment, constructor, &arguments)?;
                     Ok(self.types.intern(UnitTypeKind::Intrinsic {
                         constructor,
                         arguments,
