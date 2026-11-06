@@ -2618,3 +2618,31 @@ Phase 3，不改变 Value/Inout、普通借用结果或其他投影族的资格�
 
 本次组合 main `bd036dfd`（含 #319、#320），保留双方原改动，仅解决 Spec 编号冲突，将本节
 改为 §112；P3 源码不变。新组合的官方 CI 尚待运行，原发布头的通过记录不替代新组合验收。
+
+
+## 113. Callable 基础事实消费者退休（2026-11-06）
+
+基于 main `c4ba670a76a567e1475deee47378fa791d25f419`，分支
+`feature/spec-0341-e2-progress`。只涉及 Phase 2 测试消费入口，不改生产、Guide、
+codegen 或 PR #323 的 E3 退休工作；D10/E2 与本 Spec 继续 in-progress。
+
+- `type_callable` 三项原测试：标准 println 与源码遮蔽、普通成员/函数值调用的稳定映射、
+  参数模式矩阵。保留原四份源码、标准或自定义十六 builtin/两能力环境、重复解析、
+  测试名称与全部原断言，四次 Single 类型分析替换为八次真实 Unit 分析。
+- 同一 ParsedFile 与环境分别走 MemoryDocument/Rooted；helper 检查单源身份、精确
+  root/path 与 call 的 source-unit，名称诊断全空后才 validate。仍观察 raw types，
+  不增加 final/ownership 前置。Source target 对应明确的 Declaration 或 Symbol；
+  External、FunctionValue、返回类型、参数顺序、mode、Place、效果和 L0122×2 保留。
+- 仅本文件直接 `check_types` 静态调用 25→21；这不是全仓退休比例，旧 API 与其余
+  差异见证仍保留。其他十六项顶层测试体逐字节不变，独立只读复核未发现阻断。
+
+| 验收项 | 命令 / 检查 | 实际结果 |
+|---|---|---|
+| 目标编译 | `cargo test --offline --locked -p lang-frontend --test type_callable --no-run` | 云端固定 Rust 1.96.0、独立 target、默认 debug=2，编译链接通过 |
+| 生产编译 | `cargo build --offline --locked -p lang-frontend --lib` | 通过 |
+| 直接行为 | 上述三项原测试名逐一 `--exact` | 各 1 passed、0 failed；每项内双入口，非全 target 动态验收 |
+| 静态质量 | `cargo clippy --offline --locked -p lang-frontend --all-targets -- -D warnings`、fmt、docs、Rust 尺寸、diff | 全部通过；839 Markdown、2119 Rust 文件、39 项历史超限，无新增债；主测试948行、helper 51行 |
+| 原合同保全 | 三项源码/断言字符串、其余十六项顶层测试体、全部十九项顶层测试名称 | 机械比对与独立静审通过 |
+
+没有执行故障注入、校准、含 Abort 的整项测试或用户 Mac 构建。目标中的其他测试未执行，
+本地通过不替代官方双平台 CI；本片未推送、未开 PR、未合并。
