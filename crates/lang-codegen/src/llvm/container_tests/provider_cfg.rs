@@ -331,7 +331,7 @@ fn borrowed_provider_cfg_lowers_length_once_and_cleanup_exits() {
         let second = crate::test_support::without_abort_runtime(
             &render_verified_program(&program).expect("provider LLVM must be deterministic"),
         );
-        assert_eq!(first, second);
+        crate::test_support::diagnostics::assert_text_eq!(first, second);
         let entry_ir = first
             .split("bb0:")
             .nth(1)

@@ -21,7 +21,7 @@ impl UnitExpressionLowerer<'_> {
         call_span: Span,
     ) -> Result<(LoanId, Vec<LoanId>, Span), LoweringError> {
         let argument_id = UnitExpressionId::new(self.source_unit, argument);
-        // Nested borrow-result call arguments and short-range arguments lower in `ssa::refine` (SPEC-0390).
+        // Nested borrow-result call arguments and short-range arguments lower in `ssa::refine` (SPEC-0393).
         if self
             .owned
             .borrow_results()

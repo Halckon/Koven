@@ -1,4 +1,5 @@
 //! Real Unit lowering origins; no manually populated type-origin table or native execution.
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::{SourceUnitInput, SymbolKind},
     parser::ParsedFile,
@@ -162,7 +163,7 @@ fn same_named_classes_keep_source_qualified_origins_under_input_permutation() {
     let (backward, _) =
         lower_scalar_unit_with_entry(&sources, &reversed, &names, &te, &typed, &owned, entry)
             .expect("input permutation lowers");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
     assert_eq!(origins(&forward), origins(&backward));
     let module = &forward.modules[0];
     let mut owners = 0;

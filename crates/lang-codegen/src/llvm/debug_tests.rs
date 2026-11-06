@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 use std::{
     fs,
     path::PathBuf,
@@ -283,7 +284,7 @@ fn run(command: &mut Command, operation: &str) -> std::process::Output {
 }
 
 fn assert_success(output: &std::process::Output, operation: &str) {
-    assert!(
+    assert_diagnostic!(
         output.status.success(),
         "{operation} failed\nstdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&output.stdout),
@@ -302,7 +303,7 @@ fn debug_ir_maps_files_functions_unicode_and_synthetic_anchor_deterministically(
     let first = render_verified_program_with_debug(&program, &sources, entry).expect("debug IR");
     let second = render_verified_program_with_debug(&program, &sources, entry).expect("debug IR");
 
-    assert_eq!(first, second);
+    crate::test_support::diagnostics::assert_text_eq!(first, second);
     assert_eq!(first.matches("!DICompileUnit(").count(), 1);
     assert!(first.contains("language: DW_LANG_C"));
     assert!(first.contains("producer: \"kovenc\""));

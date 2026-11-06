@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn checked_division_by_zero_with_sibling_slot_reassignment() {
@@ -532,7 +533,7 @@ fn checked_arithmetic_overflow_without_divisor_aborts_cleanly() {
         }
     }"#;
     let output = crate::native_tests::emit_link_and_run("add_overflow.ko", source, "main");
-    assert!(output.stdout.is_empty(), "{output:?}");
+    assert_diagnostic!(output.stdout.is_empty(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.starts_with("abort: integer overflow in +\n  at "),
@@ -550,7 +551,7 @@ fn checked_multiply_overflow_without_divisor_aborts_cleanly() {
         }
     }"#;
     let output = crate::native_tests::emit_link_and_run("mul_overflow.ko", source, "main");
-    assert!(output.stdout.is_empty(), "{output:?}");
+    assert_diagnostic!(output.stdout.is_empty(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.starts_with("abort: integer overflow in *\n  at "),
@@ -698,40 +699,21 @@ fn assert_refine_function_op_and_abort_clean(
         .find(|f| f.name.contains(function_name))
         .unwrap_or_else(|| panic!("function {function_name} not found"));
 
+    let abort_count = super::abort_owner_assertions::check_consumed_call_owner(
+        function,
+        expected_op_check,
+        consumed_parameter_index,
+    )
+    .unwrap_or_else(|error| {
+        panic!(
+            "function {function_name}: {error}; instructions:\n{}",
+            super::render_program(&program)
+        )
+    });
     assert!(
-        function
-            .instructions
-            .iter()
-            .any(|inst| expected_op_check(&inst.operation)),
-        "function {function_name} must contain expected operation; instructions:\n{}",
-        super::render_program(&program)
+        abort_count >= 2,
+        "function {function_name} must reach both abort arms after consuming the owner"
     );
-
-    let entry_block = &function.blocks[0];
-    let consumed_entity = entry_block.parameters[consumed_parameter_index];
-    let abort_blocks: Vec<_> = function
-        .blocks
-        .iter()
-        .filter(|b| {
-            matches!(
-                b.terminator.as_ref().map(|t| &t.kind),
-                Some(TerminatorKind::Abort)
-            )
-        })
-        .collect();
-    assert!(
-        !abort_blocks.is_empty(),
-        "function {function_name} must have at least one abort block"
-    );
-    for abort_block in abort_blocks {
-        assert!(
-            !abort_block.parameters.contains(&consumed_entity),
-            "abort block {:?} parameters {:?} must not contain consumed entity {:?}",
-            abort_block.id,
-            abort_block.parameters,
-            consumed_entity
-        );
-    }
 }
 
 fn emit_link_and_run_authorized(

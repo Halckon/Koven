@@ -1,4 +1,5 @@
 //! Ordinary borrowed-for/nullable-while first-red candidates; no fabricated facts.
+use crate::test_support::diagnostics::{diagnostic, expect};
 use lang_frontend::{
     lexer::lex,
     parser::{Expression, Item, NameMarker, Statement, parse_file},
@@ -68,10 +69,13 @@ fn borrowed_for_preserves_the_outer_nullable_while_proof() {
     observe_borrowed_sources("for-inside-while", &borrowed_for_inside_while_sources());
     assert_eq!(memory.len(), 2);
     for (case, result) in memory.into_iter().enumerate() {
-        let source = result.expect("original-layout Unit borrowed proof reaches SSA and LLVM");
+        let source = expect(
+            result,
+            "original-layout Unit borrowed proof reaches SSA and LLVM",
+        );
         let spans = source_spans(&sources[case], false);
         borrowed_proof_contract::assert_borrowed_proof(&source.program, &spans, true);
-        println!("SHAPE4 MEMORY borrowed case={case} oracle=ok");
+        diagnostic!("SHAPE4 MEMORY borrowed case={case} oracle=ok");
     }
 }
 
@@ -95,10 +99,10 @@ fn observe_borrowed_sources(relation: &str, sources: &[String; 2]) {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                println!("BORROWED PROOF LLVM relation={relation} case={index} {llvm}");
+                diagnostic!("BORROWED PROOF LLVM relation={relation} case={index} {llvm}");
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "BORROWED PROOF OUTCOME relation={relation} source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -110,8 +114,10 @@ fn observe_borrowed_sources(relation: &str, sources: &[String; 2]) {
     // Retain all original/Group single/unit verify/render outcomes before asserting success.
     assert_eq!(outcomes.len(), 4);
     for (index, outcome) in outcomes.into_iter().enumerate() {
-        let program =
-            outcome.expect("ordinary borrowed for and nullable while preserve enclosing access");
+        let program = expect(
+            outcome,
+            "ordinary borrowed for and nullable while preserve enclosing access",
+        );
         if relation == "for-inside-while" {
             let unit = index % 2 == 1;
             let spans = source_spans(&sources[index / 2], unit);

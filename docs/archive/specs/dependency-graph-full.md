@@ -378,7 +378,9 @@ subgraph Gactive["现行 active"]
   S0387["S0387<br/>String.clone()、装箱构造、value class 字段借用与通用 when 旧路径退役"]
   S0388["S0388<br/>数值区间 for、运行时长度容器构造、Map.get、非可空 Map.consume 与 $map.result 旧路径退役"]
   S0389["S0389<br/>具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役"]
-  S0390["S0390<br/>RangeView、借用结果函数与绑定、Rc 操作、String.clone() 及带捕获闭包旧路径退役"]
+  S0390["S0390<br/>预置 Linux CI 工具链镜像"]
+  S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
+  S0393["S0393<br/>RangeView、借用结果函数与绑定、Rc 操作、String.clone() 及带捕获闭包旧路径退役"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1828,7 +1830,9 @@ S0366 --> S0367
 | SPEC-0387 | active | [0387-refine-string-clone-box-value-field-when-retirement.md](../../specs/active/0387-refine-string-clone-box-value-field-when-retirement.md) |
 | SPEC-0388 | active | [0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
 | SPEC-0389 | active | [0389-refine-known-function-shared-capture-container-element-retirement.md](../../specs/active/0389-refine-known-function-shared-capture-container-element-retirement.md) |
-| SPEC-0390 | active | [0390-refine-range-borrow-result-rc-closure-retirement.md](../../specs/active/0390-refine-range-borrow-result-rc-closure-retirement.md) |
+| SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](../../specs/active/0390-prebuilt-ci-toolchain.md) |
+| SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
+| SPEC-0393 | active | [0393-refine-range-borrow-result-rc-closure-retirement.md](../../specs/active/0393-refine-range-borrow-result-rc-closure-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

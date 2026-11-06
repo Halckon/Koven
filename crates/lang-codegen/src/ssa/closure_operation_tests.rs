@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::source::SourceMap;
 
 mod escape_tests;
@@ -224,7 +225,7 @@ fn callable_types_preserve_concrete_capture_identity_and_reject_invalid_shapes()
 
     verify_program(&program).expect("callable type definitions must verify");
     let rendered = render_program(&program);
-    assert_eq!(rendered, render_program(&program));
+    assert_text_eq!(rendered, render_program(&program));
     assert!(rendered.contains("function_pointer (value !t0) -> (!t0)"));
     assert!(rendered.contains("closure \"CounterClosure\" env !t3"));
     assert!(rendered.contains("captures (owned !t0, owned !t1) (value !t0) -> (!t0)"));

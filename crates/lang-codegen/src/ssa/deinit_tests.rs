@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 use super::{
@@ -49,7 +50,7 @@ fn deinit_registration_preserves_exact_readonly_receiver_and_rejects_duplicates(
     assert!(module.set_deinit(owner, deinit).is_err());
     verify_program(&program).unwrap();
     let rendered = super::render_program(&program);
-    assert!(rendered.contains("deinit !t0 = @f0"), "{rendered}");
+    assert_diagnostic!(rendered.contains("deinit !t0 = @f0"), "{rendered}");
 }
 
 #[test]

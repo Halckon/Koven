@@ -1,5 +1,6 @@
 //! 普通 unit 的六输入交接合同；不把结构相等误当同一次分析。
 
+use crate::test_support::diagnostics::assert_diagnostic;
 use std::{cell::Cell, ffi::OsString, path::Path, sync::atomic::Ordering};
 
 use lang_frontend::ownership_checking::{
@@ -829,7 +830,7 @@ fn identity_rejection_never_reserves_sibling_output() {
         .env(COUNTER_CHILD, COUNTER_TEST)
         .output()
         .expect("isolated libtest child starts");
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("libtest stdout");
     assert!(stdout.contains("1 passed; 0 failed; 0 ignored"), "{stdout}");
 }
@@ -860,7 +861,7 @@ fn llvm_emission_failure_is_atomic_and_tls_recovers() {
                 "lowering and LLVM verification reached emission"
             );
             assert_eq!(error.kind(), NativeObjectErrorKind::Backend);
-            assert!(error.to_string().contains("Not a directory"), "{error}");
+            assert_diagnostic!(error.to_string().contains("Not a directory"), "{error}");
             assert_eq!(fs::read(&blocker).unwrap(), b"blocker bytes");
             if present {
                 assert_eq!(fs::read(&object).unwrap(), b"old object bytes");

@@ -1,6 +1,7 @@
 //! Original String I/O sources through strict MemoryDocument Unit admission.
 //! Original single-root interpolation rejections retain independent Unit boundary tests.
 //! Every original root is selected separately; this is not whole-file/native equivalence.
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 
 use super::{
@@ -134,10 +135,10 @@ fn dynamic_string_error_unit_comparison() {
         Operation::Drop { owner: dropped } if dropped == owner))
     );
     let ssa = render_program(&program);
-    assert_eq!(ssa.matches("abort @source(").count(), 1, "{ssa}");
-    assert!(!ssa.contains("call @error"), "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("abort @source(").count(), 1, "{ssa}");
+    assert_diagnostic!(!ssa.contains("call @error"), "{ssa}");
     for oracle in ["string.literal", "string.concat", "borrow.shared"] {
-        assert!(ssa.contains(oracle), "{oracle}: {ssa}");
+        assert_diagnostic!(ssa.contains(oracle), "{oracle}: {ssa}");
     }
 }
 
@@ -291,11 +292,11 @@ fn dynamic_string_println_unit_comparison() {
         panic!("original nonliteral entry loan")
     };
     let ssa = render_program(&program);
-    assert!(
+    assert_diagnostic!(
         ssa.contains(&format!("print.string %l{}", loan.index())),
         "{ssa}"
     );
-    assert!(!ssa.contains("borrow.shared"), "{ssa}");
+    assert_diagnostic!(!ssa.contains("borrow.shared"), "{ssa}");
 }
 
 fn assert_entry_print(function: &Function) {

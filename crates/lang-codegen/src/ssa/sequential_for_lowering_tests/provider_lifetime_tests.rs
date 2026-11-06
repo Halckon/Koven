@@ -2,6 +2,7 @@ use super::super::{
     model::{EntityId, Operation},
     verify::verify_program,
 };
+use crate::test_support::diagnostics::assert_diagnostic;
 
 fn fixture() -> super::SourceProgram {
     super::analyze(
@@ -52,7 +53,7 @@ fn provider_stale_place_is_rejected_after_source_end() {
     block.terminator = terminator;
     let error =
         verify_program(&analysis.program).expect_err("place cannot outlive provider source");
-    assert!(
+    assert_diagnostic!(
         error.errors.iter().any(|error| matches!(
             error.kind,
             super::super::verify::VerifyErrorKind::PlaceUnavailable { .. }
@@ -116,7 +117,7 @@ fn entry_reborrow_cannot_revive_a_finished_provider_source() {
     block.terminator = terminator;
     let error =
         verify_program(&analysis.program).expect_err("finished source cannot be reborrowed");
-    assert!(
+    assert_diagnostic!(
         error.errors.iter().any(|error| matches!(
             error.kind,
             super::super::verify::VerifyErrorKind::LoanInactive { .. }

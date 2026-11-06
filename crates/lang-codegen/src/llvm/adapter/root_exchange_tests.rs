@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use lang_frontend::source::SourceMap;
 
 use crate::ssa::model::{
@@ -313,17 +314,17 @@ fn root_replace_moves_all_native_storage_without_runtime_calls() {
             .lines()
             .filter(|line| line.contains("load ") || line.contains("store "))
             .collect();
-        assert_eq!(memory.len(), 3, "{case:?}: {body}");
-        assert!(memory[0].contains("store "), "{case:?}: {body}");
-        assert!(
+        assert_eq_diagnostic!(memory.len(), 3, "{case:?}: {body}");
+        assert_diagnostic!(memory[0].contains("store "), "{case:?}: {body}");
+        assert_diagnostic!(
             memory[1].contains(&format!("%v{} = load ", fixture.results[1].index())),
             "{case:?}: {body}"
         );
-        assert!(
+        assert_diagnostic!(
             memory[1].contains(&format!("ptr %p{}", fixture.places[0].index())),
             "{case:?}: {body}"
         );
-        assert!(
+        assert_diagnostic!(
             memory[2].contains(&format!(
                 "%v{}, ptr %p{}",
                 fixture.inputs[1].index(),
@@ -331,15 +332,15 @@ fn root_replace_moves_all_native_storage_without_runtime_calls() {
             )),
             "{case:?}: {body}"
         );
-        assert!(
+        assert_diagnostic!(
             body.contains(&format!("%v{}, 0", fixture.inputs[1].index())),
             "new root must be replacement: {case:?}: {body}"
         );
-        assert!(
+        assert_diagnostic!(
             body.contains(&format!("%v{}, 1", fixture.results[1].index())),
             "detached old must come from load: {case:?}: {body}"
         );
-        assert!(
+        assert_diagnostic!(
             !body.contains("call "),
             "exchange must not drop, clone, retain or allocate: {case:?}: {body}"
         );
@@ -357,23 +358,23 @@ fn root_swap_loads_both_roots_before_either_store() {
             .lines()
             .filter(|line| line.contains("load ") || line.contains("store "))
             .collect();
-        assert_eq!(memory.len(), 6, "{case:?}: {body}");
+        assert_eq_diagnostic!(memory.len(), 6, "{case:?}: {body}");
         for line in &memory[..2] {
-            assert!(line.contains("store "), "{case:?}: {body}");
+            assert_diagnostic!(line.contains("store "), "{case:?}: {body}");
         }
         for (position, result) in [fixture.results[1], fixture.results[0]].iter().enumerate() {
-            assert!(
+            assert_diagnostic!(
                 memory[position + 2].contains(&format!("%v{} = load ", result.index())),
                 "{case:?}: {body}"
             );
-            assert!(
+            assert_diagnostic!(
                 memory[position + 2]
                     .contains(&format!("ptr %p{}", fixture.places[position].index())),
                 "{case:?}: {body}"
             );
         }
         for (position, result) in fixture.results.iter().enumerate() {
-            assert!(
+            assert_diagnostic!(
                 memory[position + 4].contains(&format!(
                     "%v{}, ptr %p{}",
                     result.index(),
@@ -381,12 +382,12 @@ fn root_swap_loads_both_roots_before_either_store() {
                 )),
                 "{case:?}: {body}"
             );
-            assert!(
+            assert_diagnostic!(
                 body.contains(&format!("%v{}, {position}", result.index())),
                 "result must match replacement: {case:?}: {body}"
             );
         }
-        assert!(
+        assert_diagnostic!(
             !body.contains("call "),
             "exchange must not drop, clone, retain or allocate: {case:?}: {body}"
         );
@@ -568,13 +569,13 @@ fn root_exchange_unit_locals_use_zero_sized_storage_and_keep_void_function_abi()
         .expect("return");
 
     let ir = render_verified_program(&program, None).expect("Unit root exchange");
-    assert!(ir.contains("define internal void @f0.exchange()"), "{ir}");
+    assert_diagnostic!(ir.contains("define internal void @f0.exchange()"), "{ir}");
     let body = function_body(&ir);
-    assert_eq!(body.matches("alloca {}").count(), 4, "{body}");
-    assert_eq!(body.matches("load {}, ptr").count(), 4, "{body}");
-    assert_eq!(body.matches("phi {}").count(), 2, "{body}");
-    assert!(body.contains("ret void"), "{body}");
-    assert!(!body.contains("call "), "{body}");
+    assert_eq_diagnostic!(body.matches("alloca {}").count(), 4, "{body}");
+    assert_eq_diagnostic!(body.matches("load {}, ptr").count(), 4, "{body}");
+    assert_eq_diagnostic!(body.matches("phi {}").count(), 2, "{body}");
+    assert_diagnostic!(body.contains("ret void"), "{body}");
+    assert_diagnostic!(!body.contains("call "), "{body}");
 }
 
 #[test]
@@ -721,19 +722,19 @@ fn field_exchange_moves_all_native_storage_without_drop_or_runtime_calls() {
                 .lines()
                 .filter(|line| line.contains("load ") || line.contains("store "))
                 .collect::<Vec<_>>();
-            assert_eq!(memory.len(), 2, "{case:?}: {body}");
-            assert!(
+            assert_eq_diagnostic!(memory.len(), 2, "{case:?}: {body}");
+            assert_diagnostic!(
                 memory[0].contains(&format!("%v{} = load ", old.index())),
                 "{case:?}: {body}"
             );
-            assert!(
+            assert_diagnostic!(
                 memory[1].contains(&format!("%v{}, ptr ", replacement.index(),)),
                 "{case:?}: {body}"
             );
-            assert!(!body.contains("call "), "{case:?}: {body}");
-            assert!(!body.contains("atomic"), "{case:?}: {body}");
-            assert!(!body.contains("alloca"), "{case:?}: {body}");
-            assert_eq!(body.contains("phi ptr"), across_cfg, "{case:?}: {body}");
+            assert_diagnostic!(!body.contains("call "), "{case:?}: {body}");
+            assert_diagnostic!(!body.contains("atomic"), "{case:?}: {body}");
+            assert_diagnostic!(!body.contains("alloca"), "{case:?}: {body}");
+            assert_eq_diagnostic!(body.contains("phi ptr"), across_cfg, "{case:?}: {body}");
         }
     }
 }

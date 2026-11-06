@@ -721,7 +721,7 @@ fn lower_unit_impl(
             plan.instance.source_unit(),
             plan.function_item,
         )))?;
-        // `borrow_return` and `carrier_return` functions lower through `ssa::refine` (SPEC-0390).
+        // `borrow_return` and `carrier_return` functions lower through `ssa::refine` (SPEC-0393).
         if lowerer.function.borrow_return.is_some() || lowerer.function.carrier_return.is_some() {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,

@@ -1,6 +1,7 @@
 //! Same-source Unit coverage for the retired class/Box and String binary legacy tests.
 //! Selected-root programs are not whole-file equivalence;
 //! LLVM verification below is not native execution or allocation/free evidence.
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 
 use super::{
@@ -176,17 +177,17 @@ fn repeated_class_and_box_root_borrows_unit_comparison() {
     verify_program(&program).expect("complete original Unit SSA verifies");
     let ssa = render_program(&program);
     for operation in ["root_place", "borrow.shared", "end_borrow"] {
-        assert_eq!(ssa.matches(operation).count(), 4, "{operation}: {ssa}");
+        assert_eq_diagnostic!(ssa.matches(operation).count(), 4, "{operation}: {ssa}");
     }
     // Preserve the two per-callee call-count oracles without legacy @f0/@f1 assumptions.
     for target in targets {
-        assert_eq!(
+        assert_eq_diagnostic!(
             ssa.matches(&format!("call @f{}(", target.index())).count(),
             2,
             "{ssa}"
         );
     }
-    assert!(!ssa.contains("shared.payload_place"), "{ssa}");
+    assert_diagnostic!(!ssa.contains("shared.payload_place"), "{ssa}");
     render_verified_program(&program).expect("original Unit LLVM verifies");
 }
 
@@ -325,7 +326,7 @@ fn string_binary_views_value_calls_and_returns_unit_comparison() {
         TerminatorKind::Return { values } if values == &[*result]));
     verify_program(&program).expect("complete original Unit SSA verifies");
     let ssa = render_program(&program);
-    assert!(
+    assert_diagnostic!(
         ssa.contains(&format!(
             "string.concat %l{}, %v{}",
             left_loan.index(),
@@ -335,7 +336,7 @@ fn string_binary_views_value_calls_and_returns_unit_comparison() {
     );
     // Bind the rendered concat to the actual entry loan, never a legacy %l0 assumption.
     for operation in ["string.concat", "string.equal", "not ", "call @"] {
-        assert!(ssa.contains(operation), "{operation}: {ssa}");
+        assert_diagnostic!(ssa.contains(operation), "{operation}: {ssa}");
     }
     render_verified_program(&program).expect("original Unit LLVM verifies");
 }

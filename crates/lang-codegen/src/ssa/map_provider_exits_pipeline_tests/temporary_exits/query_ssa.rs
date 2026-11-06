@@ -11,6 +11,7 @@ use super::{
     query_inputs::{Inputs, SiteInput},
 };
 use crate::ssa::model::*;
+use crate::test_support::diagnostics::diagnostic;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -691,7 +692,7 @@ pub(super) fn check(
         )?;
     }
     query_callers::check(module, f, input)?;
-    println!(
+    diagnostic!(
         "SPEC0331 TEMPORARY EXITS IDENTITY SSA entry={entry_id:?} input={input:#?} shapes={all:#?}"
     );
     Ok(())

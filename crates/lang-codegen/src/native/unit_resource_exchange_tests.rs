@@ -250,7 +250,7 @@ fn assert_stable_output(
     first_object: &mut Option<Vec<u8>>,
 ) {
     if let Some(first) = first_ir {
-        assert_eq!(first, &ir);
+        crate::test_support::diagnostics::assert_text_eq!(first, &ir);
     } else {
         *first_ir = Some(ir);
     }

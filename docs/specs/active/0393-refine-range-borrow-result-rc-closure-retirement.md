@@ -1,16 +1,16 @@
-# SPEC-0390：`RangeView`、借用结果函数与绑定、`Rc` 操作、`String.clone()` 及带捕获闭包旧路径退役
+# SPEC-0393：`RangeView`、借用结果函数与绑定、`Rc` 操作、`String.clone()` 及带捕获闭包旧路径退役
 
 > **性质**：实施合同 · **状态**：in-progress · **读取时机**：评审或实施路线图 E3 的 `RangeView`（`unit_lower/range.rs`）、借用结果返回与调用（`unit_lower/borrow_result.rs`）、`Rc.share()` / `Rc.value`（`unit_lower/rc.rs`、`unit_lower/control/nullable_if/rc.rs`）、直接 `String.clone()`（`unit_lower/scalar.rs`）及带捕获闭包构造（`unit_lower/closure.rs`）旧路径退役时 · **唯一真源**：本片目标、范围与验收；长期决定以 [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md) 与 [ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md) 为准
 
 | 字段 | 值 |
 |---|---|
 | 状态 | in-progress |
-| Goal ID | `KOV-P4-0390` |
+| Goal ID | `KOV-P4-0393` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
-| 批准依据 | 用户确认在 SPEC-0389 基线上继续推进 E3 下一个切片 |
+| 批准依据 | 用户确认在 SPEC-0389 基线上继续推进 E3 下一个切片；原编号 0390 与 main 的 CI 镜像 Spec 冲突，合入 main 时改为 0393 |
 | 基线 | `90cd542b`（SPEC-0389） |
-| 分支 | `feature/spec-0390-refine-nullable-when-range-borrow-result-retirement` |
+| 分支 | `feature/spec-0393-refine-range-borrow-result-rc-closure-retirement` |
 | 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md)、[SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0370](0370-refine-lambda-bodies.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0389](0389-refine-known-function-shared-capture-container-element-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |

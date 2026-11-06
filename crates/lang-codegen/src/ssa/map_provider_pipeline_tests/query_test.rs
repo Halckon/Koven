@@ -4,6 +4,7 @@ use super::{
     fixture::{Fixture, failure, verify_failure},
     identity, pipeline, query_llvm, query_ssa,
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
     let mut report = Report {
@@ -11,7 +12,7 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
         ..Report::default()
     };
     let outcome = Fixture::new(label, text).and_then(|fixture| {
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER IDENTITY INPUT case={label} unit={unit} path={:?} text={text:?}",
             fixture.path
         );
@@ -22,7 +23,7 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
         } else {
             pipeline::single(&fixture, &mut report)
         }?;
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER IDENTITY RAW SSA case={label} unit={unit}\n{}",
             crate::ssa::render::render_program(&program)
         );
@@ -63,7 +64,7 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
                 .map_err(|e| failure(e.stage, &e.original)),
         );
         if let Ok(llvm) = &rendered {
-            println!("SPEC0331 PROVIDER IDENTITY RAW LLVM case={label} unit={unit}\n{llvm}");
+            diagnostic!("SPEC0331 PROVIDER IDENTITY RAW LLVM case={label} unit={unit}\n{llvm}");
             let identity = match (&inputs, &shape) {
                 (Ok(inputs), Ok(shape)) => query_llvm::check(&program, inputs, shape, llvm),
                 _ => Err(failure(
@@ -103,12 +104,15 @@ fn normal_map_provider_preserves_source_component_cursor_identity() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER IDENTITY OUTCOME case={} unit={} report={:#?} result={:#?}",
-            observation.label, observation.unit, observation.report, observation.outcome
+            observation.label,
+            observation.unit,
+            observation.report,
+            observation.outcome
         );
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 4
             && observations
                 .iter()

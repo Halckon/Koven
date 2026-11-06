@@ -1,5 +1,6 @@
 //! SPEC-0244：源码原语真实 link/run 与精确 owner 释放。
 use super::{TestDirectory, UnitSource, emit_link_and_run};
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::name_resolution::SymbolKind;
 use std::{fs, process::Command};
 
@@ -24,7 +25,7 @@ fn root_primitive_native_string_exchange_and_source_order() {
     "#,
         "entry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(
         output.stdout,
         b"evaluate-new\noldvalue\nnewvalue\nsecondvalue\nnewvalue\nnewvalue\nlast\n"
@@ -50,7 +51,7 @@ fn root_primitive_native_copyable_snapshots_and_repeated_swap() {
     "#,
         "entry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, b"copied\nswapped\n");
 }
 
@@ -83,7 +84,7 @@ fn root_primitive_native_control_exit_retains_initialized_target() {
     "#,
         "entry",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, b"oldbreak\noldbreak\nnew\noldreturn\nnew\n");
 }
 

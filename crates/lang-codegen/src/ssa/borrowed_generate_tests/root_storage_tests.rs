@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[path = "root_storage_tests/helper_calls.rs"]
 mod helper_calls;
@@ -129,7 +130,7 @@ fn function(fixture: &mut Fixture) -> &mut Function {
 fn assert_inactive(fixture: &Fixture, capture: LoanId) {
     let errors =
         verify_program(&fixture.program).expect_err("current storage capture must remain active");
-    assert!(
+    assert_diagnostic!(
         errors.errors.iter().any(|error| matches!(error.kind,
         super::super::verify::VerifyErrorKind::LoanInactive { loan } if loan == capture)),
         "{errors:?}"
@@ -380,7 +381,7 @@ fn check_exchange_boundary(operation: Exchange) {
         .expect("exchange");
     let errors = verify_program(&fixture.program)
         .expect_err("direct concrete closure exchange remains unsupported");
-    assert!(
+    assert_diagnostic!(
         errors.errors.iter().any(|error| matches!(
             error.kind,
             super::super::verify::VerifyErrorKind::OperationContract { .. }
@@ -722,7 +723,7 @@ fn borrowed_generation_rejects_unknown_projected_capture_contents() {
     let generate = fixture.generate;
     let errors = verify_program(&fixture.program)
         .expect_err("do not guess capture IDs for a projected opaque callback");
-    assert!(
+    assert_diagnostic!(
         errors.errors.iter().any(|error| matches!(
             error.kind,
             super::super::verify::VerifyErrorKind::OperationContract {

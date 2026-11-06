@@ -1,6 +1,7 @@
 //! Source identity, real CFG transport, and bounded exact-path assertions.
 use super::*;
 use crate::ssa::model::Definition;
+use crate::test_support::diagnostics::assert_eq_diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) struct Prepared {
@@ -44,7 +45,7 @@ pub(super) fn prepared() -> Vec<Prepared> {
             Err(error) => {
                 // Only the known old-production When capability boundary is collectable.
                 // Unexpected kinds, spans, frontend failures and panics stop immediately.
-                assert_eq!(
+                assert_eq_diagnostic!(
                     error.kind,
                     LoweringErrorKind::UnsupportedNode,
                     "{}: {error:?}",

@@ -5,6 +5,7 @@ use super::{
     query_ssa::Shape,
 };
 use crate::ssa::model::{self as s, Definition, EntityId, Operation, Program};
+use crate::test_support::diagnostics::diagnostic;
 use inkwell::{
     IntPredicate,
     basic_block::BasicBlock,
@@ -614,7 +615,7 @@ pub(super) fn check(
             slot_type,
         )?;
         // Record real target offsets without inventing architecture-independent byte numbers.
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER IDENTITY LLVM SLOT op={id:?} offsets={:?}",
             (0..5)
                 .map(|i| data.offset_of_element(&slot_type, i))
@@ -763,7 +764,7 @@ pub(super) fn check(
     // Header loan phi is checked independently of the cursor phi, with actual edge operands above.
     let hs = emitted(f, scan, EntityId::Loan(shape.header_source), bits)?;
     need(hs.is_pointer_value(), "LLVM actual header source phi", hs)?;
-    println!(
+    diagnostic!(
         "SPEC0331 PROVIDER IDENTITY LLVM function={symbol:?} size_bits={bits} checked_slot_ops={:?}",
         [key_id, value_id, next_id]
     );

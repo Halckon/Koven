@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 use crate::ssa::model::{
@@ -129,18 +130,18 @@ fn nullable_handle_uses_one_pointer_non_null_phi_and_conditional_drop() {
         .expect("return");
 
     let ir = render_verified_program(&program).expect("nullable LLVM lowering");
-    assert!(ir.contains("phi ptr"), "{ir}");
-    assert!(ir.contains("icmp eq ptr"), "{ir}");
-    assert!(
+    assert_diagnostic!(ir.contains("phi ptr"), "{ir}");
+    assert_diagnostic!(ir.contains("icmp eq ptr"), "{ir}");
+    assert_diagnostic!(
         ir.contains("define internal void @koven.drop.t2(ptr"),
         "{ir}"
     );
-    assert!(ir.contains("call void @koven.drop.t1(ptr"), "{ir}");
-    assert!(
+    assert_diagnostic!(ir.contains("call void @koven.drop.t1(ptr"), "{ir}");
+    assert_diagnostic!(
         !ir.contains("koven.enum"),
         "nullable pointer must not gain a tag: {ir}"
     );
-    assert!(
+    assert_diagnostic!(
         !ir.contains("malloc"),
         "nullable wrapping must not allocate: {ir}"
     );

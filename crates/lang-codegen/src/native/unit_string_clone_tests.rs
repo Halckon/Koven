@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_text_eq;
 
 #[test]
 fn string_clone_cross_file_borrow_container_and_return_reach_native() {
@@ -181,7 +182,7 @@ fn integrated_numeric_clone_and_boxed_enum_cross_file_facts_reach_native() {
     };
     let (program, entry) = lower(&inputs);
     let (reversed, reversed_entry) = lower(&[inputs[1], inputs[0]]);
-    assert_eq!(
+    assert_text_eq!(
         crate::ssa::render_program(&program),
         crate::ssa::render_program(&reversed)
     );

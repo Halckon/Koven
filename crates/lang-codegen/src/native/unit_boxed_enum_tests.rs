@@ -4,6 +4,7 @@ use crate::native_tests::boxed_enum_tests::{
     RECURSIVE_ALLOCATIONS, RECURSIVE_STDOUT, SIMPLE_DECLARATIONS, SIMPLE_STDOUT, assert_success,
     recursive_declarations, run_counted_allocations,
 };
+use crate::test_support::diagnostics::assert_text_eq;
 
 fn simple_analysis() -> UnitAnalysis {
     analyze_sources(
@@ -75,7 +76,7 @@ fn lower_to_llvm(analysis: &UnitAnalysis) -> String {
     let (backward, backward_entry) = lower(&reversed);
     assert_eq!(entry.index(), backward_entry.index());
     assert_eq!(entry.module().index(), backward_entry.module().index());
-    assert_eq!(
+    assert_text_eq!(
         crate::ssa::render_program(&program),
         crate::ssa::render_program(&backward),
         "input order must not change recursive type registration"

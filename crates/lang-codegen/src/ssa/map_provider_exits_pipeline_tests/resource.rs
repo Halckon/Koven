@@ -1,5 +1,6 @@
 //! Newly rebuilt finite Map<String, Resource> normal-exhaustion pipelines.
 //! Resource values remain container-owned; the loop creates Shared component loans.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 pub(super) mod continuation;
 pub(super) mod continued;
 mod identity;
@@ -79,13 +80,13 @@ fn resource_map_normal_sources_reach_verified_llvm_in_both_entries() {
         for unit in [false, true] {
             let mut report = Report::default();
             let outcome = observe(label, text, unit, &mut report);
-            println!(
+            diagnostic!(
                 "SPEC0331 RESOURCE case={label} rooted={unit} outcome={outcome:?} report={report:#?}"
             );
             results.push((label, unit, report.passed() && outcome.is_ok()));
         }
     }
-    assert!(
+    assert_diagnostic!(
         results.len() == 4 && results.iter().all(|(_, _, passed)| *passed),
         "all four original Resource Map pipelines must pass: {results:?}"
     );

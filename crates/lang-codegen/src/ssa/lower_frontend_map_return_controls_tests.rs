@@ -1,5 +1,6 @@
 //! Ordinary source observations isolating source and returned-owner boundaries.
 use crate::ssa::map_unit_consumer_test_support::{assert_outer_resource, assert_return_controls};
+use crate::test_support::diagnostics::diagnostic;
 
 // The pre-existing all-success whole retains its original Unit oracle.
 fn observe_owned_source_unit(name: &str, text: &str) {
@@ -41,7 +42,7 @@ fn observe_owned_source_unit(name: &str, text: &str) {
             }
         }
     }
-    println!("CONTROL {name}: VERIFIED_LLVM");
+    diagnostic!("CONTROL {name}: VERIFIED_LLVM");
 }
 
 #[test]

@@ -1,5 +1,6 @@
 //! Receiver ABI fixtures, not evidence for the public byte-count or overflow algorithms.
 use super::{model::*, unit_lower_test_support as support};
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -277,7 +278,7 @@ fun entry(own text: String?): Unit {
             Ok(_) => panic!("{name} must not bypass the existing proof transfer boundary"),
             Err(error) => error,
         };
-        assert!(
+        assert_diagnostic!(
             matches!(
                 error.kind,
                 super::LoweringErrorKind::MissingFact | super::LoweringErrorKind::UnsupportedNode

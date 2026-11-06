@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -64,7 +65,7 @@ fn lowers_cross_file_value_class_class_and_box_deterministically() {
         backward_entry,
     )
     .expect("input permutation preserves aggregate identities");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     assert_eq!(

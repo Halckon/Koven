@@ -1,4 +1,5 @@
 //! Original own parameter/local flows through every provider column to Return/Move/put.
+use crate::test_support::diagnostics::diagnostic;
 mod transport;
 use super::super::{ast::span, facts::Proof};
 use super::*;
@@ -13,9 +14,10 @@ pub(super) fn check(
     let f = function(m, i.scan)?;
     let g = Graph::new(f)?;
     let site = ast::site(p, i)?;
-    println!(
+    diagnostic!(
         "SCOPE D FUTURE PROVIDER label={} function={f:#?} edges={:#?}",
-        c.label, g.edges
+        c.label,
+        g.edges
     );
     need(
         f.receiver.is_none() && f.borrow_return.is_none() && f.carrier_return.is_none(),

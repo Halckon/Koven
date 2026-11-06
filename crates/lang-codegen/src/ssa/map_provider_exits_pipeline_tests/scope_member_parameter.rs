@@ -1,4 +1,5 @@
 //! P24 keeps the original Unit member receiver and independent Borrow Map parameter.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod facts;
 mod graph;
@@ -34,9 +35,11 @@ pub(crate) fn sources() -> [Case; 2] {
     ]
 }
 fn observe(c: &Case) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "SCOPE MEMBER INPUT label={} unit=true source={:?} golden={:?}",
-        c.label, c.source, c.golden
+        c.label,
+        c.source,
+        c.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -65,7 +68,7 @@ fn observe(c: &Case) -> Result<(), Failure> {
             proof = result.ok();
         },
     );
-    println!(
+    diagnostic!(
         "SCOPE MEMBER LOWER label={} unit=true observed={observed} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, e)| e)
@@ -90,7 +93,7 @@ fn observe(c: &Case) -> Result<(), Failure> {
         .map(|_| ())
         .map_err(|e| failure("P24 LLVM render/verify", e));
     report.query("P24 full original LLVM render/verify", &llvm);
-    println!(
+    diagnostic!(
         "SCOPE MEMBER FINAL label={} unit=true report={report:#?}",
         c.label
     );
@@ -106,7 +109,7 @@ fn unit_original_member_map_parameter_preserves_full_identity() {
         .into_iter()
         .map(|c| {
             let result = observe(&c);
-            println!(
+            diagnostic!(
                 "SCOPE MEMBER CASE label={} unit=true result={result:?}",
                 c.label
             );
@@ -114,5 +117,5 @@ fn unit_original_member_map_parameter_preserves_full_identity() {
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 2);
-    assert!(outcomes.iter().all(|(_, r)| r.is_ok()), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(|(_, r)| r.is_ok()), "{outcomes:#?}");
 }

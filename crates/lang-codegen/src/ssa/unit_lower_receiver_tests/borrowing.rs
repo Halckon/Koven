@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn lowers_borrow_member_receiver_before_explicit_arguments() {
@@ -84,11 +85,11 @@ fn lowers_borrow_member_receiver_before_explicit_arguments() {
     assert!(matches!(operations[call + 1], Operation::BorrowEnd { .. }));
 
     let rendered = render_program(&program);
-    assert!(rendered.contains("receiver %l0"), "{rendered}");
+    assert_diagnostic!(rendered.contains("receiver %l0"), "{rendered}");
     let llvm = render_verified_program(&program).expect("Borrow receiver must lower to LLVM");
-    assert!(llvm.contains("Counter.answer"), "{llvm}");
-    assert!(llvm.contains("ptr %l0, i32 %v0"), "{llvm}");
-    assert!(llvm.contains("(ptr %p0, i32 40)"), "{llvm}");
+    assert_diagnostic!(llvm.contains("Counter.answer"), "{llvm}");
+    assert_diagnostic!(llvm.contains("ptr %l0, i32 %v0"), "{llvm}");
+    assert_diagnostic!(llvm.contains("(ptr %p0, i32 40)"), "{llvm}");
 }
 
 #[test]
@@ -157,8 +158,8 @@ fn forwards_implicit_this_loan_without_readdressing_receiver() {
         1
     );
     let llvm = render_verified_program(&program).expect("forwarded this loan must lower to LLVM");
-    assert!(llvm.contains("Counter.relay"), "{llvm}");
-    assert!(llvm.contains("Counter.answer"), "{llvm}");
+    assert_diagnostic!(llvm.contains("Counter.relay"), "{llvm}");
+    assert_diagnostic!(llvm.contains("Counter.answer"), "{llvm}");
 }
 
 #[test]
@@ -350,8 +351,8 @@ fn borrow_class_receiver_preserves_owner_until_post_call_drop() {
         .expect("class owner drop");
     assert!(call < borrow_end && borrow_end < drop);
     let llvm = render_verified_program(&program).expect("Borrow class receiver must lower to LLVM");
-    assert!(llvm.contains("Resource.answer"), "{llvm}");
-    assert!(llvm.contains("call void @free"), "{llvm}");
+    assert_diagnostic!(llvm.contains("Resource.answer"), "{llvm}");
+    assert_diagnostic!(llvm.contains("call void @free"), "{llvm}");
 }
 
 #[test]
@@ -425,5 +426,5 @@ fn inout_class_receiver_uses_exclusive_call_scoped_loan() {
     );
 
     let llvm = render_verified_program(&program).expect("Inout receiver must lower to LLVM");
-    assert!(llvm.contains("Resource.touch"), "{llvm}");
+    assert_diagnostic!(llvm.contains("Resource.touch"), "{llvm}");
 }

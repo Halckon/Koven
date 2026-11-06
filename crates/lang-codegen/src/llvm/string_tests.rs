@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 use crate::ssa::model::{
@@ -191,12 +192,12 @@ fn empty_static_string_uses_sentinel_cap_zero_without_allocation() {
 
     let ir = render_verified_program(&program).expect("empty String must lower and verify");
     // ADR-0033: the empty literal points at the shared non-null sentinel, capacity 0.
-    assert!(
+    assert_diagnostic!(
         ir.contains("@koven.zst.sentinel = private constant i8 0"),
         "{ir}"
     );
-    assert!(!ir.contains("%koven.string.t0 zeroinitializer"), "{ir}");
-    assert!(!ir.contains("ptr null"), "{ir}");
+    assert_diagnostic!(!ir.contains("%koven.string.t0 zeroinitializer"), "{ir}");
+    assert_diagnostic!(!ir.contains("ptr null"), "{ir}");
     assert!(!ir.contains("declare ptr @malloc"));
     assert!(!ir.contains("llvm.memcpy"));
 }

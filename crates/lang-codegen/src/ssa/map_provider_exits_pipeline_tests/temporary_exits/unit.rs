@@ -3,6 +3,7 @@ use super::{
     super::Report,
     ast::{Anchors, Function, Input},
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{
@@ -126,7 +127,7 @@ pub(super) fn observe(
     report: &mut Report,
 ) {
     // 先保全实际公开产物，再做任何可失败窄查询；不预言 owner/phi/cleanup 形状。
-    println!(
+    diagnostic!(
         "SPEC0331 TEMPORARY EXITS UNIT REAL typed_maps={:#?} maps={:#?} drops={:#?} conditional_drops={:#?} call_argument_contracts={:#?} loans={:#?} value_deliveries={:#?} formed_owned_locals={:#?}",
         typed.map_iterations(),
         owned.map_iterations(),
@@ -139,7 +140,7 @@ pub(super) fn observe(
     );
     let mut points = Vec::new();
     for plan in owned.map_iterations() {
-        println!("SPEC0331 TEMPORARY EXITS UNIT PLAN {plan:#?}");
+        diagnostic!("SPEC0331 TEMPORARY EXITS UNIT PLAN {plan:#?}");
         for exit in plan.exits() {
             if !points.contains(&exit.point()) {
                 points.push(exit.point());
@@ -158,7 +159,7 @@ pub(super) fn observe(
             })
             .collect::<Vec<_>>();
         let whole = owned.iteration_cleanup_at(point);
-        println!(
+        diagnostic!(
             "SPEC0331 TEMPORARY EXITS UNIT WHOLE POINT point={point:?} plans={plans:?} sequence={whole:#?}"
         );
     }
@@ -203,7 +204,7 @@ pub(super) fn observe(
             .iter()
             .filter(|drop| matches!(drop.target(), UnitDropTarget::Temporary(id) if id == source))
             .collect::<Vec<_>>();
-        println!(
+        diagnostic!(
             "SPEC0331 TEMPORARY EXITS UNIT SOURCE statement={statement:?} source={source:?} transfer={:?} drops={drops:#?}",
             expression(site.transfer)
         );

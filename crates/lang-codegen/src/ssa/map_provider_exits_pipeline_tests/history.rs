@@ -1,4 +1,5 @@
 //! Ordinary storage histories consumed by the actual Map provider, never instrumented IR.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 use super::{
     Report,
@@ -176,15 +177,16 @@ fn storage_histories_reach_both_real_provider_pipelines() {
                     .map_err(|e| failure("LLVM verifier", e))?;
                 Ok::<(), super::fixture::Failure>(())
             })();
-            println!(
+            diagnostic!(
                 "HISTORY case={} unit={unit} source={:?} outcome={outcome:?} report={report:#?}",
-                case.label, case.source
+                case.label,
+                case.source
             );
             results.push((case.label.clone(), unit, report.passed() && outcome.is_ok()));
         }
     }
     assert_eq!(results.len(), 42);
-    assert!(results.iter().all(|r| r.2), "{results:#?}");
+    assert_diagnostic!(results.iter().all(|r| r.2), "{results:#?}");
 }
 
 /// CI sanitizer exporter consumes exactly these original Resource cases through both real entries.
@@ -220,7 +222,7 @@ pub(crate) fn sanitizer_ir(case: &Case, unit: bool) -> String {
         })
     }
     .expect("complete real provider pipeline");
-    assert!(report.passed(), "{report:#?}");
+    assert_diagnostic!(report.passed(), "{report:#?}");
     super::super::verify::verify_program(&program).expect("original Resource SSA");
     crate::llvm::render_verified_program_with_entry(&program, entry)
         .expect("original Resource LLVM with actual entry")

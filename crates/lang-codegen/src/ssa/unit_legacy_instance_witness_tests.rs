@@ -1,6 +1,7 @@
 //! Stage A: unchanged legacy fixtures through strict MemoryDocument and rooted Unit.
 //! Selected-root Programs do not prove whole-file/shared-mapper/multi-root equivalence.
 //! Keep all original legacy tests and native contracts; these witnesses do not execute native code.
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,
     name_resolution::{
@@ -212,9 +213,9 @@ fn observe(mode: Entry, text: &str, root_name: &str, roots: usize) -> Observed {
             .origin,
         function.origin
     );
-    assert_eq!(render_program(&program), render_program(&repeated));
+    assert_text_eq!(render_program(&program), render_program(&repeated));
     // Full module verification with no native entry wrapper. These are parameterized roots.
-    assert_eq!(
+    assert_text_eq!(
         render_verified_program(&program).expect("full LLVM verification"),
         render_verified_program(&repeated).expect("full repeated LLVM verification")
     );

@@ -1,4 +1,5 @@
 //! Original P05 canonical Borrow alias facts and complete ordinary runtime identities.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod facts;
 mod graph;
 use super::super::{
@@ -213,9 +214,11 @@ fn symbol(n: &NameResolution, s: Span) -> Result<SymbolId, Failure> {
     .map(|v| v.id())
 }
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "SCOPE B ALIAS INPUT label={} rooted={unit} source={:?} golden={:?}",
-        c.label, c.source, c.golden
+        c.label,
+        c.source,
+        c.golden
     );
     let mut sources = SourceMap::new();
     let source = sources
@@ -226,7 +229,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     let p = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", p.diagnostics())?;
     let i = input(c, &sources, &p)?;
-    println!(
+    diagnostic!(
         "SCOPE B ALIAS AST label={} rooted={unit} input={i:?}",
         c.label
     );
@@ -283,7 +286,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
                     .iter()
                     .filter(|end| end.binding() == alias)
                     .collect::<Vec<_>>();
-                println!(
+                diagnostic!(
                     "SCOPE B ALIAS FE label={} unit=true alias={alias:?} type={:?} initializer_type={:?} initializer_category={:?} bindings={:?} ends={:?} all_borrow_results={:#?}",
                     c.label,
                     t.symbol_type(alias),
@@ -294,7 +297,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
                     o.borrow_results()
                 );
                 for b in &bindings {
-                    println!(
+                    diagnostic!(
                         "SCOPE B ALIAS BINDING label={} unit=true binding={:?} initializer={:?} storage={:?} origin={:?} parent={:?} source_loan={:?} marker={:?}",
                         c.label,
                         b.binding(),
@@ -310,13 +313,13 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
                     let statement =
                         lang_frontend::type_checking::UnitStatementId::new(id, statement);
                     let plan = o.map_iteration(statement);
-                    println!(
+                    diagnostic!(
                         "SCOPE B ALIAS PLAN label={} unit=true descriptor={:?} ownership={plan:#?}",
                         c.label,
                         t.map_iteration(statement)
                     );
                     if let Some(plan) = plan {
-                        println!(
+                        diagnostic!(
                             "SCOPE B ALIAS CANONICAL label={} unit=true source={:?} access={:?} components={:?} exits={:#?}",
                             c.label,
                             plan.source(),
@@ -332,7 +335,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
                     )?;
                 }
                 if let Some(call) = i.call {
-                    println!(
+                    diagnostic!(
                         "SCOPE B ALIAS CONTROL label={} unit=true typed_call={:?} argument_contracts={:?} loans={:?}",
                         c.label,
                         t.call(e(call)),
@@ -359,7 +362,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
             );
         },
     );
-    println!(
+    diagnostic!(
         "SCOPE B ALIAS LOWER label={} rooted={unit} observed={observed} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, e)| e)
@@ -395,7 +398,7 @@ fn control(p: &ParsedFile, i: &Input, program: &Program) -> Result<BTreeSet<Enti
     let scan = function(module, i.scan)?;
     let g = Graph::new(scan)?;
     let source = g.block(scan.entry_block().unwrap())?.parameters[0];
-    println!(
+    diagnostic!(
         "SCOPE B ALIAS SSA function={:?} parameters={:?} edges={:?} instructions={:#?}",
         scan.id,
         g.block(scan.entry_block().unwrap())?.parameters,
@@ -525,7 +528,7 @@ fn original_alias_sources_report_real_facts() {
     for c in cases() {
         for unit in [false, true] {
             let result = observe(&c, unit);
-            println!(
+            diagnostic!(
                 "SCOPE B ALIAS CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
@@ -533,5 +536,5 @@ fn original_alias_sources_report_real_facts() {
         }
     }
     assert_eq!(results.len(), 4);
-    assert!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
+    assert_diagnostic!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
 }

@@ -2,6 +2,7 @@
 //! Pure owner cleanup and a common resource's lexical lifetime are separate oracles.
 
 use super::{OwnedProducts, UnitSource};
+use crate::test_support::diagnostics::assert_diagnostic;
 use crate::{
     native_tests::emit_link_and_run,
     ssa::{
@@ -373,8 +374,8 @@ fun main(): Unit {
 }"#;
     // Node is pure memory; it deliberately has no deinit. Guard is not conditionally moved.
     let output = emit_link_and_run("comma-when-resource.ko", text, "main");
-    assert!(output.status.success(), "{output:?}");
-    assert!(output.stderr.is_empty(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
     assert_eq!(
         output.stdout,
         b"chosen\nafter when\nguard\nfirst=7\nprobe\nfallback\nafter when\nguard\nsecond=8\n"

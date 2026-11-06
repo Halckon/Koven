@@ -2,6 +2,7 @@
 use super::super::fixture::{Failure, failure, need};
 use super::continuation::Case;
 use crate::ssa::model::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::{
     parser::{Item, NameMarker, ParsedFile},
     source::SourceMap,
@@ -211,5 +212,5 @@ fn nullable_resource_components_reach_both_verified_pipelines() {
         })
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 14);
-    assert!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
+    assert_diagnostic!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
 }

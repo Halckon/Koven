@@ -1,5 +1,6 @@
 //! Healthy source pipeline; negative verifier checks never compile defective IR.
 use super::{model::*, verify::verify_program};
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -167,12 +168,12 @@ fn range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans() {
                 ("model", format!("{:#?}", program.modules)),
                 ("llvm", llvm),
             ] {
-                println!(
+                diagnostic!(
                     "\nBEGIN result-source case={case} entry={entry} kind={kind} bytes={}",
                     text.len()
                 );
                 print!("{text}");
-                println!("\nEND result-source case={case} entry={entry} kind={kind}");
+                diagnostic!("\nEND result-source case={case} entry={entry} kind={kind}");
             }
         }
     }
@@ -229,7 +230,7 @@ fn range_verifier_rejects_metadata_end_while_an_element_loan_is_active() {
     let position = instructions.iter().position(|id| *id == begin).unwrap() + 1;
     instructions.insert(position, end);
     let errors = verify_program(&program).expect_err("metadata must outlive its shared element");
-    assert!(
+    assert_diagnostic!(
         errors.errors.iter().any(|e| matches!(
             e.kind,
             super::verify::VerifyErrorKind::LoanDependencyActive { .. }
@@ -278,7 +279,7 @@ fn range_verifier_preserves_descriptor_root_pairing_through_loop_edges() {
     };
     let errors = verify_program(&program)
         .expect_err("same List type cannot substitute a different descriptor's root");
-    assert!(
+    assert_diagnostic!(
         errors
             .errors
             .iter()
@@ -527,7 +528,7 @@ fn range_verifier_rejects_erasure_and_premature_source_end_without_emitting_ir()
         }
         let errors =
             verify_program(&program).expect_err("invalid descriptor lifetime must be rejected");
-        assert!(
+        assert_diagnostic!(
             errors.errors.iter().any(|e| matches!(
                 e.kind,
                 VerifyErrorKind::LoanDependencyActive { .. }
@@ -538,7 +539,7 @@ fn range_verifier_rejects_erasure_and_premature_source_end_without_emitting_ir()
             "variant {variant}: {errors:?}"
         );
         if variant == 2 || variant == 4 {
-            assert!(
+            assert_diagnostic!(
                 errors
                     .errors
                     .iter()

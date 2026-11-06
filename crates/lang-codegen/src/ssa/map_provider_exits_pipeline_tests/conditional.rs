@@ -1,5 +1,6 @@
 //! Two unchanged conditional sources × MemoryDocument/rooted Unit; four observations before assert.
 //! No native run and no expectation that UnsupportedNode is a successful outcome.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod query_calls;
 mod query_cleanup;
@@ -61,7 +62,7 @@ fn observe(
     let mut report = Report::default();
     let layout = input_label(rooted);
     // Hash is the externally verified frozen-fixture identity, not a runtime hashing claim.
-    println!(
+    diagnostic!(
         "SPEC0331 CONDITIONAL INPUT case={label} input={layout} path=provider.ko frozen_sha256={source_hash} text={text:?}"
     );
     let outcome = ast::Input::new(text, map).and_then(|input| {
@@ -104,7 +105,7 @@ fn observe(
                 },
             )
         }?;
-        println!(
+        diagnostic!(
             "SPEC0331 CONDITIONAL SSA case={label} input={layout}\n{}",
             crate::ssa::render::render_program(&program)
         );
@@ -154,7 +155,7 @@ fn observe(
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|e| failure("LLVM render/verify", e))?;
         report.check("conditional LLVM render/verify", true, llvm.len());
-        println!("SPEC0331 CONDITIONAL LLVM case={label} input={layout}\n{llvm}");
+        diagnostic!("SPEC0331 CONDITIONAL LLVM case={label} input={layout}\n{llvm}");
         Ok(())
     });
     Observation {
@@ -174,18 +175,18 @@ fn map_and_mutable_map_conditional_exits_reach_verified_llvm() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 CONDITIONAL OUTCOME case={} input={} report={:#?}",
             observation.label,
             input_label(observation.rooted),
             observation.report
         );
         match &observation.outcome {
-            Ok(()) => println!("stage=LLVM render/verify result=ok"),
-            Err(error) => println!("stage={} original={}", error.stage, error.original),
+            Ok(()) => diagnostic!("stage=LLVM render/verify result=ok"),
+            Err(error) => diagnostic!("stage={} original={}", error.stage, error.original),
         }
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 4
             && observations
                 .iter()

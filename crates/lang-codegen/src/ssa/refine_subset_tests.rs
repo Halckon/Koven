@@ -8,7 +8,7 @@ use lang_frontend::{
 
 use super::{
     LoweringError,
-    model::Program,
+    model::{Operation, Program},
     refine::observe_routing,
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
@@ -22,7 +22,9 @@ fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
     let text = format!("package p\n{source}");
     let (id, file) = parsed(&mut sources, "p/main.ko", &text);
     let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
-    let (name_environment, type_environment) = standard_environments();
+    let (name_environment, mut type_environment) = standard_environments();
+    let _ = type_environment.authorize_range_source(&sources, id);
+    let _ = type_environment.authorize_range_extension_source(&sources, id);
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
     let entry = declaration(&names, "p", "f");
     let (result, routed) = observe_routing(|| {
@@ -697,4 +699,199 @@ fn range_view_borrow_return_and_borrow_val_route_to_refine() {
         assert!(routed, "expected refine routing for:\n{source}");
         res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
+}
+
+#[test]
+fn mixed_temporary_container_and_map_with_closures_route_to_refine() {
+    for source in [
+        "fun f(): Int {\n\
+             val xs = listOf(10, 20)\n\
+             val sz = listOf(1, 2, 3).size\n\
+             return xs[0] + sz\n\
+         }",
+        "fun f(): Int {\n\
+             val v = mutableMapOf<Int, Int>().get(0)\n\
+             return if (v == null) { 0 } else { v }\n\
+         }",
+        "fun f(): Int {\n\
+             val factor = 3\n\
+             val calc: (Int) -> Int = { x -> x * factor }\n\
+             val xs = mutableListOf(1, 2)\n\
+             xs[0] = calc(4)\n\
+             return xs[0]\n\
+         }",
+        "fun f(): Unit {\n\
+             var m = mutableMapOf<String, Int>()\n\
+             for (w in arrayOf(\"a\", \"b\", \"a\")) {\n\
+                 if (w == \"b\") { continue }\n\
+                 val prev = m.get(w)\n\
+                 m.put(w.clone(), if (prev == null) { 1 } else { prev + 1 })\n\
+             }\n\
+         }",
+        "fun f(): Unit {\n\
+             var xs = mutableListOf<String>()\n\
+             for (a in arrayOf(\"x\", \"y\")) { xs.add(a.clone()) }\n\
+             for (s in xs) { println(s) }\n\
+         }",
+        "fun f(): Int {\n\
+             var m = mutableMapOf<String, Int>()\n\
+             for (w in arrayOf(\"x\", \"y\")) {\n\
+                 val prev = m.get(w)\n\
+                 m.put(w.clone(), if (prev == null) { 1 } else { prev + 1 })\n\
+             }\n\
+             var best = 0\n\
+             for ((k, v) in m) { if (v > best) { best = v } }\n\
+             return best\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn container_append_admission_does_not_perturb_or_miscompile_sibling_functions() {
+    let unrelated_append =
+        "fun unrelated_append(): Unit {\n    var xs = mutableListOf<Int>()\n    xs.add(99)\n}\n";
+    let cases = [
+        // 1. while loop
+        "fun f(n: Int): Int {\n    var i = 0\n    var sum = 0\n    while (i < n) {\n        sum = sum + i\n        i = i + 1\n    }\n    return sum\n}",
+        // 2. sequential iteration
+        "fun f(xs: List<Int>): Int {\n    var sum = 0\n    for (x in xs) {\n        sum = sum + x\n    }\n    return sum\n}",
+        // 3. borrow-return
+        "fun f(source: String): borrow String from source = source",
+        // 4. carrier-return
+        "fun f(xs: List<Int>): View<Int> from xs = rangeView(xs, 0, 1)",
+        // 5. Map remove
+        "fun f(inout m: MutableMap<Int, Int>): Int? = m.remove(1)",
+    ];
+    for source in cases {
+        let (res_without, _) = route(source);
+        let with_source = format!("{unrelated_append}{source}");
+        let (res_with, _) = route(&with_source);
+        match (res_without, res_with) {
+            (Ok(prog_without), Ok(prog_with)) => {
+                crate::ssa::verify::verify_program(&prog_without)
+                    .expect("without-append program must verify");
+                crate::ssa::verify::verify_program(&prog_with)
+                    .expect("with-append program must verify");
+
+                let f_without = prog_without.modules[0]
+                    .functions
+                    .iter()
+                    .find(|func| func.name.starts_with("koven.p.f."))
+                    .expect("f found");
+                let f_with = prog_with.modules[0]
+                    .functions
+                    .iter()
+                    .find(|func| func.name.starts_with("koven.p.f."))
+                    .expect("f found with sibling");
+                assert_eq!(
+                    f_without.blocks[0].parameters.len(),
+                    f_with.blocks[0].parameters.len()
+                );
+                let kind_without = prog_without.modules[0].type_kind(f_without.return_types[0]);
+                let kind_with = prog_with.modules[0].type_kind(f_with.return_types[0]);
+                assert_eq!(format!("{kind_without:?}"), format!("{kind_with:?}"));
+                let drops_without = f_without
+                    .instructions
+                    .iter()
+                    .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+                    .count();
+                let drops_with = f_with
+                    .instructions
+                    .iter()
+                    .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+                    .count();
+                assert_eq!(drops_without, drops_with, "drop counts must match");
+            }
+            (Err(err_without), Err(err_with)) => {
+                assert_eq!(err_without.kind, err_with.kind, "rejection kind must match");
+            }
+            (Ok(_), Err(err)) => {
+                panic!("perturbation detected: without succeeded, but with failed: {err:?}");
+            }
+            (Err(err), Ok(_)) => {
+                panic!("perturbation detected: without failed ({err:?}), but with succeeded");
+            }
+        }
+    }
+}
+
+#[test]
+fn temporary_container_size_and_map_get_single_eval_and_drop_points() {
+    let list_size_source = "fun f(): Int {\n\
+        val sz = listOf(\"alpha\".clone(), \"beta\".clone()).size\n\
+        return sz\n\
+    }";
+    let (res_list, routed_list) = route(list_size_source);
+    assert!(routed_list, "temporary list size routes to refine");
+    let prog_list = res_list.expect("temporary list size lowers");
+    crate::ssa::verify::verify_program(&prog_list).expect("program verifies");
+    let func = prog_list.modules[0]
+        .functions
+        .iter()
+        .find(|f| f.name.starts_with("koven.p.f."))
+        .expect("f found");
+    let drop_count = func
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+        .count();
+    assert!(
+        drop_count >= 3,
+        "temporary list and elements must emit drops: got {drop_count}"
+    );
+
+    let map_get_source = "fun f(): Int {\n\
+        val v = mutableMapOf<String, Int>().get(\"k\".clone())\n\
+        return if (v == null) 0 else 1\n\
+    }";
+    let (res_map, routed_map) = route(map_get_source);
+    assert!(routed_map, "temporary map get routes to refine");
+    let prog_map = res_map.expect("temporary map get lowers");
+    crate::ssa::verify::verify_program(&prog_map).expect("program verifies");
+    let map_func = prog_map.modules[0]
+        .functions
+        .iter()
+        .find(|f| f.name.starts_with("koven.p.f."))
+        .expect("f found");
+    let map_drops = map_func
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+        .count();
+    assert!(
+        map_drops >= 2,
+        "temporary map and query key must emit drops: got {map_drops}"
+    );
+}
+
+#[test]
+fn string_borrow_capture_closure_preserves_outer_owner() {
+    let source = "fun f(): Unit {\n\
+        val s = \"hello_world\".clone()\n\
+        val action: () -> Unit = { println(s) }\n\
+        action()\n\
+        println(s)\n\
+    }";
+    let (res, routed) = route(source);
+    assert!(routed, "string borrow capture routes to refine");
+    let prog = res.expect("string borrow capture lowers successfully");
+    crate::ssa::verify::verify_program(&prog).expect("program verifies");
+    let func = prog.modules[0]
+        .functions
+        .iter()
+        .find(|f| f.name.starts_with("koven.p.f."))
+        .expect("f found");
+    let drops = func
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+        .count();
+    assert!(
+        drops >= 1,
+        "outer string and closure must emit drops: got {drops}"
+    );
 }

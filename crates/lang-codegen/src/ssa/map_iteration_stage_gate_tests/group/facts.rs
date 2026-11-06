@@ -4,6 +4,7 @@ use super::{
     Report, ast, cleanup,
     fixture::{Fixture, Location, Stopped, location, stopped},
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{
         SourceUnitKey, SymbolKind, UnitReferenceTarget, ValidatedCompilationUnitNames,
@@ -50,7 +51,7 @@ pub(super) fn unit(
     owned: &CompilationUnitOwnership,
     report: &mut Report,
 ) -> Result<Location, Stopped> {
-    println!(
+    diagnostic!(
         "SPEC0331 GROUP UNIT FACTS typed={:#?} ownership={owned:#?}",
         typed.map_iterations()
     );

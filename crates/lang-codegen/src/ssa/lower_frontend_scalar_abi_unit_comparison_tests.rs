@@ -2,6 +2,7 @@
 //! Stage B retires the legacy positives; the whole-file L0090 rejection stays independent.
 //! Selected-root verification and full LLVM determinism are not whole-file equivalence
 //! or native execution. Strict admission failures are failures, never filtered coverage.
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 
 use super::{
@@ -56,7 +57,7 @@ fn lower_root(unit: &UnitSource, name: &str) -> (Program, FunctionId, String) {
     assert_eq!(module.functions.len(), if name == "invoke" { 2 } else { 1 });
     let llvm = render_verified_program(&program).expect("complete original-root LLVM verifier");
     // Preserve the original full-text repeat-render oracle, with no normalization.
-    assert_eq!(
+    assert_text_eq!(
         llvm,
         render_verified_program(&program).expect("repeat LLVM rendering")
     );
@@ -73,12 +74,12 @@ fn lower_root(unit: &UnitSource, name: &str) -> (Program, FunctionId, String) {
             .origin,
         origin
     );
-    assert_eq!(
+    assert_text_eq!(
         render_program(&program),
         render_program(&repeated),
         "{name}"
     );
-    assert_eq!(
+    assert_text_eq!(
         llvm,
         render_verified_program(&repeated).expect("repeat complete LLVM lowering"),
         "{name}"
@@ -190,17 +191,17 @@ fn lowers_integer_literal_boundaries_without_runtime_overflow_checks_unit_compar
                 .any(|i| matches!(i.operation, Operation::CheckedArithmetic { .. }))
         );
         let ssa = render_program(&program);
-        assert!(ssa.contains(&format!("const {value}")), "{name}: {ssa}");
-        assert!(!ssa.contains("checked.sub"), "{ssa}");
-        assert!(!ssa.contains("abort @source"), "{ssa}");
+        assert_diagnostic!(ssa.contains(&format!("const {value}")), "{name}: {ssa}");
+        assert_diagnostic!(!ssa.contains("checked.sub"), "{ssa}");
+        assert_diagnostic!(!ssa.contains("abort @source"), "{ssa}");
         let body = llvm_body(&llvm, function);
-        assert!(
+        assert_diagnostic!(
             body.contains(returned),
             "{name}: missing {returned} in {body}"
         );
-        assert!(!llvm.contains("llvm.ssub.with.overflow"), "{llvm}");
-        assert!(!llvm.contains("with.overflow"), "{llvm}");
-        assert!(!llvm.contains("llvm.trap"), "{llvm}");
+        assert_diagnostic!(!llvm.contains("llvm.ssub.with.overflow"), "{llvm}");
+        assert_diagnostic!(!llvm.contains("with.overflow"), "{llvm}");
+        assert_diagnostic!(!llvm.contains("llvm.trap"), "{llvm}");
     }
 }
 
@@ -259,7 +260,7 @@ fn assert_borrow_abi(
     } else {
         format!("i{bits}")
     };
-    assert!(
+    assert_diagnostic!(
         llvm.contains(&format!(
             "define internal {result} @f{}.{}({arguments})",
             function.id.index(),
@@ -306,8 +307,8 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir_unit_comparison() {
             "target triple = \"{}\"",
             crate::llvm::native_target_triple().unwrap()
         )));
-        assert!(!llvm.contains("invoke "), "{llvm}");
-        assert!(!llvm.contains("landingpad"), "{llvm}");
+        assert_diagnostic!(!llvm.contains("invoke "), "{llvm}");
+        assert_diagnostic!(!llvm.contains("landingpad"), "{llvm}");
         let expected = match name {
             "addSigned" | "increment" => Some((
                 CheckedArithmeticOperator::Add,
@@ -356,9 +357,9 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir_unit_comparison() {
             "{name}"
         );
         if let Some((_, instruction)) = expected {
-            assert!(body.contains(instruction), "{name}: {body}");
-            assert!(body.contains("call void @koven.abort.report"), "{body}");
-            assert!(body.contains("unreachable"), "{body}");
+            assert_diagnostic!(body.contains(instruction), "{name}: {body}");
+            assert_diagnostic!(body.contains("call void @koven.abort.report"), "{body}");
+            assert_diagnostic!(body.contains("unreachable"), "{body}");
         }
         if matches!(name, "divide" | "remainder") {
             for fragment in [
@@ -372,7 +373,7 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir_unit_comparison() {
                 " = select i1 ",
                 "i32 1",
             ] {
-                assert!(
+                assert_diagnostic!(
                     body.contains(fragment),
                     "{name}: missing {fragment} in {body}"
                 );
@@ -380,16 +381,16 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir_unit_comparison() {
         }
         if matches!(name, "divideUnsigned" | "remainderUnsigned") {
             for fragment in [" = icmp eq i32 ", ", 0", " = select i1 ", "i32 1"] {
-                assert!(
+                assert_diagnostic!(
                     body.contains(fragment),
                     "{name}: missing {fragment} in {body}"
                 );
             }
-            assert!(!body.contains(".signed_overflow"), "{body}");
+            assert_diagnostic!(!body.contains(".signed_overflow"), "{body}");
         }
         if matches!(name, "choose" | "increment") {
-            assert!(body.contains("phi i32"), "{body}");
-            assert!(body.contains("br i1"), "{body}");
+            assert_diagnostic!(body.contains("phi i32"), "{body}");
+            assert_diagnostic!(body.contains("br i1"), "{body}");
         }
         if name == "invoke" {
             let add_origin = Origin::Source(
@@ -428,7 +429,7 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir_unit_comparison() {
                 arguments.as_slice(),
                 function.blocks[0].parameters.as_slice()
             );
-            assert!(
+            assert_diagnostic!(
                 body.contains(&format!(
                     "call i32 @f{}.{}(",
                     target.id.index(),

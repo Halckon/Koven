@@ -214,7 +214,7 @@ impl UnitExpressionLowerer<'_> {
             ))
             .cloned()
             .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        // Captured closures are lowered by `ssa::refine` (SPEC-0370 / SPEC-0390).
+        // Captured closures are lowered by `ssa::refine` (SPEC-0370 / SPEC-0393).
         if let Some(capture) = plan.captures.first() {
             let err_span = if self.closure_binding_context {
                 capture.span

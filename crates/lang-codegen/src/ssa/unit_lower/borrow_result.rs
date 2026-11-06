@@ -199,7 +199,7 @@ impl UnitExpressionLowerer<'_> {
         let UnitLoanTarget::Place(origin) = fact.origin() else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        // Non-root/call/range `borrow val` bindings lower through `ssa::refine` (SPEC-0390);
+        // Non-root/call/range `borrow val` bindings lower through `ssa::refine` (SPEC-0393);
         // only direct root Borrow parameter aliases used by legacy map iteration remain here.
         if fact.storage()
             != lang_frontend::ownership_checking::BorrowBindingStorage::BorrowedStorage

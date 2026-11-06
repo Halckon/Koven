@@ -1,4 +1,5 @@
 //! Existing Resource storage must not be filtered by nominal shape or key syntax.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod representation;
 use super::{
     Report,
@@ -162,9 +163,11 @@ fun entry():Unit{{println("nonempty");val actual=make();{caller};println("empty"
     cases
 }
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "RESOURCE FORMS INPUT case={} rooted={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -185,7 +188,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             source_forms::facts::unit(&sources, &parsed, names, typed, owned, report)
         },
     );
-    println!(
+    diagnostic!(
         "RESOURCE FORMS {} rooted={unit} report={report:#?} outcome={:?}",
         case.label,
         result.as_ref().map(|(_, id)| id)
@@ -210,14 +213,14 @@ fn existing_resource_representations_reach_verified_llvm() {
     for case in sources() {
         for unit in [false, true] {
             let result = observe(&case, unit);
-            println!(
+            diagnostic!(
                 "RESOURCE FORMS CASE {} rooted={unit} result={result:?}",
                 case.label
             );
             outcomes.push((case.label.clone(), unit, result));
         }
     }
-    assert!(
+    assert_diagnostic!(
         outcomes.len() == 64 && outcomes.iter().all(|(_, _, r)| r.is_ok()),
         "{outcomes:#?}"
     );

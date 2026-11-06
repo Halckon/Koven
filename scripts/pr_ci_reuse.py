@@ -79,7 +79,7 @@ def required_job_names(flags):
             names.add(f'Preview Producer ({host})')
             names.add(f'Preview Independent Consumer ({host})')
     if flags['editors'] == 'true':
-        names.add('Tree-sitter CLI Corpus')
+        names.add('Editor lexical contracts')
     return names
 
 
@@ -93,32 +93,51 @@ def same_pr(run, context):
             and all(pr.get('number') == context['number'] for pr in run.get('pull_requests', [])))
 
 
-def valid_evidence(run, jobs, context, flags, fingerprint_fn=None):
-    """Metadata is not a cache attestation: reconstruct historical Git inputs."""
+def evidence_rejection(run, jobs, context, flags, fingerprint_fn=None):
+    """Return a rejection reason, or None after reconstructing historical inputs."""
     if (not same_pr(run, context) or run.get('status') != 'completed'
             or run.get('conclusion') != 'success' or run.get('run_attempt', 0) < 1
             or run.get('id', context['run_id']) >= context['run_id']):
-        return False
+        return 'run identity, completion, attempt, or age does not match'
     by_name = {}
     for job in jobs:
         name = job.get('name')
-        if name in by_name or job.get('run_id') != run['id']:
-            return False
+        if name in by_name:
+            return f'duplicate job name: {name}'
+        if job.get('run_id') != run['id']:
+            return f'job belongs to another run: {name}'
         by_name[name] = job
     markers = [(name, MARKER.fullmatch(name)) for name in by_name if isinstance(name, str)]
     markers = [(name, match) for name, match in markers if match]
-    if len(markers) != 1 or not required_job_names(flags):
-        return False
+    if len(markers) != 1:
+        return f'expected one evidence marker, found {len(markers)}'
+    required_names = required_job_names(flags)
+    if not required_names:
+        return 'no physical code jobs required by current path flags'
     name, match = markers[0]
     number, base, head, merge, digest = match.groups()
     if (int(number) != context['number'] or base != context['base'] or digest != context['fingerprint']
             or run.get('head_sha') not in (head, merge)):
-        return False
-    for required in required_job_names(flags) | {name}:
-        job = by_name.get(required, {})
+        return 'evidence marker PR, base, fingerprint, or head does not match'
+    required_names.add(name)
+    missing = sorted(required_names - by_name.keys())
+    if missing:
+        return 'missing required jobs: ' + ', '.join(missing)
+    unsuccessful = []
+    for required in sorted(required_names):
+        job = by_name[required]
         if job.get('status') != 'completed' or job.get('conclusion') != 'success':
-            return False
-    return (fingerprint_fn or fingerprint)(head, merge, base) == context['fingerprint']
+            unsuccessful.append(f"{required} (status={job.get('status')}, conclusion={job.get('conclusion')})")
+    if unsuccessful:
+        return 'required jobs have not succeeded: ' + ', '.join(unsuccessful)
+    if (fingerprint_fn or fingerprint)(head, merge, base) != context['fingerprint']:
+        return 'reconstructed head/merge Git inputs do not match'
+    return None
+
+
+def valid_evidence(run, jobs, context, flags, fingerprint_fn=None):
+    """Metadata is not a cache attestation: require actual jobs and Git inputs."""
+    return evidence_rejection(run, jobs, context, flags, fingerprint_fn) is None
 
 
 class Actions:
@@ -154,28 +173,44 @@ def current_context(api, event):
     return context
 
 
+def report_candidate(run, decision, reason):
+    """Keep each decision attributable even when a later search barrier stops us."""
+    print(json.dumps(dict(run_id=run['id'], run_attempt=run.get('run_attempt'),
+                          head_sha=run.get('head_sha'), status=run.get('status'),
+                          conclusion=run.get('conclusion'), decision=decision, reason=reason),
+                     sort_keys=True))
+    return f"run {run['id']} (attempt {run.get('run_attempt')}): {reason}"
+
+
 def find_evidence(api, context, flags, selected=None):
     # A bounded search is an optimization only. Missing/older evidence runs CI.
     page = api.get(f"workflows/{context['workflow_id']}/runs?event=pull_request&per_page=100")
     if len(page['workflow_runs']) != min(page['total_count'], 100):
         raise ValueError('incomplete workflow run page')
     runs = sorted(page['workflow_runs'], key=lambda run: run['id'], reverse=True)
+    first_rejection = ''
     for run in runs:
         if run['id'] >= context['run_id'] or not same_pr(run, context):
             continue
         if run.get('status') != 'completed' or run.get('conclusion') != 'success':
-            return None, 'newer same-PR run has not succeeded'
+            reason = report_candidate(run, 'blocked', 'same-PR run has not succeeded; stop searching older runs')
+            return None, first_rejection + reason
         # Refresh status/attempt so a rerun cannot hide behind stale list data.
         run = api.get(f"runs/{run['id']}")
         if run.get('status') != 'completed' or run.get('conclusion') != 'success':
-            return None, 'candidate status changed'
+            reason = report_candidate(run, 'blocked', 'candidate status changed; stop searching older runs')
+            return None, first_rejection + reason
         if selected is not None and run['id'] != selected:
             continue
-        if valid_evidence(run, api.jobs(run), context, flags):
+        rejection = evidence_rejection(run, api.jobs(run), context, flags)
+        if rejection is None:
             return run, 'verified physical code jobs and both Git input trees'
+        reason = report_candidate(run, 'rejected', rejection)
         if selected is not None:
-            return None, 'selected evidence no longer valid'
-    return None, 'no complete matching physical-code evidence in search window'
+            return None, f'selected evidence no longer valid; {reason}'
+        if not first_rejection:
+            first_rejection = reason + '; '
+    return None, first_rejection + 'no complete matching physical-code evidence in search window'
 
 
 def verify_selected(outputs):

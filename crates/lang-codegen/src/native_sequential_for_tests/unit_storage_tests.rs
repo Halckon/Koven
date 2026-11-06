@@ -3,6 +3,7 @@
 use super::super::UnitSource;
 use super::emit_link_and_run;
 use crate::native_tests::boxed_enum_tests::unit_source::SourceRejectionKind;
+use crate::test_support::diagnostics::{assert_eq_diagnostic, diagnostic};
 
 fn check(
     filename: &str,
@@ -33,7 +34,7 @@ fn check(
         }}
         "#,
     );
-    eprintln!("{filename}:\n{source}");
+    diagnostic!("{filename}:\n{source}");
     let run = emit_link_and_run(filename, &source, "main");
     assert!(run.status.success(), "{filename}: {run:?}");
     assert_eq!(run.stdout, expected_stdout, "{filename}: {run:?}");
@@ -234,7 +235,7 @@ fn unit_value_return_retains_l0087_at_the_returned_expression() {
         [("parse", 0), ("names", 0), ("types", 1)]
     );
     let diagnostics = &analysis.report.diagnostics;
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq_diagnostic!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].0, "types");
     let diagnostic = &diagnostics[0].1;
     assert_eq!(diagnostic.code().to_string(), "L0087");
@@ -274,7 +275,7 @@ fn unit_source_element_replacement_retains_l0135_at_the_target() {
         [("parse", 0), ("names", 0), ("types", 0), ("ownership", 1)]
     );
     let diagnostics = &analysis.report.diagnostics;
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq_diagnostic!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].0, "ownership");
     let diagnostic = &diagnostics[0].1;
     assert_eq!(diagnostic.code().to_string(), "L0135");

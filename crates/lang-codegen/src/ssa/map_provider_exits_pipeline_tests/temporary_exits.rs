@@ -1,5 +1,6 @@
 //! temporary Call source continue/break/return 的独立首证 collector。
 //! 十二次 fresh 同源 pipeline 全部观察后统一硬成功；不执行 native，不预言复杂 cleanup 拓扑。
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod calls_unit;
 mod guards;
@@ -116,7 +117,7 @@ struct Observation {
 fn observe(case: &Case, rooted: bool) -> Observation {
     let mut report = Report::default();
     // SHA 是经仓外逐字复核的冻结输入标识；这里未做运行时哈希或 native 求值。
-    println!(
+    diagnostic!(
         "SPEC0331 TEMPORARY EXITS INPUT case={} rooted={rooted} path=provider.ko frozen_sha256={} golden_sha256={} golden_bytes={} golden_status=predicted_only text={:?}",
         case.label,
         case.source_hash,
@@ -140,7 +141,7 @@ fn observe(case: &Case, rooted: bool) -> Observation {
                 unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
             },
         )?;
-        println!(
+        diagnostic!(
             "SPEC0331 TEMPORARY EXITS SSA case={} rooted={rooted}\n{}",
             case.label,
             crate::ssa::render::render_program(&program)
@@ -163,7 +164,7 @@ fn observe(case: &Case, rooted: bool) -> Observation {
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|e| failure("LLVM render/verify", e))?;
         report.check("temporary exits LLVM render/verify", true, llvm.len());
-        println!(
+        diagnostic!(
             "SPEC0331 TEMPORARY EXITS LLVM case={} rooted={rooted}\n{llvm}",
             case.label
         );
@@ -186,17 +187,19 @@ fn map_and_mutable_map_temporary_exits_reach_verified_llvm() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 TEMPORARY EXITS OUTCOME case={} rooted={} report={:#?}",
-            observation.label, observation.rooted, observation.report
+            observation.label,
+            observation.rooted,
+            observation.report
         );
         match &observation.outcome {
-            Ok(()) => println!("stage=LLVM render/verify result=ok"),
-            Err(error) => println!("stage={} original={}", error.stage, error.original),
+            Ok(()) => diagnostic!("stage=LLVM render/verify result=ok"),
+            Err(error) => diagnostic!("stage={} original={}", error.stage, error.original),
         }
     }
     // 不以缺事实或 UnsupportedNode 为成功；不因首红丢掉其余十一格。
-    assert!(
+    assert_diagnostic!(
         observations.len() == 12
             && observations
                 .iter()

@@ -2559,3 +2559,62 @@ primary 精确为 `Int` 且 raw types 无法 validate。其他八个负向 case 
 十六项全部通过（零过滤）。独立只读复审无阻断，窄范围清点未见第二个同类非法 Box fixture。
 codegen all-targets Clippy（`-D warnings`）通过，测试文件现 440 行，没有新增尺寸债。
 该补片尚未推送或由官方 CI 运行，首轮失败不改写为通过。
+
+
+## 112. Field/Group 临时父 Borrow 的准入与清理修复（2026-11-05）
+
+独立基线 main `e1cde85f907553053c1d6ef699ea4ddd81d0a18e`。按 Guide 现行 Borrow temporary 与 Group 透明规则修复
+Phase 3，不改变 Value/Inout、普通借用结果或其他投影族的资格。
+
+- 真实失败回归先行：`read((Holder("field").text), 0)` 完整类型阶段通过后，ownership
+  返回内部 `InvalidUnitArgumentPlace`；`read(Outer(Holder("field")).inner.text, 0)`
+  ownership 准入且 loan 指向 Outer temporary，但完整 drop 表为空。固定 Rust 1.96.0
+  实际编译并分别执行两项测试，得到上述失败，不以静态推测当作动态证据。
+- 新 source-qualified 专用查询仅沿 typed Field 与 AST Group 追踪已求值 temporary
+  父，每步检查 receiver source-unit，排除普通借用结果与 range continuation。
+  普通 Shared argument 使用该查询；通用 projection/receiver/iteration 路径逐字保留。
+  pending 清理仍必须与同一 call、原 argument、实际 Shared loan 的完整 Temporary
+  target 匹配，并由父类型判断 MoveOnly；不从中间字段类型、语法名字或通用 loan
+  fallback 猜 owner。构造 Group 的旧父身份保持不变。
+- 正常返回、逆序清理、提前 return/break/continue、内层 loop 保留外父与构造未完成
+  清理复用既有 pending 状态。Copyable 父无唯一义务；Inout 与 partial move 负例保持
+  L0134/L0132 与原 primary 约定；后续非法实参清空已完成前缀的 executable facts。
+  direct-call/exclusive-prefix 观测片仍排除字段，不以空表宣称完整 loan-end 闭合。
+- `unit_direct_call_loan_ends/temporary_field_pending.rs` 新增七项实际源码回归，使用
+  Rooted/MemoryDocument 双入口、完整 type final gate 与 ownership validate。预期
+  call/argument/parent/point 由独立源码 AST 选取；核完整 drop 表与 value_origin 顺序。
+  原一层测试只推广其 AST parent 检查以容纳 Field/Group 链，原源码与资源 oracle 保留。
+- 下游只读核验发现独立 P4 缺口：既有 `lower_borrow_place` 把 Temporary loan target
+  的完整 class parent 当作 String 参数 owner，未建立字段 loan，真实公开 native 探针的
+  grouped 正常调用与 nested/return 均在 object emission 前报 `InvalidModel/MissingFact`。
+  ADR-0032 明确不采用继续按家族扩充旧 `unit_lower`；本片遵守 §2 与 E3 分工，不改
+  codegen/refine 路由。P4 实验不进入本候选，后续须沿既有 refine field/pending 合同独立推进，
+  不能将本片的 frontend 资源 facts 验收当作 native 已修复。
+- [#315 审查提示](https://koven-hq.slack.com/archives/C0CBTCC2X2R/p1793886950819489?thread_ts=1793885318.134569&cid=C0CBTCC2X2R)：
+  `make().f` Shared 实参的 Abort 边仍缺 counted/native 动态证据，目前不是已确认缺陷。
+  现行 Abort 不 unwind，不能用正常返回或 return/break/continue 的 deinit 顺序替代证明。
+  后续专用 CI 应保留现有 Abort facts 整项，并在 E3 正式支持该族后，以独立 counted/native
+  测试核对失败边的既定资源合同与进程结果；本地不执行含 Abort 的整项，不将其列为本片通过。
+
+| 验收项 | 目标 / 过滤器 | 实际结果 |
+|---|---|---|
+| 失败先行 | grouped/nested 两项精确测试 | 修复前各失败一次，分别为内部错误与空 drop 表 |
+| Field/Group 与直接调用邻控 | `unit_direct_call_loan_ends`，排除两个含 Abort 的整项 | 27 passed；禁止执行的两项完整保留、不运行 |
+| range continuation 邻控 | `ownership_range_construction` | 14 passed，无过滤 |
+| pending lifetime 邻控 | `multifile_ownership_checking::pending_lifetime::unit_pending_borrow_owner_survives_branches_and_nested_calls` | 精确 1 passed |
+| frontend 静态检查 | 固定 Rust 1.96.0 `cargo build -p lang-frontend --lib` 与 `cargo clippy -p lang-frontend --all-targets -- -D warnings`，locked/offline | 最终候选均通过 |
+| P4 边界核验 | 仓外公开 native API 探针 | P3 修复后两项仍 MissingFact，未生成 object；先前整体 lib-test 编译被 SIGKILL，未进入测试。P4 不在本候选 |
+| 文档 / 尺寸 / diff / fmt | 现行本地检查 | 全通过；838 Markdown、2114 Rust、39 项历史超限，无新增债 |
+
+不运行故障注入、校准、含 Abort 的整项测试、Mac 构建或全工作区动态套件；未发布、
+不推送，不将本地有界验收冒充精确头官方 CI。D10/E2 与本 Spec 保持 in-progress。
+
+### §112 官方验收与主干组合（2026-11-05）
+
+[PR #321](https://github.com/Halckon/Koven/pull/321) 的原发布头 `85a5b9b5`，基线
+`e1cde85f`、合并输入 `598a965f`，已在[官方 run 42052875962](https://github.com/Halckon/Koven/actions/runs/42052875962)
+全部通过。Linux/macOS 均实际通过 `temporary_field_pending` 的 13 项测试（含现有 Abort
+边界），Preview 生产与独立消费也均通过。这只证明 P3 前端验收，不证明 P4/native 缺口已修复。
+
+本次组合 main `bd036dfd`（含 #319、#320），保留双方原改动，仅解决 Spec 编号冲突，将本节
+改为 §112；P3 源码不变。新组合的官方 CI 尚待运行，原发布头的通过记录不替代新组合验收。

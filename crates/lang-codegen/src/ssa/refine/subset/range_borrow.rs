@@ -90,6 +90,14 @@ impl Checker<'_, '_> {
             || typed.integer_range_operation(id).is_some()
             || typed.map_with_value(id).is_some()
             || typed.map_require_value(id).is_some()
+            || typed.map_get(id).is_some()
+            || typed.container_append(id).is_some()
+            || typed.container_clear(id).is_some()
+            || typed.container_remove_at(id).is_some()
+            || typed.container_remove_first(id).is_some()
+            || typed.container_remove_last(id).is_some()
+            || typed.container_insert_at(id).is_some()
+            || typed.element_place(id).is_some()
             || typed.container_construction(id).is_some_and(|d| {
                 d.kind() == lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
             })
