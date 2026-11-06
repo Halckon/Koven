@@ -246,9 +246,10 @@ impl Checker<'_, '_> {
             return false;
         }
         let receiver = descriptor.receiver().expression();
-        let ok = self
+        let ok = (self
             .named_container_owner(receiver, container_ty, true)
             .is_some()
+            || self.expression(receiver))
             && self
                 .inputs
                 .owned
@@ -718,6 +719,7 @@ impl Checker<'_, '_> {
                         | Action::EndSource(_)
                         | Action::EndCallLoan(_)
                         | Action::EndReceiverLoan(_)
+                        | Action::EndCaptureLoan { .. }
                 )
             })
         }) {

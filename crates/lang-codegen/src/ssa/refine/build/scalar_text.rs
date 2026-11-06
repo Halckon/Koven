@@ -516,6 +516,10 @@ impl Builder<'_, '_> {
                 lang_frontend::type_checking::ConstValue::Integer { value, .. },
             ) => ROp::Constant(ScalarConstant::Integer(*value)),
             (
+                lang_frontend::ownership_checking::ConstantMaterializationKind::InlineCopy,
+                lang_frontend::type_checking::ConstValue::Char(value),
+            ) => ROp::Constant(ScalarConstant::Char(u32::from(*value))),
+            (
                 lang_frontend::ownership_checking::ConstantMaterializationKind::StringTemporary,
                 lang_frontend::type_checking::ConstValue::String(bytes),
             ) => ROp::StringLiteral {

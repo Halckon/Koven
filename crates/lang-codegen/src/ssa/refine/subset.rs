@@ -840,10 +840,8 @@ impl Checker<'_, '_> {
                 Some(UnitTypeKind::Nullable(inner)) if self.view_inner(*inner) => {
                     if views && fact.non_null_when_true() {
                         self.view_symbols.insert(fact.symbol());
-                        true
-                    } else {
-                        !views
                     }
+                    true
                 }
                 _ => false,
             };

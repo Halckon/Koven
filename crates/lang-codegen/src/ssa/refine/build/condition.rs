@@ -374,6 +374,10 @@ impl Builder<'_, '_> {
             let mark = self.enter(block);
             let saved_expected = self.expected_nullable;
             if let Some(res) = result
+                && matches!(
+                    self.inputs.typed.types().get(ty),
+                    Some(UnitTypeKind::Nullable(_))
+                )
                 && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
             {
                 self.expected_nullable = Some(ssa_ty);
