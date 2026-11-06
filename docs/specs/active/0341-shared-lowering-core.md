@@ -2561,6 +2561,41 @@ codegen all-targets Clippy（`-D warnings`）通过，测试文件现 440 行，
 该补片尚未推送或由官方 CI 运行，首轮失败不改写为通过。
 
 
+### 顺序容器 signature 的有界 L0125 修复（2026-11-06）
+
+基于 main `c4ba670a76a567e1475deee47378fa791d25f419`，独立分支
+`fix/spec-0341-container-signature-storage`，不叠加 #326–328 或修改 #323。
+Phase 2 修复现行 Guide 12 已定义的存储限制，不改变语言语义、旧 Single witness 或 codegen。
+
+- 原因：signature 的真实 external intrinsic 分支只检查 arity/Box，没有 body checker
+  已有的直接不可存储元素诊断。新增五项回归先在主干生产实现运行，4 failed/1 passed，
+  直接、嵌套、字段和返回签名缺 L0125；原混合 case 仅 L0094/L0091，缺两条 L0125。
+- 仅在 arity 合法的 Array/List/MutableList 上检查元素为直接或 Nullable 包裹的
+  Any/Nothing；在原元素 TypeRef span 报 L0125。真实环境身份判断，不按名字匹配，
+  不递归 nominal 字段/类型实参，不把函数签名中的 Nothing 当作函数值不可存储。
+  Rc/View/Map/Box、interface/layout/range 后置检查及原 Error/arity 恢复均不改变。
+- 首版返回 Error 真实制造了不同非法 overload 的伪 L0097，独立审查指出后用新增回归
+  复现。最终沿用现有 Map signature 的诊断策略：保留原 raw 形状和 intern 表，只增加
+  错误诊断；typed validate 与实际 final admission 均拒绝且保留原诊断。没有改共享
+  shapes 算法，不把 raw 产品存在当作成功准入，也不修改合法邻居或去重不同源码实例。
+- 九项新增测试覆盖三容器×四种元素×外层可空性、字段/返回/函数参数与结果、内嵌容器、
+  固定诊断顺序、合法函数值/泛型/源码同名 List、跨文件反向输入、arity、顶层/member/
+  function overload、重复错误位置与合法邻居。单源均实际双入口，跨文件核源身份和
+  完整 signature 确定性；原 type_containers 的两个 Single witness 和 #328 内容不改。
+- 主签名文件只加 module 与调用两行，1025→1027，沿用既有增长例外；新私有 helper
+  49行，测试模块231行，不提高尺寸额度。未宣称解决全部递归 nominal storage 或 native。
+
+| 验收项 | 检查 / 命令 | 实际结果 |
+|---|---|---|
+| 失败先行 | 新增初始五项、首版 overload 回归 | 4红1绿；首版 overload 额外L0097真实失败，原日志保留 |
+| 直接与邻控 | `multifile_type_signatures`、`type_containers`、`type_copyability`、`type_map` | 17 + 32 + 16 + 17 全通过，均零过滤 |
+| 云端编译 | Rust1.96.0、默认debug=2、locked/offline frontend lib build 与测试编译 | 通过 |
+| 静态质量 | frontend all-targets Clippy、fmt、docs、尺寸、diff | 全通过；839 Markdown、2120 Rust、39项历史超限，无新增债 |
+| 独立复核 | raw shape、错误恢复、身份和scope | 无阻断；首版恢复副作用已修正并动态验证 |
+
+本片未执行故障注入、Abort 整项、Mac 构建、native 或官方双平台 CI；未推送或开 PR。
+D10/E2 保持 in-progress，不等待其他 PR 的 CI 才继续工作，也不自动合并。
+
 ## 112. Field/Group 临时父 Borrow 的准入与清理修复（2026-11-05）
 
 独立基线 main `e1cde85f907553053c1d6ef699ea4ddd81d0a18e`。按 Guide 现行 Borrow temporary 与 Group 透明规则修复
