@@ -131,6 +131,11 @@ impl Checker<'_> {
                                     origin: contract.loan_begin_span(),
                                 });
                                 UnitLoanTarget::Place(place)
+                            } else if kind == LoanKind::Shared
+                                && let Some(owner) =
+                                    self.temporary_field_owner(contract.argument().expression())?
+                            {
+                                UnitLoanTarget::Temporary(owner)
                             } else if let Some(owner) =
                                 self.temporary_projection_owner(contract.argument().expression())?
                             {

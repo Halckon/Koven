@@ -8,9 +8,7 @@ use crate::{
     name_resolution::UnitSymbolId,
     ownership_checking::{LoanKind, UnitLoanTarget},
     source::Span,
-    type_checking::{
-        Copyability, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitExpressionId,
-    },
+    type_checking::{Copyability, UnitExpressionId},
 };
 
 #[derive(Clone, Debug)]
@@ -92,7 +90,7 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<(), OwnershipCheckingError> {
         // 保留既有 element backing 与直接 temporary 的选择顺序和独立生命周期路径。
-        if let Some(temporary) = self
+        let mut temporary = self
             .checker
             .temporary_element_owner(argument)?
             .map(UnitExpressionId::expression)
@@ -100,9 +98,11 @@ impl DropPlanner<'_, '_> {
                 (kind == UnitCallArgumentOwnershipKind::SharedLoan
                     && self.is_move_only_temporary(argument))
                 .then_some(argument)
-            })
-            .or_else(|| self.direct_temporary_field_owner(call, argument, kind))
-        {
+            });
+        if temporary.is_none() {
+            temporary = self.borrowed_temporary_field_owner(call, argument, kind)?;
+        }
+        if let Some(temporary) = temporary {
             let origin = self
                 .checker
                 .parsed
@@ -115,34 +115,24 @@ impl DropPlanner<'_, '_> {
         Ok(())
     }
 
-    fn direct_temporary_field_owner(
+    fn borrowed_temporary_field_owner(
         &self,
         call: ExpressionId,
         argument: ExpressionId,
         kind: UnitCallArgumentOwnershipKind,
-    ) -> Option<ExpressionId> {
+    ) -> Result<Option<ExpressionId>, OwnershipCheckingError> {
         if kind != UnitCallArgumentOwnershipKind::SharedLoan
             || self.checker.borrow_result_call(argument).is_some()
             || self.checker.range_use(argument).is_some()
         {
-            return None;
+            return Ok(None);
         }
-        let argument = self.checker.unit_expression(argument);
-        let projection = self.checker.typed.aggregate_projection(argument)?;
-        if projection.expression() != argument
-            || projection.kind() != UnitAggregateProjectionKind::Field
-        {
-            return None;
-        }
-        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
-            return None;
+        let Some(receiver) = self.checker.temporary_field_owner(argument)? else {
+            return Ok(None);
         };
-        // 只接受一层直接父；不沿 nested field、element 或 Rc.value 重新追溯 owner。
-        if receiver.source_unit() != self.checker.source_unit {
-            return None;
-        }
+        let argument = self.checker.unit_expression(argument);
         let call = self.checker.unit_expression(call);
-        self.checker.loans.iter().find_map(|loan| {
+        Ok(self.checker.loans.iter().find_map(|loan| {
             if loan.call() != call || loan.argument() != argument || loan.kind() != LoanKind::Shared
             {
                 return None;
@@ -152,7 +142,7 @@ impl DropPlanner<'_, '_> {
             };
             (*owner == receiver && self.is_move_only_temporary(owner.expression()))
                 .then_some(owner.expression())
-        })
+        }))
     }
 
     pub(super) fn register_pending_temporary(
