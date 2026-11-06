@@ -71,7 +71,7 @@ Rust 1.96.0、LLVM 21.1.8；减少每个核心 job 重复安装，不降低任�
 | Linux LLDB 启动回归与受影响目标编译 | `cargo test --offline --locked -p lang-cli --test native_cli final_debug_artifacts::linux_source_debugger_preserves_aslr -- --exact`；CLI Clippy/build | 新增回归修复前失败、修复后 1 项通过；native_cli 实际编译链接、严格 CLI Clippy 和 CLI build 通过。真实源码断点依赖 CI，本地无 LLDB |
 | 原双宿主和两套 Preview | head `e7e8ab0` 的 [run 42148114385](https://github.com/Halckon/Koven/actions/runs/42148114385) | Linux/macOS Clippy 与 Targeted Tests、两个 producer 和两个独立 consumer、CI Passed 全部通过。#324 正常合入 main `c80e9e38a126623af70aebbd9a6ff83c8063ceb0`，tree 与验收头完全一致 |
 | 可信 main 发布、真实 digest、匿名读取 | main `c80e9e38` 的 [CI](https://github.com/Halckon/Koven/actions/runs/42153007409) 与 [发布 job](https://github.com/Halckon/Koven/actions/runs/42153917943/job/127696200046) | 双平台与 Preview 全部通过；同一验收 artifact 的 image ID 经 save/load、push/pull 保持不变，发布 index digest 为下列消费身份；离线 readiness 和匿名检查通过。第一次因 main 未完成而关闭，第二次 GHCR denied 留下平台 manifest；未改权限/内容的一次有界重试完成完整 index，原 denied 根因未证实 |
-| 核心 job 切换、真实 Actions container/cache 验收 | PR #322 的直接迁移组合 | 已实现固定 digest、非 root、离线校验及 Linux cache 隔离；新合同修复前失败、修复后通过。真实 Actions container/缓存/上传及双平台与 Preview CI 待候选精确头，不能宣称切换完成 |
+| 核心 job 切换、真实 Actions container/cache 验收 | PR #322 head `db0fb0a5`、base `c80e9e38`、merge `064e077b` 的 [核心 CI](https://github.com/Halckon/Koven/actions/runs/42161657885) 与 [独立镜像验收](https://github.com/Halckon/Koven/actions/runs/42161657961) | 全部通过：Linux Clippy/Targeted Tests 使用固定 digest 与 UID/GID 1001；挂载/HOME、checkout、离线工具链、权限错误测试、源码断点、sanitizer、产物上传，以及 macOS 和两套 Preview 均实际通过。冷缓存查找与保存成功；缓存命中后的恢复/解包尚未验证，不关闭本 Spec |
 
 已发布消费身份：
 `ghcr.io/halckon/koven-ci-toolchain@sha256:b5ce8a4479579ecc57194e385f13109a52022114f0e19cab93fc426bdbb9500e`。

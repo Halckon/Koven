@@ -39,7 +39,7 @@
 ## 3. 验收标准
 
 - [x] 原分支记录的 `ssa::` 全量单元测试通过，包含 7 项 abort 前驱退役回归；其中 4 类调用族的旧参数断言存在下述鉴别力缺口，不作为修复后的验收。
-- [ ] PR #300 复审：按 CFG edge 实参位置追踪重命名 owner，补充独立 oracle 正反例；动态验收仅由 CI 执行。
+- [x] PR #300 复审：按 CFG edge 实参位置追踪重命名 owner，补充独立 oracle 正反例；动态验收仅由 CI 执行，见 §6。
 - [x] `llvm::` 全量 74 项单元测试 100% 通过。
 - [x] 手写 Rust 文件尺寸护栏保持在 1000 行软上限内（`emit.rs` 975 行，`control_flow_tests.rs` 946 行，`numeric_iteration.rs` 529 行）。
 - [x] `python3 scripts/gen_roadmap.py`、`python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`cargo fmt --all -- --check` 与 `cargo clippy --locked --workspace --all-targets -- -D warnings` 全部通过。
@@ -133,5 +133,12 @@ head `d84051e2` 与 main `3f88b1aa` 的组合在 [run 42133927775](https://githu
 Ubuntu 测试因 LLVM 包下载超时尚未启动，Preview 未执行，不记作组合验收通过。
 按用户最新要求，现基于 main `c80e9e38` 将 [SPEC-0390](0390-prebuilt-ci-toolchain.md) 的
 已发布固定 digest 直接整合本 PR：Linux 核心 job 使用非 root 容器，保留原测试和
-macOS/Preview 门禁。三个 owner 测试/helper 文件与 `d84051e2` 逐字一致；新组合的
-精确头 CI、权限测试、Actions 挂载/缓存/产物验收仍待实际运行，旧结果不替代新验收。
+macOS/Preview 门禁。三个 owner 测试/helper 文件与 `d84051e2` 逐字一致。
+
+新 head `db0fb0a51d889fba6d034810ce0726141d286e8f`、base `c80e9e38`、merge `064e077b` 的
+[核心 CI](https://github.com/Halckon/Koven/actions/runs/42161657885)与
+[独立镜像验收](https://github.com/Halckon/Koven/actions/runs/42161657961)全部通过。
+四项 oracle 校准和七项 Abort 前驱在 Linux/macOS 实际通过；双平台 Clippy、完整 targeted tests、
+两套 Preview producer/consumer 与汇总门禁均通过。Linux 容器的非 root 权限错误测试、
+Actions 挂载/HOME、checkout、离线工具链、调试断点、sanitizer 与产物上传实际通过。
+冷缓存查找/保存成功，但命中后的恢复/解包尚未验证；SPEC-0390 继续保持 in-progress。
