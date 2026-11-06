@@ -1788,6 +1788,27 @@ root replace 返回一源、field replace 返回一源、field replace 中断四
   本地 Cargo/build/test/Clippy 未运行；获准发布 Draft PR，动态验收待精确候选头 CI。
   D10/E2 继续 in-progress，不以历史 main CI 计入本候选通过。
 
+### Resource 类型消费者有界迁移（2026-11-06）
+
+基于 main `c4ba670a`，本片只迁 `type_checking` 的六项资源类型消费者，
+不改 §84 ownership terminal、生产代码、Guide、CI 或其他在途候选。
+
+- 两项 deinit 与四项 replace/swap 测试按完整领域迁至私有 `resource_unit` 模块；
+  保留原函数名、源码、parser 与名称/类型环境。测试完整名称增加 `resource_unit::`
+  前缀，仓库内未发现依赖原完整名称的精确过滤器。
+- 每源实际运行 MemoryDocument/Rooted 两入口，检查入口 key/source 身份及 names
+  diagnostics/validate。保留无诊断、has_deinit、两项 call 数量及 L0097/L0122/L0084
+  原 oracle；has_deinit 查询改用真实 Unit 签名声明中的 nominal 描述。
+- 未限定 deinit 的 names-only 拒绝源仍留原处；未迁其余 Single 消费者。不新增 ownership
+  或最终 typed admission 结论，不把资源类型通过等同于资源 owner graph 支持。
+- 云端 Rust 1.96.0、默认 debug=2 下，`cargo test -p lang-frontend --test type_checking
+  --no-run --locked --offline`、`resource_unit::` 六项及原 names-only 精确测试一项通过；
+  `cargo build -p lang-frontend --lib --locked --offline`、frontend all-targets Clippy
+  （`-D warnings`）、fmt、尺寸守卫、diff 检查与独立审查通过。
+- 根测试文件从 2193 行降至 2123 行，新模块 123 行；未提升历史尺寸额度。
+  不运行本地 Abort/故障注入、全量 type_checking 或 Mac 构建。仅备份独立分支，
+  尚未创建 PR；本候选官方 CI 未运行，D10/E2 继续 in-progress。
+
 ## 85. Choice 前置：真实 control tail 内部通道（2026-11-04）
 
 基于 main `58479df5`，本片仅保留实际 control body 求值产生的尾表达式及已有

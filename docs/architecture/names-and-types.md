@@ -164,7 +164,7 @@ unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢�
 不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
 
 `type_containers` 的六项核心构造、诊断、遮蔽、泛型推导与 size 原测试走双 Unit 入口；signature storage 诊断和 deferred recovery 两项 Single witness 保留。对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、`multifile_type_member_graph`、`multifile_type_capability_graph`、`type_copyability` 与 `type_map`（两目标均保留双入口原 oracle，无 Single 消费者）。
-`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。
+`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。 `type_checking::resource_unit` 六项原 deinit/replace/swap 类型消费者保留双入口原 oracle（[范围](../specs/active/0341-shared-lowering-core.md#resource-类型消费者有界迁移2026-11-06)）；不扩张资源所有权准入。
 
 ### Unit 关联常量选择
 
