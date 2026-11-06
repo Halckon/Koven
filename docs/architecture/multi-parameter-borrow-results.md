@@ -34,3 +34,5 @@ foreign/temporary 来源拒绝、借用存活期间禁止 source move，以及�
 实际来源数量、未证明路径与错误交付的原子拒绝、精确 primary/来源 label 断言。
 `ownership_borrow_last_use` 全八项原测试覆盖双入口，保留父子逆序/独立结果的精确
 source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与保守 scope endpoint。
+`ownership_borrow_continuation` 的 capture/conditional/nested-call/temporary/loop 五项拒绝
+消费者也覆盖双入口，错误时 bindings/ends 不发布；独立 Single loan-end witnesses 保留。

@@ -2927,3 +2927,13 @@ Clippy（`-D warnings`）、fmt、文档/尺寸/diff及独立审查通过。故�
 全部八项现均双入口，不改分析算法，不将 scoped 保守行为升级成任意 CFG/NLL 能力。
 云端固定 Rust 1.96.0/default debug=2/locked/offline，六目标36项无过滤重跑通过，
 all-targets Clippy（`-D warnings`）通过；同批累计未发布，不单独开 PR。
+
+#### 同批收尾：caller-continuation 关闭边界
+
+仅将共享 `assert_ownership_rejects` 的五项原消费者补 Rooted：capture、conditional
+initializer、nested call、temporary source 与 loop binding。原五源、L0162/L0164、
+bindings/ends 清空断言保留；其余测试与独立 Single loan-end helper 不改，默认 checked
+仍为 MemoryDocument。此补覆盖不开放新来源或 CFG 能力。
+云端固定 Rust 1.96.0/default debug=2/locked/offline，continuation 14 加前六目标36，
+共50项无过滤通过；目标编译、all-targets Clippy（`-D warnings`）通过。所有七目标本已在
+stage selector，未增加目标或修改计数；保留多逻辑提交统一交付，官方 CI 尚未运行。

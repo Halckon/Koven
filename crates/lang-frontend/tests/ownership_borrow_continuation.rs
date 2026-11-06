@@ -14,6 +14,10 @@ use lang_frontend::{
 };
 
 fn checked(body: &str) -> (SourceMap, CompilationUnitOwnership) {
+    checked_entry(body, false)
+}
+
+fn checked_entry(body: &str, rooted: bool) -> (SourceMap, CompilationUnitOwnership) {
     let text = format!(
         "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) {{}}\n{body}"
     );
@@ -26,8 +30,24 @@ fn checked(body: &str) -> (SourceMap, CompilationUnitOwnership) {
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let inputs = [if rooted {
+        SourceUnitInput::new("root", "continuation.ko", source, &parsed)
+    } else {
+        SourceUnitInput::memory_document(source, &parsed)
+    }];
     let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let [indexed] = index.source_units() else {
+        panic!("one original source")
+    };
+    assert_eq!(indexed.source_id(), source);
+    match (rooted, indexed.key()) {
+        (false, lang_frontend::name_resolution::SourceUnitKey::MemoryDocument) => {}
+        (true, lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path }) => {
+            assert_eq!(root.as_str(), "root");
+            assert_eq!(logical_path.as_str(), "continuation.ko");
+        }
+        _ => panic!("requested entry identity"),
+    }
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
         .unwrap()
         .validate()
@@ -257,16 +277,18 @@ fn global_borrow_binding_is_rejected_by_parser_at_its_marker() {
 }
 
 fn assert_ownership_rejects(body: &str, code: &str) {
-    let (_, unit) = checked(body);
-    {
-        let diagnostics = unit.diagnostics();
-        assert!(
-            diagnostics.iter().any(|d| d.code().to_string() == code),
-            "{body}: {diagnostics:?}"
-        );
+    for rooted in [false, true] {
+        let (_, unit) = checked_entry(body, rooted);
+        {
+            let diagnostics = unit.diagnostics();
+            assert!(
+                diagnostics.iter().any(|d| d.code().to_string() == code),
+                "{body}: {diagnostics:?}"
+            );
+        }
+        assert!(unit.borrow_results().bindings().is_empty());
+        assert!(unit.borrow_results().ends().is_empty());
     }
-    assert!(unit.borrow_results().bindings().is_empty());
-    assert!(unit.borrow_results().ends().is_empty());
 }
 
 #[test]
