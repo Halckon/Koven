@@ -2659,3 +2659,12 @@ foreign/temporary 来源 L0162、source move L0135 和普通 val L0163 原断言
 String clone 14、borrow-result 类型 3、frontier 2，共 23 项通过（无过滤）；编译、
 all-targets Clippy（`-D warnings`）、fmt、文档/尺寸/diff 通过。未运行故障注入、Abort、
 Mac 构建或 native；本批尚未发布，官方 CI 未运行。
+
+#### 同批追加：借用实际来源与原子拒绝 oracle
+
+`ownership_borrow_origins` 五项原测试、18 组原样例补为真实 MemoryDocument/Rooted；
+保留原来源数量、空 deferred、L0162/L0163/L0164、错误时空 origins/drops，以及
+primary/来源 label 的原文本断言。原两阶段诊断门、typed validate 与实际 ownership
+分析均保留，增加 source_id/key/root/path 身份检查；不把两入口通过升级为跨文件/native 能力。
+云端同工具链/default debug=2/locked/offline，origins 5 加前批 23，共28项通过（无过滤），
+目标编译与 all-targets Clippy（`-D warnings`）通过。未运行故障注入或 Abort，未发布或新建PR。

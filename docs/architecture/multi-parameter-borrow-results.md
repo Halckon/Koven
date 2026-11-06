@@ -30,3 +30,5 @@ LLVM adapter继续使用既有多个Loan pointer参数和单一storage pointer�
 这些 raw 类型事实不额外授予 ownership 或 native 能力。
 `ownership_borrow_result` 的四项原消费者也覆盖双入口：wrapper/local scope 恢复、实际
 foreign/temporary 来源拒绝、借用存活期间禁止 source move，以及普通 val 不隐式拥有借用结果。
+`ownership_borrow_origins` 五项消费者在双入口保留 direct/projected/nullable/wrapper 的
+实际来源数量、未证明路径与错误交付的原子拒绝、精确 primary/来源 label 断言。
