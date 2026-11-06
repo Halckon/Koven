@@ -170,16 +170,68 @@ tar() { echo EXTRACTED; return 99; }
                     self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
             self.assertTrue((root / 'toolchain-evidence/debugger-probe').is_file())
 
-    def test_core_is_not_switched_before_real_digest_publication(self):
+    def test_core_uses_one_immutable_non_root_linux_image(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        self.assertNotIn('container:', workflow)
-        self.assertNotIn('ghcr.io/', workflow)
+        images = re.findall(r'image: (ghcr\.io/halckon/koven-ci-toolchain@sha256:[0-9a-f]{64})', workflow)
+        self.assertEqual(2, len(images))
+        self.assertEqual(1, len(set(images)))
+        for name, following in (('clippy', 'test'), ('test', 'preview-macos-produce')):
+            job = workflow.split('\n  ' + name + ':\n', 1)[1].split('\n  ' + following + ':\n', 1)[0]
+            self.assertIn('          - os: ubuntu-26.04\n            container:\n', job)
+            self.assertIn('              options: --user 1001:1001', job)
+            self.assertIn("container: ${{ matrix.container || '' }}", job)
+            self.assertIn('defaults:\n      run:\n        shell: bash', job)
+            self.assertLess(job.index('Verify unprivileged container mounts'), job.index('actions/checkout'))
+            self.assertLess(job.index('bash scripts/verify_ci_toolchain_image.sh'), job.index('Swatinem/rust-cache'))
+            self.assertIn("${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image,", job)
+            self.assertIn("hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}", job)
+            self.assertIn("'scripts/verify_ci_toolchain_image.sh'", job)
+            self.assertIn("${{ steps.llvm.outputs.version || '21.1.8' }}", job)
+            for step in job.split('\n      - ')[1:]:
+                if 'uses: ./.github/actions/setup-llvm' in step or 'uses: dtolnay/rust-toolchain' in step:
+                    self.assertIn("if: runner.os == 'macOS'", step)
+            for forbidden in ('apt-get', 'rustup ', 'continue-on-error', '--privileged',
+                              '--cap-add', '--security-opt', 'chmod ', 'chown '):
+                self.assertNotIn(forbidden, job)
+        preview = workflow.split('\n  preview-macos-produce:\n', 1)[1]
+        self.assertNotIn('container:', preview)
+        self.assertNotIn('ghcr.io/', preview)
         self.assertEqual(2, workflow.count('os: [macos-15, ubuntu-26.04]'))
         self.assertEqual(2, workflow.count('runs-on: ubuntu-24.04'))
         for group, following in (('docs', 'rust'), ('rust', 'editors'), ('preview', 'frontend')):
             block = workflow.split('            ' + group + ':\n', 1)[1].split('            ' + following + ':\n', 1)[0]
             self.assertIn("'.github/ci-toolchain/**'", block)
             self.assertIn("'.github/workflows/ci-toolchain-image.yml'", block)
+
+    def test_container_mount_preflight_fails_closed(self):
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        blocks = re.findall(r'- name: Verify unprivileged container mounts\n(.*?)(?=\n      - )',
+                            workflow, re.S)
+        self.assertEqual(2, len(blocks))
+        self.assertEqual(blocks[0], blocks[1])
+        self.assertIn("if: runner.os == 'Linux'", blocks[0])
+        script = textwrap.dedent(blocks[0].split('        run: |\n', 1)[1])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directories = {key: root / key for key in ('HOME', 'GITHUB_WORKSPACE', 'RUNNER_TEMP')}
+            for directory in directories.values():
+                directory.mkdir()
+            env_file = root / 'GITHUB_ENV'
+            env_file.touch()
+            env = dict(os.environ, **{key: str(value) for key, value in directories.items()},
+                       GITHUB_ENV=str(env_file))
+            for uid, valid in (('0', False), ('1000', False), ('1001', True)):
+                with self.subTest(uid=uid):
+                    env_file.write_text('')
+                    result = subprocess.run(['bash', '-c', f'id() {{ echo {uid}; }}\n' + script],
+                                            env=env, text=True, capture_output=True, timeout=10)
+                    self.assertEqual(valid, result.returncode == 0, result.stderr)
+                    self.assertEqual(f'CARGO_HOME={directories["HOME"]}/.cargo\n' if valid else '',
+                                     env_file.read_text())
+            env['RUNNER_TEMP'] = str(root / 'missing')
+            result = subprocess.run(['bash', '-c', 'id() { echo 1001; }\n' + script],
+                                    env=env, text=True, capture_output=True, timeout=10)
+            self.assertNotEqual(0, result.returncode)
 
 
 if __name__ == '__main__':

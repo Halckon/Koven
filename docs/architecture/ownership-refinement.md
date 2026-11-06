@@ -27,6 +27,11 @@ Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed 
   参数，非空目标末尾追加 view。abort 块继承同一分支另一条边的活跃集合，存活 owner 因此在 Abort
   边上有归属；产物经完整 verifier。
 
+调用后双 Abort 的测试 oracle 按 edge arguments 与目标参数的配对位置追踪入口 owner，
+验证预期调用确实消费它，再检查调用后的边不续传其重命名身份。调用前 Abort 和其他
+存活 owner 可正常运输；独立正反例的 CI 验收状态见
+[SPEC-0383 §6 复审记录](../specs/active/0383-refine-final-legacy-retirement.md#6-pr-300-参数身份断言复审)。
+
 已接入：Boolean/整数/String 标量与 checked 算术、String 字面量/拼接/比较、`println`、顶层直接调用、
 `if`/`while`/短路、`when`（无 subject 时 Boolean 条件按序测试；标量 subject 按值比较或测整数 Range 成员；enum subject
 比较判别值，值位置无 `else` 时落空边为不可达 Abort；命中边消费 `WhenAlternativeMatch`；String subject 的无插值 literal/Group 首核

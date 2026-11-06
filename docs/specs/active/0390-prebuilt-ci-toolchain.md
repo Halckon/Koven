@@ -18,9 +18,10 @@ LLVM 包下载超时。用户批准先做独立 PR、验证后再切 CI。预置
 Rust 1.96.0、LLVM 21.1.8；减少每个核心 job 重复安装，不降低任何门禁。
 镜像仍需首次下载和构建；不保证消除所有网络故障或给出未经测量的节省比例。
 
-本 PR 是第一阶段：增加可审阅的镜像输入、只读 PR 验收及可信 main 发布流程。
-现行 Clippy/Targeted Tests 仍使用原宿主安装器，不能在镜像不存在时填入假 digest。
-不自动合并、不改保护规则、不让 PR 获得发布凭据。
+第一阶段 #324 已增加镜像输入、只读 PR 验收及可信 main 发布流程，并经用户明确批准
+正常合入。用户随后选择直接在 PR #322 中迁移；第二阶段基于 main `c80e9e38`，
+仅切换 Linux Clippy/Targeted Tests，使用已
+发布的真实完整 index digest，不改保护规则、不让 PR 获得发布凭据。
 
 ## 2. 镜像输入与校验
 
@@ -50,9 +51,13 @@ Rust 1.96.0、LLVM 21.1.8；减少每个核心 job 重复安装，不降低任�
 4. 发布后按 digest 拉取，要求 image ID 不变并再次离线 readiness；核匿名读取，供 fork PR
    使用。若 GHCR 默认私有导致匿名读取失败，发布已发生但未获消费资格，应明确报告。
    不自动修改包访问权限。标签只供追溯，后续 job 必须写真实 digest。
-5. 第二阶段另行提交核心 Linux container 切换，显式 bash、digest 隔离缓存，保持原 job 名、
+5. 第二阶段在 PR #322 中提交核心 Linux container 切换，显式 bash、digest 隔离缓存，保持原 job 名、
    条件、所有命令与汇总契约。实际验证 Actions HOME、checkout、cache restore/save、artifact、
-   LLDB 源断点、sanitizer。macOS 与 Preview 不切镜像；未完成此项前不关闭本 Spec。
+   LLDB 源断点、sanitizer。Linux 使用 `--user 1001:1001` 保持真实权限错误测试；
+   checkout 前核 UID、HOME/workspace/temp/environment-file 可写，失败即停止，不能
+   chmod/chown 补救。工具仍位于 `/opt/rust/bin`，CARGO_HOME 明确使用 Actions HOME。
+   仅 Linux cache key 追加完整 image digest 与 verifier hash；macOS 原 key 与安装保持。
+   macOS 与 Preview 不切镜像；未完成此项前不关闭本 Spec。
 
 ## 4. 单一验收账本
 
@@ -62,8 +67,12 @@ Rust 1.96.0、LLVM 21.1.8；减少每个核心 job 重复安装，不降低任�
 | 严格 Clippy 与实际测试目标编译链接 | workspace Clippy；codegen/CLI/LSP/std `cargo test --no-run` | 通过；默认 debug=2 完成实际编译链接，未执行 Rust 测试 |
 | 失败关闭与接线合同 | `python3 -m unittest scripts.tests.test_ci_toolchain_image -v` | 8 项通过，含错误 Rust payload、非精确 main CI 拒绝及保留 ASLR/必须命中断点；C probe 真实编译，LLDB 用 stub，不冒充容器运行 |
 | 全部脚本合同、文档、语法、尺寸 | scripts unittest、docs checker、bash/YAML、size、diff | 脚本合同 504 项通过；839 Markdown、语法、尺寸与 diff 通过，39 项历史尺寸债务无新增 |
-| PR 镜像实际构建与全部 Linux gate | 初始 head `2c9a5a0e` 的 [run 42146554505](https://github.com/Halckon/Koven/actions/runs/42146554505/job/127659317342) | 镜像构建与严格校验通过；LLDB launch 因 `personality set failed` 失败，后续 Cargo/native gates 未运行。ASLR 修复后的完整 CI 待验证 |
+| PR 镜像实际构建与全部 Linux gate | head `e7e8ab02610cc6ca8d65cb4faac5e5f8487a40fa` 的 [run 42148114344](https://github.com/Halckon/Koven/actions/runs/42148114344/job/127664415700) | 全部通过：真实 C/LLDB 与源码断点、2623 codegen、56 native_cli、40 词频命令、ASan/LSan 正反例、16 generated-owner。Conformance 无 regression/wrong_output/internal_error，保留 22 项 known_unimplemented；不代表完整语言实现。初始 run 42146554505 的 personality 失败已修复，未放宽容器安全设置 |
 | Linux LLDB 启动回归与受影响目标编译 | `cargo test --offline --locked -p lang-cli --test native_cli final_debug_artifacts::linux_source_debugger_preserves_aslr -- --exact`；CLI Clippy/build | 新增回归修复前失败、修复后 1 项通过；native_cli 实际编译链接、严格 CLI Clippy 和 CLI build 通过。真实源码断点依赖 CI，本地无 LLDB |
-| 原双宿主和两套 Preview | 原 `CI` workflow | 待本 PR 精确头 |
-| 可信 main 发布、真实 digest、匿名读取 | main 手动 workflow | 尚未发布，等待第一阶段审核/合入 |
-| 核心 job 切换、真实 Actions container/cache 验收 | 后续独立提交 | 未开始；不能宣称预置迁移完成 |
+| 原双宿主和两套 Preview | head `e7e8ab0` 的 [run 42148114385](https://github.com/Halckon/Koven/actions/runs/42148114385) | Linux/macOS Clippy 与 Targeted Tests、两个 producer 和两个独立 consumer、CI Passed 全部通过。#324 正常合入 main `c80e9e38a126623af70aebbd9a6ff83c8063ceb0`，tree 与验收头完全一致 |
+| 可信 main 发布、真实 digest、匿名读取 | main `c80e9e38` 的 [CI](https://github.com/Halckon/Koven/actions/runs/42153007409) 与 [发布 job](https://github.com/Halckon/Koven/actions/runs/42153917943/job/127696200046) | 双平台与 Preview 全部通过；同一验收 artifact 的 image ID 经 save/load、push/pull 保持不变，发布 index digest 为下列消费身份；离线 readiness 和匿名检查通过。第一次因 main 未完成而关闭，第二次 GHCR denied 留下平台 manifest；未改权限/内容的一次有界重试完成完整 index，原 denied 根因未证实 |
+| 核心 job 切换、真实 Actions container/cache 验收 | PR #322 head `db0fb0a5`、base `c80e9e38`、merge `064e077b` 的 [核心 CI](https://github.com/Halckon/Koven/actions/runs/42161657885) 与 [独立镜像验收](https://github.com/Halckon/Koven/actions/runs/42161657961) | 全部通过：Linux Clippy/Targeted Tests 使用固定 digest 与 UID/GID 1001；挂载/HOME、checkout、离线工具链、权限错误测试、源码断点、sanitizer、产物上传，以及 macOS 和两套 Preview 均实际通过。冷缓存查找与保存成功；缓存命中后的恢复/解包尚未验证，不关闭本 Spec |
+
+已发布消费身份：
+`ghcr.io/halckon/koven-ci-toolchain@sha256:b5ce8a4479579ecc57194e385f13109a52022114f0e19cab93fc426bdbb9500e`。
+它是含平台镜像及证明材料的完整 index，不以已上传的子 manifest 替代。
