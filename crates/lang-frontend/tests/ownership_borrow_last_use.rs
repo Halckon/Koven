@@ -21,6 +21,18 @@ fn checked(
     SourceUnitId,
     CompilationUnitOwnership,
 ) {
+    checked_entry(body, false)
+}
+
+fn checked_entry(
+    body: &str,
+    rooted: bool,
+) -> (
+    SourceMap,
+    ParsedFile,
+    SourceUnitId,
+    CompilationUnitOwnership,
+) {
     let text = format!(
         r#"fun view(source: String): borrow String from source = source
 fun wrap(source: String): borrow String from source = view(source)
@@ -40,8 +52,23 @@ fun consumeHolder(own source: Holder) {{}}
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+    let inputs = [if rooted {
+        SourceUnitInput::new("root", "last-use.ko", source, &parsed)
+    } else {
+        SourceUnitInput::memory_document(source, &parsed)
+    }];
     let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let [indexed] = index.source_units() else {
+        panic!("one original source")
+    };
+    match (rooted, indexed.key()) {
+        (false, lang_frontend::name_resolution::SourceUnitKey::MemoryDocument) => {}
+        (true, lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path }) => {
+            assert_eq!(root.as_str(), "root");
+            assert_eq!(logical_path.as_str(), "last-use.ko");
+        }
+        _ => panic!("requested entry identity"),
+    }
     let source_unit = index.source_units()[0].id();
     assert_eq!(index.source_units()[0].source_id(), source);
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
@@ -67,42 +94,47 @@ fn same_scope_operations_follow_the_last_borrow_use() {
         r#"fun run() { var source = mutableMapOf<String, String>(); source.put("key", "first"); borrow val item = source.requireValue("key"); println(item); source.put("key", "second"); borrow val changed = source.requireValue("key"); println(changed) }"#,
         r#"fun run() { val source = "kept"; borrow val first = view(source); borrow val second = wrap(source); println(first); println(second); consume(source) }"#,
     ] {
-        let (_, _, _, unit) = checked(body);
-        assert!(
-            unit.diagnostics().is_empty(),
-            "{body}: {:?}",
-            unit.diagnostics()
-        );
-        assert!(unit.deferred().is_empty(), "{body}");
+        for rooted in [false, true] {
+            let (_, _, _, unit) = checked_entry(body, rooted);
+            assert!(
+                unit.diagnostics().is_empty(),
+                "{body}: {:?}",
+                unit.diagnostics()
+            );
+            assert!(unit.deferred().is_empty(), "{body}");
+        }
     }
 }
 
 #[test]
 fn unused_result_ends_after_its_initializer() {
-    let (sources, parsed, source_unit, unit) = checked(
-        r#"fun run() { val source = "kept"; borrow val unused = view(source); consume(source) }"#,
-    );
-    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-    let [end] = unit.borrow_results().ends() else {
-        panic!("one result end")
-    };
-    let UnitDropPoint::AfterStatement(statement) = end.point() else {
-        panic!("statement endpoint")
-    };
-    assert_eq!(statement.source_unit(), source_unit);
-    assert_eq!(
-        sources
-            .slice(
-                parsed
-                    .ast()
-                    .statements()
-                    .get(statement.statement())
-                    .unwrap()
-                    .span()
-            )
-            .unwrap(),
-        "borrow val unused = view(source)"
-    );
+    for rooted in [false, true] {
+        let (sources, parsed, source_unit, unit) = checked_entry(
+            r#"fun run() { val source = "kept"; borrow val unused = view(source); consume(source) }"#,
+            rooted,
+        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let [end] = unit.borrow_results().ends() else {
+            panic!("one result end")
+        };
+        let UnitDropPoint::AfterStatement(statement) = end.point() else {
+            panic!("statement endpoint")
+        };
+        assert_eq!(statement.source_unit(), source_unit);
+        assert_eq!(
+            sources
+                .slice(
+                    parsed
+                        .ast()
+                        .statements()
+                        .get(statement.statement())
+                        .unwrap()
+                        .span()
+                )
+                .unwrap(),
+            "borrow val unused = view(source)"
+        );
+    }
 }
 
 #[test]

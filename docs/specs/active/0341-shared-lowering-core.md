@@ -2904,3 +2904,16 @@ primary/来源 label 的原文本断言。原两阶段诊断门、typed validate
 分析均保留，增加 source_id/key/root/path 身份检查；不把两入口通过升级为跨文件/native 能力。
 云端同工具链/default debug=2/locked/offline，origins 5 加前批 23，共28项通过（无过滤），
 目标编译与 all-targets Clippy（`-D warnings`）通过。未运行故障注入或 Abort，未发布或新建PR。
+
+#### 新 main 上继续：last-use 同作用域与未使用结果
+
+保留本批已有提交，合入已含 #331 的 main `751efd6a`；Rust 无冲突，Spec 仅末尾追加
+冲突，双方历史与后续批次记录均完整保留。`ownership_borrow_last_use` 两项原测试补
+Rooted：同作用域八份原 source 与无诊断/deferred oracle，及未使用结果的单一 end、
+AfterStatement、source_unit 和精确 initializer statement 文本。其余六测试仍走原
+MemoryDocument；helper 只参数化入口并加真实 key/root/path 检查，不改生产、源码或 oracle。
+本片不声称任意 CFG/NLL 或 native 支持，随借用批次累计，尚未发布、未单开 PR。
+云端 Rust 1.96.0/default debug=2/locked/offline：last-use 8、origins 5、borrow ownership 4、
+String clone 14、borrow types 3、frontier 2，共36项无过滤通过；目标编译、all-targets
+Clippy（`-D warnings`）、fmt、文档/尺寸/diff及独立审查通过。故障注入/Abort/Mac构建/native
+未运行，官方 CI 尚未运行，不将本片双入口覆盖表述为 Single 退休。
