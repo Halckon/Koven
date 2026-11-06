@@ -56,6 +56,11 @@ impl UnitExpressionLowerer<'_> {
         if let Some(entry) = self.prepare_heap_field_nullable_if_entry(control, condition, span)? {
             return Ok(Some(entry));
         }
+        if !self.typed.nullable_whens().is_empty()
+            && let Some(entry) = self.prepare_heap_nullable_if_entry(control, condition, span)?
+        {
+            return Ok(Some(entry));
+        }
         let node = self
             .parsed
             .ast()

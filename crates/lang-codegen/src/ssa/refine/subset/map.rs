@@ -37,7 +37,14 @@ impl Checker<'_, '_> {
         let [key, value] = arguments.as_slice() else {
             return None;
         };
-        if !(self.scalar(*key) || self.string(*key)) || !active.insert(ty) {
+        if !(self.scalar(*key)
+            || self.string(*key)
+            || matches!(
+                self.kind(*key),
+                Some(UnitTypeKind::Builtin(BuiltinType::Char))
+            ))
+            || !active.insert(ty)
+        {
             return None;
         }
         let nullable_ok = match self.kind(*value) {
@@ -163,15 +170,16 @@ impl Checker<'_, '_> {
             return false;
         };
         let map_ty = self.c(descriptor.map_type());
+        let recv_expr = descriptor.receiver().expression();
         let ok = descriptor.expression() == id
             && descriptor.receiver().source_unit() == self.inputs.source_unit
             && self.map_kv(map_ty).is_some()
             && self.expression_type(expression).is_some_and(|ty| {
                 matches!(self.kind(ty), Some(UnitTypeKind::Builtin(BuiltinType::Int)))
             })
-            && self
-                .named_map_owner(descriptor.receiver().expression(), map_ty, true)
-                .is_some();
+            && (self.named_map_owner(recv_expr, map_ty, true).is_some()
+                || (self.expression_type_of(descriptor.receiver()) == Some(map_ty)
+                    && self.expression(recv_expr)));
         self.migrated |= ok;
         ok
     }
@@ -187,13 +195,14 @@ impl Checker<'_, '_> {
         let Some((key_ty, _)) = self.map_kv(map_ty) else {
             return false;
         };
+        let recv_expr = descriptor.receiver().expression();
         if descriptor.expression() != id
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.key().source_unit() != self.inputs.source_unit
             || self.c(descriptor.key_type()) != key_ty
-            || self
-                .named_map_owner(descriptor.receiver().expression(), map_ty, true)
-                .is_none()
+            || !(self.named_map_owner(recv_expr, map_ty, true).is_some()
+                || (self.expression_type_of(descriptor.receiver()) == Some(map_ty)
+                    && self.expression(recv_expr)))
         {
             return false;
         }
@@ -345,9 +354,11 @@ impl Checker<'_, '_> {
                 self.kind(res_ty),
                 Some(UnitTypeKind::Nullable(inner)) if *inner == value_ty
             )
-            || self
+            || !(self
                 .named_map_owner(descriptor.receiver().expression(), map_ty, true)
-                .is_none()
+                .is_some()
+                || (self.expression_type_of(descriptor.receiver()) == Some(map_ty)
+                    && self.expression(descriptor.receiver().expression())))
         {
             return false;
         }

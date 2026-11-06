@@ -118,7 +118,10 @@ impl Checker<'_, '_> {
         active: &mut BTreeSet<UnitTypeId>,
     ) -> bool {
         match self.kind(ty) {
-            Some(UnitTypeKind::Builtin(lang_frontend::type_checking::BuiltinType::String)) => true,
+            Some(UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::String
+                | lang_frontend::type_checking::BuiltinType::Char,
+            )) => true,
             Some(UnitTypeKind::Nullable(inner)) => {
                 self.nothing(*inner)
                     || self.scalar(*inner)

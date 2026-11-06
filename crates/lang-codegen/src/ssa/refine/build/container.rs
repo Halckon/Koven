@@ -396,16 +396,38 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let receiver = descriptor.receiver().expression();
         let receiver_span = self.span(receiver);
-        let symbol = self.named_container_symbol(receiver, span)?;
         let container_ty = self.c(descriptor.container_type());
         let target = self.ssa_type(container_ty, receiver_span)?;
-        let (loan, created) = if let Some(&loan) = self.borrowed.get(&symbol) {
-            (loan, None)
+        let (loan, created) = if let Ok(symbol) = self.named_container_symbol(receiver, span) {
+            if let Some(&loan) = self.borrowed.get(&symbol) {
+                (loan, None)
+            } else {
+                let owner = *self
+                    .bindings
+                    .get(&symbol)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, receiver_span))?;
+                let place = self.value(
+                    ROp::RootPlace { owner },
+                    EntityType::Place(target),
+                    receiver_span,
+                )?;
+                let loan = self.value(
+                    ROp::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target,
+                    },
+                    receiver_span,
+                )?;
+                (loan, Some(loan))
+            }
         } else {
-            let owner = *self
-                .bindings
-                .get(&symbol)
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, receiver_span))?;
+            let Some(owner) = self.required(receiver)? else {
+                return Ok(Lowered::Diverged);
+            };
             let place = self.value(
                 ROp::RootPlace { owner },
                 EntityType::Place(target),

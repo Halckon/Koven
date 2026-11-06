@@ -301,6 +301,11 @@ impl UnitExpressionLowerer<'_> {
                     self.lower_aggregate_construction(expression, span)
                 }
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox
+                    if !self.typed.nullable_whens().is_empty() =>
+                {
+                    self.lower_aggregate_construction(expression, span)
+                }
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox
                 | lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
                     Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
                 }
