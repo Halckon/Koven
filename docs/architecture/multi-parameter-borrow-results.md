@@ -24,3 +24,7 @@ LLVM adapter继续使用既有多个Loan pointer参数和单一storage pointer�
 语言合同见[Guide10](../guide/10-ownership-borrowing-drop.md#普通借用结果与显式局部绑定)，
 本片不修改现行语义或ADR。普通结果的基础storage及词法/last-use规则见
 [原实现快照](map-native-execution.md#普通借用返回与-caller-continuation)。
+
+`type_borrow_result` 三项原签名与实参映射测试使用 MemoryDocument/Rooted 双入口，
+保留可空/inout/this 来源正例、L0162 拒绝以及 Parameter(1)/named argument 映射断言。
+这些 raw 类型事实不额外授予 ownership 或 native 能力。

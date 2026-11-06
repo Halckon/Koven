@@ -25,6 +25,10 @@ clone 结果进入普通 temporary / binding 的 owner、transfer 和 drop 规�
 及 checker、compilation-unit/dataflow 的 `string.rs`，完整验收账本见
 [SPEC-0236](../archive/specs/0236-explicit-string-clone.md)。
 
+`string_clone::unit_clone_last_use_receiver_drops_once_at_call_return` 在 MemoryDocument/Rooted
+两入口保留 class field 与 Rc payload 的两项实际 String effect、receiver loan/root 和唯一
+CallReturn drop 断言；这不替代独立 Single loan-end event witness，也不扩大 native 边界。
+
 ## 显式 StringClone
 
 单文件与 unit lowering 消费 typed String descriptor 和 ownership effect，核对 receiver/type/

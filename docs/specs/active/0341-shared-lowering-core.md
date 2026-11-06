@@ -2618,3 +2618,21 @@ Phase 3，不改变 Value/Inout、普通借用结果或其他投影族的资格�
 
 本次组合 main `bd036dfd`（含 #319、#320），保留双方原改动，仅解决 Spec 编号冲突，将本节
 改为 §112；P3 源码不变。新组合的官方 CI 尚待运行，原发布头的通过记录不替代新组合验收。
+
+### Borrow-result 与 String clone 入口补全候选（2026-11-06）
+
+基于 main `c4ba670a`，独立于 #331 源码与 #323；同分支保留两项逻辑提交后批量验收，
+不按小片重复创建 PR。不修改生产、Guide、CI 或既有 Single witnesses。
+
+- `type_borrow_result` 三项原 MemoryDocument 测试补 Rooted：四个来源/可空性正例、
+  三个无效来源反例及三组调用合同样例，保留原源码、空诊断/L0162 与 Parameter(1)、
+  named argument 参数位置断言。检查实际单源 source_id 与 key/root/path。
+- String clone 主 helper 本已双入口，本片不改。仅最后一项 Rooted last-use receiver
+  测试补 MemoryDocument，保留 class field/Rc payload 原源码、两项 effect、实际
+  receiver loan/root 与唯一 CallReturn drop 断言；不将 descriptor 等同独立 loan-end 事件。
+- 这是入口覆盖补全，不宣称 Single 退休或新 borrow-return/native 能力。
+  云端 Rust 1.96.0、默认 debug=2、locked/offline：borrow-result 3 项、String clone
+  14 项全部通过（无过滤）；目标编译、frontend lib build、all-targets Clippy
+  （`-D warnings`）、fmt、文档结构、尺寸与 diff 检查通过，独立只读审查无阻断。
+  未执行故障注入、Abort 整项、Mac 构建或 native；未推送、未开 PR，官方 CI 未运行，
+  D10/E2 保持 in-progress。
