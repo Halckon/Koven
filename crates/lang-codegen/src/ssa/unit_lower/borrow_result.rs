@@ -710,6 +710,148 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(())
     }
+
+    fn clone_field_projection(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<
+        Option<lang_frontend::type_checking::UnitAggregateProjectionDescriptor>,
+        LoweringError,
+    > {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        if let Expression::Group { expression } = node.payload() {
+            return self.clone_field_projection(*expression);
+        }
+        Ok(self
+            .typed
+            .aggregate_projection(UnitExpressionId::new(self.source_unit, expression)))
+    }
+
+    fn clone_field_loan(
+        &mut self,
+        expression: ExpressionId,
+        created: &mut Vec<LoanId>,
+        span: Span,
+    ) -> Result<LoanId, LoweringError> {
+        use lang_frontend::type_checking::{NominalKind, UnitAggregateProjectionReceiver};
+        let target = self.expression_ssa_type(expression, span)?;
+        if let Some(projection) = self.clone_field_projection(expression)? {
+            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            if receiver.source_unit() != self.source_unit {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            let receiver_type = self
+                .typed
+                .expression_type(receiver)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let receiver_type = resolve_concrete_type(
+                self.typed,
+                receiver_type,
+                self.substitutions,
+                self.static_self,
+                span,
+            )?;
+            let Some(UnitTypeKind::Nominal { declaration, .. }) =
+                self.typed.types().get(receiver_type)
+            else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            let nominal = self
+                .typed
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|signature| signature.nominal())
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let field = self
+                .field_indices
+                .get(&(receiver_type, projection.field()))
+                .copied()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let kind = nominal.kind();
+            let base = self.clone_field_loan(receiver.expression(), created, span)?;
+            let operation = match kind {
+                NominalKind::Class => Operation::SharedHeapFieldLoan { base, field },
+                NominalKind::ValueClass => Operation::SharedFieldLoan { base, field },
+                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            };
+            let (_, results) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    operation,
+                    vec![EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target,
+                    }],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let EntityId::Loan(loan) = results[0] else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            created.push(loan);
+            return Ok(loan);
+        }
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if let Expression::Group { expression } = node.payload() {
+            return self.clone_field_loan(*expression, created, span);
+        }
+        if matches!(node.payload(), Expression::Name)
+            && let Some(symbol) = self.references.get(&span_key(node.span()))
+            && let Some(loan) = self.borrow_bindings.get(symbol).copied()
+        {
+            return Ok(loan);
+        }
+        let owner = self.require_expression_value(expression)?;
+        let (_, root) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::RootPlace { owner },
+                vec![EntityType::Place(target)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let EntityId::Place(place) = root[0] else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::BorrowBegin {
+                    place,
+                    kind: LoanKind::Shared,
+                },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target,
+                }],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let EntityId::Loan(loan) = results[0] else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        created.push(loan);
+        Ok(loan)
+    }
 }
 
 pub(super) fn validate(

@@ -1,4 +1,5 @@
 //! Original Unit If-owned Map observations; every case retains its positive oracle.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod facts;
 mod graph;
@@ -44,9 +45,11 @@ pub(crate) fn cases() -> [Case; 4] {
     ]
 }
 fn observe(c: &Case) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "SCOPE B IF INPUT label={} unit=true source={:?} golden={:?}",
-        c.label, c.source, c.golden
+        c.label,
+        c.source,
+        c.golden
     );
     let mut sources = SourceMap::new();
     let source = sources
@@ -57,7 +60,7 @@ fn observe(c: &Case) -> Result<(), Failure> {
     let p = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", p.diagnostics())?;
     let i = ast::input(c, &sources, &p)?;
-    println!("SCOPE B IF AST label={} unit=true input={i:#?}", c.label);
+    diagnostic!("SCOPE B IF AST label={} unit=true input={i:#?}", c.label);
     let mut report = Report::default();
     let mut observed = false;
     let mut proof = None;
@@ -71,7 +74,7 @@ fn observe(c: &Case) -> Result<(), Failure> {
             );
             proof = checked.ok();
         });
-    println!(
+    diagnostic!(
         "SCOPE B IF LOWER label={} unit=true observed={observed} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, e)| e)
@@ -92,7 +95,7 @@ fn observe(c: &Case) -> Result<(), Failure> {
     );
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
-    println!(
+    diagnostic!(
         "SCOPE B IF FINAL label={} unit=true report={report:#?}",
         c.label
     );
@@ -107,12 +110,12 @@ fn original_unit_if_owner_sources_report_real_facts() {
     let mut results = Vec::new();
     for c in cases() {
         let result = observe(&c);
-        println!(
+        diagnostic!(
             "SCOPE B IF CASE label={} unit=true result={result:?}",
             c.label
         );
         results.push((c.label, result));
     }
     assert_eq!(results.len(), 4);
-    assert!(results.iter().all(|(_, r)| r.is_ok()), "{results:#?}");
+    assert_diagnostic!(results.iter().all(|(_, r)| r.is_ok()), "{results:#?}");
 }

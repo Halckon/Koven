@@ -67,14 +67,10 @@ impl UnitExpressionLowerer<'_> {
             descriptor.provider(),
             lang_frontend::type_checking::IterationProvider::NumericRange(_)
         ) {
-            if plan.source_kind()
-                != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(
-                    descriptor.source(),
-                )
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            if self.typed.map_iterations().is_empty() {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
-            return self.lower_numeric_for(&plan, body, span);
+            return self.lower_map_unit_numeric_for(&plan, body, span);
         }
         let container = self.iteration_type(descriptor.source_type(), span)?;
         let element_type = self.iteration_type(descriptor.element_type(), span)?;
@@ -470,5 +466,253 @@ impl UnitExpressionLowerer<'_> {
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.pending_operands[cursor_index] = EntityId::Value(next.value);
         Ok(())
+    }
+
+    fn lower_map_unit_numeric_for(
+        &mut self,
+        plan: &lang_frontend::ownership_checking::UnitIterationOwnershipPlan,
+        body: StatementId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        use crate::ssa::model::{BinaryOperator, ComparisonOperator, ScalarConstant};
+        use lang_frontend::{
+            ownership_checking::IterationSource, type_checking::IterationProvider,
+        };
+        let descriptor = plan.descriptor();
+        let endpoint = match descriptor.provider() {
+            IterationProvider::NumericRange(endpoint @ (BuiltinType::Int | BuiltinType::Long)) => {
+                endpoint
+            }
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
+        let endpoint_type = self.iteration_type(descriptor.element_type(), span)?;
+        if plan.source_access() != UnitIterationSourceAccess::Owned
+            || plan.source_kind() != &IterationSource::OwnedSnapshot(descriptor.source())
+            || endpoint_type != self.ssa_builtin(endpoint, span)?
+            || matches!(
+                descriptor.binding(),
+                UnitSequentialIterationBinding::Destructure(_)
+            )
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let range_type = self.iteration_type(descriptor.source_type(), span)?;
+        let boolean = self.ssa_builtin(BuiltinType::Boolean, span)?;
+        let source_expr = descriptor.source().expression();
+        let source = if let Some(op) = self
+            .typed
+            .integer_range_operation(descriptor.source())
+            .copied()
+        {
+            let source_span = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(source_expr)
+                .map_or(span, |n| n.span());
+            let LoweredValue::Value(left) = self.lower(op.left().expression())? else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, source_span));
+            };
+            let LoweredValue::Value(right) = self.lower(op.right().expression())? else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, source_span));
+            };
+            let (operation, _) = crate::ssa::integer_range::operation(op.kind(), left, right);
+            let LoweredValue::Value(value) =
+                self.append_scalar(operation, range_type, source_span)?
+            else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, source_span));
+            };
+            self.emit_drops(UnitDropPoint::AfterExpression(descriptor.source()))?;
+            value
+        } else {
+            let LoweredValue::Value(value) = self.lower(source_expr)? else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            value
+        };
+        let mut proj = |field, ty| -> Result<ValueId, LoweringError> {
+            match self.append_scalar(
+                Operation::AggregateProject {
+                    aggregate: source,
+                    field,
+                },
+                ty,
+                span,
+            )? {
+                LoweredValue::Value(value) => Ok(value),
+                _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+            }
+        };
+        let first = proj(0, endpoint_type)?;
+        let last = proj(1, endpoint_type)?;
+        let empty = proj(2, boolean)?;
+        let retained_start = self.pending_operands.len();
+        let outer_temporaries = self.temporaries.keys().copied().collect();
+        self.pending_operands
+            .extend([EntityId::Value(first), EntityId::Value(last)]);
+        let baseline = self.bindings.clone();
+        let mut context = self.create_loop_context(&baseline, span)?;
+        let exhausted = self.add_carried_control_block(&context.carried, &context.loans, span)?;
+        self.function
+            .set_terminator(
+                self.block,
+                TerminatorKind::Conditional {
+                    condition: empty,
+                    when_true: carried_control_edge(exhausted, &context.carried, &context.loans),
+                    when_false: carried_control_edge(
+                        context.header,
+                        &context.carried,
+                        &context.loans,
+                    ),
+                },
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        self.block = context.header;
+        self.bindings = self.rebind_loop(&baseline, self.block, &context, span)?;
+        self.closure_bindings = context.entry_closure_bindings.clone();
+        context.iteration = Some(IterationContext {
+            statement: descriptor.statement(),
+            retained_start,
+            outer_temporaries,
+            state: IterationState::Numeric {
+                current: retained_start,
+                last: retained_start + 1,
+                endpoint_type,
+            },
+            inherited_borrowed: None,
+        });
+        if let UnitSequentialIterationBinding::Name(symbol) = descriptor.binding() {
+            let Some(EntityId::Value(current)) = self.pending_operands.get(retained_start).copied()
+            else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            let LoweredValue::Value(element) =
+                self.append_scalar(Operation::Copy { source: current }, endpoint_type, span)?
+            else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            self.bindings.insert(*symbol, LoweredValue::Value(element));
+        }
+        self.loops.push(context);
+        if self.lower_statement(body)? != LoweredValue::Diverged {
+            self.record_natural_continue(span)?;
+        }
+        let context = self
+            .loops
+            .pop()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        if !context.continues.is_empty() {
+            let continuation =
+                self.add_carried_control_block(&context.carried, &context.loans, span)?;
+            self.finish_continues(&context, continuation)?;
+            self.block = continuation;
+            self.current_receiver = context.entry_receiver;
+            self.consumed_receiver = context.entry_consumed_receiver;
+            self.bindings = self.rebind_loop(&baseline, continuation, &context, span)?;
+            self.closure_bindings = context.entry_closure_bindings.clone();
+            let Some(EntityId::Value(current)) = self.pending_operands.get(retained_start).copied()
+            else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            let Some(EntityId::Value(last)) =
+                self.pending_operands.get(retained_start + 1).copied()
+            else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            let LoweredValue::Value(terminal) = self.append_scalar(
+                Operation::Compare {
+                    operator: ComparisonOperator::Equal,
+                    left: current,
+                    right: last,
+                },
+                boolean,
+                span,
+            )?
+            else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            let increment =
+                self.add_carried_control_block(&context.carried, &context.loans, span)?;
+            let state = self.loop_state();
+            let when_true =
+                self.carried_edge_from(exhausted, &context.carried, &context.loans, &state, span)?;
+            let when_false =
+                self.carried_edge_from(increment, &context.carried, &context.loans, &state, span)?;
+            self.function
+                .set_terminator(
+                    self.block,
+                    TerminatorKind::Conditional {
+                        condition: terminal,
+                        when_true,
+                        when_false,
+                    },
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            self.block = increment;
+            self.bindings = self.rebind_loop(&baseline, increment, &context, span)?;
+            let Some(EntityId::Value(current)) = self.pending_operands.get(retained_start).copied()
+            else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            let LoweredValue::Value(one) = self.append_scalar(
+                Operation::Constant(ScalarConstant::Integer(1)),
+                endpoint_type,
+                span,
+            )?
+            else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            let LoweredValue::Value(next) = self.append_scalar(
+                Operation::Binary {
+                    operator: BinaryOperator::Add,
+                    left: current,
+                    right: one,
+                },
+                endpoint_type,
+                span,
+            )?
+            else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            self.pending_operands[retained_start] = EntityId::Value(next);
+            let state = self.loop_state();
+            let edge = self.carried_edge_from(
+                context.header,
+                &context.carried,
+                &context.loans,
+                &state,
+                span,
+            )?;
+            self.function
+                .set_terminator(
+                    self.block,
+                    TerminatorKind::Branch(edge),
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        }
+        self.block = exhausted;
+        self.current_receiver = context.entry_receiver;
+        self.consumed_receiver = context.entry_consumed_receiver;
+        self.bindings = self.rebind_loop(&baseline, exhausted, &context, span)?;
+        self.closure_bindings = context.entry_closure_bindings.clone();
+        self.loops.push(context);
+        self.emit_drops(UnitDropPoint::LoopExit(descriptor.statement()))?;
+        self.pending_operands.truncate(retained_start);
+        let exhaustion = self.loop_state();
+        let context = self
+            .loops
+            .pop()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let mut exits = context
+            .breaks
+            .into_iter()
+            .map(branch_exit)
+            .collect::<Vec<_>>();
+        exits.push(exhaustion);
+        self.merge_loop_exits(exits, span)?;
+        Ok(LoweredValue::Unit)
     }
 }

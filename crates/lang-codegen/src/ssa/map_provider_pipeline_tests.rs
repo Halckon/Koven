@@ -1,6 +1,7 @@
 //! SPEC-0331 的普通 Map provider 成功合同；两种真实 Unit 输入的四格全收齐后断言。
 //! 不执行 native，不以当前 lower 的 UnsupportedNode 债务作为通过条件。
 
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod facts;
 mod fixture;
 mod identity;
@@ -63,7 +64,7 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
     let mut report = Report::default();
     let outcome = Fixture::new(label, text).and_then(|fixture| {
         // false 是 MemoryDocument，true 是原 logical-path Unit；各自保持原始单源字节。
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER INPUT case={label} unit={unit} path={:?} text={text:?}",
             fixture.path
         );
@@ -75,7 +76,7 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
             pipeline::single(&fixture, &mut report)
         }?;
         let (program, entry) = lowered;
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER SSA case={label} unit={unit}\n{}",
             super::render::render_program(&program)
         );
@@ -90,7 +91,7 @@ fn observe(label: &'static str, text: &str, unit: bool) -> Observation {
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|error| fixture::failure("LLVM render/verify", error))?;
         report.check("LLVM render/verify", true, llvm.len());
-        println!("SPEC0331 PROVIDER LLVM case={label} unit={unit}\n{llvm}");
+        diagnostic!("SPEC0331 PROVIDER LLVM case={label} unit={unit}\n{llvm}");
         Ok(())
     });
     Observation {
@@ -111,16 +112,18 @@ fn map_and_mutable_map_normal_sources_reach_verified_llvm() {
     }
     // 所有真实观察结束后只有这一个硬成功断言，首红不能短路另外三格。
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER OUTCOME case={} unit={} report={:#?}",
-            observation.label, observation.unit, observation.report
+            observation.label,
+            observation.unit,
+            observation.report
         );
         match &observation.outcome {
-            Ok(()) => println!("stage=LLVM render/verify result=ok"),
-            Err(error) => println!("stage={} original={}", error.stage, error.original),
+            Ok(()) => diagnostic!("stage=LLVM render/verify result=ok"),
+            Err(error) => diagnostic!("stage={} original={}", error.stage, error.original),
         }
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 4
             && observations
                 .iter()

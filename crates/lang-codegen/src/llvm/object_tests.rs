@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -97,7 +98,7 @@ pub(super) fn link(object: &Path, executable: &Path) {
         .arg(executable)
         .output()
         .expect("system clang must launch");
-    assert!(
+    assert_diagnostic!(
         output.status.success(),
         "link failed: {}",
         String::from_utf8_lossy(&output.stderr)

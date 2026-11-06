@@ -1,5 +1,6 @@
 //! SPEC-0331 的普通 Map provider 成功合同；六源 × MemoryDocument/rooted Unit 全采后断。
 //! 不执行 native，不以当前 lower 的 UnsupportedNode 债务作为通过条件。
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 mod borrowed;
 mod ci_baseline;
@@ -165,7 +166,7 @@ fn input_label(rooted: bool) -> &'static str {
 fn observe(label: &'static str, text: &str, rooted: bool) -> Observation {
     let mut report = Report::default();
     let input = input_label(rooted);
-    println!(
+    diagnostic!(
         "SPEC0331 PROVIDER EXIT INPUT case={label} input={input} path=provider.ko text={text:?}"
     );
     let outcome = Fixture::new(label, text).and_then(|fixture| {
@@ -177,7 +178,7 @@ fn observe(label: &'static str, text: &str, rooted: bool) -> Observation {
             pipeline::memory_document(&fixture, &mut report)
         }?;
         let (program, entry) = lowered;
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER EXIT SSA case={label} input={input}\n{}",
             super::render::render_program(&program)
         );
@@ -201,7 +202,7 @@ fn observe(label: &'static str, text: &str, rooted: bool) -> Observation {
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|error| fixture::failure("LLVM render/verify", error))?;
         report.check("LLVM render/verify", true, llvm.len());
-        println!("SPEC0331 PROVIDER EXIT LLVM case={label} input={input}\n{llvm}");
+        diagnostic!("SPEC0331 PROVIDER EXIT LLVM case={label} input={input}\n{llvm}");
         Ok(())
     });
     Observation {
@@ -222,18 +223,20 @@ fn map_and_mutable_map_unconditional_exits_reach_verified_llvm() {
     }
     // 所有真实观察结束后只有这一个硬成功断言，首红不能短路另外十一格。
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER EXIT OUTCOME case={} input={} report={:#?}",
             observation.label,
             input_label(observation.rooted),
             observation.report
         );
         match &observation.outcome {
-            Ok(()) => println!("stage=LLVM render/verify result=ok"),
-            Err(error) => println!("stage={} original={}", error.stage, error.original),
+            Ok(()) => {
+                diagnostic!("stage=LLVM render/verify result=ok")
+            }
+            Err(error) => diagnostic!("stage={} original={}", error.stage, error.original),
         }
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 12
             && observations
                 .iter()

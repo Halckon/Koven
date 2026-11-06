@@ -33,13 +33,11 @@ use crate::ssa::{
 
 #[cfg(test)]
 mod generic_runtime_tests;
-mod known_function;
 pub(super) mod layout;
 #[cfg(test)]
 mod runtime_slots_tests;
 #[cfg(test)]
 mod runtime_tests;
-mod shared;
 
 pub(super) type CallableLayouts = BTreeMap<
     (
@@ -220,11 +218,12 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let mut captures = Vec::with_capacity(plan.captures.len());
-        for (field, capture) in plan.captures.iter().enumerate() {
+        for capture in &plan.captures {
             if capture.mode == ClosureCaptureMode::Shared {
-                let loan = self.form_shared_capture(plan.expression, field, capture)?;
-                captures.push(ClosureCaptureOperand::Shared(loan));
-                continue;
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    capture.span,
+                ));
             }
             let value = match capture.effect {
                 ClosureCaptureEffect::Copy => {

@@ -1,6 +1,7 @@
 //! Exact ordinary formed-local demands and reviewed lower outcomes, separate from the collector.
 
 use super::super::{LowerOutcome, LoweringErrorKind};
+use crate::test_support::diagnostics::diagnostic;
 
 #[derive(Debug)]
 enum ExpectedLower {
@@ -212,7 +213,7 @@ fn nullable_map_formed_local_demands_preserve_and_advance_exact_outcomes() {
                     && !observed.entry.span.is_empty()
                     && matches_lower(&expected.lower, &observed.outcome)
             });
-        println!("FORMATION EXACT {}: matched={matched}", expected.label);
+        diagnostic!("FORMATION EXACT {}: matched={matched}", expected.label);
         if !matched {
             mismatches.push(format!("expected={expected:#?}; actual={actual:#?}"));
         }

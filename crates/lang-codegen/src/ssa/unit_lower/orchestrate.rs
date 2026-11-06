@@ -455,6 +455,7 @@ fn lower_unit_impl(
             kind: LoweringErrorKind::MissingFact,
             span: None,
         })?;
+    let known_functions = callable_abi.known_functions(&function_ids, &source_plan);
 
     for plan in plans {
         let parsed = parsed_by_source[plan.instance.source_unit().index()];
@@ -521,6 +522,7 @@ fn lower_unit_impl(
                 constant_owned,
                 function_ids: &function_ids,
                 callable_returns: &callable_returns,
+                known_functions: &known_functions,
                 source_plan: &source_plan,
                 source_token: plan.instance.source_token(),
                 references: &references,
@@ -583,11 +585,20 @@ fn lower_unit_impl(
                 plan.instance.span(),
             ));
         }
-        // Inout parameters are lowered only by the refinement layer (SPEC-0358).
+        // Inout parameters and Inout receivers are lowered only by the refinement layer (SPEC-0358).
         if let Some(parameter) = plan.inout_parameter {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,
                 parameter,
+            ));
+        }
+        if let Some(receiver) = plan
+            .receiver
+            .filter(|receiver| receiver.mode == ParameterMode::Inout)
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                receiver.origin,
             ));
         }
         let (current_receiver, parameters) = match (plan.receiver, parameters.split_first()) {
@@ -798,6 +809,7 @@ fn lower_unit_impl(
             constant_owned,
             function_ids: &function_ids,
             callable_returns: &callable_returns,
+            known_functions: &known_functions,
             source_plan: &source_plan,
             source_token: plan.source_token,
             references: &references,

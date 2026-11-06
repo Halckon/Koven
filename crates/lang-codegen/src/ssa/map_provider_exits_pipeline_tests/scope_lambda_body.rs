@@ -1,4 +1,5 @@
 //! A2 preserves the two original P15 programs and their real lambda/body identities.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 pub(super) mod facts;
 pub(super) mod graph;
@@ -11,9 +12,11 @@ use super::{
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 pub(crate) use sources::{Case, sources};
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "SCOPE A2 INPUT label={} rooted={unit} source={:?} golden={:?}",
-        c.label, c.source, c.golden
+        c.label,
+        c.source,
+        c.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -41,7 +44,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
             proof = checked.ok();
         },
     );
-    println!(
+    diagnostic!(
         "SCOPE A2 LOWER label={} rooted={unit} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, e)| e)
@@ -57,7 +60,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     );
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
-    println!(
+    diagnostic!(
         "SCOPE A2 FINAL label={} rooted={unit} report={report:#?}",
         c.label
     );
@@ -73,7 +76,7 @@ fn a2_original_lambda_body_sources_preserve_actual_identity() {
     for c in sources() {
         for unit in [false, true] {
             let result = observe(&c, unit);
-            println!(
+            diagnostic!(
                 "SCOPE A2 CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
@@ -81,5 +84,5 @@ fn a2_original_lambda_body_sources_preserve_actual_identity() {
         }
     }
     assert_eq!(outcomes.len(), 4);
-    assert!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
 }

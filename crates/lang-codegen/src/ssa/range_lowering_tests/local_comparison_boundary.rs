@@ -2,6 +2,7 @@
 use super::super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 use crate::ssa::LoweringErrorKind;
+use crate::test_support::diagnostics::assert_eq_diagnostic;
 
 fn reject(statement: &str, fragment: &str) {
     let source = format!(
@@ -40,12 +41,12 @@ fun main():Unit{{scan(0,true)}}
             .result
             .err()
             .expect("this ordinary source is still outside the capability gate");
-        assert_eq!(
+        assert_eq_diagnostic!(
             error.kind,
             LoweringErrorKind::UnsupportedNode,
             "{pipeline:?}: {error:?}"
         );
-        assert_eq!(
+        assert_eq_diagnostic!(
             error.span,
             Some(lowered.expected_span),
             "{pipeline:?}: {error:?}"

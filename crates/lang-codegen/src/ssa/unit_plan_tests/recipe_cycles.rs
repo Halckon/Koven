@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_eq_diagnostic;
 
 #[test]
 fn rejects_parameter_growing_recipe_at_stable_back_edge_across_input_order() {
@@ -200,7 +201,7 @@ fn rejects_generic_delegation_recipe_before_instance_limit() {
             "normal and limited generic delegation must select the same recipe witness",
         );
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-        assert_eq!(error.span, Some(witness), "{mode}: {error:?}");
+        assert_eq_diagnostic!(error.span, Some(witness), "{mode}: {error:?}");
     }
 }
 

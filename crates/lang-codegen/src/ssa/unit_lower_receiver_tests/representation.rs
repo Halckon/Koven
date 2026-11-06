@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn stateless_object_receiver_uses_zst_addressization_without_runtime_storage() {
@@ -74,9 +75,9 @@ fn stateless_object_receiver_uses_zst_addressization_without_runtime_storage() {
     )));
 
     let llvm = render_verified_program(&program).expect("object ZST receiver must lower to LLVM");
-    assert!(llvm.contains("alloca"), "{llvm}");
-    assert!(!llvm.contains("@malloc"), "{llvm}");
-    assert!(!llvm.contains(" global "), "{llvm}");
+    assert_diagnostic!(llvm.contains("alloca"), "{llvm}");
+    assert_diagnostic!(!llvm.contains("@malloc"), "{llvm}");
+    assert_diagnostic!(!llvm.contains(" global "), "{llvm}");
 }
 
 #[test]

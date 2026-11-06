@@ -1,5 +1,6 @@
 //! Unit reads only its own source-qualified contracts, delivery and cleanup tables.
 use super::*;
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames},
     ownership_checking::{
@@ -81,7 +82,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_future_observer) fn 
     let ty = t
         .symbol_type(root)
         .ok_or_else(|| failure("D qualified source type", root))?;
-    println!(
+    diagnostic!(
         "SCOPE D FUTURE FE label={} unit=true root={root:?} type={ty:?} formed={:#?} drops={:#?} loans={:#?} contracts={:#?} deliveries={:#?} plans={:#?} puts={:#?} strings={:#?}",
         c.label,
         o.formed_owned_locals(),
@@ -94,7 +95,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_future_observer) fn 
         o.string_effects()
     );
     for d in o.drops() {
-        println!(
+        diagnostic!(
             "SCOPE D FUTURE DROP label={} unit=true target={:?} point={:?} origin={:?}",
             c.label,
             d.target(),
@@ -119,7 +120,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_future_observer) fn 
             .declaration(declaration(i.scan_name)?)
             .and_then(|d| d.callable())
             .ok_or_else(|| failure("D original qualified scanner signature", i.scan_name))?;
-        println!(
+        diagnostic!(
             "SCOPE D FUTURE PARAMETER label={} unit=true root={root:?} body_mode={:?} binding={:?} signature={scanner:?}",
             c.label,
             t.body_parameter_mode(root),

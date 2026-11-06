@@ -7,6 +7,7 @@ use super::{
     },
     analyze, defining_instruction, incoming_edges, parameter_slot,
 };
+use crate::test_support::diagnostics::diagnostic;
 
 #[derive(Clone, Copy, Debug)]
 enum Exit {
@@ -106,7 +107,7 @@ fn assert_temporary_cleanup(exit: Exit) {
         }}
     "#
     );
-    eprintln!("temporary_cleanup_{exit:?}.ko:\n{text}");
+    diagnostic!("temporary_cleanup_{exit:?}.ko:\n{text}");
     let analysis = analyze(&text, "run");
     let named = |name| analysis.function(name);
     let run = named("run");

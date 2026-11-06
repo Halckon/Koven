@@ -1,4 +1,5 @@
 //! Ordinary non-provider epochs retain the existing static callable routes and ABI.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod graph;
 use super::*;
 use crate::ssa::{map_provider_exits_pipeline_tests::fixture::need, unit_plan};
@@ -378,9 +379,11 @@ fn route_call(
 }
 
 fn observe(case: &RouteCase, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "ORDINARY ROUTE INPUT case={} unit={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -440,7 +443,7 @@ fn observe(case: &RouteCase, unit: bool) -> Result<(), Failure> {
                     && owned.map_iterations().len() == usize::from(case.provider),
                 (typed.map_iterations(), owned.map_iterations()),
             );
-            println!(
+            diagnostic!(
                 "ORDINARY ROUTE UNIT case={} calls={:#?} delegation={:#?} plans={:#?} drops={:#?} deliveries={:#?}",
                 case.label,
                 typed.calls(),
@@ -451,7 +454,7 @@ fn observe(case: &RouteCase, unit: bool) -> Result<(), Failure> {
             );
         },
     );
-    println!(
+    diagnostic!(
         "ORDINARY ROUTE LOWER case={} unit={unit} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
@@ -470,7 +473,7 @@ fn observe(case: &RouteCase, unit: bool) -> Result<(), Failure> {
     let llvm =
         crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e));
     report.query("ordinary actual LLVM verifier", &llvm);
-    println!(
+    diagnostic!(
         "ORDINARY ROUTE FINAL case={} unit={unit} report={report:#?}",
         case.label
     );
@@ -493,7 +496,7 @@ fn check_cases(provider: bool) {
         {
             let unit = true;
             let result = observe(&case, unit);
-            println!(
+            diagnostic!(
                 "ORDINARY ROUTE CASE {} unit={unit} result={result:?}",
                 case.label
             );
@@ -501,7 +504,7 @@ fn check_cases(provider: bool) {
         }
     }
     assert_eq!(observations.len(), if provider { 6 } else { 3 });
-    assert!(
+    assert_diagnostic!(
         observations.iter().all(|(_, _, result)| result.is_ok()),
         "{observations:#?}"
     );

@@ -116,6 +116,21 @@ LLVM 21.1.8，初始盘容量 145GiB、空闲 88GiB；composition 末 target 从
   这会缩小 checkout 和未来 diff，不会缩小既有 Git 历史；历史重写需单独授权。
 - 持久保留规则不放宽 CI 有效输入或复用判定；不要靠豁免 JSON/fixture 路径换取跳过测试。
 
+## Codegen 大体积测试诊断
+
+普通 SSA 测试族及 LLVM/native 的大 payload 断言通过 `test_support::diagnostics` 把完整
+证据写入系统临时目录的 `koven-codegen-diagnostics-<pid>-<sequence>.log`。每个测试线程
+一份文件，首行标记测试名；create_new 防止旧文件和并行线程互相覆盖，缓冲写入后逐条 flush。
+libtest 只捕获一次文件路径，失败聚合断言另输出最多240字符的单行预览。全文相等断言仍
+逐字节比较，失败保存左右全文，并给出首个不同字节位置和有限上下文；保留 Unicode、EOF、
+尾换行与 CRLF 的区别。泛型相等断言保持普通 assert_eq 的 eq 语义和消息懒求值。
+
+成功/失败文件都保留，手动复核后可删除；临时目录没有长期保存保证，CI 长期证据仍需归档。
+当前不新增上传机制。专用 PR120 stdout 导出协议、native/sanitizer 产物路径和简短状态输出
+保持；不是全局 panic/unwrap 截断。运行全量时仍应将 stdout/stderr 重定向到文件，避免终端
+重放未迁移或专用导出信息；不要把完整日志再用 tee 回传给 agent。
+实际范围与验证见 [SPEC-0391](../specs/active/0391-codegen-test-diagnostics.md)。
+
 ## 规范示例的分阶段门禁
 
 `bash scripts/check_guide_litmus.sh` 执行文档结构检查及 Guide Litmus、两个相关 ownership
@@ -161,6 +176,13 @@ PR 的普通文档变更保留路径豁免；全部 Guide、compiler-specs、scr
 变更触发 Rust 门禁。代码门禁成功后追加普通文档，可按 [SPEC-0293](../archive/specs/0293-pr-code-ci-reuse.md)
 复用同 PR、同 base、同 head/merge 有效输入的真实 job 证据；汇总独立重验，不能只凭 workflow success。
 证据不可用保守重跑，docs 每次 PR 运行，跳过不表示本 head 再次执行或生成新 preview 包。
+复用 required jobs 与 workflow 实际名称、OS 矩阵由 `test_pr_ci_reuse.py` 覆盖全部八组
+路径开关组合；拒绝日志标明 run、attempt 及缺失或未成功 job，摘要保留首个候选拒绝原因。
+修复后的 [PR #325 首轮完整 CI](https://github.com/Halckon/Koven/actions/runs/42170934428)
+在 head `9a53c7cdfb4d8b21c7baad063eebbf578d9bdae1`、base
+`c4ba670a76a567e1475deee47378fa791d25f419` 实际通过全部 16 个 job，含 editor、双平台
+Rust、Preview producer/consumer 与物理证据。后续普通文档追加仍须核对同 base、同输入
+指纹和最终独立复验；镜像 workflow 尚未接入该复用机制，其重跑不代表核心复用失败。
 active/archive 的编号真源为 [Spec 冻结库存](../specs/inventory.md)；纯归档同步声明、正文与索引，
 不再为编号修改 checker。严格解析器与生命周期检查仍在每次 PR 的 docs 门禁执行；无效声明使
 docs 和最终汇总失败。parser/脚本、base 或其他代码输入变化仍按原证据规则保守重跑。

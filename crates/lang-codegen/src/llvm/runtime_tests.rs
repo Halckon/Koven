@@ -239,7 +239,7 @@ fn heap_owner_uses_checked_system_allocation_and_recursive_unique_drop_glue() {
     let second = crate::test_support::without_abort_runtime(
         &render_verified_program(&program).expect("repeat lowering must succeed"),
     );
-    assert_eq!(first, second);
+    crate::test_support::diagnostics::assert_text_eq!(first, second);
 
     assert_eq!(first.matches("call ptr @malloc(i64 1)").count(), 2);
     assert!(

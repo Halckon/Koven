@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput,
     ownership_checking::{UnitDropPoint, UnitDropTarget},
@@ -56,7 +57,7 @@ fn lowers_cross_package_generic_alias_call_to_deterministic_verified_ssa() {
     )
     .expect("input permutation lowers identically");
 
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
     let module = &forward.modules[0];
     assert_eq!(module.functions.len(), 2);
     assert_eq!(
@@ -302,7 +303,7 @@ fn conditional_early_return_transfers_one_string_owner_on_each_cfg_path() {
         entry,
     )
     .expect("input permutation preserves conditional SSA");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
     let provider = forward.modules[0]
         .functions
         .iter()
@@ -504,7 +505,7 @@ fn copyable_value_if_merges_results_deterministically_across_files() {
         entry,
     )
     .expect("input permutation preserves value-if SSA");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
     let select = forward.modules[0]
         .functions
         .iter()
@@ -635,7 +636,7 @@ fn exhaustive_boolean_when_lowers_reversed_entries_deterministically() {
         entry,
     )
     .expect("input permutation preserves Boolean-when SSA");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
     let select = forward.modules[0]
         .functions
         .iter()

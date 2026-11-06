@@ -3,6 +3,7 @@ use super::{
     model::{EntityId, EntityType, Operation, Origin, Program, SsaTypeKind, TerminatorKind},
     verify::{VerifyErrorKind, verify_program},
 };
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 fn fixture(source: SsaTypeKind, results: Vec<SsaTypeKind>) -> Program {
@@ -51,7 +52,7 @@ fn integer() -> SsaTypeKind {
 fn assert_invalid(source: SsaTypeKind, results: Vec<SsaTypeKind>) {
     let errors =
         verify_program(&fixture(source, results)).expect_err("invalid conversion contract");
-    assert!(
+    assert_diagnostic!(
         errors
             .errors
             .iter()

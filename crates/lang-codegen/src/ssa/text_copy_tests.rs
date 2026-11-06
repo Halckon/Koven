@@ -1,4 +1,5 @@
 //! Copy primitives must publish independent valid String owners and reject invalid storage input.
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 mod nullable_return;
 
 use super::{model::*, unit_lower_test_support as support};
@@ -102,8 +103,8 @@ fn text_copy_primitives_abort_before_publishing_invalid_strings() {
             &llvm,
             source_allocations,
         );
-        assert_eq!(run.status.signal(), Some(6), "{body}: {run:?}");
-        assert!(
+        assert_eq_diagnostic!(run.status.signal(), Some(6), "{body}: {run:?}");
+        assert_diagnostic!(
             String::from_utf8_lossy(&run.stderr).contains(message),
             "{body}: {run:?}"
         );

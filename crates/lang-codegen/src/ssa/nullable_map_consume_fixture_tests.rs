@@ -2,6 +2,7 @@
 //! Collect both complete FE/ownership/SSA/LLVM outcomes before any assertion.
 
 use super::map_consume_fixture_tests::{Fixture, observe_single_fixture, observe_unit_fixture};
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 mod inputs;
 
@@ -32,23 +33,25 @@ fn complete_nullable_map_consume_string_fixture_reaches_verified_llvm() {
     let failed = observations.iter().any(|(_, _, outcome)| outcome.is_err());
     for (entry, stages, outcome) in &observations {
         if !failed {
-            println!(
+            diagnostic!(
                 "NULLABLE MAP CONSUME STRING FIXTURE {entry}: verified LLVM ({} recorded stages)",
                 stages.len(),
             );
             continue;
         }
-        println!(
+        diagnostic!(
             "NULLABLE MAP CONSUME STRING FIXTURE {entry}\n{}",
             stages.join("\n")
         );
         match outcome {
-            Ok(()) => println!("outcome=verified LLVM"),
-            Err(failure) => println!("failed stage={}; detail={}", failure.stage, failure.detail),
+            Ok(()) => diagnostic!("outcome=verified LLVM"),
+            Err(failure) => {
+                diagnostic!("failed stage={}; detail={}", failure.stage, failure.detail)
+            }
         }
     }
     assert_eq!(observations.len(), 2);
-    assert!(
+    assert_diagnostic!(
         observations.iter().all(|(_, _, outcome)| outcome.is_ok()),
         "both complete ordinary nullable String fixture entries must reach verified LLVM: {observations:#?}"
     );

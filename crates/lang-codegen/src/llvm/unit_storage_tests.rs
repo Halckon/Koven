@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 use crate::ssa::{
@@ -84,9 +85,9 @@ fn empty_unit_container_verified_ssa_lowers_to_llvm() {
             .expect("empty Unit container must verify independently of frontend");
         let llvm = render_verified_program(&program)
             .expect("empty Unit container storage must lower to verified LLVM");
-        assert!(llvm.contains("ret %koven.container"), "{llvm}");
-        assert!(!llvm.contains("call ptr @malloc"), "{llvm}");
-        assert!(!llvm.contains("call void @free"), "{llvm}");
+        assert_diagnostic!(llvm.contains("ret %koven.container"), "{llvm}");
+        assert_diagnostic!(!llvm.contains("call ptr @malloc"), "{llvm}");
+        assert_diagnostic!(!llvm.contains("call void @free"), "{llvm}");
     }
 }
 
@@ -545,12 +546,12 @@ fn unit_container_ir_keeps_sentinel_void_abi_and_signed_bounds_without_element_m
             assert!(factory.contains(&format!("i64 {count}")), "{factory}");
             assert_eq!(factory.matches("call void @f0.produce()").count(), count);
             assert!(factory.contains("ret %koven.container"), "{factory}");
-            assert!(
+            assert_diagnostic!(
                 llvm.contains("define internal void @f0.produce()"),
                 "{llvm}"
             );
             assert!(function_body(&llvm, "@f0.produce(").contains("ret void"));
-            assert!(llvm.contains("define internal void @f3.app()"), "{llvm}");
+            assert_diagnostic!(llvm.contains("define internal void @f3.app()"), "{llvm}");
             assert!(function_body(&llvm, "@f3.app(").contains("ret void"));
             assert_no_unit_element_memory_or_allocation(&llvm);
 

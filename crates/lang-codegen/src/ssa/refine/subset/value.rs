@@ -302,12 +302,31 @@ impl Checker<'_, '_> {
         }
         let (owner, is_this) = match projection.receiver() {
             UnitAggregateProjectionReceiver::Expression(receiver) => {
-                if receiver.source_unit() != self.inputs.source_unit
-                    || !self.plain(receiver.expression())
-                {
+                if receiver.source_unit() != self.inputs.source_unit {
                     return false;
                 }
-                let inner = self.ungrouped(receiver.expression());
+                let receiver_expr = receiver.expression();
+                let inner = self.ungrouped(receiver_expr);
+                if typed.aggregate_projection(self.id(inner)).is_some() {
+                    let Some(owner_type) = self.expression_type(inner) else {
+                        return false;
+                    };
+                    if !self.value_class(owner_type) || !self.value_projection(inner) {
+                        return false;
+                    }
+                    self.migrated = true;
+                    return self
+                        .value_signature(owner_type)
+                        .is_some_and(|(nominal, _)| {
+                            nominal
+                                .fields()
+                                .iter()
+                                .any(|field| field.symbol() == projection.field())
+                        });
+                }
+                if !self.plain(receiver_expr) {
+                    return false;
+                }
                 let Ok(node) = self.inputs.parsed.ast().expressions().get(inner) else {
                     return false;
                 };

@@ -3,6 +3,7 @@ use super::{
     Report,
     fixture::{FOR_TEXT, Fixture, LoopSite, loop_site},
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{SymbolKind, UnitReferenceTarget, ValidatedCompilationUnitNames},
     ownership_checking::{
@@ -258,7 +259,7 @@ pub(super) fn unit(
             )
         })
         .collect::<Vec<_>>();
-    println!(
+    diagnostic!(
         "SPEC0331 PROVIDER REAL UNIT OWNER source={source:?} plan={plan:#?} source_drops={drops:#?}"
     );
 }

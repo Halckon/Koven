@@ -1,12 +1,10 @@
 //! Instance receiver entry binding 与 `this` 的基础 lowering。
 mod nullable_string;
-mod string_field;
 
 use lang_frontend::{
     ast::ExpressionId,
-    name_resolution::{Namespace, SymbolKind, UnitReferenceTarget, UnitSymbolId},
+    name_resolution::UnitSymbolId,
     ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
-    parser::Expression,
     source::Span,
     type_checking::{
         Copyability, NominalKind, ParameterMode, UnitCallDescriptor, UnitCallReceiverOrigin,
@@ -22,7 +20,6 @@ use crate::ssa::{
     model::{
         EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceAccess, PlaceId, SsaTypeId,
     },
-    unit_plan::UnitDelegatedCallRoute,
 };
 
 pub(super) struct LoweredReceiver {
@@ -47,91 +44,6 @@ pub(super) enum ReceiverWritebackKind {
 }
 
 impl UnitExpressionLowerer<'_> {
-    pub(super) fn lower_delegated_call_receiver(
-        &mut self,
-        call: UnitExpressionId,
-        descriptor: &UnitCallDescriptor,
-        receiver: Option<LoweredReceiver>,
-        routes: &[UnitDelegatedCallRoute],
-        span: Span,
-    ) -> Result<Option<LoweredReceiver>, LoweringError> {
-        let Some(mut receiver) = receiver else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let Some(receiver_descriptor) = descriptor.receiver() else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let fact = self
-            .owned
-            .receiver_fact(call)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let concrete = resolve_concrete_type(
-            self.typed,
-            receiver_descriptor.ty(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        let Some(first) = routes.first() else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        if concrete != first.outer_receiver()
-            || receiver_descriptor.mode() != ParameterMode::Borrow
-            || fact.kind() != UnitReceiverOwnershipKind::SharedLoan
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        for route in routes {
-            let outer_target = self
-                .type_ids
-                .get(&route.outer_receiver())
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let delegate_target = self
-                .type_ids
-                .get(&route.delegate_receiver())
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let field = self
-                .field_indices
-                .get(&(route.outer_receiver(), route.field()))
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let EntityId::Loan(base) = receiver.entity else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            };
-            if self
-                .function
-                .entity(EntityId::Loan(base))
-                .map(|entity| entity.ty)
-                != Some(EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target: outer_target,
-                })
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            let (_, results) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::SharedHeapFieldLoan { base, field },
-                    vec![EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target: delegate_target,
-                    }],
-                    Origin::Source(fact.begin_span()),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let EntityId::Loan(delegate) = results[0] else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            receiver.entity = EntityId::Loan(delegate);
-            receiver.created_loans.push((delegate, fact.end_span()));
-        }
-        Ok(Some(receiver))
-    }
-
     pub(super) fn lower_call_receiver(
         &mut self,
         call: UnitExpressionId,
@@ -230,32 +142,6 @@ impl UnitExpressionLowerer<'_> {
                 writeback: None,
             }));
         }
-        if fact.kind() == UnitReceiverOwnershipKind::ExclusiveLoan
-            && let UnitReceiverOwnershipTarget::Place(place) = fact.target()
-            && place.is_root()
-            && self.direct_place_symbol(expression.expression(), fact.begin_span())? == place.root()
-            && let Some(loan) = self.borrow_bindings.get(&place.root()).copied()
-        {
-            if self
-                .function
-                .entity(EntityId::Loan(loan))
-                .map(|entity| entity.ty)
-                != Some(EntityType::Loan {
-                    kind: LoanKind::Exclusive,
-                    target,
-                })
-            {
-                return Err(lowering_error(
-                    LoweringErrorKind::MissingFact,
-                    fact.begin_span(),
-                ));
-            }
-            return Ok(Some(LoweredReceiver {
-                entity: EntityId::Loan(loan),
-                created_loans: Vec::new(),
-                writeback: None,
-            }));
-        }
         if let Some(loan) = self.nullable_string_receiver_loan(call, descriptor, span)? {
             return Ok(Some(LoweredReceiver {
                 entity: EntityId::Loan(loan),
@@ -263,27 +149,7 @@ impl UnitExpressionLowerer<'_> {
                 writeback: None,
             }));
         }
-        if let Some(receiver) = self.lower_string_field_receiver(fact, expression, target)? {
-            return Ok(Some(receiver));
-        }
-        let object_value = if fact.kind() == UnitReceiverOwnershipKind::SharedLoan
-            && matches!(
-                fact.target(),
-                UnitReceiverOwnershipTarget::Temporary(target) if *target == expression
-            ) {
-            self.lower_stateless_object_receiver(
-                expression.expression(),
-                concrete,
-                target,
-                fact.begin_span(),
-            )?
-        } else {
-            None
-        };
-        let lowered = match object_value {
-            Some(value) => LoweredValue::Value(value),
-            None => self.lower(expression.expression())?,
-        };
+        let lowered = self.lower(expression.expression())?;
         let value = match lowered {
             LoweredValue::Value(value) => value,
             LoweredValue::Unit | LoweredValue::Diverged => {
@@ -458,91 +324,6 @@ impl UnitExpressionLowerer<'_> {
         }))
     }
 
-    fn lower_stateless_object_receiver(
-        &mut self,
-        expression: ExpressionId,
-        concrete: UnitTypeId,
-        target: crate::ssa::model::SsaTypeId,
-        span: Span,
-    ) -> Result<Option<crate::ssa::model::ValueId>, LoweringError> {
-        let Some(declaration) = self.stateless_object_declaration(expression)? else {
-            return Ok(None);
-        };
-        let Some(UnitTypeKind::Nominal {
-            declaration: type_declaration,
-            arguments,
-        }) = self.typed.types().get(concrete)
-        else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let declarations = self.names.names().index().declarations();
-        let value_declaration = declarations.get(declaration.index());
-        let type_declaration_record = declarations.get(type_declaration.index());
-        // `object` 在值/类型命名空间各有 declaration；共同 AST root 才是同一 singleton identity。
-        let is_object = arguments.is_empty()
-            && matches!(value_declaration, Some(declaration) if declaration.kind() == SymbolKind::ObjectValue)
-            && matches!(
-                (value_declaration, type_declaration_record),
-                (Some(value), Some(ty))
-                    if value.source_unit() == ty.source_unit() && value.root() == ty.root()
-            )
-            && self
-                .typed
-                .signatures()
-                .declaration(*type_declaration)
-                .and_then(|signature| signature.nominal())
-                .is_some_and(|nominal| nominal.kind() == NominalKind::Object);
-        if !is_object {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::AggregateConstruct {
-                    aggregate: target,
-                    fields: Vec::new(),
-                },
-                vec![EntityType::Value(target)],
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        Ok(Some(require_value(results[0], span)?))
-    }
-
-    fn stateless_object_declaration(
-        &self,
-        expression: ExpressionId,
-    ) -> Result<Option<lang_frontend::name_resolution::DeclarationId>, LoweringError> {
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
-        match node.payload() {
-            Expression::Group { expression } => self.stateless_object_declaration(*expression),
-            Expression::Name => Ok(self
-                .names
-                .names()
-                .references()
-                .iter()
-                .find(|reference| {
-                    reference.source_unit() == self.source_unit
-                        && reference.namespace() == Some(Namespace::Value)
-                        && reference.span() == node.span()
-                })
-                .and_then(|reference| match reference.target() {
-                    UnitReferenceTarget::Declaration(declaration) => Some(*declaration),
-                    _ => None,
-                })),
-            _ => Ok(None),
-        }
-    }
-
     fn lower_existing_this_receiver(
         &mut self,
         fact: &lang_frontend::ownership_checking::UnitReceiverOwnershipFact,
@@ -590,34 +371,11 @@ impl UnitExpressionLowerer<'_> {
                         created_loans: Vec::new(),
                         writeback: None,
                     })),
-                    Some(EntityType::Loan {
-                        kind: LoanKind::Exclusive,
-                        target: actual,
-                    }) if actual == target && receiver.mode == ParameterMode::Inout => {
-                        self.begin_shared_reborrow(loan, target, fact.begin_span(), fact.end_span())
-                    }
                     _ => Err(lowering_error(
                         LoweringErrorKind::UnsupportedNode,
                         fact.begin_span(),
                     )),
                 }
-            }
-            (UnitReceiverOwnershipKind::ExclusiveLoan, EntityId::Loan(loan))
-                if receiver.mode == ParameterMode::Inout
-                    && self
-                        .function
-                        .entity(EntityId::Loan(loan))
-                        .map(|entity| entity.ty)
-                        == Some(EntityType::Loan {
-                            kind: LoanKind::Exclusive,
-                            target,
-                        }) =>
-            {
-                Ok(Some(LoweredReceiver {
-                    entity: EntityId::Loan(loan),
-                    created_loans: Vec::new(),
-                    writeback: None,
-                }))
             }
             (UnitReceiverOwnershipKind::Copy, EntityId::Value(value))
                 if receiver.mode == ParameterMode::Value =>
@@ -688,12 +446,6 @@ impl UnitExpressionLowerer<'_> {
                     kind: LoanKind::Shared,
                     target: actual,
                 }) if actual == target => return Ok((loan, false, end_span)),
-                Some(EntityType::Loan {
-                    kind: LoanKind::Exclusive,
-                    target: actual,
-                }) if actual == target && receiver.mode == ParameterMode::Inout => {
-                    self.begin_shared_reborrow(loan, target, begin_span, end_span)?
-                }
                 _ => return Err(lowering_error(LoweringErrorKind::MissingFact, begin_span)),
             },
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, begin_span)),
@@ -703,35 +455,6 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, begin_span));
         };
         Ok((loan, true, end_span))
-    }
-
-    fn begin_shared_reborrow(
-        &mut self,
-        source: LoanId,
-        target: crate::ssa::model::SsaTypeId,
-        begin_span: Span,
-        end_span: Span,
-    ) -> Result<Option<LoweredReceiver>, LoweringError> {
-        let (_, loans) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::SharedReborrow { source },
-                vec![EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target,
-                }],
-                Origin::Source(begin_span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
-        let EntityId::Loan(loan) = loans[0] else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, end_span));
-        };
-        Ok(Some(LoweredReceiver {
-            entity: EntityId::Loan(loan),
-            created_loans: vec![(loan, end_span)],
-            writeback: None,
-        }))
     }
 
     fn begin_receiver_loan(
@@ -816,23 +539,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let EntityId::Place(place) = receiver.entity else {
-            // entry Inout/this 继续传递原有 exclusive capability；不结束调用者的 loan。
-            return match receiver.entity {
-                EntityId::Loan(loan)
-                    if matches!(
-                        self.function
-                            .entity(EntityId::Loan(loan))
-                            .map(|entity| entity.ty),
-                        Some(EntityType::Loan {
-                            kind: LoanKind::Exclusive,
-                            ..
-                        })
-                    ) =>
-                {
-                    Ok(())
-                }
-                _ => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-            };
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let Some(EntityType::Place(target)) = self
             .function

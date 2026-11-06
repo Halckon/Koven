@@ -1,4 +1,5 @@
 //! SPEC-0209: Char remains a distinct Unicode scalar through SSA and LLVM.
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 use lang_frontend::source::SourceMap;
 
 use super::{
@@ -59,11 +60,11 @@ fn char_constants_preserve_unicode_boundaries_and_llvm_i32() {
         let program = constant_program(ScalarConstant::Char(codepoint), SsaTypeKind::Char);
         verify_program(&program).expect("Unicode scalar must verify");
         let ssa = render_program(&program);
-        assert!(ssa.contains("!t0 = char"), "{ssa}");
-        assert!(ssa.contains(&format!("U+{codepoint:04X}")), "{ssa}");
+        assert_diagnostic!(ssa.contains("!t0 = char"), "{ssa}");
+        assert_diagnostic!(ssa.contains(&format!("U+{codepoint:04X}")), "{ssa}");
         let llvm = render_verified_program(&program).expect("Char must lower to LLVM");
-        assert!(llvm.contains(&format!("ret i32 {codepoint}")), "{llvm}");
-        assert_eq!(llvm, render_verified_program(&program).unwrap());
+        assert_diagnostic!(llvm.contains(&format!("ret i32 {codepoint}")), "{llvm}");
+        assert_text_eq!(llvm, render_verified_program(&program).unwrap());
     }
 }
 
@@ -191,7 +192,7 @@ fn char_parameters_copy_call_and_compare_without_integer_coercion() {
         );
         verify_program(&program).unwrap();
         let llvm = render_verified_program(&program).unwrap();
-        assert!(
+        assert_diagnostic!(
             llvm.contains(&format!("icmp {llvm_operator} i32")),
             "{llvm}"
         );

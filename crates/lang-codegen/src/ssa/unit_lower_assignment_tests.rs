@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -59,7 +60,7 @@ fn replaces_a_string_owner_only_after_the_rhs_finishes() {
         entry_declaration,
     )
     .expect("input permutation preserves assignment lowering");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     let entry = module
@@ -219,7 +220,7 @@ fn updates_the_binding_after_each_checked_compound_assignment() {
         entry,
     )
     .expect("input permutation preserves compound assignment lowering");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let update = forward.modules[0]
         .functions

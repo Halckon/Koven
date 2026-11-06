@@ -1,4 +1,5 @@
 //! SPEC-0182: local source loan identity follows body CFG edges and merges.
+use crate::test_support::diagnostics::diagnostic;
 use std::collections::BTreeSet;
 
 use super::cleanup_tests::{cleanup, loan, transport, value};
@@ -206,13 +207,13 @@ fn source_cleanup_rebinds_sibling_single_and_multiple_exit_cfg() {
         "for (inner in arrayOf(3, 4)) { if (flag) { break } }; if (flag) { break }",
         "for (inner in arrayOf(3, 4)) { if (flag) { return inner } }; break",
     ] {
-        eprintln!("source cleanup CFG: {body}");
+        diagnostic!("source cleanup CFG: {body}");
         verified(&format!(
             "fun scan(flag: Boolean): Int {{ for (value in arrayOf(1, 2)) {{ {body} }}; return 0 }}"
         ));
     }
     // Preserve the full original determinism failure as well as its reduced CFG cases.
-    eprintln!("original determinism red input: factory List + continue + break + total");
+    diagnostic!("original determinism red input: factory List + continue + break + total");
     verified(
         r#"
         fun source(): List<Int> = listOf(7, 2, 9)

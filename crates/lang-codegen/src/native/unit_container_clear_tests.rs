@@ -1,6 +1,7 @@
 //! SPEC-0281: native MutableList.clear element reverse cleanup and buffer reuse.
 
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn unit_container_clear_native_primitive_and_reappend() {
@@ -126,7 +127,7 @@ fn run(analysis: &UnitAnalysis, expected: &[u8]) {
         .arg(&executable)
         .output()
         .expect("native link runs");
-    assert!(
+    assert_diagnostic!(
         linked.status.success(),
         "{}",
         String::from_utf8_lossy(&linked.stderr)
@@ -134,7 +135,7 @@ fn run(analysis: &UnitAnalysis, expected: &[u8]) {
     let output = Command::new(&executable)
         .output()
         .expect("native program runs");
-    assert!(
+    assert_diagnostic!(
         output.status.success(),
         "{}",
         String::from_utf8_lossy(&output.stderr)

@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput,
     ownership_checking::UnitDropPoint,
@@ -66,7 +67,7 @@ fn lowers_cross_file_and_or_with_exact_short_edges_and_carried_owner() {
         entry,
     )
     .expect("input permutation preserves short-circuit CFG");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     let entry = module

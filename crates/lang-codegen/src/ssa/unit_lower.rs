@@ -9,7 +9,6 @@ mod borrow_result;
 mod call;
 mod call_lifetimes;
 mod callable_abi;
-mod callable_view;
 mod cfg;
 mod checked;
 mod closure;
@@ -18,8 +17,6 @@ mod construction;
 mod container;
 mod control;
 mod deinit;
-mod deinit_borrow;
-mod enum_lower;
 mod field_borrow;
 mod handoff;
 mod loop_control;
@@ -27,8 +24,6 @@ mod map;
 mod map_borrow;
 mod map_consume;
 mod map_iteration;
-mod map_result;
-mod non_null_assertion;
 mod nullable_comparison;
 mod nullable_proof;
 mod nullable_when;
@@ -38,7 +33,6 @@ mod rc;
 mod receiver;
 mod scalar;
 mod statement;
-mod string_clone;
 mod type_lower;
 #[cfg(test)]
 mod type_origin_cache_tests;
@@ -303,12 +297,17 @@ impl UnitExpressionLowerer<'_> {
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
                     self.lower_rc_construction(expression, span)
                 }
-                lang_frontend::type_checking::UnitConstructionTarget::Nominal(_)
-                | lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox => {
+                lang_frontend::type_checking::UnitConstructionTarget::Nominal(_) => {
                     self.lower_aggregate_construction(expression, span)
                 }
-                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
-                    self.lower_enum_construction(expression, span)
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox
+                    if !self.typed.nullable_whens().is_empty() =>
+                {
+                    self.lower_aggregate_construction(expression, span)
+                }
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox
+                | lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
+                    Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
                 }
             };
         }
@@ -321,7 +320,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if self.typed.string_operation(unit_expression).is_some() {
-            return self.lower_string_clone(expression, span);
+            return self.lower_string_operation(expression, span);
         }
         if self.typed.rc_operation(unit_expression).is_some() {
             return self.lower_rc_operation(expression, span);
@@ -341,8 +340,7 @@ impl UnitExpressionLowerer<'_> {
             Expression::Name => self.lower_name(expression, span),
             Expression::This => self.lower_this(expression, span),
             Expression::Group { expression } => self.lower(*expression),
-            Expression::NonNullAssert { .. } => self.lower_non_null_assertion(expression, span),
-            Expression::TypeTest { .. } => {
+            Expression::NonNullAssert { .. } | Expression::TypeTest { .. } => {
                 Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
             Expression::Call {
@@ -596,10 +594,9 @@ impl UnitExpressionLowerer<'_> {
                     self.lower_for(statement, *source, *body, span)
                 }
             }
-            Statement::LocalDestructuring { initializer, .. } => {
-                self.lower_destructuring(statement, *initializer, span)
+            Statement::LocalDestructuring { .. } | Statement::Error => {
+                Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
-            Statement::Error => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
 
@@ -806,10 +803,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok((value, false));
         }
-        if self.map_results.contains_key(&nullable)
-            && self.typed.copyability(actual) == Copyability::Copyable
-        {
-            return Ok((self.wrap_map_result(value, nullable, span)?, false));
+        if self.map_results.contains_key(&nullable) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         self.transfer_owned_expression(expression, value, span)?;
         let (_, results) = self

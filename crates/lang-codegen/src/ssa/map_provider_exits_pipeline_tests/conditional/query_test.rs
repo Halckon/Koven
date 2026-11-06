@@ -1,4 +1,5 @@
 //! 四次 fresh MemoryDocument/rooted Unit 流水线；身份查询只读同次公开产物，原阶段错误全部保留。
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 #[test]
 fn conditional_map_exits_preserve_all_edge_identity() {
     let mut observations = Vec::new();
@@ -8,7 +9,7 @@ fn conditional_map_exits_preserve_all_edge_identity() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 CONDITIONAL IDENTITY OUTCOME case={} input={} report={:#?} result={:#?}",
             observation.label,
             super::input_label(observation.rooted),
@@ -16,7 +17,7 @@ fn conditional_map_exits_preserve_all_edge_identity() {
             observation.outcome,
         );
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 4
             && observations
                 .iter()

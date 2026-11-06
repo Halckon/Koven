@@ -1,5 +1,6 @@
 //! View-source descriptors inherit the collection root, independently of parent metadata.
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn range_view_source_take_single_and_unit_end_parent_before_child_use() {
@@ -200,7 +201,7 @@ fn range_view_source_verifier_rejects_premature_collection_release_after_parent_
         caller.instructions.iter_mut().find(|instruction| matches!(instruction.operation, Operation::RangeEnd { view, .. } if view == parent)).unwrap().operation = Operation::Drop { owner };
         let errors = verify_program(&program)
             .expect_err("the child's independent root loan must still protect the collection");
-        assert!(errors.errors.iter().any(|error| matches!(error.kind, super::super::verify::VerifyErrorKind::OwnerLoanConflict { value } if value == owner)), "{errors:?}");
+        assert_diagnostic!(errors.errors.iter().any(|error| matches!(error.kind, super::super::verify::VerifyErrorKind::OwnerLoanConflict { value } if value == owner)), "{errors:?}");
         // The rejected Program is never emitted or executed.
     }
 }
@@ -224,7 +225,7 @@ fn range_view_source_verifier_rejects_a_forwarded_sibling_root() {
         *source = sibling;
         arguments[0] = EntityId::Loan(sibling);
         let errors = verify_program(&program).expect_err("the declared source must be the actual returned root");
-        assert!(errors.errors.iter().any(|error| matches!(error.kind, super::super::verify::VerifyErrorKind::ReturnType { .. })), "{errors:?}");
+        assert_diagnostic!(errors.errors.iter().any(|error| matches!(error.kind, super::super::verify::VerifyErrorKind::ReturnType { .. })), "{errors:?}");
         // Signature-valid sibling substitution stays inside the pure verifier.
     }
 }

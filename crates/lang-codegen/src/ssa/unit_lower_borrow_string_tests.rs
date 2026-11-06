@@ -1,5 +1,6 @@
 //! SPEC-0274: String binary views preserve the caller's shared owner.
 
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -293,7 +294,7 @@ fn lower_fixture(provider: &str, consumer: &str) -> Program {
     };
     let (program, entry) = lower(&inputs);
     let (reversed, reverse_entry) = lower(&[inputs[1], inputs[0]]);
-    assert_eq!(render_program(&program), render_program(&reversed));
+    assert_text_eq!(render_program(&program), render_program(&reversed));
     assert_eq!(
         crate::llvm::render_verified_program_with_entry(&program, entry).unwrap(),
         crate::llvm::render_verified_program_with_entry(&reversed, reverse_entry).unwrap(),

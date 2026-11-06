@@ -55,9 +55,7 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .filter(|fact| fact.call() == call && fact.argument() == argument_id);
         let Some(fact) = facts.next() else {
-            return self
-                .lower_known_function_borrow(call, argument, target, span, call_span)?
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span));
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
         if facts.next().is_some()
             || fact.kind() != FrontendLoanKind::Shared
@@ -135,11 +133,6 @@ impl UnitExpressionLowerer<'_> {
             fact.begin_span(),
         )? {
             return Ok((loan, vec![loan], fact.end_span()));
-        }
-        if let Some((loan, created)) =
-            self.lower_this_field_borrow(argument, fact.target(), target, fact.begin_span())?
-        {
-            return Ok((loan, created, fact.end_span()));
         }
         if let UnitLoanTarget::This(owner) = fact.target() {
             return self
@@ -506,10 +499,28 @@ impl UnitExpressionLowerer<'_> {
             };
             return Ok(place);
         }
-        if let Some(place) =
-            self.lower_borrowed_container_element(argument, loan_target, target, span)?
-        {
-            return Ok(place);
+        if let Some(descriptor) = self.element_place_descriptor(argument)? {
+            let mut receiver_expr = descriptor.receiver().expression();
+            while let Ok(node) = self.parsed.ast().expressions().get(receiver_expr) {
+                if let Expression::Group { expression } = node.payload() {
+                    receiver_expr = *expression;
+                } else {
+                    break;
+                }
+            }
+            let receiver_node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(receiver_expr)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if !matches!(receiver_node.payload(), Expression::Name) {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    receiver_node.span(),
+                ));
+            }
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if let UnitLoanTarget::Place(place) = loan_target
             && !place.is_root()
@@ -545,53 +556,6 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         };
-        // A flow-refined Copyable query result borrows a copied payload, never
-        // reinterprets the presence/payload aggregate as the inner value's place.
-        let mut owner = owner;
-        if let UnitLoanTarget::Place(place) = loan_target
-            && place.is_root()
-            && let Some(proof) = self
-                .typed
-                .non_null_use(UnitExpressionId::new(self.source_unit, argument))
-            && self.is_map_result_value(owner)
-        {
-            let declared = super::resolve_concrete_type(
-                self.typed,
-                proof.declared_type(),
-                self.substitutions,
-                self.static_self,
-                span,
-            )?;
-            let narrowed = super::resolve_concrete_type(
-                self.typed,
-                proof.narrowed_type(),
-                self.substitutions,
-                self.static_self,
-                span,
-            )?;
-            if self.typed.copyability(narrowed)
-                != lang_frontend::type_checking::Copyability::Copyable
-            {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
-            let actual = self
-                .function
-                .entity(EntityId::Value(owner))
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
-                .ty
-                .semantic_type();
-            if proof.symbol() != place.root()
-                || self.type_ids.get(&declared) != Some(&actual)
-                || self.type_ids.get(&narrowed) != Some(&target)
-                || self.map_results.get(&actual) != Some(&target)
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            owner = match self.unwrap_map_result(owner, span)? {
-                LoweredValue::Value(value) => value,
-                _ => return Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
-            };
-        }
         // Borrow cannot consume a named owner to manufacture another representation.
         if self
             .function

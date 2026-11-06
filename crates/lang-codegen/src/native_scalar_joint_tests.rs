@@ -2,6 +2,7 @@
 //! One main reaches 23 scalar helpers together; this is not whole-file legacy equivalence.
 //! The native checks use the same source bytes and ordinary CI object/link/run helper.
 
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 use std::collections::BTreeSet;
 
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
@@ -166,7 +167,7 @@ fn assert_abi(module: &Module, function: &Function, spec: (&str, u16, bool, usiz
         format!("i{bits}")
     };
     let body = llvm_body(llvm, function);
-    assert!(
+    assert_diagnostic!(
         body.starts_with(&format!(
             "internal {result} @f{}.{}({arguments})",
             function.id.index(),
@@ -371,17 +372,17 @@ fn joint_unit_preserves_reachable_targets_borrow_abi_and_complete_llvm_determini
             "{name}"
         );
         let body = llvm_body(&llvm, function);
-        assert!(body.contains(fragment), "{name}: {body}");
-        assert!(
+        assert_diagnostic!(body.contains(fragment), "{name}: {body}");
+        assert_diagnostic!(
             body.contains("call void @koven.abort.report"),
             "{name}: {body}"
         );
-        assert!(body.contains("unreachable"), "{name}: {body}");
+        assert_diagnostic!(body.contains("unreachable"), "{name}: {body}");
     }
     for name in ["choose", "countTo"] {
         let body = llvm_body(&llvm, source_function(&unit, module, name));
-        assert!(body.contains("phi i32"), "{name}: {body}");
-        assert!(body.contains("br i1"), "{name}: {body}");
+        assert_diagnostic!(body.contains("phi i32"), "{name}: {body}");
+        assert_diagnostic!(body.contains("br i1"), "{name}: {body}");
     }
     assert!(llvm.contains(&format!(
         "target triple = \"{}\"",
@@ -408,7 +409,7 @@ fn joint_unit_preserves_reachable_targets_borrow_abi_and_complete_llvm_determini
         (entry.module().index(), entry.index()),
         (repeated_entry.module().index(), repeated_entry.index())
     );
-    assert_eq!(render_program(&program), render_program(&repeated));
+    assert_text_eq!(render_program(&program), render_program(&repeated));
     assert_eq!(
         llvm, repeated_llvm,
         "repeat lowering, with no normalization"
@@ -419,7 +420,7 @@ fn joint_unit_preserves_reachable_targets_borrow_abi_and_complete_llvm_determini
         (entry.module().index(), entry.index()),
         (rebuilt_entry.module().index(), rebuilt_entry.index())
     );
-    assert_eq!(render_program(&program), render_program(&rebuilt));
+    assert_text_eq!(render_program(&program), render_program(&rebuilt));
     assert_eq!(
         llvm, rebuilt_llvm,
         "fresh frontend rebuild, with no normalization"

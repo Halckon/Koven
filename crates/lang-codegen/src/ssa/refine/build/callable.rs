@@ -191,6 +191,26 @@ impl Builder<'_, '_> {
         };
         let (payload, root_span) = self.node(root)?;
         if let Expression::Name = payload {
+            if let Some((owner, callable)) = self.form_known_function(root, root_span)? {
+                let place = self.value(
+                    ROp::RootPlace { owner },
+                    EntityType::Place(callable),
+                    root_span,
+                )?;
+                let loan = self.value(
+                    ROp::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: callable,
+                    },
+                    root_span,
+                )?;
+                let lent = self.value(ROp::CallableViewOf { source: loan }, view_loan, span)?;
+                return Ok((lent, vec![loan, lent], None));
+            }
             let symbol = self.reference(root_span)?;
             if let Some(&source) = self.borrowed.get(&symbol) {
                 // A view parameter is passed on as a call-scoped re-borrow of the view.
@@ -253,6 +273,46 @@ impl Builder<'_, '_> {
         Ok((lent, vec![loan, lent], None))
     }
 
+    pub(super) fn form_known_function(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<(Slot, SsaTypeId)>, LoweringError> {
+        let mut root = expression;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
+        }
+        let (Expression::Name, root_span) = self.node(root)? else {
+            return Ok(None);
+        };
+        let id = self.unit(root);
+        let Some(fact) = self.inputs.owned.callable_origin(id) else {
+            return Ok(None);
+        };
+        let lang_frontend::ownership_checking::UnitCallableOrigin::KnownFunction(target) =
+            fact.origin()
+        else {
+            return Ok(None);
+        };
+        if let Ok(symbol) = self.reference(root_span)
+            && (self.borrowed.contains_key(&symbol) || self.bindings.contains_key(&symbol))
+        {
+            return Ok(None);
+        }
+        let &(function, callable) = self
+            .inputs
+            .known_functions
+            .get(&target)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, root_span))?;
+        let slot = self.value(
+            ROp::FunctionAddress { target: function },
+            EntityType::Value(callable),
+            span,
+        )?;
+        self.temporaries.insert(id, slot);
+        Ok(Some((slot, callable)))
+    }
+
     /// A Borrow String parameter or capture read through its shared loan in `==`, `!=`, `+`.
     pub(super) fn borrowed_string_loan(
         &self,
@@ -300,9 +360,7 @@ impl Builder<'_, '_> {
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
         }
-        let (Expression::Name | Expression::This, span) = self.node(root)? else {
-            return Ok(None);
-        };
+        let (payload, span) = self.node(root)?;
         let id = self.unit(root);
         if self.inputs.typed.non_null_use(id).is_some()
             || self
@@ -312,12 +370,35 @@ impl Builder<'_, '_> {
         {
             return Ok(None);
         }
-        let Some(&symbol) = self.inputs.references.get(&(span.start(), span.end())) else {
-            return Ok(None);
-        };
-        Ok((self.symbol_type(symbol) == Some(parameter))
-            .then(|| self.borrowed.get(&symbol).copied())
-            .flatten())
+        match payload {
+            Expression::Name => {
+                let Some(&symbol) = self.inputs.references.get(&(span.start(), span.end())) else {
+                    return Ok(None);
+                };
+                Ok((self.symbol_type(symbol) == Some(parameter))
+                    .then(|| self.borrowed.get(&symbol).copied())
+                    .flatten())
+            }
+            Expression::This => Ok(self
+                .inputs
+                .receiver
+                .filter(|receiver| {
+                    receiver.mode == lang_frontend::type_checking::ParameterMode::Borrow
+                        && receiver.ty == parameter
+                })
+                .and(self.receiver)
+                .or_else(|| {
+                    let symbol = self
+                        .inputs
+                        .references
+                        .get(&(span.start(), span.end()))
+                        .copied()?;
+                    (self.symbol_type(symbol) == Some(parameter))
+                        .then(|| self.borrowed.get(&symbol).copied())
+                        .flatten()
+                })),
+            _ => Ok(None),
+        }
     }
 
     /// `owner.field` of a MoveOnly type lent to a Borrow call parameter via `SharedHeapFieldLoan`.
@@ -543,11 +624,19 @@ impl Builder<'_, '_> {
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let target = self.ssa_type(self.c(projection.ty()), span)?;
-        let field_loan = self.value(
+        let op = if self.is_value_class(owner_type) {
+            ROp::SharedFieldLoan {
+                base: base_loan,
+                field,
+            }
+        } else {
             ROp::SharedHeapFieldLoan {
                 base: base_loan,
                 field,
-            },
+            }
+        };
+        let field_loan = self.value(
+            op,
             EntityType::Loan {
                 kind: LoanKind::Shared,
                 target,

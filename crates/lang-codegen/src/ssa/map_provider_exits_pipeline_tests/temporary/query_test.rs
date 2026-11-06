@@ -7,10 +7,11 @@ use super::{
     },
     Observation, ast, query_inputs, query_ssa, unit,
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 fn observe(label: &'static str, map: bool, hash: &str, text: &str, rooted: bool) -> Observation {
     let mut report = Report::default();
-    println!(
+    diagnostic!(
         "SPEC0331 TEMPORARY IDENTITY INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={hash} text={text:?}"
     );
     let outcome = ast::Input::new(text, map).and_then(|input| {
@@ -39,7 +40,7 @@ fn observe(label: &'static str, map: bool, hash: &str, text: &str, rooted: bool)
                 inputs = Some(queried);
             },
         )?;
-        println!(
+        diagnostic!(
             "SPEC0331 TEMPORARY IDENTITY SSA case={label} rooted={rooted}\n{}",
             crate::ssa::render::render_program(&program)
         );
@@ -78,7 +79,7 @@ fn observe(label: &'static str, map: bool, hash: &str, text: &str, rooted: bool)
             true,
             llvm.len(),
         );
-        println!("SPEC0331 TEMPORARY IDENTITY LLVM case={label} rooted={rooted}\n{llvm}");
+        diagnostic!("SPEC0331 TEMPORARY IDENTITY LLVM case={label} rooted={rooted}\n{llvm}");
         Ok(())
     });
     Observation {
@@ -98,16 +99,18 @@ fn temporary_map_sources_preserve_owner_and_all_edge_identity() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 TEMPORARY IDENTITY OUTCOME case={} rooted={} report={:#?}",
-            observation.label, observation.rooted, observation.report
+            observation.label,
+            observation.rooted,
+            observation.report
         );
         match &observation.outcome {
-            Ok(()) => println!("stage=LLVM render/verify result=ok"),
-            Err(error) => println!("stage={} original={}", error.stage, error.original),
+            Ok(()) => diagnostic!("stage=LLVM render/verify result=ok"),
+            Err(error) => diagnostic!("stage={} original={}", error.stage, error.original),
         }
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 4
             && observations
                 .iter()

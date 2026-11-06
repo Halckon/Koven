@@ -4,6 +4,7 @@ use crate::ssa::{
     model::*,
     verify::{VerifyErrorKind, VerifyLocation, verify_program},
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 fn loan(entity: EntityId) -> LoanId {
     let EntityId::Loan(id) = entity else {
@@ -219,7 +220,7 @@ fn map_real_lowered_ssa_private_damage_has_precise_rejections() {
             };
             let errors = verify_program(&valid).expect_err("private damage must not reach LLVM");
             let origin = function.instruction(at).unwrap().origin.clone();
-            assert!(
+            assert_diagnostic!(
                 errors
                     .errors
                     .iter()
@@ -228,7 +229,7 @@ fn map_real_lowered_ssa_private_damage_has_precise_rejections() {
                         && e.origin == Some(origin.clone())),
                 "unit={unit} fault={fault} expected={expected:?} at={at:?} original={origin:?}: {errors:#?}"
             );
-            println!(
+            diagnostic!(
                 "SPEC0331 CI MAP SSA unit={unit} fault={fault} exact={expected:?} at={at:?} origin={origin:?}"
             );
         }

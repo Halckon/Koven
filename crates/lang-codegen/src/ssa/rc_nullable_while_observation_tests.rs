@@ -1,5 +1,6 @@
 //! SPEC-0332 first evidence: ordinary source, both frontends, no native execution.
 //! A passing collector proves complete/ownership and a real lowering attempt only.
+use crate::test_support::diagnostics::diagnostic;
 use std::fmt::Debug;
 
 use lang_frontend::{
@@ -83,7 +84,7 @@ fn observe_with_options(
         } else {
             ("inspect.ko", SOURCE.to_owned())
         };
-        println!("SPEC0332 INPUT unit={unit} path={path:?} source={text:?}");
+        diagnostic!("SPEC0332 INPUT unit={unit} path={path:?} source={text:?}");
         let source = sources
             .add_source(path, &text)
             .map_err(|error| failure("source-map", error))?;
@@ -95,7 +96,7 @@ fn observe_with_options(
         if !file.diagnostics().is_empty() {
             return Err(failure("parse-diagnostics", file.diagnostics()));
         }
-        println!("SPEC0332 STAGE unit={unit} parse=ok");
+        diagnostic!("SPEC0332 STAGE unit={unit} parse=ok");
         let source_shape_ok = file.roots().len() == 1;
         let conditions = file
             .ast()
@@ -108,7 +109,7 @@ fn observe_with_options(
             [condition] => Some(*condition),
             _ => None,
         };
-        println!(
+        diagnostic!(
             "SPEC0332 SOURCE_SHAPE unit={unit} roots={} conditions={conditions:?}",
             file.roots().len()
         );
@@ -121,13 +122,13 @@ fn observe_with_options(
                 .map_err(|error| failure("names-api", error))?
                 .validate()
                 .map_err(|error| failure("names-validation", error))?;
-            println!("SPEC0332 STAGE unit={unit} names=ok");
+            diagnostic!("SPEC0332 STAGE unit={unit} names=ok");
             let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
                 .map_err(|error| failure("types-api", error))?;
             complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
                 .map_err(|error| failure("complete", error))?;
             complete_ok = true;
-            println!("SPEC0332 STAGE unit={unit} complete=ok");
+            diagnostic!("SPEC0332 STAGE unit={unit} complete=ok");
             let typed = typed
                 .validate()
                 .map_err(|error| failure("types-validation", error))?;
@@ -143,7 +144,7 @@ fn observe_with_options(
                 .validate()
                 .map_err(|error| failure("ownership-validation", error))?;
             ownership_ok = true;
-            println!("SPEC0332 STAGE unit={unit} ownership=ok");
+            diagnostic!("SPEC0332 STAGE unit={unit} ownership=ok");
             let declarations = names
                 .names()
                 .index()
@@ -176,19 +177,19 @@ fn observe_with_options(
                 let parameter = callable.parameters().iter()
                     .find(|parameter| parameter.symbol() == Some(descriptor.symbol()))?;
                 let nullable = facts.types().get(descriptor.nullable_type())?;
-                println!(
+                diagnostic!(
                     "SPEC0332 FACT unit={unit} condition={:?} descriptor={descriptor:?} parameter={parameter:?} nullable={nullable:?} copyability={:?}",
                     span, facts.copyability(descriptor.nullable_type())
                 );
                 let UnitTypeKind::Nullable(inner) = nullable else { return Some(false) };
                 let inner = facts.types().get(*inner)?;
-                println!("SPEC0332 INNER unit={unit} type={inner:?}");
+                diagnostic!("SPEC0332 INNER unit={unit} type={inner:?}");
                 let UnitTypeKind::Intrinsic {
                     constructor: IntrinsicTypeConstructor::Rc, arguments,
                 } = inner else { return Some(false) };
                 let [argument] = arguments.as_slice() else { return Some(false) };
                 let payload = facts.types().get(*argument)?;
-                println!("SPEC0332 PAYLOAD unit={unit} type={payload:?}");
+                diagnostic!("SPEC0332 PAYLOAD unit={unit} type={payload:?}");
                 Some(source_shape_ok && descriptor.expression() == expression
                     && descriptor.non_null_when_true()
                     && parameter.mode() == ParameterMode::Value
@@ -197,17 +198,17 @@ fn observe_with_options(
                     && facts.copyability(descriptor.nullable_type()) == Copyability::MoveOnly
                     && *payload == UnitTypeKind::Builtin(BuiltinType::Int))
             }).unwrap_or(false);
-            println!("SPEC0332 ANCHOR unit={unit} valid={frontend_anchor_ok}");
+            diagnostic!("SPEC0332 ANCHOR unit={unit} valid={frontend_anchor_ok}");
             if inspect_identity {
                 source_identity =
                     identity::unit_source(&file, &names, typed.types(), owned.ownership(), entry);
-                println!(
+                diagnostic!(
                     "SPEC0332 SOURCE OWNER QUERY unit={unit} result={:?}",
                     source_identity.as_ref().map(|_| ())
                 );
             }
             lower_attempted = true;
-            println!("SPEC0332 STAGE unit={unit} lower=attempt");
+            diagnostic!("SPEC0332 STAGE unit={unit} lower=attempt");
             let (lower_result, routed) = if per_family_only {
                 (
                     crate::ssa::with_per_family_lowering(|| {
@@ -232,13 +233,13 @@ fn observe_with_options(
             if !names.diagnostics().is_empty() {
                 return Err(failure("names-diagnostics", names.diagnostics()));
             }
-            println!("SPEC0332 STAGE unit={unit} names=ok");
+            diagnostic!("SPEC0332 STAGE unit={unit} names=ok");
             let typed = check_types(&sources, &file, &names, &types)
                 .map_err(|error| failure("types-api", error))?;
             complete_file_types(&sources, &file, &names, &types, &typed)
                 .map_err(|error| failure("complete", error))?;
             complete_ok = true;
-            println!("SPEC0332 STAGE unit={unit} complete=ok");
+            diagnostic!("SPEC0332 STAGE unit={unit} complete=ok");
             let owned = check_ownership(&sources, &file, &names, &typed)
                 .map_err(|error| failure("ownership-api", error))?;
             if !owned.diagnostics().is_empty() || !owned.deferred().is_empty() {
@@ -248,7 +249,7 @@ fn observe_with_options(
                 ));
             }
             ownership_ok = true;
-            println!("SPEC0332 STAGE unit={unit} ownership=ok");
+            diagnostic!("SPEC0332 STAGE unit={unit} ownership=ok");
             let entries = names
                 .symbols()
                 .iter()
@@ -266,20 +267,20 @@ fn observe_with_options(
             frontend_anchor_ok = condition.and_then(|(id, span)| {
                 let descriptor = typed.null_comparison(id)?;
                 let nullable = typed.types().get(descriptor.nullable_type())?;
-                println!(
+                diagnostic!(
                     "SPEC0332 FACT unit={unit} condition={:?} descriptor={descriptor:?} parameter_mode={:?} nullable={nullable:?} copyability={:?}",
                     span, typed.parameter_mode(descriptor.symbol()),
                     typed.copyability(descriptor.nullable_type())
                 );
                 let TypeKind::Nullable(inner) = nullable else { return Some(false) };
                 let inner = typed.types().get(*inner)?;
-                println!("SPEC0332 INNER unit={unit} type={inner:?}");
+                diagnostic!("SPEC0332 INNER unit={unit} type={inner:?}");
                 let TypeKind::Intrinsic {
                     constructor: IntrinsicTypeConstructor::Rc, arguments,
                 } = inner else { return Some(false) };
                 let [argument] = arguments.as_slice() else { return Some(false) };
                 let payload = typed.types().get(*argument)?;
-                println!("SPEC0332 PAYLOAD unit={unit} type={payload:?}");
+                diagnostic!("SPEC0332 PAYLOAD unit={unit} type={payload:?}");
                 Some(source_shape_ok && descriptor.expression() == id
                     && descriptor.non_null_when_true()
                     && typed.parameter_mode(descriptor.symbol()) == Some(ParameterMode::Value)
@@ -287,16 +288,16 @@ fn observe_with_options(
                     && typed.copyability(descriptor.nullable_type()) == Some(Copyability::MoveOnly)
                     && *payload == TypeKind::Builtin(BuiltinType::Int))
             }).unwrap_or(false);
-            println!("SPEC0332 ANCHOR unit={unit} valid={frontend_anchor_ok}");
+            diagnostic!("SPEC0332 ANCHOR unit={unit} valid={frontend_anchor_ok}");
             if inspect_identity {
                 source_identity = identity::single_source(&file, &names, &typed, &owned, entry);
-                println!(
+                diagnostic!(
                     "SPEC0332 SOURCE OWNER QUERY unit={unit} result={:?}",
                     source_identity.as_ref().map(|_| ())
                 );
             }
             lower_attempted = true;
-            println!("SPEC0332 STAGE unit={unit} lower=attempt");
+            diagnostic!("SPEC0332 STAGE unit={unit} lower=attempt");
             lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
         };
         let (program, entry) = lowered.map_err(|error| Failure {
@@ -305,13 +306,13 @@ fn observe_with_options(
             lower: Some(error),
             span_text: error.span.map(|span| format!("{:?}", sources.slice(span))),
         })?;
-        println!("SPEC0332 STAGE unit={unit} lower=ok");
+        diagnostic!("SPEC0332 STAGE unit={unit} lower=ok");
         let function = program
             .module(entry.module())
             .and_then(|module| module.function(entry))
             .ok_or_else(|| failure("entry-identity", "returned FunctionId is absent"))?;
         let origin: Span = function.origin.span();
-        println!(
+        diagnostic!(
             "SPEC0332 ENTRY unit={unit} id={entry:?} name={:?} origin={origin:?} text={:?}",
             function.name,
             sources.slice(origin)
@@ -323,20 +324,20 @@ fn observe_with_options(
                 "entry origin differs from inspect source",
             ));
         }
-        println!("SPEC0332 SSA unit={unit}\n{}", render_program(&program));
+        diagnostic!("SPEC0332 SSA unit={unit}\n{}", render_program(&program));
         if inspect_identity {
             // A failed independent query must not suppress the real verifier/LLVM outcome.
             identity =
                 source_identity.and_then(|source| identity::inspect(&program, entry, source));
-            println!("SPEC0332 ORIGINAL OWNER QUERY unit={unit} result={identity:?}");
+            diagnostic!("SPEC0332 ORIGINAL OWNER QUERY unit={unit} result={identity:?}");
         }
         verify_program(&program).map_err(|error| failure("ssa-verify", error))?;
-        println!("SPEC0332 STAGE unit={unit} ssa-verify=ok");
+        diagnostic!("SPEC0332 STAGE unit={unit} ssa-verify=ok");
         // with_entry would add a NoArguments process bridge, unrelated to this function.
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|error| failure("llvm-render-verify", error))?;
-        println!("SPEC0332 LLVM unit={unit}\n{llvm}");
-        println!("SPEC0332 STAGE unit={unit} llvm-render-verify=ok");
+        diagnostic!("SPEC0332 LLVM unit={unit}\n{llvm}");
+        diagnostic!("SPEC0332 STAGE unit={unit} llvm-render-verify=ok");
         Ok(())
     })();
     (
@@ -381,7 +382,7 @@ fn observe_rc_nullable_while_both_frontends() {
     let observations = [observe(false), observe(true)];
     for observation in &observations {
         let unit = observation.unit;
-        println!(
+        diagnostic!(
             "SPEC0332 PRECONDITIONS unit={unit} complete={} ownership={} frontend_anchor={} lower_attempted={}",
             observation.complete_ok,
             observation.ownership_ok,
@@ -389,10 +390,15 @@ fn observe_rc_nullable_while_both_frontends() {
             observation.lower_attempted
         );
         match &observation.outcome {
-            Ok(()) => println!("SPEC0332 OUTCOME unit={unit} stage=llvm-render-verify result=ok"),
-            Err(error) => println!(
+            Ok(()) => {
+                diagnostic!("SPEC0332 OUTCOME unit={unit} stage=llvm-render-verify result=ok")
+            }
+            Err(error) => diagnostic!(
                 "SPEC0332 OUTCOME unit={unit} stage={} result=err detail={} lower={:?} span_text={:?}",
-                error.stage, error.detail, error.lower, error.span_text
+                error.stage,
+                error.detail,
+                error.lower,
+                error.span_text
             ),
         }
     }
@@ -405,7 +411,7 @@ fn observe_rc_nullable_while_both_frontends() {
         }),
         "both ordinary-source pipelines must finish frontend checks and attempt real lowering"
     );
-    println!(
+    diagnostic!(
         "SPEC0332 COLLECTOR contract=preconditions-and-lower-attempt-only behavior_oracle=not-asserted"
     );
 }
@@ -416,7 +422,7 @@ fn rc_nullable_while_both_frontends_reach_verified_llvm() {
     let observations = [observe(false), observe(true)];
     for observation in &observations {
         let unit = observation.unit;
-        println!(
+        diagnostic!(
             "SPEC0332 STRICT PRECONDITIONS unit={unit} complete={} ownership={} frontend_anchor={} lower_attempted={}",
             observation.complete_ok,
             observation.ownership_ok,
@@ -425,11 +431,16 @@ fn rc_nullable_while_both_frontends_reach_verified_llvm() {
         );
         match &observation.outcome {
             Ok(()) => {
-                println!("SPEC0332 STRICT OUTCOME unit={unit} stage=llvm-render-verify result=ok");
+                diagnostic!(
+                    "SPEC0332 STRICT OUTCOME unit={unit} stage=llvm-render-verify result=ok"
+                );
             }
-            Err(error) => println!(
+            Err(error) => diagnostic!(
                 "SPEC0332 STRICT OUTCOME unit={unit} stage={} result=err detail={} lower={:?} span_text={:?}",
-                error.stage, error.detail, error.lower, error.span_text
+                error.stage,
+                error.detail,
+                error.lower,
+                error.span_text
             ),
         }
     }

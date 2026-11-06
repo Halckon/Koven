@@ -1,4 +1,5 @@
 //! Resource local future-use corners: lexical cleanup after all later reads and markers.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod facts;
 mod graph;
@@ -12,9 +13,11 @@ use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 pub(crate) use sources::{Case, sources};
 
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "RESOURCE LOCAL FUTURE INPUT case={} unit={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -40,7 +43,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                         && owned.map_iterations().len() == typed.map_iterations().len(),
                     typed.map_iterations(),
                 );
-                println!(
+                diagnostic!(
                     "RESOURCE LOCAL FUTURE UNIT case={} formed={:#?} plans={:#?} drops={:#?} loans={:#?}",
                     case.label,
                     owned.formed_owned_locals(),
@@ -64,7 +67,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                         && owned.map_iterations().len() == typed.map_iterations().len(),
                     typed.map_iterations(),
                 );
-                println!(
+                diagnostic!(
                     "RESOURCE LOCAL FUTURE UNIT case={} formed={:#?} plans={:#?} drops={:#?} loans={:#?}",
                     case.label,
                     owned.formed_owned_locals(),
@@ -75,7 +78,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     };
-    println!(
+    diagnostic!(
         "RESOURCE LOCAL FUTURE REPORT case={} unit={unit} report={report:#?}",
         case.label
     );
@@ -98,14 +101,14 @@ fn resource_local_future_uses_preserve_lexical_owners() {
     for case in sources() {
         for unit in [false, true] {
             let result = observe(&case, unit);
-            println!(
+            diagnostic!(
                 "RESOURCE LOCAL FUTURE CASE {} unit={unit} result={result:?}",
                 case.label
             );
             results.push((case.label.clone(), unit, result));
         }
     }
-    assert!(
+    assert_diagnostic!(
         results.len() == 48 && results.iter().all(|(_, _, r)| r.is_ok()),
         "{results:#?}"
     );

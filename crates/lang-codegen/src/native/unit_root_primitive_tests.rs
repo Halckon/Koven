@@ -2,6 +2,7 @@
 use super::super::analyze_sources;
 use super::run_constant_sources;
 use crate::ssa::unit_lower::lower_scalar_unit_with_entry;
+use crate::test_support::diagnostics::assert_text_eq;
 
 #[test]
 fn unit_root_primitive_native_cross_file_order_and_dynamic_owners() {
@@ -24,7 +25,7 @@ fn unit_root_primitive_native_cross_file_order_and_dynamic_owners() {
     };
     let (program, entry) = lower(&inputs);
     let (reversed, reversed_entry) = lower(&[inputs[1], inputs[0]]);
-    assert_eq!(
+    assert_text_eq!(
         crate::ssa::render_program(&program),
         crate::ssa::render_program(&reversed)
     );

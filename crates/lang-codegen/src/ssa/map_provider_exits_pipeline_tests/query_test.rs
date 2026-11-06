@@ -4,6 +4,7 @@ use super::{
     fixture::{Fixture, failure, verify_failure},
     identity, input_label, pipeline, query_ssa,
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 fn observe(label: &'static str, text: &str, rooted: bool) -> Observation {
     let mut report = Report {
@@ -12,7 +13,7 @@ fn observe(label: &'static str, text: &str, rooted: bool) -> Observation {
     };
     let input = input_label(rooted);
     let outcome = Fixture::new(label, text).and_then(|fixture| {
-        println!(
+        diagnostic!(
             "SPEC0331 EXIT IDENTITY INPUT case={label} input={input} path={:?} text={text:?}",
             fixture.path
         );
@@ -23,7 +24,7 @@ fn observe(label: &'static str, text: &str, rooted: bool) -> Observation {
         } else {
             pipeline::memory_document(&fixture, &mut report)
         }?;
-        println!(
+        diagnostic!(
             "SPEC0331 EXIT IDENTITY RAW SSA case={label} input={input}\n{}",
             crate::ssa::render::render_program(&program)
         );
@@ -75,7 +76,7 @@ fn observe(label: &'static str, text: &str, rooted: bool) -> Observation {
                 .map_err(|e| failure(e.stage, &e.original)),
         );
         if let Ok(llvm) = &rendered {
-            println!("SPEC0331 EXIT IDENTITY RAW LLVM case={label} input={input}\n{llvm}");
+            diagnostic!("SPEC0331 EXIT IDENTITY RAW LLVM case={label} input={input}\n{llvm}");
         }
         // This exact adds SSA identity evidence only; LLVM coverage remains render/verify.
         verified?;
@@ -99,7 +100,7 @@ fn unconditional_map_exits_preserve_cleanup_and_carrier_identity() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 EXIT IDENTITY OUTCOME case={} input={} report={:#?} result={:#?}",
             observation.label,
             input_label(observation.rooted),
@@ -107,7 +108,7 @@ fn unconditional_map_exits_preserve_cleanup_and_carrier_identity() {
             observation.outcome
         );
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 12
             && observations
                 .iter()

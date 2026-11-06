@@ -49,7 +49,14 @@ impl Builder<'_, '_> {
         let result = if self.is_unit(ty) {
             None
         } else {
-            Some(self.body.slot(EntityType::Value(self.ssa_type(ty, span)?)))
+            let ssa_ty = if matches!(self.inputs.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner)) if self.is_nothing(*inner))
+            {
+                self.expected_nullable
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+            } else {
+                self.ssa_type(ty, span)?
+            };
+            Some(self.body.slot(EntityType::Value(ssa_ty)))
         };
         // A Copyable enum subject is tested by case; its domain is closed.
         let root = match subject {
@@ -83,12 +90,15 @@ impl Builder<'_, '_> {
             },
             None => None,
         };
-        if let Some(WhenSubject::Value(subject)) = subject
-            && let Some((true_arm, false_arm)) = self.boolean_two_arms(entries)
-        {
-            return self.lower_boolean_two_arm_when(
-                control, ty, result, subject, true_arm, false_arm, span,
-            );
+        if let Some(WhenSubject::Value(subject)) = subject {
+            if let Some((true_arm, false_arm)) = self.boolean_two_arms(entries) {
+                return self.lower_boolean_two_arm_when(
+                    control, ty, result, subject, true_arm, false_arm, span,
+                );
+            }
+            if let Some(body) = self.boolean_single_arm(entries) {
+                return self.lower_boolean_single_arm_when(control, ty, result, body, span);
+            }
         }
         // One temporary is shared by mutually exclusive outgoing paths. Retain its
         // source identity/slot for the unmatched continuation while constructing a match.
@@ -100,11 +110,13 @@ impl Builder<'_, '_> {
         self.body.blocks[join.0].origin = Some(span);
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
+        let outer_short_ranges = self.short_ranges.clone();
         let mut predecessors = Vec::new();
         let mut falls_through = true;
         for (index, entry) in entries.iter().enumerate() {
             self.active_views = outer_views.clone();
             self.pending_call_loans = outer_pending_loans.clone();
+            self.short_ranges = outer_short_ranges.clone();
             let body = self.body.block();
             if entry.else_span.is_some() {
                 falls_through = false;
@@ -147,7 +159,18 @@ impl Builder<'_, '_> {
             let unmatched = self.block;
             self.active_views = outer_views.clone();
             let mark = self.enter(body);
+            let saved_expected = self.expected_nullable;
+            if let Some(res) = result
+                && matches!(
+                    self.inputs.typed.types().get(ty),
+                    Some(UnitTypeKind::Nullable(_))
+                )
+                && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
+            {
+                self.expected_nullable = Some(ssa_ty);
+            }
             let value = self.branch_value(entry.body)?;
+            self.expected_nullable = saved_expected;
             self.leave(mark, span)?;
             if let Some(value) = value {
                 if let Some(result) = result {
@@ -208,6 +231,96 @@ impl Builder<'_, '_> {
             }
         }
         self.pending_call_loans = outer_pending_loans;
+        self.short_ranges = outer_short_ranges;
+        let reached = self.join_views(predecessors, join, span)?;
+        if !self.pending_views.is_empty() {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        if !reached {
+            return Ok(Lowered::Diverged);
+        }
+        Ok(result.map_or(Lowered::Unit, Lowered::Value))
+    }
+
+    fn boolean_single_arm(&self, entries: &[WhenEntry]) -> Option<lang_frontend::ast::StatementId> {
+        let [only] = entries else {
+            return None;
+        };
+        if only.else_span.is_some() {
+            return None;
+        }
+        let [
+            WhenCondition::Expression(left),
+            WhenCondition::Expression(right),
+        ] = only.conditions.as_slice()
+        else {
+            return None;
+        };
+        let (
+            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(a)), _)),
+            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(b)), _)),
+        ) = (self.node(*left), self.node(*right))
+        else {
+            return None;
+        };
+        (a != b).then_some(only.body)
+    }
+
+    fn lower_boolean_single_arm_when(
+        &mut self,
+        control: lang_frontend::type_checking::UnitExpressionId,
+        ty: UnitTypeId,
+        result: Option<Slot>,
+        branch: lang_frontend::ast::StatementId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let arm_block = self.body.block();
+        let join = self.body.block();
+        self.body.blocks[join.0].origin = Some(span);
+        self.goto(arm_block, span)?;
+        let outer_views = self.active_views.clone();
+        let outer_pending_loans = self.pending_call_loans.clone();
+        let outer_short_ranges = self.short_ranges.clone();
+        let mut predecessors = Vec::new();
+        self.active_views = outer_views;
+        self.short_ranges = outer_short_ranges.clone();
+        let mark = self.enter(arm_block);
+        let saved_expected = self.expected_nullable;
+        if let Some(res) = result
+            && matches!(
+                self.inputs.typed.types().get(ty),
+                Some(UnitTypeKind::Nullable(_))
+            )
+            && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
+        {
+            self.expected_nullable = Some(ssa_ty);
+        }
+        let value = self.branch_value(branch)?;
+        self.expected_nullable = saved_expected;
+        self.leave(mark, span)?;
+        if let Some(value) = value {
+            if let Some(result) = result {
+                let (slot, source) =
+                    value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let slot = self.adapt(slot, source, ty)?;
+                self.deliver(source);
+                self.push(ROp::Alias { source: slot }, vec![result], span)?;
+            }
+            self.drops(UnitDropPoint::BranchExit { control, branch: 0 })?;
+            self.sync_dead();
+            if let Some(cur) = self.block {
+                predecessors.push(PredecessorBranch {
+                    block: cur,
+                    views: self.active_views.clone(),
+                    dead: self.dead.clone(),
+                    this_dead: self.this_dead,
+                });
+            }
+        }
+        self.pending_call_loans = outer_pending_loans;
+        self.short_ranges = outer_short_ranges;
+        let fallthrough = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 1 });
+        self.finish_drops(&fallthrough);
         let reached = self.join_views(predecessors, join, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -275,6 +388,7 @@ impl Builder<'_, '_> {
         )?;
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
+        let outer_short_ranges = self.short_ranges.clone();
         let mut predecessors = Vec::new();
         for (block, index, branch) in [
             (when_true, true_index, true_body),
@@ -282,8 +396,20 @@ impl Builder<'_, '_> {
         ] {
             self.active_views = outer_views.clone();
             self.pending_call_loans = outer_pending_loans.clone();
+            self.short_ranges = outer_short_ranges.clone();
             let mark = self.enter(block);
+            let saved_expected = self.expected_nullable;
+            if let Some(res) = result
+                && matches!(
+                    self.inputs.typed.types().get(ty),
+                    Some(UnitTypeKind::Nullable(_))
+                )
+                && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
+            {
+                self.expected_nullable = Some(ssa_ty);
+            }
             let value = self.branch_value(branch)?;
+            self.expected_nullable = saved_expected;
             self.leave(mark, span)?;
             let Some(value) = value else {
                 continue;
@@ -310,6 +436,7 @@ impl Builder<'_, '_> {
             }
         }
         self.pending_call_loans = outer_pending_loans;
+        self.short_ranges = outer_short_ranges;
         let fallthrough = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 2 });
         self.finish_drops(&fallthrough);
         let reached = self.join_views(predecessors, join, span)?;

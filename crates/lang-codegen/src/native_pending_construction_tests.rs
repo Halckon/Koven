@@ -2,6 +2,7 @@
 //! These tests only inspect real products; no facts, IDs, or SSA are fabricated or mutated.
 
 use super::{OwnedProducts, UnitSource};
+use crate::test_support::diagnostics::assert_diagnostic;
 use crate::{
     native_tests::{TestDirectory, emit_link_and_run},
     ssa::{
@@ -412,11 +413,11 @@ fun entry(): Unit {{ nominal(true); nominal({normal}); container(true); containe
 "#
         );
         let output = emit_link_and_run("pending-construction-resource.ko", &text, "entry");
-        assert!(output.status.success(), "{output:?}");
+        assert_diagnostic!(output.status.success(), "{output:?}");
         assert_eq!(
             output.stdout,
             b"nominal-return\nnominal-prefix\nnominal-commit\nnominal-prefix\ncontainer-return\ncontainer-prefix\ncontainer-commit\ncontainer-last\ncontainer-prefix\n"
         );
-        assert!(output.stderr.is_empty(), "{output:?}");
+        assert_diagnostic!(output.stderr.is_empty(), "{output:?}");
     }
 }

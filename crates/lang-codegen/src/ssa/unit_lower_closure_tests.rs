@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     lexer::lex, name_resolution::SourceUnitInput, parser::parse_file, source::SourceMap,
     type_checking::standard_environments,
@@ -72,7 +73,7 @@ fn lowers_no_capture_lambdas_as_deterministic_function_pointers() {
         declaration(&reverse_names, "q", "entry"),
     )
     .expect("input permutation preserves function-pointer identities");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     assert_eq!(
@@ -180,7 +181,7 @@ fn lowers_cross_file_owned_move_closure_and_thunk_deterministically() {
         declaration(&reverse_names, "q", "entry"),
     )
     .expect("input permutation preserves closure identities");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     let closures = module
@@ -291,7 +292,7 @@ fn lowers_copyable_callable_parameters_and_results_deterministically() {
         declaration(&reverse_names, "q", "entry"),
     )
     .expect("input permutation preserves parameterized callable identities");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     let pointer_signatures = module
@@ -428,7 +429,7 @@ fn lowers_move_only_value_lambda_parameters_from_exact_drop_facts() {
         declaration(&reverse_names, "q", "entry"),
     )
     .expect("input permutation preserves MoveOnly Value parameter lowering");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     let exercise = function(module, "p.exercise");
@@ -549,7 +550,7 @@ fn lowers_direct_move_only_callable_results_deterministically() {
         declaration(&reverse_names, "q", "entry"),
     )
     .expect("input permutation preserves MoveOnly callable result identities");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     let entry = function(module, "q.entry");

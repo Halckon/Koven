@@ -1,4 +1,5 @@
 //! E2 Stage B: original straight-line test delegated to the verified Unit contract.
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::name_resolution::SymbolKind;
 
 use super::{
@@ -133,8 +134,8 @@ pub(super) fn assert_original_straight_line_roots_through_strict_memory_document
             1,
             "repeated root retains unique original declaration identity"
         );
-        assert_eq!(ssa, render_program(&repeated));
-        assert_eq!(
+        assert_text_eq!(ssa, render_program(&repeated));
+        assert_text_eq!(
             llvm,
             render_verified_program(&repeated).expect("repeated LLVM verifies")
         );

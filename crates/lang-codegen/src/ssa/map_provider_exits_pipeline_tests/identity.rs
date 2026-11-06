@@ -1,6 +1,7 @@
 //! 返回的真实 entry ID、源码 Origin 与从 entry block 出发的 CFG/DirectCall 可达身份。
 use super::fixture::{Exit, Failure, Fixture, failure, location, loop_site, need};
 use crate::ssa::model::{EntityId, EntityType, FunctionId, Operation, Origin, Program};
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     parser::{Item, NameMarker},
     source::{SourceMap, Span},
@@ -112,7 +113,7 @@ pub(super) fn entry_sources(
                 (name, location(sources, *span), matches.len()),
             ));
         };
-        println!(
+        diagnostic!(
             "SPEC0331 PROVIDER EXIT FUNCTION source_name={name} id={:?} lowered_name={:?} {}",
             function.id,
             function.name,
@@ -168,7 +169,7 @@ pub(super) fn entry_sources(
                     )
                 })?;
                 if let Operation::DirectCall { callee, .. } = &instruction.operation {
-                    println!(
+                    diagnostic!(
                         "SPEC0331 PROVIDER EXIT CALL caller={id:?} block={block_id:?} callee={callee:?} origin={:?}",
                         instruction.origin
                     );
@@ -182,7 +183,7 @@ pub(super) fn entry_sources(
                     if let EntityType::Value(ty) = entity.ty
                         && let Some(deinit) = module.deinits.get(&ty)
                     {
-                        println!(
+                        diagnostic!(
                             "SPEC0331 EXIT DEINIT EDGE caller={id:?} block={block_id:?} owner={owner:?} type={ty:?} deinit={deinit:?} origin={:?}",
                             instruction.origin
                         );
@@ -309,7 +310,7 @@ pub(super) fn guard_and_operand(
     let [call] = calls.as_slice() else {
         return Err(failure("SSA reachable actual component call", calls));
     };
-    println!(
+    diagnostic!(
         "SPEC0331 EXIT ACTUAL ENTITIES scan={:?} allocation={allocation:#?} guard_type={guard_type:?} drops={guard_drops:#?} body_call={call:#?}",
         scan.id
     );
@@ -378,7 +379,7 @@ pub(super) fn guard_and_operand(
             };
             cursor = source;
         }
-        println!(
+        diagnostic!(
             "SPEC0331 EXIT RETURN ROOT operand_result={result:?} returned={returned_value:?} backwards_copies={chain:?} terminator={terminator:#?}"
         );
     }
