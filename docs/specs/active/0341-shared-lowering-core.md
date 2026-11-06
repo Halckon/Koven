@@ -1402,6 +1402,24 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   源码为 `&`，原 event 身份、控制点和 drop 顺序断言不变。生产实现与 Single witness 不改。
   修订仅经过 direct rustfmt 与静态检查，未本地动态验证，仍须新精确头官方 CI。
 
+### §70 回归补强（2026-11-06）
+
+基于 main `c4ba670a`，仅选择备份 `0bcdb219` 的 Exclusive prefix 测试增量，不合并整支。
+现有 primitive 中 break/continue 使用 Copyable Int 且只核无 commit；本片使用 loop 内形成
+的 MoveOnly owner，核真实 Exclusive loan、source-qualified call/argument/root、
+ControlTransfer Named drop 与无 prefix event/无 replacement commit。Rooted/MemoryDocument
+双入口均执行完整 type final gate 与 ownership validate。return 用例额外绑定同一 typed
+call 的 External `replace` symbol 身份，避免仅由空 primitive 表推断调用种类。
+不修改生产代码、Single witness、观测范围或 E3/native 能力。
+
+| 验收项 | 测试目标 / 过滤器 | 实际结果 |
+|---|---|---|
+| 编译与共享 helper 邻控 | `unit_direct_call_loan_ends`，整项排除 `exclusive_prefix::abort_and_normal_return_do_not_invent_prefix_unwind_events` 与 `temporary_field_pending::abort_does_not_unwind_the_temporary_field_parent` | 云端 Rust 1.96.0 编译通过；28 passed、2 filtered |
+| 静态检查 | fmt、frontend all-targets Clippy（`-D warnings`）、文档、尺寸、diff-check | 全通过；839 Markdown、2118 Rust，39 项历史超限，无新增尺寸债 |
+
+含 Abort 的两项完整保留，仅留官方 CI；不运行故障注入或 Mac 构建。尚未发布或进行
+精确头官方 CI，D10/E2 保持 in-progress；本片增加边界证据，不声称退休额外 Single 路径。
+
 ## 71. View carrier 类型位置退休候选（2026-11-03）
 
 本候选基于 main `be1022f`，仅修改 `type_range_carrier` 前五测试的观察入口；尚未发布，
