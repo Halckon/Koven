@@ -246,9 +246,10 @@ impl Checker<'_, '_> {
             return false;
         }
         let receiver = descriptor.receiver().expression();
-        let ok = self
+        let ok = (self
             .named_container_owner(receiver, container_ty, true)
             .is_some()
+            || self.expression(receiver))
             && self
                 .inputs
                 .owned
@@ -718,6 +719,7 @@ impl Checker<'_, '_> {
                         | Action::EndSource(_)
                         | Action::EndCallLoan(_)
                         | Action::EndReceiverLoan(_)
+                        | Action::EndCaptureLoan { .. }
                 )
             })
         }) {
@@ -817,6 +819,32 @@ impl Checker<'_, '_> {
                     && bspan.end() <= span.end()
                     && bspan.start() <= target.start()
                     && target.end() <= bspan.end()
+            })
+    }
+
+    pub(super) fn stmt_has_runtime_container(
+        &self,
+        statement: lang_frontend::ast::StatementId,
+    ) -> bool {
+        let Ok(stmt) = self.inputs.parsed.ast().statements().get(statement) else {
+            return false;
+        };
+        let span = stmt.span();
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(expr_id, node)| {
+                let expr_span = node.span();
+                span.source_id() == expr_span.source_id()
+                    && span.start() <= expr_span.start()
+                    && expr_span.end() <= span.end()
+                    && self
+                        .inputs
+                        .typed
+                        .container_construction(self.id(expr_id))
+                        .is_some_and(|d| d.kind() == ContainerConstructionKind::RuntimeLength)
             })
     }
 }

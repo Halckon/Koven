@@ -335,8 +335,11 @@ impl Checker<'_, '_> {
                 Some(UnitTypeKind::Builtin(BuiltinType::Boolean))
             ),
             lang_frontend::type_checking::ConstValue::Integer { .. } => self.integer_type(ty),
+            lang_frontend::type_checking::ConstValue::Char(_) => matches!(
+                self.kind(ty),
+                Some(UnitTypeKind::Builtin(BuiltinType::Char))
+            ),
             lang_frontend::type_checking::ConstValue::String(_) => self.string(ty),
-            _ => false,
         };
         if supported {
             self.migrated = true;

@@ -247,4 +247,70 @@ impl Builder<'_, '_> {
         }
         Ok(slot)
     }
+
+    /// A Borrow argument of type `T` for a `T?` parameter: the temporary is wrapped and
+    /// its drop obligation moves to the wrapper.
+    pub(super) fn adapt_borrowed(
+        &mut self,
+        value: Slot,
+        expression: ExpressionId,
+        parameter_type: lang_frontend::type_checking::UnitTypeId,
+    ) -> Result<Slot, LoweringError> {
+        let id = self.unit(expression);
+        let temporary = self.temporaries.contains_key(&id);
+        let adapted = self.adapt(value, expression, self.c(parameter_type))?;
+        if adapted != value && temporary {
+            self.temporaries.insert(id, adapted);
+        }
+        Ok(adapted)
+    }
+
+    pub(super) fn return_expression(
+        &mut self,
+        expression: ExpressionId,
+        value: Option<ExpressionId>,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        if self.inputs.borrow_return.is_some() {
+            let value = value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            return self.lower_borrow_return(expression, value, span);
+        }
+        if self.inputs.carrier_return.is_some() {
+            let value = value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            return self.lower_carrier_return(expression, value, span);
+        }
+        let result = match value {
+            Some(value) => {
+                let saved_expected = self.expected_nullable;
+                self.expected_nullable = if matches!(
+                    self.inputs.typed.types().get(self.inputs.return_type),
+                    Some(lang_frontend::type_checking::UnitTypeKind::Nullable(_))
+                ) {
+                    self.ssa_type(self.inputs.return_type, span).ok()
+                } else {
+                    None
+                };
+                let slot = self.required(value)?;
+                self.expected_nullable = saved_expected;
+                let Some(slot) = slot else {
+                    return Ok(Lowered::Diverged);
+                };
+                let slot = self.adapt(slot, value, self.inputs.return_type)?;
+                self.deliver(value);
+                Some(slot)
+            }
+            None => None,
+        };
+        for loan in std::mem::take(&mut self.pending_call_loans)
+            .into_iter()
+            .rev()
+        {
+            self.end_short_call_loan(loan, span)?;
+        }
+        self.end_all_views(span)?;
+        self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
+        let unit_return = self.is_unit(self.inputs.return_type);
+        self.finish_return(result, unit_return, span)?;
+        Ok(Lowered::Diverged)
+    }
 }

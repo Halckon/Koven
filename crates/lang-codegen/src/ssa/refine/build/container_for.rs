@@ -787,8 +787,10 @@ impl Builder<'_, '_> {
                         )?;
                     }
                 }
-                Action::FinishProvider(_) | Action::EndCallLoan(_) | Action::EndReceiverLoan(_) => {
-                }
+                Action::FinishProvider(_)
+                | Action::EndCallLoan(_)
+                | Action::EndReceiverLoan(_)
+                | Action::EndCaptureLoan { .. } => {}
                 Action::EndSource(statement) => {
                     let span = self.statement_span(statement.statement())?;
                     if let Some(seq) = self.seq_for_frame(statement) {
