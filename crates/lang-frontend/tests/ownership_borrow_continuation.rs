@@ -98,37 +98,41 @@ fn checked_with_legacy_loan_ends(
 
 #[test]
 fn nested_reborrow_and_alias_scopes_restore_owner_permission() {
-    for body in [
-        "fun run() { val source = \"kept\"; { borrow val item = wrap(source); println(item) }; consume(source) }",
-        "fun run() { val source = \"kept\"; { borrow val item = view(source); { borrow val alias = item; println(alias) }; println(item) }; consume(source) }",
-        "fun run() { val source = \"kept\"; { borrow val item = view(source); { borrow val child = view(item); println(child) }; println(item) }; consume(source) }",
-        "fun run(flag: Boolean) { val source = \"kept\"; if (flag) { borrow val item = view(source); println(item) } else { borrow val item = source; println(item) }; consume(source) }",
-    ] {
-        let (_, unit) = checked(body);
-        assert!(
-            unit.diagnostics().is_empty(),
-            "{body}: {:?}",
-            unit.diagnostics()
-        );
-        assert!(unit.deferred().is_empty());
+    for rooted in [false, true] {
+        for body in [
+            "fun run() { val source = \"kept\"; { borrow val item = wrap(source); println(item) }; consume(source) }",
+            "fun run() { val source = \"kept\"; { borrow val item = view(source); { borrow val alias = item; println(alias) }; println(item) }; consume(source) }",
+            "fun run() { val source = \"kept\"; { borrow val item = view(source); { borrow val child = view(item); println(child) }; println(item) }; consume(source) }",
+            "fun run(flag: Boolean) { val source = \"kept\"; if (flag) { borrow val item = view(source); println(item) } else { borrow val item = source; println(item) }; consume(source) }",
+        ] {
+            let (_, unit) = checked_entry(body, rooted);
+            assert!(
+                unit.diagnostics().is_empty(),
+                "{body}: {:?}",
+                unit.diagnostics()
+            );
+            assert!(unit.deferred().is_empty());
+        }
     }
 }
 
 #[test]
 fn live_results_and_children_block_source_move_on_every_branch() {
-    for body in [
-        "fun run() { val source = \"kept\"; borrow val item = view(source); consume(source); println(item) }",
-        "fun run() { val source = \"kept\"; borrow val item = view(source); { borrow val child = view(item); consume(source); println(child) }; println(item) }",
-        "fun run(flag: Boolean) { val source = \"kept\"; borrow val item = view(source); if (flag) { consume(source) }; println(item) }",
-        "fun run() { val source = \"kept\"; borrow val item = source; { borrow val alias = item; println(alias) }; consume(source); println(item) }",
-    ] {
-        let (_, unit) = checked(body);
-        {
-            let diagnostics = unit.diagnostics();
-            assert!(
-                diagnostics.iter().any(|d| d.code().to_string() == "L0135"),
-                "{body}: {diagnostics:?}"
-            );
+    for rooted in [false, true] {
+        for body in [
+            "fun run() { val source = \"kept\"; borrow val item = view(source); consume(source); println(item) }",
+            "fun run() { val source = \"kept\"; borrow val item = view(source); { borrow val child = view(item); consume(source); println(child) }; println(item) }",
+            "fun run(flag: Boolean) { val source = \"kept\"; borrow val item = view(source); if (flag) { consume(source) }; println(item) }",
+            "fun run() { val source = \"kept\"; borrow val item = source; { borrow val alias = item; println(alias) }; consume(source); println(item) }",
+        ] {
+            let (_, unit) = checked_entry(body, rooted);
+            {
+                let diagnostics = unit.diagnostics();
+                assert!(
+                    diagnostics.iter().any(|d| d.code().to_string() == "L0135"),
+                    "{body}: {diagnostics:?}"
+                );
+            }
         }
     }
 }
