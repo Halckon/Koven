@@ -8,7 +8,7 @@ use lang_frontend::{
     type_checking::{
         BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory, IntrinsicCallable,
         IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, TypeEnvironment,
-        TypeKind, TypedFile, check_types,
+        TypedFile, UnitTypeKind, check_types,
     },
 };
 
@@ -19,6 +19,10 @@ mod parser_test_assertions;
 mod mutable_unit;
 
 use parser_test_assertions::parse_file_twice;
+
+#[path = "type_containers/core_unit.rs"]
+mod core_unit;
+use core_unit::checked_entries;
 
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
@@ -108,6 +112,7 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
     (names, types)
 }
 
+// Keep independent Single witnesses for deferred recovery and signature storage diagnostics.
 fn checked(text: &str) -> (SourceMap, ParsedFile, NameResolution, TypedFile) {
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
@@ -144,66 +149,73 @@ fn container_types_and_core_constructions_preserve_element_identity() {
                     val changed = (mutable[0] = 4)\n\
                     val count: Int = list.size\n\
                 }";
-    let (_, parsed, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_constructions().len(), 7);
-    assert_eq!(
-        typed
-            .container_constructions()
+    let (_, parsed, entries) = checked_entries(text);
+    for (source_unit, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_constructions().len(), 7);
+        assert_eq!(
+            typed
+                .container_constructions()
+                .iter()
+                .map(|descriptor| descriptor.kind())
+                .collect::<Vec<_>>(),
+            [
+                ContainerConstructionKind::ListForm,
+                ContainerConstructionKind::ListForm,
+                ContainerConstructionKind::ListForm,
+                ContainerConstructionKind::ListForm,
+                ContainerConstructionKind::RuntimeLength,
+                ContainerConstructionKind::RuntimeLength,
+                ContainerConstructionKind::EmptyMutableList,
+            ]
+        );
+        assert_eq!(
+            typed.container_constructions()[4].parameter_modes(),
+            [ParameterMode::Borrow, ParameterMode::Borrow]
+        );
+        assert!(
+            typed
+                .container_constructions()
+                .iter()
+                .all(|descriptor| typed.copyability(descriptor.container_type())
+                    == Copyability::MoveOnly)
+        );
+        assert_eq!(typed.element_places().len(), 3);
+        assert_eq!(
+            typed
+                .element_places()
+                .iter()
+                .map(|place| (place.container(), place.is_mutable()))
+                .collect::<Vec<_>>(),
+            [
+                (SequentialContainerKind::List, false),
+                (SequentialContainerKind::Array, true),
+                (SequentialContainerKind::MutableList, true),
+            ]
+        );
+        let size = parsed
+            .ast()
+            .expressions()
             .iter()
-            .map(|descriptor| descriptor.kind())
-            .collect::<Vec<_>>(),
-        [
-            ContainerConstructionKind::ListForm,
-            ContainerConstructionKind::ListForm,
-            ContainerConstructionKind::ListForm,
-            ContainerConstructionKind::ListForm,
-            ContainerConstructionKind::RuntimeLength,
-            ContainerConstructionKind::RuntimeLength,
-            ContainerConstructionKind::EmptyMutableList,
-        ]
-    );
-    assert_eq!(
-        typed.container_constructions()[4].parameter_modes(),
-        [ParameterMode::Borrow, ParameterMode::Borrow]
-    );
-    assert!(
-        typed
-            .container_constructions()
-            .iter()
-            .all(|descriptor| typed.copyability(descriptor.container_type())
-                == Some(Copyability::MoveOnly))
-    );
-    assert_eq!(typed.element_places().len(), 3);
-    assert_eq!(
-        typed
-            .element_places()
-            .iter()
-            .map(|place| (place.container(), place.is_mutable()))
-            .collect::<Vec<_>>(),
-        [
-            (SequentialContainerKind::List, false),
-            (SequentialContainerKind::Array, true),
-            (SequentialContainerKind::MutableList, true),
-        ]
-    );
-    let size = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .find_map(|(id, node)| match node.payload() {
-            Expression::Member { name_span, .. }
-                if text.get(name_span.start()..name_span.end()) == Some("size") =>
-            {
-                Some(id)
-            }
-            _ => None,
-        })
-        .expect("size expression");
-    assert_eq!(
-        typed.expression_category(size),
-        Some(ExpressionCategory::Temporary)
-    );
+            .find_map(|(id, node)| match node.payload() {
+                Expression::Member { name_span, .. }
+                    if text.get(name_span.start()..name_span.end()) == Some("size") =>
+                {
+                    Some(id)
+                }
+                _ => None,
+            })
+            .expect("size expression");
+        let size = *typed
+            .expression_types()
+            .keys()
+            .find(|id| id.source_unit() == source_unit && id.expression() == size)
+            .expect("typed original size identity");
+        assert_eq!(
+            typed.expression_category(size),
+            Some(ExpressionCategory::Temporary)
+        );
+    }
 }
 
 #[test]
@@ -218,6 +230,15 @@ fn non_storable_and_wrong_arity_container_types_are_rejected() {
         codes(typed.diagnostics()),
         ["L0125", "L0125", "L0094", "L0091"]
     );
+    // Keep the original Single witness above; the combined signature fix now
+    // permits the same source and custom environment in both actual Unit entries.
+    let (_, _, entries) = checked_entries(text);
+    for (_, unit) in entries {
+        assert_eq!(
+            codes(unit.diagnostics()),
+            ["L0125", "L0125", "L0094", "L0091"]
+        );
+    }
 }
 
 #[test]
@@ -230,11 +251,13 @@ fn construction_inference_and_fixed_contract_fail_loudly() {
                     val runtime = Array<Int>(size, initializer)\n\
                     val wrongMutable = MutableList<Int>(1)\n\
                 }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0126", "L0126", "L0084", "L0084", "L0127"]
-    );
+    let (_, _, entries) = checked_entries(text);
+    for (_, typed) in entries {
+        assert_eq!(
+            codes(typed.diagnostics()),
+            ["L0126", "L0126", "L0084", "L0084", "L0127"]
+        );
+    }
 }
 
 #[test]
@@ -252,13 +275,15 @@ fn index_mutability_size_and_get_set_follow_the_closed_place_contract() {
                     val borrowedSize = mutate(&list.size)\n\
                     val changed = mutate(&array[0])\n\
                 }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        [
-            "L0128", "L0129", "L0129", "L0129", "L0130", "L0130", "L0122", "L0122", "L0122"
-        ]
-    );
+    let (_, _, entries) = checked_entries(text);
+    for (_, typed) in entries {
+        assert_eq!(
+            codes(typed.diagnostics()),
+            [
+                "L0128", "L0129", "L0129", "L0129", "L0130", "L0130", "L0122", "L0122", "L0122"
+            ]
+        );
+    }
 }
 
 #[test]
@@ -266,12 +291,11 @@ fn source_names_cannot_impersonate_intrinsic_containers_or_constructors() {
     let text = "class List<T>\n\
                 fun listOf(input: Int): Int = input\n\
                 fun inspect(sourceList: List<Int>): Int = listOf(1)";
-    let (sources, parsed) = parsed(text);
-    let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(typed.container_constructions().is_empty());
+    let (_, _, entries) = checked_entries(text);
+    for (_, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(typed.container_constructions().is_empty());
+    }
 }
 
 #[test]
@@ -290,18 +314,20 @@ fn deferred_callable_reference_element_does_not_become_a_false_storable_error() 
 fn generic_callable_infers_from_nested_intrinsic_container_type() {
     let text = "fun <T> first(input: List<T>): T\n\
                 fun use(values: List<Int>): Unit { val selected = first(values) }";
-    let (_, _, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let call = typed.calls().last().expect("generic source call");
-    assert!(matches!(
-        typed.types().get(call.return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
+    let (_, _, entries) = checked_entries(text);
+    for (_, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let call = typed.calls().last().expect("generic source call");
+        assert!(matches!(
+            typed.types().get(call.return_type()),
+            Some(UnitTypeKind::Builtin(BuiltinType::Int))
+        ));
+    }
 }
 
 #[test]
 fn container_size_publishes_receiver_identity_type_and_span() {
-    let (sources, parsed, _, typed) = checked(
+    let (sources, parsed, entries) = checked_entries(
         "fun sizes(array: Array<Int>, list: List<Int>, mutable: MutableList<Int>): Unit {\n\
              val a = array.size\n\
              val b = (list).size\n\
@@ -309,52 +335,56 @@ fn container_size_publishes_receiver_identity_type_and_span() {
              val d = listOf(1).size\n\
          }",
     );
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_sizes().len(), 4);
-    for descriptor in typed.container_sizes() {
+    for (source_unit, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_sizes().len(), 4);
+        for descriptor in typed.container_sizes() {
+            assert_eq!(descriptor.expression().source_unit(), source_unit);
+            assert_eq!(descriptor.receiver().source_unit(), source_unit);
+            assert_eq!(
+                typed.container_size(descriptor.expression()),
+                Some(*descriptor)
+            );
+            assert_eq!(
+                typed.expression_type(descriptor.receiver()),
+                Some(descriptor.container_type())
+            );
+            assert_eq!(
+                typed.expression_type(descriptor.expression()),
+                Some(descriptor.result_type())
+            );
+            assert_eq!(
+                typed.types().get(descriptor.result_type()),
+                Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+            );
+            assert_eq!(
+                typed.expression_category(descriptor.expression()),
+                Some(ExpressionCategory::Temporary)
+            );
+            assert_eq!(
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(descriptor.expression().expression())
+                    .unwrap()
+                    .span(),
+                descriptor.span()
+            );
+            assert!(sources.slice(descriptor.span()).unwrap().ends_with(".size"));
+        }
         assert_eq!(
-            typed.container_size(descriptor.expression()),
-            Some(*descriptor)
+            typed.container_sizes()[0].container(),
+            SequentialContainerKind::Array
         );
         assert_eq!(
-            typed.expression_type(descriptor.receiver()),
-            Some(descriptor.container_type())
+            typed.container_sizes()[1].container(),
+            SequentialContainerKind::List
         );
         assert_eq!(
-            typed.expression_type(descriptor.expression()),
-            Some(descriptor.result_type())
+            typed.container_sizes()[2].container(),
+            SequentialContainerKind::MutableList
         );
-        assert_eq!(
-            typed.types().get(descriptor.result_type()),
-            Some(&TypeKind::Builtin(BuiltinType::Int))
-        );
-        assert_eq!(
-            typed.expression_category(descriptor.expression()),
-            Some(ExpressionCategory::Temporary)
-        );
-        assert_eq!(
-            parsed
-                .ast()
-                .expressions()
-                .get(descriptor.expression())
-                .unwrap()
-                .span(),
-            descriptor.span()
-        );
-        assert!(sources.slice(descriptor.span()).unwrap().ends_with(".size"));
     }
-    assert_eq!(
-        typed.container_sizes()[0].container(),
-        SequentialContainerKind::Array
-    );
-    assert_eq!(
-        typed.container_sizes()[1].container(),
-        SequentialContainerKind::List
-    );
-    assert_eq!(
-        typed.container_sizes()[2].container(),
-        SequentialContainerKind::MutableList
-    );
 }
 
 #[test]

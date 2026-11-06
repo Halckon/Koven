@@ -1402,6 +1402,24 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   源码为 `&`，原 event 身份、控制点和 drop 顺序断言不变。生产实现与 Single witness 不改。
   修订仅经过 direct rustfmt 与静态检查，未本地动态验证，仍须新精确头官方 CI。
 
+### §70 回归补强（2026-11-06）
+
+基于 main `c4ba670a`，仅选择备份 `0bcdb219` 的 Exclusive prefix 测试增量，不合并整支。
+现有 primitive 中 break/continue 使用 Copyable Int 且只核无 commit；本片使用 loop 内形成
+的 MoveOnly owner，核真实 Exclusive loan、source-qualified call/argument/root、
+ControlTransfer Named drop 与无 prefix event/无 replacement commit。Rooted/MemoryDocument
+双入口均执行完整 type final gate 与 ownership validate。return 用例额外绑定同一 typed
+call 的 External `replace` symbol 身份，避免仅由空 primitive 表推断调用种类。
+不修改生产代码、Single witness、观测范围或 E3/native 能力。
+
+| 验收项 | 测试目标 / 过滤器 | 实际结果 |
+|---|---|---|
+| 编译与共享 helper 邻控 | `unit_direct_call_loan_ends`，整项排除 `exclusive_prefix::abort_and_normal_return_do_not_invent_prefix_unwind_events` 与 `temporary_field_pending::abort_does_not_unwind_the_temporary_field_parent` | 云端 Rust 1.96.0 编译通过；28 passed、2 filtered |
+| 静态检查 | fmt、frontend all-targets Clippy（`-D warnings`）、文档、尺寸、diff-check | 全通过；839 Markdown、2118 Rust，39 项历史超限，无新增尺寸债 |
+
+含 Abort 的两项完整保留，仅留官方 CI；不运行故障注入或 Mac 构建。尚未发布或进行
+精确头官方 CI，D10/E2 保持 in-progress；本片增加边界证据，不声称退休额外 Single 路径。
+
 ## 71. View carrier 类型位置退休候选（2026-11-03）
 
 本候选基于 main `be1022f`，仅修改 `type_range_carrier` 前五测试的观察入口；尚未发布，
@@ -1697,6 +1715,33 @@ Cargo/build/test/Clippy，仍需新精确头的正式 CI，不以静态检查替
   精确组合头官方 CI。候选尚未发布，不将历史 main CI 转写为本候选通过。
   D10/SPEC-0341/E2 继续 in-progress；owner/loan-end/conditional cleanup 等缺口不关闭。
 
+### Expected move literal 类型消费者后继（2026-11-06）
+
+基于 main `c4ba670a76a567e1475deee47378fa791d25f419`，独立分支
+`feature/spec-0341-move-literal-consumers`。本片不依赖 #326–329，不改 #323 或生产。
+
+- `type_callable/expected_move_literals.rs` 两项原测试改走同一 AST、原自定义 builtin/
+  capability 环境的 MemoryDocument/Rooted 双入口；两个 Single 分析改为四个 Unit 分析。
+  保留原源码与测试名称，父 target、其余十九项测试和既有多文件对照均不改。
+- 正例保留 local/argument/return 三个 lambda 与同一 ordinary Function canonical
+  identity 的相等性、Int→Boolean、三个真实参数的 Borrow mode 和 Int 类型。
+  反例保持六条 L0084 顺序及 primary 文本、shared/first/second 的 mode 为 None，
+  无 expected 的 inferred 仍为零参数 move Function→Int。
+- names 原已要求无诊断；Unit helper validate 后仅取 raw types，不增加 final/ownership
+  前置。UnitSymbolId 从真实 body_symbol_types 按 source-unit 与原 local symbol 匹配，
+  包含错误 lambda 参数的类型恢复事实；不伪造符号或用名称直接代替类型身份。
+  lambda 仍从原 AST 枚举并严格核数量，再由已验证源身份限定 UnitExpressionId。
+
+| 验收项 | 检查 / 命令 | 实际结果 |
+|---|---|---|
+| 云端编译与直接行为 | Rust1.96.0、默认debug=2、locked/offline，`type_callable expected_move_literals::` | 目标编译通过，2 passed；各含双入口，19项未执行 |
+| 共享邻控 | `multifile_type_checking lambdas::` | 4 passed，150项未执行 |
+| 静态质量 | frontend lib build、all-targets Clippy、fmt、docs、尺寸、diff | 全通过；839 Markdown、2118 Rust、39项历史超限，无新增债 |
+| 原合同保全 | 原源码/测试名/事实断言与父target | 机械保全与独立只读复核无阻断；测试模块174行 |
+
+未执行故障注入、含 Abort 的整项、Mac 构建、native 或官方双平台 CI；未推送或开 PR。
+本片不是新的 closure/native 能力，D10/E2 保持 in-progress，不等待其他 CI，不自动合并。
+
 ## 83. E2 Choice 测试模型前置（2026-11-04）
 
 基线 main `8b2e9e18`；本批不开放 String-result If，不改变公开 API、生产 planner、cleanup
@@ -1743,6 +1788,27 @@ root replace 返回一源、field replace 返回一源、field replace 中断四
   本地 Cargo/build/test/Clippy 未运行；获准发布 Draft PR，动态验收待精确候选头 CI。
   D10/E2 继续 in-progress，不以历史 main CI 计入本候选通过。
 
+### Resource 类型消费者有界迁移（2026-11-06）
+
+基于 main `c4ba670a`，本片只迁 `type_checking` 的六项资源类型消费者，
+不改 §84 ownership terminal、生产代码、Guide、CI 或其他在途候选。
+
+- 两项 deinit 与四项 replace/swap 测试按完整领域迁至私有 `resource_unit` 模块；
+  保留原函数名、源码、parser 与名称/类型环境。测试完整名称增加 `resource_unit::`
+  前缀，仓库内未发现依赖原完整名称的精确过滤器。
+- 每源实际运行 MemoryDocument/Rooted 两入口，检查入口 key/source 身份及 names
+  diagnostics/validate。保留无诊断、has_deinit、两项 call 数量及 L0097/L0122/L0084
+  原 oracle；has_deinit 查询改用真实 Unit 签名声明中的 nominal 描述。
+- 未限定 deinit 的 names-only 拒绝源仍留原处；未迁其余 Single 消费者。不新增 ownership
+  或最终 typed admission 结论，不把资源类型通过等同于资源 owner graph 支持。
+- 云端 Rust 1.96.0、默认 debug=2 下，`cargo test -p lang-frontend --test type_checking
+  --no-run --locked --offline`、`resource_unit::` 六项及原 names-only 精确测试一项通过；
+  `cargo build -p lang-frontend --lib --locked --offline`、frontend all-targets Clippy
+  （`-D warnings`）、fmt、尺寸守卫、diff 检查与独立审查通过。
+- 根测试文件从 2193 行降至 2123 行，新模块 123 行；未提升历史尺寸额度。
+  不运行本地 Abort/故障注入、全量 type_checking 或 Mac 构建。仅备份独立分支，
+  尚未创建 PR；本候选官方 CI 未运行，D10/E2 继续 in-progress。
+
 ## 85. Choice 前置：真实 control tail 内部通道（2026-11-04）
 
 基于 main `58479df5`，本片仅保留实际 control body 求值产生的尾表达式及已有
@@ -1783,6 +1849,37 @@ root replace 返回一源、field replace 返回一源、field replace 中断四
   独立静审无阻断；rustfmt 命令不可用，尚未执行，未运行本地 Cargo/build/test/Clippy。
   已获准发布 Draft PR 并运行官方 CI；与并行候选分节记录，合批时保留各节。
   D10/E2 继续 in-progress，正式准入和四源码行为仍需精确候选官方 CI。
+
+### Phase 2 核心容器消费者后继（2026-11-06）
+
+基于 main `c4ba670a76a567e1475deee47378fa791d25f419`，独立分支
+`feature/spec-0341-container-consumers`，不叠加 #326/#327 或修改 #323。
+
+- `type_containers` 六项原测试原位迁移：核心构造与 element identity、构造推导失败、
+  索引/size/get/set 诊断矩阵、源码同名符号、嵌套容器泛型推导、size receiver/type/span。
+  原六份源码、测试名、自定义十六 builtin 与原 intrinsic 环境、重复解析和原 oracle
+  保留；六次 Single 分析替换为十二次 MemoryDocument/Rooted 分析，不新增测试数量。
+- helper 复用同一 AST/环境，核 source ID 和精确 root/path，名称无诊断后 validate，
+  只观察 raw types。size 的 AST ID 由实际 Unit facts 配对，先核 source-unit 再投影局部
+  ID；MoveOnly 只适配 Unit API 的非 Option 返回。不增加 final/ownership 前置。
+- 原源码同名符号测试此前没有 names 空断言；Unit 公共 API 必需的 names.validate
+  及明确空诊断断言收紧名称前置，最终实际通过，不据此改变其原类型/构造 oracle。
+- 首轮尝试七项迁移，target 实际 31 passed/1 failed：signature 的 `List<Nothing>`、
+  `Array<Any>` 缺两条原 L0125，只产生 L0094/L0091。该项已完整恢复原 Single witness，
+  不改预期或生产图算法；deferred callable reference 的原 Single witness 同样保留。
+  首轮失败是有界已验证缺口，不是最终迁移通过，后续应独立修复 signature storage 检查。
+- 既有二十四项 MutableList 测试与 `mutable_unit` helper 不变。直接 check_types
+  静态调用由两处降为一处，剩余 helper 仅服务上述两项 witness；不宣称全仓退休比例。
+
+| 验收项 | 检查 / 命令 | 实际结果 |
+|---|---|---|
+| 云端编译 | Rust 1.96.0、默认 debug=2，`cargo test --offline --locked -p lang-frontend --test type_containers --no-run`、frontend lib build | 编译链接通过；首轮 Option API 适配错误已修正 |
+| 直接与共享邻控 | 完整 `type_containers` | 32 passed、0 failed、0 filtered；包含六项双入口与原两项 witness、二十四项 MutableList |
+| 静态质量 | frontend all-targets Clippy `-D warnings`、fmt、docs、尺寸、diff | 全部通过；839 Markdown、2119 Rust 文件、39 项历史超限，无新增债 |
+| 原合同保全 | 原源码、测试名、断言与范围外测试/helper | 独立只读复核无阻断；原名称前置差异如上披露 |
+
+未运行故障注入、含 Abort 的整项、Mac 构建或官方 CI；本片未推送或开 PR，
+D10/E2 与本 Spec 保持 in-progress，不自动合并。
 
 ## 87. Choice 前置：V1 value 投影与库内双路径验证（2026-11-04）
 
@@ -2561,6 +2658,41 @@ codegen all-targets Clippy（`-D warnings`）通过，测试文件现 440 行，
 该补片尚未推送或由官方 CI 运行，首轮失败不改写为通过。
 
 
+### 顺序容器 signature 的有界 L0125 修复（2026-11-06）
+
+基于 main `c4ba670a76a567e1475deee47378fa791d25f419`，独立分支
+`fix/spec-0341-container-signature-storage`，不叠加 #326–328 或修改 #323。
+Phase 2 修复现行 Guide 12 已定义的存储限制，不改变语言语义、旧 Single witness 或 codegen。
+
+- 原因：signature 的真实 external intrinsic 分支只检查 arity/Box，没有 body checker
+  已有的直接不可存储元素诊断。新增五项回归先在主干生产实现运行，4 failed/1 passed，
+  直接、嵌套、字段和返回签名缺 L0125；原混合 case 仅 L0094/L0091，缺两条 L0125。
+- 仅在 arity 合法的 Array/List/MutableList 上检查元素为直接或 Nullable 包裹的
+  Any/Nothing；在原元素 TypeRef span 报 L0125。真实环境身份判断，不按名字匹配，
+  不递归 nominal 字段/类型实参，不把函数签名中的 Nothing 当作函数值不可存储。
+  Rc/View/Map/Box、interface/layout/range 后置检查及原 Error/arity 恢复均不改变。
+- 首版返回 Error 真实制造了不同非法 overload 的伪 L0097，独立审查指出后用新增回归
+  复现。最终沿用现有 Map signature 的诊断策略：保留原 raw 形状和 intern 表，只增加
+  错误诊断；typed validate 与实际 final admission 均拒绝且保留原诊断。没有改共享
+  shapes 算法，不把 raw 产品存在当作成功准入，也不修改合法邻居或去重不同源码实例。
+- 九项新增测试覆盖三容器×四种元素×外层可空性、字段/返回/函数参数与结果、内嵌容器、
+  固定诊断顺序、合法函数值/泛型/源码同名 List、跨文件反向输入、arity、顶层/member/
+  function overload、重复错误位置与合法邻居。单源均实际双入口，跨文件核源身份和
+  完整 signature 确定性；原 type_containers 的两个 Single witness 和 #328 内容不改。
+- 主签名文件只加 module 与调用两行，1025→1027，沿用既有增长例外；新私有 helper
+  49行，测试模块231行，不提高尺寸额度。未宣称解决全部递归 nominal storage 或 native。
+
+| 验收项 | 检查 / 命令 | 实际结果 |
+|---|---|---|
+| 失败先行 | 新增初始五项、首版 overload 回归 | 4红1绿；首版 overload 额外L0097真实失败，原日志保留 |
+| 直接与邻控 | `multifile_type_signatures`、`type_containers`、`type_copyability`、`type_map` | 17 + 32 + 16 + 17 全通过，均零过滤 |
+| 云端编译 | Rust1.96.0、默认debug=2、locked/offline frontend lib build 与测试编译 | 通过 |
+| 静态质量 | frontend all-targets Clippy、fmt、docs、尺寸、diff | 全通过；839 Markdown、2120 Rust、39项历史超限，无新增债 |
+| 独立复核 | raw shape、错误恢复、身份和scope | 无阻断；首版恢复副作用已修正并动态验证 |
+
+本片未执行故障注入、Abort 整项、Mac 构建、native 或官方双平台 CI；未推送或开 PR。
+D10/E2 保持 in-progress，不等待其他 PR 的 CI 才继续工作，也不自动合并。
+
 ## 112. Field/Group 临时父 Borrow 的准入与清理修复（2026-11-05）
 
 独立基线 main `e1cde85f907553053c1d6ef699ea4ddd81d0a18e`。按 Guide 现行 Borrow temporary 与 Group 透明规则修复
@@ -2618,6 +2750,110 @@ Phase 3，不改变 Value/Inout、普通借用结果或其他投影族的资格�
 
 本次组合 main `bd036dfd`（含 #319、#320），保留双方原改动，仅解决 Spec 编号冲突，将本节
 改为 §112；P3 源码不变。新组合的官方 CI 尚待运行，原发布头的通过记录不替代新组合验收。
+
+
+## 113. Callable 基础事实消费者退休（2026-11-06）
+
+基于 main `c4ba670a76a567e1475deee47378fa791d25f419`，分支
+`feature/spec-0341-e2-progress`。只涉及 Phase 2 测试消费入口，不改生产、Guide、
+codegen 或 PR #323 的 E3 退休工作；D10/E2 与本 Spec 继续 in-progress。
+
+- `type_callable` 三项原测试：标准 println 与源码遮蔽、普通成员/函数值调用的稳定映射、
+  参数模式矩阵。保留原四份源码、标准或自定义十六 builtin/两能力环境、重复解析、
+  测试名称与全部原断言，四次 Single 类型分析替换为八次真实 Unit 分析。
+- 同一 ParsedFile 与环境分别走 MemoryDocument/Rooted；helper 检查单源身份、精确
+  root/path 与 call 的 source-unit，名称诊断全空后才 validate。仍观察 raw types，
+  不增加 final/ownership 前置。Source target 对应明确的 Declaration 或 Symbol；
+  External、FunctionValue、返回类型、参数顺序、mode、Place、效果和 L0122×2 保留。
+- 仅本文件直接 `check_types` 静态调用 25→21；这不是全仓退休比例，旧 API 与其余
+  差异见证仍保留。其他十六项顶层测试体逐字节不变，独立只读复核未发现阻断。
+
+| 验收项 | 命令 / 检查 | 实际结果 |
+|---|---|---|
+| 目标编译 | `cargo test --offline --locked -p lang-frontend --test type_callable --no-run` | 云端固定 Rust 1.96.0、独立 target、默认 debug=2，编译链接通过 |
+| 生产编译 | `cargo build --offline --locked -p lang-frontend --lib` | 通过 |
+| 直接行为 | 上述三项原测试名逐一 `--exact` | 各 1 passed、0 failed；每项内双入口，非全 target 动态验收 |
+| 静态质量 | `cargo clippy --offline --locked -p lang-frontend --all-targets -- -D warnings`、fmt、docs、Rust 尺寸、diff | 全部通过；839 Markdown、2119 Rust 文件、39 项历史超限，无新增债；主测试948行、helper 51行 |
+| 原合同保全 | 三项源码/断言字符串、其余十六项顶层测试体、全部十九项顶层测试名称 | 机械比对与独立静审通过 |
+
+没有执行故障注入、校准、含 Abort 的整项测试或用户 Mac 构建。目标中的其他测试未执行，
+本地通过不替代官方双平台 CI；本片未推送、未开 PR、未合并。
+
+### 常量求值消费者双入口补全（2026-11-06）
+
+基于 main `c4ba670a`，仅补齐 `type_constants` 三项既有 MemoryDocument 求值消费者的
+Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
+
+- 十个 checked arithmetic 失败、四个短路成功、一个非法依赖与五个关联常量整数宽度
+  样例均在真实双入口运行。原源码、L0158/空诊断和运算符 `+` primary span 断言保留。
+- 私有 helper 参数化既有分析路径，明确检查单源 source_id 和入口 key/root/path；
+  仍经无诊断名称解析与 validate 后观察 raw Unit types，不新增 final/ownership 准入。
+  其他既有 analyzed 消费者继续默认 MemoryDocument，全部 legacy helpers/witnesses 不变。
+- 独立静态审查无阻断；不修改生产、Guide、CI、故障注入或 #323，不据本片宣称
+  常量 ownership/native 或整个 D10/E2 已完成。
+- 云端 Rust 1.96.0、默认 debug=2、locked/offline 的目标编译、三项定向测试及整个
+  `type_constants` 24 项（无过滤）通过，frontend lib build、all-targets Clippy
+  （`-D warnings`）、fmt、文档结构、尺寸与 diff 检查通过；官方 CI 未运行，尚未发布或创建 PR。
+
+## 114. D10/E2 消费者批量组合候选（2026-11-06）
+
+按用户要求改为多个逻辑提交、一次 PR 验收。基于已重新核验的 main `c4ba670a`，
+独立分支 `feature/spec-0341-consumer-batch` 保留以下八个输入提交的逻辑与顺序：
+
+| 输入 | 原提交 | 范围 |
+|---|---|---|
+| #326 | `916f731b` | callable 基础消费者 |
+| #327 | `81ce6a4a` | Exclusive prefix 回归 |
+| #328 | `7e4afbc` | 核心 container 消费者 |
+| #329 | `f87f8d48` | signature L0125 有界修复 |
+| #330 | `98aa7bbe` | expected move literal 消费者 |
+| resource | `876d4e73`、`5d2cfba6` | 资源类型消费者与文档 |
+| constant | `4d2988d6` | 常量求值双入口 |
+
+- 上述五项 PR 核验时均 Open/Draft，resource 远端为 `5d2cfba6`；未关闭旧 PR、
+  覆盖原分支或合并 main，不包含 #323/#325。各片的原本地/发布状态文字保留其历史时点，
+  不作为本组合的动态验收。新的官方 CI 仍须针对组合精确头运行。
+- 仅两处文档相邻追加冲突：Architecture 保留 container 与 resource 双方说明，Spec
+  同时保留 callable §113 和常量求值小节。原八个提交的源码/测试补丁逐字保全。
+- 组合增量不删除旧 witness：原 non-storable/wrong-arity Single 源及四条诊断断言保留，
+  再将同一源码与自定义环境送入 #328 双入口，核 #329 修复后的
+  L0125、L0125、L0094、L0091 顺序。未迁 deferred callable witness，未扩大生产修复范围。
+- 云端 Rust 1.96.0、默认 debug=2、locked/offline，八个目标编译通过；实际执行
+  signature 17、container 32、copyability 16、map 17、constant 24、callable 20、
+  direct-call-loan 28、resource 6 与原 names-only 1，共 161 项通过。
+  callable 排除一项 Abort identity，direct-call-loan 排除两项含 Abort 整项；
+  其余 type_checking 不执行。不运行故障注入、校准、Mac 构建或 native。
+- frontend lib build、all-targets Clippy（`-D warnings`）、fmt、文档结构、尺寸与 diff
+  检查通过；独立只读审查确认原补丁保全与组合增量无阻断。
+- 本组合本地验证通过，未推送、未创建 PR。单片历史绿灯不能替代组合 CI；
+  D10/E2 保持 in-progress，不自动合并。
+
+### §114 官方 selector 覆盖缺口修复（2026-11-06）
+
+#331 原九提交头 `bb769e47` 的 CI 绿灯不能证明新增 signature storage 九项实际执行：
+`check_stage_integration.sh` 原来未列 `multifile_type_signatures`，all-targets Clippy 的
+编译覆盖也不能替代动态运行。本地 17 项通过记录仍有效，官方动态证据须补跑。
+
+- 在既有 frontend stage batch 增加完整 `multifile_type_signatures`，不带测试过滤器，
+  与原目标一起由既有 Linux/macOS targeted job 实际执行；不移除、跳过或改写其他目标。
+- 新增 Python 合同核目标恰好一次、正确 frontend 命令、无 positional/exact/no-run
+  过滤及 container_storage 模块接线。修复前真实失败 `1 != 0`，补 selector 后该文件
+  43 项回归通过。不在本地执行包含故障注入与 Abort 的完整 stage 脚本。
+- 最新 main `ea476ad` 与原 base `c4ba670a` 的这两份脚本一致；本片直接追加到 #331
+  原九提交链，不重写历史、不改 #323、不丢弃另存的 borrow/string 四提交。
+  此追加提交官方 CI 尚待发布与实跑，不能以旧 CI 复用证明新增目标已执行。
+
+本片本地验收：43 项 Python 合同、bash 语法、文档结构与 diff 检查通过，独立静审无阻断。
+云端固定 Rust 1.96.0/default debug=2/locked/offline 首次编译因自有缓存 ENOSPC
+失败（未进入测试）；获准清理该闲置 incremental 后重新编译成功，完整 signature
+17 项通过，含全部九项 container_storage、零过滤。故障日志保留，不将失败尝试算通过。
+
+追加头 `c551d87e` 的官方 run `42231702822` 因独立 composition 合同仍期待 130 个目标、
+实际 131 而失败，动态门禁跳过；此前只跑 selector 合同文件漏掉这项计数验证。
+本次复现该失败后，明确要求新增 signature 目标恰好一次、剔除它后的原集合仍为 130，
+总数为 131，并保留全局唯一性与全部原目标断言。不是放宽重复/过滤资格。
+本地相关 45 项 Python（selector 与 composition 成功路径）和完整 signature 17 项均通过；
+不运行注入失败的整项门禁，新的官方动态结果仍须精确新头实跑。
 
 ### Borrow-result 与 String clone 入口补全候选（2026-11-06）
 

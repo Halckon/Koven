@@ -394,3 +394,6 @@ fn arity_and_mixed_analysis_inputs_are_rejected_at_the_right_boundary() {
 
 #[allow(dead_code)]
 fn assert_signature_product_is_public(_: &CompilationUnitSignatures) {}
+
+#[path = "multifile_type_signatures/container_storage.rs"]
+mod container_storage;
