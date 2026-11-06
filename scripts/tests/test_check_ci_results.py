@@ -61,6 +61,21 @@ def stage_command_is_unfiltered(command):
 
 
 class CheckCiResultsTests(unittest.TestCase):
+    def test_signature_storage_regressions_run_unfiltered_in_stage_batch(self):
+        root = Path(__file__).resolve().parents[2]
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        target = "multifile_type_signatures"
+        selected = stage_target_occurrences(stage, target)
+        self.assertEqual(1, len(selected), f"{target} must execute exactly once")
+        self.assertTrue(selected[0].startswith(
+            "run cargo test --locked -p lang-frontend --no-fail-fast "))
+        self.assertTrue(stage_command_is_unfiltered(selected[0]),
+                        "signature regressions must execute, not only compile or filter")
+        source = (root / f"crates/lang-frontend/tests/{target}.rs").read_text()
+        self.assertIn('mod container_storage;', source)
+        self.assertTrue((root / "crates/lang-frontend/tests" / target /
+                         "container_storage.rs").is_file())
+
     def test_mutable_list_contracts_run_unfiltered_in_existing_stage_batch(self):
         root = Path(__file__).resolve().parents[2]
         stage = (root / "scripts/check_stage_integration.sh").read_text()

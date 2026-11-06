@@ -2827,3 +2827,23 @@ Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
   检查通过；独立只读审查确认原补丁保全与组合增量无阻断。
 - 本组合本地验证通过，未推送、未创建 PR。单片历史绿灯不能替代组合 CI；
   D10/E2 保持 in-progress，不自动合并。
+
+### §114 官方 selector 覆盖缺口修复（2026-11-06）
+
+#331 原九提交头 `bb769e47` 的 CI 绿灯不能证明新增 signature storage 九项实际执行：
+`check_stage_integration.sh` 原来未列 `multifile_type_signatures`，all-targets Clippy 的
+编译覆盖也不能替代动态运行。本地 17 项通过记录仍有效，官方动态证据须补跑。
+
+- 在既有 frontend stage batch 增加完整 `multifile_type_signatures`，不带测试过滤器，
+  与原目标一起由既有 Linux/macOS targeted job 实际执行；不移除、跳过或改写其他目标。
+- 新增 Python 合同核目标恰好一次、正确 frontend 命令、无 positional/exact/no-run
+  过滤及 container_storage 模块接线。修复前真实失败 `1 != 0`，补 selector 后该文件
+  43 项回归通过。不在本地执行包含故障注入与 Abort 的完整 stage 脚本。
+- 最新 main `ea476ad` 与原 base `c4ba670a` 的这两份脚本一致；本片直接追加到 #331
+  原九提交链，不重写历史、不改 #323、不丢弃另存的 borrow/string 四提交。
+  此追加提交官方 CI 尚待发布与实跑，不能以旧 CI 复用证明新增目标已执行。
+
+本片本地验收：43 项 Python 合同、bash 语法、文档结构与 diff 检查通过，独立静审无阻断。
+云端固定 Rust 1.96.0/default debug=2/locked/offline 首次编译因自有缓存 ENOSPC
+失败（未进入测试）；获准清理该闲置 incremental 后重新编译成功，完整 signature
+17 项通过，含全部九项 container_storage、零过滤。故障日志保留，不将失败尝试算通过。
