@@ -40,6 +40,26 @@ Preview 的 producer/独立consumer仍固定 `ubuntu-24.04`，保留原安装器
 API及sanitizer，记录既有主线失败；不得删除旧合同或改变E3来取得迁移绿灯。
 回滚应整体撤销宿主、安装器分派及job-name契约改动，不能只回退显示名称。
 
+## 预置工具链与核心 job
+
+[SPEC-0390](../specs/active/0390-prebuilt-ci-toolchain.md)先独立构建并验收 Ubuntu26/Rust1.96/LLVM21.1.8
+工具链镜像。已完成可信 main 发布，Linux Clippy/Targeted Tests 固定到
+`ghcr.io/halckon/koven-ci-toolchain@sha256:b5ce8a4479579ecc57194e385f13109a52022114f0e19cab93fc426bdbb9500e`；
+[发布验收](https://github.com/Halckon/Koven/actions/runs/42153917943/job/127696200046)已通过，
+PR #322 的[核心 CI](https://github.com/Halckon/Koven/actions/runs/42161657885)已完成首轮真实 job-container 验收。
+PR 镜像 workflow 不持有发布凭据，沿用完整 Linux 门禁；main 手动发布必须核同源码的
+双平台与 Preview CI，发布同一次已验证 image ID，不重新构建另一份字节。
+镜像不含仓库、Cargo 缓存或凭据，官方基础镜像及 Rust payload 固定 digest/SHA，LLVM
+沿用原严格安装器。构建输入固定不等于整个 APT 闭包可逐字节重建，消费身份是最终镜像 digest。
+Linux LLDB 测试显式保留 ASLR，避免为固定地址请求 personality 变更；完整源码/行号/函数
+断点断言与 macOS 参数不变。默认容器安全设置保持，LLDB/native/sanitizer 失败不得跳过；
+仅 Linux Clippy/Targeted Tests 使用镜像，显式 bash 与 UID/GID 1001；checkout 前
+检查挂载与环境文件可写，明确 CARGO_HOME，保留原权限错误测试。Linux cache key 追加
+完整 digest/verifier hash，既有 profile/prefix 与 macOS key 不变。容器中只离线核严格
+版本/包身份，不以 apt/rustup 修复。Actions HOME、checkout、冷缓存查找/保存与产物上传
+已在上述 CI 实际通过；缓存命中后的恢复/解包仍待验证，SPEC-0390 保持 in-progress。
+Preview24 继续独立生产和消费，不能复用核心镜像证明发布 ABI。
+
 ## Linux CI 磁盘故障诊断
 
 Linux targeted tests 在 checkout 后、缓存恢复后和 bounded composition 结束后记录只读

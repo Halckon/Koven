@@ -176,6 +176,7 @@
     {"id": "X10", "stage": "X", "area": "stdlib", "priority": "v2", "status": "deferred", "guide": "needed", "phases": [1, 2, 4, 5], "title": "unsafe、RawPtr、extern \"C\"、标准库自写", "decision": "D6"},
     {"id": "X11", "stage": "X", "area": "types", "priority": "v2", "status": "deferred", "guide": "needed", "phases": [1, 2], "title": "泛型多 bound、where、associated type、扩展函数；const 泛型；默认参数/vararg/data class", "links": ["proposals/restricted-extension-functions.md"]},
     {"id": "X12", "stage": "X", "area": "pipeline", "priority": "v3", "status": "deferred", "guide": "needed", "phases": [], "title": "协程/async 与自举"},
+    {"id": "CI390", "stage": "P0", "area": "tooling", "priority": "must", "status": "active", "guide": "none", "phases": [0], "title": "预置 Linux CI 工具链镜像与分阶段切换", "specs": ["0390"], "note": "先独立 PR 构建验收；可信 main 发布并取得真实 digest 后切核心 CI，保留双宿主与 Preview 独立验收。"},
     {"id": "TEST391", "stage": "P0", "area": "tooling", "priority": "must", "status": "active", "guide": "none", "phases": [0], "title": "Codegen 测试诊断落盘与有界失败摘要", "specs": ["0391"], "note": "普通 SSA 测试日志与 LLVM/native 大断言有界化，全文证据落盘；不改变测试输入、谓词和 CI 选择，集成 SPEC-0389。"}
   ]
 }
