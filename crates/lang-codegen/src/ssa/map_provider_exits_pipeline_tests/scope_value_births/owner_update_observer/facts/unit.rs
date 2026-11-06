@@ -1,5 +1,6 @@
 //! Source-qualified effects and cleanup from this Unit analysis only.
 use super::*;
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames},
     ownership_checking::{
@@ -77,7 +78,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::owner_
         .iter()
         .filter(|d| inside(i.scan, d.value_origin()))
         .collect::<Vec<_>>();
-    println!(
+    diagnostic!(
         "SCOPE C UPDATE FE label={} unit=true root={root:?} locals={locals:?} formed={:?} scan_drops={drops:#?} all_drops={:#?} loans={:#?} contracts={:#?} deliveries={:#?} assignments={:#?} map_puts={:#?} string_effects={:#?}",
         c.label,
         o.formed_owned_locals(),
@@ -90,7 +91,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::owner_
         o.string_effects()
     );
     for d in &drops {
-        println!(
+        diagnostic!(
             "SCOPE C UPDATE DROP label={} unit=true target={:?} point={:?} origin={:?}",
             c.label,
             d.target(),
@@ -99,7 +100,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::owner_
         );
     }
     for b in &i.births {
-        println!(
+        diagnostic!(
             "SCOPE C UPDATE BIRTH label={} unit=true expression={:?} span={:?} type={:?} category={:?} call={:#?}",
             c.label,
             e(b.expression),
@@ -111,7 +112,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::owner_
     }
     if let Some((statement, source)) = i.site {
         let statement = UnitStatementId::new(u, statement);
-        println!(
+        diagnostic!(
             "SCOPE C UPDATE PLAN label={} unit=true source={:?} descriptor={:#?} plan={:#?}",
             c.label,
             e(source),
@@ -120,7 +121,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::owner_
         );
         if let Some(plan) = o.map_iteration(statement) {
             for exit in plan.exits() {
-                println!(
+                diagnostic!(
                     "SCOPE C UPDATE EXIT label={} unit=true exit={exit:#?} published_actions={:#?}",
                     c.label,
                     o.iteration_cleanup_at(exit.point())
@@ -129,7 +130,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::owner_
         }
     }
     for l in &i.locals {
-        println!(
+        diagnostic!(
             "SCOPE C UPDATE LOCAL label={} unit=true marker={:?} initializer={:?} type={:?} category={:?} reference={:?}",
             c.label,
             l.marker,
@@ -183,7 +184,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::owner_
                 e(assignment),
             )
         })?;
-        println!(
+        diagnostic!(
             "SCOPE C UPDATE ASSIGN label={} unit=true descriptor={d:#?} target_reference={:?} rhs_reference={:?}",
             c.label,
             n.names()
@@ -271,7 +272,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::owner_
                 .filter(|v| v.argument() == e(arg)),
             "update actual qualified observe contract",
         )?;
-        println!(
+        diagnostic!(
             "SCOPE C UPDATE OBSERVE label={} unit=true call={typed:#?} loan={loan:#?} contract={contract:#?}",
             c.label
         );

@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn runtime_generator_single_generic_helper_preserves_three_callable_environments() {
@@ -43,7 +44,7 @@ fn runtime_generator_single_generic_helper_preserves_three_callable_environments
             );
         }
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "generic Borrow Fn helper must retain each actual environment: {failures:?}"
     );

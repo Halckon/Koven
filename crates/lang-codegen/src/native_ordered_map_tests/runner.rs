@@ -1,6 +1,7 @@
 //! Bounded native fixture runs; Clang follows the existing synchronous helper contract.
 //! Compiler/version calls have no test-internal deadline. Failure artifacts are retained.
 
+use crate::test_support::diagnostics::assert_diagnostic;
 use std::{
     fs::{self, File},
     path::{Path, PathBuf},
@@ -104,7 +105,7 @@ impl Artifacts {
             &format!("{label}.status"),
             format!("{status:?}\nfailure={failure:?}\n"),
         );
-        assert!(
+        assert_diagnostic!(
             failure.is_none() && status.is_some_and(|status| status.success()),
             "{label}: failure={failure:?}; status={status:?}\n{command_text}\nstdout:\n{}\nstderr:\n{}\nartifacts={}",
             String::from_utf8_lossy(&stdout),
@@ -132,7 +133,7 @@ impl Artifacts {
         self.write(&format!("{label}.stdout"), &output.stdout);
         self.write(&format!("{label}.stderr"), &output.stderr);
         self.write(&format!("{label}.status"), format!("{}\n", output.status));
-        assert!(
+        assert_diagnostic!(
             output.status.success(),
             "{label}: status={}\n{command_text}\nstdout:\n{}\nstderr:\n{}\nartifacts={}",
             output.status,
@@ -182,7 +183,7 @@ impl Artifacts {
             Duration::from_secs(10),
         );
         assert_eq!(run.status.code(), Some(0), "{label} must exit normally");
-        assert!(
+        assert_diagnostic!(
             run.stdout == stdout.as_bytes() && run.stderr == stderr.as_bytes(),
             "{label}: strict output mismatch\nexpected stdout:\n{stdout}\nactual stdout:\n{}\nexpected stderr:\n{stderr}\nactual stderr:\n{}\nartifacts={}",
             String::from_utf8_lossy(&run.stdout),

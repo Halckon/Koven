@@ -1,4 +1,5 @@
 //! A real selected factory takes an evaluated argument through the ordinary call ABI.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 pub(super) mod ast;
 pub(super) mod facts;
 pub(super) mod graph;
@@ -61,7 +62,7 @@ fn observe(case: &Case, rooted: bool, control: bool) -> Result<(), Failure> {
     } else {
         &case.golden
     };
-    println!(
+    diagnostic!(
         "TEMPORARY ARGUMENT INPUT case={} rooted={rooted} control={control} source={text:?} golden={golden:?}",
         case.label
     );
@@ -88,7 +89,7 @@ fn observe(case: &Case, rooted: bool, control: bool) -> Result<(), Failure> {
             );
         },
     );
-    println!(
+    diagnostic!(
         "TEMPORARY ARGUMENT LOWER {} rooted={rooted} control={control} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
@@ -115,7 +116,7 @@ fn check(control: bool) {
     for case in sources() {
         for rooted in [false, true] {
             let result = observe(&case, rooted, control);
-            println!(
+            diagnostic!(
                 "TEMPORARY ARGUMENT CASE {} rooted={rooted} control={control} result={result:?}",
                 case.label
             );
@@ -123,7 +124,7 @@ fn check(control: bool) {
         }
     }
     assert_eq!(outcomes.len(), 4);
-    assert!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
 }
 
 #[test]

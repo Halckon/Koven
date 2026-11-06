@@ -5,6 +5,7 @@ use super::{
     ast::{Anchors, Input},
     unit as unit_facts,
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{Namespace, SymbolKind, ValidatedCompilationUnitNames},
     ownership_checking::{CompilationUnitOwnership, UnitDropTarget},
@@ -109,9 +110,11 @@ pub(super) fn unit(
             local_ids.push(local);
         }
         // Unit 不发布 single owner/condition 表；原 drop 与全 plan/cleanup 原样保全。
-        println!(
+        diagnostic!(
             "SPEC0331 TEMPORARY EXITS UNIT GUARD marker={:?} initializer={expression:?} construction_span={:?} deinit_span={:?} drops={drops:#?}",
-            guard.marker, guard.span, guard.deinit_span
+            guard.marker,
+            guard.span,
+            guard.deinit_span
         );
     }
     report.check("unit temporary exits two distinct qualified Guard locals share the real class/deinit",

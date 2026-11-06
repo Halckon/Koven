@@ -1,5 +1,6 @@
 //! SPEC-0269: export bounded generated owner cases without launching native tools.
 
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -152,7 +153,7 @@ fn generated_owner_frontend_export_records_borrow_rejections() {
             "parse\t0\nnames\t0\ntypes\t0\nownership\t1\n"
         );
         let diagnostics = fs::read_to_string(directory.0.join("diagnostics.tsv")).unwrap();
-        assert_eq!(diagnostics.lines().count(), 1, "{diagnostics}");
+        assert_eq_diagnostic!(diagnostics.lines().count(), 1, "{diagnostics}");
         assert!(diagnostics.starts_with(&format!("ownership\t{code}\t")));
         assert_frontend_only(&directory.0);
     }
@@ -200,12 +201,12 @@ fn generated_owner_export_records_rejection_without_executing() {
         export_case(&directory.0);
         let stages = fs::read_to_string(directory.0.join("stages.tsv")).unwrap();
         let last = stages.lines().last().expect("rejection must reach a phase");
-        assert!(last.starts_with(&format!("{stage}\t")), "{stages}");
-        assert!(!last.ends_with("\t0"), "{stages}");
+        assert_diagnostic!(last.starts_with(&format!("{stage}\t")), "{stages}");
+        assert_diagnostic!(!last.ends_with("\t0"), "{stages}");
         let diagnostics = fs::read_to_string(directory.0.join("diagnostics.tsv")).unwrap();
         assert!(!diagnostics.is_empty());
         if let Some(code) = code {
-            assert_eq!(diagnostics.lines().count(), 1, "{diagnostics}");
+            assert_eq_diagnostic!(diagnostics.lines().count(), 1, "{diagnostics}");
             assert!(diagnostics.starts_with(&format!("{stage}\t{code}\t")));
         }
         for artifact in [

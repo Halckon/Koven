@@ -1,5 +1,6 @@
 //! Read-only source/FE identities for the four real SPEC-0332 presence fixtures.
 //! Drop points are printed as published; execution ordering is checked separately in SSA.
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{
@@ -598,7 +599,7 @@ pub(super) fn single(
         DropTarget::Named(symbol) => [root, input, reader_input].contains(&symbol),
         _ => false,
     }) {
-        println!("SPEC0332 PRESENCE DROP case={case} unit=false actual={drop:?}");
+        diagnostic!("SPEC0332 PRESENCE DROP case={case} unit=false actual={drop:?}");
     }
     let nullable = comparison.nullable_type();
     for (signature, input) in [(inspect_signature, input), (reader_signature, reader_input)] {
@@ -860,7 +861,7 @@ pub(super) fn unit(
         UnitDropTarget::Named(symbol) => [root, input, reader_input].contains(&symbol),
         _ => false,
     }) {
-        println!("SPEC0332 PRESENCE DROP case={case} unit=true actual={drop:?}");
+        diagnostic!("SPEC0332 PRESENCE DROP case={case} unit=true actual={drop:?}");
     }
     let nullable = comparison.nullable_type();
     for (signature, input, function) in [

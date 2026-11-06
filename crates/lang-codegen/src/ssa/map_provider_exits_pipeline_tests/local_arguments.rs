@@ -1,4 +1,5 @@
 //! Argument-bearing ordinary factories form the actual named provider owner.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod ast;
 mod facts;
@@ -19,9 +20,11 @@ pub(crate) use generic::{
 pub(crate) use sources::{Case, sources};
 
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "LOCAL ARG INPUT label={} unit={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -73,7 +76,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             proof = Some(checked);
         })
     };
-    println!(
+    diagnostic!(
         "LOCAL ARG LOWER label={} unit={unit} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
@@ -108,7 +111,7 @@ fn selected_argument_factory_forms_named_owner_in_both_pipelines() {
             vec![false, true]
         } {
             let result = observe(&case, unit);
-            println!(
+            diagnostic!(
                 "LOCAL ARG CASE label={} unit={unit} result={result:?}",
                 case.label
             );
@@ -116,5 +119,5 @@ fn selected_argument_factory_forms_named_owner_in_both_pipelines() {
         }
     }
     assert_eq!(outcomes.len(), 30);
-    assert!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
 }

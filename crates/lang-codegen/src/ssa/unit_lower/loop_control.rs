@@ -5,7 +5,6 @@ mod iteration_cleanup;
 mod map_borrow;
 mod map_iteration;
 mod nullable_while;
-mod numeric_iteration;
 
 pub(super) use nullable_while::DirectNullableWhileEntry;
 use nullable_while::NullableWhileEntry;

@@ -1,4 +1,5 @@
 //! Existing represented payloads and Int keys retain a real temporary owner per For.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod facts;
 mod graph;
@@ -128,9 +129,11 @@ fun entry():Unit{{println("nonempty");for((key,value) in produce()){{read(key,va
 }
 
 fn observe(case: &Case, rooted: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "TEMPORARY FORMS INPUT case={} rooted={rooted} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -155,7 +158,7 @@ fn observe(case: &Case, rooted: bool) -> Result<(), Failure> {
             );
         },
     );
-    println!(
+    diagnostic!(
         "TEMPORARY FORMS LOWER {} rooted={rooted} report={report:#?} outcome={:?}",
         case.label,
         result.as_ref().map(|(_, id)| id)
@@ -183,7 +186,7 @@ fn existing_temporary_representations_reach_both_verified_pipelines() {
     for case in sources() {
         for rooted in [false, true] {
             let result = observe(&case, rooted);
-            println!(
+            diagnostic!(
                 "TEMPORARY FORMS CASE {} rooted={rooted} result={result:?}",
                 case.label
             );
@@ -191,7 +194,7 @@ fn existing_temporary_representations_reach_both_verified_pipelines() {
         }
     }
     assert_eq!(results.len(), 20);
-    assert!(
+    assert_diagnostic!(
         results.iter().all(|(_, _, result)| result.is_ok()),
         "{results:#?}"
     );

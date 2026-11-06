@@ -248,7 +248,7 @@ fn aggregate_values_calls_returns_and_phi_lower_as_first_class_llvm_values() {
 
     let first = render_verified_program(&program).expect("aggregate LLVM lowering must succeed");
     let second = render_verified_program(&program).expect("repeat lowering must succeed");
-    assert_eq!(first, second);
+    crate::test_support::diagnostics::assert_text_eq!(first, second);
     assert!(first.contains("%koven.t2 = type { i32, i32 }"));
     assert!(first.contains("%koven.t3 = type { i32, i32, i32, i32, i32, i32, i32, i32 }"));
     assert!(first.contains("extractvalue %koven.t2"));

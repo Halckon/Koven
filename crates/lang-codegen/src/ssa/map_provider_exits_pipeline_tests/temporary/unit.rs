@@ -3,6 +3,7 @@ use super::{
     super::Report,
     ast::{Anchors, Function, Input},
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{
@@ -91,7 +92,7 @@ pub(super) fn observe(
     owned: &CompilationUnitOwnership,
     report: &mut Report,
 ) {
-    println!(
+    diagnostic!(
         "SPEC0331 TEMPORARY UNIT REAL typed_maps={:#?} maps={:#?} drops={:#?} conditional_drops={:#?} contracts={:#?} loans={:#?} deliveries={:#?}",
         typed.map_iterations(),
         owned.map_iterations(),
@@ -300,7 +301,7 @@ pub(super) fn observe(
         );
         // unit 仅公开退出计划及同点完整动作；不虚构 cleanup_steps/condition/owner API。
         for exit in p.exits() {
-            println!(
+            diagnostic!(
                 "SPEC0331 TEMPORARY UNIT SITE statement={statement:?} source={source:?} owner={owner:?} factory={} exit={exit:#?} actual_at_point={:#?}",
                 site.factory,
                 owned.iteration_cleanup_at(exit.point())

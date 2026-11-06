@@ -32,10 +32,13 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<LoweredValue>, LoweringError> {
         let id = UnitExpressionId::new(self.source_unit, expression);
-        if self.typed.map_with_value(id).is_some() {
+        if self.typed.map_with_value(id).is_some() || self.typed.map_get(id).is_some() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if self.typed.map_consume(id).is_some() {
+            if self.typed.map_iterations().is_empty() {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
             return self.lower_map_consume(expression, span).map(Some);
         }
         if self.typed.map_construction(id).is_some() {
@@ -46,9 +49,6 @@ impl UnitExpressionLowerer<'_> {
         }
         if self.typed.map_contains(id).is_some() {
             return self.lower_map_contains(expression, span).map(Some);
-        }
-        if self.typed.map_get(id).is_some() {
-            return self.lower_map_get(expression, span).map(Some);
         }
         if self.typed.map_put(id).is_some() {
             return self.lower_map_put(expression, span).map(Some);
@@ -283,51 +283,6 @@ impl UnitExpressionLowerer<'_> {
                 self.block,
                 Operation::MapContains { owner, key },
                 vec![EntityType::Value(bool_ty)],
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let Some(EntityId::Value(val)) = result_id.1.first().copied() else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        };
-        self.emit_drops(UnitDropPoint::CallReturn(id))?;
-        Ok(LoweredValue::Value(val))
-    }
-
-    fn lower_map_get(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let descriptor = self
-            .typed
-            .map_get(id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let (owner, _) = self.map_owner_operand(descriptor.receiver().expression(), span)?;
-        let pending_start = self.pending_operands.len();
-        self.pending_operands.push(owner);
-        let key_span = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(descriptor.key().expression())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
-            .span();
-        let Some((key, _)) = self.lower_map_operand(descriptor.key().expression(), key_span)?
-        else {
-            self.pending_operands.truncate(pending_start);
-            return Ok(LoweredValue::Diverged);
-        };
-        let owner = self.pending_operands.get(pending_start).copied();
-        self.pending_operands.truncate(pending_start);
-        let owner = owner.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let val_ty = self.expression_ssa_type(expression, span)?;
-        let result_id = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::MapGet { owner, key },
-                vec![EntityType::Value(val_ty)],
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;

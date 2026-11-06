@@ -1,6 +1,7 @@
 //! 原真实单 Map plan 的 MemoryDocument/rooted Unit baseline；不混入六源 Guard oracle。
 use super::{Report, pipeline};
 use crate::ssa::{model::Program, verify::verify_program};
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 
 const SOURCE: &str = r#"
@@ -45,7 +46,7 @@ pub(super) fn baseline(rooted: bool) -> Program {
         })
     }
     .unwrap();
-    assert!(report.passed(), "{report:#?}");
+    assert_diagnostic!(report.passed(), "{report:#?}");
     verify_program(&program).expect("unmodified real SSA must pass before corruption");
     crate::llvm::render_verified_program(&program).expect("unmodified real LLVM must pass");
     program
@@ -55,7 +56,7 @@ pub(super) fn baseline(rooted: bool) -> Program {
 fn both_real_provider_baselines_reach_verified_llvm() {
     for rooted in [false, true] {
         baseline(rooted);
-        println!(
+        diagnostic!(
             "SPEC0331 ORDINARY CI BASELINE input={} SSA=verified LLVM=verified",
             super::input_label(rooted)
         );

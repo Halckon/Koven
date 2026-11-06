@@ -1,6 +1,7 @@
 //! SPEC-0285: native MutableList.insertAt element insertion and memory shift.
 
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn unit_container_insert_at_native_primitive_sequential() {
@@ -132,7 +133,7 @@ fn run(analysis: &UnitAnalysis, expected: &[u8]) {
         .arg(&executable)
         .output()
         .expect("native link runs");
-    assert!(
+    assert_diagnostic!(
         linked.status.success(),
         "{}",
         String::from_utf8_lossy(&linked.stderr)
@@ -140,7 +141,7 @@ fn run(analysis: &UnitAnalysis, expected: &[u8]) {
     let output = Command::new(&executable)
         .output()
         .expect("native program runs");
-    assert!(
+    assert_diagnostic!(
         output.status.success(),
         "{}",
         String::from_utf8_lossy(&output.stderr)
@@ -170,7 +171,7 @@ fn run_abort(analysis: &UnitAnalysis, expected_prefix: &[u8]) {
         .arg(&executable)
         .output()
         .expect("native link runs");
-    assert!(
+    assert_diagnostic!(
         linked.status.success(),
         "{}",
         String::from_utf8_lossy(&linked.stderr)
@@ -179,7 +180,7 @@ fn run_abort(analysis: &UnitAnalysis, expected_prefix: &[u8]) {
         .output()
         .expect("native program runs");
     assert!(!output.status.success());
-    assert!(
+    assert_diagnostic!(
         output.stdout.starts_with(expected_prefix),
         "stdout was: {}",
         String::from_utf8_lossy(&output.stdout)

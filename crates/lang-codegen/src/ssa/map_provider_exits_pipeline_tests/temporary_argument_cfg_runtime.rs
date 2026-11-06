@@ -4,6 +4,7 @@ use super::{
     fixture::{Failure, clean, failure},
     pipeline, source_forms, temporary_argument_cfg,
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 
 pub(crate) struct Case {
@@ -44,9 +45,11 @@ pub(crate) fn sources() -> Vec<Case> {
 }
 
 fn observe(case: &Case, rooted: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "ARGUMENT CFG RUNTIME INPUT case={} rooted={rooted} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -69,7 +72,7 @@ fn observe(case: &Case, rooted: bool) -> Result<(), Failure> {
             },
         )
     });
-    println!(
+    diagnostic!(
         "ARGUMENT CFG RUNTIME LOWER {} rooted={rooted} report={report:#?} outcome={:?}",
         case.label,
         result.as_ref().map(|(_, entry)| entry)
@@ -103,7 +106,7 @@ fn both_argument_cfg_edges_reach_both_pipelines() {
     for case in sources() {
         for rooted in [false, true] {
             let result = observe(&case, rooted);
-            println!(
+            diagnostic!(
                 "ARGUMENT CFG RUNTIME CASE {} rooted={rooted} result={result:?}",
                 case.label
             );
@@ -111,5 +114,5 @@ fn both_argument_cfg_edges_reach_both_pipelines() {
         }
     }
     assert_eq!(outcomes.len(), 16);
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }

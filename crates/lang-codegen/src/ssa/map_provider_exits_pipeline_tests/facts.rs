@@ -3,6 +3,7 @@ use super::{
     Report,
     fixture::{Exit, Fixture, LoopSite, loop_site},
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{SymbolKind, UnitReferenceTarget, ValidatedCompilationUnitNames},
     ownership_checking::{
@@ -60,12 +61,12 @@ pub(super) fn unit(
     owned: &CompilationUnitOwnership,
     report: &mut Report,
 ) {
-    println!(
+    diagnostic!(
         "SPEC0331 EXIT RAW UNIT maps={:#?} drops={:#?}",
         owned.map_iterations(),
         owned.drops()
     );
-    println!(
+    diagnostic!(
         "SPEC0331 EXIT RAW UNIT CALL CONTRACTS {:#?} loans={:#?} deliveries={:#?}",
         owned.call_argument_contracts(),
         owned.loans(),
@@ -269,7 +270,7 @@ pub(super) fn unit(
             )
         })
         .collect::<Vec<_>>();
-    println!(
+    diagnostic!(
         "SPEC0331 PROVIDER EXIT REAL UNIT OWNER source={source:?} plan={plan:#?} source_drops={drops:#?}"
     );
 }
@@ -440,7 +441,7 @@ fn unit_exit(
     );
     for exit in p.exits() {
         let full = owned.iteration_cleanup_at(exit.point());
-        println!(
+        diagnostic!(
             "SPEC0331 EXIT UNIT POINT kind={:?} point={:?} complete={full:#?}",
             exit.kind(),
             exit.point()

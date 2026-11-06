@@ -256,7 +256,7 @@ mod tests {
         let first = render_scalar_smoke_module().expect("固定 LLVM 21 矩阵应生成合法模块");
         let second = render_scalar_smoke_module().expect("重复生成应保持确定");
 
-        assert_eq!(first, second);
+        crate::test_support::diagnostics::assert_text_eq!(first, second);
         let target = native_target_triple().expect("supported native host");
         assert!(first.contains(&format!("target triple = \"{target}\"")));
         assert!(first.contains("define i32 @add(i32 %0, i32 %1)"));

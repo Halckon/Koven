@@ -1,5 +1,6 @@
 //! Group whole-set：原五次 fresh 分析保留，Single 以真实 MemoryDocument Unit 准入。
 //! 五次 fresh 实际管线全收集后断言；FE 红不能变成 Unsupported，查询红不能阻止 lower。
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod cleanup;
 mod facts;
@@ -65,14 +66,15 @@ fn observe(pathway: Pathway, reverse_inputs: bool) -> Observation {
     let fixture = match pathway {
         Pathway::Single => {
             let text = CASES.iter().map(|case| case.text).collect::<String>();
-            println!("SPEC0331 GROUP INPUT single path=whole.ko text={text:?}");
+            diagnostic!("SPEC0331 GROUP INPUT single path=whole.ko text={text:?}");
             Fixture::single_whole(&text)
         }
         Pathway::Basic | Pathway::Const => {
             for case in CASES {
-                println!(
+                diagnostic!(
                     "SPEC0331 GROUP INPUT pathway={pathway:?} reverse={reverse_inputs} path={} text={:?}",
-                    case.path, case.text
+                    case.path,
+                    case.text
                 );
             }
             Fixture::new(&CASES)
@@ -96,18 +98,21 @@ fn grouped_sources_reach_verified_llvm_with_actual_group_identity() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 GROUP OUTCOME {}\n{:#?}\n{:#?}",
-            observation.label, observation.result, observation.report
+            observation.label,
+            observation.result,
+            observation.report
         );
         if let Err(stopped) = &observation.result {
-            println!(
+            diagnostic!(
                 "LOWER_NOT_ATTEMPTED stage={} original={}",
-                stopped.stage, stopped.original
+                stopped.stage,
+                stopped.original
             );
         }
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 5 && observations.iter().all(Observation::passed),
         "Group whole-set must preserve every original FE identity query and reach verified LLVM on all five fresh paths.\n{observations:#?}"
     );

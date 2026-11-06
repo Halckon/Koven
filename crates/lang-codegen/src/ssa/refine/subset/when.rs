@@ -119,32 +119,41 @@ impl Checker<'_, '_> {
     }
 
     fn boolean_two_arms(&self, entries: &[WhenEntry]) -> bool {
-        let [first, second] = entries else {
-            return false;
-        };
-        if first.else_span.is_some() || second.else_span.is_some() {
-            return false;
-        }
-        let ([WhenCondition::Expression(left)], [WhenCondition::Expression(right)]) =
-            (first.conditions.as_slice(), second.conditions.as_slice())
-        else {
-            return false;
-        };
         let ast = self.inputs.parsed.ast().expressions();
-        matches!(
-            (
-                ast.get(*left).map(|n| n.payload()),
-                ast.get(*right).map(|n| n.payload())
-            ),
-            (
-                Ok(Expression::Literal(
-                    lang_frontend::parser::LiteralKind::Boolean(a)
-                )),
-                Ok(Expression::Literal(
-                    lang_frontend::parser::LiteralKind::Boolean(b)
-                ))
-            ) if a != b
-        )
+        let pair = |left: ExpressionId, right: ExpressionId| {
+            matches!(
+                (
+                    ast.get(left).map(|n| n.payload()),
+                    ast.get(right).map(|n| n.payload())
+                ),
+                (
+                    Ok(Expression::Literal(
+                        lang_frontend::parser::LiteralKind::Boolean(a)
+                    )),
+                    Ok(Expression::Literal(
+                        lang_frontend::parser::LiteralKind::Boolean(b)
+                    ))
+                ) if a != b
+            )
+        };
+        match entries {
+            [first, second] if first.else_span.is_none() && second.else_span.is_none() => {
+                match (first.conditions.as_slice(), second.conditions.as_slice()) {
+                    ([WhenCondition::Expression(left)], [WhenCondition::Expression(right)]) => {
+                        pair(*left, *right)
+                    }
+                    _ => false,
+                }
+            }
+            [only] if only.else_span.is_none() => match only.conditions.as_slice() {
+                [
+                    WhenCondition::Expression(left),
+                    WhenCondition::Expression(right),
+                ] => pair(*left, *right),
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
     fn string_when_subject(&mut self, expression: ExpressionId) -> bool {
@@ -156,7 +165,8 @@ impl Checker<'_, '_> {
             Expression::Name
                 if self.reference(expression).is_some_and(|symbol| {
                     self.known.contains(&symbol)
-                        && self.parameter_mode(symbol) == Some(ParameterMode::Borrow)
+                        && (self.parameter_mode(symbol) == Some(ParameterMode::Borrow)
+                            || self.for_borrowed.contains(&symbol))
                 }) =>
             {
                 true

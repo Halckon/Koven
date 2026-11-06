@@ -3,6 +3,7 @@
 //! No synthetic facts or single-file compatibility path; the test-only environment hook
 //! only reproduces an original trusted-source authorization before admission.
 
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 #[path = "native_comma_when_cleanup_tests.rs"]
 mod comma_when_cleanup_tests;
 #[path = "native_direct_call_prefix_tests.rs"]
@@ -512,7 +513,7 @@ impl UnitSource {
         let (repeated, repeated_entry) = self.lower();
         assert_eq!(entry.index(), repeated_entry.index());
         assert_eq!(entry.module().index(), repeated_entry.module().index());
-        assert_eq!(
+        assert_text_eq!(
             crate::ssa::render_program(&program),
             crate::ssa::render_program(&repeated),
             "recursive type registration must be deterministic"
@@ -637,7 +638,7 @@ fn memory_document_basic_source_reaches_verified_ssa_llvm_and_native() {
     assert!(matches!(unit.products, OwnedProducts::Basic(..)));
     assert_original_entry(&unit, "display name, not a path", text);
     let llvm = unit.lower_to_llvm();
-    assert!(llvm.contains("define i32 @main("), "{llvm}");
+    assert_diagnostic!(llvm.contains("define i32 @main("), "{llvm}");
     assert_native_output(&unit, b"basic-memory\n");
 }
 
@@ -653,7 +654,7 @@ fn memory_document_constant_source_reaches_verified_ssa_llvm_and_native() {
     assert_eq!(owned.materializations().len(), 1);
     assert_original_entry(&unit, "constant memory document", text);
     let llvm = unit.lower_to_llvm();
-    assert!(llvm.contains("define i32 @main("), "{llvm}");
+    assert_diagnostic!(llvm.contains("define i32 @main("), "{llvm}");
     assert_native_output(&unit, b"constant-memory\n");
 }
 

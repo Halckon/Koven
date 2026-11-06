@@ -1,5 +1,6 @@
 //! Same-source Unit coverage for the two retired nonnullable Rc legacy tests.
 //! Preserves their explicit SSA/LLVM oracles, not whole-file or native equivalence.
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use lang_frontend::{
     name_resolution::{SourceUnitKey, SymbolKind},
     type_checking::UnitConstructionTarget,
@@ -147,14 +148,14 @@ fn intrinsic_rc_construction_share_and_copyable_payload_read_unit_comparison() {
     );
     verify_program(&program).expect("complete Unit SSA verification");
     let ssa = render_program(&program);
-    assert!(
+    assert_diagnostic!(
         ssa.contains(&format!("shared_owner {rc_name:?} payload ")),
         "{ssa}"
     );
-    assert_eq!(ssa.matches("shared.allocate").count(), 1, "{ssa}");
-    assert_eq!(ssa.matches("shared.retain").count(), 1, "{ssa}");
-    assert_eq!(ssa.matches("shared.payload_place").count(), 2, "{ssa}");
-    assert_eq!(ssa.matches("drop ").count(), 2, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("shared.allocate").count(), 1, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("shared.retain").count(), 1, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("shared.payload_place").count(), 2, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("drop ").count(), 2, "{ssa}");
     let llvm = render_verified_program(&program).expect("complete Unit LLVM verification");
     let root_ssa = ssa_body(&ssa, function);
     for (operation, count) in [
@@ -172,12 +173,12 @@ fn intrinsic_rc_construction_share_and_copyable_payload_read_unit_comparison() {
         "{root_llvm}"
     );
     assert!(root_llvm.contains(".overflow = icmp eq"), "{root_llvm}");
-    assert_eq!(llvm.matches("call ptr @malloc").count(), 1, "{llvm}");
-    assert_eq!(llvm.matches("call void @free").count(), 1, "{llvm}");
-    assert!(llvm.contains(".overflow = icmp eq"), "{llvm}");
-    assert_eq!(llvm.matches("strong.next = sub").count(), 1, "{llvm}");
-    assert!(!llvm.contains("atomicrmw"), "{llvm}");
-    assert!(!llvm.contains("cmpxchg"), "{llvm}");
+    assert_eq_diagnostic!(llvm.matches("call ptr @malloc").count(), 1, "{llvm}");
+    assert_eq_diagnostic!(llvm.matches("call void @free").count(), 1, "{llvm}");
+    assert_diagnostic!(llvm.contains(".overflow = icmp eq"), "{llvm}");
+    assert_eq_diagnostic!(llvm.matches("strong.next = sub").count(), 1, "{llvm}");
+    assert_diagnostic!(!llvm.contains("atomicrmw"), "{llvm}");
+    assert_diagnostic!(!llvm.contains("cmpxchg"), "{llvm}");
 }
 
 #[test]
@@ -298,7 +299,7 @@ fn move_only_rc_payload_borrow_call_unit_comparison() {
     };
     verify_program(&program).expect("complete Unit SSA verification");
     let ssa = render_program(&program);
-    assert!(
+    assert_diagnostic!(
         ssa.contains(&format!("shared_owner {rc_name:?} payload ")),
         "{ssa}"
     );
@@ -313,7 +314,7 @@ fn move_only_rc_payload_borrow_call_unit_comparison() {
         "end_borrow",
         "shared.retain",
     ] {
-        assert_eq!(ssa.matches(operation).count(), 1, "{operation}: {ssa}");
+        assert_eq_diagnostic!(ssa.matches(operation).count(), 1, "{operation}: {ssa}");
         assert_eq!(root_ssa.matches(operation).count(), 1, "{root_ssa}");
     }
     let llvm = render_verified_program(&program).expect("complete Unit LLVM verification");
@@ -328,13 +329,13 @@ fn move_only_rc_payload_borrow_call_unit_comparison() {
         .find(&call_text)
         .expect("exact payload pointer passed to inspect");
     assert!(pointer_position < call_position);
-    assert!(
+    assert_diagnostic!(
         llvm.contains(&format!(
             "define internal void @{symbol}(ptr %l{})",
             parameter.index()
         )),
         "{llvm}"
     );
-    assert_eq!(llvm.matches("call ptr @malloc").count(), 2, "{llvm}");
-    assert_eq!(llvm.matches("call void @free").count(), 2, "{llvm}");
+    assert_eq_diagnostic!(llvm.matches("call ptr @malloc").count(), 2, "{llvm}");
+    assert_eq_diagnostic!(llvm.matches("call void @free").count(), 2, "{llvm}");
 }

@@ -8,6 +8,7 @@ use super::{
     verify::verify_program,
 };
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{
         SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
@@ -60,11 +61,11 @@ fn lower_source(text: &str, unit: bool) -> Result<Program, LoweringError> {
         analysis.lower_entry(entry).map(|(program, _)| program)
     };
     match &result {
-        Ok(program) => println!(
+        Ok(program) => diagnostic!(
             "MODE unit={unit} SOURCE {text:?} SSA {}",
             render_program(program)
         ),
-        Err(error) => println!("MODE unit={unit} SOURCE {text:?} LOWER {error:?}"),
+        Err(error) => diagnostic!("MODE unit={unit} SOURCE {text:?} LOWER {error:?}"),
     }
     result
 }
@@ -137,7 +138,7 @@ fn all_integer_pairs_generate_verified_dynamic_llvm() {
         let program = checked_program(result);
         let llvm =
             crate::llvm::render_verified_program(&program).expect("real dynamic LLVM verifies");
-        println!("LLVM unit={unit} {source}->{target}\n{llvm}");
+        diagnostic!("LLVM unit={unit} {source}->{target}\n{llvm}");
         assert_dynamic_conversion_ir(&program, &llvm, &source, &target);
     }
 }

@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 use lang_frontend::source::SourceMap;
 
 use super::{
@@ -384,7 +385,7 @@ fn aggregate_heap_operations_form_one_valid_linear_flow_and_render_deterministic
 
     verify_program(&program).expect("complete aggregate/heap flow must verify");
     let rendered = render_program(&program);
-    assert_eq!(rendered, render_program(&program));
+    assert_text_eq!(rendered, render_program(&program));
     for operation in [
         "aggregate.construct",
         "aggregate.project",
@@ -393,7 +394,7 @@ fn aggregate_heap_operations_form_one_valid_linear_flow_and_render_deterministic
         "heap.payload_place",
         "field_place",
     ] {
-        assert!(
+        assert_diagnostic!(
             rendered.contains(operation),
             "missing {operation} in {rendered}"
         );
@@ -967,8 +968,8 @@ fn tagged_payload_construction_place_and_recursive_drop_form_one_linear_flow() {
 
     verify_program(&program).expect("valid tagged owner flow must verify");
     let rendered = render_program(&program);
-    assert!(rendered.contains("tagged.construct"), "{rendered}");
-    assert!(rendered.contains("tagged.payload_place"), "{rendered}");
+    assert_diagnostic!(rendered.contains("tagged.construct"), "{rendered}");
+    assert_diagnostic!(rendered.contains("tagged.payload_place"), "{rendered}");
 }
 
 #[test]

@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_diagnostic;
 mod transport;
 
 use lang_frontend::source::SourceMap;
@@ -323,7 +324,7 @@ fn nullable_take_rejects_repeated_take_wrapper_drop_and_inner_drop() {
         let errors = verify_program(&program)
             .expect_err("take transfers ownership exactly once; neither wrapper nor inner can be consumed twice")
             .errors;
-        assert!(errors.iter().any(|error| {
+        assert_diagnostic!(errors.iter().any(|error| {
             matches!(error.kind, VerifyErrorKind::ValueUnavailable { value } if value == unavailable)
         }), "{repeated:?}: {errors:?}");
     }

@@ -1,4 +1,5 @@
 //! Pure source lifetime follows the frontend's actual future use, not lexical scope.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod facts;
 mod graph;
@@ -101,9 +102,11 @@ fun entry():Unit{{println("nonempty");val actual=make();scan(actual);println("em
     cases
 }
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "G9 INPUT case={} unit={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -123,7 +126,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             |names, typed, owned, report| {
                 source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
                 facts::unit(case, &sources, &parsed, names, typed, owned, report);
-                println!(
+                diagnostic!(
                     "G9 UNIT ORIGINAL plans={:#?} drops={:#?}",
                     owned.map_iterations(),
                     owned.drops()
@@ -138,7 +141,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             |names, typed, owned, report| {
                 source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
                 facts::unit(case, &sources, &parsed, names, typed, owned, report);
-                println!(
+                diagnostic!(
                     "G9 UNIT ORIGINAL plans={:#?} drops={:#?}",
                     owned.map_iterations(),
                     owned.drops()
@@ -146,7 +149,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     };
-    println!("G9 REPORT {} unit={unit} {report:#?}", case.label);
+    diagnostic!("G9 REPORT {} unit={unit} {report:#?}", case.label);
     let (program, _) = result?;
     report.query(
         "Unit complete temporary source acquisition",
@@ -166,11 +169,11 @@ fn pure_owned_parameters_follow_actual_future_uses() {
     for case in sources() {
         for unit in [false, true] {
             let result = observe(&case, unit);
-            println!("G9 CASE {} unit={unit} result={result:?}", case.label);
+            diagnostic!("G9 CASE {} unit={unit} result={result:?}", case.label);
             outcomes.push((case.label.clone(), unit, result));
         }
     }
-    assert!(
+    assert_diagnostic!(
         outcomes.len() == 48 && outcomes.iter().all(|(_, _, r)| r.is_ok()),
         "{outcomes:#?}"
     );

@@ -1,5 +1,6 @@
 //! SPEC-0318: real-source last-use baseline; no synthesized ownership facts.
 use crate::ssa::map_unit_consumer_test_support::assert_source;
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 #[path = "lower_frontend_map_operand_unit_identity.rs"]
 mod unit_identity;
@@ -86,7 +87,7 @@ fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
                 .unwrap()
                 .validate()
                 .unwrap();
-        println!(
+        diagnostic!(
             "UNIT FACTS constants=true: drops={:#?}",
             owned.ownership().drops()
         );
@@ -99,7 +100,7 @@ fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
             .unwrap()
             .validate()
             .unwrap();
-        println!(
+        diagnostic!(
             "UNIT FACTS constants=false: drops={:#?}",
             owned.ownership().drops()
         );
@@ -107,7 +108,7 @@ fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
             &sources, &inputs, &names, &types, &typed, &owned, entry,
         )
     };
-    println!(
+    diagnostic!(
         "RESULT unit constants={constants}: {:?}",
         result.as_ref().map(|_| "VERIFIED")
     );
@@ -121,7 +122,7 @@ fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
             );
         }
         Err(error) => {
-            assert!(!supported, "{error:?}");
+            assert_diagnostic!(!supported, "{error:?}");
             assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
             // The factory's String? value-if now lowers; the iteration operand's
             // temporary nullable comparison remains the actual rejected operation.
@@ -158,7 +159,7 @@ fn map_operand_last_use_unit_basic_baseline() {
             "independent-nullable",
             "no-map",
         ] {
-            println!("CASE unit-basic {kind}-live={live}");
+            diagnostic!("CASE unit-basic {kind}-live={live}");
             assert_unit(
                 &source(kind, live),
                 false,
@@ -178,7 +179,7 @@ fn map_operand_last_use_unit_constant_baseline() {
             "independent-nullable",
             "no-map",
         ] {
-            println!("CASE unit-constant {kind}-live={live}");
+            diagnostic!("CASE unit-constant {kind}-live={live}");
             assert_unit(
                 &source(kind, live),
                 true,

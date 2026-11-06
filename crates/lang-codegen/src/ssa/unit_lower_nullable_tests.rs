@@ -1,5 +1,6 @@
 //! Original ordinary x01 source: nullable root Borrow across a nested if condition.
 
+use crate::test_support::diagnostics::diagnostic;
 use std::process::Command;
 
 use lang_frontend::{
@@ -98,7 +99,7 @@ fn original_nullable_class_borrow_nested_if_reaches_verified_native() {
     assert_original_borrow(&program, entry, use_span);
     let ssa = super::render_program(&program);
     let llvm = crate::llvm::render_verified_program(&program).expect("complete verified LLVM");
-    println!("x01 queried SSA:\n{ssa}\nx01 queried LLVM:\n{llvm}");
+    diagnostic!("x01 queried SSA:\n{ssa}\nx01 queried LLVM:\n{llvm}");
 
     // The public native chain lowers the same sealed view again, not this queried Program.
     let directory = crate::native_tests::TestDirectory::create();

@@ -1,4 +1,5 @@
 //! Original bounded owner-update inputs; failures remain ordinary positive observations.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod facts;
 mod graph;
@@ -50,9 +51,11 @@ pub(crate) fn cases() -> [Case; 10] {
     ]
 }
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "SCOPE C UPDATE INPUT label={} rooted={unit} source={:?} golden={:?}",
-        c.label, c.source, c.golden
+        c.label,
+        c.source,
+        c.golden
     );
     let mut sources = SourceMap::new();
     let source = sources
@@ -63,7 +66,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     let p = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", p.diagnostics())?;
     let i = ast::input(c, &sources, &p)?;
-    println!(
+    diagnostic!(
         "SCOPE C UPDATE AST label={} rooted={unit} input={i:#?}",
         c.label
     );
@@ -83,7 +86,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
             proof = query.ok();
         },
     );
-    println!(
+    diagnostic!(
         "SCOPE C UPDATE LOWER label={} rooted={unit} observed={observed} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, e)| e)
@@ -113,7 +116,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     report.query("update actual SSA verifier", &verified);
     let llvm = crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e));
     report.query("update actual LLVM verifier", &llvm);
-    println!(
+    diagnostic!(
         "SCOPE C UPDATE FINAL label={} rooted={unit} report={report:#?}",
         c.label
     );
@@ -134,7 +137,7 @@ fn original_owner_updates_report_real_facts() {
                 continue;
             }
             let result = observe(&c, unit);
-            println!(
+            diagnostic!(
                 "SCOPE C UPDATE CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
@@ -142,5 +145,5 @@ fn original_owner_updates_report_real_facts() {
         }
     }
     assert_eq!(results.len(), 16);
-    assert!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
+    assert_diagnostic!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
 }

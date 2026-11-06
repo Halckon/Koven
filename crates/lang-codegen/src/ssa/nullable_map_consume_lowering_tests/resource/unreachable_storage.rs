@@ -1,5 +1,6 @@
 //! Ordinary return-before-unsupported-storage compatibility, frozen from the old two-entry run.
 
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::TypeRefId,
     name_resolution::{
@@ -506,12 +507,12 @@ fn preserves_verified_dead_tail() {
         });
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "UNREACHABLE NULLABLE MAP {}\n{}",
             observation.label,
             observation.trace.stages.join("\n")
         );
-        println!("input failures={:?}", observation.trace.input_failures);
+        diagnostic!("input failures={:?}", observation.trace.input_failures);
         print_outcome(&observation.outcome);
     }
     assert_eq!(observations.len(), 2);
@@ -541,5 +542,5 @@ fn preserves_verified_dead_tail() {
             .is_ok_and(|observed| matches!(observed.outcome, LowerOutcome::VerifiedLlvm))),
         "both previously verified dead-tail programs must preserve SSA/LLVM success"
     );
-    println!("DEAD-TAIL BASELINE: both actual entries preserve VerifiedLlvm");
+    diagnostic!("DEAD-TAIL BASELINE: both actual entries preserve VerifiedLlvm");
 }

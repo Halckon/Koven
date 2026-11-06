@@ -7,12 +7,13 @@ use super::{
     },
     Case, Observation, ast, query_inputs, query_ssa, unit,
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 fn observe(case: &Case, rooted: bool) -> Observation {
     crate::ssa::with_per_family_lowering(|| {
         let (label, map, hash, text) = (case.label, case.map, case.source_hash, case.text);
         let mut report = Report::default();
-        println!(
+        diagnostic!(
             "SPEC0331 NESTED EXITS IDENTITY INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={hash} text={text:?}"
         );
         let outcome = ast::Input::new(text, map, case.exit).and_then(|input| {
@@ -41,7 +42,7 @@ fn observe(case: &Case, rooted: bool) -> Observation {
                     inputs = Some(queried);
                 },
             )?;
-            println!(
+            diagnostic!(
                 "SPEC0331 NESTED EXITS IDENTITY SSA case={label} rooted={rooted}\n{}",
                 crate::ssa::render::render_program(&program)
             );
@@ -80,7 +81,7 @@ fn observe(case: &Case, rooted: bool) -> Observation {
                 true,
                 llvm.len(),
             );
-            println!("SPEC0331 NESTED EXITS IDENTITY LLVM case={label} rooted={rooted}\n{llvm}");
+            diagnostic!("SPEC0331 NESTED EXITS IDENTITY LLVM case={label} rooted={rooted}\n{llvm}");
             Ok(())
         });
         Observation {
@@ -101,16 +102,18 @@ fn nested_inner_exits_preserve_full_caller_guard_and_edge_identity() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 NESTED EXITS IDENTITY OUTCOME case={} rooted={} report={:#?}",
-            observation.label, observation.rooted, observation.report
+            observation.label,
+            observation.rooted,
+            observation.report
         );
         match &observation.outcome {
-            Ok(()) => println!("stage=LLVM render/verify result=ok"),
-            Err(error) => println!("stage={} original={}", error.stage, error.original),
+            Ok(()) => diagnostic!("stage=LLVM render/verify result=ok"),
+            Err(error) => diagnostic!("stage={} original={}", error.stage, error.original),
         }
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 12
             && observations
                 .iter()

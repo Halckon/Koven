@@ -1,6 +1,7 @@
 //! 两个普通 Resource local 的真实形成/构造/deinit/Drop 来源。
 //! formed 是历史，不能代替当前可用性；不对未观察的 owner/phi/condition/Drop 数量做预言。
 use super::{super::Report, ast::Anchors, unit as unit_facts};
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     name_resolution::{SymbolKind, ValidatedCompilationUnitNames},
     ownership_checking::{CompilationUnitOwnership, UnitDropTarget},
@@ -26,7 +27,7 @@ pub(super) fn unit(
         return;
     };
     let source_unit = source.source_unit();
-    println!(
+    diagnostic!(
         "SPEC0331 NESTED EXITS UNIT TRANSFER expression={:?}",
         UnitExpressionId::new(source_unit, a.transfer)
     );
@@ -100,9 +101,11 @@ pub(super) fn unit(
             (guard.marker, local, &drops, owned.formed_owned_locals()),
         );
         // Unit 不发布 single owner/condition 表；原 drop 与全 plan/cleanup 原样保全。
-        println!(
+        diagnostic!(
             "SPEC0331 NESTED EXITS UNIT GUARD marker={:?} initializer={expression:?} construction_span={:?} deinit_span={:?} drops={drops:#?}",
-            guard.marker, guard.span, guard.deinit_span
+            guard.marker,
+            guard.span,
+            guard.deinit_span
         );
     }
 }

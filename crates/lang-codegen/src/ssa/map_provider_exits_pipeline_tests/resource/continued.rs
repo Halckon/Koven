@@ -1,5 +1,6 @@
 //! Resource continue retains provider/source and lexical owner across every backedge.
 use super::continuation::{Case, sources as continuations};
+use crate::test_support::diagnostics::assert_diagnostic;
 pub(crate) fn sources() -> Vec<Case> {
     let originals = continuations();
     let mut cases = vec![Case {
@@ -81,5 +82,5 @@ fn resource_continue_reaches_both_verified_pipelines() {
         })
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 14);
-    assert!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
+    assert_diagnostic!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
 }

@@ -1,5 +1,6 @@
 //! 两份完整原 enum 源码的普通 Unit 成功合同；全采后才统一断言。
 //! 首证只运行 pipeline exact。native exact 须在双源 SSA/LLVM 真绿后独立准入。
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod discriminant_support;
 mod queries;
 
@@ -335,10 +336,10 @@ fn collect_all(native: bool) {
         .collect::<Vec<_>>();
     // Neither stop point becomes an oracle: both original sources must succeed.
     for observation in &observations {
-        println!("ENUM ORIGINAL UNIT native={native} {observation:#?}");
+        diagnostic!("ENUM ORIGINAL UNIT native={native} {observation:#?}");
     }
     assert_eq!(observations.len(), 2);
-    assert!(
+    assert_diagnostic!(
         observations.iter().all(|row| row.4.is_ok()),
         "both complete original enum sources must succeed: {observations:#?}"
     );

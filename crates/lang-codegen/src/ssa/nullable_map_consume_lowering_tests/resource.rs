@@ -7,6 +7,7 @@ use super::{
     diagnostic_text, diagnostics, gate, origin, parsed, step,
 };
 use crate::ssa::{LoweringError, LoweringErrorKind};
+use crate::test_support::diagnostics::diagnostic;
 use sources::{CASES, Case};
 
 mod contract;
@@ -139,15 +140,16 @@ fn print_outcome(outcome: &Outcome<LowerObservation>) {
     let outcome = match outcome {
         Ok(observation) => &observation.outcome,
         Err(failure) => {
-            println!(
+            diagnostic!(
                 "prerequisite failed stage={}; detail={}",
-                failure.stage, failure.detail,
+                failure.stage,
+                failure.detail,
             );
             return;
         }
     };
     match outcome {
-        LowerOutcome::VerifiedLlvm => println!(
+        LowerOutcome::VerifiedLlvm => diagnostic!(
             "observed outcome=VerifiedLlvm; per-source compatibility verdict still pending review"
         ),
         LowerOutcome::LowerRejected { error, origin, .. } => {
@@ -156,15 +158,15 @@ fn print_outcome(outcome: &Outcome<LowerObservation>) {
             } else {
                 "unresolved lowering error (including MissingFact/InvalidModel)"
             };
-            println!(
+            diagnostic!(
                 "observed outcome=LowerRejected; category={category}; error={error:#?}; origin={origin:?}"
             );
         }
-        LowerOutcome::VerifierRejected { detail } => println!(
+        LowerOutcome::VerifierRejected { detail } => diagnostic!(
             "observed outcome=VerifierRejected; unresolved verifier defect; detail={detail}"
         ),
         LowerOutcome::LlvmRejected { detail } => {
-            println!("observed outcome=LlvmRejected; unresolved LLVM defect; detail={detail}")
+            diagnostic!("observed outcome=LlvmRejected; unresolved LLVM defect; detail={detail}")
         }
     }
 }
@@ -187,12 +189,12 @@ fn collect_observations(strong_contract: bool) -> Vec<Observation> {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "RESOURCE BASELINE {}\n{}",
             observation.label,
             observation.trace.stages.join("\n")
         );
-        println!("input failures={:?}", observation.trace.input_failures);
+        diagnostic!("input failures={:?}", observation.trace.input_failures);
         print_outcome(&observation.outcome);
     }
     // No per-source behavior assertion precedes collection of all eight ordinary entries.
@@ -209,7 +211,7 @@ fn collect_observations(strong_contract: bool) -> Vec<Observation> {
 #[test]
 fn nullable_map_resource_sources_collect_baseline_outcomes() {
     let _ = collect_observations(false);
-    println!(
+    diagnostic!(
         "COLLECTION ONLY: FE/ownership/input gates passed; eight lower outcomes recorded. \
          No per-source success or rejection contract has been accepted by this collector."
     );
@@ -285,7 +287,7 @@ fn nullable_map_resource_sources_preserve_compatibility() {
                     && !observed.entry.span.is_empty()
                     && matches!(&observed.outcome, LowerOutcome::VerifiedLlvm)
             });
-        println!(
+        diagnostic!(
             "RESOURCE COMPATIBILITY {}: matched={matched}",
             expected.label
         );

@@ -3,6 +3,7 @@ use super::{
     super::Report,
     ast::{Anchors, Input},
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{
@@ -71,7 +72,7 @@ pub(super) fn observe(
     owned: &CompilationUnitOwnership,
     report: &mut Report,
 ) {
-    println!(
+    diagnostic!(
         "SPEC0331 CONDITIONAL UNIT REAL maps={:#?} drops={:#?} contracts={:#?} loans={:#?} deliveries={:#?}",
         owned.map_iterations(),
         owned.drops(),
@@ -262,7 +263,7 @@ pub(super) fn observe(
             && local.is_some_and(|id| typed.symbol_type(id) == Some(c.result_type()))
             && typed.is_resource_type(c.result_type()) == Some(true)
             && matches!(c.target(), UnitConstructionTarget::Nominal(id) if names.names().index().declarations().iter().any(|d| d.id() == id && d.source_unit() == unit && d.name_span() == a.guard_name))), (a.local, f.expression(a.guard), construction));
-    println!(
+    diagnostic!(
         "SPEC0331 CONDITIONAL UNIT GUARD binding={local:?} binding_origin={:?} construction={:#?} drops={:#?}",
         a.local,
         f.expression(a.guard),
@@ -408,7 +409,7 @@ pub(super) fn observe(
         } else { deliveries.is_empty() }, deliveries);
     }
     for exit in p.exits() {
-        println!(
+        diagnostic!(
             "SPEC0331 CONDITIONAL UNIT EXIT actual={exit:#?} complete={:#?}",
             owned.iteration_cleanup_at(exit.point())
         );

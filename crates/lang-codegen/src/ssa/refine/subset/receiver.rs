@@ -43,6 +43,7 @@ impl Checker<'_, '_> {
                 .filter(|receiver| receiver.owner == declaration)
                 .and_then(|_| self.receiver_serves(mode)),
             Owner::Expression(expression) => {
+                let expression = self.ungrouped(expression);
                 let node = self
                     .inputs
                     .parsed
@@ -333,9 +334,15 @@ impl Checker<'_, '_> {
             UnitCallReceiverOrigin::ImplicitThis(declaration) => Owner::This(declaration),
         };
         let ok = self.owner_type(owner, receiver.mode()) == Some(receiver_ty);
-        if self.box_enum_type(receiver_ty)
+        if receiver.mode() == ParameterMode::Inout
+            || self.box_enum_type(receiver_ty)
             || self.move_value_class(receiver_ty)
             || self.object_type(receiver_ty)
+            || self
+                .inputs
+                .source_plan
+                .call_site(self.inputs.source_token, id)
+                .is_some_and(|site| !site.delegation().is_empty())
             || (matches!(fact.target(), UnitReceiverOwnershipTarget::This(_))
                 && self
                     .inputs

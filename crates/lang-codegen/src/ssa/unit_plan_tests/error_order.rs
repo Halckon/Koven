@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_eq_diagnostic;
 
 #[test]
 fn keeps_delegation_owner_field_error_before_endpoint_recipe_failure() {
@@ -509,7 +510,7 @@ fn selects_stable_recipe_root_across_limit_hit_siblings() {
     for result in results {
         let error = result
             .expect_err("normal and limited planning must select the same stable recipe root");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{error:?}");
+        assert_eq_diagnostic!(error.kind, LoweringErrorKind::UnsupportedNode, "{error:?}");
         assert_eq!(error.span, Some(a_witness));
         assert_ne!(error.span, Some(z_witness));
     }

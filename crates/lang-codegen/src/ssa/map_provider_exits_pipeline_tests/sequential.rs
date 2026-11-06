@@ -1,4 +1,5 @@
 //! Ordinary Borrow parameter reuse across complete, sequential provider lifetimes.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod identity;
 use super::{
     Report,
@@ -200,14 +201,14 @@ fn sequential_borrowed_maps_keep_current_roots_and_cleanup_in_both_entries() {
         for unit in [false, true] {
             let mut report = Report::default();
             let outcome = observe(&case, unit, &mut report);
-            println!(
+            diagnostic!(
                 "SEQUENTIAL case={} rooted={unit} outcome={outcome:?} report={report:#?}",
                 case.label
             );
             results.push((case.label.clone(), unit, report.passed() && outcome.is_ok()));
         }
     }
-    assert!(
+    assert_diagnostic!(
         results.len() == 20 && results.iter().all(|r| r.2),
         "{results:#?}"
     );

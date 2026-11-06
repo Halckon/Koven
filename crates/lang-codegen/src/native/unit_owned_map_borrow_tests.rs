@@ -2,9 +2,10 @@
 use super::resource_exchange_tests::run_unit;
 use crate::native_owned_map_borrow_cases as cases;
 use crate::native_tests::{boxed_enum_tests::assert_success, emit_link_and_run};
+use crate::test_support::diagnostics::diagnostic;
 
 fn run(source: &str, expected: &[u8], unit: bool) {
-    eprintln!("owned-map-borrow native unit={unit}; source={source}");
+    diagnostic!("owned-map-borrow native unit={unit}; source={source}");
     if unit {
         let (provider, entry) = source.split_once("fun entry()").unwrap();
         let provider = format!("package p\n{provider}");

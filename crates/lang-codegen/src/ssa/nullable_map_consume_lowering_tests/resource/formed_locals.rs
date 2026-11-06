@@ -2,6 +2,7 @@
 //! All eighteen entries are collected before input/completeness or compatibility assertions.
 
 use super::{LowerOutcome, Observation, Trace, print_outcome};
+use crate::test_support::diagnostics::diagnostic;
 
 mod inputs;
 mod query;
@@ -51,14 +52,14 @@ fn collect(with_formed_queries: bool) -> Vec<Observation> {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "FORMATION BASELINE {}\n{}",
             observation.label,
             observation.trace.stages.join("\n")
         );
-        println!("input failures={:?}", observation.trace.input_failures);
+        diagnostic!("input failures={:?}", observation.trace.input_failures);
         if let Ok(observed) = &observation.outcome {
-            println!("actual selected entry={:#?}", observed.entry);
+            diagnostic!("actual selected entry={:#?}", observed.entry);
         }
         print_outcome(&observation.outcome);
     }
@@ -129,7 +130,7 @@ fn nullable_map_formed_local_sources_collect_baseline_outcomes() {
         ),
         "the previously frozen K1 dead-tail LLVM successes must be preserved"
     );
-    println!(
+    diagnostic!(
         "COLLECTION ONLY: all eighteen ordinary entries attempted lowering; K1 retains two LLVM successes. Other outcomes are observations only; original MemoryDocument facts are checked without freezing other lower outcomes."
     );
 }

@@ -1,5 +1,6 @@
 use super::super::{NativeObjectErrorKind, SymbolKind, TestDirectory, emit_link_and_run};
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 use std::{collections::BTreeMap, fs};
 
 fn snapshot(path: &std::path::Path) -> BTreeMap<String, Vec<u8>> {
@@ -105,9 +106,9 @@ fn resource_and_non_source_owner_replacement_emission_failure_preserves_output()
             let error = analysis
                 .emit(analysis.declaration("entry", SymbolKind::Function), &output)
                 .unwrap_err();
-            assert_eq!(error.kind(), NativeObjectErrorKind::Backend, "{error}");
-            assert_eq!(error.span(), None, "{error}");
-            assert!(error.diagnostic().is_none(), "{error}");
+            assert_eq_diagnostic!(error.kind(), NativeObjectErrorKind::Backend, "{error}");
+            assert_eq_diagnostic!(error.span(), None, "{error}");
+            assert_diagnostic!(error.diagnostic().is_none(), "{error}");
             assert_eq!(guard.calls(), 1, "the real emission hook must be reached");
             assert_eq!(snapshot(&directory.0), before);
         }

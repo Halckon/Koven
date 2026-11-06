@@ -1,5 +1,6 @@
 //! ADR-0034 callable views at the SSA layer (SPEC-0364 step 1): the positive shapes verify
 //! and render, and every escape or lifetime violation is rejected by the verifier itself.
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 use super::{
@@ -292,8 +293,8 @@ fn function_pointer_view_verifies_and_calls_through_a_trampoline() {
     let program = caller_program(Defect::None);
     verify_program(&program).expect("a borrowed function pointer view is valid");
     let llvm = crate::llvm::render_verified_program(&program).expect("view lowers to LLVM");
-    assert!(llvm.contains("koven.callable_view.trampoline"), "{llvm}");
-    assert!(!llvm.contains("@malloc"), "views never allocate: {llvm}");
+    assert_diagnostic!(llvm.contains("koven.callable_view.trampoline"), "{llvm}");
+    assert_diagnostic!(!llvm.contains("@malloc"), "views never allocate: {llvm}");
 }
 
 #[test]
@@ -641,6 +642,6 @@ fn closure_view_passes_thunk_and_borrowed_environment() {
     let program = closure_caller_program();
     verify_program(&program).expect("a borrowed concrete closure view is valid");
     let llvm = crate::llvm::render_verified_program(&program).expect("view lowers to LLVM");
-    assert!(!llvm.contains("koven.callable_view.trampoline"), "{llvm}");
-    assert!(!llvm.contains("@malloc"), "views never allocate: {llvm}");
+    assert_diagnostic!(!llvm.contains("koven.callable_view.trampoline"), "{llvm}");
+    assert_diagnostic!(!llvm.contains("@malloc"), "views never allocate: {llvm}");
 }

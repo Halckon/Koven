@@ -2,6 +2,7 @@
 //! Every fixture is a new whole source. No nullable, constant, range, or fault path is selected.
 
 use super::{OwnedProducts, UnitSource};
+use crate::test_support::diagnostics::assert_diagnostic;
 use crate::{
     native_tests::emit_link_and_run,
     ssa::{
@@ -885,8 +886,8 @@ fn ordinary_direct_prefix_cancellations_and_commits_link_run_with_exact_stdout()
     // Preflight all twelve exact sources before any object/link/run, including on old production.
     for (fixture, _) in prepared_matrix() {
         let output = emit_link_and_run(&fixture.name, &fixture.text, "entry");
-        assert!(output.status.success(), "{}: {output:?}", fixture.name);
-        assert!(output.stderr.is_empty(), "{}: {output:?}", fixture.name);
+        assert_diagnostic!(output.status.success(), "{}: {output:?}", fixture.name);
+        assert_diagnostic!(output.stderr.is_empty(), "{}: {output:?}", fixture.name);
         assert_eq!(
             output.stdout,
             expected_stdout(fixture.prefix, fixture.exit).as_bytes(),

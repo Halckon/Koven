@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::diagnostic;
 #[path = "native_sequential_for_tests/atomic_tests.rs"]
 mod atomic_tests;
 #[path = "native_sequential_for_tests/cleanup_tests.rs"]
@@ -241,7 +242,7 @@ fn run_temporary_source_boundaries(
                 }}
             "#
         );
-        eprintln!("{source_name}:\n{source}");
+        diagnostic!("{source_name}:\n{source}");
         let run = emit_link_and_run(&source_name, &source, "main");
         assert!(run.status.success(), "{source_name}: {run:?}");
         assert_eq!(run.stdout, expected, "{source_name}: {run:?}");

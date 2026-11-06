@@ -1,4 +1,5 @@
 //! Complete actual provider plus the original conditional update and later source delivery.
+use crate::test_support::diagnostics::diagnostic;
 mod conditional;
 mod provider;
 use super::super::super::{
@@ -25,9 +26,10 @@ pub(super) fn check(
     let module = one(program.modules.iter(), "update For actual module")?;
     let scan = function(module, i.scan)?;
     let g = Graph::new(scan)?;
-    println!(
+    diagnostic!(
         "SCOPE C UPDATE PROVIDER SSA label={} function={scan:#?} edges={:#?}",
-        c.label, g.edges
+        c.label,
+        g.edges
     );
     let mut uses = Uses::default();
     let mut calls = Vec::new();

@@ -1,9 +1,13 @@
 //! Ordinary nullable-proof acceptance candidates. Initial negative controls pin stage;
 //! their complete diagnostic identities are tightened after first real observation.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic, expect};
 #[path = "borrowed_proof_cases.rs"]
 pub(in crate::ssa) mod borrowed_proof_cases;
 #[path = "if_cleanup_observation.rs"]
 mod if_cleanup_observation;
+#[path = "rejection_diagnostics.rs"]
+mod rejection_diagnostics;
+use rejection_diagnostics::assert_rejection;
 
 use super::super::{
     integer_range_value_tests::{
@@ -27,10 +31,10 @@ fn observe(group: &str, cases: &[(String, bool)]) {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                println!("PROOF LLVM group={group} case={index} {llvm}");
+                diagnostic!("PROOF LLVM group={group} case={index} {llvm}");
                 Ok(())
             });
-            println!(
+            diagnostic!(
                 "PROOF OUTCOME group={group} source={} unit={} {result:?}",
                 index / 2,
                 index % 2 == 1
@@ -49,53 +53,9 @@ fn observe(group: &str, cases: &[(String, bool)]) {
     }
     for (index, result) in outcomes.into_iter().enumerate() {
         if !cases[index / 2].1 {
-            result.expect("ordinary nullable while proof reaches verified SSA and LLVM");
-        }
-    }
-}
-
-fn assert_rejection(group: &str, source: &str, unit: bool, error: &str) {
-    let offset = if unit { "package p\n".len() } else { 0 };
-    let primary = |start: usize, length: usize| {
-        format!(
-            "primary_span: Span {{ source_id: SourceId(0), start: {}, end: {} }}",
-            start + offset,
-            start + offset + length
-        )
-    };
-    if group == "pending-child" {
-        assert!(error.starts_with("ownership"), "{error}");
-        assert_eq!(
-            error.matches("Diagnostic { severity:").count(),
-            1,
-            "{error}"
-        );
-        assert_eq!(error.matches("code: L0135,").count(), 1, "{error}");
-        let mutation = source.find("current = null").unwrap();
-        let borrowed = source.find("current.text").unwrap();
-        assert!(
-            error.contains(&primary(mutation, "current".len())),
-            "{error}"
-        );
-        let label = format!(
-            "Label(DiagnosticLabel {{ span: Span {{ source_id: SourceId(0), start: {}, end: {} }}, message: DiagnosticText(\"conflicting loan starts here\") }})",
-            borrowed + offset,
-            borrowed + offset + "current.text".len()
-        );
-        assert!(error.contains(&label), "{error}");
-    } else {
-        assert!(error.starts_with("complete:"), "{error}");
-        let count = if group == "same-root" { 2 } else { 1 };
-        assert_eq!(
-            error.matches("Diagnostic { severity:").count(),
-            count,
-            "{error}"
-        );
-        assert_eq!(error.matches("code: L0165,").count(), count, "{error}");
-        for (start, _) in source.rmatch_indices("current.value").take(count) {
-            assert!(
-                error.contains(&primary(start, "current.value".len())),
-                "{error}"
+            expect(
+                result,
+                "ordinary nullable while proof reaches verified SSA and LLVM",
             );
         }
     }
@@ -227,14 +187,19 @@ fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
     let memory = collect_memory_entry_observations(&direct_proof_sources());
     assert_eq!(memory.len(), 5);
     for (case, result) in memory.into_iter().enumerate() {
-        let source = result.expect("original-layout Unit direct proof reaches SSA and LLVM");
+        let source = expect(
+            result,
+            "original-layout Unit direct proof reaches SSA and LLVM",
+        );
         direct_contract::assert_memory_unit_direct_proof(&source.program, source.entry, case);
-        println!("SHAPE4 MEMORY direct case={case} oracle=ok");
+        diagnostic!("SHAPE4 MEMORY direct case={case} oracle=ok");
     }
     for (index, result) in outcomes.into_iter().enumerate() {
         if index % 2 == 0 {
-            let program =
-                result.expect("single direct nullable while has a real per-iteration proof");
+            let program = expect(
+                result,
+                "single direct nullable while has a real per-iteration proof",
+            );
             direct_contract::assert_direct_proof(&program, index / 2);
         }
     }
@@ -245,7 +210,7 @@ fn unit_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
     let outcomes = direct_proof_observations();
     for (index, result) in outcomes.into_iter().enumerate() {
         if index % 2 == 1 {
-            let program = result.expect("unit direct nullable while reaches verified LLVM");
+            let program = expect(result, "unit direct nullable while reaches verified LLVM");
             direct_contract::assert_unit_direct_proof(&program, index / 2);
         }
     }
@@ -276,7 +241,7 @@ fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>
                 Ok(program)
             });
             let status = result.as_ref().map(|_| ());
-            println!(
+            diagnostic!(
                 "DIRECT PROOF source={} unit={} {status:?}",
                 index / 2,
                 index % 2 == 1
@@ -316,7 +281,7 @@ fn nullable_owner_return_retires_proof_without_rewrapping_storage() {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "OWNER RETURN source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -326,9 +291,10 @@ fn nullable_owner_return_retires_proof_without_rewrapping_storage() {
         })
         .collect::<Vec<_>>();
     for result in outcomes {
-        direct_contract::assert_owner_return(
-            &result.expect("original nullable owner safely returned"),
-        );
+        direct_contract::assert_owner_return(&expect(
+            result,
+            "original nullable owner safely returned",
+        ));
     }
 }
 
@@ -358,7 +324,7 @@ fn readonly_same_root_nested_while_preserves_the_outer_proof() {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "READONLY NESTED source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -368,7 +334,10 @@ fn readonly_same_root_nested_while_preserves_the_outer_proof() {
         })
         .collect::<Vec<_>>();
     for (index, result) in outcomes.into_iter().enumerate() {
-        let program = result.expect("read-only inner while preserves the inherited proof");
+        let program = expect(
+            result,
+            "read-only inner while preserves the inherited proof",
+        );
         readonly_nested_contract::assert_inherited_proof(
             &program,
             &sources[index / 2],
@@ -411,7 +380,7 @@ fn written_same_root_nested_while_retires_outer_and_rebirths_inner_proof() {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "WRITTEN NESTED source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -421,8 +390,10 @@ fn written_same_root_nested_while_retires_outer_and_rebirths_inner_proof() {
         })
         .collect::<Vec<_>>();
     for (index, result) in outcomes.into_iter().enumerate() {
-        let program =
-            result.expect("head-killed inner guard safely retires then rebinds its proof");
+        let program = expect(
+            result,
+            "head-killed inner guard safely retires then rebinds its proof",
+        );
         written_nested_contract::assert_reborn_proof(&program, &sources[index / 2], index % 2 == 1);
     }
 }
@@ -482,14 +453,14 @@ fn distinct_root_nested_while_retires_only_the_inner_scope() {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                println!("DISTINCT LLVM case={index} {llvm}");
-                println!(
+                diagnostic!("DISTINCT LLVM case={index} {llvm}");
+                diagnostic!(
                     "DISTINCT SSA case={index} {}",
                     crate::ssa::render::render_program(&program)
                 );
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "DISTINCT OUTCOME source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -499,7 +470,7 @@ fn distinct_root_nested_while_retires_only_the_inner_scope() {
         })
         .collect::<Vec<_>>();
     for (index, result) in outcomes.into_iter().enumerate() {
-        let program = result.expect("independent nested scopes preserve the outer proof");
+        let program = expect(result, "independent nested scopes preserve the outer proof");
         distinct_nested_contract::assert_distinct_scopes(
             &program,
             &sources[index / 2],
@@ -542,7 +513,7 @@ return number + 1
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "ASSIGNMENT OUTCOME source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -555,7 +526,10 @@ return number + 1
     // The integer statement producer now closes the historical Unit boundary.
     // Keep all original phase observations before success and identity assertions.
     for (index, result) in outcomes.into_iter().enumerate() {
-        let program = result.expect("owned assignment delivery and Copyable controls reach LLVM");
+        let program = expect(
+            result,
+            "owned assignment delivery and Copyable controls reach LLVM",
+        );
         if index / 2 == 5 {
             assignment_contract::assert_compound(&program, &sources[index / 2], index % 2 == 1);
         }
@@ -604,7 +578,7 @@ println(outer.text)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "OWNED FIELD source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -615,9 +589,10 @@ println(outer.text)
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 6);
     for result in outcomes {
-        owned_field_contract::assert_field_loan(
-            &result.expect("ordinary local field loan reaches LLVM"),
-        );
+        owned_field_contract::assert_field_loan(&expect(
+            result,
+            "ordinary local field loan reaches LLVM",
+        ));
     }
 }
 
@@ -640,7 +615,7 @@ fn owned_local_field_borrow_distinguishes_siblings_from_unclosed_projections() {
         .enumerate()
         .map(|(index, result)| {
             let status = result.as_ref().map(|_| ());
-            println!(
+            diagnostic!(
                 "OWNED FIELD BOUNDARY source={} unit={} {status:?}",
                 index / 2,
                 index % 2 == 1
@@ -651,14 +626,17 @@ fn owned_local_field_borrow_distinguishes_siblings_from_unclosed_projections() {
     assert_eq!(outcomes.len(), 12);
     for (index, result) in outcomes.into_iter().enumerate() {
         if index / 2 >= 4 {
-            let program = result.expect("direct sibling fields may coexist with replacement");
-            verify_program(&program).expect("sibling field ownership verifies");
-            crate::llvm::render_verified_program(&program).expect("sibling field LLVM verifies");
+            let program = expect(result, "direct sibling fields may coexist with replacement");
+            expect(verify_program(&program), "sibling field ownership verifies");
+            expect(
+                crate::llvm::render_verified_program(&program),
+                "sibling field LLVM verifies",
+            );
         } else {
             let error = result
                 .err()
                 .expect("nested/generic/inline/parameter boundaries remain rejected");
-            assert!(
+            assert_diagnostic!(
                 error.starts_with("lower: LoweringError { kind: UnsupportedNode,"),
                 "{error}"
             );
@@ -698,7 +676,7 @@ fun entry(own initial: Holder?): Unit {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "NULLABLE FIELD CHILD source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -710,7 +688,10 @@ fun entry(own initial: Holder?): Unit {
     assert_eq!(outcomes.len(), 6);
     for (index, result) in outcomes.into_iter().enumerate() {
         nullable_field_contract::assert_field_child(
-            &result.expect("ordinary nullable field child reaches verified SSA and LLVM"),
+            &expect(
+                result,
+                "ordinary nullable field child reaches verified SSA and LLVM",
+            ),
             index / 2 == 0,
         );
     }
@@ -781,7 +762,7 @@ fun entry(own initial: Holder?): Int {
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "VALUE ARG FRAME source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -802,7 +783,10 @@ fun entry(own initial: Holder?): Int {
     // full success contract, including identities and cleanup before the real call.
     for (index, outcome) in outcomes.into_iter().enumerate() {
         value_argument_contract::assert_value_argument(
-            &outcome.expect("ordinary nullable field value argument reaches verified LLVM"),
+            &expect(
+                outcome,
+                "ordinary nullable field value argument reaches verified LLVM",
+            ),
             &sources[index / 2],
             index % 2 == 1,
             index / 2 == 1,
@@ -849,14 +833,14 @@ fn pending_nullable_field_child_preserves_readonly_call_prefix() {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                println!("PENDING CHILD LLVM case={index} {llvm}");
-                println!(
+                diagnostic!("PENDING CHILD LLVM case={index} {llvm}");
+                diagnostic!(
                     "PENDING CHILD SSA case={index} {}",
                     crate::ssa::render::render_program(&program)
                 );
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "PENDING CHILD OUTCOME source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -869,7 +853,10 @@ fn pending_nullable_field_child_preserves_readonly_call_prefix() {
     assert_eq!(outcomes.len(), 4);
     for (index, result) in outcomes.into_iter().enumerate() {
         pending_child_contract::assert_pending_child(
-            &result.expect("pending child survives readonly argument control flow"),
+            &expect(
+                result,
+                "pending child survives readonly argument control flow",
+            ),
             &sources[index / 2],
             index % 2 == 1,
         );
@@ -892,17 +879,17 @@ fn nullable_if_retest_after_conditional_replacement_reaches_llvm() {
         .enumerate()
         .map(|(index, result)| {
             let result = result.and_then(|program| {
-                println!(
+                diagnostic!(
                     "IF RETEST SSA case={index} {}",
                     crate::ssa::render::render_program(&program)
                 );
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                println!("IF RETEST LLVM case={index} {llvm}");
+                diagnostic!("IF RETEST LLVM case={index} {llvm}");
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "IF RETEST OUTCOME source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -915,7 +902,10 @@ fn nullable_if_retest_after_conditional_replacement_reaches_llvm() {
     assert_eq!(outcomes.len(), 4);
     for (index, result) in outcomes.into_iter().enumerate() {
         if_retest_contract::assert_retest(
-            &result.expect("conditional replacement permits a fresh nullable if proof"),
+            &expect(
+                result,
+                "conditional replacement permits a fresh nullable if proof",
+            ),
             &sources[index / 2],
             index % 2 == 1,
         );
@@ -945,10 +935,10 @@ fn numeric_for_preserves_the_outer_nullable_while_proof() {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                println!("NUMERIC PROOF LLVM case={index} {llvm}");
+                diagnostic!("NUMERIC PROOF LLVM case={index} {llvm}");
                 Ok(program)
             });
-            println!(
+            diagnostic!(
                 "NUMERIC PROOF OUTCOME source={} unit={} {:?}",
                 index / 2,
                 index % 2 == 1,
@@ -959,15 +949,21 @@ fn numeric_for_preserves_the_outer_nullable_while_proof() {
         .collect::<Vec<_>>();
     assert_eq!(memory.len(), 2);
     for (case, result) in memory.into_iter().enumerate() {
-        let source = result.expect("original-layout Unit numeric proof reaches SSA and LLVM");
+        let source = expect(
+            result,
+            "original-layout Unit numeric proof reaches SSA and LLVM",
+        );
         numeric_proof_contract::assert_memory_unit_numeric_proof(&source.program, &sources[case]);
-        println!("SHAPE4 MEMORY numeric case={case} oracle=ok");
+        diagnostic!("SHAPE4 MEMORY numeric case={case} oracle=ok");
     }
     // Collect every original/Group single/unit verify/render result before identities.
     assert_eq!(outcomes.len(), 4);
     for (index, result) in outcomes.into_iter().enumerate() {
         numeric_proof_contract::assert_numeric_proof(
-            &result.expect("numeric for preserves the existing nullable while proof"),
+            &expect(
+                result,
+                "numeric for preserves the existing nullable while proof",
+            ),
             &sources[index / 2],
             index % 2 == 1,
         );

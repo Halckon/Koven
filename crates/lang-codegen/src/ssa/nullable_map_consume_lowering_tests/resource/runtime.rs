@@ -2,6 +2,7 @@
 //! Never select any part of this mixed whole for local execution. No ignore/environment skip.
 //! The original sources and their empty deinit bodies remain byte-for-byte unchanged.
 
+use crate::test_support::diagnostics::assert_diagnostic;
 use std::{fs, os::unix::process::ExitStatusExt, path::Path, process::Command};
 
 use inkwell::{
@@ -199,7 +200,7 @@ fn run_source(
             &mut trace,
         )
     };
-    assert!(
+    assert_diagnostic!(
         matches!(outcome, Ok(ref result) if matches!(result.outcome, LowerOutcome::VerifiedLlvm)),
         "{label}: {outcome:#?}; {trace:#?}"
     );

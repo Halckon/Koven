@@ -1,4 +1,5 @@
 use super::emit_link_and_run;
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 
 #[test]
 fn resource_deinit_native_scope_body_and_reverse_fields() {
@@ -19,7 +20,7 @@ fun main(): Unit {
 "#,
         "main",
     );
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(
         output.stdout,
         "body 完成\nparent alive\nsecond\nfirst\nearlier\n".as_bytes()
@@ -55,7 +56,7 @@ fun main(): Unit {{
 "#
     );
     let output = emit_link_and_run("resource-transfer.ko", &source, "main");
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, b"before\nconsume\nreturned\ninspect\ntemporary\nreturn\ninner\nouter\nfallthrough\nouter\ndone\n");
 }
 
@@ -77,7 +78,7 @@ fun main(): Unit {{
 "#
     );
     let output = emit_link_and_run("resource-loop.ko", &source, "main");
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(
         output.stdout,
         b"continue\ninner\nbreak\ninner\nafter loop\nouter\n"
@@ -92,7 +93,7 @@ class Returning(val child: Leaf) { deinit() { println("body"); return } }
 fun main(): Unit { val resource = Returning(Leaf()); println("scope") }
 "#;
     let output = emit_link_and_run("resource-return.ko", source, "main");
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, b"scope\nbody\nfield\n");
     let source = r#"
 class Leaf { deinit() { println("field must not run") } }
@@ -101,7 +102,7 @@ fun main(): Unit { val resource = Aborting(Leaf()); println("scope") }
 "#;
     let output = emit_link_and_run("resource-abort.ko", source, "main");
     use std::os::unix::process::ExitStatusExt;
-    assert_eq!(output.status.signal(), Some(6), "{output:?}");
+    assert_eq_diagnostic!(output.status.signal(), Some(6), "{output:?}");
     assert_eq!(output.stdout, b"scope\nbody abort\n");
 }
 
@@ -126,7 +127,7 @@ fun entry(): Unit {
         .unwrap();
     let ir = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     let output = super::boxed_enum_tests::run_counted_allocations(&ir, 6);
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, b"held\nbundle\nb2\na1\n");
 }
 
@@ -144,7 +145,7 @@ fun main(): Unit {{
 "#
     );
     let output = emit_link_and_run("resource-replace.ko", &source, "main");
-    assert!(output.status.success(), "{output:?}");
+    assert_diagnostic!(output.status.success(), "{output:?}");
     assert_eq!(
         output.stdout,
         b"new rhs\nold\nafter replacement\nsecond\nnew\n"

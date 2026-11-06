@@ -8,7 +8,7 @@ use lang_frontend::{
 
 use super::{
     LoweringError,
-    model::Program,
+    model::{Operation, Program},
     refine::observe_routing,
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
@@ -22,7 +22,9 @@ fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
     let text = format!("package p\n{source}");
     let (id, file) = parsed(&mut sources, "p/main.ko", &text);
     let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
-    let (name_environment, type_environment) = standard_environments();
+    let (name_environment, mut type_environment) = standard_environments();
+    let _ = type_environment.authorize_range_source(&sources, id);
+    let _ = type_environment.authorize_range_extension_source(&sources, id);
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
     let entry = declaration(&names, "p", "f");
     let (result, routed) = observe_routing(|| {
@@ -474,4 +476,400 @@ fn map_for_unrelated_scalar_scope_keeps_legacy_routing() {
         );
         result.expect("original Map-for addition remains supported");
     }
+}
+
+#[test]
+fn enum_construction_for_borrowed_string_when_and_else_views_route_to_refine() {
+    for source in [
+        "enum class Shape { Circle(r: Int), Point }\n\
+         fun f(): Shape = Shape.Circle(2)",
+        "enum class Code { Bad(offset: Int), Other }\n\
+         enum class Reply { Ok(text: String), Err(error: Code) }\n\
+         fun f(own r: Reply): Int = when (r) {\n\
+             is Reply.Ok -> 0\n\
+             is Reply.Err -> {\n\
+                 val c = r.error\n\
+                 when (c) { is Code.Bad -> c.offset; else -> 1 }\n\
+             }\n\
+         }",
+        "fun f(): Int {\n\
+             var total = 0\n\
+             val xs = listOf(\"a\".clone(), \"b\".clone())\n\
+             for (item in xs) {\n\
+                 total = total + when (item) { \"a\" -> 1; else -> 2 }\n\
+             }\n\
+             return total\n\
+         }",
+        "class Node(val v: Int)\n\
+         fun make(): Node? = Node(7)\n\
+         fun f(flag: Boolean, own probe: Node?, own n: Node?): Int {\n\
+             val chosen = (when (flag) { true, false -> if (probe == null) { n } else { make() } })!!\n\
+             return chosen.v\n\
+         }",
+        "fun observe(s: String): Unit { println(s) }\n\
+         fun f(): Unit {\n\
+             var m = mutableMapOf<Int, String>()\n\
+             m.put(1, \"v\".clone())\n\
+             val first = m.remove(1)\n\
+             if ((first == null)) { println(\"none\") } else { observe(first) }\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn deinit_borrow_heap_nullable_if_and_string_field_receiver_route_to_refine() {
+    for source in [
+        "class Inner(val text: String, val code: Int) { deinit() { println(this.text) } }\n\
+         class Outer(val inner: Inner) {\n\
+             deinit() {\n\
+                 if (this.inner.code == 7) {\n\
+                     println(this.inner.text.clone())\n\
+                 }\n\
+             }\n\
+         }\n\
+         fun f(): Int { val o = Outer(Inner(\"leaf\", 7)); return 0 }",
+        "class Node(val text: String)\n\
+         fun inspect(n: Node): Unit { println(n.text) }\n\
+         fun f(own n: Node?): Unit {\n\
+             if (n != null) { inspect(n) }\n\
+         }",
+        "class Node(val text: String)\n\
+         fun inspect(n: Node): Unit { println(n.text) }\n\
+         fun f(own n: Node?): Unit {\n\
+             if (n == null) {} else { inspect(n) }\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn inout_receiver_delegation_object_and_destructuring_route_to_refine() {
+    for source in [
+        "class Counter(var item: Int) {\n\
+             inout fun set(own next: Int): Int {\n\
+                 val ignored: Unit = (this).item = next\n\
+                 return item\n\
+             }\n\
+         }\n\
+         fun f(): Int {\n\
+             var c = Counter(1)\n\
+             return c.set(42)\n\
+         }",
+        "interface Readable { fun read(message: String): Int = 1 }\n\
+         class Reader: Readable { override fun read(message: String): Int = 7 }\n\
+         class Host(val tag: Int, val delegate: Reader): Readable by delegate {}\n\
+         fun f(): Int {\n\
+             val host = Host(0, Reader())\n\
+             return host.read(\"arg\")\n\
+         }",
+        "object Registry { fun ping(): Int = 7 }\n\
+         fun f(): Int = (Registry).ping()",
+        "value class Pair(val a: Int, val b: String)\n\
+         fun f(): Int {\n\
+             val (x, y) = Pair(10, \"ok\")\n\
+             println(y)\n\
+             return x\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn string_clone_value_field_borrow_box_and_when_route_to_refine() {
+    for source in [
+        "value class Tag(val label: String)\n\
+         fun f(t: Tag): String = t.label.clone()",
+        "fun f(): String {\n\
+             val shared = Rc(\"rc\".clone())\n\
+             return shared.value.clone()\n\
+         }",
+        "fun f(): String {\n\
+             val xs = listOf(\"head\".clone(), \"tail\".clone())\n\
+             return xs[1].clone()\n\
+         }",
+        "value class Packet(val label: String)\n\
+         fun inspect(p: Packet): Int {\n\
+             println(p.label)\n\
+             return 7\n\
+         }\n\
+         fun f(): Int = inspect(Packet(\"msg\".clone()))",
+        "enum class Node { Empty, Step(next: Box<Node>) }\n\
+         fun f(): Node = Node.Step(Box(Node.Empty))",
+        "fun f(x: Int): Int = when (x) {\n\
+             1 -> 10\n\
+             2, 3 -> 20\n\
+             else -> 30\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn numeric_for_runtime_container_and_map_diverging_keys_route_to_refine() {
+    for source in [
+        "fun f(r: IntRange): Int {\n\
+             var sum = 0\n\
+             for (i in r) { sum = sum + i }\n\
+             return sum\n\
+         }",
+        "fun f(): Int {\n\
+             val unused = Array<Int>(error(\"size\"), { index -> index })\n\
+             return 0\n\
+         }",
+        "fun f(): Int {\n\
+             val unused = List<Int>(1, error(\"initializer\"))\n\
+             return 0\n\
+         }",
+        "fun f(): Int {\n\
+             val scale = 7\n\
+             return 0\n\
+             val unused = Array<Int>(1, { index -> index + scale })\n\
+         }",
+        "fun f(): Unit {\n\
+             var m = mutableMapOf<Int, Int>()\n\
+             m.get(return)\n\
+         }",
+        "fun f(flag: Boolean): Unit {\n\
+             var m = mutableMapOf<Int, Int>()\n\
+             m.put(if (flag) { return } else { return }, 8)\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn known_function_unit_container_and_nested_value_projection_route_to_refine() {
+    for source in [
+        "fun step(index: Int): Int = index + 1\n\
+         fun apply(cb: (Int) -> Int): Int = cb(41)\n\
+         fun f(): Int = apply(step)",
+        "fun step(index: Int): Int = index + 2\n\
+         fun f(): Int {\n\
+             val xs = Array<Int>(2, step)\n\
+             return xs[1]\n\
+         }",
+        "fun touch(index: Int): Unit {}\n\
+         fun f(): Int {\n\
+             val xs = Array<Unit>(2, touch)\n\
+             return xs.size\n\
+         }",
+        "value class Inner(val code: Int)\n\
+         value class Outer(val inner: Inner)\n\
+         fun f(o: Outer): Int = o.inner.code",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn mixed_temporary_container_and_map_with_closures_route_to_refine() {
+    for source in [
+        "fun f(): Int {\n\
+             val xs = listOf(10, 20)\n\
+             val sz = listOf(1, 2, 3).size\n\
+             return xs[0] + sz\n\
+         }",
+        "fun f(): Int {\n\
+             val v = mutableMapOf<Int, Int>().get(0)\n\
+             return if (v == null) { 0 } else { v }\n\
+         }",
+        "fun f(): Int {\n\
+             val factor = 3\n\
+             val calc: (Int) -> Int = { x -> x * factor }\n\
+             val xs = mutableListOf(1, 2)\n\
+             xs[0] = calc(4)\n\
+             return xs[0]\n\
+         }",
+        "fun f(): Unit {\n\
+             var m = mutableMapOf<String, Int>()\n\
+             for (w in arrayOf(\"a\", \"b\", \"a\")) {\n\
+                 if (w == \"b\") { continue }\n\
+                 val prev = m.get(w)\n\
+                 m.put(w.clone(), if (prev == null) { 1 } else { prev + 1 })\n\
+             }\n\
+         }",
+        "fun f(): Unit {\n\
+             var xs = mutableListOf<String>()\n\
+             for (a in arrayOf(\"x\", \"y\")) { xs.add(a.clone()) }\n\
+             for (s in xs) { println(s) }\n\
+         }",
+        "fun f(): Int {\n\
+             var m = mutableMapOf<String, Int>()\n\
+             for (w in arrayOf(\"x\", \"y\")) {\n\
+                 val prev = m.get(w)\n\
+                 m.put(w.clone(), if (prev == null) { 1 } else { prev + 1 })\n\
+             }\n\
+             var best = 0\n\
+             for ((k, v) in m) { if (v > best) { best = v } }\n\
+             return best\n\
+         }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        res.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}
+
+#[test]
+fn container_append_admission_does_not_perturb_or_miscompile_sibling_functions() {
+    let unrelated_append =
+        "fun unrelated_append(): Unit {\n    var xs = mutableListOf<Int>()\n    xs.add(99)\n}\n";
+    let cases = [
+        // 1. while loop
+        "fun f(n: Int): Int {\n    var i = 0\n    var sum = 0\n    while (i < n) {\n        sum = sum + i\n        i = i + 1\n    }\n    return sum\n}",
+        // 2. sequential iteration
+        "fun f(xs: List<Int>): Int {\n    var sum = 0\n    for (x in xs) {\n        sum = sum + x\n    }\n    return sum\n}",
+        // 3. borrow-return
+        "fun f(source: String): borrow String from source = source",
+        // 4. carrier-return
+        "fun f(xs: List<Int>): View<Int> from xs = rangeView(xs, 0, 1)",
+        // 5. Map remove
+        "fun f(inout m: MutableMap<Int, Int>): Int? = m.remove(1)",
+    ];
+    for source in cases {
+        let (res_without, _) = route(source);
+        let with_source = format!("{unrelated_append}{source}");
+        let (res_with, _) = route(&with_source);
+        match (res_without, res_with) {
+            (Ok(prog_without), Ok(prog_with)) => {
+                crate::ssa::verify::verify_program(&prog_without)
+                    .expect("without-append program must verify");
+                crate::ssa::verify::verify_program(&prog_with)
+                    .expect("with-append program must verify");
+
+                let f_without = prog_without.modules[0]
+                    .functions
+                    .iter()
+                    .find(|func| func.name.starts_with("koven.p.f."))
+                    .expect("f found");
+                let f_with = prog_with.modules[0]
+                    .functions
+                    .iter()
+                    .find(|func| func.name.starts_with("koven.p.f."))
+                    .expect("f found with sibling");
+                assert_eq!(
+                    f_without.blocks[0].parameters.len(),
+                    f_with.blocks[0].parameters.len()
+                );
+                let kind_without = prog_without.modules[0].type_kind(f_without.return_types[0]);
+                let kind_with = prog_with.modules[0].type_kind(f_with.return_types[0]);
+                assert_eq!(format!("{kind_without:?}"), format!("{kind_with:?}"));
+                let drops_without = f_without
+                    .instructions
+                    .iter()
+                    .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+                    .count();
+                let drops_with = f_with
+                    .instructions
+                    .iter()
+                    .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+                    .count();
+                assert_eq!(drops_without, drops_with, "drop counts must match");
+            }
+            (Err(err_without), Err(err_with)) => {
+                assert_eq!(err_without.kind, err_with.kind, "rejection kind must match");
+            }
+            (Ok(_), Err(err)) => {
+                panic!("perturbation detected: without succeeded, but with failed: {err:?}");
+            }
+            (Err(err), Ok(_)) => {
+                panic!("perturbation detected: without failed ({err:?}), but with succeeded");
+            }
+        }
+    }
+}
+
+#[test]
+fn temporary_container_size_and_map_get_single_eval_and_drop_points() {
+    let list_size_source = "fun f(): Int {\n\
+        val sz = listOf(\"alpha\".clone(), \"beta\".clone()).size\n\
+        return sz\n\
+    }";
+    let (res_list, routed_list) = route(list_size_source);
+    assert!(routed_list, "temporary list size routes to refine");
+    let prog_list = res_list.expect("temporary list size lowers");
+    crate::ssa::verify::verify_program(&prog_list).expect("program verifies");
+    let func = prog_list.modules[0]
+        .functions
+        .iter()
+        .find(|f| f.name.starts_with("koven.p.f."))
+        .expect("f found");
+    let drop_count = func
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+        .count();
+    assert!(
+        drop_count >= 3,
+        "temporary list and elements must emit drops: got {drop_count}"
+    );
+
+    let map_get_source = "fun f(): Int {\n\
+        val v = mutableMapOf<String, Int>().get(\"k\".clone())\n\
+        return if (v == null) 0 else 1\n\
+    }";
+    let (res_map, routed_map) = route(map_get_source);
+    assert!(routed_map, "temporary map get routes to refine");
+    let prog_map = res_map.expect("temporary map get lowers");
+    crate::ssa::verify::verify_program(&prog_map).expect("program verifies");
+    let map_func = prog_map.modules[0]
+        .functions
+        .iter()
+        .find(|f| f.name.starts_with("koven.p.f."))
+        .expect("f found");
+    let map_drops = map_func
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+        .count();
+    assert!(
+        map_drops >= 2,
+        "temporary map and query key must emit drops: got {map_drops}"
+    );
+}
+
+#[test]
+fn string_borrow_capture_closure_preserves_outer_owner() {
+    let source = "fun f(): Unit {\n\
+        val s = \"hello_world\".clone()\n\
+        val action: () -> Unit = { println(s) }\n\
+        action()\n\
+        println(s)\n\
+    }";
+    let (res, routed) = route(source);
+    assert!(routed, "string borrow capture routes to refine");
+    let prog = res.expect("string borrow capture lowers successfully");
+    crate::ssa::verify::verify_program(&prog).expect("program verifies");
+    let func = prog.modules[0]
+        .functions
+        .iter()
+        .find(|f| f.name.starts_with("koven.p.f."))
+        .expect("f found");
+    let drops = func
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::Drop { .. }))
+        .count();
+    assert!(
+        drops >= 1,
+        "outer string and closure must emit drops: got {drops}"
+    );
 }

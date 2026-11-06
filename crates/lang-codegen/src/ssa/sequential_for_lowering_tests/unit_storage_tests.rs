@@ -9,6 +9,7 @@ use super::cleanup_tests::{loan, transport, value};
 use super::{
     SourceProgram, analyze, analyze_case, defining_instruction, incoming_edges, parameter_slot,
 };
+use crate::test_support::diagnostics::assert_text_eq;
 
 #[test]
 fn nonempty_unit_array_source_lowers_to_verified_ssa() {
@@ -626,11 +627,11 @@ fn unit_container_fresh_frontend_chains_render_identically() {
     );
     let first = analyze_case("unit_mutable_list_determinism.ko", &source, "main");
     let second = analyze_case("unit_mutable_list_determinism.ko", &source, "main");
-    assert_eq!(
+    assert_text_eq!(
         super::super::render::render_program(&first.program),
         super::super::render::render_program(&second.program)
     );
-    assert_eq!(
+    assert_text_eq!(
         crate::llvm::render_verified_program(&first.program).expect("first LLVM"),
         crate::llvm::render_verified_program(&second.program).expect("second LLVM")
     );

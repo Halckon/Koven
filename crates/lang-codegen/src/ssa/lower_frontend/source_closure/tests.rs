@@ -4,6 +4,7 @@ use crate::ssa::{
     lower_frontend::{LoweringErrorKind, orchestrate::lower_scalar_file},
     model::{Operation, Program, SsaTypeKind, TerminatorKind},
 };
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::{
     lexer::lex,
     name_resolution::{NameResolution, resolve_names},
@@ -119,7 +120,7 @@ fn single_runtime_nothing_operand_stops_before_borrow_and_initializer() {
             });
         }
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "Nothing must stop before creating later operand facts: {failures:?}"
     );
@@ -446,7 +447,7 @@ fn single_runtime_generic_helper_preserves_nominal_element_and_three_environment
             });
         }
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "nominal generic helper must preserve each selected callback ABI: {failures:?}"
     );
@@ -478,7 +479,7 @@ fn single_runtime_named_shared_callback_survives_when_sibling_edges() {
             assert_eq!(typed.types().len(), before);
         });
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "every when sibling must transport its own active Shared capture loan: {failures:?}"
     );

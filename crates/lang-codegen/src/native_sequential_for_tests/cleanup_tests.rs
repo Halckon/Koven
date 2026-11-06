@@ -1,5 +1,6 @@
 //! SPEC-0182: native temporary Array<String> cleanup across four exit paths.
 use super::super::{SymbolKind, UnitSource, boxed_enum_tests, emit_link_and_run};
+use crate::test_support::diagnostics::diagnostic;
 
 fn run_cleanup(case: &str, body: &str, expected: &[u8], allocations: usize) {
     let text = format!(
@@ -24,7 +25,7 @@ fn run_cleanup(case: &str, body: &str, expected: &[u8], allocations: usize) {
     "#
     );
     let source_name = format!("temporary_cleanup_{case}.ko");
-    eprintln!("{source_name}:\n{text}");
+    diagnostic!("{source_name}:\n{text}");
     let run = emit_link_and_run(&source_name, &text, "entry");
     boxed_enum_tests::assert_success(&run, expected);
 

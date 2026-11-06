@@ -1,4 +1,5 @@
 //! Actual straight-line controls prove Value delivery/Return rather than absence of Drop.
+use crate::test_support::diagnostics::diagnostic;
 mod provider;
 use super::super::{
     fixture::{Failure, failure, need},
@@ -52,7 +53,7 @@ pub(super) fn check(
 fn control(c: &Case, p: &ParsedFile, i: &Input, m: &Module, caller: bool) -> Result<(), Failure> {
     let f = function(m, if caller { i.entry } else { i.scan })?;
     let g = Graph::new(f)?;
-    println!(
+    diagnostic!(
         "SCOPE D FUTURE SSA label={} caller={caller} function={f:#?}",
         c.label
     );
@@ -422,7 +423,7 @@ fn control(c: &Case, p: &ParsedFile, i: &Input, m: &Module, caller: bool) -> Res
         &map_types.into_iter().collect::<Vec<_>>(),
         &expected,
     )?;
-    println!(
+    diagnostic!(
         "SCOPE D FUTURE CONTROL label={} caller={caller} observes={observe_index} births={births_count} scan_calls={calls} puts={puts} drops={drops} returned={returned}",
         c.label
     );

@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -53,7 +54,7 @@ fn runtime_generator_unit_source_accepts_pointer_and_shared_initializers() {
             }
         }
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "existing synchronous Borrow constructors must reach verified source SSA: {failures:?}"
     );
@@ -121,7 +122,7 @@ fn lowers_cross_file_container_construction_and_owner_transfer_deterministically
         declaration(&reverse_names, "q", "entry"),
     )
     .expect("input permutation preserves container identities");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     let containers = module

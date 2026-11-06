@@ -1,5 +1,6 @@
 //! Raw SSA contracts for synchronous borrowed container initialization.
 
+use crate::test_support::diagnostics::assert_diagnostic;
 mod root_storage_tests;
 mod shared_reference_follow_tests;
 
@@ -316,7 +317,7 @@ fn borrowed_generation_accepts_unit_void_as_one_logical_element() {
 
 fn has_error(fixture: &Fixture, predicate: impl Fn(&super::verify::VerifyError) -> bool) {
     let errors = verify_program(&fixture.program).expect_err("malformed generator must fail");
-    assert!(
+    assert_diagnostic!(
         errors.errors.iter().any(predicate),
         "unexpected errors: {errors:?}"
     );

@@ -3,6 +3,7 @@
 use super::*;
 use crate::llvm::render_verified_program;
 use crate::ssa::verify::{VerifyErrorKind, VerifyLocation};
+use crate::test_support::diagnostics::assert_diagnostic;
 
 struct ReadingFixture {
     fixture: Fixture,
@@ -170,7 +171,7 @@ fn expect_error(
     predicate: impl Fn(&VerifyErrorKind) -> bool,
 ) {
     let errors = verify_program(program).expect_err("invalid reference follow must be rejected");
-    assert!(
+    assert_diagnostic!(
         errors
             .errors
             .iter()
@@ -223,21 +224,21 @@ fn shared_reference_follow_llvm_loads_the_slot_pointer_before_reading_the_captur
         fixture.slot.index()
     );
     let dereference = format!("load i32, ptr %l{}", fixture.target.index());
-    assert!(
+    assert_diagnostic!(
         body.contains("getelementptr"),
         "capture slot must be projected: {body}"
     );
     let pointer_position = body.find(&pointer).expect("slot pointer load");
     let capture_position = body.find(&dereference).expect("target Int load");
-    assert!(
+    assert_diagnostic!(
         pointer_position < capture_position,
         "load the stored pointer before the target: {body}"
     );
-    assert!(
+    assert_diagnostic!(
         body.contains("add i32"),
         "capture and index affect the returned element: {body}"
     );
-    assert!(
+    assert_diagnostic!(
         !body.contains("alloca"),
         "following a reference must not allocate: {body}"
     );

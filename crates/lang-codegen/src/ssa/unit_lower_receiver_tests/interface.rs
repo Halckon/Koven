@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn interface_default_receiver_is_specialized_to_the_concrete_owner() {
@@ -253,7 +254,7 @@ fn super_interface_call_keeps_the_selected_default_and_concrete_receiver() {
         Operation::DirectCall { callee, .. } if callee == child.id()
     )));
     let llvm = render_verified_program(&program).expect("super<I> direct call must lower to LLVM");
-    assert!(!llvm.contains("vtable"), "{llvm}");
+    assert_diagnostic!(!llvm.contains("vtable"), "{llvm}");
 }
 
 #[test]
@@ -527,7 +528,7 @@ fn dependent_inherited_owner_key_does_not_materialize_wrapper_layout() {
         "only Host<Int> is constructed"
     );
     let llvm = render_verified_program(&program).expect("class inherited owner LLVM");
-    assert!(!llvm.contains(&wrapper_ssa_name), "{llvm}");
+    assert_diagnostic!(!llvm.contains(&wrapper_ssa_name), "{llvm}");
 }
 
 #[test]
@@ -601,5 +602,5 @@ fn dependent_inherited_runtime_demand_materializes_exact_wrapper_layout() {
                 if matches!(program.modules[0].types[field.index()], SsaTypeKind::Integer { bits: 32, signed: true }))
     ));
     let llvm = render_verified_program(&program).expect("dependent runtime owner LLVM");
-    assert!(llvm.contains("type { i32 }"), "{llvm}");
+    assert_diagnostic!(llvm.contains("type { i32 }"), "{llvm}");
 }

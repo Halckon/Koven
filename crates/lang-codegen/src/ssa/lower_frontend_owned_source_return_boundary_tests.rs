@@ -1,5 +1,6 @@
 //! Ordinary-source boundaries kept separate from the core acceptance matrix.
 use super::{analyze, lower_scalar_file};
+use crate::test_support::diagnostics::diagnostic;
 
 fn observe(text: &str, supported: bool) {
     let a = analyze(text);
@@ -32,7 +33,7 @@ fn observe(text: &str, supported: bool) {
             .expect("bounded source proof remains unsupported");
         assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
         assert_eq!(a.sources.slice(error.span.unwrap()).unwrap(), "keys");
-        println!("BOUNDARY {text}: {error:?}");
+        diagnostic!("BOUNDARY {text}: {error:?}");
     }
 }
 

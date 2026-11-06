@@ -4,6 +4,7 @@ use super::{
     fixture::{Failure, clean, failure},
     pipeline, source_forms,
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 
 pub(super) fn source(mutable: bool, control: bool) -> String {
@@ -21,7 +22,7 @@ pub(super) fn source(mutable: bool, control: bool) -> String {
 
 fn observe(mutable: bool, rooted: bool, control: bool) -> Result<(), Failure> {
     let text = source(mutable, control);
-    println!(
+    diagnostic!(
         "ARGUMENT CFG INPUT mutable={mutable} rooted={rooted} control={control} source={text:?}"
     );
     let mut sources = SourceMap::new();
@@ -43,7 +44,7 @@ fn observe(mutable: bool, rooted: bool, control: bool) -> Result<(), Failure> {
             |n, t, o, r| source_forms::facts::unit(&sources, &parsed, n, t, o, r),
         )
     });
-    println!(
+    diagnostic!(
         "ARGUMENT CFG LOWER mutable={mutable} rooted={rooted} control={control} report={report:#?} outcome={:?}",
         lowered.as_ref().map(|(_, entry)| entry)
     );
@@ -72,14 +73,14 @@ fn check(control: bool) {
     for mutable in [false, true] {
         for rooted in [false, true] {
             let result = observe(mutable, rooted, control);
-            println!(
+            diagnostic!(
                 "ARGUMENT CFG CASE mutable={mutable} rooted={rooted} control={control} result={result:?}"
             );
             outcomes.push(result);
         }
     }
     assert_eq!(outcomes.len(), 4);
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }
 
 #[test]

@@ -1,4 +1,5 @@
 //! Original D6 positive observations with same-analysis owner and actual provider proofs.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod facts;
 pub(super) mod graph;
@@ -45,9 +46,11 @@ pub(crate) fn cases() -> [Case; 6] {
     ]
 }
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "SCOPE D FUTURE INPUT label={} rooted={unit} source={:?} golden={:?}",
-        c.label, c.source, c.golden
+        c.label,
+        c.source,
+        c.golden
     );
     let mut sources = SourceMap::new();
     let source = sources
@@ -58,7 +61,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     let p = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse", p.diagnostics())?;
     let i = ast::input(c, &sources, &p)?;
-    println!(
+    diagnostic!(
         "SCOPE D FUTURE AST label={} rooted={unit} input={i:#?}",
         c.label
     );
@@ -81,7 +84,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
             proof = result.ok();
         },
     );
-    println!(
+    diagnostic!(
         "SCOPE D FUTURE LOWER label={} rooted={unit} observed={observed} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, entry)| entry)
@@ -106,7 +109,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
             .map(|_| ())
             .map_err(|e| failure("LLVM", e)),
     );
-    println!(
+    diagnostic!(
         "SCOPE D FUTURE FINAL label={} rooted={unit} report={report:#?}",
         c.label
     );
@@ -122,7 +125,7 @@ fn original_future_owner_handoffs_report_real_facts() {
     for c in cases() {
         for unit in [false, true] {
             let result = observe(&c, unit);
-            println!(
+            diagnostic!(
                 "SCOPE D FUTURE CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
@@ -130,5 +133,5 @@ fn original_future_owner_handoffs_report_real_facts() {
         }
     }
     assert_eq!(outcomes.len(), 12);
-    assert!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
 }
