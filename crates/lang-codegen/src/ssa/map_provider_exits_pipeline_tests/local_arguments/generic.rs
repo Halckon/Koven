@@ -1,4 +1,5 @@
 //! Concrete Map return with an unused generic parameter exercises the ordinary generic ABI.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 use super::temporary_arguments::{ast, facts};
 #[path = "generic_graph.rs"]
@@ -147,7 +148,7 @@ fn observe(c: &Case, unit: bool, control: bool) -> Result<(), Failure> {
             r.check("generic actual concrete Int type argument",matches!(call.instance().type_arguments(),[ty]if t.types().get(*ty)==Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(lang_frontend::type_checking::BuiltinType::Int))),call);
         })
     };
-    println!(
+    diagnostic!(
         "LOCAL GENERIC LOWER label={} unit={unit} control={control} source={text:?} report={report:#?} outcome={:?}",
         c.label,
         lowered.as_ref().map(|(_, entry)| entry)
@@ -256,14 +257,14 @@ fn concrete_return_generic_wrapper_keeps_all_three_shapes() {
                 && source.contains("produce<Int>(argument())")
         );
         assert!(!golden.is_empty());
-        println!("LOCAL GENERIC PREREQUISITE label={label} source={source:?} golden={golden:?}");
+        diagnostic!("LOCAL GENERIC PREREQUISITE label={label} source={source:?} golden={golden:?}");
     }
     let mut outcomes = Vec::new();
     for c in cases() {
         for unit in [false, true] {
             for control in [true, false] {
                 let r = observe(&c, unit, control);
-                println!(
+                diagnostic!(
                     "LOCAL GENERIC CASE label={} unit={unit} control={control} result={r:?}",
                     c.label
                 );
@@ -285,7 +286,7 @@ fn concrete_return_generic_wrapper_keeps_all_three_shapes() {
                 delegated: false,
             };
             let r = super::observe(&local, unit);
-            println!(
+            diagnostic!(
                 "LOCAL GENERIC CASE label={} unit={unit} result={r:?}",
                 local.label
             );
@@ -293,5 +294,5 @@ fn concrete_return_generic_wrapper_keeps_all_three_shapes() {
         }
     }
     assert_eq!(outcomes.len(), 12);
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }

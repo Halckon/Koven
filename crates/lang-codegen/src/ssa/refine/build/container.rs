@@ -127,12 +127,19 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
         let id = self.unit(expression);
-        let int_ty = self.ssa_type(self.expression_type(size.value)?, size.span)?;
+        let int_unit = self
+            .inputs
+            .typed
+            .types()
+            .builtin(lang_frontend::type_checking::BuiltinType::Int)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let int_ty = self.ssa_type(int_unit, size.span)?;
         let Some((size_loan, created_size, size_read)) =
             self.runtime_size_loan(size.value, int_ty, size.span)?
         else {
             return Ok(Lowered::Diverged);
         };
+        self.pending_call_loans.extend(created_size.iter().copied());
         let length = self.value(
             ROp::ReadLoan { loan: size_loan },
             EntityType::Value(int_ty),
@@ -172,10 +179,34 @@ impl Builder<'_, '_> {
         self.block = Some(abort);
         self.terminate(RTerm::Abort(RAbort::NegativeSize), span)?;
         self.block = Some(success);
+        let mut init_root = initializer.value;
+        while let (Expression::Group { expression: inner }, _) = self.node(init_root)? {
+            init_root = inner;
+        }
+        let init_root_id = self.unit(init_root);
+        let is_known_fn_init =
+            self.inputs
+                .owned
+                .callable_origin(init_root_id)
+                .is_some_and(|fact| {
+                    matches!(
+                        fact.origin(),
+                        lang_frontend::ownership_checking::UnitCallableOrigin::KnownFunction(_)
+                    )
+                });
         let Some((init_loan, created_init, init_read)) =
             self.runtime_initializer_loan(initializer.value, initializer.span)?
         else {
             return Ok(Lowered::Diverged);
+        };
+        let abi_owner = if is_known_fn_init
+            && !self.inputs.owned.drops().iter().any(|fact| {
+                fact.target()
+                    == lang_frontend::ownership_checking::UnitDropTarget::Temporary(init_root_id)
+            }) {
+            self.temporaries.remove(&init_root_id)
+        } else {
+            None
         };
         let result = self.value(
             ROp::ContainerGenerateBorrowed {
@@ -188,6 +219,10 @@ impl Builder<'_, '_> {
         )?;
         for loan in created_init.into_iter().chain(created_size) {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+            self.pending_call_loans.retain(|&active| active != loan);
+        }
+        if let Some(owner) = abi_owner {
+            self.push(ROp::Drop { owner }, Vec::new(), span)?;
         }
         for arg in [size_read, init_read].into_iter().flatten() {
             self.drops(UnitDropPoint::AfterExpression(self.unit(arg)))?;
@@ -248,6 +283,25 @@ impl Builder<'_, '_> {
         let (payload, root_span) = self.node(root)?;
         match payload {
             Expression::Name => {
+                if let Some((owner, callable)) = self.form_known_function(root, root_span)? {
+                    let place = self.value(
+                        ROp::RootPlace { owner },
+                        EntityType::Place(callable),
+                        root_span,
+                    )?;
+                    let loan = self.value(
+                        ROp::BorrowBegin {
+                            place,
+                            kind: LoanKind::Shared,
+                        },
+                        EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target: callable,
+                        },
+                        root_span,
+                    )?;
+                    return Ok(Some((loan, vec![loan], None)));
+                }
                 let symbol = self.reference(root_span)?;
                 if let Some(&loan) = self.borrowed.get(&symbol) {
                     return Ok(Some((loan, Vec::new(), Some(expression))));
@@ -342,16 +396,38 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let receiver = descriptor.receiver().expression();
         let receiver_span = self.span(receiver);
-        let symbol = self.named_container_symbol(receiver, span)?;
         let container_ty = self.c(descriptor.container_type());
         let target = self.ssa_type(container_ty, receiver_span)?;
-        let (loan, created) = if let Some(&loan) = self.borrowed.get(&symbol) {
-            (loan, None)
+        let (loan, created) = if let Ok(symbol) = self.named_container_symbol(receiver, span) {
+            if let Some(&loan) = self.borrowed.get(&symbol) {
+                (loan, None)
+            } else {
+                let owner = *self
+                    .bindings
+                    .get(&symbol)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, receiver_span))?;
+                let place = self.value(
+                    ROp::RootPlace { owner },
+                    EntityType::Place(target),
+                    receiver_span,
+                )?;
+                let loan = self.value(
+                    ROp::BorrowBegin {
+                        place,
+                        kind: LoanKind::Shared,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target,
+                    },
+                    receiver_span,
+                )?;
+                (loan, Some(loan))
+            }
         } else {
-            let owner = *self
-                .bindings
-                .get(&symbol)
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, receiver_span))?;
+            let Some(owner) = self.required(receiver)? else {
+                return Ok(Lowered::Diverged);
+            };
             let place = self.value(
                 ROp::RootPlace { owner },
                 EntityType::Place(target),
@@ -396,13 +472,18 @@ impl Builder<'_, '_> {
             .element_place(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let receiver = descriptor.receiver().expression();
-        let symbol = self.named_container_symbol(receiver, span)?;
-        let owner = self
-            .borrowed
-            .get(&symbol)
-            .or_else(|| self.bindings.get(&symbol))
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let owner = if let Ok(symbol) = self.named_container_symbol(receiver, span) {
+            self.borrowed
+                .get(&symbol)
+                .or_else(|| self.bindings.get(&symbol))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+        } else {
+            let Some(owner) = self.required(receiver)? else {
+                return Ok(Lowered::Diverged);
+            };
+            owner
+        };
         let Some(index) = self.required(descriptor.index().expression())? else {
             return Ok(Lowered::Diverged);
         };
@@ -435,13 +516,18 @@ impl Builder<'_, '_> {
             return Ok(None);
         }
         let receiver = descriptor.receiver().expression();
-        let symbol = self.named_container_symbol(receiver, span)?;
-        let owner = self
-            .borrowed
-            .get(&symbol)
-            .or_else(|| self.bindings.get(&symbol))
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let owner = if let Ok(symbol) = self.named_container_symbol(receiver, span) {
+            self.borrowed
+                .get(&symbol)
+                .or_else(|| self.bindings.get(&symbol))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+        } else {
+            let Some(owner) = self.required(receiver)? else {
+                return Ok(None);
+            };
+            owner
+        };
         let index = self
             .required(descriptor.index().expression())?
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;

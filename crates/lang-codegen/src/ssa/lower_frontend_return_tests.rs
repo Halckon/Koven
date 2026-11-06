@@ -2,6 +2,7 @@
 use super::{LoweringErrorKind, Operation};
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use crate::native_tests::return_control_tests::guide_litmus_04;
+use crate::test_support::diagnostics::assert_eq_diagnostic;
 use lang_frontend::{
     name_resolution::SymbolKind,
     ownership_checking::{LoanKind, UnitLoanTarget},
@@ -255,7 +256,7 @@ fn enum_tag_slice_does_not_claim_general_payload_grouped_or_move_only_equality()
             .lower_entry(declaration)
             .err()
             .expect("unsupported enum equality must fail explicitly");
-        assert_eq!(
+        assert_eq_diagnostic!(
             error.kind,
             LoweringErrorKind::UnsupportedNode,
             "{source}: {error:?}"

@@ -1,5 +1,6 @@
 //! AST + typed + ownership facts → slot CFG. Ownership decisions come only from facts:
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
+mod assignment;
 mod callable;
 mod condition;
 mod container;
@@ -87,6 +88,7 @@ pub(super) struct Builder<'i, 'a> {
     /// Short-lived `RangeView` temporaries created for call arguments or `for` iteration:
     /// `(view_slot, protecting_loan, continued_loans)`.
     short_ranges: BTreeMap<UnitExpressionId, (Slot, Slot, Vec<Slot>)>,
+    expected_nullable: Option<SsaTypeId>,
 }
 
 /// Jump targets of one loop; views above `views` belong to its iteration.
@@ -162,6 +164,7 @@ pub(super) fn build(
         result_source_loans: BTreeMap::new(),
         range_views: BTreeMap::new(),
         short_ranges: BTreeMap::new(),
+        expected_nullable: None,
     };
     let entry = builder.body.block();
     builder.block = Some(entry);

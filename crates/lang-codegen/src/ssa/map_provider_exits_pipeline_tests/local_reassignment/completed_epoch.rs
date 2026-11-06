@@ -1,4 +1,5 @@
 //! The installation event and its complete RHS share an end byte, but are different epochs.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod ast;
 mod facts;
@@ -70,9 +71,13 @@ pub(crate) fn sources() -> Vec<Case> {
     cases
 }
 fn observed(case: &Case, unit_mode: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "COMPLETED EPOCH INPUT {} mutable={} grouped={} source={:?} golden={:?}",
-        case.label, case.mutable, case.grouped, case.source, case.golden
+        case.label,
+        case.mutable,
+        case.grouped,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -90,7 +95,7 @@ fn observed(case: &Case, unit_mode: bool) -> Result<(), Failure> {
             "provider.ko",
             &mut report,
             |n, t, o, r| {
-                println!(
+                diagnostic!(
                     "COMPLETED EPOCH UNIT RAW plans={:#?} drops={:#?}",
                     o.map_iterations(),
                     o.drops()
@@ -103,7 +108,7 @@ fn observed(case: &Case, unit_mode: bool) -> Result<(), Failure> {
         )
     } else {
         pipeline::memory_document_observed(&sources, &parsed, &mut report, |n, t, o, r| {
-            println!(
+            diagnostic!(
                 "COMPLETED EPOCH UNIT RAW plans={:#?} drops={:#?}",
                 o.map_iterations(),
                 o.drops()
@@ -114,7 +119,7 @@ fn observed(case: &Case, unit_mode: bool) -> Result<(), Failure> {
             );
         })
     };
-    println!(
+    diagnostic!(
         "COMPLETED EPOCH LOWER {} unit={unit_mode} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, e)| e)
@@ -144,7 +149,7 @@ fn completed_assignment_event_keeps_its_own_epoch() {
     for case in sources() {
         for unit in [false, true] {
             let result = observed(&case, unit);
-            println!(
+            diagnostic!(
                 "COMPLETED EPOCH CASE {} unit={unit} result={result:?}",
                 case.label
             );
@@ -152,5 +157,5 @@ fn completed_assignment_event_keeps_its_own_epoch() {
         }
     }
     assert_eq!(results.len(), 8);
-    assert!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
+    assert_diagnostic!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
 }

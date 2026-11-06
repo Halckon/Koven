@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic, assert_text_eq};
 #[path = "boxed_signature_storage_tests.rs"]
 mod boxed_signature_storage_tests;
 
@@ -212,17 +213,17 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
     let program = lower();
     let repeated = lower();
     let ssa = render_program(&program);
-    assert_eq!(ssa, render_program(&repeated));
-    assert_eq!(ssa.matches("func \"").count(), 1, "{ssa}");
-    assert!(ssa.contains("func \"entry\""), "{ssa}");
+    assert_text_eq!(ssa, render_program(&repeated));
+    assert_eq_diagnostic!(ssa.matches("func \"").count(), 1, "{ssa}");
+    assert_diagnostic!(ssa.contains("func \"entry\""), "{ssa}");
     for declaration in ["Pair", "Holder", "Marker", "Outcome"] {
-        assert!(!ssa.contains(declaration), "{ssa}");
+        assert_diagnostic!(!ssa.contains(declaration), "{ssa}");
     }
 
     let llvm = render_verified_program(&program).expect("declarative roots must reach LLVM");
-    assert_eq!(llvm.matches("define internal").count(), 1, "{llvm}");
+    assert_eq_diagnostic!(llvm.matches("define internal").count(), 1, "{llvm}");
     for declaration in ["Pair", "Holder", "Marker", "Outcome"] {
-        assert!(!llvm.contains(declaration), "{llvm}");
+        assert_diagnostic!(!llvm.contains(declaration), "{llvm}");
     }
 
     {
@@ -279,28 +280,28 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
     )
     .expect("value/class/Box construction facts must lower to verified SSA");
     let ssa = render_program(&program);
-    assert_eq!(ssa.matches("aggregate.construct").count(), 11, "{ssa}");
-    assert_eq!(ssa.matches("heap.allocate").count(), 4, "{ssa}");
-    assert_eq!(ssa.matches("tagged.construct").count(), 4, "{ssa}");
-    assert_eq!(ssa.matches("aggregate.project").count(), 1, "{ssa}");
-    assert_eq!(ssa.matches("aggregate.copy_explode").count(), 1, "{ssa}");
-    assert_eq!(ssa.matches("heap.payload_place").count(), 1, "{ssa}");
-    assert_eq!(ssa.matches("tagged.payload_place").count(), 1, "{ssa}");
-    assert_eq!(ssa.matches("tagged.discriminant").count(), 2, "{ssa}");
-    assert_eq!(ssa.matches("drop ").count(), 2, "{ssa}");
-    assert!(ssa.contains("Wrapped#t"), "{ssa}");
-    assert!(ssa.contains("Holder#t"), "{ssa}");
-    assert!(ssa.contains("Box#t"), "{ssa}");
-    assert!(ssa.contains("Flag#t"), "{ssa}");
-    assert!(ssa.contains("Maybe#t"), "{ssa}");
-    assert!(ssa.contains("Owned#t"), "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("aggregate.construct").count(), 11, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("heap.allocate").count(), 4, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("tagged.construct").count(), 4, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("aggregate.project").count(), 1, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("aggregate.copy_explode").count(), 1, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("heap.payload_place").count(), 1, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("tagged.payload_place").count(), 1, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("tagged.discriminant").count(), 2, "{ssa}");
+    assert_eq_diagnostic!(ssa.matches("drop ").count(), 2, "{ssa}");
+    assert_diagnostic!(ssa.contains("Wrapped#t"), "{ssa}");
+    assert_diagnostic!(ssa.contains("Holder#t"), "{ssa}");
+    assert_diagnostic!(ssa.contains("Box#t"), "{ssa}");
+    assert_diagnostic!(ssa.contains("Flag#t"), "{ssa}");
+    assert_diagnostic!(ssa.contains("Maybe#t"), "{ssa}");
+    assert_diagnostic!(ssa.contains("Owned#t"), "{ssa}");
 
     let llvm = render_verified_program(&program).expect("nominal SSA must lower to LLVM");
-    assert_eq!(llvm.matches("call ptr @malloc").count(), 4, "{llvm}");
-    assert_eq!(llvm.matches("call void @free").count(), 2, "{llvm}");
-    assert!(llvm.contains("%koven.enum.t"), "{llvm}");
-    assert!(!llvm.contains("retain"), "{llvm}");
-    assert!(!llvm.contains("clone"), "{llvm}");
+    assert_eq_diagnostic!(llvm.matches("call ptr @malloc").count(), 4, "{llvm}");
+    assert_eq_diagnostic!(llvm.matches("call void @free").count(), 2, "{llvm}");
+    assert_diagnostic!(llvm.contains("%koven.enum.t"), "{llvm}");
+    assert_diagnostic!(!llvm.contains("retain"), "{llvm}");
+    assert_diagnostic!(!llvm.contains("clone"), "{llvm}");
 }
 
 #[test]
@@ -384,7 +385,7 @@ fn lowers_reachable_scalar_generic_instances_once_and_keeps_recursive_identity()
         &analysis.owned,
     )
     .expect("repeated instance planning must lower");
-    assert_eq!(rendered, render_program(&repeated));
+    assert_text_eq!(rendered, render_program(&repeated));
     assert_eq!(rendered.matches("func \"identity<Int>\"").count(), 1);
     assert_eq!(rendered.matches("func \"identity<Long>\"").count(), 1);
     assert_eq!(rendered.matches("func \"relay<Int>\"").count(), 1);

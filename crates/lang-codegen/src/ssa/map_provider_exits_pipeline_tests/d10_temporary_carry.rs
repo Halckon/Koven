@@ -11,6 +11,7 @@ use super::{
 use crate::ssa::model::{
     EntityId, FunctionId, LoanKind, Operation, Origin, Program, TerminatorKind,
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     lexer::lex,
@@ -162,7 +163,7 @@ fn unit_facts(
     let p = owned
         .map_iteration(statement)
         .ok_or_else(|| failure("w09 unit plan", statement))?;
-    println!("D10 W09 UNIT REAL descriptor={d:#?} plan={p:#?}");
+    diagnostic!("D10 W09 UNIT REAL descriptor={d:#?} plan={p:#?}");
     let make = one(
         names.names().index().declarations().iter().filter(|d| {
             d.source_unit() == unit
@@ -336,7 +337,7 @@ struct Observation {
 fn observe(unit: bool) -> Observation {
     let mut report = Report::default();
     // Hash is the separately checked frozen identity; no runtime hash/native claim.
-    println!(
+    diagnostic!(
         "D10 W09 INPUT unit={unit} path={PATH} bytes={} frozen_sha256={SHA256}",
         SOURCE.len()
     );
@@ -414,12 +415,14 @@ fn observe(unit: bool) -> Observation {
 fn w09_temporary_map_carry_reaches_verified_llvm() {
     let observations = [observe(false), observe(true)];
     for observation in &observations {
-        println!(
+        diagnostic!(
             "D10 W09 OUTCOME unit={} report={:#?} outcome={:?}",
-            observation.unit, observation.report, observation.outcome
+            observation.unit,
+            observation.report,
+            observation.outcome
         );
     }
-    assert!(
+    assert_diagnostic!(
         observations
             .iter()
             .all(|o| o.report.passed() && o.outcome.is_ok()),
@@ -561,7 +564,7 @@ fn nothing_ssa(
 
 fn observe_unit_body_nothing() -> Observation {
     let mut report = Report::default();
-    println!(
+    diagnostic!(
         "D10 NOTHING INPUT unit=true path={NOTHING_PATH} bytes={} frozen_sha256={NOTHING_SHA256}",
         NOTHING_SOURCE.len()
     );
@@ -604,7 +607,9 @@ fn observe_unit_body_nothing() -> Observation {
                         let call = typed
                             .call(error)
                             .ok_or_else(|| failure("Nothing Unit typed Call", error))?;
-                        println!("D10 NOTHING UNIT descriptor={d:#?} plan={p:#?} call={call:#?}");
+                        diagnostic!(
+                            "D10 NOTHING UNIT descriptor={d:#?} plan={p:#?} call={call:#?}"
+                        );
                         need(
                             d.source() == source
                                 && p.descriptor() == d
@@ -653,11 +658,13 @@ fn observe_unit_body_nothing() -> Observation {
 #[test]
 fn unit_temporary_body_nothing_reaches_verified_llvm_without_execution() {
     let observation = observe_unit_body_nothing();
-    println!(
+    diagnostic!(
         "D10 NOTHING OUTCOME unit={} report={:#?} outcome={:?}",
-        observation.unit, observation.report, observation.outcome
+        observation.unit,
+        observation.report,
+        observation.outcome
     );
-    assert!(
+    assert_diagnostic!(
         observation.report.passed() && observation.outcome.is_ok(),
         "真实Unit Nothing body必须完成FE/sealed/SSA/LLVM；只构建IR，不执行Abort/native。\n{observation:#?}"
     );

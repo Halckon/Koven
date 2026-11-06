@@ -4,6 +4,7 @@ use super::{
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{analyze, declaration, parsed},
 };
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -246,7 +247,7 @@ fun entry(): Unit {
         entry,
     )
     .unwrap();
-    assert_eq!(render_program(&program), render_program(&reordered));
+    assert_text_eq!(render_program(&program), render_program(&reordered));
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry_id).unwrap();
     let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 3);
     assert!(run.status.success(), "{run:?}");
@@ -286,7 +287,7 @@ fn unit_map_string_keys_and_move_only_values_execute_with_precise_drops() {
         entry,
     )
     .unwrap();
-    assert_eq!(render_program(&program), render_program(&reordered));
+    assert_text_eq!(render_program(&program), render_program(&reordered));
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry_id).unwrap();
     let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 6);
     assert!(run.status.success(), "{run:?}");

@@ -1,4 +1,5 @@
 //! 一级普通 class 字段 replace 的 unit SSA 与真实本机所有权回归。
+use crate::test_support::diagnostics::assert_text_eq;
 use std::{
     fs,
     path::PathBuf,
@@ -537,7 +538,7 @@ fn unit_field_replace_cross_file_input_order_is_deterministic() {
         declaration(&reverse_names, "q", "entry"),
     )
     .unwrap();
-    assert_eq!(
+    assert_text_eq!(
         super::render::render_program(&forward),
         super::render::render_program(&reverse)
     );

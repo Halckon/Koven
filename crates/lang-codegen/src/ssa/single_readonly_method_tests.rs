@@ -1,6 +1,7 @@
 //! SPEC-0316: real source -> unchanged SSA/LLVM/native; no injected runtime or IR.
 use super::{LoweringError, LoweringErrorKind, model::*, verify::verify_program};
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+use crate::test_support::diagnostics::assert_eq_diagnostic;
 use lang_frontend::{
     name_resolution::{
         SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
@@ -94,12 +95,12 @@ fn checked_lowering(
     result: Result<(Program, FunctionId), LoweringError>,
 ) -> (Program, FunctionId) {
     if let Err(error) = result {
-        assert_eq!(
+        assert_eq_diagnostic!(
             error.kind,
             LoweringErrorKind::UnsupportedNode,
             "{name}: {error:?}"
         );
-        assert_eq!(
+        assert_eq_diagnostic!(
             error.span.and_then(|s| sources.slice(s).ok()),
             Some(call),
             "{name}: {error:?}"

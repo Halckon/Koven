@@ -5,21 +5,16 @@ mod conditional;
 mod nullable_if;
 #[cfg(test)]
 mod result_tests;
-mod when_subject;
-
-use when_subject::{OwnedWhenSubject, WhenSubjectValue};
 
 use std::collections::BTreeMap;
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
-    ownership_checking::{UnitDropPoint, UnitDropTarget, UnitShortCircuitRhs},
-    parser::{Expression, LiteralKind, TypeRef, WhenCondition, WhenEntry},
+    ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
+    parser::{Expression, LiteralKind, WhenEntry},
     source::Span,
-    type_checking::{
-        BuiltinType, Copyability, UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
-    },
+    type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitTypeId, UnitTypeKind},
 };
 
 use super::{
@@ -31,8 +26,8 @@ use super::{
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{
-        BlockId, ComparisonOperator, EntityId, EntityType, Operation, Origin, ScalarConstant,
-        SsaTypeId, TerminatorKind, ValueId,
+        BlockId, EntityId, EntityType, Operation, Origin, ScalarConstant, SsaTypeId,
+        TerminatorKind, ValueId,
     },
 };
 
@@ -44,16 +39,7 @@ pub(super) struct ControlResult {
     string: Option<(UnitTypeId, SsaTypeId)>,
 }
 
-#[derive(Clone, Copy)]
-struct BooleanWhenArm {
-    body: StatementId,
-    index: usize,
-}
-
-struct BooleanWhenArms {
-    when_true: Option<BooleanWhenArm>,
-    when_false: Option<BooleanWhenArm>,
-}
+type BooleanWhenArms = ((StatementId, usize), (StatementId, usize));
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn lower_short_circuit(
@@ -257,7 +243,6 @@ impl UnitExpressionLowerer<'_> {
         expected_string: Option<(UnitTypeId, SsaTypeId)>,
     ) -> Result<LoweredValue, LoweringError> {
         let control = UnitExpressionId::new(self.source_unit, expression);
-        // SPEC-0357 publishes comparison-completed facts; this consumer cannot place them yet.
         if self.owned.drops().iter().any(|fact| {
             matches!(fact.point(),
             UnitDropPoint::WhenComparisonCompleted { control: owner, .. }
@@ -291,83 +276,37 @@ impl UnitExpressionLowerer<'_> {
             ) {
                 return self.missing_nullable_when_descriptor(entries, span);
             }
-            let subject_ssa = self.expression_ssa_type(subject, span)?;
-            let is_boolean = builtin_type(self.typed, subject_type) == Some(BuiltinType::Boolean);
-            let is_tagged = self
-                .enum_payloads
-                .keys()
-                .any(|(tagged, _)| *tagged == subject_ssa);
-            if !is_boolean && !is_tagged {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
-            if is_tagged {
-                let subject_root = if self.typed.copyability(subject_type) == Copyability::MoveOnly
-                {
-                    Some(self.owned_when_subject(subject, span)?)
-                } else {
-                    None
-                };
-                return self.lower_when_chain(
+            if builtin_type(self.typed, subject_type) == Some(BuiltinType::Boolean)
+                && let Some((when_true, when_false)) = self.boolean_literal_two_arms(entries)?
+            {
+                return self.lower_conditional(
                     expression,
-                    Some((subject, Some(subject_ssa))),
-                    subject_root,
-                    entries,
+                    subject,
+                    when_true.0,
+                    Some(when_false.0),
+                    when_true.1,
+                    when_false.1,
                     span,
                     result,
                 );
             }
-            if let Some(arms) = self.boolean_literal_arms(entries)? {
-                return match (arms.when_true, arms.when_false) {
-                    (Some(when_true), Some(when_false))
-                        if when_true.body == when_false.body
-                            && when_true.index == when_false.index =>
-                    {
-                        self.lower_exhaustive_boolean_arm(
-                            expression, subject, when_true, span, result,
-                        )
-                    }
-                    (Some(when_true), Some(when_false)) => self.lower_conditional(
-                        expression,
-                        subject,
-                        when_true.body,
-                        Some(when_false.body),
-                        when_true.index,
-                        when_false.index,
-                        span,
-                        result,
-                    ),
-                    (Some(when_true), None) => self.lower_conditional(
-                        expression,
-                        subject,
-                        when_true.body,
-                        None,
-                        when_true.index,
-                        entries.len(),
-                        span,
-                        result,
-                    ),
-                    (None, Some(_)) | (None, None) => self.lower_when_chain(
-                        expression,
-                        Some((subject, None)),
-                        None,
-                        entries,
-                        span,
-                        result,
-                    ),
-                };
+            if matches!(
+                self.typed.types().get(subject_type),
+                Some(UnitTypeKind::Nominal { .. })
+            ) && let Some(lang_frontend::parser::WhenCondition::Expression(cond)) =
+                entries.first().and_then(|entry| entry.conditions.first())
+                && let Ok(cond_node) = self.parsed.ast().expressions().get(*cond)
+            {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    cond_node.span(),
+                ));
             }
         }
-        self.lower_when_chain(
-            expression,
-            subject.map(|subject| (subject, None)),
-            None,
-            entries,
-            span,
-            result,
-        )
+        Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
     }
 
-    fn boolean_literal_arms(
+    fn boolean_literal_two_arms(
         &self,
         entries: &[WhenEntry],
     ) -> Result<Option<BooleanWhenArms>, LoweringError> {
@@ -375,16 +314,13 @@ impl UnitExpressionLowerer<'_> {
         let mut when_false = None;
         for (index, entry) in entries.iter().enumerate() {
             if entry.else_span.is_some() {
-                let arm = BooleanWhenArm {
-                    body: entry.body,
-                    index,
-                };
+                let arm = (entry.body, index);
                 when_true.get_or_insert(arm);
                 when_false.get_or_insert(arm);
                 break;
             }
             for condition in &entry.conditions {
-                let WhenCondition::Expression(condition) = condition else {
+                let lang_frontend::parser::WhenCondition::Expression(condition) = condition else {
                     return Ok(None);
                 };
                 let node = self
@@ -393,484 +329,21 @@ impl UnitExpressionLowerer<'_> {
                     .expressions()
                     .get(*condition)
                     .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, entry.span))?;
-                let arm = BooleanWhenArm {
-                    body: entry.body,
-                    index,
-                };
                 match node.payload() {
                     Expression::Literal(LiteralKind::Boolean(true)) => {
-                        when_true.get_or_insert(arm);
+                        when_true.get_or_insert((entry.body, index));
                     }
                     Expression::Literal(LiteralKind::Boolean(false)) => {
-                        when_false.get_or_insert(arm);
+                        when_false.get_or_insert((entry.body, index));
                     }
                     _ => return Ok(None),
                 }
             }
         }
-        Ok(Some(BooleanWhenArms {
-            when_true,
-            when_false,
-        }))
-    }
-
-    fn lower_exhaustive_boolean_arm(
-        &mut self,
-        expression: ExpressionId,
-        subject: ExpressionId,
-        arm: BooleanWhenArm,
-        span: Span,
-        result: ControlResult,
-    ) -> Result<LoweredValue, LoweringError> {
-        self.require_expression_value(subject)?;
-        let exit = self.lower_if_branch(
-            self.block,
-            arm.body,
-            self.current_receiver,
-            self.consumed_receiver,
-            self.bindings.clone(),
-            self.borrow_bindings.clone(),
-            self.nullable_proofs.clone(),
-            self.result_source_loans.clone(),
-            self.closure_bindings.clone(),
-            self.capture_loans.clone(),
-            self.pending_operands.clone(),
-            self.pending_call_frames.clone(),
-            self.temporaries.clone(),
-            UnitDropPoint::BranchExit {
-                control: UnitExpressionId::new(self.source_unit, expression),
-                branch: arm.index,
-            },
-            result,
-        )?;
-        self.merge_unit_exits(exit.into_iter().collect(), span)
-    }
-
-    fn lower_when_chain(
-        &mut self,
-        expression: ExpressionId,
-        subject: Option<(ExpressionId, Option<SsaTypeId>)>,
-        subject_root: Option<OwnedWhenSubject>,
-        entries: &[WhenEntry],
-        span: Span,
-        result: ControlResult,
-    ) -> Result<LoweredValue, LoweringError> {
-        let (subject, subject_root) =
-            self.lower_when_subject(subject, subject_root, entries, span)?;
-        let baseline = self.bindings.clone();
-        let baseline_borrows = self.borrow_bindings.clone();
-        let baseline_closures = self.closure_bindings.clone();
-        let control = UnitExpressionId::new(self.source_unit, expression);
-        let mut unmatched = Some((
-            self.block,
-            self.current_receiver,
-            self.consumed_receiver,
-            baseline.clone(),
-            baseline_borrows,
-            self.result_source_loans.clone(),
-            self.nullable_proofs.clone(),
-            baseline_closures,
-            self.capture_loans.clone(),
-            self.pending_operands.clone(),
-            self.pending_call_frames.clone(),
-            self.temporaries.clone(),
-        ));
-        let mut exits = Vec::new();
-
-        for (index, entry) in entries.iter().enumerate() {
-            let (
-                unmatched_block,
-                unmatched_receiver,
-                unmatched_consumed_receiver,
-                unmatched_bindings,
-                unmatched_borrows,
-                unmatched_result_loans,
-                unmatched_proofs,
-                unmatched_closures,
-                unmatched_captures,
-                unmatched_pending,
-                unmatched_frames,
-                unmatched_temporaries,
-            ) = unmatched
-                .take()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
-            if entry.else_span.is_some() {
-                if let Some(exit) = self.lower_if_branch(
-                    unmatched_block,
-                    entry.body,
-                    unmatched_receiver,
-                    unmatched_consumed_receiver,
-                    unmatched_bindings,
-                    unmatched_borrows,
-                    unmatched_proofs,
-                    unmatched_result_loans,
-                    unmatched_closures,
-                    unmatched_captures,
-                    unmatched_pending,
-                    unmatched_frames,
-                    unmatched_temporaries,
-                    UnitDropPoint::BranchExit {
-                        control,
-                        branch: index,
-                    },
-                    result,
-                )? {
-                    exits.push(exit);
-                }
-                break;
-            }
-            if entry.conditions.is_empty() {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, entry.span));
-            }
-
-            let mut next_block = unmatched_block;
-            let mut next_receiver = unmatched_receiver;
-            let mut next_consumed_receiver = unmatched_consumed_receiver;
-            let mut next_bindings = unmatched_bindings;
-            let mut next_borrows = unmatched_borrows;
-            let mut next_result_loans = unmatched_result_loans;
-            let mut next_proofs = unmatched_proofs;
-            let mut next_closures = unmatched_closures;
-            let mut next_captures = unmatched_captures;
-            let mut next_pending = unmatched_pending;
-            let mut next_frames = unmatched_frames;
-            let mut next_temporaries = unmatched_temporaries;
-            let mut matches = Vec::new();
-            for (alternative, condition) in entry.conditions.iter().enumerate() {
-                self.block = next_block;
-                self.current_receiver = next_receiver;
-                self.consumed_receiver = next_consumed_receiver;
-                self.bindings = next_bindings;
-                self.borrow_bindings = next_borrows;
-                self.result_source_loans = next_result_loans;
-                self.nullable_proofs = next_proofs;
-                self.closure_bindings = next_closures;
-                self.capture_loans = next_captures;
-                self.pending_operands = next_pending;
-                self.pending_call_frames = next_frames;
-                let entry_temporaries = next_temporaries.keys().copied().collect::<Vec<_>>();
-                self.temporaries = next_temporaries;
-                // Owned subjects cross each condition edge through the ordinary binding carry.
-                let current_subject = if let Some(root) = subject_root {
-                    let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
-                        return Err(lowering_error(LoweringErrorKind::MissingFact, entry.span));
-                    };
-                    let Some(WhenSubjectValue::TaggedOwner { tagged, .. }) = subject else {
-                        return Err(lowering_error(LoweringErrorKind::MissingFact, entry.span));
-                    };
-                    Some(WhenSubjectValue::TaggedOwner { owner, tagged })
-                } else {
-                    subject
-                };
-                let condition =
-                    self.lower_when_condition(current_subject, condition, entry.span)?;
-                if self.temporaries.keys().copied().ne(entry_temporaries) {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        entry.span,
-                    ));
-                }
-                let after_condition = self.bindings.clone();
-                let after_condition_borrows = self.borrow_bindings.clone();
-                let after_condition_closures = self.closure_bindings.clone();
-                let after_condition_frames = self.pending_call_frames.clone();
-                let after_condition_result_loans = self.result_source_loans.clone();
-                let after_condition_proofs = self.nullable_proofs.clone();
-                let after_condition_captures = self.capture_loans.clone();
-                let after_condition_pending = self.pending_operands.clone();
-                let after_condition_temporaries = self.temporaries.clone();
-                let after_condition_receiver = self.current_receiver;
-                let after_condition_consumed_receiver = self.consumed_receiver;
-                let mut carried = self.carried_bindings(&after_condition, entry.span)?;
-                let mut carried_loans = self.carried_loans(&after_condition_borrows, entry.span)?;
-                self.carry_pending_operands(&mut carried, &mut carried_loans, entry.span)?;
-                let matched =
-                    self.add_carried_control_block(&carried, &carried_loans, entry.span)?;
-                let next = self.add_carried_control_block(&carried, &carried_loans, entry.span)?;
-                self.function
-                    .set_terminator(
-                        self.block,
-                        TerminatorKind::Conditional {
-                            condition,
-                            when_true: carried_control_edge(matched, &carried, &carried_loans),
-                            when_false: carried_control_edge(next, &carried, &carried_loans),
-                        },
-                        Origin::Source(entry.span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
-                self.current_receiver = after_condition_receiver;
-                self.consumed_receiver = after_condition_consumed_receiver;
-                self.pending_call_frames = after_condition_frames.clone();
-                let matched_bindings = self.rebind_carried_control(
-                    &after_condition,
-                    matched,
-                    &carried,
-                    &carried_loans,
-                    entry.span,
-                )?;
-                let matched_borrows =
-                    self.rebind_carried_loans(matched, carried.len(), &carried_loans, entry.span)?;
-                self.block = matched;
-                self.bindings = matched_bindings;
-                self.borrow_bindings = matched_borrows;
-                self.closure_bindings = after_condition_closures.clone();
-                self.emit_drops(UnitDropPoint::WhenAlternativeMatch {
-                    control,
-                    entry: index,
-                    alternative,
-                })?;
-                matches.push(BranchExit {
-                    block: self.block,
-                    result: LoweredValue::Unit,
-                    bindings: self.bindings.clone(),
-                    borrow_bindings: self.borrow_bindings.clone(),
-                    nullable_proofs: self.nullable_proofs.clone(),
-                    receiver: self.current_receiver,
-                    consumed_receiver: self.consumed_receiver,
-                    closure_bindings: self.closure_bindings.clone(),
-                    capture_loans: self.capture_loans.clone(),
-                    result_source_loans: self.result_source_loans.clone(),
-                    pending_operands: self.pending_operands.clone(),
-                    pending_call_frames: self.pending_call_frames.clone(),
-                    temporaries: self.temporaries.clone(),
-                });
-                next_block = next;
-                self.current_receiver = after_condition_receiver;
-                self.consumed_receiver = after_condition_consumed_receiver;
-                self.pending_call_frames = after_condition_frames;
-                self.bindings = after_condition.clone();
-                self.borrow_bindings = after_condition_borrows;
-                self.nullable_proofs = after_condition_proofs;
-                self.capture_loans = after_condition_captures;
-                self.pending_operands = after_condition_pending;
-                self.temporaries = after_condition_temporaries;
-                self.result_source_loans = after_condition_result_loans;
-                self.closure_bindings = after_condition_closures.clone();
-                next_bindings = self.rebind_carried_control(
-                    &after_condition,
-                    next,
-                    &carried,
-                    &carried_loans,
-                    entry.span,
-                )?;
-                next_borrows =
-                    self.rebind_carried_loans(next, carried.len(), &carried_loans, entry.span)?;
-                next_result_loans = self.result_source_loans.clone();
-                next_proofs = self.nullable_proofs.clone();
-                next_receiver = self.current_receiver;
-                next_consumed_receiver = self.consumed_receiver;
-                next_closures = after_condition_closures;
-                next_captures = self.capture_loans.clone();
-                next_pending = self.pending_operands.clone();
-                next_frames = self.pending_call_frames.clone();
-                next_temporaries = self.temporaries.clone();
-            }
-
-            self.merge_unit_exits(matches, entry.span)?;
-            if let Some(exit) = self.lower_if_branch(
-                self.block,
-                entry.body,
-                self.current_receiver,
-                self.consumed_receiver,
-                self.bindings.clone(),
-                self.borrow_bindings.clone(),
-                self.nullable_proofs.clone(),
-                self.result_source_loans.clone(),
-                self.closure_bindings.clone(),
-                self.capture_loans.clone(),
-                self.pending_operands.clone(),
-                self.pending_call_frames.clone(),
-                self.temporaries.clone(),
-                UnitDropPoint::BranchExit {
-                    control,
-                    branch: index,
-                },
-                result,
-            )? {
-                exits.push(exit);
-            }
-            unmatched = Some((
-                next_block,
-                next_receiver,
-                next_consumed_receiver,
-                next_bindings,
-                next_borrows,
-                next_result_loans,
-                next_proofs,
-                next_closures,
-                next_captures,
-                next_pending,
-                next_frames,
-                next_temporaries,
-            ));
+        match (when_true, when_false) {
+            (Some(t), Some(f)) if t != f => Ok(Some((t, f))),
+            _ => Ok(None),
         }
-
-        if let Some((
-            unmatched_block,
-            unmatched_receiver,
-            unmatched_consumed_receiver,
-            unmatched_bindings,
-            unmatched_borrows,
-            unmatched_result_loans,
-            unmatched_proofs,
-            unmatched_closures,
-            unmatched_captures,
-            unmatched_pending,
-            unmatched_frames,
-            unmatched_temporaries,
-        )) = unmatched
-        {
-            if result.required || self.typed.expression_falls_through(control) == Some(false) {
-                if subject.and_then(WhenSubjectValue::tagged_type).is_some() {
-                    self.function
-                        .set_abort_terminator(
-                            unmatched_block,
-                            crate::ssa::model::AbortReason::Text(
-                                "internal error: when subject matched no branch".to_owned(),
-                            ),
-                            Origin::Source(span),
-                        )
-                        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                } else {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
-                return self.merge_unit_exits(exits, span);
-            }
-            self.block = unmatched_block;
-            self.current_receiver = unmatched_receiver;
-            self.consumed_receiver = unmatched_consumed_receiver;
-            self.bindings = unmatched_bindings;
-            self.borrow_bindings = unmatched_borrows;
-            self.result_source_loans = unmatched_result_loans;
-            self.nullable_proofs = unmatched_proofs;
-            self.closure_bindings = unmatched_closures;
-            self.capture_loans = unmatched_captures;
-            self.pending_operands = unmatched_pending;
-            self.pending_call_frames = unmatched_frames;
-            self.temporaries = unmatched_temporaries;
-            self.emit_drops(UnitDropPoint::BranchExit {
-                control,
-                branch: entries.len(),
-            })?;
-            exits.push(BranchExit {
-                block: self.block,
-                result: LoweredValue::Unit,
-                receiver: self.current_receiver,
-                consumed_receiver: self.consumed_receiver,
-                bindings: self.bindings.clone(),
-                borrow_bindings: self.borrow_bindings.clone(),
-                nullable_proofs: self.nullable_proofs.clone(),
-                closure_bindings: self.closure_bindings.clone(),
-                capture_loans: self.capture_loans.clone(),
-                result_source_loans: self.result_source_loans.clone(),
-                pending_operands: self.pending_operands.clone(),
-                pending_call_frames: self.pending_call_frames.clone(),
-                temporaries: self.temporaries.clone(),
-            });
-        }
-        self.merge_unit_exits(exits, span)
-    }
-
-    fn lower_when_condition(
-        &mut self,
-        subject: Option<WhenSubjectValue>,
-        condition: &WhenCondition,
-        span: Span,
-    ) -> Result<ValueId, LoweringError> {
-        if let WhenCondition::TypeTest {
-            negated, type_ref, ..
-        } = condition
-        {
-            let Some((subject, tagged)) =
-                subject.and_then(|subject| subject.tagged_type().map(|tagged| (subject, tagged)))
-            else {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            };
-            let node = self
-                .parsed
-                .ast()
-                .type_refs()
-                .get(*type_ref)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let TypeRef::Qualified { segments, .. } = node.payload() else {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    node.span(),
-                ));
-            };
-            let symbol = segments
-                .last()
-                .and_then(|segment| {
-                    self.type_references
-                        .get(&super::span_key(segment.name_span))
-                })
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            let target = self
-                .typed
-                .type_ref_type(UnitTypeRefId::new(self.source_unit, *type_ref))
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            let Some(UnitTypeKind::EnumCase { case, root }) = self.typed.types().get(target) else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
-            };
-            let root = resolve_concrete_type(
-                self.typed,
-                *root,
-                self.substitutions,
-                self.static_self,
-                node.span(),
-            )?;
-            if *case != symbol || self.type_ids.get(&root) != Some(&tagged) {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
-            }
-            let (variant, _) = self
-                .enum_payloads
-                .get(&(tagged, symbol))
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            return match subject {
-                WhenSubjectValue::TaggedOwner { owner, .. } => {
-                    self.lower_enum_tag_test(owner, variant, *negated, span)
-                }
-                WhenSubjectValue::TaggedDiscriminant { tag, .. } => {
-                    self.lower_enum_discriminant_test(tag, variant, *negated, span)
-                }
-                WhenSubjectValue::Boolean(_) => {
-                    Err(lowering_error(LoweringErrorKind::MissingFact, span))
-                }
-            };
-        }
-        let WhenCondition::Expression(expression) = condition else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        if let Some(WhenSubjectValue::TaggedOwner { owner, tagged }) = subject {
-            return self.lower_copyable_enum_case_condition(owner, tagged, *expression, span);
-        }
-        if matches!(subject, Some(WhenSubjectValue::TaggedDiscriminant { .. })) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let candidate = self.require_expression_value(*expression)?;
-        let Some(WhenSubjectValue::Boolean(subject)) = subject else {
-            return Ok(candidate);
-        };
-        let boolean = self.expression_ssa_type(*expression, span)?;
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::Compare {
-                    operator: ComparisonOperator::Equal,
-                    left: subject,
-                    right: candidate,
-                },
-                vec![EntityType::Value(boolean)],
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let EntityId::Value(result) = results[0] else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        };
-        Ok(result)
     }
 
     pub(super) fn ssa_builtin(

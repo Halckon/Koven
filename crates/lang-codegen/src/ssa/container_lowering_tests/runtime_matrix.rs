@@ -1,4 +1,5 @@
 use super::{analyze, lower_unit, render_program, runtime_matrix_support};
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn runtime_generator_single_matrix_preserves_element_capture_and_storage_contracts() {
@@ -50,7 +51,7 @@ fn runtime_generator_single_matrix_preserves_element_capture_and_storage_contrac
             }
         }
     }
-    assert!(
+    assert_diagnostic!(
         failures.is_empty(),
         "all 144 selected source cases must reach their concrete ABI: {failures:?}"
     );

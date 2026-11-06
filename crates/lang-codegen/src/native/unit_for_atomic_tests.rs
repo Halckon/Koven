@@ -1,5 +1,6 @@
 //! Public actual for products, malformed input rejection, and reservation isolation.
 use super::{TestDirectory, analyze_sources};
+use crate::test_support::diagnostics::assert_diagnostic;
 use crate::{NativeObjectErrorKind, emit_native_unit_object, native::NEXT_UNIT_OBJECT_TEMPORARY};
 use lang_frontend::{name_resolution::SourceUnitInput, source::SourceMap};
 use std::{collections::BTreeMap, fs, process::Command, sync::atomic::Ordering};
@@ -22,7 +23,7 @@ fn actual_for_rejections_are_atomic_before_reservation_and_llvm() {
     const CHILD: &str = "KOVEN_FOR_ATOMIC_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let output = Command::new(std::env::current_exe().unwrap()).args(["--exact", "native::unit_tests::for_atomic::actual_for_rejections_are_atomic_before_reservation_and_llvm", "--nocapture"]).env(CHILD, "1").output().unwrap();
-        assert!(output.status.success(), "{output:?}");
+        assert_diagnostic!(output.status.success(), "{output:?}");
         assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"));
         return;
     }
@@ -75,7 +76,7 @@ fn actual_for_rejections_are_atomic_before_reservation_and_llvm() {
                 &output,
             )
             .unwrap_err();
-            assert!(
+            assert_diagnostic!(
                 matches!(
                     error.kind(),
                     NativeObjectErrorKind::MismatchedAnalysis | NativeObjectErrorKind::InvalidModel

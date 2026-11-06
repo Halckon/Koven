@@ -131,6 +131,24 @@ impl CallableAbi {
         self.views.get(&function).copied()
     }
 
+    pub(super) fn known_functions(
+        &self,
+        function_ids: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
+        plan: &crate::ssa::unit_plan::UnitCallablePlan,
+    ) -> BTreeMap<lang_frontend::type_checking::UnitCallableTarget, (FunctionId, SsaTypeId)> {
+        let mut known = BTreeMap::new();
+        for (&source, &callable) in &self.named {
+            if let Some(key) = plan.source(source)
+                && key.type_arguments().is_empty()
+                && key.callable_arguments().is_empty()
+                && let Some(&function) = function_ids.get(key)
+            {
+                known.insert(key.target(), (function, callable));
+            }
+        }
+        known
+    }
+
     pub(super) fn token_type(
         &self,
         plan: &crate::ssa::unit_plan::UnitCallablePlan,

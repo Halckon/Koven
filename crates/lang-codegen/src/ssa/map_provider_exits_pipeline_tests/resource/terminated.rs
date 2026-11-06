@@ -1,4 +1,5 @@
 //! Direct Resource Map exits, built from ordinary sources without synthetic facts.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod fe;
 mod graph;
 pub(in super::super) mod returning;
@@ -160,13 +161,13 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             )
         },
     );
-    println!(
+    diagnostic!(
         "RESOURCE TERMINAL case={} rooted={unit} report={report:#?} outcome={:?}",
         case.label,
         outcome.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = outcome?;
-    assert!(report.passed(), "{report:#?}");
+    assert_diagnostic!(report.passed(), "{report:#?}");
     graph::check(&program, &input, &sources, &parsed, true)?;
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA verifier", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e))?;
@@ -179,5 +180,5 @@ fn resource_break_reaches_both_verified_pipelines() {
         .flat_map(|case| [false, true].map(|unit| (case.label, unit, observe(case, unit))))
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 26);
-    assert!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
+    assert_diagnostic!(results.iter().all(|(_, _, r)| r.is_ok()), "{results:#?}");
 }

@@ -1,5 +1,6 @@
 //! 两份本地 named 源的四次 fresh；复杂 owner/Drop 拓扑先采实际事实，不推定。
 //! 仅普通 source → frontend/validator → SSA/LLVM；不执行 native。
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod ast;
 mod deep;
@@ -57,7 +58,7 @@ fn observe(
 ) -> Observation {
     let mut report = Report::default();
     // SHA 是仓外核验的冻结输入标识，不声称此处运行时计算哈希或执行 native。
-    println!(
+    diagnostic!(
         "SPEC0331 LOCAL INPUT case={label} unit={unit} path=provider.ko frozen_sha256={source_hash} text={text:?}"
     );
     let outcome = ast::Input::new(text, later).and_then(|input| {
@@ -100,7 +101,7 @@ fn observe(
                 },
             )
         }?;
-        println!(
+        diagnostic!(
             "SPEC0331 LOCAL SSA case={label} unit={unit}\n{}",
             crate::ssa::render::render_program(&program)
         );
@@ -131,7 +132,7 @@ fn observe(
         let llvm = crate::llvm::render_verified_program(&program)
             .map_err(|e| failure("LLVM render/verify", e))?;
         report.check("local LLVM render/verify", true, llvm.len());
-        println!("SPEC0331 LOCAL LLVM case={label} unit={unit}\n{llvm}");
+        diagnostic!("SPEC0331 LOCAL LLVM case={label} unit={unit}\n{llvm}");
         Ok(())
     });
     Observation {
@@ -151,16 +152,18 @@ fn owned_local_formation_and_later_use_sources_reach_verified_llvm() {
         }
     }
     for observation in &observations {
-        println!(
+        diagnostic!(
             "SPEC0331 LOCAL OUTCOME case={} unit={} report={:#?}",
-            observation.label, observation.unit, observation.report
+            observation.label,
+            observation.unit,
+            observation.report
         );
         match &observation.outcome {
-            Ok(()) => println!("stage=LLVM render/verify result=ok"),
-            Err(error) => println!("stage={} original={}", error.stage, error.original),
+            Ok(()) => diagnostic!("stage=LLVM render/verify result=ok"),
+            Err(error) => diagnostic!("stage={} original={}", error.stage, error.original),
         }
     }
-    assert!(
+    assert_diagnostic!(
         observations.len() == 4
             && observations
                 .iter()
@@ -184,7 +187,7 @@ fn local_sources_preserve_all_incoming_and_last_use_owner_identity() {
             [false, true].map(|unit| observe(label, later, hash, source, unit, true))
         })
         .collect::<Vec<_>>();
-    assert!(
+    assert_diagnostic!(
         observations.len() == 4
             && observations
                 .iter()

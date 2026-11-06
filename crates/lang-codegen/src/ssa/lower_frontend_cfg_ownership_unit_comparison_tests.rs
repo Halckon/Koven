@@ -2,6 +2,7 @@
 //! Stage B retires the paired legacy positives; this is not whole-file or native equivalence.
 //! Admission, ownership, SSA and LLVM failures are hard failures, never skips.
 
+use crate::test_support::diagnostics::assert_eq_diagnostic;
 use std::collections::BTreeSet;
 
 use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
@@ -400,7 +401,7 @@ fn comma_when_drops_owner_only_on_the_match_that_skips_consumption_unit_comparis
         .map(|root| root.body.as_str())
         .collect::<Vec<_>>()
         .join("\n\n");
-    assert_eq!(rendered.matches("drop ").count(), 2, "{rendered}");
+    assert_eq_diagnostic!(rendered.matches("drop ").count(), 2, "{rendered}");
     let root = &roots[1];
     let function = root.function();
     let entry = &function.blocks[0];

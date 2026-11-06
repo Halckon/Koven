@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn checked_division_by_zero_with_sibling_slot_reassignment() {
@@ -532,7 +533,7 @@ fn checked_arithmetic_overflow_without_divisor_aborts_cleanly() {
         }
     }"#;
     let output = crate::native_tests::emit_link_and_run("add_overflow.ko", source, "main");
-    assert!(output.stdout.is_empty(), "{output:?}");
+    assert_diagnostic!(output.stdout.is_empty(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.starts_with("abort: integer overflow in +\n  at "),
@@ -550,7 +551,7 @@ fn checked_multiply_overflow_without_divisor_aborts_cleanly() {
         }
     }"#;
     let output = crate::native_tests::emit_link_and_run("mul_overflow.ko", source, "main");
-    assert!(output.stdout.is_empty(), "{output:?}");
+    assert_diagnostic!(output.stdout.is_empty(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.starts_with("abort: integer overflow in *\n  at "),

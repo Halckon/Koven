@@ -1,4 +1,5 @@
 //! P06 original Int storage programs, independently queried through both public entry paths.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
 mod facts;
 mod graph;
@@ -11,9 +12,11 @@ use super::super::{
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 pub(crate) use sources::{Case, sources};
 fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "SCOPE B INT INPUT label={} rooted={unit} source={:?} golden={:?}",
-        c.label, c.source, c.golden
+        c.label,
+        c.source,
+        c.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -41,7 +44,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
             proof = result.ok();
         },
     );
-    println!(
+    diagnostic!(
         "SCOPE B INT LOWER label={} rooted={unit} report={report:#?} outcome={:?}",
         c.label,
         lower.as_ref().map(|(_, e)| e)
@@ -57,7 +60,7 @@ fn observe(c: &Case, unit: bool) -> Result<(), Failure> {
     );
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
-    println!(
+    diagnostic!(
         "SCOPE B INT FINAL label={} rooted={unit} report={report:#?}",
         c.label
     );
@@ -73,7 +76,7 @@ fn original_int_storage_sources_preserve_actual_identity() {
     for c in sources() {
         for unit in [false, true] {
             let result = observe(&c, unit);
-            println!(
+            diagnostic!(
                 "SCOPE B INT CASE label={} rooted={unit} result={result:?}",
                 c.label
             );
@@ -81,5 +84,5 @@ fn original_int_storage_sources_preserve_actual_identity() {
         }
     }
     assert_eq!(outcomes.len(), 4);
-    assert!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
 }

@@ -1,4 +1,7 @@
 //! Ordinary-source Range value ABI probes; no fabricated facts or native execution.
+use crate::test_support::diagnostics::{
+    assert_diagnostic, assert_eq_diagnostic, diagnostic, expect,
+};
 mod llvm_contract;
 
 use super::{
@@ -123,7 +126,7 @@ pub(super) fn collect_memory_entry_observations(
         .iter()
         .enumerate()
         .map(|(case, text)| {
-            println!("SHAPE4 MEMORY case={case} path=range.ko SOURCE {text:?} admission=pending");
+            diagnostic!("SHAPE4 MEMORY case={case} path=range.ko SOURCE {text:?} admission=pending");
             let result = std::panic::catch_unwind(|| observe_memory_entry(text, case))
                 .unwrap_or_else(|panic| {
                     let message = panic
@@ -135,7 +138,7 @@ pub(super) fn collect_memory_entry_observations(
                         "unexpected panic (unfinished stage unknown; later stages not passed): {message}"
                     ))
                 });
-            println!(
+            diagnostic!(
                 "SHAPE4 MEMORY case={case} outcome={:?} oracle=pending",
                 result.as_ref().map(|_| ())
             );
@@ -146,9 +149,11 @@ pub(super) fn collect_memory_entry_observations(
 
 fn observe_memory_entry(text: &str, case: usize) -> Result<SourceProgram, String> {
     let source = lower_unit_source(text, false)?;
-    println!(
+    diagnostic!(
         "SHAPE4 MEMORY case={case} admission=ok names=ok types=ok owned=ok lower=ok declaration={:?} entry={:?} span={:?}",
-        source.declaration, source.entry, source.entry_span
+        source.declaration,
+        source.entry,
+        source.entry_span
     );
     let module = source
         .program
@@ -211,10 +216,10 @@ fn observe_memory_entry(text: &str, case: usize) -> Result<SourceProgram, String
         }
     }
     verify_program(&source.program).map_err(|error| format!("SSA verify: {error:?}"))?;
-    println!("SHAPE4 MEMORY case={case} identity=ok SSA=ok");
+    diagnostic!("SHAPE4 MEMORY case={case} identity=ok SSA=ok");
     let llvm = crate::llvm::render_verified_program(&source.program)
         .map_err(|error| format!("LLVM: {error:?}"))?;
-    println!("SHAPE4 MEMORY case={case} LLVM=ok {llvm}");
+    diagnostic!("SHAPE4 MEMORY case={case} LLVM=ok {llvm}");
     Ok(source)
 }
 
@@ -262,9 +267,9 @@ pub(super) fn collect_source_functions(sources: &[String]) -> Vec<Result<SourceP
         for package_layout in [false, true] {
             let result = lower_unit_source(source, package_layout);
             match &result {
-                Ok(_) => println!("UNIT layout_package={package_layout} lower=ok"),
+                Ok(_) => diagnostic!("UNIT layout_package={package_layout} lower=ok"),
                 Err(error) => {
-                    println!("UNIT layout_package={package_layout} SOURCE {source:?} {error}")
+                    diagnostic!("UNIT layout_package={package_layout} SOURCE {source:?} {error}")
                 }
             }
             results.push(result);
@@ -290,8 +295,8 @@ pub(super) fn collect_shape_boundaries(sources: &[String]) -> Vec<Result<Program
                 lower_legacy_shape_boundary(source)
             };
             match &result {
-                Ok(_) => println!("SHAPE BOUNDARY unit={unit} lower=ok"),
-                Err(error) => println!("SHAPE BOUNDARY unit={unit} SOURCE {source:?} {error}"),
+                Ok(_) => diagnostic!("SHAPE BOUNDARY unit={unit} lower=ok"),
+                Err(error) => diagnostic!("SHAPE BOUNDARY unit={unit} SOURCE {source:?} {error}"),
             }
             results.push(result);
         }
@@ -300,8 +305,8 @@ pub(super) fn collect_shape_boundaries(sources: &[String]) -> Vec<Result<Program
 }
 
 fn verified(result: Result<Program, String>) -> Program {
-    let program = result.expect("real Range value source must reach SSA");
-    verify_program(&program).expect("ordinary source SSA verifies");
+    let program = expect(result, "real Range value source must reach SSA");
+    expect(verify_program(&program), "ordinary source SSA verifies");
     let mut operations = 0;
     for module in &program.modules {
         for function in &module.functions {
@@ -456,12 +461,15 @@ fn range_construction_membership_and_equality_reach_verified_ssa() {
     for result in collect_sources(&sources) {
         let program = verified(result);
         let llvm = crate::llvm::render_verified_program(&program);
-        println!("CORE LLVM {llvm:?}");
+        diagnostic!("CORE LLVM outcome={:?}", llvm.as_ref().map(|_| "verified"));
+        if let Ok(ir) = &llvm {
+            diagnostic!("{ir}");
+        }
         llvm_results.push(llvm);
     }
     assert_eq!(llvm_results.len(), 40);
     for result in llvm_results {
-        result.expect("ordinary Range operation reaches verified LLVM");
+        expect(result, "ordinary Range operation reaches verified LLVM");
     }
 }
 
@@ -482,11 +490,13 @@ fn range_operand_calls_and_outer_join_reach_verified_llvm() {
             assert_operand_call_identities(&program);
         }
         let rendered = render_program(&program);
-        println!("CALL ORDER SSA {rendered}");
-        println!("STAGE LLVM");
-        let llvm =
-            crate::llvm::render_verified_program(&program).expect("real Range LLVM verifies");
-        println!("RANGE LLVM {llvm}");
+        diagnostic!("CALL ORDER SSA {rendered}");
+        diagnostic!("STAGE LLVM");
+        let llvm = expect(
+            crate::llvm::render_verified_program(&program),
+            "real Range LLVM verifies",
+        );
+        diagnostic!("RANGE LLVM {llvm}");
         llvm_contract::assert_half_open_cfg(&llvm, if index < 4 { 1 } else { 2 });
     }
 }
@@ -524,13 +534,19 @@ fn range_values_cross_fields_containers_and_consumed_map_results() {
         } else {
             let program = verified(result);
             let llvm = crate::llvm::render_verified_program(&program);
-            println!("STORAGE LLVM index={index} {llvm:?}");
+            diagnostic!(
+                "STORAGE LLVM index={index} outcome={:?}",
+                llvm.as_ref().map(|_| "verified")
+            );
+            if let Ok(ir) = &llvm {
+                diagnostic!("{ir}");
+            }
             llvm_results.push(llvm);
         }
     }
     assert_eq!(llvm_results.len(), 28);
     for result in llvm_results {
-        result.expect("ordinary Range storage reaches verified LLVM");
+        expect(result, "ordinary Range storage reaches verified LLVM");
     }
 }
 
@@ -547,9 +563,9 @@ fn range_require_value_preserves_explicit_borrow_contract() {
             let error = result
                 .err()
                 .expect("ordinary val cannot directly bind a borrowed result");
-            assert!(error.starts_with("ownership"), "{error}");
-            assert_eq!(error.matches("code: L0163").count(), 1, "{error}");
-            assert_eq!(
+            assert_diagnostic!(error.starts_with("ownership"), "{error}");
+            assert_eq_diagnostic!(error.matches("code: L0163").count(), 1, "{error}");
+            assert_eq_diagnostic!(
                 error.matches("Diagnostic { severity:").count(),
                 1,
                 "{error}"
@@ -557,7 +573,7 @@ fn range_require_value_preserves_explicit_borrow_contract() {
             let source = &sources[index / 2];
             let start = source.find("values.requireValue(1)").unwrap()
                 + if index % 2 == 1 { 10 } else { 0 };
-            assert!(
+            assert_diagnostic!(
                 error.contains(&format!(
                     "primary_span: Span {{ source_id: SourceId(0), start: {start}, end: {} }}",
                     start + "values.requireValue(1)".len()
@@ -566,9 +582,11 @@ fn range_require_value_preserves_explicit_borrow_contract() {
             );
         } else {
             let program = verified(result);
-            let llvm = crate::llvm::render_verified_program(&program)
-                .expect("explicit borrow and Copyable read reach LLVM");
-            println!("REQUIRE VALUE LLVM {llvm}");
+            let llvm = expect(
+                crate::llvm::render_verified_program(&program),
+                "explicit borrow and Copyable read reach LLVM",
+            );
+            diagnostic!("REQUIRE VALUE LLVM {llvm}");
         }
     }
 }

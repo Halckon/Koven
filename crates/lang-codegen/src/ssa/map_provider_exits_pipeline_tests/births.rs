@@ -1,4 +1,5 @@
 //! Ordinary intrinsic births and Unit FunctionValue results reach the original providers.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 pub(super) mod ast;
 mod facts;
 pub(super) mod graph;
@@ -11,9 +12,11 @@ use super::{
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 pub(crate) use sources::{Case, Kind, Shape, sources};
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "BIRTH INPUT label={} rooted={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -42,7 +45,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             proof = Some(checked);
         },
     );
-    println!(
+    diagnostic!(
         "BIRTH LOWER label={} rooted={unit} report={report:#?} outcome={:?}",
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
@@ -59,7 +62,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     );
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
-    println!(
+    diagnostic!(
         "BIRTH FINAL label={} rooted={unit} report={report:#?}",
         case.label
     );
@@ -76,9 +79,11 @@ fn original_intrinsic_and_unit_function_value_births_keep_exact_owner_identity()
     // These six FunctionValue sources retain their original rooted-only cells.
     // Do not add Memory cells or recast the old Single prerequisite as a rejection oracle.
     for c in cases.iter().filter(|c| c.kind == Kind::FunctionValue) {
-        println!(
+        diagnostic!(
             "BIRTH SINGLE FUNCTION PREREQUISITE label={} source={:?} golden={:?}",
-            c.label, c.source, c.golden
+            c.label,
+            c.source,
+            c.golden
         );
     }
     let mut outcomes = Vec::new();
@@ -89,7 +94,7 @@ fn original_intrinsic_and_unit_function_value_births_keep_exact_owner_identity()
             vec![false, true]
         } {
             let result = observe(&case, unit);
-            println!(
+            diagnostic!(
                 "BIRTH CASE label={} rooted={unit} result={result:?}",
                 case.label
             );
@@ -97,5 +102,5 @@ fn original_intrinsic_and_unit_function_value_births_keep_exact_owner_identity()
         }
     }
     assert_eq!(outcomes.len(), 26);
-    assert!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(|(_, _, r)| r.is_ok()), "{outcomes:#?}");
 }

@@ -1,5 +1,7 @@
 //! Host-specific tools and object contracts shared by native regression tests.
 
+pub(crate) mod diagnostics;
+
 use std::path::PathBuf;
 
 pub(crate) fn clang() -> PathBuf {

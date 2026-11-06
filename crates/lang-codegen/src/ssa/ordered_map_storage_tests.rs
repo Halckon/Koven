@@ -1,6 +1,7 @@
 //! Ordinary source to verified LLVM layout observations; no native or IR mutation.
 
 use super::model::{MapContainerKind, SsaTypeKind};
+use crate::test_support::diagnostics::{assert_eq_diagnostic, diagnostic};
 
 #[test]
 fn ordered_map_headers_preserve_shared_six_field_storage() {
@@ -82,7 +83,7 @@ fn ordered_map_headers_preserve_shared_six_field_storage() {
                         .lines()
                         .filter_map(|line| line.strip_prefix(&prefix))
                         .collect();
-                    assert_eq!(matches.len(), 1, "{prefix}\n{llvm}");
+                    assert_eq_diagnostic!(matches.len(), 1, "{prefix}\n{llvm}");
                     matches[0]
                         .strip_suffix(" }")
                         .unwrap()
@@ -91,7 +92,7 @@ fn ordered_map_headers_preserve_shared_six_field_storage() {
                         .collect()
                 })
                 .collect();
-            println!("ORDERED MAP HEADER source={source_index} unit={unit}: {headers:?}");
+            diagnostic!("ORDERED MAP HEADER source={source_index} unit={unit}: {headers:?}");
             observations.push(headers);
         }
     }

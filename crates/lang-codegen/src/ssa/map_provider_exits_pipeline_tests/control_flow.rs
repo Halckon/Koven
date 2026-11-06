@@ -4,6 +4,7 @@ use super::{
     fixture::{Failure, clean, failure},
     pipeline,
 };
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 
 mod query;
@@ -220,24 +221,24 @@ fn observe(label: &str, text: &str, unit: bool) -> Result<(), Failure> {
                     &bridge,
                 );
             }
-            println!(
+            diagnostic!(
                 "ORDINARY CFG FACTS case={label} unit=true plans={:#?} drops={:#?}",
                 owned.map_iterations(),
                 owned.drops()
             );
         },
     );
-    println!(
+    diagnostic!(
         "ORDINARY CFG LOWER case={label} rooted={unit} report={report:#?} outcome={:?}",
         result.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = result?;
     let identity = query::check(&sources, &parsed, &program, true);
-    println!("ORDINARY CFG QUERY case={label} rooted={unit} result={identity:?}");
+    diagnostic!("ORDINARY CFG QUERY case={label} rooted={unit} result={identity:?}");
     report.query("ordinary CFG complete graph identities", &identity);
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
-    println!(
+    diagnostic!(
         "ORDINARY CFG SSA case={label} rooted={unit}\n{}",
         crate::ssa::render::render_program(&program)
     );
@@ -453,12 +454,14 @@ fn ordinary_cfg_neighbors_reach_both_pipelines() {
     let mut outcomes = Vec::new();
     for case in neighbor_sources() {
         for unit in [false, true] {
-            println!(
+            diagnostic!(
                 "ORDINARY CFG NEIGHBOR INPUT case={} rooted={unit} source={:?} golden={:?}",
-                case.label, case.source, case.golden
+                case.label,
+                case.source,
+                case.golden
             );
             let result = observe(&case.label, &case.source, unit);
-            println!(
+            diagnostic!(
                 "ORDINARY CFG NEIGHBOR CASE case={} rooted={unit} result={result:?}",
                 case.label
             );
@@ -466,7 +469,7 @@ fn ordinary_cfg_neighbors_reach_both_pipelines() {
         }
     }
     assert_eq!(outcomes.len(), 28);
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }
 
 /// Return operands differ in delivery, without changing the provider protocol.
@@ -589,12 +592,14 @@ fn ordinary_return_delivery_reaches_both_pipelines() {
     let mut outcomes = Vec::new();
     for case in return_sources() {
         for unit in [false, true] {
-            println!(
+            diagnostic!(
                 "ORDINARY RETURN INPUT case={} rooted={unit} source={:?} golden={:?}",
-                case.label, case.source, case.golden
+                case.label,
+                case.source,
+                case.golden
             );
             let result = observe(&case.label, &case.source, unit);
-            println!(
+            diagnostic!(
                 "ORDINARY RETURN CASE case={} rooted={unit} result={result:?}",
                 case.label
             );
@@ -602,7 +607,7 @@ fn ordinary_return_delivery_reaches_both_pipelines() {
         }
     }
     assert_eq!(outcomes.len(), 28);
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }
 
 #[test]
@@ -610,7 +615,7 @@ fn ordinary_conditional_sources_reach_both_pipelines() {
     let mut outcomes = Vec::new();
     for case in sources() {
         for unit in [false, true] {
-            println!(
+            diagnostic!(
                 "ORDINARY CFG INPUT case={} rooted={unit} source={:?} golden={:?} axes={:?}",
                 case.label,
                 case.source,
@@ -618,7 +623,7 @@ fn ordinary_conditional_sources_reach_both_pipelines() {
                 (case.flow, case.mode, case.mutable)
             );
             let result = observe(&case.label, &case.source, unit);
-            println!(
+            diagnostic!(
                 "ORDINARY CFG CASE case={} rooted={unit} result={result:?}",
                 case.label
             );
@@ -626,7 +631,7 @@ fn ordinary_conditional_sources_reach_both_pipelines() {
         }
     }
     assert_eq!(outcomes.len(), 48);
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }
 
 #[test]
@@ -638,13 +643,13 @@ fn ordinary_factory_without_for_reaches_both_pipelines() {
             common(mutable)
         );
         for unit in [false, true] {
-            println!("ORDINARY CFG INPUT case=noFor-{mutable} rooted={unit} source={text:?}");
+            diagnostic!("ORDINARY CFG INPUT case=noFor-{mutable} rooted={unit} source={text:?}");
             let result = observe("noFor", &text, unit);
-            println!("ORDINARY CFG CONTROL mutable={mutable} rooted={unit} result={result:?}");
+            diagnostic!("ORDINARY CFG CONTROL mutable={mutable} rooted={unit} result={result:?}");
             outcomes.push(result);
         }
     }
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }
 
 pub(crate) fn future_transfer_sources() -> Vec<(bool, String)> {
@@ -729,7 +734,7 @@ fn observe_future_transfer(mutable: bool, text: &str, unit: bool) -> Result<(), 
         );
     }
     let sealed = "unit full ownership validator";
-    println!(
+    diagnostic!(
         "ORDINARY CFG FUTURE TRANSFER ORIGINAL mutable={mutable} rooted={unit} for_span={for_span:?} report={report:#?} result={:?}",
         result.as_ref().map(|(_, entry)| entry)
     );
@@ -751,14 +756,14 @@ fn ordinary_future_source_transfer_reaches_verified_llvm() {
     for (mutable, text) in future_transfer_sources() {
         for unit in [false, true] {
             let observed = observe_future_transfer(mutable, &text, unit);
-            println!(
+            diagnostic!(
                 "ORDINARY CFG FUTURE TRANSFER mutable={mutable} rooted={unit} source={text:?} result={observed:?}"
             );
             outcomes.push(observed);
         }
     }
     assert_eq!(outcomes.len(), 4);
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }
 
 /// The original scanner and sinks are retained byte for byte. Only the entry
@@ -784,15 +789,17 @@ fn populated_future_source_transfer_reaches_verified_llvm() {
     let mut outcomes = vec![];
     for (mutable, text) in populated_future_transfer_sources() {
         for unit in [false, true] {
-            println!(
+            diagnostic!(
                 "POPULATED FUTURE INPUT mutable={mutable} rooted={unit} source={text:?} golden={:?}",
                 "key\nsink\n"
             );
             let observed = observe_future_transfer(mutable, &text, unit);
-            println!("POPULATED FUTURE CASE mutable={mutable} rooted={unit} result={observed:?}");
+            diagnostic!(
+                "POPULATED FUTURE CASE mutable={mutable} rooted={unit} result={observed:?}"
+            );
             outcomes.push(observed);
         }
     }
     assert_eq!(outcomes.len(), 4);
-    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+    assert_diagnostic!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }

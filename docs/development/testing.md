@@ -116,6 +116,21 @@ LLVM 21.1.8，初始盘容量 145GiB、空闲 88GiB；composition 末 target 从
   这会缩小 checkout 和未来 diff，不会缩小既有 Git 历史；历史重写需单独授权。
 - 持久保留规则不放宽 CI 有效输入或复用判定；不要靠豁免 JSON/fixture 路径换取跳过测试。
 
+## Codegen 大体积测试诊断
+
+普通 SSA 测试族及 LLVM/native 的大 payload 断言通过 `test_support::diagnostics` 把完整
+证据写入系统临时目录的 `koven-codegen-diagnostics-<pid>-<sequence>.log`。每个测试线程
+一份文件，首行标记测试名；create_new 防止旧文件和并行线程互相覆盖，缓冲写入后逐条 flush。
+libtest 只捕获一次文件路径，失败聚合断言另输出最多240字符的单行预览。全文相等断言仍
+逐字节比较，失败保存左右全文，并给出首个不同字节位置和有限上下文；保留 Unicode、EOF、
+尾换行与 CRLF 的区别。泛型相等断言保持普通 assert_eq 的 eq 语义和消息懒求值。
+
+成功/失败文件都保留，手动复核后可删除；临时目录没有长期保存保证，CI 长期证据仍需归档。
+当前不新增上传机制。专用 PR120 stdout 导出协议、native/sanitizer 产物路径和简短状态输出
+保持；不是全局 panic/unwrap 截断。运行全量时仍应将 stdout/stderr 重定向到文件，避免终端
+重放未迁移或专用导出信息；不要把完整日志再用 tee 回传给 agent。
+实际范围与验证见 [SPEC-0391](../specs/active/0391-codegen-test-diagnostics.md)。
+
 ## 规范示例的分阶段门禁
 
 `bash scripts/check_guide_litmus.sh` 执行文档结构检查及 Guide Litmus、两个相关 ownership

@@ -6,6 +6,7 @@ use super::{
     render::render_program,
     verify::{VerifyErrorKind, verify_program},
 };
+use crate::test_support::diagnostics::assert_diagnostic;
 use lang_frontend::source::SourceMap;
 
 const OPERATORS: [IntegerBitwiseOperator; 6] = [
@@ -164,7 +165,7 @@ fn bitwise_ssa_contract_rejects_nonintegers_mixed_types_and_bad_results() {
         for (left, right, results) in invalid {
             let errors = verify_program(&fixture(left, right, &results, operator))
                 .expect_err("invalid bitwise contract");
-            assert!(
+            assert_diagnostic!(
                 errors
                     .errors
                     .iter()

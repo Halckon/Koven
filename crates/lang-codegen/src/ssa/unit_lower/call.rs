@@ -36,33 +36,12 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        if let Some((target, callable)) = self.known_function_address(expression, span)? {
-            let (_, values) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::FunctionAddress { target },
-                    vec![EntityType::Value(callable)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            return Ok(LoweredValue::Value(require_value(values[0], span)?));
-        }
         let symbol = self
             .references
             .get(&span_key(span))
             .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
         if let Some(value) = self.bindings.get(&symbol).copied() {
-            if self
-                .typed
-                .non_null_use(UnitExpressionId::new(self.source_unit, expression))
-                .is_some()
-                && let LoweredValue::Value(result) = value
-                && self.is_map_result_value(result)
-            {
-                return self.unwrap_map_result(result, span);
-            }
             return Ok(value);
         }
         let loan = self
@@ -242,14 +221,10 @@ impl UnitExpressionLowerer<'_> {
         let receiver = self.lower_call_receiver(call, descriptor, span)?;
         let receiver = if resolved.delegation().is_empty() {
             receiver
+        } else if !self.typed.map_iterations().is_empty() {
+            self.lower_delegated_call_receiver(call, receiver, resolved.delegation(), span)?
         } else {
-            self.lower_delegated_call_receiver(
-                call,
-                descriptor,
-                receiver,
-                resolved.delegation(),
-                span,
-            )?
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
         let mut receiver = receiver;
         if let (Some(origin), Some(receiver)) = (pending_receiver, &receiver) {
@@ -670,41 +645,22 @@ impl UnitExpressionLowerer<'_> {
                         self.typed.types().get(parameter_type),
                         Some(lang_frontend::type_checking::UnitTypeKind::Function { .. })
                     );
-                    let target = if function_parameter {
-                        // ADR-0034: borrow the concrete callable; the callee receives a view.
-                        match self
-                            .source_plan
-                            .borrowed_argument(self.source_token, argument_id)
-                        {
-                            Some(token) => self.callable_abi.token_type(
-                                self.source_plan,
-                                token,
-                                argument.span,
-                            )?,
-                            None => self.expression_ssa_type(argument.value, argument.span)?,
-                        }
-                    } else {
-                        self.type_ids.get(&parameter_type).copied().ok_or_else(|| {
-                            lowering_error(LoweringErrorKind::MissingFact, argument.span)
-                        })?
-                    };
-                    let (loan, mut created, end_span) = self.lower_borrow_argument(
+                    if function_parameter {
+                        return Err(lowering_error(
+                            LoweringErrorKind::UnsupportedNode,
+                            argument.span,
+                        ));
+                    }
+                    let target = self.type_ids.get(&parameter_type).copied().ok_or_else(|| {
+                        lowering_error(LoweringErrorKind::MissingFact, argument.span)
+                    })?;
+                    let (loan, created, end_span) = self.lower_borrow_argument(
                         call,
                         argument.value,
                         target,
                         argument.span,
                         span,
                     )?;
-                    let loan = if function_parameter {
-                        self.callable_view_argument(
-                            loan,
-                            &mut created,
-                            parameter_type,
-                            argument.span,
-                        )?
-                    } else {
-                        loan
-                    };
                     let mut argument_slots = Vec::new();
                     for created in created {
                         let pending_index = self.pending_operands.len();

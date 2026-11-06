@@ -156,7 +156,7 @@ impl Builder<'_, '_> {
                 .pending_call_loans
                 .pop()
                 .expect("loans boundary checked");
-            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+            self.end_short_call_loan(loan, span)?;
         }
         let views_boundary = frame.views.min(self.active_views.len());
         while self.active_views.len() > views_boundary {
@@ -787,8 +787,10 @@ impl Builder<'_, '_> {
                         )?;
                     }
                 }
-                Action::FinishProvider(_) | Action::EndCallLoan(_) | Action::EndReceiverLoan(_) => {
-                }
+                Action::FinishProvider(_)
+                | Action::EndCallLoan(_)
+                | Action::EndReceiverLoan(_)
+                | Action::EndCaptureLoan { .. } => {}
                 Action::EndSource(statement) => {
                     let span = self.statement_span(statement.statement())?;
                     if let Some(seq) = self.seq_for_frame(statement) {

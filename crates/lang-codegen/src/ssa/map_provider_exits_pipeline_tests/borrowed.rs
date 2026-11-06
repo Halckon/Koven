@@ -1,5 +1,6 @@
 //! Newly rebuilt ordinary Borrow Map exits; not a restoration of the unavailable cloud collector.
 //! MemoryDocument/rooted Unit pipelines and verifiers must succeed before separate native targets run.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod identity;
 
 use super::{
@@ -137,13 +138,13 @@ fn borrowed_map_direct_exits_reach_verified_llvm_in_both_entries() {
             let input = super::input_label(rooted);
             let mut report = Report::default();
             let outcome = observe(label, text, rooted, &mut report);
-            println!(
+            diagnostic!(
                 "SPEC0331 BORROW EXIT case={label} input={input} outcome={outcome:?} report={report:#?}"
             );
             results.push((label, input, report.passed() && outcome.is_ok()));
         }
     }
-    assert!(
+    assert_diagnostic!(
         results.len() == 8 && results.iter().all(|(_, _, passed)| *passed),
         "all eight original real pipelines must pass: {results:?}"
     );

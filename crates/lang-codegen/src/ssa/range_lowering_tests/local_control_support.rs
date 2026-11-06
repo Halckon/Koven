@@ -2,6 +2,7 @@
 use super::super::*;
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use crate::ssa::{LoweringError, LoweringErrorKind};
+use crate::test_support::diagnostics::{assert_eq_diagnostic, diagnostic};
 use lang_frontend::{
     name_resolution::{DeclarationId, SourceUnitKey, SymbolKind},
     parser::{Item, NameMarker},
@@ -218,12 +219,12 @@ impl PositiveLowering {
                         .find(|declaration| declaration.id() == root)
                         .expect("failed root belongs to the original source");
                     if root == analysis.declaration("main", SymbolKind::Function) {
-                        assert_eq!(
+                        assert_eq_diagnostic!(
                             error.kind,
                             LoweringErrorKind::UnsupportedNode,
                             "{label}: unexpected lowering failure: {error:?}; source={fragment:?}"
                         );
-                        assert_eq!(
+                        assert_eq_diagnostic!(
                             error.span,
                             Some(self.expected_span),
                             "{label}: wrong rejection span: {error:?}; source={fragment:?}"
@@ -268,7 +269,7 @@ pub(super) fn observe_original_unit(
         "{}\n{consumer}",
         provider.strip_prefix("package koven.algorithms\n").unwrap()
     );
-    eprintln!("{label}: stage=admission; source={name}; entry=main; fragment={fragment:?}");
+    diagnostic!("{label}: stage=admission; source={name}; entry=main; fragment={fragment:?}");
     let mut authorized_source = None;
     let analysis =
         UnitSource::analyze_with_type_environment(name, &text, |sources, source, types| {
@@ -317,7 +318,7 @@ pub(super) fn observe_original_unit(
             assert!(spans[2].start() <= probe.start() && probe.end() <= spans[2].end());
         }
     }
-    eprintln!(
+    diagnostic!(
         "{label}: stage=lowering; entry=main/{main:?}/{:?}; scan={scan:?}/{:?}; probe={probe:?}",
         analysis.declaration_span(main),
         analysis.declaration_span(scan)
@@ -348,7 +349,7 @@ pub(super) fn observe_original_unit(
                     .map(|_| (declaration.name(), declaration.id(), span))
             })
             .collect::<Vec<_>>();
-        eprintln!(
+        diagnostic!(
             "{label}: stage=lowering; actual_roots={roots:?}; error={error:?}; source={actual:?}"
         );
     }
@@ -358,14 +359,14 @@ pub(super) fn observe_original_unit(
             let error = result.err().unwrap_or_else(|| {
                 panic!("{label}: stage=lowering; main unexpectedly succeeded; frozen rejection retained")
             });
-            assert_eq!(
+            assert_eq_diagnostic!(
                 error.kind,
                 LoweringErrorKind::UnsupportedNode,
                 "{label}: {error:?}"
             );
-            assert_eq!(error.span, Some(probe), "{label}: {error:?}");
+            assert_eq_diagnostic!(error.span, Some(probe), "{label}: {error:?}");
             assert_eq!(analysis.sources().slice(probe).unwrap(), expected_fragment);
-            eprintln!("{label}: outcome=exact-backend-reject; probe={probe:?}");
+            diagnostic!("{label}: outcome=exact-backend-reject; probe={probe:?}");
         }
         UnitExpectation::Success(stdout) => {
             let (program, entry) = result.unwrap_or_else(|error| {
@@ -382,9 +383,9 @@ pub(super) fn observe_original_unit(
             );
             verify_program(&program)
                 .unwrap_or_else(|error| panic!("{label}: stage=SSA: {error:?}"));
-            eprintln!("{label}: stage=LLVM/native; entry={entry:?}");
+            diagnostic!("{label}: stage=LLVM/native; entry={entry:?}");
             run_unmodified(&program, entry, &label, stdout);
-            eprintln!("{label}: outcome=native-success; exit=0; stderr=empty; stdout={stdout:?}");
+            diagnostic!("{label}: outcome=native-success; exit=0; stderr=empty; stdout={stdout:?}");
         }
     }
 }
@@ -554,12 +555,12 @@ impl SourceLowering {
     pub(super) fn require_success(self, label: &str) -> (Program, FunctionId) {
         if let Err(error) = self.result {
             let fragment = error.span.and_then(|span| self.sources.slice(span).ok());
-            assert_eq!(
+            assert_eq_diagnostic!(
                 error.kind,
                 LoweringErrorKind::UnsupportedNode,
                 "{label}: unexpected lowering failure: {error:?}; source={fragment:?}"
             );
-            assert_eq!(
+            assert_eq_diagnostic!(
                 error.span,
                 Some(self.expected_span),
                 "{label}: wrong rejection span: {error:?}; source={fragment:?}"

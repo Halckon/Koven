@@ -2,6 +2,7 @@
 use super::*;
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use crate::ssa::model::{FunctionId, ScalarConstant, SsaTypeKind};
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 
 fn lower_constants(
     text: &str,
@@ -47,8 +48,8 @@ fn associated_constants_lower_across_all_declaration_namespaces() {
             [&Operation::Constant(ScalarConstant::Integer(41))]
         );
         let llvm = render_verified_program(&program).unwrap();
-        assert!(llvm.contains("ret i32 41"), "{llvm}");
-        assert!(!llvm.contains("global"), "{llvm}");
+        assert_diagnostic!(llvm.contains("ret i32 41"), "{llvm}");
+        assert_diagnostic!(!llvm.contains("global"), "{llvm}");
     }
 }
 
@@ -75,10 +76,10 @@ fn exact_scalar_and_char_values_keep_their_ssa_types() {
             "answer",
         );
         let llvm = render_verified_program(&program).unwrap();
-        assert!(llvm.contains(expected_return), "{ty}: {llvm}");
+        assert_diagnostic!(llvm.contains(expected_return), "{ty}: {llvm}");
         if ty == "Char" {
             assert!(program.modules[0].types.contains(&SsaTypeKind::Char));
-            assert!(llvm.contains("ret i32 25991"), "{llvm}");
+            assert_diagnostic!(llvm.contains("ret i32 25991"), "{llvm}");
         }
     }
 }
@@ -108,8 +109,8 @@ fun use(): Boolean {
     assert_eq!(literals, ["中文".as_bytes(); 4]);
     let entry = analysis.declaration("use", lang_frontend::name_resolution::SymbolKind::Function);
     let (repeated, _) = analysis.lower_entry(entry).unwrap();
-    assert_eq!(render_program(&program), render_program(&repeated));
-    assert_eq!(
+    assert_text_eq!(render_program(&program), render_program(&repeated));
+    assert_text_eq!(
         render_verified_program(&program).unwrap(),
         render_verified_program(&repeated).unwrap()
     );
@@ -133,6 +134,6 @@ fn unused_constant_namespaces_emit_only_the_entry() {
             .is_empty()
     );
     for absent in ["UNUSED", "Config", "unused", "global", "init_guard"] {
-        assert!(!llvm.contains(absent), "{llvm}");
+        assert_diagnostic!(!llvm.contains(absent), "{llvm}");
     }
 }

@@ -2,6 +2,7 @@
 //! All twelve original paths are collected before success or identity assertions.
 //! The single-source column now uses MemoryDocument Unit facts, not Legacy analysis.
 
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -319,7 +320,7 @@ fn map_consume_owned_locals_reach_verified_llvm() {
     }
     // Preserve the complete original stage observations before any assertions.
     for observation in &observations {
-        println!(
+        diagnostic!(
             "MAP CONSUME {}\n{}\noutcome={:?}",
             observation.label,
             observation.stages.join("\n"),

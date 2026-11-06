@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
@@ -252,7 +253,7 @@ fn lowers_cross_file_concat_equality_and_value_delivery_deterministically() {
         entry_declaration,
     )
     .expect("input permutation preserves String lowering");
-    assert_eq!(render_program(&forward), render_program(&backward));
+    assert_text_eq!(render_program(&forward), render_program(&backward));
 
     let module = &forward.modules[0];
     let entry = module

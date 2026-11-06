@@ -1,5 +1,6 @@
 use super::*;
 use crate::ssa::model::ScalarConstant;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 fn read_program(bytes: &[u8], index: i32, corruption: &str) -> Program {
     let origin = origin();
@@ -90,7 +91,7 @@ fn text_reads_reject_inactive_loans_and_wrong_scalar_results() {
                     instruction.operation,
                     Operation::StringByteLength { .. } | Operation::StringByteAt { .. }
                 ) {
-                    assert!(
+                    assert_diagnostic!(
                         errors.errors.iter().any(|error| error.location
                             == crate::ssa::verify::VerifyLocation::Instruction(instruction.id)
                             && matches!(error.kind, VerifyErrorKind::LoanInactive { .. })),
@@ -99,7 +100,7 @@ fn text_reads_reject_inactive_loans_and_wrong_scalar_results() {
                 }
             }
         }
-        assert!(
+        assert_diagnostic!(
             errors.errors.iter().any(|error| match invalid {
                 "ended" => matches!(error.kind, VerifyErrorKind::LoanInactive { .. }),
                 _ => matches!(error.kind, VerifyErrorKind::OperationContract { .. }),
@@ -279,7 +280,7 @@ fn utf8_scan_and_copy_require_exact_array_ubyte_active_shared_loan_and_result() 
             verify_program(&program).unwrap();
         } else {
             let errors = verify_program(&program).expect_err(case);
-            assert!(
+            assert_diagnostic!(
                 errors.errors.iter().any(|error| error.location
                     == crate::ssa::verify::VerifyLocation::Instruction(instruction)
                     && if case == "ended" {

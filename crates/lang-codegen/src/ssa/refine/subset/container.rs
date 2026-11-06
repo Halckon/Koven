@@ -43,7 +43,7 @@ impl Checker<'_, '_> {
         let [element] = arguments.as_slice() else {
             return None;
         };
-        self.storage_type_seen(*element, active).then_some(*element)
+        (self.unit(*element) || self.storage_type_seen(*element, active)).then_some(*element)
     }
 
     /// Whether any sequential-container or map typed fact claims `expression`.
@@ -124,21 +124,23 @@ impl Checker<'_, '_> {
             )
             || arguments.len() != descriptor.parameter_modes().len()
             || (descriptor.kind() == ContainerConstructionKind::RuntimeLength
-                && self.span_has_control_transfer(node.span()))
+                && self.span_has_non_abort_jump(node.span()))
         {
             return false;
         }
         let ok = match descriptor.kind() {
             ContainerConstructionKind::EmptyMutableList => {
-                descriptor.container() == SequentialContainerKind::MutableList
+                !self.unit(element_ty)
+                    && descriptor.container() == SequentialContainerKind::MutableList
                     && arguments.is_empty()
                     && descriptor.parameter_modes().is_empty()
             }
             ContainerConstructionKind::ListForm => {
-                descriptor
-                    .parameter_modes()
-                    .iter()
-                    .all(|mode| *mode == ParameterMode::Value)
+                !self.unit(element_ty)
+                    && descriptor
+                        .parameter_modes()
+                        .iter()
+                        .all(|mode| *mode == ParameterMode::Value)
                     && arguments.iter().all(|argument| {
                         argument.named_prefix.is_none()
                             && argument.mode_marker.is_none()
@@ -150,6 +152,9 @@ impl Checker<'_, '_> {
                 let [size, initializer] = arguments.as_slice() else {
                     return false;
                 };
+                let size_diverges = self
+                    .expression_type(size.value)
+                    .is_some_and(|ty| self.nothing(ty));
                 matches!(
                     descriptor.container(),
                     SequentialContainerKind::Array | SequentialContainerKind::List
@@ -166,7 +171,7 @@ impl Checker<'_, '_> {
                     )
                     && self.is_int_index(size.value)
                     && self.expression(size.value)
-                    && self.runtime_initializer(initializer.value)
+                    && (size_diverges || self.runtime_initializer(initializer.value))
             }
         };
         self.migrated |= ok;
@@ -178,14 +183,25 @@ impl Checker<'_, '_> {
         let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
             return false;
         };
+        if self.span_has_non_abort_jump(node.span()) {
+            return false;
+        }
+        if self
+            .expression_type(root)
+            .is_some_and(|ty| self.nothing(ty))
+        {
+            return self.expression(value);
+        }
         if self.span_has_control_transfer(node.span()) {
             return false;
         }
         match node.payload() {
-            Expression::Name => self.reference(root).is_some_and(|symbol| {
-                self.known.contains(&symbol)
-                    && (self.view_parameter(symbol) || self.callables.contains(&symbol))
-            }),
+            Expression::Name => {
+                self.reference(root).is_some_and(|symbol| {
+                    self.known.contains(&symbol)
+                        && (self.view_parameter(symbol) || self.callables.contains(&symbol))
+                }) || self.known_function(root)
+            }
             Expression::Lambda { .. } => {
                 self.inputs.owned.callable_origin(self.id(root)).is_some()
                     && self.lambda_formation(root)
@@ -230,9 +246,10 @@ impl Checker<'_, '_> {
             return false;
         }
         let receiver = descriptor.receiver().expression();
-        let ok = self
+        let ok = (self
             .named_container_owner(receiver, container_ty, true)
             .is_some()
+            || self.expression(receiver))
             && self
                 .inputs
                 .owned
@@ -255,6 +272,7 @@ impl Checker<'_, '_> {
         if descriptor.expression() != id
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.index().source_unit() != self.inputs.source_unit
+            || self.unit(element_ty)
             || self.container_element(container_ty) != Some(element_ty)
             || self.expression_type(expression) != Some(element_ty)
             || self.copyability_of(element_ty) != Copyability::Copyable
@@ -296,27 +314,34 @@ impl Checker<'_, '_> {
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.index().source_unit() != self.inputs.source_unit
             || element_ty != parameter
+            || self.unit(element_ty)
             || self.container_element(container_ty) != Some(element_ty)
             || self.expression_type_of(id) != Some(element_ty)
         {
             return false;
         }
-        let Some(symbol) =
-            self.named_container_owner(descriptor.receiver().expression(), container_ty, true)
-        else {
-            return false;
+        let symbol =
+            self.named_container_owner(descriptor.receiver().expression(), container_ty, true);
+        let temporary_ok = symbol.is_none() && {
+            let receiver_expr = descriptor.receiver().expression();
+            self.expression(receiver_expr)
         };
+        if symbol.is_none() && !temporary_ok {
+            return false;
+        }
         let loan_ok = self.inputs.owned.loans().iter().any(|loan| {
             loan.call() == self.id(call)
                 && (loan.argument() == self.id(value) || loan.argument() == id)
                 && loan.kind() == LoanKind::Shared
-                && matches!(
-                    loan.target(),
-                    UnitLoanTarget::Place(place)
-                        if place.root() == symbol
+                && match (symbol, loan.target()) {
+                    (Some(sym), UnitLoanTarget::Place(place)) => {
+                        place.root() == sym
                             && place.fields().is_empty()
                             && place.element().is_some()
-                )
+                    }
+                    (None, UnitLoanTarget::Temporary(_)) => true,
+                    _ => false,
+                }
         });
         let index = descriptor.index().expression();
         let ok = loan_ok && self.is_int_index(index) && self.expression(index);
@@ -353,6 +378,7 @@ impl Checker<'_, '_> {
         if !place_desc.is_mutable()
             || place_desc.receiver().source_unit() != self.inputs.source_unit
             || place_desc.index().source_unit() != self.inputs.source_unit
+            || self.unit(element_ty)
             || self.container_element(container_ty) != Some(element_ty)
             || self
                 .named_container_owner(place_desc.receiver().expression(), container_ty, false)
@@ -382,6 +408,58 @@ impl Checker<'_, '_> {
             || !self.adaptable_element(value, element_ty)
             || !self.expression(value)
         {
+            return false;
+        }
+        self.element_replacements.insert(assignment_id);
+        self.migrated = true;
+        true
+    }
+
+    /// `xs[i] += v` on an integer element of an owned local mutable container.
+    pub(super) fn element_compound_assignment(
+        &mut self,
+        assignment: ExpressionId,
+        target: ExpressionId,
+        _operator: lang_frontend::parser::AssignmentOperator,
+        value: ExpressionId,
+    ) -> bool {
+        let Ok(_) = self.inputs.parsed.ast().expressions().get(assignment) else {
+            return false;
+        };
+        let assignment_id = self.id(assignment);
+        let root_target = self.ungrouped(target);
+        let target_id = self.id(root_target);
+        let Some(place_desc) = self.inputs.typed.element_place(target_id) else {
+            return false;
+        };
+        let Some(container_ty) = self.expression_type_of(place_desc.receiver()) else {
+            return false;
+        };
+        let element_ty = self.c(place_desc.element_type());
+        if !place_desc.is_mutable()
+            || place_desc.receiver().source_unit() != self.inputs.source_unit
+            || place_desc.index().source_unit() != self.inputs.source_unit
+            || !self.integer_type(element_ty)
+            || self.container_element(container_ty) != Some(element_ty)
+            || self
+                .named_container_owner(place_desc.receiver().expression(), container_ty, false)
+                .is_none()
+            || self.expression_type(value) != Some(element_ty)
+        {
+            return false;
+        }
+        let facts: Vec<_> = self
+            .inputs
+            .owned
+            .drops()
+            .iter()
+            .filter(|fact| fact.point() == UnitDropPoint::AfterReplacement(assignment_id))
+            .collect();
+        if !facts.is_empty() {
+            return false;
+        }
+        let index = place_desc.index().expression();
+        if !self.is_int_index(index) || !self.expression(index) || !self.expression(value) {
             return false;
         }
         self.element_replacements.insert(assignment_id);
@@ -499,7 +577,8 @@ impl Checker<'_, '_> {
         container_ty: UnitTypeId,
         element_ty: UnitTypeId,
     ) -> bool {
-        receiver.source_unit() == self.inputs.source_unit
+        !self.unit(element_ty)
+            && receiver.source_unit() == self.inputs.source_unit
             && self.container_element(container_ty) == Some(element_ty)
             && matches!(
                 self.kind(container_ty),
@@ -611,7 +690,8 @@ impl Checker<'_, '_> {
         }
         let container_ty = self.c(descriptor.source_type());
         let element_ty = self.c(descriptor.element_type());
-        if self.container_element(container_ty) != Some(element_ty)
+        if self.unit(element_ty)
+            || self.container_element(container_ty) != Some(element_ty)
             || self.expression_type(source) != Some(container_ty)
         {
             return false;
@@ -639,6 +719,7 @@ impl Checker<'_, '_> {
                         | Action::EndSource(_)
                         | Action::EndCallLoan(_)
                         | Action::EndReceiverLoan(_)
+                        | Action::EndCaptureLoan { .. }
                 )
             })
         }) {
@@ -700,23 +781,70 @@ impl Checker<'_, '_> {
                         .call(self.id(*id))
                         .is_some_and(|desc| desc.aborts()))
             })
-            .any(|(_, candidate)| {
-                !self
-                    .inputs
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .iter()
-                    .any(|(_, boundary)| {
-                        let bspan = boundary.span();
-                        matches!(boundary.payload(), Expression::Lambda { .. })
-                            && bspan != candidate.span()
-                            && span.source_id() == bspan.source_id()
-                            && span.start() <= bspan.start()
-                            && bspan.end() <= span.end()
-                            && bspan.start() <= candidate.span().start()
-                            && candidate.span().end() <= bspan.end()
-                    })
+            .any(|(_, candidate)| !self.inside_enclosing_lambda(span, candidate.span()))
+    }
+
+    pub(super) fn span_has_non_abort_jump(&self, span: Span) -> bool {
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .filter(|(_, candidate)| {
+                span.source_id() == candidate.span().source_id()
+                    && span.start() <= candidate.span().start()
+                    && candidate.span().end() <= span.end()
+                    && matches!(
+                        candidate.payload(),
+                        Expression::Return { .. }
+                            | Expression::Break { .. }
+                            | Expression::Continue { .. }
+                    )
+            })
+            .any(|(_, candidate)| !self.inside_enclosing_lambda(span, candidate.span()))
+    }
+
+    fn inside_enclosing_lambda(&self, span: Span, target: Span) -> bool {
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(_, boundary)| {
+                let bspan = boundary.span();
+                matches!(boundary.payload(), Expression::Lambda { .. })
+                    && bspan != target
+                    && span.source_id() == bspan.source_id()
+                    && span.start() <= bspan.start()
+                    && bspan.end() <= span.end()
+                    && bspan.start() <= target.start()
+                    && target.end() <= bspan.end()
+            })
+    }
+
+    pub(super) fn stmt_has_runtime_container(
+        &self,
+        statement: lang_frontend::ast::StatementId,
+    ) -> bool {
+        let Ok(stmt) = self.inputs.parsed.ast().statements().get(statement) else {
+            return false;
+        };
+        let span = stmt.span();
+        self.inputs
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(expr_id, node)| {
+                let expr_span = node.span();
+                span.source_id() == expr_span.source_id()
+                    && span.start() <= expr_span.start()
+                    && expr_span.end() <= span.end()
+                    && self
+                        .inputs
+                        .typed
+                        .container_construction(self.id(expr_id))
+                        .is_some_and(|d| d.kind() == ContainerConstructionKind::RuntimeLength)
             })
     }
 }

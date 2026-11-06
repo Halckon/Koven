@@ -1,6 +1,7 @@
 //! SPEC-0280: native MutableList.add sequential appending and dynamic capacity growth.
 
 use super::*;
+use crate::test_support::diagnostics::assert_diagnostic;
 
 #[test]
 fn unit_container_append_native_growth_and_ordering() {
@@ -107,7 +108,7 @@ fn run(analysis: &UnitAnalysis, expected: &[u8]) {
         .arg(&executable)
         .output()
         .expect("native link runs");
-    assert!(
+    assert_diagnostic!(
         linked.status.success(),
         "{}",
         String::from_utf8_lossy(&linked.stderr)
@@ -115,7 +116,7 @@ fn run(analysis: &UnitAnalysis, expected: &[u8]) {
     let output = Command::new(&executable)
         .output()
         .expect("native program runs");
-    assert!(
+    assert_diagnostic!(
         output.status.success(),
         "{}",
         String::from_utf8_lossy(&output.stderr)

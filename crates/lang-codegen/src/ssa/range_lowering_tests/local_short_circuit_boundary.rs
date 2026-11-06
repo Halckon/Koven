@@ -2,6 +2,7 @@
 use super::super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 use crate::ssa::LoweringErrorKind;
+use crate::test_support::diagnostics::assert_eq_diagnostic;
 
 fn scoped(declaration: &str, setup: &str, statement: &str) -> String {
     format!(
@@ -37,12 +38,12 @@ fn reject(source: &str, fragment: &str) {
             .result
             .err()
             .expect("this unselected combination must retain the gate");
-        assert_eq!(
+        assert_eq_diagnostic!(
             error.kind,
             LoweringErrorKind::UnsupportedNode,
             "{pipeline:?}: {error:?}"
         );
-        assert_eq!(
+        assert_eq_diagnostic!(
             error.span,
             Some(lowered.expected_span),
             "{pipeline:?}: {error:?}"

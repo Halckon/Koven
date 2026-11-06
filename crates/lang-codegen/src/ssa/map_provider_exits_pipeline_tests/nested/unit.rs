@@ -3,6 +3,7 @@ use super::{
     super::Report,
     ast::{Anchors, Call, Function, Input},
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{
@@ -128,7 +129,7 @@ pub(super) fn observe(
     report: &mut Report,
 ) {
     // Debug 完整保全实际 owner/exit/cleanup；查询只读公开 API，不编造 unit 私有表接口。
-    println!(
+    diagnostic!(
         "SPEC0331 NESTED UNIT REAL typed_maps={:#?} sizes={:#?} ownership={owned:#?}",
         typed.map_iterations(),
         typed.map_sizes()
@@ -220,7 +221,7 @@ pub(super) fn observe(
             );
         }
         for exit in p.exits() {
-            println!(
+            diagnostic!(
                 "SPEC0331 NESTED UNIT SITE statement={statement:?} source={source:?} root={root:?} exit={exit:#?} actual_at_point={:#?}",
                 owned.iteration_cleanup_at(exit.point())
             );

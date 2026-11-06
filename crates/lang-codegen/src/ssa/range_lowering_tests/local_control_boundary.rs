@@ -2,12 +2,13 @@
 use super::support::{UnitExpectation, observe_original_unit};
 use super::*;
 use crate::ssa::LoweringErrorKind;
+use crate::test_support::diagnostics::{assert_eq_diagnostic, diagnostic};
 
 fn reject(label: &str, consumer: &str, fragment: &str) {
     for pipeline in [Pipeline::Single, Pipeline::Unit, Pipeline::UnitReversed] {
         // A frontend diagnostic is a fixture failure, not a backend rejection.
         // Print the current source case before the shared frontend setup asserts.
-        eprintln!("boundary={label}; pipeline={pipeline:?}; expected={fragment:?}");
+        diagnostic!("boundary={label}; pipeline={pipeline:?}; expected={fragment:?}");
         if matches!(pipeline, Pipeline::Single) {
             observe_original_unit(
                 consumer,
@@ -24,12 +25,12 @@ fn reject(label: &str, consumer: &str, fragment: &str) {
             .err()
             .expect("this source remains outside the bounded capability");
         let actual = error.span.and_then(|span| lowered.sources.slice(span).ok());
-        assert_eq!(
+        assert_eq_diagnostic!(
             error.kind,
             LoweringErrorKind::UnsupportedNode,
             "{label}/{pipeline:?}: {error:?}; source={actual:?}"
         );
-        assert_eq!(
+        assert_eq_diagnostic!(
             error.span,
             Some(lowered.expected_span),
             "{label}/{pipeline:?}: {error:?}; source={actual:?}"

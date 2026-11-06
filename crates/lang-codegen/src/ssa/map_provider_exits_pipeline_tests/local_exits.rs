@@ -1,4 +1,5 @@
 //! Real local formation and Move sources; red observations precede capability changes.
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
 mod boundaries;
 pub(super) use boundaries::formation;
@@ -100,14 +101,18 @@ fun entry():Unit{{println("nonempty");val first=scan();if(first==7){{println("se
 }
 
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
-    println!(
+    diagnostic!(
         "G2 INPUT case={} unit={unit} source={:?} golden={:?}",
-        case.label, case.source, case.golden
+        case.label,
+        case.source,
+        case.golden
     );
     // The locked metadata belongs to source construction; identity queries use actual AST/FE.
-    println!(
+    diagnostic!(
         "G2 FORM mutable={} form={} exit={}",
-        case.mutable, case.form, case.exit
+        case.mutable,
+        case.form,
+        case.exit
     );
     let mut sources = SourceMap::new();
     let id = sources
@@ -132,7 +137,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == 2,
                     typed.map_iterations(),
                 );
-                println!(
+                diagnostic!(
                     "G2 UNIT ORIGINAL formed={:#?} plans={:#?} drops={:#?} deliveries={:#?}",
                     owned.formed_owned_locals(),
                     owned.map_iterations(),
@@ -154,7 +159,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
                     typed.map_iterations().len() == 2,
                     typed.map_iterations(),
                 );
-                println!(
+                diagnostic!(
                     "G2 UNIT ORIGINAL formed={:#?} plans={:#?} drops={:#?} deliveries={:#?}",
                     owned.formed_owned_locals(),
                     owned.map_iterations(),
@@ -164,7 +169,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             },
         )
     };
-    println!("G2 REPORT {} unit={unit} {report:#?}", case.label);
+    diagnostic!("G2 REPORT {} unit={unit} {report:#?}", case.label);
     let (program, _) = result?;
     report.query(
         "Unit complete temporary source acquisition",
@@ -185,11 +190,11 @@ fn owned_locals_follow_real_formation_and_move() {
     for case in sources() {
         for unit in [false, true] {
             let result = observe(&case, unit);
-            println!("G2 CASE {} unit={unit} result={result:?}", case.label);
+            diagnostic!("G2 CASE {} unit={unit} result={result:?}", case.label);
             outcomes.push((case.label.clone(), unit, result));
         }
     }
-    assert!(
+    assert_diagnostic!(
         outcomes.len() == 48 && outcomes.iter().all(|(_, _, r)| r.is_ok()),
         "{outcomes:#?}"
     );

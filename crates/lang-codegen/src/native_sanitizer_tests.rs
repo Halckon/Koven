@@ -1,4 +1,5 @@
 //! SPEC-0266: export actual Koven IR for bounded, Linux-only sanitizer execution.
+use crate::test_support::diagnostics::assert_diagnostic;
 mod map_provider;
 use std::{
     fs,
@@ -92,7 +93,7 @@ fn asan_instruments_generated_user_runtime_and_drop() {
         .arg(crate::test_support::ir_clang())
         .output()
         .expect("Python executes bounded Clang checks");
-    assert!(
+    assert_diagnostic!(
         result.status.success(),
         "artifacts: {}\n{result:?}",
         directory.0.display()

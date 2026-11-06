@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::source::SourceMap;
 
 use super::{
@@ -286,7 +287,7 @@ fn scalar_diamond_rendering_is_exact_and_deterministic() {
         .expect("return terminator must be valid");
 
     let rendered = render_program(&program);
-    assert_eq!(rendered, render_program(&program));
+    assert_text_eq!(rendered, render_program(&program));
     assert_eq!(
         rendered,
         r#"module "main" {

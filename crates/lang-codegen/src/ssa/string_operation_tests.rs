@@ -1,3 +1,4 @@
+use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 mod text_reads;
 
 use lang_frontend::source::SourceMap;
@@ -194,7 +195,7 @@ fn string_owner_operations_verify_preserve_views_and_render_deterministically() 
     assert!(rendered.contains("string.concat %l0, %v1"));
     assert!(rendered.contains("string.equal %v2, %l0"));
     assert!(rendered.contains("print.string %l1"));
-    assert_eq!(rendered, render_program(&program));
+    assert_text_eq!(rendered, render_program(&program));
 }
 
 #[test]
@@ -526,7 +527,7 @@ fn string_clone_requires_active_shared_loan_and_creates_independent_owner() {
         verify_program(&program).expect("clone and source have independent owner obligations");
         let rendered = render_program(&program);
         assert!(rendered.contains("string.clone"));
-        assert_eq!(rendered, render_program(&program));
+        assert_text_eq!(rendered, render_program(&program));
         let llvm = crate::llvm::render_verified_program(&program).unwrap();
         assert!(llvm.contains("clone.allocate"));
         assert!(llvm.contains("llvm.memcpy"));
@@ -626,7 +627,7 @@ fn string_clone_verifier_rejects_ended_exclusive_or_nonstring_loans_and_wrong_re
             .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
             .unwrap();
         let errors = verify_program(&program).expect_err(invalid);
-        assert!(
+        assert_diagnostic!(
             errors.errors.iter().any(|error| if invalid == "ended" {
                 matches!(error.kind, VerifyErrorKind::LoanInactive { loan } if loan == view)
             } else {

@@ -4,6 +4,7 @@ use crate::ssa::model::{
     FunctionId, Instruction, InstructionId, Module, Operation, Origin, Ownership, Program,
     ScalarConstant, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
 };
+use crate::test_support::diagnostics::diagnostic;
 use lang_frontend::source::Span;
 
 use super::identity_facts::Facts;
@@ -773,7 +774,7 @@ fn presence_rc_nullable_while_preserves_owner_cleanup_identity() {
         }
     }
     for (observation, identity) in &observations {
-        println!(
+        diagnostic!(
             "SPEC0332 PRESENCE IDENTITY case={} unit={} query={identity:?} pipeline={}",
             observation.case,
             observation.unit,
@@ -784,7 +785,7 @@ fn presence_rc_nullable_while_preserves_owner_cleanup_identity() {
             }
         );
         if let Err(error) = &observation.outcome {
-            println!(
+            diagnostic!(
                 "SPEC0332 PRESENCE IDENTITY PIPELINE ERROR case={} unit={} stage={} detail={} lower={:?} span_text={:?}",
                 observation.case,
                 observation.unit,

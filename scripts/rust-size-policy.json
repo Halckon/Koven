@@ -275,6 +275,27 @@
       "owner": "lang-codegen ssa tests",
       "split_plan": "后续将证明断言提取为独立 verification helper。",
       "review": "SPEC-0379 审查核对 while flow 证明契约兼容性，锁定 1025 行；再次增长或职责变更前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/aggregate_operation_tests.rs": {
+      "max_lines": 1036,
+      "reason": "SPEC-0391 仅增加一行有界测试诊断宏 import；其余为保持谓词不变的输出替换，不为一个 import 拆散既有测试族。",
+      "owner": "lang-codegen SSA test diagnostics",
+      "split_plan": "后续修改测试族职责时按 operation/ownership 合同拆分，避免在日志修复中移动无关测试。",
+      "review": "SPEC-0391 独立审阅逐 diff 核对唯一新增 import 与原断言保全；上限锁定本次实测行数，任何再次增长前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/container_operation_tests.rs": {
+      "max_lines": 1032,
+      "reason": "SPEC-0391 仅增加一行有界测试诊断宏 import；其余为保持谓词不变的输出替换，不为一个 import 拆散既有测试族。",
+      "owner": "lang-codegen SSA test diagnostics",
+      "split_plan": "后续修改测试族职责时按 operation/ownership 合同拆分，避免在日志修复中移动无关测试。",
+      "review": "SPEC-0391 独立审阅逐 diff 核对唯一新增 import 与原断言保全；上限锁定本次实测行数，任何再次增长前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/verify_scalar_tests.rs": {
+      "max_lines": 1393,
+      "reason": "SPEC-0391 仅增加一行有界测试诊断宏 import；其余为保持谓词不变的输出替换，不为一个 import 拆散既有测试族。",
+      "owner": "lang-codegen SSA test diagnostics",
+      "split_plan": "后续修改测试族职责时按 operation/ownership 合同拆分，避免在日志修复中移动无关测试。",
+      "review": "SPEC-0391 独立审阅逐 diff 核对唯一新增 import 与原断言保全；上限锁定本次实测行数，任何再次增长前重新审阅。"
     }
   },
   "generated": {}

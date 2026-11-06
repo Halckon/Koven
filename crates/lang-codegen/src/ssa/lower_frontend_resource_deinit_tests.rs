@@ -2,6 +2,7 @@
 //! Legacy rejection, direct-invoked resource closure and raw DropPoint observations
 //! retain their original pipeline.
 
+use crate::test_support::diagnostics::assert_text_eq;
 #[path = "lower_frontend_resource_deinit_tests/field_chain.rs"]
 mod field_chain;
 
@@ -281,7 +282,7 @@ fn single_resource_deinit_handles_nested_class_fields_and_body_generic_call_root
             .collect::<Vec<_>>(),
         [*outer_owner]
     );
-    assert_eq!(
+    assert_text_eq!(
         render_program(&unit.program),
         render_program(&lower_resource(source, "run").program)
     );
@@ -333,7 +334,7 @@ fn single_resource_deinit_grouped_nested_copy_and_borrow_keep_distinct_extents()
     assert!(matches!(&last_call.operation,
         Operation::DirectCall { callee, receiver: None, arguments }
             if *callee == inspect.id() && arguments.as_slice() == [receiver]));
-    assert_eq!(
+    assert_text_eq!(
         render_program(&unit.program),
         render_program(&lower_resource(source, "run").program)
     );

@@ -246,32 +246,4 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(())
     }
-
-    pub(super) fn rebind_assertion_nullable_proofs(
-        &mut self,
-        proofs: &NullableProofs,
-        entities: &BTreeMap<EntityId, EntityId>,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        let mut rebound = NullableProofs::new();
-        for (root, proof) in proofs {
-            let Some(EntityId::Loan(loan)) = entities.get(&EntityId::Loan(proof.loan)) else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            };
-            let Some(EntityId::Value(owner)) = entities.get(&EntityId::Value(proof.owner)) else {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            };
-            rebound.insert(
-                *root,
-                NullableProof {
-                    loan: *loan,
-                    owner: *owner,
-                    ..*proof
-                },
-            );
-        }
-        self.validate_nullable_proofs(&self.bindings, &rebound, span)?;
-        self.nullable_proofs = rebound;
-        Ok(())
-    }
 }

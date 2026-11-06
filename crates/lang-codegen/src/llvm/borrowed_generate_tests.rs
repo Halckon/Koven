@@ -1,5 +1,6 @@
 use super::render_verified_program;
 use crate::ssa::borrowed_generate_tests::{Layout, dynamic_fixture, fixture};
+use crate::test_support::diagnostics::{assert_diagnostic, assert_eq_diagnostic};
 
 #[test]
 fn borrowed_generation_prepares_fixed_storage_once_outside_the_loop() {
@@ -22,21 +23,21 @@ fn borrowed_generation_prepares_fixed_storage_once_outside_the_loop() {
                 .split(".done:")
                 .next()
                 .expect("done");
-            assert!(
+            assert_diagnostic!(
                 !body.contains("alloca"),
                 "loop storage must remain bounded: {llvm}"
             );
-            assert_eq!(
+            assert_eq_diagnostic!(
                 make.matches(".index.storage = alloca i32").count(),
                 1,
                 "{llvm}"
             );
-            assert_eq!(
+            assert_eq_diagnostic!(
                 make.matches(".environment.storage = alloca").count(),
                 usize::from(!matches!(layout, Layout::Pointer)),
                 "{llvm}"
             );
-            assert!(
+            assert_diagnostic!(
                 body.contains("call i32"),
                 "callback stays in guarded loop: {llvm}"
             );
@@ -58,7 +59,7 @@ fn borrowed_unit_void_generation_calls_each_logical_index_without_buffer_address
         .split("\n}")
         .next()
         .expect("body");
-    assert!(
+    assert_diagnostic!(
         make.contains("call void %"),
         "logical Unit callback must be invoked: {llvm}"
     );
@@ -77,20 +78,20 @@ fn borrowed_generation_dynamic_length_keeps_checked_length_and_bytes_guards() {
         .split("\n}")
         .next()
         .expect("body");
-    assert!(
+    assert_diagnostic!(
         make.contains("icmp slt i32"),
         "negative length rejected before conversion: {llvm}"
     );
-    assert!(
+    assert_diagnostic!(
         make.contains("zext i32"),
         "nonnegative logical length becomes size_t: {llvm}"
     );
-    assert!(
+    assert_diagnostic!(
         make.contains("llvm.umul.with.overflow"),
         "physical bytes remain checked: {llvm}"
     );
     let preheader = make.split(".loop:").next().expect("preheader");
-    assert!(
+    assert_diagnostic!(
         !preheader.contains("call i32 %"),
         "no callback before allocation succeeds: {llvm}"
     );

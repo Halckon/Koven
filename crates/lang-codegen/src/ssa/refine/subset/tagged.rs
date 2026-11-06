@@ -106,7 +106,7 @@ impl Checker<'_, '_> {
             && self.storage_type(receiver.ty)
             && (receiver.mode == lang_frontend::type_checking::ParameterMode::Value
                 || self.copyability_of(receiver.ty) == Copyability::Copyable);
-        if ok && !self.enum_type(receiver.ty) {
+        if ok {
             self.migrated = true;
         }
         ok
@@ -141,9 +141,7 @@ impl Checker<'_, '_> {
         };
         let payload_symbols: Vec<_> = case.payloads().iter().map(|field| field.symbol()).collect();
         let is_box_enum = self.box_enum_type(result);
-        if !type_arguments.is_empty() || is_box_enum {
-            self.migrated = true;
-        }
+        self.migrated = true;
         let Some(payloads) = self
             .enum_payload_types(result)
             .and_then(|cases| cases.get(index).cloned())
@@ -274,7 +272,8 @@ impl Checker<'_, '_> {
         };
         if projection.kind() != UnitAggregateProjectionKind::Field
             || self.expression_type_of(id) != Some(self.c(projection.ty()))
-            || !self.scalar(self.c(projection.ty()))
+            || !self.storage_type(self.c(projection.ty()))
+            || self.copyability_of(self.c(projection.ty())) != Copyability::Copyable
         {
             return false;
         }
@@ -333,13 +332,7 @@ impl Checker<'_, '_> {
                 root
             }
         };
-        if self
-            .enum_signature(root)
-            .is_some_and(|(_, arguments)| !arguments.is_empty())
-            || self.box_enum_type(root)
-        {
-            self.migrated = true;
-        }
+        self.migrated = true;
         self.payload_case(root, projection.field()).is_some()
     }
 
