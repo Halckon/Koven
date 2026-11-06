@@ -230,6 +230,15 @@ fn non_storable_and_wrong_arity_container_types_are_rejected() {
         codes(typed.diagnostics()),
         ["L0125", "L0125", "L0094", "L0091"]
     );
+    // Keep the original Single witness above; the combined signature fix now
+    // permits the same source and custom environment in both actual Unit entries.
+    let (_, _, entries) = checked_entries(text);
+    for (_, unit) in entries {
+        assert_eq!(
+            codes(unit.diagnostics()),
+            ["L0125", "L0125", "L0094", "L0091"]
+        );
+    }
 }
 
 #[test]

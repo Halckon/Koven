@@ -2794,3 +2794,36 @@ Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
 - 云端 Rust 1.96.0、默认 debug=2、locked/offline 的目标编译、三项定向测试及整个
   `type_constants` 24 项（无过滤）通过，frontend lib build、all-targets Clippy
   （`-D warnings`）、fmt、文档结构、尺寸与 diff 检查通过；官方 CI 未运行，尚未发布或创建 PR。
+
+## 114. D10/E2 消费者批量组合候选（2026-11-06）
+
+按用户要求改为多个逻辑提交、一次 PR 验收。基于已重新核验的 main `c4ba670a`，
+独立分支 `feature/spec-0341-consumer-batch` 保留以下八个输入提交的逻辑与顺序：
+
+| 输入 | 原提交 | 范围 |
+|---|---|---|
+| #326 | `916f731b` | callable 基础消费者 |
+| #327 | `81ce6a4a` | Exclusive prefix 回归 |
+| #328 | `7e4afbc` | 核心 container 消费者 |
+| #329 | `f87f8d48` | signature L0125 有界修复 |
+| #330 | `98aa7bbe` | expected move literal 消费者 |
+| resource | `876d4e73`、`5d2cfba6` | 资源类型消费者与文档 |
+| constant | `4d2988d6` | 常量求值双入口 |
+
+- 上述五项 PR 核验时均 Open/Draft，resource 远端为 `5d2cfba6`；未关闭旧 PR、
+  覆盖原分支或合并 main，不包含 #323/#325。各片的原本地/发布状态文字保留其历史时点，
+  不作为本组合的动态验收。新的官方 CI 仍须针对组合精确头运行。
+- 仅两处文档相邻追加冲突：Architecture 保留 container 与 resource 双方说明，Spec
+  同时保留 callable §113 和常量求值小节。原八个提交的源码/测试补丁逐字保全。
+- 组合增量不删除旧 witness：原 non-storable/wrong-arity Single 源及四条诊断断言保留，
+  再将同一源码与自定义环境送入 #328 双入口，核 #329 修复后的
+  L0125、L0125、L0094、L0091 顺序。未迁 deferred callable witness，未扩大生产修复范围。
+- 云端 Rust 1.96.0、默认 debug=2、locked/offline，八个目标编译通过；实际执行
+  signature 17、container 32、copyability 16、map 17、constant 24、callable 20、
+  direct-call-loan 28、resource 6 与原 names-only 1，共 161 项通过。
+  callable 排除一项 Abort identity，direct-call-loan 排除两项含 Abort 整项；
+  其余 type_checking 不执行。不运行故障注入、校准、Mac 构建或 native。
+- frontend lib build、all-targets Clippy（`-D warnings`）、fmt、文档结构、尺寸与 diff
+  检查通过；独立只读审查确认原补丁保全与组合增量无阻断。
+- 本组合本地验证通过，未推送、未创建 PR。单片历史绿灯不能替代组合 CI；
+  D10/E2 保持 in-progress，不自动合并。
