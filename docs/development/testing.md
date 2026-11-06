@@ -176,6 +176,13 @@ PR 的普通文档变更保留路径豁免；全部 Guide、compiler-specs、scr
 变更触发 Rust 门禁。代码门禁成功后追加普通文档，可按 [SPEC-0293](../archive/specs/0293-pr-code-ci-reuse.md)
 复用同 PR、同 base、同 head/merge 有效输入的真实 job 证据；汇总独立重验，不能只凭 workflow success。
 证据不可用保守重跑，docs 每次 PR 运行，跳过不表示本 head 再次执行或生成新 preview 包。
+复用 required jobs 与 workflow 实际名称、OS 矩阵由 `test_pr_ci_reuse.py` 覆盖全部八组
+路径开关组合；拒绝日志标明 run、attempt 及缺失或未成功 job，摘要保留首个候选拒绝原因。
+修复后的 [PR #325 首轮完整 CI](https://github.com/Halckon/Koven/actions/runs/42170934428)
+在 head `9a53c7cdfb4d8b21c7baad063eebbf578d9bdae1`、base
+`c4ba670a76a567e1475deee47378fa791d25f419` 实际通过全部 16 个 job，含 editor、双平台
+Rust、Preview producer/consumer 与物理证据。后续普通文档追加仍须核对同 base、同输入
+指纹和最终独立复验；镜像 workflow 尚未接入该复用机制，其重跑不代表核心复用失败。
 active/archive 的编号真源为 [Spec 冻结库存](../specs/inventory.md)；纯归档同步声明、正文与索引，
 不再为编号修改 checker。严格解析器与生命周期检查仍在每次 PR 的 docs 门禁执行；无效声明使
 docs 和最终汇总失败。parser/脚本、base 或其他代码输入变化仍按原证据规则保守重跑。
