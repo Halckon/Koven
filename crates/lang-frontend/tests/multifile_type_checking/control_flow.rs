@@ -741,3 +741,82 @@ fn unit_loop_and_return_diagnostics_match_callable_boundaries() {
     );
     assert!(typed.validate().is_err());
 }
+
+#[test]
+fn nullable_remaining_case_payload_keeps_cross_file_identity_and_generic_arguments() {
+    let mut sources = SourceMap::new();
+    let (types_source, types) = parsed(
+        &mut sources,
+        "types.ko",
+        "package p\nenum class Maybe<T> { Some(item: T), None }",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p
+        fun negated(x: Maybe<Int>?): Int = when (x) {
+            null -> 0; !is Maybe.None<Int> -> x.item; else -> 0
+        }
+        fun remaining(x: Maybe<Int>?): Int = when (x) {
+            is Maybe.None<Int> -> 0; null -> 0; else -> x.item
+        }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/types.ko", types_source, &types),
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let [forward, reverse] = [inputs, [inputs[1], inputs[0]]].map(|inputs| {
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("remaining case unit");
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let use_unit = source_unit(&names, uses_source);
+        let type_unit = source_unit(&names, types_source);
+        assert_ne!(use_unit, type_unit);
+        assert_eq!(typed.aggregate_projections().len(), 2);
+        // The public descriptor still only covers the existing null/else two-entry form.
+        // Finite-domain payload refinement does not grant broader lowering eligibility.
+        assert!(typed.nullable_whens().is_empty());
+        for projection in typed.aggregate_projections() {
+            assert_eq!(projection.expression().source_unit(), use_unit);
+            assert_eq!(projection.field().source_unit(), type_unit);
+            let node = uses
+                .ast()
+                .expressions()
+                .get(projection.expression().expression())
+                .unwrap();
+            assert_eq!(sources.slice(node.span()), Ok("x.item"));
+            assert_eq!(
+                typed.types().get(projection.ty()),
+                Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+            );
+            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            else {
+                panic!("explicit cross-file receiver");
+            };
+            assert_eq!(receiver.source_unit(), use_unit);
+            let Some(UnitTypeKind::EnumCase { case, root }) = typed
+                .expression_type(receiver)
+                .and_then(|ty| typed.types().get(ty))
+            else {
+                panic!("the surviving case remains source-qualified");
+            };
+            assert_eq!(case.source_unit(), type_unit);
+            let Some(UnitTypeKind::Nominal { arguments, .. }) = typed.types().get(*root) else {
+                panic!("the runtime root retains its generic arguments");
+            };
+            assert_eq!(arguments, &[projection.ty()]);
+        }
+        typed
+    });
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(
+        forward.aggregate_projections(),
+        reverse.aggregate_projections()
+    );
+    assert_eq!(forward.nullable_whens(), reverse.nullable_whens());
+    assert_eq!(forward.non_null_uses(), reverse.non_null_uses());
+    assert!(forward.validate().is_ok());
+    assert!(reverse.validate().is_ok());
+}

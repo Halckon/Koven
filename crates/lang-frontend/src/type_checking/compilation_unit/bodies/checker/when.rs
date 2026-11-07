@@ -210,6 +210,12 @@ impl BodyChecker<'_> {
             {
                 self.flow_facts.entry(key).or_insert(inner);
             }
+            // Earlier alternatives may leave one case even when the condition's original
+            // coverage includes null or other cases. Only the current stable source can use it.
+            if entry_source_valid && let WhenFlowDomain::Finite(atoms) = &body_domain {
+                let facts = self.facts_for_single_case(subject_type, subject_key, atoms)?;
+                self.flow_facts.extend(facts);
+            }
             let branch_expected = if self.expression_use(source, expression) == ExpressionUse::Value
             {
                 self.control_branch_expected(source, entry.body, expected)?
