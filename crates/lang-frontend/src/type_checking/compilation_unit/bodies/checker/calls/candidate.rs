@@ -1,5 +1,6 @@
 //! source-qualified 候选合同及源码签名构造。
 use super::*;
+use crate::{name_resolution::ExternalSymbolId, type_checking::EnvironmentFunctionEffect};
 
 #[derive(Clone)]
 pub(super) struct CallCandidate {
@@ -13,6 +14,7 @@ pub(super) struct CallCandidate {
     pub(super) instance_arguments: Vec<UnitTypeId>,
     pub(super) receiver: Option<(ParameterMode, UnitTypeId)>,
     pub(super) owner_substitutions: BTreeMap<crate::name_resolution::UnitSymbolId, UnitTypeId>,
+    pub(super) owner_storage_failure: Option<&'static str>,
     pub(super) cross_thread_parameters: BTreeSet<usize>,
     pub(super) aborts: bool,
     pub(super) prints_line: bool,
@@ -49,9 +51,61 @@ impl CallCandidate {
                 .receiver()
                 .map(|receiver| (receiver.mode(), receiver.ty())),
             owner_substitutions: BTreeMap::new(),
+            owner_storage_failure: None,
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
             prints_line: false,
         }
+    }
+}
+
+impl BodyChecker<'_> {
+    pub(super) fn external_candidate(
+        &mut self,
+        external: ExternalSymbolId,
+    ) -> Option<CallCandidate> {
+        let ExternalTypeBinding::Function(signature) = self.environment.binding(external)?.clone()
+        else {
+            return None;
+        };
+        let parameters = signature
+            .parameters
+            .iter()
+            .map(|parameter| MappedParameter {
+                name: None,
+                mode: parameter.mode,
+                ty: self.normalize_environment_type(&parameter.ty),
+                span: None,
+            })
+            .collect();
+        Some(CallCandidate {
+            target: UnitCallTarget::External(external),
+            declaration_span: None,
+            type_parameters: Vec::new(),
+            move_only: false,
+            parameters,
+            return_type: self.normalize_environment_type(&signature.return_type),
+            result_source: crate::type_checking::CallableResultSource::Owned,
+            instance_arguments: Vec::new(),
+            receiver: None,
+            owner_substitutions: BTreeMap::new(),
+            owner_storage_failure: None,
+            cross_thread_parameters: signature
+                .effects
+                .iter()
+                .filter_map(|effect| match effect {
+                    EnvironmentFunctionEffect::CrossThreadTransfer { parameter } => {
+                        Some(*parameter)
+                    }
+                    EnvironmentFunctionEffect::Abort | EnvironmentFunctionEffect::PrintLine => None,
+                })
+                .collect(),
+            aborts: signature
+                .effects
+                .contains(&EnvironmentFunctionEffect::Abort),
+            prints_line: signature
+                .effects
+                .contains(&EnvironmentFunctionEffect::PrintLine),
+        })
     }
 }

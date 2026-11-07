@@ -111,7 +111,9 @@ impl BodyChecker<'_> {
                 if let Some((mode, _)) = candidate.receiver {
                     candidate.receiver = Some((mode, receiver));
                 }
-                if seen_shapes.insert(self.member_call_shape(&candidate)) {
+                if candidate.owner_storage_failure.is_some()
+                    || seen_shapes.insert(self.member_call_shape(&candidate))
+                {
                     candidates.push(candidate);
                 }
             }
@@ -262,8 +264,9 @@ impl BodyChecker<'_> {
                 if let Some((mode, _)) = candidate.receiver {
                     candidate.receiver = Some((mode, receiver_type));
                 }
-                let shape = self.member_call_shape(&candidate);
-                if seen_shapes.insert(shape) {
+                if candidate.owner_storage_failure.is_some()
+                    || seen_shapes.insert(self.member_call_shape(&candidate))
+                {
                     candidates.push(candidate);
                 }
             }
@@ -287,13 +290,13 @@ impl BodyChecker<'_> {
             .zip(owner_arguments.iter().copied())
             .collect::<BTreeMap<_, _>>();
         let mut candidate = CallCandidate::from_source(UnitCallTarget::Symbol(symbol), callable);
-        for parameter in &mut candidate.parameters {
-            parameter.ty = self.substitute_type(parameter.ty, &substitutions)?;
-        }
-        if let Some((mode, ty)) = candidate.receiver {
+        candidate.owner_storage_failure =
+            self.substitute_candidate_types(&mut candidate, &substitutions)?;
+        if candidate.owner_storage_failure.is_none()
+            && let Some((mode, ty)) = candidate.receiver
+        {
             candidate.receiver = Some((mode, self.substitute_type(ty, &substitutions)?));
         }
-        candidate.return_type = self.substitute_type(candidate.return_type, &substitutions)?;
         candidate.instance_arguments = owner_arguments;
         candidate.owner_substitutions = substitutions;
         Ok(candidate)

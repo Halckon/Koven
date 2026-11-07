@@ -246,6 +246,10 @@ impl UnitTypeTable {
         self.canonical.intern(kind)
     }
 
+    pub(super) fn discard_after(&mut self, checkpoint: usize) {
+        self.canonical.discard_after(checkpoint);
+    }
+
     /// 按 identity 读取规范结构。
     #[must_use]
     pub fn get(&self, id: UnitTypeId) -> Option<&UnitTypeKind> {

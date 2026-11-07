@@ -272,3 +272,140 @@ fn unit_generic_body_closed_enum_refinement_is_an_actual_seed() {
         "closed source arguments are seeds even if their runtime layout stays unsupported"
     );
 }
+
+#[test]
+fn instantiated_container_signature_rejects_unstorable_elements_before_publishing_call() {
+    for (text, primary, rejected) in [
+        (
+            "fun <T> fail(): List<T> = error(\"never\")\nfun entry(): Unit { fail<Nothing>() }",
+            "fail",
+            "fail<Nothing>()",
+        ),
+        (
+            "fun <T> accept(value: Array<T>?): Unit {}\nfun entry(): Unit { accept<Any>(null) }",
+            "accept",
+            "accept<Any>(null)",
+        ),
+        (
+            "class Factory<T> { fun create(): List<T> = error(\"never\") }\nfun entry(): Unit { Factory<Nothing>().create() }",
+            "Factory<Nothing>().create",
+            "Factory<Nothing>().create()",
+        ),
+    ] {
+        check_storage_instances(text, |sources, file, source_unit, typed| {
+            assert_storage_diagnostic(sources, typed, primary);
+            let rejected =
+                UnitExpressionId::new(source_unit, expression_with_text(sources, file, rejected));
+            assert!(
+                typed
+                    .calls()
+                    .iter()
+                    .all(|call| call.expression() != rejected)
+            );
+        });
+    }
+}
+
+#[test]
+fn invalid_container_candidate_does_not_poison_viable_overload() {
+    let text = "class Holder<T>(val value: Int)\n\
+                fun <T> choose(value: Int): (Holder<T>) -> List<T> = error(\"never\")\n\
+                fun <T> choose(value: Long): Int = 7\n\
+                fun entry(): Int = choose<Nothing>(1)";
+    check_storage_instances(text, |sources, file, source_unit, typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let expression = UnitExpressionId::new(
+            source_unit,
+            expression_with_text(sources, file, "choose<Nothing>(1)"),
+        );
+        let call = typed
+            .calls()
+            .iter()
+            .find(|call| call.expression() == expression)
+            .unwrap();
+        assert_eq!(
+            typed.types().get(call.arguments()[0].parameter_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Long))
+        );
+        let holder = typed
+            .signatures()
+            .declarations()
+            .iter()
+            .find_map(|signature| signature.nominal())
+            .expect("Holder is the sole nominal");
+        assert!(
+            typed
+                .types()
+                .find(&UnitTypeKind::Nominal {
+                    declaration: holder.declaration(),
+                    arguments: vec![typed.types().builtin(BuiltinType::Nothing).unwrap()],
+                })
+                .is_none(),
+            "discarded storage candidate must not seed a runtime layout"
+        );
+        assert!(typed.clone().validate().is_ok());
+    });
+}
+
+#[test]
+fn storage_rejection_discards_layouts_added_by_bound_substitution() {
+    let text = "interface Pattern<T>\n\
+                class Holder<T>(val value: Int)\n\
+                class Marker<T> : Pattern<Holder<T>>\n\
+                fun <T, U: Pattern<Holder<T>>> choose(value: Int, marker: U): List<T> = error(\"never\")\n\
+                fun <T, U> choose(value: Long, marker: U): Int = 7\n\
+                fun entry(): Int = choose<Nothing, Marker<Nothing>>(1, Marker<Nothing>())";
+    check_storage_instances(text, |_, _, _, typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let [layout] = typed.runtime_field_layouts() else {
+            panic!("only the selected call's concrete Marker layout should survive");
+        };
+        assert!(layout.fields().is_empty(), "Marker has no fields");
+        assert!(typed.clone().validate().is_ok());
+    });
+}
+
+#[test]
+fn body_only_container_storage_is_checked_at_concrete_call_roots() {
+    for argument in ["Nothing", "Any"] {
+        let text = format!(
+            "fun <T> store(): Unit {{ val values: MutableList<T>? = null }}\n\
+             fun <T> outer(): Unit {{ store<T>() }}\n\
+             fun entry(): Unit {{ outer<{argument}>() }}"
+        );
+        check_storage_instances(&text, |sources, _, _, typed| {
+            assert_storage_diagnostic(sources, typed, &format!("outer<{argument}>()"));
+        });
+    }
+}
+
+fn check_storage_instances(
+    text: &str,
+    mut inspect: impl FnMut(&SourceMap, &ParsedFile, SourceUnitId, &CompilationUnitTypes),
+) {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "storage.ko", text);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "storage.ko", source, &file),
+    ] {
+        let inputs = [input];
+        let names = validated_names(&sources, &inputs, &environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(typed.signatures().diagnostics().is_empty());
+        inspect(&sources, &file, source_unit(&names, source), &typed);
+    }
+}
+
+fn assert_storage_diagnostic(sources: &SourceMap, typed: &CompilationUnitTypes, primary: &str) {
+    let [diagnostic] = typed.diagnostics() else {
+        panic!(
+            "expected one storage diagnostic at {primary}: {:?}",
+            typed.diagnostics()
+        );
+    };
+    assert_eq!(diagnostic.code().to_string(), "L0125");
+    assert_eq!(sources.slice(diagnostic.primary_span()), Ok(primary));
+    assert!(typed.clone().validate().is_err());
+}

@@ -74,8 +74,9 @@ F1–F5 的最小探针在原始基线上实际运行；F6 为修复工作树上
 | F6 | 恢复不得吞外层分隔符；`f(a.async., sentinel)` / `{ a.async.; sentinel }` | 新失败回归分别证实吞逗号、分号并产生额外 L0034/L0013 | 已修复：error-postfix 保留 caller stops 和分号；逐实参/逐 statement 核对后继 identity |
 | F7 | 旧单文件 receiver 与 unit 的所有权合同未等价；同 F3 输入 | 修复后仓外探针确认旧 `check_ownership` 仍 diagnostics/deferred 均空，unit 已报 L0131 | 本机以 L0170 明确拒绝旧入口不能建模的 own receiver，撤销成功事实，旧 lowering 负控通过；不声称实现旧 receiver 语义或完成消费者迁移，见 §10 |
 | F8 | Guide 12：顺序容器显式签名的元素必须可存储 | Unit 迁移漏 L0125×2，旧 CLI 接受单独 `List<Nothing>`。独审另确认 capability、名义参数和静态 bound 内的接口旁路 | 后置签名实参校验与 runtime type-ref 检查，保留重载形状，见 §12 |
-| F9 | Guide 12：具体单态化后的顺序容器必须仍满足存储合同 | 独审实跑 `fun <T> fail(): List<T> = error("never")` 和 `fail<Nothing>()`，CLI exit 0 | OPEN，核对候选 trial 中替换后的具体类型、诊断归属与回滚 |
-| F10 | Rc 签名载荷与 body 构造资格存在差异 | 独审实跑 `fun reject(a: List<Rc<Copyable>>): Unit {}`，CLI exit 0 | OPEN，逐项核对 Rc 签名、构造与嵌套验证的 producer 和准入责任 |
+| F9 | Guide 12：具体单态化后的顺序容器必须仍满足存储合同 | 独审实跑 `fun <T> fail(): List<T> = error("never")` 和 `fail<Nothing>()`，CLI exit 0 | 调用签名与有界顶层函数体的复现已修，其他替换入口见 F11 和 §14 |
+| F10 | Rc 签名载荷与 body 构造资格存在差异 | 独审实跑 `fun reject(a: List<Rc<Copyable>>): Unit {}`，CLI exit 0 | 显式签名与调用实例化的复现已修，泛型名义存储入口见 F11 和 §14 |
+| F11 | 其他 Unit 存储替换入口缺少准入 | 成员仅在函数体使用 `List<T>`、具现 `Factory<T>(val payload: List<T>?)` 字段和 `Shape<Rc<T>>` 接口上界的具体实例仍被接受 | OPEN，分别审成员实例发现、名义字段 recipe 和接口 bound 的 producer |
 
 发现修复采用失败测试 → 最小实现 → 直接消费者/相邻合同 → 独立复核，不在审清前建立新抽象。
 不通过修改 Guide 或放宽 oracle 消除失败；历史账本原义保留。
@@ -108,7 +109,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
 | R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑 | class-family 全部 malformed owner 未穷尽 |
-| R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 已修复复核；既有 types/callable/final-admission 实跑 | 泛型替换 F9、Rc 载荷 F10、逐消费者处置及全部流事实组合尚未闭合 |
+| R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | F11、逐消费者处置及全部流事实组合尚未闭合 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报，旧消费者迁移仍待完成；循环/析构全矩阵与动态资源验收未闭合 |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布；CLI 本机 build 通过 | 全家族 subset/build、emit/verifier 与 debug/fault/sanitizer、Linux 实跑待验；目标机仍为 OptimizationLevel::None |
 | R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
@@ -318,3 +319,36 @@ Single 见证。选择器保留所有目标，共 138 个唯一 frontend integra
 
 本地合流树的 `type_containers`、`multifile_type_signatures` 和 `type_checking` 共 134 项通过。
 文档门禁和三个成功路径选择器测试通过。远端 CI 待首次推送触发。
+
+
+## 14. 泛型调用和 Rc 载荷准入
+
+以合流提交 `73167017` 为基线。三项泛型调用回归与两项 Rc 签名回归先红。第五切片沿用
+L0125 校验真实容器与 Rc。显式签名保留原类型形状，静态 bound 中的 Rc payload 由现有
+运行时接口检查发 L0094。源码同名 Rc、有效泛型模板及具现的正常 payload 保留原行为。
+
+调用检查复用替换 memo，仅检查实际变动的存储位置。已知 Any 待定形态没有值表示，
+与其他恢复型待定事实区分。候选失败后撤回自 bound 检查起追加的类型，成员 owner 的
+提前替换也有独立检查点。失败候选未发布调用或独占的运行时布局，合法重载继续可用。
+顶层函数体的有界具现检查涵盖经其他泛型调用抵达的仅函数体类型，诊断定位具体调用根。
+存储及 range 检查按规范化节点访问。独审先复现共享 DAG 的指数放大，修订后默认
+1024 实例预算双入口探针约 1.36–1.55 秒，独立 48 层预算回归进入 frontend lib。
+
+签名、成员 owner 提前替换和普通顶层函数体构成当前修复范围。成员仅 body、泛型名义字段及
+构造、实例化接口上界仍有已复现的 F11。成员 owner 替换成功后，成员自己的类型参数才触发失败
+时，前一阶段已追加的类型仍可能保留，此边界来自静态审查。R2 继续开放。
+
+远端 GitHub `main` 经只读对比与合流基点 `a56e1b17` 相同。功能分支首次推送可触发
+`feature/**` 的 CI。建议第五切片通过本地门禁并提交后推送，借双宿主 CI 补充 conformance、
+Linux sanitizer 及合流版本的证据。
+
+
+| 第五切片验收 | 结果 |
+|---|---|
+| 合流基线与逐轮回归 | 5 项新用例基线失败。两组独占布局回归分别在签名回滚前和 bound 回滚前失败，最终通过 |
+| frontend lib 与 8 个定向 integration suite | 660 passed，零失败、忽略及过滤。含共享 DAG、两入口、最终准入、范围及 callable 相邻合同 |
+| CLI `check_cli` | 6 passed。单文件和 project 对原 F9/F10 复现各精确报一条 L0125 |
+| workspace all-targets Clippy `-D warnings`、fmt、文档、尺寸、diff | 通过。2119 个手写 Rust 文件，历史超限仍为 39，`calls.rs` 953 行 |
+| 独立复核 | 验证诊断边界、布局回滚、可行重载和类型 ID 生命周期。已有的成员准备阶段边界见上 |
+
+最终第五切片未跑全量 integration、conformance、Linux sanitizer 或远端 CI。

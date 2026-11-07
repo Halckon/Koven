@@ -1,6 +1,6 @@
 //! SPEC-0197 compilation-unit body 局部类型标注解析。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::TypeRefId,
@@ -9,8 +9,8 @@ use crate::{
     parser::{ParameterModeMarker, TypePathSegment, TypeRef},
     source::Span,
     type_checking::{
-        Capability, CompilationUnitTypeError, Copyability, DeferredReason, EnvironmentType,
-        ExternalTypeBinding, IntrinsicTypeConstructor, NominalKind, ParameterMode,
+        BuiltinType, Capability, CompilationUnitTypeError, Copyability, DeferredReason,
+        EnvironmentType, ExternalTypeBinding, IntrinsicTypeConstructor, NominalKind, ParameterMode,
         TypeCheckingError, UnitFunctionParameterType, UnitNominalSignature, UnitTypeId,
         UnitTypeKind, UnitTypeParameterBound, UnitTypeRefId,
     },
@@ -759,41 +759,50 @@ impl BodyChecker<'_> {
         if crate::type_checking::range_type_uses::unit_contains_range(self.signatures.types(), ty) {
             return false;
         }
-        match self.signatures.types().get(ty) {
-            Some(UnitTypeKind::Builtin(
-                crate::type_checking::BuiltinType::Any | crate::type_checking::BuiltinType::Nothing,
-            )) => false,
-            Some(UnitTypeKind::Builtin(_)) => true,
-            Some(UnitTypeKind::Nullable(inner)) => self.is_structurally_storable_type(*inner),
-            Some(UnitTypeKind::Function { .. }) => true,
-            Some(UnitTypeKind::Nominal {
-                declaration,
-                arguments,
-            }) => {
-                self.signatures
-                    .declaration(*declaration)
-                    .and_then(|signature| signature.nominal())
-                    .is_some_and(|nominal| nominal.kind() != NominalKind::Interface)
-                    && !self
+        let mut pending = vec![ty];
+        let mut seen = BTreeSet::new();
+        // A concrete generic type can have many paths to the same canonical node.
+        while let Some(ty) = pending.pop() {
+            if !seen.insert(ty) {
+                continue;
+            }
+            match self.signatures.types().get(ty) {
+                Some(UnitTypeKind::Builtin(BuiltinType::Any | BuiltinType::Nothing)) => {
+                    return false;
+                }
+                Some(
+                    UnitTypeKind::Builtin(_)
+                    | UnitTypeKind::Function { .. }
+                    | UnitTypeKind::Intrinsic { .. }
+                    | UnitTypeKind::TypeParameter(_),
+                ) => {}
+                Some(
+                    UnitTypeKind::Nullable(inner)
+                    | UnitTypeKind::EnumCase { root: inner, .. }
+                    | UnitTypeKind::StaticSelf(inner),
+                ) => pending.push(*inner),
+                Some(UnitTypeKind::Nominal {
+                    declaration,
+                    arguments,
+                }) => {
+                    if self
                         .signatures
-                        .invalid_inline_nominals()
-                        .contains(declaration)
-                    && arguments
-                        .iter()
-                        .all(|argument| self.is_structurally_storable_type(*argument))
+                        .declaration(*declaration)
+                        .and_then(|signature| signature.nominal())
+                        .is_none_or(|nominal| nominal.kind() == NominalKind::Interface)
+                        || self
+                            .signatures
+                            .invalid_inline_nominals()
+                            .contains(declaration)
+                    {
+                        return false;
+                    }
+                    pending.extend(arguments);
+                }
+                _ => return false,
             }
-            Some(UnitTypeKind::Intrinsic { .. } | UnitTypeKind::TypeParameter(_)) => true,
-            Some(UnitTypeKind::EnumCase { root, .. } | UnitTypeKind::StaticSelf(root)) => {
-                self.is_structurally_storable_type(*root)
-            }
-            Some(
-                UnitTypeKind::Capability(_)
-                | UnitTypeKind::IntegerLiteral(_)
-                | UnitTypeKind::Error
-                | UnitTypeKind::Deferred(_),
-            )
-            | None => false,
         }
+        true
     }
 
     pub(super) fn is_hashable_type(&self, ty: UnitTypeId) -> bool {

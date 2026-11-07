@@ -340,14 +340,15 @@ impl SignatureCollector<'_> {
                 }
                 if let Some(UnitTypeKind::Intrinsic {
                     constructor:
-                        IntrinsicTypeConstructor::Array
+                        constructor @ (IntrinsicTypeConstructor::Array
                         | IntrinsicTypeConstructor::List
-                        | IntrinsicTypeConstructor::MutableList,
+                        | IntrinsicTypeConstructor::MutableList
+                        | IntrinsicTypeConstructor::Rc),
                     arguments,
                 }) = self.types.get(ty)
                     && let [element] = arguments.as_slice()
                     && let [element_ref] = segment.arguments.as_slice()
-                    && self.sequential_element_has_no_storage(*element)
+                    && self.storage_argument_has_no_value(*element)
                 {
                     let span = self.inputs[source_index]
                         .ast()
@@ -357,7 +358,11 @@ impl SignatureCollector<'_> {
                         .span();
                     self.emit(
                         codes::INVALID_CONTAINER_ELEMENT,
-                        "sequential container element type is not structurally storable",
+                        if *constructor == IntrinsicTypeConstructor::Rc {
+                            "Rc payload type is not structurally storable"
+                        } else {
+                            "sequential container element type is not structurally storable"
+                        },
                         span,
                     )?;
                     // Preserve the signature's shape for overload recovery.
@@ -457,7 +462,7 @@ impl SignatureCollector<'_> {
 
     // Interface, carrier and inline layout checks own their diagnostics.
     // A nested intrinsic argument is checked at its own TypeRef.
-    fn sequential_element_has_no_storage(&self, ty: UnitTypeId) -> bool {
+    fn storage_argument_has_no_value(&self, ty: UnitTypeId) -> bool {
         match self.types.get(ty) {
             Some(UnitTypeKind::Builtin(BuiltinType::Any | BuiltinType::Nothing))
             | Some(UnitTypeKind::Capability(_)) => true,
@@ -465,7 +470,7 @@ impl SignatureCollector<'_> {
                 UnitTypeKind::Nullable(inner)
                 | UnitTypeKind::EnumCase { root: inner, .. }
                 | UnitTypeKind::StaticSelf(inner),
-            ) => self.sequential_element_has_no_storage(*inner),
+            ) => self.storage_argument_has_no_value(*inner),
             Some(UnitTypeKind::Nominal {
                 declaration,
                 arguments,
@@ -475,7 +480,7 @@ impl SignatureCollector<'_> {
                     .is_some_and(|nominal| nominal.kind() != NominalKind::Interface)
                     && arguments
                         .iter()
-                        .any(|argument| self.sequential_element_has_no_storage(*argument))
+                        .any(|argument| self.storage_argument_has_no_value(*argument))
             }
             _ => false,
         }

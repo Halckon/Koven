@@ -2,7 +2,7 @@
 
 use super::type_graph::{ConcreteTypes, substitute};
 use super::*;
-use crate::type_checking::{UnitCallDescriptor, UnitCallTarget};
+use crate::type_checking::{IntrinsicTypeConstructor, UnitCallDescriptor, UnitCallTarget};
 
 type Instance = (DeclarationId, Vec<UnitTypeId>);
 
@@ -33,7 +33,7 @@ impl BodyChecker<'_> {
         }
         let templates = self.generic_body_templates()?;
         let mut concrete = ConcreteTypes::for_closed_arguments();
-        let mut seeds = BTreeSet::new();
+        let mut seeds = BTreeMap::new();
         for call in &self.parts.calls {
             let UnitCallTarget::Declaration(target) = call.target() else {
                 continue;
@@ -47,10 +47,18 @@ impl BodyChecker<'_> {
                 closed &= concrete.is_concrete(self.signatures.types(), arg)?;
             }
             if closed {
-                seeds.insert((target, args.to_vec()));
+                let expression = call.expression();
+                let span = self
+                    .file(expression.source_unit())
+                    .ast()
+                    .expressions()
+                    .get(expression.expression())
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                seeds.entry((target, args.to_vec())).or_insert(span);
             }
         }
-        for seed in seeds {
+        for (seed, call_span) in seeds {
             let mut pending = BTreeSet::from([seed]);
             let mut planned = BTreeSet::new();
             let mut count = 0;
@@ -60,13 +68,25 @@ impl BodyChecker<'_> {
                 }
                 if !key.1.is_empty() && count >= limit {
                     // The original planner owns budget/recipe arbitration. Publish only its finite frontier.
-                    self.materialize_body_instance(&templates, &key)?;
-                    for next in pending.difference(&planned) {
-                        self.materialize_body_instance(&templates, next)?;
+                    if self
+                        .materialize_body_instance(&templates, &key, call_span)?
+                        .is_some()
+                    {
+                        for next in pending.difference(&planned) {
+                            if self
+                                .materialize_body_instance(&templates, next, call_span)?
+                                .is_none()
+                            {
+                                break;
+                            }
+                        }
                     }
                     break;
                 }
-                let callees = self.materialize_body_instance(&templates, &key)?;
+                let Some(callees) = self.materialize_body_instance(&templates, &key, call_span)?
+                else {
+                    break;
+                };
                 for callee in callees {
                     let mut closed = true;
                     for &arg in &callee.1 {
@@ -89,7 +109,8 @@ impl BodyChecker<'_> {
         &mut self,
         templates: &BTreeMap<DeclarationId, Template>,
         key: &Instance,
-    ) -> Result<Vec<Instance>, CompilationUnitTypeError> {
+        call_span: Span,
+    ) -> Result<Option<Vec<Instance>>, CompilationUnitTypeError> {
         let template = templates
             .get(&key.0)
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
@@ -102,6 +123,7 @@ impl BodyChecker<'_> {
             .copied()
             .zip(key.1.iter().copied())
             .collect();
+        let checkpoint = self.signatures.types().len();
         let mut memo = BTreeMap::new();
         for &ty in &template.types {
             substitute(self.signatures.types_mut(), ty, &substitutions, &mut memo)?;
@@ -120,7 +142,59 @@ impl BodyChecker<'_> {
                 callees.push((target, arguments));
             }
         }
-        Ok(callees)
+        if let Some(message) = self.invalid_storage_in_substitution(&memo) {
+            self.signatures.types_mut().discard_after(checkpoint);
+            self.emit(codes::INVALID_CONTAINER_ELEMENT, message, call_span)?;
+            return Ok(None);
+        }
+        Ok(Some(callees))
+    }
+
+    pub(super) fn invalid_storage_in_substitution(
+        &self,
+        instantiated: &BTreeMap<UnitTypeId, UnitTypeId>,
+    ) -> Option<&'static str> {
+        let types = self.signatures.types();
+        // The substitution memo already visits every changed node. Check only actual
+        // template storage sites so explicit invalid TypeRefs keep their own diagnostics.
+        instantiated.iter().find_map(|(&template, &actual)| {
+            if template == actual {
+                return None;
+            }
+            let Some(UnitTypeKind::Intrinsic { constructor, .. }) = types.get(template) else {
+                return None;
+            };
+            let message = match constructor {
+                IntrinsicTypeConstructor::Array
+                | IntrinsicTypeConstructor::List
+                | IntrinsicTypeConstructor::MutableList => {
+                    "instantiated sequential container element type is not structurally storable"
+                }
+                IntrinsicTypeConstructor::Rc => {
+                    "instantiated Rc payload type is not structurally storable"
+                }
+                _ => return None,
+            };
+            let Some(UnitTypeKind::Intrinsic { arguments, .. }) = types.get(actual) else {
+                return None;
+            };
+            let [argument] = arguments.as_slice() else {
+                return None;
+            };
+            // Runtime Any is a known missing representation, unlike unresolved recovery.
+            if matches!(
+                types.get(*argument),
+                Some(UnitTypeKind::Deferred(
+                    DeferredReason::AnyValueRepresentation
+                ))
+            ) {
+                return Some(message);
+            }
+            (!self.is_error(*argument)
+                && !self.is_deferred(*argument)
+                && !self.is_structurally_storable_type(*argument))
+            .then_some(message)
+        })
     }
 
     fn generic_body_templates(

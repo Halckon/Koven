@@ -81,6 +81,17 @@ fn unit_generic_body_zero_one_two_budgets_keep_prefix_and_only_one_frontier() {
 }
 
 #[test]
+fn unit_generic_container_storage_checks_shared_type_nodes() {
+    // Each Pair reuses its two child identities. Walking by path would expand 2^48 leaves.
+    checked_with_limit(
+        "class Pair<A, B>\n\
+         fun <T> recurse(): Unit { val values: List<T>? = null; recurse<Pair<T, T>>() }\n\
+         fun entry(): Unit { recurse<Int>() }",
+        48,
+    );
+}
+
+#[test]
 fn unit_generic_body_deep_shared_dag_visits_unique_nodes_and_preserves_ids() {
     let mut types = UnitTypeTable::new();
     let int = types.builtin(BuiltinType::Int).unwrap();
