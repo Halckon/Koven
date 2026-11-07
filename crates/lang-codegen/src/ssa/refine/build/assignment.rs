@@ -143,14 +143,8 @@ impl Builder<'_, '_> {
             self.finish_drops(&replaced);
             return Ok(Lowered::Diverged);
         };
-        let Some(right) = self.required(value)? else {
-            let replaced =
-                self.collect_drops(UnitDropPoint::AfterReplacement(self.unit(assignment)));
-            self.finish_drops(&replaced);
-            return Ok(Lowered::Diverged);
-        };
-        self.deliver(value);
-        let owner = *self
+        // 元素槽位定位与边界检查必须先于 RHS 求值，否则 RHS 副作用会在越界 abort 前生效。
+        let initial_owner = *self
             .bindings
             .get(&symbol)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
@@ -158,12 +152,22 @@ impl Builder<'_, '_> {
         let ssa_element_ty = self.ssa_type(element_ty, span)?;
         let place = self.body.slot(EntityType::Place(ssa_element_ty));
         self.push(
-            ROp::ContainerElementPlace { owner, index },
+            ROp::ContainerElementPlace {
+                owner: initial_owner,
+                index,
+            },
             vec![place],
             span,
         )?;
         let current = self.body.slot(EntityType::Value(ssa_element_ty));
         self.push(ROp::ReadPlace { place }, vec![current], span)?;
+        let Some(right) = self.required(value)? else {
+            let replaced =
+                self.collect_drops(UnitDropPoint::AfterReplacement(self.unit(assignment)));
+            self.finish_drops(&replaced);
+            return Ok(Lowered::Diverged);
+        };
+        self.deliver(value);
         let boolean = self
             .inputs
             .typed
@@ -211,9 +215,14 @@ impl Builder<'_, '_> {
             span,
         )?;
         self.block = Some(success);
+        // RHS 可能重新绑定容器变量，写回必须使用 RHS 之后的绑定。
+        let write_owner = *self
+            .bindings
+            .get(&symbol)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         self.push(
             ROp::ContainerReplace {
-                owner,
+                owner: write_owner,
                 index,
                 value: result,
             },

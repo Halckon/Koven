@@ -107,6 +107,7 @@ impl DropPlanner<'_, '_> {
     pub(super) fn direct_call_loan_ends(&self) -> Vec<UnitDirectCallLoanEndFact> {
         // 本 planner 只处理一个 source 的 AST；稳定下标与 point 种类组成唯一计数 key。
         let mut preceding_drops: BTreeMap<(bool, usize), usize> = BTreeMap::new();
+        let mut preceding_call_loan_ends = BTreeMap::<_, usize>::new();
         let mut ends = Vec::new();
         for (point, action) in &self.iteration_actions {
             let key = match point {
@@ -117,12 +118,17 @@ impl DropPlanner<'_, '_> {
             let count = preceding_drops.entry(key).or_insert(0);
             match action {
                 Action::Drop(_) => *count += 1,
-                Action::EndCallLoan(loan) if self.observes_direct_call_loan(loan) => {
-                    ends.push(UnitDirectCallLoanEndFact {
-                        loan: loan.clone(),
-                        point: point.into_unit(self.checker.source_unit),
-                        preceding_drops: *count,
-                    });
+                Action::EndCallLoan(loan) => {
+                    let loan_count = preceding_call_loan_ends.entry(key).or_default();
+                    if self.observes_direct_call_loan(loan) {
+                        ends.push(UnitDirectCallLoanEndFact {
+                            loan: loan.clone(),
+                            point: point.into_unit(self.checker.source_unit),
+                            preceding_drops: *count,
+                            preceding_call_loan_ends: *loan_count,
+                        });
+                    }
+                    *loan_count += 1;
                 }
                 _ => {}
             }

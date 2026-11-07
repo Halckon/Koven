@@ -342,10 +342,14 @@ fn sibling_branches_commit_only_their_own_binding_identity() {
 
 #[test]
 fn return_during_later_operand_ends_only_the_established_source_prefix() {
-    let (observed, single) = observe_with_legacy(
+    let observed = observe(
         "fun select(source: String, other: String): borrow String from source = source\nfun run(flag: Boolean): Unit { val owner = \"kept\"; val other = \"other\"; borrow val item = select(owner, if (flag) { return } else { other }); println(item) }",
     );
     assert_units_admitted(&observed);
+    super::prefix_oracle::assert_prefix_identities(
+        &observed,
+        &[((168, 218), (175, 180), (11, 25), (113, 118), (194, 200))],
+    );
     assert_handoff_identity(&observed);
     for (unit, names) in observed.units.iter().zip(&observed.unit_names) {
         let [indexed] = names.names().index().source_units() else {
@@ -370,17 +374,6 @@ fn return_during_later_operand_ends_only_the_established_source_prefix() {
             .get(transfer.expression())
             .unwrap();
         assert_eq!(observed.sources.slice(node.span()), Ok("return"));
-        assert!(
-            single
-                .loan_ends()
-                .iter()
-                .any(|end| end.call() == source.call().expression()
-                    && end.argument() == source.argument().expression()
-                    && end.point()
-                        == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
-                            transfer.expression()
-                        ))
-        );
         let UnitLoanTarget::Place(place) = event.loan().target() else {
             panic!("root source")
         };
@@ -484,10 +477,14 @@ fn errors_and_deferred_work_revoke_nonempty_source_prefix_observations() {
 
 #[test]
 fn unconditional_named_return_keeps_actual_source_identity_without_a_binding() {
-    let (observed, single) = observe_with_legacy(
+    let observed = observe(
         "fun select(other: String, source: String): borrow String from source = source\nfun run(): Unit { val owner = \"kept\"; borrow val item = select(source = owner, other = return) }",
     );
     assert_units_admitted(&observed);
+    super::prefix_oracle::assert_return_prefixes(
+        &observed,
+        &[((134, 172), (150, 155), (26, 40), (100, 105), (165, 171))],
+    );
     assert_handoff_identity(&observed);
     for (unit, names) in observed.units.iter().zip(&observed.unit_names) {
         assert!(unit.borrow_results().bindings().is_empty());
@@ -527,13 +524,6 @@ fn unconditional_named_return_keeps_actual_source_identity_without_a_binding() {
             panic!("return")
         };
         assert_eq!(transfer.source_unit(), indexed.id());
-        assert!(single.loan_ends().iter().any(|end| end.call()
-            == event.loan().call().expression()
-            && end.argument() == event.loan().argument().expression()
-            && end.point()
-                == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
-                    transfer.expression()
-                )));
         let UnitLoanTarget::Place(place) = event.loan().target() else {
             panic!("owned root")
         };
@@ -688,10 +678,17 @@ fn cross_source_prefix_ends_keep_caller_return_and_provider_parameter_lineage() 
 
 #[test]
 fn sibling_return_edges_keep_distinct_source_tokens_and_cleanup_points() {
-    let (observed, single) = observe_with_legacy(
+    let observed = observe(
         "fun select(source: String, tail: String): borrow String from source = source\nfun run(flag: Boolean): Unit { val owner = \"kept\"; if (flag) { borrow val first = select(owner, return) } else { borrow val second = select(owner, return) } }",
     );
     assert_units_admitted(&observed);
+    super::prefix_oracle::assert_return_prefixes(
+        &observed,
+        &[
+            ((159, 180), (166, 171), (11, 25), (112, 117), (173, 179)),
+            ((210, 231), (217, 222), (11, 25), (112, 117), (224, 230)),
+        ],
+    );
     for unit in &observed.units {
         assert!(unit.borrow_results().bindings().is_empty());
         assert!(unit.borrow_call_handoffs().is_empty());
@@ -701,26 +698,10 @@ fn sibling_return_edges_keep_distinct_source_tokens_and_cleanup_points() {
         assert_ne!(first.loan().call(), second.loan().call());
         assert_ne!(first.loan().argument(), second.loan().argument());
         assert_ne!(first.point(), second.point());
+        assert_eq!(first.preceding_call_loan_ends(), 0);
+        assert_eq!(second.preceding_call_loan_ends(), 0);
         assert_eq!(first.loan().target(), second.loan().target());
         for event in [first, second] {
-            let UnitDropPoint::ControlTransfer(transfer) = event.point() else {
-                panic!("return edge")
-            };
-            assert_eq!(
-                single
-                    .loan_ends()
-                    .iter()
-                    .filter(|end| {
-                        end.call() == event.loan().call().expression()
-                            && end.argument() == event.loan().argument().expression()
-                            && end.point()
-                                == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
-                                    transfer.expression(),
-                                )
-                    })
-                    .count(),
-                1
-            );
             let UnitLoanTarget::Place(place) = event.loan().target() else {
                 panic!("owned root")
             };
@@ -738,10 +719,24 @@ fn sibling_return_edges_keep_distinct_source_tokens_and_cleanup_points() {
 
 #[test]
 fn nested_auxiliary_return_preserves_source_end_and_temporary_cleanup() {
-    let (observed, single) = observe_with_legacy(
+    let observed = observe(
         "fun select(source: String, tail: Unit): borrow String from source = source\nfun sink(value: String, stop: Unit): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = select(owner, sink(\"temporary\", return)) }",
     );
     assert_units_admitted(&observed);
+    super::prefix_oracle::assert_prefix_identities(
+        &observed,
+        &[((176, 216), (183, 188), (11, 25), (142, 147), (208, 214))],
+    );
+    assert_fixed_ends(
+        &observed,
+        &[ExpectedEnd {
+            call: (190, 215),
+            argument: (195, 206),
+            parameter: (84, 97),
+            point: ExpectedPoint::Return((208, 214)),
+            target: ExpectedTarget::Temporary,
+        }],
+    );
     let expression = |text| {
         let found: Vec<_> = observed
             .parsed
@@ -810,21 +805,8 @@ fn nested_auxiliary_return_preserves_source_end_and_temporary_cleanup() {
         assert_eq!(event.loan().kind(), LoanKind::Shared);
         assert!(unit.loans().contains(event.loan()));
         assert!(unit.loans().contains(auxiliary.loan()));
-        // Separate slices do not establish a total order between these two ends.
-        for (call, argument) in [(outer, source), (inner, temporary)] {
-            assert_eq!(
-                single
-                    .loan_ends()
-                    .iter()
-                    .filter(|end| end.call() == call
-                        && end.argument() == argument
-                        && end.point()
-                            == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
-                                transfer
-                            ))
-                    .count(),
-                1
-            );
-        }
+        // Same-point producer ranks prove auxiliary-before-source without a global order.
+        assert_eq!(auxiliary.preceding_call_loan_ends(), 0);
+        assert_eq!(event.preceding_call_loan_ends(), 1);
     }
 }

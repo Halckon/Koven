@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 341 份"))
+ARCH(("已完成<br/>archive 342 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -35,7 +35,6 @@ subgraph Gactive["现行 active"]
   S0386["S0386<br/>Inout 接收者、接口委托、无状态 object 与局部解构旧路径退役"]
   S0387["S0387<br/>String.clone()、装箱构造、value class 字段借用与通用 when 旧路径退役"]
   S0388["S0388<br/>数值区间 for、运行时长度容器构造、Map.get、非可空 Map.consume 与 $map.result 旧路径退役"]
-  S0389["S0389<br/>具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
@@ -95,7 +94,6 @@ ARCH --> S0341
 | SPEC-0386 | active | [0386-refine-inout-delegation-object-destructuring-retirement.md](active/0386-refine-inout-delegation-object-destructuring-retirement.md) |
 | SPEC-0387 | active | [0387-refine-string-clone-box-value-field-when-retirement.md](active/0387-refine-string-clone-box-value-field-when-retirement.md) |
 | SPEC-0388 | active | [0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md](active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
-| SPEC-0389 | active | [0389-refine-known-function-shared-capture-container-element-retirement.md](active/0389-refine-known-function-shared-capture-container-element-retirement.md) |
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
@@ -109,4 +107,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（341 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（342 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

@@ -90,7 +90,7 @@ Name/Group 的非空 use 必须属于当前 entry/callable 且同一 generation�
 不能复用旧 When witness。descriptor、活跃 frame 与版本状态随 callable trial 回滚，错误不发布成功产品。
 单文件 condition 沿未匹配路径传事实、body 独立检查；其原 source-version 与 identity 隔离规则保留。
 Unit null 比较沿同源 Group 识别实际 Null 叶并透传 expected type，仍保原 Binary/外层operand身份；
-双null、无上下文null与非nullable错误不放宽。类型事实不是owner/loan或native资格，后继仍核真实产物。
+双null、无上下文null与非nullable错误不放宽。Unit 相容查询归入 type_graph，Nothing? 可适配已确定 nullable，拒非nullable及deferred-inner；原Single与双Unit的L0123/L0124见证保留。类型事实不是owner/loan或native资格，后继仍核真实产物。
 owned root/temporary 的 class/Box/Rc 有界消费及 field/element 等边界见 [SSA/LLVM](ssa-codegen-runtime.md)。 `type_checking::nullable_when_unit` 的13项原消费者走双 Unit raw type 入口；进入when时仍为nullable的稳定subject已按实际剩余单case补payload事实，非nullable及已提前收窄的subject不扩张；三项独有字段oracle仍保留Single，见[有界修复验收](../specs/active/0341-shared-lowering-core.md#119-nullable-when-剩余单-case-类型修复2026-11-07)。
 
 ## 非空断言事实
@@ -164,7 +164,7 @@ unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢�
 不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
 
 `type_containers` 的六项核心构造、诊断、遮蔽、泛型推导与 size 原测试走双 Unit 入口；signature storage 诊断和 deferred recovery 两项 Single witness 保留。对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、`multifile_type_member_graph`、`multifile_type_capability_graph`、`type_copyability` 与 `type_map`（两目标均保留双入口原 oracle，无 Single 消费者）。
-`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。 `type_checking::resource_unit` 六项原 deinit/replace/swap 类型消费者保留双入口原 oracle（[范围](../specs/active/0341-shared-lowering-core.md#resource-类型消费者有界迁移2026-11-06)）；不扩张资源所有权准入。 `type_checking::scalar_unit` 与 `interface_unit` 的九项原数值、局部/返回和接口诊断消费者走双 Unit raw type 入口，保留原诊断顺序、span 与自定义环境；顶层数值溢出因 Unit 额外 L0167 保留原 Single witness，不增加 final/ownership 前置。 四批合并后原82项测试与新增顶层对照共83项全部保留，见[组合验收](../specs/active/0341-shared-lowering-core.md#115-raw-type-消费者四批集中集成2026-11-07)。
+`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。 `type_checking::resource_unit` 六项原 deinit/replace/swap 类型消费者保留双入口原 oracle（[范围](../specs/active/0341-shared-lowering-core.md#resource-类型消费者有界迁移2026-11-06)）；不扩张资源所有权准入。 `type_checking::scalar_unit` 与 `interface_unit` 的九项原数值、局部/返回和接口诊断消费者走双 Unit raw type 入口，保留原诊断顺序、span 与自定义环境；顶层数值溢出因 Unit 额外 L0167 保留原 Single witness，不增加 final/ownership 前置。 四批合并后原82项测试与新增顶层对照共83项全部保留，见[组合验收](../specs/active/0341-shared-lowering-core.md#115-raw-type-消费者四批集中集成2026-11-07)。 `type_callable` 的调用失败分类与泛型推导冲突两项消费者使用同源双 Unit 入口，保留原有序诊断码与 primary span。nullable overload ambiguity 已补 Unit 相容规则并保留三入口见证；唯一候选 lambda 的 callback label 精度仍有差异，保留原 Single 见证。
 
 ### Unit 关联常量选择
 

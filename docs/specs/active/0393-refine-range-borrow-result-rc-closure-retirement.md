@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认在 SPEC-0389 基线上继续推进 E3 下一个切片；原编号 0390 与 main 的 CI 镜像 Spec 冲突，合入 main 时改为 0393 |
 | 基线 | `90cd542b`（SPEC-0389）；合入 main `6272d3e5` |
 | 分支 | `feature/spec-0393-refine-range-borrow-result-rc-closure-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md)、[SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0370](0370-refine-lambda-bodies.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0389](0389-refine-known-function-shared-capture-container-element-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md)、[SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0370](0370-refine-lambda-bodies.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0389](../../archive/specs/0389-refine-known-function-shared-capture-container-element-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

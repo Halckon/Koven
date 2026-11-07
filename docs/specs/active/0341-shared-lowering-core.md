@@ -3390,3 +3390,114 @@ fmt、849份Markdown、diff及相对2fd6bfb9尺寸检查通过，38个历史超�
 外部 API 编译消费者 `ownership_value_api` 缺少新 Swap 的穷尽匹配，故不能沿用分支 lint
 通过声明证明组合。补显式 Swap 两值匹配后，该目标 1 项与最终 all-targets Clippy 通过。
 合计 123 项定向测试；fmt、849 份 Markdown、diff及尺寸门禁通过。未以此替代正式 CI。
+
+## Return-prefix 固定 oracle 迁移（2026-11-07）
+
+基于 main `78a36f25`，保持原源码与既有 Unit 断言，迁移
+`unconditional_named_return_keeps_actual_source_identity_without_a_binding`、
+`sibling_return_edges_keep_distinct_source_tokens_and_cleanup_points` 两项成功消费者。
+固定字节期望直接来自原源码，比较完整 prefix 向量的 call、原 argument、parameter、owned
+root 声明与 Return；核同轮 source identity、Shared 类型、loan 成员资格、开始/结束 span、
+无投影根及真实形成的 owned local。同控制点完整 drop 向量只能是该 owner，preceding_drops=0；
+无 borrow binding/handoff/direct-call-end。两入口各自校验，不从任何 checker 产物生成期望。
+
+仅删除上述两项的 Single 存在/计数对照。直接来源全程不结束、混合分支与嵌套 temporary
+清理的旧见证保持，不承诺跨事件切片统一全序，也不改变生产、语言或 native 范围。
+Mac Rust1.96、locked/offline、默认 debug=2 串行复用已释放 target：两项精确测试各
+1 passed、56 filtered；frontend all-targets Clippy（-D warnings）和 849 份 Markdown 门禁通过。
+workspace fmt、diff 与相对 78a36f25 的尺寸门禁通过；2149 份手写 Rust，38 份历史超长文件未增长。
+未执行全量、含 Abort 整项、native、故障注入或校准；官方 CI 未运行，D10/E2 仍未完成。
+
+后续同合同再迁移 `return_during_later_operand_ends_only_the_established_source_prefix` 和
+`nested_auxiliary_return_preserves_source_end_and_temporary_cleanup`，原源码及原 Unit
+关联/cleanup 断言保留。prefix 身份完整向量与“无最终绑定、单 owner drop” wrapper 分开；
+前两项仍经过同等严格 wrapper。嵌套用既有 direct-call 固定完整向量同时核 temporary
+辅助 loan 的参数、调用、Return 与目标；保留 temporary→owner 的 drop 顺序，不推导两个
+loan-end 切片间的全序。只替代原 Single 的存在/计数断言，不替代全程 absence 证据。
+最终四项精确测试分别 1 passed、56 filtered（共四个不同测试），frontend all-targets
+Clippy（-D warnings）通过；没有重复运行全 target。仍不涉及 Abort/native/故障注入/校准。
+
+### Continuation 消费者与保留边界
+
+同批将 `ownership_borrow_continuation::abandoned_initializer_ends_source_call_without_ending_an_unestablished_result`
+的原 source(call,argument) ControlTransfer 存在断言迁到真实 Unit prefix 单元素向量；
+仍要求最终 result end 仅有一个 AfterStatement，补 Shared、loan 成员资格、原 call/argument/
+parameter 文本、origin 与同源 transfer 身份。原输入未改。named-source 测试只有 L0135 的
+负例也转 Unit；成功路径的全流唯一结束 Single 证据不动。两入口均保持。
+两项精确测试各 1 passed、13 filtered，最终 frontend all-targets Clippy 通过；不运行整目标。
+
+同类审计后明确保留：direct-source/forwarded-source 的全程不结束见证、named-source
+成功路径在全流中恰好一个其他实参结束，以及 nested borrow helper 的 outer-end 在
+source-end 之前。这些分别需要完整 absence、全流计数及全序；当前 bounded handoff/prefix
+观察无法等价替代。没有为扩大退休数量而删断言或将 result endpoint 当作 loan end。
+
+## 同控制点 call-loan 结束顺序观察（2026-11-07）
+
+前述普通 Return 混合辅助/source 切片只证明各自存在，不能证明二者先后。本片为
+`UnitDirectCallLoanEndFact` 与 `UnitBorrowCallPrefixEndFact` 增加
+`preceding_call_loan_ends()`：同轮分析、同 source-qualified point 下，producer 在当前动作前
+实际发布的 `EndCallLoan` 数。两种投影从同一 `iteration_actions` 计数，先计动作再按已有
+发布资格过滤，不从 loan descriptor、end_span 或公开切片位置推测。未公开 call-loan 动作
+也计入，因此编号可有空隙；不同 point/不同分析的数值不可比较。
+仅查询字段扩展；注册、token 退休、unwind、drop 次序、准入与错误/deferred 清空不变。
+不含 receiver/result/drop 动作，不是完整统一 cleanup 图、动态执行次数或全局事件流。
+
+已有 nested auxiliary Return 测试先因缺少 getter 编译失败，再以实际动作核
+auxiliary=0/source=1；新增双辅助 unwind=0/1/source=2、未公开 Exclusive 动作位于
+两观测事件间时 source=2，避免把过滤后切片位置冒充 producer 序号。
+sibling Return 各自归零，正常 CallReturn 双实参为0/1；既有 Return/Break/Continue 与
+错误/deferred 发布门控保持。前述正常嵌套借用结果 `outer-end < source-end` 的 Single
+见证仍不在该范围，本片不退休它或完整 absence/全流计数见证。
+
+本地 Mac Rust1.96、locked/offline、默认debug=2，9项不同普通定向测试通过
+（新增prefix_order两项、nested/sibling Return各一项、normal direct一项、三种控制转移
+组合一项、direct发布门控两项、borrow发布门控一项）；frontend all-targets Clippy通过。
+跨crate workspace all-targets check（LLVM21）、fmt、849份Markdown与diff检查通过；
+未运行全target/native/Abort/故障注入/校准。
+
+相对78a36f25尺寸门禁通过：2150份手写Rust、38份历史超长文件未增长；新顺序测试48行。
+
+独立审阅后补 Shared→Exclusive→Shared 的同 Return 用例，公开 direct rank 明确为0、2，
+source rank=3，证明 direct 投影也对隐藏动作保留空隙。该精确测试1 passed、59 filtered，
+最终frontend all-targets Clippy通过；本片累计10个不同普通定向测试。仅新增测试，
+producer未再改动，workspace编译结果仍对应最终producer。
+
+## Callable 原诊断消费者有界迁移（2026-11-07）
+
+基于 main `78a36f25`，`type_callable` 的 named/arity/type/target failures 与 generic
+inference conflicts 两项原测试复用既有 MemoryDocument/Rooted helper。原始源码、自定义
+环境、完整有序诊断码，以及泛型推导的三个 primary span 均保持不变；不添加 final 或
+ownership 前置，不改生产语义。
+
+本次等价性探测发现另两项不能退休：nullable overload ambiguity 的 Unit 结果为
+L0123 而原 Single 为 L0124；non-lambda filter 到唯一候选的 lambda L0084 缺原
+`callback` label。保留这两项原 Single 测试及所有断言，不用弱化 oracle 换取迁移。
+初始迁移不改这两处；后续组合中的 nullable bottom 修复见下一节，callback label 精度差异仍保留。
+
+| 验收项 | 定向检查 | 结果 |
+|---|---|---|
+| 两项双入口迁移及两项保留见证 | `type_callable` 四个同名过滤器 | 4 passed，17 filtered |
+| 受影响测试目标 lint | `cargo clippy -p lang-frontend --test type_callable -- -D warnings` | 通过 |
+
+Mac Rust1.96、locked/offline、默认debug=2，复用空闲target串行执行。未运行含Abort
+的整个target、全量、native、故障注入、校准或Linux CI；D10/E2保持in-progress。
+
+## Nullable bottom 的 Unit 诊断一致性（2026-11-07）
+
+基线 main `78a36f25`。原 overload 输入在 Single 报 L0123/L0124，两个 Unit 入口第二项误报
+L0123；根因是 Unit 类型适配缺少 Guide 已规定的 Nothing? 到 nullable 规则。
+保留原 Single witness，补两个入口的原源码断言及 nullable/nonnullable/不同 nullable 负例，
+并锁 deferred-inner 拒绝。完整相容查询移入既有 type_graph 职责模块，driver 不增加超长欠账。
+
+另核实 lambda L0084 并非无 label：Unit 指向整个 callback 参数声明，Single 指向名称。
+本片不改该公开参数 span 合同，原 Single 诊断精度见证保留，不宣称该消费者已迁移。
+
+Mac Rust1.96、locked/offline、默认 debug=2，最终 8 项定向测试通过：type_graph 类型关系1项、
+type_callable overload过滤5项、nullable正反例1项、ownership_primitives普通normal commit1项。
+frontend all-targets Clippy（-D warnings）、fmt、849份Markdown、diff与尺寸门禁通过；
+历史38个超长文件数量未增加，checker driver由1182行减至1151行。
+未运行全量、native、故障注入、校准或含Abort的整项测试；官方双宿主CI尚未运行，不计为通过。
+
+组合验收（基于 `78a36f25`）：保留四个逻辑提交，仅解决 Spec 追加段落冲突并同步当前事实。
+组合源码的 callable 过滤器9项、type_graph过滤器1项通过；frontend all-targets Clippy
+（-D warnings）、fmt、849份Markdown与diff检查通过。正式Draft PR的双宿主CI仍待验证。

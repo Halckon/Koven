@@ -165,6 +165,7 @@ impl DropPlanner<'_, '_> {
         use super::PlannerDropPoint;
         use crate::ownership_checking::UnitBorrowCallPrefixEndFact;
         let mut preceding_drops = std::collections::BTreeMap::new();
+        let mut preceding_call_loan_ends = std::collections::BTreeMap::<_, usize>::new();
         let mut ends = Vec::new();
         for (action_index, (point, action)) in self.iteration_actions.iter().enumerate() {
             let PlannerDropPoint::ControlTransfer(transfer) = point else {
@@ -191,6 +192,12 @@ impl DropPlanner<'_, '_> {
                 UnitIterationCleanupAction::EndCallLoan(loan) => loan,
                 _ => continue,
             };
+            // Count every actual call-loan end before applying publication gates.
+            let loan_count = preceding_call_loan_ends
+                .entry(transfer.index())
+                .or_default();
+            let preceding = *loan_count;
+            *loan_count += 1;
             let Some(call) = self.checker.typed.call(loan.call()) else {
                 continue;
             };
@@ -213,6 +220,7 @@ impl DropPlanner<'_, '_> {
                 loan: loan.clone(),
                 point: point.into_unit(self.checker.source_unit),
                 preceding_drops: *count,
+                preceding_call_loan_ends: preceding,
             });
         }
         ends
