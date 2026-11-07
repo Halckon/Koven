@@ -127,7 +127,7 @@ fn string_clone_evaluates_temporary_receiver_once_and_survives_source_return_dro
     let output = emit_link_and_run(
         "clone-temporary.ko",
         r#"
-        fun make(): String { println("made") return "dynamic" + "source" }
+        fun make(): String { println("made"); return "dynamic" + "source" }
         fun duplicateAndDrop(own source: String): String = source.clone()
         fun element(texts: List<String>): String = texts[0].clone()
         fun stringCloneEntry(): Unit {

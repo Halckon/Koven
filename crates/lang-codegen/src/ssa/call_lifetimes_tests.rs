@@ -13,7 +13,7 @@ fn later_argument_transfer_ends_earlier_temporary_borrow_before_drop() {
         "fun test(flag: Boolean): Unit = outer(Node(), when (flag) { true -> 0; false -> 1 })",
         "fun test(flag: Boolean): Unit { loop { outer(Node(), if (flag) break else 0) } }",
         "fun test(flag: Boolean): Unit { loop { outer(Node(), if (flag) continue else 0) } }",
-        "fun test(flag: Boolean): Unit { loop { outer(Node(), if (flag) break else 0) } if (flag) {} else {} }",
+        "fun test(flag: Boolean): Unit { loop { outer(Node(), if (flag) break else 0) }; if (flag) {} else {} }",
         "fun test(own subject: Node?): Unit = outer(Node(), if (subject == null) return else 0)",
         "fun test(own subject: Node?, flag: Boolean): Unit { if (subject != null) { if (flag) {} else {}\nouter(subject, 0) } }",
         "fun test(own subject: Node?, flag: Boolean): Unit { if (subject != null) { when { flag -> {}; else -> {} }\nouter(subject, 0) } }",

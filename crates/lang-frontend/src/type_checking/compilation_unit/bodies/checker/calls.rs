@@ -7,16 +7,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::{Diagnostic, Severity, codes},
-    name_resolution::{
-        DeclarationId, ExternalSymbolId, Namespace, SourceUnitId, UnitReferenceTarget,
-    },
+    name_resolution::{DeclarationId, Namespace, SourceUnitId, UnitReferenceTarget},
     parser::{CallArgument, Expression, ParameterModeMarker},
     type_checking::{
-        BuiltinType, DeferredReason, EnvironmentFunctionEffect, ExternalTypeBinding, ParameterMode,
-        TypeCheckingError, UnitCallArgumentDescriptor, UnitCallDescriptor,
-        UnitCallReceiverDescriptor, UnitCallReceiverOrigin, UnitCallTarget,
-        UnitCallableInstanceKey, UnitCallableSignature, UnitExpressionId,
-        UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
+        BuiltinType, DeferredReason, ExternalTypeBinding, ParameterMode, TypeCheckingError,
+        UnitCallArgumentDescriptor, UnitCallDescriptor, UnitCallReceiverDescriptor,
+        UnitCallReceiverOrigin, UnitCallTarget, UnitCallableInstanceKey, UnitCallableSignature,
+        UnitExpressionId, UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, MappingError, map_arguments, parameter_mode_span},
     },
 };
@@ -254,6 +251,7 @@ impl BodyChecker<'_> {
                     instance_arguments: Vec::new(),
                     receiver: None,
                     owner_substitutions: BTreeMap::new(),
+                    owner_storage_failure: None,
                     cross_thread_parameters: BTreeSet::new(),
                     aborts: false,
                     prints_line: false,
@@ -452,51 +450,6 @@ impl BodyChecker<'_> {
             &mapping,
             Some(&argument_types.iter().copied().map(Some).collect::<Vec<_>>()),
         )
-    }
-
-    fn external_candidate(&mut self, external: ExternalSymbolId) -> Option<CallCandidate> {
-        let ExternalTypeBinding::Function(signature) = self.environment.binding(external)?.clone()
-        else {
-            return None;
-        };
-        let parameters = signature
-            .parameters
-            .iter()
-            .map(|parameter| MappedParameter {
-                name: None,
-                mode: parameter.mode,
-                ty: self.normalize_environment_type(&parameter.ty),
-                span: None,
-            })
-            .collect();
-        Some(CallCandidate {
-            target: UnitCallTarget::External(external),
-            declaration_span: None,
-            type_parameters: Vec::new(),
-            move_only: false,
-            parameters,
-            return_type: self.normalize_environment_type(&signature.return_type),
-            result_source: crate::type_checking::CallableResultSource::Owned,
-            instance_arguments: Vec::new(),
-            receiver: None,
-            owner_substitutions: BTreeMap::new(),
-            cross_thread_parameters: signature
-                .effects
-                .iter()
-                .filter_map(|effect| match effect {
-                    EnvironmentFunctionEffect::CrossThreadTransfer { parameter } => {
-                        Some(*parameter)
-                    }
-                    EnvironmentFunctionEffect::Abort | EnvironmentFunctionEffect::PrintLine => None,
-                })
-                .collect(),
-            aborts: signature
-                .effects
-                .contains(&EnvironmentFunctionEffect::Abort),
-            prints_line: signature
-                .effects
-                .contains(&EnvironmentFunctionEffect::PrintLine),
-        })
     }
 
     fn target_uses_intrinsic_callable(&self, target: Option<&UnitReferenceTarget>) -> bool {

@@ -100,7 +100,7 @@ fn elvis_move_only_source_transfers_only_on_the_non_null_edge() {
             vec![],
         ),
         (
-            "class Node {}\nfun run(own x: Node?) { val selected = x ?: Node() val reused = x }",
+            "class Node {}\nfun run(own x: Node?) { val selected = x ?: Node(); val reused = x }",
             vec!["L0131"],
         ),
         (

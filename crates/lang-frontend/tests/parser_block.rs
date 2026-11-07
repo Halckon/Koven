@@ -110,7 +110,7 @@ fn call_argument_lambda_is_not_mistaken_for_a_nested_block() {
 
 #[test]
 fn local_variables_expressions_and_nested_blocks_keep_source_order() {
-    let text = "{ x + y val x = 1 var y: Int = 2\n{} }";
+    let text = "{ x + y; val x = 1; var y: Int = 2\n{} }";
     let (_, parsed) = parsed_ok(text);
     let elements = root_elements(&parsed);
     assert_eq!(elements.len(), 4);
@@ -151,11 +151,11 @@ fn local_variables_expressions_and_nested_blocks_keep_source_order() {
 }
 
 #[test]
-fn trivia_never_creates_or_removes_statement_boundaries() {
+fn trivia_preserves_real_statement_separators() {
     for text in [
-        "{val x=1 val y=2}",
+        "{val x=1; val y=2}",
         "{\n val x = 1\n // boundary-looking trivia\n val y = 2\n}",
-        "{/*a*/val/*b*/x/*c*/=/*d*/1/*e*/val y=2}",
+        "{/*a*/val/*b*/x/*c*/=/*d*/1;/*e*/val y=2}",
     ] {
         let (_, parsed) = parsed_ok(text);
         assert_eq!(root_elements(&parsed).len(), 2, "{text:?}");
@@ -165,22 +165,22 @@ fn trivia_never_creates_or_removes_statement_boundaries() {
 #[test]
 fn adjacent_expression_starters_are_not_silently_split() {
     let (_, parsed) = parsed("{ x y }");
-    assert_eq!(root_elements(&parsed).len(), 1);
+    assert_eq!(root_elements(&parsed).len(), 2);
     assert_eq!(
         parsed
             .diagnostics()
             .iter()
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>(),
-        ["L0013"]
+        ["L0169"]
     );
 }
 
 #[test]
-fn initializer_does_not_stop_at_an_ordinary_expression_starter() {
+fn initializer_followed_by_an_expression_starter_is_still_an_error() {
     let (_, parsed) = parsed("{ val x = 1 x }");
     let elements = root_elements(&parsed);
-    assert_eq!(elements.len(), 1);
+    assert_eq!(elements.len(), 2);
     assert!(matches!(
         statement(&parsed, elements[0]),
         Statement::LocalVariable { .. }
@@ -191,7 +191,7 @@ fn initializer_does_not_stop_at_an_ordinary_expression_starter() {
             .iter()
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>(),
-        ["L0013"]
+        ["L0169"]
     );
 }
 
@@ -402,7 +402,10 @@ fn missing_initializer_preserves_each_structural_boundary() {
 
 #[test]
 fn lexical_braces_and_element_like_text_do_not_close_or_split_a_block() {
-    for text in [r#"{ "} val return" }"#, r#"{ "${answer}" val result = 1 }"#] {
+    for text in [
+        r#"{ "} val return" }"#,
+        r#"{ "${answer}"; val result = 1 }"#,
+    ] {
         let (_, parsed) = parsed_ok(text);
         let expected = if text.contains("result") { 2 } else { 1 };
         assert_eq!(root_elements(&parsed).len(), expected, "{text:?}");

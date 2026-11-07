@@ -36,7 +36,7 @@ impl Checker<'_> {
             };
             base.origins.attach(&self.callable_sources.arena);
             let headers = base.origins.begin_loop();
-            return self.check_maybe_loop(prefix, body, errors, &headers);
+            return self.check_maybe_loop(prefix, body, body, errors, &headers);
         }
         if !crate::type_checking::map_iteration_validation::validate_unit_map_iteration_facts(
             self.parsed,
@@ -92,7 +92,7 @@ impl Checker<'_> {
         if map_descriptor.is_some() && self.diagnostics.len() != errors {
             base.origins.attach(&self.callable_sources.arena);
             let headers = base.origins.begin_loop();
-            return self.check_maybe_loop(prefix, body, errors, &headers);
+            return self.check_maybe_loop(prefix, body, body, errors, &headers);
         }
         let statement = UnitStatementId::new(self.source_unit, statement);
         let descriptor = self
@@ -291,7 +291,7 @@ impl Checker<'_> {
         let headers = next.origins.begin_loop();
         let body_flows = self.check_statement(body, next.clone())?;
         if self.diagnostics.len() == errors {
-            self.check_loop_backedge(body, &body_flows)?;
+            self.check_loop_backedge(body, body, &body_flows)?;
             for state in [&body_flows.next, &body_flows.continues]
                 .into_iter()
                 .flatten()

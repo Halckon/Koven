@@ -577,7 +577,7 @@ fn lowers_while_loop_break_continue_and_nested_loop_targets_unit_comparison() {
          fun exits(flag: Boolean): Int {\n\
              var result: Int = 0\n\
              loop {\n\
-                 if (flag) { { result = 1 } break } else { continue }\n\
+                 if (flag) { { result = 1 }; break } else { continue }\n\
              }\n\
              return result\n\
          }\n\
@@ -585,7 +585,7 @@ fn lowers_while_loop_break_continue_and_nested_loop_targets_unit_comparison() {
              var total: Int = 0\n\
              loop {\n\
                  while (inner) { break }\n\
-                 if (outer) { { total = 2 } break } else { continue }\n\
+                 if (outer) { { total = 2 }; break } else { continue }\n\
              }\n\
              return total\n\
          }\n\

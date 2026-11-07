@@ -87,7 +87,7 @@ fn expression(parsed: &ParsedBlock, id: ExpressionId) -> &Expression {
 
 #[test]
 fn block_destructuring_preserves_one_initializer_and_exact_source_order() {
-    let text = "{ val (left, right) = pair val z = 1 }";
+    let text = "{ val (left, right) = pair; val z = 1 }";
     let (sources, parsed) = parsed_block(text);
     assert!(
         parsed.diagnostics().is_empty(),

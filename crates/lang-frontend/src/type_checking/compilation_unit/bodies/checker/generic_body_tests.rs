@@ -8,7 +8,7 @@ use crate::{
     type_checking::{IntrinsicTypeConstructor, UnitTypeTable, standard_environments},
 };
 
-fn checked_with_limit(text: &str, limit: usize) -> CompilationUnitTypes {
+fn with_checker<R>(text: &str, inspect: impl FnOnce(BodyChecker<'_>) -> R) -> R {
     let mut sources = SourceMap::new();
     let source = sources.add_source("main.ko", text).unwrap();
     let lexed = lex(&sources, source).unwrap();
@@ -27,18 +27,36 @@ fn checked_with_limit(text: &str, limit: usize) -> CompilationUnitTypes {
         .unwrap();
     let prepared =
         collect_signatures_with_files(&sources, &inputs, names.names(), &type_environment).unwrap();
-    let typed = BodyChecker::new(
+    inspect(BodyChecker::new(
         &sources,
         prepared.files,
         names.names(),
         &type_environment,
         prepared.signatures,
-    )
-    .run_with_generic_limit(limit)
-    .unwrap();
+    ))
+}
+
+fn checked_with_limit(text: &str, limit: usize) -> CompilationUnitTypes {
+    let typed = with_checker(text, |checker| {
+        checker.run_with_generic_limit(limit).unwrap()
+    });
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     assert!(typed.clone().validate().is_ok());
     typed
+}
+
+#[test]
+fn unit_generic_body_skips_methods_without_substitutions() {
+    let mut source = String::from("class Factory {\n");
+    for index in 0..128 {
+        source.push_str(&format!("fun ordinary{index}(): Int = {index}\n"));
+    }
+    source.push_str("fun <T> generic(): Unit {}\n}\nfun entry(): Unit {}");
+    with_checker(&source, |checker| {
+        let templates = checker.generic_body_templates().unwrap();
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates.values().next().unwrap().parameters.len(), 1);
+    });
 }
 
 #[test]
@@ -78,6 +96,17 @@ fn unit_generic_body_zero_one_two_budgets_keep_prefix_and_only_one_frontier() {
             "canonical publication retains template calls"
         );
     }
+}
+
+#[test]
+fn unit_generic_container_storage_checks_shared_type_nodes() {
+    // Each Pair reuses its two child identities. Walking by path would expand 2^48 leaves.
+    checked_with_limit(
+        "class Pair<A, B>\n\
+         fun <T> recurse(): Unit { val values: List<T>? = null; recurse<Pair<T, T>>() }\n\
+         fun entry(): Unit { recurse<Int>() }",
+        48,
+    );
 }
 
 #[test]

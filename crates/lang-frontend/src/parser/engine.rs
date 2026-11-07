@@ -13,6 +13,8 @@ mod operator;
 mod postfix;
 mod recovery;
 #[cfg(test)]
+mod separator_tests;
+#[cfg(test)]
 mod tests;
 mod type_ref;
 

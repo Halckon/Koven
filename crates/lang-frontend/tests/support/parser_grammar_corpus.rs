@@ -45,7 +45,7 @@ pub(crate) const GRAMMAR_CASES: &[GrammarCase] = &[
     },
     GrammarCase {
         name: "loop family",
-        source: "fun loops() { while (ready) { continue } for (item in items) { break } loop { return } }",
+        source: "fun loops() { while (ready) { continue }; for (item in items) { break }; loop { return } }",
     },
     GrammarCase {
         name: "postfix chain",

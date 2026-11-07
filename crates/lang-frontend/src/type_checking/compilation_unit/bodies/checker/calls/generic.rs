@@ -15,6 +15,7 @@ use crate::{
 };
 
 use super::super::BodyChecker;
+use super::super::type_graph::substitute;
 use super::{super::copyability::UnitTransferability, CallCandidate};
 
 #[derive(Clone, Copy)]
@@ -32,6 +33,11 @@ pub(super) enum UnitInstantiationFailure {
         kind: UnitBoundFailureKind,
         primary: Span,
         parameter: UnitSymbolId,
+    },
+    Storage {
+        primary: Span,
+        declaration: Option<Span>,
+        message: &'static str,
     },
 }
 
@@ -75,7 +81,15 @@ impl BodyChecker<'_> {
         explicit: (&[TypeRefId], &[UnitTypeId]),
         callee_span: Span,
     ) -> Result<Result<CallCandidate, UnitInstantiationFailure>, CompilationUnitTypeError> {
+        if let Some(message) = candidate.owner_storage_failure {
+            return Ok(Err(UnitInstantiationFailure::Storage {
+                primary: callee_span,
+                declaration: candidate.declaration_span,
+                message,
+            }));
+        }
         let (type_refs, explicit_types) = explicit;
+        let checkpoint = self.signatures.types().len();
         let parameters = candidate.type_parameters.clone();
         let parameter_set = parameters.iter().copied().collect::<BTreeSet<_>>();
         let mut substitutions = candidate.owner_substitutions.clone();
@@ -208,7 +222,21 @@ impl BodyChecker<'_> {
             let kind = match bound {
                 UnitTypeParameterBound::Any | UnitTypeParameterBound::Error => None,
                 UnitTypeParameterBound::Interface(interface) => {
-                    let expected = self.substitute_type(interface, &substitutions)?;
+                    let mut bound_types = BTreeMap::new();
+                    let expected = substitute(
+                        self.signatures.types_mut(),
+                        interface,
+                        &substitutions,
+                        &mut bound_types,
+                    )?;
+                    if let Some(message) = self.invalid_storage_in_substitution(&bound_types) {
+                        self.signatures.types_mut().discard_after(checkpoint);
+                        return Ok(Err(UnitInstantiationFailure::Storage {
+                            primary: callee_span,
+                            declaration: candidate.declaration_span,
+                            message,
+                        }));
+                    }
                     (!self.satisfies_interface(actual, expected)?)
                         .then_some(UnitBoundFailureKind::Interface)
                 }
@@ -233,15 +261,55 @@ impl BodyChecker<'_> {
             }
         }
 
-        for parameter in &mut candidate.parameters {
-            parameter.ty = self.substitute_type(parameter.ty, &substitutions)?;
+        if let Some(message) = self.substitute_candidate_types(&mut candidate, &substitutions)? {
+            self.signatures.types_mut().discard_after(checkpoint);
+            return Ok(Err(UnitInstantiationFailure::Storage {
+                primary: callee_span,
+                declaration: candidate.declaration_span,
+                message,
+            }));
         }
-        candidate.return_type = self.substitute_type(candidate.return_type, &substitutions)?;
         candidate
             .instance_arguments
             .extend(parameters.iter().map(|parameter| substitutions[parameter]));
         candidate.type_parameters.clear();
         Ok(Ok(candidate))
+    }
+
+    pub(super) fn substitute_candidate_types(
+        &mut self,
+        candidate: &mut CallCandidate,
+        substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+    ) -> Result<Option<&'static str>, CompilationUnitTypeError> {
+        let checkpoint = self.signatures.types().len();
+        let mut instantiated = BTreeMap::new();
+        let parameter_types = candidate
+            .parameters
+            .iter()
+            .map(|parameter| {
+                substitute(
+                    self.signatures.types_mut(),
+                    parameter.ty,
+                    substitutions,
+                    &mut instantiated,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let return_type = substitute(
+            self.signatures.types_mut(),
+            candidate.return_type,
+            substitutions,
+            &mut instantiated,
+        )?;
+        if let Some(message) = self.invalid_storage_in_substitution(&instantiated) {
+            self.signatures.types_mut().discard_after(checkpoint);
+            return Ok(Some(message));
+        }
+        for (parameter, ty) in candidate.parameters.iter_mut().zip(parameter_types) {
+            parameter.ty = ty;
+        }
+        candidate.return_type = return_type;
+        Ok(None)
     }
 
     pub(super) fn emit_unit_instantiation_failure(
@@ -250,6 +318,17 @@ impl BodyChecker<'_> {
     ) -> Result<(), CompilationUnitTypeError> {
         match failure {
             UnitInstantiationFailure::Poisoned => Ok(()),
+            UnitInstantiationFailure::Storage {
+                primary,
+                declaration,
+                message,
+            } => self.emit_maybe_label(
+                codes::INVALID_CONTAINER_ELEMENT,
+                message,
+                primary,
+                declaration,
+                "generic callable declared here",
+            ),
             UnitInstantiationFailure::Arity { primary, parameter } => {
                 if let Some(parameter) = parameter {
                     self.emit_maybe_label(

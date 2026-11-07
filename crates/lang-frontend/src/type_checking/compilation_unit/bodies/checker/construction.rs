@@ -455,6 +455,13 @@ impl BodyChecker<'_> {
             self.check_construction_operands(source, arguments, return_type)?;
             return Ok(None);
         }
+        if !self.construction_storage_satisfied(shape, &substitutions, &origins, callee_span)? {
+            let error = self.error_type();
+            for argument in arguments {
+                self.check_expression(source, argument.value, Some(error), None, return_type)?;
+            }
+            return Ok(None);
+        }
         Ok(Some(ConstructionInstance {
             arguments: shape
                 .type_parameters
@@ -495,6 +502,9 @@ impl BodyChecker<'_> {
             &origins,
             span,
         )? {
+            return Ok(None);
+        }
+        if !self.construction_storage_satisfied(shape, &substitutions, &origins, span)? {
             return Ok(None);
         }
         Ok(Some(ConstructionInstance {
@@ -642,6 +652,31 @@ impl BodyChecker<'_> {
                 )?;
                 return Ok(false);
             }
+        }
+        Ok(true)
+    }
+
+    fn construction_storage_satisfied(
+        &mut self,
+        shape: &Shape,
+        substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+        origins: &BTreeMap<UnitSymbolId, Span>,
+        fallback: Span,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        let arguments = shape
+            .type_parameters
+            .iter()
+            .map(|parameter| substitutions[parameter])
+            .collect::<Vec<_>>();
+        if let Some(parameter) = self.invalid_nominal_storage_argument(shape.root, &arguments) {
+            self.emit_maybe_label(
+                codes::INVALID_CONTAINER_ELEMENT,
+                "type argument cannot satisfy instantiated storage requirements",
+                origins.get(&parameter).copied().unwrap_or(fallback),
+                Some(self.unit_symbol_span(parameter)?),
+                "stored type parameter declared here",
+            )?;
+            return Ok(false);
         }
         Ok(true)
     }

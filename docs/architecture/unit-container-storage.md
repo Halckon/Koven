@@ -110,9 +110,18 @@ frontend在全部body/trial完成且无类型错误后按真实闭合source call
 每种子按现有1024实例上限保留前缀与有限frontier，entry选择/拒绝仍归Phase4。
 闭合查询、结构替换和field concreteness以completed memo/迭代栈读取共享DAG；flow-refined
 enum case实参闭合性与runtime field支持分别缓存。backend
-保持只读find。静态顶层callee由已提交descriptor识别，不将其模板Function<T>当runtime
+保持只读find。静态顶层与成员callee由已提交descriptor身份识别，不将其模板Function<T>当runtime
 函数值登记；call结果/实参、generic function value仍走原检查。已有nullable class handle
 沿inner规划hidden deinit，null/非空仍使用现有conditional drop，不扩inline nullable ABI。
+
+名义存储要求在签名冻结前沿字段、enum payload、直接接口及参数上界传播；有限不动点只记录
+所属泛型参数义务，不展开 `Grow<List<T>>` 等无限堆实例。签名 TypeRef、body TypeRef、构造和
+调用 bound 替换在具体实参处拒绝违反义务的类型；接口值仍由既有 L0094 检查负责。
+普通类用实际字段和拥有的载荷布局计算相关参数。无布局依赖的实参不影响句柄的存储资格。
+布局参数集合增长时只重新检查读取该集合的声明。直接容器实参仍检查其表示要求。
+body 模板按 callable identity 区分，只为需要类型替换的函数建立，实例参数顺序为 owner 后
+method。按所属源码与函数范围一次分发类型及调用事实，闭合调用从全局已提交调用记录播种。
+有界遍历沿真实成员调用传播 body-only 存储需求，未调用模板仍保留 symbolic 类型。
 
 SPEC0276本地新native7项通过，实际18个成功fixture执行object/link/run及逐指针计数；
 覆盖三容器Int/String/Resource、三层relay、多body构造、deinit闭合helper和Nullable<Resource>。

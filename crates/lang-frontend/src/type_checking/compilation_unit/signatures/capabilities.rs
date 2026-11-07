@@ -158,15 +158,21 @@ impl SignatureCollector<'_> {
                 self.mark_type_ref_tree(source, *return_type, output)?;
             }
             TypeRef::Qualified { segments, .. } => {
-                // A valid-arity intrinsic Box payload is runtime even in a static bound.
-                // Its typed result may already be Error, so use the resolved external identity.
+                // Box/Rc payloads and sequential elements are runtime types even in bounds.
+                // Resolve the external identity because the resulting type may be Error.
                 if segments.last().is_some_and(|segment| {
                     segment.arguments.len() == 1
                         && matches!(
                             self.reference(source, segment.name_span, Namespace::Type),
                             Some(UnitReferenceTarget::External(external))
                                 if matches!(self.environment.binding(*external),
-                                    Some(ExternalTypeBinding::Intrinsic(IntrinsicTypeConstructor::Box)))
+                                    Some(ExternalTypeBinding::Intrinsic(
+                                        IntrinsicTypeConstructor::Box
+                                        | IntrinsicTypeConstructor::Array
+                                        | IntrinsicTypeConstructor::List
+                                        | IntrinsicTypeConstructor::MutableList
+                                        | IntrinsicTypeConstructor::Rc
+                                    )))
                         )
                 }) {
                     return Ok(());

@@ -6,16 +6,16 @@ use crate::type_checking::UnitTypeTable;
 #[derive(Default)]
 pub(super) struct ConcreteTypes {
     completed: BTreeMap<UnitTypeId, bool>,
-    include_refinements: bool,
+    closed_arguments: bool,
     #[cfg(test)]
     pub(super) visits: usize,
 }
 
 impl ConcreteTypes {
-    /// Closed source arguments may retain an enum-case refinement without a runtime field recipe.
+    /// Closed arguments may retain enum refinements or known Any without a field recipe.
     pub(super) fn for_closed_arguments() -> Self {
         Self {
-            include_refinements: true,
+            closed_arguments: true,
             ..Self::default()
         }
     }
@@ -42,9 +42,13 @@ impl ConcreteTypes {
                     | UnitTypeKind::Function { .. }
                     | UnitTypeKind::Nominal { .. }
                     | UnitTypeKind::Intrinsic { .. }
-            ) || (self.include_refinements
-                && matches!(kind, UnitTypeKind::EnumCase { .. }));
-            let children = if self.include_refinements
+            ) || (self.closed_arguments
+                && matches!(
+                    kind,
+                    UnitTypeKind::EnumCase { .. }
+                        | UnitTypeKind::Deferred(DeferredReason::AnyValueRepresentation)
+                ));
+            let children = if self.closed_arguments
                 && let UnitTypeKind::EnumCase { root, .. } = kind
             {
                 vec![*root]

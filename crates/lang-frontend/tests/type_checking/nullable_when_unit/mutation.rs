@@ -23,7 +23,7 @@ fn nullable_when_mixed_alternatives_do_not_narrow_body() {
 fn nullable_when_body_mutation_does_not_leak_to_unselected_entry() {
     // The null body's mutation cannot execute on the path selecting else.
     let text = "fun extract(input: Int?, replacement: Int?): Int { var x = input
-        return (when (x) { null -> { x = replacement if (true) { 0 } else { 0 } }; else -> x })
+        return (when (x) { null -> { x = replacement; if (true) { 0 } else { 0 } }; else -> x })
     }";
     let (_, _, entries) = checked_entries(text);
     for (_, typed) in entries {
@@ -36,7 +36,7 @@ fn nullable_when_condition_mutation_invalidates_source_proof() {
     // The tested subject is a snapshot; a later assignment changes the source binding.
     let text = "fun extract(input: Boolean?, replacement: Boolean?): Boolean { var x = input
         return (when (x) { null -> false;
-            if (true) { x = replacement if (true) { true } else { false } } else { false } -> false;
+            if (true) { x = replacement; if (true) { true } else { false } } else { false } -> false;
             else -> x })
     }";
     let (sources, _, entries) = checked_entries(text);

@@ -1,14 +1,14 @@
 //! SPEC-0023 顺序容器类型、核心构造与 element-place 测试。
 
 use lang_frontend::{
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, DiagnosticDetail},
     name_resolution::{NameEnvironment, NameResolution, resolve_names},
     parser::{Expression, ParsedFile},
     source::SourceMap,
     type_checking::{
         BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory, IntrinsicCallable,
         IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, TypeEnvironment,
-        TypedFile, UnitTypeKind, check_types,
+        TypedFile, UnitExpressionId, UnitTypeKind, check_types,
     },
 };
 
@@ -150,7 +150,7 @@ fn container_types_and_core_constructions_preserve_element_identity() {
                     val count: Int = list.size\n\
                 }";
     let (_, parsed, entries) = checked_entries(text);
-    for (source_unit, typed) in entries {
+    for (entry, typed) in entries {
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         assert_eq!(typed.container_constructions().len(), 7);
         assert_eq!(
@@ -206,13 +206,8 @@ fn container_types_and_core_constructions_preserve_element_identity() {
                 _ => None,
             })
             .expect("size expression");
-        let size = *typed
-            .expression_types()
-            .keys()
-            .find(|id| id.source_unit() == source_unit && id.expression() == size)
-            .expect("typed original size identity");
         assert_eq!(
-            typed.expression_category(size),
+            typed.expression_category(UnitExpressionId::new(entry, size)),
             Some(ExpressionCategory::Temporary)
         );
     }
@@ -230,14 +225,104 @@ fn non_storable_and_wrong_arity_container_types_are_rejected() {
         codes(typed.diagnostics()),
         ["L0125", "L0125", "L0094", "L0091"]
     );
-    // Keep the original Single witness above; the combined signature fix now
-    // permits the same source and custom environment in both actual Unit entries.
-    let (_, _, entries) = checked_entries(text);
-    for (_, unit) in entries {
+    for (_, typed) in checked_entries(text).2 {
         assert_eq!(
-            codes(unit.diagnostics()),
+            codes(typed.diagnostics()),
             ["L0125", "L0125", "L0094", "L0091"]
         );
+    }
+}
+
+#[test]
+fn non_storable_sequential_signature_elements_keep_one_error_at_the_argument() {
+    let text = "value class Wrapped<T>(val value: T)\n\
+                fun reject(a: List<Nothing>, b: Array<Any>, c: MutableList<Nothing?>,\n\
+                           d: List<List<Any>>, e: Array<Wrapped<Any>>): Unit {}\n\
+                fun <T> keep(x: List<T>, f: Array<(Nothing) -> Nothing>): Unit {}";
+    let (sources, parsed, entries) = checked_entries(text);
+    for (entry, typed) in entries {
+        assert_eq!(codes(typed.diagnostics()), ["L0125"; 5]);
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
+                .collect::<Vec<_>>(),
+            ["Nothing", "Any", "Nothing?", "Any", "Wrapped<Any>"]
+        );
+        assert_eq!(typed.signatures().diagnostics(), typed.diagnostics());
+        assert!(typed.body_diagnostics().is_empty());
+        let invalid = parsed
+            .ast()
+            .type_refs()
+            .iter()
+            .filter(|(_, node)| {
+                matches!(
+                    sources.slice(node.span()),
+                    Ok("List<Nothing>"
+                        | "Array<Any>"
+                        | "MutableList<Nothing?>"
+                        | "List<Any>"
+                        | "List<List<Any>>"
+                        | "Array<Wrapped<Any>>")
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(invalid.len(), 6);
+        for (id, _) in invalid {
+            let ty = typed
+                .type_ref_type(lang_frontend::type_checking::UnitTypeRefId::new(entry, id))
+                .expect("signature type ref");
+            assert!(matches!(
+                typed.types().get(ty),
+                Some(UnitTypeKind::Intrinsic { .. })
+            ));
+        }
+        assert!(typed.validate().is_err());
+    }
+}
+
+#[test]
+fn non_storable_sequential_signatures_do_not_collapse_overload_shapes() {
+    let text = "fun select(value: List<Nothing>): Unit {}\n\
+                fun select(value: Array<Any>): Unit {}\n\
+                fun select(value: Int): Int = value\n\
+                fun entry(): Int = select(1)";
+    for (_, typed) in checked_entries(text).2 {
+        assert_eq!(codes(typed.diagnostics()), ["L0125"; 2]);
+        assert!(typed.body_diagnostics().is_empty());
+        let [call] = typed.calls() else {
+            panic!("one call to the valid overload");
+        };
+        assert_eq!(
+            typed.types().get(call.return_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+        assert!(typed.validate().is_err());
+    }
+}
+
+#[test]
+fn sequential_elements_inside_static_bounds_still_require_runtime_types() {
+    let text = "interface Shape<T>\n\
+                fun <T: Shape<List<Shape<Int>>>> reject(): Unit {}\n\
+                fun nested(arg: List<Shape<Nothing>>): Unit {}\n\
+                fun <T: Shape<List<Int>>> keep(): Unit {}";
+    let (sources, _, entries) = checked_entries(text);
+    for (_, typed) in entries {
+        assert_eq!(codes(typed.diagnostics()), ["L0094"; 2]);
+        for (diagnostic, primary) in typed
+            .diagnostics()
+            .iter()
+            .zip(["Shape<Int>", "Shape<Nothing>"])
+        {
+            assert_eq!(sources.slice(diagnostic.primary_span()), Ok(primary));
+            let [DiagnosticDetail::Label(label)] = diagnostic.details() else {
+                panic!("one interface declaration label: {diagnostic:?}");
+            };
+            assert_eq!(sources.slice(label.span()), Ok("Shape"));
+        }
+        assert!(typed.validate().is_err());
     }
 }
 
@@ -251,8 +336,7 @@ fn construction_inference_and_fixed_contract_fail_loudly() {
                     val runtime = Array<Int>(size, initializer)\n\
                     val wrongMutable = MutableList<Int>(1)\n\
                 }";
-    let (_, _, entries) = checked_entries(text);
-    for (_, typed) in entries {
+    for (_, typed) in checked_entries(text).2 {
         assert_eq!(
             codes(typed.diagnostics()),
             ["L0126", "L0126", "L0084", "L0084", "L0127"]
@@ -275,8 +359,7 @@ fn index_mutability_size_and_get_set_follow_the_closed_place_contract() {
                     val borrowedSize = mutate(&list.size)\n\
                     val changed = mutate(&array[0])\n\
                 }";
-    let (_, _, entries) = checked_entries(text);
-    for (_, typed) in entries {
+    for (_, typed) in checked_entries(text).2 {
         assert_eq!(
             codes(typed.diagnostics()),
             [
@@ -291,8 +374,7 @@ fn source_names_cannot_impersonate_intrinsic_containers_or_constructors() {
     let text = "class List<T>\n\
                 fun listOf(input: Int): Int = input\n\
                 fun inspect(sourceList: List<Int>): Int = listOf(1)";
-    let (_, _, entries) = checked_entries(text);
-    for (_, typed) in entries {
+    for (_, typed) in checked_entries(text).2 {
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         assert!(typed.container_constructions().is_empty());
     }
@@ -308,14 +390,17 @@ fn deferred_callable_reference_element_does_not_become_a_false_storable_error() 
     let (_, _, _, typed) = checked(text);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     assert!(typed.container_constructions().is_empty());
+    for (_, typed) in checked_entries(text).2 {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(typed.container_constructions().is_empty());
+    }
 }
 
 #[test]
 fn generic_callable_infers_from_nested_intrinsic_container_type() {
     let text = "fun <T> first(input: List<T>): T\n\
                 fun use(values: List<Int>): Unit { val selected = first(values) }";
-    let (_, _, entries) = checked_entries(text);
-    for (_, typed) in entries {
+    for (_, typed) in checked_entries(text).2 {
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         let call = typed.calls().last().expect("generic source call");
         assert!(matches!(
@@ -335,12 +420,12 @@ fn container_size_publishes_receiver_identity_type_and_span() {
              val d = listOf(1).size\n\
          }",
     );
-    for (source_unit, typed) in entries {
+    for (entry, typed) in entries {
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         assert_eq!(typed.container_sizes().len(), 4);
         for descriptor in typed.container_sizes() {
-            assert_eq!(descriptor.expression().source_unit(), source_unit);
-            assert_eq!(descriptor.receiver().source_unit(), source_unit);
+            assert_eq!(descriptor.expression().source_unit(), entry);
+            assert_eq!(descriptor.receiver().source_unit(), entry);
             assert_eq!(
                 typed.container_size(descriptor.expression()),
                 Some(*descriptor)

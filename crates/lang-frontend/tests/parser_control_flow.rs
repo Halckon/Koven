@@ -120,7 +120,7 @@ fn if_requires_else_only_in_value_context() {
 
 #[test]
 fn if_control_blocks_and_else_if_preserve_structure() {
-    let (_, parsed) = expression("if (a) { val x = work() if (x) x else x } else if (b) 2 else 3");
+    let (_, parsed) = expression("if (a) { val x = work(); if (x) x else x } else if (b) 2 else 3");
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",
@@ -231,7 +231,7 @@ fn when_forms_conditions_and_separators_are_source_ordered() {
 
 #[test]
 fn loops_bindings_and_jumps_have_dedicated_nodes() {
-    let text = "{ while (ready) { continue } for ((key, _) in entries) { if (key) break } loop { return } }";
+    let text = "{ while (ready) { continue }; for ((key, _) in entries) { if (key) break }; loop { return } }";
     let (_, parsed) = block(text);
     assert!(
         parsed.diagnostics().is_empty(),

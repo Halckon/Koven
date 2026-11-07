@@ -76,12 +76,13 @@ Parser 直接覆盖为 `parser_n1a_frontier`；`type_declaration_frontier` 在 M
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
 
-普通/control/nested block 的顶层 Pratt/postfix 在完整左表达式之后遇换行的 `(`、`+`、`-`
+普通/control/nested block 与 lambda body 的顶层 Pratt/postfix 在完整左表达式之后遇换行的 `(`、`+`、`-`
 时归还 block dispatch；局部 initializer 复用该边界。group/call/index 内的 block soft stop
 已清除；for header 只在真实 opener 存在时清软 stop，因此未闭合 delimiter 内继续解析。
 typed-call 试探、独立 expression 与顶层
-initializer 保持既有入口行为。lambda 顶层 body 保留独立 owner，内嵌普通 block 使用自己的
-换行边界。同行缺分隔符诊断和 lambda 顶层换行仍不属于当前已闭合实现。
+initializer 保持既有入口行为。lambda 顶层 body 与内嵌普通 block 保留独立 owner，但共用换行
+边界。三个 body dispatch 的分隔校验在后继 element 起点以空 Span 报 L0169；恢复保留真实
+后继，不补造分号。已有缺 operand/poison 错误不追加同根分隔诊断。
 
 `return` 的同行操作数起点允许既有 control primary（含 `if` / `when`），不把 block 的
 下一 element soft stop 误用为缺值判断；已开始解析操作数后仍传递原 stops。换行、分号、
@@ -90,6 +91,11 @@ L0057。相关结构、范围和资源回归见 `parser_return_control` 与 pars
 
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
 边界。测试选择规则见[开发测试指南](../development/testing.md)。
+
+`parse_super` 在 interface、dot、member-name 的 Lexer poison 处消费并保存 Error，不追加同根
+语法诊断。共享 error-postfix 恢复保留 caller stops 与显式分号；`parser_super_recovery` 逐值核对
+后继实参和 statement 的身份。`parser_statement_separators` 覆盖四公共入口、分隔及续行；本轮复审边界见
+[SPEC-0392](../specs/active/0392-compiler-layered-review.md)，不以局部恢复修复声称语法完全一致。
 
 ## 索引式 AST
 

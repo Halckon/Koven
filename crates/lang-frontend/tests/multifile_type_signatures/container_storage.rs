@@ -229,3 +229,34 @@ fn repeated_invalid_elements_keep_distinct_spans_and_valid_neighbor_types() {
     }
     panic!("original valid neighbor type ref exists");
 }
+
+#[test]
+fn rc_signature_payloads_require_a_value_representation() {
+    for (text, payload) in [
+        ("fun inspect(value: Rc<Nothing>): Unit {}", "Nothing"),
+        ("fun inspect(value: Rc<Any?>): Unit {}", "Any?"),
+        (
+            "fun inspect(value: List<Rc<Copyable>>): Unit {}",
+            "Copyable",
+        ),
+        (
+            "value class Wrapper<T>(val value: T)\nfun inspect(value: Rc<Wrapper<Any>>): Unit {}",
+            "Wrapper<Any>",
+        ),
+    ] {
+        check(text, &[("L0125", payload)]);
+    }
+    check(
+        "fun <T> inspect(value: Rc<T>, count: Rc<Int>): Unit {}",
+        &[],
+    );
+    check("class Rc<T>\nfun inspect(value: Rc<Nothing>): Unit {}", &[]);
+}
+
+#[test]
+fn rc_payload_inside_static_bound_keeps_the_runtime_interface_diagnostic() {
+    check(
+        "interface Shape<T>\nfun <T: Shape<Rc<Shape<Int>>>> inspect(): Unit {}",
+        &[("L0094", "Shape<Int>")],
+    );
+}

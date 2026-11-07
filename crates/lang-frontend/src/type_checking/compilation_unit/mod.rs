@@ -6,6 +6,7 @@ mod iteration;
 mod model;
 mod shapes;
 mod signatures;
+mod storage_requirements;
 
 pub use bodies::*;
 pub use error::CompilationUnitTypeError;

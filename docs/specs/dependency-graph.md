@@ -38,6 +38,7 @@ subgraph Gactive["现行 active"]
   S0389["S0389<br/>具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
+  S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0393["S0393<br/>RangeView、借用结果函数与绑定、Rc 操作及带捕获闭包旧路径退役"]
   S0394["S0394<br/>直接 String.clone() 旧路径退役"]
 end
@@ -97,6 +98,7 @@ ARCH --> S0341
 | SPEC-0389 | active | [0389-refine-known-function-shared-capture-container-element-retirement.md](active/0389-refine-known-function-shared-capture-container-element-retirement.md) |
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
+| SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
 | SPEC-0393 | active | [0393-refine-range-borrow-result-rc-closure-retirement.md](active/0393-refine-range-borrow-result-rc-closure-retirement.md) |
 | SPEC-0394 | active | [0394-refine-string-clone-retirement.md](active/0394-refine-string-clone-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |

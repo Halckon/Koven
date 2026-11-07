@@ -748,7 +748,7 @@ fn postfix_propagation_significant_visits_stay_linear_when_doubled() {
     assert!(large_visits <= small_visits * 2 + 32);
 }
 
-fn block_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
+pub(super) fn block_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
     let mut sources = SourceMap::new();
     let source_id = sources
         .add_source("block-dispatch.ko", &text)
@@ -789,7 +789,7 @@ fn block_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
 #[test]
 fn block_dispatch_legal_error_and_nested_families_stay_linear() {
     for (make, diagnostics_per_element) in [
-        (|count| format!("{{ {} }}", "val x = 1 ".repeat(count)), 0),
+        (|count| format!("{{ {} }}", "val x = 1; ".repeat(count)), 0),
         (|count| format!("{{ {} }}", "return\n".repeat(count)), 0),
         (|count| format!("{{ {} }}", "@ ".repeat(count)), 1),
         (
@@ -866,7 +866,7 @@ fn lambda_body_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
 #[test]
 fn lambda_body_legal_unsupported_and_poison_families_stay_linear() {
     for (make, diagnostics_per_element) in [
-        (|count| format!("{{ {} }}", "{} ".repeat(count)), 0),
+        (|count| format!("{{ {} }}", "{}; ".repeat(count)), 0),
         (|count| format!("{{ {} }}", "return\n".repeat(count)), 0),
         (|count| format!("{{ {} }}", "@ ".repeat(count)), 1),
     ] as [(fn(usize) -> String, usize); 3]

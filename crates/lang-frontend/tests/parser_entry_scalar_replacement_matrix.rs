@@ -98,13 +98,13 @@ fn replacing_every_utf8_scalar_of_entry_sources_with_the_fixed_alphabet_is_recov
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(candidate_counts, [2_392, 4_407, 2_574]);
+    assert_eq!(candidate_counts, [2_392, 4_407, 2_600]);
     assert_eq!(noop_counts, [15, 29, 42]);
     assert_eq!(
         replacement_counts,
         [
-            692, 721, 721, 713, 719, 721, 718, 721, 720, 703, 703, 715, 720
+            694, 723, 723, 715, 721, 723, 720, 723, 722, 705, 705, 717, 722
         ]
     );
-    assert_eq!(replacement_counts.into_iter().sum::<usize>(), 9_287);
+    assert_eq!(replacement_counts.into_iter().sum::<usize>(), 9_313);
 }

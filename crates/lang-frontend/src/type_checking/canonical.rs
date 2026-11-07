@@ -65,6 +65,13 @@ where
         self.kinds.len()
     }
 
+    /// Discard a speculative suffix whose IDs have not escaped the caller.
+    pub(super) fn discard_after(&mut self, checkpoint: usize) {
+        for kind in self.kinds.drain(checkpoint..) {
+            self.ids.remove(&kind);
+        }
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.kinds.is_empty()
     }

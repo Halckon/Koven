@@ -471,7 +471,7 @@ fn iteration_ownership_facts_are_deterministic_across_analyses() {
 #[test]
 fn iteration_plan_publication_is_atomic_on_error_and_skips_unreachable_source() {
     let (_, _, bad) = checked(
-        "fun consume(own xs: List<Int>) {}\nfun run(own xs: List<Int>) { for (_ in listOf(1)) {} for (_ in xs) { consume(xs)\nbreak } }",
+        "fun consume(own xs: List<Int>) {}\nfun run(own xs: List<Int>) { for (_ in listOf(1)) {}; for (_ in xs) { consume(xs)\nbreak } }",
     );
     assert!(!bad.diagnostics().is_empty());
     assert!(bad.iterations().is_empty());
@@ -484,7 +484,7 @@ fn iteration_plan_publication_is_atomic_on_error_and_skips_unreachable_source() 
 fn nested_return_plan_orders_each_scope_before_its_provider() {
     use lang_frontend::ownership_checking::{IterationCleanupAction as Action, IterationExitKind};
     let (sources, _, owned) = checked(
-        "class Node {}\nfun touch(n: Node) {}\nfun run(own outer: Node, flag: Boolean) { for (_ in listOf(1)) { val local = Node()\nfor (_ in listOf(2)) { if (flag) { return }\ntouch(local) } } touch(outer) }",
+        "class Node {}\nfun touch(n: Node) {}\nfun run(own outer: Node, flag: Boolean) { for (_ in listOf(1)) { val local = Node()\nfor (_ in listOf(2)) { if (flag) { return }\ntouch(local) } }; touch(outer) }",
     );
     assert_eq!(owned.iterations().len(), 2);
     let returns = owned

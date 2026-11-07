@@ -1,4 +1,6 @@
 //! 只消费已规范化类型 identity 的 N1a 使用位置检查；single/unit 共用规则。
+use std::collections::BTreeSet;
+
 use super::{
     IntrinsicTypeConstructor, TypeId, TypeKind, TypeTable, UnitTypeId, UnitTypeKind, UnitTypeTable,
 };
@@ -42,7 +44,11 @@ pub(super) fn file_contains_range(table: &TypeTable, ty: TypeId) -> bool {
 
 pub(super) fn unit_contains_range(table: &UnitTypeTable, ty: UnitTypeId) -> bool {
     let mut pending = vec![ty];
+    let mut seen = BTreeSet::new();
     while let Some(ty) = pending.pop() {
+        if !seen.insert(ty) {
+            continue;
+        }
         match table.get(ty) {
             Some(UnitTypeKind::Intrinsic {
                 constructor: IntrinsicTypeConstructor::View,
