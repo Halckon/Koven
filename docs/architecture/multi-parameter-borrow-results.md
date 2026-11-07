@@ -66,3 +66,6 @@ unwind时核已求值token、原operand place、仍存活Shared owned根并记�
 owned root 身份与 provider 的参数 Span；两条兄弟 return 边分别保留实际来源 token 和
 唯一 owner drop，精确核 preceding_drops 为零。它们是静态边的独立证据，不表示两边
 在一次运行中同时执行，也不把该切片升级为完整 cleanup 流。
+嵌套辅助调用提前 return 的固定源码样本同时核来源 prefix 与普通 direct-call 两类
+实际 token；两者均在同点 drop 前结束，随后按 temporary、owned root 的精确顺序清理。
+两类切片不能给出彼此之间的统一事件序，测试保留两条 Single 结束见证。

@@ -3072,3 +3072,13 @@ Single ControlTransfer witness，并在对应点唯一清理该 owner，precedin
 云端 Rust 1.96.0、locked/offline、默认 debug=2：借用事实定向17项通过，三个相关目标
 合计71项通过；两项 Abort 按约定仅留正式CI。all-targets Clippy（`-D warnings`）、fmt、
 文档、尺寸与diff门禁通过；本批尚未发布，官方CI未运行。
+
+#### 来源 prefix 与辅助 temporary 的清理组合
+
+在主干仍为 `11130e16` 时补充 `select(owner, sink("temporary", return))` 的实际事件
+组合。期望 call、argument、temporary 与 return 先由唯一源码 AST 选取，分别核 borrow
+source prefix 和普通 direct-call end 的精确身份、Shared kind、原 loan 成员关系及
+同一 ControlTransfer。两者 preceding_drops 都为零；同点 drops 必须恰为 temporary
+然后 owned root。Single 的两条独立结束见证仍保留；不据此宣称两类切片之间的统一全序。
+生产合同和旧断言不变，三个相关目标72项通过，两项Abort仍仅CI；all-targets Clippy
+（`-D warnings`）、fmt、文档、尺寸及diff门禁通过。本批仍未发布，官方CI未运行。
