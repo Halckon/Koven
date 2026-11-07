@@ -3398,7 +3398,7 @@ ownership 前置，不改生产语义。
 本次等价性探测发现另两项不能退休：nullable overload ambiguity 的 Unit 结果为
 L0123 而原 Single 为 L0124；non-lambda filter 到唯一候选的 lambda L0084 缺原
 `callback` label。保留这两项原 Single 测试及所有断言，不用弱化 oracle 换取迁移。
-这两处是后续诊断等价工作，不是本批已修复项。
+初始迁移不改这两处；后续组合中的 nullable bottom 修复见下一节，callback label 精度差异仍保留。
 
 | 验收项 | 定向检查 | 结果 |
 |---|---|---|
@@ -3407,6 +3407,7 @@ L0123 而原 Single 为 L0124；non-lambda filter 到唯一候选的 lambda L008
 
 Mac Rust1.96、locked/offline、默认debug=2，复用空闲target串行执行。未运行含Abort
 的整个target、全量、native、故障注入、校准或Linux CI；D10/E2保持in-progress。
+
 ## Nullable bottom 的 Unit 诊断一致性（2026-11-07）
 
 基线 main `78a36f25`。原 overload 输入在 Single 报 L0123/L0124，两个 Unit 入口第二项误报
@@ -3422,3 +3423,7 @@ type_callable overload过滤5项、nullable正反例1项、ownership_primitives�
 frontend all-targets Clippy（-D warnings）、fmt、849份Markdown、diff与尺寸门禁通过；
 历史38个超长文件数量未增加，checker driver由1182行减至1151行。
 未运行全量、native、故障注入、校准或含Abort的整项测试；官方双宿主CI尚未运行，不计为通过。
+
+组合验收（基于 `78a36f25`）：保留四个逻辑提交，仅解决 Spec 追加段落冲突并同步当前事实。
+组合源码的 callable 过滤器9项、type_graph过滤器1项通过；frontend all-targets Clippy
+（-D warnings）、fmt、849份Markdown与diff检查通过。正式Draft PR的双宿主CI仍待验证。
