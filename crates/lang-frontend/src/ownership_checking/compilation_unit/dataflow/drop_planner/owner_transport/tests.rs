@@ -97,6 +97,7 @@ fn compare_and_inspect(fixture: &Fixture, parts: &Parts, inspect: impl FnOnce(&C
 #[test]
 fn owner_observation_never_changes_existing_cleanup_products() {
     for text in [
+        r#"fun run(): Unit { var a = "left"; var b = "right"; swap(&a, &b); val old = replace(&a, "new"); val kept = (b) }"#,
         r#"fun run(): Unit { var a = "old"; val incoming = "new"; val old = replace(&a, incoming) }"#,
         r#"fun run(flag: Boolean): Unit { var a = "old"; val old = replace(&a, "new"); if (flag) { val x = "branch" } }"#,
         r#"fun run(flag: Boolean): Unit { var a = "old"; val old = replace(&a, "new"); while (flag) { break } }"#,

@@ -3286,3 +3286,12 @@ frontend all-targets Clippy（`-D warnings`）、fmt、849份Markdown及diff门�
 相对main的尺寸门禁通过，38个超1000行旧文件不增加。不是frontend全量、native或双宿主官方验收。
 公开handoff/prefix仍是有界观察，保留Single独立见证，不承诺完整事件全序或cleanup图。
 D10/E2保持in-progress，本批需精确发布头的正式双宿主CI，不自动合并。
+
+## String 根 swap 的 owner transport 增量（2026-11-07）
+
+从 main `be42f064` 隔离实现完整 String 根 swap 的真实 token 交换，接入现有
+replace/move/cleanup 链，保留 cleanup 输出不变。新增独立 literal origin 预期、
+遗漏/重复/别名交换负例、Unsupported 后缀原子回滚及全 Analysis 开关对照。
+V1 catalog、Resource owner 和相关 Single 见证保持原边界，D10/E2 不据此宣告完成。
+
+验证：待本批定向测试和 lint；不沿用旧 main 的通过结果。

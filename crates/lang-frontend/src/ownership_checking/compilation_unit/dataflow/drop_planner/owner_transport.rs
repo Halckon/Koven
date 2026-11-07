@@ -282,10 +282,12 @@ impl DropPlanner<'_, '_> {
             Expression::Call { .. } => {
                 let supported = self.checker.ownership_primitives.iter().any(|plan| {
                     plan.descriptor().expression() == self.checker.unit_expression(id)
-                        && plan.descriptor().kind() == OwnershipPrimitiveKind::Replace
+                        && match plan.descriptor().kind() {
+                            OwnershipPrimitiveKind::Replace => plan.places().len() == 1,
+                            OwnershipPrimitiveKind::Swap => plan.places().len() == 2,
+                        }
                         && plan.descriptor().operands().len() == 2
-                        && plan.places().len() == 1
-                        && plan.places()[0].is_root()
+                        && plan.places().iter().all(|place| place.is_root())
                         && self
                             .checker
                             .typed
@@ -344,7 +346,7 @@ impl DropPlanner<'_, '_> {
         Ok(EvaluatedOwner { continues, owner })
     }
 
-    pub(super) fn commit_owner_replace(
+    pub(super) fn commit_owner_primitive(
         &mut self,
         call: ExpressionId,
         state: &mut ValueState,
@@ -356,6 +358,34 @@ impl DropPlanner<'_, '_> {
             self.checker.ownership_primitives.iter().find(|plan| {
                 plan.descriptor().expression() == self.checker.unit_expression(call)
             })?;
+        if plan.descriptor().kind() == OwnershipPrimitiveKind::Swap {
+            let left = plan.places().first()?.root();
+            let right = plan.places().get(1)?.root();
+            let owners = state
+                .position(left)
+                .zip(state.position(right))
+                .and_then(|(l, r)| {
+                    state.values[l]
+                        .owner
+                        .clone()
+                        .zip(state.values[r].owner.clone())
+                        .map(|(lo, ro)| (l, r, lo, ro))
+                });
+            let Some((l, r, left_owner, right_owner)) = owners else {
+                self.reject_owner_expression(call, UnitOwnerUnsupportedReason::MissingOwner);
+                return None;
+            };
+            state.values[l].owner = Some(right_owner.clone());
+            state.values[r].owner = Some(left_owner.clone());
+            self.owner_event(UnitOwnerTransportEvent::Swap {
+                call: self.checker.unit_expression(call),
+                left,
+                right,
+                left_owner,
+                right_owner,
+            });
+            return None;
+        }
         let root = plan.places().first()?.root();
         let argument = *plan.descriptor().operands().get(1)?;
         let root_index = state.position(root);
