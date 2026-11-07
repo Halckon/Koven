@@ -2951,3 +2951,26 @@ continuation witness 仍需另行证明来源交接与控制转移事件合同�
 云端 Rust 1.96.0/default debug=2/locked/offline：新增2项通过；目标允许范围30项通过，
 含 Abort 的两整项按约定仅留 CI；编译、all-targets Clippy（`-D warnings`）、fmt、
 文档与尺寸门禁通过。本批本地累计，官方 CI 未运行。
+
+#### 有界正常返回来源交接观察片
+
+本片遵循 Guide10 的唯一来源延续，不改变调用/cleanup 语义。新增
+`UnitBorrowCallHandoffFact`：仅直接 Declaration borrow-return initializer、无 receiver、
+无 parent 的显式 borrow val，来源须为当前存活的 formed-owned 名称根；该调用实际登记
+的 loan tokens 全为 Shared 根 place。Value 辅助参数不在此 token 集内，未整体排除。
+在正常返回移除 pending tokens 前，以 call/argument/origin 精确匹配同一 pending binding
+捕获来源；仅 initializer 正常提交 binding 后发布。公开 source loan、binding 与 CallReturn
+身份，不发布辅助 loan-end，也不将来源交接标记为来源结束。所有权/类型错误与 deferred
+沿现有两层门原子撤销；不改变 iteration cleanup action 或 codegen 合同。
+Group initializer、parent reborrow、outer-call 消费、forwarded return、receiver/provider、
+投影/temporary 来源及提前退出的完整事件流不在首片能力内。旧 Single witnesses 保留；
+消费者现在可额外查询独立 handoff，但完整 loan-end 退休尚未达到。
+新增6项真实两入口回归覆盖 named反排固定源码oracle、同根不同实参身份、来源交接与
+唯一owner drop、提前return、parent/Group/outercall关闭边界以及非空前缀后的error/deferred
+撤销。新API缺失先编译失败，接线后6项通过。一次编译因空间耗尽失败，清理已授权的
+本任务incremental后重试通过；未删除源码、日志或既有二进制。
+最终云端组合：direct-call目标36项、continuation14项、nested-borrow10项，共60项通过；
+仅direct-call的两项Abort整项过滤。all-targets Clippy（`-D warnings`）、fmt、文档及尺寸
+检查通过；source-unit/key/root/path、精确L0131与parent事件身份纳入回归。原超限文件
+仅新增必要接线：unit model 1095行、dataflow1119行、drop planner1491行，既有尺寸例外
+范围内，未机械拆文件或压行。独立生产审查未发现阻断；官方CI尚未运行。

@@ -41,3 +41,9 @@ source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与
 成功前缀已有固定事件与唯一 owner-drop 对照；后续真实 ownership 错误或 deferred
 会撤销事件能力。它不包含借用返回来源交接，不能替代 continuation 的 Single loan-end
 stream；该差异对照在对应消费者中仍需保留。
+
+`borrow_call_handoffs()` 额外发布直接 borrow-return initializer 到显式 borrow val 的
+有界正常返回观察：真实 pending source token 捕获后，只在 binding 正常提交时发布，
+保留 source-qualified loan/binding/CallReturn 身份。首片无 receiver/parent，来源限当前
+存活的 formed-owned 根，实际 loan tokens 限 Shared 根；Value 辅助参数并未整体排除。
+错误/deferred 会撤销该能力；不提供辅助 loan 结束或完整 cleanup 流，旧 Single 对照保留。
