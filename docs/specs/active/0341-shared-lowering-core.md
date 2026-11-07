@@ -2997,6 +2997,54 @@ bindings/ends 清空断言保留；其余测试与独立 Single loan-end helper 
 共50项无过滤通过；目标编译、all-targets Clippy（`-D warnings`）通过。所有七目标本已在
 stage selector，未增加目标或修改计数；保留多逻辑提交统一交付，官方 CI 尚未运行。
 
+### 后续事实合同：直接调用事件发布门的非空对照（2026-11-07）
+
+`unit_direct_call_loan_ends/gate_contracts.rs` 用固定字节 oracle 在两入口证明同一
+成功前缀恰有一个真实 CallReturn loan-end、原临时 owner 的唯一同点 drop，且事件先于
+drop；随后分别追加真实 L0131 或既有 deferred 工作，核对事件清空及拒绝最终验证。
+错误样本还核对 drops 原子清空。旧 Single witness 与全部既有测试均保留，避免空表
+测试在事件发布从未发生时仍通过；不修改生产算法或提升 slice 为完整 loan-end 流。
+调查确认现有 direct-call slice 明确排除借用返回、投影及 receiver/provider。完整退休
+continuation witness 仍需另行证明来源交接与控制转移事件合同，不能用 result-end 计数
+替代。本片仅加强已存在能力的门禁，不宣称已解除上述依赖。
+云端 Rust 1.96.0/default debug=2/locked/offline：新增2项通过；目标允许范围30项通过，
+含 Abort 的两整项按约定仅留 CI；编译、all-targets Clippy（`-D warnings`）、fmt、
+文档与尺寸门禁通过。本批本地累计，官方 CI 未运行。
+
+#### 有界正常返回来源交接观察片
+
+本片遵循 Guide10 的唯一来源延续，不改变调用/cleanup 语义。新增
+`UnitBorrowCallHandoffFact`：仅直接 Declaration borrow-return initializer、无 receiver、
+无 parent 的显式 borrow val，来源须为当前存活的 formed-owned 名称根；该调用实际登记
+的 loan tokens 全为 Shared 根 place。Value 辅助参数不在此 token 集内，未整体排除。
+在正常返回移除 pending tokens 前，以 call/argument/origin 精确匹配同一 pending binding
+捕获来源；仅 initializer 正常提交 binding 后发布。公开 source loan、binding 与 CallReturn
+身份，不发布辅助 loan-end，也不将来源交接标记为来源结束。所有权/类型错误与 deferred
+沿现有两层门原子撤销；不改变 iteration cleanup action 或 codegen 合同。
+Group initializer、parent reborrow、outer-call 消费、forwarded return、receiver/provider、
+投影/temporary 来源及提前退出的完整事件流不在首片能力内。旧 Single witnesses 保留；
+消费者现在可额外查询独立 handoff，但完整 loan-end 退休尚未达到。
+新增6项真实两入口回归覆盖 named反排固定源码oracle、同根不同实参身份、来源交接与
+唯一owner drop、提前return、parent/Group/outercall关闭边界以及非空前缀后的error/deferred
+撤销。新API缺失先编译失败，接线后6项通过。一次编译因空间耗尽失败，清理已授权的
+本任务incremental后重试通过；未删除源码、日志或既有二进制。
+最终云端组合：direct-call目标36项、continuation14项、nested-borrow10项，共60项通过；
+仅direct-call的两项Abort整项过滤。all-targets Clippy（`-D warnings`）、fmt、文档及尺寸
+检查通过；source-unit/key/root/path、精确L0131与parent事件身份纳入回归。原超限文件
+仅新增必要接线：unit model 1095行、dataflow1119行、drop planner1491行，既有尺寸例外
+范围内，未机械拆文件或压行。独立生产审查未发现阻断；官方CI尚未运行。
+
+#### 同批补强：跨文件 lineage 与兄弟分支绑定隔离
+
+跨文件 provider/caller 在输入正序、反序分别核 handoff call/argument/binding/root
+归属 caller source unit，parameter span 归属 provider，并使用固定源码文本核
+`view(owner)`、`owner`、`source: String`。兄弟分支核静态事件各自对应不同 binding、
+call、initializer/source argument，不宣称两分支运行时同时执行或完整 CFG 运输能力。
+本片仅新增测试，未扩大 source-handoff 生产范围，继续保留 Single witnesses。
+首次跨文件样本因 package demo 与逻辑路径不匹配触发 L0146；修正为 demo/provider.ko、
+demo/caller.ko 后，三目标62项通过，2项Abort按约定留CI。源码oracle与生产实现未更改。
+all-targets Clippy首次因磁盘耗尽失败，确认进程结束后仅清理已授权incremental，重试通过；
+fmt、文档/尺寸/diff检查及独立审查通过。本批继续保持多个逻辑提交，未发布新PR。
 ### 新 main 后续：continuation 普通消费者双入口收束（2026-11-06）
 
 基于已含 #332 的 main `8c9778aa`，新分支以两个逻辑提交补余下五项普通 Unit 测试：
@@ -3061,6 +3109,64 @@ all-targets Clippy（`-D warnings`）、fmt、文档与尺寸门禁通过。官�
 及 CallReturn 断言。删除未使用的默认 Rooted 包装；不删独立 Single 事件对照。
 完整 nested-borrow 10项无过滤、目标编译、all-targets Clippy（`-D warnings`）、
 fmt、文档及尺寸门禁通过；本批累计本地逻辑提交，未尝试远端写入或官方 CI。
+
+#### 独立 source-prefix 结束观察：有正常分支的 initializer 被 return 放弃
+
+同步 main `a56e1b17` 后保留原六提交。新增 `UnitBorrowCallPrefixEndFact` 与
+`borrow_call_prefix_ends()`，只投影 planner 已实际发布的 ControlTransfer(Return)
+加 EndCallLoan 动作。要求 direct initializer 的正常 binding 来源证明与动作
+call/argument/target 精确一致：Declaration、Borrow result、无receiver/parent、Shared
+formed-owned根。正常 binding 仅限制支持范围，不作为退出发生的证据；不修改pending
+或cleanup执行，不复用Owned direct-call事件类型，也不发布已建立binding的承诺。
+公开原loan/真实point/同点preceding_drops，不提供完整cleanup图。无正常完成分支的
+initializer不会产生现有binding证明，因此 `select(owner, return)` 仍在片外；空表
+不能推导没有abandonment。保留Single ControlTransfer witness，不改变正常handoff能力。
+回归覆盖来源求值前后、同根不同参数来源身份、正常完成后的return不误报、同点owner
+drop顺序，以及非空成功对照后的错误/deferred原子撤销。新API缺失先编译失败；新样本
+曾因条件值试图move存活来源触发L0135，改用独立临时辅助值和独立坏值构造L0131，
+保留精确诊断要求，未放宽原有测试或修改语言行为。
+云端 Rust1.96.0/default debug=2/locked/offline：三目标66项通过，2项Abort按约定仅CI。
+新增片外空表、入口身份、Shared/formed-owned/root断言通过，独立静审无阻断。
+all-targets Clippy（`-D warnings`）首次空间耗尽；确认无活动构建后仅清理本任务已授权\nincremental，重试通过。fmt、文档/尺寸/diff门禁通过，官方CI未运行。
+
+#### 补足无正常 binding 的直接 initializer 提前 return
+
+前片的无正常分支限制由实际求值上下文消除：ValueState 在进入直接 Borrow-return
+initializer 时保存(call, typed映射source argument)候选，随分支clone并在表达式返回后
+移除；typed映射只选argument identity，不提供origin。实际unwind移除EndCallLoan时
+必须匹配活跃候选，核Shared/root/formed-owned、owner仍存活、原operand place与真实
+loan target全等且不为borrow binding，然后记录该次iteration_actions下标。查询只投影
+这些真实Return动作，不再依赖最终BorrowBindingFact，pending/cleanup执行不变。
+原operand核对阻止parent canonicalization伪装成owned根；仍不开放receiver、projection、
+carrier或完整CFG事件流。无条件return正例先稳定失败（期待1事件、实际0），再接线；
+保留bindings为空、handoff为空以及旧Single对照，绝不把退出标记为结果已建立。
+命名反排且无正常binding的退出样本核固定call/argument/parameter文本、source-unit、
+Single ControlTransfer等价及owner清理顺序；来源求值前return仍无事件，parent样本先证实
+真实loan存在再核排除。三目标69项通过，2项Abort整项仅留CI；独立静审无必须修复问题。
+目标编译、all-targets Clippy（`-D warnings`）、fmt及文档/尺寸/diff门禁通过；在Clippy前
+确认无构建进程后仅清理已授权incremental恢复空间，未删其他产物。官方CI未运行。
+
+#### 来源提前 return 的跨文件与兄弟边证据
+
+同步主干 `11130e16`（#338）后，原借用事实合同及逻辑提交保留。新增跨文件样本在两种
+provider/caller 输入顺序下核 caller 的 call、argument、return 与 owned root 身份，
+参数 Span 则仍属于 provider；无最终 binding/handoff 时要求唯一真实 prefix 事件。
+兄弟分支样本要求 call/argument/return point 互异、owned root 相同，各边恰好匹配一个
+Single ControlTransfer witness，并在对应点唯一清理该 owner，preceding_drops 精确为零。
+未修改生产语义或删除原 Single；静态兄弟边不表示同时执行，完整 cleanup 流仍未承诺。
+云端 Rust 1.96.0、locked/offline、默认 debug=2：借用事实定向17项通过，三个相关目标
+合计71项通过；两项 Abort 按约定仅留正式CI。all-targets Clippy（`-D warnings`）、fmt、
+文档、尺寸与diff门禁通过；本批尚未发布，官方CI未运行。
+
+#### 来源 prefix 与辅助 temporary 的清理组合
+
+在主干仍为 `11130e16` 时补充 `select(owner, sink("temporary", return))` 的实际事件
+组合。期望 call、argument、temporary 与 return 先由唯一源码 AST 选取，分别核 borrow
+source prefix 和普通 direct-call end 的精确身份、Shared kind、原 loan 成员关系及
+同一 ControlTransfer。两者 preceding_drops 都为零；同点 drops 必须恰为 temporary
+然后 owned root。Single 的两条独立结束见证仍保留；不据此宣称两类切片之间的统一全序。
+生产合同和旧断言不变，三个相关目标72项通过，两项Abort仍仅CI；all-targets Clippy
+（`-D warnings`）、fmt、文档、尺寸及diff门禁通过。本批仍未发布，官方CI未运行。
 
 ### 独立批次：非空断言类型消费者（2026-11-07）
 
@@ -3165,3 +3271,18 @@ capability 生成事实，保留原源码、值/字节/SSA类型、单次物化�
 基于 `c260be13`，顺序容器八项 Phase 2 测试与七份混合借用非法源码改走真实 Unit。
 迁移暴露顺序容器显式签名漏报，修正及输入、oracle、复核和实跑结果见
 [SPEC-0392 §12](0392-compiler-layered-review.md#12-第四切片顺序容器与混合借用消费者迁移)。
+
+## 118. 借用事实批次的主线组合验证（2026-11-07）
+
+将借用事实批次 `3a12ff9d` 与 main `bff9468a` 合并为 `5c415a43`，保留全部原逻辑提交。
+唯一文本冲突是本账本相邻追加，双方原文均保留；生产代码无冲突。独立只读复审未发现阻断问题。
+云端组合编译因 ENOSPC 中止，三个测试目标未执行，不能沿用旧基线本地结果为新组合通过。
+完整提交以校验过的 Git bundle 转入 Mac AArch64 隔离工作区，保留云端与用户现有工作。
+
+Mac Rust1.96.0、locked/offline、默认debug=2，复用空闲target串行执行三个相关目标：
+`ownership_borrow_continuation` 14项、`ownership_nested_borrow_arguments` 10项、
+`unit_direct_call_loan_ends` 48项，共72项通过；后者两项Abort依既定范围整项留正式CI。
+frontend all-targets Clippy（`-D warnings`）、fmt、849份Markdown及diff门禁通过；
+相对main的尺寸门禁通过，38个超1000行旧文件不增加。不是frontend全量、native或双宿主官方验收。
+公开handoff/prefix仍是有界观察，保留Single独立见证，不承诺完整事件全序或cleanup图。
+D10/E2保持in-progress，本批需精确发布头的正式双宿主CI，不自动合并。

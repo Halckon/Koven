@@ -100,6 +100,8 @@ pub(super) struct Analysis {
     pub(super) formed_owned_locals: Vec<UnitSymbolId>,
     pub(super) owner_observations: Vec<super::UnitOwnerObservation>,
     pub(super) exclusive_call_prefix_ends: Vec<super::UnitExclusiveCallPrefixEndFact>,
+    pub(super) borrow_call_prefix_ends: Vec<super::UnitBorrowCallPrefixEndFact>,
+    pub(super) borrow_call_handoffs: Vec<super::UnitBorrowCallHandoffFact>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
@@ -208,6 +210,8 @@ pub(super) fn analyze(
     let mut short_circuits = Vec::new();
     let mut visited_lambdas = std::collections::BTreeSet::new();
     let mut owner_observations = Vec::new();
+    let mut borrow_call_prefix_ends = Vec::new();
+    let mut borrow_call_handoffs = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
     let mut loans = Vec::new();
@@ -301,6 +305,8 @@ pub(super) fn analyze(
         constant_materializations.extend(checker.constant_materializations.into_values());
         owner_observations.extend(drop_analysis.owner_observations);
         direct_call_loan_ends.extend(drop_analysis.direct_call_loan_ends);
+        borrow_call_handoffs.extend(drop_analysis.borrow_call_handoffs);
+        borrow_call_prefix_ends.extend(drop_analysis.borrow_call_prefix_ends);
         exclusive_call_prefix_ends.extend(drop_analysis.exclusive_call_prefix_ends);
         drops.extend(drop_analysis.drops);
         conditional_receiver_drops.extend(drop_analysis.conditional_receiver_drops);
@@ -383,6 +389,8 @@ pub(super) fn analyze(
         loans,
         owner_observations,
         direct_call_loan_ends,
+        borrow_call_handoffs,
+        borrow_call_prefix_ends,
         exclusive_call_prefix_ends,
         value_deliveries,
         receiver_facts,

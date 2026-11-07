@@ -36,6 +36,17 @@ foreign/temporary 来源拒绝、借用存活期间禁止 source move，以及�
 source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与保守 scope endpoint。
 `ownership_borrow_continuation` 的 capture/conditional/nested-call/temporary/loop 五项拒绝
 消费者也覆盖双入口，错误时 bindings/ends 不发布；独立 Single loan-end witnesses 保留。
+
+普通直接调用的 Unit loan-end 是有界观测切片：Owned-return 根实参/普通 String 的
+成功前缀已有固定事件与唯一 owner-drop 对照；后续真实 ownership 错误或 deferred
+会撤销事件能力。它不包含借用返回来源交接，不能替代 continuation 的 Single loan-end
+stream；该差异对照在对应消费者中仍需保留。
+
+`borrow_call_handoffs()` 额外发布直接 borrow-return initializer 到显式 borrow val 的
+有界正常返回观察：真实 pending source token 捕获后，只在 binding 正常提交时发布，
+保留 source-qualified loan/binding/CallReturn 身份。首片无 receiver/parent，来源限当前
+存活的 formed-owned 根，实际 loan tokens 限 Shared 根；Value 辅助参数并未整体排除。
+错误/deferred 会撤销该能力；不提供辅助 loan 结束或完整 cleanup 流，旧 Single 对照保留。
 其余五项普通 Unit continuation 消费者也覆盖双入口：nested/alias 权限恢复、live-result
 冲突、scope/return 父子清理、真实诊断 span 与 nullable/generic/copyable binding；
 三项依赖独立 loan-end stream 的 Single 对照仍完整保留，其 Unit 半部同样覆盖两入口，
@@ -45,3 +56,16 @@ source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与
 generic/field/wrapper/parent 三项成功消费者覆盖双入口，保留独立 Single loan-end
 及逐项 call-use 合同；另外两项精确顺序/owner-drop 成功 witness 也覆盖双入口，
 保持 grouped/named 身份、parent 存活与 owner 在 outer-call-return 唯一 drop 的断言。
+
+`borrow_call_prefix_ends()` 从实际 Return unwind 的 EndCallLoan 动作发布借用来源结束
+切片；ValueState 记录真正进入的 direct initializer 与候选source argument身份，实际
+unwind时核已求值token、原operand place、仍存活Shared owned根并记录action下标。
+因此不再要求最终binding证明，可覆盖无正常出口的直接initializer，但不表示结果建立；
+正常handoff、结果终止和完整cleanup流不能互相替代，原Single对照继续保留。
+跨文件提前 return 样本在 provider/caller 输入重排下核对 caller 的 call/argument/return/
+owned root 身份与 provider 的参数 Span；两条兄弟 return 边分别保留实际来源 token 和
+唯一 owner drop，精确核 preceding_drops 为零。它们是静态边的独立证据，不表示两边
+在一次运行中同时执行，也不把该切片升级为完整 cleanup 流。
+嵌套辅助调用提前 return 的固定源码样本同时核来源 prefix 与普通 direct-call 两类
+实际 token；两者均在同点 drop 前结束，随后按 temporary、owned root 的精确顺序清理。
+两类切片不能给出彼此之间的统一事件序，测试保留两条 Single 结束见证。

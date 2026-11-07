@@ -147,3 +147,59 @@ impl UnitExclusiveCallPrefixEndFact {
         self.preceding_drops
     }
 }
+
+/// 具名 Shared 根实参的正常借用返回交接；不是完整 loan-end/cleanup 流。
+/// 来自已完成调用的真实 pending tokens，不包含未完成调用或最终结果终止。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowCallHandoffFact {
+    pub(super) binding: crate::name_resolution::UnitSymbolId,
+    pub(super) source_loan: UnitLoanFact,
+}
+impl UnitBorrowCallHandoffFact {
+    /// 同一正常返回初始化的显式 borrow val；仅直接 initializer、owned 根来源。
+    #[must_use]
+    pub const fn binding(&self) -> crate::name_resolution::UnitSymbolId {
+        self.binding
+    }
+
+    /// 正常返回后由现有借用结果保护延续的唯一来源。
+    #[must_use]
+    pub const fn source_loan(&self) -> &UnitLoanFact {
+        &self.source_loan
+    }
+    /// 实际完成该调用的返回点；不表示来源 loan 在此结束。
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        UnitDropPoint::CallReturn(self.source_loan.call)
+    }
+}
+
+/// 实际进入借用 initializer 后被 return 放弃时，已求值来源 token 的结束切片。
+/// 不要求结果 binding 已建立；不覆盖完整控制流或全部借用结束事件。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowCallPrefixEndFact {
+    pub(super) loan: UnitLoanFact,
+    pub(super) point: UnitDropPoint,
+    pub(super) preceding_drops: usize,
+}
+
+impl UnitBorrowCallPrefixEndFact {
+    /// 返回原始 source-qualified loan 描述符，保留 call、argument 和 target 身份。
+    #[must_use]
+    pub const fn loan(&self) -> &UnitLoanFact {
+        &self.loan
+    }
+
+    /// 实际返回或放弃该调用前缀的控制转移点。
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        self.point
+    }
+
+    /// 同 point 普通 drops 中先于此事件的数量；事件间保持发布顺序。
+    /// 这不是 receiver 条件析构或 capture/provider 动作的统一执行索引。
+    #[must_use]
+    pub const fn preceding_drops(&self) -> usize {
+        self.preceding_drops
+    }
+}

@@ -216,6 +216,11 @@ pub(super) struct OwnedThis {
 pub(super) struct ValueState {
     pub(super) borrow_bindings: Vec<UnitSymbolId>,
     pub(super) pending_borrow_results: Vec<UnitSymbolId>,
+    /// Observational direct initializer/source identities; not an established result.
+    pub(super) borrow_initializer_sources: Vec<(
+        crate::type_checking::UnitExpressionId,
+        crate::type_checking::UnitExpressionId,
+    )>,
     /// 实际已求值的实参loan与建立时loop深度；未求值后缀不得参与退出清理。
     pub(super) pending_loans: Vec<(crate::ownership_checking::UnitIterationCleanupAction, usize)>,
     pub(super) iterations: Vec<super::iteration::IterationFrame>,
