@@ -267,6 +267,18 @@ fn reviewed_frontend_contracts_reach_both_public_check_entries() {
             "fun reject(value: List<Rc<Copyable>>): Unit {}",
             Some("L0125"),
         ),
+        (
+            "class Factory { fun <T> create(): Unit { val payload: List<T>? = null } }\nfun entry(): Unit { Factory().create<Nothing>() }",
+            Some("L0125"),
+        ),
+        (
+            "class Factory<T>(val payload: List<T>?)\nfun entry(): Unit { Factory<Nothing>(null) }",
+            Some("L0125"),
+        ),
+        (
+            "class Rotate<A, B, C>(val next: Rotate<B, C, List<A>>?)\nfun inspect(value: Rotate<Int, Int, Nothing>): Unit {}",
+            Some("L0125"),
+        ),
         ("class R { own fun noop(): Unit {} }", None),
     ] {
         let directory = TestDirectory::create();

@@ -155,7 +155,7 @@ environment 会在遍历前返回内部错误。
 5. 无类型诊断且无阻塞 deferred fact 时产生 validated typed unit。
 callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不按名称重新选择 target。名义类型、
 泛型、interface/default/override、静态委托、`Copyable`/`Transferable`、String、Box/Rc 和顺序容器共享
-canonical type identity；Box 签名仅接受 value/enum 名义 kind，实参根错误不追加 kind 诊断。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；顺序容器和 Rc 的签名存储校验保留重载形状。泛型调用签名与有界顶层函数体实例化拒绝不可存储的具体实参，失败候选撤回本轮新增类型。[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
+canonical type identity；Box 签名仅接受 value/enum 名义 kind，实参根错误不追加 kind 诊断。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；顺序容器和 Rc 的签名存储校验保留重载形状。泛型调用签名、成员与顶层函数体的有界实例化拒绝不可存储的具体实参；名义字段、payload 与接口上界通过有限参数义务传播至类型引用及构造入口，失败候选撤回本轮新增类型。[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
 
 两入口共享语义模型；unit facts 保留 source-qualified ID，不拼接单文件 ID。整数 compound 在 statement role 发布 storage 事实，
 Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。

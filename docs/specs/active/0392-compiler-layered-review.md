@@ -76,7 +76,7 @@ F1–F5 的最小探针在原始基线上实际运行；F6 为修复工作树上
 | F8 | Guide 12：顺序容器显式签名的元素必须可存储 | Unit 迁移漏 L0125×2，旧 CLI 接受单独 `List<Nothing>`。独审另确认 capability、名义参数和静态 bound 内的接口旁路 | 后置签名实参校验与 runtime type-ref 检查，保留重载形状，见 §12 |
 | F9 | Guide 12：具体单态化后的顺序容器必须仍满足存储合同 | 独审实跑 `fun <T> fail(): List<T> = error("never")` 和 `fail<Nothing>()`，CLI exit 0 | 调用签名与有界顶层函数体的复现已修，其他替换入口见 F11 和 §14 |
 | F10 | Rc 签名载荷与 body 构造资格存在差异 | 独审实跑 `fun reject(a: List<Rc<Copyable>>): Unit {}`，CLI exit 0 | 显式签名与调用实例化的复现已修，泛型名义存储入口见 F11 和 §14 |
-| F11 | 其他 Unit 存储替换入口缺少准入 | 成员仅在函数体使用 `List<T>`、具现 `Factory<T>(val payload: List<T>?)` 字段和 `Shape<Rc<T>>` 接口上界的具体实例仍被接受 | OPEN，分别审成员实例发现、名义字段 recipe 和接口 bound 的 producer |
+| F11 | 其他 Unit 存储替换入口缺少准入 | 成员仅在函数体使用 `List<T>`、具现 `Factory<T>(val payload: List<T>?)` 字段和 `Shape<Rc<T>>` 接口上界的具体实例仍被接受 | 已修所列复现并独立复核；双宿主候选验收见 §15–16 |
 
 发现修复采用失败测试 → 最小实现 → 直接消费者/相邻合同 → 独立复核，不在审清前建立新抽象。
 不通过修改 Guide 或放宽 oracle 消除失败；历史账本原义保留。
@@ -109,7 +109,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
 | R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑 | class-family 全部 malformed owner 未穷尽 |
-| R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | F11、逐消费者处置及全部流事实组合尚未闭合 |
+| R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置、全部流事实组合及成员早期替换回滚边界尚未闭合 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报，旧消费者迁移仍待完成；循环/析构全矩阵与动态资源验收未闭合 |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布；CLI 本机 build 通过 | 全家族 subset/build、emit/verifier 与 debug/fault/sanitizer、Linux 实跑待验；目标机仍为 OptimizationLevel::None |
 | R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
@@ -361,7 +361,7 @@ Rust 双宿主 jobs 因事件条件跳过，不能用其 success 声称动态通
 [草稿 PR #336](https://github.com/Halckon/Koven/pull/336)，保持未合并。
 
 [首轮 PR run](https://github.com/Halckon/Koven/actions/runs/42339261426)的双宿主 Check/Clippy
-通过；Linux composition 在 codegen 的 14 个 tests 失败。日志中的实际根因是旧 fixture 同行
+通过；Linux/macOS composition 均在 codegen 的同一组 14 个 tests 失败。日志中的实际根因是旧 fixture 同行
 缺少语句分隔符，触发 F5 修复引入的 L0169；后续缺少 conformance/sanitizer artifact 是前序
 中断的结果，不能当成独立运行通过或根因。此轮测试输入为 PR 合流树
 `79f6aa10c612348ca295463ff2ccdca3df65e543`，head 为上述第五切片。
@@ -369,3 +369,39 @@ Rust 双宿主 jobs 因事件条件跳过，不能用其 success 声称动态通
 按 Guide 06 为十个 codegen 测试文件/fixture 补显式分号，保留原函数、操作顺序、SSA 断言、
 运行输出和逐资源计数。`original_generic_functions.ko` 仍保留历史场景，但字节已作本轮语法
 修正；不再用历史“原始”命名声称它与冻结版本字节相同。生产 Parser 的分隔规则保持。
+
+修正提交 `a8bbe913`。本地这 14 项精确定向回归全部通过（2644 filtered，零 ignored），
+包含 native 输出、Range prefix 与逐资源计数。扩大 codegen lib 全套曾因耗时主动 SIGINT，
+该轮没有完整结果，不计作通过。远端 macOS 首轮另有一个已有 ignored LLDB test，原因是
+缺少 debugserver task-port 权限；Linux 该 test 未忽略。完整矩阵以后续 CI 为准。
+
+## 16. F11：成员 body 与名义存储义务
+
+以第五切片为基线，两组新增用例实际失败：成员只在 body 使用存储类型，以及具现名义字段/
+接口 bound。修复复用现有迭代替换和真实 call descriptor，不复制类型检查器：
+
+- body template 从顶层扩展到实例/companion member，以 `UnitCallTarget` 和精确函数名称
+  Span 定位；实例参数按 owner 后 method 排列，保留原闭合种子及 1024 有界 frontier。
+- 名义签名在冻结前对字段、enum payload、直接接口和参数接口 bound 求有限参数义务不动点。
+  义务只单调加入所属泛型参数集合，不展开 `Grow<List<T>>`；Rotate 的参数置换可传播多轮。
+- 签名 TypeRef、body TypeRef、构造推断和调用 bound 替换检查具体义务；沿用 L0125，保留
+  既有接口值 L0094 来源。构造失败仍检查操作数的独立错误，给恢复型 expected error 避免
+  因失去 nullable expectation 额外报告 null 类型错误，不发布失败构造。
+- 未调用泛型模板、函数值、源码同名 Rc、phantom 参数和合法递归 heap 类型保持可用。
+
+独立上下文静态核验身份、参数映射、固定点终止、替换入口和失败回滚；复用本轮 frontend rlib
+在仓外实跑 9 个输入，涵盖 owner/method 混合、跨成员传播、参数置换、嵌套函数存储和两个
+独立非法 TypeRef。未发现可确认的新增 P0–P2；该复核没有运行 Cargo，不替代 CI。
+永久回归补入双入口的混合参数反例；CLI 的 single/project 两入口增加成员、构造和 Rotate。
+
+| 本片本地验收 | 实际结果 |
+|---|---|
+| frontend lib 与第五切片相同的 8 个 integration suite | 681 passed，零失败、忽略及过滤 |
+| 最终成员 body 定向回归 | 15 passed，148 filtered，零 ignored；含追加的 owner/method 混合参数 |
+| CLI `check_cli` | 6 passed，零失败、忽略及过滤；single/project 均精确报预期诊断且无产物 |
+| workspace all-targets Clippy `-D warnings` | 通过 |
+| 文档门禁、尺寸、diff、fmt | 通过；2120 手写 Rust 文件，39 个历史超限，未新增超限文件 |
+
+F11 仅关闭上列已复现入口；R2 的完整流事实、剩余旧入口消费者及全部组合仍开放。
+第五切片账本已注明的成员 owner 准备成功、方法参数后续失败时的早期类型保留边界，
+不因本轮通过而视作已清除；需要独立回滚合同审计。R0–R5 尚未整体退出。

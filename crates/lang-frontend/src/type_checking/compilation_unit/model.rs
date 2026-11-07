@@ -1137,6 +1137,7 @@ pub struct CompilationUnitSignatures {
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
     invalid_inline_nominals: BTreeSet<DeclarationId>,
+    storage_requirements: super::storage_requirements::StorageRequirements,
     delegations: Vec<UnitDelegationPlan>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -1150,6 +1151,7 @@ pub(crate) struct CompilationUnitSignatureFacts {
     pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     pub(crate) type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
     pub(crate) invalid_inline_nominals: BTreeSet<DeclarationId>,
+    pub(crate) storage_requirements: super::storage_requirements::StorageRequirements,
     pub(crate) delegations: Vec<UnitDelegationPlan>,
 }
 
@@ -1195,9 +1197,14 @@ impl CompilationUnitSignatures {
             type_ref_types: facts.type_ref_types,
             type_parameters: facts.type_parameters,
             invalid_inline_nominals: facts.invalid_inline_nominals,
+            storage_requirements: facts.storage_requirements,
             delegations: facts.delegations,
             diagnostics,
         }
+    }
+
+    pub(super) fn storage_requirements(&self) -> &super::storage_requirements::StorageRequirements {
+        &self.storage_requirements
     }
 
     /// 返回唯一 unit-global type table。

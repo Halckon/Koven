@@ -420,6 +420,26 @@ impl SignatureCollector<'_> {
                     .copied()
                     .zip(arguments.iter().copied())
                     .collect::<BTreeMap<_, _>>();
+                if let Some(required) = self.storage_requirements.get(&declaration)
+                    && let Some(index) = nominal.type_parameters().iter().zip(&arguments).position(
+                        |(parameter, argument)| {
+                            required.contains(parameter)
+                                && self.storage_argument_has_no_value(*argument)
+                        },
+                    )
+                {
+                    let primary = self.inputs[source_index]
+                        .ast()
+                        .type_refs()
+                        .get(segment.arguments[index])
+                        .map_err(TypeCheckingError::from)?
+                        .span();
+                    self.emit(
+                        codes::INVALID_CONTAINER_ELEMENT,
+                        "type argument cannot satisfy instantiated storage requirements",
+                        primary,
+                    )?;
+                }
                 for (index, (parameter, argument)) in nominal
                     .type_parameters()
                     .iter()

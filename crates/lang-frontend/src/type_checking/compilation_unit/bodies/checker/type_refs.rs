@@ -283,6 +283,22 @@ impl BodyChecker<'_> {
             return Ok(self.error_type());
         }
         self.validate_nominal_type_arguments(source, segment, &nominal, &arguments)?;
+        if self
+            .invalid_nominal_storage_argument(declaration, &arguments)
+            .is_some()
+        {
+            self.emit(
+                codes::INVALID_CONTAINER_ELEMENT,
+                "type argument cannot satisfy instantiated storage requirements",
+                self.file(source)
+                    .ast()
+                    .type_refs()
+                    .get(id)
+                    .map_err(TypeCheckingError::from)?
+                    .span(),
+            )?;
+            return Ok(self.error_type());
+        }
         Ok(ty)
     }
 

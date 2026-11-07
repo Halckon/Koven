@@ -409,3 +409,118 @@ fn assert_storage_diagnostic(sources: &SourceMap, typed: &CompilationUnitTypes, 
     assert_eq!(sources.slice(diagnostic.primary_span()), Ok(primary));
     assert!(typed.clone().validate().is_err());
 }
+
+#[test]
+fn instantiated_member_bodies_check_owner_and_method_storage() {
+    for text in [
+        "class Factory { fun <T> create(): Unit { val values: List<T>? = null } }\nfun entry(): Unit { Factory().create<Nothing>() }",
+        "class Factory<T> { fun create(): Unit { val values: Rc<T>? = null } }\nfun entry(): Unit { Factory<Nothing>().create() }",
+        "class Factory<A> { fun <B> create(): Unit { val first: List<A>? = null; val second: Rc<B>? = null } }\nfun entry(): Unit { Factory<Nothing>().create<Int>() }",
+        "class Factory<A> { fun <B> create(): Unit { val first: List<A>? = null; val second: Rc<B>? = null } }\nfun entry(): Unit { Factory<Int>().create<Nothing>() }",
+        "class Factory { fun <T> create(): Unit { val values: List<T>? = null } }\nfun <T> invoke(): Unit { Factory().create<T>() }\nfun entry(): Unit { invoke<Nothing>() }",
+    ] {
+        check_storage_instances(text, |_, _, _, typed| {
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0125"]
+            );
+            assert!(typed.clone().validate().is_err());
+        });
+    }
+}
+
+#[test]
+fn instantiated_nominal_fields_and_interface_bounds_reject_invalid_storage() {
+    for text in [
+        "class Factory<T>(val payload: List<T>?)\nfun entry(): Unit { Factory<Nothing>(null) }",
+        "class Factory<T>(val payload: Rc<T>?)\nfun entry(value: Factory<Nothing>): Unit {}",
+        "value class Factory<T>(val payload: List<T>?)\nfun entry(value: Factory<Nothing>): Unit {}",
+        "interface Pattern<T>\nclass Marker<T> : Pattern<Rc<T>>\nfun <T,U: Pattern<Rc<T>>> choose(value: U): Unit {}\nfun entry(): Unit { choose<Nothing, Marker<Nothing>>(Marker<Nothing>()) }",
+    ] {
+        check_storage_instances_relaxed_signatures(text, |typed| {
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0125"]
+            );
+            assert!(typed.runtime_field_layouts().is_empty());
+            assert!(typed.clone().validate().is_err());
+        });
+    }
+}
+
+fn check_storage_instances_relaxed_signatures(
+    text: &str,
+    mut inspect: impl FnMut(&CompilationUnitTypes),
+) {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "storage.ko", text);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "storage.ko", source, &file),
+    ] {
+        let inputs = [input];
+        let names = validated_names(&sources, &inputs, &environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        inspect(&typed);
+    }
+}
+
+#[test]
+fn transitive_and_recursive_nominal_storage_requirements_reach_all_parameters() {
+    for text in [
+        "class Wrapper<T>(val payload: List<T>?)\nclass Outer<U>(val first: Wrapper<Int>?, val second: Wrapper<U>?)\nfun inspect(value: Outer<Nothing>): Unit {}",
+        "class Rotate<A, B, C>(val next: Rotate<B, C, List<A>>?)\nfun inspect(value: Rotate<Int, Int, Nothing>): Unit {}",
+        "enum class Wrapper<T> { Stored(payload: List<T>?) }\nfun inspect(value: Wrapper<Nothing>): Unit {}",
+    ] {
+        check_storage_instances_relaxed_signatures(text, |typed| {
+            assert_eq!(
+                typed.diagnostics().len(),
+                1,
+                "{text}: {:?}",
+                typed.diagnostics()
+            );
+            assert_eq!(typed.diagnostics()[0].code().to_string(), "L0125");
+            assert!(typed.runtime_field_layouts().is_empty());
+            assert!(typed.clone().validate().is_err());
+        });
+    }
+}
+
+#[test]
+fn nominal_storage_requirements_preserve_function_values_and_recursive_heap_types() {
+    for text in [
+        "class Grow<T>(val next: Grow<List<T>>?)\nfun inspect(value: Grow<Int>): Unit {}",
+        "class Rotate<A, B, C>(val next: Rotate<B, C, List<A>>?)\nfun inspect(value: Rotate<Int, Int, Int>): Unit {}",
+        "class Wrapper<T>(val payload: List<() -> T>?)\nfun inspect(value: Wrapper<Nothing>): Unit {}",
+        "class Rc<T>\nclass Wrapper<T>(val payload: Rc<T>)\nfun inspect(value: Wrapper<Nothing>): Unit {}",
+        "class Phantom<T>(val payload: Int)\nfun inspect(value: Phantom<Nothing>): Unit {}",
+    ] {
+        check_storage_instances_relaxed_signatures(text, |typed| {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{text}: {:?}",
+                typed.diagnostics()
+            );
+            assert!(typed.clone().validate().is_ok());
+        });
+    }
+}
+
+#[test]
+fn nominal_storage_requirements_preserve_interface_diagnostic_owner() {
+    let text = "interface Shape\nclass Wrapper<T>(val payload: List<T>?)\nfun inspect(value: Wrapper<Shape>): Unit {}";
+    check_storage_instances_relaxed_signatures(text, |typed| {
+        assert_eq!(typed.diagnostics().len(), 1, "{:?}", typed.diagnostics());
+        assert_eq!(typed.diagnostics()[0].code().to_string(), "L0094");
+        assert!(typed.clone().validate().is_err());
+    });
+}

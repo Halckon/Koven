@@ -2,9 +2,10 @@
 
 use super::type_graph::{ConcreteTypes, substitute};
 use super::*;
+use crate::parser::NameMarker;
 use crate::type_checking::{IntrinsicTypeConstructor, UnitCallDescriptor, UnitCallTarget};
 
-type Instance = (DeclarationId, Vec<UnitTypeId>);
+type Instance = (UnitCallTarget, Vec<UnitTypeId>);
 
 struct Template {
     parameters: Vec<UnitSymbolId>,
@@ -35,9 +36,7 @@ impl BodyChecker<'_> {
         let mut concrete = ConcreteTypes::for_closed_arguments();
         let mut seeds = BTreeMap::new();
         for call in &self.parts.calls {
-            let UnitCallTarget::Declaration(target) = call.target() else {
-                continue;
-            };
+            let target = call.target();
             if !templates.contains_key(&target) {
                 continue;
             }
@@ -107,7 +106,7 @@ impl BodyChecker<'_> {
 
     fn materialize_body_instance(
         &mut self,
-        templates: &BTreeMap<DeclarationId, Template>,
+        templates: &BTreeMap<UnitCallTarget, Template>,
         key: &Instance,
         call_span: Span,
     ) -> Result<Option<Vec<Instance>>, CompilationUnitTypeError> {
@@ -136,10 +135,8 @@ impl BodyChecker<'_> {
                 .iter()
                 .map(|&ty| substitute(self.signatures.types_mut(), ty, &substitutions, &mut memo))
                 .collect::<Result<Vec<_>, _>>()?;
-            if let UnitCallTarget::Declaration(target) = call.target()
-                && templates.contains_key(&target)
-            {
-                callees.push((target, arguments));
+            if templates.contains_key(&call.target()) {
+                callees.push((call.target(), arguments));
             }
         }
         if let Some(message) = self.invalid_storage_in_substitution(&memo) {
@@ -160,6 +157,16 @@ impl BodyChecker<'_> {
         instantiated.iter().find_map(|(&template, &actual)| {
             if template == actual {
                 return None;
+            }
+            if let Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) = types.get(actual)
+                && self
+                    .invalid_nominal_storage_argument(*declaration, arguments)
+                    .is_some()
+            {
+                return Some("type argument cannot satisfy instantiated storage requirements");
             }
             let Some(UnitTypeKind::Intrinsic { constructor, .. }) = types.get(template) else {
                 return None;
@@ -197,25 +204,72 @@ impl BodyChecker<'_> {
         })
     }
 
+    pub(super) fn invalid_nominal_storage_argument(
+        &self,
+        declaration: DeclarationId,
+        arguments: &[UnitTypeId],
+    ) -> Option<UnitSymbolId> {
+        let nominal = self.signatures.declaration(declaration)?.nominal()?;
+        let required = self.signatures.storage_requirements().get(&declaration)?;
+        nominal
+            .type_parameters()
+            .iter()
+            .zip(arguments)
+            .find_map(|(parameter, argument)| {
+                (required.contains(parameter)
+                    && (matches!(
+                        self.signatures.types().get(*argument),
+                        Some(UnitTypeKind::Deferred(
+                            DeferredReason::AnyValueRepresentation
+                        ))
+                    ) || (!self.is_error(*argument)
+                        && !self.is_deferred(*argument)
+                        && !self.is_structurally_storable_type(*argument))))
+                .then_some(*parameter)
+            })
+    }
+
     fn generic_body_templates(
         &self,
-    ) -> Result<BTreeMap<DeclarationId, Template>, CompilationUnitTypeError> {
+    ) -> Result<BTreeMap<UnitCallTarget, Template>, CompilationUnitTypeError> {
         let mut templates = BTreeMap::new();
+        let mut definitions = Vec::new();
         for declaration in self.names.index().declarations() {
-            let Some(signature) = self
-                .signatures
-                .declaration(declaration.id())
-                .and_then(|s| s.callable())
-            else {
+            let Some(signature) = self.signatures.declaration(declaration.id()) else {
                 continue;
             };
-            let file = self.file(declaration.source_unit());
-            let span = file
-                .ast()
-                .items()
-                .get(declaration.root())
-                .map_err(TypeCheckingError::from)?
-                .span();
+            if let Some(callable) = signature.callable() {
+                definitions.push((
+                    callable,
+                    callable.type_parameters().to_vec(),
+                    declaration.source_unit(),
+                ));
+            }
+            if let Some(nominal) = signature.nominal() {
+                for callable in nominal.members().iter().chain(nominal.companion_members()) {
+                    let mut parameters = Vec::new();
+                    if callable.receiver().is_some() {
+                        parameters.extend_from_slice(nominal.type_parameters());
+                    }
+                    parameters.extend_from_slice(callable.type_parameters());
+                    definitions.push((callable, parameters, declaration.source_unit()));
+                }
+            }
+        }
+        for (signature, parameters, source) in definitions {
+            let file = self.file(source);
+            let Some(span) = file.ast().items().iter().find_map(|(_, node)| {
+                matches!(node.payload(), Item::Function { name, .. } if *name == NameMarker::Present(signature.name_span()))
+                    .then_some(node.span())
+            }) else {
+                continue;
+            };
+            let target = match signature.target() {
+                crate::type_checking::UnitCallableTarget::Declaration(id) => {
+                    UnitCallTarget::Declaration(id)
+                }
+                crate::type_checking::UnitCallableTarget::Symbol(id) => UnitCallTarget::Symbol(id),
+            };
             let contains = |candidate: Span| {
                 candidate.source_id() == span.source_id()
                     && span.start() <= candidate.start()
@@ -228,7 +282,7 @@ impl BodyChecker<'_> {
                 .chain(std::iter::once(signature.return_type()))
                 .collect::<BTreeSet<_>>();
             for (expression, &ty) in &self.parts.expression_types {
-                if expression.source_unit() == declaration.source_unit()
+                if expression.source_unit() == source
                     && contains(
                         file.ast()
                             .expressions()
@@ -241,7 +295,7 @@ impl BodyChecker<'_> {
                 }
             }
             for (type_ref, &ty) in &self.parts.type_ref_types {
-                if type_ref.source_unit() == declaration.source_unit()
+                if type_ref.source_unit() == source
                     && contains(
                         file.ast()
                             .type_refs()
@@ -254,7 +308,7 @@ impl BodyChecker<'_> {
                 }
             }
             for (symbol, &ty) in &self.parts.symbol_types {
-                if symbol.source_unit() == declaration.source_unit() {
+                if symbol.source_unit() == source {
                     let table =
                         self.names.source_units()[symbol.source_unit().index()].resolution();
                     if contains(
@@ -271,7 +325,7 @@ impl BodyChecker<'_> {
             let mut calls = Vec::new();
             for call in &self.parts.calls {
                 let expr = call.expression();
-                if expr.source_unit() == declaration.source_unit()
+                if expr.source_unit() == source
                     && contains(
                         file.ast()
                             .expressions()
@@ -292,9 +346,9 @@ impl BodyChecker<'_> {
                 }
             }
             templates.insert(
-                declaration.id(),
+                target,
                 Template {
-                    parameters: signature.type_parameters().to_vec(),
+                    parameters,
                     types,
                     calls,
                 },

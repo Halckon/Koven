@@ -222,7 +222,21 @@ impl BodyChecker<'_> {
             let kind = match bound {
                 UnitTypeParameterBound::Any | UnitTypeParameterBound::Error => None,
                 UnitTypeParameterBound::Interface(interface) => {
-                    let expected = self.substitute_type(interface, &substitutions)?;
+                    let mut bound_types = BTreeMap::new();
+                    let expected = substitute(
+                        self.signatures.types_mut(),
+                        interface,
+                        &substitutions,
+                        &mut bound_types,
+                    )?;
+                    if let Some(message) = self.invalid_storage_in_substitution(&bound_types) {
+                        self.signatures.types_mut().discard_after(checkpoint);
+                        return Ok(Err(UnitInstantiationFailure::Storage {
+                            primary: callee_span,
+                            declaration: candidate.declaration_span,
+                            message,
+                        }));
+                    }
                     (!self.satisfies_interface(actual, expected)?)
                         .then_some(UnitBoundFailureKind::Interface)
                 }

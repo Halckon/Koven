@@ -71,6 +71,7 @@ struct SignatureCollector<'a> {
     interface_edge_spans: BTreeMap<(DeclarationId, DeclarationId), Span>,
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     invalid_inline_nominals: BTreeSet<DeclarationId>,
+    storage_requirements: super::storage_requirements::StorageRequirements,
     delegations: Vec<UnitDelegationPlan>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -128,6 +129,7 @@ impl<'a> SignatureCollector<'a> {
             interface_edge_spans: BTreeMap::new(),
             type_ref_types: BTreeMap::new(),
             invalid_inline_nominals: BTreeSet::new(),
+            storage_requirements: BTreeMap::new(),
             delegations: Vec::new(),
             diagnostics: Vec::new(),
         })
@@ -141,6 +143,11 @@ impl<'a> SignatureCollector<'a> {
         self.check_interface_cycles()?;
         self.compute_interface_closures()?;
         let declarations = self.collect_declarations()?;
+        self.storage_requirements = super::storage_requirements::collect(
+            &self.types,
+            &self.nominals.values().collect::<Vec<_>>(),
+            &self.type_parameters,
+        );
         self.validate_type_argument_bounds()?;
         self.check_range_types()?;
         self.check_duplicate_top_level_shapes(&declarations)?;
@@ -176,6 +183,7 @@ impl<'a> SignatureCollector<'a> {
                 type_ref_types: self.type_ref_types,
                 type_parameters: self.type_parameters,
                 invalid_inline_nominals: self.invalid_inline_nominals,
+                storage_requirements: self.storage_requirements,
                 delegations: self.delegations,
             },
             diagnostics,
