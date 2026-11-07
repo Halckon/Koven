@@ -90,7 +90,7 @@ Name/Group 的非空 use 必须属于当前 entry/callable 且同一 generation�
 不能复用旧 When witness。descriptor、活跃 frame 与版本状态随 callable trial 回滚，错误不发布成功产品。
 单文件 condition 沿未匹配路径传事实、body 独立检查；其原 source-version 与 identity 隔离规则保留。
 Unit null 比较沿同源 Group 识别实际 Null 叶并透传 expected type，仍保原 Binary/外层operand身份；
-双null、无上下文null与非nullable错误不放宽。类型事实不是owner/loan或native资格，后继仍核真实产物。
+双null、无上下文null与非nullable错误不放宽。Unit 相容查询归入 type_graph，Nothing? 可适配已确定 nullable，拒非nullable及deferred-inner；原Single与双Unit的L0123/L0124见证保留。类型事实不是owner/loan或native资格，后继仍核真实产物。
 owned root/temporary 的 class/Box/Rc 有界消费及 field/element 等边界见 [SSA/LLVM](ssa-codegen-runtime.md)。 `type_checking::nullable_when_unit` 的13项原消费者走双 Unit raw type 入口；进入when时仍为nullable的稳定subject已按实际剩余单case补payload事实，非nullable及已提前收窄的subject不扩张；三项独有字段oracle仍保留Single，见[有界修复验收](../specs/active/0341-shared-lowering-core.md#119-nullable-when-剩余单-case-类型修复2026-11-07)。
 
 ## 非空断言事实
@@ -198,8 +198,3 @@ String clone 的 typed identity 与后续阶段运输见 [String clone 链路](s
 - expected type 只能按语义允许的方向约束 child；不能用后端布局反向决定语言类型。
 - 条件 `Copyable`、layout recipe 与 runtime type identity 使用同一 canonical 类型图。
 - 诊断存在时可保留 recovery 数据，但 executable facts 必须原子失效。
-
-Unit 类型相容关系复用 `checker/type_graph.rs` 的同一查询；`Nothing?` 可适配已确定的
-nullable 目标，不能适配非 nullable 或 deferred-inner 目标，普通不同 nullable 类型不放宽。
-`type_callable` 保留原 Single overload 见证并追加 MemoryDocument/Rooted 对照，锁定
-no-match 与 ambiguity 的 L0123/L0124 区分。
