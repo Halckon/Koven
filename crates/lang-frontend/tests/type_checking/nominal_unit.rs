@@ -2,6 +2,9 @@
 #[path = "nominal_unit/flow.rs"]
 mod flow;
 
+#[path = "nominal_unit/constructions.rs"]
+mod constructions;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,
