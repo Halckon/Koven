@@ -3060,3 +3060,15 @@ Single ControlTransfer等价及owner清理顺序；来源求值前return仍无�
 真实loan存在再核排除。三目标69项通过，2项Abort整项仅留CI；独立静审无必须修复问题。
 目标编译、all-targets Clippy（`-D warnings`）、fmt及文档/尺寸/diff门禁通过；在Clippy前
 确认无构建进程后仅清理已授权incremental恢复空间，未删其他产物。官方CI未运行。
+
+#### 来源提前 return 的跨文件与兄弟边证据
+
+同步主干 `11130e16`（#338）后，原借用事实合同及逻辑提交保留。新增跨文件样本在两种
+provider/caller 输入顺序下核 caller 的 call、argument、return 与 owned root 身份，
+参数 Span 则仍属于 provider；无最终 binding/handoff 时要求唯一真实 prefix 事件。
+兄弟分支样本要求 call/argument/return point 互异、owned root 相同，各边恰好匹配一个
+Single ControlTransfer witness，并在对应点唯一清理该 owner，preceding_drops 精确为零。
+未修改生产语义或删除原 Single；静态兄弟边不表示同时执行，完整 cleanup 流仍未承诺。
+云端 Rust 1.96.0、locked/offline、默认 debug=2：借用事实定向17项通过，三个相关目标
+合计71项通过；两项 Abort 按约定仅留正式CI。all-targets Clippy（`-D warnings`）、fmt、
+文档、尺寸与diff门禁通过；本批尚未发布，官方CI未运行。

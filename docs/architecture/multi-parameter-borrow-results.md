@@ -62,3 +62,7 @@ generic/field/wrapper/parent 三项成功消费者覆盖双入口，保留独立
 unwind时核已求值token、原operand place、仍存活Shared owned根并记录action下标。
 因此不再要求最终binding证明，可覆盖无正常出口的直接initializer，但不表示结果建立；
 正常handoff、结果终止和完整cleanup流不能互相替代，原Single对照继续保留。
+跨文件提前 return 样本在 provider/caller 输入重排下核对 caller 的 call/argument/return/
+owned root 身份与 provider 的参数 Span；两条兄弟 return 边分别保留实际来源 token 和
+唯一 owner drop，精确核 preceding_drops 为零。它们是静态边的独立证据，不表示两边
+在一次运行中同时执行，也不把该切片升级为完整 cleanup 流。
