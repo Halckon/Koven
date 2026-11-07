@@ -22,6 +22,12 @@ mod control_join_regressions;
 #[path = "type_checking/resource_unit.rs"]
 mod resource_unit;
 
+#[path = "type_checking/unit_entries.rs"]
+mod unit_entries;
+
+#[path = "type_checking/scalar_unit.rs"]
+mod scalar_unit;
+
 use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
@@ -175,55 +181,6 @@ fn diagnostic_spans<'a>(sources: &'a SourceMap, diagnostic: &Diagnostic) -> (&'a
         })
         .expect("diagnostic label");
     (primary, label)
-}
-
-fn literal_type(
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    typed: &TypedFile,
-    text: &str,
-) -> BuiltinType {
-    let (id, _) = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .find(|(_, node)| sources.slice(node.span()) == Ok(text))
-        .expect("literal");
-    let ty = typed.expression_type(id).expect("expression type");
-    match typed.types().get(ty).expect("type") {
-        TypeKind::Builtin(builtin) => *builtin,
-        other => panic!("unexpected type {other:?}"),
-    }
-}
-
-#[test]
-fn numeric_defaults_suffixes_and_contextual_integer_types_are_stable() {
-    let text = "fun values(): Unit {\n\
-                val byte: Byte = 1\n\
-                val default = 2\n\
-                val wide = 2147483648\n\
-                val unsigned = 3u\n\
-                val unsignedWide = 4294967296u\n\
-                val long = 4L\n\
-                val unsignedLong = 5uL\n\
-                val float = 6f\n\
-                val double = 7.0\n\
-                }";
-    let (sources, parsed, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    for (literal, expected) in [
-        ("1", BuiltinType::Byte),
-        ("2", BuiltinType::Int),
-        ("2147483648", BuiltinType::Long),
-        ("3u", BuiltinType::UInt),
-        ("4294967296u", BuiltinType::ULong),
-        ("4L", BuiltinType::Long),
-        ("5uL", BuiltinType::ULong),
-        ("6f", BuiltinType::Float),
-        ("7.0", BuiltinType::Double),
-    ] {
-        assert_eq!(literal_type(&sources, &parsed, &typed, literal), expected);
-    }
 }
 
 #[test]
@@ -771,58 +728,6 @@ fn when_context_and_coverage_diagnostics_are_deterministic() {
             .map(|diagnostic| sources.slice(diagnostic.primary_span()).expect("span"))
             .collect::<Vec<_>>(),
         ["when", "when", "true", "else", "else"]
-    );
-}
-
-#[test]
-fn local_lambda_operator_and_type_ref_diagnostics_use_published_codes() {
-    let (_, _, _, valid) = checked(
-        "fun apply(): Unit {\n\
-         val callback: (Int) -> Int = { x -> x + 1 }\n\
-         val safe: Int? = null\n\
-         val resolved = safe ?: 0\n\
-         }",
-    );
-    assert!(valid.diagnostics().is_empty(), "{:?}", valid.diagnostics());
-
-    let (_, _, _, invalid) = checked(
-        "fun invalid(): Unit {\n\
-         val missing = null\n\
-         val mismatch: String = 1\n\
-         val operand = false + 1\n\
-         val arity: Int<String> = 1\n\
-         }",
-    );
-    assert_eq!(
-        codes(invalid.diagnostics()),
-        ["L0083", "L0084", "L0085", "L0082"]
-    );
-}
-
-#[test]
-fn callable_flow_reports_shape_missing_return_and_branch_join() {
-    let (_, _, _, typed) = checked(
-        "fun missing(): Int {}\n\
-         fun bare(): Int { return }\n\
-         fun unit(): Unit = 1\n\
-         fun branch(flag: Boolean): Int = if (flag) { 1 } else { false }\n\
-         fun mixed(flag: Boolean): Unit { val result = if (flag) { 1 } else { false } }",
-    );
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0088", "L0087", "L0084", "L0084", "L0089"]
-    );
-}
-
-#[test]
-fn unbraced_if_branches_receive_the_outer_expected_type() {
-    let (sources, _, _, typed) =
-        checked("fun contextual(flag: Boolean): Byte = if (flag) 127 else 128");
-
-    assert_eq!(codes(typed.diagnostics()), ["L0090"]);
-    assert_eq!(
-        sources.slice(typed.diagnostics()[0].primary_span()),
-        Ok("128")
     );
 }
 
