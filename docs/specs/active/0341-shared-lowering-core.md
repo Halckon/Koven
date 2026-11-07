@@ -3387,3 +3387,23 @@ fmt、849份Markdown、diff及相对2fd6bfb9尺寸检查通过，38个历史超�
 外部 API 编译消费者 `ownership_value_api` 缺少新 Swap 的穷尽匹配，故不能沿用分支 lint
 通过声明证明组合。补显式 Swap 两值匹配后，该目标 1 项与最终 all-targets Clippy 通过。
 合计 123 项定向测试；fmt、849 份 Markdown、diff及尺寸门禁通过。未以此替代正式 CI。
+
+## Map.withValue 泛型借用消费者迁移（2026-11-07）
+
+独立基于 main `78a36f25`，不依赖 callable 或 borrow-prefix 候选合入。
+`ownership_map_with::scoped_map_action_generic_borrow_ends_before_owned_map_delivery`
+的 String、Packet、Resource、Token? 四份原源码逐字保留，转用既有 MemoryDocument/Rooted
+Unit helper。原无诊断、loans≥4 下界、callback 单参数 Borrow/类型等于 value_type、返回
+Unit 合同全部保留；还复用同轮 completion/ownership 兼容性与单 descriptor 检查，并核源身份。
+删除该文件最后一条 Single name/type/ownership helper 及导入，未改生产或Guide。
+
+这里原测试没有独立 loan-end 事件表、完整动态cleanup或native oracle，不能将本次消费者
+退休说成新增上述证明；其他文件中依赖 Single 专有字段或事件顺序的见证保持。
+原七种 source invalidation/escape 负例、原 L0087 primary span及普通借用正例不删不改。
+最终文件175行（原220行），没有引入新的生产API或改变withValue语义。
+
+Mac Rust1.96、locked/offline、默认debug=2，串行复用释放后的target。四项直接消费者
+逐个精确运行各1 passed/3 filtered，包括泛型四实例；frontend all-targets Clippy通过。
+fmt、849份Markdown、diff及相对78a36f25尺寸门禁通过（2148份手写Rust、38份旧超长文件未增长）。
+不运行全量/native/Abort/故障注入/校准，不以本地测试
+替代正式CI，D10/E2仍未完成。
