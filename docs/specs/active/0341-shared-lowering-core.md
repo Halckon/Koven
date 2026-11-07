@@ -3271,3 +3271,18 @@ capability 生成事实，保留原源码、值/字节/SSA类型、单次物化�
 基于 `c260be13`，顺序容器八项 Phase 2 测试与七份混合借用非法源码改走真实 Unit。
 迁移暴露顺序容器显式签名漏报，修正及输入、oracle、复核和实跑结果见
 [SPEC-0392 §12](0392-compiler-layered-review.md#12-第四切片顺序容器与混合借用消费者迁移)。
+
+## 118. 借用事实批次的主线组合验证（2026-11-07）
+
+将借用事实批次 `3a12ff9d` 与 main `bff9468a` 合并为 `5c415a43`，保留全部原逻辑提交。
+唯一文本冲突是本账本相邻追加，双方原文均保留；生产代码无冲突。独立只读复审未发现阻断问题。
+云端组合编译因 ENOSPC 中止，三个测试目标未执行，不能沿用旧基线本地结果为新组合通过。
+完整提交以校验过的 Git bundle 转入 Mac AArch64 隔离工作区，保留云端与用户现有工作。
+
+Mac Rust1.96.0、locked/offline、默认debug=2，复用空闲target串行执行三个相关目标：
+`ownership_borrow_continuation` 14项、`ownership_nested_borrow_arguments` 10项、
+`unit_direct_call_loan_ends` 48项，共72项通过；后者两项Abort依既定范围整项留正式CI。
+frontend all-targets Clippy（`-D warnings`）、fmt、849份Markdown及diff门禁通过；
+相对main的尺寸门禁通过，38个超1000行旧文件不增加。不是frontend全量、native或双宿主官方验收。
+公开handoff/prefix仍是有界观察，保留Single独立见证，不承诺完整事件全序或cleanup图。
+D10/E2保持in-progress，本批需精确发布头的正式双宿主CI，不自动合并。
