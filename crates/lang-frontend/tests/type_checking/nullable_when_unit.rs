@@ -5,6 +5,9 @@ mod flow;
 #[path = "nullable_when_unit/mutation.rs"]
 mod mutation;
 
+#[path = "nullable_when_unit/identity.rs"]
+mod identity;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, index_compilation_unit,

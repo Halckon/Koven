@@ -1810,43 +1810,6 @@ fn non_null_assertion_error_and_deferred_operands_do_not_publish_extraction() {
 }
 
 #[test]
-fn nullable_when_plans_have_stable_identity_and_single_subject_evaluation() {
-    let text = "fun subject(): Int? = null
-        fun extract(): Int = when (subject()) { null -> 0; else -> 1 }";
-    let (sources, parsed) = parse(text);
-    let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeat types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.nullable_whens(), repeated.nullable_whens());
-    assert_eq!(typed.nullable_whens().len(), 1);
-    let plan = &typed.nullable_whens()[0];
-    assert_eq!(
-        sources
-            .slice(
-                parsed
-                    .ast()
-                    .expressions()
-                    .get(plan.subject())
-                    .expect("subject")
-                    .span()
-            )
-            .expect("text"),
-        "subject()"
-    );
-    assert_eq!(
-        typed
-            .calls()
-            .iter()
-            .filter(|call| call.expression() == plan.subject())
-            .count(),
-        1
-    );
-    assert_eq!(plan.entries().len(), 2);
-}
-
-#[test]
 fn nullable_when_subject_categories_bound_native_eligibility() {
     use lang_frontend::type_checking::NullableWhenSubjectCategory as Category;
     for (source, category, native) in [
