@@ -405,11 +405,12 @@ fn named_source_continues_only_its_loan_and_other_arguments_end_at_call_return()
         assert_eq!(ends[0].point(), LoanEndPoint::CallReturn(source.call()));
         assert_eq!(single.borrow_results().ends().len(), 1);
         assert_eq!(unit.borrow_results().ends().len(), 1);
-        let (_, single, unit) = checked_with_legacy_loan_ends(
+        let (_, unit) = checked_entry(
             "fun select(other: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val other = \"other\"; borrow val item = select(source = source, other = other); consume(source); println(item) }",
             rooted,
         );
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        {
+            let diagnostics = unit.diagnostics();
             assert!(
                 diagnostics.iter().any(|d| d.code().to_string() == "L0135"),
                 "{diagnostics:?}"
@@ -421,31 +422,39 @@ fn named_source_continues_only_its_loan_and_other_arguments_end_at_call_return()
 #[test]
 fn abandoned_initializer_ends_source_call_without_ending_an_unestablished_result() {
     for rooted in [false, true] {
-        use lang_frontend::ownership_checking::{DropPoint, LoanEndPoint, UnitDropPoint};
-        let (_, single, unit) = checked_with_legacy_loan_ends(
+        use lang_frontend::ownership_checking::{LoanKind, UnitDropPoint};
+        let (sources, unit) = checked_entry(
             "fun select(source: String, other: String): borrow String from source = source\nfun run(flag: Boolean) { val source = \"kept\"; borrow val item = select(source, if (flag) { return } else { \"other\" }); println(item) }",
             rooted,
         );
-        assert!(
-            single.diagnostics().is_empty(),
-            "{:?}",
-            single.diagnostics()
-        );
         assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let source = single.borrow_results().bindings()[0].source_loan().unwrap();
-        assert!(
-            single
-                .loan_ends()
-                .iter()
-                .any(|end| end.call() == source.call()
-                    && end.argument() == source.argument()
-                    && matches!(end.point(), LoanEndPoint::ControlTransfer(_)))
+        assert!(unit.deferred().is_empty());
+        let [binding] = unit.borrow_results().bindings() else {
+            panic!("one binding on the continuing branch")
+        };
+        let source = binding.source_loan().unwrap();
+        let [event] = unit.borrow_call_prefix_ends() else {
+            panic!("one abandoned initializer source")
+        };
+        assert_eq!(event.loan().call(), source.call());
+        assert_eq!(event.loan().argument(), source.argument());
+        assert_eq!(event.loan().kind(), LoanKind::Shared);
+        assert!(unit.loans().contains(event.loan()));
+        assert_eq!(sources.slice(event.loan().begin_span()), Ok("source"));
+        assert_eq!(
+            sources.slice(event.loan().end_span()),
+            Ok("select(source, if (flag) { return } else { \"other\" })")
         );
-        assert_eq!(single.borrow_results().ends().len(), 1);
-        assert!(matches!(
-            single.borrow_results().ends()[0].point(),
-            DropPoint::AfterStatement(_)
-        ));
+        assert_eq!(
+            sources.slice(event.loan().parameter_span().unwrap()),
+            Ok("source: String")
+        );
+        let UnitDropPoint::ControlTransfer(transfer) = event.point() else {
+            panic!("actual abandoned-source control transfer")
+        };
+        assert_eq!(transfer.source_unit(), source.call().source_unit());
+        assert_eq!(event.loan().target(), binding.origin());
+        unit.clone().validate().unwrap();
         assert_eq!(unit.borrow_results().ends().len(), 1);
         assert!(matches!(
             unit.borrow_results().ends()[0].point(),
