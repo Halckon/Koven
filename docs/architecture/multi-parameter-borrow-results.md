@@ -39,4 +39,5 @@ source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与
 
 `ownership_nested_borrow_arguments` 的 direct/grouped、named/mixed/multiple-chain 与
 generic/field/wrapper/parent 三项成功消费者覆盖双入口，保留独立 Single loan-end
-及逐项 call-use 合同；另外两项精确顺序/owner-drop 成功 witness 仍采用 Rooted Unit。
+及逐项 call-use 合同；另外两项精确顺序/owner-drop 成功 witness 也覆盖双入口，
+保持 grouped/named 身份、parent 存活与 owner 在 outer-call-return 唯一 drop 的断言。
