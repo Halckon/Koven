@@ -5,6 +5,9 @@ mod flow;
 #[path = "nominal_unit/constructions.rs"]
 mod constructions;
 
+#[path = "nominal_unit/identity.rs"]
+mod identity;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,

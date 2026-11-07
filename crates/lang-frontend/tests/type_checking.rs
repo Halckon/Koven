@@ -299,48 +299,6 @@ fn assignment_and_capture_invalidate_mutable_smart_casts_and_invalid_tests_are_p
 }
 
 #[test]
-fn nominal_and_payload_constructions_publish_instantiated_value_mappings() {
-    let text = "class Resource {}
-                class Holder<T>(val item: T)
-                value class Pair<T>(val first: T, val second: T)
-                enum class Maybe<T> { Some(item: T), None }
-                fun resource(): Resource = Resource()
-                fun holder(): Holder<Int> = Holder(1)
-                fun pair(): Pair<Int> = Pair(second = 2, first = 1)
-                fun some(): Maybe<Int> = Maybe.Some(1)";
-    let (sources, parsed) = parse(text);
-    let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeated types");
-
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.constructions(), repeated.constructions());
-    assert_eq!(typed.constructions().len(), 4);
-    assert!(typed.calls().is_empty());
-    assert_eq!(typed.constructions()[0].arguments(), []);
-    assert_eq!(
-        typed.constructions()[1].instance().type_arguments().len(),
-        1
-    );
-    let pair = &typed.constructions()[2];
-    assert_eq!(pair.arguments()[0].parameter_name(), "first");
-    assert_eq!(pair.arguments()[0].evaluation_index(), 1);
-    assert_eq!(pair.arguments()[1].parameter_name(), "second");
-    assert_eq!(pair.arguments()[1].evaluation_index(), 0);
-    assert!(matches!(
-        typed.constructions()[3].target(),
-        lang_frontend::type_checking::ConstructionTarget::EnumCase(_)
-    ));
-    for construction in typed.constructions() {
-        assert_eq!(
-            typed.expression_type(construction.expression()),
-            Some(construction.result_type())
-        );
-    }
-}
-
-#[test]
 fn intrinsic_rc_publishes_construction_share_and_payload_borrow_facts() {
     use lang_frontend::type_checking::{
         ConstructionTarget, Copyability, ParameterMode, RcOperationKind,
