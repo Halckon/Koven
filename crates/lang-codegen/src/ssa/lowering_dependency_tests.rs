@@ -252,6 +252,9 @@ fn production_tokens(source: &str) -> Vec<Token<'_>> {
 }
 
 fn forbidden(boundary: Boundary, name: &str) -> bool {
+    if matches!(name, "check_types" | "check_ownership") {
+        return true;
+    }
     match boundary {
         Boundary::Unit => name == "lower_frontend",
         Boundary::Support => matches!(
@@ -604,6 +607,38 @@ fn dependency_guard_accepts_allowed_edges() {
             check(path, source).is_empty(),
             "allowed edge rejected: {path}: {source}"
         );
+    }
+}
+
+#[test]
+fn dependency_guard_rejects_legacy_checkers_in_production_cores() {
+    for path in [
+        "unit_lower.rs",
+        "unit_plan.rs",
+        "lowering_support.rs",
+        "carry.rs",
+        "constant_materialization.rs",
+        "expression_core.rs",
+        "statement_core.rs",
+        "model.rs",
+    ] {
+        for (module, name) in [
+            ("type_checking", "check_types"),
+            ("ownership_checking", "check_ownership"),
+        ] {
+            for source in [
+                format!("use lang_frontend::{module}::{name} as analyze;"),
+                format!("fn run() {{ lang_frontend::{module}::r#{name}(); }}"),
+            ] {
+                assert!(
+                    !check(path, &source).is_empty(),
+                    "legacy checker escaped: {path}: {source}"
+                );
+                assert!(
+                    check(path, &format!("#[cfg(test)] mod witness {{ {source} }}")).is_empty()
+                );
+            }
+        }
     }
 }
 

@@ -202,3 +202,53 @@ varint_codec UnsupportedNode、word_count L0165。此为原有大验收程序，
 既有未实现。独立上下文分别复核分句实现/预算、语料枚举算术与旧入口/后端/CI接线，均无
 剩余阻断发现。Linux、sanitizer、完整 codegen suite、CI-only shell故障stub与远端 CI 未运行；
 R0逐消费者对账和R1–R5其余合同继续保持未闭合，不因这两项修复恢复整阶段完成标记。
+
+## 11. 第三切片：真实消费者分流与常量映射测试迁移（2026-11-07）
+
+第二片已按用户要求提交 `03807a9e`；本片在此基线上继续，未推送。只迁移不依赖旧接口
+专有语义的消费者，不借此删除旧实现或宣称 SPEC-0341 完成。
+
+重复 §2 的直接调用形状清点，frontend `check_types` 为86文件/151行、`check_ownership`
+为47文件/58行；codegen 在常量 helper 迁移后分别16/19、15/18，旧 entry 为4/8。
+CLI/LSP/标准库未检出这些直接调用；整个 crates 未检出这三名的显式 `as` alias。
+此为词法清点，仍含可能的测试源码字符串，不覆盖宏展开、间接 re-export 或函数指针数据流。
+
+codegen 的16个直接调用文件已按用途分流（下列路径相对 `crates/lang-codegen/src/ssa/`）：
+
+| 用途 / 文件 | 处置与迁移约束 |
+|---|---|
+| 接口拒绝与身份：`lowering_entry_contract_tests.rs`、`single_readonly_method_boundaries.rs` | 保留显式 legacy-only witness；不能把换用 Unit 后的成功冒称旧接口拒绝已覆盖 |
+| 源码与阶段差异：`borrow_result_contract_tests.rs`、`integer_range_value_tests.rs`、`lower_frontend_owned_source_continue_tests.rs`、`lower_frontend_tests.rs`、`mixed_borrow_boundary_tests.rs`、`rc_nullable_while_bounded_tests.rs`、`rc_nullable_while_observation_tests.rs`、`while_flow_tests/if_cleanup_observation.rs` | 后继按真实 AST/诊断/ownership/SSA oracle 迁移；部分比较已走 Unit，保留的旧形状不可整文件替换 |
+| 私有 callable planner：`lower_frontend/instances/callable_plan_tests.rs`、`canonical_callable_tests.rs`（同目录） | 直接消费旧私有类型和规划身份；需连同被测职责退役，不能仅替换检查函数 |
+| 旧 closure lowering：`lower_frontend/source_closure/tests.rs` | 保留，待对应 source/cleanup identity oracle 在 Unit 取得对等证据 |
+| CI-only 观察：`lower_frontend/cleanup_guard_harness.rs`、`lower_frontend/orchestrate/nullable_map_guard_support.rs`、`registration_tests.rs`（同目录） | 保留原边界与故障/恢复职责，不纳入普通本机运行 |
+
+以上源文件从实际 `cfg(test)` 模块链进入；旧 lowerer 与导出由 SSA 根的 `cfg(test)` 封闭。
+另外四个名字引用文件是入口定义、test-only re-export，以及 dependency/pr120 诊断字符串，
+不算新增生产消费者。该分流不代替逐个下游 helper 的完整语义审计；R0尚不结项。
+
+本片实际迁移 `constant_materialization.rs` 的四个映射测试：沿真实 SourceUnitInput/index/
+validated names → const-enabled types → const-enabled ownership 获取计划，保留同轮兼容检查、
+恰好一次 runtime use 与全部原始值/字节/SSA类型断言，不合成事实、不增加通用 harness。
+独立审查发现 validate 只拒绝 Error，不能替代旧的“全部诊断为空”；已恢复三阶段空诊断
+断言并复审通过。仅改变测试事实来源，不改变生产映射逻辑或常量语言能力。
+
+复用现有 `lowering_dependency_tests` 的词法扫描器，在其既有 Unit/plan/support/carry/
+materialization/expression/statement/IR边界禁用 `check_types`、`check_ownership` identifier。
+先运行新增回归，真实失败于 alias 导入；再补最小规则。覆盖正确 API 模块的 alias、raw
+identifier 调用与精确 `cfg(test)` witness；不扩大扫描器能力，不声称覆盖所有 Rust 依赖。
+
+| 本片检查（输入 `03807a9e` + 第三片工作树） | 实际结果 | 限制 |
+|---|---|---|
+| codegen `--lib ssa::constant_materialization::tests`，迁移前/首次迁移后 | 各4 passed、0 failed/ignored，2653 filtered | 原期望未改；独立审查后恢复空诊断断言的最终结果另记 |
+| codegen `--lib dependency_guard_rejects_legacy_checkers_in_production_cores` 红测 | 0 passed、1 failed，2657 filtered | 确认既有规则漏过旧检查器 alias |
+| codegen `--lib ssa::lowering_dependency_tests` 首次修复 | 14 passed、0 failed/ignored，2644 filtered | 后续只修正fixture模块路径，最终复跑另记 |
+| 最终常量映射与依赖门禁复跑 | 分别4 passed/2654 filtered、14 passed/2644 filtered；均0 failed/ignored | 已包含恢复三阶段空诊断断言与正确模块fixture的最后源码 |
+| `cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings` | 通过 | 本片仅改codegen测试，不重复无关frontend全套或conformance |
+| `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`git diff --check` | 均通过；847 Markdown | 仅结构/格式检查；非远端CI |
+| `python3 scripts/check_rust_sizes.py --base 03807a9e` | 通过；2115手写文件、39历史超限 | 依赖门禁976行，未提高任何限额 |
+
+新增门禁由既有codegen完整CI套件自动执行；本片未更改生产代码，未重跑native、sanitizer、
+Linux或远端CI。已迁移helper的生产映射函数逐字不变；剩余旧消费者按上述分流继续处理，
+本片不改变R0–R5退出条件。迁移的所属合同仍为[SPEC-0341](0341-shared-lowering-core.md)，
+本页只保留此次复审触发的最小切片与实际验收。
