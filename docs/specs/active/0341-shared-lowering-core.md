@@ -3364,4 +3364,7 @@ native或Linux；这些不计为本地通过。本批仅本地逻辑提交，未
 各自核对交换后的 token 和实际槽位。新增真实双根终结、重复 swap/replace 组合、
 缺失/重复/别名/foreign 事件负例。Choice swap、Resource 和其他既有 Unsupported 边界不变。
 
-定向验收待执行，不沿用上一批 CI 结果。
+本切片 Mac Rust1.96 默认debug=2、locked/offline，串行复用已释放target：
+owner_transport lib过滤器95项通过、259项过滤，frontend all-targets Clippy -D warnings通过。
+fmt、849份Markdown、diff及相对2fd6bfb9尺寸检查通过，38个历史超长文件未增长。
+未运行全量、native、Abort、校准或宿主故障注入；正式组合发布头双宿主CI仍待验证。
