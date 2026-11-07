@@ -856,3 +856,6 @@ mod borrow_auxiliary;
 
 #[path = "unit_direct_call_loan_ends/normal_oracle.rs"]
 mod normal_oracle;
+
+#[path = "unit_direct_call_loan_ends/prefix_oracle.rs"]
+mod prefix_oracle;
