@@ -7,6 +7,9 @@ mod diagnostics;
 #[path = "non_null_unit/capabilities.rs"]
 mod capabilities;
 
+#[path = "non_null_unit/identity.rs"]
+mod identity;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,
