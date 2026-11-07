@@ -58,6 +58,7 @@ generic/field/wrapper/parent 三项成功消费者覆盖双入口，保留独立
 保持 grouped/named 身份、parent 存活与 owner 在 outer-call-return 唯一 drop 的断言。
 
 `borrow_call_prefix_ends()` 从实际 Return unwind 的 EndCallLoan 动作发布借用来源结束
-切片；仅覆盖仍有正常 binding 来源证明的 direct initializer，精确匹配Shared owned根。
-无条件退出且没有正常binding证明的initializer仍在片外，空表不等于没有退出；
+切片；ValueState 记录真正进入的 direct initializer 与候选source argument身份，实际
+unwind时核已求值token、原operand place、仍存活Shared owned根并记录action下标。
+因此不再要求最终binding证明，可覆盖无正常出口的直接initializer，但不表示结果建立；
 正常handoff、结果终止和完整cleanup流不能互相替代，原Single对照继续保留。

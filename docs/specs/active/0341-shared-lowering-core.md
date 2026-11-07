@@ -3043,3 +3043,20 @@ drop顺序，以及非空成功对照后的错误/deferred原子撤销。新API�
 云端 Rust1.96.0/default debug=2/locked/offline：三目标66项通过，2项Abort按约定仅CI。
 新增片外空表、入口身份、Shared/formed-owned/root断言通过，独立静审无阻断。
 all-targets Clippy（`-D warnings`）首次空间耗尽；确认无活动构建后仅清理本任务已授权\nincremental，重试通过。fmt、文档/尺寸/diff门禁通过，官方CI未运行。
+
+#### 补足无正常 binding 的直接 initializer 提前 return
+
+前片的无正常分支限制由实际求值上下文消除：ValueState 在进入直接 Borrow-return
+initializer 时保存(call, typed映射source argument)候选，随分支clone并在表达式返回后
+移除；typed映射只选argument identity，不提供origin。实际unwind移除EndCallLoan时
+必须匹配活跃候选，核Shared/root/formed-owned、owner仍存活、原operand place与真实
+loan target全等且不为borrow binding，然后记录该次iteration_actions下标。查询只投影
+这些真实Return动作，不再依赖最终BorrowBindingFact，pending/cleanup执行不变。
+原operand核对阻止parent canonicalization伪装成owned根；仍不开放receiver、projection、
+carrier或完整CFG事件流。无条件return正例先稳定失败（期待1事件、实际0），再接线；
+保留bindings为空、handoff为空以及旧Single对照，绝不把退出标记为结果已建立。
+命名反排且无正常binding的退出样本核固定call/argument/parameter文本、source-unit、
+Single ControlTransfer等价及owner清理顺序；来源求值前return仍无事件，parent样本先证实
+真实loan存在再核排除。三目标69项通过，2项Abort整项仅留CI；独立静审无必须修复问题。
+目标编译、all-targets Clippy（`-D warnings`）、fmt及文档/尺寸/diff门禁通过；在Clippy前
+确认无构建进程后仅清理已授权incremental恢复空间，未删其他产物。官方CI未运行。
