@@ -73,10 +73,6 @@ fn checked(text: &str, rooted: bool) -> Checked {
     }
 }
 
-fn ordinary(body: &str) -> Checked {
-    ordinary_entry(body, true)
-}
-
 fn ordinary_entry(body: &str, rooted: bool) -> Checked {
     checked(
         &format!(
@@ -364,91 +360,100 @@ fn assert_atomic_empty(checked: &UnitChecked) {
 
 #[test]
 fn grouped_named_operands_and_same_root_chains_are_not_collapsed() {
-    let checked = ordinary(
-        "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = ((view((source)))), first = view(source)) }",
-    );
-    assert_accepted(&checked);
-    let facts = checked.single.borrow_results().call_uses();
-    assert_eq!(facts.len(), 2);
-    assert_eq!(facts[0].call(), facts[1].call());
-    assert_ne!(facts[0].expression(), facts[1].expression());
-    assert_ne!(facts[0].argument(), facts[1].argument());
-    assert_eq!(facts[0].origin(), facts[1].origin());
-    assert_ne!(facts[0].argument(), facts[0].expression());
-    assert_eq!(facts[1].argument(), facts[1].expression());
-    let text = |expression| {
-        checked
-            .sources
-            .slice(
-                checked
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .get(expression)
-                    .unwrap()
-                    .span(),
-            )
-            .unwrap()
-    };
-    assert_eq!(text(facts[0].argument()), "((view((source))))");
-    assert_eq!(text(facts[0].expression()), "view((source))");
-    assert_eq!(text(facts[0].source_loan().argument()), "(source)");
-    assert_eq!(text(facts[1].source_loan().argument()), "source");
+    for rooted in [false, true] {
+        let checked = ordinary_entry(
+            "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = ((view((source)))), first = view(source)) }",
+            rooted,
+        );
+        assert_accepted(&checked);
+        let facts = checked.single.borrow_results().call_uses();
+        assert_eq!(facts.len(), 2);
+        assert_eq!(facts[0].call(), facts[1].call());
+        assert_ne!(facts[0].expression(), facts[1].expression());
+        assert_ne!(facts[0].argument(), facts[1].argument());
+        assert_eq!(facts[0].origin(), facts[1].origin());
+        assert_ne!(facts[0].argument(), facts[0].expression());
+        assert_eq!(facts[1].argument(), facts[1].expression());
+        let text = |expression| {
+            checked
+                .sources
+                .slice(
+                    checked
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(expression)
+                        .unwrap()
+                        .span(),
+                )
+                .unwrap()
+        };
+        assert_eq!(text(facts[0].argument()), "((view((source))))");
+        assert_eq!(text(facts[0].expression()), "view((source))");
+        assert_eq!(text(facts[0].source_loan().argument()), "(source)");
+        assert_eq!(text(facts[1].source_loan().argument()), "source");
+    }
 }
 
 #[test]
 fn existing_parent_survives_call_and_memory_owner_drops_at_outer_return() {
-    use lang_frontend::ownership_checking::{
-        DropPoint, DropTarget, LoanTarget, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
-    };
-    let checked = ordinary(
-        "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent) }",
-    );
-    assert_accepted(&checked);
-    let fact = &checked.single.borrow_results().call_uses()[0];
-    let parent = &checked.single.borrow_results().bindings()[0];
-    assert_eq!(fact.parent(), Some(parent.binding()));
-    assert_eq!(fact.origin(), parent.origin());
-    assert_ne!(
-        checked.single.borrow_results().ends()[0].point(),
-        fact.end_point()
-    );
-    let fact = &checked.unit.borrow_results().call_uses()[0];
-    assert_eq!(
-        fact.parent(),
-        Some(checked.unit.borrow_results().bindings()[0].binding())
-    );
-    assert_ne!(
-        checked.unit.borrow_results().ends()[0].point(),
-        fact.end_point()
-    );
+    for rooted in [false, true] {
+        use lang_frontend::ownership_checking::{
+            DropPoint, DropTarget, LoanTarget, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
+        };
+        let checked = ordinary_entry(
+            "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent) }",
+            rooted,
+        );
+        assert_accepted(&checked);
+        let fact = &checked.single.borrow_results().call_uses()[0];
+        let parent = &checked.single.borrow_results().bindings()[0];
+        assert_eq!(fact.parent(), Some(parent.binding()));
+        assert_eq!(fact.origin(), parent.origin());
+        assert_ne!(
+            checked.single.borrow_results().ends()[0].point(),
+            fact.end_point()
+        );
+        let fact = &checked.unit.borrow_results().call_uses()[0];
+        assert_eq!(
+            fact.parent(),
+            Some(checked.unit.borrow_results().bindings()[0].binding())
+        );
+        assert_ne!(
+            checked.unit.borrow_results().ends()[0].point(),
+            fact.end_point()
+        );
 
-    let checked = ordinary("fun run() { val source = \"kept\"; observe(view(source)) }");
-    assert_accepted(&checked);
-    let fact = &checked.single.borrow_results().call_uses()[0];
-    let LoanTarget::Place(place) = fact.origin() else {
-        panic!("named source");
-    };
-    let drops: Vec<_> = checked
-        .single
-        .drops()
-        .iter()
-        .filter(|drop| drop.target() == DropTarget::Named(place.root()))
-        .collect();
-    assert_eq!(drops.len(), 1);
-    assert_eq!(drops[0].point(), DropPoint::CallReturn(fact.call()));
-    let fact = &checked.unit.borrow_results().call_uses()[0];
-    let UnitLoanTarget::Place(place) = fact.origin() else {
-        panic!("named source");
-    };
-    let drops: Vec<_> = checked
-        .unit
-        .drops()
-        .iter()
-        .filter(|drop| drop.target() == UnitDropTarget::Named(place.root()))
-        .collect();
-    assert_eq!(drops.len(), 1);
-    assert_eq!(drops[0].point(), UnitDropPoint::CallReturn(fact.call()));
+        let checked = ordinary_entry(
+            "fun run() { val source = \"kept\"; observe(view(source)) }",
+            rooted,
+        );
+        assert_accepted(&checked);
+        let fact = &checked.single.borrow_results().call_uses()[0];
+        let LoanTarget::Place(place) = fact.origin() else {
+            panic!("named source");
+        };
+        let drops: Vec<_> = checked
+            .single
+            .drops()
+            .iter()
+            .filter(|drop| drop.target() == DropTarget::Named(place.root()))
+            .collect();
+        assert_eq!(drops.len(), 1);
+        assert_eq!(drops[0].point(), DropPoint::CallReturn(fact.call()));
+        let fact = &checked.unit.borrow_results().call_uses()[0];
+        let UnitLoanTarget::Place(place) = fact.origin() else {
+            panic!("named source");
+        };
+        let drops: Vec<_> = checked
+            .unit
+            .drops()
+            .iter()
+            .filter(|drop| drop.target() == UnitDropTarget::Named(place.root()))
+            .collect();
+        assert_eq!(drops.len(), 1);
+        assert_eq!(drops[0].point(), UnitDropPoint::CallReturn(fact.call()));
+    }
 }
 
 #[test]
