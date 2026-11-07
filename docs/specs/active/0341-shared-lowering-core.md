@@ -3382,3 +3382,8 @@ Clippy（`-D warnings`）通过；未运行全量、native、校准、故障注�
 owner_transport lib过滤器95项通过、259项过滤，frontend all-targets Clippy -D warnings通过。
 fmt、849份Markdown、diff及相对2fd6bfb9尺寸检查通过，38个历史超长文件未增长。
 未运行全量、native、Abort、校准或宿主故障注入；正式组合发布头双宿主CI仍待验证。
+
+组合验收：`ddc1193e` 的 owner 95 项、borrow 27 项通过；all-targets Clippy 首次发现
+外部 API 编译消费者 `ownership_value_api` 缺少新 Swap 的穷尽匹配，故不能沿用分支 lint
+通过声明证明组合。补显式 Swap 两值匹配后，该目标 1 项与最终 all-targets Clippy 通过。
+合计 123 项定向测试；fmt、849 份 Markdown、diff及尺寸门禁通过。未以此替代正式 CI。

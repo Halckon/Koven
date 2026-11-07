@@ -32,6 +32,11 @@ fn value_api_is_nameable_and_matchable_without_private_modules() {
             | UnitOwnerValueEventV1::Bind(_, _, value)
             | UnitOwnerValueEventV1::Pending(_, _, value)
             | UnitOwnerValueEventV1::Drop(_, _, value) => value_kind(value),
+            UnitOwnerValueEventV1::Swap {
+                left_value,
+                right_value,
+                ..
+            } => value_kind(left_value) || value_kind(right_value),
             UnitOwnerValueEventV1::Replace {
                 previous, incoming, ..
             } => value_kind(previous) || value_kind(incoming),
