@@ -3427,3 +3427,29 @@ parameter 文本、origin 与同源 transfer 身份。原输入未改。named-so
 成功路径在全流中恰好一个其他实参结束，以及 nested borrow helper 的 outer-end 在
 source-end 之前。这些分别需要完整 absence、全流计数及全序；当前 bounded handoff/prefix
 观察无法等价替代。没有为扩大退休数量而删断言或将 result endpoint 当作 loan end。
+
+## 同控制点 call-loan 结束顺序观察（2026-11-07）
+
+前述普通 Return 混合辅助/source 切片只证明各自存在，不能证明二者先后。本片为
+`UnitDirectCallLoanEndFact` 与 `UnitBorrowCallPrefixEndFact` 增加
+`preceding_call_loan_ends()`：同轮分析、同 source-qualified point 下，producer 在当前动作前
+实际发布的 `EndCallLoan` 数。两种投影从同一 `iteration_actions` 计数，先计动作再按已有
+发布资格过滤，不从 loan descriptor、end_span 或公开切片位置推测。未公开 call-loan 动作
+也计入，因此编号可有空隙；不同 point/不同分析的数值不可比较。
+仅查询字段扩展；注册、token 退休、unwind、drop 次序、准入与错误/deferred 清空不变。
+不含 receiver/result/drop 动作，不是完整统一 cleanup 图、动态执行次数或全局事件流。
+
+已有 nested auxiliary Return 测试先因缺少 getter 编译失败，再以实际动作核
+auxiliary=0/source=1；新增双辅助 unwind=0/1/source=2、未公开 Exclusive 动作位于
+两观测事件间时 source=2，避免把过滤后切片位置冒充 producer 序号。
+sibling Return 各自归零，正常 CallReturn 双实参为0/1；既有 Return/Break/Continue 与
+错误/deferred 发布门控保持。前述正常嵌套借用结果 `outer-end < source-end` 的 Single
+见证仍不在该范围，本片不退休它或完整 absence/全流计数见证。
+
+本地 Mac Rust1.96、locked/offline、默认debug=2，9项不同普通定向测试通过
+（新增prefix_order两项、nested/sibling Return各一项、normal direct一项、三种控制转移
+组合一项、direct发布门控两项、borrow发布门控一项）；frontend all-targets Clippy通过。
+跨crate workspace all-targets check（LLVM21）、fmt、849份Markdown与diff检查通过；
+未运行全target/native/Abort/故障注入/校准。
+
+相对78a36f25尺寸门禁通过：2150份手写Rust、38份历史超长文件未增长；新顺序测试48行。

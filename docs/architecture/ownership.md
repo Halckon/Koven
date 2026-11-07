@@ -139,7 +139,7 @@ source-qualified reference/generation 与实际 assignment 身份约束 view、B
 替换后的新根不能沿旧 witness 取得提取资格。失败与回滚清除相应计划，未消费 temporary 仍由真实 drop facts 清理。
 单文件原 plan 保留 body/alternative 提取区分；Nothing 无正常出口，Abort 不展开析构。
 显式 borrow initializer 的 handoff 另发布真实退休的辅助 Shared owned 根 tokens；来源继续交接，非完整事件流，边界见 [SPEC-0341 辅助观察](../specs/active/0341-shared-lowering-core.md#借用返回的辅助实参结束观察2026-11-07)。
-调用前缀已建立的 loan 与 borrowed temporary 随 ValueState 分支传递，保持前序 owner 活到调用结束；四项 Return-prefix 消费者（含条件返回及嵌套辅助调用）改用[固定身份 oracle](../specs/active/0341-shared-lowering-core.md#return-prefix-固定-oracle-迁移2026-11-07)，continuation 的放弃 initializer 也由真实 prefix 承接，完整 absence/全流计数/跨切片顺序 Single 边界保留。
+调用前缀已建立的 loan 与 borrowed temporary 随 ValueState 分支传递，保持前序 owner 活到调用结束；四项 Return-prefix 消费者（含条件返回及嵌套辅助调用）改用[固定身份 oracle](../specs/active/0341-shared-lowering-core.md#return-prefix-固定-oracle-迁移2026-11-07)，continuation 的放弃 initializer 也由真实 prefix 承接，完整 absence/全流计数及正常嵌套结果的顺序 Single 边界保留；direct/prefix 同 point 的真实 call-loan 结束前序计数见[有界顺序观察](../specs/active/0341-shared-lowering-core.md#同控制点-call-loan-结束顺序观察2026-11-07)。
 `LoanEndFact` 区分 CallReturn 与 ControlTransfer，同边先结束 loan 再 drop。Unit 有界 direct declaration call 的 root/temporary、当前 owner/loan 与 frame 身份均须匹配。
 Unit `exclusive_call_prefix_ends()` 仅从实际 `EndCallLoan` 动作提取 return 放弃 Exclusive owned 名称根调用前缀事件，保留 source-qualified call/argument/target、控制点、事件顺序及同点先行普通 drop 数；不从 `end_span` 推断执行，Abort 不发布 unwind。
 观测片排除正常返回、break/continue、receiver、投影、provider 来源/绑定及借用结果；原 Shared 查询与 Single primitive witness 保留，不授予新的求值/cleanup/native 能力，不以静态事实充当动态计数。
