@@ -459,3 +459,16 @@ F11 仅关闭上列已复现入口；R2 的完整流事实、剩余旧入口消�
 对应 PR 运行。冲突限 active 索引、inventory 和四个依赖图生成物；保留双方三份新增 Spec
 的登记并由现有生成器重建图。主干改动的 52 个 crate 文件逐一与 `11130e16` 比较一致，
 没有额外生产代码冲突修订。§18 的实跑证据保留原 head/base 身份，新合流需重新验收。
+
+新候选 head `89d02823d23c4221ccb1301e326cb6c9d27a3f1d`，对应
+[PR #336 新基线 CI](https://github.com/Halckon/Koven/actions/runs/42344544786)，实际核心合流
+输入 `8c024fd4a281355fb33fb25dd12aa358690e40be`。本地合流后原失败 codegen 14 项、
+Range CLI 2 项与覆盖双入口的 F11 `check_cli` 1 项均通过，零失败/忽略；其他项按精确过滤。
+Linux 全部动态门禁通过：codegen lib 2660 passed、Range project CLI 46 passed、词频 40 条
+命令、conformance 138/154（同上列 known-unimplemented 分布）、native sanitizer 与生成资源。
+macOS 全部动态门禁通过：codegen lib 2659 passed、1 个既有 LLDB ignored，Range project
+CLI 46 passed，词频、conformance 与生成资源通过。双宿主 conformance 无回归、入口差异
+或内部错误；已知未实现能力与前一轮相同。两宿主 Check/Clippy 均通过。
+Ubuntu 24.04 / macOS 15 的 Preview producer 与 independent consumer 四项均通过，
+`Code CI Evidence` 和 `CI Passed` 成功，运行最终结论为 success。Editor job 按改动范围跳过；
+macOS 未执行 Linux 专属 sanitizer。R2/R3 的独立复审余项及 R4/R5 退出仍开放。
