@@ -2960,6 +2960,32 @@ all-targets Clippy（`-D warnings`）通过。官方 CI 尚未运行，本批仍
 云端同一工具链配置：完整 continuation14 与四目标组合31项无过滤通过；目标编译、
 all-targets Clippy（`-D warnings`）、fmt、文档与尺寸门禁通过。官方 CI 尚未运行。
 
+### 独立批次：构造与控制类型消费者（2026-11-07）
+
+基于 main `a56e1b17` 的独立 `feature/spec-0341-raw-type-followup`，不改 #335 分支、
+生产、Guide、loan-end 或 CI selector；按顶层诊断、构造、控制诊断与验收记录分提交。
+
+- 超大整数原 Single 仅 L0090、Unit 另有 L0167 的原因已定位到现行 Guide05 的
+  “顶层与关联命名空间的值声明”：普通顶层 val/var 必须拒绝，并允许继续检查 initializer。
+  这是现行 Unit 规则，不删诊断或改变源码位置来达成表面等价。新增一个五源码测试：原
+  顶层超大整数逐字复用，补 var、const、local 与无溢出邻居；两入口锁定完整诊断码顺序、
+  SourceId、精确 primary span 和 raw validate 拒绝。原 numeric_overflow Single witness 原样保留。
+- 八项构造测试迁移原 inference/trial、错误原子性、源码 Box/Rc identity、实参与 capability
+  诊断；三项控制测试迁移 assignment/capture 的 smart-cast 失效和 when 的覆盖/合并诊断。
+  共11项12份原 source、自定义环境和所有原 oracle 保留；UnitConstructionTarget::Nominal
+  与 UnitCallTarget::Symbol 只适配原源码目标身份，不改语义。
+- 同一重复解析 AST 使用实际 MemoryDocument/Rooted，核 source_id、key/root/path 与
+  expression facts 的 source-unit。名称验证后直接检查 raw types，不增加 final/ownership 前置。
+  原82项测试未删减，新增一项后目标83项；stage 仍整 target 选择，不改测试过滤或目标计数。
+- Mac AArch64、Rust1.96.0/default debug=2、locked/offline，迁移前12候选各 exact 通过；
+  最终 raw_followup 12项通过（71 filtered）、resource 邻控6项通过（77 filtered）、
+  原 overflow exact 1项通过（82 filtered），合计19项。仅复用本任务 target 串行执行。
+- 代码验收头 `4a2ad8c0`：frontend all-targets Clippy（`-D warnings`）、fmt、846份 Markdown、
+  尺寸和 diff 检查通过；独立只读审查核原源码/oracle、Unit身份映射、保留witness与selector
+  接线无阻断。主文件2123→1902行，新增文件全部低于1000行，旧尺寸欠账仅下降。
+- 全 target、Abort/故障注入/校准、native、Linux 与官方 CI 未运行；D10/E2 仍 in-progress，
+  本地定向结果不替代精确发布头双宿主 CI，不自动合并。
+
 ### 独立后续：nested-borrow 成功消费者双入口（2026-11-06）
 
 基于 main `8c9778aa`，不依赖待发布的 continuation 后续批次。三项原成功消费者的
