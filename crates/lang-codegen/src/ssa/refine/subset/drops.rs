@@ -1,7 +1,7 @@
 //! Every drop fact of the function must have a supported point and target in the subset.
 use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget},
-    type_checking::{Copyability, UnitExpressionId},
+    type_checking::{CallableResultSource, Copyability, UnitCallTarget, UnitExpressionId},
 };
 
 use super::Checker;
@@ -81,8 +81,10 @@ impl Checker<'_, '_> {
     }
 
     /// A pending argument a jump may abandon: a MoveOnly named owner or non-borrowed
-    /// temporary moved into a Value argument (borrowed temporaries stay outside: their
-    /// loan would be abandoned too).
+    /// temporary moved into a Value argument. A borrowed temporary stays outside unless the
+    /// legacy path can no longer lower its call: a function-value call (captured closures
+    /// lower only here) or a `RangeView` carrier call, whose loans the jump ends before the
+    /// temporary drops (SPEC-0393).
     fn pending_owner(&self, expression: UnitExpressionId) -> bool {
         if expression.source_unit() != self.inputs.source_unit {
             return false;
@@ -97,17 +99,28 @@ impl Checker<'_, '_> {
             return false;
         };
         let span = node.span();
-        let borrowed = self.inputs.owned.loans().iter().any(|loan| {
-            loan.argument().source_unit() == self.inputs.source_unit
-                && self
-                    .inputs
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .get(loan.argument().expression())
-                    .is_ok_and(|arg| {
+        // The innermost call lending the temporary decides.
+        let expressions = self.inputs.parsed.ast().expressions();
+        let lender = self
+            .inputs
+            .owned
+            .loans()
+            .iter()
+            .filter_map(|loan| {
+                (loan.argument().source_unit() == self.inputs.source_unit)
+                    .then(|| expressions.get(loan.argument().expression()).ok())
+                    .flatten()
+                    .filter(|arg| {
                         arg.span().start() <= span.start() && span.end() <= arg.span().end()
                     })
+                    .map(|arg| (arg.span().end() - arg.span().start(), loan.call()))
+            })
+            .min_by_key(|(width, _)| *width);
+        let borrowed = lender.is_some_and(|(_, call)| {
+            !self.inputs.typed.call(call).is_some_and(|call| {
+                call.target() == UnitCallTarget::FunctionValue
+                    || matches!(call.result_source(), CallableResultSource::Carrier(_))
+            })
         });
         !borrowed
             && self

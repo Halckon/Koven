@@ -96,6 +96,7 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
     for ty in signature_types {
         checker.note_nullable(ty);
         checker.migrated |= checker.container_element(ty).is_some()
+            || checker.range_view_element(ty).is_some()
             || checker.range_type(ty)
             || checker.box_payload(ty).is_some()
             || checker.enum_type(ty)
@@ -147,11 +148,9 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
                                         || checker.box_enum_type(ty)
                                         || checker.map_kv(ty).is_some()
                                         || checker.rc_payload(ty).is_some()
-                                        || (matches!(inputs.body, RefineBody::Lambda(_))
-                                            && matches!(
-                                                checker.kind(ty),
-                                                Some(UnitTypeKind::Nullable(inner)) if checker.storage_type(*inner)
-                                            ))
+                                        || ((matches!(inputs.body, RefineBody::Lambda(_))
+                                            || inputs.borrow_return.is_some())
+                                            && checker.nullable_storage(ty))
                                 }
                                 ParameterMode::Inout => {
                                     checker.copyability_of(ty) == Copyability::Copyable
@@ -162,6 +161,8 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
             })
         && (checker.unit(inputs.return_type)
             || checker.storage_type(inputs.return_type)
+            // A borrow-result function forwards a loan of a nullable owner unchanged.
+            || (inputs.borrow_return.is_some() && checker.nullable_storage(inputs.return_type))
             || checker.callable_return())
         && inputs.receiver.is_none_or(|receiver| match receiver.mode {
             ParameterMode::Value | ParameterMode::Borrow => {
@@ -453,12 +454,6 @@ impl Checker<'_, '_> {
             && typed.range_size(id).is_none()
             && typed.nullable_when(id).is_none()
             && !self.has_container_fact(expression)
-            && self.inputs.constant_owned.is_none_or(|owned| {
-                owned.short_circuit_at(id).is_none_or(|plan| {
-                    plan.rhs()
-                        == lang_frontend::ownership_checking::UnitShortCircuitRhs::Conditional
-                })
-            })
     }
 
     fn reference(&self, expression: ExpressionId) -> Option<UnitSymbolId> {

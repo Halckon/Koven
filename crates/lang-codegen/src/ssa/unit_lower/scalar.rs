@@ -308,49 +308,6 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    pub(super) fn lower_string_operation(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let descriptor = self
-            .typed
-            .string_operation(id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let receiver = descriptor.receiver();
-        if receiver.source_unit() != self.source_unit
-            || descriptor.kind() != lang_frontend::type_checking::StringOperationKind::Clone
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let receiver_span = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(receiver.expression())
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
-            .span();
-        let target = self.expression_ssa_type(receiver.expression(), receiver_span)?;
-        let (loan, created, _) =
-            self.lower_borrow_argument(id, receiver.expression(), target, receiver_span, span)?;
-        let ty = self.expression_ssa_type(expression, span)?;
-        let result = self.append_scalar(Operation::StringClone { source: loan }, ty, span)?;
-        for loan in created.into_iter().rev() {
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::BorrowEnd { loan },
-                    Vec::new(),
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        }
-        self.emit_drops(UnitDropPoint::AfterExpression(receiver))?;
-        self.emit_drops(UnitDropPoint::CallReturn(id))?;
-        Ok(result)
-    }
-
     pub(super) fn append_scalar(
         &mut self,
         operation: Operation,

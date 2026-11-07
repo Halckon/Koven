@@ -66,11 +66,36 @@ pub(super) fn only(function: &Function, predicate: impl Fn(&Instruction) -> bool
 }
 
 pub(super) fn definition(function: &Function, entity: EntityId) -> &Instruction {
-    let Definition::InstructionResult { instruction, .. } =
-        function.entity(entity).unwrap().definition
-    else {
-        panic!("expected operation result: {entity:?}")
-    };
+    // The refinement layer threads a value through join parameters; a parameter whose every
+    // incoming argument has one defining operation is that operation's value.
+    fn resolve(
+        function: &Function,
+        entity: EntityId,
+        depth: usize,
+    ) -> Option<crate::ssa::model::InstructionId> {
+        match function.entity(entity)?.definition {
+            Definition::InstructionResult { instruction, .. } => Some(instruction),
+            Definition::BlockParameter { block, index } if depth <= function.blocks.len() => {
+                let mut found = None;
+                for (_, edge) in edges(function)
+                    .into_iter()
+                    .filter(|(_, e)| e.target == block)
+                {
+                    let Some(incoming) = resolve(function, edge.arguments[index], depth + 1) else {
+                        continue;
+                    };
+                    if found.is_some_and(|known| known != incoming) {
+                        return None;
+                    }
+                    found = Some(incoming);
+                }
+                found
+            }
+            _ => None,
+        }
+    }
+    let instruction = resolve(function, entity, 0)
+        .unwrap_or_else(|| panic!("expected operation result: {entity:?}"));
     function.instruction(instruction).unwrap()
 }
 

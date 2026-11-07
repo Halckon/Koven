@@ -18,6 +18,37 @@ fn via(g: &Graph<'_>, edge: &Edge, input: &[EntityId]) -> Result<Vec<EntityId>, 
     )?;
     input.iter().map(|&e| g.transported(edge, e)).collect()
 }
+/// The exhaustion edge: the refinement layer drops roles dead after the loop (the cursor,
+/// a carried flag), the per-family path carries every role (SPEC-0394). Owner, source and
+/// the extra future owner stay mandatory.
+fn via_exhausted(
+    g: &Graph<'_>,
+    edge: &Edge,
+    input: &[EntityId],
+    optional: &[usize],
+) -> Result<Vec<Option<EntityId>>, Failure> {
+    let carried = edge.arguments.iter().copied().collect::<BTreeSet<_>>();
+    need(
+        edge.arguments.len() == carried.len()
+            && carried.iter().all(|e| input.contains(e))
+            && input
+                .iter()
+                .enumerate()
+                .all(|(index, e)| optional.contains(&index) || carried.contains(e)),
+        "update exhaustion edge carries every live role",
+        (edge, input),
+    )?;
+    input
+        .iter()
+        .map(|&e| {
+            if carried.contains(&e) {
+                g.transported(edge, e).map(Some)
+            } else {
+                Ok(None)
+            }
+        })
+        .collect()
+}
 pub(super) fn check<'a>(
     g: &Graph<'a>,
     module: &Module,
@@ -86,15 +117,38 @@ pub(super) fn check<'a>(
                 .iter(),
             "update provider original flag parameter",
         )?;
-        let current = one(
-            g.block(first.block)?
-                .parameters
-                .iter()
-                .copied()
-                .filter(|&e| g.anchored(e, &[original]).is_ok()),
-            "update actual current flag carried into provider",
-        )?;
-        initial.push(current);
+        let carried = g
+            .block(first.block)?
+            .parameters
+            .iter()
+            .copied()
+            .filter(|&e| g.anchored(e, &[original]).is_ok())
+            .collect::<Vec<_>>();
+        match carried.as_slice() {
+            [current] => initial.push(*current),
+            // The refinement layer stops carrying the Borrow flag after its last use, the
+            // `if` test: no provider block may still name it (SPEC-0394).
+            [] => need(
+                g.blocks.iter().all(|&block| {
+                    g.block(block).is_ok_and(|data| {
+                        data.parameters
+                            .iter()
+                            .all(|&e| e == original || g.anchored(e, &[original]).is_err())
+                    })
+                }) && !g.instructions.iter().any(|instruction| {
+                    instruction.block != g.function.entry_block().unwrap()
+                        && instruction.operation.entities().contains(&original)
+                }),
+                "update Borrow flag flow ends at its last use before the provider",
+                original,
+            )?,
+            _ => {
+                return Err(failure(
+                    "update actual current flag carried into provider",
+                    &carried,
+                ));
+            }
+        }
     }
     let entry = g.branch(first.block)?;
     let header = via(g, entry, &initial)?;
@@ -149,7 +203,11 @@ pub(super) fn check<'a>(
         has,
     )?;
     let current = via(g, when_true, &header)?;
-    let exhausted = via(g, when_false, &header)?;
+    let flag_index = (flag_in_provider && initial.len() > 3 + usize::from(extra_index.is_some()))
+        .then(|| initial.len() - 1);
+    let optional = std::iter::once(2).chain(flag_index).collect::<Vec<_>>();
+    let exhausted = via_exhausted(g, when_false, &header, &optional)?;
+    let mandatory = |index: usize| exhausted[index].expect("mandatory exhaustion role");
     let [_, EntityId::Loan(bs), EntityId::Value(bc), ..] = current.as_slice() else {
         return Err(failure("update actual body source/cursor roles", &current));
     };
@@ -188,7 +246,7 @@ pub(super) fn check<'a>(
     g.incoming_from(has.block, &[first.block, next.block])?;
     g.incoming_from(next.block, &[has.block])?;
     g.incoming_from(when_false.target, &[has.block])?;
-    let EntityId::Loan(es) = exhausted[1] else {
+    let EntityId::Loan(es) = mandatory(1) else {
         unreachable!()
     };
     let end = one(
@@ -205,26 +263,38 @@ pub(super) fn check<'a>(
         "update current source lease ends first at real exhaustion",
         end,
     )?;
-    let source_entities = [initial[1], header[1], current[1], exhausted[1]]
+    let source_entities = [initial[1], header[1], current[1], mandatory(1)]
         .into_iter()
         .collect::<BTreeSet<_>>();
     need(g.instructions.iter().filter(|op|matches!(op.operation,Operation::BorrowEnd{loan}if source_entities.contains(&EntityId::Loan(loan)))).count()==1,"update no stale pre/header/body source loan End",&source_entities)?;
-    for roles in [&initial, &header, &current, &exhausted] {
-        g.anchored(roles[0], &[owner])?;
-        g.anchored(roles[1], &[initial[1]])?;
-        g.anchored(roles[2], &[result(first)?, result(next)?])?;
+    let all = |roles: &[EntityId]| roles.iter().copied().map(Some).collect::<Vec<_>>();
+    for roles in [
+        all(&initial),
+        all(&header),
+        all(&current),
+        exhausted.clone(),
+    ] {
+        let (Some(owner_role), Some(source_role)) = (roles[0], roles[1]) else {
+            unreachable!()
+        };
+        g.anchored(owner_role, &[owner])?;
+        g.anchored(source_role, &[initial[1]])?;
+        if let Some(cursor) = roles[2] {
+            g.anchored(cursor, &[result(first)?, result(next)?])?;
+        }
         need(
-            g.function.entity(roles[0]).unwrap().ty == EntityType::Value(map)
-                && g.function.entity(roles[1]).unwrap().ty
+            g.function.entity(owner_role).unwrap().ty == EntityType::Value(map)
+                && g.function.entity(source_role).unwrap().ty
                     == EntityType::Loan {
                         kind: LoanKind::Shared,
                         target: map,
                     }
-                && matches!(g.function.entity(roles[2]).unwrap().ty,EntityType::Value(t)if module.type_kind(t)==Some(&SsaTypeKind::Integer{bits:64,signed:false})),
+                && roles[2].is_none_or(|cursor| matches!(g.function.entity(cursor).unwrap().ty,EntityType::Value(t)if module.type_kind(t)==Some(&SsaTypeKind::Integer{bits:64,signed:false}))),
             "update exact represented owner/source/cursor types",
-            roles,
+            &roles,
         )?;
-        for (index, &entity) in roles.iter().enumerate() {
+        for (index, entity) in roles.iter().enumerate() {
+            let Some(entity) = *entity else { continue };
             uses.protect(entity);
             if index >= 3 {
                 g.anchored(entity, &[initial[index]])?;
@@ -240,8 +310,8 @@ pub(super) fn check<'a>(
         }
     }
     Ok(Carried {
-        owner: exhausted[0],
-        extra: extra_index.map(|index| exhausted[index]),
+        owner: mandatory(0),
+        extra: extra_index.map(mandatory),
         block: when_false.target,
         blocks: [first.block, has.block, next.block, when_false.target],
         end,

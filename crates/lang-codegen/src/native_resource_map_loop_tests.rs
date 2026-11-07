@@ -172,26 +172,36 @@ fn assert_loop_protocol(source: &UnitSource, name: &str) -> (Program, FunctionId
                         removed,
                         "proofs depend on this removed owner, not the map or source provider"
                     );
-                    assert!(matches!(
-                        function
-                            .block(when_null.target)
-                            .unwrap()
-                            .terminator
-                            .as_ref()
-                            .map(|term| &term.kind),
-                        Some(TerminatorKind::Abort)
-                    ));
-                    Some(*view)
+                    Some((*view, when_null.target))
                 }
                 _ => None,
             },
         )
         .collect::<Vec<_>>();
-    assert_eq!(
-        views.len(),
-        2,
-        "two call views, not a persistent loop proof"
+    // Per-family lowering re-proves the removed owner at each call (two call views whose
+    // null edge aborts); the refinement layer proves it once at the `if` and lends that
+    // view to both calls, the null edge entering the `else` arm (SPEC-0394).
+    let persistent = views.len() == 1;
+    assert!(
+        persistent || views.len() == 2,
+        "one persistent `if` proof or two call views: {views:?}"
     );
+    for (_, when_null) in &views {
+        let aborts = matches!(
+            function
+                .block(*when_null)
+                .unwrap()
+                .terminator
+                .as_ref()
+                .map(|term| &term.kind),
+            Some(TerminatorKind::Abort)
+        );
+        assert_eq!(
+            aborts, !persistent,
+            "call proofs abort on null; the `if` proof does not"
+        );
+    }
+    let views = views.into_iter().map(|(view, _)| view).collect::<Vec<_>>();
     let calls = function
         .instructions
         .iter()
@@ -221,11 +231,19 @@ fn assert_loop_protocol(source: &UnitSource, name: &str) -> (Program, FunctionId
             *roots.first().unwrap()
         })
         .collect::<Vec<_>>();
-    assert_eq!(
-        actual_views, views,
-        "the first pending view crosses the second proof branch without swapping identities"
-    );
-    for (call, loans) in calls {
+    if persistent {
+        assert!(
+            actual_views.iter().all(|view| *view == views[0]),
+            "every call borrows the one `if` proof view"
+        );
+    } else {
+        assert_eq!(
+            actual_views, views,
+            "the first pending view crosses the second proof branch without swapping identities"
+        );
+    }
+    // A persistent proof view outlives each call; only call views end right after their call.
+    for (call, loans) in calls.into_iter().filter(|_| !persistent) {
         let block = function.block(call.block).unwrap();
         let at = block
             .instructions
@@ -337,9 +355,10 @@ fn assert_loop_protocol(source: &UnitSource, name: &str) -> (Program, FunctionId
             stores += 1;
         }
     }
-    assert_eq!(slots, 2);
+    assert_eq!(slots, views.len());
     assert_eq!(
-        stores, 2,
+        stores,
+        views.len(),
         "each static branch refreshes its current handle on every execution"
     );
     (program, id)
@@ -532,12 +551,6 @@ fn resource_remove_loop_two_pending_views_end_before_each_early_exit() {
                         })
             })
             .collect::<Vec<_>>();
-        assert_eq!(
-            ending.len(),
-            2,
-            "only the two current call views end on the interrupted path"
-        );
-        assert_eq!(ending[0].block, ending[1].block);
         let views = function
             .blocks
             .iter()
@@ -548,6 +561,18 @@ fn resource_remove_loop_two_pending_views_end_before_each_early_exit() {
                 },
             )
             .collect::<Vec<_>>();
+        // Two call views end on the interrupted path, or the one persistent `if` proof view
+        // the refinement layer lends to both operands (SPEC-0394).
+        assert!(
+            matches!(views.len(), 1 | 2),
+            "one `if` proof or two call views: {views:?}"
+        );
+        assert_eq!(
+            ending.len(),
+            views.len(),
+            "only the current proof views end on the interrupted path"
+        );
+        assert!(ending.iter().all(|end| end.block == ending[0].block));
         for (instruction, expected) in ending.iter().zip(views.iter().rev()) {
             let Operation::BorrowEnd { loan } = instruction.operation else {
                 unreachable!()
@@ -566,13 +591,28 @@ fn resource_remove_loop_two_pending_views_end_before_each_early_exit() {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(
-            ending
-                .iter()
-                .map(|instruction| instruction.origin.span())
-                .collect::<Vec<_>>(),
-            end_spans
-        );
+        if views.len() == 2 {
+            assert_eq!(
+                ending
+                    .iter()
+                    .map(|instruction| instruction.origin.span())
+                    .collect::<Vec<_>>(),
+                end_spans
+            );
+        } else {
+            // Both published operand ends name the call; the one view ends at the jump
+            // inside its argument.
+            let end = ending[0].origin.span();
+            assert!(
+                end_spans.len() == 2
+                    && end_spans.iter().all(|span| {
+                        span.source_id() == end.source_id()
+                            && span.start() <= end.start()
+                            && end.end() <= span.end()
+                    }),
+                "{end_spans:?} vs {end:?}"
+            );
+        }
         let block = function.block(ending[0].block).unwrap();
         let drop = block
             .instructions
@@ -585,7 +625,7 @@ fn resource_remove_loop_two_pending_views_end_before_each_early_exit() {
         let second_end = block
             .instructions
             .iter()
-            .position(|id| *id == ending[1].id)
+            .position(|id| *id == ending[ending.len() - 1].id)
             .unwrap();
         assert!(
             second_end < drop,
@@ -624,7 +664,7 @@ fn resource_remove_loop_unqualified_loop_and_payload_remain_precise_boundaries()
         ORIGINAL.replace("deinit() { println(\"drop\") }", ""),
         interrupted("loop { break }; 0"),
     ] {
-        let source = analyzed(&text);
+        let source = analyzed(&crate::test_support::per_family_source(&text));
         let error = crate::ssa::with_per_family_lowering(|| source.lower_entry(source.entry()))
             .err()
             .expect("outside the bounded Resource for slice");

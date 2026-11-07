@@ -163,7 +163,10 @@ fn map_operand_last_use_unit_basic_baseline() {
             assert_unit(
                 &source(kind, live),
                 false,
-                !matches!(kind, "independent-nullable" | "no-map"),
+                // SPEC-0394: the `String.clone()` puts move `updatingOperand` into the
+                // refinement layer, which lowers the temporary nullable comparison; without
+                // a Map ("no-map") the per-family boundary remains.
+                kind != "no-map",
             );
         }
     }
@@ -183,7 +186,10 @@ fn map_operand_last_use_unit_constant_baseline() {
             assert_unit(
                 &source(kind, live),
                 true,
-                !matches!(kind, "independent-nullable" | "no-map"),
+                // SPEC-0394: the `String.clone()` puts move `updatingOperand` into the
+                // refinement layer, which lowers the temporary nullable comparison; without
+                // a Map ("no-map") the per-family boundary remains.
+                kind != "no-map",
             );
         }
     }

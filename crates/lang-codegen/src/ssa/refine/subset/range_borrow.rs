@@ -86,6 +86,14 @@ impl Checker<'_, '_> {
                 .non_null_assertion(id)
                 .is_some_and(|d| self.map_kv(self.c(d.inner_type())).is_some())
             || typed.rc_operation(id).is_some()
+            // `RangeView.size` (SPEC-0393) and `String.clone()` (SPEC-0394) lower only here.
+            || typed.range_size(id).is_some()
+            || typed.string_operation(id).is_some()
+            // Borrow-result and `RangeView` calls lower only here (SPEC-0393).
+            || typed.call(id).is_some_and(|call| {
+                call.borrow_return().is_some()
+                    || matches!(call.result_source(), CallableResultSource::Carrier(_))
+            })
             || typed.integer_operation(id).is_some()
             || typed.integer_range_operation(id).is_some()
             || typed.map_with_value(id).is_some()
@@ -179,19 +187,11 @@ impl Checker<'_, '_> {
         self.storage_type_seen(*element, active).then_some(*element)
     }
 
-    fn unit_has_standalone_map_consume(&self) -> bool {
-        !self.inputs.owned.borrow_return_origins().is_empty()
-            && !self.inputs.typed.map_consumes().is_empty()
-    }
-
     pub(super) fn local_borrow_binding(
         &mut self,
         symbol: UnitSymbolId,
         initializer: ExpressionId,
     ) -> bool {
-        if !self.scope_requires_refine() && !self.unit_has_standalone_map_consume() {
-            return false;
-        }
         let id = self.id(initializer);
         let Some(fact) = self
             .inputs
@@ -208,6 +208,16 @@ impl Checker<'_, '_> {
             return false;
         };
         if place.element().is_some() {
+            return false;
+        }
+        // A direct alias of a Borrow parameter stays on the per-family path that the legacy
+        // `Map` borrowed iteration shares, unless the scope already needs this layer.
+        if fact.storage() == BorrowBindingStorage::BorrowedStorage
+            && fact.source_loan().is_none()
+            && place.is_root()
+            && self.parameter_mode(place.root()) == Some(ParameterMode::Borrow)
+            && !self.scope_requires_refine()
+        {
             return false;
         }
         if fact.storage() == BorrowBindingStorage::NewRangeDescriptor {
@@ -236,7 +246,7 @@ impl Checker<'_, '_> {
         let Some(declared) = self.symbol_type(symbol) else {
             return false;
         };
-        if !self.storage_type(declared) {
+        if !self.storage_type(declared) && !self.nullable_storage(declared) {
             return false;
         }
         let ok = match fact.source_loan() {
@@ -423,7 +433,9 @@ impl Checker<'_, '_> {
             let Some(src_ty) = self.expression_type(src) else {
                 return false;
             };
-            return self.container_element(src_ty) == Some(elem_ty)
+            // The source is the root container or a view of it (`take(view, n)`).
+            return (self.container_element(src_ty) == Some(elem_ty)
+                || self.range_view_element(src_ty) == Some(elem_ty))
                 && (self.borrowed_move_only_name(src, src_ty) || self.expression(src))
                 && self.expression(arguments[1].value)
                 && self.expression(arguments[2].value);
@@ -440,9 +452,6 @@ impl Checker<'_, '_> {
     }
 
     pub(super) fn range_size(&mut self, expression: ExpressionId) -> bool {
-        if !self.unit_requires_refine() {
-            return false;
-        }
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.range_size(id) else {
             return false;
@@ -456,6 +465,25 @@ impl Checker<'_, '_> {
             return false;
         }
         let root = self.ungrouped(descriptor.receiver().expression());
+        // `this.size` in a `View<T>` receiver function reads the receiver loan.
+        if self.reference(root).is_none()
+            && matches!(
+                self.inputs
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(root)
+                    .map(|node| node.payload()),
+                Ok(Expression::This)
+            )
+        {
+            let ok = self.inputs.receiver.is_some_and(|receiver| {
+                receiver.mode == ParameterMode::Borrow
+                    && self.range_view_element(receiver.ty).is_some()
+            });
+            self.migrated |= ok;
+            return ok;
+        }
         let Some(symbol) = self.reference(root) else {
             return false;
         };
@@ -474,9 +502,6 @@ impl Checker<'_, '_> {
         source: ExpressionId,
         body: StatementId,
     ) -> bool {
-        if !self.unit_requires_refine() {
-            return false;
-        }
         let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
         let Some(plan) = self.inputs.owned.iteration(statement_id) else {
             return false;
@@ -489,7 +514,9 @@ impl Checker<'_, '_> {
             || descriptor.source() != source_id
             || !matches!(
                 plan.source_access(),
-                UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Shared
+                UnitIterationSourceAccess::Owned
+                    | UnitIterationSourceAccess::Shared
+                    | UnitIterationSourceAccess::Temporary
             )
         {
             return false;
@@ -581,9 +608,6 @@ impl Checker<'_, '_> {
         call: ExpressionId,
         argument: ExpressionId,
     ) -> bool {
-        if !self.scope_requires_refine() {
-            return false;
-        }
         let call_id = self.id(call);
         let argument_id = self.id(argument);
         let Some(fact) = self
@@ -608,7 +632,7 @@ impl Checker<'_, '_> {
         argument: ExpressionId,
         parameter: UnitTypeId,
     ) -> bool {
-        if !self.scope_requires_refine() || self.range_view_element(parameter).is_none() {
+        if self.range_view_element(parameter).is_none() {
             return false;
         }
         let actual = self.ungrouped(argument);
@@ -633,9 +657,7 @@ impl Checker<'_, '_> {
         control_expr: ExpressionId,
         value_expr: ExpressionId,
     ) -> bool {
-        if self.inputs.borrow_return.is_none()
-            || (!self.unit_requires_refine() && !self.unit_has_standalone_map_consume())
-        {
+        if self.inputs.borrow_return.is_none() {
             return false;
         }
         let return_id = self.id(control_expr);
@@ -682,7 +704,7 @@ impl Checker<'_, '_> {
         control_expr: ExpressionId,
         value_expr: ExpressionId,
     ) -> bool {
-        if !self.unit_requires_refine() || self.inputs.carrier_return.is_none() {
+        if self.inputs.carrier_return.is_none() {
             return false;
         }
         let return_id = self.id(control_expr);

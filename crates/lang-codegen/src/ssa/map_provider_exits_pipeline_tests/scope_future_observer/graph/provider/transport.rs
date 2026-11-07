@@ -24,6 +24,32 @@ fn via(g: &Graph<'_>, edge: &Edge, roles: [EntityId; 3]) -> Result<[EntityId; 3]
         g.transported(edge, roles[2])?,
     ])
 }
+/// The exhaustion edge carries owner and source; the refinement layer drops the dead
+/// cursor there, the per-family path carries it too (SPEC-0394).
+fn via_exhausted(
+    g: &Graph<'_>,
+    edge: &Edge,
+    roles: [EntityId; 3],
+) -> Result<([EntityId; 2], Option<EntityId>), Failure> {
+    if edge.arguments.len() == 3 {
+        let [owner, source, cursor] = via(g, edge, roles)?;
+        return Ok(([owner, source], Some(cursor)));
+    }
+    need(
+        edge.arguments.len() == 2
+            && edge.arguments.iter().copied().collect::<BTreeSet<_>>()
+                == [roles[0], roles[1]].into_iter().collect(),
+        "D exhaustion edge carries exactly current owner/source",
+        (edge, roles),
+    )?;
+    Ok((
+        [
+            g.transported(edge, roles[0])?,
+            g.transported(edge, roles[1])?,
+        ],
+        None,
+    ))
+}
 pub(super) fn check<'a>(
     g: &Graph<'a>,
     m: &Module,
@@ -119,7 +145,7 @@ pub(super) fn check<'a>(
         has,
     )?;
     let current = via(g, when_true, header)?;
-    let exhausted = via(g, when_false, header)?;
+    let (exhausted, exhausted_cursor) = via_exhausted(g, when_false, header)?;
     let [_, EntityId::Loan(bs), EntityId::Value(bc)] = current else {
         return Err(failure("D exact body roles", current));
     };
@@ -174,10 +200,14 @@ pub(super) fn check<'a>(
         .into_iter()
         .collect::<BTreeSet<_>>();
     need(g.instructions.iter().filter(|op|matches!(op.operation,Operation::BorrowEnd{loan}if sources.contains(&EntityId::Loan(loan)))).count()==1,"D no stale earlier provider source End",&sources)?;
-    for roles in [initial, header, current, exhausted] {
+    let mut role_sets = vec![initial.to_vec(), header.to_vec(), current.to_vec()];
+    role_sets.push(exhausted.into_iter().chain(exhausted_cursor).collect());
+    for roles in &role_sets {
         g.anchored(roles[0], &[owner])?;
         g.anchored(roles[1], &[initial[1]])?;
-        g.anchored(roles[2], &[result(first)?, result(next)?])?;
+        if let Some(&cursor) = roles.get(2) {
+            g.anchored(cursor, &[result(first)?, result(next)?])?;
+        }
         need(
             g.function.entity(roles[0]).unwrap().ty == EntityType::Value(map)
                 && g.function.entity(roles[1]).unwrap().ty
@@ -185,11 +215,11 @@ pub(super) fn check<'a>(
                         kind: LoanKind::Shared,
                         target: map,
                     }
-                && matches!(g.function.entity(roles[2]).unwrap().ty,EntityType::Value(t)if m.type_kind(t)==Some(&SsaTypeKind::Integer{bits:64,signed:false})),
+                && roles.get(2).is_none_or(|&cursor| matches!(g.function.entity(cursor).unwrap().ty,EntityType::Value(t)if m.type_kind(t)==Some(&SsaTypeKind::Integer{bits:64,signed:false}))),
             "D exact represented current owner/source/cursor types",
             roles,
         )?;
-        for e in roles {
+        for &e in roles {
             uses.protect(e);
         }
     }
@@ -202,7 +232,7 @@ pub(super) fn check<'a>(
         }
     }
     let mut map_entities = BTreeSet::from([result(root)?]);
-    for roles in [initial, header, current, exhausted] {
+    for roles in &role_sets {
         map_entities.extend([roles[0], roles[1]]);
     }
     Ok(Carried {

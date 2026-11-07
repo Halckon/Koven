@@ -17,7 +17,7 @@ use lang_frontend::{
 use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::{EntityType, LoanKind, SsaTypeId, SsaTypeKind},
+    model::{EntityType, LoanKind, SsaTypeKind},
     refine::body::{ROp, RTerm, Slot},
 };
 
@@ -131,8 +131,16 @@ impl Builder<'_, '_> {
             .filter(|fact| fact.point() == point)
             .copied()
             .collect();
+        // A control transfer ends the bindings on its own path only; the fall-through path
+        // still holds them (SPEC-0393).
+        let transfer = matches!(point, UnitDropPoint::ControlTransfer(_));
         for fact in ends {
-            let Some(loan) = self.borrowed.remove(&fact.binding()) else {
+            let loan = if transfer {
+                self.borrowed.get(&fact.binding()).copied()
+            } else {
+                self.borrowed.remove(&fact.binding())
+            };
+            let Some(loan) = loan else {
                 continue;
             };
             let span = self
@@ -143,12 +151,22 @@ impl Builder<'_, '_> {
                 .iter()
                 .find(|b| b.binding() == fact.binding())
                 .map_or(self.inputs.span, |b| b.marker_span());
-            if let Some(view) = self.range_views.remove(&fact.binding()) {
+            let view = if transfer {
+                self.range_views.get(&fact.binding()).copied()
+            } else {
+                self.range_views.remove(&fact.binding())
+            };
+            if let Some(view) = view {
                 self.push(ROp::RangeEnd { view, source: loan }, Vec::new(), span)?;
             } else {
                 self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
             }
-            if let Some(sources) = self.result_source_loans.remove(&fact.binding()) {
+            let sources = if transfer {
+                self.result_source_loans.get(&fact.binding()).cloned()
+            } else {
+                self.result_source_loans.remove(&fact.binding())
+            };
+            if let Some(sources) = sources {
                 for source in sources.into_iter().rev() {
                     self.push(ROp::BorrowEnd { loan: source }, Vec::new(), span)?;
                 }
@@ -287,6 +305,33 @@ impl Builder<'_, '_> {
             .source_plan
             .call_site(self.inputs.source_token, id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if self
+            .inputs
+            .owned
+            .borrow_results()
+            .range_uses()
+            .iter()
+            .any(|fact| fact.site() == RangeUseSite::Call(id))
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, call_span));
+        }
+        if self.inputs.owned.field_replacements().is_empty()
+            && self.inputs.typed.ownership_primitives().is_empty()
+        {
+            crate::ssa::borrow_result_support::binding(
+                self.inputs.parsed,
+                call_span,
+                false,
+                &[],
+                None,
+                |_| None,
+                |_, _| false,
+                |_| false,
+            )?;
+            for argument in &arguments {
+                crate::ssa::borrow_result_support::argument(self.inputs.parsed, argument.span)?;
+            }
+        }
         let callee = *self
             .inputs
             .function_ids
@@ -767,13 +812,11 @@ impl Builder<'_, '_> {
         loan: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let short_id = self
+        let short_view = self
             .short_ranges
-            .iter()
-            .find_map(|(&id, &(_, protecting, _))| (protecting == loan).then_some(id));
-        if let Some(id) = short_id
-            && let Some((view, _, _)) = self.short_ranges.remove(&id)
-        {
+            .values()
+            .find_map(|&(view, protecting, _)| (protecting == loan).then_some(view));
+        if let Some(view) = short_view {
             self.push(ROp::RangeEnd { view, source: loan }, Vec::new(), span)
         } else {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)
@@ -787,7 +830,7 @@ impl Builder<'_, '_> {
     ) -> Result<(), LoweringError> {
         let actual = self.ungrouped_expr(expression)?;
         let id = self.unit(actual);
-        let Some((view, protecting, continued)) = self.short_ranges.remove(&id) else {
+        let Some((view, protecting, continued)) = self.short_ranges.get(&id).cloned() else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
         self.push(
@@ -802,101 +845,6 @@ impl Builder<'_, '_> {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
         }
         Ok(())
-    }
-
-    pub(super) fn range_iteration_loan(
-        &mut self,
-        source: ExpressionId,
-        ty: SsaTypeId,
-        span: Span,
-    ) -> Result<Option<Slot>, LoweringError> {
-        let actual = self.ungrouped_expr(source)?;
-        let id = self.unit(actual);
-        if self
-            .inputs
-            .owned
-            .borrow_results()
-            .range_uses()
-            .iter()
-            .any(|fact| fact.expression() == id && fact.site() == RangeUseSite::Iteration)
-        {
-            let Some((view, protecting, continued)) = self.lower_range_call(actual, span)? else {
-                return Ok(None);
-            };
-            self.short_ranges.insert(id, (view, protecting, continued));
-            let place = self.value(ROp::RootPlace { owner: view }, EntityType::Place(ty), span)?;
-            let loan = self.value(
-                ROp::BorrowBegin {
-                    place,
-                    kind: LoanKind::Shared,
-                },
-                EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target: ty,
-                },
-                span,
-            )?;
-            return Ok(Some(loan));
-        }
-        let symbol = self.named_container_symbol(source, span)?;
-        if let Some(&view) = self.range_views.get(&symbol) {
-            let place = self.value(ROp::RootPlace { owner: view }, EntityType::Place(ty), span)?;
-            let loan = self.value(
-                ROp::BorrowBegin {
-                    place,
-                    kind: LoanKind::Shared,
-                },
-                EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target: ty,
-                },
-                span,
-            )?;
-            return Ok(Some(loan));
-        }
-        let caller_loan = *self
-            .borrowed
-            .get(&symbol)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let loan = self.value(
-            ROp::SharedReborrow {
-                source: caller_loan,
-            },
-            EntityType::Loan {
-                kind: LoanKind::Shared,
-                target: ty,
-            },
-            span,
-        )?;
-        Ok(Some(loan))
-    }
-
-    pub(super) fn lower_range_size(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let id = self.unit(expression);
-        let descriptor = self
-            .inputs
-            .typed
-            .range_size(id)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let symbol = self.named_container_symbol(descriptor.receiver().expression(), span)?;
-        let view = self
-            .range_views
-            .get(&symbol)
-            .or_else(|| self.borrowed.get(&symbol))
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let result_ty = self.ssa_type(self.expression_type(expression)?, span)?;
-        let result = self.value(
-            ROp::RangeLength { view },
-            EntityType::Value(result_ty),
-            span,
-        )?;
-        self.drops(UnitDropPoint::CallReturn(id))?;
-        Ok(Lowered::Value(result))
     }
 
     pub(super) fn lower_borrow_return(

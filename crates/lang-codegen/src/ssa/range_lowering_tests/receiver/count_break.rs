@@ -473,13 +473,16 @@ pub(super) fn assert_count_break_structure(
     assert_eq!(next.block, call_block.id);
     let body_cursor = incoming(when_false, EntityId::Value(left));
     assert_eq!(incoming(body, body_cursor), EntityId::Value(cursor));
-    let step = count_break_instruction(function, |instruction| {
-        instruction.results.as_slice() == [EntityId::Value(right)]
-    });
-    assert_eq!(
-        step.operation,
-        Operation::Constant(ScalarConstant::Integer(1))
-    );
+    // The step may reach the add through the loop header's parameters (refinement layer).
+    for origin in count_break_origins(function, EntityId::Value(right)) {
+        let step = count_break_instruction(function, |instruction| {
+            instruction.results.as_slice() == [origin]
+        });
+        assert_eq!(
+            step.operation,
+            Operation::Constant(ScalarConstant::Integer(1))
+        );
+    }
     let exhausted = function.block(exhausted.target).unwrap();
     let exhaustion_end = end(exhausted, provider_loan);
     let drops = function
