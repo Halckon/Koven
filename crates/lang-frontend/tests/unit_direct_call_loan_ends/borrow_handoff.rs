@@ -698,6 +698,8 @@ fn sibling_return_edges_keep_distinct_source_tokens_and_cleanup_points() {
         assert_ne!(first.loan().call(), second.loan().call());
         assert_ne!(first.loan().argument(), second.loan().argument());
         assert_ne!(first.point(), second.point());
+        assert_eq!(first.preceding_call_loan_ends(), 0);
+        assert_eq!(second.preceding_call_loan_ends(), 0);
         assert_eq!(first.loan().target(), second.loan().target());
         for event in [first, second] {
             let UnitLoanTarget::Place(place) = event.loan().target() else {
@@ -803,6 +805,8 @@ fn nested_auxiliary_return_preserves_source_end_and_temporary_cleanup() {
         assert_eq!(event.loan().kind(), LoanKind::Shared);
         assert!(unit.loans().contains(event.loan()));
         assert!(unit.loans().contains(auxiliary.loan()));
-        // Separate slices do not establish a total order between these two ends.
+        // Same-point producer ranks prove auxiliary-before-source without a global order.
+        assert_eq!(auxiliary.preceding_call_loan_ends(), 0);
+        assert_eq!(event.preceding_call_loan_ends(), 1);
     }
 }

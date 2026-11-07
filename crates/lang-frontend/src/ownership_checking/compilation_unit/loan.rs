@@ -95,6 +95,7 @@ pub struct UnitDirectCallLoanEndFact {
     pub(super) loan: UnitLoanFact,
     pub(super) point: UnitDropPoint,
     pub(super) preceding_drops: usize,
+    pub(super) preceding_call_loan_ends: usize,
 }
 
 impl UnitDirectCallLoanEndFact {
@@ -115,6 +116,13 @@ impl UnitDirectCallLoanEndFact {
     #[must_use]
     pub const fn preceding_drops(&self) -> usize {
         self.preceding_drops
+    }
+    /// 同一分析、同 source-qualified point 中先于此事件的实际 EndCallLoan 动作数。
+    /// 可跨 direct/prefix 切片比较同点顺序；含未公开的 call-loan 动作，编号可能有空隙。
+    /// 不含 receiver/result/drop 动作，不是全局执行索引或完整 loan-end 流。
+    #[must_use]
+    pub const fn preceding_call_loan_ends(&self) -> usize {
+        self.preceding_call_loan_ends
     }
 }
 
@@ -190,6 +198,7 @@ pub struct UnitBorrowCallPrefixEndFact {
     pub(super) loan: UnitLoanFact,
     pub(super) point: UnitDropPoint,
     pub(super) preceding_drops: usize,
+    pub(super) preceding_call_loan_ends: usize,
 }
 
 impl UnitBorrowCallPrefixEndFact {
@@ -210,5 +219,12 @@ impl UnitBorrowCallPrefixEndFact {
     #[must_use]
     pub const fn preceding_drops(&self) -> usize {
         self.preceding_drops
+    }
+    /// 同一分析、同 source-qualified point 中先于此事件的实际 EndCallLoan 动作数。
+    /// 可跨 direct/prefix 切片比较同点顺序；含未公开的 call-loan 动作，编号可能有空隙。
+    /// 不含 receiver/result/drop 动作，不是全局执行索引或完整 loan-end 流。
+    #[must_use]
+    pub const fn preceding_call_loan_ends(&self) -> usize {
+        self.preceding_call_loan_ends
     }
 }

@@ -261,6 +261,8 @@ fn direct_and_grouped_root_arguments_end_once_at_call_return() {
     for unit in &observed.units {
         let ends = unit.direct_call_loan_ends();
         assert_eq!(ends.len(), 2);
+        assert_eq!(ends[0].preceding_call_loan_ends(), 0);
+        assert_eq!(ends[1].preceding_call_loan_ends(), 1);
         assert!(
             ends.iter()
                 .all(|end| end.point() == UnitDropPoint::CallReturn(end.loan().call()))
@@ -859,3 +861,6 @@ mod normal_oracle;
 
 #[path = "unit_direct_call_loan_ends/prefix_oracle.rs"]
 mod prefix_oracle;
+
+#[path = "unit_direct_call_loan_ends/prefix_order.rs"]
+mod prefix_order;
