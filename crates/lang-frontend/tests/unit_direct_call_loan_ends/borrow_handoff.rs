@@ -1,7 +1,7 @@
 //! A normal-return handoff is not a complete loan-end stream.
 use super::*;
 
-fn assert_handoff_identity(observed: &Observed) {
+pub(super) fn assert_handoff_identity(observed: &Observed) {
     for (entry, (unit, names)) in observed.units.iter().zip(&observed.unit_names).enumerate() {
         let [indexed] = names.names().index().source_units() else {
             panic!("one source")
@@ -77,12 +77,10 @@ const VIEW: &str = "fun view(source: String): borrow String from source = source
 
 #[test]
 fn direct_binding_keeps_its_owner_until_the_result_endpoint() {
-    let observed = observe_with_legacy(&format!(
+    let (observed, single) = observe_with_legacy(&format!(
         "{VIEW}fun run(): Unit {{ val source = \"kept\"; borrow val item = view(source); println(item) }}"
     ));
-    let (observed, single) = observed;
-    assert_units_admitted(&observed);
-    assert_handoff_identity(&observed);
+    // Bounded Unit observations cannot replace the complete-stream absence witness.
     let old_source = single.borrow_results().bindings()[0].source_loan().unwrap();
     assert!(
         !single
@@ -90,15 +88,18 @@ fn direct_binding_keeps_its_owner_until_the_result_endpoint() {
             .iter()
             .any(|end| end.call() == old_source.call() && end.argument() == old_source.argument())
     );
+    assert_units_admitted(&observed);
+    assert_handoff_identity(&observed);
+    super::normal_oracle::assert_normal_handoff(
+        &observed,
+        (111, 115),
+        ((118, 130), (123, 129), (9, 23), (83, 89)),
+        &[],
+    );
     for unit in &observed.units {
         let [handoff] = unit.borrow_call_handoffs() else {
             panic!("one handoff")
         };
-        assert_eq!(handoff.source_loan().call().expression(), old_source.call());
-        assert_eq!(
-            handoff.source_loan().argument().expression(),
-            old_source.argument()
-        );
         let UnitLoanTarget::Place(origin) = handoff.source_loan().target() else {
             panic!("root source")
         };
