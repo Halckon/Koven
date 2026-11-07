@@ -405,3 +405,23 @@ Rust 双宿主 jobs 因事件条件跳过，不能用其 success 声称动态通
 F11 仅关闭上列已复现入口；R2 的完整流事实、剩余旧入口消费者及全部组合仍开放。
 第五切片账本已注明的成员 owner 准备成功、方法参数后续失败时的早期类型保留边界，
 不因本轮通过而视作已清除；需要独立回滚合同审计。R0–R5 尚未整体退出。
+
+## 17. F11 候选的扩大验收
+
+候选 head `c34ee481b48c11d8d2256b13e4084f01a3ecb8e2`，对应
+[PR #336 第二轮 CI](https://github.com/Halckon/Koven/actions/runs/42341138357)。
+
+- 本地 `check_stage_integration.sh` 退出 0：1764 passed，零失败/忽略，161 项按脚本精确筛选；
+  已执行 147 个测试目标调用，含 Parser 压力、阶段交接与选定名称解析合同。
+- 本地 `conformance_gate.py --baseline conformance/baseline-aef3f4f8.tsv` 用该候选的 `kovenc`
+  退出 0：154 探针中 138 达到能力预期（121 run、14 diagnostic、3 abort），两入口无差异，
+  无回归、错误输出和内部错误。16 探针与 6 个验收程序仍属已登记的 `known_unimplemented`；
+  门禁通过不等于 6 个验收程序运行通过，P2 能力指标仍未达成。
+- 第二轮双宿主 Check/Clippy 通过；完整 codegen lib Linux 2658 passed、macOS 2657 passed
+  加 1 个已登记的 LLDB ignored。随后两个 Range project CLI 用例在两台宿主均因生成源码
+  `}println` 缺少语句分隔符而失败（各 44 passed、2 failed），尚未抵达后续动态门禁。
+- Range project CLI 两处借用块 close 从 `}` 改为 `};`，仅修正 fixture；保持普通/提前退出
+  路径、原调用顺序及输出中的析构顺序断言。
+  本地 `cargo test -p lang-cli --test range_project_cli` 46 passed，零失败、忽略及过滤。
+- 本地词频字节与边界合同 40 条公开命令通过；使用 `c34ee481` 的同一 `kovenc`，本轮 fixture
+  修改不改变编译器二进制。远端后续 conformance、sanitizer、生成资源与 Preview 仍需实跑。
