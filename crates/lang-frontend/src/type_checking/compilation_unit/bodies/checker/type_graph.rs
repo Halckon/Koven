@@ -188,3 +188,59 @@ fn children(kind: &UnitTypeKind) -> Vec<UnitTypeId> {
         _ => Vec::new(),
     }
 }
+
+/// 与 primitive 结构验证复用同一 unit 类型相容关系。
+pub(in super::super) fn unit_assignable(
+    types: &crate::type_checking::UnitTypeTable,
+    actual: UnitTypeId,
+    expected: UnitTypeId,
+) -> bool {
+    actual == expected
+        || matches!(types.get(actual), Some(UnitTypeKind::Error))
+        || matches!(types.get(expected), Some(UnitTypeKind::Error))
+        || matches!(
+            types.get(actual),
+            Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
+        )
+        || matches!(
+            (types.get(actual), types.get(expected)),
+            (Some(UnitTypeKind::Nullable(actual)), Some(UnitTypeKind::Nullable(expected)))
+                if matches!(types.get(*actual), Some(UnitTypeKind::Builtin(BuiltinType::Nothing)))
+                    && !matches!(types.get(*expected), Some(UnitTypeKind::Deferred(_)))
+        )
+        || matches!(
+            types.get(actual),
+            Some(UnitTypeKind::EnumCase { root, .. }) if *root == expected
+        )
+        || matches!(
+            types.get(actual),
+            Some(UnitTypeKind::StaticSelf(interface)) if *interface == expected
+        )
+        || matches!(
+            types.get(expected),
+            Some(UnitTypeKind::Nullable(inner))
+                if actual == *inner
+                    || matches!(
+                        types.get(actual),
+                        Some(UnitTypeKind::EnumCase { root, .. }) if root == inner
+                    )
+        )
+}
+
+#[test]
+fn nullable_bottom_assignability_keeps_deferred_and_nonnullable_boundaries() {
+    let mut types = UnitTypeTable::new();
+    let nothing = types.builtin(BuiltinType::Nothing).unwrap();
+    let integer = types.builtin(BuiltinType::Int).unwrap();
+    let long = types.builtin(BuiltinType::Long).unwrap();
+    let absent = types.intern(UnitTypeKind::Nullable(nothing));
+    let nullable_int = types.intern(UnitTypeKind::Nullable(integer));
+    let nullable_long = types.intern(UnitTypeKind::Nullable(long));
+    let deferred = types.intern(UnitTypeKind::Deferred(DeferredReason::Call));
+    let nullable_deferred = types.intern(UnitTypeKind::Nullable(deferred));
+    assert!(unit_assignable(&types, absent, nullable_int));
+    assert!(unit_assignable(&types, absent, nullable_long));
+    assert!(!unit_assignable(&types, absent, integer));
+    assert!(!unit_assignable(&types, absent, nullable_deferred));
+    assert!(!unit_assignable(&types, nullable_int, nullable_long));
+}
