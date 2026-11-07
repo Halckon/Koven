@@ -1029,7 +1029,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     .find(|plan| plan.descriptor().expression() == self.checker.unit_expression(id))
                     .cloned()
                 {
-                    *owner_result = self.commit_owner_replace(id, state);
+                    *owner_result = self.commit_owner_primitive(id, state);
                     // Both roots remain initialized. Their old owners are returned/swapped,
                     // never destroyed by assignment replacement glue.
                     for place in plan.places() {

@@ -285,6 +285,28 @@ impl UnitOwnerObservation {
                     }
                     locations[owner.index] = Location::Pending(*call, *argument);
                 }
+                UnitOwnerTransportEvent::Swap {
+                    call,
+                    left,
+                    right,
+                    left_owner,
+                    right_owner,
+                } => {
+                    if !valid_owner(left_owner)
+                        || !valid_owner(right_owner)
+                        || left == right
+                        || left_owner == right_owner
+                        || call.source_unit() != source
+                        || left.source_unit() != source
+                        || right.source_unit() != source
+                        || locations[left_owner.index] != Location::Named(*left)
+                        || locations[right_owner.index] != Location::Named(*right)
+                    {
+                        return false;
+                    }
+                    locations[left_owner.index] = Location::Named(*right);
+                    locations[right_owner.index] = Location::Named(*left);
+                }
                 UnitOwnerTransportEvent::Replace {
                     call,
                     root,

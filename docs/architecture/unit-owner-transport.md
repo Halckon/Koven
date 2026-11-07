@@ -15,7 +15,7 @@ String Value 参数、非插值 String、Name/Group/local binding 与 checked ro
 source-qualified callable、定义来源、局部编号、状态及全部事件字段。单个 token、
 定义、事件的相等与 `definition()` 查询仍严格核对产品身份；不同分析的 token 不可互换。
 
-不支持的控制流、普通调用、其他 capture、swap 或其他值形态使该 callable 的观察标为
+不支持的控制流、普通调用、其他 capture、非 String 根 swap 或其他值形态使该 callable 的观察标为
 Unsupported 并清空该观察的前缀；原合法性和 cleanup 产品不受这个状态影响。此层不提供
 通用 capture lineage、条件 Choice/phi 或新的 Phase 4 执行能力，原 Single witness 保留。
 本地纵切的 Rust 编译/行为验收尚未执行，状态见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md#72-e2-owner-transport-a-的本地纵切2026-11-03)。
@@ -121,3 +121,14 @@ String 构造完成登记真定义，逐层 Group/If 完成及双边实际 tail 
 仍可测试更一般的 Binding/Pending/Replace 守恒，不意味着这些 Choice 消费者已接线。
 本地仅静态检查，编译与行为待官方精确头 CI；范围见 SPEC-0341 §87/§88/§101。
 branch-local 是未发布生产代码候选，§89 的前置验收依赖保留，不表示动态准入或 D10 完成。
+
+## String 根 swap 观察
+
+checked `swap(&left, &right)` 的两个完整 String 根在真实 primitive commit 处交换
+`OwnedValue.owner`，并记录交换前的两个源限定根及 owner token。交换不创建 owner，
+不产生 owner result，也不生成替换析构；后续 replace、move 和实际 cleanup 使用交换后的 token。
+独立守恒重放要求两个不同 token 分别位于对应根，拒绝遗漏、重复和别名交换。
+
+此扩展仅属于 legacy String 观察；V1 value catalog 对 Swap 保持 Unsupported，
+不声明 Resource、字段/索引投影、循环或任意 branch phi 支持，也不退休 Single owner 见证。
+证据为 `owner_transport_tests/swap.rs` 和观察开关全 cleanup Analysis 等价测试。

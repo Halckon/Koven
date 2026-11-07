@@ -3301,3 +3301,15 @@ Mac Rust1.96、locked/offline、默认 debug=2：borrow 定向 26 项、两个 c
 nested L0164 拒绝且不泄漏 handoff 的边界负例 1 项，共 51 项通过；frontend all-targets
 Clippy（`-D warnings`）、fmt、Markdown 与 diff 门禁通过。正式双平台 CI 与跨 crate check
 待发布头执行；未运行全量、故障注入、校准或含 Abort 的整项测试。
+
+## String 根 swap 的 owner transport 增量（2026-11-07）
+
+从 main `be42f064` 隔离实现完整 String 根 swap 的真实 token 交换，接入现有
+replace/move/cleanup 链，保留 cleanup 输出不变。新增独立 literal origin 预期、
+遗漏/重复/别名交换负例、Unsupported 后缀原子回滚及全 Analysis 开关对照。
+V1 catalog、Resource owner 和相关 Single 见证保持原边界，D10/E2 不据此宣告完成。
+
+验证：Mac Rust 1.96、默认 debug=2、locked/offline，复用已释放 target 串行执行
+`cargo test -p lang-frontend --lib owner_transport`，92 项通过、259 项过滤；
+frontend all-targets Clippy `-D warnings`、fmt、849 份 Markdown、diff 和尺寸门禁通过。
+未运行 frontend 全量、native、Abort、校准或宿主故障注入；正式双宿主 CI 仍待发布头验证。

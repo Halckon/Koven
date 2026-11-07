@@ -461,7 +461,8 @@ impl UnitOwnerObservation {
                     symbol,
                     owner,
                 } => UnitOwnerValueEventV1::Drop(*point, *symbol, value(owner)),
-                UnitOwnerTransportEvent::If { .. }
+                UnitOwnerTransportEvent::Swap { .. }
+                | UnitOwnerTransportEvent::If { .. }
                 | UnitOwnerTransportEvent::Capture { .. }
                 | UnitOwnerTransportEvent::CaptureDrop { .. } => return None,
             };

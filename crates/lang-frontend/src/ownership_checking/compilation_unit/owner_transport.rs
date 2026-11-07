@@ -183,6 +183,19 @@ pub enum UnitOwnerTransportEvent {
         /// Exact transported definition token.
         owner: UnitOwnerId,
     },
+    /// Atomic checked swap of two complete String roots; produces no owner result.
+    Swap {
+        /// Checked call identity.
+        call: UnitExpressionId,
+        /// Left complete root.
+        left: UnitSymbolId,
+        /// Right complete root.
+        right: UnitSymbolId,
+        /// Owner held by the left root before commit.
+        left_owner: UnitOwnerId,
+        /// Owner held by the right root before commit.
+        right_owner: UnitOwnerId,
+    },
     /// Atomic checked replacement: root receives incoming; result receives previous.
     Replace {
         /// Checked call identity, isolated from nested calls.
@@ -348,6 +361,16 @@ impl UnitOwnerTransportEvent {
             } => matches!(other,
                 Self::Pending { call: rhs_call, argument: rhs_argument, owner: rhs_owner }
                 if call == rhs_call && argument == rhs_argument && owner_eq(owner, rhs_owner)),
+            Self::Swap {
+                call,
+                left,
+                right,
+                left_owner,
+                right_owner,
+            } => matches!(other,
+                Self::Swap { call: c, left: l, right: r, left_owner: lo, right_owner: ro }
+                if call == c && left == l && right == r
+                    && owner_eq(left_owner, lo) && owner_eq(right_owner, ro)),
             Self::Replace {
                 call,
                 root,
