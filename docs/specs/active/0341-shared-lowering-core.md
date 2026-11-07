@@ -2828,6 +2828,38 @@ Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
 - 本组合本地验证通过，未推送、未创建 PR。单片历史绿灯不能替代组合 CI；
   D10/E2 保持 in-progress，不自动合并。
 
+### 独立批次：名义构造与接口类型消费者（2026-11-07）
+
+基于 main `11130e16` 的 `feature/spec-0341-nominal-type-consumers`，先完成8项enum/构造
+消费者，再将4项静态接口/返回流并入同批，不按小片拆PR；不重复#335/#337/#339/#340。
+四项代码提交为 `4260f7f2`、`b71d467d`、`5d08826f`、`d3ff4a40`，不改生产、Guide、loan-end或CI。
+
+- 12项原测试、15份原源码全部保留并走MemoryDocument/Rooted；原重复解析和自定义环境不变。
+  先核真实source/key，再读取raw类型事实；不增加final/ownership准入或runtime能力。
+- 三项flow保留enum payload、nullable/short-circuit/穷举和泛型替换的原期望，精确核
+  projection、non-null use、Nullable→narrowed与null comparison的symbol/type关系。
+- 四项construction保留nullable adaptation、bare case的零operand、原L0144/None span、
+  泛型实参数及IntrinsicBox身份。bare case按source-unit和真实case value_symbol比对，
+  不按名称猜target。最初适配误用私有UnitSymbolId构造器导致E0624；仅改测试使用公开
+  source_unit/symbol查询后通过，不改生产可见性，不把该次编译失败算通过。
+- identity每入口重复typing复用同一AST、inputs、validated names、TypeEnvironment；
+  保留完整construction等值、4项顺序、first/second参数及evaluation_index 1/0、
+  零参数、EnumCase、无call与result type关系，另核expression/argument的source-unit。
+- 四项接口/返回流保留7份原输入、L0092/L0094的primary与label、L0100/L0099、
+  super的Function/名义TypeRef与两个ImplicitThis调用、两份合法receiver例及L0088返回流。
+- Mac AArch64、Rust1.96.0/default debug=2、locked/offline：基线8+4项通过；最终
+  `type_checking nominal_unit::` 12 passed/70 filtered。相关multifile_type_checking：
+  source_construction全7项、intrinsic构造1项、null comparison1项（9 passed/145 filtered），
+  super receiver与expression tail两项（2 passed/152 filtered）；multifile_type_signatures
+  的interface closure/invalid bounds两项（2 passed/15 filtered），合计25项通过。
+- 代码头 `d3ff4a40` 的frontend all-targets Clippy（`-D warnings`）、fmt、尺寸与diff通过；
+  主文件2123→1770行，5个新增文件均小于1000行，不增加旧尺寸欠账。type_checking仍82项，
+  stage继续完整选择原target，不改过滤或计数；Cargo复用已有target串行执行。
+- 代码头静态merge-tree对main、#339、#340无冲突；#335/#337的根测试相邻删除有冲突。
+  函数集合不重叠，之后集成须保留双方迁移并重新验证，不能整块选择一边。
+- 整个target/workspace、运行时Abort/故障注入/校准、native、Linux与官方CI未运行；
+  本批仅本地累计，D10/E2保持in-progress，不将定向通过等同阶段完成，不自动合并。
+
 ### §114 官方 selector 覆盖缺口修复（2026-11-06）
 
 #331 原九提交头 `bb769e47` 的 CI 绿灯不能证明新增 signature storage 九项实际执行：
@@ -2854,6 +2886,33 @@ Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
 总数为 131，并保留全局唯一性与全部原目标断言。不是放宽重复/过滤资格。
 本地相关 45 项 Python（selector 与 composition 成功路径）和完整 signature 17 项均通过；
 不运行注入失败的整项门禁，新的官方动态结果仍须精确新头实跑。
+
+### 独立批次：nullable when 类型消费者（2026-11-07）
+
+基于 main `a56e1b17` 的独立 `feature/spec-0341-nullable-type-consumers`，不重复 #335/#337，
+不改生产、Guide、loan-end、CI selector 或其它工作树；按 flow、mutation、identity 与验收分提交。
+
+- 12项原测试、15份原 source 迁至 MemoryDocument/Rooted：四项正常域/非空读取与后续 if
+  隔离、七项 mutation/capture/field/failed-trial 诊断、一个重复检查稳定身份消费者。
+  自定义环境、重复解析、原诊断顺序/span、非空 use 数与空计划断言保留。
+- identity 每入口重用同一 AST、inputs、validated names 与 TypeEnvironment 做两次 raw typing，
+  比较完整 plan、同一 source-qualified subject 的唯一 call 与两entry；仅将原裸 expression
+  查询适配成 qualified subject.expression()，不增加 final/ownership 前置。
+- 首组五候选中，`nullable_when_remaining_single_case_keeps_payload_refinement` 在 Unit
+  对原 `!is Shape.Point -> x.radius` 报 L0113，原 Single 成功。该函数与原期望完整恢复，
+  不放宽 oracle、不扩大生产修复。另三项 native_eligible/body_type 专有字段测试缺少等价
+  Unit 描述符，保留原 Single witness，不拿较弱的 source_type/flow 观察替代。
+- 原16项 nullable_when 测试全部保留（12双入口＋4原Single），type_checking 总数仍82项；
+  stage 仍完整选择该 target，不新增计数或过滤。其它原测试函数不改。
+- Mac AArch64、Rust1.96.0/default debug=2、locked/offline：基线16项通过；最终
+  `type_checking nullable_when_` 16 passed/66 filtered，相关
+  `multifile_type_checking nullable_when::` 4 passed/150 filtered，共20项通过。
+  Cargo 使用本任务已有 target 串行执行，不另建并行缓存。
+- 代码验收头 `ab55164c`：frontend all-targets Clippy（`-D warnings`）、fmt、846份 Markdown、
+  尺寸与 diff 检查通过；独立只读审查确认源/oracle保全、同分析输入的重复检查与完整selector
+  接线无阻断。主文件2123→1948行，新增四文件全部小于1000行，不增加旧尺寸欠账。
+- 整个 target、Abort/故障注入/校准、native、Linux 与官方 CI 未运行；D10/E2 保持
+  in-progress，不将定向通过或静态事实提升为全部 Single 退休与 native 能力，不自动合并。
 
 ### Borrow-result 与 String clone 入口补全候选（2026-11-06）
 
@@ -2960,6 +3019,32 @@ all-targets Clippy（`-D warnings`）通过。官方 CI 尚未运行，本批仍
 云端同一工具链配置：完整 continuation14 与四目标组合31项无过滤通过；目标编译、
 all-targets Clippy（`-D warnings`）、fmt、文档与尺寸门禁通过。官方 CI 尚未运行。
 
+### 独立批次：构造与控制类型消费者（2026-11-07）
+
+基于 main `a56e1b17` 的独立 `feature/spec-0341-raw-type-followup`，不改 #335 分支、
+生产、Guide、loan-end 或 CI selector；按顶层诊断、构造、控制诊断与验收记录分提交。
+
+- 超大整数原 Single 仅 L0090、Unit 另有 L0167 的原因已定位到现行 Guide05 的
+  “顶层与关联命名空间的值声明”：普通顶层 val/var 必须拒绝，并允许继续检查 initializer。
+  这是现行 Unit 规则，不删诊断或改变源码位置来达成表面等价。新增一个五源码测试：原
+  顶层超大整数逐字复用，补 var、const、local 与无溢出邻居；两入口锁定完整诊断码顺序、
+  SourceId、精确 primary span 和 raw validate 拒绝。原 numeric_overflow Single witness 原样保留。
+- 八项构造测试迁移原 inference/trial、错误原子性、源码 Box/Rc identity、实参与 capability
+  诊断；三项控制测试迁移 assignment/capture 的 smart-cast 失效和 when 的覆盖/合并诊断。
+  共11项12份原 source、自定义环境和所有原 oracle 保留；UnitConstructionTarget::Nominal
+  与 UnitCallTarget::Symbol 只适配原源码目标身份，不改语义。
+- 同一重复解析 AST 使用实际 MemoryDocument/Rooted，核 source_id、key/root/path 与
+  expression facts 的 source-unit。名称验证后直接检查 raw types，不增加 final/ownership 前置。
+  原82项测试未删减，新增一项后目标83项；stage 仍整 target 选择，不改测试过滤或目标计数。
+- Mac AArch64、Rust1.96.0/default debug=2、locked/offline，迁移前12候选各 exact 通过；
+  最终 raw_followup 12项通过（71 filtered）、resource 邻控6项通过（77 filtered）、
+  原 overflow exact 1项通过（82 filtered），合计19项。仅复用本任务 target 串行执行。
+- 代码验收头 `4a2ad8c0`：frontend all-targets Clippy（`-D warnings`）、fmt、846份 Markdown、
+  尺寸和 diff 检查通过；独立只读审查核原源码/oracle、Unit身份映射、保留witness与selector
+  接线无阻断。主文件2123→1902行，新增文件全部低于1000行，旧尺寸欠账仅下降。
+- 全 target、Abort/故障注入/校准、native、Linux 与官方 CI 未运行；D10/E2 仍 in-progress，
+  本地定向结果不替代精确发布头双宿主 CI，不自动合并。
+
 ### 独立后续：nested-borrow 成功消费者双入口（2026-11-06）
 
 基于 main `8c9778aa`，不依赖待发布的 continuation 后续批次。三项原成功消费者的
@@ -3003,7 +3088,70 @@ fmt、文档及尺寸门禁通过；本批累计本地逻辑提交，未尝试�
 - 整个target/workspace、运行时Abort/故障注入/校准、native、Linux与官方CI未运行。
   D10/E2保持in-progress；本批仅本地累计，不将定向通过等同阶段完成，不自动合并。
 
-## 115. 复审触发的常量映射测试消费者迁移（2026-11-07）
+### 独立批次：基础与接口 raw type 消费者（2026-11-07）
+
+基于 main `754f6858`，独立于 continuation/loan-end 合同，按基础类型与接口契约两个
+逻辑提交集中交付，不修改生产代码、Guide、原 raw type 准入或 CI selector。
+
+- `type_checking::scalar_unit` 承接四项原测试：九种字面量的 source-qualified 类型、
+  local/lambda/operator/type-ref 诊断、返回/分支诊断顺序及 Byte overflow 的精确 `128` span。
+- `type_checking::interface_unit` 承接五项原测试：接口边与环、alpha-equivalent overload、
+  receiver mode、replacement/override 和默认实现冲突，原 L0095–L0102 顺序全部保留。
+- 九项15份原始 source 与自定义环境不改；同一重复解析 AST 分别进入 MemoryDocument/Rooted，
+  核实际 source_id、root/path 及全部 expression facts 的 source-unit。只验证名称后读取 raw
+  typed facts，不增加 final/ownership 前置；其余73项测试与原 parser helper 保留。
+- 尝试第十项顶层超大整数时，原 Single 仅 L0090，而 Unit 为 L0167、L0090。该项完整恢复
+  Single witness，不改预期或源码位置，不把原 top-level runtime value 限制当作本片待修生产
+  回归；仅记录消费表示差异，未声称本批覆盖该迁移差距。
+- Mac AArch64、固定 Rust 1.96.0/default debug=2、locked/offline：迁移前十项各 exact 通过；
+  最终 `cargo test -p lang-frontend --test type_checking _unit::` 的九项迁移与六项原 resource
+  邻控共15项通过、67项 filtered，原 overflow exact 另行通过。目标共82项，未删减测试数；
+  stage 原已完整选择 type_checking，不新增 target、不修改计数。
+- 代码验收头 `5e9cbaf0`：frontend all-targets Clippy（`-D warnings`）、fmt、846份 Markdown、
+  尺寸及 diff 检查通过；独立只读复审确认九项原源码/oracle、其余测试逐字保全、source-qualified
+  identity 与 selector 接线无阻断。主测试文件2123→1942行，旧尺寸欠账仅下降。全 target、
+  Abort/故障注入/校准、native、Linux 与官方 CI 未运行；本地定向结果不能替代精确发布头
+  双宿主 CI，D10/E2 保持 in-progress，不自动合并。
+
+
+## 115. Raw type 消费者四批集中集成（2026-11-07）
+
+以已含 #340 的 main `88df4632a2e3239fb610166ef9b23dda148c9337` 为基线，在独立
+`feature/spec-0341-type-consumer-integration` 保全下列发布头，未改原分支或关闭原 PR：
+
+| 来源 PR | 精确发布头 | 原逻辑提交数 |
+|---|---|---:|
+| [#335](https://github.com/Halckon/Koven/pull/335) | `5f3dd1c613f1636868bdf5f0887da94b71d66d3c` | 3 |
+| [#337](https://github.com/Halckon/Koven/pull/337) | `c611454f86bfdd24e64f48a8b978c4e123fe33ed` | 4 |
+| [#339](https://github.com/Halckon/Koven/pull/339) | `980971ed0a7266f55cff8080a28148dbbb4a2579` | 4 |
+| [#341](https://github.com/Halckon/Koven/pull/341) | `7427c430e30ec4eb9d2291926d63a8e9199af39f` | 5 |
+
+- 四个 no-ff merge（`7b4fa3d2`、`616cbf83`、`7b9de937`、`10b422b2`）保留全部16个
+  原逻辑提交。冲突按迁移函数集合合并根注册/相邻删除，Spec 相邻追加保留双方原文；
+  16个新增模块与各发布头逐字节一致，#340 的四个 non_null 模块及原控制/resource 模块不变。
+- 独立静审逐项核44项迁移、57份原源码字面量及全部原oracle；根文件剩余22项测试和5个
+  helper逐字保留。只删除合并后不再使用的 `Expression` import，首次Clippy所报该告警
+  已修复并重跑通过。原82项测试无遗漏，加顶层诊断对照后共83项，未改selector或计数。
+- 原 overflow Single L0090、Unit顶层L0167/L0090及四项nullable Single差距对照完整保留，
+  不改生产、Guide、原准入或source位置，不宣称Single全部退休或扩大ownership/native能力。
+- 组合代码输入为 `10b422b2` 加上述单一导入清理；Mac AArch64、Rust1.96.0、default
+  debug=2、locked/offline，复用既有target串行执行，实际验收如下。
+
+| 验收项 | 测试目标/选择 | 实际结果 |
+|---|---|---|
+| 全部原输入及组合 | `cargo test --locked --offline -p lang-frontend --test type_checking` | 83 passed，0 filtered；导入修复后重跑通过 |
+| 相邻 Unit 合同 | `multifile_type_checking` 的 `nullable_when::`、`non_null_assertion_`、`source_construction::`、`unit_intrinsic_box`，以及 `dispatch_receivers::unit_super_uses_the_selected_receiver_mode_and_exact_interface_instance`、`expression_tails::expression_tail_fallthrough_is_stable_under_input_permutation` | 19 passed，135 filtered |
+| null flow 邻控 | `nullable_flow::null_comparisons_publish_stable_source_qualified_flow_facts --exact` | 1 passed，153 filtered |
+| 接口签名邻控 | `multifile_type_signatures` 的 `cross_file_interface_closure_substitutes_arguments_and_checks_bounds` 与 `cross_file_invalid_bounds_supertypes_and_cycles_keep_existing_codes` | 2 passed，15 filtered |
+| 编译和格式 | frontend all-targets Clippy（locked/offline，`-D warnings`）、`cargo fmt --all -- --check` | 通过 |
+| 尺寸 | `python3 scripts/check_rust_sizes.py --base 88df4632` | 通过；根文件1893→963行，超1000行旧文件39→38 |
+| 文档与差异 | `python3 scripts/check_docs.py`、`git diff --check` | 848份Markdown通过，无空白错误 |
+
+共105项不同测试通过；type_checking只做前端分析，Abort仅事实描述符断言，不执行源程序。
+整个workspace、运行时Abort/故障注入/校准、native、Linux与本集成头官方CI未运行；
+D10/E2继续in-progress，原各批历史验收不改写，集中PR仍须精确发布头双宿主CI，不自动合并。
+
+## 116. 复审触发的常量映射测试消费者迁移（2026-11-07）
 
 基于 `03807a9e`，`ssa/constant_materialization.rs` 的四项映射测试改由真实 Unit 常量
 capability 生成事实，保留原源码、值/字节/SSA类型、单次物化及空诊断合同；生产映射不变。
@@ -3012,7 +3160,7 @@ capability 生成事实，保留原源码、值/字节/SSA类型、单次物化�
 仅减少一个旧测试helper，不声明旧检查器/lowering整体退役，不继承旧CI为本片通过。
 
 
-## 116. 顺序容器与混合借用测试消费者迁移
+## 117. 顺序容器与混合借用测试消费者迁移
 
 基于 `c260be13`，顺序容器八项 Phase 2 测试与七份混合借用非法源码改走真实 Unit。
 迁移暴露顺序容器显式签名漏报，修正及输入、oracle、复核和实跑结果见
