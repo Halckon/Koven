@@ -586,3 +586,151 @@ fn parent_operand_cannot_masquerade_as_its_canonical_owned_root() {
         );
     }
 }
+
+#[test]
+fn cross_source_prefix_ends_keep_caller_return_and_provider_parameter_lineage() {
+    let mut sources = SourceMap::new();
+    let provider = sources
+        .add_source(
+            "provider.ko",
+            "package demo\nfun view(source: String, tail: String): borrow String from source = source",
+        )
+        .unwrap();
+    let caller = sources.add_source("caller.ko", "package demo\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner, return) }").unwrap();
+    let provider_file = parse_file(&sources, &lex(&sources, provider).unwrap()).unwrap();
+    let caller_file = parse_file(&sources, &lex(&sources, caller).unwrap()).unwrap();
+    assert!(provider_file.diagnostics().is_empty());
+    assert!(caller_file.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    for reverse in [false, true] {
+        let mut inputs = [
+            SourceUnitInput::new("root", "demo/provider.ko", provider, &provider_file),
+            SourceUnitInput::new("root", "demo/caller.ko", caller, &caller_file),
+        ];
+        if reverse {
+            inputs.reverse();
+        }
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let unit =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        let caller_unit = index
+            .source_units()
+            .iter()
+            .find(|unit| unit.source_id() == caller)
+            .unwrap();
+        let provider_unit = index
+            .source_units()
+            .iter()
+            .find(|unit| unit.source_id() == provider)
+            .unwrap();
+        assert_ne!(caller_unit.id(), provider_unit.id());
+        assert!(unit.borrow_call_handoffs().is_empty());
+        assert!(unit.borrow_results().bindings().is_empty());
+        let [event] = unit.borrow_call_prefix_ends() else {
+            panic!("one caller prefix end")
+        };
+        let loan = event.loan();
+        assert_eq!(loan.call().source_unit(), caller_unit.id());
+        assert_eq!(loan.argument().source_unit(), caller_unit.id());
+        let UnitLoanTarget::Place(place) = loan.target() else {
+            panic!("caller owned root")
+        };
+        assert_eq!(place.root().source_unit(), caller_unit.id());
+        let parameter = loan.parameter_span().unwrap();
+        assert_eq!(parameter.source_id(), provider);
+        assert_eq!(sources.slice(parameter), Ok("source: String"));
+        let call = caller_file
+            .ast()
+            .expressions()
+            .get(loan.call().expression())
+            .unwrap();
+        assert_eq!(sources.slice(call.span()), Ok("view(owner, return)"));
+        let argument = caller_file
+            .ast()
+            .expressions()
+            .get(loan.argument().expression())
+            .unwrap();
+        assert_eq!(sources.slice(argument.span()), Ok("owner"));
+        let UnitDropPoint::ControlTransfer(transfer) = event.point() else {
+            panic!("actual return")
+        };
+        assert_eq!(transfer.source_unit(), caller_unit.id());
+        let transfer_node = caller_file
+            .ast()
+            .expressions()
+            .get(transfer.expression())
+            .unwrap();
+        assert_eq!(transfer_node.span().source_id(), caller);
+        assert_eq!(sources.slice(transfer_node.span()), Ok("return"));
+        assert!(unit.loans().contains(loan));
+        let drops: Vec<_> = unit
+            .drops()
+            .iter()
+            .filter(|drop| drop.point() == event.point())
+            .collect();
+        assert_eq!(drops.len(), 1);
+        assert_eq!(drops[0].target(), UnitDropTarget::Named(place.root()));
+        assert_eq!(event.preceding_drops(), 0);
+        unit.validate().unwrap();
+    }
+}
+
+#[test]
+fn sibling_return_edges_keep_distinct_source_tokens_and_cleanup_points() {
+    let (observed, single) = observe_with_legacy(
+        "fun select(source: String, tail: String): borrow String from source = source\nfun run(flag: Boolean): Unit { val owner = \"kept\"; if (flag) { borrow val first = select(owner, return) } else { borrow val second = select(owner, return) } }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        assert!(unit.borrow_results().bindings().is_empty());
+        assert!(unit.borrow_call_handoffs().is_empty());
+        let [first, second] = unit.borrow_call_prefix_ends() else {
+            panic!("one event per static sibling return edge")
+        };
+        assert_ne!(first.loan().call(), second.loan().call());
+        assert_ne!(first.loan().argument(), second.loan().argument());
+        assert_ne!(first.point(), second.point());
+        assert_eq!(first.loan().target(), second.loan().target());
+        for event in [first, second] {
+            let UnitDropPoint::ControlTransfer(transfer) = event.point() else {
+                panic!("return edge")
+            };
+            assert_eq!(
+                single
+                    .loan_ends()
+                    .iter()
+                    .filter(|end| {
+                        end.call() == event.loan().call().expression()
+                            && end.argument() == event.loan().argument().expression()
+                            && end.point()
+                                == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
+                                    transfer.expression(),
+                                )
+                    })
+                    .count(),
+                1
+            );
+            let UnitLoanTarget::Place(place) = event.loan().target() else {
+                panic!("owned root")
+            };
+            let drops: Vec<_> = unit
+                .drops()
+                .iter()
+                .filter(|drop| drop.point() == event.point())
+                .collect();
+            assert_eq!(drops.len(), 1);
+            assert_eq!(drops[0].target(), UnitDropTarget::Named(place.root()));
+            assert_eq!(event.preceding_drops(), 0);
+        }
+    }
+}
