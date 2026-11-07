@@ -4,6 +4,9 @@ use super::codes;
 #[path = "non_null_unit/diagnostics.rs"]
 mod diagnostics;
 
+#[path = "non_null_unit/capabilities.rs"]
+mod capabilities;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,
