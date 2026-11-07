@@ -895,3 +895,77 @@ fn string_borrow_capture_closure_preserves_outer_owner() {
         "outer string and closure must emit drops: got {drops}"
     );
 }
+
+#[test]
+fn compound_assignment_snapshots_lhs_before_rhs() {
+    let source = r#"
+    fun main(): Unit {
+        var x = 1
+        val flag = true
+        x += if (flag) {
+            x = 10
+            2
+        } else {
+            2
+        }
+        if (x == 3) {
+            println("snapshot-ok")
+        }
+    }
+    "#;
+    let output = crate::native_tests::emit_link_and_run("compound_snapshot.ko", source, "main");
+    assert!(output.status.success(), "execution failed: {output:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "snapshot-ok"
+    );
+}
+
+#[test]
+fn element_compound_assignment_reads_element_before_rhs_and_checks_bounds() {
+    // 1. RHS modifies same element: compound assignment must use original element
+    let source_read_first = r#"
+    fun main(): Unit {
+        var xs = mutableListOf(10)
+        xs[0] += if (true) {
+            xs[0] = 100
+            5
+        } else {
+            5
+        }
+        if (xs[0] == 15) {
+            println("read-first-ok")
+        }
+    }
+    "#;
+    let output1 = crate::native_tests::emit_link_and_run(
+        "elem_compound_read_first.ko",
+        source_read_first,
+        "main",
+    );
+    assert!(output1.status.success(), "run failed: {output1:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&output1.stdout).trim(),
+        "read-first-ok"
+    );
+
+    // 2. Out of bounds index with RHS side-effect: bounds check must abort BEFORE RHS side-effect runs
+    let source_oob = r#"
+    fun side_effect(): Int {
+        println("side-effect-ran")
+        return 1
+    }
+    fun main(): Unit {
+        var xs = mutableListOf(10)
+        xs[5] += side_effect()
+    }
+    "#;
+    let output2 =
+        crate::native_tests::emit_link_and_run("elem_compound_oob.ko", source_oob, "main");
+    assert!(!output2.status.success(), "must abort on out of bounds");
+    let stdout = String::from_utf8_lossy(&output2.stdout);
+    assert!(
+        !stdout.contains("side-effect-ran"),
+        "side effect must not run when index is out of bounds; got stdout: {stdout}"
+    );
+}
