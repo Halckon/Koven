@@ -24,6 +24,9 @@ mod resource_unit;
 
 use parser_test_assertions::parse_file_twice;
 
+#[path = "type_checking/nullable_when_unit.rs"]
+mod nullable_when_unit;
+
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
     BuiltinType::Short,
@@ -1807,14 +1810,6 @@ fn non_null_assertion_error_and_deferred_operands_do_not_publish_extraction() {
 }
 
 #[test]
-fn nullable_when_null_fallthrough_narrows_else_subject() {
-    // Removing null from the remaining domain must make the same stable subject usable as T.
-    let (_, _, _, typed) = checked("fun extract(x: Int?): Int = when (x) { null -> 0; else -> x }");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.non_null_uses().len(), 1);
-}
-
-#[test]
 fn nullable_when_mixed_alternatives_do_not_narrow_body() {
     // A null alternative keeps the body nullable even when another alternative is non-null.
     let (sources, _, _, typed) =
@@ -1827,24 +1822,6 @@ fn nullable_when_mixed_alternatives_do_not_narrow_body() {
         "x"
     );
     assert!(typed.non_null_uses().is_empty());
-}
-
-#[test]
-fn nullable_when_remaining_domain_covers_boolean_and_enum_orders() {
-    // Both null position and comma alternatives affect the domain reaching each body.
-    for text in [
-        "fun extract(x: Boolean?): Boolean = when (x) { null -> false; true -> x; false -> x }",
-        "fun extract(x: Boolean?): Boolean = when (x) { true, false -> x; null -> false }",
-        "fun extract(x: Boolean?): Boolean = when (x) { true -> x; null -> false; else -> x }",
-        "enum class Flag { On, Off }\nfun extract(x: Flag?): Flag = when (x) { null -> Flag.Off; else -> x }",
-    ] {
-        let (_, _, _, typed) = checked(text);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{text}: {:?}",
-            typed.diagnostics()
-        );
-    }
 }
 
 #[test]
@@ -2061,25 +2038,6 @@ fn nullable_when_captured_mutable_binding_is_not_a_stable_source() {
             .expect("body span"),
         "x"
     );
-}
-
-#[test]
-fn nullable_when_identity_does_not_interfere_with_later_if_refinement() {
-    let text = "fun extract(x: Boolean?): Boolean {
-        when (x) { null, true, false -> 0 }
-        return (if (x != null) { x } else { false })
-    }";
-    let (_, _, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-}
-
-#[test]
-fn nullable_when_identity_does_not_interfere_with_body_if_refinement() {
-    let text = "fun extract(x: Boolean?): Boolean = when (x) {
-        null, true, false -> if (x != null) { x } else { false }
-    }";
-    let (_, _, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
 }
 
 #[test]
