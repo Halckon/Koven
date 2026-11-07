@@ -8,6 +8,9 @@ mod constructions;
 #[path = "nominal_unit/identity.rs"]
 mod identity;
 
+#[path = "nominal_unit/interface_flow.rs"]
+mod interface_flow;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,
