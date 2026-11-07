@@ -23,7 +23,7 @@ struct Checked {
     unit: CompilationUnitOwnership,
 }
 
-fn checked(text: &str) -> Checked {
+fn checked(text: &str, rooted: bool) -> Checked {
     let mut sources = SourceMap::new();
     let source = sources.add_source("nested_borrow.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -38,13 +38,24 @@ fn checked(text: &str) -> Checked {
     let typed = check_types(&sources, &parsed, &names, &types).unwrap();
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let single = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    let inputs = [SourceUnitInput::new(
-        "root",
-        "nested_borrow.ko",
-        source,
-        &parsed,
-    )];
+    let inputs = [if rooted {
+        SourceUnitInput::new("root", "nested_borrow.ko", source, &parsed)
+    } else {
+        SourceUnitInput::memory_document(source, &parsed)
+    }];
     let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let [indexed] = index.source_units() else {
+        panic!("one original source")
+    };
+    assert_eq!(indexed.source_id(), source);
+    match (rooted, indexed.key()) {
+        (false, lang_frontend::name_resolution::SourceUnitKey::MemoryDocument) => {}
+        (true, lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path }) => {
+            assert_eq!(root.as_str(), "root");
+            assert_eq!(logical_path.as_str(), "nested_borrow.ko");
+        }
+        _ => panic!("requested entry identity"),
+    }
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
         .unwrap()
         .validate()
@@ -63,13 +74,20 @@ fn checked(text: &str) -> Checked {
 }
 
 fn ordinary(body: &str) -> Checked {
-    checked(&format!(
-        "fun view(source: String): borrow String from source = source\nfun observe(item: String) {{ println(item) }}\nfun consume(own item: String) {{}}\n{body}"
-    ))
+    ordinary_entry(body, true)
+}
+
+fn ordinary_entry(body: &str, rooted: bool) -> Checked {
+    checked(
+        &format!(
+            "fun view(source: String): borrow String from source = source\nfun observe(item: String) {{ println(item) }}\nfun consume(own item: String) {{}}\n{body}"
+        ),
+        rooted,
+    )
 }
 
 // Negative-source consumers have no legacy-only loan-end oracle. Keep the original
-// positive helper and its independent event checks unchanged below.
+// positive Single analysis and its independent event checks below.
 struct UnitChecked {
     sources: SourceMap,
     memory: CompilationUnitOwnership,
@@ -139,37 +157,46 @@ fn assert_accepted(checked: &Checked) {
 
 #[test]
 fn direct_and_grouped_results_are_synchronous_borrow_operands() {
-    for operand in ["view(source)", "((view((source))))"] {
-        assert_accepted(&ordinary(&format!(
-            "fun run() {{ val source = \"kept\"; observe({operand}); consume(source) }}"
-        )));
+    for rooted in [false, true] {
+        for operand in ["view(source)", "((view((source))))"] {
+            assert_accepted(&ordinary_entry(
+                &format!(
+                    "fun run() {{ val source = \"kept\"; observe({operand}); consume(source) }}"
+                ),
+                rooted,
+            ));
+        }
     }
 }
 
 #[test]
 fn named_mixed_arguments_and_multiple_result_chains_follow_source_order() {
-    for body in [
-        "fun select(aux: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val aux = \"aux\"; observe(select(source = source, aux = aux)); consume(source) }",
-        "fun select(own aux: Int, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source = source, aux = 7)); consume(source) }",
-        "class Resource { deinit() {} }\nfun select(source: String, own aux: Resource): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source, Resource())); consume(source) }",
-        "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = view(source), first = view(source)); consume(source) }",
-        "fun pair(first: String, second: String) {}\nfun run() { val first = \"one\"; val second = \"two\"; pair(view(first), view(second)); consume(first); consume(second) }",
-        "fun pair(first: String, own count: Int) {}\nfun length(source: String): Int = 1\nfun run() { val source = \"kept\"; pair(view(source), length(source)); consume(source) }",
-    ] {
-        assert_accepted(&ordinary(body));
+    for rooted in [false, true] {
+        for body in [
+            "fun select(aux: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val aux = \"aux\"; observe(select(source = source, aux = aux)); consume(source) }",
+            "fun select(own aux: Int, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source = source, aux = 7)); consume(source) }",
+            "class Resource { deinit() {} }\nfun select(source: String, own aux: Resource): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source, Resource())); consume(source) }",
+            "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = view(source), first = view(source)); consume(source) }",
+            "fun pair(first: String, second: String) {}\nfun run() { val first = \"one\"; val second = \"two\"; pair(view(first), view(second)); consume(first); consume(second) }",
+            "fun pair(first: String, own count: Int) {}\nfun length(source: String): Int = 1\nfun run() { val source = \"kept\"; pair(view(source), length(source)); consume(source) }",
+        ] {
+            assert_accepted(&ordinary_entry(body, rooted));
+        }
     }
 }
 
 #[test]
 fn generic_field_wrapper_and_existing_parent_sources_keep_their_identity() {
-    for body in [
-        "fun <T> genericView(source: T): borrow T from source = source\nfun run() { val source = \"kept\"; observe(genericView(source)); consume(source) }",
-        "class Record(val text: String)\nfun field(source: Record): borrow String from source = source.text\nfun run() { val source = Record(\"kept\"); observe(field(source)) }",
-        "fun wrap(source: String): borrow String from source = view(source)\nfun run() { val source = \"kept\"; observe(wrap(source)); consume(source) }",
-        "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent); consume(source) }",
-        "fun measure(source: String): Int = 1\nfun run() { val source = \"kept\"; val count = measure(view(source)); consume(source) }",
-    ] {
-        assert_accepted(&ordinary(body));
+    for rooted in [false, true] {
+        for body in [
+            "fun <T> genericView(source: T): borrow T from source = source\nfun run() { val source = \"kept\"; observe(genericView(source)); consume(source) }",
+            "class Record(val text: String)\nfun field(source: Record): borrow String from source = source.text\nfun run() { val source = Record(\"kept\"); observe(field(source)) }",
+            "fun wrap(source: String): borrow String from source = view(source)\nfun run() { val source = \"kept\"; observe(wrap(source)); consume(source) }",
+            "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent); consume(source) }",
+            "fun measure(source: String): Int = 1\nfun run() { val source = \"kept\"; val count = measure(view(source)); consume(source) }",
+        ] {
+            assert_accepted(&ordinary_entry(body, rooted));
+        }
     }
 }
 
