@@ -449,35 +449,56 @@ fn unit_clone_last_use_receiver_drops_once_at_call_return() {
     let lexed = lex(&sources, source).expect("lex");
     let parsed = parse_file(&sources, &lexed).expect("parse");
     let (environment, types) = standard_environments();
-    let inputs = [SourceUnitInput::new("root", "last-use.ko", source, &parsed)];
-    let index = index_compilation_unit(&sources, &inputs).expect("index");
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .expect("names")
-        .validate()
-        .expect("valid names");
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-        .expect("types")
-        .validate()
-        .expect("valid types");
-    let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
-        .expect("ownership");
-    assert!(owned.diagnostics().is_empty());
-    assert_eq!(owned.string_effects().len(), 2);
-    for operation in typed.types().string_operations() {
-        let loan = owned
-            .loans()
-            .iter()
-            .find(|loan| loan.call() == operation.expression())
-            .expect("receiver loan");
-        let UnitLoanTarget::Place(place) = loan.target() else {
-            panic!("expected owner place")
+    for rooted in [false, true] {
+        let inputs = [if rooted {
+            SourceUnitInput::new("root", "last-use.ko", source, &parsed)
+        } else {
+            SourceUnitInput::memory_document(source, &parsed)
+        }];
+        let index = index_compilation_unit(&sources, &inputs).expect("index");
+        let [indexed] = index.source_units() else {
+            panic!("one source")
         };
-        let drops = owned
-            .drops()
-            .iter()
-            .filter(|drop| drop.target() == UnitDropTarget::Named(place.root()))
-            .map(|drop| drop.point())
-            .collect::<Vec<_>>();
-        assert_eq!(drops, [UnitDropPoint::CallReturn(operation.expression())]);
+        assert_eq!(indexed.source_id(), source);
+        match (rooted, indexed.key()) {
+            (false, lang_frontend::name_resolution::SourceUnitKey::MemoryDocument) => {}
+            (
+                true,
+                lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path },
+            ) => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), "last-use.ko");
+            }
+            _ => panic!("entry identity"),
+        }
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .expect("names")
+            .validate()
+            .expect("valid names");
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .expect("types")
+            .validate()
+            .expect("valid types");
+        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+            .expect("ownership");
+        assert!(owned.diagnostics().is_empty());
+        assert_eq!(owned.string_effects().len(), 2);
+        for operation in typed.types().string_operations() {
+            let loan = owned
+                .loans()
+                .iter()
+                .find(|loan| loan.call() == operation.expression())
+                .expect("receiver loan");
+            let UnitLoanTarget::Place(place) = loan.target() else {
+                panic!("expected owner place")
+            };
+            let drops = owned
+                .drops()
+                .iter()
+                .filter(|drop| drop.target() == UnitDropTarget::Named(place.root()))
+                .map(|drop| drop.point())
+                .collect::<Vec<_>>();
+            assert_eq!(drops, [UnitDropPoint::CallReturn(operation.expression())]);
+        }
     }
 }

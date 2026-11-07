@@ -3,8 +3,8 @@
 use lang_frontend::{
     diagnostic::Diagnostic,
     name_resolution::{
-        SourceUnitId, SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
+        SourceUnitId, SourceUnitInput, SourceUnitKey, index_compilation_unit,
+        resolve_compilation_unit_names, resolve_names,
     },
     parser::ParsedFile,
     source::SourceMap,
@@ -25,6 +25,13 @@ fn checked(text: &str) -> (SourceMap, CompilationUnitTypes) {
 }
 
 fn analyzed(text: &str) -> (SourceMap, ParsedFile, SourceUnitId, CompilationUnitTypes) {
+    analyzed_entry(text, false)
+}
+
+fn analyzed_entry(
+    text: &str,
+    rooted: bool,
+) -> (SourceMap, ParsedFile, SourceUnitId, CompilationUnitTypes) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("constants.ko", text).expect("source");
     let parsed = parser_test_assertions::parse_file_twice(&sources, source, "constants");
@@ -33,15 +40,38 @@ fn analyzed(text: &str) -> (SourceMap, ParsedFile, SourceUnitId, CompilationUnit
         "{:?}",
         parsed.diagnostics()
     );
-    let inputs = [SourceUnitInput::memory_document(source, &parsed)];
-    let index = index_compilation_unit(&sources, &inputs).expect("memory index");
+    let inputs = [if rooted {
+        SourceUnitInput::new("root", "constants.ko", source, &parsed)
+    } else {
+        SourceUnitInput::memory_document(source, &parsed)
+    }];
+    let index = index_compilation_unit(&sources, &inputs).expect("unit index");
+    let [indexed] = index.source_units() else {
+        panic!("one source")
+    };
+    assert_eq!(indexed.source_id(), source);
+    match (rooted, indexed.key()) {
+        (false, SourceUnitKey::MemoryDocument) => {}
+        (true, SourceUnitKey::Rooted { root, logical_path }) => {
+            assert_eq!(root.as_str(), "root");
+            assert_eq!(logical_path.as_str(), "constants.ko");
+        }
+        _ => panic!("requested entry identity"),
+    }
     let (names, types) = standard_environments();
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &names).expect("names");
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let names = names.validate().expect("valid memory names");
+    let names = names.validate().expect("valid unit names");
     let source_unit = names.names().index().source_units()[0].id();
     let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).expect("types");
     (sources, parsed, source_unit, typed)
+}
+
+fn checked_entries(text: &str) -> [(SourceMap, CompilationUnitTypes); 2] {
+    [false, true].map(|rooted| {
+        let (sources, _, _, typed) = analyzed_entry(text, rooted);
+        (sources, typed)
+    })
 }
 
 // Unit facts do not expose legacy owner matches/use_at/use-category, and the Unit
@@ -441,8 +471,9 @@ fn constant_evaluation_reports_checked_arithmetic_failures() {
         "0u - 1u",
         "-(-2147483648)",
     ] {
-        let (_, typed) = checked(&format!("const val sample = {expression}"));
-        assert_eq!(codes(typed.diagnostics()), ["L0158"], "{expression}");
+        for (_, typed) in checked_entries(&format!("const val sample = {expression}")) {
+            assert_eq!(codes(typed.diagnostics()), ["L0158"], "{expression}");
+        }
     }
 }
 
@@ -454,15 +485,17 @@ fn constant_evaluation_keeps_short_circuit_and_invalid_dependency_boundaries() {
         "const val sample = (answer == 42) || (1 / 0 == 0)\nconst val answer = 6 * 7",
         "const val sample = (\"a\" + \"b\" == \"ab\") || (1 / 0 == 0)",
     ] {
-        let (_, typed) = checked(source);
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{source}: {:?}",
-            typed.diagnostics()
-        );
+        for (_, typed) in checked_entries(source) {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{source}: {:?}",
+                typed.diagnostics()
+            );
+        }
     }
-    let (_, typed) = checked("const val bad = 1 / 0\nconst val dependent = bad + 1");
-    assert_eq!(codes(typed.diagnostics()), ["L0158"]);
+    for (_, typed) in checked_entries("const val bad = 1 / 0\nconst val dependent = bad + 1") {
+        assert_eq!(codes(typed.diagnostics()), ["L0158"]);
+    }
 }
 
 #[test]
@@ -474,16 +507,17 @@ fn constant_evaluation_uses_associated_declared_integer_widths_and_operator_span
         ("UByte", "255u", "1u"),
         ("UShort", "65535u", "1u"),
     ] {
-        let (sources, typed) = checked(&format!(
+        for (sources, typed) in checked_entries(&format!(
             "const val sample = Limits.MAX + Limits.ONE\nobject Limits {{ const val MAX: {ty} = {max}\nconst val ONE: {ty} = {one} }}"
-        ));
-        assert_eq!(codes(typed.diagnostics()), ["L0158"], "{ty}");
-        assert_eq!(
-            sources
-                .slice(typed.diagnostics()[0].primary_span())
-                .unwrap(),
-            "+"
-        );
+        )) {
+            assert_eq!(codes(typed.diagnostics()), ["L0158"], "{ty}");
+            assert_eq!(
+                sources
+                    .slice(typed.diagnostics()[0].primary_span())
+                    .unwrap(),
+                "+"
+            );
+        }
     }
 }
 
