@@ -3387,3 +3387,23 @@ fmt、849份Markdown、diff及相对2fd6bfb9尺寸检查通过，38个历史超�
 外部 API 编译消费者 `ownership_value_api` 缺少新 Swap 的穷尽匹配，故不能沿用分支 lint
 通过声明证明组合。补显式 Swap 两值匹配后，该目标 1 项与最终 all-targets Clippy 通过。
 合计 123 项定向测试；fmt、849 份 Markdown、diff及尺寸门禁通过。未以此替代正式 CI。
+
+## Callable 原诊断消费者有界迁移（2026-11-07）
+
+基于 main `78a36f25`，`type_callable` 的 named/arity/type/target failures 与 generic
+inference conflicts 两项原测试复用既有 MemoryDocument/Rooted helper。原始源码、自定义
+环境、完整有序诊断码，以及泛型推导的三个 primary span 均保持不变；不添加 final 或
+ownership 前置，不改生产语义。
+
+本次等价性探测发现另两项不能退休：nullable overload ambiguity 的 Unit 结果为
+L0123 而原 Single 为 L0124；non-lambda filter 到唯一候选的 lambda L0084 缺原
+`callback` label。保留这两项原 Single 测试及所有断言，不用弱化 oracle 换取迁移。
+这两处是后续诊断等价工作，不是本批已修复项。
+
+| 验收项 | 定向检查 | 结果 |
+|---|---|---|
+| 两项双入口迁移及两项保留见证 | `type_callable` 四个同名过滤器 | 4 passed，17 filtered |
+| 受影响测试目标 lint | `cargo clippy -p lang-frontend --test type_callable -- -D warnings` | 通过 |
+
+Mac Rust1.96、locked/offline、默认debug=2，复用空闲target串行执行。未运行含Abort
+的整个target、全量、native、故障注入、校准或Linux CI；D10/E2保持in-progress。
