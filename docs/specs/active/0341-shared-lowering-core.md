@@ -3404,3 +3404,12 @@ Mac Rust1.96、locked/offline、默认 debug=2 串行复用已释放 target：�
 1 passed、56 filtered；frontend all-targets Clippy（-D warnings）和 849 份 Markdown 门禁通过。
 workspace fmt、diff 与相对 78a36f25 的尺寸门禁通过；2149 份手写 Rust，38 份历史超长文件未增长。
 未执行全量、含 Abort 整项、native、故障注入或校准；官方 CI 未运行，D10/E2 仍未完成。
+
+后续同合同再迁移 `return_during_later_operand_ends_only_the_established_source_prefix` 和
+`nested_auxiliary_return_preserves_source_end_and_temporary_cleanup`，原源码及原 Unit
+关联/cleanup 断言保留。prefix 身份完整向量与“无最终绑定、单 owner drop” wrapper 分开；
+前两项仍经过同等严格 wrapper。嵌套用既有 direct-call 固定完整向量同时核 temporary
+辅助 loan 的参数、调用、Return 与目标；保留 temporary→owner 的 drop 顺序，不推导两个
+loan-end 切片间的全序。只替代原 Single 的存在/计数断言，不替代全程 absence 证据。
+最终四项精确测试分别 1 passed、56 filtered（共四个不同测试），frontend all-targets
+Clippy（-D warnings）通过；没有重复运行全 target。仍不涉及 Abort/native/故障注入/校准。

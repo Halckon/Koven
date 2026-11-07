@@ -342,10 +342,14 @@ fn sibling_branches_commit_only_their_own_binding_identity() {
 
 #[test]
 fn return_during_later_operand_ends_only_the_established_source_prefix() {
-    let (observed, single) = observe_with_legacy(
+    let observed = observe(
         "fun select(source: String, other: String): borrow String from source = source\nfun run(flag: Boolean): Unit { val owner = \"kept\"; val other = \"other\"; borrow val item = select(owner, if (flag) { return } else { other }); println(item) }",
     );
     assert_units_admitted(&observed);
+    super::prefix_oracle::assert_prefix_identities(
+        &observed,
+        &[((168, 218), (175, 180), (11, 25), (113, 118), (194, 200))],
+    );
     assert_handoff_identity(&observed);
     for (unit, names) in observed.units.iter().zip(&observed.unit_names) {
         let [indexed] = names.names().index().source_units() else {
@@ -370,17 +374,6 @@ fn return_during_later_operand_ends_only_the_established_source_prefix() {
             .get(transfer.expression())
             .unwrap();
         assert_eq!(observed.sources.slice(node.span()), Ok("return"));
-        assert!(
-            single
-                .loan_ends()
-                .iter()
-                .any(|end| end.call() == source.call().expression()
-                    && end.argument() == source.argument().expression()
-                    && end.point()
-                        == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
-                            transfer.expression()
-                        ))
-        );
         let UnitLoanTarget::Place(place) = event.loan().target() else {
             panic!("root source")
         };
@@ -724,10 +717,24 @@ fn sibling_return_edges_keep_distinct_source_tokens_and_cleanup_points() {
 
 #[test]
 fn nested_auxiliary_return_preserves_source_end_and_temporary_cleanup() {
-    let (observed, single) = observe_with_legacy(
+    let observed = observe(
         "fun select(source: String, tail: Unit): borrow String from source = source\nfun sink(value: String, stop: Unit): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = select(owner, sink(\"temporary\", return)) }",
     );
     assert_units_admitted(&observed);
+    super::prefix_oracle::assert_prefix_identities(
+        &observed,
+        &[((176, 216), (183, 188), (11, 25), (142, 147), (208, 214))],
+    );
+    assert_fixed_ends(
+        &observed,
+        &[ExpectedEnd {
+            call: (190, 215),
+            argument: (195, 206),
+            parameter: (84, 97),
+            point: ExpectedPoint::Return((208, 214)),
+            target: ExpectedTarget::Temporary,
+        }],
+    );
     let expression = |text| {
         let found: Vec<_> = observed
             .parsed
@@ -797,20 +804,5 @@ fn nested_auxiliary_return_preserves_source_end_and_temporary_cleanup() {
         assert!(unit.loans().contains(event.loan()));
         assert!(unit.loans().contains(auxiliary.loan()));
         // Separate slices do not establish a total order between these two ends.
-        for (call, argument) in [(outer, source), (inner, temporary)] {
-            assert_eq!(
-                single
-                    .loan_ends()
-                    .iter()
-                    .filter(|end| end.call() == call
-                        && end.argument() == argument
-                        && end.point()
-                            == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
-                                transfer
-                            ))
-                    .count(),
-                1
-            );
-        }
     }
 }

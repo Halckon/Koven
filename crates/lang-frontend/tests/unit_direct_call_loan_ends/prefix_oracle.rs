@@ -5,7 +5,7 @@ use super::*;
 // Original call, argument, parameter, owned-root declaration and Return.
 type PrefixBytes = (ByteSpan, ByteSpan, ByteSpan, ByteSpan, ByteSpan);
 
-pub(super) fn assert_return_prefixes(observed: &Observed, expected: &[PrefixBytes]) {
+pub(super) fn assert_prefix_identities(observed: &Observed, expected: &[PrefixBytes]) {
     super::borrow_handoff::assert_handoff_identity(observed);
     for (unit, names) in observed.units.iter().zip(&observed.unit_names) {
         let [indexed] = names.names().index().source_units() else {
@@ -53,13 +53,6 @@ pub(super) fn assert_return_prefixes(observed: &Observed, expected: &[PrefixByte
                 let transfer_span = expression_span(transfer);
                 assert_eq!(observed.sources.slice(transfer_span), Ok("return"));
                 assert_eq!(event.preceding_drops(), 0);
-                let drops: Vec<_> = unit
-                    .drops()
-                    .iter()
-                    .filter(|drop| drop.point() == event.point())
-                    .map(|drop| drop.target())
-                    .collect();
-                assert_eq!(drops, vec![UnitDropTarget::Named(place.root())]);
                 (
                     bytes(call),
                     bytes(argument),
@@ -70,6 +63,24 @@ pub(super) fn assert_return_prefixes(observed: &Observed, expected: &[PrefixByte
             })
             .collect();
         assert_eq!(actual, expected);
+    }
+}
+
+pub(super) fn assert_return_prefixes(observed: &Observed, expected: &[PrefixBytes]) {
+    assert_prefix_identities(observed, expected);
+    for unit in &observed.units {
+        for event in unit.borrow_call_prefix_ends() {
+            let UnitLoanTarget::Place(place) = event.loan().target() else {
+                panic!("owned root source")
+            };
+            let drops: Vec<_> = unit
+                .drops()
+                .iter()
+                .filter(|drop| drop.point() == event.point())
+                .map(|drop| drop.target())
+                .collect();
+            assert_eq!(drops, vec![UnitDropTarget::Named(place.root())]);
+        }
         assert!(unit.borrow_results().bindings().is_empty());
         assert!(unit.borrow_call_handoffs().is_empty());
         assert!(unit.direct_call_loan_ends().is_empty());
