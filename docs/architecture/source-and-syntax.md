@@ -91,6 +91,11 @@ L0057。相关结构、范围和资源回归见 `parser_return_control` 与 pars
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
 边界。测试选择规则见[开发测试指南](../development/testing.md)。
 
+`parse_super` 在 interface、dot、member-name 的 Lexer poison 处消费并保存 Error，不追加同根
+语法诊断。共享 error-postfix 恢复保留 caller stops 与显式分号；`parser_super_recovery` 逐值核对
+后继实参和 statement 的身份。同行无分号 element 仍有接受缺口；本轮复审范围与开放项见
+[SPEC-0392](../specs/active/0392-compiler-layered-review.md)，不以局部恢复修复声称语法完全一致。
+
 ## 索引式 AST
 
 `ast::AstFile<Item, Statement, Expression, TypeRef>` 拥有四张按插入顺序增长的 typed table。

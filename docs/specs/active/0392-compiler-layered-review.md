@@ -1,0 +1,154 @@
+# SPEC-0392: 编译器分层复审与前端合同修复
+
+> **性质**：变更合同与复审账本 · **状态**：in-progress · **读取时机**：执行 R0–R5 复审或核验结构复审退出条件时 · **唯一真源**：本 Spec 的范围、发现与实际验收；语言语义仍归 Guide
+
+| 字段 | 值 |
+|---|---|
+| 状态 | in-progress |
+| Goal ID | `KOV-REVIEW-0392` |
+| 所属 Phase | Phase 0–6 |
+| 语言规范 | 现行 [Guide v0.47](../../guide/README.md) |
+| 批准依据 | 2026-11-06 用户明确要求实施分阶段 review 计划；先结构复审，再恢复语言增量 |
+| 前置 Spec | 无 |
+| 前置 ADR | 无 |
+| 关联 ADR | 无 |
+| 阻塞项 | 双宿主完整动态验收、后续结构迁移收口与 v1 发布候选冻结尚未成立 |
+| 影响范围 | frontend、codegen、CLI/LSP/标准库的阶段合同与验收；按确认问题最小修复 |
+| 语言语义变更 | 否 |
+
+## 1. Goal
+
+在明确源码身份上建立可追溯、独立复核的分层审查基线，修复已确认合同偏差，并以阶段门槛
+决定是否恢复增量或进入全链路验收。测试存在、历史 CI 和静态阅读均不等于本轮通过。
+
+## 2. 基线与证据口径
+
+- 原始输入：`ea476adcccdd3d7fad768752173c2d76b1861aa1`，工作树初始干净；
+  分支 `feature/spec-0392-compiler-review-baseline` 从本地 `origin/main` 同 SHA 建立，未 fetch，
+  因而不声称这是远端最新 main。本地 `main` 指向另一旧提交，不将其作为本轮输入。
+- Guide v0.47；Rust/Cargo 1.96.0；本机 arm64 macOS，LLVM 21.1.8。
+- 本轮独立审查按 R1/R2/R3 分配全新上下文，只读规范、目标实现和测试；修复后另行复核。
+  主代理串行执行 Cargo；独立审查的静态结论和实际运行分别记账。
+- 临时 target、探针和原始日志在 `/private/tmp/koven-review-0392-*`，不入库；临时目录不保证
+  长期保留，最终必须以本轮 PR/CI 固定身份补充持久来源后才能验收归档。
+
+原始提交的直接调用语法清点（`git grep -n -E '<name>[[:space:]]*\(' <SHA> -- crates`，
+排除 `fn <name>` 定义）如下；计数包含测试和字符串，不是编译后调用图，也不覆盖别名/宏。
+
+| 旧入口 | frontend 文件 / 匹配行 | codegen 文件 / 匹配行 | 消费者处置 |
+|---|---|---|---|
+| `check_types` | 84 / 149 | 17 / 19 | 旧测试与对照仍真实依赖；本轮 lambda 回归另新增一个直接消费者 |
+| `check_ownership` | 46 / 57 | 16 / 18 | 待按诊断、事实、资源 oracle 分批对等迁移，不能无条件删除 |
+| `lower_scalar_file_with_entry` | 无 | 4 / 7 | 入口 crate-private，现有引用为测试/对照；原迁移仍归 SPEC-0341 |
+
+CLI/LSP `src` 与 frontend `analysis` 未检出旧 `check_types`/`check_ownership` 直接调用；
+公共单文件/project 实际走 unit，不把其同名“单文件”误认为旧检查器验收。R0 尚未完成
+所有别名、测试字符串及保留 oracle 的逐消费者判定，因此不以以上数字作为删除许可。
+
+## 3. 阶段与退出门槛
+
+| 阶段 | 合同、producer → consumer 与验证入口 | 退出条件 |
+|---|---|---|
+| R0 基线 | SourceMap → lex/parse → unit names/types/ownership → owned view → SSA → LLVM/native；CLI/LSP 显式提供 source/environment；见 [流水线](../../architecture/pipeline-and-workspace.md) | 固定 SHA/工具链、消费者及证据清单；每项区分当前实跑、历史、未实现与未知 |
+| R1 语法 | Source/Span、Lexer、四 Parser 入口/索引 AST；按 [前端架构](../../architecture/source-and-syntax.md)定位 suite | 合法 AST 与非法诊断匹配规范；恢复前进、poison 根因唯一、试探无副作用、资源计数受限 |
+| R2 名称/类型 | unit index/names → types → final admission；legacy TypedFile 仍有真实消费者；见 [名称与类型](../../architecture/names-and-types.md) | trial 回滚、流事实失效、身份与 single/project 等价；旧消费者均有可解释处置 |
+| R3 所有权/交接 | typed descriptors → move/loan/capture/drop → basic/const owned view；见 [所有权](../../architecture/ownership.md) | 非法消费拒绝；循环/分支及所有退出边一致；交接拒绝异源、异分析与能力混用 |
+| R4 中后端 | refine subset/build → CFG/block 参数 → SSA verifier → LLVM/layout/runtime → object/link/debug | 默认路由正确，退役路径不能误入；非法 SSA 负例、双宿主 build/run 与资源动态证据齐全 |
+| R5 全链路/发布 | 同一冻结候选的源码 → 进程退出，另核 CLI/LSP、标准库、conformance 与 sanitizer | 规定矩阵通过；所有失败、skip、timeout、未实现与平台边界有解释 |
+
+阻断项是非法程序被接受、合法程序误编译、资源/内存安全问题、未解释 ICE 或准入绕过。
+阻断项修复并独立复核前，相关阶段不结项；一般可维护性债可登记后继任务，不强制清零。
+
+## 4. 已确认发现
+
+F1–F5 的最小探针在原始基线上实际运行；F6 为修复工作树上的新增失败回归，F7 在 Unit
+修复后的同一工作树对照确认。各项均有实际运行，不将不同输入身份统一冒称原基线。
+
+| ID | 合同偏差 / 最小输入 | 原始结果 | 处置 |
+|---|---|---|---|
+| F1 | Guide 07：创建 lambda 不执行其 body；`fun missing(): Int { ({ -> return }) }` | single/unit 均无缺 return 诊断 | 已修复并独立复核；`lambda_completion` 验证 L0088、创建/内部 return 的不同 completion |
+| F2 | Guide 06：分支赋值必须 kill smart cast；`if (x != null) { if (flag) { x = null; ({ -> return }) }; return x }` | single/unit 均错误接受 nullable 返回 Int | F1 同根因；修复后两入口 L0084；expected/推导路径及非法局部返回 L0087 负控均验证 |
+| F3 | Guide 08/10：MoveOnly this 不能在循环中重复消费；own 方法 `while(flag) { consume() }` / `this.consume()` | unit ownership 均无诊断，消费后 break 正控同样无诊断 | 已修复并独立复核；`ownership_receiver_backedge` 覆盖正常/continue、while condition、for 单次 source、嵌套循环、退出及 Copyable |
+| F4 | Guide 01：Lexer poison 唯一根因；`super<I>.async` | async 同 Span 重复 L0002/L0011；普通 `x.async` 仅 L0002 | 已修复；三阶段 poison 消费并返 Error；后继实参身份与原词法 Span 有直接断言 |
+| F5 | Guide 06：同行 block elements 必须有分号；`{ val x = 1 val y = 2 }` | parse_block 无诊断，带分号正控同样无诊断 | **OPEN**；须同时修复普通/control/lambda owner、迁移现有非法正例及下游 fixtures，R1 不结项 |
+| F6 | 恢复不得吞外层分隔符；`f(a.async., sentinel)` / `{ a.async.; sentinel }` | 新失败回归分别证实吞逗号、分号并产生额外 L0034/L0013 | 已修复：error-postfix 保留 caller stops 和分号；逐实参/逐 statement 核对后继 identity |
+| F7 | 旧单文件 receiver 与 unit 的所有权合同未等价；同 F3 输入 | 修复后仓外探针确认旧 `check_ownership` 仍 diagnostics/deferred 均空，unit 已报 L0131 | **OPEN**；先核旧真实消费者与后端能力，再依 SPEC-0341 迁移或修复；CLI single/project 不走此旧入口 |
+
+发现修复采用失败测试 → 最小实现 → 直接消费者/相邻合同 → 独立复核，不在审清前建立新抽象。
+不通过修改 Guide 或放宽 oracle 消除失败；历史账本原义保留。
+
+F5 的已有不合规正例包括 `parser_block` 的同行 expression/val/var 与无换行注释案例，
+以及 `parser_control_flow` 的同行多个 loop 案例。后继应先确定缺分隔符诊断/恢复、给三个 owner
+建立统一正反例，再按实际失败修正各真实 fixture；不能把“未实现”写成已拒绝，也不能只改
+一两个例子即声称前端一致。该项先于恢复语言增量，当前不对公共 grammar 做半套收紧。
+
+## 5. 重构与执行顺序
+
+1. R0 固定身份与审查合同；R1–R3 独立静态审查，动态确认发现。
+2. 先修正控制流、重复消费和恢复诊断；恢复/共享接口变化升级相应测试范围。
+3. 消费者先分成用户入口、共享算法、旧检查器专用和测试 oracle，再决定迁移；
+   不因同名、文件过大或处于 legacy 目录而直接删除。
+4. 既有 SPEC-0341 与 E3 迁移范围仍由各原合同负责；本 Spec 不宣称一次审查结清它们。
+5. 高风险模块按事实模型/验证/状态转移/诊断职责评估；只在证明重复与行为等价后共享。
+6. R0–R3 阻断项关闭后恢复增量；结构迁移收口后在同一冻结 SHA 做第一轮纵向复审。
+   v1 功能冻结再做第二轮 R5；新优化等级启用前另验语义与资源一致性。
+
+## 6. 非目标与兼容边界
+
+不更换手写 Lexer＋递归下降＋Pratt，不追求全语言 LL(1)，不新增通用 HIR/优化框架或依赖，
+不扩展 Guide、不补齐全部 v1 功能。DFA/最左推导属于算法或理论，不是额外发布能力。
+修复只改变违反现行合同的接受结果/事实/诊断；公开接口与跨 crate 类型变化须单列验收。
+
+## 7. 当前阶段结果与未覆盖
+
+| 阶段 | 当前证据 | 未闭合边界 |
+|---|---|---|
+| R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F6 修复，恢复矩阵与30项内部预算实跑 | F5 OPEN；class-family 全部 malformed owner 未穷尽 |
+| R2 | 独立检查 trial/final admission/provenance；F1/F2 已修复复核；既有 types/callable/final-admission 实跑 | 逐消费者处置及全部流事实组合尚未闭合 |
+| R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已动态确认旧入口差异；循环/析构全矩阵与动态资源验收未闭合 |
+| R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布；CLI 本机 build 通过 | 全家族 subset/build、emit/verifier 与 debug/fault/sanitizer、Linux 实跑待验；目标机仍为 OptimizationLevel::None |
+| R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
+
+## 8. 验收账本
+
+| 输入 / 检查 | 实际结果 | 范围与限制 |
+|---|---|---|
+| 原始基线；`python3 scripts/check_docs.py` | 通过，846 Markdown | 仅结构，不证明语义 |
+| 原始基线；`cargo test --locked --offline -p lang-frontend` 指定下列10 suite | 127 passed，0 failed/ignored/filtered | source_span 10、indexed_ast 7、lexer 20、lexer_boundary_matrix 4、lexer_stress_matrix 7、parser_expression 57、parser_contextual_type_ref 9、parser_return_control 11、parser_entry_prefix_truncation_matrix 1、parser_entry_trivia_invariance_matrix 1 |
+| 原始基线；仓外 Rust 最小探针，经同次 frontend rlib | F1–F5 均复现 | raw 临时保存，不冒充正式回归测试或全链路证据 |
+| 修复工作树；三新增 suite 初次行为回归 | lambda 0/3、receiver 1/4、super 0/2；均确实失败 | 测试初稿语法编译错误已先纠正，不把编译失败当行为红测 |
+| 修复工作树；22个直接合同 suite，`--no-fail-fast` | 640 passed，0 failed/ignored/filtered | 含 index14、basic/const view7/10、branch9、final57、lambda4、names15/13、unit types154、unit ownership154、signature2、receiver4、deinit30、two-phase18、parser block29/call31/control7/witness1/poison1/expression57/super2、callable21 |
+| 共享 postfix 扩展回归 | 吞逗号：1/2失败；吞分号：1/3失败；修复后7个 parser suite 129 passed，0 failed/ignored/filtered | 最后一次 source 变更仅恢复分支与测试；覆盖 super3/expression57/call31/block29/control7/witness1/poison1 |
+| `cargo test --locked --offline -p lang-frontend --lib parser::` | 30 passed，0 failed/ignored，314 filtered | 精确选择 Parser 资源/trial/DFA；非整个 frontend lib 通过 |
+| `cargo build --locked --offline -p lang-cli` | 通过 | 本机 LLVM21.1.8；后续公共入口测试会重编最后恢复修复 |
+| `cargo test --locked --offline -p lang-cli --test check_cli` | 6 passed，0 failed/ignored/filtered | 新增4种缺陷各 single/project，退出码/JSON唯一code；公共single仍使用unit，不替代legacy回归 |
+| `cargo clippy --locked --offline --workspace --all-targets -- -D warnings` | 通过，5个 member | 初轮新测试的 useless_format 与 cloned_ref_to_slice_refs 已修正，不放宽 lint |
+| `cargo test --locked --offline -p lang-codegen --lib ssa::verify` | 103 passed，0 failed/ignored，2553 filtered | 包含 dominance、block 参数、重复消费/drop/loan 与预算 fail-closed 等；不是全 codegen lib |
+| codegen `--lib adapter_rejects_invalid_ssa_before_constructing_llvm` | 1 passed，0 failed/ignored，2655 filtered | 非法 SSA 在 LLVM 构造前被拒绝 |
+| codegen `--lib unit_object_failures_preserve_targets_and_cleanup_sibling_temporary` | 1 passed，0 failed/ignored，2655 filtered | 原 entry/source/analysis/commit 失败保护旧目标、清理 sibling；不代替全 native 故障矩阵 |
+| 最终 `lambda_completion` / `ownership_receiver_backedge` / `parser_super_recovery` | 11 passed，0 failed/ignored/filtered | 含独立审查追加的局部 return 负控、source 相对外层循环、conditional continue 与分号 owner |
+| 最终 Parser 内部资源过滤与 CLI `check_cli` | 分别30 passed/314 filtered、6 passed/0 filtered；均0 failed/ignored | 最后共享恢复修复后重跑资源检查；CLI补核src唯一文件及源码字节保持 |
+| `cargo check --locked --offline --workspace --all-targets`、`cargo fmt --all -- --check` | 均通过 | 无新增跨crate API、依赖或语言语义 |
+| `python3 scripts/check_docs.py`、`git diff --check` | 均通过；847 Markdown | 只证明结构与diff；初次新增段落触发两页200行限制后，移除重复说明并保留单一账本链接 |
+| `python3 scripts/check_rust_sizes.py --base ea476adcccdd3d7fad768752173c2d76b1861aa1` | 通过；2112手写文件，39个历史超1000行 | 未提高baseline或exception；旧大文件债仍存在 |
+| `python3 scripts/conformance_gate.py --cli <本轮kovenc> --evidence <仓外目录> --compiler-commit ea476adcccdd3d7fad768752173c2d76b1861aa1+uncommitted-spec-0392 --jobs 1 --timeout 30` | gate通过；154 probe能力138/154，六程序0/6；两模式差异/内部错误/回归/错误输出均0 | macOS arm64单宿主；121 run、3 abort、14 diagnostic；16 probe+6程序仍known_unimplemented，不能称160项全通过 |
+
+Conformance 编译器 SHA256：`0f4ce1b6457633c752697813e4cc3ab60c06828381f7db7dafbe36ddc1bb78a5`。
+74个基础合法程序两模式58/74，未达到P2的70项门槛；六程序分别仍为
+config_parse L0080、expr_eval L0165、linked_stack L0085、raii_state_machine UnsupportedNode、
+varint_codec UnsupportedNode、word_count L0165。此为原有大验收程序，不与已通过的简化词频probe混淆。
+路线图只更新本轮单宿主测量，不将旧双宿主数据重写为当前CI，也不改变oracle或未实现分类。
+
+本地命令统一 `CARGO_TARGET_DIR=/private/tmp/koven-review-0392-target`；后端使用本机
+`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`。复用只限本轮相同源码/工具链的实际产物。
+
+## 9. 交付约束
+
+- [ ] 已确认发现均有意图测试、最小修复与独立复核；未闭合项不隐藏。
+- [ ] 阶段/消费者/测试清单及实际结果可追溯；Architecture 与路线图不把历史实测当当前。
+- [x] 本轮切片适用 fmt/check/clippy、尺寸、文档和直接消费者检查通过；不扩成整阶段验收。
+- [ ] 双宿主及全链路按前置条件执行；PR/CI 持久证据齐全后再归档。
+
+2026-11-07 用户要求先提交已复核切片、再继续实施；本地提交已获授权，当前不自动发布 PR
+或合并。Spec 保持 in-progress，未来执行结果在本账本追加，不能以已建计划替代验收。

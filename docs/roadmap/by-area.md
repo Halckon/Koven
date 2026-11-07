@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：main 5b7f3e97（PR #185 强 Oracle 审计账本与 13 章覆盖 + PR #186 SPEC-0356 when 家族 + PR #187 SPEC-0358 赋值与 inout + V2 Slice 6 未实现 Probe 路线图阻塞项对账）· Guide v0.46 · 更新：2026-10-27 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
+基线：ea476adc + SPEC-0392 未提交工作树（macOS 单宿主，非 main/PR CI）· Guide v0.47 · 更新：2026-11-06 · 其他视图：[按阶段](by-stage.md) · [按 Phase](by-phase.md) · 维护规则见 [README](README.md)
 
 ## 总览
 
@@ -20,7 +20,7 @@
 | 集合与迭代 | 6 | 0 | 0 | 3 | 0 | 0 | 9 |
 | 文本与 IO | 2 | 0 | 0 | 4 | 0 | 0 | 6 |
 | 标准库与运行时 | 3 | 1 | 0 | 3 | 0 | 0 | 7 |
-| 编译器结构 | 4 | 0 | 2 | 0 | 0 | 0 | 6 |
+| 编译器结构 | 4 | 0 | 3 | 0 | 0 | 0 | 7 |
 | 工具链 | 1 | 0 | 3 | 0 | 0 | 0 | 4 |
 | 安全验证 | 1 | 1 | 0 | 1 | 0 | 0 | 3 |
 | 验收、发布与文档 | 5 | 3 | 0 | 2 | 0 | 0 | 10 |
@@ -151,6 +151,7 @@
 | ✅ 已交付 | B05 | typed SSA → LLVM → 本机可执行文件；AArch64 macOS 与 x86_64 Linux glibc 双宿主 | S0 已交付基线 | v1 必做 | — | 4 | [0228](../archive/specs/0228-linux-x86-64-native-host.md) [0239](../archive/specs/0239-linux-ci-gates.md) [ssa-codegen-runtime](../architecture/ssa-codegen-runtime.md) |
 | ✅ 已交付 | B12 | M1A 多文件程序贯通：跨文件字段可变性、直接字段 Borrow、unit for | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4,6 | [0263](../archive/specs/0263-unit-field-mutability.md) [0264](../archive/specs/0264-unit-direct-field-borrow.md) [0265](../archive/specs/0265-unit-iteration-facts.md) [0268](../archive/specs/0268-unit-iteration-native.md) |
 | ✅ 已交付 | E1 | 前端硬门禁：Deferred/Error 不进入所有权与 codegen；未知成员报诊断；内部错误结构化；L0165 用户措辞 | P0 止血 | v1 必做 | — | 2 | [0319](../archive/specs/0319-final-type-admission-diagnostics.md) [0323](../archive/specs/0323-final-admission-static-recovery.md) [0324](../archive/specs/0324-final-admission-user-messages.md) |
+| ▶ 进行中 | E5 | 编译器分层独立复审：先 R0–R3 前端与交接，再结构收口全链路及发布复审 | P1 结构 | v1 必做 | — | 0,1,2,3,4,5,6 | [0392](../specs/active/0392-compiler-layered-review.md) |
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | P1 结构 | v1 必做 | — | 2,3,4 | [0341](../specs/active/0341-shared-lowering-core.md) |
 | ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 结构 | v1 必做 | — | 3,4 | [0350](../archive/specs/0350-ownership-refinement-nullable-pilot.md) [0356](../archive/specs/0356-refine-when-family.md) [0358](../archive/specs/0358-refine-assignment-inout.md) [0359](../archive/specs/0359-refine-rc.md) [0360](../specs/active/0360-string-when-refinement.md) [0361](../archive/specs/0361-refine-generic-value-class.md) [0362](../archive/specs/0362-refine-pending-arguments.md) [0364](../archive/specs/0364-refine-closures.md) [0370](../specs/active/0370-refine-lambda-bodies.md) [0371](../specs/active/0371-refine-integer-range-text.md) [0372](../specs/active/0372-refine-generic-class-enum.md) [0373](../specs/active/0373-refine-destructuring-range-for.md) [0374](../specs/active/0374-refine-ownership-primitives-const.md) [0375](../specs/active/0375-refine-sequential-containers.md) [0376](../specs/active/0376-refine-container-for-generate.md) [0377](../specs/active/0377-refine-box-map.md) [0378](../specs/active/0378-refine-class-fields-rc-and-null-views.md) [0379](../specs/active/0379-refine-reassignment-and-move-enum-when.md) [0380](../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md) [0381](../specs/active/0381-refine-default-routing-and-legacy-retirement.md) [0382](../archive/specs/0382-refine-map-ops-and-primitive-retirement.md) [0383](../specs/active/0383-refine-final-legacy-retirement.md) [0384](../specs/active/0384-refine-legacy-module-retirement.md) [0385](../specs/active/0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) [0386](../specs/active/0386-refine-inout-delegation-object-destructuring-retirement.md) [0387](../specs/active/0387-refine-string-clone-box-value-field-when-retirement.md) [0388](../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) [0389](../specs/active/0389-refine-known-function-shared-capture-container-element-retirement.md) |
 | ⏸ 延后 | X12 | 协程/async 与自举 | X v1 之外 | v3+ | 需新增 | — | — |

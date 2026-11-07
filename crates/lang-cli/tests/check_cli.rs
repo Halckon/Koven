@@ -240,6 +240,76 @@ fn project_mode_checks_the_whole_unit() {
 }
 
 #[test]
+fn reviewed_frontend_errors_reach_both_public_check_entries() {
+    for (text, expected_code) in [
+        ("fun missing(): Int { ({ -> return }) }", "L0088"),
+        (
+            "fun bad(flag: Boolean): Int { var x: Int? = 1;\n\
+             if (x != null) { if (flag) { x = null; ({ -> return }) }; return x }; return 0 }",
+            "L0084",
+        ),
+        (
+            "class Resource {\n\
+             own fun consume(): Unit {}\n\
+             own fun run(flag: Boolean): Unit { while (flag) { consume() } }\n\
+             }",
+            "L0131",
+        ),
+        ("fun bad(): Unit { super<I>.async }", "L0002"),
+    ] {
+        let directory = TestDirectory::create();
+        fs::create_dir(directory.join("src")).unwrap();
+        let source = directory.join("src/main.ko");
+        fs::write(&source, text).unwrap();
+        let manifest = directory.join("project.toml");
+        fs::write(
+            &manifest,
+            "schema = \"koven.project\"\nversion = 1\n\
+             [project]\nname = \"review\"\nsource-roots = [\"src\"]\n",
+        )
+        .unwrap();
+        let before = directory.entries();
+        for project in [false, true] {
+            let output = if project {
+                kovenc([
+                    OsStr::new("--message-format=json"),
+                    OsStr::new("check"),
+                    OsStr::new("--project"),
+                    manifest.as_os_str(),
+                ])
+            } else {
+                kovenc([
+                    OsStr::new("--message-format=json"),
+                    OsStr::new("check"),
+                    source.as_os_str(),
+                ])
+            };
+            assert_eq!(output.status.code(), Some(1), "{text}: {output:?}");
+            assert!(output.stdout.is_empty(), "{output:?}");
+            let codes: Vec<_> = String::from_utf8(output.stderr)
+                .unwrap()
+                .lines()
+                .map(|line| {
+                    serde_json::from_str::<serde_json::Value>(line).unwrap()["code"].clone()
+                })
+                .collect();
+            assert_eq!(codes, [expected_code], "project={project}: {text}");
+        }
+        assert_eq!(
+            directory.entries(),
+            before,
+            "check must not publish artifacts"
+        );
+        let source_entries = fs::read_dir(directory.join("src"))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect::<Vec<_>>();
+        assert_eq!(source_entries.as_slice(), std::slice::from_ref(&source));
+        assert_eq!(fs::read(&source).unwrap(), text.as_bytes());
+    }
+}
+
+#[test]
 fn help_prints_full_usage_to_stdout() {
     for spelling in ["--help", "-h", "help"] {
         let output = kovenc([OsStr::new(spelling)]);

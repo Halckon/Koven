@@ -124,7 +124,7 @@ materialization和short-circuit不丢失，没有basic/const转换。零常量�
 | AArch64 macOS | `aarch64-apple-darwin` | Mach-O 64-bit AArch64 | `/usr/bin/clang` |
 | x86_64 Linux + glibc | `x86_64-unknown-linux-gnu` | ELF64 x86_64 | `/usr/bin/cc` |
 
-LLVM 21.1.x / Inkwell 0.10.0 启用 AArch64 与 X86 backend feature。LLVM adapter 的
+LLVM 21.1.x / Inkwell 0.11.0 启用 AArch64 与 X86 backend feature。LLVM adapter 的
 `native_target_triple` 验证宿主架构、系统、GNU 环境与 64 位指针组合，由同一 TargetMachine
 设置 triple、DataLayout 和生成 object；不支持的宿主返回 `LlvmAdapterError::Target`。
 两个目标均使用 generic CPU、无额外 CPU feature、PIC 与默认 code model。系统 C driver

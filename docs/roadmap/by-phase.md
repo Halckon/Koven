@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：main 5b7f3e97（PR #185 强 Oracle 审计账本与 13 章覆盖 + PR #186 SPEC-0356 when 家族 + PR #187 SPEC-0358 赋值与 inout + V2 Slice 6 未实现 Probe 路线图阻塞项对账）· Guide v0.46 · 更新：2026-10-27 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
+基线：ea476adc + SPEC-0392 未提交工作树（macOS 单宿主，非 main/PR CI）· Guide v0.47 · 更新：2026-11-06 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
 
 只列 v1 范围内条目；● 表示该条目需要在对应 Phase 产出或验收。Phase 定义见 [一致性与实施边界](../guide/15-conformance-and-staging.md)。
 
@@ -12,13 +12,13 @@
 
 | Phase | ✅ 已交付 | ◐ 部分 | ▶ 进行中 | ☐ 未开始 | ❓ 待决策 | ⏸ 延后 | 合计 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Phase 0 骨架 | 1 | 0 | 2 | 0 | 0 | 0 | 3 |
-| Phase 1 Parser | 2 | 0 | 0 | 2 | 0 | 0 | 4 |
-| Phase 2 名称/类型 | 24 | 8 | 2 | 24 | 0 | 0 | 58 |
-| Phase 3 所有权 | 18 | 7 | 2 | 10 | 0 | 0 | 37 |
-| Phase 4 SSA/native | 21 | 8 | 3 | 19 | 0 | 0 | 51 |
-| Phase 5 标准库 | 2 | 0 | 0 | 9 | 0 | 0 | 11 |
-| Phase 6 工具 | 7 | 1 | 1 | 1 | 0 | 0 | 10 |
+| Phase 0 骨架 | 1 | 0 | 3 | 0 | 0 | 0 | 4 |
+| Phase 1 Parser | 2 | 0 | 1 | 2 | 0 | 0 | 5 |
+| Phase 2 名称/类型 | 24 | 8 | 3 | 24 | 0 | 0 | 59 |
+| Phase 3 所有权 | 18 | 7 | 3 | 10 | 0 | 0 | 38 |
+| Phase 4 SSA/native | 21 | 8 | 4 | 19 | 0 | 0 | 52 |
+| Phase 5 标准库 | 2 | 0 | 1 | 9 | 0 | 0 | 12 |
+| Phase 6 工具 | 7 | 1 | 2 | 1 | 0 | 0 | 11 |
 
 ## 矩阵
 
@@ -55,6 +55,7 @@
 | ✅ 已交付 | L12 | error()/!!/越界/溢出 abort 时向 stderr 打印消息与源码位置（D12） | P0 | 已定义 |  |  |  |  | ● | ● |  |
 | ✅ 已交付 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | P0 | — |  |  |  |  |  |  | ● |
 | ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | P0 | 需新增 |  |  |  |  |  |  |  |
+| ▶ 进行中 | E5 | 编译器分层独立复审：先 R0–R3 前端与交接，再结构收口全链路及发布复审 | P1 | — | ● | ● | ● | ● | ● | ● | ● |
 | ▶ 进行中 | E2 | 管线合并：单文件走 compilation-unit 管线，删除重复的 checker/lower_frontend（D10） | P1 | — |  |  | ● | ● | ● |  |  |
 | ▶ 进行中 | E3 | 通用所有权细化层：typed + ownership facts → 显式 move/drop/loan 指令 + CFG → SSA（D10） | P1 | — |  |  |  | ● | ● |  |  |
 | ◐ 部分 | N01 | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | P2 | 已定义 |  |  | ● | ● | ● |  |  |

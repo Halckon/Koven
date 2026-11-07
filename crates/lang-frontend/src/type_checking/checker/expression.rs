@@ -687,11 +687,11 @@ impl Checker<'_> {
                 annotation_span: expected_span,
                 loop_base: self.loop_depth,
             });
-            let body_result = self.check_value_body(body, Some(return_type), expected_span)?;
+            self.check_value_body(body, Some(return_type), expected_span)?;
             self.callables.pop();
             return Ok(ExprCheck {
                 ty: function,
-                falls_through: body_result.falls_through,
+                falls_through: true, // Creating the callable does not execute its local return.
             });
         }
         if arrow_span.is_none() && implicit_used {
@@ -736,7 +736,7 @@ impl Checker<'_> {
             };
             return Ok(ExprCheck {
                 ty,
-                falls_through: body.falls_through,
+                falls_through: true,
             });
         }
         self.emit(

@@ -580,6 +580,10 @@ impl Parser<'_> {
         outer_stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
         let keyword_span = self.bump()?.span();
+        if self.is_poison() {
+            let end = self.bump()?.span().end();
+            return self.add_expression(self.span(keyword_span.start(), end)?, Expression::Error);
+        }
         let interface = if self.current_is_symbol(Symbol::Less) {
             let opener = self.bump()?.span();
             let type_ref = self.parse_type_ref(TypeStops::empty().with(TypeStops::GREATER))?;
@@ -601,6 +605,10 @@ impl Parser<'_> {
             )?;
             self.add_type_ref(span, TypeRef::Error)?
         };
+        if self.is_poison() {
+            let end = self.bump()?.span().end();
+            return self.add_expression(self.span(keyword_span.start(), end)?, Expression::Error);
+        }
         let dot_span = if self.current_is_symbol(Symbol::Dot) {
             self.bump()?.span()
         } else {
@@ -612,6 +620,10 @@ impl Parser<'_> {
             )?;
             self.empty_at(self.previous_significant_end())?
         };
+        if self.is_poison() {
+            let end = self.bump()?.span().end();
+            return self.add_expression(self.span(keyword_span.start(), end)?, Expression::Error);
+        }
         let name_span = if self.current_is_identifier() {
             self.bump()?.span()
         } else {

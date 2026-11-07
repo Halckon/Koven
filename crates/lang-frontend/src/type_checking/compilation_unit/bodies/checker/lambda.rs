@@ -100,16 +100,11 @@ impl BodyChecker<'_> {
                 self.set_span_symbol(source, parameter_span, parameter.ty());
                 self.set_parameter_mode(source, parameter_span, parameter.mode());
             }
-            let body = self.check_lambda_body(
-                source,
-                body,
-                return_type,
-                expected_span,
-                Some(return_type),
-            )?;
+            self.check_lambda_body(source, body, return_type, expected_span, Some(return_type))?;
             return Ok(ExpressionCheck {
                 ty: function,
-                falls_through: body.falls_through,
+                // A lambda's local return cannot terminate the enclosing expression path.
+                falls_through: true,
             });
         }
         if arrow_span.is_none() && implicit_used {
@@ -140,7 +135,7 @@ impl BodyChecker<'_> {
             };
             return Ok(ExpressionCheck {
                 ty,
-                falls_through: body.falls_through,
+                falls_through: true,
             });
         }
         self.emit(
