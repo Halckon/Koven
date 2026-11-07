@@ -3112,3 +3112,41 @@ fmt、文档及尺寸门禁通过；本批累计本地逻辑提交，未尝试�
   identity 与 selector 接线无阻断。主测试文件2123→1942行，旧尺寸欠账仅下降。全 target、
   Abort/故障注入/校准、native、Linux 与官方 CI 未运行；本地定向结果不能替代精确发布头
   双宿主 CI，D10/E2 保持 in-progress，不自动合并。
+
+
+## 115. Raw type 消费者四批集中集成（2026-11-07）
+
+以已含 #340 的 main `88df4632a2e3239fb610166ef9b23dda148c9337` 为基线，在独立
+`feature/spec-0341-type-consumer-integration` 保全下列发布头，未改原分支或关闭原 PR：
+
+| 来源 PR | 精确发布头 | 原逻辑提交数 |
+|---|---|---:|
+| [#335](https://github.com/Halckon/Koven/pull/335) | `5f3dd1c613f1636868bdf5f0887da94b71d66d3c` | 3 |
+| [#337](https://github.com/Halckon/Koven/pull/337) | `c611454f86bfdd24e64f48a8b978c4e123fe33ed` | 4 |
+| [#339](https://github.com/Halckon/Koven/pull/339) | `980971ed0a7266f55cff8080a28148dbbb4a2579` | 4 |
+| [#341](https://github.com/Halckon/Koven/pull/341) | `7427c430e30ec4eb9d2291926d63a8e9199af39f` | 5 |
+
+- 四个 no-ff merge（`7b4fa3d2`、`616cbf83`、`7b9de937`、`10b422b2`）保留全部16个
+  原逻辑提交。冲突按迁移函数集合合并根注册/相邻删除，Spec 相邻追加保留双方原文；
+  16个新增模块与各发布头逐字节一致，#340 的四个 non_null 模块及原控制/resource 模块不变。
+- 独立静审逐项核44项迁移、57份原源码字面量及全部原oracle；根文件剩余22项测试和5个
+  helper逐字保留。只删除合并后不再使用的 `Expression` import，首次Clippy所报该告警
+  已修复并重跑通过。原82项测试无遗漏，加顶层诊断对照后共83项，未改selector或计数。
+- 原 overflow Single L0090、Unit顶层L0167/L0090及四项nullable Single差距对照完整保留，
+  不改生产、Guide、原准入或source位置，不宣称Single全部退休或扩大ownership/native能力。
+- 组合代码输入为 `10b422b2` 加上述单一导入清理；Mac AArch64、Rust1.96.0、default
+  debug=2、locked/offline，复用既有target串行执行，实际验收如下。
+
+| 验收项 | 测试目标/选择 | 实际结果 |
+|---|---|---|
+| 全部原输入及组合 | `cargo test --locked --offline -p lang-frontend --test type_checking` | 83 passed，0 filtered；导入修复后重跑通过 |
+| 相邻 Unit 合同 | `multifile_type_checking` 的 `nullable_when::`、`non_null_assertion_`、`source_construction::`、`unit_intrinsic_box`，以及 `dispatch_receivers::unit_super_uses_the_selected_receiver_mode_and_exact_interface_instance`、`expression_tails::expression_tail_fallthrough_is_stable_under_input_permutation` | 19 passed，135 filtered |
+| null flow 邻控 | `nullable_flow::null_comparisons_publish_stable_source_qualified_flow_facts --exact` | 1 passed，153 filtered |
+| 接口签名邻控 | `multifile_type_signatures` 的 `cross_file_interface_closure_substitutes_arguments_and_checks_bounds` 与 `cross_file_invalid_bounds_supertypes_and_cycles_keep_existing_codes` | 2 passed，15 filtered |
+| 编译和格式 | frontend all-targets Clippy（locked/offline，`-D warnings`）、`cargo fmt --all -- --check` | 通过 |
+| 尺寸 | `python3 scripts/check_rust_sizes.py --base 88df4632` | 通过；根文件1893→963行，超1000行旧文件39→38 |
+| 文档与差异 | `python3 scripts/check_docs.py`、`git diff --check` | 848份Markdown通过，无空白错误 |
+
+共105项不同测试通过；type_checking只做前端分析，Abort仅事实描述符断言，不执行源程序。
+整个workspace、运行时Abort/故障注入/校准、native、Linux与本集成头官方CI未运行；
+D10/E2继续in-progress，原各批历史验收不改写，集中PR仍须精确发布头双宿主CI，不自动合并。

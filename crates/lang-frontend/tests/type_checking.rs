@@ -3,7 +3,7 @@
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
     name_resolution::{NameEnvironment, NameResolution, resolve_names},
-    parser::{Expression, ParsedFile},
+    parser::ParsedFile,
     source::SourceMap,
     type_checking::{
         AggregateProjectionReceiver, BuiltinType, CallReceiverOrigin, Capability, DeferredReason,
