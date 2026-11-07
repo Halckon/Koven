@@ -22,6 +22,9 @@ mod control_join_regressions;
 #[path = "type_checking/resource_unit.rs"]
 mod resource_unit;
 
+#[path = "type_checking/non_null_unit.rs"]
+mod non_null_unit;
+
 use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
@@ -1719,65 +1722,6 @@ fn non_null_assertion_abort_is_independent_of_shadowed_error() {
 }
 
 #[test]
-fn non_null_assertion_failed_trials_roll_back_and_selected_trial_is_unique() {
-    for (body, success) in [("it!!", false), ("it!! + 1", true)] {
-        let text = format!(
-            "fun choose(callback: (Int?) -> Int): Int = 1\nfun choose(callback: (Boolean?) -> Boolean): Boolean = true\nfun use(): Unit {{ val selected = choose {{ {body} }} }}"
-        );
-        let (_, _, _, typed) = checked(&text);
-        assert_eq!(
-            typed.diagnostics().is_empty(),
-            success,
-            "{:?}",
-            typed.diagnostics()
-        );
-        assert_eq!(typed.non_null_assertions().len(), usize::from(success));
-        if success {
-            assert_eq!(
-                typed
-                    .types()
-                    .get(typed.non_null_assertions()[0].inner_type()),
-                Some(&TypeKind::Builtin(BuiltinType::Int))
-            );
-        }
-    }
-}
-
-#[test]
-fn non_null_assertion_invalid_nested_postfix_keeps_only_valid_inner_fact() {
-    let (sources, _, _, typed) = checked("fun read(x: Int?): Int = x!!!!\nfun bad(): Int = true!!");
-    assert_eq!(codes(typed.diagnostics()), ["L0085", "L0085"]);
-    for diagnostic in typed.diagnostics() {
-        assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), "!!");
-    }
-    assert_eq!(typed.non_null_assertions().len(), 1);
-}
-
-#[test]
-fn non_null_assertion_failed_candidates_preserve_preexisting_fact() {
-    let (sources, parsed, _, typed) = checked(
-        "fun first(x: Int?): Int = x!!\nfun choose(callback: (Int?) -> Int): Int = 1\nfun choose(callback: (Boolean?) -> Boolean): Boolean = true\nfun use(): Unit { val selected = choose { it!! + true } }",
-    );
-    assert_eq!(codes(typed.diagnostics()), ["L0123"]);
-    let [plan] = typed.non_null_assertions() else {
-        panic!("failed candidates must preserve only the earlier committed assertion");
-    };
-    assert_eq!(
-        sources
-            .slice(
-                parsed
-                    .ast()
-                    .expressions()
-                    .get(plan.expression())
-                    .unwrap()
-                    .span()
-            )
-            .unwrap(),
-        "x!!"
-    );
-}
-
-#[test]
 fn non_null_assertion_preserves_conditional_copyability() {
     use lang_frontend::type_checking::Copyability;
     for (parameter, expected) in [
@@ -1792,18 +1736,6 @@ fn non_null_assertion_preserves_conditional_copyability() {
         assert_eq!(plan.copyability(), expected);
         assert_eq!(typed.copyability(plan.inner_type()), Some(expected));
     }
-}
-
-#[test]
-fn non_null_assertion_error_and_deferred_operands_do_not_publish_extraction() {
-    let (_, _, _, typed) =
-        checked("fun bad(): Int = (true + false)!!\nfun deferred(x: Int): Int = (x as Int)!!");
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0085"],
-        "operand error must not gain another assertion diagnostic"
-    );
-    assert!(typed.non_null_assertions().is_empty());
 }
 
 #[test]
