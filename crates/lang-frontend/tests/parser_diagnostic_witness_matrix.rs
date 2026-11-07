@@ -378,6 +378,11 @@ const WITNESSES: &[Witness] = &[
         entry: Entry::Declaration,
         source: "class C: I by, J",
     },
+    Witness {
+        code: "L0169",
+        entry: Entry::Block,
+        source: "{ x y }",
+    },
 ];
 
 #[derive(Debug, PartialEq, Eq)]
@@ -487,13 +492,13 @@ fn parse_fingerprint(
 
 #[test]
 fn every_current_parser_diagnostic_has_one_public_lexer_clean_witness() {
-    assert_eq!(WITNESSES.len(), 69);
+    assert_eq!(WITNESSES.len(), 70);
     assert!(codes::ALL.contains(&"L0016"));
 
     let expected_codes = codes::ALL
         .iter()
         .copied()
-        .filter(|code| ("L0009"..="L0078").contains(code) && *code != "L0016")
+        .filter(|code| (("L0009"..="L0078").contains(code) && *code != "L0016") || *code == "L0169")
         .collect::<BTreeSet<_>>();
     let witness_codes = WITNESSES
         .iter()

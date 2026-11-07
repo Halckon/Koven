@@ -85,7 +85,7 @@ pub(crate) const ENTRY_CASES: &[EntryCase] = &[
     EntryCase {
         name: "block local destructuring",
         kind: EntryKind::Block,
-        source: "{ val (first, second) = pair return first + second }",
+        source: "{ val (first, second) = pair; return first + second }",
     },
     EntryCase {
         name: "block conditional return",
@@ -100,7 +100,7 @@ pub(crate) const ENTRY_CASES: &[EntryCase] = &[
     EntryCase {
         name: "block unicode lexical owners",
         kind: EntryKind::Block,
-        source: r#"{ val text = "前${call('界', "内${x}")}后" return text }"#,
+        source: r#"{ val text = "前${call('界', "内${x}")}后"; return text }"#,
     },
 ];
 

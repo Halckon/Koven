@@ -272,3 +272,329 @@ fn unit_generic_body_closed_enum_refinement_is_an_actual_seed() {
         "closed source arguments are seeds even if their runtime layout stays unsupported"
     );
 }
+
+#[test]
+fn instantiated_container_signature_rejects_unstorable_elements_before_publishing_call() {
+    for (text, primary, rejected) in [
+        (
+            "fun <T> fail(): List<T> = error(\"never\")\nfun entry(): Unit { fail<Nothing>() }",
+            "fail",
+            "fail<Nothing>()",
+        ),
+        (
+            "fun <T> accept(value: Array<T>?): Unit {}\nfun entry(): Unit { accept<Any>(null) }",
+            "accept",
+            "accept<Any>(null)",
+        ),
+        (
+            "class Factory<T> { fun create(): List<T> = error(\"never\") }\nfun entry(): Unit { Factory<Nothing>().create() }",
+            "Factory<Nothing>().create",
+            "Factory<Nothing>().create()",
+        ),
+    ] {
+        check_storage_instances(text, |sources, file, source_unit, typed| {
+            assert_storage_diagnostic(sources, typed, primary);
+            let rejected =
+                UnitExpressionId::new(source_unit, expression_with_text(sources, file, rejected));
+            assert!(
+                typed
+                    .calls()
+                    .iter()
+                    .all(|call| call.expression() != rejected)
+            );
+        });
+    }
+}
+
+#[test]
+fn invalid_container_candidate_does_not_poison_viable_overload() {
+    let text = "class Holder<T>(val value: Int)\n\
+                fun <T> choose(value: Int): (Holder<T>) -> List<T> = error(\"never\")\n\
+                fun <T> choose(value: Long): Int = 7\n\
+                fun entry(): Int = choose<Nothing>(1)";
+    check_storage_instances(text, |sources, file, source_unit, typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let expression = UnitExpressionId::new(
+            source_unit,
+            expression_with_text(sources, file, "choose<Nothing>(1)"),
+        );
+        let call = typed
+            .calls()
+            .iter()
+            .find(|call| call.expression() == expression)
+            .unwrap();
+        assert_eq!(
+            typed.types().get(call.arguments()[0].parameter_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Long))
+        );
+        let holder = typed
+            .signatures()
+            .declarations()
+            .iter()
+            .find_map(|signature| signature.nominal())
+            .expect("Holder is the sole nominal");
+        assert!(
+            typed
+                .types()
+                .find(&UnitTypeKind::Nominal {
+                    declaration: holder.declaration(),
+                    arguments: vec![typed.types().builtin(BuiltinType::Nothing).unwrap()],
+                })
+                .is_none(),
+            "discarded storage candidate must not seed a runtime layout"
+        );
+        assert!(typed.clone().validate().is_ok());
+    });
+}
+
+#[test]
+fn storage_rejection_discards_layouts_added_by_bound_substitution() {
+    let text = "interface Pattern<T>\n\
+                class Holder<T>(val value: Int)\n\
+                class Marker<T> : Pattern<Holder<T>>\n\
+                fun <T, U: Pattern<Holder<T>>> choose(value: Int, marker: U): List<T> = error(\"never\")\n\
+                fun <T, U> choose(value: Long, marker: U): Int = 7\n\
+                fun entry(): Int = choose<Nothing, Marker<Nothing>>(1, Marker<Nothing>())";
+    check_storage_instances(text, |_, _, _, typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let [layout] = typed.runtime_field_layouts() else {
+            panic!("only the selected call's concrete Marker layout should survive");
+        };
+        assert!(layout.fields().is_empty(), "Marker has no fields");
+        assert!(typed.clone().validate().is_ok());
+    });
+}
+
+#[test]
+fn body_only_container_storage_is_checked_at_concrete_call_roots() {
+    for argument in ["Nothing", "Any"] {
+        let text = format!(
+            "fun <T> store(): Unit {{ val values: MutableList<T>? = null }}\n\
+             fun <T> outer(): Unit {{ store<T>() }}\n\
+             fun entry(): Unit {{ outer<{argument}>() }}"
+        );
+        check_storage_instances(&text, |sources, _, _, typed| {
+            assert_storage_diagnostic(sources, typed, &format!("outer<{argument}>()"));
+        });
+    }
+}
+
+fn check_storage_instances(
+    text: &str,
+    mut inspect: impl FnMut(&SourceMap, &ParsedFile, SourceUnitId, &CompilationUnitTypes),
+) {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "storage.ko", text);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "storage.ko", source, &file),
+    ] {
+        let inputs = [input];
+        let names = validated_names(&sources, &inputs, &environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(typed.signatures().diagnostics().is_empty());
+        inspect(&sources, &file, source_unit(&names, source), &typed);
+    }
+}
+
+fn assert_storage_diagnostic(sources: &SourceMap, typed: &CompilationUnitTypes, primary: &str) {
+    let [diagnostic] = typed.diagnostics() else {
+        panic!(
+            "expected one storage diagnostic at {primary}: {:?}",
+            typed.diagnostics()
+        );
+    };
+    assert_eq!(diagnostic.code().to_string(), "L0125");
+    assert_eq!(sources.slice(diagnostic.primary_span()), Ok(primary));
+    assert!(typed.clone().validate().is_err());
+}
+
+#[test]
+fn instantiated_member_bodies_check_owner_and_method_storage() {
+    for text in [
+        "class Factory { fun <T> create(): Unit { val values: List<T>? = null } }\nfun entry(): Unit { Factory().create<Nothing>() }",
+        "class Factory<T> { fun create(): Unit { val values: Rc<T>? = null } }\nfun entry(): Unit { Factory<Nothing>().create() }",
+        "class Factory<A> { fun <B> create(): Unit { val first: List<A>? = null; val second: Rc<B>? = null } }\nfun entry(): Unit { Factory<Nothing>().create<Int>() }",
+        "class Factory<A> { fun <B> create(): Unit { val first: List<A>? = null; val second: Rc<B>? = null } }\nfun entry(): Unit { Factory<Int>().create<Nothing>() }",
+        "class Factory { fun <T> create(): Unit { val values: List<T>? = null } }\nfun <T> invoke(): Unit { Factory().create<T>() }\nfun entry(): Unit { invoke<Nothing>() }",
+    ] {
+        check_storage_instances(text, |_, _, _, typed| {
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0125"]
+            );
+            assert!(typed.clone().validate().is_err());
+        });
+    }
+}
+
+#[test]
+fn ordinary_method_seeds_transitive_companion_instantiation() {
+    let text = "class Factory { companion { fun <T> create(): Unit { val values: List<T>? = null } } }\n\
+                class Caller { fun <T> forward(): Unit { Factory.create<T>() }; fun call(): Unit { forward<Nothing>() } }";
+    check_storage_instances(text, |sources, _, _, typed| {
+        assert_storage_diagnostic(sources, typed, "forward<Nothing>()");
+    });
+}
+
+#[test]
+fn instantiated_nominal_fields_and_interface_bounds_reject_invalid_storage() {
+    for text in [
+        "class Factory<T>(val payload: List<T>?)\nfun entry(): Unit { Factory<Nothing>(null) }",
+        "class Factory<T>(val payload: Rc<T>?)\nfun entry(value: Factory<Nothing>): Unit {}",
+        "value class Factory<T>(val payload: List<T>?)\nfun entry(value: Factory<Nothing>): Unit {}",
+        "interface Pattern<T>\nclass Marker<T> : Pattern<Rc<T>>\nfun <T,U: Pattern<Rc<T>>> choose(value: U): Unit {}\nfun entry(): Unit { choose<Nothing, Marker<Nothing>>(Marker<Nothing>()) }",
+    ] {
+        check_storage_instances_relaxed_signatures(text, |typed| {
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0125"]
+            );
+            assert!(typed.runtime_field_layouts().is_empty());
+            assert!(typed.clone().validate().is_err());
+        });
+    }
+}
+
+fn check_storage_instances_relaxed_signatures(
+    text: &str,
+    mut inspect: impl FnMut(&CompilationUnitTypes),
+) {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "storage.ko", text);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "storage.ko", source, &file),
+    ] {
+        let inputs = [input];
+        let names = validated_names(&sources, &inputs, &environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        inspect(&typed);
+    }
+}
+
+#[test]
+fn transitive_and_recursive_nominal_storage_requirements_reach_all_parameters() {
+    for text in [
+        "class Wrapper<T>(val payload: List<T>?)\nclass Outer<U>(val first: Wrapper<Int>?, val second: Wrapper<U>?)\nfun inspect(value: Outer<Nothing>): Unit {}",
+        "class Rotate<A, B, C>(val next: Rotate<B, C, List<A>>?)\nfun inspect(value: Rotate<Int, Int, Nothing>): Unit {}",
+        "enum class Wrapper<T> { Stored(payload: List<T>?) }\nfun inspect(value: Wrapper<Nothing>): Unit {}",
+    ] {
+        check_storage_instances_relaxed_signatures(text, |typed| {
+            assert_eq!(
+                typed.diagnostics().len(),
+                1,
+                "{text}: {:?}",
+                typed.diagnostics()
+            );
+            assert_eq!(typed.diagnostics()[0].code().to_string(), "L0125");
+            assert!(typed.runtime_field_layouts().is_empty());
+            assert!(typed.clone().validate().is_err());
+        });
+    }
+}
+
+#[test]
+fn nominal_storage_requirements_preserve_function_values_and_recursive_heap_types() {
+    for text in [
+        "class Grow<T>(val next: Grow<List<T>>?)\nfun inspect(value: Grow<Int>): Unit {}",
+        "class Rotate<A, B, C>(val next: Rotate<B, C, List<A>>?)\nfun inspect(value: Rotate<Int, Int, Int>): Unit {}",
+        "class Wrapper<T>(val payload: List<() -> T>?)\nfun inspect(value: Wrapper<Nothing>): Unit {}",
+        "class Rc<T>\nclass Wrapper<T>(val payload: Rc<T>)\nfun inspect(value: Wrapper<Nothing>): Unit {}",
+        "class Phantom<T>(val payload: Int)\nfun inspect(value: Phantom<Nothing>): Unit {}",
+    ] {
+        check_storage_instances_relaxed_signatures(text, |typed| {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{text}: {:?}",
+                typed.diagnostics()
+            );
+            assert!(typed.clone().validate().is_ok());
+        });
+    }
+}
+
+#[test]
+fn ordinary_class_storage_checks_only_layout_relevant_arguments() {
+    for (text, expected) in [
+        (
+            "class Phantom<T>(val value: Int)\nfun inspect(xs: List<Phantom<Nothing>>): Unit {}",
+            &[][..],
+        ),
+        (
+            "class Phantom<T>(val value: Int)\nfun inspect(xs: Map<Int, Phantom<Nothing>>, ref: Rc<Phantom<Nothing>>): Unit {}",
+            &[][..],
+        ),
+        (
+            "class Phantom<T>(val value: Int)\nfun inspect(): Unit { val xs: List<Phantom<Nothing>> = listOf(Phantom<Nothing>(1)) }",
+            &[][..],
+        ),
+        (
+            "class Phantom<T>(val value: Int)\nclass Outer<T>(val values: List<Phantom<T>>?)\nfun inspect(value: Outer<Nothing>): Unit {}",
+            &[][..],
+        ),
+        (
+            "class Phantom<T>(val value: Int)\nclass Outer<T>(val inner: Phantom<T>)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &[][..],
+        ),
+        (
+            "class Outer<T>(val inner: Payload<T>)\nclass Payload<T>(val value: T)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &["L0125"][..],
+        ),
+        (
+            "class Payload<T>(val value: T)\nclass Outer<T>(val values: List<Payload<T>>?)\nfun inspect(value: Outer<Nothing>): Unit {}",
+            &["L0125"][..],
+        ),
+        (
+            "class Outer<T>(val values: Map<Int, T>?)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &["L0125"][..],
+        ),
+        (
+            "class Outer<T>(val values: MutableMap<Int, T>?)\nfun <T> use(): Unit { val xs: List<Outer<T>>? = null }\nfun entry(): Unit { use<Nothing>() }",
+            &["L0125"][..],
+        ),
+        (
+            "value class Payload<T>(val item: T)\nclass Outer<T>(val boxed: Box<Payload<T>>)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &["L0125"][..],
+        ),
+        (
+            "value class Phantom<T>(val item: Int)\nclass Outer<T>(val boxed: Box<Phantom<T>>)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &[][..],
+        ),
+        ("fun inspect(xs: List<Nothing>): Unit {}", &["L0125"][..]),
+    ] {
+        check_storage_instances_relaxed_signatures(text, |typed| {
+            let codes: Vec<_> = typed
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect();
+            assert_eq!(codes, expected, "{text}");
+            assert_eq!(
+                typed.clone().validate().is_ok(),
+                expected.is_empty(),
+                "{text}"
+            );
+        });
+    }
+}
+
+#[test]
+fn nominal_storage_requirements_preserve_interface_diagnostic_owner() {
+    let text = "interface Shape\nclass Wrapper<T>(val payload: List<T>?)\nfun inspect(value: Wrapper<Shape>): Unit {}";
+    check_storage_instances_relaxed_signatures(text, |typed| {
+        assert_eq!(typed.diagnostics().len(), 1, "{:?}", typed.diagnostics());
+        assert_eq!(typed.diagnostics()[0].code().to_string(), "L0094");
+        assert!(typed.clone().validate().is_err());
+    });
+}

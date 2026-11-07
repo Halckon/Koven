@@ -340,6 +340,36 @@ impl SignatureCollector<'_> {
                 }
                 if let Some(UnitTypeKind::Intrinsic {
                     constructor:
+                        constructor @ (IntrinsicTypeConstructor::Array
+                        | IntrinsicTypeConstructor::List
+                        | IntrinsicTypeConstructor::MutableList
+                        | IntrinsicTypeConstructor::Rc),
+                    arguments,
+                }) = self.types.get(ty)
+                    && let [element] = arguments.as_slice()
+                    && let [element_ref] = segment.arguments.as_slice()
+                    && self.storage_argument_has_no_value(*element)
+                {
+                    let span = self.inputs[source_index]
+                        .ast()
+                        .type_refs()
+                        .get(*element_ref)
+                        .map_err(TypeCheckingError::from)?
+                        .span();
+                    self.emit(
+                        codes::INVALID_CONTAINER_ELEMENT,
+                        if *constructor == IntrinsicTypeConstructor::Rc {
+                            "Rc payload type is not structurally storable"
+                        } else {
+                            "sequential container element type is not structurally storable"
+                        },
+                        span,
+                    )?;
+                    // Preserve the signature's shape for overload recovery.
+                    continue;
+                }
+                if let Some(UnitTypeKind::Intrinsic {
+                    constructor:
                         IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
                     arguments,
                 }) = self.types.get(ty)
@@ -390,6 +420,26 @@ impl SignatureCollector<'_> {
                     .copied()
                     .zip(arguments.iter().copied())
                     .collect::<BTreeMap<_, _>>();
+                if let Some(required) = self.storage_requirements.required(declaration)
+                    && let Some(index) = nominal.type_parameters().iter().zip(&arguments).position(
+                        |(parameter, argument)| {
+                            required.contains(parameter)
+                                && self.storage_argument_has_no_value(*argument)
+                        },
+                    )
+                {
+                    let primary = self.inputs[source_index]
+                        .ast()
+                        .type_refs()
+                        .get(segment.arguments[index])
+                        .map_err(TypeCheckingError::from)?
+                        .span();
+                    self.emit(
+                        codes::INVALID_CONTAINER_ELEMENT,
+                        "type argument cannot satisfy instantiated storage requirements",
+                        primary,
+                    )?;
+                }
                 for (index, (parameter, argument)) in nominal
                     .type_parameters()
                     .iter()
@@ -430,6 +480,33 @@ impl SignatureCollector<'_> {
         self.validate_capabilities_and_layout()
     }
 
+    // Interface, carrier and inline layout checks own their diagnostics.
+    // A nested intrinsic argument is checked at its own TypeRef.
+    fn storage_argument_has_no_value(&self, ty: UnitTypeId) -> bool {
+        match self.types.get(ty) {
+            Some(UnitTypeKind::Builtin(BuiltinType::Any | BuiltinType::Nothing))
+            | Some(UnitTypeKind::Capability(_)) => true,
+            Some(
+                UnitTypeKind::Nullable(inner)
+                | UnitTypeKind::EnumCase { root: inner, .. }
+                | UnitTypeKind::StaticSelf(inner),
+            ) => self.storage_argument_has_no_value(*inner),
+            Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) => {
+                self.nominals
+                    .get(declaration)
+                    .is_some_and(|nominal| nominal.kind() != NominalKind::Interface)
+                    && self
+                        .storage_requirements
+                        .representation_arguments(*declaration, arguments)
+                        .any(|argument| self.storage_argument_has_no_value(argument))
+            }
+            _ => false,
+        }
+    }
+
     fn map_value_is_storable(&self, ty: UnitTypeId) -> bool {
         if crate::type_checking::range_type_uses::unit_contains_range(&self.types, ty) {
             return false;
@@ -455,9 +532,10 @@ impl SignatureCollector<'_> {
                     .get(declaration)
                     .is_some_and(|nominal| nominal.kind() != NominalKind::Interface)
                     && !self.invalid_inline_nominals.contains(declaration)
-                    && arguments
-                        .iter()
-                        .all(|argument| self.map_value_is_storable(*argument))
+                    && self
+                        .storage_requirements
+                        .representation_arguments(*declaration, arguments)
+                        .all(|argument| self.map_value_is_storable(argument))
             }
             _ => false,
         }

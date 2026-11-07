@@ -94,8 +94,8 @@ fn inserting_the_fixed_scalar_alphabet_at_every_entry_utf8_boundary_is_recoverab
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(boundary_counts, [188, 343, 202]);
-    assert_eq!(insertion_counts, [2_444, 4_459, 2_626]);
-    assert_eq!(scalar_counts, [733; 13]);
-    assert_eq!(insertion_counts.into_iter().sum::<usize>(), 9_529);
+    assert_eq!(boundary_counts, [188, 343, 204]);
+    assert_eq!(insertion_counts, [2_444, 4_459, 2_652]);
+    assert_eq!(scalar_counts, [735; 13]);
+    assert_eq!(insertion_counts.into_iter().sum::<usize>(), 9_555);
 }

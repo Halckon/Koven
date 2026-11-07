@@ -314,6 +314,7 @@ impl<'a> Checker<'a> {
         for &root in self.parsed.roots() {
             self.check_item(root, &mut state)?;
         }
+        self.reject_unmodeled_own_receivers()?;
         let diagnostics = ordered_diagnostics(self.sources, &self.diagnostics)?
             .into_iter()
             .cloned()

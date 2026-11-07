@@ -101,13 +101,12 @@ class CompositionContracts(unittest.TestCase):
         other_targets = [target for target in targets
                          if target not in ("compilation_unit_index", "multifile_name_resolution")]
         self.assertEqual(len(other_targets), len(set(other_targets)))
-        # SPEC-0341 adds the complete signature target to the existing 130;
-        # retain the original target count and uniqueness independently.
+        # SPEC-0341 adds the signature target to the 135 retained review targets.
         self.assertEqual(1, other_targets.count("multifile_type_signatures"))
         retained_targets = [target for target in other_targets
                             if target != "multifile_type_signatures"]
-        self.assertEqual(130, len(retained_targets))
-        self.assertEqual(131, len(other_targets))
+        self.assertEqual(135, len(retained_targets))
+        self.assertEqual(136, len(other_targets))
         self.assertEqual(1, targets.count("ownership_value_api"))
         self.assertEqual(1, other_targets.count("type_text_extension"))
         self.assertEqual(1, targets.count("unit_direct_call_loan_ends"))
@@ -163,6 +162,16 @@ class CompositionContracts(unittest.TestCase):
 
 
 class StaticStageSelectionContracts(unittest.TestCase):
+    def test_review_regressions_are_selected_exactly_once(self):
+        stage = (ROOT / "scripts/check_stage_integration.sh").read_text()
+        targets = re.findall(r"--test ([a-z0-9_]+)", stage)
+        for target in ("lambda_completion", "ownership_receiver_backedge",
+                       "legacy_receiver_admission", "parser_super_recovery",
+                       "parser_statement_separators"):
+            with self.subTest(target=target):
+                self.assertEqual(1, targets.count(target))
+                self.assertTrue((ROOT / "crates/lang-frontend/tests" / f"{target}.rs").is_file())
+
     def test_shared_ownership_targets_present_exactly_once(self):
         # Pure inspection: do not invoke the shell stub or its failure controls.
         stage = (ROOT / "scripts/check_stage_integration.sh").read_text()

@@ -17,7 +17,7 @@ raw检查保留recovery，旧validate边界不变；`complete_file_types` / `com
 `type_callable` 的 println 身份/遮蔽、成员与函数值映射、参数模式三项原测试已由双 Unit 入口承接，其他 Single 覆盖保留。覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)；lambda expected/capture 见[专题](expected-move-literals.md)。
 
 两入口将同expression已选EnumCase构造归为Temporary，Group透传；Name/Member拼写不授予place，真实binding/field不变。
-final仅沿已选case的静态qualifier准入；无descriptor的零payload推导失败须原typed L0144、case Value引用与raw失败表示共同证明，仍保留失败资格及独立根诊断。覆盖见`enum_case_borrow_categories`，不扩展enum when或泛型enum native。
+final仅沿已选case的静态qualifier准入；无descriptor的零payload推导失败须原typed L0144、case Value引用与raw失败表示共同证明，仍保留失败资格及独立根诊断。覆盖见`enum_case_borrow_categories`，不扩展enum when或泛型enum native。 `type_checking::raw_followup` 的11项构造/smart-cast/when 原消费者现走双 Unit raw type 入口；顶层溢出保留 L0167 与 L0090 并存及原 Single witness，范围见 [迁移验收](../specs/active/0341-shared-lowering-core.md#独立批次构造与控制类型消费者2026-11-07)。
 
 ## 数值字面量解码
 
@@ -91,7 +91,7 @@ Name/Group 的非空 use 必须属于当前 entry/callable 且同一 generation�
 单文件 condition 沿未匹配路径传事实、body 独立检查；其原 source-version 与 identity 隔离规则保留。
 Unit null 比较沿同源 Group 识别实际 Null 叶并透传 expected type，仍保原 Binary/外层operand身份；
 双null、无上下文null与非nullable错误不放宽。类型事实不是owner/loan或native资格，后继仍核真实产物。
-owned root/temporary 的 class/Box/Rc 有界消费及 field/element 等边界见 [SSA/LLVM](ssa-codegen-runtime.md)。
+owned root/temporary 的 class/Box/Rc 有界消费及 field/element 等边界见 [SSA/LLVM](ssa-codegen-runtime.md)。 `type_checking::nullable_when_unit` 的12项原 flow/mutation/identity 消费者已走双 Unit raw type 入口；剩余单 case payload 差距和三项独有字段 oracle 保留原 Single witness，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次nullable-when-类型消费者2026-11-07)。
 
 ## 非空断言事实
 
@@ -108,7 +108,7 @@ identity 排序。Error、Deferred 和非 nullable operand 不发布 extraction�
 `UnitNonNullAssertionDescriptor`，表达式与类型使用 source-qualified unit identity；来源类别仍不
 授予移动权限。unit descriptor 纳入 `UnitNullableFacts` 的整体 trial 快照，按 canonical source 和
 expression identity 排序。单文件和 unit ownership 均消费各自描述符；SSA/LLVM 接线仍在后继
-实施范围。
+实施范围。 `type_checking::non_null_unit` 的8项原诊断、来源类别/条件能力与identity消费者已迁至双 Unit raw type 入口，保留21个展开source case及原oracle，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次非空断言类型消费者2026-11-07)。
 
 ## 原子置换静态类型身份
 
@@ -155,16 +155,16 @@ environment 会在遍历前返回内部错误。
 5. 无类型诊断且无阻塞 deferred fact 时产生 validated typed unit。
 callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不按名称重新选择 target。名义类型、
 泛型、interface/default/override、静态委托、`Copyable`/`Transferable`、String、Box/Rc 和顺序容器共享
-canonical type identity；Box 签名仅接受 value/enum 名义 kind，实参根错误不追加 kind 诊断。Array/List/MutableList 签名直接或可空 Any/Nothing 元素报 L0125，保留 raw 形状避免伪 overload 重复，诊断阻止最终准入。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
+canonical type identity；Box 签名仅接受 value/enum 名义 kind，实参根错误不追加 kind 诊断。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；顺序容器和 Rc 的签名存储校验保留重载形状。泛型调用签名、成员与顶层函数体的有界实例化拒绝不可存储的具体实参；名义字段、payload 与接口上界通过有限参数义务传播至类型引用及构造入口，失败候选撤回本轮新增类型。[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
 
 两入口共享语义模型；unit facts 保留 source-qualified ID，不拼接单文件 ID。整数 compound 在 statement role 发布 storage 事实，
-Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。
+Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。 `type_checking::nominal_unit` 的12项原enum/构造、静态接口及返回流消费者已迁至双Unit raw type入口，15份原源码与原oracle保留，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次名义构造与接口类型消费者2026-11-07)。
 
 unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、
 不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
 
 `type_containers` 的六项核心构造、诊断、遮蔽、泛型推导与 size 原测试走双 Unit 入口；signature storage 诊断和 deferred recovery 两项 Single witness 保留。对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、`multifile_type_member_graph`、`multifile_type_capability_graph`、`type_copyability` 与 `type_map`（两目标均保留双入口原 oracle，无 Single 消费者）。
-`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。 `type_checking::resource_unit` 六项原 deinit/replace/swap 类型消费者保留双入口原 oracle（[范围](../specs/active/0341-shared-lowering-core.md#resource-类型消费者有界迁移2026-11-06)）；不扩张资源所有权准入。
+`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。 `type_checking::resource_unit` 六项原 deinit/replace/swap 类型消费者保留双入口原 oracle（[范围](../specs/active/0341-shared-lowering-core.md#resource-类型消费者有界迁移2026-11-06)）；不扩张资源所有权准入。 `type_checking::scalar_unit` 与 `interface_unit` 的九项原数值、局部/返回和接口诊断消费者走双 Unit raw type 入口，保留原诊断顺序、span 与自定义环境；顶层数值溢出因 Unit 额外 L0167 保留原 Single witness，不增加 final/ownership 前置。 四批合并后原82项测试与新增顶层对照共83项全部保留，见[组合验收](../specs/active/0341-shared-lowering-core.md#115-raw-type-消费者四批集中集成2026-11-07)。
 
 ### Unit 关联常量选择
 

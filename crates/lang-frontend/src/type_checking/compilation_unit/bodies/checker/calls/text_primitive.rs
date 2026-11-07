@@ -98,6 +98,7 @@ impl BodyChecker<'_> {
             instance_arguments: Vec::new(),
             receiver: None,
             owner_substitutions: BTreeMap::new(),
+            owner_storage_failure: None,
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
             prints_line: false,

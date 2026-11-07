@@ -2,14 +2,15 @@
 
 use super::type_graph::{ConcreteTypes, substitute};
 use super::*;
-use crate::type_checking::{UnitCallDescriptor, UnitCallTarget};
+use crate::parser::NameMarker;
+use crate::type_checking::{IntrinsicTypeConstructor, UnitCallTarget, UnitCallableTarget};
 
-type Instance = (DeclarationId, Vec<UnitTypeId>);
+type Instance = (UnitCallTarget, Vec<UnitTypeId>);
 
 struct Template {
     parameters: Vec<UnitSymbolId>,
     types: BTreeSet<UnitTypeId>,
-    calls: Vec<UnitCallDescriptor>,
+    calls: Vec<usize>,
 }
 
 #[cfg(test)]
@@ -32,12 +33,13 @@ impl BodyChecker<'_> {
             return Ok(());
         }
         let templates = self.generic_body_templates()?;
+        if templates.is_empty() {
+            return Ok(());
+        }
         let mut concrete = ConcreteTypes::for_closed_arguments();
-        let mut seeds = BTreeSet::new();
+        let mut seeds = BTreeMap::new();
         for call in &self.parts.calls {
-            let UnitCallTarget::Declaration(target) = call.target() else {
-                continue;
-            };
+            let target = call.target();
             if !templates.contains_key(&target) {
                 continue;
             }
@@ -47,10 +49,18 @@ impl BodyChecker<'_> {
                 closed &= concrete.is_concrete(self.signatures.types(), arg)?;
             }
             if closed {
-                seeds.insert((target, args.to_vec()));
+                let expression = call.expression();
+                let span = self
+                    .file(expression.source_unit())
+                    .ast()
+                    .expressions()
+                    .get(expression.expression())
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                seeds.entry((target, args.to_vec())).or_insert(span);
             }
         }
-        for seed in seeds {
+        for (seed, call_span) in seeds {
             let mut pending = BTreeSet::from([seed]);
             let mut planned = BTreeSet::new();
             let mut count = 0;
@@ -60,13 +70,25 @@ impl BodyChecker<'_> {
                 }
                 if !key.1.is_empty() && count >= limit {
                     // The original planner owns budget/recipe arbitration. Publish only its finite frontier.
-                    self.materialize_body_instance(&templates, &key)?;
-                    for next in pending.difference(&planned) {
-                        self.materialize_body_instance(&templates, next)?;
+                    if self
+                        .materialize_body_instance(&templates, &key, call_span)?
+                        .is_some()
+                    {
+                        for next in pending.difference(&planned) {
+                            if self
+                                .materialize_body_instance(&templates, next, call_span)?
+                                .is_none()
+                            {
+                                break;
+                            }
+                        }
                     }
                     break;
                 }
-                let callees = self.materialize_body_instance(&templates, &key)?;
+                let Some(callees) = self.materialize_body_instance(&templates, &key, call_span)?
+                else {
+                    break;
+                };
                 for callee in callees {
                     let mut closed = true;
                     for &arg in &callee.1 {
@@ -87,9 +109,10 @@ impl BodyChecker<'_> {
 
     fn materialize_body_instance(
         &mut self,
-        templates: &BTreeMap<DeclarationId, Template>,
+        templates: &BTreeMap<UnitCallTarget, Template>,
         key: &Instance,
-    ) -> Result<Vec<Instance>, CompilationUnitTypeError> {
+        call_span: Span,
+    ) -> Result<Option<Vec<Instance>>, CompilationUnitTypeError> {
         let template = templates
             .get(&key.0)
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
@@ -102,129 +125,270 @@ impl BodyChecker<'_> {
             .copied()
             .zip(key.1.iter().copied())
             .collect();
+        let checkpoint = self.signatures.types().len();
         let mut memo = BTreeMap::new();
         for &ty in &template.types {
             substitute(self.signatures.types_mut(), ty, &substitutions, &mut memo)?;
         }
         let mut callees = Vec::new();
-        for call in &template.calls {
+        for &index in &template.calls {
+            let call = &self.parts.calls[index];
             let arguments = call
                 .instance()
                 .type_arguments()
                 .iter()
                 .map(|&ty| substitute(self.signatures.types_mut(), ty, &substitutions, &mut memo))
                 .collect::<Result<Vec<_>, _>>()?;
-            if let UnitCallTarget::Declaration(target) = call.target()
-                && templates.contains_key(&target)
-            {
-                callees.push((target, arguments));
+            if templates.contains_key(&call.target()) {
+                callees.push((call.target(), arguments));
             }
         }
-        Ok(callees)
+        if let Some(message) = self.invalid_storage_in_substitution(&memo) {
+            self.signatures.types_mut().discard_after(checkpoint);
+            self.emit(codes::INVALID_CONTAINER_ELEMENT, message, call_span)?;
+            return Ok(None);
+        }
+        Ok(Some(callees))
+    }
+
+    pub(super) fn invalid_storage_in_substitution(
+        &self,
+        instantiated: &BTreeMap<UnitTypeId, UnitTypeId>,
+    ) -> Option<&'static str> {
+        let types = self.signatures.types();
+        // The substitution memo already visits every changed node. Check only actual
+        // template storage sites so explicit invalid TypeRefs keep their own diagnostics.
+        instantiated.iter().find_map(|(&template, &actual)| {
+            if template == actual {
+                return None;
+            }
+            if let Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) = types.get(actual)
+                && self
+                    .invalid_nominal_storage_argument(*declaration, arguments)
+                    .is_some()
+            {
+                return Some("type argument cannot satisfy instantiated storage requirements");
+            }
+            let Some(UnitTypeKind::Intrinsic { constructor, .. }) = types.get(template) else {
+                return None;
+            };
+            let message = match constructor {
+                IntrinsicTypeConstructor::Array
+                | IntrinsicTypeConstructor::List
+                | IntrinsicTypeConstructor::MutableList => {
+                    "instantiated sequential container element type is not structurally storable"
+                }
+                IntrinsicTypeConstructor::Rc => {
+                    "instantiated Rc payload type is not structurally storable"
+                }
+                _ => return None,
+            };
+            let Some(UnitTypeKind::Intrinsic { arguments, .. }) = types.get(actual) else {
+                return None;
+            };
+            let [argument] = arguments.as_slice() else {
+                return None;
+            };
+            // Runtime Any is a known missing representation, unlike unresolved recovery.
+            if matches!(
+                types.get(*argument),
+                Some(UnitTypeKind::Deferred(
+                    DeferredReason::AnyValueRepresentation
+                ))
+            ) {
+                return Some(message);
+            }
+            (!self.is_error(*argument)
+                && !self.is_deferred(*argument)
+                && !self.is_structurally_storable_type(*argument))
+            .then_some(message)
+        })
+    }
+
+    pub(super) fn invalid_nominal_storage_argument(
+        &self,
+        declaration: DeclarationId,
+        arguments: &[UnitTypeId],
+    ) -> Option<UnitSymbolId> {
+        let nominal = self.signatures.declaration(declaration)?.nominal()?;
+        let required = self
+            .signatures
+            .storage_requirements()
+            .required(declaration)?;
+        nominal
+            .type_parameters()
+            .iter()
+            .zip(arguments)
+            .find_map(|(parameter, argument)| {
+                (required.contains(parameter)
+                    && (matches!(
+                        self.signatures.types().get(*argument),
+                        Some(UnitTypeKind::Deferred(
+                            DeferredReason::AnyValueRepresentation
+                        ))
+                    ) || (!self.is_error(*argument)
+                        && !self.is_deferred(*argument)
+                        && !self.is_structurally_storable_type(*argument))))
+                .then_some(*parameter)
+            })
     }
 
     fn generic_body_templates(
         &self,
-    ) -> Result<BTreeMap<DeclarationId, Template>, CompilationUnitTypeError> {
-        let mut templates = BTreeMap::new();
+    ) -> Result<BTreeMap<UnitCallTarget, Template>, CompilationUnitTypeError> {
+        let mut definitions = BTreeMap::<SourceUnitId, BTreeMap<usize, _>>::new();
         for declaration in self.names.index().declarations() {
-            let Some(signature) = self
-                .signatures
-                .declaration(declaration.id())
-                .and_then(|s| s.callable())
-            else {
+            let Some(signature) = self.signatures.declaration(declaration.id()) else {
                 continue;
             };
-            let file = self.file(declaration.source_unit());
-            let span = file
-                .ast()
-                .items()
-                .get(declaration.root())
-                .map_err(TypeCheckingError::from)?
-                .span();
-            let contains = |candidate: Span| {
-                candidate.source_id() == span.source_id()
-                    && span.start() <= candidate.start()
-                    && candidate.end() <= span.end()
+            let mut register = |callable: &UnitCallableSignature, owner: &[UnitSymbolId]| {
+                if owner.is_empty() && callable.type_parameters().is_empty() {
+                    return;
+                }
+                let target = match callable.target() {
+                    UnitCallableTarget::Declaration(id) => UnitCallTarget::Declaration(id),
+                    UnitCallableTarget::Symbol(id) => UnitCallTarget::Symbol(id),
+                };
+                let template = Template {
+                    parameters: owner
+                        .iter()
+                        .chain(callable.type_parameters())
+                        .copied()
+                        .collect(),
+                    types: callable
+                        .parameters()
+                        .iter()
+                        .map(|p| p.ty())
+                        .chain(std::iter::once(callable.return_type()))
+                        .collect(),
+                    calls: Vec::new(),
+                };
+                definitions
+                    .entry(declaration.source_unit())
+                    .or_default()
+                    .insert(callable.name_span().start(), (target, template));
             };
-            let mut types = signature
-                .parameters()
-                .iter()
-                .map(|p| p.ty())
-                .chain(std::iter::once(signature.return_type()))
-                .collect::<BTreeSet<_>>();
-            for (expression, &ty) in &self.parts.expression_types {
-                if expression.source_unit() == declaration.source_unit()
-                    && contains(
-                        file.ast()
-                            .expressions()
-                            .get(expression.expression())
-                            .map_err(TypeCheckingError::from)?
-                            .span(),
-                    )
+            if let Some(callable) = signature.callable() {
+                register(callable, &[]);
+            }
+            if let Some(nominal) = signature.nominal() {
+                for callable in nominal.members().iter().chain(nominal.companion_members()) {
+                    let owner = if callable.receiver().is_some() {
+                        nominal.type_parameters()
+                    } else {
+                        &[]
+                    };
+                    register(callable, owner);
+                }
+            }
+        }
+
+        let mut templates = BTreeMap::new();
+        let mut ranges = BTreeMap::<SourceUnitId, BTreeMap<usize, (Span, UnitCallTarget)>>::new();
+        for (source, mut definitions) in definitions {
+            for (_, node) in self.file(source).ast().items().iter() {
+                let Item::Function {
+                    name: NameMarker::Present(name),
+                    ..
+                } = node.payload()
+                else {
+                    continue;
+                };
+                let Some((target, template)) = definitions.remove(&name.start()) else {
+                    continue;
+                };
+                let span = node.span();
+                ranges
+                    .entry(source)
+                    .or_default()
+                    .insert(span.start(), (span, target));
+                templates.insert(target, template);
+            }
+        }
+
+        if templates.is_empty() {
+            return Ok(templates);
+        }
+
+        // Source callable item spans are disjoint. Lambda facts are inside their
+        // enclosing source callable, so each fact needs only one range lookup.
+        let locate = |source: SourceUnitId, span: Span| {
+            let (_, &(owner, target)) = ranges.get(&source)?.range(..=span.start()).next_back()?;
+            (owner.source_id() == span.source_id() && span.end() <= owner.end()).then_some(target)
+        };
+        for (expression, &ty) in &self.parts.expression_types {
+            let source = expression.source_unit();
+            if ranges.contains_key(&source) {
+                let span = self
+                    .file(source)
+                    .ast()
+                    .expressions()
+                    .get(expression.expression())
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                if let Some(template) =
+                    locate(source, span).and_then(|target| templates.get_mut(&target))
                 {
-                    types.insert(ty);
+                    template.types.insert(ty);
                 }
             }
-            for (type_ref, &ty) in &self.parts.type_ref_types {
-                if type_ref.source_unit() == declaration.source_unit()
-                    && contains(
-                        file.ast()
-                            .type_refs()
-                            .get(type_ref.type_ref())
-                            .map_err(TypeCheckingError::from)?
-                            .span(),
-                    )
+        }
+        for (type_ref, &ty) in &self.parts.type_ref_types {
+            let source = type_ref.source_unit();
+            if ranges.contains_key(&source) {
+                let span = self
+                    .file(source)
+                    .ast()
+                    .type_refs()
+                    .get(type_ref.type_ref())
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                if let Some(template) =
+                    locate(source, span).and_then(|target| templates.get_mut(&target))
                 {
-                    types.insert(ty);
+                    template.types.insert(ty);
                 }
             }
-            for (symbol, &ty) in &self.parts.symbol_types {
-                if symbol.source_unit() == declaration.source_unit() {
-                    let table =
-                        self.names.source_units()[symbol.source_unit().index()].resolution();
-                    if contains(
-                        table
-                            .symbols()
-                            .get(symbol.symbol().index())
-                            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
-                            .span(),
-                    ) {
-                        types.insert(ty);
-                    }
-                }
-            }
-            let mut calls = Vec::new();
-            for call in &self.parts.calls {
-                let expr = call.expression();
-                if expr.source_unit() == declaration.source_unit()
-                    && contains(
-                        file.ast()
-                            .expressions()
-                            .get(expr.expression())
-                            .map_err(TypeCheckingError::from)?
-                            .span(),
-                    )
+        }
+        for (symbol, &ty) in &self.parts.symbol_types {
+            let source = symbol.source_unit();
+            if ranges.contains_key(&source) {
+                let span = self.unit_symbol_span(*symbol)?;
+                if let Some(template) =
+                    locate(source, span).and_then(|target| templates.get_mut(&target))
                 {
-                    types.extend(call.instance().type_arguments());
-                    types.insert(call.return_type());
-                    types.extend(call.receiver().map(|receiver| receiver.ty()));
-                    types.extend(
-                        call.arguments()
-                            .iter()
-                            .map(|argument| argument.parameter_type()),
-                    );
-                    calls.push(call.clone());
+                    template.types.insert(ty);
                 }
             }
-            templates.insert(
-                declaration.id(),
-                Template {
-                    parameters: signature.type_parameters().to_vec(),
-                    types,
-                    calls,
-                },
-            );
+        }
+        for (index, call) in self.parts.calls.iter().enumerate() {
+            let expr = call.expression();
+            let source = expr.source_unit();
+            if ranges.contains_key(&source) {
+                let span = self
+                    .file(source)
+                    .ast()
+                    .expressions()
+                    .get(expr.expression())
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                if let Some(template) =
+                    locate(source, span).and_then(|target| templates.get_mut(&target))
+                {
+                    template.types.extend(call.instance().type_arguments());
+                    template.types.insert(call.return_type());
+                    template
+                        .types
+                        .extend(call.receiver().map(|receiver| receiver.ty()));
+                    template
+                        .types
+                        .extend(call.arguments().iter().map(|arg| arg.parameter_type()));
+                    template.calls.push(index);
+                }
+            }
         }
         Ok(templates)
     }

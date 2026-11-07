@@ -238,7 +238,7 @@ fn unit_field_replace_native_new_once_parent_live_and_exact_pointer_frees() {
         run_native(
             r#"
             class Holder(var text: String, val tag: Int)
-            fun make(): String { println("new-once") return "new" + "value" }
+            fun make(): String { println("new-once"); return "new" + "value" }
             fun entry(): Unit {
                 val holder = Holder("old" + "value", 7)
                 val old = replace(&holder.text, make())

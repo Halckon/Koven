@@ -530,8 +530,8 @@ fn repeated_boundaries_are_flat_and_nested_delimiters_do_not_leak_block_stops() 
 }
 
 #[test]
-fn lambda_body_scope_is_unchanged_but_its_nested_block_has_its_own_boundary() {
-    // SPEC-0234 只实施普通 block；lambda 顶层 body 的换行语法留给后续切片。
+fn lambda_and_nested_block_bodies_share_the_same_newline_boundary() {
+    // Guide 06/07 require the same boundary in each body owner.
     for body in ["foo\n(bar)", "a\n+b", "a\n-b", "val value = foo\n(bar)"] {
         let text = format!("{{ -> {body} }}");
         let mut sources = SourceMap::new();
@@ -558,7 +558,7 @@ fn lambda_body_scope_is_unchanged_but_its_nested_block_has_its_own_boundary() {
         else {
             panic!("lambda body")
         };
-        assert_eq!(elements.len(), 1, "{text:?}");
+        assert_eq!(elements.len(), 2, "{text:?}");
         assert_span(
             parsed
                 .ast()
@@ -567,7 +567,7 @@ fn lambda_body_scope_is_unchanged_but_its_nested_block_has_its_own_boundary() {
                 .expect("element")
                 .span(),
             "{ -> ".len(),
-            body,
+            body.split('\n').next().unwrap(),
         );
     }
     let text = "{ -> { foo\n(bar) } }";

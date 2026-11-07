@@ -650,7 +650,7 @@ fn unsupported_and_multi_declaration_forms_are_not_silently_accepted() {
 
 #[test]
 fn function_block_body_is_a_typed_statement_and_extends_the_item_span() {
-    let text = "fun f(): Unit { x val y = 1 }";
+    let text = "fun f(): Unit { x; val y = 1 }";
     let (_, parsed) = parsed_ok(text);
     let root = parsed.ast().items().get(parsed.root()).expect("function");
     assert_eq!((root.span().start(), root.span().end()), (0, text.len()));

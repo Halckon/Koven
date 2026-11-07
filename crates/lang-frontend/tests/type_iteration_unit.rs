@@ -372,7 +372,7 @@ fn three_providers_publish_name_discard_and_ordered_borrowed_components() {
             ("MutableList", SequentialContainerKind::MutableList),
         ] {
             let text = format!(
-                "value class Pair<T>(val first: T, val second: Boolean)\nfun run(xs: {container}<Pair<Int>>) {{ for (item in xs) {{}} for (_ in xs) {{}} for ((n, _) in xs) {{ val i: Int = n }} }}"
+                "value class Pair<T>(val first: T, val second: Boolean)\nfun run(xs: {container}<Pair<Int>>) {{ for (item in xs) {{}}; for (_ in xs) {{}}; for ((n, _) in xs) {{ val i: Int = n }} }}"
             );
             let (_, typed) = checked_without_diagnostics(entry, &text);
             assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
@@ -536,7 +536,7 @@ fn overload_trials_commit_one_iteration_and_one_source_call() {
         fun choose(callback: (String) -> String): String = \"text\"
         fun needInt(n: Int): Int = n
         fun source(): List<Int> = listOf(1)
-        fun run() { val chosen = choose { for (n in source()) { val x: Int = n } needInt(it) } }";
+        fun run() { val chosen = choose { for (n in source()) { val x: Int = n }; needInt(it) } }";
         let (sources, parsed, _, typed) =
             analyzed_with_oracle(entry, text, DiagnosticOracle::Empty);
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());

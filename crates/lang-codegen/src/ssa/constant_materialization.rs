@@ -39,29 +39,59 @@ mod tests {
         unit_lower_test_support::parsed,
     };
     use lang_frontend::{
-        name_resolution::resolve_names,
-        ownership_checking::check_ownership,
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        ownership_checking::check_compilation_unit_constant_ownership,
         source::SourceMap,
-        type_checking::{check_types, standard_environments},
+        type_checking::{check_compilation_unit_types, standard_environments},
     };
 
     fn materialize(ty: &str, literal: &str, ssa_type: SsaTypeKind) -> (Operation, SsaTypeId) {
         let mut sources = SourceMap::new();
-        let (_, file) = parsed(
+        let (source, file) = parsed(
             &mut sources,
             "constant.ko",
             &format!("const val VALUE: {ty} = {literal}\nfun entry(): {ty} = VALUE"),
         );
+        let inputs = [SourceUnitInput::new("root", "constant.ko", source, &file)];
         let (name_environment, environment) = standard_environments();
-        let names = resolve_names(&sources, &file, &name_environment).unwrap();
-        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-        let typed = check_types(&sources, &file, &names, &environment).unwrap();
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        let materializations = owned.constant_materializations().unwrap();
-        assert!(materializations.matches(&typed));
-        let [plan] = materializations.plans() else {
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        assert!(
+            names.names().diagnostics().is_empty(),
+            "{:?}",
+            names.names().diagnostics()
+        );
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &environment)
+            .unwrap()
+            .validate_constants()
+            .unwrap();
+        assert!(
+            typed.types().diagnostics().is_empty(),
+            "{:?}",
+            typed.types().diagnostics()
+        );
+        let owned = check_compilation_unit_constant_ownership(
+            &sources,
+            &inputs,
+            &names,
+            &environment,
+            &typed,
+        )
+        .unwrap()
+        .validate()
+        .unwrap();
+        assert!(
+            owned.ownership().diagnostics().is_empty(),
+            "{:?}",
+            owned.ownership().diagnostics()
+        );
+        assert!(owned.is_compatible_with(&typed));
+        let [plan] = owned.materializations() else {
             panic!("one runtime constant use");
         };
         let mut program = Program::default();

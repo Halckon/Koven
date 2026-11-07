@@ -646,7 +646,12 @@ impl Parser<'_> {
             consumed_end = Some(span.end());
         }
 
-        if !stops.contains(self.current()?) {
+        // A complete block expression may recover at the next expression starter.
+        // Dispatch must still reject a missing separator; this never accepts an implicit ';'.
+        let block_boundary = stops.block_elements
+            && (self.current_is_symbol(Symbol::Semicolon)
+                || self.can_start_expression(self.current()?));
+        if !stops.contains(self.current()?) && !block_boundary {
             let first = self.current()?.span();
             self.emit(
                 codes::UNEXPECTED_TRAILING_TOKEN,

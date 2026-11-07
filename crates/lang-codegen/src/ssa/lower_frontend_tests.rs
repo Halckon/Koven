@@ -256,13 +256,13 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
          fun boxed(): Box<Wrapped> = Box(Wrapped(3))\n\
          fun flag(): Flag = Flag.On\n\
          fun some(): Maybe<Int> = Maybe.Some(4)\n\
-         fun enumProjected(): Int { val maybe: Maybe<Int> = Maybe.Some(8) val result: Int = when (maybe) {\n\
+         fun enumProjected(): Int { val maybe: Maybe<Int> = Maybe.Some(8); val result: Int = when (maybe) {\n\
              is Maybe.Some<Int> -> maybe.item\n\
              is Maybe.None<Int> -> 0\n\
-         } return result }\n\
-         fun projected(): Int { val wrapped = Wrapped(5) return wrapped.item }\n\
-         fun destructured(): Int { val (item) = Wrapped(6) return item }\n\
-         fun classProjected(): Int { val holder = Holder(7) return holder.item }\n\
+         }; return result }\n\
+         fun projected(): Int { val wrapped = Wrapped(5); return wrapped.item }\n\
+         fun destructured(): Int { val (item) = Wrapped(6); return item }\n\
+         fun classProjected(): Int { val holder = Holder(7); return holder.item }\n\
          fun dropEnum(): Unit { val event: Owned<Resource> = Owned.Some(Resource()) }",
     );
     assert!(

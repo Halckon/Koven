@@ -62,18 +62,30 @@ impl Checker<'_> {
     pub(super) fn check_loop_backedge(
         &mut self,
         body: StatementId,
+        repeated: StatementId,
         flows: &Flows,
     ) -> Result<(), OwnershipCheckingError> {
         let live = &self.statement_live_after[body.index()];
+        let repeated_span = self.parsed.ast().statements().get(repeated)?.span();
         let mut moved = std::collections::BTreeMap::new();
+        let mut moved_this = None;
         for state in [&flows.next, &flows.continues].into_iter().flatten() {
             for (&symbol, &origin) in &state.moved {
                 if live.contains(&symbol) {
                     moved.entry(symbol).or_insert(origin);
                 }
             }
+            // Unlike named roots, this cannot be rebound. Only moves in the repeated
+            // region need it again; a for source and moves before the loop run once.
+            if let Some(origin) = state.this_moved
+                && origin.source_id() == repeated_span.source_id()
+                && origin.start() >= repeated_span.start()
+                && origin.end() <= repeated_span.end()
+            {
+                moved_this.get_or_insert(origin);
+            }
         }
-        for origin in moved.into_values() {
+        for origin in moved.into_values().chain(moved_this) {
             let mut diagnostic = Diagnostic::new(
                 self.sources,
                 Severity::Error,
@@ -355,7 +367,7 @@ impl Checker<'_> {
                 state.origins.attach(&self.callable_sources.arena);
                 let headers = state.origins.begin_loop();
                 let prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
-                self.check_maybe_loop(prefix, body, errors, &headers)
+                self.check_maybe_loop(prefix, body, id, errors, &headers)
             }
             Statement::For { source, body, .. } => self.check_iteration(id, source, body, state),
             Statement::Loop { body, .. } => {
@@ -369,7 +381,7 @@ impl Checker<'_> {
                     state.origins.backedge(&headers);
                 }
                 if self.diagnostics.len() == errors {
-                    self.check_loop_backedge(body_id, &body)?;
+                    self.check_loop_backedge(body_id, body_id, &body)?;
                 }
                 Ok(Flows {
                     next: body.breaks,
@@ -411,6 +423,7 @@ impl Checker<'_> {
         &mut self,
         mut prefix: Flows,
         body: StatementId,
+        repeated: StatementId,
         errors: usize,
         headers: &[(
             super::UnitSymbolId,
@@ -423,7 +436,7 @@ impl Checker<'_> {
         let body_id = body;
         let body = self.check_statement(body, base.clone())?;
         if self.diagnostics.len() == errors {
-            self.check_loop_backedge(body_id, &body)?;
+            self.check_loop_backedge(body_id, repeated, &body)?;
         }
         let origins = base.origins.loop_exit(
             headers,

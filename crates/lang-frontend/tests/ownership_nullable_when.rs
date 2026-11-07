@@ -218,7 +218,7 @@ fn element_subject_read_still_checks_an_active_exclusive_loan() {
         };
 
         let owned = checked(
-            "class Node {}\nfun check(inout xs: List<Node?>, own result: Unit): Unit {}\nfun test(own input: List<Node?>): Unit { var xs = input val result = check(&xs, when (xs[0]) { null -> {}; else -> {} }) }",
+            "class Node {}\nfun check(inout xs: List<Node?>, own result: Unit): Unit {}\nfun test(own input: List<Node?>): Unit { var xs = input; val result = check(&xs, when (xs[0]) { null -> {}; else -> {} }) }",
         );
         let codes: Vec<_> = owned
             .diagnostics()
@@ -292,11 +292,11 @@ fn abort_does_not_unwind_the_held_temporary_subject() {
 fn nested_control_preserves_valid_outer_subject_proof() {
     for (text, count) in [
         (
-            "fun test(x: Boolean?): Boolean = when (x) { null -> false; else -> { val ignored = when (x) { true -> 0; false -> 1 } return x } }",
+            "fun test(x: Boolean?): Boolean = when (x) { null -> false; else -> { val ignored = when (x) { true -> 0; false -> 1 }; return x } }",
             1,
         ),
         (
-            "fun test(x: Int?, y: Int?): Int = when (x) { null -> 0; else -> { val ignored = when (y) { null -> 0; else -> y } return x } }",
+            "fun test(x: Int?, y: Int?): Int = when (x) { null -> 0; else -> { val ignored = when (y) { null -> 0; else -> y }; return x } }",
             2,
         ),
     ] {
@@ -391,7 +391,7 @@ fn copyable_inner_copy_is_legal_while_subject_has_a_shared_loan() {
 #[test]
 fn replacement_does_not_inherit_the_original_subject_extraction_proof() {
     let owned = checked(
-        "fun test(input: Int?, replacement: Int?): Int? { var x = input return (when (x) { null -> null; else -> { x = replacement if (true) { x } else { x } } }) }",
+        "fun test(input: Int?, replacement: Int?): Int? { var x = input; return (when (x) { null -> null; else -> { x = replacement; if (true) { x } else { x } } }) }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert_eq!(owned.nullable_whens().len(), 1);
@@ -527,7 +527,7 @@ fn transferred_control_result_keeps_source_moved_after_join() {
         };
 
         let owned = checked(
-            "class Node {}\nfun test(own x: Node?): Unit { val result = when (x) { null -> Node(); else -> x } val reused = x }",
+            "class Node {}\nfun test(own x: Node?): Unit { val result = when (x) { null -> Node(); else -> x }; val reused = x }",
         );
         let codes: Vec<_> = owned
             .diagnostics()
@@ -674,7 +674,7 @@ fn nullable_extraction_respects_active_loan_and_previous_move() {
                 "L0135",
             ),
             (
-                "class Node {}\nfun take(own x: Node): Unit {}\nfun test(own x: Node?): Unit = when (x) { null -> {}; else -> { val first = take(x) val second = take(x) } }",
+                "class Node {}\nfun take(own x: Node): Unit {}\nfun test(own x: Node?): Unit = when (x) { null -> {}; else -> { val first = take(x); val second = take(x) } }",
                 "L0131",
             ),
         ] {
@@ -693,7 +693,7 @@ fn nullable_extraction_respects_active_loan_and_previous_move() {
 #[test]
 fn read_only_when_does_not_consume_named_subject_needed_after_join() {
     let owned = checked(
-        "class Node {}\nfun read(x: Node?): Unit {}\nfun test(own x: Node?): Unit { val result = when (x) { null -> {}; else -> read(x) } val later = read(x) }",
+        "class Node {}\nfun read(x: Node?): Unit {}\nfun test(own x: Node?): Unit { val result = when (x) { null -> {}; else -> read(x) }; val later = read(x) }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }

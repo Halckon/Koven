@@ -479,7 +479,7 @@ fn public_std_take_call_prefix_return_restores_named_and_temporary_roots() {
             (
                 "val root=source();{borrow val parent=take(root,2)",
                 "take(parent,1)",
-                "}",
+                "};",
                 "consume(root)",
                 true,
             ),
@@ -557,7 +557,7 @@ fn public_std_take_call_prefix_owned_arguments_remain_with_caller_until_commit()
             (
                 "val root=source();{borrow val parent=take(root,2)",
                 "take(parent,1)",
-                "}",
+                "};",
                 "consume(root)",
                 true,
             ),

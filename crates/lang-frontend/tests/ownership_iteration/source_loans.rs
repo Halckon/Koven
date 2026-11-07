@@ -98,7 +98,7 @@ fn returns_and_nested_loops_keep_the_outer_provider_loan_active() {
         "read(xs)\nreturn xs",
     ] {
         let text = format!(
-            "fun read(xs: List<Int>) {{}}\nfun run(own xs: List<Int>): List<Int> {{ for (_ in xs) {{ {body} }} return xs }}"
+            "fun read(xs: List<Int>) {{}}\nfun run(own xs: List<Int>): List<Int> {{ for (_ in xs) {{ {body} }}; return xs }}"
         );
         let (sources, _, owned) = checked(&text);
         assert_eq!(
@@ -120,7 +120,7 @@ fn returns_and_nested_loops_keep_the_outer_provider_loan_active() {
         );
     }
     let (_, _, owned) = checked(
-        "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>): List<Int> { for (n in xs) { read(xs)\nfor (m in xs) { val x: Int = m } } return xs }",
+        "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>): List<Int> { for (n in xs) { read(xs)\nfor (m in xs) { val x: Int = m } }; return xs }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
@@ -141,7 +141,7 @@ fn borrowed_iteration_binding_preserves_copy_inout_and_capture_rules() {
             "L0138",
         ),
         (
-            "class Node {}\nfun run(xs: List<Node>): Node { for (n in xs) { return n } return Node() }",
+            "class Node {}\nfun run(xs: List<Node>): Node { for (n in xs) { return n }; return Node() }",
             "L0133",
         ),
     ] {
@@ -155,7 +155,7 @@ fn borrowed_iteration_binding_preserves_copy_inout_and_capture_rules() {
         assert_eq!(owned.diagnostics()[0].code().to_string(), code);
     }
     let (_, _, owned) =
-        checked("fun run(xs: List<Int>): Int { for (n in xs) { return n } return 0 }");
+        checked("fun run(xs: List<Int>): Int { for (n in xs) { return n }; return 0 }");
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
 
@@ -360,7 +360,7 @@ fn source_reuse_and_moved_entry_follow_the_original_owner() {
         DropTarget, IterationCleanupAction as Action, LoanTarget,
     };
     let (_, _, good) = checked(
-        "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>) { for (_ in xs) { break } read(xs) }",
+        "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>) { for (_ in xs) { break }; read(xs) }",
     );
     let plan = &good.iterations()[0];
     let Some(LoanTarget::Place(place)) = plan.source() else {

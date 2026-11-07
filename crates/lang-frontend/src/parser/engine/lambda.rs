@@ -93,6 +93,7 @@ impl Parser<'_> {
                 self.lambda_body_dispatch_iterations += 1;
             }
             let before = self.index;
+            let diagnostics_before = self.diagnostics.len();
             let element = if matches!(
                 current.kind(),
                 LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
@@ -160,6 +161,9 @@ impl Parser<'_> {
             };
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
+            }
+            if self.diagnostics.len() == diagnostics_before {
+                self.check_block_element_separator(element, outer_stops)?;
             }
             elements.push(element);
         };

@@ -124,7 +124,10 @@ impl Parser<'_> {
             }
             LexemeKind::Token(TokenKind::Symbol(
                 Symbol::Dot | Symbol::QuestionDot | Symbol::ColonColon,
-            )) if !matches!(self.current()?.kind(), LexemeKind::Eof) => {
+            )) if !stops.contains(self.current()?)
+                && !self.current_is_symbol(Symbol::Semicolon)
+                && !matches!(self.current()?.kind(), LexemeKind::Eof) =>
+            {
                 end = self.bump()?.span().end();
             }
             _ => {}
