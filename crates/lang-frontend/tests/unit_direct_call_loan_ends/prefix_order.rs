@@ -46,3 +46,27 @@ fn unpublished_exclusive_end_still_counts_between_observed_ends() {
         assert_eq!(auxiliary.preceding_drops(), 0);
     }
 }
+
+#[test]
+fn hidden_exclusive_between_shared_ends_preserves_direct_rank_gap() {
+    let observed = observe(
+        "fun select(source: String, tail: Unit): borrow String from source = source\nfun sink(first: String, inout count: Int, last: String, stop: Unit): Unit {}\nfun run(): Unit { val owner = \"kept\"; var count = 0; borrow val item = select(owner, sink(\"first\", &count, \"last\", return)) }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let [source] = unit.borrow_call_prefix_ends() else {
+            panic!("one source")
+        };
+        let [last, first] = unit.direct_call_loan_ends() else {
+            panic!("two Shared ends with an unpublished Exclusive end between")
+        };
+        for (event, text, rank) in [(last, "\"last\"", 0), (first, "\"first\"", 2)] {
+            assert_eq!(observed.sources.slice(event.loan().begin_span()), Ok(text));
+            assert_eq!(event.point(), source.point());
+            assert_eq!(event.preceding_call_loan_ends(), rank);
+            assert_eq!(event.preceding_drops(), 0);
+        }
+        assert_eq!(source.preceding_call_loan_ends(), 3);
+        assert_eq!(source.preceding_drops(), 0);
+    }
+}

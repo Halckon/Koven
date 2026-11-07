@@ -3453,3 +3453,8 @@ sibling Return 各自归零，正常 CallReturn 双实参为0/1；既有 Return/
 未运行全target/native/Abort/故障注入/校准。
 
 相对78a36f25尺寸门禁通过：2150份手写Rust、38份历史超长文件未增长；新顺序测试48行。
+
+独立审阅后补 Shared→Exclusive→Shared 的同 Return 用例，公开 direct rank 明确为0、2，
+source rank=3，证明 direct 投影也对隐藏动作保留空隙。该精确测试1 passed、59 filtered，
+最终frontend all-targets Clippy通过；本片累计10个不同普通定向测试。仅新增测试，
+producer未再改动，workspace编译结果仍对应最终producer。
