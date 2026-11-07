@@ -7,6 +7,9 @@ mod top_level;
 #[path = "raw_followup/constructions.rs"]
 mod constructions;
 
+#[path = "raw_followup/control_diagnostics.rs"]
+mod control_diagnostics;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, index_compilation_unit,
