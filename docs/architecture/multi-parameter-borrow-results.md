@@ -40,3 +40,8 @@ source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与
 冲突、scope/return 父子清理、真实诊断 span 与 nullable/generic/copyable binding；
 三项依赖独立 loan-end stream 的 Single 对照仍完整保留，其 Unit 半部同样覆盖两入口，
 并校验 source/key 身份；parser-only 拒绝不变，Unit 仍未发布独立 loan-end stream。
+
+`ownership_nested_borrow_arguments` 的 direct/grouped、named/mixed/multiple-chain 与
+generic/field/wrapper/parent 三项成功消费者覆盖双入口，保留独立 Single loan-end
+及逐项 call-use 合同；另外两项精确顺序/owner-drop 成功 witness 也覆盖双入口，
+保持 grouped/named 身份、parent 存活与 owner 在 outer-call-return 唯一 drop 的断言。

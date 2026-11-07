@@ -2959,3 +2959,20 @@ all-targets Clippy（`-D warnings`）通过。官方 CI 尚未运行，本批仍
 不以 result endpoints 替代独立 loan-end stream，不宣称 Single 退休或扩大 CFG 能力。
 云端同一工具链配置：完整 continuation14 与四目标组合31项无过滤通过；目标编译、
 all-targets Clippy（`-D warnings`）、fmt、文档与尺寸门禁通过。官方 CI 尚未运行。
+
+### 独立后续：nested-borrow 成功消费者双入口（2026-11-06）
+
+基于 main `8c9778aa`，不依赖待发布的 continuation 后续批次。三项原成功消费者的
+13份输入扩为真实 MemoryDocument/Rooted，保留原 Single 分析、精确 call-use、
+独立 loan-end 断言，新增 Unit source/key 身份检查；拒绝组原双入口不动，另外两项
+成功 witness 保留原 Rooted 默认入口。无生产/Guide/selector 修改，不宣称 Single 退休。
+云端 Rust 1.96.0/default debug=2/locked/offline，完整 nested-borrow 10项无过滤通过，
+目标编译、all-targets Clippy（`-D warnings`）、fmt、文档/尺寸门禁通过；未运行官方CI。
+
+#### 同批收束：精确顺序与 parent/owner-drop witness
+
+余下两项成功测试的三份原输入补两入口，保留 grouped/named 表达式与实参身份、
+同 root 链不折叠、parent 跨外层调用存活，以及原 Single/Unit 的唯一 owner-drop
+及 CallReturn 断言。删除未使用的默认 Rooted 包装；不删独立 Single 事件对照。
+完整 nested-borrow 10项无过滤、目标编译、all-targets Clippy（`-D warnings`）、
+fmt、文档及尺寸门禁通过；本批累计本地逻辑提交，未尝试远端写入或官方 CI。
