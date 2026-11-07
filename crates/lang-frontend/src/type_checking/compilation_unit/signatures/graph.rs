@@ -420,7 +420,7 @@ impl SignatureCollector<'_> {
                     .copied()
                     .zip(arguments.iter().copied())
                     .collect::<BTreeMap<_, _>>();
-                if let Some(required) = self.storage_requirements.get(&declaration)
+                if let Some(required) = self.storage_requirements.required(declaration)
                     && let Some(index) = nominal.type_parameters().iter().zip(&arguments).position(
                         |(parameter, argument)| {
                             required.contains(parameter)
@@ -498,9 +498,10 @@ impl SignatureCollector<'_> {
                 self.nominals
                     .get(declaration)
                     .is_some_and(|nominal| nominal.kind() != NominalKind::Interface)
-                    && arguments
-                        .iter()
-                        .any(|argument| self.storage_argument_has_no_value(*argument))
+                    && self
+                        .storage_requirements
+                        .representation_arguments(*declaration, arguments)
+                        .any(|argument| self.storage_argument_has_no_value(argument))
             }
             _ => false,
         }
@@ -531,9 +532,10 @@ impl SignatureCollector<'_> {
                     .get(declaration)
                     .is_some_and(|nominal| nominal.kind() != NominalKind::Interface)
                     && !self.invalid_inline_nominals.contains(declaration)
-                    && arguments
-                        .iter()
-                        .all(|argument| self.map_value_is_storable(*argument))
+                    && self
+                        .storage_requirements
+                        .representation_arguments(*declaration, arguments)
+                        .all(|argument| self.map_value_is_storable(argument))
             }
             _ => false,
         }

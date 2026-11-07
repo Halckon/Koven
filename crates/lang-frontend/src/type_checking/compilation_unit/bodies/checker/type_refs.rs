@@ -813,7 +813,11 @@ impl BodyChecker<'_> {
                     {
                         return false;
                     }
-                    pending.extend(arguments);
+                    pending.extend(
+                        self.signatures
+                            .storage_requirements()
+                            .representation_arguments(*declaration, arguments),
+                    );
                 }
                 _ => return false,
             }

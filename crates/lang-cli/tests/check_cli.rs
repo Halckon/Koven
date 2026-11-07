@@ -279,6 +279,10 @@ fn reviewed_frontend_contracts_reach_both_public_check_entries() {
             "class Rotate<A, B, C>(val next: Rotate<B, C, List<A>>?)\nfun inspect(value: Rotate<Int, Int, Nothing>): Unit {}",
             Some("L0125"),
         ),
+        (
+            "class Phantom<T>(val value: Int)\nfun inspect(xs: List<Phantom<Nothing>>): Unit {}\nfun entry(): Unit { inspect(listOf(Phantom<Nothing>(1))) }",
+            None,
+        ),
         ("class R { own fun noop(): Unit {} }", None),
     ] {
         let directory = TestDirectory::create();

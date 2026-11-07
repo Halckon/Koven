@@ -434,6 +434,15 @@ fn instantiated_member_bodies_check_owner_and_method_storage() {
 }
 
 #[test]
+fn ordinary_method_seeds_transitive_companion_instantiation() {
+    let text = "class Factory { companion { fun <T> create(): Unit { val values: List<T>? = null } } }\n\
+                class Caller { fun <T> forward(): Unit { Factory.create<T>() }; fun call(): Unit { forward<Nothing>() } }";
+    check_storage_instances(text, |sources, _, _, typed| {
+        assert_storage_diagnostic(sources, typed, "forward<Nothing>()");
+    });
+}
+
+#[test]
 fn instantiated_nominal_fields_and_interface_bounds_reject_invalid_storage() {
     for text in [
         "class Factory<T>(val payload: List<T>?)\nfun entry(): Unit { Factory<Nothing>(null) }",
@@ -511,6 +520,71 @@ fn nominal_storage_requirements_preserve_function_values_and_recursive_heap_type
                 typed.diagnostics()
             );
             assert!(typed.clone().validate().is_ok());
+        });
+    }
+}
+
+#[test]
+fn ordinary_class_storage_checks_only_layout_relevant_arguments() {
+    for (text, expected) in [
+        (
+            "class Phantom<T>(val value: Int)\nfun inspect(xs: List<Phantom<Nothing>>): Unit {}",
+            &[][..],
+        ),
+        (
+            "class Phantom<T>(val value: Int)\nfun inspect(xs: Map<Int, Phantom<Nothing>>, ref: Rc<Phantom<Nothing>>): Unit {}",
+            &[][..],
+        ),
+        (
+            "class Phantom<T>(val value: Int)\nfun inspect(): Unit { val xs: List<Phantom<Nothing>> = listOf(Phantom<Nothing>(1)) }",
+            &[][..],
+        ),
+        (
+            "class Phantom<T>(val value: Int)\nclass Outer<T>(val values: List<Phantom<T>>?)\nfun inspect(value: Outer<Nothing>): Unit {}",
+            &[][..],
+        ),
+        (
+            "class Phantom<T>(val value: Int)\nclass Outer<T>(val inner: Phantom<T>)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &[][..],
+        ),
+        (
+            "class Outer<T>(val inner: Payload<T>)\nclass Payload<T>(val value: T)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &["L0125"][..],
+        ),
+        (
+            "class Payload<T>(val value: T)\nclass Outer<T>(val values: List<Payload<T>>?)\nfun inspect(value: Outer<Nothing>): Unit {}",
+            &["L0125"][..],
+        ),
+        (
+            "class Outer<T>(val values: Map<Int, T>?)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &["L0125"][..],
+        ),
+        (
+            "class Outer<T>(val values: MutableMap<Int, T>?)\nfun <T> use(): Unit { val xs: List<Outer<T>>? = null }\nfun entry(): Unit { use<Nothing>() }",
+            &["L0125"][..],
+        ),
+        (
+            "value class Payload<T>(val item: T)\nclass Outer<T>(val boxed: Box<Payload<T>>)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &["L0125"][..],
+        ),
+        (
+            "value class Phantom<T>(val item: Int)\nclass Outer<T>(val boxed: Box<Phantom<T>>)\nfun inspect(xs: List<Outer<Nothing>>): Unit {}",
+            &[][..],
+        ),
+        ("fun inspect(xs: List<Nothing>): Unit {}", &["L0125"][..]),
+    ] {
+        check_storage_instances_relaxed_signatures(text, |typed| {
+            let codes: Vec<_> = typed
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect();
+            assert_eq!(codes, expected, "{text}");
+            assert_eq!(
+                typed.clone().validate().is_ok(),
+                expected.is_empty(),
+                "{text}"
+            );
         });
     }
 }

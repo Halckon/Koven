@@ -472,3 +472,24 @@ CLI 46 passed，词频、conformance 与生成资源通过。双宿主 conforman
 Ubuntu 24.04 / macOS 15 的 Preview producer 与 independent consumer 四项均通过，
 `Code CI Evidence` 和 `CI Passed` 成功，运行最终结论为 success。Editor job 按改动范围跳过；
 macOS 未执行 Linux 专属 sanitizer。R2/R3 的独立复审余项及 R4/R5 退出仍开放。
+
+## 20. PR #336 独审 P2 修复
+
+独审基线为 `2e3b41f5`。普通类的容器存储资格曾递归检查所有泛型实参，导致
+`List<Phantom<Nothing>>` 误报 L0125。签名与函数体现在共用类布局相关参数选择。
+沿字段与 owning 载荷传播参数依赖，包括 Map 条目和 Box 载荷。参数集合变化只重新排入
+受影响声明。回归区分 phantom 实参、真实字段依赖与直接 `List<Nothing>`，并覆盖
+反向声明顺序、签名与泛型替换。
+
+泛型 body 只为需要类型替换的 callable 建模板。每份源码的函数节点扫描一次，表达式、
+类型引用、符号与调用记录各遍历一次，并按所属函数范围分发。全局已提交调用仍提供
+闭合实例种子。回归在旧实现观察到 130 个模板，修复后仅保留 1 个泛型模板，并验证
+普通方法经泛型成员转发到 companion 方法仍会报告实际非法实例。
+
+独立复核曾发现初版实现遗漏类字段里的 Map 和 Box 载荷，并指出布局全表迭代会在反向
+依赖链重复扫描。补上载荷回归并切换到反向依赖工作表后，复核未发现上述问题仍存在。
+
+本地前端库及 `multifile_type_checking`、`multifile_type_signatures`、`type_containers`、
+`type_map` 共 583 项通过。CLI `check_cli` 6 项通过，覆盖单文件和项目入口。LSP 56 项
+通过。三组测试均无失败或忽略。前端、CLI、LSP 的 all-targets Clippy（`-D warnings`）、
+格式、文档结构、Rust 尺寸及 diff 检查通过。本批修复的双宿主 CI 待验证。

@@ -129,7 +129,7 @@ impl<'a> SignatureCollector<'a> {
             interface_edge_spans: BTreeMap::new(),
             type_ref_types: BTreeMap::new(),
             invalid_inline_nominals: BTreeSet::new(),
-            storage_requirements: BTreeMap::new(),
+            storage_requirements: Default::default(),
             delegations: Vec::new(),
             diagnostics: Vec::new(),
         })

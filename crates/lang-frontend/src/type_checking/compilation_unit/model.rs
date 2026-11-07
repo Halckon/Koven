@@ -1151,7 +1151,7 @@ pub(crate) struct CompilationUnitSignatureFacts {
     pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     pub(crate) type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
     pub(crate) invalid_inline_nominals: BTreeSet<DeclarationId>,
-    pub(crate) storage_requirements: super::storage_requirements::StorageRequirements,
+    pub(super) storage_requirements: super::storage_requirements::StorageRequirements,
     pub(crate) delegations: Vec<UnitDelegationPlan>,
 }
 
