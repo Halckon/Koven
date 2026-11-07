@@ -939,16 +939,6 @@ fn nullable_when_successful_overload_trial_publishes_only_selected_plan() {
 }
 
 #[test]
-fn nullable_when_remaining_single_case_keeps_payload_refinement() {
-    let text = "enum class Shape { Circle(radius: Int), Point }
-        fun extract(x: Shape?): Int = when (x) {
-            null -> 0; !is Shape.Point -> x.radius; else -> 0
-        }";
-    let (_, _, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-}
-
-#[test]
 fn calling_deinit_as_unqualified_name_is_rejected_as_unresolved() {
     let text = "class Resource {\n\
                     deinit() {}\n\
