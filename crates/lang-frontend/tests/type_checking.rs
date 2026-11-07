@@ -19,6 +19,9 @@ mod parser_test_assertions;
 #[path = "type_checking/control_join_regressions.rs"]
 mod control_join_regressions;
 
+#[path = "type_checking/raw_followup.rs"]
+mod raw_followup;
+
 #[path = "type_checking/resource_unit.rs"]
 mod resource_unit;
 
