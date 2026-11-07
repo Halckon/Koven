@@ -1,14 +1,18 @@
 //! SPEC-0023 顺序容器类型、核心构造与 element-place 测试。
 
 use lang_frontend::{
-    diagnostic::Diagnostic,
-    name_resolution::{NameEnvironment, NameResolution, resolve_names},
+    diagnostic::{Diagnostic, DiagnosticDetail},
+    name_resolution::{
+        NameEnvironment, SourceUnitId, SourceUnitInput, index_compilation_unit,
+        resolve_compilation_unit_names,
+    },
     parser::{Expression, ParsedFile},
     source::SourceMap,
     type_checking::{
-        BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory, IntrinsicCallable,
-        IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, TypeEnvironment,
-        TypeKind, TypedFile, check_types,
+        BuiltinType, CompilationUnitTypes, ContainerConstructionKind, Copyability,
+        ExpressionCategory, IntrinsicCallable, IntrinsicTypeConstructor, ParameterMode,
+        SequentialContainerKind, TypeEnvironment, UnitExpressionId, UnitTypeKind,
+        check_compilation_unit_types,
     },
 };
 
@@ -108,17 +112,36 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
     (names, types)
 }
 
-fn checked(text: &str) -> (SourceMap, ParsedFile, NameResolution, TypedFile) {
+fn checked_entries(
+    text: &str,
+) -> (
+    SourceMap,
+    ParsedFile,
+    [(SourceUnitId, CompilationUnitTypes); 2],
+) {
     let (sources, parsed) = parsed(text);
-    let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    assert!(
-        resolution.diagnostics().is_empty(),
-        "{:?}",
-        resolution.diagnostics()
-    );
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    (sources, parsed, resolution, typed)
+    let source = parsed.source_id();
+    let (environment, types) = environments();
+    let entries = [
+        SourceUnitInput::memory_document(source, &parsed),
+        SourceUnitInput::new("root", "containers.ko", source, &parsed),
+    ]
+    .map(|input| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).expect("index");
+        assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let [entry] = index.source_units() else {
+            panic!("one original source");
+        };
+        assert_eq!(entry.source_id(), source);
+        let names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &environment).expect("names");
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().expect("valid names");
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).expect("types");
+        (entry.id(), typed)
+    });
+    (sources, parsed, entries)
 }
 
 fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
@@ -144,66 +167,68 @@ fn container_types_and_core_constructions_preserve_element_identity() {
                     val changed = (mutable[0] = 4)\n\
                     val count: Int = list.size\n\
                 }";
-    let (_, parsed, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_constructions().len(), 7);
-    assert_eq!(
-        typed
-            .container_constructions()
+    let (_, parsed, entries) = checked_entries(text);
+    for (entry, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_constructions().len(), 7);
+        assert_eq!(
+            typed
+                .container_constructions()
+                .iter()
+                .map(|descriptor| descriptor.kind())
+                .collect::<Vec<_>>(),
+            [
+                ContainerConstructionKind::ListForm,
+                ContainerConstructionKind::ListForm,
+                ContainerConstructionKind::ListForm,
+                ContainerConstructionKind::ListForm,
+                ContainerConstructionKind::RuntimeLength,
+                ContainerConstructionKind::RuntimeLength,
+                ContainerConstructionKind::EmptyMutableList,
+            ]
+        );
+        assert_eq!(
+            typed.container_constructions()[4].parameter_modes(),
+            [ParameterMode::Borrow, ParameterMode::Borrow]
+        );
+        assert!(
+            typed
+                .container_constructions()
+                .iter()
+                .all(|descriptor| typed.copyability(descriptor.container_type())
+                    == Copyability::MoveOnly)
+        );
+        assert_eq!(typed.element_places().len(), 3);
+        assert_eq!(
+            typed
+                .element_places()
+                .iter()
+                .map(|place| (place.container(), place.is_mutable()))
+                .collect::<Vec<_>>(),
+            [
+                (SequentialContainerKind::List, false),
+                (SequentialContainerKind::Array, true),
+                (SequentialContainerKind::MutableList, true),
+            ]
+        );
+        let size = parsed
+            .ast()
+            .expressions()
             .iter()
-            .map(|descriptor| descriptor.kind())
-            .collect::<Vec<_>>(),
-        [
-            ContainerConstructionKind::ListForm,
-            ContainerConstructionKind::ListForm,
-            ContainerConstructionKind::ListForm,
-            ContainerConstructionKind::ListForm,
-            ContainerConstructionKind::RuntimeLength,
-            ContainerConstructionKind::RuntimeLength,
-            ContainerConstructionKind::EmptyMutableList,
-        ]
-    );
-    assert_eq!(
-        typed.container_constructions()[4].parameter_modes(),
-        [ParameterMode::Borrow, ParameterMode::Borrow]
-    );
-    assert!(
-        typed
-            .container_constructions()
-            .iter()
-            .all(|descriptor| typed.copyability(descriptor.container_type())
-                == Some(Copyability::MoveOnly))
-    );
-    assert_eq!(typed.element_places().len(), 3);
-    assert_eq!(
-        typed
-            .element_places()
-            .iter()
-            .map(|place| (place.container(), place.is_mutable()))
-            .collect::<Vec<_>>(),
-        [
-            (SequentialContainerKind::List, false),
-            (SequentialContainerKind::Array, true),
-            (SequentialContainerKind::MutableList, true),
-        ]
-    );
-    let size = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .find_map(|(id, node)| match node.payload() {
-            Expression::Member { name_span, .. }
-                if text.get(name_span.start()..name_span.end()) == Some("size") =>
-            {
-                Some(id)
-            }
-            _ => None,
-        })
-        .expect("size expression");
-    assert_eq!(
-        typed.expression_category(size),
-        Some(ExpressionCategory::Temporary)
-    );
+            .find_map(|(id, node)| match node.payload() {
+                Expression::Member { name_span, .. }
+                    if text.get(name_span.start()..name_span.end()) == Some("size") =>
+                {
+                    Some(id)
+                }
+                _ => None,
+            })
+            .expect("size expression");
+        assert_eq!(
+            typed.expression_category(UnitExpressionId::new(entry, size)),
+            Some(ExpressionCategory::Temporary)
+        );
+    }
 }
 
 #[test]
@@ -213,11 +238,105 @@ fn non_storable_and_wrong_arity_container_types_are_rejected() {
                     never: List<Nothing>, top: Array<Any>, dynamic: List<Shape>,\n\
                     arity: MutableList<Int, Long>, callable: List<(Nothing) -> Nothing>\n\
                 ): Unit {}";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0125", "L0125", "L0094", "L0091"]
-    );
+    for (_, typed) in checked_entries(text).2 {
+        assert_eq!(
+            codes(typed.diagnostics()),
+            ["L0125", "L0125", "L0094", "L0091"]
+        );
+    }
+}
+
+#[test]
+fn non_storable_sequential_signature_elements_keep_one_error_at_the_argument() {
+    let text = "value class Wrapped<T>(val value: T)\n\
+                fun reject(a: List<Nothing>, b: Array<Any>, c: MutableList<Nothing?>,\n\
+                           d: List<List<Any>>, e: Array<Wrapped<Any>>): Unit {}\n\
+                fun <T> keep(x: List<T>, f: Array<(Nothing) -> Nothing>): Unit {}";
+    let (sources, parsed, entries) = checked_entries(text);
+    for (entry, typed) in entries {
+        assert_eq!(codes(typed.diagnostics()), ["L0125"; 5]);
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
+                .collect::<Vec<_>>(),
+            ["Nothing", "Any", "Nothing?", "Any", "Wrapped<Any>"]
+        );
+        assert_eq!(typed.signatures().diagnostics(), typed.diagnostics());
+        assert!(typed.body_diagnostics().is_empty());
+        let invalid = parsed
+            .ast()
+            .type_refs()
+            .iter()
+            .filter(|(_, node)| {
+                matches!(
+                    sources.slice(node.span()),
+                    Ok("List<Nothing>"
+                        | "Array<Any>"
+                        | "MutableList<Nothing?>"
+                        | "List<Any>"
+                        | "List<List<Any>>"
+                        | "Array<Wrapped<Any>>")
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(invalid.len(), 6);
+        for (id, _) in invalid {
+            let ty = typed
+                .type_ref_type(lang_frontend::type_checking::UnitTypeRefId::new(entry, id))
+                .expect("signature type ref");
+            assert!(matches!(
+                typed.types().get(ty),
+                Some(UnitTypeKind::Intrinsic { .. })
+            ));
+        }
+        assert!(typed.validate().is_err());
+    }
+}
+
+#[test]
+fn non_storable_sequential_signatures_do_not_collapse_overload_shapes() {
+    let text = "fun select(value: List<Nothing>): Unit {}\n\
+                fun select(value: Array<Any>): Unit {}\n\
+                fun select(value: Int): Int = value\n\
+                fun entry(): Int = select(1)";
+    for (_, typed) in checked_entries(text).2 {
+        assert_eq!(codes(typed.diagnostics()), ["L0125"; 2]);
+        assert!(typed.body_diagnostics().is_empty());
+        let [call] = typed.calls() else {
+            panic!("one call to the valid overload");
+        };
+        assert_eq!(
+            typed.types().get(call.return_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+        assert!(typed.validate().is_err());
+    }
+}
+
+#[test]
+fn sequential_elements_inside_static_bounds_still_require_runtime_types() {
+    let text = "interface Shape<T>\n\
+                fun <T: Shape<List<Shape<Int>>>> reject(): Unit {}\n\
+                fun nested(arg: List<Shape<Nothing>>): Unit {}\n\
+                fun <T: Shape<List<Int>>> keep(): Unit {}";
+    let (sources, _, entries) = checked_entries(text);
+    for (_, typed) in entries {
+        assert_eq!(codes(typed.diagnostics()), ["L0094"; 2]);
+        for (diagnostic, primary) in typed
+            .diagnostics()
+            .iter()
+            .zip(["Shape<Int>", "Shape<Nothing>"])
+        {
+            assert_eq!(sources.slice(diagnostic.primary_span()), Ok(primary));
+            let [DiagnosticDetail::Label(label)] = diagnostic.details() else {
+                panic!("one interface declaration label: {diagnostic:?}");
+            };
+            assert_eq!(sources.slice(label.span()), Ok("Shape"));
+        }
+        assert!(typed.validate().is_err());
+    }
 }
 
 #[test]
@@ -230,11 +349,12 @@ fn construction_inference_and_fixed_contract_fail_loudly() {
                     val runtime = Array<Int>(size, initializer)\n\
                     val wrongMutable = MutableList<Int>(1)\n\
                 }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0126", "L0126", "L0084", "L0084", "L0127"]
-    );
+    for (_, typed) in checked_entries(text).2 {
+        assert_eq!(
+            codes(typed.diagnostics()),
+            ["L0126", "L0126", "L0084", "L0084", "L0127"]
+        );
+    }
 }
 
 #[test]
@@ -252,13 +372,14 @@ fn index_mutability_size_and_get_set_follow_the_closed_place_contract() {
                     val borrowedSize = mutate(&list.size)\n\
                     val changed = mutate(&array[0])\n\
                 }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        [
-            "L0128", "L0129", "L0129", "L0129", "L0130", "L0130", "L0122", "L0122", "L0122"
-        ]
-    );
+    for (_, typed) in checked_entries(text).2 {
+        assert_eq!(
+            codes(typed.diagnostics()),
+            [
+                "L0128", "L0129", "L0129", "L0129", "L0130", "L0130", "L0122", "L0122", "L0122"
+            ]
+        );
+    }
 }
 
 #[test]
@@ -266,12 +387,10 @@ fn source_names_cannot_impersonate_intrinsic_containers_or_constructors() {
     let text = "class List<T>\n\
                 fun listOf(input: Int): Int = input\n\
                 fun inspect(sourceList: List<Int>): Int = listOf(1)";
-    let (sources, parsed) = parsed(text);
-    let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(typed.container_constructions().is_empty());
+    for (_, typed) in checked_entries(text).2 {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(typed.container_constructions().is_empty());
+    }
 }
 
 #[test]
@@ -281,27 +400,29 @@ fn deferred_callable_reference_element_does_not_become_a_false_storable_error() 
                     val reference = ::identity\n\
                     val pending = listOf(reference(1))\n\
                 }";
-    let (_, _, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(typed.container_constructions().is_empty());
+    for (_, typed) in checked_entries(text).2 {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(typed.container_constructions().is_empty());
+    }
 }
 
 #[test]
 fn generic_callable_infers_from_nested_intrinsic_container_type() {
     let text = "fun <T> first(input: List<T>): T\n\
                 fun use(values: List<Int>): Unit { val selected = first(values) }";
-    let (_, _, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let call = typed.calls().last().expect("generic source call");
-    assert!(matches!(
-        typed.types().get(call.return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
+    for (_, typed) in checked_entries(text).2 {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let call = typed.calls().last().expect("generic source call");
+        assert!(matches!(
+            typed.types().get(call.return_type()),
+            Some(UnitTypeKind::Builtin(BuiltinType::Int))
+        ));
+    }
 }
 
 #[test]
 fn container_size_publishes_receiver_identity_type_and_span() {
-    let (sources, parsed, _, typed) = checked(
+    let (sources, parsed, entries) = checked_entries(
         "fun sizes(array: Array<Int>, list: List<Int>, mutable: MutableList<Int>): Unit {\n\
              val a = array.size\n\
              val b = (list).size\n\
@@ -309,52 +430,56 @@ fn container_size_publishes_receiver_identity_type_and_span() {
              val d = listOf(1).size\n\
          }",
     );
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.container_sizes().len(), 4);
-    for descriptor in typed.container_sizes() {
+    for (entry, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.container_sizes().len(), 4);
+        for descriptor in typed.container_sizes() {
+            assert_eq!(descriptor.expression().source_unit(), entry);
+            assert_eq!(descriptor.receiver().source_unit(), entry);
+            assert_eq!(
+                typed.container_size(descriptor.expression()),
+                Some(*descriptor)
+            );
+            assert_eq!(
+                typed.expression_type(descriptor.receiver()),
+                Some(descriptor.container_type())
+            );
+            assert_eq!(
+                typed.expression_type(descriptor.expression()),
+                Some(descriptor.result_type())
+            );
+            assert_eq!(
+                typed.types().get(descriptor.result_type()),
+                Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+            );
+            assert_eq!(
+                typed.expression_category(descriptor.expression()),
+                Some(ExpressionCategory::Temporary)
+            );
+            assert_eq!(
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(descriptor.expression().expression())
+                    .unwrap()
+                    .span(),
+                descriptor.span()
+            );
+            assert!(sources.slice(descriptor.span()).unwrap().ends_with(".size"));
+        }
         assert_eq!(
-            typed.container_size(descriptor.expression()),
-            Some(*descriptor)
+            typed.container_sizes()[0].container(),
+            SequentialContainerKind::Array
         );
         assert_eq!(
-            typed.expression_type(descriptor.receiver()),
-            Some(descriptor.container_type())
+            typed.container_sizes()[1].container(),
+            SequentialContainerKind::List
         );
         assert_eq!(
-            typed.expression_type(descriptor.expression()),
-            Some(descriptor.result_type())
+            typed.container_sizes()[2].container(),
+            SequentialContainerKind::MutableList
         );
-        assert_eq!(
-            typed.types().get(descriptor.result_type()),
-            Some(&TypeKind::Builtin(BuiltinType::Int))
-        );
-        assert_eq!(
-            typed.expression_category(descriptor.expression()),
-            Some(ExpressionCategory::Temporary)
-        );
-        assert_eq!(
-            parsed
-                .ast()
-                .expressions()
-                .get(descriptor.expression())
-                .unwrap()
-                .span(),
-            descriptor.span()
-        );
-        assert!(sources.slice(descriptor.span()).unwrap().ends_with(".size"));
     }
-    assert_eq!(
-        typed.container_sizes()[0].container(),
-        SequentialContainerKind::Array
-    );
-    assert_eq!(
-        typed.container_sizes()[1].container(),
-        SequentialContainerKind::List
-    );
-    assert_eq!(
-        typed.container_sizes()[2].container(),
-        SequentialContainerKind::MutableList
-    );
 }
 
 #[test]

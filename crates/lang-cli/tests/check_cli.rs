@@ -257,6 +257,8 @@ fn reviewed_frontend_contracts_reach_both_public_check_entries() {
         ),
         ("fun bad(): Unit { super<I>.async }", Some("L0002")),
         ("fun bad(): Unit { val x = 1 val y = 2 }", Some("L0169")),
+        ("fun reject(value: List<Nothing>): Unit {}", Some("L0125")),
+        ("fun reject(value: List<Copyable>): Unit {}", Some("L0125")),
         ("class R { own fun noop(): Unit {} }", None),
     ] {
         let directory = TestDirectory::create();

@@ -73,6 +73,9 @@ F1–F5 的最小探针在原始基线上实际运行；F6 为修复工作树上
 | F5 | Guide 06：同行 block elements 必须有分号；`{ val x = 1 val y = 2 }` | parse_block 无诊断，带分号正控同样无诊断 | 本机修复并独立复核；三 owner 共用 L0169，非法正例及下游 fixtures 已迁移；双宿主 CI 待验，见 §10 |
 | F6 | 恢复不得吞外层分隔符；`f(a.async., sentinel)` / `{ a.async.; sentinel }` | 新失败回归分别证实吞逗号、分号并产生额外 L0034/L0013 | 已修复：error-postfix 保留 caller stops 和分号；逐实参/逐 statement 核对后继 identity |
 | F7 | 旧单文件 receiver 与 unit 的所有权合同未等价；同 F3 输入 | 修复后仓外探针确认旧 `check_ownership` 仍 diagnostics/deferred 均空，unit 已报 L0131 | 本机以 L0170 明确拒绝旧入口不能建模的 own receiver，撤销成功事实，旧 lowering 负控通过；不声称实现旧 receiver 语义或完成消费者迁移，见 §10 |
+| F8 | Guide 12：顺序容器显式签名的元素必须可存储 | Unit 迁移漏 L0125×2，旧 CLI 接受单独 `List<Nothing>`。独审另确认 capability、名义参数和静态 bound 内的接口旁路 | 后置签名实参校验与 runtime type-ref 检查，保留重载形状，见 §12 |
+| F9 | Guide 12：具体单态化后的顺序容器必须仍满足存储合同 | 独审实跑 `fun <T> fail(): List<T> = error("never")` 和 `fail<Nothing>()`，CLI exit 0 | OPEN，核对候选 trial 中替换后的具体类型、诊断归属与回滚 |
+| F10 | Rc 签名载荷与 body 构造资格存在差异 | 独审实跑 `fun reject(a: List<Rc<Copyable>>): Unit {}`，CLI exit 0 | OPEN，逐项核对 Rc 签名、构造与嵌套验证的 producer 和准入责任 |
 
 发现修复采用失败测试 → 最小实现 → 直接消费者/相邻合同 → 独立复核，不在审清前建立新抽象。
 不通过修改 Guide 或放宽 oracle 消除失败；历史账本原义保留。
@@ -105,7 +108,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
 | R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑 | class-family 全部 malformed owner 未穷尽 |
-| R2 | 独立检查 trial/final admission/provenance；F1/F2 已修复复核；既有 types/callable/final-admission 实跑 | 逐消费者处置及全部流事实组合尚未闭合 |
+| R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 已修复复核；既有 types/callable/final-admission 实跑 | 泛型替换 F9、Rc 载荷 F10、逐消费者处置及全部流事实组合尚未闭合 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报，旧消费者迁移仍待完成；循环/析构全矩阵与动态资源验收未闭合 |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布；CLI 本机 build 通过 | 全家族 subset/build、emit/verifier 与 debug/fault/sanitizer、Linux 实跑待验；目标机仍为 OptimizationLevel::None |
 | R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
@@ -252,3 +255,55 @@ identifier 调用与精确 `cfg(test)` witness；不扩大扫描器能力，不�
 Linux或远端CI。已迁移helper的生产映射函数逐字不变；剩余旧消费者按上述分流继续处理，
 本片不改变R0–R5退出条件。迁移的所属合同仍为[SPEC-0341](0341-shared-lowering-core.md)，
 本页只保留此次复审触发的最小切片与实际验收。
+
+
+## 12. 第四切片：顺序容器与混合借用消费者迁移
+
+本片基于已提交的 `c260be13`。迁移前，`type_containers` 32 项和
+`ssa::mixed_borrow_boundary_tests` 7 项均通过。顺序容器的八项原 Single 测试用同一原始
+源码、AST 和自定义环境分别走 MemoryDocument 与 Rooted。保留构造顺序、参数模式、
+Copyability、element place、诊断序列、调用返回及 size 的类型、来源和 Span 断言。
+首跑 31/32，原四条诊断缺两条 L0125。仅含 `List<Nothing>` 的原 CLI 探针 exit 0。
+
+混合借用迁移七份非法源码的前端检查，保留原诊断码与主 Span，分别检查原始
+MemoryDocument 和原跨文件 Rooted 路由。两路 names/types 均无诊断，raw ownership
+匹配同轮 typed，失败无法取得 validated ownership。四项明确比较 legacy 和 Unit 的
+后端 UnsupportedNode 测试仍执行原两个入口。
+
+独审复现了直接能力谓词、名义实参及静态上界内接口元素的漏检。首版在建立签名时将
+非法顺序容器替换为 Error，引入重复重载 L0097 和二义 L0124。终版在实参校验中报
+L0125 并保留类型形状。真实顺序容器的元素在静态 bound 内仍按运行时类型检查，
+接口错误归原 L0094 并保留声明 label。现有 Box、Map 与范围载体路径保留原职责。
+本片针对显式签名。泛型调用替换后的具体实例和 Rc 载荷另记 F9/F10。
+
+| 直接调用形状 | 基线文件 / 行 | 本片文件 / 行 |
+|---|---:|---:|
+| frontend `check_types` | 86 / 151 | 85 / 149 |
+| frontend `check_ownership` | 47 / 58 | 47 / 58 |
+| codegen `check_types` | 16 / 19 | 15 / 18 |
+| codegen `check_ownership` | 15 / 18 | 14 / 17 |
+| codegen `lower_scalar_file_with_entry` | 4 / 8 | 4 / 8 |
+
+借用返回旧 helper 在六个其他文件中的调用路径已核对。保留整文件编译的用例包含
+`map_require_readonly_source_can_return_its_slot_through_ordinary_wrapper`。其 `view` 未被
+`entry` 调用，直接换成按 entry 裁剪的 Unit helper 会丢失该函数。迁移该见证需先保持真实
+borrow-return slot、owner 和 verifier 观察。frontend 的 `type_iteration` 和
+`type_range_carrier` 仍保留名字解析失败后的 Single raw 恢复见证。
+
+迁移所属合同见 [SPEC-0341](0341-shared-lowering-core.md)。
+
+
+| 第四切片验证 | 实际结果 |
+|---|---|
+| 原 `type_containers` 迁移后、修复前 | 31 passed、1 failed。独立新增用例也先失败，Unit 未报 L0125 |
+| 中间版全 frontend 与本机 conformance | Cargo 183 个测试结果组共 2464 passed，含文档测试。Conformance 138/154，验收程序 0/6，错误输出、ICE 和模式差异均 0。该二进制早于签名后置校验修订 |
+| 最终 frontend 七个 integration suite | `final_type_admission` 57、`multifile_type_capability_graph` 4、`multifile_type_checking` 154、`type_containers` 35、`type_copyability` 16、`type_map` 17、`type_range_carrier` 7，共 290 passed，0 failed/ignored/filtered |
+| 最终 codegen `--lib ssa::mixed_borrow_boundary_tests` 与保留的 `map_require_readonly_source_can_return_its_slot_through_ordinary_wrapper` | 7 和 1 passed，0 failed/ignored，各过滤 2651 和 2657 |
+| 最终 CLI `--test check_cli` | 6 passed，0 failed/ignored/filtered。单文件和 project 都精确拒绝 `List<Nothing>` 与 `List<Copyable>`，各一条 L0125 |
+| 最终 CLI 的 F9/F10 最小探针 | 仍各 exit 0，保持开放 |
+| fmt、Rust 尺寸检查 | 通过。2115 个手写 Rust 文件，39 个历史超限，限额保持原值 |
+| workspace all-targets Clippy `-D warnings`、文档与 diff 检查 | 通过，文档门禁覆盖 847 个 Markdown |
+
+独立复核在两轮修订后确认本片代码无剩余阻断，检查了原用例源码与预期、签名恢复、
+接口诊断归属和旧 lowering 见证。最终版本完成定向回归。全前端与 conformance 的实跑
+身份是中间版。最终全量、Linux、sanitizer 与远端 CI 待验。

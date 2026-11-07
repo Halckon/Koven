@@ -340,6 +340,31 @@ impl SignatureCollector<'_> {
                 }
                 if let Some(UnitTypeKind::Intrinsic {
                     constructor:
+                        IntrinsicTypeConstructor::Array
+                        | IntrinsicTypeConstructor::List
+                        | IntrinsicTypeConstructor::MutableList,
+                    arguments,
+                }) = self.types.get(ty)
+                    && let [element] = arguments.as_slice()
+                    && let [element_ref] = segment.arguments.as_slice()
+                    && self.sequential_element_has_no_storage(*element)
+                {
+                    let span = self.inputs[source_index]
+                        .ast()
+                        .type_refs()
+                        .get(*element_ref)
+                        .map_err(TypeCheckingError::from)?
+                        .span();
+                    self.emit(
+                        codes::INVALID_CONTAINER_ELEMENT,
+                        "sequential container element type is not structurally storable",
+                        span,
+                    )?;
+                    // Preserve the signature's shape for overload recovery.
+                    continue;
+                }
+                if let Some(UnitTypeKind::Intrinsic {
+                    constructor:
                         IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
                     arguments,
                 }) = self.types.get(ty)
@@ -428,6 +453,32 @@ impl SignatureCollector<'_> {
             }
         }
         self.validate_capabilities_and_layout()
+    }
+
+    // Interface, carrier and inline layout checks own their diagnostics.
+    // A nested intrinsic argument is checked at its own TypeRef.
+    fn sequential_element_has_no_storage(&self, ty: UnitTypeId) -> bool {
+        match self.types.get(ty) {
+            Some(UnitTypeKind::Builtin(BuiltinType::Any | BuiltinType::Nothing))
+            | Some(UnitTypeKind::Capability(_)) => true,
+            Some(
+                UnitTypeKind::Nullable(inner)
+                | UnitTypeKind::EnumCase { root: inner, .. }
+                | UnitTypeKind::StaticSelf(inner),
+            ) => self.sequential_element_has_no_storage(*inner),
+            Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) => {
+                self.nominals
+                    .get(declaration)
+                    .is_some_and(|nominal| nominal.kind() != NominalKind::Interface)
+                    && arguments
+                        .iter()
+                        .any(|argument| self.sequential_element_has_no_storage(*argument))
+            }
+            _ => false,
+        }
     }
 
     fn map_value_is_storable(&self, ty: UnitTypeId) -> bool {
