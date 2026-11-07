@@ -3413,3 +3413,17 @@ workspace fmt、diff 与相对 78a36f25 的尺寸门禁通过；2149 份手写 R
 loan-end 切片间的全序。只替代原 Single 的存在/计数断言，不替代全程 absence 证据。
 最终四项精确测试分别 1 passed、56 filtered（共四个不同测试），frontend all-targets
 Clippy（-D warnings）通过；没有重复运行全 target。仍不涉及 Abort/native/故障注入/校准。
+
+### Continuation 消费者与保留边界
+
+同批将 `ownership_borrow_continuation::abandoned_initializer_ends_source_call_without_ending_an_unestablished_result`
+的原 source(call,argument) ControlTransfer 存在断言迁到真实 Unit prefix 单元素向量；
+仍要求最终 result end 仅有一个 AfterStatement，补 Shared、loan 成员资格、原 call/argument/
+parameter 文本、origin 与同源 transfer 身份。原输入未改。named-source 测试只有 L0135 的
+负例也转 Unit；成功路径的全流唯一结束 Single 证据不动。两入口均保持。
+两项精确测试各 1 passed、13 filtered，最终 frontend all-targets Clippy 通过；不运行整目标。
+
+同类审计后明确保留：direct-source/forwarded-source 的全程不结束见证、named-source
+成功路径在全流中恰好一个其他实参结束，以及 nested borrow helper 的 outer-end 在
+source-end 之前。这些分别需要完整 absence、全流计数及全序；当前 bounded handoff/prefix
+观察无法等价替代。没有为扩大退休数量而删断言或将 result endpoint 当作 loan end。
