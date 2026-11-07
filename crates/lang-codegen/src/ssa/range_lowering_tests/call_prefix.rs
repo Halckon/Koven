@@ -11,7 +11,7 @@ fn source_case(
         (true, true) => (
             "val root=source();{borrow val parent=take(root,2)",
             "take(parent,1)",
-            "}",
+            "};",
             "consume(root)",
         ),
         (false, true) => ("", "take(take(source(),2),1)", "", ""),

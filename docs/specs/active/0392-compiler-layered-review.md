@@ -352,3 +352,20 @@ Linux sanitizer 及合流版本的证据。
 | 独立复核 | 验证诊断边界、布局回滚、可行重载和类型 ID 生命周期。已有的成员准备阶段边界见上 |
 
 最终第五切片未跑全量 integration、conformance、Linux sanitizer 或远端 CI。
+
+## 15. 首轮远端 CI 与 fixture 语法修正
+
+第五切片提交 `a3b0a6da53687dfd4f46ca68c295e946c698589a` 已推送。
+[首次 push run](https://github.com/Halckon/Koven/actions/runs/42338909476)只执行静态门禁，
+Rust 双宿主 jobs 因事件条件跳过，不能用其 success 声称动态通过。为实际触发双宿主门禁建立
+[草稿 PR #336](https://github.com/Halckon/Koven/pull/336)，保持未合并。
+
+[首轮 PR run](https://github.com/Halckon/Koven/actions/runs/42339261426)的双宿主 Check/Clippy
+通过；Linux composition 在 codegen 的 14 个 tests 失败。日志中的实际根因是旧 fixture 同行
+缺少语句分隔符，触发 F5 修复引入的 L0169；后续缺少 conformance/sanitizer artifact 是前序
+中断的结果，不能当成独立运行通过或根因。此轮测试输入为 PR 合流树
+`79f6aa10c612348ca295463ff2ccdca3df65e543`，head 为上述第五切片。
+
+按 Guide 06 为十个 codegen 测试文件/fixture 补显式分号，保留原函数、操作顺序、SSA 断言、
+运行输出和逐资源计数。`original_generic_functions.ko` 仍保留历史场景，但字节已作本轮语法
+修正；不再用历史“原始”命名声称它与冻结版本字节相同。生产 Parser 的分隔规则保持。

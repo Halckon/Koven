@@ -10,7 +10,7 @@ fn field_replace_native_evaluates_once_preserves_parent_and_returns_old() {
         "field-exchange.ko",
         r#"
         class Holder(var state: String, val id: Int)
-        fun make(): String { println("evaluate-new") return "new" + "value" }
+        fun make(): String { println("evaluate-new"); return "new" + "value" }
         fun entry(): Unit {
             val holder = Holder("old" + "value", 42)
             val old = replace(&holder.state, make())

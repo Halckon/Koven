@@ -9,7 +9,7 @@ fn root_primitive_native_string_exchange_and_source_order() {
     let output = emit_link_and_run(
         "root-exchange.ko",
         r#"
-        fun make(): String { println("evaluate-new") return "new" + "value" }
+        fun make(): String { println("evaluate-new"); return "new" + "value" }
         fun entry(): Unit {
             var a = "old" + "value"
             var b = "second" + "value"
