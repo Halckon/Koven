@@ -734,3 +734,96 @@ fn sibling_return_edges_keep_distinct_source_tokens_and_cleanup_points() {
         }
     }
 }
+
+#[test]
+fn nested_auxiliary_return_preserves_source_end_and_temporary_cleanup() {
+    let (observed, single) = observe_with_legacy(
+        "fun select(source: String, tail: Unit): borrow String from source = source\nfun sink(value: String, stop: Unit): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = select(owner, sink(\"temporary\", return)) }",
+    );
+    assert_units_admitted(&observed);
+    let expression = |text| {
+        let found: Vec<_> = observed
+            .parsed
+            .ast()
+            .expressions()
+            .iter()
+            .filter_map(|(id, node)| {
+                (observed.sources.slice(node.span()) == Ok(text)).then_some(id)
+            })
+            .collect();
+        let [id] = found.as_slice() else {
+            panic!("unique source expression: {text}")
+        };
+        *id
+    };
+    let outer = expression("select(owner, sink(\"temporary\", return))");
+    let inner = expression("sink(\"temporary\", return)");
+    let temporary = expression("\"temporary\"");
+    let source = expression("owner");
+    let transfer = expression("return");
+    for (unit, names) in observed.units.iter().zip(&observed.unit_names) {
+        let [indexed] = names.names().index().source_units() else {
+            panic!("one source")
+        };
+        let qualify = |id| UnitExpressionId::new(indexed.id(), id);
+        assert!(unit.borrow_results().bindings().is_empty());
+        assert!(unit.borrow_call_handoffs().is_empty());
+        let [event] = unit.borrow_call_prefix_ends() else {
+            panic!("one actual source end")
+        };
+        assert_eq!(event.loan().call(), qualify(outer));
+        assert_eq!(event.loan().argument(), qualify(source));
+        assert_eq!(
+            event.point(),
+            UnitDropPoint::ControlTransfer(qualify(transfer))
+        );
+        assert_eq!(event.preceding_drops(), 0);
+        let UnitLoanTarget::Place(owner) = event.loan().target() else {
+            panic!("owned root")
+        };
+        let drops: Vec<_> = unit
+            .drops()
+            .iter()
+            .filter(|drop| drop.point() == event.point())
+            .map(|drop| drop.target())
+            .collect();
+        assert_eq!(
+            drops,
+            vec![
+                UnitDropTarget::Temporary(qualify(temporary)),
+                UnitDropTarget::Named(owner.root())
+            ]
+        );
+        let [auxiliary] = unit.direct_call_loan_ends() else {
+            panic!("one actual auxiliary end, separate from the borrow source slice")
+        };
+        assert_eq!(auxiliary.loan().call(), qualify(inner));
+        assert_eq!(auxiliary.loan().argument(), qualify(temporary));
+        assert_eq!(
+            auxiliary.loan().target(),
+            &UnitLoanTarget::Temporary(qualify(temporary))
+        );
+        assert_eq!(auxiliary.point(), event.point());
+        assert_eq!(auxiliary.preceding_drops(), 0);
+        assert_eq!(auxiliary.loan().kind(), LoanKind::Shared);
+        assert_eq!(event.loan().kind(), LoanKind::Shared);
+        assert!(unit.loans().contains(event.loan()));
+        assert!(unit.loans().contains(auxiliary.loan()));
+        // Separate slices do not establish a total order between these two ends.
+        for (call, argument) in [(outer, source), (inner, temporary)] {
+            assert_eq!(
+                single
+                    .loan_ends()
+                    .iter()
+                    .filter(|end| end.call() == call
+                        && end.argument() == argument
+                        && end.point()
+                            == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
+                                transfer
+                            ))
+                    .count(),
+                1
+            );
+        }
+    }
+}
