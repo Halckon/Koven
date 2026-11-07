@@ -3418,3 +3418,8 @@ Known(0)/Known(0)/Known(0)/Known(1) 索引及 named root 的 CallReturn cleanup�
 
 验证：上述两项 exact 定向测试各通过；frontend all-targets Clippy、fmt、文档、尺寸与 diff 检查。
 本片不运行 full/native/Abort 故障路径；剩余 Single helper 与独立生命周期见证保持原样。
+
+同批后续补迁两项容器 size 消费者：named receiver 的四条 Shared loan、无诊断/无 deferred
+与 owner 后续 move，以及 temporary receiver 同步 loan 所指 owner 的恰好一次 CallReturn drop。
+两项保留原始源文本，双 Unit 入口新增 call/owner 的 SourceUnit 校验；各自 exact 测试通过。
+没有将这两项普通读取路径扩大为完整借用结束事件流或所有 temporary 生命周期的迁移结论。
