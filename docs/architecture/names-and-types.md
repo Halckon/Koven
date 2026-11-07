@@ -14,7 +14,7 @@
 表达式类型/类别、call/receiver/argument mapping、nominal projection、container/Rc、copyability、destructuring 与 flow。
 raw检查保留recovery，旧validate边界不变；`complete_file_types` / `complete_compilation_unit_types`另授绑定原分析的
 [最终消费资格](tooling.md#最终类型消费准入)，不等同ownership/native能力；普通变量 `=` 按storage检查RHS、产Unit并kill旧facts（[0325](../archive/specs/0325-simple-variable-assignment-types.md)）。
-覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)；lambda expected/capture 见[专题](expected-move-literals.md)。
+`type_callable` 的 println 身份/遮蔽、成员与函数值映射、参数模式三项原测试已由双 Unit 入口承接，其他 Single 覆盖保留。覆盖见 `name_resolution`、`type_checking`、`type_callable`、`final_type_admission`、`control_branch_join`；while 保守流事实已具双入口 FE/SSA、有界 native 与 PR116 双平台实现 CI 验收，历史与限定见[0330](../archive/specs/0330-while-conservative-flow.md)；lambda expected/capture 见[专题](expected-move-literals.md)。
 
 两入口将同expression已选EnumCase构造归为Temporary，Group透传；Name/Member拼写不授予place，真实binding/field不变。
 final仅沿已选case的静态qualifier准入；无descriptor的零payload推导失败须原typed L0144、case Value引用与raw失败表示共同证明，仍保留失败资格及独立根诊断。覆盖见`enum_case_borrow_categories`，不扩展enum when或泛型enum native。
@@ -163,8 +163,8 @@ Group/直接 control body 透传该 role；Map 写目标按写入角色准入，
 unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、
 不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
 
-对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、`multifile_type_member_graph`、`multifile_type_capability_graph`、`type_copyability` 与 `type_map`（两目标均保留双入口原 oracle，无 Single 消费者）。
-`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。
+`type_containers` 的六项核心构造、诊断、遮蔽、泛型推导与 size 原测试走双 Unit 入口；signature storage 诊断和 deferred recovery 两项 Single witness 保留。对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、`multifile_type_member_graph`、`multifile_type_capability_graph`、`type_copyability` 与 `type_map`（两目标均保留双入口原 oracle，无 Single 消费者）。
+`multifile_type_checking`保持原target，107项按17私有领域与原baseline域组织，详见[迁移验收](../archive/development/multifile-type-test-migration.md)。 `type_checking::resource_unit` 六项原 deinit/replace/swap 类型消费者保留双入口原 oracle（[范围](../specs/active/0341-shared-lowering-core.md#resource-类型消费者有界迁移2026-11-06)）；不扩张资源所有权准入。
 
 ### Unit 关联常量选择
 
@@ -185,7 +185,7 @@ L0157。SCC 使用与单文件相同的显式栈算法，诊断及 labels 按稳
 L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成后，声明计数、值完整性、读取
 类型/category 和诊断共同控制 `UnitConstantFacts` 的原子发布；错误时不保留部分常量事实。
 `validate_constants()` 发布独立 `ConstEnabledTypedUnit`，只暴露相同分析的 recovery 视图；
-解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。
+解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。 `type_constants` 三项求值消费者以双入口保留算术失败、短路/依赖边界与关联常量字宽的诊断/span oracle。
 
 同文件已绑定 classifier/object 的两段常量路径复用 static member 选择并补全 terminal symbol；不存在的本地静态成员报 L0080。
 private 非常量成员可见性、普通值接收者及同名参数遮蔽仍走原类型路径。

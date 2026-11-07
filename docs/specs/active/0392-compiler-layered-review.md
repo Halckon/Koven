@@ -307,3 +307,14 @@ borrow-return slot、owner 和 verifier 观察。frontend 的 `type_iteration` �
 独立复核在两轮修订后确认本片代码无剩余阻断，检查了原用例源码与预期、签名恢复、
 接口诊断归属和旧 lowering 见证。最终版本完成定向回归。全前端与 conformance 的实跑
 身份是中间版。最终全量、Linux、sanitizer 与远端 CI 待验。
+
+
+## 13. 主线同步
+
+第四切片提交为 `81bcd6cf`。以本地 `origin/main` 记录的 `a56e1b17` 合入 41 个主线提交。
+主线已有顺序容器直接 Any/Nothing 检查和独立签名测试。合流保留两边的测试证据与更完整的
+后置签名检查，移除重复的早期诊断。沿用主线的双入口 helper，保留主线刻意留下的两个
+Single 见证。选择器保留所有目标，共 138 个唯一 frontend integration。
+
+本地合流树的 `type_containers`、`multifile_type_signatures` 和 `type_checking` 共 134 项通过。
+文档门禁和三个成功路径选择器测试通过。远端 CI 待首次推送触发。

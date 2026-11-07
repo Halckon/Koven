@@ -176,6 +176,13 @@ PR 的普通文档变更保留路径豁免；全部 Guide、compiler-specs、scr
 变更触发 Rust 门禁。代码门禁成功后追加普通文档，可按 [SPEC-0293](../archive/specs/0293-pr-code-ci-reuse.md)
 复用同 PR、同 base、同 head/merge 有效输入的真实 job 证据；汇总独立重验，不能只凭 workflow success。
 证据不可用保守重跑，docs 每次 PR 运行，跳过不表示本 head 再次执行或生成新 preview 包。
+复用 required jobs 与 workflow 实际名称、OS 矩阵由 `test_pr_ci_reuse.py` 覆盖全部八组
+路径开关组合；拒绝日志标明 run、attempt 及缺失或未成功 job，摘要保留首个候选拒绝原因。
+修复后的 [PR #325 首轮完整 CI](https://github.com/Halckon/Koven/actions/runs/42170934428)
+在 head `9a53c7cdfb4d8b21c7baad063eebbf578d9bdae1`、base
+`c4ba670a76a567e1475deee47378fa791d25f419` 实际通过全部 16 个 job，含 editor、双平台
+Rust、Preview producer/consumer 与物理证据。后续普通文档追加仍须核对同 base、同输入
+指纹和最终独立复验；镜像 workflow 尚未接入该复用机制，其重跑不代表核心复用失败。
 active/archive 的编号真源为 [Spec 冻结库存](../specs/inventory.md)；纯归档同步声明、正文与索引，
 不再为编号修改 checker。严格解析器与生命周期检查仍在每次 PR 的 docs 门禁执行；无效声明使
 docs 和最终汇总失败。parser/脚本、base 或其他代码输入变化仍按原证据规则保守重跑。
@@ -249,7 +256,7 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
 
 `bash scripts/check_integration.sh`依次选择core、ownership_iteration、stage、尚未覆盖的guide_litmus、
 真实CLI教程。独立stage/Guide入口保留，不增加任意skip开关。core包含lang-std源码资产，
-组合为132个唯一frontend integration和23次Cargo调用；接线与失败传播由Python合同测试核验。
+组合为138个唯一frontend integration和23次Cargo调用；接线与失败传播由Python合同测试核验。
 SPEC-0290 补齐 PR69 改动目标中的 23 个遗漏选择；stage policy 锁定相关 25 个目标
 （含此前已选择的 2 个）各恰一次且不带过滤器。range/N1a 测试进入门禁不表示启用其语义，
 脚本接线与 Python policy 通过也不表示新增 Rust 目标已实际运行。

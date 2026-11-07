@@ -1,10 +1,13 @@
 """Ordinary metadata fixtures for conservative PR code-CI reuse."""
 import copy
 import importlib.util
+import io
+import itertools
 import json
 from pathlib import Path
 import unittest
 from unittest.mock import patch
+from contextlib import redirect_stdout
 import os
 import re
 import subprocess
@@ -13,6 +16,34 @@ import tempfile
 SPEC = importlib.util.spec_from_file_location('pr_ci_reuse', Path(__file__).resolve().parents[1] / 'pr_ci_reuse.py')
 CI = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CI)
+
+
+def workflow_job_names(flags):
+    """Read the real job names/matrices, independently of the reuse allowlist."""
+    workflow = (Path(__file__).resolve().parents[2] / CI.WORKFLOW).read_text()
+    job_ids = []
+    if flags['rust'] == 'true' or flags['preview'] == 'true':
+        job_ids += ['fmt', 'clippy', 'test']
+    if flags['preview'] == 'true':
+        job_ids += ['preview-macos-produce', 'preview-macos-consume',
+                    'preview-linux-produce', 'preview-linux-consume']
+    if flags['editors'] == 'true':
+        job_ids += ['editors']
+    names = set()
+    for job_id in job_ids:
+        body = re.search(r'^  ' + re.escape(job_id) + r':\n(.*?)(?=^  [a-z][a-z0-9-]*:\n|\Z)',
+                         workflow, re.M | re.S).group(1)
+        name = re.search(r'^    name: (.+)$', body, re.M).group(1)
+        if '${{ matrix.os }}' in name:
+            hosts = re.search(r'^        os: \[([^\]]+)\]$', body, re.M).group(1).split(',')
+            expanded = [name.replace('${{ matrix.os }}', host.strip()) for host in hosts]
+        else:
+            expanded = [name]
+        for actual in expanded:
+            if '${{' in actual or actual in names:
+                raise AssertionError(f'unsupported or duplicate workflow job name: {actual}')
+            names.add(actual)
+    return names
 
 
 class ReuseTests(unittest.TestCase):
@@ -27,7 +58,7 @@ class ReuseTests(unittest.TestCase):
                         head_repository={'full_name': 'owner/fork'},
                         pull_requests=[{'number': 7}], path='.github/workflows/ci.yml')
         self.jobs = [dict(name=name, status='completed', conclusion='success', run_id=10)
-                     for name in CI.required_job_names(self.flags) | {CI.marker_name({**self.context, 'head': 'a' * 40})}]
+                     for name in workflow_job_names(self.flags) | {CI.marker_name({**self.context, 'head': 'a' * 40})}]
 
     def valid(self):
         return CI.valid_evidence(self.run, self.jobs, self.context, self.flags,
@@ -104,8 +135,21 @@ class ReuseTests(unittest.TestCase):
 
     def test_required_jobs_follow_existing_path_flags(self):
         self.assertEqual(set(), CI.required_job_names(dict(rust='false', preview='false', editors='false')))
-        self.assertEqual({'Tree-sitter CLI Corpus'}, CI.required_job_names(dict(rust='false', preview='false', editors='true')))
+        self.assertEqual({'Editor lexical contracts'}, CI.required_job_names(dict(rust='false', preview='false', editors='true')))
         self.assertEqual(9, len(CI.required_job_names(dict(rust='true', preview='true', editors='false'))))
+
+    def test_required_jobs_match_workflow_names_and_matrix_for_every_flag_combination(self):
+        for values in itertools.product(('false', 'true'), repeat=3):
+            flags = dict(zip(('rust', 'preview', 'editors'), values))
+            with self.subTest(flags=flags):
+                self.assertEqual(workflow_job_names(flags), CI.required_job_names(flags))
+
+    def test_retired_editor_name_cannot_replace_current_contract(self):
+        self.assertTrue(self.valid())
+        for job in self.jobs:
+            if job['name'] == 'Editor lexical contracts':
+                job['name'] = 'Tree-sitter CLI Corpus'
+        self.assertFalse(self.valid())
 
     def test_macos_15_jobs_are_required_and_retired_14_evidence_is_rejected(self):
         expected = {f'{name} (macos-15)' for name in (
@@ -161,6 +205,49 @@ class ReuseTests(unittest.TestCase):
             found, reason = CI.find_evidence(api, self.context, self.flags)
             self.assertIsNone(found)
             self.assertIn('not succeeded', reason)
+
+    def test_missing_job_diagnostic_is_not_hidden_by_an_older_failure(self):
+        self.jobs = [job for job in self.jobs if job['name'] != 'Editor lexical contracts']
+        older_failure = {**self.run, 'id': 5, 'conclusion': 'failure'}
+        api = self.fake_api([older_failure, self.run], {10: self.jobs})
+        output = io.StringIO()
+        with redirect_stdout(output):
+            found, reason = CI.find_evidence(api, self.context, self.flags)
+        self.assertIsNone(found)
+        self.assertIn('run 10', reason)
+        self.assertIn('missing required jobs: Editor lexical contracts', reason)
+        self.assertIn('run 5', reason)
+        self.assertNotIn('newer same-PR', reason)
+        trace = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual([10, 5], [entry['run_id'] for entry in trace])
+        self.assertEqual(['rejected', 'blocked'], [entry['decision'] for entry in trace])
+        self.assertEqual(1, trace[0]['run_attempt'])
+        self.assertEqual('a' * 40, trace[0]['head_sha'])
+        self.assertIn('Editor lexical contracts', trace[0]['reason'])
+        self.assertEqual('failure', trace[1]['conclusion'])
+
+    def test_unsuccessful_job_diagnostic_identifies_exact_job_and_status(self):
+        for job in self.jobs:
+            if job['name'] == 'Editor lexical contracts':
+                job['conclusion'] = 'skipped'
+        output = io.StringIO()
+        with redirect_stdout(output):
+            found, reason = CI.find_evidence(self.fake_api([self.run], {10: self.jobs}),
+                                             self.context, self.flags)
+        self.assertIsNone(found)
+        self.assertIn('Editor lexical contracts (status=completed, conclusion=skipped)', reason)
+        self.assertEqual('rejected', json.loads(output.getvalue())['decision'])
+
+    def test_selected_candidate_rejection_keeps_detailed_reason(self):
+        self.jobs = []
+        output = io.StringIO()
+        with redirect_stdout(output):
+            found, reason = CI.find_evidence(self.fake_api([self.run], {10: self.jobs}),
+                                             self.context, self.flags, 10)
+        self.assertIsNone(found)
+        self.assertIn('selected evidence no longer valid', reason)
+        self.assertIn('run 10', reason)
+        self.assertIn('expected one evidence marker, found 0', reason)
 
     def test_push_other_pr_and_current_run_never_supply_evidence(self):
         for run in ({**self.run, 'event': 'push'}, {**self.run, 'display_title': 'CI pull_request PR 8'},
