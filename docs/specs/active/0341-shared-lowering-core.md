@@ -3388,6 +3388,46 @@ fmt、849份Markdown、diff及相对2fd6bfb9尺寸检查通过，38个历史超�
 通过声明证明组合。补显式 Swap 两值匹配后，该目标 1 项与最终 all-targets Clippy 通过。
 合计 123 项定向测试；fmt、849 份 Markdown、diff及尺寸门禁通过。未以此替代正式 CI。
 
+## Callable 原诊断消费者有界迁移（2026-11-07）
+
+基于 main `78a36f25`，`type_callable` 的 named/arity/type/target failures 与 generic
+inference conflicts 两项原测试复用既有 MemoryDocument/Rooted helper。原始源码、自定义
+环境、完整有序诊断码，以及泛型推导的三个 primary span 均保持不变；不添加 final 或
+ownership 前置，不改生产语义。
+
+本次等价性探测发现另两项不能退休：nullable overload ambiguity 的 Unit 结果为
+L0123 而原 Single 为 L0124；non-lambda filter 到唯一候选的 lambda L0084 缺原
+`callback` label。保留这两项原 Single 测试及所有断言，不用弱化 oracle 换取迁移。
+初始迁移不改这两处；后续组合中的 nullable bottom 修复见下一节，callback label 精度差异仍保留。
+
+| 验收项 | 定向检查 | 结果 |
+|---|---|---|
+| 两项双入口迁移及两项保留见证 | `type_callable` 四个同名过滤器 | 4 passed，17 filtered |
+| 受影响测试目标 lint | `cargo clippy -p lang-frontend --test type_callable -- -D warnings` | 通过 |
+
+Mac Rust1.96、locked/offline、默认debug=2，复用空闲target串行执行。未运行含Abort
+的整个target、全量、native、故障注入、校准或Linux CI；D10/E2保持in-progress。
+
+## Nullable bottom 的 Unit 诊断一致性（2026-11-07）
+
+基线 main `78a36f25`。原 overload 输入在 Single 报 L0123/L0124，两个 Unit 入口第二项误报
+L0123；根因是 Unit 类型适配缺少 Guide 已规定的 Nothing? 到 nullable 规则。
+保留原 Single witness，补两个入口的原源码断言及 nullable/nonnullable/不同 nullable 负例，
+并锁 deferred-inner 拒绝。完整相容查询移入既有 type_graph 职责模块，driver 不增加超长欠账。
+
+另核实 lambda L0084 并非无 label：Unit 指向整个 callback 参数声明，Single 指向名称。
+本片不改该公开参数 span 合同，原 Single 诊断精度见证保留，不宣称该消费者已迁移。
+
+Mac Rust1.96、locked/offline、默认 debug=2，最终 8 项定向测试通过：type_graph 类型关系1项、
+type_callable overload过滤5项、nullable正反例1项、ownership_primitives普通normal commit1项。
+frontend all-targets Clippy（-D warnings）、fmt、849份Markdown、diff与尺寸门禁通过；
+历史38个超长文件数量未增加，checker driver由1182行减至1151行。
+未运行全量、native、故障注入、校准或含Abort的整项测试；官方双宿主CI尚未运行，不计为通过。
+
+组合验收（基于 `78a36f25`）：保留四个逻辑提交，仅解决 Spec 追加段落冲突并同步当前事实。
+组合源码的 callable 过滤器9项、type_graph过滤器1项通过；frontend all-targets Clippy
+（-D warnings）、fmt、849份Markdown与diff检查通过。正式Draft PR的双宿主CI仍待验证。
+
 ## Map.withValue 泛型借用消费者迁移（2026-11-07）
 
 独立基于 main `78a36f25`，不依赖 callable 或 borrow-prefix 候选合入。
@@ -3423,3 +3463,9 @@ Known(0)/Known(0)/Known(0)/Known(1) 索引及 named root 的 CallReturn cleanup�
 与 owner 后续 move，以及 temporary receiver 同步 loan 所指 owner 的恰好一次 CallReturn drop。
 两项保留原始源文本，双 Unit 入口新增 call/owner 的 SourceUnit 校验；各自 exact 测试通过。
 没有将这两项普通读取路径扩大为完整借用结束事件流或所有 temporary 生命周期的迁移结论。
+
+重传组合验收（2026-11-07）：合入 main `333ba5ec`，仅调和本节与 callable 验收的追加冲突，
+双方历史记录完整保留；原 #350 两份测试及 ownership 架构内容未改变。Mac Rust1.96、
+locked/offline、默认 debug profile，Map 全4项及上述容器4项 exact 测试通过；两个直接测试
+目标 Clippy（-D warnings）、workspace fmt、862份Markdown与diff检查通过。
+未运行全量/native/Abort/故障注入/校准，本次精确新头的正式CI须另行确认。

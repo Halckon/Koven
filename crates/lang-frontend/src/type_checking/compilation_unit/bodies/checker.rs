@@ -67,6 +67,7 @@ mod while_flow;
 
 use super::super::signatures::collect_signatures_with_files;
 use flow::FlowKey;
+pub(super) use type_graph::unit_assignable;
 
 use super::{
     CompilationUnitTypeError, CompilationUnitTypeParts, CompilationUnitTypes, UnitExpressionId,
@@ -1147,36 +1148,4 @@ fn item_requires_body_check(item: &Item) -> bool {
         Item::Modified { .. } => unreachable!("unwrapped_item removes modifiers"),
         Item::Error | Item::Function { .. } | Item::Companion(_) | Item::Deinit { .. } => false,
     }
-}
-
-/// 与 primitive 结构验证复用同一 unit 类型相容关系。
-pub(super) fn unit_assignable(
-    types: &crate::type_checking::UnitTypeTable,
-    actual: UnitTypeId,
-    expected: UnitTypeId,
-) -> bool {
-    actual == expected
-        || matches!(types.get(actual), Some(UnitTypeKind::Error))
-        || matches!(types.get(expected), Some(UnitTypeKind::Error))
-        || matches!(
-            types.get(actual),
-            Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
-        )
-        || matches!(
-            types.get(actual),
-            Some(UnitTypeKind::EnumCase { root, .. }) if *root == expected
-        )
-        || matches!(
-            types.get(actual),
-            Some(UnitTypeKind::StaticSelf(interface)) if *interface == expected
-        )
-        || matches!(
-            types.get(expected),
-            Some(UnitTypeKind::Nullable(inner))
-                if actual == *inner
-                    || matches!(
-                        types.get(actual),
-                        Some(UnitTypeKind::EnumCase { root, .. }) if root == inner
-                    )
-        )
 }
