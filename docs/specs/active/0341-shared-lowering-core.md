@@ -2977,6 +2977,32 @@ all-targets Clippy（`-D warnings`）、fmt、文档与尺寸门禁通过。官�
 完整 nested-borrow 10项无过滤、目标编译、all-targets Clippy（`-D warnings`）、
 fmt、文档及尺寸门禁通过；本批累计本地逻辑提交，未尝试远端写入或官方 CI。
 
+### 独立批次：非空断言类型消费者（2026-11-07）
+
+基于 main `11130e16` 的独立 `feature/spec-0341-non-null-type-consumers`，不重复
+#335/#337/#339，不改生产、Guide、loan-end、selector或其它工作树。三项代码提交
+`2eba1eea`、`1425e432`、`c559162e` 分别迁移诊断、来源类别/条件能力、稳定identity消费者。
+
+- 8项原测试保留21个展开source case（去重后20份源码），全部进入MemoryDocument/Rooted；
+  原重复解析与自定义环境不变，核真实source/key及descriptor的source-qualified身份。
+- 四项诊断消费者保留trial回滚/唯一选择、原L0085/L0123顺序与span、preexisting计划及
+  Error/Deferred不发布计划；六类来源×Int/Node与两项泛型能力保留place/temporary、
+  operand/operator span及Copyable/MoveOnly判据，不以类型候选授予ownership权限。
+- 单次求值测试保留同一AST、inputs、validated names、TypeEnvironment的重复raw检查、
+  完整计划一致性、nullable/inner关系、查询和唯一源码call。error遮蔽仍按真实源码call
+  identity查名称与Int返回类型；只观察Abort描述符，不执行源程序或触发进程Abort。
+- Mac AArch64、Rust1.96.0/default debug=2、locked/offline：基线8项通过；代码头
+  `c559162e` 的 `type_checking non_null_assertion_` 8 passed/74 filtered，相关
+  `multifile_type_checking non_null_assertion_` 5 passed/149 filtered，共13项通过。
+  复用本任务既有target串行执行，不新增并行Cargo缓存；type_checking总数仍82项。
+- frontend all-targets Clippy（`-D warnings`）、fmt、848份Markdown、尺寸与diff检查通过；
+  独立只读复审确认全部原输入/oracle、两入口身份与同分析输入重复检查无阻断。主文件2123→1893行，
+  四个新文件均小于1000行，不增加旧尺寸欠账；stage仍完整选择原target，不改过滤/计数。
+- 静态merge-tree对当前main与#337无冲突；#335模块注册与账本末尾追加、#339相邻
+  删除有文本冲突，迁移函数集合无交集。集成时须保留双方迁移并重新验证，不能整块选择一边。
+- 整个target/workspace、运行时Abort/故障注入/校准、native、Linux与官方CI未运行。
+  D10/E2保持in-progress；本批仅本地累计，不将定向通过等同阶段完成，不自动合并。
+
 ## 115. 复审触发的常量映射测试消费者迁移（2026-11-07）
 
 基于 `03807a9e`，`ssa/constant_materialization.rs` 的四项映射测试改由真实 Unit 常量
