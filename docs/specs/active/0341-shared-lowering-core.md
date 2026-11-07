@@ -3294,4 +3294,7 @@ replace/move/cleanup 链，保留 cleanup 输出不变。新增独立 literal or
 遗漏/重复/别名交换负例、Unsupported 后缀原子回滚及全 Analysis 开关对照。
 V1 catalog、Resource owner 和相关 Single 见证保持原边界，D10/E2 不据此宣告完成。
 
-验证：待本批定向测试和 lint；不沿用旧 main 的通过结果。
+验证：Mac Rust 1.96、默认 debug=2、locked/offline，复用已释放 target 串行执行
+`cargo test -p lang-frontend --lib owner_transport`，92 项通过、259 项过滤；
+frontend all-targets Clippy `-D warnings`、fmt、849 份 Markdown、diff 和尺寸门禁通过。
+未运行 frontend 全量、native、Abort、校准或宿主故障注入；正式双宿主 CI 仍待发布头验证。
