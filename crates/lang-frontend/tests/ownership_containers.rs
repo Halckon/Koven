@@ -344,37 +344,6 @@ fn same_and_unknown_element_indices_conflict_but_distinct_constants_do_not() {
 }
 
 #[test]
-fn field_container_paths_preserve_parent_element_overlap() {
-    let passing = "class Resource {}\n\
-                   class Holder(var items: MutableList<Resource>)\n\
-                   fun mutate(inout item: Resource): Unit {}\n\
-                   fun valid(own holder: Holder): Unit {\n\
-                       val result = mutate(&holder.items[0])\n\
-                   }";
-    let (_, _, passing) = checked(passing);
-    assert!(
-        passing.diagnostics().is_empty(),
-        "{:?}",
-        passing.diagnostics()
-    );
-    let LoanTarget::Place(place) = passing.loans()[0].target() else {
-        panic!("field-backed element must have a stable place");
-    };
-    assert_eq!(place.fields().len(), 1);
-    assert_eq!(place.element(), Some(ElementIndexIdentity::Known(0)));
-
-    let failing = "class Resource {}\n\
-                   class Holder(var items: MutableList<Resource>)\n\
-                   fun mutate(inout item: Resource): Unit {}\n\
-                   fun outer(items: MutableList<Resource>, own effect: Unit): Unit {}\n\
-                   fun invalid(own holder: Holder): Unit {\n\
-                       val result = outer(holder.items, mutate(&holder.items[0]))\n\
-                   }";
-    let (_, _, failing) = checked(failing);
-    assert_eq!(codes(failing.diagnostics()), ["L0135"]);
-}
-
-#[test]
 fn active_element_loan_blocks_owner_move_and_overlapping_replacement() {
     let moving = "class Resource {}\n\
                   fun takeList(own item: MutableList<Resource>): Unit {}\n\
@@ -400,38 +369,6 @@ fn active_element_loan_blocks_owner_move_and_overlapping_replacement() {
 }
 
 #[test]
-fn replacement_rejects_moved_owner_and_drops_the_old_element_after_commit() {
-    let failing = "class Resource {}\n\
-                   fun consumeAndCreate(own list: MutableList<Resource>): Resource\n\
-                   fun invalid(own list: MutableList<Resource>): Unit {\n\
-                       val result = (list[0] = consumeAndCreate(list))\n\
-                   }";
-    let (sources, _, failing) = checked(failing);
-    assert_eq!(codes(failing.diagnostics()), ["L0131"]);
-    assert_eq!(
-        sources
-            .slice(failing.diagnostics()[0].primary_span())
-            .unwrap(),
-        "list[0]"
-    );
-
-    let passing = "class Resource {}\n\
-                   fun valid(own list: MutableList<Resource>, own replacement: Resource): Unit {\n\
-                       val result = (list[0] = replacement)\n\
-                   }";
-    let (_, _, passing) = checked(passing);
-    assert!(
-        passing.diagnostics().is_empty(),
-        "{:?}",
-        passing.diagnostics()
-    );
-    assert!(passing.drops().iter().any(|fact| {
-        matches!(fact.point(), DropPoint::AfterReplacement(_))
-            && matches!(fact.target(), DropTarget::ReplacedElement(_))
-    }));
-}
-
-#[test]
 fn already_moved_container_reports_only_the_root_cause_for_element_access() {
     let text = "class Resource {}\n\
                 fun takeList(own item: List<Resource>): Unit {}\n\
@@ -440,70 +377,6 @@ fn already_moved_container_reports_only_the_root_cause_for_element_access() {
                     val element = list[0]\n\
                 }";
     mutable_unit::check_each(text, &["L0131"], |_, _, _, _| {});
-}
-
-#[test]
-fn temporary_container_lifetime_matches_element_access_mode() {
-    let text = "class Resource {}\n\
-                fun makeNumbers(): List<Int>\n\
-                fun makeResources(): MutableList<Resource>\n\
-                fun inspect(item: Resource): Unit {}\n\
-                fun mutate(inout item: Resource): Unit {}\n\
-                fun temporary(): Unit {\n\
-                    val copied = makeNumbers()[0]\n\
-                    val borrowed = inspect(makeResources()[0])\n\
-                    val exclusive = mutate(&makeResources()[0])\n\
-                }";
-    let (_, _, owned) = checked(text);
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert!(owned.loans().iter().any(|loan| {
-        matches!(loan.target(), LoanTarget::Temporary(_)) && loan.kind() == LoanKind::Shared
-    }));
-    assert!(owned.loans().iter().any(|loan| {
-        matches!(loan.target(), LoanTarget::Temporary(_)) && loan.kind() == LoanKind::Exclusive
-    }));
-    assert!(owned.drops().iter().any(|fact| {
-        matches!(fact.point(), DropPoint::AfterExpression(_))
-            && matches!(fact.target(), DropTarget::Temporary(_))
-    }));
-    assert!(owned.drops().iter().any(|fact| {
-        matches!(fact.point(), DropPoint::CallReturn(_))
-            && matches!(fact.target(), DropTarget::Temporary(_))
-    }));
-    assert!(
-        !owned
-            .deferred()
-            .iter()
-            .any(|fact| fact.reason() == OwnershipDeferredReason::IndexPlace)
-    );
-
-    let (_, _, repeated) = checked(text);
-    assert_eq!(
-        format!("{:?}", owned.loans()),
-        format!("{:?}", repeated.loans())
-    );
-    assert_eq!(
-        format!("{:?}", owned.drops()),
-        format!("{:?}", repeated.drops())
-    );
-}
-
-#[test]
-fn post_index_field_projection_stays_deferred_without_an_early_drop_plan() {
-    let text = "class Resource {}\n\
-                class Holder(var payload: Resource)\n\
-                fun deferred(own list: List<Holder>): Unit {\n\
-                    val projected = list[0].payload\n\
-                }";
-    let (_, _, owned) = checked(text);
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert!(
-        owned
-            .deferred()
-            .iter()
-            .any(|fact| fact.reason() == OwnershipDeferredReason::IndexPlace)
-    );
-    assert!(owned.drops().is_empty());
 }
 
 #[test]
@@ -947,3 +820,6 @@ fn mutable_list_insert_at_rejects_use_after_move() {
         |_, _, _, _| {},
     );
 }
+
+#[path = "ownership_containers/remaining_unit.rs"]
+mod remaining_unit;
