@@ -2974,3 +2974,15 @@ Group initializer、parent reborrow、outer-call 消费、forwarded return、rec
 检查通过；source-unit/key/root/path、精确L0131与parent事件身份纳入回归。原超限文件
 仅新增必要接线：unit model 1095行、dataflow1119行、drop planner1491行，既有尺寸例外
 范围内，未机械拆文件或压行。独立生产审查未发现阻断；官方CI尚未运行。
+
+#### 同批补强：跨文件 lineage 与兄弟分支绑定隔离
+
+跨文件 provider/caller 在输入正序、反序分别核 handoff call/argument/binding/root
+归属 caller source unit，parameter span 归属 provider，并使用固定源码文本核
+`view(owner)`、`owner`、`source: String`。兄弟分支核静态事件各自对应不同 binding、
+call、initializer/source argument，不宣称两分支运行时同时执行或完整 CFG 运输能力。
+本片仅新增测试，未扩大 source-handoff 生产范围，继续保留 Single witnesses。
+首次跨文件样本因 package demo 与逻辑路径不匹配触发 L0146；修正为 demo/provider.ko、
+demo/caller.ko 后，三目标62项通过，2项Abort按约定留CI。源码oracle与生产实现未更改。
+all-targets Clippy首次因磁盘耗尽失败，确认进程结束后仅清理已授权incremental，重试通过；
+fmt、文档/尺寸/diff检查及独立审查通过。本批继续保持多个逻辑提交，未发布新PR。
