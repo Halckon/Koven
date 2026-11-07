@@ -18,7 +18,7 @@ val kept = (b)
     let observation = &owned.owner_observations()[0];
     assert_eq!(observation.status(), UnitOwnerObservationStatus::Complete);
     assert!(observation.is_consistent());
-    assert!(observation.value_observation_v1().is_none());
+    assert!(observation.value_observation_v1().unwrap().is_consistent());
     let left = literal_owner(&fixture, 0, observation, "\"left\"");
     let right = literal_owner(&fixture, 0, observation, "\"right\"");
     let swaps: Vec<_> = observation

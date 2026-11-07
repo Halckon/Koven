@@ -57,6 +57,19 @@ pub enum UnitOwnerValueEventV1 {
     Bind(UnitSymbolId, UnitExpressionId, UnitOwnerValueV1),
     /// A call registers an evaluated value operand.
     Pending(UnitExpressionId, UnitExpressionId, UnitOwnerValueV1),
+    /// Atomic exchange of two complete String roots, with no result or new producer.
+    Swap {
+        /// Checked source-qualified call.
+        call: UnitExpressionId,
+        /// Left root before exchange.
+        left: UnitSymbolId,
+        /// Right root before exchange.
+        right: UnitSymbolId,
+        /// Value at the left root before exchange.
+        left_value: UnitOwnerValueV1,
+        /// Value at the right root before exchange.
+        right_value: UnitOwnerValueV1,
+    },
     /// Atomic replacement exchanges the root and pending operand.
     Replace {
         /// Checked call identity.
@@ -192,16 +205,38 @@ impl UnitOwnerValueObservationV1 {
                             UnitDropPoint::AfterStatement(_)
                             | UnitDropPoint::AfterExpression(_)
                             | UnitDropPoint::FunctionEntry(_) => true,
-                            // Only closed legacy replacement traces carry this proof.
-                            UnitDropPoint::CallReturn(call) if self.choice.is_none() => matches!(
-                                preceding,
-                                Some(UnitOwnerValueEventV1::Replace {
-                                    call: committed, root, incoming, ..
-                                }) if committed == call && root == symbol
-                                    && self.resolve(incoming, selected)
-                                        .zip(self.resolve(value, selected))
-                                        .is_some_and(|(installed, dropped)| installed == dropped)
-                            ),
+                            // A contiguous call-return cleanup group retains its checked
+                            // commit witness, including both swapped roots.
+                            UnitDropPoint::CallReturn(call) if self.choice.is_none() => {
+                                let installed = match preceding {
+                                    Some(UnitOwnerValueEventV1::Replace {
+                                        call: c,
+                                        root,
+                                        incoming,
+                                        ..
+                                    }) if c == call && root == symbol => Some(incoming),
+                                    Some(UnitOwnerValueEventV1::Swap {
+                                        call: c,
+                                        left,
+                                        right,
+                                        left_value,
+                                        right_value,
+                                    }) if c == call => {
+                                        if left == symbol {
+                                            Some(right_value)
+                                        } else if right == symbol {
+                                            Some(left_value)
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    _ => None,
+                                };
+                                installed
+                                    .and_then(|v| self.resolve(v, selected))
+                                    .zip(self.resolve(value, selected))
+                                    .is_some_and(|(installed, dropped)| installed == dropped)
+                            }
                             _ => false,
                         }
                         && self.transition(
@@ -211,6 +246,34 @@ impl UnitOwnerValueObservationV1 {
                             Slot::Named(*symbol),
                             Slot::Dropped,
                         )
+                }
+                UnitOwnerValueEventV1::Swap {
+                    call,
+                    left,
+                    right,
+                    left_value,
+                    right_value,
+                } => {
+                    let pair = self
+                        .resolve(left_value, selected)
+                        .zip(self.resolve(right_value, selected));
+                    if let Some((l, r)) = pair {
+                        self.choice.is_none()
+                            && l != r
+                            && left != right
+                            && call.source_unit() == self.source()
+                            && left.source_unit() == self.source()
+                            && right.source_unit() == self.source()
+                            && slots[l] == Slot::Named(*left)
+                            && slots[r] == Slot::Named(*right)
+                            && {
+                                slots[l] = Slot::Named(*right);
+                                slots[r] = Slot::Named(*left);
+                                true
+                            }
+                    } else {
+                        false
+                    }
                 }
                 UnitOwnerValueEventV1::Replace {
                     call,
@@ -243,7 +306,12 @@ impl UnitOwnerValueObservationV1 {
             if !valid {
                 return false;
             }
-            preceding = Some(event);
+            if !matches!(
+                event,
+                UnitOwnerValueEventV1::Drop(UnitDropPoint::CallReturn(_), _, _)
+            ) {
+                preceding = Some(event);
+            }
         }
         true
     }
@@ -461,8 +529,20 @@ impl UnitOwnerObservation {
                     symbol,
                     owner,
                 } => UnitOwnerValueEventV1::Drop(*point, *symbol, value(owner)),
-                UnitOwnerTransportEvent::Swap { .. }
-                | UnitOwnerTransportEvent::If { .. }
+                UnitOwnerTransportEvent::Swap {
+                    call,
+                    left,
+                    right,
+                    left_owner,
+                    right_owner,
+                } => UnitOwnerValueEventV1::Swap {
+                    call: *call,
+                    left: *left,
+                    right: *right,
+                    left_value: value(left_owner),
+                    right_value: value(right_owner),
+                },
+                UnitOwnerTransportEvent::If { .. }
                 | UnitOwnerTransportEvent::Capture { .. }
                 | UnitOwnerTransportEvent::CaptureDrop { .. } => return None,
             };
@@ -470,7 +550,12 @@ impl UnitOwnerObservation {
                 std::slice::from_ref(&projected),
                 None,
                 &mut slots,
-                graph.prefix.last(),
+                graph.prefix.iter().rev().find(|event| {
+                    !matches!(
+                        event,
+                        UnitOwnerValueEventV1::Drop(UnitDropPoint::CallReturn(_), _, _)
+                    )
+                }),
             ) {
                 return None;
             }

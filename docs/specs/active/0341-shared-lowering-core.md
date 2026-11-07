@@ -3356,3 +3356,12 @@ producer834行、新测试文件212行、既有control_flow822行，根测试963
 独立只读复核确认原输入/oracle、迁移注册及最终门控；初审漏掉的旧非nullable邻控已由实际
 测试发现并收窄修复。未运行全target/workspace、故障注入/校准、含Abort的整项测试、
 native或Linux；这些不计为本地通过。本批仅本地逻辑提交，未发布/运行官方CI，D10/E2仍in-progress。
+
+## String swap 的 V1 value 投影（2026-11-07）
+
+基于 main `2fd6bfb9` 将实际双根 swap 接入 V1 守恒投影；producer catalog 保持原 token，
+交换不创建 result/producer。连续同 call-return 的两根 cleanup 复用真实 commit 证据，
+各自核对交换后的 token 和实际槽位。新增真实双根终结、重复 swap/replace 组合、
+缺失/重复/别名/foreign 事件负例。Choice swap、Resource 和其他既有 Unsupported 边界不变。
+
+定向验收待执行，不沿用上一批 CI 结果。

@@ -129,6 +129,9 @@ checked `swap(&left, &right)` 的两个完整 String 根在真实 primitive comm
 不产生 owner result，也不生成替换析构；后续 replace、move 和实际 cleanup 使用交换后的 token。
 独立守恒重放要求两个不同 token 分别位于对应根，拒绝遗漏、重复和别名交换。
 
-此扩展仅属于 legacy String 观察；V1 value catalog 对 Swap 保持 Unsupported，
-不声明 Resource、字段/索引投影、循环或任意 branch phi 支持，也不退休 Single owner 见证。
-证据为 `owner_transport_tests/swap.rs` 和观察开关全 cleanup Analysis 等价测试。
+V1 value 投影现在接受这一闭合 String 根 swap，并复用真实 producer catalog，
+不合成结果或新 producer。两根在同一 call-return 的连续 cleanup 共享已验证的
+commit 证据，逐根消费交换后的 token；遗漏、重复、别名和跨分析 token 均被拒绝。
+Swap 暂不进入 Choice 图，不声明 Resource、字段/索引投影、循环或任意 branch phi
+支持，也不退休 Single owner 见证。
+证据为 `owner_transport_tests/swap.rs`、`choice_model/swap.rs` 和观察开关全 cleanup Analysis 等价测试。
