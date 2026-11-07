@@ -108,7 +108,7 @@ identity 排序。Error、Deferred 和非 nullable operand 不发布 extraction�
 `UnitNonNullAssertionDescriptor`，表达式与类型使用 source-qualified unit identity；来源类别仍不
 授予移动权限。unit descriptor 纳入 `UnitNullableFacts` 的整体 trial 快照，按 canonical source 和
 expression identity 排序。单文件和 unit ownership 均消费各自描述符；SSA/LLVM 接线仍在后继
-实施范围。
+实施范围。 `type_checking::non_null_unit` 的8项原诊断、来源类别/条件能力与identity消费者已迁至双 Unit raw type 入口，保留21个展开source case及原oracle，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次非空断言类型消费者2026-11-07)。
 
 ## 原子置换静态类型身份
 
