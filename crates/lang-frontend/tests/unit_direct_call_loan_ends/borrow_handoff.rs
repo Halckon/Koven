@@ -147,6 +147,8 @@ fn abandoned_initializer_does_not_commit_a_handoff() {
     for unit in &observed.units {
         // The second operand abandons the call before binding initialization.
         assert!(unit.borrow_call_handoffs().is_empty());
+        assert!(unit.borrow_results().bindings().is_empty());
+        assert!(unit.borrow_call_prefix_ends().is_empty());
     }
 }
 
@@ -329,6 +331,148 @@ fn sibling_branches_commit_only_their_own_binding_identity() {
                 binding.source_loan().unwrap().argument(),
                 handoff.source_loan().argument()
             );
+        }
+    }
+}
+
+#[test]
+fn return_during_later_operand_ends_only_the_established_source_prefix() {
+    let (observed, single) = observe_with_legacy(
+        "fun select(source: String, other: String): borrow String from source = source\nfun run(flag: Boolean): Unit { val owner = \"kept\"; val other = \"other\"; borrow val item = select(owner, if (flag) { return } else { other }); println(item) }",
+    );
+    assert_units_admitted(&observed);
+    assert_handoff_identity(&observed);
+    for (unit, names) in observed.units.iter().zip(&observed.unit_names) {
+        let [indexed] = names.names().index().source_units() else {
+            panic!("one source")
+        };
+        let [event] = unit.borrow_call_prefix_ends() else {
+            panic!("one actual abandoned source token")
+        };
+        assert_eq!(event.loan().call().source_unit(), indexed.id());
+        assert_eq!(event.loan().argument().source_unit(), indexed.id());
+        let source = unit.borrow_results().bindings()[0].source_loan().unwrap();
+        assert_eq!(event.loan().call(), source.call());
+        assert_eq!(event.loan().argument(), source.argument());
+        let UnitDropPoint::ControlTransfer(transfer) = event.point() else {
+            panic!("actual return")
+        };
+        assert_eq!(transfer.source_unit(), indexed.id());
+        let node = observed
+            .parsed
+            .ast()
+            .expressions()
+            .get(transfer.expression())
+            .unwrap();
+        assert_eq!(observed.sources.slice(node.span()), Ok("return"));
+        assert!(
+            single
+                .loan_ends()
+                .iter()
+                .any(|end| end.call() == source.call().expression()
+                    && end.argument() == source.argument().expression()
+                    && end.point()
+                        == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
+                            transfer.expression()
+                        ))
+        );
+        let UnitLoanTarget::Place(place) = event.loan().target() else {
+            panic!("root source")
+        };
+        assert_eq!(place.root().source_unit(), indexed.id());
+        assert!(place.is_root());
+        assert!(unit.formed_owned_locals().contains(&place.root()));
+        assert_eq!(event.loan().kind(), LoanKind::Shared);
+        let drops: Vec<_> = unit
+            .drops()
+            .iter()
+            .filter(|drop| drop.point() == event.point())
+            .collect();
+        let owner_drop = drops
+            .iter()
+            .position(|drop| drop.target() == UnitDropTarget::Named(place.root()))
+            .unwrap();
+        assert!(event.preceding_drops() <= owner_drop);
+        assert_eq!(event.preceding_drops(), 0);
+        assert!(unit.loans().contains(event.loan()));
+    }
+}
+
+#[test]
+fn source_prefix_ends_require_evaluation_before_the_return() {
+    for (arguments, expected) in [
+        (
+            "other = owner, source = owner, tail = if (flag) { return } else { \"tail\" }",
+            1,
+        ),
+        (
+            "tail = if (flag) { return } else { \"tail\" }, other = owner, source = owner",
+            0,
+        ),
+    ] {
+        let observed = observe(&format!(
+            "fun select(other: String, source: String, tail: String): borrow String from source = source\nfun run(flag: Boolean): Unit {{ val owner = \"kept\"; borrow val item = select({arguments}); println(item) }}"
+        ));
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            assert_eq!(unit.borrow_call_prefix_ends().len(), expected);
+            let source = unit.borrow_results().bindings()[0].source_loan().unwrap();
+            for end in unit.borrow_call_prefix_ends() {
+                assert_eq!(end.loan().argument(), source.argument());
+                assert_eq!(end.loan().call(), source.call());
+                assert_eq!(
+                    observed.sources.slice(end.loan().parameter_span().unwrap()),
+                    Ok("source: String")
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn completed_handoff_is_not_an_abandoned_call_prefix() {
+    let observed = observe(&format!(
+        "{VIEW}fun run(): Unit {{ val owner = \"kept\"; borrow val item = view(owner); println(item); return }}"
+    ));
+    assert_units_admitted(&observed);
+    assert_handoff_identity(&observed);
+    for unit in &observed.units {
+        assert_eq!(unit.borrow_call_handoffs().len(), 1);
+        assert!(unit.borrow_call_prefix_ends().is_empty());
+    }
+}
+
+#[test]
+fn errors_and_deferred_work_revoke_nonempty_source_prefix_observations() {
+    let prefix = "fun select(source: String, other: String): borrow String from source = source\nfun run(flag: Boolean): Unit { val owner = \"kept\"; borrow val item = select(owner, if (flag) { return } else { \"tail\" }); println(item)";
+    let good = observe(&format!("{prefix} }}"));
+    assert_units_admitted(&good);
+    for unit in &good.units {
+        assert_eq!(unit.borrow_call_prefix_ends().len(), 1);
+    }
+    for (suffix, error) in [
+        ("; val bad = \"bad\"; val moved = bad; println(bad)", true),
+        (
+            "; var callback: () -> Int = { 1 }; val old = replace(&callback, { 2 })",
+            false,
+        ),
+    ] {
+        let observed = observe(&format!("{prefix}{suffix} }}"));
+        for unit in &observed.units {
+            if error {
+                assert!(
+                    unit.diagnostics()
+                        .iter()
+                        .any(|d| d.code().to_string() == "L0131"),
+                    "{:?}",
+                    unit.diagnostics()
+                );
+            } else {
+                assert!(unit.diagnostics().is_empty());
+                assert!(!unit.deferred().is_empty());
+            }
+            assert!(unit.borrow_call_prefix_ends().is_empty());
+            assert!(unit.clone().validate().is_err());
         }
     }
 }

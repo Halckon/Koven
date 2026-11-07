@@ -98,3 +98,79 @@ impl DropPlanner<'_, '_> {
         self.pending_borrow_handoffs = remaining;
     }
 }
+
+impl DropPlanner<'_, '_> {
+    pub(super) fn borrow_call_prefix_ends(
+        &self,
+    ) -> Vec<crate::ownership_checking::UnitBorrowCallPrefixEndFact> {
+        use super::PlannerDropPoint;
+        use crate::ownership_checking::UnitBorrowCallPrefixEndFact;
+        let mut preceding_drops = std::collections::BTreeMap::new();
+        let mut ends = Vec::new();
+        for (point, action) in &self.iteration_actions {
+            let PlannerDropPoint::ControlTransfer(transfer) = point else {
+                continue;
+            };
+            if !self
+                .checker
+                .parsed
+                .ast()
+                .expressions()
+                .get(*transfer)
+                .is_ok_and(|node| {
+                    matches!(node.payload(), crate::parser::Expression::Return { .. })
+                })
+            {
+                continue;
+            }
+            let count = preceding_drops.entry(transfer.index()).or_insert(0);
+            let loan = match action {
+                UnitIterationCleanupAction::Drop(_) => {
+                    *count += 1;
+                    continue;
+                }
+                UnitIterationCleanupAction::EndCallLoan(loan) => loan,
+                _ => continue,
+            };
+            let Some(call) = self.checker.typed.call(loan.call()) else {
+                continue;
+            };
+            let UnitLoanTarget::Place(place) = loan.target() else {
+                continue;
+            };
+            if loan.kind() != LoanKind::Shared
+                || !place.is_root()
+                || !self.checker.formed_owned_locals.contains(&place.root())
+                || call.receiver().is_some()
+                || !matches!(call.target(), UnitCallTarget::Declaration(_))
+                || !matches!(call.result_source(), CallableResultSource::Borrow(_))
+            {
+                continue;
+            }
+            // A final binding proves only the supported normal path. Execution of
+            // this abandoned path is independently witnessed by the actual action.
+            if !self
+                .checker
+                .borrow_results
+                .bindings()
+                .iter()
+                .any(|binding| {
+                    binding.initializer() == loan.call()
+                        && binding.parent().is_none()
+                        && binding.origin() == loan.target()
+                        && binding.source_loan().is_some_and(|source| {
+                            source.call() == loan.call() && source.argument() == loan.argument()
+                        })
+                })
+            {
+                continue;
+            }
+            ends.push(UnitBorrowCallPrefixEndFact {
+                loan: loan.clone(),
+                point: point.into_unit(self.checker.source_unit),
+                preceding_drops: *count,
+            });
+        }
+        ends
+    }
+}

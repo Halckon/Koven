@@ -173,3 +173,33 @@ impl UnitBorrowCallHandoffFact {
         UnitDropPoint::CallReturn(self.source_loan.call)
     }
 }
+
+/// 有正常交付证明的借用 initializer 被 return 放弃时，实际来源 token 的结束切片。
+/// 不覆盖无正常分支的 initializer、完整控制流或全部借用结束事件。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowCallPrefixEndFact {
+    pub(super) loan: UnitLoanFact,
+    pub(super) point: UnitDropPoint,
+    pub(super) preceding_drops: usize,
+}
+
+impl UnitBorrowCallPrefixEndFact {
+    /// 返回原始 source-qualified loan 描述符，保留 call、argument 和 target 身份。
+    #[must_use]
+    pub const fn loan(&self) -> &UnitLoanFact {
+        &self.loan
+    }
+
+    /// 实际返回或放弃该调用前缀的控制转移点。
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        self.point
+    }
+
+    /// 同 point 普通 drops 中先于此事件的数量；事件间保持发布顺序。
+    /// 这不是 receiver 条件析构或 capture/provider 动作的统一执行索引。
+    #[must_use]
+    pub const fn preceding_drops(&self) -> usize {
+        self.preceding_drops
+    }
+}
