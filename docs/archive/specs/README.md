@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 324 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 342 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -530,3 +530,4 @@
 - [SPEC-0366](0366-text-io-guide.md)：已批准文本／同步 IO 合同的 Guide v0.47 迁移；生产 API 实现另验。
 - [SPEC-0367](0367-string-length-invariant.md)：String 字面量、常量、concat 与 argv 的 Int 字节长度边界，双宿主 native 与 preview 验收；公开文本 API 另验。
 - [SPEC-0382](0382-refine-map-ops-and-primitive-retirement.md)：Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休；完成 E3 收尾与 unit_lower/ownership_primitive.rs 删除。
+- [SPEC-0389](0389-refine-known-function-shared-capture-container-element-retirement.md)：具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役；收尾修复元素目标复合赋值的槽位定位与边界检查顺序。

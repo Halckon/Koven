@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，341 份）"]
+subgraph Garchive["已完成（archive，342 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -350,6 +350,7 @@ subgraph Garchive["已完成（archive，341 份）"]
   S0366["S0366<br/>文本与同步 IO 规范启用"]
   S0367["S0367<br/>String 创建入口的 Int 字节长度不变量"]
   S0382["S0382<br/>Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休"]
+  S0389["S0389<br/>具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -377,7 +378,6 @@ subgraph Gactive["现行 active"]
   S0386["S0386<br/>Inout 接收者、接口委托、无状态 object 与局部解构旧路径退役"]
   S0387["S0387<br/>String.clone()、装箱构造、value class 字段借用与通用 when 旧路径退役"]
   S0388["S0388<br/>数值区间 for、运行时长度容器构造、Map.get、非可空 Map.consume 与 $map.result 旧路径退役"]
-  S0389["S0389<br/>具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
@@ -1806,6 +1806,7 @@ S0366 --> S0367
 | SPEC-0366 | archive | [0366-text-io-guide.md](0366-text-io-guide.md) |
 | SPEC-0367 | archive | [0367-string-length-invariant.md](0367-string-length-invariant.md) |
 | SPEC-0382 | archive | [0382-refine-map-ops-and-primitive-retirement.md](0382-refine-map-ops-and-primitive-retirement.md) |
+| SPEC-0389 | archive | [0389-refine-known-function-shared-capture-container-element-retirement.md](0389-refine-known-function-shared-capture-container-element-retirement.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -1831,7 +1832,6 @@ S0366 --> S0367
 | SPEC-0386 | active | [0386-refine-inout-delegation-object-destructuring-retirement.md](../../specs/active/0386-refine-inout-delegation-object-destructuring-retirement.md) |
 | SPEC-0387 | active | [0387-refine-string-clone-box-value-field-when-retirement.md](../../specs/active/0387-refine-string-clone-box-value-field-when-retirement.md) |
 | SPEC-0388 | active | [0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
-| SPEC-0389 | active | [0389-refine-known-function-shared-capture-container-element-retirement.md](../../specs/active/0389-refine-known-function-shared-capture-container-element-retirement.md) |
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](../../specs/active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |

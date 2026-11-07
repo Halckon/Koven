@@ -1,23 +1,23 @@
 # SPEC-0389：具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：评审或实施路线图 E3 的具名函数引用（`unit_lower/closure/known_function.rs`）、共享闭包捕获（`unit_lower/closure/shared.rs`）、可调用视图实参借用（`unit_lower/callable_view.rs`）及顺序容器元素下标读取/借用/替换（`unit_lower/container.rs`、`unit_lower/assignment.rs`、`unit_lower/borrow.rs`）旧路径退役时 · **唯一真源**：本片目标、范围与验收；长期决定以 [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md) 与 [ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md) 为准
+> **性质**：实施合同 · **状态**：done · **读取时机**：评审或实施路线图 E3 的具名函数引用（`unit_lower/closure/known_function.rs`）、共享闭包捕获（`unit_lower/closure/shared.rs`）、可调用视图实参借用（`unit_lower/callable_view.rs`）及顺序容器元素下标读取/借用/替换（`unit_lower/container.rs`、`unit_lower/assignment.rs`、`unit_lower/borrow.rs`）旧路径退役时 · **唯一真源**：本片目标、范围与验收；长期决定以 [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md) 与 [ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md) 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0389` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认在 SPEC-0388 基线上继续推进 E3 下一个切片 |
 | 基线 | `598b054a`（SPEC-0388） |
-| 分支 | `feature/spec-0389-refine-container-element-closure-range-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md)、[SPEC-0370](0370-refine-lambda-bodies.md)、[SPEC-0375](0375-refine-sequential-containers.md)、[SPEC-0376](0376-refine-container-for-generate.md)、[SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
+| 分支 | `feature/spec-0389-refine-container-element-closure-range-retirement`；收尾修复 `fix/spec-0389-compound-assignment-snapshot-order` |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0034](../../adr/accepted/0034-refine-closures-and-callable-views.md)、[SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)、[SPEC-0375](../../specs/active/0375-refine-sequential-containers.md)、[SPEC-0376](../../specs/active/0376-refine-container-for-generate.md)、[SPEC-0388](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
 
-在 [SPEC-0370](0370-refine-lambda-bodies.md)、[SPEC-0375](0375-refine-sequential-containers.md)、[SPEC-0376](0376-refine-container-for-generate.md) 与 [SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) 已将闭包家族、运行时长度容器生成与顺序容器元素操作迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对具名函数引用（`UnitCallableOrigin::KnownFunction`）、`Array<Unit>` / `List<Unit>` 运行时生成、嵌套 Copyable `value class` 投影、局部整型复合赋值（`+=` 等）及 `Abort` 边退役借用槽位过滤的准入与构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 670 行旧路径代码）：
+在 [SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)、[SPEC-0375](../../specs/active/0375-refine-sequential-containers.md)、[SPEC-0376](../../specs/active/0376-refine-container-for-generate.md) 与 [SPEC-0388](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) 已将闭包家族、运行时长度容器生成与顺序容器元素操作迁入 `ssa::refine` 的基础上，补齐 `ssa::refine` 对具名函数引用（`UnitCallableOrigin::KnownFunction`）、`Array<Unit>` / `List<Unit>` 运行时生成、嵌套 Copyable `value class` 投影、局部整型复合赋值（`+=` 等）及 `Abort` 边退役借用槽位过滤的准入与构建，并彻底退役 `unit_lower` 中已被细化层完全取代的 legacy 实现模块与分支（合计清理约 670 行旧路径代码）：
 
 1. **补齐 `ssa::refine` 具名函数引用、`Unit` 元素容器、嵌套 `value class` 投影与 `Abort` 活跃性边界**：
    - 在 `refine.rs`、`unit_lower/callable_abi.rs`、`unit_lower/orchestrate.rs`、`refine/subset/callable.rs`、`refine/build/callable.rs`、`refine/subset/container.rs` 与 `refine/build/container.rs` 中接入 `UnitCallableOrigin::KnownFunction(target)`，支持具名顶层/局部函数作为局部函数值、借用实参或 `Array<T>(size, fn_name)` / `List<T>(size, fn_name)` 生成器实参（形成 `ROp::FunctionAddress` 并在调用返回时按临时借用槽位确定性释放）；
@@ -44,6 +44,7 @@
 - [x] 补充路由风险 1 对照测试：增加“有／无无关 append”对照，覆盖 while、顺序迭代、borrow-return、carrier-return 与 Map remove，断言接受/拒绝一致且 owner/drop 不受扰动。
 - [x] 补充路由风险 2 对照测试：在 single/project 双入口下比较加入无关 `nullable-when` 前后，目标函数的诊断、SSA blocks、instructions、drop 次数与 LLVM IR 输出完全一致，并提供兼容性理由。
 - [x] 补充混合场景单次求值与释放点断言（临时 List `.size`、Map `.get` 及 String 借用捕获闭包），并核实 Char 键 Map 已有覆盖现状。
+- [x] 元素目标复合赋值（`c[i] op= rhs`）先定位元素槽位并完成边界检查，再求值 RHS：RHS 不得在越界 abort 前产生副作用，且必须读取 RHS 求值前的元素值；变量目标 `x op= rhs` 的既有快照行为保持不变。新增 `ssa::refine_subset_tests::element_compound_assignment_reads_element_before_rhs_and_checks_bounds` 与 `ssa::refine_subset_tests::compound_assignment_snapshots_lhs_before_rhs` 回归测试并全部通过。
 - [x] `python3 scripts/gen_roadmap.py`、`python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`cargo fmt --all -- --check` 与 `cargo clippy --locked --workspace --all-targets -- -D warnings` 全部通过。
 
 ## 4. 验收记录账本
@@ -59,3 +60,4 @@
 | P2: 混合场景求值与释放点断言 | 通过 | 在 `refine_subset_tests.rs` 新增 `temporary_container_size_and_map_get_single_eval_and_drop_points`（断言临时 List `.size` 与 Map `.get` 释放点与 drop 次数精准）及 `string_borrow_capture_closure_preserves_outer_owner`（断言闭包借用捕获外层 String 存活且正常释放） |
 | Char 键 Map 覆盖现状核查 | 明确 | Koven 中 `LiteralKind::Char` 在 expression body 中为未实现语法（显式 `UnsupportedNode`），Char 键仅支持通过 `const val` 常量形式使用，且已在 native 矩阵（`native_map_constant_operand_tests` 等）中完整覆盖，无需在 refine 单元层引入冗余用例 |
 | 保留 legacy 回退范围明确 | 明确 | 明确标注仅保留：1) `map_for` 的 `scope_requires_refine` 保护；2) `unit_lower/control/nullable_if` 的兜底回退（仅供未迁移遗留单元测试隔离使用，不向 public-entry 暴露） |
+| 元素目标复合赋值求值顺序收尾 | 通过 | 收尾核查确认变量目标 `x op= rhs` 在原实现下已正确（`bindings` 取出的是槽位值拷贝，RHS 内重新绑定不回写已捕获的旧槽位），仅元素目标 `c[i] op= rhs` 存在缺陷：原实现先求值 RHS，导致越界边界检查晚于 RHS 副作用、且读到 RHS 修改后的元素值。`refine/build/assignment.rs` 将 `ContainerElementPlace` 与 `ReadPlace` 前移至 RHS 求值之前，并把 owner 拆为 RHS 之前的 `initial_owner`（定位元素）与 RHS 之后的 `write_owner`（写回，RHS 可能重新绑定容器变量）。验证：`cargo test -p lang-codegen --lib ssa::refine` 115 项通过；`cargo clippy --locked --workspace --all-targets -- -D warnings` 与 `cargo fmt --all -- --check` 通过。`cargo test -p lang-codegen` 全量在本地 50 分钟内未跑完，交由 CI 完成全量验收 |
