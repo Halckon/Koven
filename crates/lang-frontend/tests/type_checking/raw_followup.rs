@@ -4,6 +4,9 @@ use super::codes;
 #[path = "raw_followup/top_level.rs"]
 mod top_level;
 
+#[path = "raw_followup/constructions.rs"]
+mod constructions;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, index_compilation_unit,
