@@ -3019,7 +3019,7 @@ continuation witness 仍需另行证明来源交接与控制转移事件合同�
 的 loan tokens 全为 Shared 根 place。Value 辅助参数不在此 token 集内，未整体排除。
 在正常返回移除 pending tokens 前，以 call/argument/origin 精确匹配同一 pending binding
 捕获来源；仅 initializer 正常提交 binding 后发布。公开 source loan、binding 与 CallReturn
-身份，不发布辅助 loan-end，也不将来源交接标记为来源结束。所有权/类型错误与 deferred
+身份；首片未发布辅助 loan-end（后续有界扩展见本页“借用返回的辅助实参结束观察”），不将来源交接标记为来源结束。所有权/类型错误与 deferred
 沿现有两层门原子撤销；不改变 iteration cleanup action 或 codegen 合同。
 Group initializer、parent reborrow、outer-call 消费、forwarded return、receiver/provider、
 投影/temporary 来源及提前退出的完整事件流不在首片能力内。旧 Single witnesses 保留；
@@ -3286,3 +3286,18 @@ frontend all-targets Clippy（`-D warnings`）、fmt、849份Markdown及diff门�
 相对main的尺寸门禁通过，38个超1000行旧文件不增加。不是frontend全量、native或双宿主官方验收。
 公开handoff/prefix仍是有界观察，保留Single独立见证，不承诺完整事件全序或cleanup图。
 D10/E2保持in-progress，本批需精确发布头的正式双宿主CI，不自动合并。
+
+## 借用返回的辅助实参结束观察（2026-11-07）
+
+基于 `be42f064`，补充显式 borrow initializer 已提交 handoff 中真实退休的辅助 Shared owned 根
+loan tokens。来自实际 pending 队列移除，保留源码求值顺序，并按 call/argument 身份排除继续
+交接的来源；同根参数不得混淆。未新增 cleanup action，正常后态与原紧邻 retain 一致。
+逐原始 operand/place 核对活跃 owned local，排除 borrow binding、provider、投影和 nested
+borrow result；旧 handoff 本身的覆盖范围不缩窄。不承诺完整事件全序，不退休复杂 Single 见证。
+
+新 API 回归先以 E0599 失败，随后生产接线完成；named 反排双辅助、同根不同实参、借用 alias
+排除、source-only、return 放弃、非空事实的 error/deferred 原子撤销、跨来源重排均有定向证据。
+Mac Rust1.96、locked/offline、默认 debug=2：borrow 定向 26 项、两个 consumer 目标 24 项、
+nested L0164 拒绝且不泄漏 handoff 的边界负例 1 项，共 51 项通过；frontend all-targets
+Clippy（`-D warnings`）、fmt、Markdown 与 diff 门禁通过。正式双平台 CI 与跨 crate check
+待发布头执行；未运行全量、故障注入、校准或含 Abort 的整项测试。
