@@ -189,6 +189,7 @@ struct DropPlanner<'a, 'checker> {
     iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
     borrow_call_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
     pending_borrow_handoffs: Vec<crate::ownership_checking::UnitBorrowCallHandoffFact>,
+    borrow_source_unwind_actions: std::collections::BTreeSet<usize>,
     iteration_actions: Vec<(
         PlannerDropPoint,
         crate::ownership_checking::UnitIterationCleanupAction,
@@ -229,6 +230,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             iteration_actions: Vec::new(),
             borrow_call_handoffs: Vec::new(),
             pending_borrow_handoffs: Vec::new(),
+            borrow_source_unwind_actions: std::collections::BTreeSet::new(),
             iteration_exits: Vec::new(),
             planned_iterations: std::collections::BTreeSet::new(),
             resource_deferred: Vec::new(),

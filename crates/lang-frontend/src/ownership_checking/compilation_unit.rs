@@ -917,7 +917,7 @@ impl CompilationUnitOwnership {
         &self.borrow_call_handoffs
     }
 
-    /// 有正常 binding 证明的 initializer 被 return 放弃时的来源结束观察片。
+    /// 活跃 initializer 被 return 放弃时，已求值来源 token 的结束观察片。
     #[must_use]
     pub fn borrow_call_prefix_ends(&self) -> &[UnitBorrowCallPrefixEndFact] {
         &self.borrow_call_prefix_ends

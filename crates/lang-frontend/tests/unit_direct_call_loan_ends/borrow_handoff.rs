@@ -148,7 +148,11 @@ fn abandoned_initializer_does_not_commit_a_handoff() {
         // The second operand abandons the call before binding initialization.
         assert!(unit.borrow_call_handoffs().is_empty());
         assert!(unit.borrow_results().bindings().is_empty());
-        assert!(unit.borrow_call_prefix_ends().is_empty());
+        assert_eq!(
+            unit.borrow_call_prefix_ends().len(),
+            1,
+            "evaluated source unwinds without a final binding"
+        );
     }
 }
 
@@ -474,5 +478,111 @@ fn errors_and_deferred_work_revoke_nonempty_source_prefix_observations() {
             assert!(unit.borrow_call_prefix_ends().is_empty());
             assert!(unit.clone().validate().is_err());
         }
+    }
+}
+
+#[test]
+fn unconditional_named_return_keeps_actual_source_identity_without_a_binding() {
+    let (observed, single) = observe_with_legacy(
+        "fun select(other: String, source: String): borrow String from source = source\nfun run(): Unit { val owner = \"kept\"; borrow val item = select(source = owner, other = return) }",
+    );
+    assert_units_admitted(&observed);
+    assert_handoff_identity(&observed);
+    for (unit, names) in observed.units.iter().zip(&observed.unit_names) {
+        assert!(unit.borrow_results().bindings().is_empty());
+        assert!(unit.borrow_call_handoffs().is_empty());
+        let [event] = unit.borrow_call_prefix_ends() else {
+            panic!("one actual source prefix")
+        };
+        let [indexed] = names.names().index().source_units() else {
+            panic!("one source")
+        };
+        assert_eq!(event.loan().call().source_unit(), indexed.id());
+        assert_eq!(event.loan().argument().source_unit(), indexed.id());
+        let call = observed
+            .parsed
+            .ast()
+            .expressions()
+            .get(event.loan().call().expression())
+            .unwrap();
+        let argument = observed
+            .parsed
+            .ast()
+            .expressions()
+            .get(event.loan().argument().expression())
+            .unwrap();
+        assert_eq!(
+            observed.sources.slice(call.span()),
+            Ok("select(source = owner, other = return)")
+        );
+        assert_eq!(observed.sources.slice(argument.span()), Ok("owner"));
+        assert_eq!(
+            observed
+                .sources
+                .slice(event.loan().parameter_span().unwrap()),
+            Ok("source: String")
+        );
+        let UnitDropPoint::ControlTransfer(transfer) = event.point() else {
+            panic!("return")
+        };
+        assert_eq!(transfer.source_unit(), indexed.id());
+        assert!(single.loan_ends().iter().any(|end| end.call()
+            == event.loan().call().expression()
+            && end.argument() == event.loan().argument().expression()
+            && end.point()
+                == lang_frontend::ownership_checking::LoanEndPoint::ControlTransfer(
+                    transfer.expression()
+                )));
+        let UnitLoanTarget::Place(place) = event.loan().target() else {
+            panic!("owned root")
+        };
+        let drops: Vec<_> = unit
+            .drops()
+            .iter()
+            .filter(|drop| drop.point() == event.point())
+            .collect();
+        let position = drops
+            .iter()
+            .position(|drop| drop.target() == UnitDropTarget::Named(place.root()))
+            .unwrap();
+        assert!(event.preceding_drops() <= position);
+    }
+}
+
+#[test]
+fn unconditional_return_before_source_does_not_invent_a_token() {
+    let observed = observe(
+        "fun select(other: String, source: String): borrow String from source = source\nfun run(): Unit { val owner = \"kept\"; borrow val item = select(other = return, source = owner) }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        assert!(unit.borrow_results().bindings().is_empty());
+        assert!(unit.borrow_call_handoffs().is_empty());
+        assert!(unit.borrow_call_prefix_ends().is_empty());
+    }
+}
+
+#[test]
+fn parent_operand_cannot_masquerade_as_its_canonical_owned_root() {
+    let observed = observe(&format!(
+        "{VIEW}fun select(source: String, other: String): borrow String from source = source\nfun run(): Unit {{ val owner = \"kept\"; borrow val parent = view(owner); borrow val child = select(parent, return) }}"
+    ));
+    assert_units_admitted(&observed);
+    assert_handoff_identity(&observed);
+    for unit in &observed.units {
+        assert_eq!(unit.borrow_call_handoffs().len(), 1);
+        assert!(unit.borrow_call_prefix_ends().is_empty());
+        assert!(
+            unit.loans().iter().any(|loan| {
+                let argument = observed
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(loan.argument().expression())
+                    .unwrap();
+                observed.sources.slice(argument.span()) == Ok("parent")
+            }),
+            "the excluded parent actually produced a loan"
+        );
     }
 }

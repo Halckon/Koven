@@ -107,7 +107,7 @@ impl DropPlanner<'_, '_> {
         use crate::ownership_checking::UnitBorrowCallPrefixEndFact;
         let mut preceding_drops = std::collections::BTreeMap::new();
         let mut ends = Vec::new();
-        for (point, action) in &self.iteration_actions {
+        for (action_index, (point, action)) in self.iteration_actions.iter().enumerate() {
             let PlannerDropPoint::ControlTransfer(transfer) = point else {
                 continue;
             };
@@ -147,22 +147,7 @@ impl DropPlanner<'_, '_> {
             {
                 continue;
             }
-            // A final binding proves only the supported normal path. Execution of
-            // this abandoned path is independently witnessed by the actual action.
-            if !self
-                .checker
-                .borrow_results
-                .bindings()
-                .iter()
-                .any(|binding| {
-                    binding.initializer() == loan.call()
-                        && binding.parent().is_none()
-                        && binding.origin() == loan.target()
-                        && binding.source_loan().is_some_and(|source| {
-                            source.call() == loan.call() && source.argument() == loan.argument()
-                        })
-                })
-            {
+            if !self.borrow_source_unwind_actions.contains(&action_index) {
                 continue;
             }
             ends.push(UnitBorrowCallPrefixEndFact {
@@ -172,5 +157,70 @@ impl DropPlanner<'_, '_> {
             });
         }
         ends
+    }
+}
+
+impl DropPlanner<'_, '_> {
+    pub(super) fn borrow_initializer_candidate(
+        &self,
+        initializer: ExpressionId,
+    ) -> Option<(
+        crate::type_checking::UnitExpressionId,
+        crate::type_checking::UnitExpressionId,
+    )> {
+        let call_id = self.checker.unit_expression(initializer);
+        let call = self.checker.typed.call(call_id)?;
+        if call.receiver().is_some()
+            || !matches!(call.target(), UnitCallTarget::Declaration(_))
+            || !matches!(call.result_source(), CallableResultSource::Borrow(_))
+        {
+            return None;
+        }
+        let source = self.checker.borrowed_call_source(initializer)?;
+        Some((call_id, self.checker.unit_expression(source)))
+    }
+
+    pub(super) fn is_observed_borrow_source_unwind(
+        &self,
+        point: super::PlannerDropPoint,
+        action: &UnitIterationCleanupAction,
+        state: &ValueState,
+    ) -> bool {
+        let super::PlannerDropPoint::ControlTransfer(transfer) = point else {
+            return false;
+        };
+        if !self
+            .checker
+            .parsed
+            .ast()
+            .expressions()
+            .get(transfer)
+            .is_ok_and(|node| matches!(node.payload(), crate::parser::Expression::Return { .. }))
+        {
+            return false;
+        }
+        let UnitIterationCleanupAction::EndCallLoan(loan) = action else {
+            return false;
+        };
+        if !state
+            .borrow_initializer_sources
+            .contains(&(loan.call(), loan.argument()))
+            || loan.kind() != LoanKind::Shared
+        {
+            return false;
+        }
+        let UnitLoanTarget::Place(place) = loan.target() else {
+            return false;
+        };
+        // Typed argument mapping selects the candidate only. The actual evaluated
+        // token, original operand place and still-live owner prove this observation.
+        place.is_root()
+            && self.checker.formed_owned_locals.contains(&place.root())
+            && state.position(place.root()).is_some()
+            && !state.borrow_bindings.contains(&place.root())
+            && self
+                .checker
+                .place(loan.argument().expression())
+                .is_ok_and(|actual| actual.as_ref() == Some(place))
     }
 }

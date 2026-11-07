@@ -174,8 +174,8 @@ impl UnitBorrowCallHandoffFact {
     }
 }
 
-/// 有正常交付证明的借用 initializer 被 return 放弃时，实际来源 token 的结束切片。
-/// 不覆盖无正常分支的 initializer、完整控制流或全部借用结束事件。
+/// 实际进入借用 initializer 后被 return 放弃时，已求值来源 token 的结束切片。
+/// 不要求结果 binding 已建立；不覆盖完整控制流或全部借用结束事件。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitBorrowCallPrefixEndFact {
     pub(super) loan: UnitLoanFact,

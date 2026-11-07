@@ -309,6 +309,10 @@ impl DropPlanner<'_, '_> {
         for index in (0..state.pending_loans.len()).rev() {
             if state.pending_loans[index].1 >= minimum_depth {
                 let (action, _) = state.pending_loans.remove(index);
+                if self.is_observed_borrow_source_unwind(point, &action, state) {
+                    self.borrow_source_unwind_actions
+                        .insert(self.iteration_actions.len());
+                }
                 self.iteration_actions.push((point, action));
             }
         }

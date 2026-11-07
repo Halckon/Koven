@@ -33,7 +33,12 @@ impl DropPlanner<'_, '_> {
                 self.binding_depths.insert(binding, self.scope_depth);
                 state.pending_borrow_results.push(binding);
             }
+            let observation_depth = state.borrow_initializer_sources.len();
+            if let Some(source) = self.borrow_initializer_candidate(initializer) {
+                state.borrow_initializer_sources.push(source);
+            }
             let continues = self.expression(initializer, DropExpressionUse::Read, state)?;
+            state.borrow_initializer_sources.truncate(observation_depth);
             if let Some(binding) = self.checker.marker_symbol(name).copied() {
                 state
                     .pending_borrow_results
