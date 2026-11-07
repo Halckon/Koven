@@ -760,7 +760,6 @@ impl UnitExpressionLowerer<'_> {
             &created_loans,
             span,
         )?;
-        self.preserve_short_range_ends();
         self.pending_operands.truncate(pending_start);
         Ok(Some(LoweredCallArguments {
             arguments,

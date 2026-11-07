@@ -141,11 +141,15 @@ impl Checker<'_, '_> {
                     || self.move_value_class_seen(ty, active)
                     || self.object_type(ty)
                     || self.container_element_seen(ty, active).is_some()
-                    || (self.unit_requires_refine()
-                        && self.range_view_element_seen(ty, active).is_some())
+                    || self.range_view_element_seen(ty, active).is_some()
                     || self.map_kv_seen(ty, active).is_some()
             }
         }
+    }
+
+    /// `T?` whose payload is a supported storage type.
+    pub(super) fn nullable_storage(&self, ty: UnitTypeId) -> bool {
+        matches!(self.kind(ty), Some(UnitTypeKind::Nullable(inner)) if self.storage_type(*inner))
     }
 
     /// A concrete `Box<T>` whose payload is a supported `value class` or `enum class`.

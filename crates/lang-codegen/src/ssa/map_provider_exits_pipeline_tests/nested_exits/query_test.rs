@@ -16,6 +16,8 @@ fn observe(case: &Case, rooted: bool) -> Observation {
         diagnostic!(
             "SPEC0331 NESTED EXITS IDENTITY INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={hash} text={text:?}"
         );
+        // The per-family path has no `String.clone()` (SPEC-0394).
+        let text = &crate::test_support::per_family_source(text);
         let outcome = ast::Input::new(text, map, case.exit).and_then(|input| {
             let anchors = ast::collect(&input);
             report.query(

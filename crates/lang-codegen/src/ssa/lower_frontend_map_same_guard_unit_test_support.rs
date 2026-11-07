@@ -542,7 +542,7 @@ pub(super) fn check(text: &str) {
     assert_eq!(function.id, entry);
     assert_eq!(function.origin, Origin::Source(declaration_span));
     assert_eq!(function.blocks.len(), 6);
-    assert_eq!(function.instructions.len(), 46);
+    assert_eq!(function.instructions.len(), 47);
     let module = program.module(entry.module()).unwrap();
     let stop = *one(&function
         .block(function.entry_block().unwrap())

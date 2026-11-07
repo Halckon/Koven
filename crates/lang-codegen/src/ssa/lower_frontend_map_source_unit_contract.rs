@@ -421,6 +421,7 @@ pub(in super::super) fn check_source(text: &str, scenario: SourceScenario) {
     } else {
         &["main"]
     };
+    let text = &crate::test_support::per_family_source(text);
     let (unit, program, _) = crate::ssa::with_per_family_lowering(|| lower(text, functions));
     let cases: &[(&str, bool, bool, bool)] = match scenario {
         SourceScenario::NamedAfterUse => &[("main", true, false, true)],

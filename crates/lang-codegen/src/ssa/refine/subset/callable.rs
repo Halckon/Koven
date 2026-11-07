@@ -66,9 +66,12 @@ impl Checker<'_, '_> {
         let supported = descriptor.target() == UnitCallTarget::FunctionValue
             && descriptor.receiver().is_none()
             && named
-            && !values
-                .iter()
-                .any(|value| self.argument_has_control_transfer(*value))
+            // A loop jump out of an argument stays on the per-family path unless the scope
+            // forms a capturing closure, which lowers only here.
+            && (self.scope_requires_refine()
+                || !values
+                    .iter()
+                    .any(|value| self.argument_has_loop_jump(*value)))
             && self.reference(callee).is_some_and(|symbol| {
                 self.known.contains(&symbol)
                     && (self.view_parameter(symbol) || self.callables.contains(&symbol))
@@ -77,37 +80,29 @@ impl Checker<'_, '_> {
         supported
     }
 
-    fn argument_has_control_transfer(&self, argument: ExpressionId) -> bool {
+    /// A `break` or `continue` out of a function-value call argument (not inside a lambda in
+    /// it); a `return` or abort out of one lowers here.
+    fn argument_has_loop_jump(&self, argument: ExpressionId) -> bool {
         let Ok(argument) = self.inputs.parsed.ast().expressions().get(argument) else {
             return true;
         };
         let span = argument.span();
-        self.inputs
-            .parsed
-            .ast()
-            .expressions()
+        let expressions = self.inputs.parsed.ast().expressions();
+        expressions
             .iter()
             .filter(|(_, candidate)| {
                 span_contains(span, candidate.span())
                     && matches!(
                         candidate.payload(),
-                        Expression::Return { .. }
-                            | Expression::Break { .. }
-                            | Expression::Continue { .. }
+                        Expression::Break { .. } | Expression::Continue { .. }
                     )
             })
             .any(|(_, candidate)| {
-                !self
-                    .inputs
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .iter()
-                    .any(|(_, boundary)| {
-                        matches!(boundary.payload(), Expression::Lambda { .. })
-                            && span_contains(span, boundary.span())
-                            && strictly_contains(boundary.span(), candidate.span())
-                    })
+                !expressions.iter().any(|(_, boundary)| {
+                    matches!(boundary.payload(), Expression::Lambda { .. })
+                        && span_contains(span, boundary.span())
+                        && strictly_contains(boundary.span(), candidate.span())
+                })
             })
     }
 

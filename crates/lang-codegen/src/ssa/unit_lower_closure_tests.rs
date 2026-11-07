@@ -793,15 +793,6 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
              }",
         ),
         (
-            "test/callable-argument-return.ko",
-            "package test\n\
-             fun entry(): Int {\n\
-                 val action: (Int, own Int) -> Int = { left, right -> left + right }\n\
-                 val number = 1\n\
-                 return action(number, return 7)\n\
-             }",
-        ),
-        (
             "test/direct-argument-break.ko",
             "package test\n\
              fun select(first: Int, own second: Int): Int = second\n\

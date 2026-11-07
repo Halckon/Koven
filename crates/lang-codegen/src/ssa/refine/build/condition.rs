@@ -1,7 +1,7 @@
 //! Branch-form conditions: `&&`/`||`/`!` short-circuit and null comparisons with proofs.
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    ownership_checking::UnitDropPoint,
+    ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
     parser::{BinaryOperator, Expression, PrefixOperator, Statement},
     source::Span,
     type_checking::{ParameterMode, UnitTypeKind},
@@ -30,12 +30,49 @@ impl Builder<'_, '_> {
         let views = views && and;
         let span = self.span(expression);
         let control = self.unit(expression);
+        // A constant left operand fixes the plan: `Never` yields the left value and skips the
+        // right operand; `Always` evaluates the left operand and yields the right value.
+        if let Some(plan) = self
+            .inputs
+            .constant_owned
+            .and_then(|owned| owned.short_circuit_at(control))
+        {
+            match plan.rhs() {
+                UnitShortCircuitRhs::Never => {
+                    return self.condition_internal(left, when_true, when_false, views, None);
+                }
+                UnitShortCircuitRhs::Always => {
+                    if self.required(left)?.is_none() {
+                        return Ok(());
+                    }
+                    return self.condition_internal(right, when_true, when_false, views, None);
+                }
+                UnitShortCircuitRhs::Conditional => {}
+            }
+        }
         let middle = self.body.block();
         let skip = self.body.block();
         if and {
             self.condition_internal(left, middle, skip, views, None)?;
         } else {
             self.condition_internal(left, skip, middle, views, None)?;
+        }
+        // The plain branch that selects between the right operand and the skip edge is the
+        // short circuit's own control transfer.
+        for block in &mut self.body.blocks {
+            if let Some((
+                RTerm::Branch {
+                    when_true,
+                    when_false,
+                    ..
+                },
+                origin,
+            )) = &mut block.terminator
+                && ((and && *when_true == middle && *when_false == skip)
+                    || (!and && *when_true == skip && *when_false == middle))
+            {
+                *origin = span;
+            }
         }
         let skip_target = if and { when_false } else { when_true };
         let skipped = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 1 });

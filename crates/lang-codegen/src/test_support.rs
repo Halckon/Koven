@@ -4,6 +4,26 @@ pub(crate) mod diagnostics;
 
 use std::path::PathBuf;
 
+/// `String.clone()` lowers only in the refinement layer (SPEC-0394). A source forced onto
+/// the per-family path (`with_per_family_lowering`) forms its owned strings by
+/// concatenation instead: `"text".clone()` becomes `("text" + "")`.
+pub(crate) fn per_family_source(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find("\".clone()") {
+        let open = rest[..at]
+            .rfind('"')
+            .expect("string literal before .clone()");
+        out.push_str(&rest[..open]);
+        out.push('(');
+        out.push_str(&rest[open..=at]);
+        out.push_str(" + \"\")");
+        rest = &rest[at + "\".clone()".len()..];
+    }
+    out.push_str(rest);
+    out
+}
+
 pub(crate) fn clang() -> PathBuf {
     if cfg!(target_os = "macos") {
         PathBuf::from("/usr/bin/clang")

@@ -308,12 +308,11 @@ fn when_fallthrough_preserves_view_and_handles_asymmetric_reassignment() {
 }
 
 #[test]
-fn outer_proof_view_with_loop_reassignment_is_rejected_by_subset_admission() {
-    // Static candidate (b): Reassigning a symbol with an outer proof view inside a loop
-    // is strictly rejected by the refine subset admission gate:
-    // `subset/field.rs: (self.loops > 0 && self.view_symbols.contains(&symbol))`
-    // This test verifies that admission stops it from entering refine lowering,
-    // rather than lowering incorrectly.
+fn outer_proof_view_with_loop_reassignment_ends_the_view_before_the_loop() {
+    // The outer proof view of a symbol reassigned inside a loop ends before the loop
+    // (`strip_reassigned_loop_views`), so the later test re-proves the current owner.
+    // `String.clone()` lowers only in the refinement layer (SPEC-0394), so the function
+    // is admitted and must run exactly.
     let source = r#"fun main(): Unit {
         var outer: String? = "initial_loop_proof".clone()
         if (outer != null) {
@@ -327,29 +326,7 @@ fn outer_proof_view_with_loop_reassignment_is_rejected_by_subset_admission() {
             }
         }
     }"#;
-    let mut sources = SourceMap::new();
-    let text = format!("package p\n{source}");
-    let (id, file) = parsed(&mut sources, "p/main.ko", &text);
-    let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
-    let (name_environment, type_environment) = standard_environments();
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let entry = declaration(&names, "p", "main");
-    let (_, routed) = super::super::refine::observe_routing(|| {
-        let _ = lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &type_environment,
-            &typed,
-            &owned,
-            entry,
-        );
-    });
-    // Verified: main is NOT routed to refine because subset rejected loop reassignment of an active view.
-    assert!(
-        !routed.iter().any(|name| name.contains("main")),
-        "symbol with outer proof view reassigned inside loop must not be admitted to refine: {routed:?}"
-    );
+    counted(source, 2, b"reassigned_in_loop\n");
 }
 
 #[test]
