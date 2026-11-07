@@ -56,3 +56,8 @@ stream；该差异对照在对应消费者中仍需保留。
 generic/field/wrapper/parent 三项成功消费者覆盖双入口，保留独立 Single loan-end
 及逐项 call-use 合同；另外两项精确顺序/owner-drop 成功 witness 也覆盖双入口，
 保持 grouped/named 身份、parent 存活与 owner 在 outer-call-return 唯一 drop 的断言。
+
+`borrow_call_prefix_ends()` 从实际 Return unwind 的 EndCallLoan 动作发布借用来源结束
+切片；仅覆盖仍有正常 binding 来源证明的 direct initializer，精确匹配Shared owned根。
+无条件退出且没有正常binding证明的initializer仍在片外，空表不等于没有退出；
+正常handoff、结果终止和完整cleanup流不能互相替代，原Single对照继续保留。

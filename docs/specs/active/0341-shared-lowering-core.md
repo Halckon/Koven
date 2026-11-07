@@ -3024,3 +3024,22 @@ all-targets Clippy（`-D warnings`）、fmt、文档与尺寸门禁通过。官�
 及 CallReturn 断言。删除未使用的默认 Rooted 包装；不删独立 Single 事件对照。
 完整 nested-borrow 10项无过滤、目标编译、all-targets Clippy（`-D warnings`）、
 fmt、文档及尺寸门禁通过；本批累计本地逻辑提交，未尝试远端写入或官方 CI。
+
+#### 独立 source-prefix 结束观察：有正常分支的 initializer 被 return 放弃
+
+同步 main `a56e1b17` 后保留原六提交。新增 `UnitBorrowCallPrefixEndFact` 与
+`borrow_call_prefix_ends()`，只投影 planner 已实际发布的 ControlTransfer(Return)
+加 EndCallLoan 动作。要求 direct initializer 的正常 binding 来源证明与动作
+call/argument/target 精确一致：Declaration、Borrow result、无receiver/parent、Shared
+formed-owned根。正常 binding 仅限制支持范围，不作为退出发生的证据；不修改pending
+或cleanup执行，不复用Owned direct-call事件类型，也不发布已建立binding的承诺。
+公开原loan/真实point/同点preceding_drops，不提供完整cleanup图。无正常完成分支的
+initializer不会产生现有binding证明，因此 `select(owner, return)` 仍在片外；空表
+不能推导没有abandonment。保留Single ControlTransfer witness，不改变正常handoff能力。
+回归覆盖来源求值前后、同根不同参数来源身份、正常完成后的return不误报、同点owner
+drop顺序，以及非空成功对照后的错误/deferred原子撤销。新API缺失先编译失败；新样本
+曾因条件值试图move存活来源触发L0135，改用独立临时辅助值和独立坏值构造L0131，
+保留精确诊断要求，未放宽原有测试或修改语言行为。
+云端 Rust1.96.0/default debug=2/locked/offline：三目标66项通过，2项Abort按约定仅CI。
+新增片外空表、入口身份、Shared/formed-owned/root断言通过，独立静审无阻断。
+all-targets Clippy（`-D warnings`）首次空间耗尽；确认无活动构建后仅清理本任务已授权\nincremental，重试通过。fmt、文档/尺寸/diff门禁通过，官方CI未运行。
