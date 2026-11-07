@@ -222,3 +222,113 @@ fn later_errors_and_deferred_work_revoke_handoffs() {
         }
     }
 }
+
+#[test]
+fn cross_source_handoffs_keep_caller_and_provider_lineage_under_input_reordering() {
+    let mut sources = SourceMap::new();
+    let provider = sources
+        .add_source(
+            "provider.ko",
+            "package demo\nfun view(source: String): borrow String from source = source",
+        )
+        .unwrap();
+    let caller = sources.add_source("caller.ko", "package demo\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner); println(item) }").unwrap();
+    let provider_file = parse_file(&sources, &lex(&sources, provider).unwrap()).unwrap();
+    let caller_file = parse_file(&sources, &lex(&sources, caller).unwrap()).unwrap();
+    assert!(provider_file.diagnostics().is_empty());
+    assert!(caller_file.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    for reverse in [false, true] {
+        let mut inputs = [
+            SourceUnitInput::new("root", "demo/provider.ko", provider, &provider_file),
+            SourceUnitInput::new("root", "demo/caller.ko", caller, &caller_file),
+        ];
+        if reverse {
+            inputs.reverse();
+        }
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let unit =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        let caller_unit = index
+            .source_units()
+            .iter()
+            .find(|unit| unit.source_id() == caller)
+            .unwrap();
+        let provider_unit = index
+            .source_units()
+            .iter()
+            .find(|unit| unit.source_id() == provider)
+            .unwrap();
+        assert_ne!(caller_unit.id(), provider_unit.id());
+        let [handoff] = unit.borrow_call_handoffs() else {
+            panic!("one caller handoff")
+        };
+        let loan = handoff.source_loan();
+        assert_eq!(loan.call().source_unit(), caller_unit.id());
+        assert_eq!(loan.argument().source_unit(), caller_unit.id());
+        assert_eq!(handoff.binding().source_unit(), caller_unit.id());
+        let UnitLoanTarget::Place(place) = loan.target() else {
+            panic!("caller owned root")
+        };
+        assert_eq!(place.root().source_unit(), caller_unit.id());
+        let parameter = loan.parameter_span().unwrap();
+        assert_eq!(parameter.source_id(), provider);
+        assert_eq!(sources.slice(parameter), Ok("source: String"));
+        let call = caller_file
+            .ast()
+            .expressions()
+            .get(loan.call().expression())
+            .unwrap();
+        assert_eq!(sources.slice(call.span()), Ok("view(owner)"));
+        let argument = caller_file
+            .ast()
+            .expressions()
+            .get(loan.argument().expression())
+            .unwrap();
+        assert_eq!(sources.slice(argument.span()), Ok("owner"));
+        assert_eq!(handoff.point(), UnitDropPoint::CallReturn(loan.call()));
+        unit.validate().unwrap();
+    }
+}
+
+#[test]
+fn sibling_branches_commit_only_their_own_binding_identity() {
+    let observed = observe(&format!(
+        "{VIEW}fun run(flag: Boolean): Unit {{ val owner = \"kept\"; if (flag) {{ borrow val first = view(owner); println(first) }} else {{ borrow val second = view(owner); println(second) }} }}"
+    ));
+    assert_units_admitted(&observed);
+    assert_handoff_identity(&observed);
+    for unit in &observed.units {
+        let [first, second] = unit.borrow_call_handoffs() else {
+            panic!("two distinct branch handoffs")
+        };
+        assert_ne!(first.binding(), second.binding());
+        assert_ne!(first.source_loan().call(), second.source_loan().call());
+        for handoff in [first, second] {
+            let matching: Vec<_> = unit
+                .borrow_results()
+                .bindings()
+                .iter()
+                .filter(|binding| binding.binding() == handoff.binding())
+                .collect();
+            let [binding] = matching.as_slice() else {
+                panic!("one matching established binding")
+            };
+            assert_eq!(binding.initializer(), handoff.source_loan().call());
+            assert_eq!(
+                binding.source_loan().unwrap().argument(),
+                handoff.source_loan().argument()
+            );
+        }
+    }
+}
