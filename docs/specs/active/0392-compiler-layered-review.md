@@ -493,3 +493,17 @@ macOS 未执行 Linux 专属 sanitizer。R2/R3 的独立复审余项及 R4/R5 �
 `type_map` 共 583 项通过。CLI `check_cli` 6 项通过，覆盖单文件和项目入口。LSP 56 项
 通过。三组测试均无失败或忽略。前端、CLI、LSP 的 all-targets Clippy（`-D warnings`）、
 格式、文档结构、Rust 尺寸及 diff 检查通过。本批修复的双宿主 CI 待验证。
+
+## 21. 最新主干合流与双宿主验收
+
+PR #336 合入 `9ab52dd2` 后，保留 SPEC-0341 双方验收条目，并将两处语句分隔符修正
+移到主干迁移后的 nullable when 测试。合流提交 `01b467da` 本地通过 `type_checking`
+83 项及 `multifile_type_checking` 165 项，格式、文档及尺寸检查通过。
+
+[PR CI 42356276937](https://github.com/Halckon/Koven/actions/runs/42356276937) 对
+`01b467daee01572a9feb4baea76a82baefdb3c16` 与 `9ab52dd2` 的合流输入
+`89a5611e033d8b525fd4d7f4d6a6b5a134f4cf59` 实跑成功。两宿主的 Check、Clippy、
+动态测试、Preview 构建与独立安装验收及 `CI Passed` 均通过。Linux sanitizer 通过。
+两宿主 conformance 均为 138/154，零回归、入口差异或内部错误。macOS 有 1 个既有
+LLDB 用例因 debugserver 权限被忽略。Editor job 按改动范围跳过。本次结果对应
+PR #336 交付切片，SPEC-0392 的后续分层复审继续保留在 active。
