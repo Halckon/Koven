@@ -476,14 +476,14 @@ fn named_arity_type_and_target_failures_are_distinct() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(
-        codes(typed.diagnostics()),
-        [
-            "L0120", "L0120", "L0121", "L0121", "L0084", "L0120", "L0119"
-        ]
-    );
+    for typed in checked_entries(&sources, &parsed, &names, &types) {
+        assert_eq!(
+            codes(typed.diagnostics()),
+            [
+                "L0120", "L0120", "L0121", "L0121", "L0084", "L0120", "L0119"
+            ]
+        );
+    }
 }
 
 #[test]
@@ -670,21 +670,21 @@ fn generic_inference_does_not_use_return_context_and_reports_conflicts() {
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert_eq!(codes(typed.diagnostics()), ["L0140", "L0140", "L0091"]);
-    assert_eq!(
-        sources.slice(typed.diagnostics()[0].primary_span()),
-        Ok("1L")
-    );
-    assert_eq!(
-        sources.slice(typed.diagnostics()[1].primary_span()),
-        Ok("factory")
-    );
-    assert_eq!(
-        sources.slice(typed.diagnostics()[2].primary_span()),
-        Ok("Long")
-    );
+    for typed in checked_entries(&sources, &parsed, &names, &types) {
+        assert_eq!(codes(typed.diagnostics()), ["L0140", "L0140", "L0091"]);
+        assert_eq!(
+            sources.slice(typed.diagnostics()[0].primary_span()),
+            Ok("1L")
+        );
+        assert_eq!(
+            sources.slice(typed.diagnostics()[1].primary_span()),
+            Ok("factory")
+        );
+        assert_eq!(
+            sources.slice(typed.diagnostics()[2].primary_span()),
+            Ok("Long")
+        );
+    }
 }
 
 #[test]
