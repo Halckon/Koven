@@ -3407,3 +3407,14 @@ Mac Rust1.96、locked/offline、默认debug=2，串行复用释放后的target�
 fmt、849份Markdown、diff及相对78a36f25尺寸门禁通过（2148份手写Rust、38份旧超长文件未增长）。
 不运行全量/native/Abort/故障注入/校准，不以本地测试
 替代正式CI，D10/E2仍未完成。
+
+### 容器参数与元素借用消费者迁移（2026-11-07）
+
+`ownership_containers` 的 runtime-length 构造与已知 sibling 元素借用两例，保留原始源文本，
+改经现有 MemoryDocument / Rooted 双入口、完成类型准入和实际 P3 检查。前者保留恰好两个
+Shared loan；后者保留四个 loan 的 Shared/Shared/Exclusive/Exclusive 顺序、
+Known(0)/Known(0)/Known(0)/Known(1) 索引及 named root 的 CallReturn cleanup，
+并检查 source-qualified call/root。没有用有界 loan-end 切片替代全流事件表。
+
+验证：上述两项 exact 定向测试各通过；frontend all-targets Clippy、fmt、文档、尺寸与 diff 检查。
+本片不运行 full/native/Abort 故障路径；剩余 Single helper 与独立生命周期见证保持原样。
