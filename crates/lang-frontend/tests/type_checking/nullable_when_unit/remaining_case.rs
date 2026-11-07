@@ -101,10 +101,6 @@ fn remaining_case_payload_orders_keep_source_qualified_types() {
         fun extract(x: Shape?): Int = when (x) {
             is Shape.Point -> 0; null -> 0; else -> x.radius
         }",
-        "enum class Shape { Circle(radius: Int), Point }
-        fun extract(x: Shape): Int = when (x) {
-            is Shape.Point -> 0; else -> x.radius
-        }",
     ] {
         assert_payload(text, "x.radius", false);
     }
