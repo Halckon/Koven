@@ -1,6 +1,7 @@
 //! Synthetic graph tests for the library value validator, not AST Choice admission.
 mod cases;
 mod projection;
+mod swap;
 
 use super::*;
 
