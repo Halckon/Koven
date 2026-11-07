@@ -215,7 +215,7 @@ fn nullable_string_if_borrows_retest_the_current_owner_and_distinguish_empty_fro
     let source = UnitSource::analyze(
         "nullable-string.ko",
         r#"fun make(flag: Boolean): String? {
-    if (flag) { return "value".clone() }
+    if (flag) { return ("value" + "") }
     return null
 }
 fun show(flag: Boolean): Unit {
@@ -299,7 +299,7 @@ fn per_family_nullable_string_if_returns_the_owned_parameter_after_borrow() {
     return "fallback"
 }
 fun make(flag: Boolean): String? {
-    if (flag) { return "value".clone() }
+    if (flag) { return ("value" + "") }
     return null
 }
 fun main(): Unit {

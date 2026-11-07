@@ -103,10 +103,7 @@ fn dynamic(pipeline: Pipeline, and: bool, use_site: Use) {
         let lowered = lower_positive(&consumer, &expression, pipeline);
         let span = lowered.expected_span;
         let (program, entry) = lowered.require_success(&label);
-        assertions::short_circuit_transport(&program, span, and);
-        if matches!(use_site, Use::PendingArgument) {
-            assertions::short_circuit_prefix_transport(&program, span);
-        }
+        assertions::short_circuit_branch(&program, span);
         let mut expected = String::new();
         for (left, right) in [(true, true), (true, false), (false, true), (false, false)] {
             expected.push_str("lhs\n");

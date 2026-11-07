@@ -6,7 +6,7 @@ use crate::ssa::unit_lower::nullable_proof::guard_tests::support::Fixture;
 fn contextual_null_result_requires_exact_target_and_control_identity() {
     let fixture = Fixture::new(
         r#"fun entry(flag: Boolean): Unit {
-    val value = if (flag) { "value".clone() } else { if (flag) { null } else { null } }
+    val value = if (flag) { ("value" + "") } else { if (flag) { null } else { null } }
     if (value != null) { println(value) }
 }"#,
     );

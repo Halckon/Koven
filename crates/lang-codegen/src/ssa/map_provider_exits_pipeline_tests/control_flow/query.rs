@@ -242,16 +242,35 @@ pub(super) fn check(
         "ordinary CFG actual condition and ordered components",
         (has, key, val),
     )?;
-    let entry = g.branch(first.block)?;
-    need(
-        entry.target == has.block
-            && g.transported(entry, EntityId::Loan(source))? == EntityId::Loan(hs)
-            && g.transported(entry, result(first)?)? == EntityId::Value(hc)
-            && g.transported(when_true, EntityId::Loan(hs))? == EntityId::Loan(bs)
-            && g.transported(when_true, EntityId::Value(hc))? == EntityId::Value(bc),
-        "ordinary complete initial/header/body source and cursor columns",
-        (entry, when_true),
-    )?;
+    // A body that never reaches its `Next` leaves no back edge; the refinement layer then
+    // tests the first cursor in the block that formed it (SPEC-0394).
+    let folded = has.block == first.block;
+    let entry = if folded {
+        None
+    } else {
+        Some(g.branch(first.block)?)
+    };
+    if folded {
+        need(
+            hs == source
+                && EntityId::Value(hc) == result(first)?
+                && g.position(first)? < g.position(has)?
+                && g.transported(when_true, EntityId::Loan(hs))? == EntityId::Loan(bs)
+                && g.transported(when_true, EntityId::Value(hc))? == EntityId::Value(bc),
+            "ordinary folded header tests the first cursor and feeds the body columns",
+            (first, has, when_true),
+        )?;
+    } else if let Some(entry) = entry {
+        need(
+            entry.target == has.block
+                && g.transported(entry, EntityId::Loan(source))? == EntityId::Loan(hs)
+                && g.transported(entry, result(first)?)? == EntityId::Value(hc)
+                && g.transported(when_true, EntityId::Loan(hs))? == EntityId::Loan(bs)
+                && g.transported(when_true, EntityId::Value(hc))? == EntityId::Value(bc),
+            "ordinary complete initial/header/body source and cursor columns",
+            (entry, when_true),
+        )?;
+    }
     g.incoming_from(key.block, &[has.block])?;
     g.incoming_from(when_false.target, &[has.block])?;
     let nexts = g
@@ -284,6 +303,11 @@ pub(super) fn check(
         "every Continue and normal fallthrough has exactly its own Next",
         (&nexts, expected_next),
     )?;
+    need(
+        !folded || nexts.is_empty(),
+        "a folded header has no Next back edge",
+        &nexts,
+    )?;
     let mut predecessors = vec![first.block];
     for next in &nexts {
         let Operation::MapIterationNext {
@@ -305,7 +329,9 @@ pub(super) fn check(
         )?;
         predecessors.push(next.block);
     }
-    g.incoming_from(has.block, &predecessors)?;
+    if !folded {
+        g.incoming_from(has.block, &predecessors)?;
+    }
     let lease = family(&g, &[EntityId::Loan(source)])?;
     let mut cursor_seeds = vec![result(first)?];
     for next in &nexts {
@@ -583,8 +609,12 @@ pub(super) fn check(
             }
         }
     }
+    // A folded header holds the source owner itself.
     let header_owner = source_owner
-        .map(|owner| g.transported(entry, owner))
+        .map(|owner| match entry {
+            Some(entry) => g.transported(entry, owner),
+            None => Ok(owner),
+        })
         .transpose()?;
     let body_owner = header_owner
         .map(|owner| g.transported(when_true, owner))

@@ -4,7 +4,10 @@
 
 use crate::{
     native_tests::boxed_enum_tests::unit_source::UnitSource,
-    ssa::{LoweringErrorKind, model::Origin},
+    ssa::{
+        LoweringErrorKind,
+        model::{Operation, Origin},
+    },
 };
 use lang_frontend::{
     name_resolution::{
@@ -718,6 +721,42 @@ pub(super) fn check(text: &str, name: &str, supported: bool) {
                 function.origin,
                 Origin::Source(unit.declaration_span(declaration))
             );
+            crate::ssa::verify::verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            continue;
+        }
+        let refined = text
+            .find("fun updatingOperand")
+            .is_some_and(|at| text[at..].contains(".clone()"));
+        if !supported && refined {
+            // SPEC-0394: `updatingOperand` forms its values with `String.clone()`, which lowers
+            // only in the refinement layer; that layer also lowers the temporary nullable
+            // comparison the per-family path rejects, as a presence test at its own span.
+            let (program, entry) =
+                result.unwrap_or_else(|error| panic!("{name}: lower: {error:?}"));
+            let boundary = "nullableValue(item) != null";
+            assert_eq!(text.matches(boundary).count(), 1);
+            let start = text.find(boundary).unwrap();
+            let function = program
+                .modules
+                .iter()
+                .flat_map(|module| &module.functions)
+                .find(|function| function.id == entry)
+                .expect("entry function");
+            assert_eq!(
+                function.origin,
+                Origin::Source(unit.declaration_span(declaration))
+            );
+            let tests = function
+                .instructions
+                .iter()
+                .filter(|instruction| {
+                    matches!(instruction.operation, Operation::NullableIsNull { .. })
+                        && instruction.origin.span().start() == start
+                        && instruction.origin.span().end() == start + boundary.len()
+                })
+                .count();
+            assert_eq!(tests, 1, "{name}: one presence test at the comparison");
             crate::ssa::verify::verify_program(&program).unwrap();
             crate::llvm::render_verified_program(&program).unwrap();
             continue;

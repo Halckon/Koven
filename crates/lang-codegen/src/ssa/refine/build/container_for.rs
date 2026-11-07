@@ -801,10 +801,11 @@ impl Builder<'_, '_> {
                             Vec::new(),
                             span,
                         )?;
-                        if let Some(range_source) = seq.range_source
-                            && self.short_ranges.contains_key(&self.unit(range_source))
-                        {
-                            self.finish_short_range(range_source, span)?;
+                        if let Some(range_source) = seq.range_source {
+                            let actual = self.ungrouped_expr(range_source)?;
+                            if self.short_ranges.contains_key(&self.unit(actual)) {
+                                self.finish_short_range(range_source, span)?;
+                            }
                         }
                     } else if let Some(map_for) = self.map_for_frame(statement) {
                         self.push(
