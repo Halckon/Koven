@@ -850,3 +850,6 @@ mod gate_contracts;
 
 #[path = "unit_direct_call_loan_ends/borrow_handoff.rs"]
 mod borrow_handoff;
+
+#[path = "unit_direct_call_loan_ends/borrow_auxiliary.rs"]
+mod borrow_auxiliary;
