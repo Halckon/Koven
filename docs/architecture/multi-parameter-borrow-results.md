@@ -36,3 +36,8 @@ foreign/temporary 来源拒绝、借用存活期间禁止 source move，以及�
 source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与保守 scope endpoint。
 `ownership_borrow_continuation` 的 capture/conditional/nested-call/temporary/loop 五项拒绝
 消费者也覆盖双入口，错误时 bindings/ends 不发布；独立 Single loan-end witnesses 保留。
+
+普通直接调用的 Unit loan-end 是有界观测切片：Owned-return 根实参/普通 String 的
+成功前缀已有固定事件与唯一 owner-drop 对照；后续真实 ownership 错误或 deferred
+会撤销事件能力。它不包含借用返回来源交接，不能替代 continuation 的 Single loan-end
+stream；该差异对照在对应消费者中仍需保留。

@@ -2937,3 +2937,17 @@ bindings/ends 清空断言保留；其余测试与独立 Single loan-end helper 
 云端固定 Rust 1.96.0/default debug=2/locked/offline，continuation 14 加前六目标36，
 共50项无过滤通过；目标编译、all-targets Clippy（`-D warnings`）通过。所有七目标本已在
 stage selector，未增加目标或修改计数；保留多逻辑提交统一交付，官方 CI 尚未运行。
+
+### 后续事实合同：直接调用事件发布门的非空对照（2026-11-07）
+
+`unit_direct_call_loan_ends/gate_contracts.rs` 用固定字节 oracle 在两入口证明同一
+成功前缀恰有一个真实 CallReturn loan-end、原临时 owner 的唯一同点 drop，且事件先于
+drop；随后分别追加真实 L0131 或既有 deferred 工作，核对事件清空及拒绝最终验证。
+错误样本还核对 drops 原子清空。旧 Single witness 与全部既有测试均保留，避免空表
+测试在事件发布从未发生时仍通过；不修改生产算法或提升 slice 为完整 loan-end 流。
+调查确认现有 direct-call slice 明确排除借用返回、投影及 receiver/provider。完整退休
+continuation witness 仍需另行证明来源交接与控制转移事件合同，不能用 result-end 计数
+替代。本片仅加强已存在能力的门禁，不宣称已解除上述依赖。
+云端 Rust 1.96.0/default debug=2/locked/offline：新增2项通过；目标允许范围30项通过，
+含 Abort 的两整项按约定仅留 CI；编译、all-targets Clippy（`-D warnings`）、fmt、
+文档与尺寸门禁通过。本批本地累计，官方 CI 未运行。
