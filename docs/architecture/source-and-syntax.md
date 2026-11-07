@@ -77,8 +77,8 @@ Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、har
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
 
 普通/control/nested block 与 lambda body 的顶层 Pratt/postfix 在完整左表达式之后遇换行的 `(`、`+`、`-`
-时归还 block dispatch；局部 initializer 复用该边界。group/call/index 内的 block soft stop
-已清除；for header 只在真实 opener 存在时清软 stop，因此未闭合 delimiter 内继续解析。
+时归还 block dispatch。局部解构的真实 `=` 后允许 control/lambda primary，并将外层分号交给 body owner。group/call/index 内的 block soft stop
+已清除；for header 只在真实 opener 存在时清软 stop，因此未闭合 delimiter 内继续解析。解构缺内层 `)` 时保留 `in` 和外层停止 token，外层边界上的错误节点使用空 Span。
 typed-call 试探、独立 expression 与顶层
 initializer 保持既有入口行为。lambda 顶层 body 与内嵌普通 block 保留独立 owner，但共用换行
 边界。三个 body dispatch 的分隔校验在后继 element 起点以空 Span 报 L0169；恢复保留真实

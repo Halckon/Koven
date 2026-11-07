@@ -775,3 +775,207 @@ fn mutable_list_insert_at_rejects_unsupported_and_invalid_in_compilation_unit() 
     assert_eq!(typed.diagnostics()[2].code().to_string(), "L0084");
     assert_eq!(typed.diagnostics()[3].code().to_string(), "L0084");
 }
+
+#[test]
+fn mutable_list_mutations_require_resolved_operands_before_publishing() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types};
+
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-mutation-pending.ko",
+        "class Holder(val items: MutableList<Int?>)\n\
+         fun pending(p: Holder): Unit {\n\
+             (if (outside()) p else p).items.add(null)\n\
+             (if (outside()) p else p).items.clear()\n\
+             (if (outside()) p else p).items.removeAt(0)\n\
+             (if (outside()) p else p).items.removeLast()\n\
+             (if (outside()) p else p).items.removeFirst()\n\
+             (if (outside()) p else p).items.insertAt(0, null)\n\
+         }\n\
+         fun pending_choice(own items: MutableList<Int?>): Unit {\n\
+             (if (outside()) items else items).clear()\n\
+         }\n\
+         fun pending_arguments(own items: MutableList<Int?>): Unit {\n\
+             items.add(outside())\n\
+             items.removeAt(outside())\n\
+             items.insertAt(0, if (outside()) null else null)\n\
+         }\n\
+         fun stable(own items: MutableList<Int?>): Unit {\n\
+             items.add(null)\n\
+             items.clear()\n\
+             items.insertAt(0, null)\n\
+             items.removeAt(0)\n\
+             items.removeLast()\n\
+             items.removeFirst()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-mutation-pending.ko",
+        source,
+        &file,
+    )];
+    let (mut names_env, types_env) = standard_environments();
+    names_env.declare_function("outside").expect("name binding");
+    let names = validated_names(&sources, &inputs, &names_env);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types_env)
+        .expect("recoverable type analysis");
+    assert!(
+        typed.body_diagnostics().is_empty(),
+        "{:?}",
+        typed.body_diagnostics()
+    );
+    let unit = source_unit(&names, source);
+    let key = |text| UnitExpressionId::new(unit, expression_with_text(&sources, &file, text));
+    assert_eq!(
+        typed
+            .container_appends()
+            .iter()
+            .map(|fact| fact.expression())
+            .collect::<Vec<_>>(),
+        [key("items.add(null)")],
+    );
+    assert_eq!(typed.container_clears().len(), 1);
+    assert_eq!(typed.container_remove_ats().len(), 1);
+    assert_eq!(typed.container_remove_lasts().len(), 1);
+    assert_eq!(typed.container_remove_firsts().len(), 1);
+    assert_eq!(typed.container_insert_ats().len(), 1);
+    assert!(typed.container_clear(key("items.clear()")).is_some());
+    assert!(
+        typed
+            .container_remove_at(key("items.removeAt(0)"))
+            .is_some()
+    );
+    assert!(
+        typed
+            .container_remove_last(key("items.removeLast()"))
+            .is_some()
+    );
+    assert!(
+        typed
+            .container_remove_first(key("items.removeFirst()"))
+            .is_some()
+    );
+    assert!(
+        typed
+            .container_insert_at(key("items.insertAt(0, null)"))
+            .is_some()
+    );
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+        complete_compilation_unit_types(&sources, &inputs, &names, &types_env, &typed)
+    else {
+        panic!("pending operands must produce source diagnostics");
+    };
+    assert_eq!(diagnostics.len(), 10, "{diagnostics:?}");
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.code().to_string() == "L0165"
+                && matches!(
+                    sources.slice(diagnostic.primary_span()),
+                    Ok("outside" | "outside()")
+                )
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn mutable_list_pending_receiver_keeps_independent_operand_diagnostics() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-mutation-recovery.ko",
+        "class Holder(val items: MutableList<Int?>)\n\
+         fun recover(p: Holder): Unit {\n\
+             (if (outside()) p else p).items.insertAt(\"index\", true)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-mutation-recovery.ko",
+        source,
+        &file,
+    )];
+    let (mut names_env, types_env) = standard_environments();
+    names_env.declare_function("outside").expect("name binding");
+    let names = validated_names(&sources, &inputs, &names_env);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types_env)
+        .expect("recoverable type analysis");
+    assert!(typed.container_insert_ats().is_empty());
+    let diagnostics = typed
+        .body_diagnostics()
+        .iter()
+        .map(|diagnostic| {
+            (
+                diagnostic.code().to_string(),
+                sources
+                    .slice(diagnostic.primary_span())
+                    .expect("source span"),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        diagnostics,
+        [("L0084".into(), "\"index\""), ("L0084".into(), "true")]
+    );
+}
+
+#[test]
+fn mutable_list_element_recovery_does_not_reject_a_compatible_pending_shape() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types};
+
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-mutation-element-shape.ko",
+        "class Carrier<T>(val value: T)\n\
+         fun append(own list: MutableList<Carrier<Int>>, own x: Carrier<Unbound>): Unit {\n\
+             list.add(x)\n\
+         }\n\
+         fun insert(own list: MutableList<Carrier<Int>>, own x: Carrier<Unbound>): Unit {\n\
+             list.insertAt(0, x)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-mutation-element-shape.ko",
+        source,
+        &file,
+    )];
+    let (mut names_env, types_env) = standard_environments();
+    names_env.declare_type("Unbound").expect("name binding");
+    let names = validated_names(&sources, &inputs, &names_env);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types_env)
+        .expect("recoverable type analysis");
+    assert!(
+        typed.body_diagnostics().is_empty(),
+        "{:?}",
+        typed.body_diagnostics()
+    );
+    assert!(typed.container_appends().is_empty());
+    assert!(typed.container_insert_ats().is_empty());
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+        complete_compilation_unit_types(&sources, &inputs, &names, &types_env, &typed)
+    else {
+        panic!("unbound type must produce source diagnostics");
+    };
+    assert_eq!(
+        diagnostics
+            .iter()
+            .filter(|diagnostic| { sources.slice(diagnostic.primary_span()) == Ok("Unbound") })
+            .count(),
+        2,
+        "{diagnostics:?}"
+    );
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.code().to_string() == "L0165"
+                && matches!(
+                    sources.slice(diagnostic.primary_span()),
+                    Ok("Unbound" | "x")
+                )
+        }),
+        "{diagnostics:?}"
+    );
+}

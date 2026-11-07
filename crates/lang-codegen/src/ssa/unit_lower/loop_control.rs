@@ -117,7 +117,9 @@ impl UnitExpressionLowerer<'_> {
         self.consumed_receiver = context.entry_consumed_receiver;
         self.bindings = self.rebind_loop(&baseline, header, &context, span)?;
         self.closure_bindings = baseline_closures;
-        let condition = self.require_expression_value(condition)?;
+        let Some(condition) = self.lower_optional_condition_value(condition, span)? else {
+            return Ok(LoweredValue::Diverged);
+        };
         if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }

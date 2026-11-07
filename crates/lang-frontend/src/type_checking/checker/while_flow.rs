@@ -1,4 +1,4 @@
-//! SPEC-0330：while 的头部保守失效与条件 true facts；不推导出口新事实。
+//! 循环回边的保守失效。while 条件每轮检查，for source 在进入前已求值。
 use super::{flow::FlowKey, *};
 use crate::type_checking::flow_effects::{
     collect_expression_mutation_targets, collect_statement_mutation_targets,
@@ -15,24 +15,29 @@ impl Checker<'_> {
             .collect())
     }
 
-    pub(super) fn check_while_flow(
+    pub(super) fn check_repeating_flow(
         &mut self,
-        condition: ExpressionId,
+        condition: Option<ExpressionId>,
         body: StatementId,
     ) -> Result<(), TypeCheckingError> {
-        let mut writes = self.expression_flow_writes(condition)?;
-        writes.extend(
-            collect_statement_mutation_targets(self.ast(), body)?
-                .into_iter()
-                .filter_map(|target| self.stable_flow_key(target)),
-        );
-        let mut head = self.flow_facts.clone();
-        head.retain(|key, _| !writes.contains(key));
-        self.flow_facts = head.clone();
-        let boolean = self.builtin(BuiltinType::Boolean);
-        self.check_expression(condition, Some(boolean), None)?;
-        let (true_facts, _) = self.condition_facts(condition)?;
-        self.flow_facts = flow::extend_facts(&self.flow_facts, &true_facts);
+        let mut writes = collect_statement_mutation_targets(self.ast(), body)?
+            .into_iter()
+            .filter_map(|target| self.stable_flow_key(target))
+            .collect::<BTreeSet<_>>();
+        if let Some(condition) = condition {
+            writes.extend(self.expression_flow_writes(condition)?);
+        }
+        for key in writes {
+            self.flow_facts.remove(&key);
+            *self.flow_versions.entry(key).or_default() += 1;
+        }
+        let head = self.flow_facts.clone();
+        if let Some(condition) = condition {
+            let boolean = self.builtin(BuiltinType::Boolean);
+            self.check_expression(condition, Some(boolean), None)?;
+            let (true_facts, _) = self.condition_facts(condition)?;
+            self.flow_facts = flow::extend_facts(&self.flow_facts, &true_facts);
+        }
         let result = self.check_loop_body(body);
         self.flow_facts = head;
         result.map(|_| ())

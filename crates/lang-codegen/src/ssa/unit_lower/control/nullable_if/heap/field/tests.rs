@@ -25,9 +25,9 @@ use lang_frontend::{
     parser::{Expression, parse_file},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, DeferredReason, FinalTypeAdmissionError, TypeEnvironment,
-        UnitAggregateProjectionReceiver, UnitExpressionId, UnitTypeKind,
-        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
+        BuiltinType, FinalTypeAdmissionError, TypeEnvironment, UnitAggregateProjectionReceiver,
+        UnitExpressionId, UnitTypeKind, check_compilation_unit_types,
+        complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -214,7 +214,6 @@ fn nullable_field_access_without_current_root_fact_stops_in_frontend() {
             &environment,
         )
         .unwrap();
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         let before = typed.clone();
         let input = only(inputs.iter().filter(|input| {
             snapshot.sources().source_name(input.source_id()).unwrap() == "p14b_nullable_simple.ko"
@@ -255,7 +254,7 @@ fn nullable_field_access_without_current_root_fact_stops_in_frontend() {
         assert!(typed.aggregate_projection(member).is_none());
         assert!(matches!(
             typed.types().get(typed.expression_type(member).unwrap()),
-            Some(UnitTypeKind::Deferred(DeferredReason::MemberAccess))
+            Some(UnitTypeKind::Error)
         ));
         // Raw recovery is not final admission. Reject the original whole source
         // at its real frontend root, never as a lowering/verifier failure.
@@ -271,13 +270,14 @@ fn nullable_field_access_without_current_root_fact_stops_in_frontend() {
         };
         assert_eq!(typed, before, "final admission must not alter raw facts");
         assert!(typed.is_same_analysis(&before));
+        assert_eq!(typed.diagnostics(), diagnostics.as_slice());
         let diagnostic = only(diagnostics.iter());
         assert_eq!(diagnostic.severity(), Severity::Error);
         assert_eq!(diagnostic.code().to_string(), "L0165");
         assert_eq!(diagnostic.primary_span(), member_node.span());
         assert_eq!(
             diagnostic.message(),
-            "type checking could not complete: the member's type is unresolved"
+            "member access requires a non-null receiver"
         );
     }
 }

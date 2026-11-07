@@ -6,6 +6,6 @@ enum class State {
 }
 
 fun split(copy: Pair<Int, Int>, moved: Pair<Int, String>, state: State): Unit {
-    val (left, right) = copy
-    val (head, tail) = moved
+    { val (first, second) = copy }
+    val (second, first) = moved
 }

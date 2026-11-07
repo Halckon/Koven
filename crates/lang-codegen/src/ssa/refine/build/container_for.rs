@@ -66,30 +66,41 @@ impl Builder<'_, '_> {
         self.goto(header, span)?;
         self.block = Some(header);
         self.condition(condition, body_block, finished)?;
-        let mark = self.enter(body_block);
-        self.loops.push(LoopFrame {
-            statement,
-            continue_target: header,
-            exit,
-            views: mark,
-            loans: self.pending_call_loans.len(),
-            broken: false,
-            seq_for: None,
-            map_for: None,
-        });
-        let reached = self.statement(loop_body)? != Lowered::Diverged;
-        self.loops.pop();
-        self.leave(mark, span)?;
-        if reached {
-            self.goto(header, span)?;
+        if self.body.blocks[body_block.0].has_predecessor {
+            let mark = self.enter(body_block);
+            self.loops.push(LoopFrame {
+                statement,
+                continue_target: header,
+                exit,
+                views: mark,
+                loans: self.pending_call_loans.len(),
+                broken: false,
+                seq_for: None,
+                map_for: None,
+            });
+            let reached = self.statement(loop_body)? != Lowered::Diverged;
+            self.loops.pop();
+            self.leave(mark, span)?;
+            if reached {
+                self.goto(header, span)?;
+            }
+        } else {
+            let span = self.statement_span(loop_body)?;
+            self.unreachable_drop_scopes.push(span);
         }
-        // The condition-false edge drops at `LoopExit` on its own path; each `break`
-        // dropped on its path before jumping to `exit`.
-        let facts = self.collect_drops(UnitDropPoint::LoopExit(statement));
-        let mark = self.enter(finished);
-        self.leave_unclaimed(mark, span)?;
-        self.emit_drops(&facts)?;
-        self.goto(exit, span)?;
+        let exit_point = UnitDropPoint::LoopExit(statement);
+        let facts = self.collect_drops(exit_point);
+        if self.body.blocks[finished.0].has_predecessor {
+            // The condition-false edge drops here; each break drops on its own path.
+            let mark = self.enter(finished);
+            self.leave_unclaimed(mark, span)?;
+            self.emit_drops(&facts)?;
+            self.goto(exit, span)?;
+        }
+        if !self.body.blocks[exit.0].has_predecessor {
+            self.unreachable_drop_points.push(exit_point);
+            return Ok(Lowered::Diverged);
+        }
         self.finish_drops(&facts);
         let mark = self.enter(exit);
         self.leave_unclaimed(mark, span)?;
@@ -841,7 +852,7 @@ impl Builder<'_, '_> {
             .and_then(|frame| frame.map_for)
     }
 
-    fn statement_span(&self, statement: StatementId) -> Result<Span, LoweringError> {
+    pub(super) fn statement_span(&self, statement: StatementId) -> Result<Span, LoweringError> {
         self.inputs
             .parsed
             .ast()

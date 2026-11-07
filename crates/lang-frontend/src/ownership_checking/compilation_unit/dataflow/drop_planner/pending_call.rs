@@ -25,6 +25,13 @@ pub(super) struct PendingTemporary {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub(super) struct PendingCaptureBorrow {
+    pub(super) call: ExpressionId,
+    pub(super) symbol: UnitSymbolId,
+    pub(super) loop_depth: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
 enum PendingOwner {
     Temporary(ExpressionId),
     This(OwnedThis),
@@ -110,9 +117,48 @@ impl DropPlanner<'_, '_> {
                 .expressions()
                 .get(temporary)?
                 .span();
+            self.hold_pending_capture_borrows(call, argument, None, state);
             self.register_pending_temporary(call, temporary, origin, false, state)?;
         }
         Ok(())
+    }
+
+    pub(super) fn capture_sources_at_call(
+        &self,
+        call: ExpressionId,
+        operand: ExpressionId,
+    ) -> Option<&std::collections::BTreeSet<UnitSymbolId>> {
+        self.checker.call_capture_sources.get(&(
+            self.checker.unit_expression(call),
+            self.checker.unit_expression(operand),
+        ))
+    }
+
+    pub(super) fn hold_pending_capture_borrows(
+        &self,
+        call: ExpressionId,
+        operand: ExpressionId,
+        holder: Option<UnitSymbolId>,
+        state: &mut ValueState,
+    ) {
+        let Some(sources) = self.capture_sources_at_call(call, operand) else {
+            return;
+        };
+        let loop_depth = self.loop_boundaries.len();
+        for symbol in holder.into_iter().chain(sources.iter().copied()) {
+            if state.position(symbol).is_some()
+                && !state
+                    .pending_capture_borrows
+                    .iter()
+                    .any(|borrow| borrow.call == call && borrow.symbol == symbol)
+            {
+                state.pending_capture_borrows.push(PendingCaptureBorrow {
+                    call,
+                    symbol,
+                    loop_depth,
+                });
+            }
+        }
     }
 
     fn borrowed_temporary_field_owner(

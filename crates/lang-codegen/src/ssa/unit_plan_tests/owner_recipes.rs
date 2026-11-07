@@ -429,18 +429,39 @@ fn remaps_inherited_default_owner_recipe_and_callable_slots() {
 
 #[test]
 fn remaps_list_inherited_owner_recipe_to_the_effective_default() {
+    for (classifiers, concrete_self) in [
+        ("class Host<Y>: Derived<List<Y>> {}", "Host"),
+        (
+            "class Reader<Y>: Derived<List<Y>> {}
+             class Host<Y>(val reader: Reader<Y>): Derived<List<Y>> by reader {}",
+            "Reader",
+        ),
+        (
+            "class Reader<Y>: Derived<List<Y>> {}
+             class Proxy<Y>(val reader: Reader<Y>): Derived<List<Y>> by reader {}
+             class Host<Y>(val proxy: Proxy<Y>): Derived<List<Y>> by proxy {}",
+            "Reader",
+        ),
+    ] {
+        check_list_inherited_owner_recipe(classifiers, concrete_self);
+    }
+}
+
+fn check_list_inherited_owner_recipe(classifiers: &str, concrete_self: &str) {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
         "p/list-inherited.ko",
-        "package p\n\
-         interface Base<A> {\n\
-             fun read(): Int\n\
-             fun throughRequirement(): Int = this.read()\n\
-         }\n\
-         interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
-         class Host<Y>: Derived<List<Y>> {}\n\
-         fun entry(host: Host<Int>): Int = host.throughRequirement()",
+        &format!(
+            "package p
+             interface Base<A> {{
+                 fun read(): Int
+                 fun throughRequirement(): Int = this.read()
+             }}
+             interface Derived<B>: Base<String> {{ fun read(): Int = 7 }}
+             {classifiers}
+             fun entry(host: Host<Int>): Int = host.throughRequirement()"
+        ),
     );
     let inputs = [SourceUnitInput::new(
         "root",
@@ -517,7 +538,7 @@ fn remaps_list_inherited_owner_recipe_to_the_effective_default() {
         Some(UnitTypeKind::Nominal {
             declaration: owner,
             arguments,
-        }) if *owner == declaration(&names, "Host")
+        }) if *owner == declaration(&names, concrete_self)
             && matches!(
                 arguments.as_slice(),
                 [argument]

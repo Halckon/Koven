@@ -6,7 +6,8 @@ use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        DeclarationVisibility, Namespace, SourceUnitId, UnitReferenceTarget, UnitSymbolId,
+        DeclarationId, DeclarationVisibility, Namespace, SourceUnitId, UnitReferenceTarget,
+        UnitSymbolId,
     },
     parser::{ClassifierBody, ClassifierDeclaration, ClassifierKind, Item, NameMarker},
     source::Span,
@@ -296,26 +297,36 @@ impl BodyChecker<'_> {
                 falls_through: true,
             });
         }
+        let deferred = self.deferred_facts.len();
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
         if self.is_error(receiver_result.ty) {
             return Ok(receiver_result);
         }
+        let receiver_id = UnitExpressionId::new(source, receiver);
+        let receiver_pending = self.has_pending_storage_value_since(deferred)
+            || self.storage_value_is_pending(receiver_id)
+            || self.replacement_value_pending(receiver_id, receiver_result.ty, deferred);
         if let Some(ty) = self.rc_member_type(
-            source,
-            expression,
-            receiver,
+            UnitExpressionId::new(source, expression),
+            receiver_id,
             receiver_result.ty,
             name_span,
             safe,
+            receiver_pending,
         )? {
             return Ok(ExpressionCheck {
                 ty,
                 falls_through: receiver_result.falls_through,
             });
         }
-        if let Some(ty) =
-            self.check_map_member_type(source, expression, receiver, receiver_result.ty, name_span)?
-        {
+        if let Some(ty) = self.check_map_member_type(
+            source,
+            expression,
+            receiver,
+            receiver_result.ty,
+            name_span,
+            receiver_pending,
+        )? {
             return Ok(ExpressionCheck {
                 ty,
                 falls_through: receiver_result.falls_through,
@@ -326,6 +337,7 @@ impl BodyChecker<'_> {
             UnitExpressionId::new(source, receiver),
             receiver_result.ty,
             name_span,
+            receiver_pending,
         )? {
             return Ok(ExpressionCheck {
                 ty,
@@ -339,6 +351,7 @@ impl BodyChecker<'_> {
                 receiver,
                 receiver_result.ty,
                 name_span,
+                receiver_pending,
             )?
         {
             return Ok(ExpressionCheck {
@@ -349,13 +362,7 @@ impl BodyChecker<'_> {
         if let Some(declaration_span) =
             self.inaccessible_member_span(receiver_result.ty, name_span)?
         {
-            self.emit_maybe_label(
-                codes::UNRESOLVED_NAME,
-                "member is private to its declaring classifier",
-                name_span,
-                Some(declaration_span),
-                "private member declared here",
-            )?;
+            self.emit_private_member_access(name_span, declaration_span)?;
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: receiver_result.falls_through,
@@ -371,6 +378,30 @@ impl BodyChecker<'_> {
                 });
             }
         }
+        if !safe
+            && !receiver_pending
+            && matches!(
+                self.signatures.types().get(receiver_result.ty),
+                Some(UnitTypeKind::Nullable(_))
+            )
+        {
+            let span = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(expression)
+                .map_err(TypeCheckingError::from)?
+                .span();
+            self.emit(
+                codes::FINAL_TYPE_ANALYSIS_INCOMPLETE,
+                "member access requires a non-null receiver",
+                span,
+            )?;
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            });
+        }
         Ok(ExpressionCheck {
             ty: self.deferred_type(DeferredReason::MemberAccess),
             falls_through: receiver_result.falls_through,
@@ -384,6 +415,7 @@ impl BodyChecker<'_> {
         receiver: ExpressionId,
         receiver_type: UnitTypeId,
         name_span: Span,
+        receiver_pending: bool,
     ) -> Result<Option<UnitTypeId>, CompilationUnitTypeError> {
         let name = self
             .sources
@@ -441,9 +473,7 @@ impl BodyChecker<'_> {
         let Some(field) = field else {
             return Ok(None);
         };
-        if field.visibility() == DeclarationVisibility::Private
-            && self.current_owner != Some(owner.declaration())
-        {
+        if self.private_field_inaccessible(owner.declaration(), &field) {
             return Ok(None);
         }
         let substitutions = owner
@@ -453,10 +483,20 @@ impl BodyChecker<'_> {
             .zip(arguments)
             .collect::<BTreeMap<_, _>>();
         let ty = self.substitute_type(field.ty(), &substitutions)?;
+        let expression = UnitExpressionId::new(source, expression);
+        if receiver_pending {
+            // Subsequent consumers can reuse the cached type without rechecking the receiver.
+            self.note_pending_storage_value(expression, ty);
+            self.parts
+                .storage_recovery
+                .pending_fields
+                .insert(expression, field.symbol());
+            return Ok(Some(ty));
+        }
         self.parts
             .aggregate_projections
             .push(UnitAggregateProjectionDescriptor::new(
-                UnitExpressionId::new(source, expression),
+                expression,
                 UnitAggregateProjectionReceiver::Expression(UnitExpressionId::new(
                     source, receiver,
                 )),
@@ -481,6 +521,28 @@ impl BodyChecker<'_> {
             .nominal()?
             .clone();
         Some((owner, arguments.clone()))
+    }
+
+    pub(super) fn private_field_inaccessible(
+        &self,
+        owner: DeclarationId,
+        field: &UnitFieldSignature,
+    ) -> bool {
+        field.visibility() == DeclarationVisibility::Private && self.current_owner != Some(owner)
+    }
+
+    pub(super) fn emit_private_member_access(
+        &mut self,
+        access: Span,
+        declaration: Span,
+    ) -> Result<(), CompilationUnitTypeError> {
+        self.emit_maybe_label(
+            codes::UNRESOLVED_NAME,
+            "member is private to its declaring classifier",
+            access,
+            Some(declaration),
+            "private member declared here",
+        )
     }
 
     fn inaccessible_member_span(

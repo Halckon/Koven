@@ -459,11 +459,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     return Ok(false);
                 }
                 if let Some(descriptor) = self.checker.typed.destructuring(id) {
-                    for component in descriptor.components() {
-                        let symbol = component.symbol();
+                    // The typed descriptor follows layout order. Locals are declared in pattern order.
+                    let mut bindings = descriptor
+                        .components()
+                        .iter()
+                        .map(|component| {
+                            let symbol = component.symbol();
+                            (self.checker.names.symbols()[symbol.index()].span(), symbol)
+                        })
+                        .collect::<Vec<_>>();
+                    bindings.sort_unstable_by_key(|(span, _)| span.start());
+                    for (origin, symbol) in bindings {
                         if self.checker.is_move_only_variable(symbol) {
                             self.binding_depths.insert(symbol, self.scope_depth);
-                            let origin = self.checker.names.symbols()[symbol.index()].span();
                             state.insert(OwnedValue {
                                 versions: vec![
                                     self.component_owner(id, symbol, origin, state.path),
@@ -934,12 +942,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 operator,
                 right,
                 ..
-            } if matches!(
-                operator,
-                BinaryOperator::Add | BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) && self.is_string_expression(left)
-                && self.is_string_expression(right) =>
-            {
+            } if self.uses_string_binary_operands(left, operator, right) => {
                 self.string_binary(left, right, id, state)
             }
             Expression::Binary {

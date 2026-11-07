@@ -55,6 +55,7 @@ impl BodyChecker<'_> {
         let Some((operation_kind, target_builtin)) = integer_member(member) else {
             return Ok(None);
         };
+        let deferred = self.deferred_facts.len();
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
         if !matches!(
             self.signatures.types().get(receiver_result.ty),
@@ -117,6 +118,16 @@ impl BodyChecker<'_> {
             }
         }
         let result_type = target_builtin.map_or(receiver_result.ty, |target| self.builtin(target));
+        let expression = UnitExpressionId::new(source, expression);
+        if self.has_pending_storage_value_since(deferred)
+            || self.storage_value_is_pending(UnitExpressionId::new(source, receiver))
+        {
+            self.note_pending_storage_value(expression, result_type);
+            return Ok(Some(ExpressionCheck {
+                ty: result_type,
+                falls_through: receiver_result.falls_through,
+            }));
+        }
         let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
             move_only: false,
             parameters: Vec::<UnitFunctionParameterType>::new(),
@@ -130,7 +141,7 @@ impl BodyChecker<'_> {
         self.parts
             .integer_operations
             .push(UnitIntegerOperationDescriptor::new(
-                UnitExpressionId::new(source, expression),
+                expression,
                 UnitExpressionId::new(source, receiver),
                 receiver_result.ty,
                 result_type,

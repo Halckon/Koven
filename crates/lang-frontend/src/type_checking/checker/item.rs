@@ -280,10 +280,14 @@ impl Checker<'_> {
     }
 
     pub(super) fn check_item(&mut self, id: ItemId) -> Result<(), TypeCheckingError> {
+        self.check_item_flow(id).map(|_| ())
+    }
+
+    fn check_item_flow(&mut self, id: ItemId) -> Result<bool, TypeCheckingError> {
         let payload = self.ast().items().get(id)?.payload().clone();
         let is_constant = matches!(&payload, Item::Constant { .. });
         if is_constant && self.constants_checked {
-            return Ok(());
+            return Ok(true);
         }
         match payload {
             Item::Error => {}
@@ -301,9 +305,9 @@ impl Checker<'_> {
                     self.current_receiver_mode =
                         Some(source_parameter_mode(modifiers.receiver_mode));
                 }
-                let result = self.check_item(declaration);
+                let result = self.check_item_flow(declaration);
                 self.current_receiver_mode = previous;
-                result?;
+                return result;
             }
             Item::Variable {
                 name,
@@ -349,6 +353,7 @@ impl Checker<'_> {
                         self.record_constant_dependencies(name, initializer)?;
                     }
                 }
+                return Ok(result.falls_through);
             }
             Item::Function { name, form, .. } => {
                 let extension = self.marker_symbol_for_receiver(name);
@@ -421,7 +426,7 @@ impl Checker<'_> {
                 result?;
             }
         }
-        Ok(())
+        Ok(true)
     }
 
     fn check_classifier_body(&mut self, body: ClassifierBody) -> Result<(), TypeCheckingError> {
@@ -525,13 +530,10 @@ impl Checker<'_> {
             Statement::LambdaBody { elements } | Statement::ControlBody { elements } => {
                 self.check_value_elements(&elements, None, None)
             }
-            Statement::LocalVariable { declaration } => {
-                self.check_item(declaration)?;
-                Ok(StatementCheck {
-                    ty: unit,
-                    falls_through: true,
-                })
-            }
+            Statement::LocalVariable { declaration } => Ok(StatementCheck {
+                ty: unit,
+                falls_through: self.check_item_flow(declaration)?,
+            }),
             Statement::LocalDestructuring {
                 bindings,
                 left_paren_span,
@@ -548,7 +550,7 @@ impl Checker<'_> {
             Statement::While {
                 condition, body, ..
             } => {
-                self.check_while_flow(condition, body)?;
+                self.check_repeating_flow(Some(condition), body)?;
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through: true,
@@ -567,7 +569,7 @@ impl Checker<'_> {
                 })
             }
             Statement::Loop { body, .. } => {
-                self.check_loop_body(body)?;
+                self.check_repeating_flow(None, body)?;
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through: true,

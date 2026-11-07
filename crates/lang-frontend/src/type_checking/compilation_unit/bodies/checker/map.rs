@@ -1,3 +1,5 @@
+#[path = "map_construction.rs"]
+mod construction;
 #[path = "map_consume.rs"]
 mod map_consume;
 #[path = "map_require.rs"]
@@ -11,8 +13,8 @@ use crate::{
     parser::{AssignmentOperator, CallArgument, Expression},
     source::Span,
     type_checking::{
-        BuiltinType, CompilationUnitTypeError, Copyability, IntrinsicCallable,
-        IntrinsicTypeConstructor, TypeCheckingError, UnitTypeId, UnitTypeKind,
+        BuiltinType, CompilationUnitTypeError, Copyability, IntrinsicTypeConstructor,
+        TypeCheckingError, UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -42,145 +44,6 @@ impl BodyChecker<'_> {
         }
     }
 
-    /// 检查多文件编译单元中 `mapOf()` 与 `mutableMapOf()` 构造调用。
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_map_construction_call(
-        &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        call_span: Span,
-        _callee: ExpressionId,
-        callable: IntrinsicCallable,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-        expected: Option<UnitTypeId>,
-        return_type: UnitTypeId,
-    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let target_constructor = match callable {
-            IntrinsicCallable::MapOf => IntrinsicTypeConstructor::Map,
-            IntrinsicCallable::MutableMapOf => IntrinsicTypeConstructor::MutableMap,
-            _ => unreachable!(),
-        };
-
-        let (key_type, value_type) = if type_arguments.len() == 2 {
-            let key = self.resolve_body_type_ref(source, type_arguments[0])?;
-            let val = self.resolve_body_type_ref(source, type_arguments[1])?;
-            (key, val)
-        } else if type_arguments.is_empty() {
-            if let Some(expected_ty) = expected
-                && let Some((expected_ctor, k, v)) = self.map_parts(expected_ty)
-                && expected_ctor == target_constructor
-            {
-                (k, v)
-            } else {
-                self.emit(
-                    codes::CANNOT_INFER_CONTAINER_ELEMENT,
-                    "cannot infer Map key and value types without type arguments or contextual type",
-                    call_span,
-                )?;
-                self.check_construction_operands(source, arguments, return_type)?;
-                return Ok(ExpressionCheck {
-                    ty: self.error_type(),
-                    falls_through: true,
-                });
-            }
-        } else {
-            self.emit(
-                codes::TYPE_ARGUMENT_ARITY,
-                "map construction accepts exactly two type arguments",
-                call_span,
-            )?;
-            self.check_construction_operands(source, arguments, return_type)?;
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        };
-
-        if self.is_error(key_type) || self.is_error(value_type) {
-            self.check_construction_operands(source, arguments, return_type)?;
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        }
-
-        if !self.is_hashable_type(key_type) {
-            let key_span = if !type_arguments.is_empty() {
-                self.file(source)
-                    .ast()
-                    .type_refs()
-                    .get(type_arguments[0])
-                    .map_err(TypeCheckingError::from)?
-                    .span()
-            } else {
-                call_span
-            };
-            self.emit(
-                codes::HASHABLE_TYPE_ARGUMENT_BOUND,
-                "Map key type must be Hashable",
-                key_span,
-            )?;
-            self.check_construction_operands(source, arguments, return_type)?;
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        }
-
-        if !self.is_structurally_storable_type(value_type) {
-            let val_span = if !type_arguments.is_empty() {
-                self.file(source)
-                    .ast()
-                    .type_refs()
-                    .get(type_arguments[1])
-                    .map_err(TypeCheckingError::from)?
-                    .span()
-            } else {
-                call_span
-            };
-            self.emit(
-                codes::INVALID_CONTAINER_ELEMENT,
-                "container value type is not structurally storable",
-                val_span,
-            )?;
-            self.check_construction_operands(source, arguments, return_type)?;
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        }
-
-        if !arguments.is_empty() {
-            self.emit(
-                codes::CALL_ARGUMENT_ARITY,
-                "mapOf and mutableMapOf do not accept arguments in v1",
-                call_span,
-            )?;
-            self.check_construction_operands(source, arguments, return_type)?;
-        }
-
-        let map_ty = self.signatures.types_mut().intern(UnitTypeKind::Intrinsic {
-            constructor: target_constructor,
-            arguments: vec![key_type, value_type],
-        });
-
-        self.parts.map_descriptors.constructions.push(
-            super::super::map::UnitMapConstructionDescriptor::new(
-                super::super::super::UnitExpressionId::new(source, expression),
-                callable,
-                map_ty,
-                key_type,
-                value_type,
-            ),
-        );
-
-        Ok(ExpressionCheck {
-            ty: map_ty,
-            falls_through: true,
-        })
-    }
-
     /// 检查 Map 相关的成员属性访问（如 `map.size`）。
     pub(super) fn check_map_member_type(
         &mut self,
@@ -189,6 +52,7 @@ impl BodyChecker<'_> {
         receiver_expression: ExpressionId,
         receiver: UnitTypeId,
         name_span: Span,
+        receiver_pending: bool,
     ) -> Result<Option<UnitTypeId>, CompilationUnitTypeError> {
         let Some((_constructor, _key_type, _value_type)) = self.map_parts(receiver) else {
             return Ok(None);
@@ -199,6 +63,11 @@ impl BodyChecker<'_> {
             .slice(name_span)
             .map_err(TypeCheckingError::from)?;
         if name == "size" {
+            let result = self.builtin(BuiltinType::Int);
+            if receiver_pending || self.contains_unresolved_call_type(receiver) {
+                self.note_pending_storage_value(UnitExpressionId::new(source, expression), result);
+                return Ok(Some(result));
+            }
             self.parts
                 .map_descriptors
                 .sizes
@@ -207,7 +76,7 @@ impl BodyChecker<'_> {
                     super::super::super::UnitExpressionId::new(source, receiver_expression),
                     receiver,
                 ));
-            return Ok(Some(self.builtin(BuiltinType::Int)));
+            return Ok(Some(result));
         }
 
         if matches!(
@@ -294,6 +163,7 @@ impl BodyChecker<'_> {
             return Ok(None);
         }
 
+        let deferred = self.deferred_facts.len();
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
         let Some((constructor, key_type, value_type)) = self.map_parts(receiver_result.ty) else {
             return Ok(None);
@@ -369,6 +239,7 @@ impl BodyChecker<'_> {
                     arguments,
                     call_span,
                     return_type,
+                    deferred,
                 )?;
                 Ok(Some(check))
             }
@@ -408,6 +279,7 @@ impl BodyChecker<'_> {
                     arguments,
                     call_span,
                     return_type,
+                    deferred,
                 )?;
                 Ok(Some(check))
             }
@@ -453,6 +325,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         call_span: Span,
         return_type: UnitTypeId,
+        deferred: usize,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         if arguments.len() != 1 {
             self.emit(
@@ -513,10 +386,31 @@ impl BodyChecker<'_> {
                 falls_through: receiver_falls_through && arg_result.falls_through,
             });
         }
+        let falls_through = receiver_falls_through && arg_result.falls_through;
+        if self.is_error(arg_result.ty) {
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through,
+            });
+        }
         let nullable_val = self
             .signatures
             .types_mut()
             .intern(UnitTypeKind::Nullable(value_type));
+        if self.has_pending_storage_operands(source, receiver, arg.value, deferred)
+            || self.is_unresolved_call_type(arg_result.ty)
+            || self.contains_unresolved_call_type(key_type)
+            || self.contains_unresolved_call_type(value_type)
+        {
+            self.note_pending_storage_value(
+                UnitExpressionId::new(source, expression),
+                nullable_val,
+            );
+            return Ok(ExpressionCheck {
+                ty: nullable_val,
+                falls_through,
+            });
+        }
         self.parts
             .map_descriptors
             .gets
@@ -530,7 +424,7 @@ impl BodyChecker<'_> {
             ));
         Ok(ExpressionCheck {
             ty: nullable_val,
-            falls_through: receiver_falls_through && arg_result.falls_through,
+            falls_through,
         })
     }
 
@@ -605,6 +499,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         call_span: Span,
         return_type: UnitTypeId,
+        deferred: usize,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         if arguments.len() != 2 {
             self.emit(
@@ -660,23 +555,29 @@ impl BodyChecker<'_> {
             )?;
         }
 
-        self.parts
-            .map_descriptors
-            .puts
-            .push(super::super::map::UnitMapPutDescriptor::new(
-                super::super::super::UnitExpressionId::new(source, expression),
-                super::super::super::UnitExpressionId::new(source, receiver),
-                super::super::super::UnitExpressionId::new(source, key_arg.value),
-                super::super::super::UnitExpressionId::new(source, val_arg.value),
-                key_type,
-                value_type,
-            ));
-        Ok(ExpressionCheck {
-            ty: self.builtin(BuiltinType::Unit),
-            falls_through: receiver_falls_through
-                && key_result.falls_through
-                && val_result.falls_through,
-        })
+        let falls_through =
+            receiver_falls_through && key_result.falls_through && val_result.falls_through;
+        if self.is_error(key_result.ty) || self.is_error(val_result.ty) {
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through,
+            });
+        }
+        let ty = self.builtin(BuiltinType::Unit);
+        let put = super::super::map::UnitMapPutDescriptor::new(
+            UnitExpressionId::new(source, expression),
+            UnitExpressionId::new(source, receiver),
+            UnitExpressionId::new(source, key_arg.value),
+            UnitExpressionId::new(source, val_arg.value),
+            key_type,
+            value_type,
+        );
+        if self.map_write_has_pending_operands(&put, deferred) {
+            self.note_pending_storage_value(put.expression(), ty);
+        } else {
+            self.parts.map_descriptors.puts.push(put);
+        }
+        Ok(ExpressionCheck { ty, falls_through })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -755,13 +656,14 @@ impl BodyChecker<'_> {
     /// 检查 Map 下标查询 `map[key]`。
     pub(super) fn check_map_index(
         &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
+        expression: UnitExpressionId,
         receiver: ExpressionId,
         receiver_result: ExpressionCheck,
         index: ExpressionId,
         return_type: UnitTypeId,
+        deferred: usize,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let source = expression.source_unit();
         let Some((_constructor, key_type, value_type)) = self.map_parts(receiver_result.ty) else {
             return Ok(None);
         };
@@ -802,7 +704,7 @@ impl BodyChecker<'_> {
                 self.file(source)
                     .ast()
                     .expressions()
-                    .get(expression)
+                    .get(expression.expression())
                     .map_err(TypeCheckingError::from)?
                     .span(),
             )?;
@@ -822,7 +724,7 @@ impl BodyChecker<'_> {
                 self.file(source)
                     .ast()
                     .expressions()
-                    .get(expression)
+                    .get(expression.expression())
                     .map_err(TypeCheckingError::from)?
                     .span(),
             )?;
@@ -835,11 +737,21 @@ impl BodyChecker<'_> {
             .signatures
             .types_mut()
             .intern(UnitTypeKind::Nullable(value_type));
+        if self.has_pending_storage_operands(source, receiver, index, deferred)
+            || self.is_unresolved_call_type(index_result.ty)
+            || self.contains_unresolved_call_type(receiver_result.ty)
+        {
+            self.note_pending_storage_value(expression, nullable_val);
+            return Ok(Some(ExpressionCheck {
+                ty: nullable_val,
+                falls_through: receiver_result.falls_through && index_result.falls_through,
+            }));
+        }
         self.parts
             .map_descriptors
             .gets
             .push(super::super::map::UnitMapGetDescriptor::new(
-                super::super::super::UnitExpressionId::new(source, expression),
+                expression,
                 super::super::super::UnitExpressionId::new(source, receiver),
                 super::super::super::UnitExpressionId::new(source, index),
                 key_type,
@@ -874,11 +786,30 @@ impl BodyChecker<'_> {
             return Ok(None);
         };
 
+        let deferred = self.deferred_facts.len();
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
         let Some((constructor, key_type, value_type)) = self.map_parts(receiver_result.ty) else {
+            // The sequential assignment path reuses this checked receiver.
+            // Retain pending facts that were nested inside its expression.
+            let receiver = UnitExpressionId::new(source, receiver);
+            if self.container_parts(receiver_result.ty).is_some()
+                && !self.storage_value_is_pending(receiver)
+                && self.has_pending_storage_value_since(deferred)
+            {
+                self.note_pending_storage_value(receiver, receiver_result.ty);
+            }
             return Ok(None);
         };
 
+        let target = UnitExpressionId::new(source, target);
+        let put = super::super::map::UnitMapPutDescriptor::new(
+            target,
+            UnitExpressionId::new(source, receiver),
+            UnitExpressionId::new(source, index),
+            UnitExpressionId::new(source, value),
+            key_type,
+            value_type,
+        );
         if constructor != IntrinsicTypeConstructor::MutableMap {
             self.emit(
                 codes::IMMUTABLE_CONTAINER_PLACE,
@@ -887,6 +818,10 @@ impl BodyChecker<'_> {
             )?;
             self.check_expression(source, index, Some(key_type), None, return_type)?;
             self.check_expression(source, value, Some(value_type), None, return_type)?;
+            self.parts
+                .storage_recovery
+                .unpublished_map_writes
+                .insert(target, put);
             return Ok(Some(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -938,23 +873,42 @@ impl BodyChecker<'_> {
             )?;
         }
 
-        self.parts
-            .map_descriptors
-            .puts
-            .push(super::super::map::UnitMapPutDescriptor::new(
-                super::super::super::UnitExpressionId::new(source, target),
-                super::super::super::UnitExpressionId::new(source, receiver),
-                super::super::super::UnitExpressionId::new(source, index),
-                super::super::super::UnitExpressionId::new(source, value),
-                key_type,
-                value_type,
-            ));
+        if operator != AssignmentOperator::Assign
+            || self.is_error(index_result.ty)
+            || self.is_error(val_result.ty)
+            || self.map_write_has_pending_operands(&put, deferred)
+        {
+            self.parts
+                .storage_recovery
+                .unpublished_map_writes
+                .insert(target, put);
+        } else {
+            self.parts.map_descriptors.puts.push(put);
+        }
         Ok(Some(ExpressionCheck {
             ty: self.builtin(BuiltinType::Unit),
             falls_through: receiver_result.falls_through
                 && index_result.falls_through
                 && val_result.falls_through,
         }))
+    }
+
+    fn map_write_has_pending_operands(
+        &self,
+        put: &super::super::map::UnitMapPutDescriptor,
+        deferred: usize,
+    ) -> bool {
+        self.has_pending_storage_value_since(deferred)
+            || [put.receiver(), put.key(), put.value()]
+                .into_iter()
+                .any(|operand| {
+                    self.storage_value_is_pending(operand)
+                        || self
+                            .parts
+                            .expression_types
+                            .get(&operand)
+                            .is_some_and(|&ty| self.contains_unresolved_call_type(ty))
+                })
     }
 
     fn mismatch(

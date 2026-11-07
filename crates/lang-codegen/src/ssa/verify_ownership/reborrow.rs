@@ -1,5 +1,37 @@
 //! Exact parent-child lifetime dependencies, including provider element loans.
 use super::*;
+
+/// End a loan only after all holders and derived permissions are gone.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn end_loan(
+    function: &Function,
+    loan: LoanId,
+    aliases: &AliasRoots,
+    closure_loans: &closure::ClosureLoans,
+    reborrows: &ReborrowDependencies,
+    state: &mut BlockState,
+    location: VerifyLocation,
+    origin: &super::super::model::Origin,
+    errors: &mut Vec<VerifyError>,
+) -> bool {
+    let kind = if let Some(owner) = range::live_descriptor(function, loan, state)
+        .or_else(|| closure_loans.live_owner_holding(loan, state))
+    {
+        VerifyErrorKind::OwnerLoanConflict { value: owner }
+    } else if let Some(dependent) = reborrows.active_descendant(loan, aliases, state) {
+        VerifyErrorKind::LoanDependencyActive {
+            parent: loan,
+            dependent,
+        }
+    } else if !state.loans.remove(&loan) {
+        VerifyErrorKind::LoanInactive { loan }
+    } else {
+        return true;
+    };
+    errors.push(error(kind, location, origin));
+    false
+}
+
 impl ReborrowDependencies {
     pub(super) fn compute(module: &Module, function: &Function) -> Self {
         let mut parent_by_child = BTreeMap::new();
@@ -92,6 +124,14 @@ impl ReborrowDependencies {
         _aliases: &AliasRoots,
         state: &BlockState,
     ) -> Option<LoanId> {
+        self.active_descendant_among(parent, state.loans.iter().copied())
+    }
+
+    pub(super) fn active_descendant_among(
+        &self,
+        parent: LoanId,
+        active_loans: impl Iterator<Item = LoanId> + Clone,
+    ) -> Option<LoanId> {
         for child in self.parent_by_child.keys() {
             let mut cursor = *child;
             let mut visited = BTreeSet::new();
@@ -100,10 +140,8 @@ impl ReborrowDependencies {
                     break;
                 };
                 if self.flows.equivalent(parent, next) {
-                    if let Some(active) = state
-                        .loans
-                        .iter()
-                        .copied()
+                    if let Some(active) = active_loans
+                        .clone()
                         .find(|active| self.flows.equivalent(*active, *child))
                     {
                         return Some(active);

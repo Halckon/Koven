@@ -41,7 +41,7 @@ impl Checker<'_> {
                 TypeKind::Builtin(_) | TypeKind::Intrinsic { .. } | TypeKind::Nullable(_)
             ) {
                 self.emit(
-                    self.unresolved_constant_code,
+                    self.unresolved_name_code,
                     "receiver has no clone member",
                     name_span,
                 )?;

@@ -41,12 +41,22 @@ impl Checker<'_, '_> {
                 lang_frontend::type_checking::BuiltinType::Boolean
             ))
         ) && self.boolean_two_arms(entries);
-        subject_ok
-            && (self.unit(ty) || has_else || tagged || boolean_exhaustive)
-            && entries.iter().all(|entry| {
-                let saved = self.view_symbols.clone();
-                let ok = entry.else_span.is_some() == entry.conditions.is_empty()
-                    && entry.conditions.iter().all(|condition| match condition {
+        if !subject_ok || !(self.unit(ty) || has_else || tagged || boolean_exhaustive) {
+            return false;
+        }
+        let mut can_reach_entry = true;
+        entries.iter().all(|entry| {
+            if !can_reach_entry {
+                return true;
+            }
+            let saved = self.view_symbols.clone();
+            let mut can_match = entry.else_span.is_some();
+            let conditions_ok = entry.else_span.is_some() == entry.conditions.is_empty()
+                && entry.conditions.iter().all(|condition| {
+                    if !can_reach_entry {
+                        return true;
+                    }
+                    let ok = match condition {
                         WhenCondition::Expression(condition) if string => {
                             self.string_when_literal(*condition)
                         }
@@ -63,11 +73,24 @@ impl Checker<'_, '_> {
                         WhenCondition::TypeTest { type_ref, .. } => {
                             tagged && self.type_test_target(*type_ref, subject_type)
                         }
-                    })
-                    && self.statement(entry.body);
-                self.view_symbols = saved;
-                ok
-            })
+                    };
+                    if let WhenCondition::Expression(expression) = condition
+                        && self
+                            .inputs
+                            .typed
+                            .expression_falls_through(self.id(*expression))
+                            == Some(false)
+                    {
+                        can_reach_entry = false;
+                    } else {
+                        can_match = true;
+                    }
+                    ok
+                });
+            let ok = conditions_ok && (!can_match || self.statement(entry.body));
+            self.view_symbols = saved;
+            ok
+        })
     }
 
     fn move_enum_when_subject(
@@ -213,14 +236,27 @@ impl Checker<'_, '_> {
     pub(super) fn subjectless_when(&mut self, ty: UnitTypeId, entries: &[WhenEntry]) -> bool {
         self.migrated = true;
         let has_else = entries.iter().any(|entry| entry.else_span.is_some());
+        let mut can_reach_entry = true;
         (self.unit(ty) || has_else)
             && entries.iter().all(|entry| {
+                if !can_reach_entry {
+                    return true;
+                }
+                let mut can_match = entry.else_span.is_some();
                 entry.else_span.is_some() == entry.conditions.is_empty()
                     && entry.conditions.iter().all(|condition| {
-                        matches!(condition, WhenCondition::Expression(condition)
-                            if self.condition(*condition, false))
+                        if !can_reach_entry {
+                            return true;
+                        }
+                        let WhenCondition::Expression(condition) = condition else {
+                            return false;
+                        };
+                        let (yes, no) = self.condition_outcomes(*condition);
+                        can_match |= yes;
+                        can_reach_entry = no;
+                        self.condition(*condition, false)
                     })
-                    && self.statement(entry.body)
+                    && (!can_match || self.statement(entry.body))
             })
     }
 }

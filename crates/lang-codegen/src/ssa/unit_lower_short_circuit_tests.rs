@@ -366,3 +366,61 @@ fn branch_target(block: &super::model::Block, result: EntityId) -> BlockId {
     assert_eq!(&edge.arguments[1..], block.parameters.as_slice());
     edge.target
 }
+
+#[test]
+fn comparison_operand_return_keeps_evaluation_order_on_both_unit_routes() {
+    let source = r#"fun lhs(): Int { println("lhs"); return 1 }
+fun rhs(): Int { error("unreachable rhs") }
+fun exitsOnLeft(): Int { /*route*/ ((return 3) == rhs()) }
+fun exitsOnRight(): Int { /*route*/ lhs() == (return 4) }
+fun exitsBeforeShortCircuit(): Int { /*route*/ val unreachable = ((return 5) == 0) || false }
+fun maybeExitsInShortCircuit(flag: Boolean): Int { /*route*/
+    val choice = flag || ((return 6) == 0)
+    if (choice) { return 7 }
+    return 0
+}
+fun exitsOnCondition(): Int { /*route*/
+    if ((return 8) == 0) { return 9 }
+    return 0
+}
+fun exitsBeforeNullableRhs(flag: Boolean): Int { /*route*/
+    (return 10) == (if (flag) null else null)
+}
+fun exitsInWhileCondition(): Int { /*route*/
+    while ((return 11) == 0) { error("unreachable loop") }
+    return 0
+}
+fun exitsOnRequiredRhs(): Int { /*route*/ true && ((return 12) == 0) }
+fun main(): Unit {
+    if (exitsOnLeft() == 3 && exitsOnRight() == 4 && exitsBeforeShortCircuit() == 5
+        && maybeExitsInShortCircuit(false) == 6 && maybeExitsInShortCircuit(true) == 7
+        && exitsOnCondition() == 8 && exitsBeforeNullableRhs(false) == 10
+        && exitsInWhileCondition() == 11 && exitsOnRequiredRhs() == 12) {
+        println("exit order")
+    } else { error("wrong return") }
+}
+"#;
+    let run = |text| crate::native_tests::emit_link_and_run("operand-exit.ko", text, "main");
+    let refine_source = source.replace("/*route*/", "val anchor: Int? = null;");
+    let (refined, routed) = super::refine::observe_routing(|| run(&refine_source));
+    for function in [
+        "exitsOnLeft",
+        "exitsOnRight",
+        "exitsBeforeShortCircuit",
+        "maybeExitsInShortCircuit",
+        "exitsOnCondition",
+        "exitsBeforeNullableRhs",
+        "exitsInWhileCondition",
+        "exitsOnRequiredRhs",
+    ] {
+        assert!(
+            routed
+                .iter()
+                .any(|name| name.split('.').any(|part| part == function)),
+            "{function} must stay on the refinement route: {routed:?}"
+        );
+    }
+    crate::native_tests::boxed_enum_tests::assert_success(&refined, b"lhs\nexit order\n");
+    let per_family = super::refine::with_per_family_lowering(|| run(source));
+    crate::native_tests::boxed_enum_tests::assert_success(&per_family, b"lhs\nexit order\n");
+}

@@ -224,6 +224,14 @@ pub(in crate::ssa::unit_lower) fn declare(
             let capture_facts = owned.captures_of(id).collect::<Vec<_>>();
 
             for capture in capture_facts {
+                if capture.borrow_kind()
+                    == Some(lang_frontend::ownership_checking::LoanKind::Exclusive)
+                {
+                    return Err(lowering_error(
+                        LoweringErrorKind::UnsupportedNode,
+                        capture.reference_span(),
+                    ));
+                }
                 let UnitClosureCaptureSource::Symbol(symbol) = capture.source() else {
                     return Err(lowering_error(
                         LoweringErrorKind::UnsupportedNode,

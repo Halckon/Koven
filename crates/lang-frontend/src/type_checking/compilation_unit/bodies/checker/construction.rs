@@ -9,17 +9,19 @@ use crate::{
     parser::{CallArgument, Expression},
     source::Span,
     type_checking::{
-        Capability, CompilationUnitTypeError, Copyability, ExternalTypeBinding,
-        IntrinsicTypeConstructor, NominalKind, ParameterMode, TypeCheckingError,
-        UnitConstructionArgumentDescriptor, UnitConstructionDescriptor,
-        UnitConstructionInstanceKey, UnitConstructionTarget, UnitExpressionId, UnitFieldSignature,
-        UnitTypeId, UnitTypeKind, UnitTypeParameterBound,
+        CompilationUnitTypeError, ExternalTypeBinding, IntrinsicTypeConstructor, NominalKind,
+        ParameterMode, TypeCheckingError, UnitConstructionArgumentDescriptor,
+        UnitConstructionDescriptor, UnitConstructionInstanceKey, UnitConstructionTarget,
+        UnitExpressionId, UnitFieldSignature, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, map_arguments},
     },
 };
 
-use super::{BodyChecker, ExpressionCheck, copyability::UnitTransferability};
+use super::{BodyChecker, ExpressionCheck, ExpressionExpected};
 
+use bounds::BoundCheck;
+
+mod bounds;
 mod intrinsic;
 
 #[derive(Clone, Copy)]
@@ -43,6 +45,7 @@ struct Shape {
 struct ConstructionInstance {
     arguments: Vec<UnitTypeId>,
     substitutions: BTreeMap<UnitSymbolId, UnitTypeId>,
+    pending_bounds: bool,
 }
 
 impl BodyChecker<'_> {
@@ -55,7 +58,7 @@ impl BodyChecker<'_> {
         callee: ExpressionId,
         type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
-        expected: Option<UnitTypeId>,
+        expectation: Option<ExpressionExpected<'_>>,
         expected_span: Option<Span>,
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
@@ -79,6 +82,9 @@ impl BodyChecker<'_> {
             return Ok(Some(self.failed_construction()));
         }
         if matches!(target, Target::Box | Target::Rc) {
+            let expected = expectation
+                .map(|expected| expected.resolve(self))
+                .transpose()?;
             return self
                 .check_intrinsic_construction(
                     source,
@@ -115,12 +121,22 @@ impl BodyChecker<'_> {
                 Ok(mapping) => mapping,
                 Err(error) => {
                     self.emit_mapping_error(error)?;
-                    self.check_construction_operands(source, arguments, return_type)?;
+                    self.check_rejected_construction_operands(
+                        source,
+                        type_arguments,
+                        arguments,
+                        return_type,
+                    )?;
                     return Ok(Some(self.failed_construction()));
                 }
             };
+        let expected = expectation
+            .map(|expected| expected.resolve(self))
+            .transpose()?;
+        let diagnostics = self.diagnostics.len();
+        let deferred = self.deferred_facts.len();
         let Some(instance) = self.infer_construction_instance(
-            source,
+            UnitExpressionId::new(source, expression),
             callee_span,
             type_arguments,
             arguments,
@@ -137,14 +153,15 @@ impl BodyChecker<'_> {
             source,
             expression,
             shape,
-            instance.arguments,
-            instance.substitutions,
+            instance,
             result_type,
             arguments,
             &mapping,
             expected,
             expected_span,
             return_type,
+            diagnostics,
+            deferred,
         )
         .map(Some)
     }
@@ -154,7 +171,7 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: ExpressionId,
         reference_span: Span,
-        expected: Option<UnitTypeId>,
+        expectation: Option<ExpressionExpected<'_>>,
         expected_span: Option<Span>,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
         let Some(case) = self.enum_case_by_value_symbol(source, reference_span) else {
@@ -164,6 +181,9 @@ impl BodyChecker<'_> {
         if !shape.parameters.is_empty() {
             return Ok(None);
         }
+        let expected = expectation
+            .map(|expected| expected.resolve(self))
+            .transpose()?;
         let Some(instance) =
             self.infer_empty_construction_instance(reference_span, &shape, expected)?
         else {
@@ -185,8 +205,16 @@ impl BodyChecker<'_> {
         )? {
             return Ok(Some(self.failed_construction()));
         }
+        let expression = UnitExpressionId::new(source, expression);
+        if instance.pending_bounds {
+            self.note_pending_storage_value(expression, result_type);
+            return Ok(Some(ExpressionCheck {
+                ty: result_type,
+                falls_through: true,
+            }));
+        }
         self.parts.constructions.push(UnitConstructionDescriptor {
-            expression: UnitExpressionId::new(source, expression),
+            expression,
             instance: UnitConstructionInstanceKey {
                 target: shape.target,
                 type_arguments: instance.arguments,
@@ -337,7 +365,7 @@ impl BodyChecker<'_> {
     #[allow(clippy::too_many_arguments)]
     fn infer_construction_instance(
         &mut self,
-        source: SourceUnitId,
+        expression: UnitExpressionId,
         callee_span: Span,
         type_refs: &[TypeRefId],
         arguments: &[CallArgument],
@@ -346,8 +374,10 @@ impl BodyChecker<'_> {
         expected: Option<UnitTypeId>,
         return_type: UnitTypeId,
     ) -> Result<Option<ConstructionInstance>, CompilationUnitTypeError> {
+        let source = expression.source_unit();
         let mut substitutions = BTreeMap::new();
         let mut origins = BTreeMap::new();
+        let mut recovering_type_arguments = false;
         if !type_refs.is_empty() {
             if type_refs.len() != shape.type_parameters.len() {
                 self.emit(
@@ -360,10 +390,7 @@ impl BodyChecker<'_> {
             }
             for (&parameter, &type_ref) in shape.type_parameters.iter().zip(type_refs) {
                 let actual = self.resolve_body_type_ref(source, type_ref)?;
-                if self.construction_type_contains_poison(actual) {
-                    self.check_construction_operands(source, arguments, return_type)?;
-                    return Ok(None);
-                }
+                recovering_type_arguments |= self.construction_type_contains_poison(actual);
                 substitutions.insert(parameter, actual);
                 origins.insert(
                     parameter,
@@ -382,6 +409,7 @@ impl BodyChecker<'_> {
                 .copied()
                 .collect::<BTreeSet<_>>();
             let mut poisoned = false;
+            let mut partial_operands = Vec::new();
             for (argument_index, argument) in arguments.iter().enumerate() {
                 if self.is_lambda_syntax(source, argument.value) {
                     continue;
@@ -389,10 +417,7 @@ impl BodyChecker<'_> {
                 let actual = self
                     .check_expression(source, argument.value, None, None, return_type)?
                     .ty;
-                if self.construction_type_contains_poison(actual) {
-                    poisoned = true;
-                    continue;
-                }
+                let template = shape.parameters[mapping[argument_index]].ty();
                 let span = self
                     .file(source)
                     .ast()
@@ -400,8 +425,15 @@ impl BodyChecker<'_> {
                     .get(argument.value)
                     .map_err(TypeCheckingError::from)?
                     .span();
+                if self.construction_type_contains_poison(actual) {
+                    poisoned = true;
+                    if self.contains_unresolved_call_type(actual) {
+                        partial_operands.push((template, actual, span));
+                    }
+                    continue;
+                }
                 if let Err(parameter) = self.infer_unit_type_arguments(
-                    shape.parameters[mapping[argument_index]].ty(),
+                    template,
                     actual,
                     &parameter_set,
                     &mut substitutions,
@@ -414,6 +446,25 @@ impl BodyChecker<'_> {
                 }
             }
             if poisoned {
+                if !partial_operands.is_empty()
+                    && self
+                        .add_expected_construction_arguments(
+                            shape,
+                            expected,
+                            callee_span,
+                            &mut substitutions,
+                            &mut origins,
+                        )?
+                        .is_none()
+                {
+                    self.check_recovered_operand_bounds(
+                        partial_operands,
+                        &parameter_set,
+                        &substitutions,
+                        &origins,
+                        callee_span,
+                    )?;
+                }
                 self.check_construction_operands(source, arguments, return_type)?;
                 return Ok(None);
             }
@@ -446,16 +497,24 @@ impl BodyChecker<'_> {
             self.check_construction_operands(source, arguments, return_type)?;
             return Ok(None);
         }
-        if !self.construction_bounds_satisfied(
+        let bounds = self.check_construction_bounds(
             &shape.type_parameters,
             &substitutions,
             &origins,
             callee_span,
-        )? {
+            recovering_type_arguments,
+        )?;
+        if recovering_type_arguments || bounds == BoundCheck::Rejected {
             self.check_construction_operands(source, arguments, return_type)?;
             return Ok(None);
         }
-        if !self.construction_storage_satisfied(shape, &substitutions, &origins, callee_span)? {
+        if !self.construction_storage_satisfied(
+            shape,
+            &substitutions,
+            &origins,
+            callee_span,
+            Some(expression),
+        )? {
             let error = self.error_type();
             for argument in arguments {
                 self.check_expression(source, argument.value, Some(error), None, return_type)?;
@@ -469,6 +528,7 @@ impl BodyChecker<'_> {
                 .map(|parameter| substitutions[parameter])
                 .collect(),
             substitutions,
+            pending_bounds: bounds == BoundCheck::Pending,
         }))
     }
 
@@ -496,15 +556,17 @@ impl BodyChecker<'_> {
         {
             return self.reject_construction_inference(span, parameter);
         }
-        if !self.construction_bounds_satisfied(
+        let bounds = self.check_construction_bounds(
             &shape.type_parameters,
             &substitutions,
             &origins,
             span,
-        )? {
+            false,
+        )?;
+        if bounds == BoundCheck::Rejected {
             return Ok(None);
         }
-        if !self.construction_storage_satisfied(shape, &substitutions, &origins, span)? {
+        if !self.construction_storage_satisfied(shape, &substitutions, &origins, span, None)? {
             return Ok(None);
         }
         Ok(Some(ConstructionInstance {
@@ -514,6 +576,7 @@ impl BodyChecker<'_> {
                 .map(|parameter| substitutions[parameter])
                 .collect(),
             substitutions,
+            pending_bounds: bounds == BoundCheck::Pending,
         }))
     }
 
@@ -599,69 +662,13 @@ impl BodyChecker<'_> {
         complete(self, ty, &mut BTreeSet::new())
     }
 
-    fn construction_bounds_satisfied(
-        &mut self,
-        parameters: &[UnitSymbolId],
-        substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
-        origins: &BTreeMap<UnitSymbolId, Span>,
-        fallback: Span,
-    ) -> Result<bool, CompilationUnitTypeError> {
-        for &parameter in parameters {
-            let actual = substitutions[&parameter];
-            let bound = self
-                .signatures
-                .type_parameter(parameter)
-                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
-                .bound();
-            let failure = match bound {
-                UnitTypeParameterBound::Any | UnitTypeParameterBound::Error => None,
-                UnitTypeParameterBound::Interface(interface) => {
-                    let expected = self.substitute_type(interface, substitutions)?;
-                    (!self.satisfies_interface(actual, expected)?).then_some((
-                        codes::TYPE_ARGUMENT_BOUND,
-                        "constructor type argument does not satisfy its interface bound",
-                    ))
-                }
-                UnitTypeParameterBound::Capability(Capability::Copyable) => {
-                    (self.copyability_of(actual) != Copyability::Copyable).then_some((
-                        codes::COPYABLE_TYPE_ARGUMENT_BOUND,
-                        "constructor type argument does not satisfy its Copyable bound",
-                    ))
-                }
-                UnitTypeParameterBound::Capability(Capability::Transferable) => {
-                    (self.transferability_of(actual) != UnitTransferability::Transferable)
-                        .then_some((
-                            codes::TRANSFERABLE_TYPE_ARGUMENT_BOUND,
-                            "constructor type argument does not satisfy its Transferable bound",
-                        ))
-                }
-                UnitTypeParameterBound::Capability(Capability::Hashable) => {
-                    (!self.is_hashable_type(actual)).then_some((
-                        codes::HASHABLE_TYPE_ARGUMENT_BOUND,
-                        "constructor type argument does not satisfy its Hashable bound",
-                    ))
-                }
-            };
-            if let Some((code, message)) = failure {
-                self.emit_maybe_label(
-                    code,
-                    message,
-                    origins.get(&parameter).copied().unwrap_or(fallback),
-                    Some(self.unit_symbol_span(parameter)?),
-                    "type parameter bound declared here",
-                )?;
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-
     fn construction_storage_satisfied(
         &mut self,
         shape: &Shape,
         substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
         origins: &BTreeMap<UnitSymbolId, Span>,
         fallback: Span,
+        expression: Option<UnitExpressionId>,
     ) -> Result<bool, CompilationUnitTypeError> {
         let arguments = shape
             .type_parameters
@@ -669,6 +676,7 @@ impl BodyChecker<'_> {
             .map(|parameter| substitutions[parameter])
             .collect::<Vec<_>>();
         if let Some(parameter) = self.invalid_nominal_storage_argument(shape.root, &arguments) {
+            let diagnostic = self.diagnostics.len();
             self.emit_maybe_label(
                 codes::INVALID_CONTAINER_ELEMENT,
                 "type argument cannot satisfy instantiated storage requirements",
@@ -676,6 +684,20 @@ impl BodyChecker<'_> {
                 Some(self.unit_symbol_span(parameter)?),
                 "stored type parameter declared here",
             )?;
+            if let Some(expression) = expression
+                && !self.storage_recovery_scopes.is_empty()
+                && let Some(instance) = self.signatures.types().find(&UnitTypeKind::Nominal {
+                    declaration: shape.root,
+                    arguments,
+                })
+                && let Some(&origin) = self
+                    .storage_recovery_scopes
+                    .iter()
+                    .rev()
+                    .find_map(|scope| scope.get(&instance))
+            {
+                self.note_repeated_storage_error(expression, diagnostic, origin);
+            }
             return Ok(false);
         }
         Ok(true)
@@ -755,6 +777,9 @@ impl BodyChecker<'_> {
             || self.is_error(expected)
             || self.is_deferred(actual)
             || self.is_deferred(expected)
+            || (self.contains_unresolved_call_type(actual)
+                || self.contains_unresolved_call_type(expected))
+                && self.call_argument_could_match(actual, expected, true)
         {
             return Ok(true);
         }
@@ -778,21 +803,25 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: ExpressionId,
         shape: Shape,
-        instance_arguments: Vec<UnitTypeId>,
-        substitutions: BTreeMap<UnitSymbolId, UnitTypeId>,
+        instance: ConstructionInstance,
         result_type: UnitTypeId,
         arguments: &[CallArgument],
         mapping: &[usize],
         expected: Option<UnitTypeId>,
         expected_span: Option<Span>,
         return_type: UnitTypeId,
+        diagnostics: usize,
+        deferred: usize,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let mut valid = true;
+        let mut pending_parameter = false;
         let mut descriptors = Vec::with_capacity(arguments.len());
         for (evaluation_index, argument) in arguments.iter().enumerate() {
             let parameter_index = mapping[evaluation_index];
             let parameter = &shape.parameters[parameter_index];
-            let parameter_type = self.substitute_type(parameter.ty(), &substitutions)?;
+            let parameter_type = self.substitute_type(parameter.ty(), &instance.substitutions)?;
+            let parameter_pending = self.contains_unresolved_call_type(parameter_type);
+            pending_parameter |= parameter_pending;
             let parameter_poisoned = self.construction_type_contains_poison(parameter_type);
             let argument_key = UnitExpressionId::new(source, argument.value);
             let already_checked = self.parts.expression_types.contains_key(&argument_key);
@@ -804,9 +833,11 @@ impl BodyChecker<'_> {
                 return_type,
             )?;
             if already_checked
-                && !self.is_error(checked.ty)
-                && !self.is_deferred(checked.ty)
-                && !self.assignable(checked.ty, parameter_type)
+                && !(self.is_error(checked.ty)
+                    || self.is_deferred(checked.ty)
+                    || self.assignable(checked.ty, parameter_type)
+                    || parameter_pending
+                        && self.call_argument_could_match(checked.ty, parameter_type, true))
             {
                 let primary = self
                     .file(source)
@@ -828,8 +859,9 @@ impl BodyChecker<'_> {
                 )?;
                 valid = false;
             }
-            valid &=
-                !parameter_poisoned && !self.is_error(checked.ty) && !self.is_deferred(checked.ty);
+            valid &= (!parameter_poisoned || parameter_pending)
+                && !self.is_error(checked.ty)
+                && !self.is_deferred(checked.ty);
             descriptors.push((
                 parameter_index,
                 UnitConstructionArgumentDescriptor {
@@ -843,7 +875,7 @@ impl BodyChecker<'_> {
                 },
             ));
         }
-        if !valid {
+        if !valid || self.diagnostics.len() != diagnostics {
             return Ok(self.failed_construction());
         }
         let expression_span = self
@@ -861,12 +893,22 @@ impl BodyChecker<'_> {
         )? {
             return Ok(self.failed_construction());
         }
+        if instance.pending_bounds
+            || pending_parameter
+            || self.has_pending_storage_value_since(deferred)
+        {
+            self.note_pending_storage_value(UnitExpressionId::new(source, expression), result_type);
+            return Ok(ExpressionCheck {
+                ty: result_type,
+                falls_through: true,
+            });
+        }
         descriptors.sort_by_key(|(index, _)| *index);
         self.parts.constructions.push(UnitConstructionDescriptor {
             expression: UnitExpressionId::new(source, expression),
             instance: UnitConstructionInstanceKey {
                 target: shape.target,
-                type_arguments: instance_arguments,
+                type_arguments: instance.arguments,
             },
             result_type,
             arguments: descriptors
@@ -892,9 +934,39 @@ impl BodyChecker<'_> {
         Ok(())
     }
 
+    pub(super) fn check_rejected_construction_operands(
+        &mut self,
+        source: SourceUnitId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<(), CompilationUnitTypeError> {
+        for &type_ref in type_arguments {
+            self.resolve_body_type_ref(source, type_ref)?;
+        }
+        self.check_construction_operands(source, arguments, return_type)
+    }
+
     pub(super) fn failed_construction(&mut self) -> ExpressionCheck {
         ExpressionCheck {
             ty: self.error_type(),
+            falls_through: true,
+        }
+    }
+
+    pub(super) fn deferred_container_construction(
+        &mut self,
+        expression: UnitExpressionId,
+        constructor: IntrinsicTypeConstructor,
+        arguments: Vec<UnitTypeId>,
+    ) -> ExpressionCheck {
+        let ty = self.signatures.types_mut().intern(UnitTypeKind::Intrinsic {
+            constructor,
+            arguments,
+        });
+        self.note_pending_storage_value(expression, ty);
+        ExpressionCheck {
+            ty,
             falls_through: true,
         }
     }

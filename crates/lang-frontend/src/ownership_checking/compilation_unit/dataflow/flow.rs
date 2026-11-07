@@ -46,6 +46,13 @@ pub(super) enum ActiveLoanTarget {
     This,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct CaptureRestriction {
+    pub(super) origin: Span,
+    pub(super) exclusive_assignment: Option<Span>,
+    pub(super) write_allowed: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct State {
     pub(super) origins: crate::ownership_checking::callable_provenance::graph::OriginState<
@@ -61,12 +68,20 @@ pub(super) struct State {
     pub(super) closure_captures: BTreeMap<UnitExpressionId, BTreeSet<UnitExpressionId>>,
     /// Keep the old closure environment alive until the whole replacement RHS completes.
     pub(super) replacements: Vec<UnitSymbolId>,
+    /// Evaluated callees and arguments retain their environments until the call finishes.
+    pub(super) pending_closure_calls: BTreeMap<UnitExpressionId, BTreeSet<UnitExpressionId>>,
     pub(super) non_owning: BTreeMap<UnitSymbolId, Span>,
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, UnitOwnershipPlace>,
-    pub(super) immutable_captures: BTreeMap<UnitSymbolId, Span>,
+    pub(super) immutable_captures: BTreeMap<UnitSymbolId, CaptureRestriction>,
 }
 
 impl State {
+    pub(super) fn immutable_capture_origin(&self, symbol: UnitSymbolId) -> Option<Span> {
+        self.immutable_captures
+            .get(&symbol)
+            .map(|capture| capture.origin)
+    }
+
     pub(super) fn closure_tree(
         &self,
         roots: impl IntoIterator<Item = UnitExpressionId>,
@@ -125,6 +140,13 @@ pub(super) fn merge_state(target: &mut State, source: State) {
             .entry(closure)
             .or_default()
             .extend(captured);
+    }
+    for (call, origins) in source.pending_closure_calls {
+        target
+            .pending_closure_calls
+            .entry(call)
+            .or_default()
+            .extend(origins);
     }
     // A loan live on any reachable incoming edge must still constrain later access.
     // In particular, a branch-selected closure may retain a shared loan until activation.

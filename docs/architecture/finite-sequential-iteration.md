@@ -39,6 +39,10 @@ Array/List/MutableList 的 named owned、Borrow 参数与 temporary source 均�
 长度在 preheader 求一次快照，source 仅求值一次；source/length/cursor/element 经已有 pending
 运输跨 CFG，复用 single provider 的 snapshot、guard、element 与固定步长 primitive，无 provider 分配。
 
+临时顺序源与局部 `val` 解构在同一 callable 组合时，Refine 完成整个 body 预检后再判断路由。
+已验证的局部解构可满足临时源的额外路由条件，语句先后与 sibling 不改变该判断。单独的临时
+循环保留原路由，`while` 的独立范围限制也保留。
+
 名称、discard 与 nongeneric value-class 借用解构支持 fallthrough、continue、break、return 及
 嵌套 for/while；cleanup 按前端完整动作序列执行一次，call/receiver loan 以 fact 身份映射实际
 pending 槽，conditional receiver 按具体 Copyable/MoveOnly 类型执行。return 的 owner/copy 先交付，

@@ -7,6 +7,7 @@ use crate::{
 };
 
 use super::{flow::extend_facts, *};
+use crate::type_checking::flow_effects::logical_rhs_is_required;
 
 struct LambdaSyntax {
     span: Span,
@@ -966,7 +967,9 @@ impl Checker<'_> {
             };
             return Ok(ExprCheck {
                 ty,
-                falls_through: left_result.falls_through && right_result.falls_through,
+                falls_through: left_result.falls_through
+                    && (right_result.falls_through
+                        || !logical_rhs_is_required(self.ast(), left, operator)?),
             });
         }
         let equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
@@ -1070,57 +1073,6 @@ impl Checker<'_> {
         Ok(ExprCheck {
             ty,
             falls_through: left_result.falls_through && right_result.falls_through,
-        })
-    }
-
-    fn check_elvis(
-        &mut self,
-        left: ExpressionId,
-        operator_span: Span,
-        right: ExpressionId,
-        expected: Option<TypeId>,
-        expected_span: Option<Span>,
-    ) -> Result<ExprCheck, TypeCheckingError> {
-        let left_result = self.check_expression(left, None, None)?;
-        let (inner, left_can_bypass_right) = match self.kind(left_result.ty) {
-            TypeKind::Nullable(inner) => (
-                Some(*inner),
-                !matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)),
-            ),
-            TypeKind::Error => (None, false),
-            TypeKind::Deferred(_) => (None, true),
-            _ => {
-                let right_result = self.check_expression(right, expected, expected_span)?;
-                self.emit_binary_operand_error(
-                    operator_span,
-                    left,
-                    left_result.ty,
-                    right,
-                    right_result.ty,
-                )?;
-                return Ok(ExprCheck {
-                    ty: self.error_type(),
-                    falls_through: left_result.falls_through,
-                });
-            }
-        };
-        let right_expected = inner
-            .filter(|inner| !matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)));
-        let right_result =
-            self.check_expression(right, right_expected.or(expected), expected_span)?;
-        let ty = if let Some(inner) = inner {
-            if matches!(self.kind(inner), TypeKind::Builtin(BuiltinType::Nothing)) {
-                right_result.ty
-            } else {
-                inner
-            }
-        } else {
-            self.deferred(DeferredReason::ControlJoin)
-        };
-        Ok(ExprCheck {
-            ty,
-            falls_through: left_result.falls_through
-                && (left_can_bypass_right || right_result.falls_through),
         })
     }
 

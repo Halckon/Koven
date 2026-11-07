@@ -10,8 +10,8 @@ fun bootstrapHello(): Unit {
 fun bootstrapPairResult(): Unit {
     val pair = Pair(20, 22)
     val copied = pair
-    val (left, right) = pair
-    if (left + right != 42) { error("bad Pair destructuring") }
+    val (first, second) = pair
+    if (first + second != 42) { error("bad Pair destructuring") }
     if (copied.first + copied.second != 42) { error("bad Pair copy") }
 
     // Result/Ok/Err 来自内建环境（koven/core/result.ko），不在本文件声明。

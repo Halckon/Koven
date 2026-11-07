@@ -1,13 +1,13 @@
 //! 正常源码生成的实际 Map slot loan 及纯合同查询，不改写 IR。
-use crate::ssa::{model::*, verify::verify_program};
+use crate::ssa::{
+    borrow_memory_test_support::single as memory_unit, borrow_storage_contract_tests::unit,
+    model::*, verify::verify_program,
+};
 
 #[test]
-fn map_require_single_and_unit_verify_real_slot_and_source_end_order() {
+fn map_require_memory_and_rooted_verify_real_slot_and_source_end_order() {
     for (_, text, _) in crate::native_map_require_cases::cases() {
-        for program in [
-            crate::ssa::borrow_result_contract_tests::single(text).unwrap(),
-            crate::ssa::borrow_storage_contract_tests::unit(text).unwrap(),
-        ] {
+        for program in [memory_unit(text).unwrap(), unit(text).unwrap()] {
             verify_program(&program).unwrap();
             let module = &program.modules[0];
             let llvm = crate::llvm::render_verified_program(&program).unwrap();
@@ -97,7 +97,7 @@ fn map_require_single_and_unit_verify_real_slot_and_source_end_order() {
 #[test]
 fn map_require_readonly_source_can_return_its_slot_through_ordinary_wrapper() {
     let text = "fun view(source: Map<String, String>): borrow String from source = source.requireValue(\"key\")\nfun entry() {}";
-    // Without a native entry pruning the function, exercise its true borrowed return chain.
+    // The legacy no-entry witness checks emission of an unreachable wrapper.
     let program = crate::ssa::borrow_result_contract_tests::single(text).unwrap();
     verify_program(&program).unwrap();
     let function = program.modules[0]

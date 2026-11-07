@@ -1,11 +1,10 @@
-//! SPEC-0341: preserve automatic component rejection with independent Unit oracles.
-//! The parent suite retains its original Single projection and fixture witnesses.
+//! Unit ownership oracles for real field moves and explicitly declared component methods.
 
 use super::*;
 use lang_frontend::{
     diagnostic::{DiagnosticCodeCatalog, Severity},
     source::SourceId,
-    type_checking::UnitAggregateProjectionKind,
+    type_checking::UnitCallTarget,
 };
 
 fn observe(
@@ -49,6 +48,7 @@ fn expected_component(
     source: SourceId,
     primary: std::ops::Range<usize>,
     field: std::ops::Range<usize>,
+    parameter: std::ops::Range<usize>,
 ) -> Diagnostic {
     let catalog = DiagnosticCodeCatalog::try_new(&["L0132"]).unwrap();
     let mut diagnostic = Diagnostic::new(
@@ -67,10 +67,19 @@ fn expected_component(
         )
         .unwrap();
     diagnostic
+        .add_label(
+            sources,
+            sources
+                .span(source, parameter.start, parameter.end)
+                .unwrap(),
+            "selected parameter declared here",
+        )
+        .unwrap();
+    diagnostic
 }
 
 #[test]
-fn original_partial_move_fixture_keeps_both_errors_and_complete_component_label() {
+fn partial_move_fixture_keeps_real_field_diagnostic_and_label() {
     let text = include_str!("../fixtures/phase3/structural-fail/partial-move.ko");
     let sidecar = include_str!("../fixtures/phase3/structural-fail/partial-move.diag");
     observe(text, |sources, source, unit, typed, owned| {
@@ -87,22 +96,20 @@ fn original_partial_move_fixture_keeps_both_errors_and_complete_component_label(
             + "\n";
         assert_eq!(actual, sidecar);
         let field = text.find("first").unwrap();
-        let expected = expected_component(sources, source, 214..224, field..field + 5);
-        assert_eq!(diagnostics[1], expected);
-        let components = typed
-            .aggregate_projections()
-            .iter()
-            .filter(|fact| fact.kind() == UnitAggregateProjectionKind::StructuralComponent)
-            .collect::<Vec<_>>();
-        assert_eq!(components.len(), 1);
-        assert_eq!(typed.copyability(components[0].ty()), Copyability::MoveOnly);
-        let call = typed.call(components[0].expression()).unwrap();
-        assert_eq!(
-            call.instance().target(),
-            lang_frontend::type_checking::UnitCallTarget::StructuralComponent(
-                components[0].field()
-            )
+        let parameter = "own item: Resource";
+        let parameter_start = text.find(parameter).unwrap();
+        let expected = expected_component(
+            sources,
+            source,
+            182..187,
+            field..field + 5,
+            parameter_start..parameter_start + parameter.len(),
         );
+        assert_eq!(diagnostics, [expected]);
+        let [projection] = typed.aggregate_projections() else {
+            panic!("only the real field is projected");
+        };
+        assert_eq!(typed.copyability(projection.ty()), Copyability::MoveOnly);
         assert!(
             owned.drops().is_empty(),
             "invalid source cannot publish a drop plan"
@@ -111,48 +118,31 @@ fn original_partial_move_fixture_keeps_both_errors_and_complete_component_label(
 }
 
 #[test]
-fn borrowed_owner_still_cannot_return_an_owned_automatic_component() {
-    let text = "class Resource {}\nvalue class Pair(val first: Resource)\nfun fail(pair: Pair): Unit { val value = pair.component1() }";
-    observe(text, |sources, source, unit, _, owned| {
-        let primary = text.find("component1").unwrap();
-        let field = text.find("first").unwrap();
-        let expected = [expected_component(
-            sources,
-            source,
-            primary..primary + 10,
-            field..field + 5,
-        )];
-        assert_eq!(unit, expected);
-        assert!(owned.drops().is_empty());
-    });
-}
-
-#[test]
-fn copyable_component_and_explicit_owned_result_are_not_partial_moves() {
-    let text = "class Resource {}\nvalue class Pair(val first: Resource, val second: Int)\nvalue class Custom(val first: Resource) { fun component1(): Resource = Resource() }\nfun pass(own pair: Pair, own custom: Custom): Unit { val copied = pair.component2(); val created = custom.component1() }";
-    observe(text, |_, _, unit, typed, _| {
-        assert!(unit.is_empty(), "{unit:?}");
-        let components = typed
-            .aggregate_projections()
-            .iter()
-            .filter(|fact| fact.kind() == UnitAggregateProjectionKind::StructuralComponent)
-            .collect::<Vec<_>>();
+fn explicitly_declared_component_methods_use_normal_call_targets() {
+    let text = "class Resource {}
+        value class Value(val first: Resource) { fun component1(): Resource = Resource() }
+        class Holder(val amount: Int) { fun component1(): Int = this.amount }
+        fun read(value: Value, holder: Holder): Int {
+            val created = value.component1()
+            return holder.component1()
+        }";
+    observe(text, |_, _, diagnostics, typed, _| {
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert_eq!(
-            components.len(),
-            1,
-            "explicit method is not an automatic projection"
+            typed
+                .calls()
+                .iter()
+                .filter(|call| matches!(call.target(), UnitCallTarget::Symbol(_)))
+                .count(),
+            2
         );
-        assert_eq!(typed.copyability(components[0].ty()), Copyability::Copyable);
+        assert_eq!(typed.aggregate_projections().len(), 1, "only this.amount");
     });
-}
-
-#[test]
-fn receiver_use_after_move_precedes_component_rejection_without_a_cascade() {
-    let text = "class Resource {}\nvalue class Pair(val first: Resource)\nfun take(own value: Pair): Unit {}\nfun fail(own pair: Pair): Unit { take(pair); val value = pair.component1() }";
-    observe(text, |sources, _, unit, _, owned| {
-        let diagnostics = unit;
-        assert_eq!(codes(diagnostics), ["L0131"]);
-        assert_eq!(sources.slice(diagnostics[0].primary_span()), Ok("pair"));
-        assert!(owned.drops().is_empty());
-    });
+    let (_, _, names, typed, owned) = checked(text);
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert_eq!(
+        typed.calls().iter().filter(|call| matches!(call.target(), CallableTarget::Source(symbol) if names.symbols()[symbol.index()].name() == "component1")).count(),
+        2
+    );
+    assert_eq!(typed.aggregate_projections().len(), 1, "only this.amount");
 }

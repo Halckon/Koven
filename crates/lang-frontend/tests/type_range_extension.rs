@@ -58,6 +58,109 @@ fn extension_receiver_type_uses_the_callable_type_parameter_scope() {
     );
 }
 
+#[test]
+fn receiver_inference_preserves_pending_explicit_type_arguments() {
+    use lang_frontend::type_checking::{
+        DeferredReason, FinalTypeAdmissionError, UnitExpressionId, complete_compilation_unit_types,
+    };
+
+    for (argument, count, partial_receiver, diagnostic) in [
+        ("Unbound", "1", false, None),
+        ("Unbound", "true", false, Some("L0084")),
+        ("Long", "1", false, Some("L0140")),
+        ("Int", "1", false, None),
+        ("Phantom<Int>", "1", true, None),
+        ("Int", "1", true, Some("L0140")),
+    ] {
+        let call = format!("xs.prefix<{argument}>({count})");
+        let entry = if partial_receiver {
+            format!(
+                "fun entry(): Unit {{ val xs: List<Phantom<Unbound>>? = null; if (xs != null) {{ borrow val result = {call} }} }}"
+            )
+        } else {
+            format!("fun entry(xs: List<Int>): Unit {{ borrow val result = {call} }}")
+        };
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source(
+                "koven/algorithms/ranges.ko",
+                format!(
+                    "package koven.algorithms\n\
+                 class Phantom<T>(val marker: Int)\n\
+                 borrow fun <T> List<T>.prefix(count: Int): View<T> from this\n\
+                 {entry}"
+                ),
+            )
+            .unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{:?}",
+            parsed.diagnostics()
+        );
+        let (mut environment, mut types) = standard_environments();
+        environment.declare_type("Unbound").unwrap();
+        types
+            .authorize_range_extension_source(&sources, source)
+            .unwrap();
+
+        for input in [
+            SourceUnitInput::memory_document(source, &parsed),
+            SourceUnitInput::new("koven-std", "koven/algorithms/ranges.ko", source, &parsed),
+        ] {
+            let inputs = [input];
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+            let (expression, _) = parsed
+                .ast()
+                .expressions()
+                .iter()
+                .find(|(_, node)| sources.slice(node.span()) == Ok(call.as_str()))
+                .unwrap();
+            let id =
+                UnitExpressionId::new(names.names().index().source_units()[0].id(), expression);
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                diagnostic.into_iter().collect::<Vec<_>>(),
+                "{call}",
+            );
+            if argument == "Int" && !partial_receiver {
+                assert!(typed.call(id).is_some(), "{call}");
+            } else {
+                assert!(typed.call(id).is_none(), "{call}");
+                if diagnostic.is_none() {
+                    assert_eq!(
+                        typed
+                            .expression_type(id)
+                            .and_then(|ty| typed.types().get(ty)),
+                        Some(&UnitTypeKind::Deferred(DeferredReason::Call)),
+                        "{call}"
+                    );
+                }
+                let result =
+                    complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed);
+                let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+                    panic!("{call}: {result:?}");
+                };
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|d| { d.code().to_string() == diagnostic.unwrap_or("L0165") }),
+                    "{call}: {diagnostics:?}"
+                );
+            }
+        }
+    }
+}
+
 use lang_frontend::{
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     type_checking::{

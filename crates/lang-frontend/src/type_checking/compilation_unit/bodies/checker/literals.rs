@@ -1,15 +1,101 @@
 //! SPEC-0197 compilation-unit 标量字面量定型。
 
 use crate::{
+    ast::ExpressionId,
     diagnostic::codes,
-    parser::{FloatLiteralKind, IntegerLiteralKind, LiteralKind},
+    name_resolution::SourceUnitId,
+    parser::{Expression, FloatLiteralKind, IntegerLiteralKind, LiteralKind, PrefixOperator},
     source::Span,
-    type_checking::{BuiltinType, CompilationUnitTypeError, TypeCheckingError, UnitTypeId},
+    type_checking::{
+        BuiltinType, CompilationUnitTypeError, TypeCheckingError, UnitTypeId, UnitTypeKind,
+    },
 };
 
-use super::BodyChecker;
+use super::{BodyChecker, ExpressionExpected};
 
 impl BodyChecker<'_> {
+    /// A deferred expected type leaves these source integers at their default
+    /// widths. Return the concrete widths a later expectation could select.
+    pub(super) fn contextual_integer_types(
+        &self,
+        source: SourceUnitId,
+        mut expression: ExpressionId,
+    ) -> Result<Vec<UnitTypeId>, CompilationUnitTypeError> {
+        let expressions = self.file(source).ast().expressions();
+        let get = |id| expressions.get(id).map_err(TypeCheckingError::from);
+        let (node, negative) = loop {
+            let node = get(expression)?;
+            match node.payload() {
+                Expression::Group { expression: child } => expression = *child,
+                Expression::Prefix {
+                    operator: PrefixOperator::Minus,
+                    operand,
+                    ..
+                } => break (get(*operand)?, true),
+                _ => break (node, false),
+            }
+        };
+        let Expression::Literal(LiteralKind::Integer(kind)) = node.payload() else {
+            return Ok(Vec::new());
+        };
+        let widths = match kind {
+            IntegerLiteralKind::Unsuffixed => [
+                BuiltinType::Byte,
+                BuiltinType::Short,
+                BuiltinType::Int,
+                BuiltinType::Long,
+            ],
+            IntegerLiteralKind::Unsigned if !negative => [
+                BuiltinType::UByte,
+                BuiltinType::UShort,
+                BuiltinType::UInt,
+                BuiltinType::ULong,
+            ],
+            _ => return Ok(Vec::new()),
+        };
+        let text = self
+            .sources
+            .slice(node.span())
+            .map_err(TypeCheckingError::from)?;
+        let Some(magnitude) = crate::type_checking::integer_literal_magnitude(text, *kind) else {
+            return Ok(Vec::new());
+        };
+        Ok(widths
+            .into_iter()
+            .filter(|&ty| {
+                if *kind == IntegerLiteralKind::Unsuffixed {
+                    fits_signed_integer(magnitude, ty, negative)
+                } else {
+                    fits_unsigned_integer(magnitude, ty)
+                }
+            })
+            .map(|ty| self.builtin(ty))
+            .collect())
+    }
+
+    pub(super) fn null_literal_type(
+        &mut self,
+        span: Span,
+        expected: Option<ExpressionExpected<'_>>,
+    ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+        let Some(expected) = expected else {
+            self.emit(
+                codes::CANNOT_INFER_TYPE,
+                "cannot infer the type of null without a nullable expected type",
+                span,
+            )?;
+            return Ok(self.error_type());
+        };
+        if matches!(expected.kind(self), Some(UnitTypeKind::Nullable(_))) {
+            return expected.resolve(self);
+        }
+        let nothing = self.builtin(BuiltinType::Nothing);
+        Ok(self
+            .signatures
+            .types_mut()
+            .intern(UnitTypeKind::Nullable(nothing)))
+    }
+
     pub(super) fn literal_type(
         &mut self,
         span: Span,
@@ -18,28 +104,6 @@ impl BodyChecker<'_> {
         expected_span: Option<Span>,
         negative: bool,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
-        if literal == LiteralKind::Null {
-            return match expected.and_then(|ty| self.signatures.types().get(ty)) {
-                Some(crate::type_checking::UnitTypeKind::Nullable(_)) => {
-                    Ok(expected.expect("matched nullable expected type"))
-                }
-                Some(_) => {
-                    let nothing = self.builtin(BuiltinType::Nothing);
-                    Ok(self
-                        .signatures
-                        .types_mut()
-                        .intern(crate::type_checking::UnitTypeKind::Nullable(nothing)))
-                }
-                None => {
-                    self.emit(
-                        codes::CANNOT_INFER_TYPE,
-                        "cannot infer the type of null without a nullable expected type",
-                        span,
-                    )?;
-                    Ok(self.error_type())
-                }
-            };
-        }
         let selected = match literal {
             LiteralKind::Integer(kind) => {
                 let text = self.sources.slice(span).map_err(TypeCheckingError::from)?;

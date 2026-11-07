@@ -12,6 +12,8 @@ impl Checker<'_, '_> {
     pub(super) fn drops_supported(&self) -> bool {
         self.inputs.owned.drops().iter().all(|fact| {
             let point_ok = match fact.point() {
+                // This cleanup must run before the selected arm starts.
+                UnitDropPoint::BranchEntry { .. } => false,
                 UnitDropPoint::AfterExpression(expression)
                 | UnitDropPoint::AfterBinaryOperands(expression) => {
                     !self.branch_form.contains(&expression)
@@ -39,6 +41,7 @@ impl Checker<'_, '_> {
                 UnitDropTarget::Named(_)
                 | UnitDropTarget::Temporary(_)
                 | UnitDropTarget::ReplacedField { .. } => true,
+                UnitDropTarget::ReplacedCapture { .. } => false,
                 UnitDropTarget::This(owner) => self.inputs.receiver.is_some_and(|receiver| {
                     receiver.owner == owner
                         && receiver.mode == lang_frontend::type_checking::ParameterMode::Value

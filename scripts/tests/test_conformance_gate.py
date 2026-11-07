@@ -578,6 +578,45 @@ sys.exit(0)
             "BE:MissingFact",
         )
 
+    def test_mutating_capture_oracle_accepts_only_the_tracked_native_gap(self) -> None:
+        corpus = Path(__file__).resolve().parents[2] / "conformance"
+        expectation = gate.load_expectations(corpus / "expectations.json", corpus_root=corpus)[
+            "probes"
+        ]["p42_lambda_mutate"]
+        baseline = ("FE:L0135", "FE:L0135")
+        self.assertEqual(expectation["baseline_marker"], baseline[0])
+        self.assertEqual(expectation.get("roadmap_blockers"), ["S1"])
+
+        cases = [
+            (
+                2,
+                b"",
+                b"error: frontend lowering failed with UnsupportedNode\n",
+                "known_unimplemented",
+            ),
+            (1, b"", b"error[L0135] main.ko:1:1: conflicting loan\n", "regression"),
+            (2, b"", b"error: frontend lowering failed with MissingFact\n", "regression"),
+            (0, b"mut-capture\n", b"", "unexpected_pass"),
+            (0, b"wrong\n", b"", "wrong_output"),
+        ]
+        for exit_code, stdout, stderr, expected in cases:
+            marker = gate.classify_raw(exit_code, False, stdout, stderr)
+            mode = {
+                "marker": marker,
+                "exit": exit_code,
+                "stdout_bytes": stdout,
+                "stderr_bytes": stderr,
+            }
+            with self.subTest(marker=marker, stdout=stdout):
+                comparison = gate.compare_item(
+                    {"name": "p42_lambda_mutate", "single": mode, "project": mode},
+                    expectation,
+                    baseline,
+                )
+                self.assertEqual(comparison["status"], expected)
+                self.assertFalse(comparison["capability_passed"])
+                self.assertEqual(comparison["gate_ok"], expected == "known_unimplemented")
+
     def test_10_repo_expectations_match_static_derivation_and_matrix_sh_recognizes_object_markers(
         self,
     ) -> None:
@@ -863,7 +902,7 @@ sys.exit(1)
         parsed_audit = json.loads(audit_out.getvalue())
         self.assertEqual(parsed_audit["schema"], "koven.conformance-audit-summary.v1")
         self.assertEqual(parsed_audit["total_probes"], 154)
-        self.assertEqual(parsed_audit["probe_capability_passed"], 138)
+        self.assertEqual(parsed_audit["probe_capability_passed"], 137)
         self.assertEqual(parsed_audit["foundational_p2"]["group_a_runnable"], 58)
         self.assertEqual(parsed_audit["project_transform"]["explicit_import_probes"], 5)
 

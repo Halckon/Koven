@@ -4,5 +4,5 @@ value class Pair(val first: Int, val second: String)
 class Ref
 
 fun fail(holder: Holder<Ref>, pair: Pair): Unit {
-    val (only) = pair
+    val (first) = pair
 }

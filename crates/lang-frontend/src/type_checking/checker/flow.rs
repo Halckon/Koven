@@ -9,6 +9,8 @@ use crate::{
     source::Span,
 };
 
+use crate::type_checking::flow_effects::merge_flow_versions;
+
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -20,6 +22,68 @@ pub(super) enum FlowKey {
 type ConditionFacts = (BTreeMap<FlowKey, TypeId>, BTreeMap<FlowKey, TypeId>);
 
 impl Checker<'_> {
+    pub(super) fn check_elvis(
+        &mut self,
+        left: ExpressionId,
+        operator_span: Span,
+        right: ExpressionId,
+        expected: Option<TypeId>,
+        expected_span: Option<Span>,
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        let left_result = self.check_expression(left, None, None)?;
+        let (inner, left_can_bypass_right) = match self.kind(left_result.ty) {
+            TypeKind::Nullable(inner) => (
+                Some(*inner),
+                !matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)),
+            ),
+            TypeKind::Error => (None, false),
+            TypeKind::Deferred(_) => (None, true),
+            _ => {
+                let right_result = self.check_expression(right, expected, expected_span)?;
+                self.emit_binary_operand_error(
+                    operator_span,
+                    left,
+                    left_result.ty,
+                    right,
+                    right_result.ty,
+                )?;
+                return Ok(ExprCheck {
+                    ty: self.error_type(),
+                    falls_through: left_result.falls_through,
+                });
+            }
+        };
+        let right_expected = inner
+            .filter(|inner| !matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)));
+        let bypass =
+            left_can_bypass_right.then(|| (self.flow_facts.clone(), self.flow_versions.clone()));
+        let right_result =
+            self.check_expression(right, right_expected.or(expected), expected_span)?;
+        if let Some((facts, versions)) = bypass {
+            if right_result.falls_through {
+                self.flow_facts = intersect_facts(&facts, &self.flow_facts);
+                self.flow_versions = merge_flow_versions(&versions, &self.flow_versions);
+            } else {
+                self.flow_facts = facts;
+                self.flow_versions = versions;
+            }
+        }
+        let ty = if let Some(inner) = inner {
+            if matches!(self.kind(inner), TypeKind::Builtin(BuiltinType::Nothing)) {
+                right_result.ty
+            } else {
+                inner
+            }
+        } else {
+            self.deferred(DeferredReason::ControlJoin)
+        };
+        Ok(ExprCheck {
+            ty,
+            falls_through: left_result.falls_through
+                && (left_can_bypass_right || right_result.falls_through),
+        })
+    }
+
     // A stable narrowed read still compares against its declared nullable storage.
     // This expected type belongs only to the other, literal-null operand.
     pub(super) fn null_comparison_expected(
@@ -101,6 +165,7 @@ impl Checker<'_> {
         let boolean = self.builtin(BuiltinType::Boolean);
         self.check_expression(condition, Some(boolean), None)?;
         let baseline = self.flow_facts.clone();
+        let baseline_versions = self.flow_versions.clone();
         let (true_facts, false_facts) = self.condition_facts(condition)?;
         self.flow_facts = extend_facts(&baseline, &true_facts);
         let then_expected = if else_branch.is_some() {
@@ -110,6 +175,7 @@ impl Checker<'_> {
         };
         let then_result = self.check_value_body(then_branch, then_expected, expected_span)?;
         let then_facts = self.flow_facts.clone();
+        let then_versions = self.flow_versions.clone();
         let Some(else_branch) = else_branch else {
             let false_path = extend_facts(&baseline, &false_facts);
             self.flow_facts = if then_result.falls_through {
@@ -117,20 +183,33 @@ impl Checker<'_> {
             } else {
                 false_path
             };
+            self.flow_versions = if then_result.falls_through {
+                merge_flow_versions(&then_versions, &baseline_versions)
+            } else {
+                baseline_versions
+            };
             return Ok(ExprCheck {
                 ty: self.builtin(BuiltinType::Unit),
                 falls_through: true,
             });
         };
         self.flow_facts = extend_facts(&baseline, &false_facts);
+        self.flow_versions = baseline_versions.clone();
         let else_expected = self.control_branch_expected(else_branch, expected)?;
         let else_result = self.check_value_body(else_branch, else_expected, expected_span)?;
         let else_facts = self.flow_facts.clone();
+        let else_versions = self.flow_versions.clone();
         self.flow_facts = match (then_result.falls_through, else_result.falls_through) {
             (true, true) => intersect_facts(&then_facts, &else_facts),
             (true, false) => then_facts,
             (false, true) => else_facts,
             (false, false) => baseline,
+        };
+        self.flow_versions = match (then_result.falls_through, else_result.falls_through) {
+            (true, true) => merge_flow_versions(&then_versions, &else_versions),
+            (true, false) => then_versions,
+            (false, true) => else_versions,
+            (false, false) => baseline_versions,
         };
         let ty = if let Some(join) = self.join_control_types(then_result.ty, else_result.ty) {
             join

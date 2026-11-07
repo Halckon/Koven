@@ -157,7 +157,6 @@ FOUNDATIONAL_GROUP_B_PROBES = frozenset(
         "p01_int_print",
         "p03b_byte_literal_cmp",
         "p25_linked_iter",
-        "p42_lambda_mutate",
         "p43_if_join_any",
         "r01_bogus_member",
         "r02_bogus_member_str",
@@ -169,6 +168,7 @@ FOUNDATIONAL_GROUP_C_PROBES = frozenset(
         "p23_global_var",
         "p35_value_eq",
         "p37_is_generic_case",
+        "p42_lambda_mutate",
     }
 )
 P2_GROUP_A_TARGET_MIN = 70
@@ -316,6 +316,7 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p28_companion": ["N06"],
     "p35_value_eq": ["L1"],
     "p40_nested_generic_class": ["N01"],
+    "p42_lambda_mutate": ["S1"],
     "q03_fn_ref": ["N04"],
     "q08_enum_string_payload": ["N02", "L7"],
     "s02_pair_builtin": ["S6"],
@@ -387,7 +388,7 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "p34_for_range": "0..<5 sums 0+1+2+3+4 = 10; s == 10 holds and prints 'for-range'",
     "p37_is_generic_case": "Result.Ok(1) matches parameterless is Result.Ok with v = 1 (SPEC-0349); prints 'case-noargs'",
     "p38_list_of_strings": "iterating mutableListOf('x', 'y') prints 'x' then 'y' in insertion order",
-    "p42_lambda_mutate": "mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135",
+    "p42_lambda_mutate": "Guide 07 permits a synchronous non-escaping closure to update a captured local var; the completed native call prints 'mut-capture'",
     "p43_if_join_any": "when expression mixing Int (1) and String ('s') branches is rejected with WHEN_BRANCH_TYPE L0112 (D3)",
     "p45_abort_message": "error('boom') aborts with SIGABRT and stderr header 'abort: boom' per Guide 09 D12",
     "p46_string_field_class": "Person('ann', 3).name is 'ann'; describe(p) prints 'ann'",
@@ -543,6 +544,13 @@ CONFIRMED_STDOUT_ORACLES: dict[str, str] = {
 
 # Documented Guide v0.46 probe changes and post-aef3f4f8 merged Spec advancements
 V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
+    "p42_lambda_mutate": {
+        "kind": "known_unimplemented",
+        "allowed_markers": ["BE:UnsupportedNode"],
+        "target_stdout": "mut-capture\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0392: the frontend accepts Guide 07 mutating capture; S1 still lacks the exclusive-capture native ABI",
+    },
     "p28_companion": {
         "kind": "known_unimplemented",
         "allowed_markers": ["BE:UnsupportedNode", "BE:UnsupportedSource", "BE:MissingFact", "FE:L0165"],

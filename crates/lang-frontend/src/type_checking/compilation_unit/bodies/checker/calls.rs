@@ -9,6 +9,7 @@ use crate::{
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{DeclarationId, Namespace, SourceUnitId, UnitReferenceTarget},
     parser::{CallArgument, Expression, ParameterModeMarker},
+    source::Span,
     type_checking::{
         BuiltinType, DeferredReason, ExternalTypeBinding, ParameterMode, TypeCheckingError,
         UnitCallArgumentDescriptor, UnitCallDescriptor, UnitCallReceiverDescriptor,
@@ -18,15 +19,39 @@ use crate::{
     },
 };
 
-use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
+use super::lambda::PartialLambdaContext;
+use super::pending_constraints::PendingConstraints;
+use super::while_flow::PendingControlSite;
+use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck, ExpressionExpected};
 
 mod generic;
 mod member;
+mod overload;
 mod range_extension;
 mod text_extension;
 mod text_primitive;
 
+#[derive(Clone, Copy)]
+struct ArgumentCheckStart {
+    diagnostics: usize,
+    deferred_facts: usize,
+}
+
 impl BodyChecker<'_> {
+    fn unresolved_call(&mut self) -> ExpressionCheck {
+        ExpressionCheck {
+            ty: self.deferred_type(DeferredReason::Call),
+            falls_through: true,
+        }
+    }
+
+    fn argument_check_start(&self) -> ArgumentCheckStart {
+        ArgumentCheckStart {
+            diagnostics: self.diagnostics.len(),
+            deferred_facts: self.deferred_facts.len(),
+        }
+    }
+
     pub(super) fn check_call(
         &mut self,
         source: SourceUnitId,
@@ -122,10 +147,9 @@ impl BodyChecker<'_> {
                 _ => None,
             })
             .cloned();
-        let explicit_types = type_arguments
-            .iter()
-            .map(|type_argument| self.resolve_body_type_ref(source, *type_argument))
-            .collect::<Result<Vec<_>, _>>()?;
+        let argument_start = self.argument_check_start();
+        let (explicit_types, explicit_storage_failures) =
+            self.resolve_explicit_call_types(source, type_arguments)?;
         let mut candidates = match target.clone() {
             Some(UnitReferenceTarget::Declaration(declaration)) => vec![declaration],
             Some(UnitReferenceTarget::OverloadSet(declarations)) => declarations,
@@ -208,17 +232,26 @@ impl BodyChecker<'_> {
                 .iter()
                 .any(|external| self.environment.binding(*external).is_none())
         {
-            self.check_call_arguments_without_expected(source, arguments, return_type)?;
+            self.check_recovery_call_arguments(source, callee, arguments, return_type)?;
+            let ty = self.deferred_type(DeferredReason::UnboundExternalType);
+            self.record_expression(source, callee, ty);
             return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::UnboundExternalType),
+                ty,
                 falls_through: true,
             });
         }
         if !type_arguments.is_empty() && !handles_source_type_arguments {
-            if !self.target_is_external_function(target.as_ref()) {
-                self.check_expression(source, callee, None, None, return_type)?;
+            let callee_result = if self.target_is_external_function(target.as_ref()) {
+                None
+            } else {
+                Some(self.check_expression(source, callee, None, None, return_type)?)
+            };
+            self.check_recovery_call_arguments(source, callee, arguments, return_type)?;
+            if let Some(result) = callee_result
+                && self.is_error(result.ty)
+            {
+                return Ok(result);
             }
-            self.check_call_arguments_without_expected(source, arguments, return_type)?;
             return Ok(ExpressionCheck {
                 ty: self.deferred_type(DeferredReason::Call),
                 falls_through: true,
@@ -250,32 +283,16 @@ impl BodyChecker<'_> {
                     result_source: crate::type_checking::CallableResultSource::Owned,
                     instance_arguments: Vec::new(),
                     receiver: None,
-                    owner_substitutions: BTreeMap::new(),
-                    owner_storage_failure: None,
+                    member_owner: None,
                     cross_thread_parameters: BTreeSet::new(),
                     aborts: false,
                     prints_line: false,
                 });
-            } else if !self
-                .parts
-                .aggregate_projections
-                .iter()
-                .any(|projection| projection.expression() == UnitExpressionId::new(source, callee))
-                && let Some(result) = self.check_structural_component_call(
-                    source,
-                    expression,
-                    callee,
-                    type_arguments,
-                    arguments,
-                    return_type,
-                )?
-            {
-                return Ok(result);
             } else if self.is_error(callee_result.ty) || self.is_deferred(callee_result.ty) {
-                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                self.check_recovery_call_arguments(source, callee, arguments, return_type)?;
                 return Ok(callee_result);
             } else {
-                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                self.check_recovery_call_arguments(source, callee, arguments, return_type)?;
                 self.emit(
                     codes::NON_CALLABLE_TARGET,
                     "call target does not have a callable type",
@@ -288,6 +305,8 @@ impl BodyChecker<'_> {
             }
         }
         let initial_candidate_count = candidates.len();
+        let callee_exits =
+            !self.tracks_pending_call_flow() || self.checked_callee_exits(source, callee)?;
         let mut mapped = Vec::new();
         let mut first_mapping_error = None;
         for candidate in candidates {
@@ -308,148 +327,64 @@ impl BodyChecker<'_> {
             if let Some(error) = first_mapping_error {
                 self.emit_mapping_error(error)?;
             }
-            self.check_call_arguments_without_expected(source, arguments, return_type)?;
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        }
-        let needs_inference = explicit_types.is_empty()
-            && mapped
-                .iter()
-                .any(|(candidate, _)| !candidate.type_parameters.is_empty());
-        let inference_types = if needs_inference {
-            self.check_generic_inference_arguments(source, arguments, return_type)?
-        } else {
-            vec![None; arguments.len()]
-        };
-        let mut instantiated = Vec::with_capacity(mapped.len());
-        let mut first_instantiation_error = None;
-        for (candidate, mapping) in mapped {
-            match self.instantiate_source_candidate(
-                source,
-                candidate,
-                &mapping,
-                arguments,
-                &inference_types,
-                (type_arguments, &explicit_types),
-                callee_span,
-            )? {
-                Ok(candidate) => instantiated.push((candidate, mapping)),
-                Err(error) => {
-                    first_instantiation_error.get_or_insert(error);
-                }
-            }
-        }
-        if instantiated.is_empty() {
-            if initial_candidate_count == 1 {
-                if matches!(
-                    first_instantiation_error,
-                    Some(generic::UnitInstantiationFailure::Arity { .. })
-                ) {
-                    self.check_call_arguments_without_expected(source, arguments, return_type)?;
-                }
-                if let Some(error) = first_instantiation_error {
-                    self.emit_unit_instantiation_failure(error)?;
-                }
-            } else {
-                return self.overload_failure(callee_span, true);
-            }
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        }
-        let mut mapped = instantiated;
-        let prechecked = needs_inference.then_some(inference_types.as_slice());
-        if mapped.len() == 1 {
-            let (candidate, mapping) = mapped
-                .pop()
-                .expect("one mapped compilation-unit callable candidate");
-            return self.finish_candidate(
-                source,
-                expression,
-                callee,
-                arguments,
-                return_type,
-                &candidate,
-                &mapping,
-                prechecked,
-            );
-        }
-        let lambda_arguments = arguments
-            .iter()
-            .map(|argument| self.is_lambda_syntax(source, argument.value))
-            .collect::<Vec<_>>();
-        if lambda_arguments.iter().any(|is_lambda| *is_lambda) {
-            return self.finish_overload_lambda_call(
-                source,
-                expression,
-                callee,
-                arguments,
-                return_type,
-                mapped,
-                &lambda_arguments,
-                prechecked,
-            );
-        }
-        let argument_types = if needs_inference {
-            inference_types
-                .iter()
-                .copied()
-                .collect::<Option<Vec<_>>>()
-                .expect("non-lambda call inference prechecks every argument")
-        } else {
-            arguments
-                .iter()
-                .map(|argument| {
-                    self.check_expression(source, argument.value, None, None, return_type)
-                        .map(|result| result.ty)
+            self.check_loop_reachable(callee_exits, |checker| {
+                checker.with_explicit_storage_recovery(&explicit_storage_failures, |checker| {
+                    checker.check_call_arguments_without_expected(source, arguments, return_type)
                 })
-                .collect::<Result<Vec<_>, _>>()?
-        };
-        if argument_types.iter().any(|ty| self.is_error(*ty)) {
+            })?;
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
             });
         }
-        if argument_types.iter().any(|ty| self.is_deferred(*ty)) {
-            return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Call),
-                falls_through: true,
-            });
+        self.check_loop_reachable(callee_exits, |checker| {
+            checker.select_mapped_call(
+                overload::CallSite {
+                    source,
+                    expression,
+                    callee,
+                    callee_span,
+                    arguments,
+                    return_type,
+                    explicit: (type_arguments, &explicit_types),
+                    explicit_storage_failures: &explicit_storage_failures,
+                    argument_start,
+                },
+                initial_candidate_count,
+                mapped,
+            )
+        })
+    }
+
+    fn resolve_explicit_call_types(
+        &mut self,
+        source: SourceUnitId,
+        type_arguments: &[TypeRefId],
+    ) -> Result<(Vec<UnitTypeId>, BTreeMap<UnitTypeId, Span>), CompilationUnitTypeError> {
+        if type_arguments.is_empty() {
+            return Ok((Vec::new(), BTreeMap::new()));
         }
-        let viable = mapped
+        let previous = self.explicit_storage_failures.replace(BTreeMap::new());
+        let types = type_arguments
             .iter()
-            .enumerate()
-            .filter_map(|(candidate_index, (candidate, mapping))| {
-                arguments
-                    .iter()
-                    .enumerate()
-                    .all(|(argument_index, _)| {
-                        self.assignable(
-                            argument_types[argument_index],
-                            candidate.parameters[mapping[argument_index]].ty,
-                        )
-                    })
-                    .then_some(candidate_index)
-            })
-            .collect::<Vec<_>>();
-        if viable.len() != 1 {
-            return self.overload_failure(callee_span, viable.is_empty());
+            .map(|type_argument| self.resolve_body_type_ref(source, *type_argument))
+            .collect::<Result<Vec<_>, _>>();
+        let failures = std::mem::replace(&mut self.explicit_storage_failures, previous);
+        Ok((types?, failures.unwrap_or_default()))
+    }
+
+    fn with_explicit_storage_recovery<T>(
+        &mut self,
+        failures: &BTreeMap<UnitTypeId, Span>,
+        check: impl FnOnce(&mut Self) -> Result<T, CompilationUnitTypeError>,
+    ) -> Result<T, CompilationUnitTypeError> {
+        if failures.is_empty() {
+            return check(self);
         }
-        let (candidate, mapping) = mapped.swap_remove(viable[0]);
-        self.finish_candidate(
-            source,
-            expression,
-            callee,
-            arguments,
-            return_type,
-            &candidate,
-            &mapping,
-            Some(&argument_types.iter().copied().map(Some).collect::<Vec<_>>()),
-        )
+        self.storage_recovery_scopes.push(failures.clone());
+        let result = check(self);
+        self.storage_recovery_scopes.pop();
+        result
     }
 
     fn target_uses_intrinsic_callable(&self, target: Option<&UnitReferenceTarget>) -> bool {
@@ -481,14 +416,36 @@ impl BodyChecker<'_> {
         }
     }
 
+    fn check_recovery_call_arguments(
+        &mut self,
+        source: SourceUnitId,
+        callee: ExpressionId,
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<(), CompilationUnitTypeError> {
+        let callee_exits =
+            !self.tracks_pending_call_flow() || self.checked_callee_exits(source, callee)?;
+        self.check_loop_reachable(callee_exits, |checker| {
+            checker.check_call_arguments_without_expected(source, arguments, return_type)
+        })
+    }
+
     pub(super) fn check_call_arguments_without_expected(
         &mut self,
         source: SourceUnitId,
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<(), CompilationUnitTypeError> {
+        let track_arguments = self.tracks_pending_call_flow();
+        let mut arguments_exit = true;
         for argument in arguments {
-            self.check_expression(source, argument.value, None, None, return_type)?;
+            let result = self.check_loop_reachable(arguments_exit, |checker| {
+                checker.check_expression(source, argument.value, None, None, return_type)
+            })?;
+            if track_arguments && arguments_exit {
+                arguments_exit =
+                    self.has_pending_expression_exit(source, argument.value, result)?;
+            }
         }
         Ok(())
     }
@@ -501,75 +458,227 @@ impl BodyChecker<'_> {
         callee: ExpressionId,
         arguments: &[CallArgument],
         return_type: UnitTypeId,
-        candidate: &CallCandidate,
+        mut candidate: CallCandidate,
         mapping: &[usize],
         prechecked_argument_types: Option<&[Option<UnitTypeId>]>,
+        candidate_types: Option<super::type_graph::CandidateTypes>,
+        argument_start: ArgumentCheckStart,
+        pending_instance: bool,
+        constraints: Option<PendingConstraints>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let mut valid = true;
         let mut deferred = false;
+        let mut uncommitted_context = false;
+        let track_arguments = self.tracks_pending_call_flow();
+        let mut arguments_exit = !track_arguments || self.checked_callee_exits(source, callee)?;
+        let mut observed = constraints.as_ref().map(|_| vec![None; arguments.len()]);
         for (argument_index, argument) in arguments.iter().enumerate() {
             let parameter = &candidate.parameters[mapping[argument_index]];
-            if let Some(ty) = prechecked_argument_types
+            let expected = match &candidate_types {
+                Some(types) => ExpressionExpected::Candidate(types, parameter.ty),
+                None => ExpressionExpected::Canonical(parameter.ty),
+            };
+            let unresolved_context = pending_instance
+                && expected.probe(self, |checker, ty| {
+                    Ok(checker.contains_unresolved_call_type(ty))
+                })?;
+            let lambda = pending_instance && self.is_lambda_syntax(source, argument.value);
+            if lambda {
+                match self.partial_lambda_context(source, argument.value, expected) {
+                    PartialLambdaContext::Unresolved if unresolved_context => {
+                        if let Some(constraints) = &constraints
+                            && let Some(span) = constraints.explicit_lambda_header_mismatch(
+                                self,
+                                candidate_types.as_ref(),
+                                source,
+                                mapping[argument_index],
+                                argument.value,
+                            )?
+                        {
+                            self.emit_lambda_structure_mismatch(span, parameter.span)?;
+                            valid = false;
+                        }
+                        uncommitted_context = true;
+                        continue;
+                    }
+                    PartialLambdaContext::Poisoned => {
+                        valid = false;
+                        uncommitted_context = true;
+                        continue;
+                    }
+                    PartialLambdaContext::NonCallable => {
+                        let span = self
+                            .file(source)
+                            .ast()
+                            .expressions()
+                            .get(argument.value)
+                            .map_err(TypeCheckingError::from)?
+                            .span();
+                        self.emit_maybe_label(
+                            codes::TYPE_MISMATCH,
+                            "lambda argument requires a function parameter type",
+                            span,
+                            parameter.span,
+                            "parameter type declared here",
+                        )?;
+                        valid = false;
+                        uncommitted_context = true;
+                        continue;
+                    }
+                    PartialLambdaContext::WrongHeader(_) | PartialLambdaContext::Unresolved => {}
+                }
+            }
+            let actual = match prechecked_argument_types
                 .and_then(|types| types.get(argument_index))
                 .copied()
                 .flatten()
             {
-                valid &= !self.is_error(ty);
-                deferred |= self.is_deferred(ty);
-                if !self.is_error(ty) && !self.is_deferred(ty) && !self.assignable(ty, parameter.ty)
+                Some(actual) => actual,
+                None => {
+                    let context = if unresolved_context && !lambda {
+                        let reason =
+                            if matches!(expected.kind(self), Some(UnitTypeKind::Deferred(_))) {
+                                DeferredReason::ContextualArgument
+                            } else {
+                                DeferredReason::Call
+                            };
+                        ExpressionExpected::Canonical(self.deferred_type(reason))
+                    } else {
+                        expected
+                    };
+                    self.check_loop_reachable(arguments_exit, |checker| {
+                        checker.check_expression_with_expectation(
+                            source,
+                            argument.value,
+                            Some(context),
+                            parameter.span,
+                            return_type,
+                        )
+                    })?
+                    .ty
+                }
+            };
+            if track_arguments && arguments_exit {
+                arguments_exit = self.checked_call_operand_exits(source, argument.value)?;
+            }
+            if let Some(observed) = &mut observed {
+                observed[argument_index] = Some(actual);
+            }
+            let required = self
+                .contextual_argument_requirement(source, argument.value)?
+                .unwrap_or(actual);
+            if self.is_deferred(required) && !self.has_contextual_integer(required) {
+                deferred = true;
+                if let Some(marker @ ParameterModeMarker::Inout(_)) = argument.mode_marker
+                    && self.is_known_read_only_index(source, argument.value)
                 {
-                    self.emit_call_argument_mismatch(source, argument, parameter, ty)?;
+                    self.emit_mapping_error(MappingError::Mode {
+                        primary: parameter_mode_span(marker),
+                        parameter: parameter.span,
+                    })?;
                     valid = false;
                 }
-                if !self.is_error(ty) && !self.is_deferred(ty) {
-                    valid &= self.validate_inout_argument(source, argument, parameter)?;
-                }
-                continue;
-            }
-            let result = self.check_expression(
-                source,
-                argument.value,
-                Some(parameter.ty),
-                parameter.span,
-                return_type,
-            )?;
-            valid &= !self.is_error(result.ty);
-            deferred |= self.is_deferred(result.ty);
-            if !self.is_error(result.ty)
-                && !self.is_deferred(result.ty)
-                && !self.assignable(result.ty, parameter.ty)
-            {
-                self.emit_call_argument_mismatch(source, argument, parameter, result.ty)?;
+            } else if self.is_error(actual) {
                 valid = false;
-            }
-            if !self.is_error(result.ty) && !self.is_deferred(result.ty) {
-                valid &= self.validate_inout_argument(source, argument, parameter)?;
+            } else {
+                let unresolved_actual = self.contains_unresolved_call_type(actual);
+                deferred |= unresolved_actual;
+                // The source facts already exist. Any remaining use of the
+                // expected type is local to compatibility or the diagnostic.
+                valid &= expected.probe(self, |checker, expected| {
+                    let assignable = checker.call_argument_could_match(
+                        required,
+                        expected,
+                        pending_instance || unresolved_actual,
+                    );
+                    if !assignable {
+                        checker.emit_call_argument_mismatch(
+                            source,
+                            argument,
+                            parameter.span,
+                            expected,
+                            actual,
+                        )?;
+                    }
+                    Ok(checker.validate_inout_argument(source, argument, parameter)? && assignable)
+                })?;
             }
         }
-        if deferred {
-            return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Call),
-                falls_through: true,
-            });
+        if valid
+            && !self.has_argument_errors_since(argument_start)
+            && let (Some(constraints), Some(observed)) = (&constraints, &observed)
+            && let Some(index) = constraints.first_conflict(
+                self,
+                candidate_types.as_ref(),
+                source,
+                arguments,
+                mapping,
+                observed,
+            )?
+        {
+            let span = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(arguments[index].value)
+                .map_err(TypeCheckingError::from)?
+                .span();
+            self.emit_maybe_label(
+                codes::TYPE_MISMATCH,
+                "argument conflicts with the pending type constraints",
+                span,
+                candidate.parameters[mapping[index]].span,
+                "parameter type declared here",
+            )?;
+            valid = false;
         }
-        if !valid {
+        if !valid || self.has_argument_errors_since(argument_start) {
+            if uncommitted_context {
+                // Final admission needs the unresolved call root to identify
+                // the uncommitted lambda. Independent errors are already recorded.
+                return Ok(self.unresolved_call());
+            }
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
             });
         }
-        if let Expression::SuperMember { name_span, .. } = self
+        let callee_payload = self
             .file(source)
             .ast()
             .expressions()
             .get(callee)
             .map_err(TypeCheckingError::from)?
-            .payload()
+            .payload();
+        let callee_id = UnitExpressionId::new(source, callee);
+        let pending_receiver = match callee_payload {
+            Expression::Member { receiver, .. } => {
+                let receiver = UnitExpressionId::new(source, *receiver);
+                self.storage_value_is_pending(receiver)
+                    || self
+                        .parts
+                        .expression_types
+                        .get(&receiver)
+                        .is_some_and(|&ty| {
+                            self.replacement_value_pending(receiver, ty, self.deferred_facts.len())
+                        })
+            }
+            _ => false,
+        };
+        let call_pending = deferred
+            || pending_instance
+            || pending_receiver
+            || self.storage_value_is_pending(callee_id)
+            || self.has_unresolved_argument_facts_since(argument_start.deferred_facts);
+        if let Expression::SuperMember { name_span, .. } = callee_payload
             && candidate.receiver.is_some_and(|(target, _)| {
                 self.current_receiver_mode
                     .is_some_and(|current| !receiver_mode_allows(current, target))
             })
         {
+            if call_pending {
+                return Ok(self.unresolved_call());
+            }
             self.emit(
                 codes::INVALID_OVERRIDE,
                 "current receiver mode cannot satisfy the selected super member contract",
@@ -580,18 +689,59 @@ impl BodyChecker<'_> {
                 falls_through: true,
             });
         }
-        self.record_call(source, expression, callee, arguments, candidate, mapping);
+        // Selection identifies the recovery target even when publication is
+        // gated by a provisional argument type or value.
+        let closure_call = candidate.target == UnitCallTarget::FunctionValue;
+        let returns = !candidate.aborts
+            && !self.is_builtin(candidate.return_type, BuiltinType::Nothing)
+            && (!closure_call || self.known_closure_returns(callee_id));
+        if track_arguments && !returns {
+            self.note_pending_exit(
+                PendingControlSite::Expression(UnitExpressionId::new(source, expression)),
+                false,
+            );
+        }
+        if arguments_exit && returns {
+            if closure_call {
+                self.apply_closure_effects(callee_id);
+            } else {
+                self.apply_pending_call_writebacks(source, candidate.target, arguments, mapping);
+            }
+        }
+        if call_pending {
+            return Ok(self.unresolved_call());
+        }
+        if let Some(types) = candidate_types {
+            types.publish(
+                self.signatures.types_mut(),
+                candidate
+                    .parameters
+                    .iter_mut()
+                    .map(|parameter| &mut parameter.ty)
+                    .chain(std::iter::once(&mut candidate.return_type))
+                    .chain(candidate.instance_arguments.iter_mut())
+                    .chain(candidate.receiver.iter_mut().map(|(_, ty)| ty)),
+            )?;
+        }
+        self.record_call(source, expression, callee, arguments, &candidate, mapping);
         Ok(ExpressionCheck {
             ty: candidate.return_type,
             falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
         })
     }
 
+    fn has_argument_errors_since(&self, start: ArgumentCheckStart) -> bool {
+        self.diagnostics[start.diagnostics..]
+            .iter()
+            .any(|diagnostic| diagnostic.severity() == Severity::Error)
+    }
+
     fn emit_call_argument_mismatch(
         &mut self,
         source: SourceUnitId,
         argument: &CallArgument,
-        parameter: &MappedParameter<UnitTypeId>,
+        parameter_span: Option<Span>,
+        expected: UnitTypeId,
         actual: UnitTypeId,
     ) -> Result<(), CompilationUnitTypeError> {
         let primary = self
@@ -605,10 +755,10 @@ impl BodyChecker<'_> {
             codes::TYPE_MISMATCH,
             "expression type does not match the expected type",
             primary,
-            parameter.span,
+            parameter_span,
             format!(
                 "expected {}, found {}",
-                self.type_name(parameter.ty),
+                self.type_name(expected),
                 self.type_name(actual)
             ),
         )
@@ -633,155 +783,6 @@ impl BodyChecker<'_> {
             parameter: parameter.span,
         })?;
         Ok(false)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn finish_overload_lambda_call(
-        &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        callee: ExpressionId,
-        arguments: &[CallArgument],
-        return_type: UnitTypeId,
-        mut candidates: Vec<(CallCandidate, Vec<usize>)>,
-        lambda_arguments: &[bool],
-        prechecked_argument_types: Option<&[Option<UnitTypeId>]>,
-    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let mut argument_types = vec![None; arguments.len()];
-        let mut has_error = false;
-        let mut has_deferred = false;
-        for (index, argument) in arguments.iter().enumerate() {
-            if lambda_arguments[index] {
-                continue;
-            }
-            if let Some(ty) = prechecked_argument_types
-                .and_then(|types| types.get(index))
-                .copied()
-                .flatten()
-            {
-                has_error |= self.is_error(ty);
-                has_deferred |= self.is_deferred(ty);
-                argument_types[index] = Some(ty);
-                continue;
-            }
-            let result = self.check_expression(source, argument.value, None, None, return_type)?;
-            has_error |= self.is_error(result.ty);
-            has_deferred |= self.is_deferred(result.ty);
-            argument_types[index] = Some(result.ty);
-        }
-        if has_error {
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        }
-        if has_deferred {
-            return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Call),
-                falls_through: true,
-            });
-        }
-        candidates.retain(|(candidate, mapping)| {
-            argument_types.iter().enumerate().all(|(index, actual)| {
-                actual.is_none_or(|actual| {
-                    self.assignable(actual, candidate.parameters[mapping[index]].ty)
-                })
-            })
-        });
-        let callee_span = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(callee)
-            .map_err(TypeCheckingError::from)?
-            .span();
-        match candidates.len() {
-            0 => return self.overload_failure(callee_span, true),
-            1 => {
-                let (candidate, mapping) = candidates
-                    .pop()
-                    .expect("one candidate remains after non-lambda filtering");
-                return self.finish_candidate(
-                    source,
-                    expression,
-                    callee,
-                    arguments,
-                    return_type,
-                    &candidate,
-                    &mapping,
-                    Some(&argument_types),
-                );
-            }
-            _ => {}
-        }
-
-        let baseline = self.trial_state();
-        let baseline_diagnostics = self.diagnostics.len();
-        let mut successes = Vec::new();
-        let mut has_deferred_trial = false;
-        for (candidate, mapping) in candidates {
-            self.restore_trial_state(baseline.clone());
-            let declaration_span = candidate.declaration_span;
-            let previous_candidate_local_expected = self.candidate_local_expected;
-            self.candidate_local_expected = true;
-            let result = self.finish_candidate(
-                source,
-                expression,
-                callee,
-                arguments,
-                return_type,
-                &candidate,
-                &mapping,
-                Some(&argument_types),
-            );
-            self.candidate_local_expected = previous_candidate_local_expected;
-            let result = match result {
-                Ok(result) => result,
-                Err(error) => {
-                    self.restore_trial_state(baseline);
-                    return Err(error);
-                }
-            };
-            let trial_deferred =
-                self.is_deferred(result.ty) || self.trial_introduced_deferred(&baseline);
-            let trial_has_errors = self.diagnostics[baseline_diagnostics..]
-                .iter()
-                .any(|diagnostic| diagnostic.severity() == Severity::Error);
-            // 已由错误淘汰的候选可能留下 recovery Deferred，不能否决另一完整候选。
-            // 无错误的未定候选仍保留保守门禁，防止过早提交 intrinsic facts。
-            has_deferred_trial |= trial_deferred && !trial_has_errors;
-            if self.diagnostics.len() == baseline_diagnostics
-                && !self.is_error(result.ty)
-                && !trial_deferred
-            {
-                successes.push((self.trial_state(), result, declaration_span));
-            }
-        }
-        self.restore_trial_state(baseline);
-        if has_deferred_trial {
-            return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Call),
-                falls_through: true,
-            });
-        }
-        match successes.len() {
-            0 => self.overload_failure(callee_span, true),
-            1 => {
-                let (state, result, _) = successes
-                    .pop()
-                    .expect("one successful compilation-unit candidate trial");
-                self.restore_trial_state(state);
-                Ok(result)
-            }
-            _ => {
-                let declarations = successes
-                    .iter()
-                    .filter_map(|(_, _, span)| *span)
-                    .take(2)
-                    .collect::<Vec<_>>();
-                self.ambiguous_overload(callee_span, &declarations)
-            }
-        }
     }
 
     fn record_call(

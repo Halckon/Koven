@@ -60,11 +60,8 @@ unit 既有能力不回退。0299 组合只证明
 或参数退出 CFG。现有一般 CFG/条件借用边界保持。
 
 
-## 自动结构分量的 owned 结果
+## 字段投影与显式成员调用
 
-Unit 类型阶段将自动 `componentN()` 记录为带真实字段身份的 `StructuralComponent`
-投影及 Borrow receiver 调用。所有权调用遍历只在正常 continuation 且本次调用尚无诊断时，
-对实际 MoveOnly 分量发布 L0132：primary 为 callee 的 member 名，唯一 label 指向原字段
-声明。Copyable 分量和显式同名源码方法不走该拒绝，receiver 已失败时不追加级联。
-直接回归位于 `ownership_structural/component_partial_move`，保留原 Single witness、
-原 partial-move fixture 与 sidecar；本批候选尚未经编译或动态验证，不外推 native 能力。
+`value class` 的显式 `componentN()` 按普通成员调用处理。未声明的调用走一般未解析成员
+路径，不发布调用或字段投影。局部结构解构与 `for` 借用解构各有独立产物。直接字段访问
+按真实字段身份进行所有权检查；尝试从 owned 聚合移出不可复制字段时报告 L0132 并标注字段声明。

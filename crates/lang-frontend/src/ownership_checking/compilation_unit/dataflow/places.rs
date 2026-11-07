@@ -1,10 +1,10 @@
 //! Place、projection 与 Value delivery 的 source-qualified 所有权规则。
 
 use crate::{
-    ast::ExpressionId,
+    ast::{ExpressionId, ItemId},
     diagnostic::{Diagnostic, Severity},
     ownership_checking::{UnitValueDeliveryKind, UnitValueDeliverySource},
-    parser::{Expression, VariableKind},
+    parser::{Expression, Item, VariableKind},
     type_checking::{
         Copyability, ExpressionCategory, NominalKind, RcOperationKind, UnitAggregateProjectionKind,
         UnitExpressionId, UnitTypeKind,
@@ -17,6 +17,31 @@ use super::{
 };
 
 impl Checker<'_> {
+    pub(super) fn collect_mutability(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
+        match self.parsed.ast().items().get(id)?.payload().clone() {
+            Item::Error | Item::Constant { .. } | Item::Function { .. } | Item::Deinit { .. } => {}
+            Item::Modified { declaration, .. } => self.collect_mutability(declaration)?,
+            Item::Variable { kind, name, .. } => {
+                if let Some(symbol) = self.marker_symbol(name).copied() {
+                    self.variable_kinds.insert(symbol, kind);
+                }
+            }
+            Item::Classifier(classifier) => {
+                if let Some(body) = classifier.body {
+                    for member in body.members {
+                        self.collect_mutability(member)?;
+                    }
+                }
+            }
+            Item::Companion(companion) => {
+                for member in companion.body.members {
+                    self.collect_mutability(member)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Group forwards a checked constant value without creating another temporary owner.
     pub(super) fn constant_temporary_origin(
         &self,

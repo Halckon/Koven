@@ -173,7 +173,8 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
                         == Some("callback: (borrow Int) -> Int")
             ))
     );
-    assert_eq!(typed.calls().len(), 1);
+    // The callback's wrong return cannot commit the outer call.
+    assert!(typed.calls().is_empty());
     assert!(typed.validate().is_err());
 }
 

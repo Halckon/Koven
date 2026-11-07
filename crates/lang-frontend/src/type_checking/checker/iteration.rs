@@ -83,7 +83,7 @@ impl Checker<'_> {
                 }
             }
         }
-        self.check_loop_body(body)?;
+        self.check_repeating_flow(None, body)?;
         let span = self.ast().statements().get(statement)?.span();
         let upstream_error = self
             .input_error_spans
@@ -177,6 +177,15 @@ impl Checker<'_> {
                     let Some(symbol) = self.iteration_symbol(marker, ty)? else {
                         return Ok(None);
                     };
+                    if symbol.is_some() && self.private_field_inaccessible(field, pattern) {
+                        self.emit_iteration_error(
+                            self.invalid_iteration_pattern_code,
+                            "for destructuring cannot bind a private field outside its declaring classifier",
+                            pattern,
+                            element,
+                        )?;
+                        return Ok(None);
+                    }
                     components.push(SequentialIterationComponent { field, symbol, ty });
                 }
                 Ok(Some(SequentialIterationBinding::Destructure(components)))

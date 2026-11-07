@@ -53,6 +53,7 @@ impl BodyChecker<'_> {
         {
             return Ok(None);
         }
+        let deferred = self.deferred_facts.len();
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
         let payload_type = match self.rc_payload_type(receiver_result.ty) {
             Some(payload) => payload,
@@ -97,11 +98,19 @@ impl BodyChecker<'_> {
             UnitExpressionId::new(source, callee),
             ExpressionCategory::Temporary,
         );
+        let expression = UnitExpressionId::new(source, expression);
+        let receiver = UnitExpressionId::new(source, receiver);
+        if self.storage_value_is_pending(receiver)
+            || self.replacement_value_pending(receiver, receiver_result.ty, deferred)
+        {
+            self.note_pending_storage_value(expression, receiver_result.ty);
+            return Ok(Some(receiver_result));
+        }
         self.parts
             .rc_operations
             .push(UnitRcOperationDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
+                expression,
+                receiver,
                 payload_type,
                 RcOperationKind::Share,
             ));
@@ -113,12 +122,12 @@ impl BodyChecker<'_> {
 
     pub(super) fn rc_member_type(
         &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        receiver: ExpressionId,
+        expression: UnitExpressionId,
+        receiver: UnitExpressionId,
         receiver_type: UnitTypeId,
         name_span: Span,
         safe: bool,
+        receiver_pending: bool,
     ) -> Result<Option<UnitTypeId>, CompilationUnitTypeError> {
         if safe
             || self
@@ -136,11 +145,15 @@ impl BodyChecker<'_> {
         if self.construction_type_contains_poison(payload_type) {
             return Ok(None);
         }
+        if receiver_pending {
+            self.note_pending_storage_value(expression, payload_type);
+            return Ok(Some(payload_type));
+        }
         self.parts
             .rc_operations
             .push(UnitRcOperationDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
+                expression,
+                receiver,
                 payload_type,
                 RcOperationKind::Value,
             ));

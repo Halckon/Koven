@@ -230,6 +230,7 @@ impl Stops {
     pub(super) const LAMBDA_COMMA: u16 = 1 << 6;
     pub(super) const FILE_DECLARATION: u16 = 1 << 7;
     pub(super) const ELSE: u16 = 1 << 8;
+    pub(super) const SEMICOLON: u16 = 1 << 9;
     pub(super) const HARD_DELIMITERS: u16 =
         Self::RIGHT_PAREN | Self::RIGHT_BRACKET | Self::INTERPOLATION_END;
 
@@ -270,15 +271,15 @@ impl Stops {
     pub(super) const fn without_lambda_body_soft_stops(self) -> Self {
         Self {
             delimiters: self.delimiters
-                & !(Self::LAMBDA_COMMA | Self::ARROW | Self::FILE_DECLARATION),
+                & !(Self::LAMBDA_COMMA | Self::ARROW | Self::FILE_DECLARATION | Self::SEMICOLON),
             block_elements: false,
             when_entry_body: self.when_entry_body,
         }
     }
 
-    pub(super) const fn without_file_declaration_stop(self) -> Self {
+    pub(super) const fn without_file_and_semicolon_stops(self) -> Self {
         Self {
-            delimiters: self.delimiters & !Self::FILE_DECLARATION,
+            delimiters: self.delimiters & !(Self::FILE_DECLARATION | Self::SEMICOLON),
             block_elements: self.block_elements,
             when_entry_body: self.when_entry_body,
         }
@@ -316,7 +317,7 @@ impl Stops {
                 self.delimiters & (Self::COMMA | Self::LAMBDA_COMMA) != 0
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon)) => {
-                self.delimiters & Self::FILE_DECLARATION != 0
+                self.delimiters & (Self::FILE_DECLARATION | Self::SEMICOLON) != 0
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) => {
                 self.delimiters & Self::ARROW != 0
@@ -365,6 +366,7 @@ impl TypeStops {
     pub(super) const FILE: u16 = 1 << 9;
     pub(super) const ARROW: u16 = 1 << 10;
     pub(super) const EXTENSION_NAME: u16 = 1 << 11;
+    const SEMICOLON: u16 = 1 << 12;
 
     pub(super) const fn ends_at_extension_name(self) -> bool {
         self.0 & Self::EXTENSION_NAME != 0
@@ -400,6 +402,9 @@ impl TypeStops {
         if stops.delimiters & Stops::FILE_DECLARATION != 0 {
             bits |= Self::FILE;
         }
+        if stops.delimiters & Stops::SEMICOLON != 0 {
+            bits |= Self::SEMICOLON;
+        }
         Self(bits)
     }
 
@@ -408,7 +413,7 @@ impl TypeStops {
     }
 
     pub(super) const fn without_block_elements(self) -> Self {
-        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE))
+        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE | Self::SEMICOLON))
     }
 
     pub(super) fn contains(self, lexeme: Lexeme) -> bool {
@@ -439,8 +444,8 @@ impl TypeStops {
             kind if self.0 & Self::BLOCK_ELEMENT != 0 && unsupported_block_element_kind(kind) => {
                 true
             }
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon)) if self.0 & Self::FILE != 0 => {
-                true
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon)) => {
+                self.0 & (Self::FILE | Self::SEMICOLON) != 0
             }
             kind if self.0 & Self::FILE != 0 && file_construct_start_kind(kind) => true,
             _ => false,
@@ -567,6 +572,9 @@ impl DeclarationStops {
         }
         if stops.delimiters & Stops::FILE_DECLARATION != 0 {
             result.0 |= Self::FILE.0;
+        }
+        if stops.delimiters & Stops::SEMICOLON != 0 {
+            result.0 |= Self::SEMICOLON;
         }
         if stops.block_elements {
             result.0 |= Self::LEFT_BRACE | Self::BLOCK_ELEMENT | Self::CONTROL_EXPRESSION;

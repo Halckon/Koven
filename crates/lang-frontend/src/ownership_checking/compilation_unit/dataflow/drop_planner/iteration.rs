@@ -251,7 +251,7 @@ impl DropPlanner<'_, '_> {
             self.drop_pending_temporaries(point, state, |pending| {
                 pending.loop_depth >= frame.loop_depth
             });
-            self.drop_deeper_than(frame.scope_depth, point, state);
+            self.drop_deeper_than(frame.scope_depth, frame.loop_depth, point, state);
             self.finish_iteration(
                 point,
                 Exit::Return(self.checker.unit_expression(expression)),

@@ -192,20 +192,6 @@ impl Checker<'_> {
         {
             self.release_last_closure_use(expression, &mut flows)?;
         }
-        if flows.next.is_some()
-            && self.diagnostics.len() == diagnostic_count
-            && self
-                .typed
-                .aggregate_projection(id)
-                .is_some_and(|projection| {
-                    projection.kind() == AggregateProjectionKind::StructuralComponent
-                })
-        {
-            let callee = self.parsed.ast().expressions().get(callee)?;
-            if let Expression::Member { name_span, .. } = callee.payload() {
-                self.reject_partial_move(id, *name_span)?;
-            }
-        }
         if self.is_nothing_expression(id) {
             flows.next = None;
         }

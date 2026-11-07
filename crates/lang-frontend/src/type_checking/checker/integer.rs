@@ -56,7 +56,7 @@ impl Checker<'_> {
                 TypeKind::Builtin(_) | TypeKind::Intrinsic { .. } | TypeKind::Nullable(_)
             ) {
                 self.emit(
-                    self.unresolved_constant_code,
+                    self.unresolved_name_code,
                     &format!("receiver has no {member} member"),
                     name_span,
                 )?;

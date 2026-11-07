@@ -155,13 +155,19 @@ impl BodyChecker<'_> {
             receiver_mode = None;
         }
         let mut parameter_types = Vec::with_capacity(parameters.len());
+        let mut inout_parameters = Vec::new();
         for parameter in parameters {
             let ty = self.resolve_body_type_ref(source, parameter.type_ref)?;
             if let NameMarker::Present(span) = parameter.name {
-                self.symbol_at(source, span, Namespace::Value)
+                let symbol = self
+                    .symbol_at(source, span, Namespace::Value)
                     .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
                 self.set_span_symbol(source, span, ty);
-                self.set_parameter_mode(source, span, parameter_mode(parameter.mode_marker));
+                let mode = parameter_mode(parameter.mode_marker);
+                self.set_parameter_mode(source, span, mode);
+                if mode == ParameterMode::Inout {
+                    inout_parameters.push((symbol, ty));
+                }
             } else if !self.diagnosed_missing_name(source, parameter.name) {
                 return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
             }
@@ -227,7 +233,7 @@ impl BodyChecker<'_> {
             std::mem::replace(&mut self.current_rejected_extension_receiver, false);
         let previous_return_span = self.current_return_span;
         self.callable_loop_bases.push(self.loop_depth);
-        let result = self.check_function_body(source, *form, return_type);
+        let result = self.check_function_body(source, *form, return_type, inout_parameters);
         self.callable_loop_bases.pop();
         self.current_receiver = previous_receiver;
         self.current_receiver_mode = previous_mode;

@@ -214,9 +214,18 @@ impl Checker<'_> {
                 .as_ref()
                 .into_iter()
                 .flat_map(|constructor| &constructor.fields)
-                .filter_map(|field| match field.name {
-                    NameMarker::Present(span) => self.symbol_at(span),
-                    _ => None,
+                .filter_map(|field| {
+                    let NameMarker::Present(span) = field.name else {
+                        return None;
+                    };
+                    let symbol = self.symbol_at(span)?;
+                    if matches!(
+                        field.visibility,
+                        Some(crate::parser::VisibilityModifier::Private(_))
+                    ) {
+                        self.private_field_owners.insert(symbol, classifier_span);
+                    }
+                    Some(symbol)
                 })
                 .collect();
             let variants = classifier

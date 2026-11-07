@@ -595,8 +595,8 @@ fn retired_inout_receiver_delegation_object_and_destructuring_boundary_tests() {
             "Registry",
         ),
         (
-            "value class Pair(val a: Int, val b: Int)\nfun main(): Int { val (x, y) = Pair(1, 2); return x + y }",
-            "val (x, y) = Pair(1, 2)",
+            "value class Pair(val a: Int, val b: Int)\nfun main(): Int { val (b, a) = Pair(1, 2); return a + b }",
+            "val (b, a) = Pair(1, 2)",
         ),
     ] {
         let mut sources = SourceMap::new();

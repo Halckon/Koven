@@ -10,8 +10,8 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, CompilationUnitTypeError, Copyability, DeferredReason, DestructuringMode,
-        NominalKind, UnitDestructuringComponent, UnitDestructuringDescriptor, UnitStatementId,
-        UnitTypeId, UnitTypeKind,
+        NominalKind, UnitDestructuringComponent, UnitDestructuringDescriptor, UnitExpressionId,
+        UnitStatementId, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -29,6 +29,7 @@ impl BodyChecker<'_> {
         initializer: ExpressionId,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let deferred = self.deferred_facts.len();
         let source_type = self
             .check_expression(source, initializer, None, None, return_type)?
             .ty;
@@ -86,23 +87,60 @@ impl BodyChecker<'_> {
             .iter()
             .map(|field| self.substitute_type(field.ty(), &substitutions))
             .collect::<Result<Vec<_>, _>>()?;
-        let error = self.error_type();
-        let mut typed_components = Vec::new();
-        let mut markers_valid = true;
-        for (index, &binding) in bindings.iter().enumerate() {
-            let ty = component_types.get(index).copied().unwrap_or(error);
-            self.set_marker_symbol(source, binding, ty);
-            let NameMarker::Present(span) = binding else {
-                markers_valid = false;
-                continue;
-            };
+        let initializer = UnitExpressionId::new(source, initializer);
+        let (copyability, pending_fields) = self.copyability_and_pending_fields(source_type);
+        let pending = pending_fields
+            || self.storage_value_is_pending(initializer)
+            || self.replacement_value_pending(initializer, source_type, deferred);
+        let declaration_span = self.names.index().declarations()[declaration.index()].name_span();
+        let matches = crate::type_checking::destructuring::local_field_matches(
+            self.sources,
+            bindings,
+            nominal.fields().iter().map(|field| field.name()),
+        )?;
+        let private_pattern = matches.iter().any(|(_, index)| {
+            index.is_some_and(|index| {
+                self.private_field_inaccessible(declaration, &nominal.fields()[index])
+            })
+        });
+        let mut typed_components = vec![None; component_types.len()];
+        let mut markers_valid = matches.len() == bindings.len();
+        for (span, index) in matches {
             let Some(symbol) = self.symbol_at(source, span, Namespace::Value) else {
                 markers_valid = false;
                 continue;
             };
-            if index < component_types.len() {
-                typed_components.push(UnitDestructuringComponent::new(symbol, ty));
+            let Some(index) = index else {
+                markers_valid = false;
+                let error = self.error_type();
+                self.record_symbol_type(symbol, error);
+                self.set_immutable_binding_pending(symbol, false);
+                self.emit_maybe_label(
+                    codes::UNRESOLVED_NAME,
+                    "unknown value class destructuring field",
+                    span,
+                    Some(declaration_span),
+                    "field must be declared by this value class",
+                )?;
+                continue;
+            };
+            let field = &nominal.fields()[index];
+            if self.private_field_inaccessible(declaration, field) {
+                self.emit_private_member_access(span, field.span())?;
             }
+            if private_pattern {
+                // No binding receives a value when the complete split is inaccessible.
+                let error = self.error_type();
+                self.record_symbol_type(symbol, error);
+                self.set_immutable_binding_pending(symbol, false);
+                continue;
+            }
+            let ty = component_types[index];
+            self.record_symbol_type(symbol, ty);
+            self.set_immutable_binding_pending(symbol, pending);
+            markers_valid &= typed_components[index]
+                .replace(UnitDestructuringComponent::new(symbol, ty))
+                .is_none();
         }
 
         if bindings.len() != component_types.len() {
@@ -111,8 +149,6 @@ impl BodyChecker<'_> {
                 .sources
                 .span(left_paren_span.source_id(), left_paren_span.start(), end)
                 .map_err(crate::type_checking::TypeCheckingError::from)?;
-            let declaration_span =
-                self.names.index().declarations()[declaration.index()].name_span();
             self.emit_maybe_label(
                 codes::DESTRUCTURING_ARITY,
                 "value class destructuring must bind every component exactly once",
@@ -120,8 +156,8 @@ impl BodyChecker<'_> {
                 Some(declaration_span),
                 format!("expected {} bindings", component_types.len()),
             )?;
-        } else if markers_valid {
-            let mode = match self.copyability_of(source_type) {
+        } else if markers_valid && !private_pattern && !pending {
+            let mode = match copyability {
                 Copyability::Copyable => Some(DestructuringMode::Copy),
                 Copyability::MoveOnly => Some(DestructuringMode::Consume),
                 Copyability::Unknown | Copyability::Error => None,
@@ -133,7 +169,7 @@ impl BodyChecker<'_> {
                         UnitStatementId::new(source, statement),
                         source_type,
                         mode,
-                        typed_components,
+                        typed_components.into_iter().flatten().collect(),
                     ));
             }
         }

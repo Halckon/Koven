@@ -254,7 +254,8 @@ fn construction_roots_transfer_or_drop_once_across_local_branch_loop_and_return_
                 | UnitDropTarget::ReplacedElement(_)
                 | UnitDropTarget::Captured { .. }
                 | UnitDropTarget::This(_)
-                | UnitDropTarget::ReplacedField { .. } => None,
+                | UnitDropTarget::ReplacedField { .. }
+                | UnitDropTarget::ReplacedCapture { .. } => None,
             })
             .collect::<Vec<_>>();
         assert_eq!(

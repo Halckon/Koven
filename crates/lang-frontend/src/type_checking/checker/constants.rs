@@ -162,7 +162,7 @@ impl Checker<'_> {
             }
             None => {
                 self.emit(
-                    self.unresolved_constant_code,
+                    self.unresolved_name_code,
                     "unresolved associated constant",
                     name_span,
                 )?;

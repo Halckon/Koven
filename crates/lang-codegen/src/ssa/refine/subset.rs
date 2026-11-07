@@ -3,6 +3,7 @@
 //! the subset keeps the existing per-family path.
 mod callable;
 mod container;
+mod control;
 mod drops;
 mod field;
 mod heap;
@@ -50,6 +51,10 @@ struct Checker<'i, 'a> {
     loops: usize,
     /// Routing gate: the function uses a construct whose family moved to this layer.
     migrated: bool,
+    /// A validated local destructuring in this callable requires refinement.
+    has_local_destructuring: bool,
+    /// A temporary sequential source can refine only in an already migrated scope.
+    has_temporary_sequential_for: bool,
     /// Field replacements in the subset; their `BeforeReplacement` drops are consumed by
     /// the replacement itself.
     replacements: BTreeSet<UnitExpressionId>,
@@ -77,6 +82,8 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         nullable: false,
         loops: 0,
         migrated: false,
+        has_local_destructuring: false,
+        has_temporary_sequential_for: false,
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
         for_borrowed: BTreeSet::new(),
@@ -204,7 +211,14 @@ pub(super) fn accepts(inputs: &RefineInputs<'_>) -> bool {
         RefineBody::Block(statement) => checker.statement(*statement),
         RefineBody::Lambda(thunk) => checker.thunk_body(thunk),
     };
-    signature && body_ok && checker.drops_supported() && (checker.nullable || checker.migrated)
+    // Check the temporary-source route after the body so statement order does not matter.
+    signature
+        && body_ok
+        && (!checker.has_temporary_sequential_for
+            || checker.has_local_destructuring
+            || checker.scope_requires_refine())
+        && checker.drops_supported()
+        && (checker.nullable || checker.migrated)
 }
 
 /// Every storage type an accepted body uses, plus nullable inners and Boolean flags.
@@ -217,6 +231,8 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
         nullable: false,
         loops: 0,
         migrated: false,
+        has_local_destructuring: false,
+        has_temporary_sequential_for: false,
         replacements: BTreeSet::new(),
         element_replacements: BTreeSet::new(),
         for_borrowed: BTreeSet::new(),
@@ -479,14 +495,15 @@ impl Checker<'_, '_> {
             return false;
         };
         let id = self.id(expression);
-        // Jumps and abort calls are typed `Nothing`; a `return` operand carries the value.
-        // A `Nothing`-typed `if` diverges on every branch.
+        // Jumps and abort calls are typed `Nothing`. An if or group can carry that
+        // divergence; the inner expression still has to pass its own admission.
         let returns = (matches!(
             node.payload(),
             Expression::Return { .. }
                 | Expression::Break { .. }
                 | Expression::Continue { .. }
                 | Expression::If { .. }
+                | Expression::Group { .. }
         ) || self.inputs.typed.call(id).is_some_and(|desc| desc.aborts()))
             && matches!(
                 self.kind(ty),
@@ -613,10 +630,12 @@ impl Checker<'_, '_> {
             } => {
                 let saved = self.view_symbols.clone();
                 let cond_ok = self.condition(condition, true);
-                let then_ok = cond_ok && self.statement(then_branch);
+                let (reaches_then, reaches_else) = self.condition_outcomes(condition);
+                let then_ok = cond_ok && (!reaches_then || self.statement(then_branch));
                 self.view_symbols = saved.clone();
                 self.note_else_view(condition);
-                let else_ok = else_branch.is_none_or(|branch| self.statement(branch));
+                let else_ok =
+                    !reaches_else || else_branch.is_none_or(|branch| self.statement(branch));
                 self.view_symbols = saved;
                 then_ok
                     && else_ok
@@ -762,6 +781,12 @@ impl Checker<'_, '_> {
         let Some(operand) = self.expression_type(left) else {
             return false;
         };
+        if self.nothing(operand)
+            && matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+        {
+            // The builder propagates the left exit before asking for the right value.
+            return self.expression(left);
+        }
         let supported = match operator {
             BinaryOperator::Add if self.string(operand) => true,
             BinaryOperator::Add
@@ -866,7 +891,7 @@ impl Checker<'_, '_> {
                 let ok = boolean
                     && self.plain(expression)
                     && self.condition(left, views)
-                    && self.condition(right, views);
+                    && (!self.logical_reaches_rhs(left, operator) || self.condition(right, views));
                 if !views {
                     self.view_symbols = saved;
                 }
@@ -911,22 +936,7 @@ impl Checker<'_, '_> {
                     if !self.statement(element) {
                         return false;
                     }
-                    if self
-                        .inputs
-                        .parsed
-                        .ast()
-                        .statements()
-                        .get(element)
-                        .is_ok_and(|stmt| {
-                            matches!(
-                                stmt.payload(),
-                                Statement::Expression { expression }
-                                    if self
-                                        .expression_type(*expression)
-                                        .is_some_and(|ty| self.nothing(ty))
-                            )
-                        })
-                    {
+                    if !self.statement_may_continue(element) {
                         if iter.any(|stmt| self.stmt_has_runtime_container(stmt)) {
                             self.migrated = true;
                         }
@@ -942,7 +952,8 @@ impl Checker<'_, '_> {
             } => {
                 self.strip_reassigned_loop_views(node.span());
                 let saved = self.view_symbols.clone();
-                let ok = self.condition(condition, true) && self.loop_body(body);
+                let ok = self.condition(condition, true)
+                    && (!self.condition_outcomes(condition).0 || self.loop_body(body));
                 self.view_symbols = saved;
                 ok
             }

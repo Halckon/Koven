@@ -1,12 +1,12 @@
 //! 正常源码产物的真实 slot、共享 callback 与清理合同；不改写 IR。
-use crate::ssa::{model::*, verify::verify_program};
+use crate::ssa::{
+    borrow_memory_test_support::single as memory_unit, borrow_storage_contract_tests::unit,
+    model::*, verify::verify_program,
+};
 #[test]
-fn map_with_single_and_unit_verify_real_slot_callback_and_temporary_cleanup() {
+fn map_with_memory_and_rooted_verify_real_slot_callback_and_temporary_cleanup() {
     for (name, text, _) in crate::native_map_with_cases::cases() {
-        for program in [
-            crate::ssa::borrow_result_contract_tests::single(&text).unwrap(),
-            crate::ssa::borrow_storage_contract_tests::unit(&text).unwrap(),
-        ] {
+        for program in [memory_unit(&text).unwrap(), unit(&text).unwrap()] {
             verify_program(&program).unwrap();
             let module = &program.modules[0];
             let llvm = crate::llvm::render_verified_program(&program).unwrap();

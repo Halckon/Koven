@@ -36,8 +36,8 @@ use crate::{
     },
     source::{SourceMap, Span},
     type_checking::{
-        AggregateProjectionKind, CallReceiverDescriptor, CallReceiverOrigin, Copyability,
-        DestructuringMode, ParameterMode, TypedFile,
+        CallReceiverDescriptor, CallReceiverOrigin, Copyability, DestructuringMode, ParameterMode,
+        TypedFile,
     },
 };
 

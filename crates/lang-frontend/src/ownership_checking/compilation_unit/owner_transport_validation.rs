@@ -25,6 +25,7 @@ pub(super) fn point_source(point: UnitDropPoint) -> SourceUnitId {
         | UnitDropPoint::AfterReplacement(id) => id.source_unit(),
         UnitDropPoint::WhenComparisonCompleted { control, .. }
         | UnitDropPoint::WhenAlternativeNoMatch { control, .. }
+        | UnitDropPoint::BranchEntry { control, .. }
         | UnitDropPoint::BranchExit { control, .. }
         | UnitDropPoint::WhenAlternativeMatch { control, .. } => control.source_unit(),
         UnitDropPoint::AfterStatement(id) | UnitDropPoint::LoopExit(id) => id.source_unit(),
@@ -192,7 +193,8 @@ impl UnitOwnerObservation {
                         || !valid_owner(environment)
                         || point_source(*point) != source
                         || symbol.source_unit() != source
-                        || matches!(point, UnitDropPoint::BranchExit { control, branch }
+                        || matches!(point, UnitDropPoint::BranchEntry { control, branch }
+                            | UnitDropPoint::BranchExit { control, branch }
                             if edge != Some((*control, *branch)))
                         || !matches!(locations[environment.index], Location::Named(_))
                         || locations[owner.index] != Location::Captured(environment.index, *symbol)
@@ -225,7 +227,8 @@ impl UnitOwnerObservation {
                         || point_source(*point) != source
                         || symbol.source_unit() != source
                         || locations[owner.index] != Location::Named(*symbol)
-                        || matches!(point, UnitDropPoint::BranchExit { control, branch }
+                        || matches!(point, UnitDropPoint::BranchEntry { control, branch }
+                            | UnitDropPoint::BranchExit { control, branch }
                             if edge != Some((*control, *branch)))
                         || locations.iter().any(|location| {
                             matches!(location,

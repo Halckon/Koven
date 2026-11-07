@@ -293,8 +293,8 @@ fn mid_construction_exits_and_pending_cleanup_lower_in_refine() {
     fun build_labeled(exit_early: Boolean): Int {
         val s = "pending-labeled"
         val l = Labeled(s, if (exit_early) { return 33 } else { 44 })
-        val (text, code) = l
-        println(text)
+        val (code, label) = l
+        println(label)
         return code
     }
     fun build_expr_loop(): Int {

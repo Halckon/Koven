@@ -8,30 +8,50 @@ use crate::{
 };
 
 use super::flow::{extend_facts, intersect_facts, merge_flow_versions};
-use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
+use super::while_flow::PendingControlSite;
+use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck, UnitExpressionId};
 
 impl BodyChecker<'_> {
     pub(super) fn check_while_statement(
         &mut self,
         source: SourceUnitId,
+        statement: StatementId,
         condition: ExpressionId,
         body: StatementId,
         return_type: UnitTypeId,
         return_span: Option<Span>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        self.check_while_flow(source, condition, body, return_type, return_span)?;
+        let pending_exit = self.check_repeating_flow(
+            source,
+            Some(condition),
+            body,
+            return_type,
+            return_span,
+            true,
+        )?;
+        self.note_pending_statement_exit(source, statement, pending_exit);
         Ok(self.unit_statement())
     }
 
     pub(super) fn check_loop_statement(
         &mut self,
         source: SourceUnitId,
+        statement: StatementId,
         body: StatementId,
         return_type: UnitTypeId,
         return_span: Option<Span>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        self.check_loop_body(source, body, return_type, return_span)?;
+        let pending_exit =
+            self.check_repeating_flow(source, None, body, return_type, return_span, false)?;
+        self.note_pending_statement_exit(source, statement, pending_exit);
         Ok(self.unit_statement())
+    }
+
+    fn unit_statement(&mut self) -> ExpressionCheck {
+        ExpressionCheck {
+            ty: self.builtin(BuiltinType::Unit),
+            falls_through: true,
+        }
     }
 
     pub(super) fn check_return(
@@ -55,7 +75,7 @@ impl BodyChecker<'_> {
                 falls_through: false,
             });
         }
-        match value {
+        let normal_return = match value {
             Some(value) if self.is_builtin(return_type, BuiltinType::Unit) => {
                 self.check_expression(source, value, None, None, return_type)?;
                 let primary = self
@@ -72,17 +92,20 @@ impl BodyChecker<'_> {
                     self.current_return_span,
                     "function return type declared here",
                 )?;
+                false
             }
             Some(value) => {
                 let expected = (!self.is_deferred(return_type) && !self.is_error(return_type))
                     .then_some(return_type);
-                self.check_expression(
+                let result = self.check_expression(
                     source,
                     value,
                     expected,
                     self.current_return_span,
                     return_type,
                 )?;
+                !self.is_error(result.ty)
+                    && self.has_pending_expression_exit(source, value, result)?
             }
             None if !self.is_builtin(return_type, BuiltinType::Unit)
                 && !self.is_deferred(return_type)
@@ -95,8 +118,12 @@ impl BodyChecker<'_> {
                     self.current_return_span,
                     "function return type declared here",
                 )?;
+                false
             }
-            None => {}
+            None => true,
+        };
+        if normal_return {
+            self.record_pending_callable_return();
         }
         Ok(ExpressionCheck {
             ty: self.builtin(BuiltinType::Nothing),
@@ -107,10 +134,12 @@ impl BodyChecker<'_> {
     pub(super) fn check_loop_jump(
         &mut self,
         keyword_span: Span,
+        jump: super::while_flow::LoopJump,
         message: &'static str,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let loop_base = self.callable_loop_bases.last().copied().unwrap_or(0);
         let ty = if self.loop_depth > loop_base {
+            self.record_pending_loop_jump(jump);
             self.builtin(BuiltinType::Nothing)
         } else {
             self.emit(codes::JUMP_OUTSIDE_LOOP, message, keyword_span)?;
@@ -128,24 +157,20 @@ impl BodyChecker<'_> {
         body: StatementId,
         return_type: UnitTypeId,
         return_span: Option<Span>,
+        reachable: bool,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         self.loop_depth += 1;
-        let result = self.check_statement(source, body, return_type, return_span);
+        let result = self.check_loop_reachable(reachable, |checker| {
+            checker.check_statement(source, body, return_type, return_span)
+        });
         self.loop_depth -= 1;
         result
-    }
-
-    fn unit_statement(&mut self) -> ExpressionCheck {
-        ExpressionCheck {
-            ty: self.builtin(BuiltinType::Unit),
-            falls_through: true,
-        }
     }
 
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_if(
         &mut self,
-        source: SourceUnitId,
+        expression: UnitExpressionId,
         condition: ExpressionId,
         then_branch: StatementId,
         else_span: Option<Span>,
@@ -154,26 +179,49 @@ impl BodyChecker<'_> {
         expected_span: Option<Span>,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let source = expression.source_unit();
         let boolean = self.builtin(BuiltinType::Boolean);
-        self.check_expression(source, condition, Some(boolean), None, return_type)?;
+        let deferred = self.deferred_facts.len();
+        let condition_result =
+            self.check_expression(source, condition, Some(boolean), None, return_type)?;
+        let condition_pending = else_branch.is_some()
+            && self.replacement_value_pending(
+                UnitExpressionId::new(source, condition),
+                condition_result.ty,
+                deferred,
+            );
         let baseline = self.flow_facts.clone();
         let baseline_versions = self.flow_versions.clone();
+        let condition_edges = self.boolean_pending_edges(source, condition, &baseline_versions)?;
+        let condition_exits =
+            self.has_pending_expression_exit(source, condition, condition_result)?;
+        let then_reachable = condition_exits && condition_edges.yes.is_some();
+        let else_reachable = condition_exits && condition_edges.no.is_some();
         let (true_facts, false_facts) = self.condition_facts(source, condition)?;
         self.flow_facts = extend_facts(&baseline, &true_facts);
+        if let Some(pending) = &condition_edges.yes {
+            self.flow_versions.set_pending_keys(pending.iter().copied());
+        }
         let then_expected = if else_branch.is_some() {
             self.control_branch_expected(source, then_branch, expected)?
         } else {
             expected
         };
-        let then_result = self.check_value_body(
-            source,
-            then_branch,
-            then_expected,
-            expected_span,
-            return_type,
-        )?;
+        let mut then_pending = false;
+        let then_result = self.check_loop_reachable(then_reachable, |checker| {
+            checker.check_value_body_with_replacement(
+                source,
+                then_branch,
+                then_expected,
+                expected_span,
+                return_type,
+                else_branch.is_some().then_some(&mut then_pending),
+            )
+        })?;
         let then_facts = self.flow_facts.clone();
         let then_versions = self.flow_versions.clone();
+        let then_falls =
+            then_reachable && self.has_pending_statement_exit(source, then_branch, then_result);
         let Some(else_branch) = else_branch else {
             let false_path = extend_facts(&baseline, &false_facts);
             self.flow_facts = if then_result.falls_through {
@@ -186,6 +234,20 @@ impl BodyChecker<'_> {
             } else {
                 baseline_versions
             };
+            let then_pending = then_falls.then(|| then_versions.pending_keys());
+            self.flow_versions.set_pending_keys(
+                then_pending.into_iter().flatten().chain(
+                    condition_edges
+                        .no
+                        .into_iter()
+                        .filter(|_| else_reachable)
+                        .flatten(),
+                ),
+            );
+            self.note_pending_exit(
+                PendingControlSite::Expression(expression),
+                then_falls || else_reachable,
+            );
             return Ok(ExpressionCheck {
                 ty: self.builtin(BuiltinType::Unit),
                 falls_through: true,
@@ -193,16 +255,53 @@ impl BodyChecker<'_> {
         };
         self.flow_facts = extend_facts(&baseline, &false_facts);
         self.flow_versions = baseline_versions.clone();
+        if let Some(pending) = &condition_edges.no {
+            self.flow_versions.set_pending_keys(pending.iter().copied());
+        }
         let else_expected = self.control_branch_expected(source, else_branch, expected)?;
-        let else_result = self.check_value_body(
-            source,
-            else_branch,
-            else_expected,
-            expected_span,
-            return_type,
-        )?;
+        let mut else_pending = false;
+        let else_result = self.check_loop_reachable(else_reachable, |checker| {
+            checker.check_value_body_with_replacement(
+                source,
+                else_branch,
+                else_expected,
+                expected_span,
+                return_type,
+                Some(&mut else_pending),
+            )
+        })?;
         let else_facts = self.flow_facts.clone();
         let else_versions = self.flow_versions.clone();
+        let else_falls =
+            else_reachable && self.has_pending_statement_exit(source, else_branch, else_result);
+        self.note_pending_exit(
+            PendingControlSite::Expression(expression),
+            then_falls || else_falls,
+        );
+        if (then_falls || else_falls)
+            && (!then_falls || self.is_builtin(then_result.ty, BuiltinType::Boolean))
+            && (!else_falls || self.is_builtin(else_result.ty, BuiltinType::Boolean))
+        {
+            let mut edges = super::while_flow::PendingBooleanEdges::default();
+            if then_falls {
+                self.merge_boolean_branch(&mut edges, source, then_branch, &then_versions)?;
+            }
+            if else_falls {
+                self.merge_boolean_branch(&mut edges, source, else_branch, &else_versions)?;
+            }
+            self.pending_boolean_edges.insert(expression, edges);
+        }
+        let pending: Vec<_> = then_falls
+            .then(|| then_versions.pending_keys())
+            .into_iter()
+            .flatten()
+            .chain(
+                else_falls
+                    .then(|| else_versions.pending_keys())
+                    .into_iter()
+                    .flatten(),
+            )
+            .collect();
         self.flow_facts = match (then_result.falls_through, else_result.falls_through) {
             (true, true) => intersect_facts(&then_facts, &else_facts),
             (true, false) => then_facts,
@@ -215,7 +314,13 @@ impl BodyChecker<'_> {
             (false, true) => else_versions,
             (false, false) => baseline_versions,
         };
-        let ty = if let Some(join) = self.join_control_types(then_result.ty, else_result.ty) {
+        self.flow_versions.set_pending_keys(pending);
+        let ty = if let Some(join) = self.join_value_branches(
+            expression,
+            (then_branch, then_result.ty),
+            (else_branch, else_result.ty),
+            expected,
+        )? {
             join
         } else {
             let primary = else_span.unwrap_or(
@@ -242,6 +347,11 @@ impl BodyChecker<'_> {
             )?;
             self.error_type()
         };
+        // Only values on normal exits can be stored by an enclosing assignment.
+        self.replacement_values.insert(
+            expression,
+            condition_pending || then_falls && then_pending || else_falls && else_pending,
+        );
         Ok(ExpressionCheck {
             ty,
             falls_through: then_result.falls_through || else_result.falls_through,
@@ -256,6 +366,25 @@ impl BodyChecker<'_> {
         expected_span: Option<Span>,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        self.check_value_body_with_replacement(
+            source,
+            statement,
+            expected,
+            expected_span,
+            return_type,
+            None,
+        )
+    }
+
+    pub(super) fn check_value_body_with_replacement(
+        &mut self,
+        source: SourceUnitId,
+        statement: StatementId,
+        expected: Option<UnitTypeId>,
+        expected_span: Option<Span>,
+        return_type: UnitTypeId,
+        replacement_pending: Option<&mut bool>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let node = self
             .file(source)
             .ast()
@@ -268,14 +397,26 @@ impl BodyChecker<'_> {
             Statement::LambdaBody { elements } | Statement::ControlBody { elements } => self
                 .check_value_elements(
                     source,
+                    statement,
                     &elements,
                     span,
                     expected,
                     expected_span,
                     return_type,
+                    replacement_pending,
                 ),
             Statement::Expression { expression } => {
-                self.check_expression(source, expression, expected, expected_span, return_type)
+                let result = self.check_value_tail(
+                    source,
+                    expression,
+                    expected,
+                    expected_span,
+                    return_type,
+                    replacement_pending,
+                )?;
+                let pending_exit = self.has_pending_expression_exit(source, expression, result)?;
+                self.note_pending_statement_exit(source, statement, pending_exit);
+                Ok(result)
             }
             _ => self.check_statement(source, statement, return_type, expected_span),
         }
@@ -285,11 +426,13 @@ impl BodyChecker<'_> {
     fn check_value_elements(
         &mut self,
         source: SourceUnitId,
+        statement: StatementId,
         elements: &[StatementId],
         body_span: Span,
         expected: Option<UnitTypeId>,
         expected_span: Option<Span>,
         return_type: UnitTypeId,
+        replacement_pending: Option<&mut bool>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let unit = self.builtin(BuiltinType::Unit);
         let Some((&last, prefix)) = elements.split_last() else {
@@ -300,9 +443,13 @@ impl BodyChecker<'_> {
             });
         };
         let mut falls_through = true;
+        let mut pending_exit = true;
         for &element in prefix {
-            let result = self.check_statement(source, element, return_type, expected_span)?;
+            let result = self.check_loop_reachable(pending_exit, |checker| {
+                checker.check_statement(source, element, return_type, expected_span)
+            })?;
             falls_through &= result.falls_through;
+            pending_exit &= self.has_pending_statement_exit(source, element, result);
         }
         let payload = self
             .file(source)
@@ -312,16 +459,55 @@ impl BodyChecker<'_> {
             .map_err(TypeCheckingError::from)?
             .payload()
             .clone();
-        let result = if let Statement::Expression { expression } = payload {
-            self.check_expression(source, expression, expected, expected_span, return_type)?
-        } else {
-            self.check_statement(source, last, return_type, expected_span)?
-        };
+        let result = self.check_loop_reachable(pending_exit, |checker| {
+            if let Statement::Expression { expression } = payload {
+                checker.check_value_tail(
+                    source,
+                    expression,
+                    expected,
+                    expected_span,
+                    return_type,
+                    replacement_pending,
+                )
+            } else {
+                checker.check_statement(source, last, return_type, expected_span)
+            }
+        })?;
+        if pending_exit {
+            pending_exit = if let Statement::Expression { expression } = payload {
+                self.has_pending_expression_exit(source, expression, result)?
+            } else {
+                self.has_pending_statement_exit(source, last, result)
+            };
+        }
+        self.note_pending_statement_exit(source, statement, pending_exit);
         falls_through &= result.falls_through;
         Ok(ExpressionCheck {
             ty: result.ty,
             falls_through,
         })
+    }
+
+    fn check_value_tail(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        expected: Option<UnitTypeId>,
+        expected_span: Option<Span>,
+        return_type: UnitTypeId,
+        replacement_pending: Option<&mut bool>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let deferred = self.deferred_facts.len();
+        let result =
+            self.check_expression(source, expression, expected, expected_span, return_type)?;
+        if let Some(pending) = replacement_pending {
+            *pending = self.replacement_value_pending(
+                UnitExpressionId::new(source, expression),
+                result.ty,
+                deferred,
+            );
+        }
+        Ok(result)
     }
 
     fn check_empty_control_body(

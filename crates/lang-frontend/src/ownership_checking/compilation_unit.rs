@@ -1,6 +1,8 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
 mod drop_point;
-pub use drop_point::UnitDropPoint;
+pub use drop_point::{
+    UnitConditionalReceiverDropFact, UnitDropFact, UnitDropPoint, UnitDropTarget,
+};
 
 mod loan;
 pub use loan::{
@@ -165,8 +167,7 @@ impl UnitCallArgumentOwnershipContract {
         self.call_span
     }
 
-    /// 返回源码 callable 参数声明范围；external/function-value/structural-component target
-    /// 没有源码参数范围。
+    /// 返回源码 callable 参数声明范围；external/function-value target 没有源码参数范围。
     #[must_use]
     pub const fn parameter_span(self) -> Option<Span> {
         self.parameter_span
@@ -327,136 +328,6 @@ impl UnitValueDeliveryFact {
     #[must_use]
     pub const fn parameter_span(&self) -> Option<Span> {
         self.parameter_span
-    }
-}
-
-/// 一个需要唯一析构的 source-qualified 运行时值。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum UnitDropTarget {
-    /// Value receiver 尚未被整体移动时由当前 callable 负责的根值。
-    This(DeclarationId),
-    /// 当前 callable 拥有的 named binding 值。
-    Named(UnitSymbolId),
-    /// 完整表达式产生的 anonymous temporary。
-    Temporary(UnitExpressionId),
-    /// replacement 前原 element value；payload 是 assignment expression。
-    ReplacedElement(UnitExpressionId),
-    /// replacement 前原 field value；字段身份必须与 assignment target 的 typed projection 一致。
-    ReplacedField {
-        /// assignment expression。
-        assignment: UnitExpressionId,
-        /// 被替换字段的 source-qualified symbol。
-        field: UnitSymbolId,
-    },
-    /// `move` closure environment 中一个 owned MoveOnly capture。
-    Captured {
-        /// 拥有 environment 的 lambda。
-        closure: UnitExpressionId,
-        /// 被析构的捕获来源。
-        source: UnitClosureCaptureSource,
-    },
-}
-
-/// 一个确定的 source-qualified ASAP 析构事实。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct UnitDropFact {
-    point: UnitDropPoint,
-    target: UnitDropTarget,
-    value_origin: Span,
-}
-
-/// interface default 的 `StaticSelf` Value receiver 析构义务。
-///
-/// Phase 4 必须先把 [`Self::receiver_type`] 实例化为具体 receiver；仅当具体类型为
-/// MoveOnly 时才消费该事实并生成析构。该事实与无条件 [`UnitDropFact`] 分开发布，避免在
-/// Copyable specialization 上误析构。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct UnitConditionalReceiverDropFact {
-    point: UnitDropPoint,
-    owner: DeclarationId,
-    receiver_type: UnitTypeId,
-    value_origin: Span,
-    preceding_drops: usize,
-}
-
-impl UnitConditionalReceiverDropFact {
-    pub(super) const fn new(
-        point: UnitDropPoint,
-        owner: DeclarationId,
-        receiver_type: UnitTypeId,
-        value_origin: Span,
-        preceding_drops: usize,
-    ) -> Self {
-        Self {
-            point,
-            owner,
-            receiver_type,
-            value_origin,
-            preceding_drops,
-        }
-    }
-
-    /// 返回同一 drop point 中必须先消费的无条件 drop fact 数量。
-    /// 若存在iteration cleanup，应按显式动作执行；此数量不能定位provider动作之间的位置。
-    #[must_use]
-    pub const fn preceding_drops(self) -> usize {
-        self.preceding_drops
-    }
-
-    /// 返回与普通 drop fact 相同的 source-qualified 控制流边界。
-    #[must_use]
-    pub const fn point(self) -> UnitDropPoint {
-        self.point
-    }
-
-    /// 返回声明 `StaticSelf` receiver 的 interface owner。
-    #[must_use]
-    pub const fn owner(self) -> DeclarationId {
-        self.owner
-    }
-
-    /// 返回必须由下游实例化的 `StaticSelf` 类型模板。
-    #[must_use]
-    pub const fn receiver_type(self) -> UnitTypeId {
-        self.receiver_type
-    }
-
-    /// 返回当前 receiver 值实例的建立位置。
-    #[must_use]
-    pub const fn value_origin(self) -> Span {
-        self.value_origin
-    }
-}
-
-impl UnitDropFact {
-    pub(super) const fn new(
-        point: UnitDropPoint,
-        target: UnitDropTarget,
-        value_origin: Span,
-    ) -> Self {
-        Self {
-            point,
-            target,
-            value_origin,
-        }
-    }
-
-    /// 返回析构发生的 source-qualified 控制流边界。
-    #[must_use]
-    pub const fn point(self) -> UnitDropPoint {
-        self.point
-    }
-
-    /// 返回 named owner、temporary、旧 element 或 owned capture。
-    #[must_use]
-    pub const fn target(self) -> UnitDropTarget {
-        self.target
-    }
-
-    /// 返回当前值实例的建立位置。
-    #[must_use]
-    pub const fn value_origin(self) -> Span {
-        self.value_origin
     }
 }
 
@@ -623,14 +494,7 @@ impl CompilationUnitOwnership {
     ) -> Self {
         let successful = dataflow.diagnostics.is_empty() && typed.has_valid_type_facts();
         let mut capture = capture;
-        if dataflow.short_circuits.is_some() {
-            capture
-                .captures
-                .retain(|entry| dataflow.visited_lambdas.contains(&entry.lambda()));
-            capture
-                .closures
-                .retain(|entry| dataflow.visited_lambdas.contains(&entry.expression()));
-        }
+        capture.filter_unvisited(&dataflow.visited_lambdas, dataflow.short_circuits.is_some());
         let captures = if successful {
             capture.captures
         } else {

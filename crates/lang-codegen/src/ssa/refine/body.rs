@@ -894,6 +894,7 @@ impl RTerm {
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct RBlock {
+    pub(super) has_predecessor: bool,
     pub(super) statements: Vec<RStmt>,
     pub(super) terminator: Option<(RTerm, Span)>,
     /// Set for a `NullBranch` non-null target: the proof view defined on entry.

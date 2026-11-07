@@ -48,7 +48,10 @@ impl DropPlanner<'_, '_> {
         };
         self.scope_depth += 1;
         let frame = self.scope_depth;
-        let mut state = ValueState::default();
+        let mut state = ValueState {
+            lambda: Some(lambda),
+            ..ValueState::default()
+        };
         for &parameter in parameters {
             if let Some(symbol) = self
                 .checker

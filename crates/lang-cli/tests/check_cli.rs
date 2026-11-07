@@ -283,6 +283,16 @@ fn reviewed_frontend_contracts_reach_both_public_check_entries() {
             "class Phantom<T>(val value: Int)\nfun inspect(xs: List<Phantom<Nothing>>): Unit {}\nfun entry(): Unit { inspect(listOf(Phantom<Nothing>(1))) }",
             None,
         ),
+        (
+            "fun apply(action: (Int) -> Unit, value: Int): Unit { action(value) }\n\
+             fun main(): Unit { var sum = 0; apply({ value -> sum = sum + value }, 1) }",
+            None,
+        ),
+        (
+            "fun apply(action: (Int) -> Unit, value: Int): Unit { action(value) }\n\
+             fun main(): Unit { var sum = 0; apply({ value -> sum = sum + value }, sum) }",
+            Some("L0135"),
+        ),
         ("class R { own fun noop(): Unit {} }", None),
     ] {
         let directory = TestDirectory::create();

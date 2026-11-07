@@ -668,9 +668,7 @@ fn source_parameter_span(
 ) -> Result<Option<Span>, OwnershipCheckingError> {
     if matches!(
         target,
-        UnitCallTarget::External(_)
-            | UnitCallTarget::FunctionValue
-            | UnitCallTarget::StructuralComponent(_)
+        UnitCallTarget::External(_) | UnitCallTarget::FunctionValue
     ) {
         return Ok(None);
     }
@@ -717,9 +715,7 @@ pub(in crate::ownership_checking) fn source_callable_signature(
             .find(|callable| {
                 callable.target() == crate::type_checking::UnitCallableTarget::Symbol(symbol)
             }),
-        UnitCallTarget::External(_)
-        | UnitCallTarget::FunctionValue
-        | UnitCallTarget::StructuralComponent(_) => None,
+        UnitCallTarget::External(_) | UnitCallTarget::FunctionValue => None,
     }
 }
 

@@ -86,6 +86,17 @@ impl Checker<'_> {
         let Some(state) = flows.next.as_mut() else {
             return Ok(flows);
         };
+        if place.as_ref().is_some_and(|place| {
+            !place.fields().is_empty()
+                || self.symbol_kind(place.root()) == Some(crate::name_resolution::SymbolKind::Field)
+        }) {
+            self.reject_borrowed_closure_escape(value, state)?;
+            if self.diagnostics.len() != diagnostic_count {
+                self.rollback_facts(fact_lengths);
+                self.nullable_whens = nullable_when_checkpoint;
+                return Ok(Self::restore_flow_states(flows, &entry_state));
+            }
+        }
         let closure = if closure.is_empty() {
             state
                 .closure_results
@@ -96,13 +107,38 @@ impl Checker<'_> {
             closure
         };
         if let Some(place) = place {
+            if place.is_root() && !self.allow_move_only_capture_transport(value, state, &closure)? {
+                self.rollback_facts(fact_lengths);
+                self.nullable_whens = nullable_when_checkpoint;
+                return Ok(Self::restore_flow_states(flows, &entry_state));
+            }
             if operator != AssignmentOperator::Assign {
                 self.access_place(&place, AccessKind::Read, target_span, None, state)?;
             }
-            if self.access_place(&place, AccessKind::Mutation, target_span, None, state)?
-                && operator == AssignmentOperator::Assign
-                && place.fields().is_empty()
+            let accepted = if place.is_root()
+                && self
+                    .typed
+                    .assignment(self.unit_expression(assignment))
+                    .is_some()
+                && let Some(capture) = state.immutable_captures.get(&place.root()).copied()
+                && capture.exclusive_assignment.is_some()
             {
+                if capture.write_allowed {
+                    // The environment owns this permission. Preserve the
+                    // non-owning status and still check any loans in the body.
+                    state.immutable_captures.remove(&place.root());
+                    let result =
+                        self.access_place(&place, AccessKind::Mutation, target_span, None, state);
+                    state.immutable_captures.insert(place.root(), capture);
+                    result?
+                } else {
+                    self.emit_exclusive_capture_unavailable(target_span, capture.origin)?;
+                    false
+                }
+            } else {
+                self.access_place(&place, AccessKind::Mutation, target_span, None, state)?
+            };
+            if accepted && operator == AssignmentOperator::Assign && place.fields().is_empty() {
                 let root = place.root();
                 if place.is_root() {
                     // Explicit replacement commits even inside an enclosing RHS for this root.

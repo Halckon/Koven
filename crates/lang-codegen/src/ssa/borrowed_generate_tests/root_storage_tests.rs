@@ -18,6 +18,10 @@ fn borrowed_generation_checks_current_root_capture_after_replacement() {
 }
 
 fn replacement(end_before_generation: bool) -> (Fixture, LoanId) {
+    replacement_with_capture_end(Some(end_before_generation))
+}
+
+fn replacement_with_capture_end(end_before_generation: Option<bool>) -> (Fixture, LoanId) {
     let mut fixture = fixture(Layout::Shared, 3, false);
     let function = fixture
         .program
@@ -95,23 +99,16 @@ fn replacement(end_before_generation: bool) -> (Fixture, LoanId) {
         )
         .expect("replace current callback contents");
     let insertion_end = function.blocks[0].instructions.len();
-    let (end, _) = function
-        .append_instruction(
-            block,
-            Operation::BorrowEnd { loan: capture },
-            vec![],
-            origin,
-        )
-        .expect("capture end");
+    let capture_end = end_before_generation.map(|_| end(function, block, capture));
     let inserted = function.blocks[0].instructions[insertion_start..insertion_end].to_vec();
     let mut ordered = original[..initializer_position].to_vec();
     ordered.extend(inserted);
-    if end_before_generation {
-        ordered.push(end);
+    if end_before_generation == Some(true) {
+        ordered.extend(capture_end);
     }
     ordered.extend_from_slice(&original[initializer_position..]);
-    if !end_before_generation {
-        ordered.push(end);
+    if end_before_generation == Some(false) {
+        ordered.extend(capture_end);
     }
     function.blocks[0].instructions = ordered;
     function.blocks[0].terminator = Some(terminator);
@@ -350,17 +347,37 @@ enum Exchange {
     SwapFirst,
 }
 
-fn check_exchange(operation: Exchange) {
-    let (valid, _) = exchange(operation, false);
-    verify_program(&valid.program).unwrap_or_else(|error| panic!("{operation:?}: {error:?}"));
-    let (invalid, capture) = exchange(operation, true);
-    assert_inactive(&invalid, capture);
-}
-
 #[test]
 fn borrowed_generation_reads_current_root_contents_after_take() {
-    check_exchange(Exchange::Take);
+    let (valid, _) = exchange(Exchange::Take, false);
+    verify_program(&valid.program)
+        .expect("the taken owner carries the current capture through generation");
+    let (invalid, capture) = exchange(Exchange::Take, true);
+    let function = invalid
+        .program
+        .module(invalid.make.module())
+        .expect("module")
+        .function(invalid.make)
+        .expect("make");
+    let end = function
+        .instructions
+        .iter()
+        .find(|instruction| instruction.operation == (Operation::BorrowEnd { loan: capture }))
+        .expect("attempted capture end");
+    let errors =
+        verify_program(&invalid.program).expect_err("the taken owner still holds this capture");
+    assert_diagnostic!(
+        errors.errors.iter().any(|error| {
+            error.kind
+                == (super::super::verify::VerifyErrorKind::OwnerLoanConflict {
+                    value: invalid.callback,
+                })
+                && error.location == super::super::verify::VerifyLocation::Instruction(end.id)
+        }),
+        "{errors:?}"
+    );
 }
+
 fn check_exchange_boundary(operation: Exchange) {
     let (fixture, _) = exchange(operation, false);
     let function = fixture
@@ -401,7 +418,9 @@ fn borrowed_generation_keeps_concrete_closure_root_swap_rejected() {
 }
 
 fn exchange(operation: Exchange, end_current: bool) -> (Fixture, LoanId) {
-    let (mut fixture, stored_capture) = replacement(false);
+    let explicit_capture_end =
+        (end_current || !matches!(operation, Exchange::Take)).then_some(false);
+    let (mut fixture, stored_capture) = replacement_with_capture_end(explicit_capture_end);
     let original_callback = fixture.callback;
     let initializer = fixture.initializer;
     let original_capture = fixture.capture.expect("initial capture");
@@ -420,7 +439,7 @@ fn exchange(operation: Exchange, end_current: bool) -> (Fixture, LoanId) {
         .iter()
         .position(|id| *id == definition)
         .expect("initializer position");
-    let stored_end = *original.iter().find(|id| matches!(function.instructions[id.index()].operation, Operation::BorrowEnd { loan } if loan == stored_capture)).expect("stored capture end");
+    let stored_end = original.iter().copied().find(|id| matches!(function.instructions[id.index()].operation, Operation::BorrowEnd { loan } if loan == stored_capture));
     let start = function.blocks[0].instructions.len();
     end(function, block, initializer);
     let mut extra_drop = None;
@@ -527,13 +546,13 @@ fn exchange(operation: Exchange, end_current: bool) -> (Fixture, LoanId) {
     let current_end = if selected_capture == stored_capture {
         stored_end
     } else {
-        end(function, block, selected_capture)
+        Some(end(function, block, selected_capture))
     };
     tail.retain(|id| !matches!(function.instructions[id.index()].operation, Operation::BorrowEnd { loan } if loan == stored_capture));
     let mut ordered = original[..position + 1].to_vec();
     ordered.extend_from_slice(&function.blocks[0].instructions[start..stop]);
     if end_current {
-        ordered.push(current_end);
+        ordered.extend(current_end);
     }
     ordered.extend(tail);
     if let Some(owner) = extra_drop {
@@ -551,10 +570,10 @@ fn exchange(operation: Exchange, end_current: bool) -> (Fixture, LoanId) {
     }
     ordered.push(end(function, block, original_capture));
     if !end_current {
-        ordered.push(current_end);
+        ordered.extend(current_end);
     }
     if selected_capture != stored_capture {
-        ordered.push(stored_end);
+        ordered.extend(stored_end);
     }
     if let Some(capture) = extra_capture
         && capture != selected_capture
@@ -564,6 +583,7 @@ fn exchange(operation: Exchange, end_current: bool) -> (Fixture, LoanId) {
     function.blocks[0].instructions = ordered;
     function.blocks[0].terminator = terminator;
     fixture.generate = generate;
+    fixture.callback = selected;
     (fixture, selected_capture)
 }
 

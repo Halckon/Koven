@@ -33,7 +33,7 @@ impl Checker<'_> {
                 }
             }
         }
-        self.check_loop_body(body)?;
+        self.check_repeating_flow(None, body)?;
         let span = self.ast().statements().get(statement)?.span();
         let upstream_error = self
             .input_error_spans

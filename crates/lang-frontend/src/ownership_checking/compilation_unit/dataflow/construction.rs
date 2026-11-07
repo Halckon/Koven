@@ -202,6 +202,12 @@ impl Checker<'_> {
             if self.diagnostics.len() != argument_diagnostics || flows.next.is_none() {
                 continue;
             }
+            if let Some(next) = flows.next.as_ref() {
+                self.reject_borrowed_closure_escape(argument.argument().expression(), next)?;
+            }
+            if self.diagnostics.len() != argument_diagnostics {
+                continue;
+            }
             let Some(kind) =
                 self.construction_delivery_kind(argument.argument(), argument.category())?
             else {

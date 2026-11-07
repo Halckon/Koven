@@ -8,7 +8,13 @@ use crate::{
     type_checking::{BuiltinType, CompilationUnitTypeError, TypeCheckingError, UnitTypeId},
 };
 
-use super::{BodyChecker, ExpressionCheck, flow::extend_facts};
+use crate::type_checking::flow_effects::logical_rhs_is_required;
+
+use super::{
+    BodyChecker, ExpressionCheck, UnitExpressionId,
+    flow::{extend_facts, intersect_facts, merge_flow_versions},
+    while_flow::{PendingBooleanEdges, PendingControlSite},
+};
 
 pub(super) struct BinaryExpression {
     pub(super) expression: crate::ast::ExpressionId,
@@ -127,20 +133,55 @@ impl BodyChecker<'_> {
             let (left_true, left_false) = self.condition_facts(source, left)?;
             let baseline = self.flow_facts.clone();
             let baseline_versions = self.flow_versions.clone();
-            let right_entry = if operator == BinaryOperator::LogicalAnd {
-                &left_true
+            let ast = self.file(source).ast();
+            let rhs_required =
+                logical_rhs_is_required(ast, left, operator).map_err(TypeCheckingError::from)?;
+            let left_edges = if self.has_pending_expression_exit(source, left, left_result)? {
+                self.boolean_pending_edges(source, left, &baseline_versions)?
             } else {
-                &left_false
+                PendingBooleanEdges::default()
+            };
+            let (right_entry, rhs_pending, bypass) = if operator == BinaryOperator::LogicalAnd {
+                (&left_true, left_edges.yes, left_edges.no)
+            } else {
+                (&left_false, left_edges.no, left_edges.yes)
             };
             self.flow_facts = extend_facts(&baseline, right_entry);
-            let right_result = self.check_expression(source, right, None, None, return_type);
+            if let Some(pending) = &rhs_pending {
+                self.flow_versions.set_pending_keys(pending.iter().copied());
+            }
+            let right_result = self.check_loop_reachable(rhs_pending.is_some(), |checker| {
+                checker.check_expression(source, right, None, None, return_type)
+            });
+            let right_versions = std::mem::replace(&mut self.flow_versions, baseline_versions);
             let writes = self.expression_flow_writes(source, right)?;
             self.flow_facts = baseline;
-            self.flow_versions = baseline_versions;
             for key in writes {
                 self.invalidate_flow_key(key);
             }
             let right_result = right_result?;
+            let mut edges = if rhs_pending.is_some()
+                && self.has_pending_expression_exit(source, right, right_result)?
+            {
+                self.boolean_pending_edges(source, right, &right_versions)?
+            } else {
+                PendingBooleanEdges::default()
+            };
+            if let Some(bypass) = bypass {
+                let edge = if operator == BinaryOperator::LogicalAnd {
+                    &mut edges.no
+                } else {
+                    &mut edges.yes
+                };
+                edge.get_or_insert_with(Default::default).extend(bypass);
+            }
+            self.flow_versions.set_pending_keys(
+                edges
+                    .yes
+                    .iter()
+                    .chain(&edges.no)
+                    .flat_map(|keys| keys.iter().copied()),
+            );
             let boolean = self.builtin(BuiltinType::Boolean);
             let ty = if self.is_builtin(left_result.ty, BuiltinType::Boolean)
                 && self.is_builtin(right_result.ty, BuiltinType::Boolean)
@@ -161,9 +202,18 @@ impl BodyChecker<'_> {
                 )?;
                 self.error_type()
             };
+            let expression = UnitExpressionId::new(source, expression);
+            self.note_pending_exit(
+                PendingControlSite::Expression(expression),
+                edges.yes.is_some() || edges.no.is_some(),
+            );
+            if ty == boolean {
+                self.pending_boolean_edges.insert(expression, edges);
+            }
             return Ok(ExpressionCheck {
                 ty,
-                falls_through: left_result.falls_through && right_result.falls_through,
+                falls_through: left_result.falls_through
+                    && (right_result.falls_through || !rhs_required),
             });
         }
         let equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
@@ -308,6 +358,8 @@ impl BodyChecker<'_> {
             }
         };
         let right_expected = inner.filter(|inner| !self.is_builtin(*inner, BuiltinType::Nothing));
+        let bypass =
+            left_can_bypass_right.then(|| (self.flow_facts.clone(), self.flow_versions.clone()));
         let right_result = self.check_expression(
             source,
             right,
@@ -315,6 +367,15 @@ impl BodyChecker<'_> {
             expected_span,
             return_type,
         )?;
+        if let Some((facts, versions)) = bypass {
+            if right_result.falls_through {
+                self.flow_facts = intersect_facts(&facts, &self.flow_facts);
+                self.flow_versions = merge_flow_versions(&versions, &self.flow_versions);
+            } else {
+                self.flow_facts = facts;
+                self.flow_versions = versions;
+            }
+        }
         let ty = if let Some(inner) = inner {
             if self.is_builtin(inner, BuiltinType::Nothing) {
                 right_result.ty

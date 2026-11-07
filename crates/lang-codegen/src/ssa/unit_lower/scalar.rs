@@ -98,6 +98,7 @@ impl UnitExpressionLowerer<'_> {
         if operand_type == Some(BuiltinType::String) {
             return self.lower_string_binary(left, operator, right, expression, span);
         }
+        let left_is_bottom = operand_type == Some(BuiltinType::Nothing);
         let supported = match operator {
             BinaryOperator::Add
             | BinaryOperator::Subtract
@@ -115,7 +116,8 @@ impl UnitExpressionLowerer<'_> {
             | BinaryOperator::Greater
             | BinaryOperator::GreaterEqual => operand_type.is_some_and(is_integer_builtin),
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
-                matches!(operand_type, Some(BuiltinType::Boolean | BuiltinType::Char))
+                left_is_bottom
+                    || matches!(operand_type, Some(BuiltinType::Boolean | BuiltinType::Char))
                     || operand_type.is_some_and(is_integer_builtin)
             }
             _ => false,
@@ -123,8 +125,16 @@ impl UnitExpressionLowerer<'_> {
         if !supported {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let left = self.lower_required_value(left, span)?;
-        let right = self.lower_required_value(right, span)?;
+        let left = match self.lower(left)? {
+            LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+            LoweredValue::Value(value) if !left_is_bottom => value,
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
+        let right = match self.lower(right)? {
+            LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+            LoweredValue::Value(value) => value,
+            LoweredValue::Unit => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
         let ty = self.expression_ssa_type(expression, span)?;
         if let Some(operator) = checked_operator(operator) {
             return self.checked(operator, left, right, ty, span);

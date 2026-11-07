@@ -9,12 +9,13 @@ use crate::{
     parser::CallArgument,
     source::Span,
     type_checking::{
-        Capability, CompilationUnitTypeError, Copyability, UnitTypeId, UnitTypeKind,
-        UnitTypeParameterBound,
+        Capability, CompilationUnitTypeError, Copyability, DeferredReason, UnitTypeId,
+        UnitTypeKind, UnitTypeParameterBound,
     },
 };
 
 use super::super::BodyChecker;
+use super::super::pending_constraints::PendingConstraints;
 use super::super::type_graph::substitute;
 use super::{super::copyability::UnitTransferability, CallCandidate};
 
@@ -41,6 +42,12 @@ pub(super) enum UnitInstantiationFailure {
     },
 }
 
+pub(super) struct InstantiatedCandidate {
+    pub(super) call: CallCandidate,
+    pub(super) pending: bool,
+    pub(super) constraints: Option<PendingConstraints>,
+}
+
 #[derive(Clone, Copy)]
 pub(super) enum UnitBoundFailureKind {
     RangeCarrier,
@@ -55,16 +62,31 @@ impl BodyChecker<'_> {
         &mut self,
         source: SourceUnitId,
         arguments: &[CallArgument],
+        expected: Option<UnitTypeId>,
         return_type: UnitTypeId,
     ) -> Result<Vec<Option<UnitTypeId>>, CompilationUnitTypeError> {
+        let track_arguments = self.tracks_pending_call_flow();
+        let mut arguments_exit = true;
         arguments
             .iter()
             .map(|argument| {
                 if self.is_lambda_syntax(source, argument.value) {
                     Ok(None)
                 } else {
-                    self.check_expression(source, argument.value, None, None, return_type)
-                        .map(|result| Some(result.ty))
+                    let result = self.check_loop_reachable(arguments_exit, |checker| {
+                        checker.check_expression(
+                            source,
+                            argument.value,
+                            expected,
+                            None,
+                            return_type,
+                        )
+                    })?;
+                    if track_arguments && arguments_exit {
+                        arguments_exit =
+                            self.has_pending_expression_exit(source, argument.value, result)?;
+                    }
+                    Ok(Some(result.ty))
                 }
             })
             .collect()
@@ -74,14 +96,58 @@ impl BodyChecker<'_> {
     pub(super) fn instantiate_source_candidate(
         &mut self,
         source: SourceUnitId,
+        candidate: CallCandidate,
+        mapping: &[usize],
+        arguments: &[CallArgument],
+        inference_types: &[Option<UnitTypeId>],
+        explicit: (&[TypeRefId], &[UnitTypeId]),
+        callee_span: Span,
+    ) -> Result<Result<InstantiatedCandidate, UnitInstantiationFailure>, CompilationUnitTypeError>
+    {
+        // The receiver and inference inputs are already committed. Only candidate-local
+        // interning can occur here, so a failed candidate can discard the type-table tail.
+        let checkpoint = self.signatures.types().len();
+        let result = self.try_instantiate_source_candidate(
+            source,
+            candidate,
+            mapping,
+            arguments,
+            inference_types,
+            explicit,
+            callee_span,
+        );
+        if !matches!(&result, Ok(Ok(_))) {
+            self.signatures.types_mut().discard_after(checkpoint);
+        }
+        result
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn try_instantiate_source_candidate(
+        &mut self,
+        source: SourceUnitId,
         mut candidate: CallCandidate,
         mapping: &[usize],
         arguments: &[CallArgument],
         inference_types: &[Option<UnitTypeId>],
         explicit: (&[TypeRefId], &[UnitTypeId]),
         callee_span: Span,
-    ) -> Result<Result<CallCandidate, UnitInstantiationFailure>, CompilationUnitTypeError> {
-        if let Some(message) = candidate.owner_storage_failure {
+    ) -> Result<Result<InstantiatedCandidate, UnitInstantiationFailure>, CompilationUnitTypeError>
+    {
+        let owner = self.specialize_member_owner(&mut candidate)?;
+        let owner_formals = owner
+            .values()
+            .any(|&ty| self.contains_unresolved_call_type(ty))
+            .then(|| {
+                candidate
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.ty)
+                    .collect()
+            });
+        if !owner.is_empty()
+            && let Some(message) = self.substitute_candidate_types(&mut candidate, &owner)?
+        {
             return Ok(Err(UnitInstantiationFailure::Storage {
                 primary: callee_span,
                 declaration: candidate.declaration_span,
@@ -89,11 +155,12 @@ impl BodyChecker<'_> {
             }));
         }
         let (type_refs, explicit_types) = explicit;
-        let checkpoint = self.signatures.types().len();
         let parameters = candidate.type_parameters.clone();
         let parameter_set = parameters.iter().copied().collect::<BTreeSet<_>>();
-        let mut substitutions = candidate.owner_substitutions.clone();
+        let mut substitutions = owner;
         let mut origins = BTreeMap::new();
+        let mut pending_parameters = BTreeSet::new();
+        let mut pending_templates = Vec::new();
 
         if !explicit_types.is_empty() {
             if explicit_types.len() != parameters.len() {
@@ -132,13 +199,14 @@ impl BodyChecker<'_> {
             }
         }
         if let Some((template, actual)) = self.range_extension_receiver_types(&candidate)
-            && let Err(parameter) = self.infer_unit_type_arguments(
+            && let Err(parameter) = self.infer_unit_type_arguments_tracking(
                 template,
                 actual,
                 &parameter_set,
                 &mut substitutions,
                 &mut origins,
                 callee_span,
+                &mut Some(&mut pending_templates),
             )
         {
             return Ok(Err(UnitInstantiationFailure::Inference {
@@ -162,13 +230,14 @@ impl BodyChecker<'_> {
                     .get(arguments[argument_index].value)
                     .map_err(crate::type_checking::TypeCheckingError::from)?
                     .span();
-                if let Err(parameter) = self.infer_unit_type_arguments(
+                if let Err(parameter) = self.infer_unit_type_arguments_tracking(
                     template,
                     actual,
                     &parameter_set,
                     &mut substitutions,
                     &mut origins,
                     span,
+                    &mut Some(&mut pending_templates),
                 ) {
                     return Ok(Err(UnitInstantiationFailure::Inference {
                         primary: span,
@@ -176,14 +245,19 @@ impl BodyChecker<'_> {
                     }));
                 }
             }
-            if let Some(&parameter) = parameters
-                .iter()
-                .find(|parameter| !substitutions.contains_key(parameter))
-            {
-                return Ok(Err(UnitInstantiationFailure::Inference {
-                    primary: callee_span,
-                    parameter,
-                }));
+            for &parameter in parameters.iter().filter(|p| !substitutions.contains_key(p)) {
+                let requested = BTreeSet::from([parameter]);
+                if pending_templates.iter().any(|&template| {
+                    self.first_contained_unit_parameter(template, &requested, &mut BTreeSet::new())
+                        .is_some()
+                }) {
+                    pending_parameters.insert(parameter);
+                } else {
+                    return Ok(Err(UnitInstantiationFailure::Inference {
+                        primary: callee_span,
+                        parameter,
+                    }));
+                }
             }
         }
 
@@ -201,8 +275,25 @@ impl BodyChecker<'_> {
             }));
         }
 
+        let mut pending = !pending_parameters.is_empty();
+        if pending {
+            let unresolved = self.deferred_type(DeferredReason::Call);
+            substitutions.extend(
+                pending_parameters
+                    .iter()
+                    .map(|&parameter| (parameter, unresolved)),
+            );
+        }
         for &parameter in &parameters {
             let actual = substitutions[&parameter];
+            let unresolved = self.contains_unresolved_call_type(actual);
+            pending |= unresolved;
+            if self.is_unresolved_call_type(actual) {
+                // A known layout restriction such as Any is handled below.
+                // An unresolved input cannot prove this parameter's bound.
+                pending = true;
+                continue;
+            }
             let primary = origins.get(&parameter).copied().unwrap_or(callee_span);
             if crate::type_checking::range_type_uses::unit_contains_range(
                 self.signatures.types(),
@@ -230,23 +321,41 @@ impl BodyChecker<'_> {
                         &mut bound_types,
                     )?;
                     if let Some(message) = self.invalid_storage_in_substitution(&bound_types) {
-                        self.signatures.types_mut().discard_after(checkpoint);
                         return Ok(Err(UnitInstantiationFailure::Storage {
                             primary: callee_span,
                             declaration: candidate.declaration_span,
                             message,
                         }));
                     }
-                    (!self.satisfies_interface(actual, expected)?)
-                        .then_some(UnitBoundFailureKind::Interface)
+                    if self.satisfies_interface(actual, expected)? {
+                        None
+                    } else if self.could_satisfy_pending_interface(actual, expected)? {
+                        pending = true;
+                        None
+                    } else {
+                        Some(UnitBoundFailureKind::Interface)
+                    }
                 }
                 UnitTypeParameterBound::Capability(Capability::Copyable) => {
-                    (self.copyability_of(actual) != Copyability::Copyable)
-                        .then_some(UnitBoundFailureKind::Copyable)
+                    match self.copyability_of(actual) {
+                        Copyability::Copyable => None,
+                        Copyability::Unknown => {
+                            // An unresolved nominal field need not appear in its type arguments.
+                            pending = true;
+                            None
+                        }
+                        _ => Some(UnitBoundFailureKind::Copyable),
+                    }
                 }
                 UnitTypeParameterBound::Capability(Capability::Transferable) => {
-                    (self.transferability_of(actual) != UnitTransferability::Transferable)
-                        .then_some(UnitBoundFailureKind::Transferable)
+                    match self.transferability_of(actual) {
+                        UnitTransferability::Transferable => None,
+                        UnitTransferability::Unknown => {
+                            pending = true;
+                            None
+                        }
+                        _ => Some(UnitBoundFailureKind::Transferable),
+                    }
                 }
                 UnitTypeParameterBound::Capability(Capability::Hashable) => {
                     (!self.is_hashable_type(actual)).then_some(UnitBoundFailureKind::Hashable)
@@ -261,8 +370,24 @@ impl BodyChecker<'_> {
             }
         }
 
-        if let Some(message) = self.substitute_candidate_types(&mut candidate, &substitutions)? {
-            self.signatures.types_mut().discard_after(checkpoint);
+        let constraints = if pending || owner_formals.is_some() {
+            let explicit = parameters.iter().copied().zip(type_refs.iter().copied());
+            PendingConstraints::new(self, &substitutions, explicit, || {
+                owner_formals.unwrap_or_else(|| {
+                    candidate
+                        .parameters
+                        .iter()
+                        .map(|parameter| parameter.ty)
+                        .collect()
+                })
+            })
+        } else {
+            None
+        };
+        if !substitutions.is_empty()
+            && let Some(message) =
+                self.substitute_candidate_types(&mut candidate, &substitutions)?
+        {
             return Ok(Err(UnitInstantiationFailure::Storage {
                 primary: callee_span,
                 declaration: candidate.declaration_span,
@@ -273,7 +398,19 @@ impl BodyChecker<'_> {
             .instance_arguments
             .extend(parameters.iter().map(|parameter| substitutions[parameter]));
         candidate.type_parameters.clear();
-        Ok(Ok(candidate))
+        pending |= candidate
+            .instance_arguments
+            .iter()
+            .copied()
+            .chain(candidate.parameters.iter().map(|parameter| parameter.ty))
+            .chain(candidate.receiver.iter().map(|(_, ty)| *ty))
+            .chain(std::iter::once(candidate.return_type))
+            .any(|ty| self.contains_unresolved_call_type(ty));
+        Ok(Ok(InstantiatedCandidate {
+            call: candidate,
+            pending,
+            constraints,
+        }))
     }
 
     pub(super) fn substitute_candidate_types(
@@ -281,7 +418,6 @@ impl BodyChecker<'_> {
         candidate: &mut CallCandidate,
         substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
     ) -> Result<Option<&'static str>, CompilationUnitTypeError> {
-        let checkpoint = self.signatures.types().len();
         let mut instantiated = BTreeMap::new();
         let parameter_types = candidate
             .parameters
@@ -302,7 +438,6 @@ impl BodyChecker<'_> {
             &mut instantiated,
         )?;
         if let Some(message) = self.invalid_storage_in_substitution(&instantiated) {
-            self.signatures.types_mut().discard_after(checkpoint);
             return Ok(Some(message));
         }
         for (parameter, ty) in candidate.parameters.iter_mut().zip(parameter_types) {
@@ -400,6 +535,46 @@ impl BodyChecker<'_> {
         origins: &mut BTreeMap<UnitSymbolId, Span>,
         origin: Span,
     ) -> Result<(), UnitSymbolId> {
+        self.infer_unit_type_arguments_tracking(
+            template,
+            actual,
+            parameters,
+            substitutions,
+            origins,
+            origin,
+            &mut None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn infer_unit_type_arguments_tracking(
+        &self,
+        template: UnitTypeId,
+        actual: UnitTypeId,
+        parameters: &BTreeSet<UnitSymbolId>,
+        substitutions: &mut BTreeMap<UnitSymbolId, UnitTypeId>,
+        origins: &mut BTreeMap<UnitSymbolId, Span>,
+        origin: Span,
+        pending: &mut Option<&mut Vec<UnitTypeId>>,
+    ) -> Result<(), UnitSymbolId> {
+        if let Some(pending) = pending.as_deref_mut()
+            && (self.is_unresolved_call_type(actual)
+                || matches!(
+                    self.signatures.types().get(template),
+                    Some(UnitTypeKind::TypeParameter(parameter)) if parameters.contains(parameter)
+                ) && self.contains_unresolved_call_type(actual))
+        {
+            if let Some(UnitTypeKind::TypeParameter(parameter)) =
+                self.signatures.types().get(template)
+                && parameters.contains(parameter)
+                && let Some(&previous) = substitutions.get(parameter)
+                && !self.types_could_be_equal(previous, actual)
+            {
+                return Err(*parameter);
+            }
+            pending.push(template);
+            return Ok(());
+        }
         if let Some(UnitTypeKind::TypeParameter(parameter)) = self.signatures.types().get(template)
             && parameters.contains(parameter)
         {
@@ -407,7 +582,12 @@ impl BodyChecker<'_> {
                 return Ok(());
             }
             return match substitutions.get(parameter).copied() {
-                Some(previous) if previous != actual => Err(*parameter),
+                Some(previous)
+                    if previous != actual
+                        && (pending.is_none() || !self.types_could_be_equal(previous, actual)) =>
+                {
+                    Err(*parameter)
+                }
                 Some(_) => Ok(()),
                 None => {
                     substitutions.insert(*parameter, actual);
@@ -428,13 +608,14 @@ impl BodyChecker<'_> {
         ) {
             (Some(UnitTypeKind::Nullable(template)), Some(UnitTypeKind::Nullable(actual)))
             | (Some(UnitTypeKind::StaticSelf(template)), Some(UnitTypeKind::StaticSelf(actual))) => {
-                self.infer_unit_type_arguments(
+                self.infer_unit_type_arguments_tracking(
                     *template,
                     *actual,
                     parameters,
                     substitutions,
                     origins,
                     origin,
+                    pending,
                 )
             }
             (
@@ -456,22 +637,24 @@ impl BodyChecker<'_> {
                     .all(|(template, actual)| template.mode() == actual.mode()) =>
             {
                 for (template, actual) in template_parameters.iter().zip(actual_parameters) {
-                    self.infer_unit_type_arguments(
+                    self.infer_unit_type_arguments_tracking(
                         template.ty(),
                         actual.ty(),
                         parameters,
                         substitutions,
                         origins,
                         origin,
+                        pending,
                     )?;
                 }
-                self.infer_unit_type_arguments(
+                self.infer_unit_type_arguments_tracking(
                     *template_return,
                     *actual_return,
                     parameters,
                     substitutions,
                     origins,
                     origin,
+                    pending,
                 )
             }
             (
@@ -493,6 +676,7 @@ impl BodyChecker<'_> {
                     substitutions,
                     origins,
                     origin,
+                    pending,
                 )
             }
             (
@@ -514,6 +698,7 @@ impl BodyChecker<'_> {
                     substitutions,
                     origins,
                     origin,
+                    pending,
                 )
             }
             _ => Err(self
@@ -522,6 +707,7 @@ impl BodyChecker<'_> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn infer_unit_argument_lists(
         &self,
         templates: &[UnitTypeId],
@@ -530,15 +716,17 @@ impl BodyChecker<'_> {
         substitutions: &mut BTreeMap<UnitSymbolId, UnitTypeId>,
         origins: &mut BTreeMap<UnitSymbolId, Span>,
         origin: Span,
+        pending: &mut Option<&mut Vec<UnitTypeId>>,
     ) -> Result<(), UnitSymbolId> {
         for (&template, &actual) in templates.iter().zip(actuals) {
-            self.infer_unit_type_arguments(
+            self.infer_unit_type_arguments_tracking(
                 template,
                 actual,
                 parameters,
                 substitutions,
                 origins,
                 origin,
+                pending,
             )?;
         }
         Ok(())

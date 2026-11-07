@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-use super::BodyChecker;
+use super::{BodyChecker, pending_types::contains_unresolved};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum UnitTransferability {
@@ -31,6 +31,23 @@ struct CopyabilityFailureTrace {
     unexplained: bool,
 }
 
+enum CopyabilityTrace {
+    Failure(CopyabilityFailureTrace),
+    Unresolved {
+        found: bool,
+        visited: BTreeSet<UnitTypeId>,
+    },
+}
+
+impl CopyabilityTrace {
+    fn failure(&mut self) -> Option<&mut CopyabilityFailureTrace> {
+        match self {
+            Self::Failure(trace) => Some(trace),
+            Self::Unresolved { .. } => None,
+        }
+    }
+}
+
 impl CapabilityQuery<'_> {
     pub(super) fn copyability_of(&self, ty: UnitTypeId) -> Copyability {
         self.copyability_with(ty, &BTreeMap::new(), &mut BTreeSet::new(), None)
@@ -41,11 +58,17 @@ impl CapabilityQuery<'_> {
         ty: UnitTypeId,
         substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
         active: &mut BTreeSet<DeclarationId>,
-        mut trace: Option<&mut CopyabilityFailureTrace>,
+        mut trace: Option<&mut CopyabilityTrace>,
     ) -> Copyability {
-        if let Some(trace) = trace.as_deref_mut() {
-            trace.unexplained |=
-                !self.complete_type_inputs(ty, substitutions, &mut BTreeSet::new());
+        match trace.as_deref_mut() {
+            Some(CopyabilityTrace::Failure(failure)) => {
+                failure.unexplained |=
+                    !self.complete_type_inputs(ty, substitutions, &mut BTreeSet::new());
+            }
+            Some(CopyabilityTrace::Unresolved { found, visited }) if !*found => {
+                *found = contains_unresolved(self.signatures.types(), ty, visited);
+            }
+            _ => {}
         }
         match self.signatures.types().get(ty) {
             Some(
@@ -99,7 +122,7 @@ impl CapabilityQuery<'_> {
                         Copyability::Copyable
                     }
                     Some(UnitTypeParameterBound::Error) => {
-                        if let Some(trace) = trace {
+                        if let Some(trace) = trace.and_then(CopyabilityTrace::failure) {
                             trace.unexplained = true;
                         }
                         Copyability::Error
@@ -112,13 +135,13 @@ impl CapabilityQuery<'_> {
             }
             Some(UnitTypeKind::Deferred(_)) => Copyability::Unknown,
             Some(UnitTypeKind::Error) => {
-                if let Some(trace) = trace {
+                if let Some(trace) = trace.and_then(CopyabilityTrace::failure) {
                     trace.source_error = true;
                 }
                 Copyability::Error
             }
             Some(UnitTypeKind::StaticSelf(_) | UnitTypeKind::Capability(_)) | None => {
-                if let Some(trace) = trace {
+                if let Some(trace) = trace.and_then(CopyabilityTrace::failure) {
                     trace.unexplained = true;
                 }
                 Copyability::Error
@@ -132,7 +155,7 @@ impl CapabilityQuery<'_> {
         arguments: &[UnitTypeId],
         outer: &BTreeMap<UnitSymbolId, UnitTypeId>,
         active: &mut BTreeSet<DeclarationId>,
-        mut trace: Option<&mut CopyabilityFailureTrace>,
+        mut trace: Option<&mut CopyabilityTrace>,
     ) -> Copyability {
         if self
             .signatures
@@ -140,7 +163,7 @@ impl CapabilityQuery<'_> {
             .contains(&declaration)
             || !active.insert(declaration)
         {
-            if let Some(trace) = trace {
+            if let Some(trace) = trace.and_then(CopyabilityTrace::failure) {
                 trace.unexplained = true;
             }
             return Copyability::Error;
@@ -151,7 +174,7 @@ impl CapabilityQuery<'_> {
             .and_then(|signature| signature.nominal())
         else {
             active.remove(&declaration);
-            if let Some(trace) = trace {
+            if let Some(trace) = trace.and_then(CopyabilityTrace::failure) {
                 trace.unexplained = true;
             }
             return Copyability::Error;
@@ -159,13 +182,13 @@ impl CapabilityQuery<'_> {
         let result = match nominal.kind() {
             NominalKind::Class | NominalKind::Object => Copyability::MoveOnly,
             NominalKind::Interface => {
-                if let Some(trace) = trace.as_deref_mut() {
+                if let Some(trace) = trace.as_deref_mut().and_then(CopyabilityTrace::failure) {
                     trace.unexplained = true;
                 }
                 Copyability::Error
             }
             NominalKind::ValueClass | NominalKind::EnumClass => {
-                if let Some(trace) = trace.as_deref_mut() {
+                if let Some(trace) = trace.as_deref_mut().and_then(CopyabilityTrace::failure) {
                     // Never let zip silently certify missing/extra arguments or replace an
                     // unrelated outer mapping. These checks affect evidence, not the result.
                     trace.unexplained |= nominal.type_parameters().len() != arguments.len()
@@ -520,14 +543,16 @@ pub(in crate::type_checking::compilation_unit) fn unit_copyability_error_is_diag
     signatures: &CompilationUnitSignatures,
     ty: UnitTypeId,
 ) -> bool {
-    let mut trace = CopyabilityFailureTrace::default();
+    let mut trace = CopyabilityTrace::Failure(CopyabilityFailureTrace::default());
     let result = CapabilityQuery { signatures }.copyability_with(
         ty,
         &BTreeMap::new(),
         &mut BTreeSet::new(),
         Some(&mut trace),
     );
-    result == Copyability::Error && trace.source_error && !trace.unexplained
+    result == Copyability::Error
+        && matches!(trace, CopyabilityTrace::Failure(failure)
+            if failure.source_error && !failure.unexplained)
 }
 
 pub(in crate::type_checking) fn unit_transferability(
@@ -542,6 +567,21 @@ impl BodyChecker<'_> {
         unit_copyability(&self.signatures, ty)
     }
 
+    pub(super) fn copyability_and_pending_fields(&self, ty: UnitTypeId) -> (Copyability, bool) {
+        let mut trace = CopyabilityTrace::Unresolved {
+            found: false,
+            visited: BTreeSet::new(),
+        };
+        let copyability = CapabilityQuery {
+            signatures: &self.signatures,
+        }
+        .copyability_with(ty, &BTreeMap::new(), &mut BTreeSet::new(), Some(&mut trace));
+        (
+            copyability,
+            matches!(trace, CopyabilityTrace::Unresolved { found: true, .. }),
+        )
+    }
+
     pub(super) fn transferability_of(&self, ty: UnitTypeId) -> UnitTransferability {
         CapabilityQuery {
             signatures: &self.signatures,
@@ -553,8 +593,8 @@ impl BodyChecker<'_> {
 fn combine(left: Copyability, right: Copyability) -> Copyability {
     match (left, right) {
         (Copyability::Error, _) | (_, Copyability::Error) => Copyability::Error,
-        (Copyability::Unknown, _) | (_, Copyability::Unknown) => Copyability::Unknown,
         (Copyability::MoveOnly, _) | (_, Copyability::MoveOnly) => Copyability::MoveOnly,
+        (Copyability::Unknown, _) | (_, Copyability::Unknown) => Copyability::Unknown,
         (Copyability::Copyable, Copyability::Copyable) => Copyability::Copyable,
     }
 }
@@ -567,11 +607,11 @@ fn combine_transferability(
         (UnitTransferability::Error, _) | (_, UnitTransferability::Error) => {
             UnitTransferability::Error
         }
-        (UnitTransferability::Unknown, _) | (_, UnitTransferability::Unknown) => {
-            UnitTransferability::Unknown
-        }
         (UnitTransferability::NotTransferable, _) | (_, UnitTransferability::NotTransferable) => {
             UnitTransferability::NotTransferable
+        }
+        (UnitTransferability::Unknown, _) | (_, UnitTransferability::Unknown) => {
+            UnitTransferability::Unknown
         }
         (UnitTransferability::Transferable, UnitTransferability::Transferable) => {
             UnitTransferability::Transferable

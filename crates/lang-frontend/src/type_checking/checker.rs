@@ -54,19 +54,18 @@ use crate::{
 use super::ExpressionUse;
 use super::{
     AggregateProjectionDescriptor, AggregateProjectionKind, AggregateProjectionReceiver,
-    BuiltinType, CallDescriptor, CallReceiverDescriptor, CallReceiverOrigin, CallableDescriptor,
-    CallableReceiverDescriptor, Capability, ConstructionDescriptor, ContainerAppendDescriptor,
-    ContainerClearDescriptor, ContainerConstructionDescriptor, ContainerInsertAtDescriptor,
-    ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor, ContainerRemoveLastDescriptor,
-    ContainerSizeDescriptor, Copyability, DeferredReason, DelegationForwarderDescriptor,
-    DelegationPlan, DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor,
-    EnvironmentFunction, EnvironmentType, ExpressionCategory, ExternalTypeBinding,
-    FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind,
-    NonNullUseDescriptor, NullComparisonDescriptor, OwnershipPrimitiveDescriptor,
-    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, SequentialContainerKind,
-    StringOperationDescriptor, TypeCheckingError, TypeEnvironment, TypeId, TypeKind,
-    TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
-    collect_expression_uses,
+    BuiltinType, CallDescriptor, CallableDescriptor, CallableReceiverDescriptor, Capability,
+    ConstructionDescriptor, ContainerAppendDescriptor, ContainerClearDescriptor,
+    ContainerConstructionDescriptor, ContainerInsertAtDescriptor, ContainerRemoveAtDescriptor,
+    ContainerRemoveFirstDescriptor, ContainerRemoveLastDescriptor, ContainerSizeDescriptor,
+    Copyability, DeferredReason, DelegationForwarderDescriptor, DelegationPlan,
+    DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor, EnvironmentFunction,
+    EnvironmentType, ExpressionCategory, ExternalTypeBinding, FunctionParameterType,
+    IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind, NonNullUseDescriptor,
+    NullComparisonDescriptor, OwnershipPrimitiveDescriptor, ParameterBindingDescriptor,
+    ParameterMode, RcOperationDescriptor, SequentialContainerKind, StringOperationDescriptor,
+    TypeCheckingError, TypeEnvironment, TypeId, TypeKind, TypeParameterBound,
+    TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts, collect_expression_uses,
 };
 use argument_mapping::{MappedParameter, MappingError, parameter_mode_span};
 use flow::FlowKey;
@@ -153,6 +152,7 @@ struct Checker<'a> {
     nominal_by_scope: BTreeMap<ScopeId, NominalId>,
     classifier_scope_by_span: BTreeMap<(usize, usize), ScopeId>,
     nominals: Vec<NominalDescriptor>,
+    private_field_owners: BTreeMap<SymbolId, Span>,
     type_parameters: Vec<TypeParameterDescriptor>,
     type_parameter_by_symbol: BTreeMap<SymbolId, usize>,
     delegations: Vec<DelegationPlan>,
@@ -259,7 +259,7 @@ struct Checker<'a> {
     constant_cycle_code: DiagnosticCode,
     constant_evaluation_code: DiagnosticCode,
     invisible_constant_code: DiagnosticCode,
-    unresolved_constant_code: DiagnosticCode,
+    unresolved_name_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -369,6 +369,7 @@ impl<'a> Checker<'a> {
             nominal_by_scope: BTreeMap::new(),
             classifier_scope_by_span,
             nominals: Vec::new(),
+            private_field_owners: BTreeMap::new(),
             type_parameters: Vec::new(),
             type_parameter_by_symbol: BTreeMap::new(),
             delegations: Vec::new(),
@@ -488,7 +489,7 @@ impl<'a> Checker<'a> {
             constant_cycle_code: catalog.resolve(codes::CONSTANT_DEPENDENCY_CYCLE)?,
             constant_evaluation_code: catalog.resolve(codes::CONSTANT_EVALUATION_FAILURE)?,
             invisible_constant_code: catalog.resolve(codes::INVISIBLE_ASSOCIATED_CONSTANT)?,
-            unresolved_constant_code: catalog.resolve(codes::UNRESOLVED_NAME)?,
+            unresolved_name_code: catalog.resolve(codes::UNRESOLVED_NAME)?,
         })
     }
 

@@ -188,6 +188,7 @@ impl Checker<'_> {
         } else {
             self.checking_borrow_return
         };
+        let diagnostic_count = self.diagnostics.len();
         let checked = self.check_expression_inner(id, state, usage);
         self.checking_borrow_return = previous_borrow_delivery;
         if is_lambda {
@@ -199,12 +200,30 @@ impl Checker<'_> {
         let mut flows = checked?;
         if let Some(next) = &mut flows.next {
             let callable = self.callable_type(id).is_some();
+            let nullable_callable = matches!(
+                self.typed.expression_type(self.unit_expression(id))
+                    .and_then(|ty| self.typed.types().get(ty)),
+                Some(UnitTypeKind::Nullable(inner))
+                    if matches!(self.typed.types().get(*inner), Some(UnitTypeKind::Function { .. }))
+            );
+            if nullable_callable
+                && self.has_exclusive_capture(next, self.closure_result_origins(id, next)?)
+            {
+                self.emit_borrow_binding_diagnostic(
+                    crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                    "nullable callable cannot yet retain an exclusive closure environment",
+                    span,
+                )?;
+            }
             let closure_origins = if callable {
                 self.closure_result_origins(id, next)?
             } else {
                 Default::default()
             };
             if matches!(expression, Expression::If { .. } | Expression::When { .. }) {
+                if self.diagnostics.len() == diagnostic_count {
+                    self.allow_move_only_capture_transport(id, next, &closure_origins)?;
+                }
                 self.release_dead_control_closures(id, &closure_origins, next);
             }
             if callable {

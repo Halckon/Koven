@@ -97,8 +97,7 @@ impl BodyChecker<'_> {
             result_source: crate::type_checking::CallableResultSource::Owned,
             instance_arguments: Vec::new(),
             receiver: None,
-            owner_substitutions: BTreeMap::new(),
-            owner_storage_failure: None,
+            member_owner: None,
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
             prints_line: false,
@@ -110,8 +109,12 @@ impl BodyChecker<'_> {
             callee,
             arguments,
             return_type,
-            &candidate,
+            candidate,
             &mapping,
+            None,
+            None,
+            self.argument_check_start(),
+            false,
             None,
         )?;
         if let Some(call) = self.parts.calls[call_count..]

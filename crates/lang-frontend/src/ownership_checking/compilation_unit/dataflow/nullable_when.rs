@@ -148,10 +148,11 @@ impl Checker<'_> {
         control: ExpressionId,
         index: usize,
         body: StatementId,
-        state: State,
+        mut state: State,
         usage: ExpressionUse,
         escaping: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
+        self.release_exclusive_branch(control, index, &mut state);
         let flows = self.check_control_body(body, state, usage, escaping)?;
         let control = self.unit_expression(control);
         if let Some(plan) = self.nullable_whens.plans.get_mut(&control) {

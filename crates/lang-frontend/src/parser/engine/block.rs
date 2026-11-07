@@ -337,18 +337,19 @@ impl Parser<'_> {
         }
 
         let keyword_span = self.bump()?.span();
+        let boundary_stops = outer_stops.with(Stops::RIGHT_BRACE | Stops::SEMICOLON);
         let opener = if self.current_is_symbol(Symbol::LeftParen) {
             Some(self.bump()?.span())
         } else {
-            let span = self.boundary_span(self.current()?, outer_stops)?;
+            let span = self.boundary_span(self.current()?, boundary_stops)?;
             self.emit(codes::EXPECTED_FOR_BINDING, "expected for binding", span)?;
             None
         };
-        let binding = self.parse_for_binding(outer_stops)?;
+        let binding = self.parse_for_binding(boundary_stops)?;
         let in_span = if self.current_is_keyword(Keyword::In) {
             self.bump()?.span()
         } else {
-            let span = self.boundary_span(self.current()?, outer_stops)?;
+            let span = self.boundary_span(self.current()?, boundary_stops)?;
             self.emit(codes::EXPECTED_FOR_IN, "expected in", span)?;
             self.empty_at(self.previous_significant_end())?
         };
@@ -360,7 +361,8 @@ impl Parser<'_> {
             };
             self.parse_expression_bp(0, source_stops.with(Stops::RIGHT_PAREN))?
         } else {
-            let span = self.boundary_span(self.current()?, outer_stops.with(Stops::RIGHT_PAREN))?;
+            let span =
+                self.boundary_span(self.current()?, boundary_stops.with(Stops::RIGHT_PAREN))?;
             self.emit(codes::EXPECTED_CONDITION, "expected condition", span)?;
             self.add_expression(span, Expression::Error)?
         };
@@ -369,13 +371,16 @@ impl Parser<'_> {
         } else if let Some(opener) = opener
             && !self.is_poison()
         {
-            self.emit_closing(self.boundary_span(self.current()?, outer_stops)?, opener)?;
+            self.emit_closing(self.boundary_span(self.current()?, boundary_stops)?, opener)?;
         }
-        let body = self.parse_required_loop_body(outer_stops)?;
-        let end = self
-            .statement_span(body)?
-            .end()
-            .max(self.expression_span(source)?.end());
+        let body_stops = if self.current_is_symbol(Symbol::LeftBrace) {
+            outer_stops
+        } else {
+            boundary_stops
+        };
+        let body = self.parse_required_loop_body(body_stops)?;
+        // Insertion points at an enclosing delimiter do not extend the loop's source range.
+        let end = self.previous_significant_end();
         self.add_statement(
             self.span(keyword_span.start(), end)?,
             Statement::For {
@@ -403,14 +408,24 @@ impl Parser<'_> {
         }
         let left_paren_span = self.bump()?.span();
         let mut names = Vec::new();
-        while !self.current_is_symbol(Symbol::RightParen)
-            && !self.current_is_keyword(Keyword::In)
-            && !matches!(self.current()?.kind(), LexemeKind::Eof)
-        {
+        loop {
+            let current = self.current()?;
+            if outer_stops.contains_hard(current)
+                || matches!(
+                    current.kind(),
+                    LexemeKind::Token(
+                        TokenKind::Symbol(
+                            Symbol::RightParen | Symbol::RightBrace | Symbol::Semicolon
+                        ) | TokenKind::Keyword(Keyword::In)
+                    )
+                )
+            {
+                break;
+            }
             if self.current_is_identifier() {
                 names.push(NameMarker::Present(self.bump()?.span()));
             } else {
-                let span = self.current()?.span();
+                let span = current.span();
                 if !self.is_poison() {
                     self.emit(codes::EXPECTED_FOR_BINDING, "expected for binding", span)?;
                 }
@@ -430,6 +445,17 @@ impl Parser<'_> {
         let right_paren_span = if self.current_is_symbol(Symbol::RightParen) {
             Some(self.bump()?.span())
         } else {
+            let current = self.current()?;
+            let terminal_lexer_root = matches!(current.kind(), LexemeKind::Eof)
+                && self.lexical_recoveries.terminal_error_at_eof;
+            if !self.is_poison() && !terminal_lexer_root {
+                let span = if self.current_is_keyword(Keyword::In) {
+                    self.empty_at(current.span().start())?
+                } else {
+                    self.boundary_span(current, outer_stops)?
+                };
+                self.emit_closing(span, left_paren_span)?;
+            }
             None
         };
         Ok(ForBinding::Destructuring {

@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-use super::{BodyChecker, ExpressionCheck};
+use super::{BodyChecker, ExpressionCheck, ExpressionExpected};
 
 #[derive(Clone, Copy)]
 struct ContainerCall<'a> {
@@ -27,6 +27,8 @@ struct ContainerCall<'a> {
     expected: Option<UnitTypeId>,
     expected_span: Option<Span>,
     return_type: UnitTypeId,
+    diagnostics: usize,
+    deferred: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -54,7 +56,7 @@ impl BodyChecker<'_> {
         callee: ExpressionId,
         type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
-        expected: Option<UnitTypeId>,
+        expectation: Option<ExpressionExpected<'_>>,
         expected_span: Option<Span>,
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
@@ -135,6 +137,9 @@ impl BodyChecker<'_> {
                 return_type,
             );
         };
+        let expected = expectation
+            .map(|expected| expected.resolve(self))
+            .transpose()?;
         let call = ContainerCall {
             source,
             expression,
@@ -145,6 +150,8 @@ impl BodyChecker<'_> {
             expected,
             expected_span,
             return_type,
+            diagnostics: self.diagnostics.len(),
+            deferred: self.deferred_facts.len(),
         };
         match target {
             Target::Map(callable) => self
@@ -165,6 +172,17 @@ impl BodyChecker<'_> {
                 .check_named_container_construction(call, kind)
                 .map(Some),
         }
+    }
+
+    pub(super) fn is_list_form_callee(
+        &self,
+        source: SourceUnitId,
+        callee: ExpressionId,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        Ok(matches!(
+            self.container_target(source, callee)?,
+            Some(Target::ListForm(_))
+        ))
     }
 
     fn container_target(
@@ -247,7 +265,12 @@ impl BodyChecker<'_> {
                 "list-form container construction accepts at most one type argument",
                 call.span,
             )?;
-            self.check_container_operands(call)?;
+            self.check_rejected_construction_operands(
+                call.source,
+                call.type_arguments,
+                call.arguments,
+                call.return_type,
+            )?;
             return Ok(self.failed_construction());
         }
         let invalid_shape = call
@@ -276,6 +299,23 @@ impl BodyChecker<'_> {
                 .filter(|(expected_kind, _)| *expected_kind == kind)
                 .map(|(_, element)| element)
         });
+        if explicit.is_none()
+            && contextual.is_none()
+            && call.arguments.is_empty()
+            && matches!(
+                call.expected.and_then(|ty| self.signatures.types().get(ty)),
+                Some(UnitTypeKind::Deferred(
+                    DeferredReason::ContextualArgument | DeferredReason::Call
+                ))
+            )
+        {
+            let element = self.deferred_type(DeferredReason::ContextualArgument);
+            return Ok(self.deferred_container_construction(
+                UnitExpressionId::new(call.source, call.expression),
+                Self::container_constructor(kind),
+                vec![element],
+            ));
+        }
         let element = if let Some(element) = explicit.or(contextual) {
             element
         } else if let Some(first) = call.arguments.first() {
@@ -361,7 +401,12 @@ impl BodyChecker<'_> {
                 "core container construction requires exactly one type argument",
                 call.span,
             )?;
-            self.check_container_operands(call)?;
+            self.check_rejected_construction_operands(
+                call.source,
+                call.type_arguments,
+                call.arguments,
+                call.return_type,
+            )?;
             return Ok(self.failed_construction());
         }
         let element = self.resolve_body_type_ref(call.source, call.type_arguments[0])?;
@@ -432,7 +477,20 @@ impl BodyChecker<'_> {
         call: ContainerCall<'_>,
         construction: CheckedConstruction,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        if !construction.valid || self.construction_type_contains_poison(construction.element) {
+        if self.diagnostics.len() == call.diagnostics
+            && self.contains_unresolved_call_type(construction.element)
+            && self.could_be_structurally_storable_type(construction.element)
+        {
+            return Ok(self.deferred_container_construction(
+                UnitExpressionId::new(call.source, call.expression),
+                Self::container_constructor(construction.container),
+                vec![construction.element],
+            ));
+        }
+        if !construction.valid
+            || self.construction_type_contains_poison(construction.element)
+            || self.diagnostics.len() != call.diagnostics
+        {
             return Ok(self.failed_construction());
         }
         let constructor = Self::container_constructor(construction.container);
@@ -448,8 +506,16 @@ impl BodyChecker<'_> {
         )? {
             return Ok(self.failed_construction());
         }
-        let deferred = self.deferred_type(DeferredReason::Call);
-        self.record_expression(call.source, call.callee, deferred);
+        if self.has_pending_storage_value_since(call.deferred) {
+            self.note_pending_storage_value(
+                UnitExpressionId::new(call.source, call.expression),
+                container_type,
+            );
+            return Ok(ExpressionCheck {
+                ty: container_type,
+                falls_through: true,
+            });
+        }
         self.parts
             .container_constructions
             .push(UnitContainerConstructionDescriptor::new(
@@ -460,6 +526,7 @@ impl BodyChecker<'_> {
                 construction.element,
                 construction.modes,
             ));
+        self.record_container_callee(call.source, call.callee);
         Ok(ExpressionCheck {
             ty: container_type,
             falls_through: true,
@@ -543,25 +610,6 @@ impl BodyChecker<'_> {
             [element] => Some((kind, *element)),
             _ => None,
         }
-    }
-
-    pub(super) fn is_successful_container_callee(&self, expression: UnitExpressionId) -> bool {
-        self.parts.container_constructions.iter().any(|descriptor| {
-            let call = descriptor.expression();
-            if call.source_unit() != expression.source_unit() {
-                return false;
-            }
-            self.file(call.source_unit())
-                .ast()
-                .expressions()
-                .get(call.expression())
-                .is_ok_and(|node| {
-                    matches!(
-                        node.payload(),
-                        Expression::Call { callee, .. } if *callee == expression.expression()
-                    )
-                })
-        })
     }
 
     fn sequential_kind(constructor: IntrinsicTypeConstructor) -> Option<SequentialContainerKind> {

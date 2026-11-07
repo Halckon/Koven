@@ -897,6 +897,8 @@ pub enum DeferredReason {
     FunctionContainsDeferred,
     /// External symbol has no type binding.
     UnboundExternalType,
+    /// External identity carried only by a scratch call constraint.
+    ExternalConstraint(ExternalSymbolId),
     /// Value type depends on a later declaration.
     ForwardValueType,
     /// An overload set needs candidate selection.
@@ -907,6 +909,17 @@ pub enum DeferredReason {
     MemberAccess,
     /// Call resolution is deferred.
     Call,
+    /// An argument needs the enclosing call's expected type.
+    ContextualArgument,
+    /// A pending conditional has a finite set of integer widths.
+    ContextualInteger {
+        /// Widths available with a concrete numeric expectation.
+        widths: u8,
+        /// Width available without numeric contextual typing.
+        default: Option<BuiltinType>,
+        /// At least one result branch requires a nullable value.
+        nullable: bool,
+    },
     /// Index contract resolution is deferred.
     Index,
     /// Assignment/place checking is deferred.

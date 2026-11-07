@@ -183,16 +183,16 @@ import p.Leaf
 import p.ResourcePair
 import p.IntPair
 fun entry(): Unit {
-    val (x, y) = p.makeInts()
-    if (x + y == 42) {
+    val (second, first) = p.makeInts()
+    if (first == 10 && second == 32) {
         println("42")
     }
-    val (r1, r2) = p.makeResources()
+    val (right, left) = p.makeResources()
     println("destructured")
 }
 "#;
         let (run, llvm) = run_unit(&provider, consumer, constants);
-        let expected = b"42\ndestructured\nright\nleft\n";
+        let expected = b"42\ndestructured\nleft\nright\n";
         assert!(run.status.success(), "{run:?}");
         assert_eq!(run.stdout, expected);
         let counted = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 2);
