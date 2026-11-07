@@ -853,3 +853,6 @@ mod borrow_handoff;
 
 #[path = "unit_direct_call_loan_ends/borrow_auxiliary.rs"]
 mod borrow_auxiliary;
+
+#[path = "unit_direct_call_loan_ends/normal_oracle.rs"]
+mod normal_oracle;

@@ -3356,3 +3356,34 @@ producer834行、新测试文件212行、既有control_flow822行，根测试963
 独立只读复核确认原输入/oracle、迁移注册及最终门控；初审漏掉的旧非nullable邻控已由实际
 测试发现并收窄修复。未运行全target/workspace、故障注入/校准、含Abort的整项测试、
 native或Linux；这些不计为本地通过。本批仅本地逻辑提交，未发布/运行官方CI，D10/E2仍in-progress。
+
+## 正常借用返回的固定身份 oracle（2026-11-07）
+
+基于 main `2fd6bfb9`，保持两份正常返回源码字面量不变，以固定源码字节期望验证完整单项
+handoff、来源 call/argument/parameter/root、绑定声明以及有序辅助结束向量；同轮 Rooted
+与 MemoryDocument 均核 source qualification、Shared、真实 loan 成员与 begin/end 范围。
+仅 named 反排双辅助的旧 Single 对照退休，其两条实际结束身份、顺序和 CallReturn 已由
+真实辅助 producer 与独立完整向量承接；不改任何生产语义或新增 test target。
+
+独立复核指出 direct binding 的完整 loan-end 流否定不能由有界 Unit 切片证明，因此保留
+原 Single source(call,argument) 不结束见证和原 owner 延后 drop 断言；只补固定身份 oracle。
+复杂控制流、temporary、错误/deferred 等旧见证不动，不将此片宣称为完整 Single 退休。
+本地 Mac Rust1.96、locked/offline、默认 debug=2，两项相关测试及 frontend all-targets
+Clippy（`-D warnings`）通过；未运行全量、native、校准、故障注入或含 Abort 的整项测试。
+
+## String swap 的 V1 value 投影（2026-11-07）
+
+基于 main `2fd6bfb9` 将实际双根 swap 接入 V1 守恒投影；producer catalog 保持原 token，
+交换不创建 result/producer。连续同 call-return 的两根 cleanup 复用真实 commit 证据，
+各自核对交换后的 token 和实际槽位。新增真实双根终结、重复 swap/replace 组合、
+缺失/重复/别名/foreign 事件负例。Choice swap、Resource 和其他既有 Unsupported 边界不变。
+
+本切片 Mac Rust1.96 默认debug=2、locked/offline，串行复用已释放target：
+owner_transport lib过滤器95项通过、259项过滤，frontend all-targets Clippy -D warnings通过。
+fmt、849份Markdown、diff及相对2fd6bfb9尺寸检查通过，38个历史超长文件未增长。
+未运行全量、native、Abort、校准或宿主故障注入；正式组合发布头双宿主CI仍待验证。
+
+组合验收：`ddc1193e` 的 owner 95 项、borrow 27 项通过；all-targets Clippy 首次发现
+外部 API 编译消费者 `ownership_value_api` 缺少新 Swap 的穷尽匹配，故不能沿用分支 lint
+通过声明证明组合。补显式 Swap 两值匹配后，该目标 1 项与最终 all-targets Clippy 通过。
+合计 123 项定向测试；fmt、849 份 Markdown、diff及尺寸门禁通过。未以此替代正式 CI。

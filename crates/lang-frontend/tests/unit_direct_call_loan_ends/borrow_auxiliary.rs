@@ -3,10 +3,19 @@ use super::*;
 
 #[test]
 fn normal_handoff_ends_auxiliary_tokens_in_source_order() {
-    let (observed, legacy) = observe_with_legacy(
+    let observed = observe(
         "fun select(first: String, source: String, last: String): borrow String from source = source\nfun run(): Unit { val owner = \"kept\"; val first = \"first\"; val last = \"last\"; borrow val item = select(last = last, source = owner, first = first); println(item) }",
     );
     assert_units_admitted(&observed);
+    super::normal_oracle::assert_normal_handoff(
+        &observed,
+        (181, 185),
+        ((188, 238), (217, 222), (26, 40), (114, 119)),
+        &[
+            ((188, 238), (202, 206), (42, 54), (155, 159)),
+            ((188, 238), (232, 237), (11, 24), (134, 139)),
+        ],
+    );
     for unit in &observed.units {
         let [handoff] = unit.borrow_call_handoffs() else {
             panic!("one committed handoff")
@@ -31,21 +40,6 @@ fn normal_handoff_ends_auxiliary_tokens_in_source_order() {
             assert_eq!(loan.call(), handoff.source_loan().call());
             assert_ne!(loan.argument(), handoff.source_loan().argument());
             assert_eq!(loan.kind(), LoanKind::Shared);
-        }
-        let old: Vec<_> = legacy
-            .loan_ends()
-            .iter()
-            .filter(|end| end.call() == handoff.source_loan().call().expression())
-            .collect();
-        assert_eq!(old.len(), 2);
-        for (new, old) in ended.iter().zip(old) {
-            assert_eq!(new.argument().expression(), old.argument());
-            assert_eq!(
-                old.point(),
-                lang_frontend::ownership_checking::LoanEndPoint::CallReturn(
-                    new.call().expression()
-                )
-            );
         }
     }
 }
