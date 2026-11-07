@@ -38,6 +38,33 @@ impl Roles {
             cursor,
         })
     }
+    /// The exhaustion edge: the refinement layer drops the dead cursor there, so only
+    /// owner and source are carried; the header cursor stands for the absent column
+    /// (SPEC-0394). The per-family path carries all three.
+    fn via_exit(self, g: &Graph<'_>, edge: &Edge) -> Result<Self, Failure> {
+        if edge.arguments.len() == 3 {
+            return self.via(g, edge);
+        }
+        let [owner, source, _] = self.entities();
+        need(
+            edge.arguments.len() == 2
+                && edge.arguments.iter().copied().collect::<BTreeSet<_>>()
+                    == [owner, source].into_iter().collect(),
+            "birth exhaustion edge carries exactly current owner/source",
+            (self, edge),
+        )?;
+        let EntityId::Value(owner) = g.transported(edge, owner)? else {
+            return Err(failure("birth actual owner column", edge));
+        };
+        let EntityId::Loan(source) = g.transported(edge, source)? else {
+            return Err(failure("birth actual source column", edge));
+        };
+        Ok(Self {
+            owner,
+            source,
+            cursor: self.cursor,
+        })
+    }
 }
 pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check(
     g: &Graph<'_>,
@@ -153,7 +180,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check(
         has,
     )?;
     let current = header.via(g, when_true)?;
-    let exit = header.via(g, when_false)?;
+    let exit = header.via_exit(g, when_false)?;
     let next = body::check(
         g,
         reader,

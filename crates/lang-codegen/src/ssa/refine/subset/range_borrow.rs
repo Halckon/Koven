@@ -86,8 +86,9 @@ impl Checker<'_, '_> {
                 .non_null_assertion(id)
                 .is_some_and(|d| self.map_kv(self.c(d.inner_type())).is_some())
             || typed.rc_operation(id).is_some()
-            // `RangeView.size` lowers only here (SPEC-0393).
+            // `RangeView.size` (SPEC-0393) and `String.clone()` (SPEC-0394) lower only here.
             || typed.range_size(id).is_some()
+            || typed.string_operation(id).is_some()
             // Borrow-result and `RangeView` calls lower only here (SPEC-0393).
             || typed.call(id).is_some_and(|call| {
                 call.borrow_return().is_some()

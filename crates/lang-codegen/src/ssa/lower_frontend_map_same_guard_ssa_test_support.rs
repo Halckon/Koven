@@ -35,6 +35,14 @@ fn transport(function: &Function, edge: &Edge, entity: EntityId) -> EntityId {
     result
 }
 
+// The refinement layer stops carrying a Borrow parameter past its last use; the
+// per-family path carries it on every edge (SPEC-0394). Either way it is never re-formed.
+fn carried(function: &Function, edge: &Edge, entity: EntityId) -> Option<EntityId> {
+    edge.arguments
+        .contains(&entity)
+        .then(|| transport(function, edge, entity))
+}
+
 fn at<'a>(
     unit: &UnitSource,
     function: &'a Function,
@@ -226,7 +234,7 @@ pub(super) fn assert_ssa(unit: &UnitSource, source: &Source, function: &Function
     let e_map = transport(function, exit_edge, h_map);
     let e_owner = transport(function, exit_edge, h_owner);
     let e_loan = transport(function, exit_edge, h_loan);
-    let e_stop = transport(function, exit_edge, h_stop);
+    let e_stop = carried(function, exit_edge, h_stop);
     let element = only(function, |instruction| {
         matches!(instruction.operation, Operation::ContainerElementPlace { owner, index }
             if owner == b_loan && EntityId::Value(index) == b_cursor)
@@ -354,7 +362,7 @@ pub(super) fn assert_ssa(unit: &UnitSource, source: &Source, function: &Function
     let r_owner = transport(function, return_edge, b_owner);
     let r_loan = transport(function, return_edge, b_loan);
     let r_item = transport(function, return_edge, item);
-    let r_stop = transport(function, return_edge, b_stop);
+    let r_stop = carried(function, return_edge, b_stop);
     let f_owner = transport(function, tail_edge, b_owner);
     let f_loan = transport(function, tail_edge, b_loan);
     let f_item = transport(function, tail_edge, item);
@@ -369,9 +377,11 @@ pub(super) fn assert_ssa(unit: &UnitSource, source: &Source, function: &Function
     ] {
         assert_eq!(transport(function, backedge, actual), expected);
     }
-    for loan in [
-        stop, h_stop, b_stop, e_stop, r_stop, f_stop, item, r_item, f_item,
-    ] {
+    for loan in [stop, h_stop, b_stop, f_stop, item, r_item, f_item]
+        .into_iter()
+        .chain(e_stop)
+        .chain(r_stop)
+    {
         assert_eq!(
             function.entity(loan).unwrap().ty,
             EntityType::Loan {
@@ -405,9 +415,23 @@ pub(super) fn assert_ssa(unit: &UnitSource, source: &Source, function: &Function
         Operation::Constant(ScalarConstant::Integer(1))
     );
 
+    // The key is the element loan itself (per-family) or the value the refinement layer
+    // reads from it at the key expression (SPEC-0394).
+    let EntityId::Loan(r_item_loan) = r_item else {
+        panic!("the returned element is a Shared loan");
+    };
+    let key_from_item = |key: EntityId| {
+        key == r_item
+            || matches!(key, EntityId::Value(value) if matches!(
+                function.entity(EntityId::Value(value)).unwrap().definition,
+                Definition::InstructionResult { instruction, .. }
+                    if function.instruction(instruction).unwrap().operation
+                        == Operation::Read { source: PlaceAccess::Loan(r_item_loan) }
+            ))
+    };
     let query = at(unit, function, source.query, |operation| {
         matches!(operation, Operation::MapContains { owner, key }
-            if *owner == r_map && *key == r_item)
+            if *owner == r_map && key_from_item(*key))
     });
     let tail_query = at(
         unit,

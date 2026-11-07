@@ -29,7 +29,7 @@
    - 函数值调用实参内的 `return`/abort；捕获闭包所在作用域内的 `break`/`continue`；函数值调用与 `RangeView` carrier 调用借出的临时值可被实参内跳转放弃。
 3. **退役旧路径**：删除 `unit_lower/range.rs`（549 行）；从 `unit_lower/borrow_result.rs` 删除 `BorrowCall`/`BorrowReturn`/字段借用结果；从 `unit_lower/rc.rs`、`unit_lower/control/nullable_if/rc.rs`、`unit_lower/borrow.rs` 删除 `Rc.share()`/`Rc.value`；从 `unit_lower/closure.rs` 删除带捕获闭包构造（`!plan.captures.is_empty()` 显式 `UnsupportedNode`）。
 
-**范围收缩**：直接 `String.clone()` 的旧路径（`unit_lower/scalar.rs::lower_string_operation`）本片**保留**。原计划一并退役，但实测会把大量仍依赖旧路径结构的 Map/Resource 家族函数整体推入细化层，牵动约 40 个按旧 SSA 形状钉住的测试；拆到后继切片单独处理。
+**范围收缩**：直接 `String.clone()` 的旧路径（`unit_lower/scalar.rs::lower_string_operation`）本片**保留**。原计划一并退役，但实测会把大量仍依赖旧路径结构的 Map/Resource 家族函数整体推入细化层，牵动约 40 个按旧 SSA 形状钉住的测试；拆到后继切片 [SPEC-0394](0394-refine-string-clone-retirement.md) 单独处理。
 
 ## 2. 边界与不变量
 
@@ -41,7 +41,7 @@
 ## 3. 验收标准
 
 - [x] 删除 `unit_lower/range.rs`，精简 `unit_lower/{mod.rs,orchestrate.rs,borrow.rs,borrow_result.rs,call.rs,call_lifetimes.rs,closure.rs,rc.rs}`、`call_lifetimes/nullable_child.rs`、`control/nullable_if/rc.rs`、`loop_control/{iteration.rs,iteration_cleanup.rs}`。
-- [x] `ssa::refine_subset_tests::range_view_borrow_return_and_borrow_val_route_to_refine` 与 `ssa::refine_tests::map_condition_tests::retired_borrow_result_rc_operation_and_captured_closure_boundary_tests` 通过；main 带入的 `container_append_admission_does_not_perturb_or_miscompile_sibling_functions` 通过。
+- [x] `ssa::refine_subset_tests::range_view_borrow_return_and_borrow_val_route_to_refine` 与 `ssa::refine_tests::map_condition_tests::retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary_tests`（本片去掉其 `String.clone()` 一项，SPEC-0394 恢复）通过；main 带入的 `container_append_admission_does_not_perturb_or_miscompile_sibling_functions` 通过。
 - [x] `cargo test -p lang-codegen --lib`：2658 通过、0 失败（合入 main 后实测；接手时为约 280 个失败）。
 - [ ] 门禁、lang-codegen 全目标与 lang-cli 测试、fmt、clippy、尺寸护栏、`check_docs.py` 全部通过（见实施记录）；双宿主 CI 以 PR 为准。
 
@@ -52,7 +52,7 @@
 - `range_lowering_tests::local_control::short_circuit`（含 receiver，43 项）：删除只对旧路径成立的 carrier 布局断言（`short_circuit_transport` / `short_circuit_prefix_transport` / `short_circuit_receiver_transport`），改为断言短路仍有自己的条件分支；各源的 verifier 与 native 运行输出断言保留。
 - `range_lowering_tests::receiver::count_break`：步长常量允许经循环头参数到达加法。
 - `native_direct_call_prefix_tests::ordinary_direct_prefix_scope_negatives_keep_exact_call_rejections` 与 `unit_lower_closure_tests::unsupported_closure_surfaces_remain_atomic_boundaries`：去掉“函数值调用实参内 `return`”反例，该形状现由细化层降低。
-- `refine_tests::map_condition_tests` 的退役边界测试去掉 `String.clone()` 一项（本片保留其旧路径）。
+- `refine_tests::map_condition_tests` 的退役边界测试去掉 `String.clone()` 一项（本片保留其旧路径；SPEC-0394 退役后恢复）。
 
 ## 4. 实施记录
 

@@ -759,7 +759,7 @@ fn retired_known_function_shared_capture_callable_view_and_container_element_bou
 }
 
 #[test]
-fn retired_borrow_result_rc_operation_and_captured_closure_boundary_tests() {
+fn retired_borrow_result_rc_operation_string_clone_and_captured_closure_boundary_tests() {
     use crate::ssa::LoweringErrorKind;
 
     for (source, expected_slice) in [
@@ -774,6 +774,10 @@ fn retired_borrow_result_rc_operation_and_captured_closure_boundary_tests() {
         (
             "fun main(): Int { val r = Rc(7); val s = r.share(); return r.value + s.value }",
             "r.share()",
+        ),
+        (
+            "fun main(): String { val s = \"hi\"; return s.clone() }",
+            "s.clone()",
         ),
         ("fun main(): Unit { val x = 7; val f = { x } }", "x"),
     ] {

@@ -283,11 +283,8 @@ impl UnitExpressionLowerer<'_> {
                 self.reject_live_if_proof(span)?;
             }
         }
-        // `String.clone()` keeps its per-family lowering until a later E3 slice (SPEC-0393).
-        if self.typed.string_operation(unit_expression).is_some() {
-            return self.lower_string_operation(expression, span);
-        }
         if self.typed.range_size(unit_expression).is_some()
+            || self.typed.string_operation(unit_expression).is_some()
             || self.typed.rc_operation(unit_expression).is_some()
             || self
                 .typed
