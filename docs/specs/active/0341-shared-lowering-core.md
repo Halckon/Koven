@@ -3387,3 +3387,20 @@ fmt、849份Markdown、diff及相对2fd6bfb9尺寸检查通过，38个历史超�
 外部 API 编译消费者 `ownership_value_api` 缺少新 Swap 的穷尽匹配，故不能沿用分支 lint
 通过声明证明组合。补显式 Swap 两值匹配后，该目标 1 项与最终 all-targets Clippy 通过。
 合计 123 项定向测试；fmt、849 份 Markdown、diff及尺寸门禁通过。未以此替代正式 CI。
+
+## Return-prefix 固定 oracle 迁移（2026-11-07）
+
+基于 main `78a36f25`，保持原源码与既有 Unit 断言，迁移
+`unconditional_named_return_keeps_actual_source_identity_without_a_binding`、
+`sibling_return_edges_keep_distinct_source_tokens_and_cleanup_points` 两项成功消费者。
+固定字节期望直接来自原源码，比较完整 prefix 向量的 call、原 argument、parameter、owned
+root 声明与 Return；核同轮 source identity、Shared 类型、loan 成员资格、开始/结束 span、
+无投影根及真实形成的 owned local。同控制点完整 drop 向量只能是该 owner，preceding_drops=0；
+无 borrow binding/handoff/direct-call-end。两入口各自校验，不从任何 checker 产物生成期望。
+
+仅删除上述两项的 Single 存在/计数对照。直接来源全程不结束、混合分支与嵌套 temporary
+清理的旧见证保持，不承诺跨事件切片统一全序，也不改变生产、语言或 native 范围。
+Mac Rust1.96、locked/offline、默认 debug=2 串行复用已释放 target：两项精确测试各
+1 passed、56 filtered；frontend all-targets Clippy（-D warnings）和 849 份 Markdown 门禁通过。
+workspace fmt、diff 与相对 78a36f25 的尺寸门禁通过；2149 份手写 Rust，38 份历史超长文件未增长。
+未执行全量、含 Abort 整项、native、故障注入或校准；官方 CI 未运行，D10/E2 仍未完成。
