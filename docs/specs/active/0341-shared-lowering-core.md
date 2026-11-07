@@ -3313,3 +3313,46 @@ V1 catalog、Resource owner 和相关 Single 见证保持原边界，D10/E2 不�
 `cargo test -p lang-frontend --lib owner_transport`，92 项通过、259 项过滤；
 frontend all-targets Clippy `-D warnings`、fmt、849 份 Markdown、diff 和尺寸门禁通过。
 未运行 frontend 全量、native、Abort、校准或宿主故障注入；正式双宿主 CI 仍待发布头验证。
+
+## 119. Nullable when 剩余单 case 类型修复（2026-11-07）
+
+基于 main `be42f064e348997260710a51792723aff154b5a6`，在独立
+`fix/spec-0341-nullable-when-remaining-flow` 修复 Phase 2 raw type producer。
+代码验收头 `1b1bc31a2501f9f3fbfb52a445f918c89c201fd8`；不改 Guide、ownership、
+loan-end、selector或其它工作树，不将原规范差异靠改源码/删除诊断掩盖。
+
+- 先以原 `nullable_when_remaining_single_case_keeps_payload_refinement` 输入复现：
+  Single通过，Unit回归在`radius`的141–147范围报L0113（`3c2af467`保留红灯测试）。
+  `!is Point`的原覆盖域含Circle/null，而前一null条件已使实际body域只剩Circle；
+  Unit原先只补非空根类型，未用实际body域补case，故没有唯一payload事实。
+- 复用既有`facts_for_single_case`，仅在进入when时类型仍为nullable、来源key/generation
+  有效且body为有限域时补事实。保留alternatives交集、赋值/inout kill、trial及分支合流；
+  不改descriptor准入，三entry的when仍不发布仅支持null/else两entry的nullable descriptor。
+- 原Single测试的源码字面量和无诊断oracle逐字迁到同名MemoryDocument/Rooted测试，
+  删除的仅是重复旧消费者。原四项nullable Single witness现余三项专有字段对照，未弱化其断言。
+- 六项新增测试展开14份源码，核顺序/else、泛型Int替换、null/多case、condition及同entry
+  后续inout、body写入/join、字段/调用/capture、未选中body写入；负例锁L0113、source/span
+  和失败不发布payload projection。跨文件新增一项用两份源码核field/case来源、泛型实参及
+  输入排列下完整expression/projection事实一致，不新增target。
+- 首轮通用补事实使旧非nullable `else == root` oracle失败；本片已加nullable入口门控，
+  原测试原样通过。非nullable、以及声明T?但进入when前已收窄为T的subject仍保留旧行为，
+  是另行处理的边界，不将旧v0.32测试注释提升为现行Guide规则。跨文件新测试最初误要求
+  三entry descriptor，已改为检查现有空descriptor边界，未为满足测试扩张生产能力。
+
+Mac AArch64、Rust1.96.0、default debug=2、locked/offline，串行复用既有target；
+最终门控落定后按受影响选择验收，避免重跑整target及已完成的其它检查：
+
+| 验收项 | 目标/选择 | 实际结果 |
+|---|---|---|
+| 原见证与新正反例 | `type_checking` 的原同名Unit测试、`remaining_case_payload_` | 7 passed，82 filtered |
+| nullable/enum/control邻控 | 同target其余nullable flow/mutation/identity、三项Single字段对照、`nominal_unit::flow::`、`raw_followup::control_diagnostics::` | 21 passed，68 filtered |
+| 跨文件新合同及旧边界 | `multifile_type_checking` 的`control_flow::nullable_remaining_case_payload_keeps_cross_file_identity_and_generic_arguments`与`control_flow::cross_file_when_covers_enum_boolean_nullable_and_statement_contexts` | 2 passed，164 filtered |
+| 既有Unit合同 | 同target的`nullable_when::`、`nullable_when_unit::`、cross-file enum/invalid type-test/when诊断三项 | 10 passed，156 filtered |
+| 编译/格式/尺寸 | frontend all-targets Clippy（`-D warnings`）、fmt、尺寸门禁（base `be42f064`） | 通过；2144份手写Rust、38份旧超限文件不增加 |
+| 文档与差异 | `python3 scripts/check_docs.py`、`git diff --check` | 849份Markdown通过，无空白错误 |
+
+最终共40项不同测试通过，目标注册数为type_checking 89、multifile_type_checking 166；
+producer834行、新测试文件212行、既有control_flow822行，根测试963→953行。
+独立只读复核确认原输入/oracle、迁移注册及最终门控；初审漏掉的旧非nullable邻控已由实际
+测试发现并收窄修复。未运行全target/workspace、故障注入/校准、含Abort的整项测试、
+native或Linux；这些不计为本地通过。本批仅本地逻辑提交，未发布/运行官方CI，D10/E2仍in-progress。

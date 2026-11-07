@@ -8,6 +8,9 @@ mod mutation;
 #[path = "nullable_when_unit/identity.rs"]
 mod identity;
 
+#[path = "nullable_when_unit/remaining_case.rs"]
+mod remaining_case;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitId, SourceUnitInput, SourceUnitKey, index_compilation_unit,

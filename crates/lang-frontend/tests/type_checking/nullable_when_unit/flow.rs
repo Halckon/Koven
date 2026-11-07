@@ -54,3 +54,15 @@ fn nullable_when_identity_does_not_interfere_with_body_if_refinement() {
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     }
 }
+
+#[test]
+fn nullable_when_remaining_single_case_keeps_payload_refinement() {
+    let text = "enum class Shape { Circle(radius: Int), Point }
+        fun extract(x: Shape?): Int = when (x) {
+            null -> 0; !is Shape.Point -> x.radius; else -> 0
+        }";
+    let (_, _, entries) = checked_entries(text);
+    for (_, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    }
+}

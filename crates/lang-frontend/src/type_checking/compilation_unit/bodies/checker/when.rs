@@ -210,6 +210,15 @@ impl BodyChecker<'_> {
             {
                 self.flow_facts.entry(key).or_insert(inner);
             }
+            // A nullable subject can reach one case after earlier alternatives remove null.
+            // Keep the existing non-nullable remaining-domain contract unchanged.
+            if nullable_inner.is_some()
+                && entry_source_valid
+                && let WhenFlowDomain::Finite(atoms) = &body_domain
+            {
+                let facts = self.facts_for_single_case(subject_type, subject_key, atoms)?;
+                self.flow_facts.extend(facts);
+            }
             let branch_expected = if self.expression_use(source, expression) == ExpressionUse::Value
             {
                 self.control_branch_expected(source, entry.body, expected)?
