@@ -38,4 +38,5 @@ source-qualified endpoint、未来使用/Map失效冲突、call-return 边界与
 消费者也覆盖双入口，错误时 bindings/ends 不发布；独立 Single loan-end witnesses 保留。
 其余五项普通 Unit continuation 消费者也覆盖双入口：nested/alias 权限恢复、live-result
 冲突、scope/return 父子清理、真实诊断 span 与 nullable/generic/copyable binding；
-三项依赖独立 loan-end stream 的 Single 对照及 parser-only 拒绝仍完整保留。
+三项依赖独立 loan-end stream 的 Single 对照仍完整保留，其 Unit 半部同样覆盖两入口，
+并校验 source/key 身份；parser-only 拒绝不变，Unit 仍未发布独立 loan-end stream。

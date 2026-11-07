@@ -2950,3 +2950,12 @@ Single loan-end witnesses、对应helper和parser-only测试不改，不宣称�
 云端 Rust 1.96.0/default debug=2/locked/offline：首片完整continuation14通过；组合
 continuation14、last-use8、origins5、borrow-result4，共31项无过滤通过，目标编译及
 all-targets Clippy（`-D warnings`）通过。官方 CI 尚未运行，本批仍在本地累计。
+
+#### 同批补齐：独立 loan-end witness 的 Unit 两入口
+
+三项差异对照保留原 Single 分析、源码与 CallReturn/ControlTransfer/forwarded-source
+非终止断言，仅将 paired Unit 分析扩为 MemoryDocument/Rooted 并校验 source/key 身份。
+包括 named-source 两份正反输入，所有 Unit bindings/ends/drop/诊断断言原样保留；
+不以 result endpoints 替代独立 loan-end stream，不宣称 Single 退休或扩大 CFG 能力。
+云端同一工具链配置：完整 continuation14 与四目标组合31项无过滤通过；目标编译、
+all-targets Clippy（`-D warnings`）、fmt、文档与尺寸门禁通过。官方 CI 尚未运行。
