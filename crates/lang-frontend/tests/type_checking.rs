@@ -25,6 +25,15 @@ mod resource_unit;
 #[path = "type_checking/non_null_unit.rs"]
 mod non_null_unit;
 
+#[path = "type_checking/unit_entries.rs"]
+mod unit_entries;
+
+#[path = "type_checking/scalar_unit.rs"]
+mod scalar_unit;
+
+#[path = "type_checking/interface_unit.rs"]
+mod interface_unit;
+
 use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
@@ -178,55 +187,6 @@ fn diagnostic_spans<'a>(sources: &'a SourceMap, diagnostic: &Diagnostic) -> (&'a
         })
         .expect("diagnostic label");
     (primary, label)
-}
-
-fn literal_type(
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    typed: &TypedFile,
-    text: &str,
-) -> BuiltinType {
-    let (id, _) = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .find(|(_, node)| sources.slice(node.span()) == Ok(text))
-        .expect("literal");
-    let ty = typed.expression_type(id).expect("expression type");
-    match typed.types().get(ty).expect("type") {
-        TypeKind::Builtin(builtin) => *builtin,
-        other => panic!("unexpected type {other:?}"),
-    }
-}
-
-#[test]
-fn numeric_defaults_suffixes_and_contextual_integer_types_are_stable() {
-    let text = "fun values(): Unit {\n\
-                val byte: Byte = 1\n\
-                val default = 2\n\
-                val wide = 2147483648\n\
-                val unsigned = 3u\n\
-                val unsignedWide = 4294967296u\n\
-                val long = 4L\n\
-                val unsignedLong = 5uL\n\
-                val float = 6f\n\
-                val double = 7.0\n\
-                }";
-    let (sources, parsed, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    for (literal, expected) in [
-        ("1", BuiltinType::Byte),
-        ("2", BuiltinType::Int),
-        ("2147483648", BuiltinType::Long),
-        ("3u", BuiltinType::UInt),
-        ("4294967296u", BuiltinType::ULong),
-        ("4L", BuiltinType::Long),
-        ("5uL", BuiltinType::ULong),
-        ("6f", BuiltinType::Float),
-        ("7.0", BuiltinType::Double),
-    ] {
-        assert_eq!(literal_type(&sources, &parsed, &typed, literal), expected);
-    }
 }
 
 #[test]
@@ -778,58 +738,6 @@ fn when_context_and_coverage_diagnostics_are_deterministic() {
 }
 
 #[test]
-fn local_lambda_operator_and_type_ref_diagnostics_use_published_codes() {
-    let (_, _, _, valid) = checked(
-        "fun apply(): Unit {\n\
-         val callback: (Int) -> Int = { x -> x + 1 }\n\
-         val safe: Int? = null\n\
-         val resolved = safe ?: 0\n\
-         }",
-    );
-    assert!(valid.diagnostics().is_empty(), "{:?}", valid.diagnostics());
-
-    let (_, _, _, invalid) = checked(
-        "fun invalid(): Unit {\n\
-         val missing = null\n\
-         val mismatch: String = 1\n\
-         val operand = false + 1\n\
-         val arity: Int<String> = 1\n\
-         }",
-    );
-    assert_eq!(
-        codes(invalid.diagnostics()),
-        ["L0083", "L0084", "L0085", "L0082"]
-    );
-}
-
-#[test]
-fn callable_flow_reports_shape_missing_return_and_branch_join() {
-    let (_, _, _, typed) = checked(
-        "fun missing(): Int {}\n\
-         fun bare(): Int { return }\n\
-         fun unit(): Unit = 1\n\
-         fun branch(flag: Boolean): Int = if (flag) { 1 } else { false }\n\
-         fun mixed(flag: Boolean): Unit { val result = if (flag) { 1 } else { false } }",
-    );
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0088", "L0087", "L0084", "L0084", "L0089"]
-    );
-}
-
-#[test]
-fn unbraced_if_branches_receive_the_outer_expected_type() {
-    let (sources, _, _, typed) =
-        checked("fun contextual(flag: Boolean): Byte = if (flag) 127 else 128");
-
-    assert_eq!(codes(typed.diagnostics()), ["L0090"]);
-    assert_eq!(
-        sources.slice(typed.diagnostics()[0].primary_span()),
-        Ok("128")
-    );
-}
-
-#[test]
 fn jump_targets_stop_at_callable_boundaries() {
     let (_, _, _, valid) = checked(
         "fun valid(flag: Boolean): Unit {\n\
@@ -1072,19 +980,6 @@ fn bounds_are_static_but_interfaces_are_not_runtime_value_types() {
 }
 
 #[test]
-fn direct_interface_edges_reject_classes_duplicates_and_cycles() {
-    let (_, _, _, non_interface) = checked("class Parent {}\nclass Child : Parent {}");
-    assert_eq!(codes(non_interface.diagnostics()), ["L0095"]);
-
-    let (_, _, _, duplicate) =
-        checked("interface Protocol<T> {}\nclass Both : Protocol<Int>, Protocol<Long> {}");
-    assert_eq!(codes(duplicate.diagnostics()), ["L0095"]);
-
-    let (_, _, _, cycle) = checked("interface Left : Right {}\ninterface Right : Left {}");
-    assert_eq!(codes(cycle.diagnostics()), ["L0096"]);
-}
-
-#[test]
 fn interface_closure_substitutes_invariant_arguments_and_checks_bounds() {
     let text = "interface Base<T> {}\n\
                 interface Mid<U> : Base<U> {}\n\
@@ -1111,82 +1006,6 @@ fn interface_closure_substitutes_invariant_arguments_and_checks_bounds() {
         .expect("Good descriptor");
     assert_eq!(descriptor.direct_interfaces().len(), 1);
     assert_eq!(descriptor.interfaces().len(), 2);
-}
-
-#[test]
-fn overload_shape_is_alpha_equivalent_and_concrete_members_need_bodies() {
-    let text = "fun <T> pick(input: T): Int = 1\n\
-                fun <U> pick(other: U): Long = 1L\n\
-                fun mode(input: Int): Unit {}\n\
-                fun mode(borrow other: Int): Unit {}\n\
-                fun mode(own consumed: Int): Unit {}\n\
-                interface Contract { fun required(input: Int): Unit }\n\
-                class Concrete { fun missing(input: Int): Unit; fun okay(): Unit {} }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0097", "L0097", "L0097", "L0098"]
-    );
-}
-
-#[test]
-fn receiver_modes_are_contracts_but_not_overload_shapes() {
-    let (_, _, _, overload) = checked(
-        "class Duplicate {\n\
-             fun collide(input: Int): Unit {}\n\
-             inout fun collide(input: Int): Unit {}\n\
-         }",
-    );
-    assert_eq!(codes(overload.diagnostics()), ["L0097"]);
-
-    let (_, _, _, replacement) = checked(
-        "interface Base { fun act(): Unit }\n\
-         interface Child : Base { inout fun act(): Unit }",
-    );
-    assert_eq!(codes(replacement.diagnostics()), ["L0099"]);
-
-    let (_, _, _, implementation) = checked(
-        "interface Required { fun run(): Unit }\n\
-         class Bad : Required { override inout fun run(): Unit {} }",
-    );
-    assert_eq!(codes(implementation.diagnostics()), ["L0100"]);
-}
-
-#[test]
-fn interface_replacements_and_overrides_require_exact_contracts() {
-    let (_, _, _, replacement) = checked(
-        "interface Base { fun act(input: Int): Int }\n\
-         interface Child : Base { fun act(input: Int): Long }",
-    );
-    assert_eq!(codes(replacement.diagnostics()), ["L0099"]);
-
-    let text = "interface Required { fun run(input: Int): Int }\n\
-                class Missing : Required {}\n\
-                class NeedsOverride : Required { fun run(input: Int): Int = 1 }\n\
-                class BadReturn : Required { override fun run(input: Int): Long = 1L }\n\
-                class BadMode : Required { override fun run(own input: Int): Int = 1 }\n\
-                class Extra { override fun lone(): Unit {} }\n\
-                class Hidden : Required { private override fun run(input: Int): Int = 1 }\n\
-                class Good : Required { override fun run(borrow input: Int): Int = 1 }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0101", "L0100", "L0100", "L0100", "L0100", "L0100"]
-    );
-}
-
-#[test]
-fn abstract_requirements_accept_one_default_but_multiple_defaults_conflict() {
-    let text = "interface Abstract { fun ping(): Int }\n\
-                interface Left { fun ping(): Int = 1 }\n\
-                interface Right { fun ping(): Int = 2 }\n\
-                interface Child : Left { fun ping(): Int = 3 }\n\
-                class Covered : Abstract, Left {}\n\
-                class Shadowed : Child {}\n\
-                class Conflict : Left, Right {}\n\
-                class Resolved : Left, Right { override fun ping(): Int = 3 }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0102"]);
 }
 
 #[test]

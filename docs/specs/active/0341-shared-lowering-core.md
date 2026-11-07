@@ -3002,3 +3002,28 @@ fmt、文档及尺寸门禁通过；本批累计本地逻辑提交，未尝试�
   删除有文本冲突，迁移函数集合无交集。集成时须保留双方迁移并重新验证，不能整块选择一边。
 - 整个target/workspace、运行时Abort/故障注入/校准、native、Linux与官方CI未运行。
   D10/E2保持in-progress；本批仅本地累计，不将定向通过等同阶段完成，不自动合并。
+
+### 独立批次：基础与接口 raw type 消费者（2026-11-07）
+
+基于 main `754f6858`，独立于 continuation/loan-end 合同，按基础类型与接口契约两个
+逻辑提交集中交付，不修改生产代码、Guide、原 raw type 准入或 CI selector。
+
+- `type_checking::scalar_unit` 承接四项原测试：九种字面量的 source-qualified 类型、
+  local/lambda/operator/type-ref 诊断、返回/分支诊断顺序及 Byte overflow 的精确 `128` span。
+- `type_checking::interface_unit` 承接五项原测试：接口边与环、alpha-equivalent overload、
+  receiver mode、replacement/override 和默认实现冲突，原 L0095–L0102 顺序全部保留。
+- 九项15份原始 source 与自定义环境不改；同一重复解析 AST 分别进入 MemoryDocument/Rooted，
+  核实际 source_id、root/path 及全部 expression facts 的 source-unit。只验证名称后读取 raw
+  typed facts，不增加 final/ownership 前置；其余73项测试与原 parser helper 保留。
+- 尝试第十项顶层超大整数时，原 Single 仅 L0090，而 Unit 为 L0167、L0090。该项完整恢复
+  Single witness，不改预期或源码位置，不把原 top-level runtime value 限制当作本片待修生产
+  回归；仅记录消费表示差异，未声称本批覆盖该迁移差距。
+- Mac AArch64、固定 Rust 1.96.0/default debug=2、locked/offline：迁移前十项各 exact 通过；
+  最终 `cargo test -p lang-frontend --test type_checking _unit::` 的九项迁移与六项原 resource
+  邻控共15项通过、67项 filtered，原 overflow exact 另行通过。目标共82项，未删减测试数；
+  stage 原已完整选择 type_checking，不新增 target、不修改计数。
+- 代码验收头 `5e9cbaf0`：frontend all-targets Clippy（`-D warnings`）、fmt、846份 Markdown、
+  尺寸及 diff 检查通过；独立只读复审确认九项原源码/oracle、其余测试逐字保全、source-qualified
+  identity 与 selector 接线无阻断。主测试文件2123→1942行，旧尺寸欠账仅下降。全 target、
+  Abort/故障注入/校准、native、Linux 与官方 CI 未运行；本地定向结果不能替代精确发布头
+  双宿主 CI，D10/E2 保持 in-progress，不自动合并。
