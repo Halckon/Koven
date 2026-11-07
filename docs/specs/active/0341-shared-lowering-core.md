@@ -2855,6 +2855,33 @@ Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
 本地相关 45 项 Python（selector 与 composition 成功路径）和完整 signature 17 项均通过；
 不运行注入失败的整项门禁，新的官方动态结果仍须精确新头实跑。
 
+### 独立批次：nullable when 类型消费者（2026-11-07）
+
+基于 main `a56e1b17` 的独立 `feature/spec-0341-nullable-type-consumers`，不重复 #335/#337，
+不改生产、Guide、loan-end、CI selector 或其它工作树；按 flow、mutation、identity 与验收分提交。
+
+- 12项原测试、15份原 source 迁至 MemoryDocument/Rooted：四项正常域/非空读取与后续 if
+  隔离、七项 mutation/capture/field/failed-trial 诊断、一个重复检查稳定身份消费者。
+  自定义环境、重复解析、原诊断顺序/span、非空 use 数与空计划断言保留。
+- identity 每入口重用同一 AST、inputs、validated names 与 TypeEnvironment 做两次 raw typing，
+  比较完整 plan、同一 source-qualified subject 的唯一 call 与两entry；仅将原裸 expression
+  查询适配成 qualified subject.expression()，不增加 final/ownership 前置。
+- 首组五候选中，`nullable_when_remaining_single_case_keeps_payload_refinement` 在 Unit
+  对原 `!is Shape.Point -> x.radius` 报 L0113，原 Single 成功。该函数与原期望完整恢复，
+  不放宽 oracle、不扩大生产修复。另三项 native_eligible/body_type 专有字段测试缺少等价
+  Unit 描述符，保留原 Single witness，不拿较弱的 source_type/flow 观察替代。
+- 原16项 nullable_when 测试全部保留（12双入口＋4原Single），type_checking 总数仍82项；
+  stage 仍完整选择该 target，不新增计数或过滤。其它原测试函数不改。
+- Mac AArch64、Rust1.96.0/default debug=2、locked/offline：基线16项通过；最终
+  `type_checking nullable_when_` 16 passed/66 filtered，相关
+  `multifile_type_checking nullable_when::` 4 passed/150 filtered，共20项通过。
+  Cargo 使用本任务已有 target 串行执行，不另建并行缓存。
+- 代码验收头 `ab55164c`：frontend all-targets Clippy（`-D warnings`）、fmt、846份 Markdown、
+  尺寸与 diff 检查通过；独立只读审查确认源/oracle保全、同分析输入的重复检查与完整selector
+  接线无阻断。主文件2123→1948行，新增四文件全部小于1000行，不增加旧尺寸欠账。
+- 整个 target、Abort/故障注入/校准、native、Linux 与官方 CI 未运行；D10/E2 保持
+  in-progress，不将定向通过或静态事实提升为全部 Single 退休与 native 能力，不自动合并。
+
 ### Borrow-result 与 String clone 入口补全候选（2026-11-06）
 
 基于 main `c4ba670a`，独立于 #331 源码与 #323；同分支保留两项逻辑提交后批量验收，

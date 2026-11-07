@@ -91,7 +91,7 @@ Name/Group 的非空 use 必须属于当前 entry/callable 且同一 generation�
 单文件 condition 沿未匹配路径传事实、body 独立检查；其原 source-version 与 identity 隔离规则保留。
 Unit null 比较沿同源 Group 识别实际 Null 叶并透传 expected type，仍保原 Binary/外层operand身份；
 双null、无上下文null与非nullable错误不放宽。类型事实不是owner/loan或native资格，后继仍核真实产物。
-owned root/temporary 的 class/Box/Rc 有界消费及 field/element 等边界见 [SSA/LLVM](ssa-codegen-runtime.md)。
+owned root/temporary 的 class/Box/Rc 有界消费及 field/element 等边界见 [SSA/LLVM](ssa-codegen-runtime.md)。 `type_checking::nullable_when_unit` 的12项原 flow/mutation/identity 消费者已走双 Unit raw type 入口；剩余单 case payload 差距和三项独有字段 oracle 保留原 Single witness，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次nullable-when-类型消费者2026-11-07)。
 
 ## 非空断言事实
 
