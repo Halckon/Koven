@@ -2986,3 +2986,41 @@ call、initializer/source argument，不宣称两分支运行时同时执行或�
 demo/caller.ko 后，三目标62项通过，2项Abort按约定留CI。源码oracle与生产实现未更改。
 all-targets Clippy首次因磁盘耗尽失败，确认进程结束后仅清理已授权incremental，重试通过；
 fmt、文档/尺寸/diff检查及独立审查通过。本批继续保持多个逻辑提交，未发布新PR。
+### 新 main 后续：continuation 普通消费者双入口收束（2026-11-06）
+
+基于已含 #332 的 main `8c9778aa`，新分支以两个逻辑提交补余下五项普通 Unit 测试：
+nested/alias scope 权限恢复、live-result/child 跨分支冲突、scope/return 逆序清理、
+mutation/exclusive 冲突 span，以及 nullable/generic/copyable shared binding。
+原源码、L0135/空诊断/deferred、origin/parent/end顺序、owner cleanup、真实span/details
+及binding/end数量全部保留。所有普通 Unit 消费者现均走真实两入口；原三项独立
+Single loan-end witnesses、对应helper和parser-only测试不改，不宣称其已退休。
+未修改生产、Guide、selector或计数，不扩张CFG/NLL/native能力，不单片创建PR。
+云端 Rust 1.96.0/default debug=2/locked/offline：首片完整continuation14通过；组合
+continuation14、last-use8、origins5、borrow-result4，共31项无过滤通过，目标编译及
+all-targets Clippy（`-D warnings`）通过。官方 CI 尚未运行，本批仍在本地累计。
+
+#### 同批补齐：独立 loan-end witness 的 Unit 两入口
+
+三项差异对照保留原 Single 分析、源码与 CallReturn/ControlTransfer/forwarded-source
+非终止断言，仅将 paired Unit 分析扩为 MemoryDocument/Rooted 并校验 source/key 身份。
+包括 named-source 两份正反输入，所有 Unit bindings/ends/drop/诊断断言原样保留；
+不以 result endpoints 替代独立 loan-end stream，不宣称 Single 退休或扩大 CFG 能力。
+云端同一工具链配置：完整 continuation14 与四目标组合31项无过滤通过；目标编译、
+all-targets Clippy（`-D warnings`）、fmt、文档与尺寸门禁通过。官方 CI 尚未运行。
+
+### 独立后续：nested-borrow 成功消费者双入口（2026-11-06）
+
+基于 main `8c9778aa`，不依赖待发布的 continuation 后续批次。三项原成功消费者的
+13份输入扩为真实 MemoryDocument/Rooted，保留原 Single 分析、精确 call-use、
+独立 loan-end 断言，新增 Unit source/key 身份检查；拒绝组原双入口不动，另外两项
+成功 witness 保留原 Rooted 默认入口。无生产/Guide/selector 修改，不宣称 Single 退休。
+云端 Rust 1.96.0/default debug=2/locked/offline，完整 nested-borrow 10项无过滤通过，
+目标编译、all-targets Clippy（`-D warnings`）、fmt、文档/尺寸门禁通过；未运行官方CI。
+
+#### 同批收束：精确顺序与 parent/owner-drop witness
+
+余下两项成功测试的三份原输入补两入口，保留 grouped/named 表达式与实参身份、
+同 root 链不折叠、parent 跨外层调用存活，以及原 Single/Unit 的唯一 owner-drop
+及 CallReturn 断言。删除未使用的默认 Rooted 包装；不删独立 Single 事件对照。
+完整 nested-borrow 10项无过滤、目标编译、all-targets Clippy（`-D warnings`）、
+fmt、文档及尺寸门禁通过；本批累计本地逻辑提交，未尝试远端写入或官方 CI。
