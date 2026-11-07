@@ -70,13 +70,13 @@ F1–F5 的最小探针在原始基线上实际运行；F6 为修复工作树上
 | F2 | Guide 06：分支赋值必须 kill smart cast；`if (x != null) { if (flag) { x = null; ({ -> return }) }; return x }` | single/unit 均错误接受 nullable 返回 Int | F1 同根因；修复后两入口 L0084；expected/推导路径及非法局部返回 L0087 负控均验证 |
 | F3 | Guide 08/10：MoveOnly this 不能在循环中重复消费；own 方法 `while(flag) { consume() }` / `this.consume()` | unit ownership 均无诊断，消费后 break 正控同样无诊断 | 已修复并独立复核；`ownership_receiver_backedge` 覆盖正常/continue、while condition、for 单次 source、嵌套循环、退出及 Copyable |
 | F4 | Guide 01：Lexer poison 唯一根因；`super<I>.async` | async 同 Span 重复 L0002/L0011；普通 `x.async` 仅 L0002 | 已修复；三阶段 poison 消费并返 Error；后继实参身份与原词法 Span 有直接断言 |
-| F5 | Guide 06：同行 block elements 必须有分号；`{ val x = 1 val y = 2 }` | parse_block 无诊断，带分号正控同样无诊断 | 本机修复并独立复核；三 owner 共用 L0169，非法正例及下游 fixtures 已迁移；双宿主 CI 待验，见 §10 |
+| F5 | Guide 06：同行 block elements 必须有分号；`{ val x = 1 val y = 2 }` | parse_block 无诊断，带分号正控同样无诊断 | 本机修复并独立复核；三 owner 共用 L0169，非法正例及下游 fixtures 已迁移；双宿主 CI 已验，见 §10、§15、§17–18 |
 | F6 | 恢复不得吞外层分隔符；`f(a.async., sentinel)` / `{ a.async.; sentinel }` | 新失败回归分别证实吞逗号、分号并产生额外 L0034/L0013 | 已修复：error-postfix 保留 caller stops 和分号；逐实参/逐 statement 核对后继 identity |
 | F7 | 旧单文件 receiver 与 unit 的所有权合同未等价；同 F3 输入 | 修复后仓外探针确认旧 `check_ownership` 仍 diagnostics/deferred 均空，unit 已报 L0131 | 本机以 L0170 明确拒绝旧入口不能建模的 own receiver，撤销成功事实，旧 lowering 负控通过；不声称实现旧 receiver 语义或完成消费者迁移，见 §10 |
 | F8 | Guide 12：顺序容器显式签名的元素必须可存储 | Unit 迁移漏 L0125×2，旧 CLI 接受单独 `List<Nothing>`。独审另确认 capability、名义参数和静态 bound 内的接口旁路 | 后置签名实参校验与 runtime type-ref 检查，保留重载形状，见 §12 |
 | F9 | Guide 12：具体单态化后的顺序容器必须仍满足存储合同 | 独审实跑 `fun <T> fail(): List<T> = error("never")` 和 `fail<Nothing>()`，CLI exit 0 | 调用签名与有界顶层函数体的复现已修，其他替换入口见 F11 和 §14 |
 | F10 | Rc 签名载荷与 body 构造资格存在差异 | 独审实跑 `fun reject(a: List<Rc<Copyable>>): Unit {}`，CLI exit 0 | 显式签名与调用实例化的复现已修，泛型名义存储入口见 F11 和 §14 |
-| F11 | 其他 Unit 存储替换入口缺少准入 | 成员仅在函数体使用 `List<T>`、具现 `Factory<T>(val payload: List<T>?)` 字段和 `Shape<Rc<T>>` 接口上界的具体实例仍被接受 | 已修所列复现并独立复核；双宿主候选验收见 §15–16 |
+| F11 | 其他 Unit 存储替换入口缺少准入 | 成员仅在函数体使用 `List<T>`、具现 `Factory<T>(val payload: List<T>?)` 字段和 `Shape<Rc<T>>` 接口上界的具体实例仍被接受 | 已修所列复现并独立复核；双宿主候选验收见 §16–18 |
 
 发现修复采用失败测试 → 最小实现 → 直接消费者/相邻合同 → 独立复核，不在审清前建立新抽象。
 不通过修改 Guide 或放宽 oracle 消除失败；历史账本原义保留。
@@ -425,3 +425,29 @@ F11 仅关闭上列已复现入口；R2 的完整流事实、剩余旧入口消�
   本地 `cargo test -p lang-cli --test range_project_cli` 46 passed，零失败、忽略及过滤。
 - 本地词频字节与边界合同 40 条公开命令通过；使用 `c34ee481` 的同一 `kovenc`，本轮 fixture
   修改不改变编译器二进制。远端后续 conformance、sanitizer、生成资源与 Preview 仍需实跑。
+
+## 18. Range fixture 修正候选的验证
+
+候选 head `3abf84c2ba6563e960e49ebf0459dec3de2f4ec1`，对应
+[PR #336 第三轮 CI](https://github.com/Halckon/Koven/actions/runs/42342382980)。
+
+- 本地 `lang-lsp` / `lang-std`、`ownership_iteration` / `guide_litmus` 共 272 passed，
+  零失败/忽略/过滤。教程 32 个案例已执行，1 个 planned；练习 4 个变体及 API 示例通过。
+- macOS 本地生成资源门禁的 16 个运行案例均通过；同轮 checker mutation 因原仓库 Git 元数据
+  只读而无法建立 worktree。用同一 SHA 的仓外副本单独执行 checker mutation，变异反例被杀死，
+  恢复字节一致且恢复后正控通过。未在本地执行 Linux sanitizer。
+- R2 后续边界：仓外探针 `Phantom<Nothing>` 直接形参无诊断，而显式 `List<Phantom<Nothing>>?`
+  及经 `Outer<T>` 字段实例化的同一元素类型均报 L0125。第五切片已按名义实参递归判断；
+  F11 将既有保守判定延伸到隐藏的存储位置。未参与布局的实参与普通 class handle 的资格
+  仍需按 Guide 12 独立复审，本轮未放宽或另定语义。
+- 第三轮核心 CI 的合流输入为 `5b47b2b624277afef489796aab703f284950efd5`（base `a56e1b17`）；
+  Linux `Targeted Tests` 全部通过。实跑 2658 个 codegen lib 测试、46 个 Range project CLI 测试，
+  词频 40 条命令，conformance 与本地同一分布，Linux native sanitizer、16 个生成资源案例和
+  checker mutation 均通过。
+- 同一合流输入的 macOS `Targeted Tests` 全部通过：codegen lib 2657 passed、1 个 debugserver
+  task-port 所需 LLDB test ignored；46 个 Range project CLI 测试、词频 40 条命令、conformance、
+  16 个生成资源案例及 checker mutation 均通过。Linux 专属 sanitizer 步骤在 macOS 按条件跳过。
+- Preview 对候选 head `3abf84c2` 在 Ubuntu 24.04 和 macOS 15 各自完成 producer 构建与
+  independent consumer 安装/命令验收，四个 jobs 全部通过。Editor job 因改动范围跳过。
+- 同一运行的 Code CI Evidence 和 `CI Passed` 汇总均成功；这是本候选的物理实跑证据。
+  Spec 仍处于 in-progress，R2/R3 余项及 R4/R5 阶段退出并未由本轮 CI 代替。
