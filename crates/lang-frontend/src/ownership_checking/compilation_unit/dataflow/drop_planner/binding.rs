@@ -38,6 +38,7 @@ impl DropPlanner<'_, '_> {
                 state
                     .pending_borrow_results
                     .retain(|pending| *pending != binding);
+                self.commit_borrow_call_handoff(binding, continues);
                 if continues {
                     state.borrow_bindings.push(binding);
                 }

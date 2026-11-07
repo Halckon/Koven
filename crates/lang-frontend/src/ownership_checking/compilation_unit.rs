@@ -4,7 +4,8 @@ pub use drop_point::UnitDropPoint;
 
 mod loan;
 pub use loan::{
-    UnitDirectCallLoanEndFact, UnitExclusiveCallPrefixEndFact, UnitLoanFact, UnitLoanTarget,
+    UnitBorrowCallHandoffFact, UnitDirectCallLoanEndFact, UnitExclusiveCallPrefixEndFact,
+    UnitLoanFact, UnitLoanTarget,
 };
 
 mod analysis;
@@ -542,6 +543,7 @@ pub struct CompilationUnitOwnership {
     owner_observations: Vec<UnitOwnerObservation>,
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
+    borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
     rc_effects: Vec<UnitRcOwnershipEffect>,
@@ -753,6 +755,11 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
+            borrow_call_handoffs: if successful && dataflow.deferred.is_empty() {
+                dataflow.borrow_call_handoffs
+            } else {
+                Vec::new()
+            },
             direct_call_loan_ends: if successful && dataflow.deferred.is_empty() {
                 dataflow.direct_call_loan_ends
             } else {
@@ -896,6 +903,12 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn direct_call_loan_ends(&self) -> &[UnitDirectCallLoanEndFact] {
         &self.direct_call_loan_ends
+    }
+
+    /// 已完成的具名 Shared 根实参借用返回交接；不包含完整 loan-end 流。
+    #[must_use]
+    pub fn borrow_call_handoffs(&self) -> &[UnitBorrowCallHandoffFact] {
+        &self.borrow_call_handoffs
     }
 
     /// 无 receiver、owned-result 的 declaration/symbol/external 调用中，Exclusive

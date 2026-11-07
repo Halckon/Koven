@@ -147,3 +147,29 @@ impl UnitExclusiveCallPrefixEndFact {
         self.preceding_drops
     }
 }
+
+/// 具名 Shared 根实参的正常借用返回交接；不是完整 loan-end/cleanup 流。
+/// 来自已完成调用的真实 pending tokens，不包含未完成调用或最终结果终止。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitBorrowCallHandoffFact {
+    pub(super) binding: crate::name_resolution::UnitSymbolId,
+    pub(super) source_loan: UnitLoanFact,
+}
+impl UnitBorrowCallHandoffFact {
+    /// 同一正常返回初始化的显式 borrow val；仅直接 initializer、owned 根来源。
+    #[must_use]
+    pub const fn binding(&self) -> crate::name_resolution::UnitSymbolId {
+        self.binding
+    }
+
+    /// 正常返回后由现有借用结果保护延续的唯一来源。
+    #[must_use]
+    pub const fn source_loan(&self) -> &UnitLoanFact {
+        &self.source_loan
+    }
+    /// 实际完成该调用的返回点；不表示来源 loan 在此结束。
+    #[must_use]
+    pub const fn point(&self) -> UnitDropPoint {
+        UnitDropPoint::CallReturn(self.source_loan.call)
+    }
+}

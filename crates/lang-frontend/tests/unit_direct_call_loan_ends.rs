@@ -847,3 +847,6 @@ mod temporary_field_pending;
 
 #[path = "unit_direct_call_loan_ends/gate_contracts.rs"]
 mod gate_contracts;
+
+#[path = "unit_direct_call_loan_ends/borrow_handoff.rs"]
+mod borrow_handoff;
