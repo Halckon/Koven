@@ -240,22 +240,24 @@ fn project_mode_checks_the_whole_unit() {
 }
 
 #[test]
-fn reviewed_frontend_errors_reach_both_public_check_entries() {
+fn reviewed_frontend_contracts_reach_both_public_check_entries() {
     for (text, expected_code) in [
-        ("fun missing(): Int { ({ -> return }) }", "L0088"),
+        ("fun missing(): Int { ({ -> return }) }", Some("L0088")),
         (
             "fun bad(flag: Boolean): Int { var x: Int? = 1;\n\
              if (x != null) { if (flag) { x = null; ({ -> return }) }; return x }; return 0 }",
-            "L0084",
+            Some("L0084"),
         ),
         (
             "class Resource {\n\
              own fun consume(): Unit {}\n\
              own fun run(flag: Boolean): Unit { while (flag) { consume() } }\n\
              }",
-            "L0131",
+            Some("L0131"),
         ),
-        ("fun bad(): Unit { super<I>.async }", "L0002"),
+        ("fun bad(): Unit { super<I>.async }", Some("L0002")),
+        ("fun bad(): Unit { val x = 1 val y = 2 }", Some("L0169")),
+        ("class R { own fun noop(): Unit {} }", None),
     ] {
         let directory = TestDirectory::create();
         fs::create_dir(directory.join("src")).unwrap();
@@ -284,7 +286,11 @@ fn reviewed_frontend_errors_reach_both_public_check_entries() {
                     source.as_os_str(),
                 ])
             };
-            assert_eq!(output.status.code(), Some(1), "{text}: {output:?}");
+            assert_eq!(
+                output.status.code(),
+                Some(i32::from(expected_code.is_some())),
+                "{text}: {output:?}"
+            );
             assert!(output.stdout.is_empty(), "{output:?}");
             let codes: Vec<_> = String::from_utf8(output.stderr)
                 .unwrap()
@@ -293,7 +299,11 @@ fn reviewed_frontend_errors_reach_both_public_check_entries() {
                     serde_json::from_str::<serde_json::Value>(line).unwrap()["code"].clone()
                 })
                 .collect();
-            assert_eq!(codes, [expected_code], "project={project}: {text}");
+            let expected: Vec<_> = expected_code
+                .into_iter()
+                .map(serde_json::Value::from)
+                .collect();
+            assert_eq!(codes, expected, "project={project}: {text}");
         }
         assert_eq!(
             directory.entries(),

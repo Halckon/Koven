@@ -19,7 +19,7 @@ const TRIAL: &str = "fun choose(callback: (Int) -> Int): Int = 1
         fun choose(callback: (String) -> String): String = \"text\"
         fun needInt(n: Int): Int = n
         fun source(): List<Int> = listOf(1)
-        fun run() { val chosen = choose { for (n in source()) { val x: Int = n } needInt(it) } }";
+        fun run() { val chosen = choose { for (n in source()) { val x: Int = n }; needInt(it) } }";
 
 fn rejected(result: Result<(), FinalTypeAdmissionError>) -> Vec<Diagnostic> {
     match result {

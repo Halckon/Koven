@@ -5,7 +5,7 @@
 ## 分析入口与产物
 
 单文件入口为 `ownership_checking::check_ownership`；`check_compilation_unit_ownership` 消费 validated typed unit，返回 source-qualified
-`CompilationUnitOwnership`。两条路径使用各自产物的 ID，不能混用；语义等价仍需验证，Unit receiver 回边修复与旧入口差异见 [SPEC-0392](../specs/active/0392-compiler-layered-review.md)。[receiver 两阶段借用](receiver-borrows.md)记录预留与激活的直接合同；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的提交与边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
+`CompilationUnitOwnership`。两条路径使用各自产物的 ID，不能混用；旧 Single 对非已证 Copyable 的 Value receiver 报 L0170，不发布成功所有权计划，完整 owning receiver 由 Unit 提供；范围见 [SPEC-0392](../specs/active/0392-compiler-layered-review.md)。[receiver 两阶段借用](receiver-borrows.md)记录预留与激活的直接合同；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的提交与边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
 
 公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
 清理顺序不变。独立 `check_compilation_unit_constant_ownership` 消费 `ConstEnabledTypedUnit`，

@@ -183,6 +183,8 @@ pub mod codes {
     pub(crate) const UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE: &str = "L0167";
 
     pub(crate) const STRING_LITERAL_TOO_LONG: &str = "L0168";
+    pub(crate) const EXPECTED_STATEMENT_SEPARATOR: &str = "L0169";
+    pub(crate) const UNSUPPORTED_LEGACY_RECEIVER: &str = "L0170";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -354,6 +356,8 @@ pub mod codes {
         THIS_WITHOUT_RECEIVER,
         UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE,
         STRING_LITERAL_TOO_LONG,
+        EXPECTED_STATEMENT_SEPARATOR,
+        UNSUPPORTED_LEGACY_RECEIVER,
     ];
 
     /// 由集中定义创建生产错误码目录。

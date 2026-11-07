@@ -84,7 +84,7 @@ fn implicit_and_explicit_pass_matrix_preserves_closed_forms_and_real_spans() {
         );
     }
 
-    for text in ["fun f() {}", "fun f() { x val y = 1 }"] {
+    for text in ["fun f() {}", "fun f() { x; val y = 1 }"] {
         let (_, parsed) = parsed(text);
         assert!(
             parsed.diagnostics().is_empty(),

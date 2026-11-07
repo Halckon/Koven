@@ -88,8 +88,9 @@ const GRAMMAR_CASES: &[GrammarCase] = &[
     GrammarCase {
         name: "loop family",
         tokens: &[
-            "fun", "loops", "(", ")", "{", "while", "(", "ready", ")", "{", "continue", "}", "for",
-            "(", "item", "in", "items", ")", "{", "break", "}", "loop", "{", "return", "}", "}",
+            "fun", "loops", "(", ")", "{", "while", "(", "ready", ")", "{", "continue", "}", ";",
+            "for", "(", "item", "in", "items", ")", "{", "break", "}", ";", "loop", "{", "return",
+            "}", "}",
         ],
     },
     GrammarCase {
@@ -443,5 +444,5 @@ fn non_newline_trivia_preserves_significant_tokens_and_syntax_shape() {
         }
     }
 
-    assert_eq!(executed, 1_169);
+    assert_eq!(executed, 1_175);
 }

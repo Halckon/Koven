@@ -80,5 +80,5 @@ fn transposing_every_distinct_adjacent_utf8_scalar_pair_is_recoverable() {
         }
     }
 
-    assert_eq!((candidates, noops, executed), (1_315, 24, 1_291));
+    assert_eq!((candidates, noops, executed), (1_317, 24, 1_293));
 }

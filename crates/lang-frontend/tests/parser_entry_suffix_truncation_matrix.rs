@@ -58,6 +58,6 @@ fn every_utf8_suffix_of_representative_entry_sources_is_recoverable() {
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(suffix_counts, [188, 343, 202]);
-    assert_eq!(suffix_counts.into_iter().sum::<usize>(), 733);
+    assert_eq!(suffix_counts, [188, 343, 204]);
+    assert_eq!(suffix_counts.into_iter().sum::<usize>(), 735);
 }

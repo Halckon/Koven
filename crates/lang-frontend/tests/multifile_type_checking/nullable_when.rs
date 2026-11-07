@@ -51,7 +51,7 @@ impl Case {
                 "fun extract(input: Int?, replacement: Int?): Int {
     var x = input
     return (when (x) {
-        null -> { x = replacement if (true) { 0 } else { 0 } };
+        null -> { x = replacement; if (true) { 0 } else { 0 } };
         else -> x
     })
 }"
@@ -71,7 +71,7 @@ fun extract(h: Holder): Int = when (h.item) { null -> 0; else -> h.item }"
     var x = input
     return (when (x) {
         null -> false;
-        if (true) { x = replacement if (true) { true } else { false } } else { false } -> false;
+        if (true) { x = replacement; if (true) { true } else { false } } else { false } -> false;
         else -> x
     })
 }"

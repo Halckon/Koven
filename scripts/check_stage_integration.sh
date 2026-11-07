@@ -14,6 +14,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test numeric_literals --test bitwise_constants --test integer_inv --test checked_integer_conversion --test integer_range_values --test integer_range_iteration --test integer_range_iteration_ownership --test canonical_type_tables --test type_ownership_primitives --test ownership_primitives --test ownership_field_replace \
   --test string_clone --test clone_primitive_integration \
   --test diagnostic_model --test final_type_admission --test enum_case_borrow_categories \
+  --test lambda_completion --test ownership_receiver_backedge --test legacy_receiver_admission \
   --test ownership_borrow_continuation --test ownership_borrow_last_use \
   --test ownership_borrow_origins --test ownership_borrow_result \
   --test ownership_nested_borrow_arguments --test unit_direct_call_loan_ends \
@@ -49,6 +50,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test parser_contextual_type_ref --test parser_class_family \
   --test parser_borrow_result --test parser_implicit_unit --test parser_n1a_frontier \
   --test parser_call_argument --test parser_diagnostic_witness_matrix \
+  --test parser_super_recovery --test parser_statement_separators \
   --test parser_return_control --test tree_sitter_grammar --test textmate_grammar \
   --test parser_block_line_continuation --test parser_entry_line_break_boundary_matrix \
   --test parser_block --test parser_expression --test parser_control_flow \

@@ -349,7 +349,12 @@ impl Parser<'_> {
                 break;
             }
             let before = self.index;
-            elements.push(self.parse_block_element(outer_stops)?);
+            let diagnostics_before = self.diagnostics.len();
+            let element = self.parse_block_element(outer_stops)?;
+            if self.diagnostics.len() == diagnostics_before {
+                self.check_block_element_separator(element, outer_stops)?;
+            }
+            elements.push(element);
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }

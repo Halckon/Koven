@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn borrowed_element_closure_cannot_escape_the_callable() {
     let (_, _, owned) = checked(
-        "class Node {}\nfun touch(n: Node) {}\nfun run(xs: List<Node>): () -> Unit { for (n in xs) { return ({ touch(n) }) } return ({ -> }) }",
+        "class Node {}\nfun touch(n: Node) {}\nfun run(xs: List<Node>): () -> Unit { for (n in xs) { return ({ touch(n) }) }; return ({ -> }) }",
     );
     assert_eq!(owned.diagnostics().len(), 1, "{:?}", owned.diagnostics());
     assert_eq!(owned.diagnostics()[0].code().to_string(), "L0137");

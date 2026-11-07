@@ -540,6 +540,33 @@ mod legacy_only {
     }
 
     #[test]
+    fn unsupported_own_receiver_cannot_enter_legacy_lowering() {
+        let mut sources = SourceMap::new();
+        let text = "package pair\nclass Resource { own fun noop(): Unit {} }\nfun entry(): Unit {}";
+        let (_, file) = parsed(&mut sources, "pair/entry.ko", text);
+        let (name_environment, environment) = standard_environments();
+        let names = resolve_names(&sources, &file, &name_environment).unwrap();
+        let typed = check_types(&sources, &file, &names, &environment).unwrap();
+        assert!(names.diagnostics().is_empty() && typed.diagnostics().is_empty());
+        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
+        assert_eq!(owned.diagnostics().len(), 1);
+        assert_eq!(owned.diagnostics()[0].code().to_string(), "L0170");
+        let entry = names
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "entry")
+            .unwrap()
+            .id();
+        let error = lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
+            .err()
+            .expect("an unsupported legacy ownership product cannot generate SSA");
+        assert_eq!(
+            error_key(&sources, error),
+            (LoweringErrorKind::FrontendDiagnostics, None)
+        );
+    }
+
+    #[test]
     fn recovery_stops_at_each_original_validation_boundary() {
         for (body, code) in [("missing", "L0080"), ("17", "L0084")] {
             let mut sources = SourceMap::new();

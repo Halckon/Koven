@@ -50,9 +50,8 @@ impl Parser<'_> {
         left: ExpressionId,
         stops: Stops,
     ) -> Result<bool, ParserInternalError> {
-        // 本切片只处理普通 / control block；lambda 顶层 body 保持自己的 owner 契约。
-        // group、call、index 内部已清除 block soft stops，不受 element 换行边界影响。
-        if !stops.block_elements || stops.delimiters & Stops::LAMBDA_COMMA != 0 {
+        // All block owners share this boundary; group/call/index clear their soft stops.
+        if !stops.block_elements {
             return Ok(false);
         }
         let current = self.current()?;
@@ -150,9 +149,13 @@ impl Parser<'_> {
                 self.block_dispatch_iterations += 1;
             }
             let before = self.index;
+            let diagnostics_before = self.diagnostics.len();
             let element = self.parse_block_element(outer_stops)?;
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
+            }
+            if self.diagnostics.len() == diagnostics_before {
+                self.check_block_element_separator(element, outer_stops)?;
             }
             elements.push(element);
         };
@@ -171,6 +174,61 @@ impl Parser<'_> {
         self.add_statement(
             self.span(opener.start(), end)?,
             Statement::Block { elements },
+        )
+    }
+
+    /// Report a missing separator without consuming the next real element or its owner.
+    pub(super) fn check_block_element_separator(
+        &mut self,
+        element: StatementId,
+        outer_stops: Stops,
+    ) -> Result<(), ParserInternalError> {
+        let current = self.current()?;
+        let starts_loop = matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Keyword(Keyword::While | Keyword::For))
+        );
+        if matches!(
+            current.kind(),
+            LexemeKind::Eof
+                | LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon | Symbol::RightBrace))
+        ) || outer_stops.contains_hard(current)
+            || self.is_poison_kind(current.kind())
+            || (self.is_unsupported_block_element()? && !starts_loop)
+            || !(self.can_start_expression(current)
+                || matches!(
+                    current.kind(),
+                    LexemeKind::Token(TokenKind::Keyword(
+                        Keyword::Val | Keyword::Var | Keyword::While | Keyword::For
+                    ))
+                ))
+        {
+            return Ok(());
+        }
+        let node = self.ast.statements().get(element)?;
+        let expression = match node.payload() {
+            Statement::Error => return Ok(()),
+            Statement::Expression { expression } => Some(*expression),
+            Statement::LocalVariable { declaration } => {
+                match self.ast.items().get(*declaration)?.payload() {
+                    Item::Variable { initializer, .. } => Some(*initializer),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        if let Some(id) = expression
+            && matches!(self.ast.expressions().get(id)?.payload(), Expression::Error)
+        {
+            return Ok(());
+        }
+        if self.gap_has_line_break(node.span().end(), current.span().start())? {
+            return Ok(());
+        }
+        self.emit(
+            codes::EXPECTED_STATEMENT_SEPARATOR,
+            "expected statement separator",
+            self.empty_at(current.span().start())?,
         )
     }
 

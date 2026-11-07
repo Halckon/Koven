@@ -10,6 +10,35 @@ use crate::{
 };
 
 impl Checker<'_> {
+    /// The legacy product has no This owner/drop target; it cannot validate this capability.
+    pub(super) fn reject_unmodeled_own_receivers(&mut self) -> Result<(), OwnershipCheckingError> {
+        if !self.diagnostics.is_empty() || !self.typed.diagnostics().is_empty() {
+            return Ok(());
+        }
+        let code = crate::diagnostic::codes::catalog()?
+            .resolve(crate::diagnostic::codes::UNSUPPORTED_LEGACY_RECEIVER)?;
+        for receiver in self
+            .typed
+            .callables()
+            .iter()
+            .filter_map(|callable| callable.receiver())
+        {
+            if receiver.mode() == ParameterMode::Value
+                && self.typed.copyability(receiver.ty())
+                    != Some(crate::type_checking::Copyability::Copyable)
+            {
+                self.diagnostics.push(crate::diagnostic::Diagnostic::new(
+                    self.sources,
+                    crate::diagnostic::Severity::Error,
+                    code,
+                    "legacy single-file ownership cannot validate this own receiver; use compilation-unit analysis",
+                    receiver.marker_span().unwrap_or_else(|| receiver.declaration_span()),
+                )?);
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn receiver_nominal(&self, mut ty: TypeId) -> Option<NominalId> {
         loop {
             match self.typed.types().get(ty)? {

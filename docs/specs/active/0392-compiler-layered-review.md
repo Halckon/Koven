@@ -70,17 +70,17 @@ F1–F5 的最小探针在原始基线上实际运行；F6 为修复工作树上
 | F2 | Guide 06：分支赋值必须 kill smart cast；`if (x != null) { if (flag) { x = null; ({ -> return }) }; return x }` | single/unit 均错误接受 nullable 返回 Int | F1 同根因；修复后两入口 L0084；expected/推导路径及非法局部返回 L0087 负控均验证 |
 | F3 | Guide 08/10：MoveOnly this 不能在循环中重复消费；own 方法 `while(flag) { consume() }` / `this.consume()` | unit ownership 均无诊断，消费后 break 正控同样无诊断 | 已修复并独立复核；`ownership_receiver_backedge` 覆盖正常/continue、while condition、for 单次 source、嵌套循环、退出及 Copyable |
 | F4 | Guide 01：Lexer poison 唯一根因；`super<I>.async` | async 同 Span 重复 L0002/L0011；普通 `x.async` 仅 L0002 | 已修复；三阶段 poison 消费并返 Error；后继实参身份与原词法 Span 有直接断言 |
-| F5 | Guide 06：同行 block elements 必须有分号；`{ val x = 1 val y = 2 }` | parse_block 无诊断，带分号正控同样无诊断 | **OPEN**；须同时修复普通/control/lambda owner、迁移现有非法正例及下游 fixtures，R1 不结项 |
+| F5 | Guide 06：同行 block elements 必须有分号；`{ val x = 1 val y = 2 }` | parse_block 无诊断，带分号正控同样无诊断 | 本机修复并独立复核；三 owner 共用 L0169，非法正例及下游 fixtures 已迁移；双宿主 CI 待验，见 §10 |
 | F6 | 恢复不得吞外层分隔符；`f(a.async., sentinel)` / `{ a.async.; sentinel }` | 新失败回归分别证实吞逗号、分号并产生额外 L0034/L0013 | 已修复：error-postfix 保留 caller stops 和分号；逐实参/逐 statement 核对后继 identity |
-| F7 | 旧单文件 receiver 与 unit 的所有权合同未等价；同 F3 输入 | 修复后仓外探针确认旧 `check_ownership` 仍 diagnostics/deferred 均空，unit 已报 L0131 | **OPEN**；先核旧真实消费者与后端能力，再依 SPEC-0341 迁移或修复；CLI single/project 不走此旧入口 |
+| F7 | 旧单文件 receiver 与 unit 的所有权合同未等价；同 F3 输入 | 修复后仓外探针确认旧 `check_ownership` 仍 diagnostics/deferred 均空，unit 已报 L0131 | 本机以 L0170 明确拒绝旧入口不能建模的 own receiver，撤销成功事实，旧 lowering 负控通过；不声称实现旧 receiver 语义或完成消费者迁移，见 §10 |
 
 发现修复采用失败测试 → 最小实现 → 直接消费者/相邻合同 → 独立复核，不在审清前建立新抽象。
 不通过修改 Guide 或放宽 oracle 消除失败；历史账本原义保留。
 
 F5 的已有不合规正例包括 `parser_block` 的同行 expression/val/var 与无换行注释案例，
-以及 `parser_control_flow` 的同行多个 loop 案例。后继应先确定缺分隔符诊断/恢复、给三个 owner
-建立统一正反例，再按实际失败修正各真实 fixture；不能把“未实现”写成已拒绝，也不能只改
-一两个例子即声称前端一致。该项先于恢复语言增量，当前不对公共 grammar 做半套收紧。
+以及 `parser_control_flow` 的同行多个 loop 案例。第二切片先建立三个 owner 的统一正反例，
+再按实际失败修正真实 fixture 和共享语料，最终扩大到全部 frontend 目标；独立复核未发现
+oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段合同均已审完。
 
 ## 5. 重构与执行顺序
 
@@ -104,9 +104,9 @@ F5 的已有不合规正例包括 `parser_block` 的同行 expression/val/var �
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F6 修复，恢复矩阵与30项内部预算实跑 | F5 OPEN；class-family 全部 malformed owner 未穷尽 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑 | class-family 全部 malformed owner 未穷尽 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2 已修复复核；既有 types/callable/final-admission 实跑 | 逐消费者处置及全部流事实组合尚未闭合 |
-| R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已动态确认旧入口差异；循环/析构全矩阵与动态资源验收未闭合 |
+| R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报，旧消费者迁移仍待完成；循环/析构全矩阵与动态资源验收未闭合 |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布；CLI 本机 build 通过 | 全家族 subset/build、emit/verifier 与 debug/fault/sanitizer、Linux 实跑待验；目标机仍为 OptimizationLevel::None |
 | R5 | 已明确双轮触发门槛 | v1 尚未冻结，不执行发布验收或声称完成 |
 
@@ -152,3 +152,53 @@ varint_codec UnsupportedNode、word_count L0165。此为原有大验收程序，
 
 2026-11-07 用户要求先提交已复核切片、再继续实施；本地提交已获授权，当前不自动发布 PR
 或合并。Spec 保持 in-progress，未来执行结果在本账本追加，不能以已建计划替代验收。
+
+## 10. 第二切片：分句与旧入口能力门（2026-11-07）
+
+前片已提交 `488497a9`，未推送。第二切片仍在同一隔离分支完成，不覆盖前片结果：
+
+- F5 新增 `L0169 expected statement separator`，在下一 element 的起点空 Span 报告；普通、
+  control、lambda 三个 owner 共用检查。完整表达式后拆分属于错误恢复，缺分隔符仍拒绝，
+  不把普通 expression-start 当合法 initializer stop；缺 operand/poison 保留原根因。
+- Lambda 顶层换行与普通 block 一致，`x\n(y)` / `x\n+ y` 分句；group/call/index 内仍续行。
+  每次只查相邻 element 的不重叠 trivia gap，不重扫 block；不构造虚假 AST 或分隔 token。
+- 先有公共入口失败测试，再迁移违反现行 Guide 的旧“正例”；专用负例保留错误意图，
+  Span/golden/资源计数按真实源码调整，不在通用 harness 隐式重写用户输入。
+- F7 选择为旧 Single 增加专用能力诊断 `L0170`，不复制 Unit receiver/drop 引擎，也不将
+  能力不足塞入只承载内部错误的 `OwnershipCheckingError`。已有类型/所有权错误优先保留，
+  旧后端必须拒绝此 recovery 产品；合法 own receiver 的完整事实继续由 Unit 提供。
+
+| 第二切片检查 | 实际结果 | 限制 |
+|---|---|---|
+| `parser_statement_separators` 原始回归 | 2 passed、3 failed | 确认缺分隔符、无换行注释、lambda 歧义换行 |
+| 最小实现后同 suite | 5 passed，0 failed/ignored/filtered | 三 owner + 文件入口，精确诊断Span/后继identity；扩大检查结果见下 |
+| `legacy_receiver_admission` 原始行为回归 → 最小实现 | 2 passed/1 failed → 3 passed | 保留 L0133、Copyable/Borrow；Unit 正例核实际 This drop；后续又补裸字段/shared capture/未知copyability与成功事实撤销 |
+| 71个 Parser/diagnostic 目标初次清点 | 34个目标失败 | 旧非法正例、lambda换行旧期待及共享语料冻结数量；未删除逐变异检查 |
+| 所有受影响 frontend 目标第一次清点 | 182目标，2424 passed/27 failed，0 ignored/filtered | 分句为公共 producer，明确扩大到全部消费者；失败集中7目标，已逐项修正真实分隔与资源输入 |
+| 上述失败目标与新回归重跑 | 878 passed，0 failed/ignored/filtered | 原资源32/34界限未放宽；helper复用current，修复新增重复peek成本；最终完整复跑结果见下 |
+| CI bounded composition 接线与纯静态选择测试 | 新增5个review suite，2个静态测试通过；`bash -n`通过 | 保留原23条Cargo命令、唯一普通target数130→135；CI-only shell失败stub未在本地运行 |
+
+共享 entry 语料新增2个分号：scalar 721→723、边界733→735、内部删除23791→23893；
+完整 grammar 语料新增2个分号：scalar1337→1339、边界1359→1361、内部删除43926→44101。
+25个矩阵的冻结数量由真实枚举重算并经独立复核，分号不属于owner/lexical-mode或13字母
+替换表；逐输入 AST、Span、owner、词法诊断及确定性断言保留，不将预期错误改成成功。
+
+| 第二切片最终检查（输入 `488497a9+uncommitted-spec-0392-f5-f7`） | 实际结果 | 限制 |
+|---|---|---|
+| `cargo test --locked --offline -p lang-frontend --no-fail-fast` | 182目标，2451 passed，0 failed/ignored/filtered | 含全部 lib 与 integration；不能替代未覆盖合同的独立审查 |
+| CLI `--test check_cli` | 6 passed，0 failed/ignored/filtered | L0169 与合法 own receiver 各 single/project；公共入口仍走 Unit |
+| codegen `--lib ssa::refine` | 111 passed，0 failed/ignored，2546 filtered | 含本机执行；非整个 codegen suite |
+| codegen `--lib unsupported_own_receiver_cannot_enter_legacy_lowering` | 1 passed，0 failed/ignored，2656 filtered | names/types clean、L0170 唯一，未被 entry 调用的 own 方法同样使旧 lowering 拒绝 |
+| codegen Copyable readonly boundary 过滤组 | 52 passed，0 failed/ignored，2605 filtered | 保留原边界；不代替所有旧消费者迁移 |
+| `cargo check --locked --offline --workspace --all-targets`、`cargo fmt --all -- --check`、workspace all-targets Clippy `-D warnings` | 均通过 | 未放宽 lint |
+| `python3 -m unittest scripts.tests.test_check_ci_results -q` | 42 passed | 纯 CI 结果/选择 fixture，不是实际远端 CI |
+| `python3 scripts/check_rust_sizes.py --base 488497a9` | 通过；2115手写文件、39个历史超1000行 | 未提高限额；checker 单行能力门调用增长已独立审阅 |
+| `python3 scripts/check_docs.py`、`git diff --check` | 均通过；847 Markdown | 路线图由 v1.json 重新生成；不证明语义 |
+| 同 §8 conformance 命令，compiler-commit 改为本片输入身份 | gate通过；能力138/154，程序0/6；回归/两模式差异/错误输出/ICE均0 | 121 run、3 abort、14 diagnostic；16 probe+6程序仍未实现；基础合法58/74仍未达70门槛 |
+
+第二切片 conformance 二进制 SHA256：
+`5c05ba085f0e98a04fa8ce00618d501ed745b9f4a126705ce28ed4a4ecbf0552`。
+未修改 conformance oracle、分类或输入；原始 stderr 未出现新 L0169/L0170，未由新拒绝掩盖
+既有未实现。独立上下文分别复核分句实现/预算、语料枚举算术与旧入口/后端/CI接线，均无
+剩余阻断发现。Linux、sanitizer、完整 codegen suite、CI-only shell故障stub与远端 CI 未运行；
+R0逐消费者对账和R1–R5其余合同继续保持未闭合，不因这两项修复恢复整阶段完成标记。

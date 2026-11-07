@@ -123,6 +123,6 @@ fn duplicating_each_significant_token_is_total_and_recovers_non_owner_suffixes()
             lexical_mode_mutations,
             exact_relexed_mutations,
         ),
-        (394, 96, 298, 14, 380)
+        (396, 96, 300, 14, 382)
     );
 }

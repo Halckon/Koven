@@ -143,7 +143,7 @@ fn header_three_states_and_move_preserve_only_real_spans() {
 
 #[test]
 fn lambda_body_has_ordered_elements_without_duplicate_tail_or_block_mode() {
-    let (_, parsed) = parsed_expression("{ {} x }");
+    let (_, parsed) = parsed_expression("{ {}; x }");
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",
@@ -541,7 +541,7 @@ fn failed_header_with_missing_separator_reports_body_errors_in_order() {
             .iter()
             .map(|entry| (entry.0.as_str(), entry.3, entry.4))
             .collect::<Vec<_>>(),
-        [("L0013", 4, 5), ("L0032", 6, 8)]
+        [("L0169", 4, 4), ("L0032", 6, 8)]
     );
     let (_, parameters, arrow, _) = lambda(&parsed, parsed.root());
     assert!(parameters.is_empty() && arrow.is_none());
@@ -604,7 +604,7 @@ fn unsupported_body_introducers_use_lambda_specific_diagnostic() {
 }
 
 #[test]
-fn initializer_tail_is_not_reinterpreted_as_a_second_lambda_element() {
+fn initializer_tail_cannot_be_silently_accepted_as_a_second_lambda_element() {
     for text in [
         "{ val x = 1 x }",
         "{ p -> val x = p x }",
@@ -615,7 +615,7 @@ fn initializer_tail_is_not_reinterpreted_as_a_second_lambda_element() {
             parsed
                 .diagnostics()
                 .iter()
-                .any(|diagnostic| diagnostic.code().to_string() == "L0013"),
+                .any(|diagnostic| diagnostic.code().to_string() == "L0169"),
             "{text:?}: {:?}",
             parsed.diagnostics()
         );

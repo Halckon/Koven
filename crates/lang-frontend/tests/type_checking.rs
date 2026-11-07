@@ -1848,7 +1848,7 @@ fn nullable_when_remaining_domain_covers_boolean_and_enum_orders() {
 fn nullable_when_body_mutation_does_not_leak_to_unselected_entry() {
     // The null body's mutation cannot execute on the path selecting else.
     let text = "fun extract(input: Int?, replacement: Int?): Int { var x = input
-        return (when (x) { null -> { x = replacement if (true) { 0 } else { 0 } }; else -> x })
+        return (when (x) { null -> { x = replacement; if (true) { 0 } else { 0 } }; else -> x })
     }";
     let (_, _, _, typed) = checked(text);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
@@ -1859,7 +1859,7 @@ fn nullable_when_condition_mutation_invalidates_source_proof() {
     // The tested subject is a snapshot; a later assignment changes the source binding.
     let text = "fun extract(input: Boolean?, replacement: Boolean?): Boolean { var x = input
         return (when (x) { null -> false;
-            if (true) { x = replacement if (true) { true } else { false } } else { false } -> false;
+            if (true) { x = replacement; if (true) { true } else { false } } else { false } -> false;
             else -> x })
     }";
     let (sources, _, _, typed) = checked(text);

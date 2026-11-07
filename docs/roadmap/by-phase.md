@@ -4,7 +4,7 @@
 
 <!-- 生成文件：请编辑 docs/roadmap/v1.json 后运行 python3 scripts/gen_roadmap.py，不要手改本页。 -->
 
-基线：ea476adc + SPEC-0392 未提交工作树（macOS 单宿主，非 main/PR CI）· Guide v0.47 · 更新：2026-11-06 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
+基线：488497a9 + SPEC-0392 F5/F7 未提交工作树（macOS 单宿主，非 main/PR CI）· Guide v0.47 · 更新：2026-11-06 · 其他视图：[按阶段](by-stage.md) · [按领域](by-area.md) · 维护规则见 [README](README.md)
 
 只列 v1 范围内条目；● 表示该条目需要在对应 Phase 产出或验收。Phase 定义见 [一致性与实施边界](../guide/15-conformance-and-staging.md)。
 
