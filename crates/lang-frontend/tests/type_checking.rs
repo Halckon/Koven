@@ -28,6 +28,9 @@ mod unit_entries;
 #[path = "type_checking/scalar_unit.rs"]
 mod scalar_unit;
 
+#[path = "type_checking/interface_unit.rs"]
+mod interface_unit;
+
 use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
@@ -974,19 +977,6 @@ fn bounds_are_static_but_interfaces_are_not_runtime_value_types() {
 }
 
 #[test]
-fn direct_interface_edges_reject_classes_duplicates_and_cycles() {
-    let (_, _, _, non_interface) = checked("class Parent {}\nclass Child : Parent {}");
-    assert_eq!(codes(non_interface.diagnostics()), ["L0095"]);
-
-    let (_, _, _, duplicate) =
-        checked("interface Protocol<T> {}\nclass Both : Protocol<Int>, Protocol<Long> {}");
-    assert_eq!(codes(duplicate.diagnostics()), ["L0095"]);
-
-    let (_, _, _, cycle) = checked("interface Left : Right {}\ninterface Right : Left {}");
-    assert_eq!(codes(cycle.diagnostics()), ["L0096"]);
-}
-
-#[test]
 fn interface_closure_substitutes_invariant_arguments_and_checks_bounds() {
     let text = "interface Base<T> {}\n\
                 interface Mid<U> : Base<U> {}\n\
@@ -1013,82 +1003,6 @@ fn interface_closure_substitutes_invariant_arguments_and_checks_bounds() {
         .expect("Good descriptor");
     assert_eq!(descriptor.direct_interfaces().len(), 1);
     assert_eq!(descriptor.interfaces().len(), 2);
-}
-
-#[test]
-fn overload_shape_is_alpha_equivalent_and_concrete_members_need_bodies() {
-    let text = "fun <T> pick(input: T): Int = 1\n\
-                fun <U> pick(other: U): Long = 1L\n\
-                fun mode(input: Int): Unit {}\n\
-                fun mode(borrow other: Int): Unit {}\n\
-                fun mode(own consumed: Int): Unit {}\n\
-                interface Contract { fun required(input: Int): Unit }\n\
-                class Concrete { fun missing(input: Int): Unit; fun okay(): Unit {} }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0097", "L0097", "L0097", "L0098"]
-    );
-}
-
-#[test]
-fn receiver_modes_are_contracts_but_not_overload_shapes() {
-    let (_, _, _, overload) = checked(
-        "class Duplicate {\n\
-             fun collide(input: Int): Unit {}\n\
-             inout fun collide(input: Int): Unit {}\n\
-         }",
-    );
-    assert_eq!(codes(overload.diagnostics()), ["L0097"]);
-
-    let (_, _, _, replacement) = checked(
-        "interface Base { fun act(): Unit }\n\
-         interface Child : Base { inout fun act(): Unit }",
-    );
-    assert_eq!(codes(replacement.diagnostics()), ["L0099"]);
-
-    let (_, _, _, implementation) = checked(
-        "interface Required { fun run(): Unit }\n\
-         class Bad : Required { override inout fun run(): Unit {} }",
-    );
-    assert_eq!(codes(implementation.diagnostics()), ["L0100"]);
-}
-
-#[test]
-fn interface_replacements_and_overrides_require_exact_contracts() {
-    let (_, _, _, replacement) = checked(
-        "interface Base { fun act(input: Int): Int }\n\
-         interface Child : Base { fun act(input: Int): Long }",
-    );
-    assert_eq!(codes(replacement.diagnostics()), ["L0099"]);
-
-    let text = "interface Required { fun run(input: Int): Int }\n\
-                class Missing : Required {}\n\
-                class NeedsOverride : Required { fun run(input: Int): Int = 1 }\n\
-                class BadReturn : Required { override fun run(input: Int): Long = 1L }\n\
-                class BadMode : Required { override fun run(own input: Int): Int = 1 }\n\
-                class Extra { override fun lone(): Unit {} }\n\
-                class Hidden : Required { private override fun run(input: Int): Int = 1 }\n\
-                class Good : Required { override fun run(borrow input: Int): Int = 1 }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0101", "L0100", "L0100", "L0100", "L0100", "L0100"]
-    );
-}
-
-#[test]
-fn abstract_requirements_accept_one_default_but_multiple_defaults_conflict() {
-    let text = "interface Abstract { fun ping(): Int }\n\
-                interface Left { fun ping(): Int = 1 }\n\
-                interface Right { fun ping(): Int = 2 }\n\
-                interface Child : Left { fun ping(): Int = 3 }\n\
-                class Covered : Abstract, Left {}\n\
-                class Shadowed : Child {}\n\
-                class Conflict : Left, Right {}\n\
-                class Resolved : Left, Right { override fun ping(): Int = 3 }";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0102"]);
 }
 
 #[test]
