@@ -2937,3 +2937,12 @@ bindings/ends 清空断言保留；其余测试与独立 Single loan-end helper 
 云端固定 Rust 1.96.0/default debug=2/locked/offline，continuation 14 加前六目标36，
 共50项无过滤通过；目标编译、all-targets Clippy（`-D warnings`）通过。所有七目标本已在
 stage selector，未增加目标或修改计数；保留多逻辑提交统一交付，官方 CI 尚未运行。
+
+### 独立后续：nested-borrow 成功消费者双入口（2026-11-06）
+
+基于 main `8c9778aa`，不依赖待发布的 continuation 后续批次。三项原成功消费者的
+13份输入扩为真实 MemoryDocument/Rooted，保留原 Single 分析、精确 call-use、
+独立 loan-end 断言，新增 Unit source/key 身份检查；拒绝组原双入口不动，另外两项
+成功 witness 保留原 Rooted 默认入口。无生产/Guide/selector 修改，不宣称 Single 退休。
+云端 Rust 1.96.0/default debug=2/locked/offline，完整 nested-borrow 10项无过滤通过，
+目标编译、all-targets Clippy（`-D warnings`）、fmt、文档/尺寸门禁通过；未运行官方CI。
