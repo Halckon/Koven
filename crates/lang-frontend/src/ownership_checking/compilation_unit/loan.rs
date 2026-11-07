@@ -152,10 +152,19 @@ impl UnitExclusiveCallPrefixEndFact {
 /// 来自已完成调用的真实 pending tokens，不包含未完成调用或最终结果终止。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitBorrowCallHandoffFact {
+    pub(super) auxiliary_loan_ends: Vec<UnitLoanFact>,
     pub(super) binding: crate::name_resolution::UnitSymbolId,
     pub(super) source_loan: UnitLoanFact,
 }
 impl UnitBorrowCallHandoffFact {
+    /// 实际正常返回时结束的有界辅助 Shared owned 根 tokens，保持当前调用 pending tokens 的顺序。
+    /// 排除来源 token；不覆盖借用绑定、provider、投影、temporary 或全部 loan-end 流。
+    /// 空列表不证明未覆盖的辅助 tokens 的状态，也不授予跨事件切片的统一顺序。
+    #[must_use]
+    pub fn auxiliary_loan_ends(&self) -> &[UnitLoanFact] {
+        &self.auxiliary_loan_ends
+    }
+
     /// 同一正常返回初始化的显式 borrow val；仅直接 initializer、owned 根来源。
     #[must_use]
     pub const fn binding(&self) -> crate::name_resolution::UnitSymbolId {

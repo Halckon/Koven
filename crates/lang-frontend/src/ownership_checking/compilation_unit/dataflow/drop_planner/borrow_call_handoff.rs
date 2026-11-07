@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl DropPlanner<'_, '_> {
-    pub(super) fn observe_borrow_call_handoff(&mut self, id: ExpressionId, state: &ValueState) {
+    pub(super) fn observe_borrow_call_handoff(&mut self, id: ExpressionId, state: &mut ValueState) {
         let call_id = self.checker.unit_expression(id);
         let Some(call) = self.checker.typed.call(call_id) else {
             return;
@@ -74,12 +74,71 @@ impl DropPlanner<'_, '_> {
         {
             return;
         }
+        let source_loan = (*source_loan).clone();
+        let binding = binding.binding();
+        let mut auxiliary_loan_ends = Vec::new();
+        // These exact tokens would otherwise be removed by the immediately following
+        // call-local retain. Observe that retirement, not descriptor end spans.
+        let mut index = 0;
+        while index < state.pending_loans.len() {
+            let UnitIterationCleanupAction::EndCallLoan(loan) = &state.pending_loans[index].0
+            else {
+                index += 1;
+                continue;
+            };
+            if loan.call() != call_id
+                || loan.argument() == source_loan.argument()
+                || !self.observes_borrow_auxiliary(loan, state)
+            {
+                index += 1;
+                continue;
+            }
+            let (UnitIterationCleanupAction::EndCallLoan(loan), _) =
+                state.pending_loans.remove(index)
+            else {
+                unreachable!("matched actual pending token")
+            };
+            auxiliary_loan_ends.push(loan);
+        }
         self.pending_borrow_handoffs
             .push(UnitBorrowCallHandoffFact {
-                source_loan: (*source_loan).clone(),
-                binding: binding.binding(),
+                source_loan,
+                binding,
+                auxiliary_loan_ends,
             });
     }
+    fn observes_borrow_auxiliary(
+        &self,
+        loan: &crate::ownership_checking::UnitLoanFact,
+        state: &ValueState,
+    ) -> bool {
+        let UnitLoanTarget::Place(place) = loan.target() else {
+            return false;
+        };
+        let root = place.root();
+        let provider = self.checker.iterations.values().any(|plan| {
+            plan.bindings().iter().any(|binding| binding.symbol() == root)
+                || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
+        }) || self.checker.map_iterations.values().any(|plan| {
+            plan.bindings().iter().any(|binding| binding.symbol() == root)
+                || matches!(plan.source(), Some(UnitLoanTarget::Place(source)) if source.root() == root)
+        });
+        loan.kind() == LoanKind::Shared
+            && place.is_root()
+            && !provider
+            && self.checker.formed_owned_locals.contains(&root)
+            && state.position(root).is_some()
+            && !state.borrow_bindings.contains(&root)
+            && self
+                .checker
+                .borrow_result_call(loan.argument().expression())
+                .is_none()
+            && self
+                .checker
+                .place(loan.argument().expression())
+                .is_ok_and(|actual| actual.as_ref() == Some(place))
+    }
+
     pub(super) fn commit_borrow_call_handoff(
         &mut self,
         binding: crate::name_resolution::UnitSymbolId,
