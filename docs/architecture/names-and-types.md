@@ -158,7 +158,7 @@ callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不�
 canonical type identity；Box 签名仅接受 value/enum 名义 kind，实参根错误不追加 kind 诊断。Array/List/MutableList 签名直接或可空 Any/Nothing 元素报 L0125，保留 raw 形状避免伪 overload 重复，诊断阻止最终准入。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
 
 两入口共享语义模型；unit facts 保留 source-qualified ID，不拼接单文件 ID。整数 compound 在 statement role 发布 storage 事实，
-Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。
+Group/直接 control body 透传该 role；Map 写目标按写入角色准入，不伪造 query fact，覆盖见 `final_type_admission`。 `type_checking::nominal_unit` 的12项原enum/构造、静态接口及返回流消费者已迁至双Unit raw type入口，15份原源码与原oracle保留，见[验收](../specs/active/0341-shared-lowering-core.md#独立批次名义构造与接口类型消费者2026-11-07)。
 
 unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、
 不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。

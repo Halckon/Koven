@@ -2828,6 +2828,38 @@ Rooted 对照；不是 Single witness 退休，也不依赖其他在途分支。
 - 本组合本地验证通过，未推送、未创建 PR。单片历史绿灯不能替代组合 CI；
   D10/E2 保持 in-progress，不自动合并。
 
+### 独立批次：名义构造与接口类型消费者（2026-11-07）
+
+基于 main `11130e16` 的 `feature/spec-0341-nominal-type-consumers`，先完成8项enum/构造
+消费者，再将4项静态接口/返回流并入同批，不按小片拆PR；不重复#335/#337/#339/#340。
+四项代码提交为 `4260f7f2`、`b71d467d`、`5d08826f`、`d3ff4a40`，不改生产、Guide、loan-end或CI。
+
+- 12项原测试、15份原源码全部保留并走MemoryDocument/Rooted；原重复解析和自定义环境不变。
+  先核真实source/key，再读取raw类型事实；不增加final/ownership准入或runtime能力。
+- 三项flow保留enum payload、nullable/short-circuit/穷举和泛型替换的原期望，精确核
+  projection、non-null use、Nullable→narrowed与null comparison的symbol/type关系。
+- 四项construction保留nullable adaptation、bare case的零operand、原L0144/None span、
+  泛型实参数及IntrinsicBox身份。bare case按source-unit和真实case value_symbol比对，
+  不按名称猜target。最初适配误用私有UnitSymbolId构造器导致E0624；仅改测试使用公开
+  source_unit/symbol查询后通过，不改生产可见性，不把该次编译失败算通过。
+- identity每入口重复typing复用同一AST、inputs、validated names、TypeEnvironment；
+  保留完整construction等值、4项顺序、first/second参数及evaluation_index 1/0、
+  零参数、EnumCase、无call与result type关系，另核expression/argument的source-unit。
+- 四项接口/返回流保留7份原输入、L0092/L0094的primary与label、L0100/L0099、
+  super的Function/名义TypeRef与两个ImplicitThis调用、两份合法receiver例及L0088返回流。
+- Mac AArch64、Rust1.96.0/default debug=2、locked/offline：基线8+4项通过；最终
+  `type_checking nominal_unit::` 12 passed/70 filtered。相关multifile_type_checking：
+  source_construction全7项、intrinsic构造1项、null comparison1项（9 passed/145 filtered），
+  super receiver与expression tail两项（2 passed/152 filtered）；multifile_type_signatures
+  的interface closure/invalid bounds两项（2 passed/15 filtered），合计25项通过。
+- 代码头 `d3ff4a40` 的frontend all-targets Clippy（`-D warnings`）、fmt、尺寸与diff通过；
+  主文件2123→1770行，5个新增文件均小于1000行，不增加旧尺寸欠账。type_checking仍82项，
+  stage继续完整选择原target，不改过滤或计数；Cargo复用已有target串行执行。
+- 代码头静态merge-tree对main、#339、#340无冲突；#335/#337的根测试相邻删除有冲突。
+  函数集合不重叠，之后集成须保留双方迁移并重新验证，不能整块选择一边。
+- 整个target/workspace、运行时Abort/故障注入/校准、native、Linux与官方CI未运行；
+  本批仅本地累计，D10/E2保持in-progress，不将定向通过等同阶段完成，不自动合并。
+
 ### §114 官方 selector 覆盖缺口修复（2026-11-06）
 
 #331 原九提交头 `bb769e47` 的 CI 绿灯不能证明新增 signature storage 九项实际执行：
