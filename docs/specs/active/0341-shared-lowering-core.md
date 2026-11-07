@@ -3407,3 +3407,18 @@ L0123 而原 Single 为 L0124；non-lambda filter 到唯一候选的 lambda L008
 
 Mac Rust1.96、locked/offline、默认debug=2，复用空闲target串行执行。未运行含Abort
 的整个target、全量、native、故障注入、校准或Linux CI；D10/E2保持in-progress。
+## Nullable bottom 的 Unit 诊断一致性（2026-11-07）
+
+基线 main `78a36f25`。原 overload 输入在 Single 报 L0123/L0124，两个 Unit 入口第二项误报
+L0123；根因是 Unit 类型适配缺少 Guide 已规定的 Nothing? 到 nullable 规则。
+保留原 Single witness，补两个入口的原源码断言及 nullable/nonnullable/不同 nullable 负例，
+并锁 deferred-inner 拒绝。完整相容查询移入既有 type_graph 职责模块，driver 不增加超长欠账。
+
+另核实 lambda L0084 并非无 label：Unit 指向整个 callback 参数声明，Single 指向名称。
+本片不改该公开参数 span 合同，原 Single 诊断精度见证保留，不宣称该消费者已迁移。
+
+Mac Rust1.96、locked/offline、默认 debug=2，最终 8 项定向测试通过：type_graph 类型关系1项、
+type_callable overload过滤5项、nullable正反例1项、ownership_primitives普通normal commit1项。
+frontend all-targets Clippy（-D warnings）、fmt、849份Markdown、diff与尺寸门禁通过；
+历史38个超长文件数量未增加，checker driver由1182行减至1151行。
+未运行全量、native、故障注入、校准或含Abort的整项测试；官方双宿主CI尚未运行，不计为通过。

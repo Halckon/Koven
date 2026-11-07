@@ -198,3 +198,8 @@ String clone 的 typed identity 与后续阶段运输见 [String clone 链路](s
 - expected type 只能按语义允许的方向约束 child；不能用后端布局反向决定语言类型。
 - 条件 `Copyable`、layout recipe 与 runtime type identity 使用同一 canonical 类型图。
 - 诊断存在时可保留 recovery 数据，但 executable facts 必须原子失效。
+
+Unit 类型相容关系复用 `checker/type_graph.rs` 的同一查询；`Nothing?` 可适配已确定的
+nullable 目标，不能适配非 nullable 或 deferred-inner 目标，普通不同 nullable 类型不放宽。
+`type_callable` 保留原 Single overload 见证并追加 MemoryDocument/Rooted 对照，锁定
+no-match 与 ambiguity 的 L0123/L0124 区分。

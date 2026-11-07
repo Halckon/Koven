@@ -502,6 +502,35 @@ fn overloads_filter_by_type_then_report_no_match_or_ambiguity() {
     let resolution = resolve_names(&sources, &parsed, &names).expect("names");
     let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
     assert_eq!(codes(typed.diagnostics()), ["L0123", "L0124"]);
+    for unit in checked_entries(&sources, &parsed, &names, &types) {
+        assert_eq!(codes(unit.diagnostics()), ["L0123", "L0124"]);
+    }
+}
+
+#[test]
+fn nullable_bottom_adapts_without_widening_other_nullable_types() {
+    let text = "fun use(absent: Nothing?, integer: Int?): Unit {
+                    val nullableInt: Int? = absent
+                    val nullableLong: Long? = absent
+                    val nonNull: Int = absent
+                    val incompatible: Long? = integer
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let single = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert_eq!(codes(single.diagnostics()), ["L0084", "L0084"]);
+    for unit in checked_entries(&sources, &parsed, &names, &types) {
+        assert_eq!(codes(unit.diagnostics()), ["L0084", "L0084"]);
+        assert_eq!(
+            sources.slice(unit.diagnostics()[0].primary_span()),
+            Ok("absent")
+        );
+        assert_eq!(
+            sources.slice(unit.diagnostics()[1].primary_span()),
+            Ok("integer")
+        );
+    }
 }
 
 #[test]
