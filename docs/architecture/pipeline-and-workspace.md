@@ -90,10 +90,10 @@ const fallback、诊断分流、独立 const capability/gate 和共享 raw-facts
 普通 unit 发布顺序保持 factory→entry shape→lower/SSA verify→native entry plan→reserve→
 LLVM/layout/object emission→atomic commit；旧 native 的用户 Into 在 factory 前完成。
 身份、entry、SSA 与 entry plan 失败不 reserve；LLVM/layout 检查仍在 sibling 上执行。
-N1保留commit失败清理；SPEC-0259新增test-only TLS路径选择，在lower/verify之后让真实
-LLVM `write_to_file`遇到ENOTDIR，覆盖普通/const、legacy/view及目标存在/不存在。
-guard内先检查旧文件和sibling清理，移除guard后再走正常object/link/run；本机验收状态见
-[恢复账本](../archive/development/recovery-local-delivery.md)。H1/H2仍证明CLI邻层保护。
+LLVM 将已验证模块发射为对象缓冲区，文件写入使用原 OS 路径，并将 I/O 错误返回给 sibling
+发布事务。普通/const、legacy/view 共用这条边界。现有 test-only TLS 路径注入覆盖真实
+ENOTDIR、目标存在/不存在、旧目标保留和 sibling 清理；移除注入后再走正常 object/link/run。
+Linux 另覆盖非 UTF-8 父目录与打开后写入 ENOSPC。H1/H2 覆盖 CLI 邻层保护。
 
 `ssa::unit_source_query`集中按canonical index和SourceId first-match查询原ParsedFile借用；
 unit driver一次构建vector，同时借给planner和lower。standalone planner仍独立构建查询，
