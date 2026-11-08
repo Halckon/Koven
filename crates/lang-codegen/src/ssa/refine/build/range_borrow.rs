@@ -16,6 +16,7 @@ use lang_frontend::{
 
 use super::{Builder, Lowered};
 use crate::ssa::{
+    borrow_result_support::ordinary_local,
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind, SsaTypeKind},
     refine::body::{BlockRef, ROp, RTerm, Slot},
@@ -110,7 +111,15 @@ impl Builder<'_, '_> {
             self.result_source_loans.insert(symbol, created);
             return Ok(Lowered::Unit);
         };
-        let Some((loan, created)) = self.lower_result_call(initializer, source, span)? else {
+        let local_policy = ordinary_local::policy(
+            self.inputs.parsed,
+            self.inputs.typed,
+            self.inputs.owned,
+            &fact,
+        );
+        let Some((loan, created)) =
+            self.lower_result_call(initializer, source, span, local_policy)?
+        else {
             return Ok(Lowered::Diverged);
         };
         self.borrowed.insert(symbol, loan);
@@ -274,6 +283,7 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         source: BorrowSourceLoan<UnitExpressionId>,
         span: Span,
+        local_policy: Option<ordinary_local::Policy>,
     ) -> Result<Option<(Slot, Vec<Slot>)>, LoweringError> {
         let actual = self.ungrouped_expr(expression)?;
         let id = self.unit(actual);
@@ -315,20 +325,24 @@ impl Builder<'_, '_> {
         {
             return Err(error(LoweringErrorKind::UnsupportedNode, call_span));
         }
-        if self.inputs.borrow_return.is_none()
+        let legacy_gate = self.inputs.borrow_return.is_none()
+            && local_policy.is_none()
             && self.inputs.owned.field_replacements().is_empty()
-            && self.inputs.typed.ownership_primitives().is_empty()
-        {
+            && self.inputs.typed.ownership_primitives().is_empty();
+        if legacy_gate {
             crate::ssa::borrow_result_support::binding(
                 self.inputs.parsed,
                 call_span,
                 false,
                 &[],
                 None,
+                None,
                 |_| None,
                 |_, _| false,
                 |_| false,
             )?;
+        }
+        if legacy_gate || local_policy == Some(ordinary_local::Policy::Scoped) {
             for argument in &arguments {
                 crate::ssa::borrow_result_support::argument(self.inputs.parsed, argument.span)?;
             }
@@ -671,7 +685,7 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let actual = self.ungrouped_expr(argument)?;
-        self.lower_result_call(actual, fact.source_loan(), span)
+        self.lower_result_call(actual, fact.source_loan(), span, None)
     }
 
     pub(super) fn lower_range_call(
@@ -915,7 +929,8 @@ impl Builder<'_, '_> {
                     .find(|source| source.call() == id)
                     .copied()
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, node_span))?;
-                let Some((loan, _)) = self.lower_result_call(actual, source, node_span)? else {
+                let Some((loan, _)) = self.lower_result_call(actual, source, node_span, None)?
+                else {
                     return Ok(Lowered::Diverged);
                 };
                 loan

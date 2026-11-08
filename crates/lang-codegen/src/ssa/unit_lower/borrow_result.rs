@@ -1,5 +1,6 @@
 //! 普通 Borrow/Value 参数 shared 结果的准入，以及非 refine 路径的 Map 借用 root 绑定。
 use super::*;
+use crate::ssa::borrow_result_support::ordinary_local;
 use lang_frontend::{
     ownership_checking::{BorrowBindingFact, BorrowBindingStorage, UnitLoanTarget},
     type_checking::{BorrowReturnOrigin, UnitAggregateProjectionReceiver},
@@ -103,6 +104,7 @@ fn validate_binding(
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
+    disjoint_ifs: Option<&std::collections::BTreeSet<usize>>,
 ) -> Result<(), LoweringError> {
     if file.source_id() != fact.marker_span().source_id() {
         return Err(lowering_error(
@@ -167,6 +169,7 @@ fn validate_binding(
         fact.storage()
             == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
         &prefixes,
+        disjoint_ifs,
         scope,
         |expression| match typed
             .expression_type(UnitExpressionId::new(
@@ -257,7 +260,7 @@ impl UnitExpressionLowerer<'_> {
             }
             _ => {
                 // Preserve the legacy diagnostic for shapes that cannot lower on this route.
-                validate_binding(self.parsed, self.names, self.typed, self.owned, fact)?;
+                validate_binding(self.parsed, self.names, self.typed, self.owned, fact, None)?;
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         };
@@ -339,14 +342,24 @@ pub(crate) fn validate_bindings(
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
+    legacy_gate: bool,
 ) -> Result<(), LoweringError> {
     for fact in owned.borrow_results().bindings() {
         let file = parsed
             .iter()
             .find(|file| file.source_id() == fact.marker_span().source_id())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
-        if !has_dedicated_binding_path(file, names, typed, owned, fact)? {
-            validate_binding(file, names, typed, owned, fact)?;
+        match ordinary_local::policy(file, typed, owned, fact) {
+            Some(ordinary_local::Policy::Scoped) => {
+                let disjoint_ifs = ordinary_local::disjoint_ifs(file, owned, fact);
+                validate_binding(file, names, typed, owned, fact, Some(&disjoint_ifs))?;
+            }
+            None if legacy_gate
+                && !has_dedicated_binding_path(file, names, typed, owned, fact)? =>
+            {
+                validate_binding(file, names, typed, owned, fact, None)?;
+            }
+            _ => {}
         }
     }
     Ok(())

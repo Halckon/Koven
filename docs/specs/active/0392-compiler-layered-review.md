@@ -2762,3 +2762,62 @@ borrow result 5 项、RangeView 路由 1 项、依赖方向 14 项，共 40 项�
 修补版在本机按双宿主失败日志的精确测试名复跑原 27 项，并运行两条原生正控，
 共 29 项通过，零失败和忽略；lang-codegen 全目标 Clippy、fmt、文档与 Rust 尺寸门禁通过。
 收紧来源身份前启动的全 lib 本机运行已主动结束，完整修补版矩阵以新双宿主 CI 为准。
+
+
+[PR #375](https://github.com/Halckon/Koven/pull/375) 合入 `e3c4ace1`。修补头
+`d0608aae` 与 base `e4d6dbbe` 在 [CI 42498326935](https://github.com/Halckon/Koven/actions/runs/42498326935)
+验证，合成提交 `e4b2a405` 和真实合入树均匹配 `2a86432c`。双宿主 Check/Clippy、
+定向测试、预览包生产及独立安装、CI Passed 与 Code CI Evidence 均通过。
+两个宿主均实际通过两条 native sibling 对照、委托角列表回归和四条 lambda completion。
+codegen lib 实跑 Linux 2709 项，macOS 2706 项通过，零失败。macOS 的源码断点
+测试因 debugserver 权限标记忽略。两端 conformance 均为 137/154、0/6 已知未实现
+整程序、零回归。generated-owner 各 16 项通过，Linux sanitizer 专项通过。编辑器
+词法门禁按变更范围跳过，Linux sanitizer 专项在 macOS 跳过。
+
+## 107. R4 普通借用返回转发的实参控制流
+
+在 `e4d6dbbe` 上，转发实参 `-n`、`n + 1` 或值 `if` 时，未加入无关函数的输入返回
+`UnsupportedNode`。追加未调用的 `swap` 函数后，实参跨分支，入口来源 loan 经 block
+参数重命名，最终借用返回验证器拒绝 `ReturnType`，表层退化为无 Span 的 `InvalidModel`。
+比较和位运算则有真实成功路径，旧 AST 整函数扫描会误拒不含 `swap` 的输入。
+
+本地提交 `775bf23e` 让普通转发在当前实参 CFG 上查找第一条实际分支。
+可合并的无条件跳转沿单路径走到当前出口。保留跨实参分支的精确 `UnsupportedNode`，
+直接 `Map.requireValue` 仍由自己的入口验证。独立复核找到 `when` 的无条件 Goto 以及
+直接 Map 的对照，最终测试同时保留直线 `when` 并在嵌套 checked arithmetic 处拒绝。
+
+该提交的独立 target 上 15 项定向测试通过，零失败和忽略。两种 Unit 入口分别核验
+实际错误 Span、SSA 来源与 LLVM。正式 CLI 运行 7 个正例，输出均为 `kept` 加换行。
+两个跨实参分支变体均构建退出 2，并返回 `UnsupportedNode`。codegen 全目标 Clippy、
+格式、文档和 Rust 尺寸门禁通过。该切片留在下一批，完整双宿主验收仍待该批 PR。
+
+## 108. R4 普通调用结果局部绑定的实际结束点
+
+独立的前端产物探针核验同一普通 `BorrowedStorage` 根借用的四种摆放。
+绑定前的 `if` 先于获取。绑定后、读取前和同块最后一次读取后的两种 `if`，都位于
+前端发布的唯一 `AfterStatement(函数块)` 之前。显式内层块把结束点移到内层的
+`AfterStatement(println(item))`，随后外层的 `if` 位于已证明的结束点之后。
+最后一次源码读取自身不提供结束证明。
+
+在 `775bf23e` 上写下覆盖两种 Unit 入口的三条回归，首次执行在 MemoryDocument 即失败。
+借用前和内层退出后的
+正控仍误报 `UnsupportedNode`，存活边界在追加未调用 `swap` 后错误绕过旧门禁。
+修补后，普通局部调用绑定按最近 callable 判定原语兼容路径。无关顶层函数和未调用
+lambda 的 `swap` 均不能绕过门禁。只有已证不交叠的完整 `if` 语句获得例外。
+获取前按普通块的语句顺序证明，获取后还要求同源、唯一且有序的 `AfterStatement`。
+证明可沿无条件普通块传播，不穿过分支、循环、lambda 或实参求值。绑定活跃时仍在原
+`if` Span 报 `UnsupportedNode`。保留其余语法类别和实参门禁，包括实参内的 `if`
+与负号。RangeView、Map、窄化来源、inline 借用和普通返回转发保留各自入口。
+
+独立复核找到外层前置分支、无条件 sibling 块，以及负整数字面量的精确参数边界。
+补齐对照后，本机 codegen 定向矩阵 67 项通过，零失败和忽略，覆盖 #375 首轮的 27 项、
+实际同函数字段 replace、Map 与 RangeView 的组合及两种 Unit 来源。
+
+
+正式 CLI 用独立拥有的 String 实跑了 15 个正例。三种布局分别是单独函数、未调用
+顶层 sibling 和未调用 lambda，各覆盖获取前与结束后的普通块组合。全部 stdout 与
+预期逐字节一致。六个借用活跃负例构建退出 2，稳定返回 `UnsupportedNode`，且没有
+生成目标文件。SSA 另查实参前分支支配借用调用，以及结果 loan 与来源 loan 按顺序
+结束并支配作用域后的分支。独立复核提出的 nullable receiver 字段投影对照在旧 CLI
+与当前 CLI 的两种布局均为相同的 `UnsupportedNode`。codegen 全目标 Clippy、
+格式、文档和 Rust 尺寸门禁通过。
