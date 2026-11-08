@@ -33,6 +33,7 @@ use super::{
 };
 
 mod constants;
+mod enum_case;
 mod graph;
 mod range_carrier;
 mod recovery;
@@ -584,7 +585,11 @@ impl<'a> SignatureCollector<'a> {
                 segments,
                 nullable_span,
             } => {
-                let mut base = self.resolve_named_type(source, &segments)?;
+                let mut base = if self.reject_enum_case_type(source, id, &segments)? {
+                    self.error_type()
+                } else {
+                    self.resolve_named_type(source, &segments)?
+                };
                 if nullable_span.is_some() && !self.is_error(base) {
                     base = self.types.intern(UnitTypeKind::Nullable(base));
                 }

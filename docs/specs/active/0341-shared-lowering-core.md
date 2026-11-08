@@ -3621,3 +3621,35 @@ Mac Rust1.96、独立 target、默认 debug profile：`ownership_containers` 全
 Clippy（locked/offline、-D warnings）、workspace fmt、863份 Markdown 与 diff 检查通过。
 旧 [PR CI](https://github.com/Halckon/Koven/actions/runs/42434231041) 已完整通过，但其基线为
 `60aa67d1`；合流候选仍须新头正式 CI，不沿用旧绿灯。未在本机追加 native、故障注入或校准。
+
+
+## 独立修复：已解析 enum case 签名位置（2026-11-08）
+
+基线 main `f3d2857e`。Guide 06 的 case TypeRef 仅用于 is/!is；签名、字段、payload、
+泛型实参、supertype、bound 等显式位置必须 L0114。原 Single witness
+`enum_case_types_preserve_root_payloads_and_are_rejected_outside_type_tests` 保持原样；
+同一源码双 Unit 原先无诊断，新增回归已实测失败，再修复为单条 L0114。
+本片只识别名称产物中真实 terminal case symbol，不按拼写猜身份，也不依赖 case signature
+收集进度；完整 TypeRef 为 primary，root enum 名称为 label，缓存 Error 不授成功资格。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| 原 Single 源码双 raw Unit 入口与原 span | `type_checking::enum_type_position::enum_case_signature_rejects_original_single_source_in_both_entries` | 修复前无诊断失败，修复后通过 |
+| 字段、返回、nullable、函数参数、泛型、payload、supertype、bound | `type_checking::enum_type_position::enum_case_types_are_rejected_through_nested_signature_positions` | 双入口单条 L0114，无附加诊断 |
+| root 签名、is/!is | `type_checking::enum_type_position::enum_root_signatures_and_case_type_tests_remain_valid` | 双入口无诊断、可 validate |
+| 默认可见性的双文件来源身份及正反输入排列 | `multifile_type_signatures::enum_case_position_diagnostic_preserves_cross_file_identity_and_input_order` | primary/use source、label/enum source 均正确，拒绝 validate |
+
+Mac Rust1.96、独立 target、默认 debug profile：`cargo test -p lang-frontend --test type_checking
+--test multifile_type_signatures --test multifile_type_checking --test diagnostic_model` 全402项
+（92/20/281/9）通过，零失败、零忽略；frontend all-targets Clippy（locked/offline、
+`-D warnings`）、workspace fmt、863份 Markdown、diff、Rust尺寸门禁及尺寸政策专项47项通过。
+最终候选独立复审无阻断。
+
+范围仍有限：探针 `class Holder(val value: Shape.Circle)` 在同文件 `enum class Shape { Circle }`
+之前时，名称产物缺 terminal reference，Unit 仍漏 L0114；本片不伪造类型层名称解析。
+双文件显式 `public enum class Shape { Circle }` 则在原 main 生产代码与本修复上均报
+`MissingDeclarationSymbol`；已用原生产版本复测，不把默认 public 的成功 witness 冒充此形式通过。
+这两项继续 open，未删除/修改既有断言，未声称所有 enum 或 Single 消费者退休。
+
+signatures.rs 1036→1041 行仅增加模块及位置门接线，识别逻辑独立子模块；独立复审认可有界
+例外并更新尺寸政策。未运行 native、full suite 或新头 CI；不创建 PR、不合并。
