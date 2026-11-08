@@ -474,7 +474,7 @@ fn declaration_recovery_visits_raw_lexemes_and_terminal_events_linearly() {
     assert!(large_work <= small_work * 2 + 8);
 }
 
-fn parse_class_family_metrics(text: &str) -> (usize, usize, usize) {
+fn parse_class_family_metrics(text: &str, expected_diagnostics: usize) -> (usize, usize, usize) {
     let mut sources = SourceMap::new();
     let source_id = sources
         .add_source("class-family-linear.ko", text)
@@ -510,7 +510,12 @@ fn parse_class_family_metrics(text: &str) -> (usize, usize, usize) {
     parser
         .parse_declaration_root()
         .expect("class family must parse");
-    assert!(parser.diagnostics.is_empty(), "{:?}", parser.diagnostics);
+    assert_eq!(
+        parser.diagnostics.len(),
+        expected_diagnostics,
+        "{:?}",
+        parser.diagnostics
+    );
     (
         lexed.lexemes().len(),
         parser.significant_raw_visits.get(),
@@ -520,7 +525,7 @@ fn parse_class_family_metrics(text: &str) -> (usize, usize, usize) {
 
 fn class_family_metrics(members: usize) -> (usize, usize, usize) {
     let text = format!("class C {{ {} }}", "fun f(): Unit; ".repeat(members));
-    parse_class_family_metrics(&text)
+    parse_class_family_metrics(&text, 0)
 }
 
 #[test]
@@ -550,7 +555,7 @@ fn class_family_inline_sequence_metrics(variants: bool, elements: usize) -> (usi
     } else {
         format!("class C({entries})")
     };
-    let (raw, visits, _) = parse_class_family_metrics(&text);
+    let (raw, visits, _) = parse_class_family_metrics(&text, 0);
     (raw, visits)
 }
 
@@ -567,20 +572,22 @@ fn class_family_field_and_variant_sequences_stay_linear_when_doubled() {
 
 #[test]
 fn interface_delegation_sequences_stay_linear_when_doubled() {
-    let metrics = |entries| {
-        let supertypes = (0..entries)
-            .map(|index| format!("I{index} by delegate"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let text = format!("class C(val delegate: Impl): {supertypes}");
-        let (raw, visits, _) = parse_class_family_metrics(&text);
-        (raw, visits)
-    };
-    let (small_raw, small_visits) = metrics(32);
-    let (large_raw, large_visits) = metrics(64);
-    assert!(small_visits <= small_raw * 24);
-    assert!(large_visits <= large_raw * 24);
-    assert!(large_visits <= small_visits * 2 + 64);
+    for (target, errors_per_target) in [("delegate", 0), (r#""${"nested"}""#, 1)] {
+        let metrics = |entries| {
+            let supertypes = (0..entries)
+                .map(|index| format!("I{index} by {target}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let text = format!("class C(val delegate: Impl): {supertypes}");
+            let (raw, visits, _) = parse_class_family_metrics(&text, entries * errors_per_target);
+            (raw, visits)
+        };
+        let (small_raw, small_visits) = metrics(32);
+        let (large_raw, large_visits) = metrics(64);
+        assert!(small_visits <= small_raw * 24);
+        assert!(large_visits <= large_raw * 24);
+        assert!(large_visits <= small_visits * 2 + 64);
+    }
 }
 
 fn call_recovery_metrics(regions: usize) -> (usize, usize, usize, usize, usize) {

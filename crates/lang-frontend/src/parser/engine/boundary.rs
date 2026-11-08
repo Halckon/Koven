@@ -413,7 +413,8 @@ impl TypeStops {
     }
 
     pub(super) const fn without_block_elements(self) -> Self {
-        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE | Self::SEMICOLON))
+        // Explicit semicolons belong to the enclosing declaration even inside TypeRefs.
+        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE | Self::FILE))
     }
 
     pub(super) fn contains(self, lexeme: Lexeme) -> bool {

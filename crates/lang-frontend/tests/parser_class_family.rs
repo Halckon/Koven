@@ -549,6 +549,183 @@ fn member_recovery_respects_lexical_owners_and_outer_hard_closers() {
 }
 
 #[test]
+fn enum_members_do_not_satisfy_the_required_first_variant() {
+    let text = "enum class E { ; fun member(): Unit {} }";
+    let (sources, parsed) = declaration(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0073"]);
+    let body = classifier(&parsed).body.as_ref().unwrap();
+    assert!(body.variants.is_empty());
+    assert_eq!(body.members.len(), 1);
+    let delimiter = body.enum_member_delimiter_span.unwrap();
+    assert_eq!(parsed.diagnostics()[0].primary_span(), delimiter);
+    assert_eq!(sources.slice(delimiter).unwrap(), ";");
+    assert_eq!(sources.slice(body.right_brace_span.unwrap()).unwrap(), "}");
+}
+
+#[test]
+fn missing_enum_payload_closer_preserves_member_delimiter_and_file_owner() {
+    let text = "enum class E { A(x: Int; fun member(): Unit {} }\nclass Sentinel";
+    let (sources, parsed) = file(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0010"]);
+    let [enumeration, sentinel] = parsed.roots() else {
+        panic!("enum and following classifier");
+    };
+    let Item::Classifier(enumeration) = parsed.ast().items().get(*enumeration).unwrap().payload()
+    else {
+        panic!("recovered enum");
+    };
+    let body = enumeration.body.as_ref().unwrap();
+    let [variant] = body.variants.as_slice() else {
+        panic!("recovered variant");
+    };
+    assert_eq!(variant.parameters.len(), 1);
+    assert!(variant.right_paren_span.is_none());
+    let delimiter = body.enum_member_delimiter_span.unwrap();
+    let primary = parsed.diagnostics()[0].primary_span();
+    assert!(primary.is_empty());
+    assert_eq!(primary.start(), delimiter.start());
+    assert_eq!(sources.slice(delimiter).unwrap(), ";");
+    let [member] = body.members.as_slice() else {
+        panic!("enum member");
+    };
+    let member = parsed.ast().items().get(*member).unwrap();
+    assert_eq!(
+        sources.slice(member.span()).unwrap(),
+        "fun member(): Unit {}"
+    );
+    assert_eq!(sources.slice(body.right_brace_span.unwrap()).unwrap(), "}");
+    let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+    assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+}
+
+#[test]
+fn enum_payload_keeps_its_outer_delimiter_during_nested_type_recovery() {
+    for payload in ["T<", "("] {
+        let text = format!("enum class E {{ A(x: {payload}; fun member(): Unit {{}} }}");
+        let (sources, parsed) = declaration(&text);
+        let body = classifier(&parsed).body.as_ref().unwrap();
+        let delimiter = body.enum_member_delimiter_span.unwrap();
+        assert_eq!(sources.slice(delimiter).unwrap(), ";");
+        assert!(body.variants[0].right_paren_span.is_none());
+        assert!(body.right_brace_span.is_some());
+        let [member] = body.members.as_slice() else {
+            panic!("enum member")
+        };
+        let member = parsed.ast().items().get(*member).unwrap();
+        assert_eq!(
+            sources.slice(member.span()).unwrap(),
+            "fun member(): Unit {}"
+        );
+        assert!(parsed.diagnostics().iter().all(|diagnostic| {
+            let span = diagnostic.primary_span();
+            span.is_empty() && span.start() == delimiter.start()
+        }));
+        assert!(codes(parsed.diagnostics()).contains(&"L0010".to_owned()));
+    }
+}
+
+#[test]
+fn recovered_enum_variant_spans_end_at_the_last_real_token() {
+    for (payload, variant_text) in [("(", "A("), ("(x:   ", "A(x:")] {
+        let text = format!("enum class E {{ A{payload}}}");
+        let (sources, parsed) = declaration(&text);
+        let body = classifier(&parsed).body.as_ref().unwrap();
+        let [variant] = body.variants.as_slice() else {
+            panic!("recovered enum variant")
+        };
+        assert_eq!(sources.slice(variant.span).unwrap(), variant_text);
+        assert!(variant.right_paren_span.is_none());
+        if let [parameter] = variant.parameters.as_slice() {
+            assert_eq!(sources.slice(parameter.span).unwrap(), "x:");
+        }
+        assert!(body.right_brace_span.is_some());
+    }
+}
+
+#[test]
+fn missing_companion_constant_keeps_the_member_separator_in_both_entries() {
+    for (constant, expected) in [
+        ("const val A ->", &["L0020"][..]),
+        ("const", &["L0018", "L0020", "L0022"][..]),
+        ("const val", &["L0018", "L0020"][..]),
+    ] {
+        let text = format!("class C {{ companion {{ {constant}   ; fun member(): Unit {{}} }} }}");
+        let (declaration_sources, declaration) = declaration(&text);
+        let (file_sources, file) = file(&text);
+        let [file_root] = file.roots() else {
+            panic!("one file declaration")
+        };
+        for (sources, ast, root, diagnostics) in [
+            (
+                &declaration_sources,
+                declaration.ast(),
+                declaration.root(),
+                declaration.diagnostics(),
+            ),
+            (&file_sources, file.ast(), *file_root, file.diagnostics()),
+        ] {
+            let Item::Classifier(class) = ast.items().get(root).unwrap().payload() else {
+                panic!("class")
+            };
+            let outer = class.body.as_ref().unwrap();
+            let Item::Companion(companion) = ast.items().get(outer.members[0]).unwrap().payload()
+            else {
+                panic!("companion")
+            };
+            let [recovered, member] = companion.body.members.as_slice() else {
+                panic!("constant and following companion method")
+            };
+            let recovered = ast.items().get(*recovered).unwrap();
+            assert_eq!(sources.slice(recovered.span()).unwrap(), constant);
+            let member = ast.items().get(*member).unwrap();
+            assert_eq!(
+                sources.slice(member.span()).unwrap(),
+                "fun member(): Unit {}"
+            );
+            assert!(companion.body.right_brace_span.is_some());
+            assert!(outer.right_brace_span.is_some());
+            assert_eq!(codes(diagnostics), expected);
+        }
+    }
+}
+
+#[test]
+fn missing_companion_constant_keeps_both_closers_and_following_members() {
+    let text = "class C { companion { const }; fun member(): Unit {} }\nclass Sentinel";
+    let (sources, parsed) = file(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0018", "L0020", "L0022"]);
+    let [class, sentinel] = parsed.roots() else {
+        panic!("class and following classifier");
+    };
+    let Item::Classifier(class) = parsed.ast().items().get(*class).unwrap().payload() else {
+        panic!("recovered class");
+    };
+    let body = class.body.as_ref().unwrap();
+    let [companion, member] = body.members.as_slice() else {
+        panic!("companion and ordinary method");
+    };
+    let Item::Companion(companion) = parsed.ast().items().get(*companion).unwrap().payload() else {
+        panic!("recovered companion");
+    };
+    assert_eq!(companion.body.members.len(), 1);
+    let inner_closer = companion.body.right_brace_span.unwrap();
+    let outer_closer = body.right_brace_span.unwrap();
+    assert_eq!(inner_closer.start(), text.find("};").unwrap());
+    assert_eq!(outer_closer.start(), text.rfind('}').unwrap());
+    assert!(parsed.diagnostics().iter().all(|diagnostic| {
+        let span = diagnostic.primary_span();
+        span.is_empty() && span.start() == inner_closer.start()
+    }));
+    let member = parsed.ast().items().get(*member).unwrap();
+    assert_eq!(
+        sources.slice(member.span()).unwrap(),
+        "fun member(): Unit {}"
+    );
+    let sentinel = parsed.ast().items().get(*sentinel).unwrap();
+    assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
+}
+
+#[test]
 fn malformed_companion_constant_preserves_string_owner_and_both_closers() {
     let text = r#"interface Printable { fun show(): Unit; companion { const "printable" } }"#;
     let (_, parsed) = declaration(text);

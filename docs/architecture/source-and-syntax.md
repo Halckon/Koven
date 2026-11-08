@@ -73,6 +73,10 @@ Parser 直接覆盖为 `parser_n1a_frontier`；`type_declaration_frontier` 在 M
 错误恢复遵守 lexical owner、delimiter 和声明/block 边界；恢复必须单调前进。递归语法在隔离 worker
 栈和固定递归预算内执行，资源边界以内部错误返回。
 
+class-family 成员体及非法嵌套 class、companion 的恢复共用该预算。委托目标的字符串错误
+区由声明恢复状态机只消费该 lexical owner。枚举 payload 的显式分号也穿过嵌套 TypeRef
+保留给枚举成员区，companion 常量恢复保留成员分号与右花括号。
+
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
 

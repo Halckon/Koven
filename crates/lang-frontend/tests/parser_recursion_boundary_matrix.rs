@@ -411,6 +411,46 @@ fn declaration_block_and_file_entries_lock_exact_recursion_boundaries() {
 }
 
 #[test]
+fn classifier_and_companion_recovery_share_the_recursion_budget() {
+    for (opener, allowed_bodies, context) in [
+        ("class C {", 1, "nested class recovery"),
+        ("companion {", 2, "nested companion recovery"),
+    ] {
+        // Count the outer class as one body. The remaining owners are deliberately invalid.
+        let source = |depth: usize| {
+            format!(
+                "class Outer {{{}{}",
+                opener.repeat(depth - 1),
+                "}".repeat(depth)
+            )
+        };
+        let (sources, source_id) = add_source(source(RECURSION_LIMIT));
+        let parsed = parse_file_twice(&sources, source_id, context);
+        assert_eq!(parsed.roots().len(), 1, "{context}");
+        assert_eq!(
+            parsed.diagnostics().len(),
+            RECURSION_LIMIT - allowed_bodies,
+            "{context}"
+        );
+        assert!(
+            parsed
+                .diagnostics()
+                .iter()
+                .all(|diagnostic| diagnostic.code().to_string() == "L0077"),
+            "{context}"
+        );
+
+        let (sources, source_id) = add_source(source(RECURSION_LIMIT + 1));
+        let lexed = lex_parser_source_twice(&sources, source_id, context);
+        let expected = ParserInternalError::NestingLimitExceeded {
+            limit: RECURSION_LIMIT,
+        };
+        assert_parser_error_twice(&sources, &lexed, expected.clone(), context, parse_file);
+        assert_parser_error_twice(&sources, &lexed, expected, context, parse_declaration);
+    }
+}
+
+#[test]
 fn lexical_owners_lock_exact_recursion_boundaries_for_every_entry() {
     let mut accepted = 0;
     let mut rejected = 0;
