@@ -4553,3 +4553,29 @@ helper 只迁索引构造。main 的标准error/external两个消费者与本PR�
 本机Mac AArch64、Rust1.96.0、默认debug=2，独立Cargo target串行执行；不把历史Rc基线
 当作本分支官方CI。workspace全量、Abort/故障注入/校准、native、Linux及本头官方CI未运行。
 D10/E2继续in-progress，未创建PR或合并。
+
+## 深泛型与接口图消费者后续（2026-11-08）
+
+基于 main `78a36f25`，独立分支 `feature/spec-0341-type-stress-consumers`，
+只迁移 Phase 2 raw type 压力测试，不修改生产实现、共享 helper 或 #351 的复审修复。
+原 `deep_generic_and_long_interface_graphs_stay_deterministic` 的源码构造逐字保留，
+复用 nominal_unit 的真实 MemoryDocument/Rooted 入口；两入口各自核无诊断、Leaf 身份
+与64个继承接口，96层Box输入不降规模。原Single重复消费者退休，target仍89项。
+
+尝试迁移原128个enum case + 96层smart-cast测试时，默认测试线程栈发生stack overflow
+及SIGABRT。失败发生于调用双入口helper，未得到两入口完成证据，不能归因到某个具体
+producer。已撤销该测试的迁移，原Single源码和全部oracle逐字保留并实跑通过；不调大
+线程栈、不缩小输入、不以ignore掩盖，也不在本片竞争修复生产代码。
+失败输入身份为本节基线的 `type_checking::long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic`；
+复现尝试将其原源码传给 `nominal_unit::checked_entries`，默认debug=2和默认线程栈。
+
+| 验收项 | 命令或选择 | 实际结果 |
+|---|---|---|
+| 迁移消费者 | `cargo test --locked --offline -p lang-frontend --test type_checking deep_generic_and_long_interface_graphs_stay_deterministic` | 1 passed，88 filtered |
+| 名义类型邻控 | 同target `nominal_unit::` | 13 passed，76 filtered，包含迁移项 |
+| 保留Single差异见证 | 同target `long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic` | 1 passed，88 filtered |
+| 静态检查 | frontend all-targets Clippy `-D warnings`，fmt，docs，diff与Rust尺寸门禁 | 通过 |
+
+本机Mac AArch64/Rust1.96、locked/offline、默认debug=2，独占target串行验证。
+共14项不同测试通过。独立复查步骤核原输入逐字保全、Single完整恢复和原oracle对等迁移。
+未运行完整target、workspace、native、Linux或官方CI；没有推送或自动合并，D10/E2仍in-progress。

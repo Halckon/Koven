@@ -14,6 +14,9 @@ mod signatures;
 #[path = "nominal_unit/interface_flow.rs"]
 mod interface_flow;
 
+#[path = "nominal_unit/deep_graph_stress.rs"]
+mod deep_graph_stress;
+
 #[path = "nominal_unit/stress.rs"]
 mod stress;
 
@@ -76,3 +79,9 @@ fn checked_entries(text: &str) -> (SourceMap, ParsedFile, [CheckedEntry; 2]) {
     });
     (sources, file, entries)
 }
+
+#[path = "nominal_unit/deep_graph_stress.rs"]
+mod deep_graph_stress;
+
+#[path = "nominal_unit/stress.rs"]
+mod stress;

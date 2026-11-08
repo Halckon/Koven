@@ -198,3 +198,5 @@ String clone 的 typed identity 与后续阶段运输见 [String clone 链路](s
 - expected type 只能按语义允许的方向约束 child；不能用后端布局反向决定语言类型。
 - 条件 `Copyable`、layout recipe 与 runtime type identity 使用同一 canonical 类型图。
 - 诊断存在时可保留 recovery 数据，但 executable facts 必须原子失效。Unit 普通成员读取确认接收者仍可空且没有待定依赖时记录根因 Error，显式类型实参的调用回退保留该 Error 并检查独立实参。缓存的待定字段保留类型和诊断所需的身份；六个 `MutableList` 修改方法保留实参检查及已知结果类型，在接收者或实参待定时暂缓发布描述符。
+
+`type_checking::nominal_unit::deep_graph_stress` 在 MemoryDocument/Rooted 两入口保留原96层泛型与64层接口图消费者；与主线 `stress` 的128个枚举分支及96层smart-cast双入口回归同时保留，原Single差异见证不变。
