@@ -360,7 +360,30 @@ fn return_during_later_operand_ends_only_the_established_source_prefix() {
         };
         assert_eq!(event.loan().call().source_unit(), indexed.id());
         assert_eq!(event.loan().argument().source_unit(), indexed.id());
-        let source = unit.borrow_results().bindings()[0].source_loan().unwrap();
+        let [binding] = unit.borrow_results().bindings() else {
+            panic!("one binding on the continuing edge")
+        };
+        let [local] = names.names().source_units() else {
+            panic!("same-round resolution")
+        };
+        assert_eq!(binding.binding().source_unit(), indexed.id());
+        let symbol = &local.resolution().symbols()[binding.binding().symbol().index()];
+        assert_eq!(symbol.id(), binding.binding().symbol());
+        assert_eq!(symbol.span().source_id(), observed.parsed.source_id());
+        assert_eq!((symbol.span().start(), symbol.span().end()), (161, 165));
+        assert_eq!(binding.initializer(), event.loan().call());
+        assert_eq!(binding.origin(), event.loan().target());
+        assert_eq!(event.preceding_call_loan_ends(), 0);
+        let [result_end] = unit.borrow_results().ends() else {
+            panic!("only the established result has an endpoint")
+        };
+        assert_eq!(result_end.binding(), binding.binding());
+        assert!(matches!(
+            result_end.point(),
+            UnitDropPoint::AfterStatement(_)
+        ));
+        assert_ne!(result_end.point(), event.point());
+        let source = binding.source_loan().unwrap();
         assert_eq!(event.loan().call(), source.call());
         assert_eq!(event.loan().argument(), source.argument());
         let UnitDropPoint::ControlTransfer(transfer) = event.point() else {
