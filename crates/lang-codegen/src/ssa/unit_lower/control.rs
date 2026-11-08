@@ -88,8 +88,17 @@ impl UnitExpressionLowerer<'_> {
                 },
             }
         } else {
-            self.require_expression_value(left)?
+            let Some(left) = self.lower_optional_condition_value(left, span)? else {
+                return Ok(LoweredValue::Diverged);
+            };
+            left
         };
+        if self.typed.expression_falls_through(control) == Some(false) {
+            return match self.lower(right)? {
+                LoweredValue::Diverged => Ok(LoweredValue::Diverged),
+                _ => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            };
+        }
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let baseline_closures = self.closure_bindings.clone();
@@ -211,6 +220,27 @@ impl UnitExpressionLowerer<'_> {
             temporaries: self.temporaries.clone(),
         });
         self.merge_unit_exits(exits, span)
+    }
+
+    pub(super) fn lower_optional_condition_value(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<ValueId>, LoweringError> {
+        match self.lower(expression)? {
+            LoweredValue::Value(value) => Ok(Some(value)),
+            LoweredValue::Diverged => Ok(None),
+            LoweredValue::Unit => {
+                let span = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(expression)
+                    .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
+                    .span();
+                Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
+            }
+        }
     }
 
     pub(super) fn lower_if(

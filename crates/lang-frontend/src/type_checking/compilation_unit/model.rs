@@ -250,6 +250,10 @@ impl UnitTypeTable {
         self.canonical.discard_after(checkpoint);
     }
 
+    pub(super) fn take_after(&mut self, checkpoint: usize) -> Vec<UnitTypeKind> {
+        self.canonical.take_after(checkpoint)
+    }
+
     /// 按 identity 读取规范结构。
     #[must_use]
     pub fn get(&self, id: UnitTypeId) -> Option<&UnitTypeKind> {

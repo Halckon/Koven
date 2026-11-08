@@ -163,9 +163,7 @@ impl UnitExpressionLowerer<'_> {
         }
         match descriptor.target() {
             UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_) => {}
-            UnitCallTarget::External(_)
-            | UnitCallTarget::FunctionValue
-            | UnitCallTarget::StructuralComponent(_) => {
+            UnitCallTarget::External(_) | UnitCallTarget::FunctionValue => {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         }

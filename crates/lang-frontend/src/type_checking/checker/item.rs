@@ -280,10 +280,14 @@ impl Checker<'_> {
     }
 
     pub(super) fn check_item(&mut self, id: ItemId) -> Result<(), TypeCheckingError> {
+        self.check_item_flow(id).map(|_| ())
+    }
+
+    fn check_item_flow(&mut self, id: ItemId) -> Result<bool, TypeCheckingError> {
         let payload = self.ast().items().get(id)?.payload().clone();
         let is_constant = matches!(&payload, Item::Constant { .. });
         if is_constant && self.constants_checked {
-            return Ok(());
+            return Ok(true);
         }
         match payload {
             Item::Error => {}
@@ -301,9 +305,9 @@ impl Checker<'_> {
                     self.current_receiver_mode =
                         Some(source_parameter_mode(modifiers.receiver_mode));
                 }
-                let result = self.check_item(declaration);
+                let result = self.check_item_flow(declaration);
                 self.current_receiver_mode = previous;
-                result?;
+                return result;
             }
             Item::Variable {
                 name,
@@ -333,6 +337,10 @@ impl Checker<'_> {
                 let result = self.check_expression(initializer, expected, expected_span)?;
                 let ty = expected.unwrap_or(result.ty);
                 self.set_marker_symbol(name, ty);
+                // Constant qualification rechecks forward dependencies before callable bodies.
+                if !is_constant && self.iteration_recovery.is_pending(initializer) {
+                    self.note_pending_iteration_binding(name);
+                }
                 // 常量类型资格不能覆盖或级联已有的普通类型错误。
                 let declaration_span = self.ast().items().get(id)?.span();
                 let upstream_error = is_constant
@@ -349,6 +357,7 @@ impl Checker<'_> {
                         self.record_constant_dependencies(name, initializer)?;
                     }
                 }
+                return Ok(result.falls_through);
             }
             Item::Function { name, form, .. } => {
                 let extension = self.marker_symbol_for_receiver(name);
@@ -421,7 +430,7 @@ impl Checker<'_> {
                 result?;
             }
         }
-        Ok(())
+        Ok(true)
     }
 
     fn check_classifier_body(&mut self, body: ClassifierBody) -> Result<(), TypeCheckingError> {
@@ -438,6 +447,7 @@ impl Checker<'_> {
     }
 
     fn check_function(&mut self, form: FunctionForm) -> Result<(), TypeCheckingError> {
+        let outer_pending = self.iteration_recovery.bindings.clone();
         let return_type = self.function_return_type(form)?;
         let annotation_span = match form {
             FunctionForm::Explicit { type_ref, .. } => {
@@ -489,6 +499,7 @@ impl Checker<'_> {
             },
         }
         self.callables.pop();
+        self.iteration_recovery.bindings = outer_pending;
         Ok(())
     }
 
@@ -516,22 +527,22 @@ impl Checker<'_> {
                 falls_through: true,
             }),
             Statement::Block { elements } => {
-                let falls_through = self.check_elements(&elements)?;
+                let (falls_through, pending_exit) = self.check_elements(&elements)?;
+                if !pending_exit {
+                    self.iteration_recovery.abrupt_statements.insert(id.index());
+                }
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through,
                 })
             }
             Statement::LambdaBody { elements } | Statement::ControlBody { elements } => {
-                self.check_value_elements(&elements, None, None)
+                self.check_value_elements(id, &elements, None, None)
             }
-            Statement::LocalVariable { declaration } => {
-                self.check_item(declaration)?;
-                Ok(StatementCheck {
-                    ty: unit,
-                    falls_through: true,
-                })
-            }
+            Statement::LocalVariable { declaration } => Ok(StatementCheck {
+                ty: unit,
+                falls_through: self.check_item_flow(declaration)?,
+            }),
             Statement::LocalDestructuring {
                 bindings,
                 left_paren_span,
@@ -548,7 +559,9 @@ impl Checker<'_> {
             Statement::While {
                 condition, body, ..
             } => {
-                self.check_while_flow(condition, body)?;
+                if !self.check_repeating_flow(Some(condition), body, true)? {
+                    self.iteration_recovery.abrupt_statements.insert(id.index());
+                }
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through: true,
@@ -567,7 +580,9 @@ impl Checker<'_> {
                 })
             }
             Statement::Loop { body, .. } => {
-                self.check_loop_body(body)?;
+                if !self.check_repeating_flow(None, body, false)? {
+                    self.iteration_recovery.abrupt_statements.insert(id.index());
+                }
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through: true,
@@ -602,7 +617,7 @@ impl Checker<'_> {
         let payload = self.ast().statements().get(id)?.payload().clone();
         match payload {
             Statement::LambdaBody { elements } | Statement::ControlBody { elements } => {
-                self.check_value_elements(&elements, expected, expected_span)
+                self.check_value_elements(id, &elements, expected, expected_span)
             }
             Statement::Expression { expression } => {
                 let result = self.check_expression(expression, expected, expected_span)?;
@@ -615,17 +630,24 @@ impl Checker<'_> {
         }
     }
 
-    fn check_elements(&mut self, elements: &[StatementId]) -> Result<bool, TypeCheckingError> {
+    fn check_elements(
+        &mut self,
+        elements: &[StatementId],
+    ) -> Result<(bool, bool), TypeCheckingError> {
         let mut falls_through = true;
+        let mut pending_exit = true;
         for &element in elements {
-            let result = self.check_statement(element)?;
+            let result =
+                self.check_pending_path(pending_exit, |checker| checker.check_statement(element))?;
             falls_through &= result.falls_through;
+            pending_exit &= self.pending_statement_exit(element, result.falls_through)?;
         }
-        Ok(falls_through)
+        Ok((falls_through, pending_exit))
     }
 
     fn check_value_elements(
         &mut self,
+        id: StatementId,
         elements: &[StatementId],
         expected: Option<TypeId>,
         expected_span: Option<Span>,
@@ -643,17 +665,22 @@ impl Checker<'_> {
                 falls_through: true,
             });
         };
-        let mut falls_through = self.check_elements(prefix)?;
+        let (mut falls_through, pending_exit) = self.check_elements(prefix)?;
         let last_payload = self.ast().statements().get(last)?.payload().clone();
-        let result = if let Statement::Expression { expression } = last_payload {
-            let expression = self.check_expression(expression, expected, expected_span)?;
-            StatementCheck {
-                ty: expression.ty,
-                falls_through: expression.falls_through,
+        let result = self.check_pending_path(pending_exit, |checker| {
+            if let Statement::Expression { expression } = last_payload {
+                let expression = checker.check_expression(expression, expected, expected_span)?;
+                Ok(StatementCheck {
+                    ty: expression.ty,
+                    falls_through: expression.falls_through,
+                })
+            } else {
+                checker.check_statement(last)
             }
-        } else {
-            self.check_statement(last)?
-        };
+        })?;
+        if !pending_exit || !self.pending_statement_exit(last, result.falls_through)? {
+            self.iteration_recovery.abrupt_statements.insert(id.index());
+        }
         falls_through &= result.falls_through;
         Ok(StatementCheck {
             ty: result.ty,

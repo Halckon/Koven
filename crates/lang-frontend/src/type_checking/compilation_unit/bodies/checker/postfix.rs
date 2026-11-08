@@ -5,7 +5,7 @@ use crate::{
     diagnostic::codes,
     name_resolution::SourceUnitId,
     source::Span,
-    type_checking::{DeferredReason, UnitTypeId, UnitTypeKind},
+    type_checking::{DeferredReason, UnitExpressionId, UnitTypeId, UnitTypeKind},
 };
 
 use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
@@ -35,13 +35,25 @@ impl BodyChecker<'_> {
         operator_span: Span,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let deferred = self.deferred_facts.len();
         let checked = self.check_expression(source, operand, None, None, return_type)?;
         let ty = match self.signatures.types().get(checked.ty) {
             Some(UnitTypeKind::Nullable(inner)) => {
                 let inner = *inner;
+                let expression = UnitExpressionId::new(source, expression);
+                let operand_id = UnitExpressionId::new(source, operand);
+                if self.storage_value_is_pending(operand_id)
+                    || self.replacement_value_pending(operand_id, checked.ty, deferred)
+                {
+                    self.note_pending_storage_value(expression, inner);
+                    return Ok(ExpressionCheck {
+                        ty: inner,
+                        falls_through: checked.falls_through,
+                    });
+                }
                 let descriptor = crate::type_checking::UnitNonNullAssertionDescriptor {
-                    expression: crate::type_checking::UnitExpressionId::new(source, expression),
-                    operand: crate::type_checking::UnitExpressionId::new(source, operand),
+                    expression,
+                    operand: operand_id,
                     operator_span,
                     nullable_type: checked.ty,
                     inner_type: inner,

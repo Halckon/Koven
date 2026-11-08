@@ -9,7 +9,10 @@ use crate::{
         CompilationUnitNames, DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind,
         UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
-    parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement, StringPart},
+    parser::{
+        Expression, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile, Statement,
+        VariableKind,
+    },
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitSignatures, DeferredReason, ExpressionUse, ExternalTypeBinding,
@@ -23,8 +26,10 @@ use crate::{
 
 mod assignment;
 mod bindings;
+mod call_writeback;
 mod callable_body;
 mod calls;
+mod closure_writeback;
 mod constant_dependencies;
 mod constant_evaluation;
 mod constant_facts;
@@ -36,9 +41,12 @@ mod control;
 mod control_join;
 pub(super) mod copyability;
 mod destructuring;
+mod dispatch_owner_types;
+mod expression;
 mod expression_facts;
 mod flow;
 mod generic_body_types;
+mod index;
 mod integer;
 mod integer_range;
 mod iteration;
@@ -52,6 +60,8 @@ mod nullable;
 mod nullable_when;
 mod operators;
 mod ownership_primitives;
+mod pending_constraints;
+mod pending_types;
 mod postfix;
 mod range_carrier;
 mod range_construction;
@@ -66,11 +76,13 @@ mod when;
 mod while_flow;
 
 use super::super::signatures::collect_signatures_with_files;
-use flow::FlowKey;
+use expression_facts::ExpressionExpected;
+use flow::{FlowKey, FlowVersions};
 pub(super) use type_graph::unit_assignable;
 
 use super::{
     CompilationUnitTypeError, CompilationUnitTypeParts, CompilationUnitTypes, UnitExpressionId,
+    UnitStatementId,
 };
 
 #[derive(Clone, Copy)]
@@ -121,11 +133,27 @@ pub(super) struct BodyChecker<'a> {
     symbols_by_span: BTreeMap<(SourceUnitId, usize, usize, u8), UnitSymbolId>,
     stable_flow_symbols: BTreeSet<UnitSymbolId>,
     flow_facts: BTreeMap<FlowKey, UnitTypeId>,
-    flow_versions: BTreeMap<FlowKey, u64>,
+    flow_versions: FlowVersions,
+    pending_immutable_bindings: BTreeSet<UnitSymbolId>,
+    replacement_values: BTreeMap<UnitExpressionId, bool>,
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
+    deferred_facts: Vec<trial::DeferredFact>,
+    explicit_storage_failures: Option<BTreeMap<UnitTypeId, Span>>,
+    storage_recovery_scopes: Vec<BTreeMap<UnitTypeId, Span>>,
     current_return_span: Option<Span>,
     loop_depth: usize,
+    suppressed_loop_depth: usize,
+    pending_loop_exits: Vec<while_flow::PendingLoopExits>,
+    pending_boolean_edges: BTreeMap<UnitExpressionId, while_flow::PendingBooleanEdges>,
+    pending_abrupt_sites: BTreeSet<while_flow::PendingControlSite>,
+    pending_callable_returns: Option<call_writeback::PendingCallableReturns>,
+    closure_effects: closure_writeback::ClosureEffects,
+    closure_origins: closure_writeback::ClosureOrigins,
+    call_writebacks: call_writeback::PendingWritebacks,
+    discovered_call_writebacks: call_writeback::PendingWritebacks,
+    discovered_loop_heads: BTreeSet<UnitStatementId>,
+    loop_replay_sites: BTreeSet<UnitStatementId>,
     callable_loop_bases: Vec<usize>,
     active_nullable_whens: Vec<nullable_when::ActiveWhenFrame>,
     candidate_local_expected: bool,
@@ -197,11 +225,27 @@ impl<'a> BodyChecker<'a> {
             symbols_by_span,
             stable_flow_symbols,
             flow_facts: BTreeMap::new(),
-            flow_versions: BTreeMap::new(),
+            flow_versions: FlowVersions::default(),
+            pending_immutable_bindings: BTreeSet::new(),
+            replacement_values: BTreeMap::new(),
             parts: CompilationUnitTypeParts::default(),
             diagnostics: Vec::new(),
+            deferred_facts: Vec::new(),
+            explicit_storage_failures: None,
+            storage_recovery_scopes: Vec::new(),
             current_return_span: None,
             loop_depth: 0,
+            suppressed_loop_depth: 0,
+            pending_loop_exits: Vec::new(),
+            pending_boolean_edges: BTreeMap::new(),
+            pending_abrupt_sites: BTreeSet::new(),
+            pending_callable_returns: None,
+            closure_effects: BTreeMap::new(),
+            closure_origins: BTreeMap::new(),
+            call_writebacks: BTreeSet::new(),
+            discovered_call_writebacks: BTreeSet::new(),
+            discovered_loop_heads: BTreeSet::new(),
+            loop_replay_sites: BTreeSet::new(),
             callable_loop_bases: Vec::new(),
             active_nullable_whens: Vec::new(),
             candidate_local_expected: false,
@@ -220,10 +264,7 @@ impl<'a> BodyChecker<'a> {
         self.run_with_generic_limit(crate::type_checking::MAX_UNIT_GENERIC_INSTANCES)
     }
 
-    fn run_with_generic_limit(
-        mut self,
-        generic_limit: usize,
-    ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
+    fn check_source_bodies(&mut self) -> Result<(), CompilationUnitTypeError> {
         self.parts.constant_declaration_count = self
             .names
             .index()
@@ -295,10 +336,31 @@ impl<'a> BodyChecker<'a> {
             }
         }
         self.check_missing_name_roots()?;
+        Ok(())
+    }
+
+    fn run_with_generic_limit(
+        mut self,
+        generic_limit: usize,
+    ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
+        self = self.check_bodies_to_fixed_point()?;
         self.materialize_generic_body_types_with_limit(generic_limit)?;
         self.materialize_runtime_field_layouts()?;
         self.check_range_types()?;
         self.parts.constants = self.build_constant_facts();
+        // Publication gates see every local rejection. Only the sealed product
+        // coalesces occurrences proven to share an explicit storage error.
+        let repeated = &self.parts.repeated_storage_diagnostics;
+        if !repeated.is_empty() {
+            self.diagnostics = self
+                .diagnostics
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, diagnostic)| {
+                    (!repeated.contains_key(&index)).then_some(diagnostic)
+                })
+                .collect();
+        }
         let source_units = self.names.index().source_units();
         let body_diagnostics =
             ordered_unit_diagnostics(self.sources, source_units, &self.diagnostics)?
@@ -441,20 +503,29 @@ impl<'a> BodyChecker<'a> {
         match payload {
             Statement::Block { elements } => {
                 let mut falls_through = true;
+                let mut pending_exit = true;
                 for element in elements {
-                    let result = self.check_statement(source, element, return_type, return_span)?;
+                    let result = self.check_loop_reachable(pending_exit, |checker| {
+                        checker.check_statement(source, element, return_type, return_span)
+                    })?;
                     falls_through &= result.falls_through;
+                    pending_exit &= self.has_pending_statement_exit(source, element, result);
                 }
+                self.note_pending_statement_exit(source, statement, pending_exit);
                 Ok(ExpressionCheck {
                     ty: unit,
                     falls_through,
                 })
             }
             Statement::Expression { expression } => {
-                self.check_expression(source, expression, None, return_span, return_type)
+                let result =
+                    self.check_expression(source, expression, None, return_span, return_type)?;
+                let pending_exit = self.has_pending_expression_exit(source, expression, result)?;
+                self.note_pending_statement_exit(source, statement, pending_exit);
+                Ok(result)
             }
             Statement::LocalVariable { declaration } => {
-                self.check_local_variable(source, declaration, return_type)
+                self.check_local_variable(source, statement, declaration, return_type)
             }
             Statement::LocalDestructuring {
                 bindings,
@@ -473,7 +544,14 @@ impl<'a> BodyChecker<'a> {
             ),
             Statement::While {
                 condition, body, ..
-            } => self.check_while_statement(source, condition, body, return_type, return_span),
+            } => self.check_while_statement(
+                source,
+                statement,
+                condition,
+                body,
+                return_type,
+                return_span,
+            ),
             Statement::For {
                 binding,
                 source: iteration_source,
@@ -489,7 +567,7 @@ impl<'a> BodyChecker<'a> {
                 return_span,
             ),
             Statement::Loop { body, .. } => {
-                self.check_loop_statement(source, body, return_type, return_span)
+                self.check_loop_statement(source, statement, body, return_type, return_span)
             }
             Statement::Error => Ok(ExpressionCheck {
                 ty: self.error_type(),
@@ -499,356 +577,15 @@ impl<'a> BodyChecker<'a> {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn check_expression(
-        &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        expected: Option<UnitTypeId>,
-        expected_span: Option<Span>,
-        return_type: UnitTypeId,
-    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let key = UnitExpressionId::new(source, expression);
-        if let Some(ty) = self.parts.expression_types.get(&key).copied() {
-            let falls_through = self
-                .parts
-                .expression_falls_through
-                .get(&key)
-                .copied()
-                .unwrap_or_else(|| !self.is_builtin(ty, BuiltinType::Nothing));
-            return Ok(ExpressionCheck { ty, falls_through });
-        }
-        let node = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(TypeCheckingError::from)?;
-        let span = node.span();
-        let payload = node.payload().clone();
-        let mut result = match payload {
-            Expression::Error => ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            },
-            Expression::Name => {
-                match self.check_bare_enum_construction(
-                    source,
-                    expression,
-                    span,
-                    expected,
-                    expected_span,
-                )? {
-                    Some(result) => result,
-                    None => ExpressionCheck {
-                        ty: self.name_type(source, expression, span)?,
-                        falls_through: true,
-                    },
-                }
-            }
-            Expression::This => ExpressionCheck {
-                ty: self.this_type(span)?,
-                falls_through: true,
-            },
-            Expression::Member {
-                receiver,
-                name_span,
-                safe,
-                ..
-            } => {
-                match self.check_bare_enum_construction(
-                    source,
-                    expression,
-                    name_span,
-                    expected,
-                    expected_span,
-                )? {
-                    Some(result) => result,
-                    None => self.check_member(
-                        source,
-                        expression,
-                        receiver,
-                        name_span,
-                        safe,
-                        return_type,
-                    )?,
-                }
-            }
-            Expression::Literal(literal) => ExpressionCheck {
-                ty: self.literal_type(span, literal, expected, expected_span, false)?,
-                falls_through: true,
-            },
-            Expression::String { parts } => {
-                if let Some(diagnostic) =
-                    crate::type_checking::string_length::check_literal(self.sources, span, &parts)?
-                {
-                    self.diagnostics.push(diagnostic);
-                }
-                for part in parts {
-                    if let StringPart::Interpolation { expression, .. } = part {
-                        self.check_expression(source, expression, None, None, return_type)?;
-                    }
-                }
-                ExpressionCheck {
-                    ty: self.builtin(BuiltinType::String),
-                    falls_through: true,
-                }
-            }
-            Expression::Group { expression } => {
-                self.check_expression(source, expression, expected, expected_span, return_type)?
-            }
-            Expression::Call {
-                callee,
-                type_arguments,
-                arguments,
-                ..
-            } => {
-                let invalidated = arguments
-                    .iter()
-                    .filter(|argument| {
-                        matches!(
-                            argument.mode_marker,
-                            Some(crate::parser::ParameterModeMarker::Inout(_))
-                        )
-                    })
-                    .filter_map(|argument| self.stable_flow_key(source, argument.value))
-                    .collect::<Vec<_>>();
-                let result = if let Some(result) = self.check_intrinsic_ownership_primitive_call(
-                    source,
-                    expression,
-                    span,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                    return_type,
-                )? {
-                    result
-                } else if let Some(result) = self.check_intrinsic_container_call(
-                    source,
-                    expression,
-                    span,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                    expected,
-                    expected_span,
-                    return_type,
-                )? {
-                    result
-                } else if let Some(result) = self.check_source_construction_call(
-                    source,
-                    expression,
-                    span,
-                    callee,
-                    &type_arguments,
-                    &arguments,
-                    expected,
-                    expected_span,
-                    return_type,
-                )? {
-                    result
-                } else {
-                    self.check_call(
-                        source,
-                        expression,
-                        callee,
-                        &type_arguments,
-                        &arguments,
-                        return_type,
-                    )?
-                };
-                for key in invalidated {
-                    self.invalidate_flow_key(key);
-                }
-                result
-            }
-            Expression::Return {
-                keyword_span,
-                value,
-            } => self.check_return(source, keyword_span, value, return_type)?,
-            Expression::Break { keyword_span } => self.check_loop_jump(
-                keyword_span,
-                "break is not inside an enclosing loop in this callable",
-            )?,
-            Expression::Continue { keyword_span } => self.check_loop_jump(
-                keyword_span,
-                "continue is not inside an enclosing loop in this callable",
-            )?,
-            Expression::Prefix {
-                operator,
-                operator_span,
-                operand,
-            } => self.check_prefix(
-                source,
-                operator,
-                operator_span,
-                operand,
-                expected,
-                expected_span,
-                return_type,
-            )?,
-            Expression::Binary {
-                left,
-                operator,
-                operator_span,
-                right,
-            } => self.check_binary(
-                source,
-                operators::BinaryExpression {
-                    expression,
-                    left,
-                    operator,
-                    operator_span,
-                    right,
-                },
-                expected,
-                expected_span,
-                return_type,
-            )?,
-            Expression::If {
-                condition,
-                then_branch,
-                else_span,
-                else_branch,
-                ..
-            } => self.check_if(
-                source,
-                condition,
-                then_branch,
-                else_span,
-                else_branch,
-                expected,
-                expected_span,
-                return_type,
-            )?,
-            Expression::When {
-                keyword_span,
-                subject,
-                entries,
-            } => self.check_when(
-                source,
-                expression,
-                keyword_span,
-                subject,
-                &entries,
-                expected,
-                expected_span,
-                return_type,
-            )?,
-            Expression::Lambda {
-                move_span,
-                opener_span,
-                parameters,
-                arrow_span,
-                body,
-            } => self.check_lambda(
-                source,
-                span,
-                move_span,
-                opener_span,
-                &parameters,
-                arrow_span,
-                body,
-                expected,
-                expected_span,
-            )?,
-            Expression::TypeTest {
-                expression,
-                operator_span,
-                type_ref,
-                ..
-            } => self.check_type_test(source, expression, operator_span, type_ref, return_type)?,
-            Expression::SuperMember { interface, .. } => {
-                self.check_super_member(source, interface)?
-            }
-            Expression::NonNullAssert {
-                operand,
-                operator_span,
-            } => {
-                self.check_non_null_assert(source, expression, operand, operator_span, return_type)?
-            }
-            Expression::Cast {
-                expression,
-                type_ref,
-                ..
-            } => self.check_cast(source, expression, type_ref, return_type)?,
-            Expression::Propagate { value, .. } => {
-                self.check_propagate(source, value, return_type)?
-            }
-            Expression::CallableReference { receiver, .. } => {
-                self.check_callable_reference(source, receiver, return_type)?
-            }
-            Expression::Assignment {
-                target,
-                operator,
-                operator_span,
-                value,
-            } => self.check_assignment(
-                source,
-                assignment::AssignmentExpression {
-                    expression,
-                    target,
-                    operator,
-                    operator_span,
-                    value,
-                },
-                return_type,
-            )?,
-            Expression::Index { receiver, index } => {
-                let receiver_result =
-                    self.check_expression(source, receiver, None, None, return_type)?;
-                if let Some(map_res) = self.check_map_index(
-                    source,
-                    expression,
-                    receiver,
-                    receiver_result,
-                    index,
-                    return_type,
-                )? {
-                    map_res
-                } else {
-                    self.check_container_index(source, expression, receiver, index, return_type)?
-                }
-            }
-        };
-        if let Some(expected) = expected
-            && !self.assignable(result.ty, expected)
-            && !self.is_error(result.ty)
-            && !self.is_error(expected)
-            && !self.is_deferred(result.ty)
-            && !self.is_deferred(expected)
-        {
-            self.emit_maybe_label(
-                codes::TYPE_MISMATCH,
-                "expression type does not match the expected type",
-                span,
-                expected_span,
-                format!(
-                    "expected {}, found {}",
-                    self.type_name(expected),
-                    self.type_name(result.ty)
-                ),
-            )?;
-            self.parts
-                .assignments
-                .retain(|descriptor| descriptor.expression() != key);
-            result.ty = self.error_type();
-        }
-        self.record_nullable_facts(source, expression, result.ty);
-        self.record_expression(source, expression, result.ty);
-        self.parts
-            .expression_falls_through
-            .insert(key, result.falls_through);
-        Ok(result)
-    }
-
     fn check_local_variable(
         &mut self,
         source: SourceUnitId,
+        statement: StatementId,
         declaration: ItemId,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let Item::Variable {
+            kind,
             name,
             type_ref,
             initializer,
@@ -877,9 +614,31 @@ impl<'a> BodyChecker<'a> {
                     .map_err(TypeCheckingError::from)
             })
             .transpose()?;
+        let deferred = self.deferred_facts.len();
+        let initializer_id = UnitExpressionId::new(source, initializer);
         let initializer =
             self.check_expression(source, initializer, expected, expected_span, return_type)?;
-        self.set_marker_symbol(source, name, expected.unwrap_or(initializer.ty));
+        let pending_exit =
+            self.has_pending_expression_exit(source, initializer_id.expression(), initializer)?;
+        self.note_pending_statement_exit(source, statement, pending_exit);
+        if let NameMarker::Present(span) = name
+            && let Some(symbol) = self.symbol_at(source, span, Namespace::Value)
+        {
+            let ty = expected.unwrap_or(initializer.ty);
+            self.record_symbol_type(symbol, ty);
+            // An annotation can mask an unresolved initializer. A concrete
+            // result may also depend on a pending operand.
+            let pending = self.contains_unresolved_call_type(ty)
+                || self.replacement_value_pending(initializer_id, initializer.ty, deferred);
+            if kind == VariableKind::Val {
+                if !self.is_error(initializer.ty) {
+                    self.note_closure_binding(symbol, initializer_id);
+                }
+                self.set_immutable_binding_pending(symbol, pending);
+            } else if kind == VariableKind::Var {
+                self.flow_versions.declare_mutable(symbol, pending);
+            }
+        }
         Ok(ExpressionCheck {
             ty: self.builtin(BuiltinType::Unit),
             falls_through: initializer.falls_through,
@@ -895,13 +654,14 @@ impl<'a> BodyChecker<'a> {
         if let Some(ty) = self.check_selected_constant(source, expression, span)? {
             return Ok(ty);
         }
-        if let Some(UnitReferenceTarget::Symbol(symbol)) =
-            self.reference(source, span, Namespace::Value)
+        let target = self.reference(source, span, Namespace::Value);
+        if let Some(UnitReferenceTarget::Symbol(symbol)) = target
             && let Some(ty) = self.flow_facts.get(&FlowKey::Symbol(*symbol)).copied()
         {
+            self.note_pending_binding_read(UnitExpressionId::new(source, expression), *symbol, ty);
             return Ok(ty);
         }
-        match self.reference(source, span, Namespace::Value) {
+        match target {
             Some(UnitReferenceTarget::Declaration(declaration)) => {
                 let signature = self
                     .signatures
@@ -915,12 +675,13 @@ impl<'a> BodyChecker<'a> {
                     .unwrap_or(signature.ty()))
             }
             Some(UnitReferenceTarget::Symbol(symbol)) => {
+                let symbol = *symbol;
                 let ty = self
                     .parts
                     .symbol_types
-                    .get(symbol)
+                    .get(&symbol)
                     .copied()
-                    .or_else(|| self.signatures.symbol_type(*symbol))
+                    .or_else(|| self.signatures.symbol_type(symbol))
                     .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
                 let kind = self.names.source_units()[symbol.source_unit().index()]
                     .resolution()
@@ -935,11 +696,16 @@ impl<'a> BodyChecker<'a> {
                         .push(UnitAggregateProjectionDescriptor::new(
                             UnitExpressionId::new(source, expression),
                             UnitAggregateProjectionReceiver::This(owner),
-                            *symbol,
+                            symbol,
                             ty,
                             UnitAggregateProjectionKind::Field,
                         ));
                 }
+                self.note_pending_binding_read(
+                    UnitExpressionId::new(source, expression),
+                    symbol,
+                    ty,
+                );
                 Ok(ty)
             }
             Some(UnitReferenceTarget::Unresolved | UnitReferenceTarget::LaterLocal(_)) => {
@@ -1082,6 +848,21 @@ impl<'a> BodyChecker<'a> {
             primary,
         )?);
         Ok(())
+    }
+
+    pub(super) fn note_repeated_storage_error(
+        &mut self,
+        expression: UnitExpressionId,
+        diagnostic: usize,
+        origin: Span,
+    ) {
+        self.parts
+            .storage_recovery
+            .rejected_origins
+            .insert(expression, origin);
+        self.parts
+            .repeated_storage_diagnostics
+            .insert(diagnostic, origin);
     }
 
     pub(super) fn emit_maybe_label(

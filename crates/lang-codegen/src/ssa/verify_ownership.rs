@@ -48,12 +48,20 @@ struct LoanFlowAliases {
 pub(super) fn verify_ownership(
     module: &Module,
     function: &Function,
+    capture_types: &super::verify::TypeCaptures,
+    trusted_view_fields: Option<&BTreeSet<usize>>,
     errors: &mut Vec<VerifyError>,
 ) {
     provider_lifetime::verify(function, errors);
     super::verify_operation::range_verify_signature(module, function, errors);
     let aliases = AliasRoots::compute(function);
-    let closure_loans = closure::ClosureLoans::compute(module, function);
+    let closure_loans = closure::ClosureLoans::compute(
+        module,
+        function,
+        capture_types,
+        &aliases,
+        trusted_view_fields,
+    );
     let reborrows = ReborrowDependencies::compute(module, function);
     for block in &function.blocks {
         let mut state = entry_state(module, function, block.id, &closure_loans);
@@ -452,7 +460,15 @@ fn apply_operation(
         ),
         Operation::ClosureConstruct { captures, .. } => {
             closure::apply_construct(
-                module, function, captures, aliases, state, location, origin, errors,
+                module,
+                function,
+                captures,
+                aliases,
+                closure_loans,
+                state,
+                location,
+                origin,
+                errors,
             );
         }
         Operation::CallableInvokeView { view, arguments } => {
@@ -632,35 +648,50 @@ fn apply_operation(
             }
         }
         Operation::NullableTake { owner, proof } => {
+            let owner_available = require_value(
+                module,
+                function,
+                *owner,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            );
             if !aliases.overlap(EntityId::Value(*owner), EntityId::Loan(*proof)) {
                 errors.push(error(
                     VerifyErrorKind::NullableProofMismatch {
                         owner: *owner,
                         proof: *proof,
                     },
-                    location.clone(),
+                    location,
                     origin,
                 ));
-            }
-            if !state.loans.remove(proof) {
-                errors.push(error(
-                    VerifyErrorKind::LoanInactive { loan: *proof },
+            } else if owner_available
+                && reborrow::end_loan(
+                    function,
+                    *proof,
+                    aliases,
+                    closure_loans,
+                    reborrows,
+                    state,
                     location.clone(),
                     origin,
-                ));
+                    errors,
+                )
+            {
+                consume_value(
+                    module,
+                    function,
+                    *owner,
+                    aliases,
+                    state,
+                    &BTreeSet::new(),
+                    &BTreeSet::new(),
+                    location,
+                    origin,
+                    errors,
+                );
             }
-            consume_value(
-                module,
-                function,
-                *owner,
-                aliases,
-                state,
-                &BTreeSet::new(),
-                &BTreeSet::new(),
-                location,
-                origin,
-                errors,
-            );
         }
         Operation::HeapPayloadPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
@@ -1007,6 +1038,17 @@ fn apply_operation(
         | Operation::MapResultUnwrap { .. }
         | Operation::MapPut { .. }
         | Operation::MapRemove { .. } => {
+            if let Operation::MapWithValue { action, .. } = instruction.operation {
+                closure::check_borrowed_contents(
+                    action,
+                    closure_loans,
+                    state,
+                    instruction.id,
+                    origin,
+                    errors,
+                    "map action requires proved current callable capture contents",
+                );
+            }
             map::verify_map_ownership(
                 module,
                 function,
@@ -1082,6 +1124,7 @@ fn apply_operation(
             let allowed_places = BTreeSet::from([*place]);
             if place_active
                 && owner_available
+                && closure_loans.root_take_ready(instruction, *owner, state, errors)
                 && consume_value(
                     module,
                     function,
@@ -1144,30 +1187,17 @@ fn apply_operation(
             }
         }
         Operation::BorrowEnd { loan } => {
-            if let Some(owner) = range::live_descriptor(function, *loan, state)
-                .or_else(|| closure_loans.live_owner_holding(*loan, state))
-            {
-                errors.push(error(
-                    VerifyErrorKind::OwnerLoanConflict { value: owner },
-                    location,
-                    origin,
-                ));
-            } else if let Some(dependent) = reborrows.active_descendant(*loan, aliases, state) {
-                errors.push(error(
-                    VerifyErrorKind::LoanDependencyActive {
-                        parent: *loan,
-                        dependent,
-                    },
-                    location,
-                    origin,
-                ));
-            } else if !state.loans.remove(loan) {
-                errors.push(error(
-                    VerifyErrorKind::LoanInactive { loan: *loan },
-                    location,
-                    origin,
-                ));
-            }
+            reborrow::end_loan(
+                function,
+                *loan,
+                aliases,
+                closure_loans,
+                reborrows,
+                state,
+                location,
+                origin,
+                errors,
+            );
         }
         Operation::Read { source } => {
             let entity = match source {
@@ -1216,6 +1246,15 @@ fn apply_operation(
                     location.clone(),
                     origin,
                 ));
+            } else if let Some(dependent) = reborrows.active_descendant(*loan, aliases, state) {
+                errors.push(error(
+                    VerifyErrorKind::LoanDependencyActive {
+                        parent: *loan,
+                        dependent,
+                    },
+                    location.clone(),
+                    origin,
+                ));
             }
             consume_value(
                 module,
@@ -1253,31 +1292,18 @@ fn apply_operation(
                 errors,
             );
         }
-        Operation::Drop { owner } => {
-            if is_move_only(module, function, *owner) {
-                let consumed = consume_value(
-                    module,
-                    function,
-                    *owner,
-                    aliases,
-                    state,
-                    &BTreeSet::new(),
-                    &BTreeSet::new(),
-                    location,
-                    origin,
-                    errors,
-                );
-                if consumed {
-                    closure_loans.release(*owner, state);
-                }
-            } else {
-                errors.push(error(
-                    VerifyErrorKind::DropCopyable { value: *owner },
-                    location,
-                    origin,
-                ));
-            }
-        }
+        Operation::Drop { owner } => closure::apply_drop(
+            module,
+            function,
+            *owner,
+            aliases,
+            closure_loans,
+            reborrows,
+            state,
+            location,
+            origin,
+            errors,
+        ),
     }
 }
 
@@ -1339,19 +1365,7 @@ fn verify_edge_state(
     errors: &mut Vec<VerifyError>,
 ) {
     let location = VerifyLocation::Edge { source, successor };
-    let mut transferring_loans = edge
-        .arguments
-        .iter()
-        .filter_map(|entity| match entity {
-            EntityId::Loan(loan) => Some(*loan),
-            EntityId::Value(_) | EntityId::Place(_) => None,
-        })
-        .collect::<BTreeSet<_>>();
-    for argument in &edge.arguments {
-        if let EntityId::Value(value) = argument {
-            transferring_loans.extend(closure_loans.dependencies(*value));
-        }
-    }
+    let transferring_loans = closure_loans.edge_loans(function, edge, &location, origin, errors);
     let transferring_places = edge
         .arguments
         .iter()

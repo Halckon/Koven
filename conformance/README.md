@@ -145,6 +145,7 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 | `p16_result_q` | 删除自声明的 `enum class Result<T, E>`，其余不变 | v0.46 起 `Result`/`Ok`/`Err` 属于内建环境（SPEC-0349）；用户任一 package 的同名顶层声明以 L0150 拒绝 | 不再因声明冲突失败；`?` 仍待 N08 |
 | `p16b_result_string` | 同上 | 同上 | 不再因声明冲突失败；String 载荷 `when` 匹配由 SPEC-0368 闭环，运行输出 `good\n` |
 | `p37_is_generic_case` | 同上 | 同上；无实参 `is Result.Ok` 从 subject 推断 root 实参（SPEC-0349） | 前端不再报 L0111，运行输出 `case-noargs\n` |
+| `p42_lambda_mutate` | 源码不变 | Guide 07 允许同步非逃逸闭包写入捕获的局部 `var`（SPEC-0392） | 目标输出 `mut-capture\n`；当前仅接受 `BE:UnsupportedNode`，待 S1 |
 
 以下 probe 未改动，但含义受 v0.46 影响，判读时留意：
 
@@ -179,13 +180,13 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 16 | 2 | 0 | 1 | 18 / 19 |
-| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 6 | 1 | 0 | 1 | 7 / 8 |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 6 | 0 | 0 | 2 | 6 / 8 |
 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 12 | 1 | 1 | 2 | 14 / 16 |
 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 |
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 3 | 0 | 0 | 1 | 3 / 4 |
-| **合计** | **154** | **121** | **14** | **3** | **16** | **138 / 154** |
+| **合计** | **154** | **121** | **13** | **3** | **17** | **137 / 154** |
 
 

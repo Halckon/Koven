@@ -899,16 +899,28 @@
       "expected_bytes": 9
     },
     "p42_lambda_mutate": {
-      "kind": "compile_fail",
+      "kind": "known_unimplemented",
+      "allowed_markers": [
+        "BE:UnsupportedNode"
+      ],
+      "target_stdout": "mut-capture\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0392: the frontend accepts Guide 07 mutating capture; S1 still lacks the exclusive-capture native ABI",
       "source_sha256": "6d99f070206795274701749b4a6cd475c0709882bb8dfb83a567e33fadf58137",
       "guide_chapter": "07-calls-lambdas-closures.md",
       "baseline_marker": "FE:L0135",
-      "diagnostic": "L0135",
-      "oracle_origin": "baseline_diagnostic_audited",
-      "diagnostic_symbol": "LOAN_CONFLICT",
-      "oracle_derivation": "mutating captured var sum inside closure without v0.46 mutating-closure lowering emits LOAN_CONFLICT L0135",
+      "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0392"
+      ],
+      "roadmap_blockers": [
+        "S1"
+      ],
+      "oracle_derivation": "Guide 07 permits a synchronous non-escaping closure to update a captured local var; the completed native call prints 'mut-capture'",
       "source_lines": 2,
-      "source_bytes": 172
+      "source_bytes": 172,
+      "expected_lines": 1,
+      "expected_bytes": 12
     },
     "p43_if_join_any": {
       "kind": "compile_fail",

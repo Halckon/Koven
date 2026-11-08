@@ -348,6 +348,362 @@ fn invalid_container_candidate_does_not_poison_viable_overload() {
 }
 
 #[test]
+fn rejected_member_candidate_does_not_publish_owner_specialization() {
+    for (rejected, selected, call) in [
+        (
+            "fun <T> choose(value: Int): (Holder<O>) -> List<T> = error(\"never\")",
+            "fun <T> choose(value: Long): Int = 7",
+            "Factory<Long>().choose<Nothing>(1)",
+        ),
+        (
+            "fun <T, U: Pattern<Holder<O>>> choose(value: Int): Int = 1",
+            "fun <T, U> choose(value: Long): Int = 7",
+            "Factory<Long>().choose<Nothing, Int>(1)",
+        ),
+        (
+            "fun choose(value: Int, extra: Int): Holder<O> = error(\"never\")",
+            "fun choose(value: Long): Int = 7",
+            "Factory<Long>().choose(1)",
+        ),
+    ] {
+        let text = format!(
+            "interface Pattern<T>\nclass Holder<T>(val value: Int)\n\
+             class Factory<O> {{ {rejected}; {selected} }}\nfun entry(): Int = {call}"
+        );
+        check_storage_instances(&text, |sources, file, source_unit, typed| {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{text}: {:?}",
+                typed.diagnostics()
+            );
+            let expression =
+                UnitExpressionId::new(source_unit, expression_with_text(sources, file, call));
+            let selected = typed
+                .calls()
+                .iter()
+                .find(|call| call.expression() == expression)
+                .unwrap();
+            let long = typed.types().builtin(BuiltinType::Long).unwrap();
+            assert_eq!(selected.arguments()[0].parameter_type(), long);
+
+            let holder = typed
+                .signatures()
+                .declarations()
+                .iter()
+                .filter_map(|signature| signature.nominal())
+                .find(|nominal| nominal.fields().len() == 1)
+                .expect("Holder is the only declaration with a field");
+            assert_eq!(
+                typed.types().find(&UnitTypeKind::Nominal {
+                    declaration: holder.declaration(),
+                    arguments: vec![long],
+                }),
+                None,
+                "rejected candidate leaked Holder<Long>: {text}"
+            );
+            assert!(typed.clone().validate().is_ok());
+        });
+    }
+}
+
+#[test]
+fn overload_selection_publishes_only_the_winning_specialization() {
+    for (first_method, second_method, call, expected_error) in [
+        (
+            "fun choose(value: String): Holder<O> = error(\"never\")",
+            "fun choose(value: Long): Winner<O> = Winner<O>(7, true)",
+            "Factory<Long>().choose(input)",
+            None,
+        ),
+        (
+            "fun choose(callback: (String) -> Int): Holder<O> = error(\"never\")",
+            "fun choose(callback: (Int) -> Int): Winner<O> = Winner<O>(7, true)",
+            "Factory<Long>().choose({ item -> intResult(item) })",
+            None,
+        ),
+        (
+            "fun choose(value: String): Holder<O> = error(\"never\")",
+            "fun choose(value: Boolean): Winner<O> = Winner<O>(7, true)",
+            "Factory<Long>().choose(input)",
+            Some("L0123"),
+        ),
+        (
+            "fun choose(callback: (String) -> Int): Holder<O> = error(\"never\")",
+            "fun choose(callback: (Int) -> Int): Winner<O> = Winner<O>(7, true)",
+            "Factory<Long>().choose({ item -> 1 })",
+            Some("L0124"),
+        ),
+    ] {
+        for (first, second) in [(first_method, second_method), (second_method, first_method)] {
+            let text = format!(
+                "class Holder<T>(val rejected: Int)\nclass Winner<T>(val value: Int, val flag: Boolean)\n\
+                 class Factory<O> {{ {first}; {second} }}\n\
+                 fun intResult(value: Int): Int = value\nfun entry(input: Long): Unit {{ val result = {call} }}"
+            );
+            check_storage_instances(&text, |sources, file, source_unit, typed| {
+                let diagnostics: Vec<_> = typed
+                    .diagnostics()
+                    .iter()
+                    .map(|diagnostic| diagnostic.code().to_string())
+                    .collect();
+                assert_eq!(
+                    diagnostics,
+                    expected_error.into_iter().collect::<Vec<_>>(),
+                    "{text}"
+                );
+                let expression =
+                    UnitExpressionId::new(source_unit, expression_with_text(sources, file, call));
+                let selected = typed
+                    .calls()
+                    .iter()
+                    .find(|call| call.expression() == expression);
+                let long = typed.types().builtin(BuiltinType::Long).unwrap();
+                let specialization = |fields| UnitTypeKind::Nominal {
+                    declaration: typed
+                        .signatures()
+                        .declarations()
+                        .iter()
+                        .filter_map(|signature| signature.nominal())
+                        .find(|nominal| nominal.fields().len() == fields)
+                        .expect("each source nominal has a different field count")
+                        .declaration(),
+                    arguments: vec![long],
+                };
+                assert_eq!(
+                    typed.types().find(&specialization(1)),
+                    None,
+                    "rejected candidate leaked Holder<Long>: {text}",
+                );
+                if expected_error.is_some() {
+                    assert!(selected.is_none());
+                    assert!(typed.types().find(&specialization(2)).is_none());
+                    assert!(typed.clone().validate().is_err());
+                    return;
+                }
+                let selected = selected.expect("one selected overload");
+                let winner_type = typed
+                    .types()
+                    .find(&specialization(2))
+                    .expect("selected Winner<Long>");
+                assert_eq!(selected.return_type(), winner_type);
+                assert!(
+                    typed
+                        .runtime_field_layouts()
+                        .iter()
+                        .any(|layout| layout.owner_type() == winner_type)
+                );
+                assert!(typed.clone().validate().is_ok());
+            });
+        }
+    }
+}
+
+#[test]
+fn inherited_member_specializes_owner_arguments_only_when_selected() {
+    for (call, inherited_wins) in [
+        ("Factory<Long>().choose(input)", false),
+        ("Factory<Long>().choose(\"ok\")", true),
+    ] {
+        let text = format!(
+            "class Holder<T>(val value: Int)\n\
+             interface Pattern<T> {{ fun choose(value: String): Int = 1 }}\n\
+             interface Intermediate<A> : Pattern<Holder<A>>\n\
+             class Factory<O> : Intermediate<O> {{ fun choose(value: Long): Int = 7 }}\n\
+             fun entry(input: Long): Int = {call}"
+        );
+        check_storage_instances(&text, |sources, file, source_unit, typed| {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{text}: {:?}",
+                typed.diagnostics()
+            );
+            let holder = typed
+                .signatures()
+                .declarations()
+                .iter()
+                .filter_map(|signature| signature.nominal())
+                .find(|nominal| nominal.fields().len() == 1)
+                .expect("Holder is the only declaration with a field");
+            let long = typed.types().builtin(BuiltinType::Long).unwrap();
+            let specialized = typed.types().find(&UnitTypeKind::Nominal {
+                declaration: holder.declaration(),
+                arguments: vec![long],
+            });
+            assert_eq!(specialized.is_some(), inherited_wins, "{text}");
+
+            let expression =
+                UnitExpressionId::new(source_unit, expression_with_text(sources, file, call));
+            let chosen = typed
+                .calls()
+                .iter()
+                .find(|fact| fact.expression() == expression)
+                .unwrap();
+            let expected_owner = specialized.unwrap_or(long);
+            assert_eq!(chosen.instance().type_arguments(), &[expected_owner]);
+            assert_eq!(
+                specialized.is_some_and(|ty| typed
+                    .runtime_field_layouts()
+                    .iter()
+                    .any(|layout| layout.owner_type() == ty)),
+                inherited_wins,
+            );
+            assert!(typed.clone().validate().is_ok());
+        });
+    }
+}
+
+#[test]
+fn committed_interface_calls_publish_concrete_static_dispatch_owners() {
+    for (members, forwarder, call) in [
+        (
+            "class Host<Y> : Derived<Holder<Y>>, Unused<Other<Y>> {}",
+            "",
+            "Host<Int>().throughRequirement()",
+        ),
+        (
+            "class Host<Y> : Derived<Holder<Y>>, Unused<Other<Y>> {}",
+            "fun <T> forward(host: Host<T>): Int = host.throughRequirement()",
+            "forward(Host<Int>())",
+        ),
+        (
+            "class Reader<Y> : Derived<Holder<Y>> {}
+             class Host<Y>(val reader: Reader<Y>) : Derived<Holder<Y>> by reader, Unused<Other<Y>> {}",
+            "",
+            "Host(Reader<Int>()).throughRequirement()",
+        ),
+        (
+            "class Reader<Y> : Derived<Holder<Y>> {}
+             class Proxy<Y>(val reader: Reader<Y>) : Derived<Holder<Y>> by reader {}
+             class Host<Y>(val proxy: Proxy<Y>) : Derived<Holder<Y>> by proxy, Unused<Other<Y>> {}",
+            "",
+            "Host(Proxy(Reader<Int>())).throughRequirement()",
+        ),
+    ] {
+        let text = format!(
+            "interface Base<A> {{
+                 fun read(): Int
+                 fun throughRequirement(): Int = this.read()
+             }}
+             interface Derived<B> : Base<String> {{ fun read(): Int = 7 }}
+             interface Unused<C> {{ fun throughRequirement(value: C): Int = 9 }}
+             class Holder<T>(val kept: T)
+             class Other<T>(val discarded: T)
+             {members}
+             {forwarder}
+             fun entry(): Int = {call}"
+        );
+        check_storage_instances(&text, |sources, _, _, typed| {
+            assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+            let int = typed.types().builtin(BuiltinType::Int).unwrap();
+            let concrete = |name| {
+                let signature = typed
+                    .signatures()
+                    .declarations()
+                    .iter()
+                    .filter_map(|signature| signature.nominal())
+                    .find(|nominal| {
+                        nominal
+                            .fields()
+                            .iter()
+                            .any(|field| sources.slice(field.span()).unwrap() == name)
+                    })
+                    .unwrap();
+                typed.types().find(&UnitTypeKind::Nominal {
+                    declaration: signature.declaration(),
+                    arguments: vec![int],
+                })
+            };
+            let holder = concrete("kept").expect("effective implementation's owner argument");
+            assert!(
+                concrete("discarded").is_none(),
+                "unused overload's owner argument"
+            );
+            assert!(typed.runtime_field_layouts().iter().any(|layout| {
+                layout.owner_type() == holder && layout.fields()[0].concrete_type() == int
+            }));
+            assert!(typed.clone().validate().is_ok());
+        });
+    }
+}
+
+#[test]
+fn delegated_default_publishes_static_self_owners_from_the_delegate() {
+    let text = "interface Root { fun run(): Int = 1 }
+                interface Need { fun answer(): Int }
+                interface Impl<T> : Root, Need { fun run(): Int = this.answer() }
+                interface Value<T> : Need { fun answer(): Int = 7 }
+                class Holder<T>(val value: Int)
+                class Reader<T> : Impl<T>, Value<Holder<T>> {}
+                class Host<T>(val reader: Reader<T>) : Root by reader {}
+                fun entry(): Int = Host(Reader<Int>()).run()";
+    check_storage_instances(text, |sources, _, _, typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let holder = typed
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|signature| signature.nominal())
+            .find(|nominal| {
+                nominal
+                    .fields()
+                    .iter()
+                    .any(|field| sources.slice(field.span()).unwrap() == "value")
+            })
+            .expect("Holder signature");
+        let int = typed.types().builtin(BuiltinType::Int).unwrap();
+        let concrete = typed
+            .types()
+            .find(&UnitTypeKind::Nominal {
+                declaration: holder.declaration(),
+                arguments: vec![int],
+            })
+            .expect("Reader's concrete Value owner argument");
+        assert!(
+            typed
+                .runtime_field_layouts()
+                .iter()
+                .any(|layout| layout.owner_type() == concrete)
+        );
+        assert!(typed.clone().validate().is_ok());
+    });
+}
+
+#[test]
+fn unrelated_abstract_member_does_not_publish_a_losing_overload_owner() {
+    let text = "interface Plain { fun choose(value: Long): Int = 7 }
+                interface Pattern<T> {
+                    fun choose(value: String): Int = 1
+                    fun unrelated(): Int
+                }
+                class Holder<T>(val value: Int)
+                class Factory<O> : Plain, Pattern<Holder<O>> {
+                    override fun unrelated(): Int = 0
+                }
+                fun entry(value: Long): Int = Factory<Long>().choose(value)";
+    check_storage_instances(text, |_, _, _, typed| {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let holder = typed
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|signature| signature.nominal())
+            .find(|nominal| nominal.fields().len() == 1)
+            .expect("Holder is the only declaration with a field");
+        let long = typed.types().builtin(BuiltinType::Long).unwrap();
+        assert!(
+            typed
+                .types()
+                .find(&UnitTypeKind::Nominal {
+                    declaration: holder.declaration(),
+                    arguments: vec![long],
+                })
+                .is_none()
+        );
+        assert!(typed.clone().validate().is_ok());
+    });
+}
+
+#[test]
 fn storage_rejection_discards_layouts_added_by_bound_substitution() {
     let text = "interface Pattern<T>\n\
                 class Holder<T>(val value: Int)\n\
@@ -598,3 +954,6 @@ fn nominal_storage_requirements_preserve_interface_diagnostic_owner() {
         assert!(typed.clone().validate().is_err());
     });
 }
+
+#[path = "call_candidate_recovery.rs"]
+mod call_candidate_recovery;

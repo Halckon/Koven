@@ -1,10 +1,57 @@
-//! 最终失效前由同一 producer 选中的诊断候选；公开执行表与资格门不读取此区。
+//! 同一 producer 记录的诊断恢复事实；公开执行表不从此区取得执行授权。
+use std::collections::{BTreeMap, BTreeSet};
+
+use super::map::UnitMapPutDescriptor;
 use super::{CompilationUnitTypeParts, CompilationUnitTypes};
+use crate::name_resolution::UnitSymbolId;
+use crate::source::Span;
 use crate::type_checking::{
     RangeConstructionDescriptor, RangeSizeDescriptor, UnitExpressionId,
     UnitIntegerOperationDescriptor, UnitMapIterationDescriptor, UnitOwnershipPrimitiveDescriptor,
     UnitSequentialIterationDescriptor, UnitStatementId, UnitTypeId, UnitTypeKind,
 };
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct StorageRecoveryFacts {
+    pub(super) rejected_origins: BTreeMap<UnitExpressionId, Span>,
+    pub(super) pending_values: BTreeMap<UnitExpressionId, UnitTypeId>,
+    // A pending iteration can be traversed for diagnostics without acquiring a provider.
+    pub(super) pending_iterations: BTreeSet<UnitStatementId>,
+    // Keep the declaration label for a pending field assignment without publishing a projection.
+    pub(super) pending_fields: BTreeMap<UnitExpressionId, UnitSymbolId>,
+    // Recovery keeps the write role without exporting an executable put.
+    pub(super) unpublished_map_writes: BTreeMap<UnitExpressionId, UnitMapPutDescriptor>,
+}
+
+impl CompilationUnitTypes {
+    pub(crate) fn unpublished_map_write(
+        &self,
+        target: UnitExpressionId,
+    ) -> Option<&UnitMapPutDescriptor> {
+        self.storage_recovery.unpublished_map_writes.get(&target)
+    }
+    pub(crate) fn rejected_storage_origin(&self, expression: UnitExpressionId) -> Option<Span> {
+        self.storage_recovery
+            .rejected_origins
+            .get(&expression)
+            .copied()
+    }
+
+    pub(crate) fn diagnostic_iteration_source_pending(&self, statement: UnitStatementId) -> bool {
+        self.storage_recovery
+            .pending_iterations
+            .contains(&statement)
+    }
+
+    pub(crate) fn is_pending_storage_value(&self, expression: UnitExpressionId) -> bool {
+        self.storage_recovery
+            .pending_values
+            .get(&expression)
+            .is_some_and(|&ty| {
+                self.expression_type(expression) == Some(ty) && self.types().get(ty).is_some()
+            })
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct OwnershipRecoveryFacts {
@@ -143,5 +190,67 @@ impl CompilationUnitTypes {
     /// by actual Error nodes. This is not a capability or execution-fact witness.
     pub(crate) fn copyability_error_is_diagnostic(&self, ty: UnitTypeId) -> bool {
         super::checker::copyability::unit_copyability_error_is_diagnostic(self.signatures(), ty)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        lexer::lex,
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        parser::parse_file,
+        source::SourceMap,
+        type_checking::{
+            FinalTypeAdmissionError, FinalTypeAdmissionInternalError, check_compilation_unit_types,
+            complete_compilation_unit_types, standard_environments,
+        },
+    };
+
+    #[test]
+    fn incomplete_annotation_does_not_mask_missing_initializer_fact() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source(
+                "storage.ko",
+                "fun entry(): Int { val value: List<Nothing> = 1; return 0 }",
+            )
+            .unwrap();
+        let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        let inputs = [SourceUnitInput::memory_document(source, &file)];
+        let (names, types) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &names)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let mut typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert_eq!(typed.diagnostics()[0].code().to_string(), "L0125");
+        let (initializer, node) = file
+            .ast()
+            .expressions()
+            .iter()
+            .find(|(_, node)| sources.slice(node.span()) == Ok("1"))
+            .unwrap();
+        let unit = index.source_units()[0].id();
+        assert!(
+            typed
+                .expression_types
+                .remove(&UnitExpressionId::new(unit, initializer))
+                .is_some()
+        );
+
+        let result = complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed);
+        assert!(
+            matches!(
+                result,
+                Err(FinalTypeAdmissionError::Internal(FinalTypeAdmissionInternalError::MissingRequiredFact {
+                    span, kind: "expression type",
+                })) if span == node.span()
+            ),
+            "{result:?}"
+        );
     }
 }

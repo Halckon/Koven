@@ -2,44 +2,77 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod root_storage;
+
 use super::{
-    AliasRoots, BlockState, consume_value, edges, error, has_exclusive_value_loan, require_value,
+    AliasRoots, BlockState, ReborrowDependencies, consume_value, edges, error,
+    has_exclusive_value_loan, is_move_only, require_value,
 };
 use crate::ssa::{
     model::{
-        ClosureCaptureOperand, EntityId, Function, LoanId, Module, Operation, Origin, ValueId,
+        ClosureCaptureOperand, Edge, EntityId, Function, LoanId, Module, Operation, Origin, ValueId,
     },
     verify::{VerifyError, VerifyErrorKind, VerifyLocation},
 };
 
 pub(super) struct ClosureLoans {
     by_owner: BTreeMap<ValueId, BTreeSet<LoanId>>,
+    take_sources: BTreeMap<crate::ssa::model::InstructionId, ValueId>,
+    owners_by_loan: BTreeMap<LoanId, Vec<ValueId>>,
     borrowed_contents: BTreeMap<
-        (crate::ssa::model::InstructionId, LoanId),
+        (crate::ssa::model::InstructionId, EntityId),
         crate::ssa::verify::closure_content::CallableContent,
     >,
 }
 
 impl ClosureLoans {
-    pub(super) fn compute(module: &Module, function: &Function) -> Self {
+    pub(super) fn compute(
+        module: &Module,
+        function: &Function,
+        capture_types: &crate::ssa::verify::TypeCaptures,
+        aliases: &AliasRoots,
+        trusted_view_fields: Option<&BTreeSet<usize>>,
+    ) -> Self {
         let mut by_owner = BTreeMap::<ValueId, BTreeSet<LoanId>>::new();
+        let mut owner_moves = Vec::new();
+        let take_sources = root_storage::take_sources(function);
         for instruction in &function.instructions {
-            let Operation::ClosureConstruct { captures, .. } = &instruction.operation else {
-                continue;
+            let result = |index| match instruction.results[index] {
+                EntityId::Value(value) => value,
+                _ => unreachable!("verified operation returns an owner"),
             };
-            let EntityId::Value(owner) = instruction.results[0] else {
-                continue;
-            };
-            by_owner
-                .entry(owner)
-                .or_default()
-                .extend(captures.iter().filter_map(|capture| match capture {
-                    ClosureCaptureOperand::Shared(loan) => Some(*loan),
-                    ClosureCaptureOperand::Owned(_) => None,
-                }));
+            match &instruction.operation {
+                Operation::ClosureConstruct { captures, .. } => {
+                    let owner = result(0);
+                    for capture in captures {
+                        match capture {
+                            ClosureCaptureOperand::Shared(loan) => {
+                                by_owner.entry(owner).or_default().insert(*loan);
+                            }
+                            ClosureCaptureOperand::Owned(value) => {
+                                owner_moves.push((*value, owner))
+                            }
+                        }
+                    }
+                }
+                Operation::RootPlaceTake { .. } => {
+                    owner_moves.push((take_sources[&instruction.id], result(0)))
+                }
+                _ => {}
+            }
         }
         loop {
             let mut changed = false;
+            // Owned slots and root moves can receive CFG parameters, and their results
+            // can in turn be passed along edges.
+            for &(source, destination) in &owner_moves {
+                if let Some(dependencies) = by_owner.get(&source).cloned() {
+                    let entry = by_owner.entry(destination).or_default();
+                    let before = entry.len();
+                    entry.extend(dependencies);
+                    changed |= entry.len() != before;
+                }
+            }
             for block in &function.blocks {
                 let terminator = block.terminator.as_ref().expect("terminator must exist");
                 for edge in edges(&terminator.kind) {
@@ -67,6 +100,9 @@ impl ClosureLoans {
                             .flatten()
                             .map(|loan| loan_rebindings.get(loan).copied().unwrap_or(*loan))
                             .collect::<BTreeSet<_>>();
+                        if dependencies.is_empty() {
+                            continue;
+                        }
                         let entry = by_owner.entry(*parameter).or_default();
                         let before = entry.len();
                         entry.extend(dependencies);
@@ -78,10 +114,22 @@ impl ClosureLoans {
                 break;
             }
         }
+        let mut owners_by_loan = BTreeMap::<_, Vec<_>>::new();
+        for (&owner, loans) in &by_owner {
+            for &loan in loans {
+                owners_by_loan.entry(loan).or_default().push(owner);
+            }
+        }
         Self {
             by_owner,
+            take_sources,
+            owners_by_loan,
             borrowed_contents: crate::ssa::verify::closure_content::borrowed_callable_contents(
-                module, function,
+                module,
+                function,
+                capture_types,
+                aliases,
+                trusted_view_fields,
             ),
         }
     }
@@ -97,15 +145,97 @@ impl ClosureLoans {
     }
 
     pub(super) fn live_owner_holding(&self, loan: LoanId, state: &BlockState) -> Option<ValueId> {
-        state
-            .values
+        self.owners_by_loan
+            .get(&loan)?
             .iter()
             .copied()
-            .find(|owner| self.dependencies(*owner).contains(&loan))
+            .find(|owner| state.values.contains(owner))
     }
 
     pub(super) fn dependencies(&self, owner: ValueId) -> &BTreeSet<LoanId> {
         self.by_owner.get(&owner).unwrap_or(&EMPTY_LOANS)
+    }
+
+    pub(super) fn root_take_ready(
+        &self,
+        instruction: &crate::ssa::model::Instruction,
+        owner: ValueId,
+        state: &BlockState,
+        errors: &mut Vec<VerifyError>,
+    ) -> bool {
+        let source = self.take_sources[&instruction.id];
+        let captures = self.dependencies(source);
+        let kind = if source != owner && !captures.is_disjoint(self.dependencies(owner)) {
+            // Equal or overlapping unions cannot prove which loans the replaced
+            // and currently stored values own on each incoming path.
+            VerifyErrorKind::OperationContract {
+                reason: "root take has ambiguous capture loans after a raw place write",
+            }
+        } else if let Some(&loan) = captures.iter().find(|loan| !state.loans.contains(loan)) {
+            VerifyErrorKind::LoanInactive { loan }
+        } else if source != owner
+            && let Some(holder) = captures
+                .iter()
+                .find_map(|loan| self.live_owner_holding(*loan, state))
+        {
+            VerifyErrorKind::OwnerLoanConflict { value: holder }
+        } else {
+            return true;
+        };
+        errors.push(error(
+            kind,
+            VerifyLocation::Instruction(instruction.id),
+            &instruction.origin,
+        ));
+        false
+    }
+
+    pub(super) fn edge_loans(
+        &self,
+        function: &Function,
+        edge: &Edge,
+        location: &VerifyLocation,
+        origin: &Origin,
+        errors: &mut Vec<VerifyError>,
+    ) -> BTreeSet<LoanId> {
+        let target = function.block(edge.target).expect("target must exist");
+        let bindings = edge.arguments.iter().zip(&target.parameters);
+        let loan_bindings =
+            bindings
+                .clone()
+                .filter_map(|(source, target)| match (source, target) {
+                    (EntityId::Loan(source), EntityId::Loan(target)) => Some((*target, *source)),
+                    _ => None,
+                });
+        let mut transferring = loan_bindings
+            .clone()
+            .map(|(_, source)| source)
+            .collect::<BTreeSet<_>>();
+        if self.by_owner.is_empty() {
+            return transferring;
+        }
+        let loan_sources = loan_bindings.collect::<BTreeMap<_, _>>();
+        for (source, target) in bindings {
+            let (EntityId::Value(source), EntityId::Value(target)) = (source, target) else {
+                continue;
+            };
+            let captures = self.dependencies(*source);
+            transferring.extend(captures);
+            // A joined owner may hide different capture IDs on different paths. An explicit
+            // loan parameter must agree with the actual owner on every incoming edge.
+            if self.dependencies(*target).iter().any(|loan| {
+                loan_sources
+                    .get(loan)
+                    .is_some_and(|source| !captures.contains(source))
+            }) {
+                errors.push(error(
+                    VerifyErrorKind::OwnerLoanConflict { value: *source },
+                    location.clone(),
+                    origin,
+                ));
+            }
+        }
+        transferring
     }
 }
 
@@ -117,6 +247,7 @@ pub(super) fn apply_construct(
     function: &Function,
     captures: &[ClosureCaptureOperand],
     aliases: &AliasRoots,
+    closure_loans: &ClosureLoans,
     state: &mut BlockState,
     location: VerifyLocation,
     origin: &Origin,
@@ -139,9 +270,27 @@ pub(super) fn apply_construct(
                 );
             }
             ClosureCaptureOperand::Shared(loan) => {
+                let VerifyLocation::Instruction(instruction) = location else {
+                    unreachable!("closure formation is an instruction");
+                };
+                check_borrowed_contents(
+                    *loan,
+                    closure_loans,
+                    state,
+                    instruction,
+                    origin,
+                    errors,
+                    "capturing a callable view requires proved current capture contents",
+                );
                 if !state.loans.contains(loan) {
                     errors.push(error(
                         VerifyErrorKind::LoanInactive { loan: *loan },
+                        location.clone(),
+                        origin,
+                    ));
+                } else if let Some(owner) = closure_loans.live_owner_holding(*loan, state) {
+                    errors.push(error(
+                        VerifyErrorKind::OwnerLoanConflict { value: owner },
                         location.clone(),
                         origin,
                     ));
@@ -149,6 +298,72 @@ pub(super) fn apply_construct(
             }
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn apply_drop(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    aliases: &AliasRoots,
+    closure_loans: &ClosureLoans,
+    reborrows: &ReborrowDependencies,
+    state: &mut BlockState,
+    location: VerifyLocation,
+    origin: &Origin,
+    errors: &mut Vec<VerifyError>,
+) {
+    if !is_move_only(module, function, owner) {
+        errors.push(error(
+            VerifyErrorKind::DropCopyable { value: owner },
+            location,
+            origin,
+        ));
+        return;
+    }
+    if !consume_value(
+        module,
+        function,
+        owner,
+        aliases,
+        state,
+        &BTreeSet::new(),
+        &BTreeSet::new(),
+        location.clone(),
+        origin,
+        errors,
+    ) {
+        return;
+    }
+    let captures = closure_loans.dependencies(owner);
+    // The environment ends its entire capture set. Reborrows surviving that
+    // cleanup must still have their parent; CFG transfers do not end any loan.
+    let surviving = state
+        .loans
+        .iter()
+        .copied()
+        .filter(|loan| !captures.contains(loan));
+    for &parent in captures {
+        // An ambiguous join can make two live owners claim the same loan even
+        // when the original constructions used independent loans.
+        if let Some(holder) = closure_loans.live_owner_holding(parent, state) {
+            errors.push(error(
+                VerifyErrorKind::OwnerLoanConflict { value: holder },
+                location,
+                origin,
+            ));
+            return;
+        }
+        if let Some(dependent) = reborrows.active_descendant_among(parent, surviving.clone()) {
+            errors.push(error(
+                VerifyErrorKind::LoanDependencyActive { parent, dependent },
+                location,
+                origin,
+            ));
+            return;
+        }
+    }
+    closure_loans.release(owner, state);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -180,6 +395,18 @@ pub(super) fn apply_invoke(
             origin,
         ));
     }
+    let VerifyLocation::Instruction(instruction) = location else {
+        unreachable!("callable invocation is an instruction");
+    };
+    check_callable_contents(
+        EntityId::Value(callable),
+        closure_loans,
+        state,
+        instruction,
+        origin,
+        errors,
+        None,
+    );
     invoke_arguments(
         module,
         function,
@@ -271,6 +498,18 @@ pub(super) fn apply_invoke_view(
             origin,
         ));
     }
+    let VerifyLocation::Instruction(instruction) = location else {
+        unreachable!("view invocation is an instruction");
+    };
+    check_borrowed_contents(
+        view,
+        closure_loans,
+        state,
+        instruction,
+        origin,
+        errors,
+        "callable view requires proved current capture contents",
+    );
     invoke_arguments(
         module,
         function,
@@ -325,13 +564,35 @@ pub(super) fn check_borrowed_contents(
     errors: &mut Vec<VerifyError>,
     reason: &'static str,
 ) {
+    check_callable_contents(
+        EntityId::Loan(initializer),
+        closure_loans,
+        state,
+        instruction,
+        origin,
+        errors,
+        Some(reason),
+    );
+}
+
+fn check_callable_contents(
+    callable: EntityId,
+    closure_loans: &ClosureLoans,
+    state: &BlockState,
+    instruction: crate::ssa::model::InstructionId,
+    origin: &Origin,
+    errors: &mut Vec<VerifyError>,
+    unknown_reason: Option<&'static str>,
+) {
     let Some(content) = closure_loans
         .borrowed_contents
-        .get(&(instruction, initializer))
+        .get(&(instruction, callable))
     else {
         return;
     };
-    if !content.known {
+    if !content.known
+        && let Some(reason) = unknown_reason
+    {
         errors.push(error(
             VerifyErrorKind::OperationContract { reason },
             VerifyLocation::Instruction(instruction),

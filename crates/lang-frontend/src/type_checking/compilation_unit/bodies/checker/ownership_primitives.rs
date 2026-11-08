@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-use super::{BodyChecker, ExpressionCheck};
+use super::{BodyChecker, ExpressionCheck, while_flow::PendingControlSite};
 
 impl BodyChecker<'_> {
     #[allow(clippy::too_many_arguments)]
@@ -181,7 +181,11 @@ impl BodyChecker<'_> {
             )?;
             valid = false;
         }
+        let deferred = self.deferred_facts.len();
         let arg0_result = self.check_expression(source, arg0.value, None, None, return_type)?;
+        let first_exits = self.has_pending_expression_exit(source, arg0.value, arg0_result)?;
+        let arg0_id = UnitExpressionId::new(source, arg0.value);
+        let old_pending = self.replacement_value_pending(arg0_id, arg0_result.ty, deferred);
         if self.is_error(arg0_result.ty) {
             valid = false;
         }
@@ -243,13 +247,11 @@ impl BodyChecker<'_> {
             )?;
             valid = false;
         }
-        let arg1_result = self.check_expression(
-            source,
-            arg1.value,
-            (!self.is_deferred(t)).then_some(t),
-            None,
-            return_type,
-        )?;
+        let before_new = self.deferred_facts.len();
+        let expected = (!self.is_deferred(t)).then_some(t);
+        let arg1_result = self.check_loop_reachable(first_exits, |checker| {
+            checker.check_expression(source, arg1.value, expected, None, return_type)
+        })?;
         if self.is_error(arg1_result.ty) {
             valid = false;
         } else if !self.is_deferred(arg1_result.ty)
@@ -277,18 +279,48 @@ impl BodyChecker<'_> {
             valid = false;
         }
 
-        if self.is_deferred(t)
+        let expression_id = UnitExpressionId::new(source, expression);
+        let normal_exit =
+            first_exits && self.has_pending_expression_exit(source, arg1.value, arg1_result)?;
+        self.note_pending_exit(PendingControlSite::Expression(expression_id), normal_exit);
+        let deferred_operand = self.is_deferred(t)
             || self.is_deferred(arg0_result.ty)
-            || self.is_deferred(arg1_result.ty)
+            || self.is_deferred(arg1_result.ty);
+        let valid = valid && !self.is_error(t);
+        let pending_operands = deferred_operand
+            || valid && self.primitive_operands_pending(source, arg0, arg1, deferred);
+        if valid
+            && normal_exit
+            && pending_operands
+            && self.call_argument_could_match(arg1_result.ty, arg0_result.ty, true)
         {
+            let new_pending = self.replacement_value_pending(
+                UnitExpressionId::new(source, arg1.value),
+                arg1_result.ty,
+                before_new,
+            ) || self.contains_unresolved_call_type(arg0_result.ty);
+            if let Some(key) = self.pending_flow_key(source, arg0.value) {
+                self.flow_versions.replace_pending(key, new_pending);
+            }
+            // The old value is the result. Evaluating the new value can still
+            // block publication of the call even when the old value is known.
+            self.replacement_values.insert(expression_id, old_pending);
+        }
+        if deferred_operand || !valid {
+            let ty = if deferred_operand {
+                self.deferred_type(DeferredReason::Call)
+            } else {
+                self.error_type()
+            };
             return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Call),
+                ty,
                 falls_through: true,
             });
         }
-        if !valid || self.is_error(t) {
+        if pending_operands {
+            self.note_pending_storage_value(expression_id, t);
             return Ok(ExpressionCheck {
-                ty: self.error_type(),
+                ty: t,
                 falls_through: true,
             });
         }
@@ -410,7 +442,14 @@ impl BodyChecker<'_> {
             )?;
             valid = false;
         }
+        let deferred = self.deferred_facts.len();
         let arg0_result = self.check_expression(source, arg0.value, None, None, return_type)?;
+        let first_exits = self.has_pending_expression_exit(source, arg0.value, arg0_result)?;
+        let arg0_pending = self.replacement_value_pending(
+            UnitExpressionId::new(source, arg0.value),
+            arg0_result.ty,
+            deferred,
+        );
         if self.is_error(arg0_result.ty) {
             valid = false;
         }
@@ -432,7 +471,10 @@ impl BodyChecker<'_> {
             )?;
             valid = false;
         }
-        let arg1_result = self.check_expression(source, arg1.value, None, None, return_type)?;
+        let before_second = self.deferred_facts.len();
+        let arg1_result = self.check_loop_reachable(first_exits, |checker| {
+            checker.check_expression(source, arg1.value, None, None, return_type)
+        })?;
         if self.is_error(arg1_result.ty) {
             valid = false;
         }
@@ -537,18 +579,52 @@ impl BodyChecker<'_> {
         };
 
         let unit = self.builtin(BuiltinType::Unit);
-        if self.is_deferred(t)
+        let expression_id = UnitExpressionId::new(source, expression);
+        let normal_exit =
+            first_exits && self.has_pending_expression_exit(source, arg1.value, arg1_result)?;
+        self.note_pending_exit(PendingControlSite::Expression(expression_id), normal_exit);
+        let deferred_operand = self.is_deferred(t)
             || self.is_deferred(arg0_result.ty)
-            || self.is_deferred(arg1_result.ty)
+            || self.is_deferred(arg1_result.ty);
+        let valid = valid && !self.is_error(t);
+        let pending_operands = deferred_operand
+            || valid && self.primitive_operands_pending(source, arg0, arg1, deferred);
+        if valid
+            && normal_exit
+            && pending_operands
+            && (self.types_could_be_equal(arg0_result.ty, arg1_result.ty)
+                || self.assignable(arg0_result.ty, arg1_result.ty)
+                    && self.assignable(arg1_result.ty, arg0_result.ty))
         {
+            let arg1_pending = self.replacement_value_pending(
+                UnitExpressionId::new(source, arg1.value),
+                arg1_result.ty,
+                before_second,
+            );
+            if let Some(first) = self.pending_flow_key(source, arg0.value) {
+                let pending = arg1_pending || self.contains_unresolved_call_type(arg0_result.ty);
+                self.flow_versions.replace_pending(first, pending);
+            }
+            if let Some(second) = self.pending_flow_key(source, arg1.value) {
+                let pending = arg0_pending || self.contains_unresolved_call_type(arg1_result.ty);
+                self.flow_versions.replace_pending(second, pending);
+            }
+        }
+        if deferred_operand || !valid {
+            let ty = if deferred_operand {
+                self.deferred_type(DeferredReason::Call)
+            } else {
+                self.error_type()
+            };
             return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Call),
+                ty,
                 falls_through: true,
             });
         }
-        if !valid || self.is_error(t) {
+        if pending_operands {
+            self.note_pending_storage_value(expression_id, unit);
             return Ok(ExpressionCheck {
-                ty: self.error_type(),
+                ty: unit,
                 falls_through: true,
             });
         }
@@ -613,5 +689,17 @@ impl BodyChecker<'_> {
             ty: unit,
             falls_through: true,
         })
+    }
+
+    fn primitive_operands_pending(
+        &self,
+        source: SourceUnitId,
+        first: &CallArgument,
+        second: &CallArgument,
+        deferred: usize,
+    ) -> bool {
+        [first, second].iter().any(|operand| {
+            self.storage_value_is_pending(UnitExpressionId::new(source, operand.value))
+        }) || self.has_unresolved_argument_facts_since(deferred)
     }
 }

@@ -74,15 +74,18 @@ impl Checker<'_> {
 
     pub(super) fn check_inference_arguments(
         &mut self,
+        callee: ExpressionId,
         arguments: &[CallArgument],
     ) -> Result<Vec<Option<TypeId>>, TypeCheckingError> {
+        let mut reachable = self.pending_call_receiver_exit(callee)?;
         arguments
             .iter()
             .map(|argument| {
                 if self.is_lambda_literal(argument.value)? {
+                    self.note_deferred_argument_entry(argument.value);
                     Ok(None)
                 } else {
-                    self.check_expression(argument.value, None, None)
+                    self.check_pending_operand(argument.value, None, None, &mut reachable)
                         .map(|result| Some(result.ty))
                 }
             })
@@ -258,9 +261,7 @@ impl Checker<'_> {
     ) -> Result<ExprCheck, TypeCheckingError> {
         if candidate_count == 1 {
             if matches!(failure, Some(InstantiationFailure::Arity { .. })) {
-                for argument in arguments {
-                    self.check_expression(argument.value, None, None)?;
-                }
+                self.check_pending_untyped_arguments(callee, arguments)?;
             }
             if let Some(failure) = failure {
                 self.emit_instantiation_failure(failure)?;

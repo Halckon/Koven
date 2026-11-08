@@ -53,6 +53,8 @@ impl BodyChecker<'_> {
         {
             return Ok(None);
         }
+        let diagnostics = self.diagnostics.len();
+        let deferred = self.deferred_facts.len();
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
         if !matches!(
             self.signatures.types().get(receiver_result.ty),
@@ -104,6 +106,19 @@ impl BodyChecker<'_> {
                     falls_through: receiver_result.falls_through,
                 }));
             }
+        }
+        if self.diagnostics.len() != diagnostics {
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        if self.has_pending_storage_value_since(deferred) {
+            self.note_pending_storage_value(
+                UnitExpressionId::new(source, expression),
+                receiver_result.ty,
+            );
+            return Ok(Some(receiver_result));
         }
         let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
             move_only: false,

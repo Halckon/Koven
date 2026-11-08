@@ -286,12 +286,13 @@ class ConformanceAuditSelfTests(unittest.TestCase):
             pos_only,
             [
                 "01-lexical.md",
+                "07-calls-lambdas-closures.md",
                 "08-class-family-members.md",
                 "11-copyability-layout-construction.md",
                 "13-program-runtime-standard-library.md",
             ],
         )
-        self.assertEqual(len(both_pol), 9)
+        self.assertEqual(len(both_pol), 8)
 
         # 9. Verify DIAGNOSTIC_SYMBOL_CATALOG against diagnostic.rs::codes and summarize_negative_oracle_catalog
         for code, sym in gate.DIAGNOSTIC_SYMBOL_CATALOG.items():
@@ -353,18 +354,18 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         self.assertEqual(len(base_evo["promoted_to_run_ok"]), 32)
         self.assertEqual(len(base_evo["upgraded_to_structured_abort"]), 3)
         self.assertEqual(len(base_evo["upgraded_to_compile_fail"]), 1)
-        self.assertEqual(len(base_evo["baseline_compile_fail_preserved"]), 13)
-        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 16)
+        self.assertEqual(len(base_evo["baseline_compile_fail_preserved"]), 12)
+        self.assertEqual(len(base_evo["remaining_known_unimplemented"]), 17)
         self.assertEqual(
             sum(len(v) for v in base_evo.values()),
             len(loaded["probes"]),
         )
 
-        # 11. Verify all 39 v046_baseline_exempt probes have resolved spec_refs in docs/specs or docs/archive/specs
+        # 11. Verify all 40 v046_baseline_exempt probes have resolved spec_refs in docs/specs or docs/archive/specs
         exempt_probes = [
             name for name, spec in loaded["probes"].items() if spec.get("v046_baseline_exempt")
         ]
-        self.assertEqual(len(exempt_probes), 39)
+        self.assertEqual(len(exempt_probes), 40)
         for name in exempt_probes:
             spec = loaded["probes"][name]
             srefs = spec.get("spec_refs", [])
@@ -376,7 +377,7 @@ class ConformanceAuditSelfTests(unittest.TestCase):
                 self.assertTrue((repo_root / relpath).is_file())
                 self.assertIn(status, ("active", "archived"))
         spec_trace = gate.summarize_v046_spec_traceability(loaded, repo_root)
-        self.assertEqual(len(spec_trace), 16)
+        self.assertEqual(len(spec_trace), 17)
         covered_by_specs = {
             p for info in spec_trace.values() for p in info["probes"]
         }
@@ -395,16 +396,16 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         )
         self.assertEqual(origin_stats["single_println_literal"]["probes"], 31)
         self.assertEqual(origin_stats["source_trace_audited"]["probes"], 57)
-        self.assertEqual(origin_stats["v046_spec_contract"]["probes"], 39)
-        self.assertEqual(origin_stats["baseline_diagnostic_audited"]["probes"], 13)
+        self.assertEqual(origin_stats["v046_spec_contract"]["probes"], 40)
+        self.assertEqual(origin_stats["baseline_diagnostic_audited"]["probes"], 12)
         self.assertEqual(origin_stats["baseline_unimplemented_audited"]["probes"], 14)
         self.assertEqual(origin_stats["expected_txt_file"]["programs"], 6)
 
-        # 13. Verify expected_lines/expected_bytes across all 137 output-bearing probes and summarize_output_shape_distribution
+        # 13. Verify expected_lines/expected_bytes across all 138 output-bearing probes and summarize_output_shape_distribution
         shape_stats = gate.summarize_output_shape_distribution(loaded)
-        self.assertEqual(len(shape_stats["single_line_probes"]), 117)
+        self.assertEqual(len(shape_stats["single_line_probes"]), 118)
         self.assertEqual(len(shape_stats["multi_line_probes"]), 20)
-        self.assertEqual(len(shape_stats["zero_stdout_probes"]), 17)
+        self.assertEqual(len(shape_stats["zero_stdout_probes"]), 16)
         self.assertEqual(
             len(shape_stats["single_line_probes"])
             + len(shape_stats["multi_line_probes"])
@@ -472,9 +473,9 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         self.assertEqual(cohort["groups"]["A"]["runnable"], 58)
         self.assertEqual(cohort["groups"]["A"]["compile_fail"], ["q17_generic_class"])
         self.assertEqual(len(cohort["groups"]["A"]["known_unimplemented"]), 15)
-        self.assertEqual(cohort["groups"]["B"]["total"], 8)
-        self.assertEqual(len(cohort["groups"]["B"]["compile_fail"]), 8)
-        self.assertEqual(cohort["groups"]["C"]["total"], 3)
+        self.assertEqual(cohort["groups"]["B"]["total"], 7)
+        self.assertEqual(len(cohort["groups"]["B"]["compile_fail"]), 7)
+        self.assertEqual(cohort["groups"]["C"]["total"], 4)
         self.assertEqual(cohort["p2_gap_to_target"], 12)
         v2_ready = gate.summarize_v2_chapter_readiness(loaded)
         self.assertEqual(set(v2_ready.keys()), set(gate.VALID_GUIDE_CHAPTERS))
@@ -488,26 +489,27 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         )
         self.assertEqual(
             len([ch for ch, r in v2_ready.items() if r["v2_status"] == "blocked_by_roadmap"]),
-            6,
+            5,
         )
         self.assertEqual(
             [ch for ch, r in v2_ready.items() if r["v2_status"] == "needs_negative_and_roadmap"],
             [
                 "01-lexical.md",
+                "07-calls-lambdas-closures.md",
                 "08-class-family-members.md",
                 "11-copyability-layout-construction.md",
                 "13-program-runtime-standard-library.md",
             ],
         )
         impact = gate.summarize_blocker_unlock_impact(loaded, roadmap_items)
-        self.assertEqual(sum(len(v["sole_probes"]) for v in impact.values()), 12)
+        self.assertEqual(sum(len(v["sole_probes"]) for v in impact.values()), 13)
         self.assertEqual(impact["N05"]["sole_probes"], ["p05_double", "p06_char"])
         self.assertEqual(impact["L7"]["sole_probes"], [])
         self.assertEqual(impact["L7"]["co_probes"], ["p21_box_enum", "q08_enum_string_payload"])
         self.assertEqual(impact["L3b"]["programs"], ["varint_codec"])
         stage_prog = gate.summarize_stage_progression(loaded, roadmap_items)
         self.assertEqual([r["stage"] for r in stage_prog], ["P2", "P3", "P4"])
-        self.assertEqual([r["projected_probe_cap"] for r in stage_prog], [147, 153, 154])
+        self.assertEqual([r["projected_probe_cap"] for r in stage_prog], [146, 153, 154])
         self.assertEqual([r["projected_group_a_runnable"] for r in stage_prog], [67, 72, 73])
         self.assertEqual([r["projected_programs_ready"] for r in stage_prog], [2, 6, 6])
         self.assertEqual(
@@ -518,10 +520,10 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         self.assertEqual(area_impact["collections"]["probes"], ["s02_pair_builtin", "s03_to_pair"])
         self.assertEqual(area_impact["stdlib"]["probes"], ["p21_box_enum", "p27_thread"])
         promo_rows = gate.summarize_unimplemented_promotion_contracts(loaded)
-        self.assertEqual(len(promo_rows), 16)
+        self.assertEqual(len(promo_rows), 17)
         self.assertEqual(
             [r["name"] for r in promo_rows if r["foundational_group"] == "C"],
-            ["p35_value_eq"],
+            ["p35_value_eq", "p42_lambda_mutate"],
         )
         self.assertEqual(
             len([r for r in promo_rows if r["foundational_group"] == "A"]),
@@ -531,19 +533,19 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         phase_mat = gate.summarize_compiler_phase_matrix(loaded, roadmap_items)
         self.assertEqual(set(phase_mat.keys()), {2, 3, 4, 5})
         self.assertEqual(len(phase_mat[2]["active_negative_probes"]), 10)
-        self.assertEqual(len(phase_mat[3]["active_negative_probes"]), 4)
+        self.assertEqual(len(phase_mat[3]["active_negative_probes"]), 3)
         self.assertEqual(len(phase_mat[4]["active_negative_probes"]), 3)
-        self.assertEqual(len(phase_mat[4]["blocked_probes"]), 16)
+        self.assertEqual(len(phase_mat[4]["blocked_probes"]), 17)
         self.assertEqual(len(phase_mat[4]["blocked_programs"]), 6)
         litmus_align = gate.summarize_guide_litmus_alignment(loaded)
         self.assertEqual(list(litmus_align.keys()), list(range(1, 13)))
         self.assertEqual(
             [k for k, v in litmus_align.items() if v["status"] == "all_passed"],
-            [1, 2, 3, 8, 9, 10, 11, 12],
+            [1, 2, 3, 8, 9, 11, 12],
         )
         self.assertEqual(
             [k for k, v in litmus_align.items() if v["status"] == "partial"],
-            [4, 5, 6, 7],
+            [4, 5, 6, 7, 10],
         )
         ver_bounds = gate.summarize_guide_version_boundaries(loaded)
         self.assertEqual(list(ver_bounds.keys()), ["v0.44", "v0.45", "v0.46", "v0.47"])
@@ -608,7 +610,7 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         self.assertEqual(pt_contracts["header_utf8"], "package app")
         self.assertEqual(pt_contracts["entry_selector"], "app.main")
         self.assertEqual(pt_contracts["cohorts"]["probes_default_prelude"]["count"], 149)
-        self.assertEqual(pt_contracts["cohorts"]["probes_default_prelude"]["cap_passed"], 133)
+        self.assertEqual(pt_contracts["cohorts"]["probes_default_prelude"]["cap_passed"], 132)
         self.assertEqual(
             pt_contracts["cohorts"]["probes_explicit_import"]["probes"],
             [

@@ -27,6 +27,91 @@ pub(super) enum FlowKey {
     This,
 }
 
+#[derive(Clone, Default)]
+pub(super) struct FlowVersions {
+    versions: BTreeMap<FlowKey, u64>,
+    mutable_pending: BTreeMap<FlowKey, bool>,
+}
+
+impl FlowVersions {
+    pub(super) fn clear(&mut self) {
+        self.versions.clear();
+        self.mutable_pending.clear();
+    }
+
+    pub(super) fn declare_mutable(&mut self, symbol: UnitSymbolId, pending: bool) {
+        self.mutable_pending
+            .insert(FlowKey::Symbol(symbol), pending);
+    }
+
+    pub(super) fn replace_pending(&mut self, key: FlowKey, pending: bool) {
+        if let Some(previous) = self.mutable_pending.get_mut(&key) {
+            *previous = pending;
+        }
+    }
+
+    pub(super) fn mutable_is_pending(&self, symbol: UnitSymbolId) -> bool {
+        self.mutable_pending
+            .get(&FlowKey::Symbol(symbol))
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub(super) fn merge_pending(&mut self, other: &Self) {
+        for (&key, &pending) in &other.mutable_pending {
+            *self.mutable_pending.entry(key).or_default() |= pending;
+        }
+    }
+
+    pub(super) fn take_pending_from(&mut self, other: Self) {
+        self.mutable_pending = other.mutable_pending;
+    }
+
+    pub(super) fn tracks_mutable(&self, key: FlowKey) -> bool {
+        self.mutable_pending.contains_key(&key)
+    }
+
+    pub(super) fn pending_keys(&self) -> impl Iterator<Item = FlowKey> + '_ {
+        self.mutable_pending
+            .iter()
+            .filter_map(|(&key, &pending)| pending.then_some(key))
+    }
+
+    pub(super) fn mark_pending(&mut self, keys: impl IntoIterator<Item = FlowKey>) -> bool {
+        let mut changed = false;
+        for key in keys {
+            if let Some(pending) = self.mutable_pending.get_mut(&key) {
+                changed |= !*pending;
+                *pending = true;
+            }
+        }
+        changed
+    }
+
+    pub(super) fn clear_pending(&mut self) {
+        self.mutable_pending
+            .values_mut()
+            .for_each(|pending| *pending = false);
+    }
+
+    pub(super) fn set_pending_keys(&mut self, keys: impl IntoIterator<Item = FlowKey>) {
+        self.clear_pending();
+        self.mark_pending(keys);
+    }
+}
+
+pub(super) fn merge_flow_versions(left: &FlowVersions, right: &FlowVersions) -> FlowVersions {
+    let mut merged = FlowVersions {
+        versions: crate::type_checking::flow_effects::merge_flow_versions(
+            &left.versions,
+            &right.versions,
+        ),
+        mutable_pending: left.mutable_pending.clone(),
+    };
+    merged.merge_pending(right);
+    merged
+}
+
 pub(super) type ConditionFacts = (BTreeMap<FlowKey, UnitTypeId>, BTreeMap<FlowKey, UnitTypeId>);
 
 pub(super) fn collect_stable_flow_symbols(
@@ -92,12 +177,16 @@ pub(super) fn collect_stable_flow_symbols(
 
 impl BodyChecker<'_> {
     pub(super) fn flow_version(&self, key: FlowKey) -> u64 {
-        self.flow_versions.get(&key).copied().unwrap_or_default()
+        self.flow_versions
+            .versions
+            .get(&key)
+            .copied()
+            .unwrap_or_default()
     }
 
     pub(super) fn invalidate_flow_key(&mut self, key: FlowKey) {
         self.flow_facts.remove(&key);
-        let version = self.flow_versions.entry(key).or_default();
+        let version = self.flow_versions.versions.entry(key).or_default();
         // MAX is a permanent invalid source witness, never a reusable snapshot version.
         *version = version.saturating_add(1);
     }
@@ -243,19 +332,38 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         id: ExpressionId,
     ) -> Option<FlowKey> {
+        self.flow_root(source, id)
+            .filter(|&key| self.is_stable_flow_root(key))
+    }
+
+    pub(super) fn pending_flow_key(
+        &self,
+        source: SourceUnitId,
+        id: ExpressionId,
+    ) -> Option<FlowKey> {
+        self.flow_root(source, id)
+            .filter(|&key| self.flow_versions.tracks_mutable(key))
+    }
+
+    pub(super) fn is_stable_flow_root(&self, key: FlowKey) -> bool {
+        match key {
+            FlowKey::Symbol(symbol) => self.stable_flow_symbols.contains(&symbol),
+            FlowKey::This => self.current_receiver.is_some(),
+        }
+    }
+
+    pub(super) fn flow_root(&self, source: SourceUnitId, id: ExpressionId) -> Option<FlowKey> {
         let node = self.file(source).ast().expressions().get(id).ok()?;
         match node.payload() {
-            Expression::Group { expression } => self.stable_flow_key(source, *expression),
-            Expression::This if self.current_receiver.is_some() => Some(FlowKey::This),
+            Expression::Group { expression } => self.flow_root(source, *expression),
+            Expression::This => Some(FlowKey::This),
             Expression::Name => {
                 let UnitReferenceTarget::Symbol(symbol) =
                     self.reference(source, node.span(), Namespace::Value)?
                 else {
                     return None;
                 };
-                self.stable_flow_symbols
-                    .contains(symbol)
-                    .then_some(FlowKey::Symbol(*symbol))
+                Some(FlowKey::Symbol(*symbol))
             }
             _ => None,
         }
@@ -316,16 +424,4 @@ pub(super) fn intersect_facts(
     left.iter()
         .filter_map(|(key, ty)| (right.get(key) == Some(ty)).then_some((*key, *ty)))
         .collect()
-}
-
-pub(super) fn merge_flow_versions(
-    left: &BTreeMap<FlowKey, u64>,
-    right: &BTreeMap<FlowKey, u64>,
-) -> BTreeMap<FlowKey, u64> {
-    let mut merged = left.clone();
-    for (&key, &version) in right {
-        let previous = merged.entry(key).or_default();
-        *previous = (*previous).max(version);
-    }
-    merged
 }

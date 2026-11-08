@@ -156,7 +156,8 @@ impl BodyChecker<'_> {
             )?;
             ty = self.error_type();
         }
-        self.parts.type_ref_types.insert(key, ty);
+        let previous = self.parts.type_ref_types.insert(key, ty);
+        self.note_deferred_fact(super::trial::DeferredFact::TypeRef(key), previous, ty);
         Ok(ty)
     }
 
@@ -287,16 +288,21 @@ impl BodyChecker<'_> {
             .invalid_nominal_storage_argument(declaration, &arguments)
             .is_some()
         {
+            let origin = self
+                .file(source)
+                .ast()
+                .type_refs()
+                .get(id)
+                .map_err(TypeCheckingError::from)?
+                .span();
             self.emit(
                 codes::INVALID_CONTAINER_ELEMENT,
                 "type argument cannot satisfy instantiated storage requirements",
-                self.file(source)
-                    .ast()
-                    .type_refs()
-                    .get(id)
-                    .map_err(TypeCheckingError::from)?
-                    .span(),
+                origin,
             )?;
+            if let Some(failures) = &mut self.explicit_storage_failures {
+                failures.entry(ty).or_insert(origin);
+            }
             return Ok(self.error_type());
         }
         Ok(ty)
@@ -562,7 +568,9 @@ impl BodyChecker<'_> {
             if self.is_error(key) || self.is_error(val) {
                 return Ok(self.error_type());
             }
-            if !self.is_hashable_type(key) {
+            if !self.is_hashable_type(key)
+                && !self.unbound_intrinsic_argument_head(source, Some(segment.arguments[0]), key)?
+            {
                 let primary = self
                     .file(source)
                     .ast()
@@ -577,7 +585,7 @@ impl BodyChecker<'_> {
                 )?;
                 return Ok(self.error_type());
             }
-            if !self.is_structurally_storable_type(val) {
+            if !self.could_be_structurally_storable_type(val) {
                 let primary = self
                     .file(source)
                     .ast()
@@ -613,7 +621,9 @@ impl BodyChecker<'_> {
                         )
                     })
             }
-            (IntrinsicTypeConstructor::Box, _) => false,
+            (IntrinsicTypeConstructor::Box, _) => {
+                self.unbound_intrinsic_argument_head(source, Some(segment.arguments[0]), argument)?
+            }
             (
                 IntrinsicTypeConstructor::Array
                 | IntrinsicTypeConstructor::List
@@ -621,7 +631,7 @@ impl BodyChecker<'_> {
                 | IntrinsicTypeConstructor::View
                 | IntrinsicTypeConstructor::Rc,
                 _,
-            ) => self.is_structurally_storable_type(argument),
+            ) => self.could_be_structurally_storable_type(argument),
             (IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap, _) => false,
         };
         if !valid {
@@ -650,6 +660,38 @@ impl BodyChecker<'_> {
             constructor,
             arguments,
         }))
+    }
+
+    /// Body resolution collapses an unbound nullable ref to its deferred leaf.
+    /// A known nullable/function head cannot later become a Map key or Box payload.
+    pub(super) fn unbound_intrinsic_argument_head(
+        &self,
+        source: SourceUnitId,
+        type_ref: Option<TypeRefId>,
+        ty: UnitTypeId,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        if !matches!(
+            self.signatures.types().get(ty),
+            Some(UnitTypeKind::Deferred(DeferredReason::UnboundExternalType))
+        ) {
+            return Ok(false);
+        }
+        let Some(id) = type_ref else {
+            return Ok(true);
+        };
+        let node = self
+            .file(source)
+            .ast()
+            .type_refs()
+            .get(id)
+            .map_err(TypeCheckingError::from)?;
+        Ok(matches!(
+            node.payload(),
+            TypeRef::Qualified {
+                nullable_span: None,
+                ..
+            }
+        ))
     }
 
     fn validate_nominal_type_arguments(
@@ -729,11 +771,30 @@ impl BodyChecker<'_> {
         actual: UnitTypeId,
         expected: UnitTypeId,
     ) -> Result<bool, CompilationUnitTypeError> {
-        if actual == expected {
+        self.matches_interface(actual, expected, |_, actual, expected| actual == expected)
+    }
+
+    pub(super) fn could_satisfy_pending_interface(
+        &mut self,
+        actual: UnitTypeId,
+        expected: UnitTypeId,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        self.matches_interface(actual, expected, Self::types_could_be_equal)
+    }
+
+    fn matches_interface(
+        &mut self,
+        actual: UnitTypeId,
+        expected: UnitTypeId,
+        matches: fn(&Self, UnitTypeId, UnitTypeId) -> bool,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        if matches(self, actual, expected) {
             return Ok(true);
         }
         match self.signatures.types().get(actual).cloned() {
-            Some(UnitTypeKind::StaticSelf(inner)) => self.satisfies_interface(inner, expected),
+            Some(UnitTypeKind::StaticSelf(inner)) => {
+                self.matches_interface(inner, expected, matches)
+            }
             Some(UnitTypeKind::Nominal {
                 declaration,
                 arguments,
@@ -751,7 +812,8 @@ impl BodyChecker<'_> {
                     .zip(arguments)
                     .collect::<BTreeMap<_, _>>();
                 for &interface in nominal.interfaces() {
-                    if self.substitute_type(interface, &substitutions)? == expected {
+                    let interface = self.substitute_type(interface, &substitutions)?;
+                    if matches(self, interface, expected) {
                         return Ok(true);
                     }
                 }
@@ -765,13 +827,21 @@ impl BodyChecker<'_> {
                 else {
                     return Ok(false);
                 };
-                self.satisfies_interface(bound, expected)
+                self.matches_interface(bound, expected, matches)
             }
             _ => Ok(false),
         }
     }
 
     pub(super) fn is_structurally_storable_type(&self, ty: UnitTypeId) -> bool {
+        self.structural_storage_allowed(ty, false)
+    }
+
+    pub(super) fn could_be_structurally_storable_type(&self, ty: UnitTypeId) -> bool {
+        self.structural_storage_allowed(ty, true)
+    }
+
+    fn structural_storage_allowed(&self, ty: UnitTypeId, allow_unresolved: bool) -> bool {
         if crate::type_checking::range_type_uses::unit_contains_range(self.signatures.types(), ty) {
             return false;
         }
@@ -780,6 +850,9 @@ impl BodyChecker<'_> {
         // A concrete generic type can have many paths to the same canonical node.
         while let Some(ty) = pending.pop() {
             if !seen.insert(ty) {
+                continue;
+            }
+            if allow_unresolved && self.is_unresolved_call_type(ty) {
                 continue;
             }
             match self.signatures.types().get(ty) {
@@ -906,7 +979,7 @@ impl BodyChecker<'_> {
     }
 }
 
-const fn parameter_mode(marker: Option<ParameterModeMarker>) -> ParameterMode {
+pub(super) const fn parameter_mode(marker: Option<ParameterModeMarker>) -> ParameterMode {
     match marker {
         None | Some(ParameterModeMarker::Borrow(_)) => ParameterMode::Borrow,
         Some(ParameterModeMarker::Own(_)) => ParameterMode::Value,

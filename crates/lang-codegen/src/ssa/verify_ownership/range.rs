@@ -96,6 +96,15 @@ pub(super) fn apply(
                 match argument {
                     EntityId::Loan(loan) => {
                         require_source(*loan, state, location.clone(), origin, errors);
+                        closure::check_borrowed_contents(
+                            *loan,
+                            closure_loans,
+                            state,
+                            instruction.id,
+                            origin,
+                            errors,
+                            "range call Borrow requires proved current callable capture contents",
+                        );
                     }
                     EntityId::Value(value) => {
                         consume_value(

@@ -197,7 +197,7 @@ impl BodyChecker<'_> {
             let symbol = self
                 .symbol_at(source, span, Namespace::Value)
                 .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-            self.parts.symbol_types.insert(symbol, ty);
+            self.record_symbol_type(symbol, ty);
         } else if !self.diagnosed_missing_name(source, marker) {
             return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
         }

@@ -46,6 +46,33 @@ fn checked_with_limit(text: &str, limit: usize) -> CompilationUnitTypes {
 }
 
 #[test]
+fn rejected_generic_storage_remains_visible_to_iteration_gates() {
+    with_checker(
+        "interface Pattern<T>\n\
+         class Marker<T> : Pattern<Rc<T>>\n\
+         fun <T> take(value: T): Int = 0\n\
+         fun entry(entries: Map<Int, Int>): Int {\n\
+             for (n in 1..1) {}\n\
+             for ((key, value) in entries) {}\n\
+             return take<Marker<Nothing>>(if (true) {\n\
+                 for (n in if (true) { Marker<Nothing>(); 1..1 } else 1..1) {}\n\
+                 for ((key, value) in if (true) { Marker<Nothing>(); entries } else entries) {}\n\
+                 0\n\
+             } else 0)\n\
+         }",
+        |checker| {
+            let typed = checker.run_with_generic_limit(1024).unwrap();
+            assert_eq!(typed.diagnostic_sequential_iterations().len(), 1);
+            assert_eq!(typed.diagnostic_map_iterations().len(), 1);
+            let [diagnostic] = typed.diagnostics() else {
+                panic!("{:?}", typed.diagnostics());
+            };
+            assert_eq!(diagnostic.code().to_string(), "L0125");
+        },
+    );
+}
+
+#[test]
 fn unit_generic_body_skips_methods_without_substitutions() {
     let mut source = String::from("class Factory {\n");
     for index in 0..128 {
@@ -94,6 +121,21 @@ fn unit_generic_body_zero_one_two_budgets_keep_prefix_and_only_one_frontier() {
             typed.calls().len(),
             3,
             "canonical publication retains template calls"
+        );
+    }
+}
+
+#[test]
+fn unit_generic_body_stops_growing_exact_delegation_cycles() {
+    let source = "interface Root { fun read(): Int }
+                  class Host<T>(val next: Host<List<T>>) : Root by next {}
+                  fun entry(host: Host<Int>): Int = host.read()";
+    for limit in 0..=2 {
+        let typed = checked_with_limit(source, limit);
+        assert_eq!(
+            typed.runtime_field_layouts().len(),
+            2,
+            "a repeated declaration and forwarder must not consume the generic frontier"
         );
     }
 }

@@ -49,6 +49,9 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     neg_catalog = summarize_negative_oracle_catalog(expectations)
     base_evo = summarize_baseline_evolution(expectations)
     spec_trace = summarize_v046_spec_traceability(expectations)
+    exempt_count = sum(bool(spec.get("v046_baseline_exempt")) for spec in probes.values())
+    compile_fail_count = sum(spec["kind"] == "compile_fail" for spec in probes.values())
+    runtime_abort_count = sum(spec["kind"] == "runtime_abort" for spec in probes.values())
     origin_stats = summarize_oracle_origins(expectations)
     shape_stats = summarize_output_shape_distribution(expectations)
     batch_stats = summarize_probe_batches(expectations)
@@ -95,7 +98,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"- **正/负向双极性覆盖章节（{len(both_chapters)} / {len(VALID_GUIDE_CHAPTERS)}）**：" + ", ".join(f"`{c}`" for c in both_chapters) + "（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。",
             f"- **仅正向覆盖章节（{len(pos_only_chapters)} / {len(VALID_GUIDE_CHAPTERS)}，待后续补充独立负向诊断探针）**：" + ", ".join(f"`{c}`" for c in pos_only_chapters) + "（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。",
             "",
-            "### 1.1 负向诊断码与运行时中止契约矩阵（14 `compile_fail` + 3 `runtime_abort`）",
+            f"### 1.1 负向诊断码与运行时中止契约矩阵（{compile_fail_count} `compile_fail` + {runtime_abort_count} `runtime_abort`）",
             "",
             "| 负向契约标识 | `diagnostic.rs` 符号常量 / 中止类别 | 覆盖 Guide 章节 | 关联 Probe 数量 | 绑定 Probe 列表 |",
             "|---|---|---|---:|---|",
@@ -124,10 +127,10 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `upgraded_to_structured_abort` | `abort(exit 1,no msg)` | `runtime_abort`（`SIGABRT` + `abort: <msg>`） | {len(base_evo['upgraded_to_structured_abort'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_structured_abort"]) + " |",
             f"| `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | {len(base_evo['upgraded_to_compile_fail'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_compile_fail"]) + " |",
             f"| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | {len(base_evo['baseline_compile_fail_preserved'])} | " + ", ".join(f"`{p}`" for p in base_evo["baseline_compile_fail_preserved"]) + " |",
-            f"| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | {len(base_evo['remaining_known_unimplemented'])} | " + ", ".join(f"`{p}`" for p in base_evo["remaining_known_unimplemented"]) + " |",
+            f"| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0135` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | {len(base_evo['remaining_known_unimplemented'])} | " + ", ".join(f"`{p}`" for p in base_evo["remaining_known_unimplemented"]) + " |",
             f"| `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | {len(base_evo['regressed_from_baseline_ok'])} | 无（零基线退化） |",
             "",
-            "### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（35 Probes）",
+            f"### 1.3 Guide v0.46 豁免项 (`v046_spec_contract`) 与 Spec 交付合同溯源矩阵（{exempt_count} Probes）",
             "",
             "| Spec 合同编号 | 规范文档路径 | 合同状态 | 关联豁免 Probe 数 | 交付后分布 | 绑定的 Probe 列表 |",
             "|---|---|---|---:|---|---|",
@@ -226,8 +229,8 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             "| 分组 | 分组定义与审计口径 | 总数 | 可运行 (`run_ok` + `runtime_abort`) | `compile_fail` | `known_unimplemented` | 阶段门槛 / 当前状态说明 |",
             "|---|---|---:|---:|---:|---:|---|",
             f"| **A 组** | {grp_a['label']} | {grp_a['total']} | {grp_a['runnable']} ({len(grp_a['run_ok'])} + {len(grp_a['runtime_abort'])}) | {len(grp_a['compile_fail'])} (`q17_generic_class`) | {len(grp_a['known_unimplemented'])} | P2 门槛 `≥ {foundational_stats['p2_target_min']} / {grp_a['total']}`（当前 `{grp_a['runnable']} / {grp_a['total']}`，距门槛差 `{foundational_stats['p2_gap_to_target']}` 项） |",
-            f"| **B 组** | {grp_b['label']} | {grp_b['total']} | {grp_b['runnable']} | {len(grp_b['compile_fail'])} | {len(grp_b['known_unimplemented'])} | `8 / 8 (100%)` 精确命中期望前端诊断码 (`pass_diagnostic`) |",
-            f"| **C 组** | {grp_c['label']} | {grp_c['total']} | {grp_c['runnable']} (`p37_is_generic_case`) | {len(grp_c['compile_fail'])} (`p23_global_var`) | {len(grp_c['known_unimplemented'])} (`p35_value_eq`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1` |",
+            f"| **B 组** | {grp_b['label']} | {grp_b['total']} | {grp_b['runnable']} | {len(grp_b['compile_fail'])} | {len(grp_b['known_unimplemented'])} | 要求 `{grp_b['total']} / {grp_b['total']}` 精确命中期望前端诊断码 (`pass_diagnostic`) |",
+            f"| **C 组** | {grp_c['label']} | {grp_c['total']} | {grp_c['runnable']} (`p37_is_generic_case`) | {len(grp_c['compile_fail'])} (`p23_global_var`) | {len(grp_c['known_unimplemented'])} (`p35_value_eq`, `p42_lambda_mutate`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1`、`p42` 待 `S1` |",
             "",
             "### 1.9 Guide 13 章 V2 终态完备性（正反例双极性 + 零未实现）差距矩阵",
             "",

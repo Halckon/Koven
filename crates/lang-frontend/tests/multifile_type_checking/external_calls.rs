@@ -432,9 +432,14 @@ fn partial_external_overloads_and_nested_deferred_calls_never_publish_error_fact
              val partial = partialExternal(1)\n\
              val nested = pickExternal(unboundExternal())\n\
              val lambda = resolve({ item -> unboundExternal() })\n\
+             val member = Resolver().resolve({ item -> unboundExternal() })\n\
          }\n\
          fun resolve(callback: (borrow Int) -> Int): Int = 1\n\
-         fun resolve(callback: (borrow String) -> String): String = \"resolved\"",
+         fun resolve(callback: (borrow String) -> String): String = \"resolved\"\n\
+         class Resolver {\n\
+             fun resolve(callback: (borrow Int) -> Int): Int = 1\n\
+             fun resolve(callback: (borrow String) -> String): String = \"resolved\"\n\
+         }",
     );
     let inputs = [SourceUnitInput::new(
         "root",
@@ -473,7 +478,391 @@ fn partial_external_overloads_and_nested_deferred_calls_never_publish_error_fact
         Some(UnitTypeKind::Deferred(DeferredReason::Call))
     ));
     assert!(typed.calls().is_empty());
-    assert!(typed.validate().is_ok());
+    assert!(typed.clone().validate().is_ok());
+    let final_result = lang_frontend::type_checking::complete_compilation_unit_types(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+    );
+    let Err(lang_frontend::type_checking::FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+        final_result
+    else {
+        panic!("{final_result:?}");
+    };
+    for call in [
+        "resolve({ item -> unboundExternal() })",
+        "Resolver().resolve({ item -> unboundExternal() })",
+    ] {
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code().to_string() == "L0165"
+                    && sources.slice(diagnostic.primary_span()) == Ok(call)
+            }),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn selected_call_does_not_publish_with_unresolved_argument_facts() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types};
+
+    let mut names_environment = NameEnvironment::new();
+    let builtins = BuiltinType::ALL.map(|builtin| {
+        (
+            names_environment.declare_type(builtin.name()).unwrap(),
+            builtin,
+        )
+    });
+    names_environment
+        .declare_function("unboundExternal")
+        .unwrap();
+    names_environment.declare_type("Unbound").unwrap();
+    let mut types = TypeEnvironment::new(&names_environment);
+    for (symbol, builtin) in builtins {
+        types.bind_builtin(symbol, builtin).unwrap();
+    }
+    for (call, callback, independent_argument_call, unresolved_expression) in [
+        (
+            "Factory<Long>().apply({ item -> val pending = unboundExternal(); item })",
+            Some("{ item -> val pending = unboundExternal(); item }"),
+            None,
+            true,
+        ),
+        (r#"choose(input, "${unboundExternal()}")"#, None, None, true),
+        (
+            r#"select(input, "${unboundExternal()}", { item -> keep(item) })"#,
+            Some("{ item -> keep(item) }"),
+            Some("keep(item)"),
+            true,
+        ),
+        (
+            r#"route("${unboundExternal()}", { item -> keep(item) })"#,
+            Some("{ item -> keep(item) }"),
+            Some("keep(item)"),
+            true,
+        ),
+        ("ignore<Unbound>()", None, None, false),
+    ] {
+        let text = format!(
+            "class Holder<T>(val marker: Int)\n\
+             class Factory<T> {{ fun apply(callback: (borrow Int) -> Int): Holder<T> = Holder<T>(0) }}\n\
+             fun <T> choose(tag: T, value: String): Holder<T> = Holder<T>(0)\n\
+             fun <T> ignore(): Holder<T> = Holder<T>(0)\n\
+             fun select(tag: Int, text: String, cb: (borrow Int) -> Int): Int = 0\n\
+             fun select(tag: Long, text: String, cb: (borrow Int) -> Int): Int = 1\n\
+             fun route(text: String, cb: (borrow Int) -> Int): Int = 1\n\
+             fun route(text: String, cb: (borrow String) -> String): String = \"\"\n\
+             fun keep(value: Int): Int = value\n\
+             fun entry(input: Long): Unit {{ val pending = {call}; val independent = keep(7) }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "deferred-argument.ko", &text);
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "deferred-argument.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let names = validated_names(&sources, &inputs, &names_environment);
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+            assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+            let unit = source_unit(&names, source);
+            let id =
+                |text| UnitExpressionId::new(unit, expression_with_text(&sources, &file, text));
+            let kind = |text| {
+                typed
+                    .expression_type(id(text))
+                    .and_then(|ty| typed.types().get(ty))
+            };
+            if unresolved_expression {
+                assert_eq!(
+                    kind("unboundExternal()"),
+                    Some(&UnitTypeKind::Deferred(DeferredReason::UnboundExternalType))
+                );
+            }
+            if let Some(callback) = callback {
+                assert!(matches!(
+                    kind(callback),
+                    Some(UnitTypeKind::Function { .. })
+                ));
+            }
+            if let Some(argument_call) = independent_argument_call {
+                assert!(
+                    typed
+                        .calls()
+                        .iter()
+                        .any(|fact| fact.expression() == id(argument_call))
+                );
+            }
+            assert_eq!(
+                kind(call),
+                Some(&UnitTypeKind::Deferred(DeferredReason::Call)),
+                "{call}"
+            );
+            assert!(
+                typed
+                    .calls()
+                    .iter()
+                    .all(|fact| fact.expression() != id(call))
+            );
+            assert!(
+                typed
+                    .calls()
+                    .iter()
+                    .any(|fact| fact.expression() == id("keep(7)"))
+            );
+            let rejected_instance_argument = if unresolved_expression {
+                typed.types().builtin(BuiltinType::Long).unwrap()
+            } else {
+                typed
+                    .types()
+                    .find(&UnitTypeKind::Deferred(DeferredReason::UnboundExternalType))
+                    .unwrap()
+            };
+            let holder = typed
+                .signatures()
+                .declarations()
+                .iter()
+                .filter_map(|sig| sig.nominal())
+                .find(|nominal| {
+                    nominal
+                        .fields()
+                        .iter()
+                        .any(|field| sources.slice(field.span()) == Ok("marker"))
+                })
+                .unwrap()
+                .declaration();
+            assert!(
+                typed
+                    .types()
+                    .find(&UnitTypeKind::Nominal {
+                        declaration: holder,
+                        arguments: vec![rejected_instance_argument],
+                    })
+                    .is_none()
+            );
+            let final_result =
+                complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed);
+            assert!(
+                matches!(final_result, Err(FinalTypeAdmissionError::Diagnostics(_))),
+                "{call}: {final_result:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn generic_calls_distinguish_unresolved_inputs_from_proven_rejections() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types};
+
+    let mut environment = NameEnvironment::new();
+    let builtins = BuiltinType::ALL
+        .map(|builtin| (environment.declare_type(builtin.name()).unwrap(), builtin));
+    environment.declare_function("unboundExternal").unwrap();
+    environment.declare_type("Unbound").unwrap();
+    let copyable = environment.declare_type("Copyable").unwrap();
+    let list = environment.declare_type("List").unwrap();
+    let mut types = TypeEnvironment::new(&environment);
+    for (symbol, builtin) in builtins {
+        types.bind_builtin(symbol, builtin).unwrap();
+    }
+    types
+        .bind_capability(copyable, lang_frontend::type_checking::Capability::Copyable)
+        .unwrap();
+    types
+        .bind_intrinsic(list, IntrinsicTypeConstructor::List)
+        .unwrap();
+
+    for (call, expected_error) in [
+        ("identity(unboundExternal())", None),
+        ("listIdentity(unboundExternal())", None),
+        ("bounded<Unbound>()", None),
+        ("pendingBound<Unbound>({ item -> keep(item) })", None),
+        ("pendingBound<Unbound>({ item -> item }, 0)", None),
+        (
+            "pendingBound<Unbound>({ item -> item }, true)",
+            Some("L0084"),
+        ),
+        ("choose(unboundExternal())", None),
+        ("tri<Unbound>(1)", None),
+        ("closed<Unbound>(true)", Some("L0123")),
+        ("mixed(unboundExternal(), true)", Some("L0084")),
+        ("mixedOverload(unboundExternal(), true)", Some("L0123")),
+        (
+            "shapeSingle(unboundExternal(), { a, b -> 1 })",
+            Some("L0084"),
+        ),
+        (
+            "shapeRoute(unboundExternal(), { a, b -> 1 })",
+            Some("L0123"),
+        ),
+        (
+            "Factory<Int>().shapeRoute(unboundExternal(), { a, b -> 1 })",
+            Some("L0123"),
+        ),
+        ("badLambda(unboundExternal(), { 1 })", Some("L0084")),
+        ("conflict(unboundExternal(), 1, true)", Some("L0140")),
+        ("unrelated(unboundExternal())", Some("L0140")),
+        (
+            "independentBound(Mutable(), unboundExternal())",
+            Some("L0115"),
+        ),
+        ("bounded<Mutable>()", Some("L0115")),
+        ("bounded<Carrier<Unbound>>()", Some("L0115")),
+        ("patternBound<Unbound, Matches>()", None),
+        ("patternBound<Unbound, Mutable>()", Some("L0093")),
+        ("take<Unbound>(Carrier<Int>(1))", None),
+        ("nested<Unbound>(null)", None),
+        ("take<Unbound>(true)", Some("L0084")),
+        ("storage(unboundExternal())", None),
+        ("storage<Unbound>(unboundExternal())", None),
+        ("storage<Nothing>(unboundExternal())", Some("L0125")),
+        (
+            "takePair<Unbound>(Pair<Boolean, Int>(true, 1))",
+            Some("L0084"),
+        ),
+        ("nested(value)", None),
+        ("identity(value)", None),
+        ("same(value, known)", None),
+        ("nested<Int>(value)", None),
+        ("concrete(value)", None),
+        ("factory.inspect()", None),
+        ("choose(true)", Some("L0123")),
+    ] {
+        let local_unbound = matches!(
+            call,
+            "nested(value)"
+                | "identity(value)"
+                | "same(value, known)"
+                | "nested<Int>(value)"
+                | "concrete(value)"
+                | "factory.inspect()"
+        );
+        let body = match call {
+            "factory.inspect()" => "{ val factory: Factory<Unbound>? = null; if (factory != null) { return factory.inspect() }; return 0 }".to_owned(),
+            _ if local_unbound => format!("{{ val value: Carrier<Unbound>? = null; val known: Carrier<Int>? = null; return {call} }}"),
+            _ => format!("= {call}"),
+        };
+        let text = format!(
+            "class Mutable\n\
+             class Carrier<T>(val item: T)\n\
+             class Pair<A, B>(val first: A, val second: B)\n\
+             class Factory<T> {{\n\
+                 fun inspect(): Int = 0\n\
+                 fun <U> shapeRoute(x: U, cb: (borrow Int) -> Int): Int = 0\n\
+                 fun <U> shapeRoute(x: U, cb: (borrow Boolean) -> Boolean): Int = 1\n\
+             }}\n\
+             interface Pattern<T>\n\
+             class Matches : Pattern<Int>\n\
+             fun <T> identity(value: T): Int = 0\n\
+             fun <T> listIdentity(value: Carrier<T>): Int = 0\n\
+             fun <T: Copyable> bounded(): Int = 0\n\
+             fun <T: Copyable> pendingBound(cb: (borrow Int) -> Int): Int = 0\n\
+             fun <T: Copyable> pendingBound(cb: T, tag: Int): Int = 0\n\
+             fun <T: Copyable, U> independentBound(first: T, second: U): Int = 0\n\
+             fun <T, U: Pattern<T>> patternBound(): Int = 0\n\
+             fun <T> take(value: Carrier<T>): Int = 0\n\
+             fun <T> takePair(value: Pair<Int, T>): Int = 0\n\
+             fun <T> nested(value: Carrier<T>?): Int = 0\n\
+             fun <T> storage(value: List<Carrier<T>>): Int = 0\n\
+             fun <T> same(first: T, second: T): Int = 0\n\
+             fun concrete(value: Carrier<Int>?): Int = 0\n\
+             fun keep(value: Int): Int = value\n\
+             fun <T> choose(value: Carrier<T>): Int = 0\n\
+             fun choose(value: Int): Int = 1\n\
+             fun choose(value: Long): Int = 2\n\
+             fun <T> tri(value: Int): Int = 0\n\
+             fun <T> tri(value: T): Int = 1\n\
+             fun <T> closed(value: Int): Int = 0\n\
+             fun <T> closed(value: Long): Int = 1\n\
+             fun <T> mixed(x: T, y: Int): Int = 0\n\
+             fun <T> mixedOverload(x: T, y: Int): Int = 0\n\
+             fun mixedOverload(x: Int, y: String): Int = 1\n\
+             fun <T> shapeSingle(x: T, cb: (borrow Int) -> T): Int = 0\n\
+             fun <T> shapeRoute(x: T, cb: (borrow Int) -> Int): Int = 0\n\
+             fun <T> shapeRoute(x: T, cb: (borrow Boolean) -> Boolean): Int = 1\n\
+             fun <T> badLambda(x: T, cb: Carrier<T>): Int = 0\n\
+             fun <T> conflict(pending: T, first: T, second: T): Int = 0\n\
+             fun <T> unrelated(value: Int): Int = 0\n\
+             fun entry(): Int {body}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "generic-obligation.ko", &text);
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "generic-obligation.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let names = validated_names(&sources, &inputs, &environment);
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+            let id = UnitExpressionId::new(
+                source_unit(&names, source),
+                expression_with_text(&sources, &file, call),
+            );
+            assert!(
+                typed.call(id).is_none(),
+                "{call}: {:?}, diagnostics: {:?}",
+                typed.call(id),
+                typed.diagnostics()
+            );
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                expected_error.into_iter().collect::<Vec<_>>(),
+                "{call}"
+            );
+            if expected_error.is_none() {
+                assert_eq!(
+                    typed
+                        .expression_type(id)
+                        .and_then(|ty| typed.types().get(ty)),
+                    Some(&UnitTypeKind::Deferred(DeferredReason::Call)),
+                    "{call}"
+                );
+            }
+            if call.contains("keep(item)") {
+                let inner = UnitExpressionId::new(
+                    source_unit(&names, source),
+                    expression_with_text(&sources, &file, "keep(item)"),
+                );
+                assert!(
+                    typed.call(inner).is_some(),
+                    "known callback context must survive"
+                );
+            }
+            let final_result =
+                complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed);
+            let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = final_result else {
+                panic!("{call}: {final_result:?}");
+            };
+            if expected_error.is_none() {
+                let spans = diagnostics
+                    .iter()
+                    .map(|diagnostic| {
+                        assert_eq!(diagnostic.code().to_string(), "L0165", "{call}");
+                        sources.slice(diagnostic.primary_span()).unwrap()
+                    })
+                    .collect::<Vec<_>>();
+                if call == "factory.inspect()" {
+                    assert_eq!(spans, ["Unbound", "null", "null"], "{call}");
+                } else if call == "storage<Unbound>(unboundExternal())" {
+                    assert_eq!(spans, ["Unbound", "unboundExternal"], "{call}");
+                } else if local_unbound {
+                    assert_eq!(spans, ["Unbound", "null"], "{call}");
+                } else {
+                    assert!(
+                        matches!(spans.as_slice(), ["Unbound" | "unboundExternal"]),
+                        "{call}: {diagnostics:?}"
+                    );
+                }
+            }
+        }
+    }
 }
 
 #[test]

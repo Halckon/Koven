@@ -748,6 +748,14 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
     let mut direct_failures = Vec::new();
     for (path, source) in [
         (
+            "test/exclusive-capture.ko",
+            "package test\nfun entry(): Unit { var n = 1; val update: () -> Unit = { n = 2 }; update() }",
+        ),
+        (
+            "test/exclusive-move-only-capture.ko",
+            "package test\nfun entry(): Unit { var text = \"old\"; val update: () -> Unit = { text = \"new\" }; update() }",
+        ),
+        (
             "test/temporary.ko",
             "package test\n\
              fun inspect(message: String): Unit {}\n\
@@ -853,7 +861,8 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
             path,
             "test/direct-argument-return.ko" | "test/direct-argument-break.ko"
         );
-        if direct {
+        let nested_break = path == "test/direct-argument-loop-condition-break.ko";
+        if direct || nested_break {
             lang_frontend::type_checking::complete_compilation_unit_types(
                 &sources,
                 &inputs,
@@ -872,7 +881,10 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
             &owned,
             declaration(&names, "test", "entry"),
         );
-        if direct {
+        if nested_break {
+            let (program, entry) = result.expect("nested break exits before invoking the callee");
+            direct_prefix::assert_cancelled_nested_break(&program, entry, &sources);
+        } else if direct {
             let (program, entry) = match result {
                 Ok(lowered) => lowered,
                 Err(error) => {

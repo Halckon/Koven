@@ -67,6 +67,9 @@ pub(super) struct Builder<'i, 'a> {
     narrowed: BTreeMap<UnitSymbolId, Slot>,
     temporaries: BTreeMap<UnitExpressionId, Slot>,
     consumed_drops: BTreeSet<usize>,
+    /// Source scopes and exact edge points proven unreachable by the constructed CFG.
+    unreachable_drop_scopes: Vec<Span>,
+    unreachable_drop_points: Vec<UnitDropPoint>,
     /// MoveOnly non-null views created by a condition, keyed by the branch they enter.
     pending_views: Vec<View>,
     /// Views live on the current path, innermost last.
@@ -153,6 +156,8 @@ pub(super) fn build(
         narrowed: BTreeMap::new(),
         temporaries: BTreeMap::new(),
         consumed_drops: BTreeSet::new(),
+        unreachable_drop_scopes: Vec::new(),
+        unreachable_drop_points: Vec::new(),
         pending_views: Vec::new(),
         active_views: Vec::new(),
         loops: Vec::new(),
@@ -395,6 +400,7 @@ impl Builder<'_, '_> {
         self.sync_dead();
         let block = self.current(span)?;
         for successor in terminator.successors() {
+            self.body.blocks[successor.0].has_predecessor = true;
             self.entry_dead
                 .entry(successor)
                 .or_default()
@@ -688,11 +694,70 @@ impl Builder<'_, '_> {
                 && origin.end() <= item.end()
                 && (!matches!(self.inputs.body, RefineBody::Lambda(_)) || origin != item)
                 && !self.inside_lambda(origin)
+                && !self.drop_is_unreachable(fact.point())
             {
                 return Err(error(LoweringErrorKind::MissingFact, origin));
             }
         }
         Ok(())
+    }
+
+    fn drop_is_unreachable(&self, point: UnitDropPoint) -> bool {
+        if self.unreachable_drop_points.contains(&point) {
+            return true;
+        }
+        if self.unreachable_drop_scopes.is_empty() || !self.point_in_unit(point) {
+            return false;
+        }
+        let ast = self.inputs.parsed.ast();
+        let span = match point {
+            UnitDropPoint::AfterExpression(expression)
+            | UnitDropPoint::AfterBinaryOperands(expression)
+            | UnitDropPoint::CallReturn(expression)
+            | UnitDropPoint::ControlTransfer(expression)
+            | UnitDropPoint::LambdaEntry(expression)
+            | UnitDropPoint::BeforeReplacement(expression)
+            | UnitDropPoint::AfterReplacement(expression)
+            | UnitDropPoint::BranchEntry {
+                control: expression,
+                ..
+            }
+            | UnitDropPoint::BranchExit {
+                control: expression,
+                ..
+            }
+            | UnitDropPoint::WhenComparisonCompleted {
+                control: expression,
+                ..
+            }
+            | UnitDropPoint::WhenAlternativeNoMatch {
+                control: expression,
+                ..
+            }
+            | UnitDropPoint::WhenAlternativeMatch {
+                control: expression,
+                ..
+            } => ast
+                .expressions()
+                .get(expression.expression())
+                .map(|node| node.span())
+                .ok(),
+            UnitDropPoint::AfterStatement(statement) | UnitDropPoint::LoopExit(statement) => ast
+                .statements()
+                .get(statement.statement())
+                .map(|node| node.span())
+                .ok(),
+            UnitDropPoint::FunctionEntry(_) => None,
+        };
+        // Compare the execution point, not the value's origin. A live owner born
+        // outside the skipped subtree may still need a drop on another edge.
+        span.is_some_and(|span| {
+            self.unreachable_drop_scopes.iter().any(|scope| {
+                scope.source_id() == span.source_id()
+                    && scope.start() <= span.start()
+                    && span.end() <= scope.end()
+            })
+        })
     }
 
     fn point_in_unit(&self, point: UnitDropPoint) -> bool {
@@ -705,6 +770,10 @@ impl Builder<'_, '_> {
             | UnitDropPoint::LambdaEntry(expression)
             | UnitDropPoint::BeforeReplacement(expression)
             | UnitDropPoint::AfterReplacement(expression)
+            | UnitDropPoint::BranchEntry {
+                control: expression,
+                ..
+            }
             | UnitDropPoint::BranchExit {
                 control: expression,
                 ..
@@ -824,11 +893,12 @@ impl Builder<'_, '_> {
 
     pub(super) fn statement(&mut self, statement: StatementId) -> Result<Lowered, LoweringError> {
         let result = self.statement_inner(statement)?;
+        let point =
+            UnitDropPoint::AfterStatement(UnitStatementId::new(self.inputs.source_unit, statement));
         if result != Lowered::Diverged {
-            self.drops(UnitDropPoint::AfterStatement(UnitStatementId::new(
-                self.inputs.source_unit,
-                statement,
-            )))?;
+            self.drops(point)?;
+        } else {
+            self.unreachable_drop_points.push(point);
         }
         Ok(result)
     }
@@ -847,9 +917,14 @@ impl Builder<'_, '_> {
             | Statement::ControlBody { elements }
             | Statement::LambdaBody { elements } => {
                 let mut last = Lowered::Unit;
-                for element in elements {
+                let mut elements = elements.into_iter();
+                while let Some(element) = elements.next() {
                     last = self.statement(element)?;
                     if last == Lowered::Diverged {
+                        for skipped in elements {
+                            let span = self.statement_span(skipped)?;
+                            self.unreachable_drop_scopes.push(span);
+                        }
                         return Ok(Lowered::Diverged);
                     }
                 }

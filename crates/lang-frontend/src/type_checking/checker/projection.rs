@@ -1,27 +1,14 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    ast::{ExpressionId, TypeRefId},
-    parser::{CallArgument, Expression},
+    ast::ExpressionId,
     source::Span,
-    type_checking::{
-        AggregateProjectionDescriptor, AggregateProjectionKind, CallDescriptor, CallableTarget,
-    },
+    type_checking::{AggregateProjectionDescriptor, AggregateProjectionKind},
 };
 
 use super::*;
 
 impl Checker<'_> {
-    pub(super) fn aggregate_projection_for(
-        &self,
-        expression: ExpressionId,
-    ) -> Option<AggregateProjectionDescriptor> {
-        self.aggregate_projections
-            .iter()
-            .copied()
-            .find(|projection| projection.expression() == expression)
-    }
-
     pub(super) fn check_field_projection(
         &mut self,
         expression: ExpressionId,
@@ -30,10 +17,7 @@ impl Checker<'_> {
         name_span: Span,
         safe: bool,
     ) -> Result<Option<TypeId>, TypeCheckingError> {
-        if safe {
-            return Ok(None);
-        }
-        if let TypeKind::EnumCase { case, root } = self.kind(receiver_type).clone() {
+        if !safe && let TypeKind::EnumCase { case, root } = self.kind(receiver_type).clone() {
             let Some(case) = self.enum_case(case).cloned() else {
                 return Err(TypeCheckingError::InvalidExternalBinding);
             };
@@ -68,7 +52,11 @@ impl Checker<'_> {
                 ));
             return Ok(Some(ty));
         }
-        let Some((owner, arguments)) = self.nominal_instance(receiver_type) else {
+        let owner_type = match self.kind(receiver_type) {
+            TypeKind::Nullable(inner) => *inner,
+            _ => receiver_type,
+        };
+        let Some((owner, arguments)) = self.nominal_instance(owner_type) else {
             return Ok(None);
         };
         let name = self.sources.slice(name_span)?;
@@ -80,6 +68,13 @@ impl Checker<'_> {
         else {
             return Ok(None);
         };
+        if self.private_field_inaccessible(field, name_span) {
+            self.emit_private_field_access(field, name_span)?;
+            return Ok(Some(self.error_type()));
+        }
+        if safe || owner_type != receiver_type {
+            return Ok(None);
+        }
         let ty = self.substituted_field_type(&owner, &arguments, field)?;
         self.aggregate_projections
             .push(AggregateProjectionDescriptor::new(
@@ -92,76 +87,27 @@ impl Checker<'_> {
         Ok(Some(ty))
     }
 
-    pub(super) fn check_structural_component_call(
+    pub(super) fn private_field_inaccessible(&self, field: SymbolId, access: Span) -> bool {
+        // Extension receivers do not grant the lexical classifier's private access.
+        self.private_field_owners.get(&field).is_some_and(|owner| {
+            owner.source_id() != access.source_id()
+                || access.start() < owner.start()
+                || access.end() > owner.end()
+        })
+    }
+
+    pub(super) fn emit_private_field_access(
         &mut self,
-        expression: ExpressionId,
-        callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
-        if !type_arguments.is_empty() || !arguments.is_empty() {
-            return Ok(None);
-        }
-        let callee_node = self.ast().expressions().get(callee)?;
-        let Expression::Member {
-            receiver,
-            name_span,
-            safe: false,
-            ..
-        } = callee_node.payload()
-        else {
-            return Ok(None);
-        };
-        let receiver = *receiver;
-        let name_span = *name_span;
-        let Some(component) = parse_component_name(self.sources.slice(name_span)?) else {
-            return Ok(None);
-        };
-        let receiver_result = self.check_expression(receiver, None, None)?;
-        let Some((owner, arguments)) = self.nominal_instance(receiver_result.ty) else {
-            return Ok(None);
-        };
-        if owner.kind() != NominalKind::ValueClass {
-            return Ok(None);
-        }
-        let Some(field) = owner.fields().get(component - 1).copied() else {
-            return Ok(None);
-        };
-        let ty = self.substituted_field_type(&owner, &arguments, field)?;
-        let function = self.types.intern(TypeKind::Function {
-            move_only: false,
-            parameters: Vec::new(),
-            return_type: ty,
-        });
-        self.set_expression(callee, function);
-        self.set_expression_category(callee, ExpressionCategory::Temporary);
-        self.calls.push(CallDescriptor::new(
-            expression,
-            CallableTarget::StructuralComponent(field),
-            Vec::new(),
-            ty,
-            Some(CallReceiverDescriptor {
-                origin: CallReceiverOrigin::Expression(receiver),
-                mode: ParameterMode::Borrow,
-                category: self.expression_categories[receiver.index()],
-                ty: receiver_result.ty,
-            }),
-            Vec::new(),
-            false,
-            false,
-        ));
-        self.aggregate_projections
-            .push(AggregateProjectionDescriptor::new(
-                expression,
-                AggregateProjectionReceiver::Expression(receiver),
-                field,
-                ty,
-                AggregateProjectionKind::StructuralComponent,
-            ));
-        Ok(Some(ExprCheck {
-            ty,
-            falls_through: receiver_result.falls_through,
-        }))
+        field: SymbolId,
+        access: Span,
+    ) -> Result<(), TypeCheckingError> {
+        self.emit_with_label(
+            self.unresolved_name_code,
+            "member is private to its declaring classifier",
+            access,
+            self.symbol_spans[field.index()],
+            "private member declared here",
+        )
     }
 
     fn nominal_instance(&self, ty: TypeId) -> Option<(NominalDescriptor, Vec<TypeId>)> {
@@ -192,28 +138,5 @@ impl Checker<'_> {
             .symbol_type(field)
             .ok_or(TypeCheckingError::InvalidExternalBinding)?;
         self.substitute_type(ty, &substitutions)
-    }
-}
-
-fn parse_component_name(name: &str) -> Option<usize> {
-    let digits = name.strip_prefix("component")?;
-    if digits.is_empty() || digits.starts_with('0') {
-        return None;
-    }
-    let component = digits.parse::<usize>().ok()?;
-    (component > 0 && component.to_string() == digits).then_some(component)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::parse_component_name;
-
-    #[test]
-    fn component_names_are_positive_canonical_decimal_indices() {
-        assert_eq!(parse_component_name("component1"), Some(1));
-        assert_eq!(parse_component_name("component42"), Some(42));
-        for invalid in ["component", "component0", "component01", "componentA", "x1"] {
-            assert_eq!(parse_component_name(invalid), None, "{invalid}");
-        }
     }
 }

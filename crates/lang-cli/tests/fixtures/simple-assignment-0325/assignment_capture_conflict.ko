@@ -1,0 +1,2 @@
+fun apply(action: (Int) -> Unit, value: Int): Unit { action(value) }
+fun main(): Unit { var sum = 0; apply({ value -> sum = sum + value }, sum) }

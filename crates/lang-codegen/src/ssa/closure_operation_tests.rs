@@ -1,6 +1,7 @@
 use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::source::SourceMap;
 
+mod capture_loan_tests;
 mod escape_tests;
 
 use super::{

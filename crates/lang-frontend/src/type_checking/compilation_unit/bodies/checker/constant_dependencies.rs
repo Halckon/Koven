@@ -232,6 +232,21 @@ impl BodyChecker<'_> {
             self.parts.expression_types.remove(expression);
             self.parts.expression_categories.remove(expression);
             self.parts.expression_falls_through.remove(expression);
+            self.parts
+                .storage_recovery
+                .rejected_origins
+                .remove(expression);
+            self.parts
+                .storage_recovery
+                .pending_values
+                .remove(expression);
+            self.parts
+                .storage_recovery
+                .unpublished_map_writes
+                .remove(expression);
+            self.parts
+                .contextual_argument_requirements
+                .remove(expression);
             self.parts.constant_selections.remove(expression);
         }
         let previous_owner = self.current_owner;

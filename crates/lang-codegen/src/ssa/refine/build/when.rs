@@ -9,7 +9,9 @@ use lang_frontend::{
     ownership_checking::UnitDropPoint,
     parser::{Expression, WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{BuiltinType, IntegerRangeOperationKind, UnitTypeId, UnitTypeKind},
+    type_checking::{
+        BuiltinType, IntegerRangeOperationKind, UnitExpressionId, UnitTypeId, UnitTypeKind,
+    },
 };
 
 use super::{Builder, Lowered, View};
@@ -114,6 +116,18 @@ impl Builder<'_, '_> {
         let mut predecessors = Vec::new();
         let mut falls_through = true;
         for (index, entry) in entries.iter().enumerate() {
+            let exit_point = UnitDropPoint::BranchExit {
+                control,
+                branch: index,
+            };
+            if self.block.is_none() {
+                self.unreachable_drop_scopes.push(entry.span);
+                self.unreachable_drop_points.push(exit_point);
+                for alternative in 0..entry.conditions.len() {
+                    self.skip_when_alternative(control, index, alternative);
+                }
+                continue;
+            }
             self.active_views = outer_views.clone();
             self.pending_call_loans = outer_pending_loans.clone();
             self.short_ranges = outer_short_ranges.clone();
@@ -123,6 +137,15 @@ impl Builder<'_, '_> {
                 self.goto(body, entry.span)?;
             }
             for (alternative, condition) in entry.conditions.iter().enumerate() {
+                if self.block.is_none() {
+                    if let WhenCondition::Expression(expression)
+                    | WhenCondition::Contains { expression, .. } = condition
+                    {
+                        self.unreachable_drop_scopes.push(self.span(*expression));
+                    }
+                    self.skip_when_alternative(control, index, alternative);
+                    continue;
+                }
                 let matched = self.body.block();
                 let next = self.body.block();
                 self.when_condition(
@@ -137,26 +160,54 @@ impl Builder<'_, '_> {
                         alternative,
                     }),
                 )?;
-                let mark = self.enter(matched);
-                self.leave_unclaimed(mark, entry.span)?;
-                self.drops(UnitDropPoint::WhenAlternativeMatch {
+                let match_point = UnitDropPoint::WhenAlternativeMatch {
                     control,
                     entry: index,
                     alternative,
-                })?;
-                self.goto(body, entry.span)?;
+                };
+                let miss_point = UnitDropPoint::WhenAlternativeNoMatch {
+                    control,
+                    entry: index,
+                    alternative,
+                };
+                let matched_reached = self.body.blocks[matched.0].has_predecessor;
+                if matched_reached {
+                    let mark = self.enter(matched);
+                    self.leave_unclaimed(mark, entry.span)?;
+                    self.drops(match_point)?;
+                    self.goto(body, entry.span)?;
+                } else {
+                    self.unreachable_drop_points.push(match_point);
+                }
+                if !self.body.blocks[next.0].has_predecessor {
+                    self.unreachable_drop_points.push(miss_point);
+                    if !matched_reached {
+                        self.unreachable_drop_points
+                            .push(UnitDropPoint::WhenComparisonCompleted {
+                                control,
+                                entry: index,
+                                alternative,
+                            });
+                    }
+                    continue;
+                }
                 let mark = self.enter(next);
                 self.leave_unclaimed(mark, entry.span)?;
                 if let Some((id, slot)) = subject_temporary {
                     self.temporaries.insert(id, slot);
                 }
-                self.drops(UnitDropPoint::WhenAlternativeNoMatch {
-                    control,
-                    entry: index,
-                    alternative,
-                })?;
+                self.drops(miss_point)?;
             }
             let unmatched = self.block;
+            if unmatched.is_none() {
+                falls_through = false;
+            }
+            if !self.body.blocks[body.0].has_predecessor {
+                let span = self.statement_span(entry.body)?;
+                self.unreachable_drop_scopes.push(span);
+                self.unreachable_drop_points.push(exit_point);
+                continue;
+            }
             self.active_views = outer_views.clone();
             let mark = self.enter(body);
             let saved_expected = self.expected_nullable;
@@ -180,10 +231,7 @@ impl Builder<'_, '_> {
                     self.deliver(source);
                     self.push(ROp::Alias { source: slot }, vec![result], span)?;
                 }
-                self.drops(UnitDropPoint::BranchExit {
-                    control,
-                    branch: index,
-                })?;
+                self.drops(exit_point)?;
                 self.sync_dead();
                 if let Some(cur) = self.block {
                     predecessors.push(PredecessorBranch {
@@ -193,11 +241,10 @@ impl Builder<'_, '_> {
                         this_dead: self.this_dead,
                     });
                 }
+            } else {
+                self.unreachable_drop_points.push(exit_point);
             }
             self.block = unmatched;
-            if entry.else_span.is_some() {
-                break;
-            }
         }
         if falls_through
             && (result.is_some()
@@ -230,6 +277,13 @@ impl Builder<'_, '_> {
                 });
             }
         }
+        if !falls_through {
+            self.unreachable_drop_points
+                .push(UnitDropPoint::BranchExit {
+                    control,
+                    branch: entries.len(),
+                });
+        }
         self.pending_call_loans = outer_pending_loans;
         self.short_ranges = outer_short_ranges;
         let reached = self.join_views(predecessors, join, span)?;
@@ -240,6 +294,31 @@ impl Builder<'_, '_> {
             return Ok(Lowered::Diverged);
         }
         Ok(result.map_or(Lowered::Unit, Lowered::Value))
+    }
+
+    fn skip_when_alternative(
+        &mut self,
+        control: UnitExpressionId,
+        entry: usize,
+        alternative: usize,
+    ) {
+        self.unreachable_drop_points.extend([
+            UnitDropPoint::WhenComparisonCompleted {
+                control,
+                entry,
+                alternative,
+            },
+            UnitDropPoint::WhenAlternativeMatch {
+                control,
+                entry,
+                alternative,
+            },
+            UnitDropPoint::WhenAlternativeNoMatch {
+                control,
+                entry,
+                alternative,
+            },
+        ]);
     }
 
     fn boolean_single_arm(&self, entries: &[WhenEntry]) -> Option<lang_frontend::ast::StatementId> {
@@ -530,9 +609,9 @@ impl Builder<'_, '_> {
         };
         let condition_span = self.span(condition);
         let boolean = self.boolean_type(condition_span)?;
-        let candidate = self
-            .required(condition)?
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, condition_span))?;
+        let Some(candidate) = self.required(condition)? else {
+            return Ok(());
+        };
         let operation = if completed.is_some() {
             ROp::StringEqual {
                 left: subject,

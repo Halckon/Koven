@@ -48,6 +48,13 @@ impl Builder<'_, '_> {
         }
         if result != Lowered::Diverged {
             self.drops(UnitDropPoint::AfterExpression(self.unit(expression)))?;
+        } else {
+            let expression = self.unit(expression);
+            self.unreachable_drop_points.extend([
+                UnitDropPoint::AfterExpression(expression),
+                UnitDropPoint::AfterBinaryOperands(expression),
+                UnitDropPoint::CallReturn(expression),
+            ]);
         }
         Ok(result)
     }
@@ -425,13 +432,22 @@ impl Builder<'_, '_> {
         {
             return self.condition_value(expression);
         }
+        let left_type = self.expression_type(left)?;
+        if self.is_nothing(left_type)
+            && matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+        {
+            return match self.expression(left)? {
+                Lowered::Diverged => Ok(Lowered::Diverged),
+                _ => Err(error(LoweringErrorKind::MissingFact, span)),
+            };
+        }
         if let Some(lowered) =
             self.nullable_equality_binary(expression, left, operator, right, span)?
         {
             return Ok(lowered);
         }
         let string = matches!(
-            self.inputs.typed.types().get(self.expression_type(left)?),
+            self.inputs.typed.types().get(left_type),
             Some(UnitTypeKind::Builtin(
                 lang_frontend::type_checking::BuiltinType::String
             ))
@@ -561,6 +577,9 @@ impl Builder<'_, '_> {
         let join = self.body.block();
         self.condition_with_views(expression, when_true, when_false, false)?;
         for (block, value) in [(when_true, true), (when_false, false)] {
+            if !self.body.blocks[block.0].has_predecessor {
+                continue;
+            }
             self.block = Some(block);
             self.sync_dead();
             self.entry_dead
@@ -573,6 +592,9 @@ impl Builder<'_, '_> {
                 span,
             )?;
             self.goto(join, span)?;
+        }
+        if !self.body.blocks[join.0].has_predecessor {
+            return Ok(Lowered::Diverged);
         }
         self.block = Some(join);
         self.sync_dead();
@@ -650,7 +672,10 @@ impl Builder<'_, '_> {
         let mut writebacks = Vec::new();
         let mut view_reads = Vec::new();
         let mut delivered = Vec::new();
-        for (param_slot, value_expression, call_arg_span, mode, parameter_type) in call_args {
+        let mut call_args = call_args.into_iter();
+        while let Some((param_slot, value_expression, call_arg_span, mode, parameter_type)) =
+            call_args.next()
+        {
             if mode == ParameterMode::Inout {
                 let (loan, writeback) = self.inout_argument(value_expression)?;
                 lowered_slots[param_slot] = Some(loan);
@@ -804,6 +829,9 @@ impl Builder<'_, '_> {
             let value = self.required(value_expression);
             self.expected_nullable = saved_expected;
             let Some(value) = value? else {
+                for (_, skipped, ..) in call_args {
+                    self.unreachable_drop_scopes.push(self.span(skipped));
+                }
                 return Ok(Lowered::Diverged);
             };
             match mode {

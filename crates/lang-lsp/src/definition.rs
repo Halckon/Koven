@@ -10,7 +10,7 @@ use lang_frontend::{
     },
     parser::{Expression, ParsedFile, SyntaxAst},
     source::Span,
-    type_checking::{CompilationUnitTypes, UnitAggregateProjectionKind, UnitCallTarget},
+    type_checking::{CompilationUnitTypes, UnitCallTarget},
 };
 
 /// compilation-unit reference facts 到跨 source definition target 的确定性索引。
@@ -89,15 +89,7 @@ impl UnitDefinitionIndex {
             for projection in typed.aggregate_projections() {
                 let expression = projection.expression();
                 let source = parsed_for_source(parsed, names, expression.source_unit())?;
-                let reference = match projection.kind() {
-                    UnitAggregateProjectionKind::Field => {
-                        member_name_span(source.ast(), expression.expression())?
-                    }
-                    UnitAggregateProjectionKind::StructuralComponent => {
-                        call_reference_span(source.ast(), expression.expression())?
-                    }
-                };
-                if let Some(reference) = reference {
+                if let Some(reference) = member_name_span(source.ast(), expression.expression())? {
                     replace_unit_targets(
                         &mut entries,
                         expression.source_unit(),
@@ -181,9 +173,7 @@ fn unit_call_target(
         UnitCallTarget::Declaration(declaration) => {
             Some(unit_declaration_target(names, declaration)?)
         }
-        UnitCallTarget::Symbol(symbol) | UnitCallTarget::StructuralComponent(symbol) => {
-            Some(unit_symbol_target(names, symbol)?)
-        }
+        UnitCallTarget::Symbol(symbol) => Some(unit_symbol_target(names, symbol)?),
         UnitCallTarget::External(_) | UnitCallTarget::FunctionValue => None,
     })
 }
@@ -403,6 +393,19 @@ mod tests {
         assert_eq!(targets.len(), 2);
         assert_eq!(targets[0].span.start(), occurrence(source, "pick", 0));
         assert_eq!(targets[1].span.start(), occurrence(source, "pick", 1));
+    }
+
+    #[test]
+    fn component_method_definition_requires_a_declared_method() {
+        let source = "value class Pair(val field: Int)\n\
+            value class Explicit(val field: Int) { fun component1(): Int = this.field }\n\
+            fun missing(pair: Pair): Int = pair.component1()\n\
+            fun existing(value: Explicit): Int = value.component1()";
+        let analysis = analyze("file:///components.ko", source).expect("analysis");
+
+        assert_no_target(source, &analysis, "component1", 1);
+        assert_target(source, &analysis, "component1", 2, "component1", 0);
+        assert_target(source, &analysis, "field", 2, "field", 1);
     }
 
     #[test]

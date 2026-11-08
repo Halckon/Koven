@@ -50,16 +50,10 @@ fun main(): Unit {
     println(stringGroup(1))
     println(stringGroup(3))
     println(stringGroup(9))
-    val (valueDirect1) = valueDirect(1)
-    println(valueDirect1)
-    val (valueDirect3) = valueDirect(3)
-    println(valueDirect3)
-    val (valueDirect9) = valueDirect(9)
-    println(valueDirect9)
-    val (valueGroup1) = valueGroup(1)
-    println(valueGroup1)
-    val (valueGroup3) = valueGroup(3)
-    println(valueGroup3)
-    val (valueGroup9) = valueGroup(9)
-    println(valueGroup9)
+    { val (word) = valueDirect(1); println(word) }
+    { val (word) = valueDirect(3); println(word) }
+    { val (word) = valueDirect(9); println(word) }
+    { val (word) = valueGroup(1); println(word) }
+    { val (word) = valueGroup(3); println(word) }
+    { val (word) = valueGroup(9); println(word) }
 }

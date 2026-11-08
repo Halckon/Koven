@@ -304,11 +304,15 @@ impl Checker<'_> {
             }
         } else if !type_parameters.is_empty() {
             let parameter_set = type_parameters.iter().copied().collect::<BTreeSet<_>>();
+            let mut reachable = true;
             for (argument_index, argument) in arguments.iter().enumerate() {
                 if self.is_lambda_literal(argument.value)? {
+                    self.note_deferred_argument_entry(argument.value);
                     continue;
                 }
-                let actual = self.check_expression(argument.value, None, None)?.ty;
+                let actual = self
+                    .check_pending_operand(argument.value, None, None, &mut reachable)?
+                    .ty;
                 let span = self.ast().expressions().get(argument.value)?.span();
                 if self
                     .infer_type_arguments(
@@ -477,13 +481,18 @@ impl Checker<'_> {
     ) -> Result<ExprCheck, TypeCheckingError> {
         let mut valid = true;
         let mut descriptors = Vec::with_capacity(arguments.len());
+        let mut reachable = true;
         for (evaluation_index, argument) in arguments.iter().enumerate() {
             let parameter_index = mapping[evaluation_index];
             let parameter = &parameters[parameter_index];
             let parameter_type = self.substitute_type(parameter.ty, substitutions)?;
             let already_checked = self.expression_types[argument.value.index()].is_some();
-            let checked =
-                self.check_expression(argument.value, Some(parameter_type), parameter.span)?;
+            let checked = self.check_pending_operand(
+                argument.value,
+                Some(parameter_type),
+                parameter.span,
+                &mut reachable,
+            )?;
             if already_checked
                 && !self.is_error(checked.ty)
                 && !self.is_deferred(checked.ty)
@@ -663,8 +672,9 @@ impl Checker<'_> {
         &mut self,
         arguments: &[CallArgument],
     ) -> Result<(), TypeCheckingError> {
+        let mut reachable = true;
         for argument in arguments {
-            self.check_expression(argument.value, None, None)?;
+            self.check_pending_operand(argument.value, None, None, &mut reachable)?;
         }
         Ok(())
     }

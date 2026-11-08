@@ -183,6 +183,7 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
             | UnitDropTarget::Temporary(_)
             | UnitDropTarget::ReplacedElement(_)
             | UnitDropTarget::ReplacedField { .. }
+            | UnitDropTarget::ReplacedCapture { .. }
             | UnitDropTarget::Captured { .. } => None,
         })
         .collect::<Vec<_>>();

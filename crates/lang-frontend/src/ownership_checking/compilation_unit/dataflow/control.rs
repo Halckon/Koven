@@ -12,19 +12,23 @@ use super::{Checker, ExpressionUse, Flows, State, flow::merge_optional_state};
 impl Checker<'_> {
     pub(super) fn check_if(
         &mut self,
+        control: ExpressionId,
         condition: ExpressionId,
-        then_branch: StatementId,
-        else_branch: Option<StatementId>,
+        arms: (StatementId, Option<StatementId>),
         state: State,
         branch_usage: ExpressionUse,
         escaping: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
         let mut prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
-        let Some(base) = prefix.next.take() else {
+        let Some(mut base) = prefix.next.take() else {
             return Ok(prefix);
         };
+        let (then_branch, else_branch) = arms;
+        let mut then_state = base.clone();
+        self.release_exclusive_branch(control, 0, &mut then_state);
+        self.release_exclusive_branch(control, 1, &mut base);
         let mut branches =
-            self.check_control_body(then_branch, base.clone(), branch_usage, escaping)?;
+            self.check_control_body(then_branch, then_state, branch_usage, escaping)?;
         branches.merge(if let Some(else_branch) = else_branch {
             self.check_control_body(else_branch, base, branch_usage, escaping)?
         } else {
@@ -103,6 +107,7 @@ impl Checker<'_> {
             };
             unmatched = next;
         }
+        self.release_exclusive_branch(control, entries.len(), &mut unmatched);
         branches.merge(Flows::next(unmatched));
         prefix.merge(branches);
         Ok(prefix)
@@ -162,7 +167,14 @@ impl Checker<'_> {
                 then_branch,
                 else_branch,
                 ..
-            } => self.check_if(condition, then_branch, else_branch, state, usage, true),
+            } => self.check_if(
+                expression,
+                condition,
+                (then_branch, else_branch),
+                state,
+                usage,
+                true,
+            ),
             Expression::When {
                 subject, entries, ..
             } => self.check_when(expression, subject, &entries, state, usage, true),
@@ -198,7 +210,7 @@ impl Checker<'_> {
             .payload()
             .clone();
         let elements = match payload {
-            Statement::ControlBody { elements } => elements,
+            Statement::ControlBody { elements } | Statement::LambdaBody { elements } => elements,
             Statement::Expression { expression } => {
                 return if escaping {
                     self.check_escaping_expression(expression, state, usage)
@@ -217,7 +229,7 @@ impl Checker<'_> {
             return Ok(Flows::next(state));
         };
         let locals = self.scope_locals(&elements)?;
-        let mut flows = self.check_elements(prefix, state)?;
+        let mut flows = self.check_element_prefix(&elements, prefix.len(), state)?;
         let Some(next) = flows.next.take() else {
             self.check_scope_exit_loans(&locals, None, &mut flows)?;
             self.restore_borrow_scope(&parents, &mut flows);
@@ -228,6 +240,7 @@ impl Checker<'_> {
             Statement::Expression { expression } => Some(expression),
             _ => None,
         };
+        let diagnostic_count = self.diagnostics.len();
         let tail_flows = match tail_payload {
             Statement::Expression { expression } => {
                 if escaping {
@@ -239,7 +252,9 @@ impl Checker<'_> {
             _ => self.check_statement(tail, next)?,
         };
         flows.merge(tail_flows);
-        self.check_scope_exit_loans(&locals, tail_expression, &mut flows)?;
+        if !escaping || self.diagnostics.len() == diagnostic_count {
+            self.check_scope_exit_loans(&locals, tail_expression, &mut flows)?;
+        }
         self.restore_borrow_scope(&parents, &mut flows);
         Ok(flows)
     }

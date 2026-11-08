@@ -3,8 +3,9 @@
 use crate::{
     ast::{ExpressionId, StatementId},
     diagnostic::{Diagnostic, Severity},
+    name_resolution::UnitSymbolId,
     parser::{Expression, Statement},
-    type_checking::UnitExpressionId,
+    type_checking::{BuiltinType, Copyability, NominalKind, UnitExpressionId, UnitTypeKind},
 };
 
 use crate::ownership_checking::{
@@ -12,12 +13,63 @@ use crate::ownership_checking::{
     UnitOwnershipPlace,
 };
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
+use super::flow::CaptureRestriction;
 use super::{
-    AccessKind, ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Checker, Flows,
+    AccessKind, ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Checker, ExpressionUse, Flows,
     OwnershipBindingKind, OwnershipCheckingError, State,
 };
+
+pub(super) type BranchCaptureReleases =
+    BTreeMap<(UnitExpressionId, usize), BTreeMap<UnitSymbolId, BTreeSet<UnitExpressionId>>>;
+
+pub(super) type CallCaptureSources =
+    BTreeMap<(UnitExpressionId, UnitExpressionId), BTreeSet<UnitSymbolId>>;
+
+pub(super) struct ExclusiveCaptureIndex {
+    pub(super) roots: BTreeMap<UnitExpressionId, BTreeSet<UnitSymbolId>>,
+    move_only: BTreeSet<UnitExpressionId>,
+    pub(super) borrowed_sources: BTreeMap<UnitExpressionId, Vec<UnitSymbolId>>,
+}
+
+pub(super) fn exclusive_capture_index(
+    captures: &[crate::ownership_checking::UnitClosureCaptureDescriptor],
+    typed: &crate::type_checking::CompilationUnitTypes,
+) -> ExclusiveCaptureIndex {
+    let mut roots = BTreeMap::<_, BTreeSet<_>>::new();
+    let mut move_only = BTreeSet::new();
+    let mut borrowed_sources = BTreeMap::<_, Vec<_>>::new();
+    for capture in captures {
+        if capture.borrow_kind() != Some(LoanKind::Exclusive) {
+            continue;
+        }
+        if let UnitClosureCaptureSource::Symbol(symbol) = capture.source() {
+            roots.entry(capture.lambda()).or_default().insert(symbol);
+            if typed
+                .symbol_type(symbol)
+                .is_some_and(|ty| typed.copyability(ty) == Copyability::MoveOnly)
+            {
+                move_only.insert(capture.lambda());
+            }
+        }
+    }
+    for capture in captures {
+        if let UnitClosureCaptureSource::Symbol(symbol) = capture.source()
+            && capture.borrow_kind().is_some()
+        {
+            borrowed_sources
+                .entry(capture.lambda())
+                .or_default()
+                .push(symbol);
+        }
+    }
+    ExclusiveCaptureIndex {
+        roots,
+        move_only,
+        borrowed_sources,
+    }
+}
 
 impl Checker<'_> {
     pub(super) fn check_lambda(
@@ -42,7 +94,7 @@ impl Checker<'_> {
                 )?;
             }
         }
-        let captured_closures = captures
+        let captured_closures: BTreeSet<_> = captures
             .iter()
             .filter_map(|capture| {
                 if let UnitClosureCaptureSource::Symbol(symbol) = capture.source() {
@@ -54,21 +106,39 @@ impl Checker<'_> {
             .flatten()
             .copied()
             .collect();
+        if self.has_move_only_exclusive_capture(&state, captured_closures.iter().copied()) {
+            self.emit_borrow_binding_diagnostic(
+                crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                "nested environment cannot yet retain a MoveOnly exclusive capture",
+                self.parsed.ast().expressions().get(lambda)?.span(),
+            )?;
+        }
         for capture in &captures {
             match (capture.mode(), capture.source(), capture.effect()) {
                 (ClosureCaptureMode::Shared, UnitClosureCaptureSource::Symbol(symbol), _) => {
                     let place = UnitOwnershipPlace::new(symbol, Vec::new());
+                    let requires_exclusive = capture.borrow_kind() == Some(LoanKind::Exclusive);
+                    let access = if requires_exclusive {
+                        AccessKind::ExclusiveLoan
+                    } else {
+                        AccessKind::SharedLoan
+                    };
                     if self.access_place(
                         &place,
-                        AccessKind::SharedLoan,
+                        access,
                         capture.reference_span(),
                         None,
                         &mut state,
-                    )? {
+                    )? && (!requires_exclusive || self.supports_capture_write(symbol))
+                    {
                         state.loans.push(ActiveLoan {
                             owner: ActiveLoanOwner::Closure(lambda_id),
                             target: ActiveLoanTarget::Place(place),
-                            kind: LoanKind::Shared,
+                            kind: if requires_exclusive {
+                                LoanKind::Exclusive
+                            } else {
+                                LoanKind::Shared
+                            },
                             reserved: false,
                             origin: capture.reference_span(),
                         });
@@ -164,7 +234,12 @@ impl Checker<'_> {
 
         let mut body_state = State::default();
         self.seed_lambda_parameters(lambda, &mut body_state)?;
-        for capture in captures {
+        for origin in entry_state.closure_tree(captured_closures.iter().copied()) {
+            if let Some(nested) = entry_state.closure_captures.get(&origin) {
+                body_state.closure_captures.insert(origin, nested.clone());
+            }
+        }
+        for &capture in &captures {
             match capture.source() {
                 UnitClosureCaptureSource::This if capture.mode() == ClosureCaptureMode::Shared => {
                     body_state.loans.push(ActiveLoan {
@@ -177,9 +252,19 @@ impl Checker<'_> {
                 }
                 UnitClosureCaptureSource::This => {}
                 UnitClosureCaptureSource::Symbol(symbol) => {
-                    body_state
-                        .immutable_captures
-                        .insert(symbol, capture.reference_span());
+                    // Capture values are frozen before any move out of the enclosing binding.
+                    if let Some(origins) = entry_state.closures.get(&symbol) {
+                        body_state.closures.insert(symbol, origins.clone());
+                    }
+                    body_state.immutable_captures.insert(
+                        symbol,
+                        CaptureRestriction {
+                            origin: capture.reference_span(),
+                            exclusive_assignment: capture.exclusive_assignment(),
+                            write_allowed: capture.borrow_kind() == Some(LoanKind::Exclusive)
+                                && self.supports_capture_write(symbol),
+                        },
+                    );
                     if capture.mode() == ClosureCaptureMode::Shared {
                         body_state
                             .non_owning
@@ -188,12 +273,121 @@ impl Checker<'_> {
                 }
             }
         }
-        self.check_statement(body, body_state)?;
+        let result_type = self
+            .typed
+            .expression_type(lambda_id)
+            .and_then(|ty| self.typed.types().get(ty))
+            .and_then(|ty| match ty {
+                crate::type_checking::UnitTypeKind::Function { return_type, .. } => {
+                    Some(*return_type)
+                }
+                _ => None,
+            });
+        if let Some(ty) = result_type
+            && self.typed.types().get(ty)
+                != Some(&crate::type_checking::UnitTypeKind::Builtin(
+                    crate::type_checking::BuiltinType::Unit,
+                ))
+        {
+            self.check_control_body(body, body_state, ExpressionUse::Read, true)?;
+        } else {
+            self.check_statement(body, body_state)?;
+        }
         if self.diagnostics.len() != diagnostic_count {
+            return Ok(Flows::next(entry_state));
+        }
+        if let Some((assignment, origin)) = captures
+            .iter()
+            .filter(|capture| {
+                matches!(capture.source(), UnitClosureCaptureSource::Symbol(symbol)
+                    if !self.supports_capture_write(symbol))
+            })
+            .find_map(|capture| {
+                capture
+                    .exclusive_assignment()
+                    .map(|assignment| (assignment, capture.reference_span()))
+            })
+        {
+            // The required capture mode is a property of the body, including
+            // assignments whose runtime path does not reach a commit.
+            self.emit_exclusive_capture_unavailable(assignment, origin)?;
             return Ok(Flows::next(entry_state));
         }
         state.closure_captures.insert(lambda_id, captured_closures);
         Ok(Flows::next(state))
+    }
+
+    fn supports_capture_write(&self, symbol: crate::name_resolution::UnitSymbolId) -> bool {
+        let Some(storage) = self.typed.symbol_type(symbol) else {
+            return false;
+        };
+        match self.typed.copyability(storage) {
+            Copyability::Copyable => true,
+            Copyability::MoveOnly => {
+                let mut root = storage;
+                while let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().get(root) {
+                    root = *inner;
+                }
+                let opaque = match self.typed.types().get(root) {
+                    Some(UnitTypeKind::Builtin(BuiltinType::Any)) => true,
+                    Some(UnitTypeKind::Nominal { declaration, .. }) => self
+                        .typed
+                        .signatures()
+                        .declaration(*declaration)
+                        .and_then(|declaration| declaration.nominal())
+                        .is_none_or(|nominal| nominal.kind() == NominalKind::Interface),
+                    _ => false,
+                };
+                !opaque
+                    && self.type_has_concrete_storage(storage)
+                    && !self.type_has_closure_storage(storage)
+            }
+            Copyability::Error | Copyability::Unknown => false,
+        }
+    }
+
+    pub(super) fn allow_move_only_capture_transport(
+        &mut self,
+        value: ExpressionId,
+        state: &State,
+        origins: &BTreeSet<UnitExpressionId>,
+    ) -> Result<bool, OwnershipCheckingError> {
+        if self.has_move_only_exclusive_capture(state, origins.iter().copied()) {
+            self.emit_borrow_binding_diagnostic(
+                crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                "MoveOnly exclusive capture needs a directly tracked closure environment",
+                self.parsed.ast().expressions().get(value)?.span(),
+            )?;
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    pub(super) fn has_move_only_exclusive_capture(
+        &self,
+        state: &State,
+        origins: impl IntoIterator<Item = UnitExpressionId>,
+    ) -> bool {
+        let move_only = &self.exclusive_captures.move_only;
+        !move_only.is_empty() && !state.closure_tree(origins).is_disjoint(move_only)
+    }
+
+    pub(super) fn emit_exclusive_capture_unavailable(
+        &mut self,
+        assignment: crate::source::Span,
+        origin: crate::source::Span,
+    ) -> Result<(), OwnershipCheckingError> {
+        use crate::diagnostic::codes;
+        let mut diagnostic = Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
+            "exclusive closure assignment cannot yet replace this captured storage",
+            assignment,
+        )?;
+        diagnostic.add_label(self.sources, origin, "captured binding is referenced here")?;
+        self.diagnostics.push(diagnostic);
+        Ok(())
     }
 
     fn emit_illegal_owned_capture(
@@ -341,6 +535,7 @@ impl Checker<'_> {
                             .values()
                             .flatten()
                             .copied()
+                            .chain(state.pending_closure_calls.values().flatten().copied())
                             .chain(retained.iter().copied()),
                     )
                     .contains(&current)
@@ -354,6 +549,186 @@ impl Checker<'_> {
                 pending.extend(captured);
             }
         }
+    }
+
+    pub(super) fn has_exclusive_capture(
+        &self,
+        state: &State,
+        origins: impl IntoIterator<Item = UnitExpressionId>,
+    ) -> bool {
+        let roots = &self.exclusive_captures.roots;
+        !roots.is_empty()
+            && state
+                .closure_tree(origins)
+                .iter()
+                .any(|lambda| roots.contains_key(lambda))
+    }
+
+    pub(super) fn hold_call_closure(
+        &mut self,
+        call: UnitExpressionId,
+        operand: ExpressionId,
+        is_callee: bool,
+        flows: &mut Flows,
+    ) -> Result<(), OwnershipCheckingError> {
+        if let Some(state) = &mut flows.next {
+            let origins = self.closure_origins(operand, state)?;
+            if !origins.is_empty() {
+                let mut exclusive = false;
+                if !self.exclusive_captures.roots.is_empty() {
+                    let environments = state.closure_tree(origins.iter().copied());
+                    exclusive = environments
+                        .iter()
+                        .any(|lambda| self.exclusive_captures.roots.contains_key(lambda));
+                    if exclusive {
+                        let operand = self.unit_expression(operand);
+                        self.call_capture_sources
+                            .entry((call, operand))
+                            .or_default()
+                            .extend(environments.iter().flat_map(|lambda| {
+                                self.exclusive_captures
+                                    .borrowed_sources
+                                    .get(lambda)
+                                    .into_iter()
+                                    .flatten()
+                                    .copied()
+                            }));
+                    }
+                }
+                if exclusive
+                    && self.allowed_borrow_call == Some(call.expression())
+                    && self.borrowed_call_source(call.expression()) == Some(operand)
+                {
+                    self.emit_borrow_binding_diagnostic(
+                        crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                        "borrow result cannot yet retain an exclusive closure environment",
+                        self.parsed.ast().expressions().get(operand)?.span(),
+                    )?;
+                }
+                if exclusive
+                    && is_callee
+                    && let Some(symbol) = self.expression_root_symbol(operand)?
+                {
+                    state.loans.push(ActiveLoan {
+                        owner: ActiveLoanOwner::Call(call),
+                        target: ActiveLoanTarget::Place(UnitOwnershipPlace::new(
+                            symbol,
+                            Vec::new(),
+                        )),
+                        kind: LoanKind::Shared,
+                        reserved: false,
+                        origin: self.parsed.ast().expressions().get(operand)?.span(),
+                    });
+                }
+                state
+                    .pending_closure_calls
+                    .entry(call)
+                    .or_default()
+                    .extend(origins);
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn finish_call_closures(&self, call: UnitExpressionId, flows: &mut Flows) {
+        for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
+            .into_iter()
+            .flatten()
+        {
+            if let Some(origins) = state.pending_closure_calls.remove(&call) {
+                for origin in origins {
+                    self.release_unheld_closure(origin, &BTreeSet::new(), state);
+                }
+            }
+        }
+    }
+
+    pub(super) fn release_exclusive_branch(
+        &mut self,
+        control: ExpressionId,
+        branch: usize,
+        state: &mut State,
+    ) {
+        let live = self
+            .if_branch_live_in
+            .get(&control.index())
+            .and_then(|arms| arms.get(branch))
+            .or_else(|| self.when_entry_live_in.get(&(control.index(), branch)))
+            .unwrap_or(&self.expression_live_after[control.index()]);
+        for (holder, origins) in self.release_dead_exclusive_captures(live, state) {
+            self.branch_capture_releases
+                .entry((self.unit_expression(control), branch))
+                .or_default()
+                .entry(holder)
+                .or_default()
+                .extend(origins);
+        }
+    }
+
+    pub(super) fn release_dead_exclusive_captures(
+        &self,
+        live: &BTreeSet<UnitSymbolId>,
+        state: &mut State,
+    ) -> Vec<(UnitSymbolId, BTreeSet<UnitExpressionId>)> {
+        let exclusive = state
+            .loans
+            .iter()
+            .filter_map(|loan| match loan.owner {
+                ActiveLoanOwner::Closure(origin) if loan.kind == LoanKind::Exclusive => {
+                    Some(origin)
+                }
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        if exclusive.is_empty() {
+            return Vec::new();
+        }
+        let externally_borrowed = state
+            .loans
+            .iter()
+            .filter_map(|loan| match (&loan.owner, &loan.target) {
+                (ActiveLoanOwner::Closure(_), _) | (_, ActiveLoanTarget::This) => None,
+                (_, ActiveLoanTarget::Place(place)) => Some(place.root()),
+            })
+            .collect::<BTreeSet<_>>();
+        let retain_holder = |holder: &UnitSymbolId| {
+            live.contains(holder)
+                || state.replacements.contains(holder)
+                || externally_borrowed.contains(holder)
+        };
+        let protected = state.closure_tree(
+            state
+                .pending_closure_calls
+                .values()
+                .flatten()
+                .copied()
+                .chain(
+                    state
+                        .closures
+                        .iter()
+                        .filter(|(holder, _)| retain_holder(holder))
+                        .flat_map(|(_, origins)| origins.iter().copied()),
+                ),
+        );
+        let dead = state
+            .closures
+            .iter()
+            .filter(|(holder, origins)| {
+                !retain_holder(holder)
+                    && !state
+                        .closure_tree(origins.iter().copied())
+                        .is_disjoint(&exclusive)
+            })
+            .map(|(&symbol, origins)| (symbol, origins.clone()))
+            .collect::<Vec<_>>();
+        // A live wrapper can retain a dead binding's environment. The loan state
+        // retires that binding now; its runtime owner is released with the wrapper.
+        for (symbol, _) in &dead {
+            self.release_closure(*symbol, state);
+        }
+        dead.into_iter()
+            .filter(|(_, origins)| origins.is_disjoint(&protected))
+            .collect()
     }
 
     pub(super) fn release_dead_control_closures(

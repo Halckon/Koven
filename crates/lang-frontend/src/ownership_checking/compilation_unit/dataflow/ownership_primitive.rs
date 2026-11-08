@@ -34,7 +34,7 @@ impl Checker<'_> {
                 expression: id.index(),
             });
         }
-        if self.primitive_type_has_closure(descriptor.value_type()) {
+        if self.type_has_closure_storage(descriptor.value_type()) {
             self.primitive_deferred.push(UnitOwnershipDeferredFact::new(
                 call,
                 OwnershipDeferredReason::OwnershipPrimitiveClosureTransport,
@@ -44,7 +44,7 @@ impl Checker<'_> {
         if !matches!(
             self.typed.copyability(descriptor.value_type()),
             Copyability::Copyable | Copyability::MoveOnly
-        ) || !self.primitive_type_is_concrete(descriptor.value_type())
+        ) || !self.type_has_concrete_storage(descriptor.value_type())
         {
             return Ok(());
         }
@@ -201,7 +201,7 @@ impl Checker<'_> {
             || projection.kind() != UnitAggregateProjectionKind::Field
             || self.typed.expression_type(receiver) != Some(owner_type)
             || receiver.source_unit() != self.source_unit
-            || self.primitive_type_has_closure(owner_type)
+            || self.type_has_closure_storage(owner_type)
             || !self
                 .place(receiver.expression())?
                 .is_some_and(|receiver| receiver.is_root() && receiver.root() == place.root())
@@ -212,7 +212,7 @@ impl Checker<'_> {
     }
 
     // Only actual type arguments decide whether a generic instance is concrete.
-    fn primitive_type_is_concrete(&self, root: UnitTypeId) -> bool {
+    pub(super) fn type_has_concrete_storage(&self, root: UnitTypeId) -> bool {
         let mut pending = vec![root];
         let mut visited = std::collections::BTreeSet::new();
         while let Some(ty) = pending.pop() {
@@ -233,7 +233,7 @@ impl Checker<'_> {
         true
     }
 
-    fn primitive_type_has_closure(&self, root: UnitTypeId) -> bool {
+    pub(super) fn type_has_closure_storage(&self, root: UnitTypeId) -> bool {
         let mut pending = vec![root];
         let mut visited = std::collections::BTreeSet::new();
         while let Some(ty) = pending.pop() {

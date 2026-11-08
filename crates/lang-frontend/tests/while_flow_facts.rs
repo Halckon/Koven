@@ -684,3 +684,223 @@ fn while_scans_evaluated_initializers_and_preserves_error_and_capture_rules() {
         },
     ]);
 }
+
+#[test]
+fn repeating_bodies_keep_header_reads_and_drop_backedge_and_exit_refinements() {
+    assert_repeating_cases(&[
+        Case {
+            name: "for-backedge",
+            text: "fun inspect(input: Int?): Int {
+                var x = input
+                if (x == null) { return 0 }
+                for (index in 0..1) {
+                    val observed: Int = /*use*/x
+                    x = null
+                }
+                return 0
+            }",
+            marks: vec![read("use", Shape::Error)],
+            rejected: Some("use"),
+        },
+        Case {
+            name: "loop-backedge",
+            text: "fun inspect(input: Int?, stop: Boolean): Int {
+                var x = input
+                if (x == null) { return 0 }
+                loop {
+                    val observed: Int = /*use*/x
+                    if (stop) { break }
+                    x = null
+                    continue
+                }
+                return 0
+            }",
+            marks: vec![read("use", Shape::Error)],
+            rejected: Some("use"),
+        },
+        Case {
+            name: "map-backedge",
+            text: "fun clear(inout target: Int?): Unit { target = null }
+            fun inspect(source: Map<Int, Int>, input: Int?): Int {
+                var x = input
+                if (x == null) { return 0 }
+                for ((key, value) in source) {
+                    val observed: Int = /*use*/x
+                    clear(&x)
+                }
+                return 0
+            }",
+            marks: vec![read("use", Shape::Error)],
+            rejected: Some("use"),
+        },
+        Case {
+            name: "for-zero",
+            text: "fun inspect(input: Int?, last: Int): Int {
+                var x = input
+                for (index in 0..last) {
+                    if (x == null) { return 0 }
+                }
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Error)],
+            rejected: Some("use"),
+        },
+        Case {
+            name: "for-source-evaluated-once-before-body-writes",
+            text: "fun inspect(input: Int?): Int {
+                var x = input
+                if (x == null) { return 0 }
+                for (index in 0../*use*/x) { x = null }
+                return 0
+            }",
+            marks: vec![read("use", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "for-preserves-proof-of-unwritten-binding",
+            text: "fun inspect(input: Int?, flag: Boolean): Int {
+                var x = input
+                if (x == null) { return 0 }
+                for (index in 0..1) {
+                    if (flag) { break }
+                }
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Int)],
+            rejected: None,
+        },
+    ]);
+}
+
+#[test]
+fn elvis_exports_only_facts_from_its_normal_predecessors() {
+    assert_repeating_cases(&[
+        Case {
+            name: "nullable-left-can-skip-fallback-proof",
+            text: "fun inspect(left: Int?, x: Int?): Int {
+                val chosen = left ?: if (x == null) { return 0 } else { 1 }
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Error)],
+            rejected: Some("use"),
+        },
+        Case {
+            name: "known-null-left-always-runs-fallback",
+            text: "fun inspect(x: Int?): Int {
+                val empty: Nothing? = null
+                val chosen = empty ?: if (x == null) { return 0 } else { 1 }
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "only-bypass-reaches-join-when-fallback-returns",
+            text: "fun inspect(left: Int?, input: Int?, flag: Boolean): Int {
+                var x = input
+                if (x == null) { return 0 }
+                val chosen = left ?: return if (flag) { x = null; 0 } else { x = null; 0 }
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "fallback-inout-may-write-on-a-normal-exit",
+            text: "fun clear(inout target: Int?): Int { target = null; return 0 }
+            fun inspect(left: Int?, input: Int?): Int {
+                var x = input
+                if (x == null) { return 0 }
+                val chosen = left ?: clear(&x)
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Error)],
+            rejected: Some("use"),
+        },
+        Case {
+            name: "terminating-if-branch-preserves-when-source-version",
+            text: "fun inspect(left: Int?, input: Int?, flag: Boolean): Int {
+                var x = input
+                return when (x) {
+                    (left ?: if (flag) { x = null; return 0 } else { 1 }) -> 0
+                    null -> 0
+                    else -> /*use*/x
+                }
+            }",
+            marks: vec![read("use", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "short-circuit-can-bypass-a-returning-operand",
+            text: "fun clear(inout target: Int?): Boolean { target = null; return true }
+            fun inspect(left: Boolean?, input: Int?): Int {
+                var x = input
+                if (x == null) { return 0 }
+                val chosen = left ?: (clear(&x) || ((return 0) == 1))
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Error)],
+            rejected: Some("use"),
+        },
+        Case {
+            name: "boolean-literal-can-require-a-returning-operand",
+            text: "fun andExit(): Int { (true) && ((return 1) == 0) }
+                   fun orExit(): Int { !true || ((return 2) == 0) }",
+            marks: vec![],
+            rejected: None,
+        },
+        Case {
+            name: "fallback-exits-through-a-local-initializer",
+            text: "fun inspect(left: Int?, input: Int?, flag: Boolean): Int {
+                var x = input
+                if (x == null) { return 0 }
+                val choice = left ?: if (flag) {
+                    x = null
+                    val jump: Int = return 0
+                    1
+                } else { return 0 }
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Int)],
+            rejected: None,
+        },
+    ]);
+}
+
+fn assert_repeating_cases(cases: &[Case]) {
+    use lang_frontend::{name_resolution::resolve_names, type_checking::check_types};
+
+    assert_cases(cases);
+    // The remaining legacy checker must keep the same diagnostics for these flow contracts.
+    for case in cases {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("flow.ko", case.text).unwrap();
+        let tokens = lex(&sources, source).unwrap();
+        let file = parse_file(&sources, &tokens).unwrap();
+        let (name_environment, type_environment) = standard_environments();
+        let names = resolve_names(&sources, &file, &name_environment).unwrap();
+        assert!(names.diagnostics().is_empty(), "{}", case.name);
+        let typed = check_types(&sources, &file, &names, &type_environment).unwrap();
+        if let Some(marker) = case.rejected {
+            let mark = case.marks.iter().find(|mark| mark.name == marker).unwrap();
+            let [diagnostic] = typed.diagnostics() else {
+                panic!("{}: {:?}", case.name, typed.diagnostics());
+            };
+            let span = diagnostic.primary_span();
+            assert_eq!(diagnostic.code().to_string(), "L0084", "{}", case.name);
+            assert_eq!(
+                Some((span.start(), span.end())),
+                marker_range(case.text, mark),
+                "{}",
+                case.name
+            );
+        } else {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{}: {:?}",
+                case.name,
+                typed.diagnostics()
+            );
+        }
+    }
+}

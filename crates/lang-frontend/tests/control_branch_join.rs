@@ -425,25 +425,8 @@ fn same_type_and_bottom_branches_keep_exact_result() {
     }
     for o in declaration_boundary {
         assert_eq!(o.shape, Shape::Builtin(BuiltinType::Nothing), "{o:?}");
-        if o.mode == "single" {
-            assert_eq!(
-                o.raw
-                    .iter()
-                    .map(|d| d.code().to_string())
-                    .collect::<Vec<_>>(),
-                ["L0088"],
-                "{o:?}"
-            );
-            assert_eq!(o.primary_text, ["}"]);
-            match o.complete {
-                Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
-                    assert_eq!(diagnostics, o.raw)
-                }
-                other => panic!("expected tracked declaration-flow gap: {other:?}"),
-            }
-        } else {
-            assert!(o.raw.is_empty() && o.complete.is_ok(), "{o:?}");
-        }
+        // A bottom initializer ends the callable before the declaration completes.
+        assert!(o.raw.is_empty() && o.complete.is_ok(), "{o:?}");
     }
 }
 

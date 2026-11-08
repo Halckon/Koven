@@ -327,10 +327,24 @@ impl Parser<'_> {
         stops: Stops,
         suppress_missing_separator: bool,
     ) -> Result<(Option<Span>, ExpressionId), ParserInternalError> {
-        if self.current_is_symbol(Symbol::Equal) {
-            let equals = self.bump()?.span();
-            let current = self.current()?;
-            if stops.contains(current) || matches!(current.kind(), LexemeKind::Eof) {
+        let stops = stops.with(Stops::SEMICOLON);
+        let recovery_stops = DeclarationStops::from_expression_hard(stops)
+            .with(DeclarationStops::BLOCK_ELEMENT | DeclarationStops::SEMICOLON);
+        let equals = if self.current_is_symbol(Symbol::Equal) {
+            Some(self.bump()?.span())
+        } else {
+            None
+        };
+        let current = self.current()?;
+        let boundary = stops.contains(current);
+        if let Some(equals) = equals {
+            // These block element stops also start a primary after a real '='.
+            let starts_primary = control_expression_start_kind(current.kind())
+                || matches!(
+                    current.kind(),
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+                );
+            if boundary && !starts_primary {
                 let empty = self.empty_at(current.span().start())?;
                 let terminal_lexer_root = matches!(current.kind(), LexemeKind::Eof)
                     && self.lexical_recoveries.terminal_error_at_eof;
@@ -362,15 +376,11 @@ impl Parser<'_> {
                 current.span(),
             )?;
             let start = current.span().start();
-            let end = self.recover_declaration_region(
-                DeclarationStops::from_expression_hard(stops).with(DeclarationStops::BLOCK_ELEMENT),
-            )?;
+            let end = self.recover_declaration_region(recovery_stops)?;
             let span = self.span(start, end.max(current.span().end()))?;
             return Ok((Some(equals), self.add_expression(span, Expression::Error)?));
         }
 
-        let current = self.current()?;
-        let boundary = stops.contains(current) || matches!(current.kind(), LexemeKind::Eof);
         let primary = if boundary || self.can_start_expression(current) {
             self.empty_at(current.span().start())?
         } else {
@@ -398,9 +408,7 @@ impl Parser<'_> {
             return Ok((None, self.add_expression(span, Expression::Error)?));
         }
         let start = current.span().start();
-        let end = self.recover_declaration_region(
-            DeclarationStops::from_expression_hard(stops).with(DeclarationStops::BLOCK_ELEMENT),
-        )?;
+        let end = self.recover_declaration_region(recovery_stops)?;
         let span = self.span(start, end.max(current.span().end()))?;
         Ok((None, self.add_expression(span, Expression::Error)?))
     }

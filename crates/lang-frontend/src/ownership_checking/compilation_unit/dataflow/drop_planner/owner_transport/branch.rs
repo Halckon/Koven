@@ -37,6 +37,7 @@ impl DropPlanner<'_, '_> {
         let base = state.clone();
         let mut branch_states = Vec::new();
         let mut then_state = base.clone();
+        self.drop_branch_entry(id, 0, &[], &mut then_state);
         let (then_tail, then_result) =
             self.evaluate_control_body(then_branch, branch_usage, &mut then_state)?;
         if then_result.continues {
@@ -54,6 +55,7 @@ impl DropPlanner<'_, '_> {
         let then_events = self.take_owner_edge(checkpoint);
         if let Some(else_branch) = else_branch {
             let mut else_state = base;
+            self.drop_branch_entry(id, 1, &[], &mut else_state);
             let (else_tail, else_result) =
                 self.evaluate_control_body(else_branch, branch_usage, &mut else_state)?;
             if else_result.continues {
@@ -72,6 +74,7 @@ impl DropPlanner<'_, '_> {
             // Legacy cleanup still executes on this real edge, even though this slice
             // does not admit implicit-else observations.
             let mut implicit = base;
+            self.drop_branch_entry(id, 1, &[], &mut implicit);
             self.drop_branch_exit(id, 1, &mut implicit);
             branch_states.push(implicit);
         }

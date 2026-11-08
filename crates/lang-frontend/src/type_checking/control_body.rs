@@ -10,13 +10,25 @@ pub(super) fn ends_in_null(
     parsed: &ParsedFile,
     statement: StatementId,
 ) -> Result<bool, TypeCheckingError> {
-    match parsed.ast().statements().get(statement)?.payload() {
-        Statement::ControlBody { elements } => match elements.last() {
-            Some(last) => ends_in_null(parsed, *last),
-            None => Ok(false),
-        },
-        Statement::Expression { expression } => null_expression(parsed, *expression),
-        _ => Ok(false),
+    match tail_expression(parsed, statement)? {
+        Some(expression) => null_expression(parsed, expression),
+        None => Ok(false),
+    }
+}
+
+pub(super) fn tail_expression(
+    parsed: &ParsedFile,
+    mut statement: StatementId,
+) -> Result<Option<ExpressionId>, TypeCheckingError> {
+    loop {
+        match parsed.ast().statements().get(statement)?.payload() {
+            Statement::ControlBody { elements } => match elements.last() {
+                Some(&last) => statement = last,
+                None => return Ok(None),
+            },
+            Statement::Expression { expression } => return Ok(Some(*expression)),
+            _ => return Ok(None),
+        }
     }
 }
 

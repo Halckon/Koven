@@ -16,6 +16,7 @@ mod construction;
 mod container;
 mod control_body;
 mod declaration_frontier;
+mod destructuring;
 mod error;
 mod expression_use;
 mod final_admission;

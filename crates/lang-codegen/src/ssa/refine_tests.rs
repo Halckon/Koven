@@ -782,8 +782,8 @@ fn destructuring_and_numeric_for_lower_in_refine() {
         return total
     }
     fun main(): Unit {
-        val (a, b) = TokenPair(Token(1), Token(4))
-        val res = sum_range(Bounds(a.weight, b.weight), 2)
+        val (right, left) = TokenPair(Token(1), Token(4))
+        val res = sum_range(Bounds(left.weight, right.weight), 2)
         if (res == 10) {
             println("destructure-for")
         }
@@ -981,3 +981,4 @@ mod abort_owner_assertions;
 mod container_tests;
 mod control_flow_tests;
 mod map_condition_tests;
+mod operand_exit_tests;

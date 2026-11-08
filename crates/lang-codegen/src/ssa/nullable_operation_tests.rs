@@ -1,4 +1,5 @@
 use crate::test_support::diagnostics::assert_diagnostic;
+mod capture_proof_tests;
 mod transport;
 
 use lang_frontend::source::SourceMap;

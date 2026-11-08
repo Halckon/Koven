@@ -7,12 +7,11 @@ use crate::{
     parser::{AssignmentOperator, CallArgument, Expression},
     source::Span,
     type_checking::{
-        BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory,
-        IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, TypeCheckingError,
-        UnitContainerAppendDescriptor, UnitContainerClearDescriptor,
-        UnitContainerInsertAtDescriptor, UnitContainerRemoveAtDescriptor,
-        UnitContainerRemoveFirstDescriptor, UnitContainerRemoveLastDescriptor,
-        UnitContainerSizeDescriptor, UnitElementPlaceDescriptor, UnitExpressionId,
+        BuiltinType, CompilationUnitTypeError, ExpressionCategory, IntrinsicTypeConstructor,
+        ParameterMode, SequentialContainerKind, TypeCheckingError, UnitContainerAppendDescriptor,
+        UnitContainerClearDescriptor, UnitContainerInsertAtDescriptor,
+        UnitContainerRemoveAtDescriptor, UnitContainerRemoveFirstDescriptor,
+        UnitContainerRemoveLastDescriptor, UnitContainerSizeDescriptor, UnitExpressionId,
         UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, map_arguments},
     },
@@ -21,77 +20,6 @@ use crate::{
 use super::{BodyChecker, ExpressionCheck};
 
 impl BodyChecker<'_> {
-    pub(super) fn check_container_index(
-        &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        receiver: ExpressionId,
-        index: ExpressionId,
-        return_type: UnitTypeId,
-    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
-        let Some((container, element)) = self.container_parts(receiver_result.ty) else {
-            self.check_expression(source, index, None, None, return_type)?;
-            return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Index),
-                falls_through: receiver_result.falls_through,
-            });
-        };
-        let int = self.builtin(BuiltinType::Int);
-        let index_result = self.check_expression(source, index, None, None, return_type)?;
-        let falls_through = receiver_result.falls_through && index_result.falls_through;
-        if !self.assignable(index_result.ty, int)
-            && !self.is_error(index_result.ty)
-            && !self.is_deferred(index_result.ty)
-        {
-            self.emit(
-                codes::INVALID_CONTAINER_INDEX,
-                "sequential container index must have type Int",
-                self.file(source)
-                    .ast()
-                    .expressions()
-                    .get(index)
-                    .map_err(TypeCheckingError::from)?
-                    .span(),
-            )?;
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through,
-            });
-        }
-        if self.is_error(index_result.ty) {
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through,
-            });
-        }
-        if self.is_deferred(index_result.ty) {
-            return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Index),
-                falls_through,
-            });
-        }
-        if self.construction_type_contains_poison(element) {
-            return Ok(ExpressionCheck {
-                ty: self.deferred_type(DeferredReason::Index),
-                falls_through,
-            });
-        }
-        self.parts
-            .element_places
-            .push(UnitElementPlaceDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
-                UnitExpressionId::new(source, index),
-                container,
-                element,
-            ));
-        Ok(ExpressionCheck {
-            ty: element,
-            falls_through,
-        })
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_container_assignment(
         &mut self,
@@ -103,8 +31,8 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
         self.check_expression(source, target, None, None, return_type)?;
-        if let Some(place) = self.element_place_for_expression(source, target) {
-            let mut valid = place.is_mutable();
+        if let Some((container, element)) = self.sequential_element_contract(source, target) {
+            let mut valid = container.elements_are_mutable();
             if !valid {
                 self.emit(
                     codes::IMMUTABLE_CONTAINER_PLACE,
@@ -112,15 +40,10 @@ impl BodyChecker<'_> {
                     operator_span,
                 )?;
             }
-            let value_result = self.check_expression(
-                source,
-                value,
-                Some(place.element_type()),
-                None,
-                return_type,
-            )?;
+            let value_result =
+                self.check_expression(source, value, Some(element), None, return_type)?;
             valid &= !self.is_error(value_result.ty) && !self.is_deferred(value_result.ty);
-            if operator != AssignmentOperator::Assign && !self.is_numeric(place.element_type()) {
+            if operator != AssignmentOperator::Assign && !self.is_numeric(element) {
                 self.emit(
                     codes::INVALID_OPERAND_TYPES,
                     "compound element assignment requires a numeric element type",
@@ -158,6 +81,7 @@ impl BodyChecker<'_> {
         receiver_expression: UnitExpressionId,
         receiver: UnitTypeId,
         name_span: Span,
+        receiver_pending: bool,
     ) -> Result<Option<UnitTypeId>, CompilationUnitTypeError> {
         if let Some(result) =
             self.range_member_type(expression, receiver_expression, receiver, name_span)?
@@ -173,6 +97,10 @@ impl BodyChecker<'_> {
             .map_err(TypeCheckingError::from)?;
         if name == "size" {
             let result = self.builtin(BuiltinType::Int);
+            if receiver_pending || self.contains_unresolved_call_type(receiver) {
+                self.note_pending_storage_value(expression, result);
+                return Ok(Some(result));
+            }
             self.parts
                 .container_sizes
                 .push(UnitContainerSizeDescriptor::new(
@@ -257,8 +185,8 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: ExpressionId,
     ) -> Result<bool, CompilationUnitTypeError> {
-        if let Some(place) = self.element_place_for_expression(source, expression) {
-            return Ok(place.is_mutable());
+        if let Some((container, _)) = self.sequential_element_contract(source, expression) {
+            return Ok(container.elements_are_mutable());
         }
         if self.is_read_only_container_size(source, expression)? {
             return Ok(false);
@@ -313,34 +241,31 @@ impl BodyChecker<'_> {
                 == "size")
     }
 
-    fn element_place_for_expression(
-        &self,
+    fn defer_mutable_list_mutation(
+        &mut self,
         source: SourceUnitId,
         expression: ExpressionId,
-    ) -> Option<UnitElementPlaceDescriptor> {
-        let key = UnitExpressionId::new(source, expression);
-        if let Some(place) = self
-            .parts
-            .element_places
-            .iter()
-            .copied()
-            .find(|place| place.expression() == key)
-        {
-            return Some(place);
+        operands: &[ExpressionId],
+        deferred: usize,
+        result_type: UnitTypeId,
+    ) -> bool {
+        // Operand checks may reuse an already-cached type without writing a deferred fact.
+        let pending = self.has_unresolved_argument_facts_since(deferred)
+            || operands.iter().any(|&operand| {
+                let operand = UnitExpressionId::new(source, operand);
+                self.storage_value_is_pending(operand)
+                    || self
+                        .parts
+                        .expression_types
+                        .get(&operand)
+                        .is_some_and(|&ty| {
+                            self.replacement_value_pending(operand, ty, self.deferred_facts.len())
+                        })
+            });
+        if pending {
+            self.note_pending_storage_value(UnitExpressionId::new(source, expression), result_type);
         }
-        match self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(expression)
-            .ok()?
-            .payload()
-        {
-            Expression::Group { expression } => {
-                self.element_place_for_expression(source, *expression)
-            }
-            _ => None,
-        }
+        pending
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -430,6 +355,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let deferred = self.deferred_facts.len();
         let Some((receiver, receiver_type, element_type, falls_through)) = self
             .prepare_mutable_list_method_call(
                 source,
@@ -478,6 +404,9 @@ impl BodyChecker<'_> {
         if !self.is_error(element_result.ty)
             && !self.is_deferred(element_result.ty)
             && !self.assignable(element_result.ty, element_type)
+            && !((self.contains_unresolved_call_type(element_result.ty)
+                || self.contains_unresolved_call_type(element_type))
+                && self.call_argument_could_match(element_result.ty, element_type, true))
         {
             let primary = self
                 .file(source)
@@ -512,17 +441,25 @@ impl BodyChecker<'_> {
             UnitExpressionId::new(source, callee),
             ExpressionCategory::Temporary,
         );
-        self.parts
-            .container_appends
-            .push(UnitContainerAppendDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
-                UnitExpressionId::new(source, element_arg.value),
-                receiver_type,
-                element_type,
-                unit_type,
-                call_span,
-            ));
+        if !self.defer_mutable_list_mutation(
+            source,
+            expression,
+            &[receiver, element_arg.value],
+            deferred,
+            unit_type,
+        ) {
+            self.parts
+                .container_appends
+                .push(UnitContainerAppendDescriptor::new(
+                    UnitExpressionId::new(source, expression),
+                    UnitExpressionId::new(source, receiver),
+                    UnitExpressionId::new(source, element_arg.value),
+                    receiver_type,
+                    element_type,
+                    unit_type,
+                    call_span,
+                ));
+        }
         Ok(Some(ExpressionCheck {
             ty: unit_type,
             falls_through: falls_through && element_result.falls_through,
@@ -540,6 +477,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let deferred = self.deferred_facts.len();
         let Some((receiver, receiver_type, element_type, falls_through)) = self
             .prepare_mutable_list_method_call(
                 source,
@@ -583,16 +521,18 @@ impl BodyChecker<'_> {
             UnitExpressionId::new(source, callee),
             ExpressionCategory::Temporary,
         );
-        self.parts
-            .container_clears
-            .push(UnitContainerClearDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
-                receiver_type,
-                element_type,
-                unit_type,
-                call_span,
-            ));
+        if !self.defer_mutable_list_mutation(source, expression, &[receiver], deferred, unit_type) {
+            self.parts
+                .container_clears
+                .push(UnitContainerClearDescriptor::new(
+                    UnitExpressionId::new(source, expression),
+                    UnitExpressionId::new(source, receiver),
+                    receiver_type,
+                    element_type,
+                    unit_type,
+                    call_span,
+                ));
+        }
         Ok(Some(ExpressionCheck {
             ty: unit_type,
             falls_through,
@@ -610,6 +550,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let deferred = self.deferred_facts.len();
         let Some((receiver, receiver_type, element_type, falls_through)) = self
             .prepare_mutable_list_method_call(
                 source,
@@ -687,17 +628,25 @@ impl BodyChecker<'_> {
             UnitExpressionId::new(source, callee),
             ExpressionCategory::Temporary,
         );
-        self.parts
-            .container_remove_ats
-            .push(UnitContainerRemoveAtDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
-                UnitExpressionId::new(source, index_arg.value),
-                receiver_type,
-                element_type,
-                element_type,
-                call_span,
-            ));
+        if !self.defer_mutable_list_mutation(
+            source,
+            expression,
+            &[receiver, index_arg.value],
+            deferred,
+            element_type,
+        ) {
+            self.parts
+                .container_remove_ats
+                .push(UnitContainerRemoveAtDescriptor::new(
+                    UnitExpressionId::new(source, expression),
+                    UnitExpressionId::new(source, receiver),
+                    UnitExpressionId::new(source, index_arg.value),
+                    receiver_type,
+                    element_type,
+                    element_type,
+                    call_span,
+                ));
+        }
         Ok(Some(ExpressionCheck {
             ty: element_type,
             falls_through: falls_through && index_result.falls_through,
@@ -771,6 +720,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let deferred = self.deferred_facts.len();
         let Some((receiver, container_ty, element_type, falls_through)) = self
             .check_container_endpoint_removal_call(
                 source,
@@ -784,7 +734,15 @@ impl BodyChecker<'_> {
         else {
             return Ok(None);
         };
-        if element_type != self.error_type() {
+        if element_type != self.error_type()
+            && !self.defer_mutable_list_mutation(
+                source,
+                expression,
+                &[receiver],
+                deferred,
+                element_type,
+            )
+        {
             self.parts
                 .container_remove_lasts
                 .push(UnitContainerRemoveLastDescriptor::new(
@@ -813,6 +771,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let deferred = self.deferred_facts.len();
         let Some((receiver, container_ty, element_type, falls_through)) = self
             .check_container_endpoint_removal_call(
                 source,
@@ -826,7 +785,15 @@ impl BodyChecker<'_> {
         else {
             return Ok(None);
         };
-        if element_type != self.error_type() {
+        if element_type != self.error_type()
+            && !self.defer_mutable_list_mutation(
+                source,
+                expression,
+                &[receiver],
+                deferred,
+                element_type,
+            )
+        {
             self.parts
                 .container_remove_firsts
                 .push(UnitContainerRemoveFirstDescriptor::new(
@@ -855,6 +822,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let deferred = self.deferred_facts.len();
         let Some((receiver, receiver_type, element_type, falls_through)) = self
             .prepare_mutable_list_method_call(
                 source,
@@ -938,6 +906,9 @@ impl BodyChecker<'_> {
         if !self.is_error(element_result.ty)
             && !self.is_deferred(element_result.ty)
             && !self.assignable(element_result.ty, element_type)
+            && !((self.contains_unresolved_call_type(element_result.ty)
+                || self.contains_unresolved_call_type(element_type))
+                && self.call_argument_could_match(element_result.ty, element_type, true))
         {
             let primary = self
                 .file(source)
@@ -972,18 +943,26 @@ impl BodyChecker<'_> {
             UnitExpressionId::new(source, callee),
             ExpressionCategory::Temporary,
         );
-        self.parts
-            .container_insert_ats
-            .push(UnitContainerInsertAtDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
-                UnitExpressionId::new(source, index_arg.value),
-                UnitExpressionId::new(source, element_arg.value),
-                receiver_type,
-                element_type,
-                unit_type,
-                call_span,
-            ));
+        if !self.defer_mutable_list_mutation(
+            source,
+            expression,
+            &[receiver, index_arg.value, element_arg.value],
+            deferred,
+            unit_type,
+        ) {
+            self.parts
+                .container_insert_ats
+                .push(UnitContainerInsertAtDescriptor::new(
+                    UnitExpressionId::new(source, expression),
+                    UnitExpressionId::new(source, receiver),
+                    UnitExpressionId::new(source, index_arg.value),
+                    UnitExpressionId::new(source, element_arg.value),
+                    receiver_type,
+                    element_type,
+                    unit_type,
+                    call_span,
+                ));
+        }
         Ok(Some(ExpressionCheck {
             ty: unit_type,
             falls_through: falls_through

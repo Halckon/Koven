@@ -202,8 +202,18 @@ fn original_p42_capture_reaches_ownership() {
     for entry in observe(text) {
         assert_unit_assignment(&entry, "sum = sum + it");
         let ownership = entry.ownership.as_ref().unwrap();
-        assert_eq!(ownership.len(), 1, "{entry:?}");
-        assert_eq!(ownership[0].code().to_string(), "L0135");
+        let codes: Vec<_> = ownership
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect();
+        assert_eq!(
+            codes,
+            if entry.mode == "unit-basic" {
+                vec![]
+            } else {
+                vec!["L0135"]
+            }
+        );
     }
 }
 
@@ -228,7 +238,50 @@ fn captured_and_local_tail_assignments_keep_ownership_boundary() {
                 .iter()
                 .map(|d| d.code().to_string())
                 .collect::<Vec<_>>();
-            assert_eq!(codes, if captured { vec!["L0135"] } else { vec![] });
+            let expected = match (captured, entry.mode) {
+                (true, "unit-basic") => vec![],
+                (true, _) => vec!["L0135"],
+                (false, _) => vec![],
+            };
+            assert_eq!(codes, expected, "{}", entry.mode);
+        }
+    }
+}
+
+#[test]
+fn exclusive_capture_boundary_distinguishes_write_demands_from_immutable_captures() {
+    for (text, unit_code) in [
+        (
+            "fun test(): Unit { var number = 1; val f: () -> Unit = { (number) = 2 } }",
+            None,
+        ),
+        (
+            "fun test(): Unit { var number = 1; val f: () -> Unit = move { number = 2 } }",
+            Some("L0135"),
+        ),
+        (
+            "fun test(inout number: Int): Unit { val f: () -> Unit = { number = 2 } }",
+            Some("L0135"),
+        ),
+        (
+            "fun test(): Unit { var number = 1; val f: () -> Unit = { val g: () -> Unit = { number = 2 } } }",
+            Some("L0135"),
+        ),
+        (
+            "fun test(): Unit { val f: () -> Unit = { var number = 1; val g: () -> Unit = { number = 2 } } }",
+            None,
+        ),
+    ] {
+        for entry in observe(text)
+            .into_iter()
+            .filter(|entry| entry.mode == "unit-basic")
+        {
+            let diagnostics = entry.ownership.as_ref().expect("ownership ran");
+            let codes: Vec<_> = diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect();
+            assert_eq!(codes, unit_code.as_slice(), "{text}");
         }
     }
 }

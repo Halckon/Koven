@@ -698,7 +698,7 @@ impl Checker<'_, '_> {
             return false;
         }
         if is_temporary {
-            if !self.scope_requires_refine() || !self.expression(source) {
+            if !self.expression(source) {
                 return false;
             }
         } else {
@@ -757,6 +757,7 @@ impl Checker<'_, '_> {
             }
         }
         let ok = self.loop_body(body);
+        self.has_temporary_sequential_for |= ok && is_temporary;
         self.migrated |= ok;
         ok
     }

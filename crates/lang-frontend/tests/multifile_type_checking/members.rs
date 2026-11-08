@@ -30,7 +30,7 @@ fn cross_file_member_bodies_calls_and_fields_publish_source_qualified_facts() {
          fun use(holder: Holder<Int>, pair: Pair<Long>): String {\n\
              val field = holder.item\n\
              val picked = holder.pick<String>(\"ok\", 1)\n\
-             val component = pair.component1()\n\
+             val first = pair.first\n\
              return holder.label()\n\
          }",
     );
@@ -62,7 +62,7 @@ fn cross_file_member_bodies_calls_and_fields_publish_source_qualified_facts() {
         reverse.aggregate_projections()
     );
     assert_eq!(forward.diagnostics(), reverse.diagnostics());
-    assert_eq!(forward.calls().len(), 4);
+    assert_eq!(forward.calls().len(), 3);
     let member_calls = forward
         .calls()
         .iter()
@@ -75,40 +75,15 @@ fn cross_file_member_bodies_calls_and_fields_publish_source_qualified_facts() {
         .collect::<Vec<_>>();
     member_instance_arities.sort_unstable();
     assert_eq!(member_instance_arities, [1, 1, 2]);
-    assert!(matches!(
-        forward.calls()[2].target(),
-        UnitCallTarget::StructuralComponent(_)
-    ));
     assert_eq!(forward.aggregate_projections().len(), 3);
-    assert!(forward.aggregate_projections().iter().all(|projection| {
-        projection.field().source_unit() == source_unit(&forward_names, models_source)
-    }));
-    assert_eq!(
-        forward
-            .aggregate_projections()
-            .iter()
-            .filter(|projection| projection.kind() == UnitAggregateProjectionKind::Field)
-            .count(),
-        2
-    );
-    assert_eq!(
-        forward
-            .aggregate_projections()
-            .iter()
-            .filter(|projection| {
-                projection.kind() == UnitAggregateProjectionKind::StructuralComponent
-            })
-            .count(),
-        1
-    );
     for projection in forward.aggregate_projections() {
-        let expected = match projection.kind() {
-            UnitAggregateProjectionKind::Field => ExpressionCategory::Place,
-            UnitAggregateProjectionKind::StructuralComponent => ExpressionCategory::Temporary,
-        };
+        assert_eq!(
+            projection.field().source_unit(),
+            source_unit(&forward_names, models_source)
+        );
         assert_eq!(
             forward.expression_category(projection.expression()),
-            Some(expected)
+            Some(ExpressionCategory::Place)
         );
     }
 

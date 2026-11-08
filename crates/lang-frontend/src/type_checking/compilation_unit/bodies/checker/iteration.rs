@@ -36,7 +36,17 @@ impl BodyChecker<'_> {
         return_span: Option<Span>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let errors = self.diagnostics.len();
+        let deferred = self.deferred_facts.len();
         let checked = self.check_expression(source, iteration_source, None, None, return_type)?;
+        let source_id = UnitExpressionId::new(source, iteration_source);
+        let source_pending = self.storage_value_is_pending(source_id)
+            || self.replacement_value_pending(source_id, checked.ty, deferred);
+        if source_pending {
+            self.parts
+                .storage_recovery
+                .pending_iterations
+                .insert(UnitStatementId::new(source, statement));
+        }
         if let Some((constructor, key, value)) = self.map_parts(checked.ty) {
             self.check_map_iteration(
                 source,
@@ -51,6 +61,7 @@ impl BodyChecker<'_> {
                 key,
                 value,
                 errors,
+                source_pending,
             )?;
             return Ok(ExpressionCheck {
                 ty: self.builtin(BuiltinType::Unit),
@@ -85,7 +96,7 @@ impl BodyChecker<'_> {
         if header_type_status == IterationTypeStatus::Ready {
             if let Some((_, element)) = provider {
                 (resolved, header_type_status) =
-                    self.iteration_binding(source, binding, element)?;
+                    self.iteration_binding(source, binding, element, source_pending)?;
             } else {
                 let span = self
                     .file(source)
@@ -113,13 +124,13 @@ impl BodyChecker<'_> {
                 }
             }
         }
-        let header_is_valid = self.diagnostics.len() == errors;
+        let header_is_valid = self.can_publish_iteration(binding, errors, source_pending);
         if self.iteration_header_rejected(binding, header_type_status, errors) {
             self.parts
                 .rejected_iteration_headers
                 .push(UnitStatementId::new(source, statement));
         }
-        self.check_loop_body(source, body, return_type, return_span)?;
+        self.check_repeating_flow(source, None, body, return_type, return_span, true)?;
         if header_is_valid
             && let (Some((provider, element_type)), Some(binding)) = (provider, resolved)
         {
@@ -140,6 +151,23 @@ impl BodyChecker<'_> {
         })
     }
 
+    pub(super) fn can_publish_iteration(
+        &self,
+        binding: &ForBinding,
+        diagnostic_start: usize,
+        source_pending: bool,
+    ) -> bool {
+        !source_pending
+            && self.diagnostics.len() == diagnostic_start
+            && !matches!(
+                binding,
+                ForBinding::Destructuring {
+                    right_paren_span: None,
+                    ..
+                }
+            )
+    }
+
     /// 只记录当前 header 的真实诊断来源，不把无 descriptor 或未完成类型视作错误。
     fn iteration_header_rejected(
         &self,
@@ -147,6 +175,15 @@ impl BodyChecker<'_> {
         type_status: IterationTypeStatus,
         diagnostic_start: usize,
     ) -> bool {
+        if matches!(
+            binding,
+            ForBinding::Destructuring {
+                right_paren_span: None,
+                ..
+            }
+        ) {
+            return true;
+        }
         if type_status == IterationTypeStatus::Incomplete {
             return false;
         }
@@ -167,10 +204,11 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         binding: &ForBinding,
         element: UnitTypeId,
+        source_pending: bool,
     ) -> Result<(Option<Binding>, IterationTypeStatus), CompilationUnitTypeError> {
         match binding {
             ForBinding::Name(marker) => Ok((
-                self.iteration_symbol(source, *marker, element)?
+                self.iteration_symbol(source, *marker, element, source_pending)?
                     .map(|symbol| symbol.map_or(Binding::Discard, Binding::Name)),
                 IterationTypeStatus::Ready,
             )),
@@ -253,9 +291,19 @@ impl BodyChecker<'_> {
                 }
                 let mut components = Vec::new();
                 for ((&marker, field), ty) in names.iter().zip(nominal.fields()).zip(field_types) {
-                    let Some(symbol) = self.iteration_symbol(source, marker, ty)? else {
+                    let Some(symbol) = self.iteration_symbol(source, marker, ty, source_pending)?
+                    else {
                         return Ok((None, IterationTypeStatus::Ready));
                     };
+                    if symbol.is_some() && self.private_field_inaccessible(declaration, field) {
+                        self.emit_iteration_error(
+                            codes::INVALID_ITERATION_PATTERN,
+                            "for destructuring cannot bind a private field outside its declaring classifier",
+                            pattern,
+                            element,
+                        )?;
+                        return Ok((None, IterationTypeStatus::Ready));
+                    }
                     components.push(Component {
                         field: field.symbol(),
                         symbol,
@@ -275,6 +323,7 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         marker: NameMarker,
         ty: UnitTypeId,
+        source_pending: bool,
     ) -> Result<Option<Option<UnitSymbolId>>, CompilationUnitTypeError> {
         let NameMarker::Present(span) = marker else {
             return Ok(None);
@@ -285,7 +334,8 @@ impl BodyChecker<'_> {
         let Some(symbol) = self.symbol_at(source, span, Namespace::Value) else {
             return Ok(None);
         };
-        self.parts.symbol_types.insert(symbol, ty);
+        self.record_symbol_type(symbol, ty);
+        self.set_immutable_binding_pending(symbol, source_pending);
         Ok(Some(Some(symbol)))
     }
 

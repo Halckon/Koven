@@ -1,4 +1,5 @@
 //! Callable body scope, receiver context and explicit return validation.
+use super::call_writeback::PendingCallableReturns;
 use super::*;
 
 impl BodyChecker<'_> {
@@ -20,7 +21,26 @@ impl BodyChecker<'_> {
             self.current_receiver_mode = Some(ParameterMode::Borrow);
         }
         self.callable_loop_bases.push(self.loop_depth);
-        let result = self.check_function_body(source, form, callable.return_type());
+        self.pending_callable_returns = PendingCallableReturns::for_callable(callable);
+        let inout_parameters = callable
+            .parameters()
+            .iter()
+            .filter(|parameter| parameter.mode() == ParameterMode::Inout)
+            .filter_map(|parameter| parameter.symbol().map(|symbol| (symbol, parameter.ty())));
+        let result =
+            self.check_function_body(source, form, callable.return_type(), inout_parameters);
+        if let Some(returns) = self.pending_callable_returns.take() {
+            let target = match callable.target() {
+                crate::type_checking::UnitCallableTarget::Declaration(id) => {
+                    crate::type_checking::UnitCallTarget::Declaration(id)
+                }
+                crate::type_checking::UnitCallableTarget::Symbol(id) => {
+                    crate::type_checking::UnitCallTarget::Symbol(id)
+                }
+            };
+            self.discovered_call_writebacks
+                .extend(returns.writebacks(target));
+        }
         self.callable_loop_bases.pop();
         self.current_receiver = previous_receiver;
         self.current_receiver_mode = previous_mode;
@@ -33,9 +53,11 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         form: FunctionForm,
         return_type: UnitTypeId,
+        inout_parameters: impl IntoIterator<Item = (UnitSymbolId, UnitTypeId)>,
     ) -> Result<(), CompilationUnitTypeError> {
         self.flow_facts.clear();
         self.flow_versions.clear();
+        self.track_inout_parameters(inout_parameters);
         let expected_span = match form {
             FunctionForm::Explicit { type_ref, .. } => Some(
                 self.file(source)
@@ -51,23 +73,34 @@ impl BodyChecker<'_> {
         match form {
             FunctionForm::ImplicitUnitAbsent => Ok(()),
             FunctionForm::ImplicitUnitBlock(body) => {
-                self.check_statement(source, body, return_type, expected_span)?;
+                let result = self.check_statement(source, body, return_type, expected_span)?;
+                if self.has_pending_statement_exit(source, body, result) {
+                    self.record_pending_callable_return();
+                }
                 Ok(())
             }
             FunctionForm::Explicit { body, .. } => match body {
                 FunctionBody::Absent => Ok(()),
                 FunctionBody::Expression { expression, .. } => {
-                    self.check_expression(
+                    let result = self.check_expression(
                         source,
                         expression,
                         Some(return_type),
                         expected_span,
                         return_type,
                     )?;
+                    if self.has_pending_expression_exit(source, expression, result)? {
+                        self.record_pending_callable_return();
+                    }
                     Ok(())
                 }
                 FunctionBody::Block(body) => {
                     let result = self.check_statement(source, body, return_type, expected_span)?;
+                    if self.is_builtin(return_type, BuiltinType::Unit)
+                        && self.has_pending_statement_exit(source, body, result)
+                    {
+                        self.record_pending_callable_return();
+                    }
                     if result.falls_through
                         && !self.is_builtin(return_type, BuiltinType::Unit)
                         && !self.is_error(return_type)

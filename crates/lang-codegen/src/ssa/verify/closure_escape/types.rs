@@ -7,7 +7,7 @@ use crate::ssa::model::{ClosureCaptureMode, Module, SsaTypeId, SsaTypeKind};
 #[cfg(test)]
 mod graph_tests;
 
-pub(in crate::ssa::verify) struct TypeCaptures {
+pub(in crate::ssa) struct TypeCaptures {
     may_contain: Vec<bool>,
     #[cfg(test)]
     stats: ClassificationStats,
@@ -39,7 +39,8 @@ impl TypeCaptures {
                 SsaTypeKind::TaggedUnion { variants, .. } => variants.clone(),
                 SsaTypeKind::HeapOwner { payload, .. }
                 | SsaTypeKind::SharedOwner { payload, .. } => payload.iter().copied().collect(),
-                SsaTypeKind::NullableHandle { inner } => vec![*inner],
+                SsaTypeKind::NullableHandle { inner }
+                | SsaTypeKind::InlineNullable { inner, .. } => vec![*inner],
                 SsaTypeKind::SequentialContainer { element, .. } => vec![*element],
                 SsaTypeKind::ConcreteClosure { captures, .. } => {
                     if captures

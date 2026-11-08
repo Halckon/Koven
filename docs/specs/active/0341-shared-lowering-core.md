@@ -1512,6 +1512,9 @@ call 的 External `replace` symbol 身份，避免仅由空 primitive 表推断�
 
 ## 74. Automatic component L0132 保全候选（2026-11-03）
 
+本节和 §82 的自动 component 观察属于历史迁移证据。现行 Guide 合同及保留的真实字段
+L0132 回归见 [SPEC-0392 §64](0392-compiler-layered-review.md#64-r2-退役自动-componentn)。
+
 独立分支 `fix/spec-0341-component-partial-move` 基于远端 main
 `041e8238fb8793ee7837fbbccdc704a77e83c1fd`，不叠加未合入的 L0082 或 owner 候选。
 

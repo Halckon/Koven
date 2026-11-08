@@ -367,8 +367,8 @@ fn a_source_class_named_box_never_gains_intrinsic_rules() {
 #[test]
 fn value_class_destructuring_records_copy_and_consume_after_forward_declaration() {
     let text = "fun split(copy: Pair<Int, Int>, moved: Pair<Int, String>, ref: Ref): Unit {\n\
-                    val (a, b) = copy\n\
-                    val (c, d) = moved\n\
+                    { val (first, second) = copy }\n\
+                    val (second, first) = moved\n\
                     val (e, f) = ref\n\
                 }\n\
                 value class Pair<A, B>(val first: A, val second: B)\n\
@@ -399,8 +399,8 @@ fn value_class_destructuring_records_copy_and_consume_after_forward_declaration(
                 .map(|component| component.symbol())
                 .collect::<Vec<_>>(),
             [
-                symbol(&typed, &resolution, "a"),
-                symbol(&typed, &resolution, "b")
+                symbol(&typed, &resolution, "first"),
+                symbol(&typed, &resolution, "second")
             ]
         );
         let statements = parsed
@@ -427,33 +427,78 @@ fn value_class_destructuring_records_copy_and_consume_after_forward_declaration(
 }
 
 #[test]
-fn destructuring_arity_uses_l0118_and_keeps_prefix_types_only_for_recovery() {
+fn destructuring_arity_keeps_only_named_field_types_for_recovery() {
     let text = "value class Pair(val first: Int, val second: String)\n\
                 fun split(pair: Pair): Unit {\n\
-                    val (one) = pair\n\
-                    val (x, y, extra) = pair\n\
+                    { val (second) = pair }\n\
+                    val (first, second, extra) = pair\n\
                 }";
     let (sources, _, entries) = checked_entries(text, false);
     for (resolution, typed) in entries {
-        assert_eq!(codes(typed.diagnostics()), ["L0118", "L0118"]);
+        assert_eq!(codes(typed.diagnostics()), ["L0118", "L0118", "L0080"]);
         assert_eq!(typed.destructurings().len(), 0);
         let primaries = typed
             .diagnostics()
             .iter()
             .map(|diagnostic| sources.slice(diagnostic.primary_span()).expect("span"))
             .collect::<Vec<_>>();
-        assert_eq!(primaries, ["(one)", "(x, y, extra)"]);
-        assert!(matches!(
-            typed
-                .symbol_type(symbol(&typed, &resolution, "one"))
-                .and_then(|ty| typed.types().get(ty)),
-            Some(UnitTypeKind::Builtin(BuiltinType::Int))
-        ));
+        assert_eq!(primaries, ["(second)", "(first, second, extra)", "extra"]);
+        let [source] = resolution.source_units() else {
+            panic!("one original source");
+        };
+        let second = source
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.span().start() == text.find("(second)").unwrap() + 1)
+            .expect("the binding in the partial pattern");
+        let second_type = typed
+            .body_symbol_types()
+            .iter()
+            .find(|(id, _)| id.source_unit() == source.source_unit() && id.symbol() == second.id())
+            .and_then(|(_, ty)| typed.types().get(*ty));
+        assert_eq!(
+            second_type,
+            Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        );
         assert!(matches!(
             typed
                 .symbol_type(symbol(&typed, &resolution, "extra"))
                 .and_then(|ty| typed.types().get(ty)),
             Some(UnitTypeKind::Error)
         ));
+    }
+}
+
+#[test]
+fn named_destructuring_uses_field_identity_and_rejects_unknown_bindings() {
+    let text = "value class Pair(val first: Int, val second: String)\n\
+                fun reversed(own pair: Pair): Int {\n\
+                    val (second, first) = pair\n\
+                    return first\n\
+                }\n\
+                fun unknown(own pair: Pair): Unit { val (first, arbitrary) = pair }";
+    let (sources, _, entries) = checked_entries(text, false);
+    for (_, typed) in entries {
+        assert_eq!(codes(typed.diagnostics()), ["L0080"]);
+        assert_eq!(
+            sources.slice(typed.diagnostics()[0].primary_span()),
+            Ok("arbitrary")
+        );
+        let [descriptor] = typed.destructurings() else {
+            panic!("only the complete named split publishes facts");
+        };
+        assert_eq!(descriptor.mode(), DestructuringMode::Consume);
+        assert_eq!(
+            descriptor
+                .components()
+                .iter()
+                .map(|component| typed.types().get(component.ty()))
+                .collect::<Vec<_>>(),
+            [
+                Some(&UnitTypeKind::Builtin(BuiltinType::Int)),
+                Some(&UnitTypeKind::Builtin(BuiltinType::String))
+            ],
+        );
     }
 }

@@ -21,14 +21,15 @@ impl SignatureCollector<'_> {
             return Ok(self.error_type());
         }
         let argument = self.type_ref_types[&UnitTypeRefId::new(source, argument_ref)];
-        let valid = self
-            .nominal_declaration(argument)
-            .is_some_and(|declaration| {
-                matches!(
-                    self.nominals[&declaration].kind(),
-                    NominalKind::ValueClass | NominalKind::EnumClass
-                )
-            });
+        let valid = self.has_unbound_external_head(argument)
+            || self
+                .nominal_declaration(argument)
+                .is_some_and(|declaration| {
+                    matches!(
+                        self.nominals[&declaration].kind(),
+                        NominalKind::ValueClass | NominalKind::EnumClass
+                    )
+                });
         if !valid {
             let primary = self.inputs[source.index()]
                 .ast()

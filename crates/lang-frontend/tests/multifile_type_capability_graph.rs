@@ -9,7 +9,10 @@ use lang_frontend::{
     },
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
-    type_checking::{collect_compilation_unit_signatures, standard_environments},
+    type_checking::{
+        FinalTypeAdmissionError, check_compilation_unit_types, collect_compilation_unit_signatures,
+        complete_compilation_unit_types, standard_environments,
+    },
 };
 
 fn parsed(sources: &mut SourceMap, name: &str, text: &str) -> (SourceId, ParsedFile) {
@@ -197,6 +200,293 @@ fn copyable_and_transferable_bounds_follow_cross_file_structural_types() {
         ["Ref", "(Int) -> Int"]
     );
     assert!(signatures.clone().validate().is_err());
+}
+
+#[test]
+fn known_capability_failure_survives_an_unbound_field() {
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment.declare_type("Unbound").unwrap();
+    for (capability, field, bound_error) in [
+        ("Copyable", "String", Some("L0115")),
+        ("Copyable", "Int", None),
+        ("Transferable", "Rc<Int>", Some("L0141")),
+        ("Transferable", "String", None),
+    ] {
+        for argument in ["Unbound", "Int"] {
+            let actual = format!("Payload<{argument}>");
+            let mut sources = SourceMap::new();
+            let (source, file) = parsed(
+                &mut sources,
+                "bounds.ko",
+                &format!(
+                    "value class Payload<A>(val pending: A, val known: {field})\n\
+                     value class Needs<T: {capability}>(val item: T)\n\
+                     fun <T: {capability}> take(): Int = 0\n\
+                     fun signature(value: Needs<{actual}>): Int = 0\n\
+                     fun local(): Unit {{ val item: Needs<{actual}> = error(\"unreachable\") }}\n\
+                     fun call(): Int = take<{actual}>()"
+                ),
+            );
+            for input in [
+                SourceUnitInput::memory_document(source, &file),
+                SourceUnitInput::new("root", "bounds.ko", source, &file),
+            ] {
+                let inputs = [input];
+                let names = names(&sources, &inputs, &name_environment)
+                    .validate()
+                    .expect("valid names");
+                let typed =
+                    check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+                        .unwrap();
+                let expected_bounds = bound_error
+                    .map(|code| vec![(code.to_owned(), actual.as_str()); 3])
+                    .unwrap_or_default();
+                let observed_bounds = codes(typed.diagnostics())
+                    .into_iter()
+                    .zip(primary_texts(&sources, typed.diagnostics()))
+                    .collect::<Vec<_>>();
+                assert_eq!(observed_bounds, expected_bounds);
+                let result = complete_compilation_unit_types(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &type_environment,
+                    &typed,
+                );
+                if bound_error.is_none() && argument == "Int" {
+                    assert!(result.is_ok(), "{result:?}");
+                    continue;
+                }
+                let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+                    panic!("{result:?}");
+                };
+                let mut observed = codes(&diagnostics)
+                    .into_iter()
+                    .zip(primary_texts(&sources, &diagnostics))
+                    .collect::<Vec<_>>();
+                observed.sort();
+                let mut expected = expected_bounds;
+                if argument == "Unbound" {
+                    expected.extend(vec![("L0165".to_owned(), "Unbound"); 3]);
+                }
+                assert_eq!(observed, expected);
+            }
+        }
+    }
+}
+
+#[test]
+fn callable_bounds_can_wait_for_unbound_fields_in_non_generic_types() {
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment.declare_type("Unbound").unwrap();
+    for capability in ["Copyable", "Transferable"] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(
+            &mut sources,
+            "bounds.ko",
+            &format!(
+                "value class Payload(val item: Unbound)\n\
+                 fun <T: {capability}> take(): Int = 0\n\
+                 fun call(): Int = take<Payload>()"
+            ),
+        );
+        let inputs = [SourceUnitInput::memory_document(source, &file)];
+        let names = names(&sources, &inputs, &name_environment)
+            .validate()
+            .expect("valid names");
+        let typed =
+            check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(typed.calls().is_empty());
+        let result =
+            complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, &typed);
+        let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+            panic!("{result:?}");
+        };
+        assert_eq!(codes(&diagnostics), ["L0165", "L0165"]);
+        assert_eq!(
+            primary_texts(&sources, &diagnostics),
+            ["Unbound", "take<Payload>()"]
+        );
+    }
+}
+
+#[test]
+fn construction_bounds_separate_proven_failure_from_pending_fields() {
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment.declare_type("Unbound").unwrap();
+    for (capability, field, code) in [
+        ("Copyable", "String", "L0115"),
+        ("Transferable", "Rc<Int>", "L0141"),
+    ] {
+        for (payload, actual, rejected) in [
+            (
+                format!("Payload<A>(val item: A, val known: {field})"),
+                "Payload<Unbound>",
+                true,
+            ),
+            ("Payload(val item: Unbound)".to_owned(), "Payload", false),
+        ] {
+            let mut sources = SourceMap::new();
+            let call = format!("Needs<{actual}>(error(\"stop\"), keep())");
+            let (source, file) = parsed(
+                &mut sources,
+                "construct.ko",
+                &format!(
+                    "value class {payload}\n\
+                     class Needs<T: {capability}>(val item: T, val tail: Int)\n\
+                     fun keep(): Int = 0\n\
+                     fun run(): Unit {{ val result = {call} }}"
+                ),
+            );
+            for input in [
+                SourceUnitInput::memory_document(source, &file),
+                SourceUnitInput::new("root", "construct.ko", source, &file),
+            ] {
+                let inputs = [input];
+                let names = names(&sources, &inputs, &name_environment)
+                    .validate()
+                    .unwrap();
+                let typed =
+                    check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+                        .unwrap();
+                assert!(typed.constructions().is_empty());
+                assert!(typed.calls().iter().any(|descriptor| {
+                    file.ast()
+                        .expressions()
+                        .get(descriptor.expression().expression())
+                        .is_ok_and(|expr| sources.slice(expr.span()) == Ok("keep()"))
+                }));
+                let expected = rejected.then_some(code);
+                assert_eq!(codes(typed.diagnostics()), expected.as_slice());
+                let result = complete_compilation_unit_types(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &type_environment,
+                    &typed,
+                );
+                let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+                    panic!("{result:?}");
+                };
+                if rejected {
+                    assert_eq!(codes(&diagnostics), [code, "L0165"]);
+                    assert_eq!(primary_texts(&sources, &diagnostics), [actual, "Unbound"]);
+                } else {
+                    assert_eq!(codes(&diagnostics), ["L0165", "L0165"]);
+                    assert_eq!(primary_texts(&sources, &diagnostics), ["Unbound", &call]);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn inferred_construction_and_bare_enum_wait_for_structural_capability() {
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment.declare_type("Unbound").unwrap();
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "construct.ko",
+        "value class Payload(val item: Unbound)\n\
+         class Needs<T: Copyable>(val item: T)\n\
+         enum class Maybe<T: Copyable> { Empty }\n\
+         fun get(): Payload = error(\"stop\")\n\
+         fun inferred(): Unit { val value = Needs(get()) }\n\
+         fun bare(): Maybe<Payload> = Maybe.Empty",
+    );
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let names = names(&sources, &inputs, &name_environment)
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert!(typed.constructions().is_empty());
+    let result =
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, &typed);
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+        panic!("{result:?}");
+    };
+    assert_eq!(codes(&diagnostics), ["L0165", "L0165", "L0165"]);
+    assert_eq!(
+        primary_texts(&sources, &diagnostics),
+        ["Unbound", "Needs(get())", "Maybe.Empty"]
+    );
+}
+
+#[test]
+fn inferred_partial_constructor_still_checks_known_capability_failure() {
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment.declare_type("Unbound").unwrap();
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "construct.ko",
+        "value class Payload<A>(val pending: A, val text: String)\n\
+         class Needs<T: Copyable>(val item: T)\n\
+         class Twice<T: Copyable>(val first: T, val second: T)\n\
+         class Split<T: Copyable, U>(val item: T, val other: U)\n\
+         fun run(value: Payload<Unbound>): Unit {\n\
+             val result = Needs(value)\n\
+             val constrained: Needs<Int> = Needs(value)\n\
+             val repeated = Twice(value, value)\n\
+             val separate = Split(\"text\", value)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let names = names(&sources, &inputs, &name_environment)
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+    assert!(typed.constructions().is_empty());
+    assert_eq!(codes(typed.diagnostics()), ["L0115", "L0115", "L0115"]);
+    assert_eq!(
+        primary_texts(&sources, typed.diagnostics()),
+        ["value", "value", "\"text\""]
+    );
+    let result =
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, &typed);
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+        panic!("{result:?}");
+    };
+    assert_eq!(
+        codes(&diagnostics),
+        [
+            "L0165", "L0115", "L0165", "L0115", "L0165", "L0115", "L0165"
+        ]
+    );
+    assert_eq!(
+        primary_texts(&sources, &diagnostics),
+        [
+            "Unbound", "value", "value", "value", "value", "\"text\"", "value"
+        ]
+    );
+}
+
+#[test]
+fn rejected_bare_enum_bound_preserves_source_diagnostics() {
+    let (name_environment, type_environment) = standard_environments();
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "construct.ko",
+        "enum class Maybe<T: Copyable> { Empty }\n\
+         fun bare(): Maybe<String> = Maybe.Empty",
+    );
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let names = names(&sources, &inputs, &name_environment)
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+    assert!(typed.constructions().is_empty());
+    let result =
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_environment, &typed);
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+        panic!("{result:?}");
+    };
+    assert_eq!(codes(&diagnostics), ["L0115", "L0115"]);
+    assert_eq!(primary_texts(&sources, &diagnostics), ["String", "Empty"]);
 }
 
 #[test]

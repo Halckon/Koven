@@ -12,6 +12,13 @@ codegen按identity→diagnostics→deferred→constants→for schema消费；字
 Return descriptor只要求最近callable内的循环退出；读取现有名称作用域排除嵌套lambda/函数Return，
 循环自身位于lambda内时仍必须保留真实Return退出，不建立跨callable返回语义。
 
+Single 的待定来源保留恢复类型，待定性随局部绑定、解构和迭代绑定传递。
+待定循环只做求值与循环体的所有权恢复，不发布 provider 计划或清理动作，最终准入仍保留来源诊断。
+Single 的普通局部 `var` 按可达赋值与分支出口更新待定性。短路真假边保留各自绑定，
+普通调用按源码实参顺序传播正常出口。发现待定回边的循环用既有事务快照重算。
+普通运算、字符串插值、容器构造、专用调用以及下标读写共用操作数的恢复检查。
+跨调用写回和其他复合表达式仍有独立边界。
+
 ## SSA与资源边界
 
 本机恢复增加direct nongeneric resource class容器元素与resource value-class字段支持。
@@ -38,6 +45,10 @@ unit 普通与 constant-enabled driver 已消费同轮 source-qualified iteratio
 Array/List/MutableList 的 named owned、Borrow 参数与 temporary source 均可真实 object/link/run。
 长度在 preheader 求一次快照，source 仅求值一次；source/length/cursor/element 经已有 pending
 运输跨 CFG，复用 single provider 的 snapshot、guard、element 与固定步长 primitive，无 provider 分配。
+
+临时顺序源与局部 `val` 解构在同一 callable 组合时，Refine 完成整个 body 预检后再判断路由。
+已验证的局部解构可满足临时源的额外路由条件，语句先后与 sibling 不改变该判断。单独的临时
+循环保留原路由，`while` 的独立范围限制也保留。
 
 名称、discard 与 nongeneric value-class 借用解构支持 fallthrough、continue、break、return 及
 嵌套 for/while；cleanup 按前端完整动作序列执行一次，call/receiver loan 以 fact 身份映射实际

@@ -10,6 +10,31 @@ impl DropPlanner<'_, '_> {
             == Some(&UnitTypeKind::Builtin(BuiltinType::String))
     }
 
+    pub(super) fn uses_string_binary_operands(
+        &self,
+        left: ExpressionId,
+        operator: BinaryOperator,
+        right: ExpressionId,
+    ) -> bool {
+        if !matches!(
+            operator,
+            BinaryOperator::Add | BinaryOperator::Equal | BinaryOperator::NotEqual
+        ) || !self.is_string_expression(left)
+        {
+            return false;
+        }
+        let right = self
+            .checker
+            .typed
+            .expression_type(self.checker.unit_expression(right))
+            .and_then(|ty| self.checker.typed.types().get(ty));
+        right == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+            // A bottom RHS never reaches the operation, but its return still owns
+            // the cleanup of the String temporary from the already evaluated left.
+            || (matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+                && right == Some(&UnitTypeKind::Builtin(BuiltinType::Nothing)))
+    }
+
     pub(super) fn string_binary(
         &mut self,
         left: ExpressionId,

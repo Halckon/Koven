@@ -11,12 +11,17 @@ pub(super) fn deferred_message(reason: DeferredReason) -> String {
         DeferredReason::FunctionContainsDeferred => {
             "a component of the function type is unresolved"
         }
-        DeferredReason::UnboundExternalType => "the external symbol's type is unresolved",
+        DeferredReason::UnboundExternalType | DeferredReason::ExternalConstraint(_) => {
+            "the external symbol's type is unresolved"
+        }
         DeferredReason::ForwardValueType => "the value's type is not yet determined",
         DeferredReason::OverloadSelection => "overload selection is unresolved",
         DeferredReason::ThisType => "the type of this is unresolved",
         DeferredReason::MemberAccess => "the member's type is unresolved",
         DeferredReason::Call => "the call's type is unresolved",
+        DeferredReason::ContextualArgument | DeferredReason::ContextualInteger { .. } => {
+            "the argument's expected type is unresolved"
+        }
         DeferredReason::Index => "the indexed expression's type is unresolved",
         DeferredReason::Assignment => "assignment type checking is unresolved",
         DeferredReason::CastOrTypeTest => "the cast or type test is unresolved",
@@ -35,6 +40,9 @@ mod tests {
 
     #[test]
     fn user_messages_cover_all_deferred_reasons() {
+        let external = crate::name_resolution::NameEnvironment::new()
+            .declare_type("External")
+            .unwrap();
         let cases = [
             (
                 DeferredReason::AnyValueRepresentation,
@@ -57,6 +65,10 @@ mod tests {
                 "type checking could not complete: the external symbol's type is unresolved",
             ),
             (
+                DeferredReason::ExternalConstraint(external),
+                "type checking could not complete: the external symbol's type is unresolved",
+            ),
+            (
                 DeferredReason::ForwardValueType,
                 "type checking could not complete: the value's type is not yet determined",
             ),
@@ -75,6 +87,18 @@ mod tests {
             (
                 DeferredReason::Call,
                 "type checking could not complete: the call's type is unresolved",
+            ),
+            (
+                DeferredReason::ContextualArgument,
+                "type checking could not complete: the argument's expected type is unresolved",
+            ),
+            (
+                DeferredReason::ContextualInteger {
+                    widths: 8,
+                    default: None,
+                    nullable: false,
+                },
+                "type checking could not complete: the argument's expected type is unresolved",
             ),
             (
                 DeferredReason::Index,
@@ -109,7 +133,7 @@ mod tests {
                 "type checking could not complete: the iteration source type is unresolved",
             ),
         ];
-        assert_eq!(cases.len(), 18);
+        assert_eq!(cases.len(), 21);
         let actual = cases.map(|(reason, _)| deferred_message(reason));
         let expected = cases.map(|(_, message)| message);
         assert_eq!(actual, expected);

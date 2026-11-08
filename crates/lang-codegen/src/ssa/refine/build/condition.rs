@@ -50,6 +50,20 @@ impl Builder<'_, '_> {
                 UnitShortCircuitRhs::Conditional => {}
             }
         }
+        if self.inputs.typed.expression_falls_through(control) == Some(false) {
+            // If the left side completes, the frontend proved the RHS is required
+            // and has no normal exit. Do not synthesize a skipped predecessor.
+            self.unreachable_drop_points.extend([
+                UnitDropPoint::BranchExit { control, branch: 0 },
+                UnitDropPoint::BranchExit { control, branch: 1 },
+            ]);
+            if self.required(left)?.is_none() {
+                self.unreachable_drop_scopes.push(self.span(right));
+            } else if self.required(right)?.is_some() {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            return Ok(());
+        }
         let middle = self.body.block();
         let skip = self.body.block();
         if and {
@@ -75,36 +89,77 @@ impl Builder<'_, '_> {
             }
         }
         let skip_target = if and { when_false } else { when_true };
-        let skipped = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 1 });
-        let mark = self.enter(skip);
-        self.sync_dead();
-        let pre_skip_dead = self.dead.clone();
-        self.emit_drops(&skipped)?;
-        self.finish_drops(&skipped);
-        self.route_views(mark, skip_target, when_true, span)?;
-        self.goto(skip_target, span)?;
+        let skip_point = UnitDropPoint::BranchExit { control, branch: 1 };
+        let rhs_point = UnitDropPoint::BranchExit { control, branch: 0 };
+        let skipped = self.collect_drops(skip_point);
+        let outer_temporaries = self.temporaries.clone();
+        let outer_loans = self.pending_call_loans.clone();
+        let outer_ranges = self.short_ranges.clone();
+        let outer_views = self.active_views.clone();
+        let mut skip_state = None;
+        if self.body.blocks[skip.0].has_predecessor {
+            let mark = self.enter(skip);
+            self.sync_dead();
+            let pre_skip_dead = self.dead.clone();
+            self.emit_drops(&skipped)?;
+            self.finish_drops(&skipped);
+            self.route_views(mark, skip_target, when_true, span)?;
+            self.goto(skip_target, span)?;
+            skip_state = Some((
+                pre_skip_dead,
+                self.temporaries.clone(),
+                self.active_views.clone(),
+            ));
+        } else {
+            self.unreachable_drop_points.push(skip_point);
+        }
 
-        self.dead = pre_skip_dead;
-        self.dead_block = Some(middle);
-        self.entry_dead
-            .entry(middle)
-            .or_default()
-            .extend(self.dead.iter().copied());
+        if !self.body.blocks[middle.0].has_predecessor {
+            self.unreachable_drop_scopes.push(self.span(right));
+            self.unreachable_drop_points.push(rhs_point);
+            return Ok(());
+        }
+        if let Some((pre_skip_dead, _, _)) = &skip_state {
+            self.dead.clone_from(pre_skip_dead);
+            self.dead_block = Some(middle);
+            self.entry_dead
+                .entry(middle)
+                .or_default()
+                .extend(self.dead.iter().copied());
+        }
+        self.temporaries = outer_temporaries;
+        self.active_views = outer_views;
         let mark = self.enter(middle);
         let evaluated_true = self.body.block();
         let evaluated_false = self.body.block();
         self.condition_internal(right, evaluated_true, evaluated_false, views, None)?;
         let mark = mark.min(self.active_views.len());
         let left_views: Vec<_> = self.active_views.drain(mark..).collect();
-        let evaluated = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 0 });
+        let evaluated = self.collect_drops(rhs_point);
+        let mut reached = false;
         for (path, target) in [(evaluated_true, when_true), (evaluated_false, when_false)] {
+            if !self.body.blocks[path.0].has_predecessor {
+                continue;
+            }
+            reached = true;
             let mark = self.enter(path);
             self.active_views.extend(left_views.iter().copied());
             self.emit_drops(&evaluated)?;
             self.route_views(mark, target, when_true, span)?;
             self.goto(target, span)?;
         }
-        self.finish_drops(&evaluated);
+        if reached {
+            self.finish_drops(&evaluated);
+        } else {
+            self.unreachable_drop_points.push(rhs_point);
+            if let Some((_, temporaries, views)) = skip_state {
+                // An exit on the evaluated edge does not consume the skipped edge's state.
+                self.temporaries = temporaries;
+                self.pending_call_loans = outer_loans;
+                self.short_ranges = outer_ranges;
+                self.active_views = views;
+            }
+        }
         Ok(())
     }
 
@@ -358,8 +413,10 @@ impl Builder<'_, '_> {
             self.finish_drops(&operand_drops);
             return Ok(());
         }
-        let Lowered::Value(condition) = self.expression(expression)? else {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+        let condition = match self.expression(expression)? {
+            Lowered::Value(condition) => condition,
+            Lowered::Diverged => return Ok(()),
+            Lowered::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
         };
         self.terminate(
             RTerm::Branch {
@@ -399,15 +456,30 @@ impl Builder<'_, '_> {
         let outer_views = self.active_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
         let outer_short_ranges = self.short_ranges.clone();
+        let outer_temporaries = self.temporaries.clone();
+        let mut continuing_temporaries = None;
         let mut predecessors = Vec::new();
         let mut branch_exits = Vec::new();
         for (index, (block, branch)) in [(when_true, Some(then_branch)), (when_false, else_branch)]
             .into_iter()
             .enumerate()
         {
+            let exit_point = UnitDropPoint::BranchExit {
+                control,
+                branch: index,
+            };
+            if !self.body.blocks[block.0].has_predecessor {
+                self.unreachable_drop_points.push(exit_point);
+                if let Some(branch) = branch {
+                    let span = self.statement_span(branch)?;
+                    self.unreachable_drop_scopes.push(span);
+                }
+                continue;
+            }
             self.active_views = outer_views.clone();
             self.pending_call_loans = outer_pending_loans.clone();
             self.short_ranges = outer_short_ranges.clone();
+            self.temporaries.clone_from(&outer_temporaries);
             let mark = self.enter(block);
             let saved_expected = self.expected_nullable;
             if let Some(res) = result
@@ -426,6 +498,7 @@ impl Builder<'_, '_> {
             self.expected_nullable = saved_expected;
             self.leave(mark, span)?;
             let Some(value) = value else {
+                self.unreachable_drop_points.push(exit_point);
                 continue;
             };
             if let Some(result) = result {
@@ -435,10 +508,10 @@ impl Builder<'_, '_> {
                 self.deliver(source);
                 self.push(ROp::Alias { source: slot }, vec![result], span)?;
             }
-            self.drops(UnitDropPoint::BranchExit {
-                control,
-                branch: index,
-            })?;
+            self.drops(exit_point)?;
+            continuing_temporaries
+                .get_or_insert_with(|| self.temporaries.clone())
+                .retain(|id, slot| self.temporaries.get(id) == Some(slot));
             self.sync_dead();
             let exit_block = self.current(span)?;
             branch_exits.push((exit_block, self.this_dead));
@@ -476,6 +549,7 @@ impl Builder<'_, '_> {
         }
         self.pending_call_loans = outer_pending_loans;
         self.short_ranges = outer_short_ranges;
+        self.temporaries = continuing_temporaries.unwrap_or_default();
         let reached = self.join_views(predecessors, join, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));

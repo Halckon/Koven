@@ -3,18 +3,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    closure_escape::{
-        TypeCaptures,
-        proof::{content_index, projected_places},
-    },
+    closure_escape::{TypeCaptures, proof::content_index},
     content_flow,
 };
 use crate::ssa::{
     model::{
-        ClosureCaptureOperand, Definition, EntityId, EntityType, Function, Instruction,
-        InstructionId, LoanId, Module, Operation, PlaceAccess, SsaTypeKind, TerminatorKind,
+        ClosureCaptureMode, ClosureCaptureOperand, Definition, EntityId, EntityType, Function,
+        FunctionId, Instruction, InstructionId, LoanId, Module, Operation, PlaceAccess,
+        TerminatorKind,
     },
-    verify_ownership::{AliasRoots, all_entities, root_exchange},
+    verify_ownership::{AliasRoots, all_entities},
 };
 
 #[derive(Clone)]
@@ -44,14 +42,65 @@ struct Proof<'a> {
     function: &'a Function,
     defaults: State,
     borrowed: Vec<bool>,
-    affected: BTreeMap<EntityId, Vec<(usize, bool)>>,
+    affected: BTreeMap<EntityId, Vec<usize>>,
+    view_loans: Vec<bool>,
+    trusted_view_fields: Option<&'a BTreeSet<usize>>,
+}
+
+/// The erased environment is trusted only where every closure formation binds a checked
+/// shared view and no other instruction can call or expose the thunk directly.
+pub(super) fn trusted_view_fields(module: &Module) -> BTreeMap<FunctionId, BTreeSet<usize>> {
+    let mut fields = BTreeMap::<_, BTreeSet<_>>::new();
+    let mut other_entries = BTreeSet::new();
+    for instruction in module.functions.iter().flat_map(|body| &body.instructions) {
+        match instruction.operation {
+            Operation::ClosureConstruct { thunk, closure, .. } => {
+                let shared = module
+                    .concrete_closure(closure)
+                    .map(|(_, captures)| {
+                        captures
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(index, capture)| {
+                                (capture.mode == ClosureCaptureMode::Shared
+                                    && module.callable_view_signature(capture.ty).is_some())
+                                .then_some(index)
+                            })
+                            .collect::<BTreeSet<_>>()
+                    })
+                    .unwrap_or_default();
+                fields
+                    .entry(thunk)
+                    .and_modify(|previous| {
+                        previous.retain(|index| shared.contains(index));
+                    })
+                    .or_insert(shared);
+            }
+            Operation::DirectCall { callee, .. }
+            | Operation::BorrowCall { callee, .. }
+            | Operation::RangeCall { callee, .. }
+            | Operation::FunctionAddress { target: callee }
+            | Operation::ContainerGenerate {
+                initializer: callee,
+                ..
+            } => {
+                other_entries.insert(callee);
+            }
+            _ => {}
+        }
+    }
+    fields.retain(|thunk, fields| !fields.is_empty() && !other_entries.contains(thunk));
+    fields
 }
 
 /// A helper's entry Borrow relies on the caller proving the same current capture contents.
 pub(in crate::ssa) fn borrowed_callable_contents(
     module: &Module,
     function: &Function,
-) -> BTreeMap<(InstructionId, LoanId), CallableContent> {
+    capture_types: &TypeCaptures,
+    aliases: &AliasRoots,
+    trusted_view_fields: Option<&BTreeSet<usize>>,
+) -> BTreeMap<(InstructionId, EntityId), CallableContent> {
     if !function
         .instructions
         .iter()
@@ -59,7 +108,13 @@ pub(in crate::ssa) fn borrowed_callable_contents(
     {
         return BTreeMap::new();
     }
-    let proof = Proof::new(module, function);
+    let proof = Proof::new(
+        module,
+        function,
+        capture_types,
+        aliases,
+        trusted_view_fields,
+    );
     let entries = content_flow::block_entries(
         function,
         &proof.defaults,
@@ -124,7 +179,7 @@ pub(in crate::ssa) fn borrowed_callable_contents(
             for initializer in callable_reads(module, function, instruction) {
                 reads.insert(
                     (instruction.id, initializer),
-                    state[content_index(function, EntityId::Loan(initializer))].clone(),
+                    state[content_index(function, initializer)].clone(),
                 );
             }
             proof.apply(instruction, &mut state);
@@ -134,108 +189,150 @@ pub(in crate::ssa) fn borrowed_callable_contents(
 }
 
 /// Ordinary non-callable Borrow operands retain their existing ownership contract.
-fn callable_reads(module: &Module, function: &Function, instruction: &Instruction) -> Vec<LoanId> {
+fn callable_reads(
+    module: &Module,
+    function: &Function,
+    instruction: &Instruction,
+) -> Vec<EntityId> {
     let (receiver, arguments) = match &instruction.operation {
-        Operation::ContainerGenerateBorrowed { initializer, .. } => return vec![*initializer],
+        Operation::ContainerGenerateBorrowed { initializer, .. }
+        | Operation::MapWithValue {
+            action: initializer,
+            ..
+        } => {
+            return vec![EntityId::Loan(*initializer)];
+        }
+        Operation::ClosureConstruct { captures, .. } => {
+            return captures
+                .iter()
+                .filter_map(|capture| match capture {
+                    ClosureCaptureOperand::Shared(loan) => Some(EntityId::Loan(*loan)),
+                    ClosureCaptureOperand::Owned(_) => None,
+                })
+                .filter(|entity| {
+                    let target = function
+                        .entity(*entity)
+                        .expect("verified entity")
+                        .ty
+                        .semantic_type();
+                    module.callable_view_signature(target).is_some()
+                })
+                .collect();
+        }
         Operation::DirectCall {
             receiver,
             arguments,
             ..
-        } => (receiver.as_ref(), arguments.as_slice()),
-        Operation::CallableInvoke { arguments, .. }
-        | Operation::CallableInvokeView { arguments, .. } => (None, arguments.as_slice()),
+        } => (*receiver, arguments.as_slice()),
+        Operation::BorrowCall { arguments, .. } | Operation::RangeCall { arguments, .. } => {
+            (None, arguments.as_slice())
+        }
+        Operation::CallableInvoke {
+            callable,
+            arguments,
+        } => (Some(EntityId::Value(*callable)), arguments.as_slice()),
+        Operation::CallableInvokeView { view, arguments } => {
+            (Some(EntityId::Loan(*view)), arguments.as_slice())
+        }
         _ => return Vec::new(),
     };
     receiver
         .into_iter()
-        .chain(arguments)
-        .filter_map(|entity| {
-            let EntityId::Loan(loan) = entity else {
-                return None;
-            };
-            matches!(
-                module.types.get(
-                    function
-                        .entity(*entity)
-                        .expect("verified entity")
-                        .ty
-                        .semantic_type()
-                        .index()
-                ),
-                Some(
-                    SsaTypeKind::FunctionPointer { .. }
-                        | SsaTypeKind::ConcreteClosure { .. }
-                        | SsaTypeKind::CallableView { .. }
-                )
-            )
-            .then_some(*loan)
+        .chain(arguments.iter().copied())
+        .filter(|entity| matches!(entity, EntityId::Loan(_)) || Some(*entity) == receiver)
+        .filter(|entity| {
+            let target = function
+                .entity(*entity)
+                .expect("verified entity")
+                .ty
+                .semantic_type();
+            match entity {
+                EntityId::Loan(_) => {
+                    module.callable_signature(target).is_some()
+                        || module.callable_view_signature(target).is_some()
+                }
+                EntityId::Value(_) => module.concrete_closure(target).is_some(),
+                EntityId::Place(_) => false,
+            }
         })
         .collect()
 }
 
+fn direct_root(function: &Function, entity: EntityId) -> bool {
+    matches!(entity, EntityId::Place(_))
+        && matches!(function.entity(entity).expect("verified entity").definition,
+            Definition::InstructionResult { instruction, .. }
+                if matches!(function.instruction(instruction).expect("verified instruction").operation,
+                    Operation::RootPlace { .. }))
+}
+
 impl<'a> Proof<'a> {
-    fn new(module: &Module, function: &'a Function) -> Self {
-        let types = TypeCaptures::compute(module);
+    fn new(
+        module: &Module,
+        function: &'a Function,
+        types: &TypeCaptures,
+        aliases: &AliasRoots,
+        trusted_view_fields: Option<&'a BTreeSet<usize>>,
+    ) -> Self {
         let entities = all_entities(function);
-        let borrowed = entities
+        let view_loans = entities
             .iter()
             .map(|entity| {
-                types.contains(
-                    function
-                        .entity(*entity)
-                        .expect("verified entity")
-                        .ty
-                        .semantic_type(),
-                )
+                matches!(entity, EntityId::Loan(_))
+                    && module
+                        .callable_view_signature(
+                            function
+                                .entity(*entity)
+                                .expect("verified entity")
+                                .ty
+                                .semantic_type(),
+                        )
+                        .is_some()
             })
             .collect::<Vec<_>>();
-        let defaults = entities.iter().map(|entity| {
+        let borrowed = entities
+            .iter()
+            .zip(&view_loans)
+            .map(|(entity, view)| {
+                *view
+                    || types.contains(
+                        function
+                            .entity(*entity)
+                            .expect("verified entity")
+                            .ty
+                            .semantic_type(),
+                    )
+            })
+            .collect::<Vec<_>>();
+        let defaults = entities.iter().zip(&borrowed).map(|(entity, borrowed)| {
             let data = function.entity(*entity).expect("verified entity");
             let external_borrow = matches!(data.ty, EntityType::Loan { .. })
                 && matches!(data.definition, Definition::BlockParameter { block, .. } if Some(block) == function.entry_block());
             // Borrow parameters rely on the caller's active loan, never on invented caller-local IDs.
-            CallableContent { known: external_borrow || !types.contains(data.ty.semantic_type()), loans: BTreeSet::new() }
+            CallableContent { known: external_borrow || !borrowed, loans: BTreeSet::new() }
         }).collect();
-        let aliases = AliasRoots::compute(function);
-        let projected = projected_places(function, &aliases);
         let mut affected = BTreeMap::new();
         for instruction in &function.instructions {
             let Operation::Mutate { place, .. } = instruction.operation else {
                 continue;
             };
-            affected.entry(EntityId::Place(place)).or_insert_with(|| {
-                let exact_owners = if projected[place.index()] {
-                    vec![]
-                } else {
-                    entities
-                        .iter()
-                        .filter_map(|entity| match entity {
-                            EntityId::Value(owner)
-                                if root_exchange::exact_place(
-                                    function, *owner, place, &aliases,
-                                ) =>
-                            {
-                                Some(*owner)
-                            }
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>()
-                };
+            let written = EntityId::Place(place);
+            affected.entry(written).or_insert_with(|| {
                 entities
                     .iter()
                     .enumerate()
-                    .filter_map(|(index, entity)| {
-                        if !borrowed[index] || !aliases.overlap(EntityId::Place(place), *entity) {
+                    .filter_map(|(index, &entity)| {
+                        // A store does not modify an SSA value or a different allocation.
+                        if !borrowed[index]
+                            || matches!(entity, EntityId::Value(_))
+                            || (entity != written
+                                && direct_root(function, written)
+                                && direct_root(function, entity))
+                            || !aliases.overlap(written, entity)
+                        {
                             return None;
                         }
-                        let exact = match entity {
-                            EntityId::Value(owner) => exact_owners.contains(owner),
-                            EntityId::Place(other) => exact_owners.iter().any(|owner| {
-                                root_exchange::exact_place(function, *owner, *other, &aliases)
-                            }),
-                            _ => false,
-                        };
-                        Some((index, exact))
+                        Some(index)
                     })
                     .collect()
             });
@@ -245,7 +342,30 @@ impl<'a> Proof<'a> {
             defaults,
             borrowed,
             affected,
+            view_loans,
+            trusted_view_fields,
         }
+    }
+
+    fn follows_entry_capture(&self, source: LoanId) -> bool {
+        let Some(Definition::InstructionResult { instruction, .. }) = self
+            .function
+            .entity(EntityId::Loan(source))
+            .map(|entity| entity.definition)
+        else {
+            return false;
+        };
+        let Operation::SharedFieldLoan { base, field } = self
+            .function
+            .instruction(instruction)
+            .expect("verified instruction")
+            .operation
+        else {
+            return false;
+        };
+        self.trusted_view_fields
+            .is_some_and(|fields| fields.contains(&field))
+            && self.function.blocks[0].parameters.first() == Some(&EntityId::Loan(base))
     }
 
     fn apply(&self, instruction: &Instruction, state: &mut State) {
@@ -294,6 +414,12 @@ impl<'a> Proof<'a> {
             }
             // Following an address cannot recover captured LoanIds from a capture-free slot.
             // Capturing targets keep the unknown default; capture-free targets keep exact emptiness.
+            Operation::SharedReferenceFollow { source }
+                if self.view_loans[content_index(self.function, instruction.results[0])]
+                    && self.follows_entry_capture(*source) =>
+            {
+                Some(CallableContent::empty())
+            }
             Operation::SharedReferenceFollow { .. } => None,
             Operation::RootPlaceTake { place, .. } => Some(content(EntityId::Place(*place))),
             Operation::Read { source } => Some(content(match source {
@@ -340,12 +466,8 @@ impl<'a> Proof<'a> {
         } = instruction.operation
         {
             let replacement = value(replacement);
-            for (index, exact) in &self.affected[&EntityId::Place(place)] {
-                if *exact {
-                    state[*index] = replacement.clone();
-                } else {
-                    state[*index].join(&replacement);
-                }
+            for index in &self.affected[&EntityId::Place(place)] {
+                state[*index].join(&replacement);
             }
             // This operand denotes the complete overwritten value even for a projected place.
             state[content_index(self.function, EntityId::Place(place))] = replacement;
