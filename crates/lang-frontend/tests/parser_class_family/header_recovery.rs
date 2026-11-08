@@ -156,3 +156,66 @@ fn unsupported_unclosed_supertype_calls_keep_the_existing_body_boundary() {
         assert_eq!(sources.slice(sentinel.span()).unwrap(), "class Sentinel");
     }
 }
+
+#[test]
+fn missing_nested_classifier_name_preserves_the_enclosing_closer() {
+    let text = "class Outer { class }\nclass Sentinel";
+    let (sources, parsed) = file(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0077", "L0067"]);
+    let [outer, sentinel] = parsed.roots() else {
+        panic!("outer class and following file item");
+    };
+    let Item::Classifier(outer) = parsed.ast().items().get(*outer).unwrap().payload() else {
+        panic!("outer class");
+    };
+    let body = outer.body.as_ref().unwrap();
+    let [inner] = body.members.as_slice() else {
+        panic!("one nested classifier");
+    };
+    let Item::Classifier(inner) = parsed.ast().items().get(*inner).unwrap().payload() else {
+        panic!("nested classifier");
+    };
+    let closer = body.right_brace_span.unwrap();
+    let NameMarker::Missing(name) = inner.name else {
+        panic!("missing name");
+    };
+    assert!(name.is_empty());
+    assert_eq!(name.start(), closer.start());
+    assert_eq!(parsed.diagnostics()[1].primary_span(), name);
+    assert_eq!(sources.slice(closer).unwrap(), "}");
+    assert_eq!(
+        sources
+            .slice(parsed.ast().items().get(*sentinel).unwrap().span())
+            .unwrap(),
+        "class Sentinel"
+    );
+}
+
+#[test]
+fn member_recovery_preserves_a_contextual_receiver_only_at_owner_baseline() {
+    for (garbage, prefix, expected) in [
+        ("@", "own", &["L0071"][..]),
+        ("@ (own fun ignored(): Unit {})", "own", &["L0071"][..]),
+        (
+            r#"@ "${own fun ignored(): Unit {}}""#,
+            "own",
+            &["L0071"][..],
+        ),
+        ("@", "own borrow", &["L0071", "L0076"][..]),
+        ("@", "own public", &["L0071", "L0076"][..]),
+    ] {
+        let text = format!("class C {{ {garbage}\n{prefix} fun member(): Unit {{}} }}");
+        let (sources, parsed) = declaration(&text);
+        assert_eq!(codes(parsed.diagnostics()), expected, "{text}");
+        let body = classifier(&parsed).body.as_ref().unwrap();
+        let [error, member] = body.members.as_slice() else {
+            panic!("error region and recovered member");
+        };
+        assert!(matches!(item(&parsed, *error), Item::Error));
+        let Some(marker @ ParameterModeMarker::Own(_)) = receiver_mode(&parsed, *member) else {
+            panic!("recovered receiver");
+        };
+        assert_eq!(sources.slice(receiver_mode_span(marker)).unwrap(), "own");
+        assert!(body.right_brace_span.is_some());
+    }
+}

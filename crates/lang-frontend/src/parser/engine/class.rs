@@ -149,7 +149,11 @@ impl Parser<'_> {
             || matches!(
                 current.kind(),
                 LexemeKind::Token(TokenKind::Symbol(
-                    Symbol::Less | Symbol::LeftParen | Symbol::Colon | Symbol::LeftBrace
+                    Symbol::Less
+                        | Symbol::LeftParen
+                        | Symbol::Colon
+                        | Symbol::LeftBrace
+                        | Symbol::RightBrace
                 ))
             )
             || self.is_file_declaration_boundary(current);

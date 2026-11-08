@@ -852,7 +852,11 @@ impl Parser<'_> {
             let outside_owner = owners.is_empty();
             let hard_stop = outside_owner && stops.contains_hard(current, symbol);
             if hard_stop
-                || (outside_owner && delimiters.is_empty() && stops.contains_soft(current, symbol))
+                || (outside_owner
+                    && delimiters.is_empty()
+                    && (stops.contains_soft(current, symbol)
+                        || (stops.stops_at_class_member()
+                            && self.class_member_recovery_start()?)))
             {
                 break;
             }

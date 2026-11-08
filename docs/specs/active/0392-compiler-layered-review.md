@@ -108,7 +108,7 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 基线、工具链、公共流水线与独立审查已建立；原始 docs checker 通过 | 全部真实消费者/逐合同清单仍需对账 |
-| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–79 | 缺类体时的文件边界、软修饰词、连续词法 poison 等 class-family 恢复路径仍开放 |
+| R1 | 独立抽查 UTF-8/身份、模式栈、Pratt、strict trial、lambda DFA；F4/F5/F6 修复，恢复矩阵、分句预算与全部 frontend 实跑。局部解构见 §60、§63，类声明恢复与预算见 §78–80 | 缺类体时的文件边界、分组委托与连续词法 poison 的 AST 归属仍开放 |
 | R2 | 独立检查 trial/final admission/provenance；F1/F2/F8 和 F9/F10 已列复现有修复证据，既有 types/callable/final-admission 实跑 | 逐消费者处置与流事实组合仍开放。候选与继承 owner 回滚见 §22–24，循环和 Elvis 流事实见 §25。局部 value class 解构已按字段名匹配。私有字段访问和解构可见性已修，见 §62。Unit 待定迭代源已修，旧单文件入口仍待复审，见 §63。自动 component 已退役，见 §64 |
 | R3 | basic/const factory 身份链与临时父 owner 关系独审；F3 已修复复核；unit ownership/deinit/两阶段借用与能力隔离实跑 | F7 已以能力门关闭漏报；旧消费者迁移、循环/析构全矩阵与动态资源验收开放；独占捕获前端进展见 [§49](#49-r3-copyable-独占捕获借用) 与 [§50](#50-r3-moveonly-捕获根替换) |
 | R4 | 独立核 routes、函数/thunk 无错误回退、drop 核验、SSA/LLVM 双门及 sibling 原子发布。局部解构与顺序源、`while` 见 §65、§73–76；双宿主定向、Linux sanitizer、预览包安装及本机 LLDB 的切片证据见 §72–77 | 全家族 subset/build 与资源故障矩阵仍待逐项对账，第一轮冻结 SHA 纵向复审未结项；目标机仍为 OptimizationLevel::None |
@@ -2151,3 +2151,34 @@ Parser stage Cargo 命令，唯一普通目标从 136 增至 137，Cargo 调用�
 从 `6e5934b5` 建立实际分支，逐字接入上述候选。当前分支通过 49 项定向及 19 项
 Parser 内部检查，零失败或忽略。frontend 全目标 Clippy、格式、文档、Rust 尺寸与 diff
 门禁，以及同样三项 CI 选择检查通过。该分支的双宿主矩阵待推送后执行。
+
+[PR #360 双宿主门禁](https://github.com/Halckon/Koven/actions/runs/42455437503) 在 `91e6e413`
+上通过，macOS 与 Linux 日志均实际执行接口委托专项。两宿主 conformance 为 137/154，
+验收程序 0/6，零回归、入口差异或内部错误。Linux sanitizer、两宿主生成资源与预览包
+独立安装通过，编辑器按范围跳过。精确提交本机补验 Mach-O 行表、后端真实 LLDB 断点及
+四项 CLI 调试检查，共 6 项通过。已合入 `4b311957`。
+
+## 80. R1 类成员恢复的软起点与外层闭合
+
+在 `91e6e413` 复现两条类体 owner 偏差。错误区后的 `own fun` 被跳过 `own` 并多报
+L0072，`own borrow fun` 还丢失首 marker 和原重复修饰词诊断。成员恢复在本地
+delimiter 和 lexical owner 回到 baseline 时复用正式 receiver 词形，只看固定两个
+token。保留重复／逆序诊断和首 marker，并验证内层组和字符串插值中的同形 token 不提升。
+
+非法嵌套 classifier 缺名称时，真实外层 `}` 保留给父类体，缺名称的 L0067 仍以空 Span
+报告。文件入口精确验证父类体与后一顶层声明的源码范围。
+
+另在隔离候选验证了连续词法 poison 后的类型参数、嵌套父类型实参与函数型参数恢复，
+以及父类型后没有后继时保留文件 Error Item。计数回归捕获早期候选 556 个 raw lexeme
+发生 52626 次查询，最终隔离候选的前向和反向访问均纳入预算并通过。该候选全 frontend
+2739 项通过，复核仍确认部分分隔位置的 poison 没有当前结构内可达 Error node。
+本批分离并保留该候选，继续按 Guide 01 补 AST 表示和下游检查。
+
+无类体时的文件边界另有最小红测。普通类构造器吞 `public class Sentinel`，未闭合的
+interface 类型参数吞 `value class Sentinel`。对照确认合法 `value` 名称、visibility
+字段与平衡非法默认值正常留在其 owner。非法分组委托目标仍有外内逗号归属缺口。
+
+独立复核确认成员候选与原已审阅逻辑一致，未带入 TypeRef 或 poison 游标改动。隔离
+候选 frontend 全量 183 组、2733 项通过。逐字接入 `4b311957` 后，实际分支 97 项
+定向与 19 项 Parser 内部检查通过，零失败或忽略。frontend 全目标 Clippy、格式、
+文档、Rust 尺寸和 diff 检查通过。双宿主矩阵待推送后执行。

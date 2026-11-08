@@ -410,16 +410,7 @@ impl Parser<'_> {
                 saw_override = true;
                 continue;
             }
-            let receiver = if self.current_identifier_is("borrow")? {
-                Some(ParameterModeMarker::Borrow(self.current()?.span()))
-            } else if self.current_identifier_is("inout")? {
-                Some(ParameterModeMarker::Inout(self.current()?.span()))
-            } else if self.current_identifier_is("own")? {
-                Some(ParameterModeMarker::Own(self.current()?.span()))
-            } else {
-                None
-            };
-            let Some(receiver) = receiver else {
+            let Some(receiver) = self.receiver_modifier_at(0)? else {
                 break;
             };
             if receiver_policy == ReceiverModifierPolicy::NotRecognized {
