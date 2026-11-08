@@ -29,6 +29,9 @@ mod callable_provenance;
 #[path = "ownership_closures/exclusive_lifetime.rs"]
 mod exclusive_lifetime;
 
+#[path = "ownership_closures/capture_identity_unit.rs"]
+mod capture_identity_unit;
+
 #[path = "ownership_closures/capture_replacement.rs"]
 mod capture_replacement;
 
@@ -264,82 +267,6 @@ fn ability(
 }
 
 #[test]
-fn default_and_move_lambdas_publish_borrow_copy_and_move_facts() {
-    let text = "class Resource {}\n\
-                fun inspect(item: Resource): Unit {}\n\
-                fun captures(own resource: Resource, number: Int): Unit {\n\
-                    val shared: () -> Unit = {\n\
-                        val first = number\n\
-                        val second = inspect(resource)\n\
-                        val again = number\n\
-                    }\n\
-                    val owned: move () -> Unit = move {\n\
-                        val first = number\n\
-                        val second = resource\n\
-                    }\n\
-                    val empty: () -> Unit = {}\n\
-                }";
-    let (_, parsed, names, _, owned) = checked(text);
-    let lambdas = lambdas(&parsed);
-    assert_eq!(lambdas.len(), 3);
-
-    let resource = symbol(&names, "resource");
-    let number = symbol(&names, "number");
-    let shared = owned.captures_of(lambdas[0]).copied().collect::<Vec<_>>();
-    assert_eq!(shared.len(), 2);
-    assert_eq!(
-        shared
-            .iter()
-            .map(|capture| capture.source())
-            .collect::<Vec<_>>(),
-        [
-            ClosureCaptureSource::Symbol(number),
-            ClosureCaptureSource::Symbol(resource)
-        ]
-    );
-    assert!(
-        shared
-            .iter()
-            .all(|capture| capture.mode() == ClosureCaptureMode::Shared
-                && capture.effect() == ClosureCaptureEffect::Borrow)
-    );
-
-    let moved = owned.captures_of(lambdas[1]).copied().collect::<Vec<_>>();
-    assert_eq!(moved.len(), 2);
-    assert_eq!(moved[0].source(), ClosureCaptureSource::Symbol(number));
-    assert_eq!(moved[0].effect(), ClosureCaptureEffect::Copy);
-    assert_eq!(moved[1].source(), ClosureCaptureSource::Symbol(resource));
-    assert_eq!(moved[1].effect(), ClosureCaptureEffect::Move);
-    assert!(
-        moved
-            .iter()
-            .all(|capture| capture.mode() == ClosureCaptureMode::Owned)
-    );
-
-    assert_eq!(
-        owned.closure(lambdas[0]).expect("shared").transferability(),
-        Transferability::NotTransferable
-    );
-    assert_eq!(
-        owned.closure(lambdas[1]).expect("move").transferability(),
-        Transferability::Transferable
-    );
-    assert_eq!(
-        owned.closure(lambdas[2]).expect("empty").transferability(),
-        Transferability::Transferable
-    );
-    assert!(owned.drops().iter().any(|drop| {
-        matches!(drop.target(), DropTarget::Captured { closure, source: ClosureCaptureSource::Symbol(symbol), .. } if closure == lambdas[1] && symbol == resource)
-    }));
-    assert!(
-        !owned
-            .drops()
-            .iter()
-            .any(|drop| drop.target() == DropTarget::Named(resource))
-    );
-}
-
-#[test]
 fn implicit_it_is_a_value_parameter_and_never_a_capture() {
     let text = "class Resource {}\n\
                 fun useResource(own item: Resource): Unit {}\n\
@@ -399,41 +326,6 @@ fn implicit_borrow_and_inout_match_explicit_parameter_ownership() {
             Some(ParameterMode::Inout),
         ]
     );
-}
-
-#[test]
-fn nested_capture_uses_symbol_identity_and_shadowing_does_not_capture() {
-    let text = "fun nested(number: Int): Unit {\n\
-                    val outer: () -> Unit = {\n\
-                        val local = 1\n\
-                        val inner: () -> Unit = { val sum = number + local }\n\
-                    }\n\
-                    val shadow: (Int) -> Unit = { number -> val used = number }\n\
-                }";
-    let (_, parsed, names, _, owned) = checked(text);
-    let lambdas = lambdas(&parsed);
-    assert_eq!(lambdas.len(), 3);
-    let number = symbol(&names, "number");
-    let local = symbol(&names, "local");
-
-    assert_eq!(
-        owned
-            .captures_of(lambdas[0])
-            .map(|capture| capture.source())
-            .collect::<Vec<_>>(),
-        [ClosureCaptureSource::Symbol(number)]
-    );
-    assert_eq!(
-        owned
-            .captures_of(lambdas[1])
-            .map(|capture| capture.source())
-            .collect::<Vec<_>>(),
-        [
-            ClosureCaptureSource::Symbol(number),
-            ClosureCaptureSource::Symbol(local)
-        ]
-    );
-    assert_eq!(owned.captures_of(lambdas[2]).count(), 0);
 }
 
 #[test]

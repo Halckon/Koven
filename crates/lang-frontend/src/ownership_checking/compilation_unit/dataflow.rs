@@ -17,6 +17,7 @@ mod formed_publication;
 mod formed_tests;
 mod iteration;
 mod liveness;
+mod loop_capture;
 mod map;
 mod map_iteration_source;
 mod missing_name_receiver;

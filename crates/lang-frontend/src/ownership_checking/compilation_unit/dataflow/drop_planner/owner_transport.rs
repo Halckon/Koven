@@ -269,7 +269,12 @@ impl DropPlanner<'_, '_> {
                     == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
             }
             Expression::Lambda { .. } => {
-                self.owner_branch_depth == 0 && self.owner_capture_supported(id)
+                self.owner_capture_supported(id)
+                    && (self.owner_branch_depth == 0
+                        || self.checker.captures_of(id).all(|capture| {
+                            capture.borrow_kind()
+                                == Some(crate::ownership_checking::LoanKind::Shared)
+                        }))
             }
             Expression::Literal(_) => self
                 .checker

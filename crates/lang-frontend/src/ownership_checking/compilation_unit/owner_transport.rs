@@ -129,6 +129,26 @@ pub enum UnitOwnerTransportEvent {
         /// Checked capture order and the exact values removed by the planner.
         inputs: Vec<(UnitSymbolId, UnitOwnerId)>,
     },
+    /// Shared formation reads current named tokens without transferring their owners.
+    SharedCapture {
+        /// Actual source-qualified lambda formation.
+        expression: UnitExpressionId,
+        /// Newly formed environment token.
+        environment: UnitOwnerId,
+        /// Ordered borrowed slots and their actual current source owners.
+        inputs: Vec<(UnitSymbolId, UnitOwnerId)>,
+    },
+    /// Actual shared capture loan retirement, immediately before environment cleanup.
+    SharedCaptureEnd {
+        /// Actual cleanup point shared with the environment Drop.
+        point: UnitDropPoint,
+        /// Exact formed environment.
+        environment: UnitOwnerId,
+        /// Source-qualified borrowed slot.
+        source: UnitSymbolId,
+        /// Current source token, still owned by its named binding.
+        owner: UnitOwnerId,
+    },
     /// Actual captured-value cleanup before the containing environment is dropped.
     CaptureDrop {
         /// Actual cleanup execution point.
@@ -328,6 +348,25 @@ impl UnitOwnerTransportEvent {
                 owner,
             } => matches!(other,
                 Self::CaptureDrop { point: rhs_point, environment: rhs_environment, source: rhs_source, owner: rhs_owner }
+                if point == rhs_point && source == rhs_source
+                    && owner_eq(environment, rhs_environment) && owner_eq(owner, rhs_owner)),
+            Self::SharedCapture {
+                expression,
+                environment,
+                inputs,
+            } => matches!(other,
+                Self::SharedCapture { expression: rhs_expression, environment: rhs_environment, inputs: rhs_inputs }
+                if expression == rhs_expression && owner_eq(environment, rhs_environment)
+                    && inputs.len() == rhs_inputs.len()
+                    && inputs.iter().zip(rhs_inputs).all(|((source, owner), (rhs_source, rhs_owner))|
+                        source == rhs_source && owner_eq(owner, rhs_owner))),
+            Self::SharedCaptureEnd {
+                point,
+                environment,
+                source,
+                owner,
+            } => matches!(other,
+                Self::SharedCaptureEnd { point: rhs_point, environment: rhs_environment, source: rhs_source, owner: rhs_owner }
                 if point == rhs_point && source == rhs_source
                     && owner_eq(environment, rhs_environment) && owner_eq(owner, rhs_owner)),
             Self::Move {
