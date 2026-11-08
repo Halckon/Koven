@@ -42,6 +42,9 @@ impl Checker<'_> {
             }
         }
         let body_span = self.parsed.ast().statements().get(body)?.span();
+        if self.capture_index.is_empty() {
+            return Ok(());
+        }
         let mut unsupported = None;
         for (state, repeating) in [
             (flows.next.as_ref(), true),
@@ -58,25 +61,31 @@ impl Checker<'_> {
                 let prior =
                     entry.closure_tree(entry.closures.get(&holder).into_iter().flatten().copied());
                 let current = state.closure_tree(origins.iter().copied());
-                for capture in self.captures {
-                    if !current.contains(&capture.lambda())
-                        || prior.contains(&capture.lambda())
-                        || capture.borrow_kind()
+                // Lambda IDs do not encode capture publication order. Keep the
+                // same first matching descriptor as the original ordered walk.
+                for &lambda in current.difference(&prior) {
+                    for (ordinal, capture) in self.capture_index.for_lambda(lambda) {
+                        if unsupported.is_some_and(|(earlier, _)| earlier <= ordinal) {
+                            break;
+                        }
+                        if capture.borrow_kind()
                             != Some(crate::ownership_checking::LoanKind::Shared)
-                        || self.typed.copyability(capture.ty())
-                            != crate::type_checking::Copyability::MoveOnly
-                    {
-                        continue;
-                    }
-                    if let crate::ownership_checking::UnitClosureCaptureSource::Symbol(source) =
-                        capture.source()
-                        && !entry.non_owning.contains_key(&source)
-                        && self.bindings.get(&source).is_none_or(|binding| {
-                            binding.kind() == crate::ownership_checking::OwnershipBindingKind::Owned
-                        })
-                    {
-                        unsupported = Some(capture.reference_span());
-                        break;
+                            || self.typed.copyability(capture.ty())
+                                != crate::type_checking::Copyability::MoveOnly
+                        {
+                            continue;
+                        }
+                        if let crate::ownership_checking::UnitClosureCaptureSource::Symbol(source) =
+                            capture.source()
+                            && !entry.non_owning.contains_key(&source)
+                            && self.bindings.get(&source).is_none_or(|binding| {
+                                binding.kind()
+                                    == crate::ownership_checking::OwnershipBindingKind::Owned
+                            })
+                        {
+                            unsupported = Some((ordinal, capture.reference_span()));
+                            break;
+                        }
                     }
                 }
                 if unsupported.is_some() {
@@ -87,7 +96,7 @@ impl Checker<'_> {
                 break;
             }
         }
-        if let Some(origin) = unsupported {
+        if let Some((_, origin)) = unsupported {
             self.emit_borrow_binding_diagnostic(
                 crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
                 "shared closure capture across a loop requires conditional owner transport",

@@ -127,8 +127,7 @@ fn with_checker<T>(
     let mut construction_plans = Vec::new();
     let mut assertions = Vec::new();
     let mut callable_sources = callable_provenance::Collection::default();
-    let exclusive_captures =
-        closure::exclusive_capture_index(&parts.capture.captures, fixture.typed.types());
+    let capture_index = closure::capture_index(&parts.capture.captures, fixture.typed.types());
     let mut checker = Checker::new(
         &fixture.sources,
         &fixture.parsed[0],
@@ -139,8 +138,7 @@ fn with_checker<T>(
         &fields,
         &parts.arguments,
         &parts.receivers,
-        &parts.capture.captures,
-        &exclusive_captures,
+        &capture_index,
         &parts.capture.closures,
         &parts.capture.transferabilities,
         constructions.get(&fixture.source(0)).unwrap_or(&empty),
@@ -289,4 +287,52 @@ fn rejected_assignment_restores_only_new_formed_history() {
         );
         assert!(checker.diagnostics.is_empty());
     });
+}
+
+#[test]
+fn capture_queries_visit_only_the_requested_lambda_in_each_source() {
+    for count in [32, 64] {
+        let source = |start| {
+            (start..start + count / 2)
+                .map(|index| {
+                    format!(
+                        "fun probe{index}(first: Int, second: Int): Unit {{ val f: () -> Unit = {{ val a = second; val b = first }}; f() }}\n"
+                    )
+                })
+                .collect::<String>()
+        };
+        let fixture = Fixture::new(&[("left.ko", &source(0)), ("right.ko", &source(count / 2))]);
+        let captures = super::super::capture::analyze(
+            &fixture.inputs(),
+            fixture.names.names(),
+            fixture.typed.types(),
+        )
+        .unwrap()
+        .captures;
+        assert_eq!(captures.len(), 2 * count);
+        let index = closure::capture_index(&captures, fixture.typed.types());
+        let lambdas = captures
+            .iter()
+            .map(|capture| capture.lambda())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(lambdas.len(), count);
+
+        assert!(lambdas.iter().all(|&lambda| index.contains_lambda(lambda)));
+        assert_eq!(index.descriptor_visits.get(), 0);
+
+        let mut linear_visits = 0;
+        for lambda in lambdas {
+            let expected = captures
+                .iter()
+                .enumerate()
+                .filter(|(_, capture)| {
+                    linear_visits += 1;
+                    capture.lambda() == lambda
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(index.for_lambda(lambda).collect::<Vec<_>>(), expected);
+        }
+        assert_eq!(linear_visits, 2 * count * count);
+        assert_eq!(index.descriptor_visits.get(), 2 * count);
+    }
 }

@@ -46,8 +46,7 @@ fn compare_and_inspect(fixture: &Fixture, parts: &Parts, inspect: impl FnOnce(&C
     let mut construction_plans = Vec::new();
     let mut assertions = Vec::new();
     let mut callable_sources = callable_provenance::Collection::default();
-    let exclusive_captures =
-        closure::exclusive_capture_index(&parts.capture.captures, fixture.typed.types());
+    let capture_index = closure::capture_index(&parts.capture.captures, fixture.typed.types());
     let mut checker = Checker::new(
         &fixture.sources,
         &fixture.parsed[0],
@@ -58,8 +57,7 @@ fn compare_and_inspect(fixture: &Fixture, parts: &Parts, inspect: impl FnOnce(&C
         &fields,
         &parts.arguments,
         &parts.receivers,
-        &parts.capture.captures,
-        &exclusive_captures,
+        &capture_index,
         &parts.capture.closures,
         &parts.capture.transferabilities,
         constructions.get(&fixture.source(0)).unwrap_or(&empty),

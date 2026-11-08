@@ -9,8 +9,8 @@ use crate::{
 };
 
 use crate::ownership_checking::{
-    ClosureCaptureEffect, ClosureCaptureMode, LoanKind, Transferability, UnitClosureCaptureSource,
-    UnitOwnershipPlace,
+    ClosureCaptureEffect, ClosureCaptureMode, LoanKind, Transferability,
+    UnitClosureCaptureDescriptor, UnitClosureCaptureSource, UnitOwnershipPlace,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -27,20 +27,51 @@ pub(super) type BranchCaptureReleases =
 pub(super) type CallCaptureSources =
     BTreeMap<(UnitExpressionId, UnitExpressionId), BTreeSet<UnitSymbolId>>;
 
-pub(super) struct ExclusiveCaptureIndex {
+pub(super) struct CaptureIndex<'a> {
+    captures: &'a [UnitClosureCaptureDescriptor],
+    by_lambda: BTreeMap<UnitExpressionId, Vec<usize>>,
+    #[cfg(test)]
+    pub(super) descriptor_visits: std::cell::Cell<usize>,
     pub(super) roots: BTreeMap<UnitExpressionId, BTreeSet<UnitSymbolId>>,
     move_only: BTreeSet<UnitExpressionId>,
     pub(super) borrowed_sources: BTreeMap<UnitExpressionId, Vec<UnitSymbolId>>,
 }
 
-pub(super) fn exclusive_capture_index(
-    captures: &[crate::ownership_checking::UnitClosureCaptureDescriptor],
+impl CaptureIndex<'_> {
+    pub(super) fn is_empty(&self) -> bool {
+        self.captures.is_empty()
+    }
+
+    pub(super) fn contains_lambda(&self, lambda: UnitExpressionId) -> bool {
+        self.by_lambda.contains_key(&lambda)
+    }
+
+    pub(super) fn for_lambda(
+        &self,
+        lambda: UnitExpressionId,
+    ) -> impl Iterator<Item = (usize, &UnitClosureCaptureDescriptor)> + '_ {
+        self.by_lambda
+            .get(&lambda)
+            .into_iter()
+            .flatten()
+            .map(|&ordinal| {
+                #[cfg(test)]
+                self.descriptor_visits.set(self.descriptor_visits.get() + 1);
+                (ordinal, &self.captures[ordinal])
+            })
+    }
+}
+
+pub(super) fn capture_index<'a>(
+    captures: &'a [UnitClosureCaptureDescriptor],
     typed: &crate::type_checking::CompilationUnitTypes,
-) -> ExclusiveCaptureIndex {
+) -> CaptureIndex<'a> {
     let mut roots = BTreeMap::<_, BTreeSet<_>>::new();
     let mut move_only = BTreeSet::new();
     let mut borrowed_sources = BTreeMap::<_, Vec<_>>::new();
-    for capture in captures {
+    let mut by_lambda = BTreeMap::<_, Vec<_>>::new();
+    for (ordinal, capture) in captures.iter().enumerate() {
+        by_lambda.entry(capture.lambda()).or_default().push(ordinal);
         if capture.borrow_kind() != Some(LoanKind::Exclusive) {
             continue;
         }
@@ -64,7 +95,11 @@ pub(super) fn exclusive_capture_index(
                 .push(symbol);
         }
     }
-    ExclusiveCaptureIndex {
+    CaptureIndex {
+        captures,
+        by_lambda,
+        #[cfg(test)]
+        descriptor_visits: std::cell::Cell::new(0),
         roots,
         move_only,
         borrowed_sources,
@@ -368,7 +403,7 @@ impl Checker<'_> {
         state: &State,
         origins: impl IntoIterator<Item = UnitExpressionId>,
     ) -> bool {
-        let move_only = &self.exclusive_captures.move_only;
+        let move_only = &self.capture_index.move_only;
         !move_only.is_empty() && !state.closure_tree(origins).is_disjoint(move_only)
     }
 
@@ -556,7 +591,7 @@ impl Checker<'_> {
         state: &State,
         origins: impl IntoIterator<Item = UnitExpressionId>,
     ) -> bool {
-        let roots = &self.exclusive_captures.roots;
+        let roots = &self.capture_index.roots;
         !roots.is_empty()
             && state
                 .closure_tree(origins)
@@ -575,18 +610,18 @@ impl Checker<'_> {
             let origins = self.closure_origins(operand, state)?;
             if !origins.is_empty() {
                 let mut exclusive = false;
-                if !self.exclusive_captures.roots.is_empty() {
+                if !self.capture_index.roots.is_empty() {
                     let environments = state.closure_tree(origins.iter().copied());
                     exclusive = environments
                         .iter()
-                        .any(|lambda| self.exclusive_captures.roots.contains_key(lambda));
+                        .any(|lambda| self.capture_index.roots.contains_key(lambda));
                     if exclusive {
                         let operand = self.unit_expression(operand);
                         self.call_capture_sources
                             .entry((call, operand))
                             .or_default()
                             .extend(environments.iter().flat_map(|lambda| {
-                                self.exclusive_captures
+                                self.capture_index
                                     .borrowed_sources
                                     .get(lambda)
                                     .into_iter()
@@ -797,9 +832,9 @@ impl Checker<'_> {
                 continue;
             }
             let captures = self
-                .captures
-                .iter()
-                .filter(|c| c.lambda() == lambda)
+                .capture_index
+                .for_lambda(lambda)
+                .map(|(_, capture)| capture)
                 .collect::<Vec<_>>();
             if captures
                 .iter()
@@ -880,15 +915,14 @@ impl Checker<'_> {
             primary,
         )?;
         let label = if let Some(lambda) = closure {
-            self.captures
-                .iter()
-                .filter(|capture| capture.lambda() == lambda)
-                .find(|capture| {
+            self.capture_index
+                .for_lambda(lambda)
+                .find(|(_, capture)| {
                     capture.mode() == ClosureCaptureMode::Shared
                         || self.transferabilities.get(capture.ty().index()).copied()
                             != Some(Transferability::Transferable)
                 })
-                .map(|capture| capture.reference_span())
+                .map(|(_, capture)| capture.reference_span())
                 .unwrap_or(
                     self.parsed
                         .ast()
@@ -913,11 +947,9 @@ impl Checker<'_> {
     pub(super) fn captures_of(
         &self,
         lambda: ExpressionId,
-    ) -> impl Iterator<Item = crate::ownership_checking::UnitClosureCaptureDescriptor> + '_ {
-        let lambda = self.unit_expression(lambda);
-        self.captures
-            .iter()
-            .copied()
-            .filter(move |capture| capture.lambda() == lambda)
+    ) -> impl Iterator<Item = UnitClosureCaptureDescriptor> + '_ {
+        self.capture_index
+            .for_lambda(self.unit_expression(lambda))
+            .map(|(_, capture)| *capture)
     }
 }

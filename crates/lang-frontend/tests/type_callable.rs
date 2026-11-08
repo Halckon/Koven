@@ -100,50 +100,50 @@ fn standard_error_has_a_stable_abort_identity_and_nothing_result() {
     let text = "fun choose(flag: Boolean): Int = if (flag) 1 else error(\"failed\")";
     let (sources, parsed_file) = parsed(text);
     let (names, types) = standard_environments();
-    let resolution = resolve_names(&sources, &parsed_file, &names).expect("names");
-    assert!(resolution.diagnostics().is_empty());
-    let typed = check_types(&sources, &parsed_file, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.calls().len(), 1);
-    let call = &typed.calls()[0];
-    assert!(matches!(call.target(), CallableTarget::External(_)));
-    assert!(call.aborts());
-    assert_eq!(call.arguments()[0].mode(), ParameterMode::Borrow);
-    assert!(matches!(
-        typed.types().get(call.return_type()),
-        Some(TypeKind::Builtin(BuiltinType::Nothing))
-    ));
+    for typed in checked_entries(&sources, &parsed_file, &names, &types) {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let [call] = typed.calls() else {
+            panic!("one standard error call");
+        };
+        assert!(matches!(call.target(), UnitCallTarget::External(_)));
+        assert!(call.aborts());
+        assert_eq!(call.arguments()[0].mode(), ParameterMode::Borrow);
+        assert!(matches!(
+            typed.types().get(call.return_type()),
+            Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
+        ));
+    }
 
     let shadowing = "fun error(message: String): Nothing = error(message)";
     let (sources, shadowed_file) = parsed(shadowing);
-    let resolution = resolve_names(&sources, &shadowed_file, &names).expect("shadow names");
-    let typed = check_types(&sources, &shadowed_file, &resolution, &types).expect("shadow types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.calls().len(), 1);
-    assert!(matches!(
-        typed.calls()[0].target(),
-        CallableTarget::Source(_)
-    ));
-    assert!(!typed.calls()[0].aborts());
+    for typed in checked_entries(&sources, &shadowed_file, &names, &types) {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let [call] = typed.calls() else {
+            panic!("one source error call");
+        };
+        assert!(matches!(call.target(), UnitCallTarget::Declaration(_)));
+        assert!(!call.aborts());
+    }
 
     let invalid = "fun missing(): Unit { val item = error() }\n\
                    fun wrong(): Unit { val item = error(1) }";
     let (sources, invalid_file) = parsed(invalid);
-    let resolution = resolve_names(&sources, &invalid_file, &names).expect("invalid names");
-    let typed = check_types(&sources, &invalid_file, &resolution, &types).expect("invalid types");
-    assert_eq!(codes(typed.diagnostics()), ["L0121", "L0084"]);
-    assert_eq!(
-        typed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| {
-                sources
-                    .slice(diagnostic.primary_span())
-                    .expect("diagnostic span")
-            })
-            .collect::<Vec<_>>(),
-        ["error()", "1"]
-    );
+    for typed in checked_entries(&sources, &invalid_file, &names, &types) {
+        assert_eq!(codes(typed.diagnostics()), ["L0121", "L0084"]);
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| {
+                    sources
+                        .slice(diagnostic.primary_span())
+                        .expect("diagnostic span")
+                })
+                .collect::<Vec<_>>(),
+            ["error()", "1"]
+        );
+        assert!(typed.calls().is_empty());
+    }
 }
 
 #[test]
@@ -468,8 +468,10 @@ fn nullable_bottom_adapts_without_widening_other_nullable_types() {
 #[test]
 fn external_singleton_calls_preserve_predeclared_owned_and_borrow_contracts() {
     let (sources, parsed) = parsed(
-        "val consumed: Long = consumeExternal(1)\n\
-         val inspected: Long = inspectExternal(2)\n\
+        "fun use(): Unit {\n\
+             val consumed: Long = consumeExternal(1)\n\
+             val inspected: Long = inspectExternal(2)\n\
+         }\n\
          fun unreachable(): Unit { stopExternal(\"message\") }",
     );
     let (mut names, _) = environments();
@@ -529,27 +531,34 @@ fn external_singleton_calls_preserve_predeclared_owned_and_borrow_contracts() {
             },
         )
         .expect("effect-free Nothing function binding");
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty());
-    assert!(matches!(
-        typed.calls()[0].target(),
-        CallableTarget::External(target) if target == consume
-    ));
-    assert_eq!(typed.calls()[0].arguments()[0].mode(), ParameterMode::Value);
-    assert!(matches!(
-        typed.calls()[1].target(),
-        CallableTarget::External(target) if target == inspect
-    ));
-    assert_eq!(
-        typed.calls()[1].arguments()[0].mode(),
-        ParameterMode::Borrow
-    );
-    assert!(matches!(
-        typed.calls()[2].target(),
-        CallableTarget::External(target) if target == stop
-    ));
-    assert!(!typed.calls()[2].aborts());
+    for typed in checked_entries(&sources, &parsed, &names, &types) {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.calls().len(), 3);
+        assert!(matches!(
+            typed.calls()[0].target(),
+            UnitCallTarget::External(target) if target == consume
+        ));
+        assert_eq!(typed.calls()[0].arguments()[0].mode(), ParameterMode::Value);
+        assert!(matches!(
+            typed.calls()[1].target(),
+            UnitCallTarget::External(target) if target == inspect
+        ));
+        assert_eq!(
+            typed.calls()[1].arguments()[0].mode(),
+            ParameterMode::Borrow
+        );
+        let stop_call = &typed.calls()[2];
+        assert!(matches!(
+            stop_call.target(),
+            UnitCallTarget::External(target) if target == stop
+        ));
+        assert_eq!(stop_call.arguments()[0].mode(), ParameterMode::Borrow);
+        assert!(matches!(
+            typed.types().get(stop_call.return_type()),
+            Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
+        ));
+        assert!(!stop_call.aborts());
+    }
 }
 
 #[test]
