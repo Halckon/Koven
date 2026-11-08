@@ -12,7 +12,6 @@ pub(in crate::ownership_checking::compilation_unit) const SOURCES: &[&str] = &[
 pub(in crate::ownership_checking::compilation_unit) const BOUNDARIES: &[&str] = &[
     r#"fun run(flag: Boolean): String { val text = "x"; if (flag) { return text } else {}; return "y" }"#,
     r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { return } else { return } }"#,
-    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { val local = "local"; return } else {}; val forwarded = callback }"#,
     r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { return }; val forwarded = callback }"#,
     r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; while (flag) { return }; val forwarded = callback }"#,
     r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { return } else {}; callback() }"#,
@@ -308,4 +307,212 @@ fn unit_return_cleanup_does_not_authorize_continuing_source_consumption() {
         point,
     });
     assert!(!damaged.is_consistent());
+}
+
+pub(in crate::ownership_checking::compilation_unit) const LOCAL_SOURCES: &[&str] = &[
+    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { val local = "local"; return } else {}; val forwarded = callback }"#,
+    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) {} else { val local = "local"; return }; val forwarded = callback }"#,
+    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { val local = "local"; val inner = { local == "probe" }; val moved = inner; return } else {}; val forwarded = callback }"#,
+    r#"fun run(flag: Boolean): Unit { val text = "x"; val callback = { text == "x" }; if (flag) { if (flag) { val local = "local"; return } else {} } else {}; val forwarded = callback }"#,
+];
+
+#[test]
+fn retired_return_local_owners_are_unavailable_on_the_continuation() {
+    for text in LOCAL_SOURCES {
+        let fixture = Fixture::new(&[("root.ko", text)]);
+        let owned = fixture.shared();
+        assert!(owned.clone().validate().is_ok());
+        assert_eq!(owned, fixture.shared());
+        let observation = &owned.owner_observations()[0];
+        assert_eq!(
+            observation.status(),
+            UnitOwnerObservationStatus::Complete,
+            "{text}"
+        );
+        assert!(observation.is_consistent());
+        let local = literal_owner(&fixture, 0, observation, "\"local\"");
+        let outer = observation
+            .events()
+            .iter()
+            .find_map(|event| match event {
+                UnitOwnerTransportEvent::SharedCapture { inputs, .. } => inputs
+                    .iter()
+                    .find(|(symbol, _)| *symbol == fixture.symbol(0, "text"))
+                    .map(|(_, owner)| owner.clone()),
+                _ => None,
+            })
+            .unwrap();
+        assert!(matches!(
+            observation.definition(outer.clone()).unwrap().origin(),
+            UnitOwnerOrigin::String(_)
+        ));
+        let mut terminal_paths = 0;
+        let mut continuing_paths = 0;
+        for path in paths(observation.events()) {
+            let terminated = matches!(
+                path.last(),
+                Some(UnitOwnerTransportEvent::UnitReturn { .. })
+            );
+            let local_drops = path.iter().filter(|event| matches!(event, UnitOwnerTransportEvent::Drop { owner, .. } if owner == &local)).count();
+            if terminated {
+                terminal_paths += 1;
+                assert_eq!(local_drops, 1);
+                assert!(path.iter().any(|event| matches!(event, UnitOwnerTransportEvent::Binding { symbol, owner, .. } if *symbol == fixture.symbol(0, "local") && owner == &local)));
+            } else {
+                continuing_paths += 1;
+                assert_eq!(local_drops, 0);
+                assert!(!path.iter().any(|event| matches!(event,
+                    UnitOwnerTransportEvent::Result { owner, .. }
+                    | UnitOwnerTransportEvent::Binding { owner, .. }
+                    | UnitOwnerTransportEvent::Move { owner, .. } if owner == &local)));
+                assert!(path.iter().any(|event| matches!(event, UnitOwnerTransportEvent::Move { symbol, .. } if *symbol == fixture.symbol(0, "callback"))));
+            }
+            // Local closure lifetime (when present) and the retained outer lifetime
+            // must each end before their own source; no runtime drop is fabricated.
+            for event in &path {
+                let UnitOwnerTransportEvent::SharedCapture {
+                    environment,
+                    inputs,
+                    ..
+                } = event
+                else {
+                    continue;
+                };
+                let end = path.iter().position(|event| matches!(event, UnitOwnerTransportEvent::SharedCaptureEnd { environment: actual, .. } if actual == environment)).unwrap();
+                assert!(
+                    matches!(path[end + 1], UnitOwnerTransportEvent::Drop { owner, .. } if owner == environment)
+                );
+                for (_, source) in inputs {
+                    let dropped = path.iter().position(|event| matches!(event, UnitOwnerTransportEvent::Drop { owner, .. } if owner == source)).unwrap();
+                    assert!(dropped > end + 1);
+                }
+            }
+            assert_eq!(path.iter().filter(|event| matches!(event, UnitOwnerTransportEvent::Drop { owner, .. } if owner == &outer)).count(), 1);
+        }
+        assert_eq!(terminal_paths, 1);
+        assert!(continuing_paths >= 1);
+    }
+}
+
+// CI-only malformed-product cases; compiled but not run by local acceptance.
+#[test]
+fn retired_terminal_definitions_cannot_be_resurrected_after_join() {
+    let fixture = Fixture::new(&[("root.ko", LOCAL_SOURCES[0])]);
+    let owned = fixture.shared();
+    let original = &owned.owner_observations()[0];
+    let local = literal_owner(&fixture, 0, original, "\"local\"");
+    let expression = UnitExpressionId::new(fixture.source(0), fixture.expression(0, "\"local\""));
+    let symbol = fixture.symbol(0, "local");
+    let at = original
+        .events
+        .iter()
+        .position(|event| matches!(event, UnitOwnerTransportEvent::If { .. }))
+        .unwrap()
+        + 1;
+    for event in [
+        UnitOwnerTransportEvent::Result {
+            expression,
+            owner: local.clone(),
+        },
+        UnitOwnerTransportEvent::Binding {
+            symbol,
+            initializer: expression,
+            owner: local.clone(),
+        },
+        UnitOwnerTransportEvent::Move {
+            expression,
+            symbol,
+            owner: local.clone(),
+        },
+        UnitOwnerTransportEvent::Drop {
+            point: UnitDropPoint::AfterExpression(expression),
+            symbol,
+            owner: local.clone(),
+        },
+    ] {
+        let mut damaged = original.clone();
+        damaged.events.insert(at, event);
+        assert!(!damaged.is_consistent());
+    }
+    let mut missing = original.clone();
+    let UnitOwnerTransportEvent::If { then_events, .. } = &mut missing.events[at - 1] else {
+        unreachable!()
+    };
+    then_events.retain(
+        |event| !matches!(event, UnitOwnerTransportEvent::Drop { owner, .. } if owner == &local),
+    );
+    assert!(!missing.is_consistent());
+    let mut repeated = original.clone();
+    let UnitOwnerTransportEvent::If {
+        then_events,
+        else_events,
+        ..
+    } = &mut repeated.events[at - 1]
+    else {
+        unreachable!()
+    };
+    // Reuse the complete local producer/binding/drop on its sibling, while the
+    // original environment remains live there. Only created-definition isolation rejects it.
+    *else_events = then_events
+        .iter()
+        .filter(|event| {
+            matches!(event,
+        UnitOwnerTransportEvent::Result { owner, .. }
+        | UnitOwnerTransportEvent::Binding { owner, .. }
+        | UnitOwnerTransportEvent::Drop { owner, .. } if owner == &local)
+        })
+        .cloned()
+        .collect();
+    assert_eq!(else_events.len(), 3);
+    assert!(!repeated.is_consistent());
+}
+
+#[test]
+fn retired_terminal_capture_still_requires_local_retirement_and_real_definitions() {
+    let fixture = Fixture::new(&[("root.ko", LOCAL_SOURCES[2])]);
+    let owned = fixture.shared();
+    let original = &owned.owner_observations()[0];
+    let local = literal_owner(&fixture, 0, original, "\"local\"");
+    for remove_end in [false, true] {
+        let mut damaged = original.clone();
+        let UnitOwnerTransportEvent::If { then_events, .. } = damaged
+            .events
+            .iter_mut()
+            .find(|event| matches!(event, UnitOwnerTransportEvent::If { .. }))
+            .unwrap()
+        else {
+            unreachable!()
+        };
+        let environment = then_events
+            .iter()
+            .find_map(|event| match event {
+                UnitOwnerTransportEvent::SharedCapture {
+                    environment,
+                    inputs,
+                    ..
+                } if inputs.iter().any(|(_, owner)| owner == &local) => Some(environment.clone()),
+                _ => None,
+            })
+            .unwrap();
+        then_events.retain(|event| match event {
+            UnitOwnerTransportEvent::SharedCaptureEnd {
+                environment: actual,
+                ..
+            } if remove_end => actual != &environment,
+            UnitOwnerTransportEvent::Drop { owner, .. } if !remove_end => owner != &environment,
+            _ => true,
+        });
+        assert!(!damaged.is_consistent());
+    }
+    let mut orphan = original.clone();
+    let mut id = local.clone();
+    id.index = orphan.definitions.len();
+    orphan.definitions.push(UnitOwnerDefinition {
+        id,
+        origin: UnitOwnerOrigin::String(UnitExpressionId::new(
+            fixture.source(0),
+            fixture.expression(0, "\"probe\""),
+        )),
+    });
+    assert!(!orphan.is_consistent());
 }

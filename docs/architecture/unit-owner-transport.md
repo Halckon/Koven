@@ -168,6 +168,11 @@ owner。主位置 replay 与 Shared loan overlay 分别验证终止状态：无�
 部分退休、无事件后缀；只把继续臂状态交给后继，不拿终止臂的 Dropped 与继续臂求交。
 V1 投影拒绝新终止事件，默认 cleanup 与诊断不依赖观测开关。
 
-此片保守拒绝双臂终止、带返回值、return 臂新建静态 owner、循环及不支持调用；
+此片保守拒绝双臂终止、带返回值、循环及不支持调用；
 没有动态 owner phi 或循环实例能力。事件一致性校验不重新判断 AST 节点种类；实际
 bare Return 身份由 producer 接线和真实源码的精确 Unit ID / ControlTransfer point 验证。
+
+return 臂局部构造并完整退休的 owner 可保留为静态不可用身份：仅在继续臂为 Uncreated、
+终止臂已验证为 Dropped 时归一为 Dropped。继续臂 Named 等存活位置原样保留，两臂都
+未形成仍为 Uncreated，不能凭归一满足完整性。这里不发布额外 runtime Drop，不构造
+动态 phi；合流后该 token 不能 Result/Bind/Move/Drop，created 仍阻止兄弟臂重复形成。

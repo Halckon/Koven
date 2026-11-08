@@ -142,12 +142,24 @@ impl UnitOwnerObservation {
                     )?;
                     match (left_continues, right_continues) {
                         (false, false) => return None, // Both-terminal control is not admitted yet.
-                        (false, true) => {
-                            locations.copy_from_slice(&right);
-                            continue;
-                        }
-                        (true, false) => {
-                            locations.copy_from_slice(&left);
+                        (false, true) | (true, false) => {
+                            let (continuing, terminated) = if left_continues {
+                                (&left, &right)
+                            } else {
+                                (&right, &left)
+                            };
+                            for ((joined, live), dead) in
+                                locations.iter_mut().zip(continuing).zip(terminated)
+                            {
+                                // A definition created and retired only on the terminal
+                                // path is unavailable on the survivor, not a live phi.
+                                *joined =
+                                    if *live == Location::Uncreated && *dead == Location::Dropped {
+                                        Location::Dropped
+                                    } else {
+                                        *live
+                                    };
+                            }
                             continue;
                         }
                         (true, true) => {}

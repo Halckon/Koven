@@ -4052,3 +4052,28 @@ Mac、locked/offline、独立target、默认debug profile；普通定向23项通
 修复CI-only多文件fixture按索引误选观察的问题，现按source-qualified callable选择，并
 核原始consistent及foreign-source差异；最终复核闭合。损坏负控仅编译、未本地执行；
 未跑全量、native或正式CI，本片仅本地保存，不推送或创建PR。
+
+## 终止臂局部 owner 静态归一（2026-11-08）
+
+基于本地 `9f84e652`，在原隔离分支推进其明确保留的局部owner缺口。原完整边界源码
+先实跑为 InconsistentTransport；最小修复仅处理 continuation=Uncreated、已验证terminal=Dropped
+的组合，将其记为静态不可用Dropped。其余继续状态不动，两边Uncreated不变，不伪造
+运行时drop、owner或phi。终止完整清理、loan分流、created去重及双终止门禁不变。
+
+四份真实输入保留原boundary并覆盖反向臂、局部Shared环境、嵌套。逐路径确认局部owner
+只在终止路径真实绑定/析构，继续路径无其Result/Binding/Move/Drop；外层Shared来源
+仍保留至该路径环境结束。十五份源码验证完整Analysis开关等价，含旧准入/拒绝和原
+普通Return输入。CI-only负控检查合流后四类token复活、缺局部String Drop/Shared End/
+环境Drop、兄弟臂复用静态定义及两臂都未形成的孤立definition；本地仅编译未执行。
+
+| 验收项 | 目标/过滤器 | 实际结果 |
+|---|---|---|
+| 局部身份静态归一 | lib `retired_return_local_owners_are_unavailable_on_the_continuation` | 1 passed，4源码 |
+| 原终止协议和Shared邻控 | 前一切片11个普通lib过滤器（含全Analysis等价） | 11 passed |
+| 循环和消费者 | `ownership_iteration::loop_choice_unit`、`ownership_closures::capture_identity_unit` | 8 + 2 passed |
+| 原Return/borrow边 | 两个前述原Return/borrow普通过滤器 | 各1 passed |
+| 静态检查 | frontend all-targets Clippy `-D warnings`、fmt、diff、相对9f84e652尺寸、check_docs.py | 通过；2203份Rust，34份历史超长 |
+
+Mac、locked/offline、独立target、默认debug profile；普通定向24项，独立只读复核无生产漏洞。
+未改公开类型，不重复workspace检查；未跑全量/native/CI-only注入/正式CI或Tree-sitter。
+此片仍不实现动态owner phi或循环实例，仅本地保存，不接触借用线补片、不外发或合并。

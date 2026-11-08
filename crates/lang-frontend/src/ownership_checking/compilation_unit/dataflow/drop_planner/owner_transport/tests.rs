@@ -175,9 +175,9 @@ fn branch_local_shared_capture_preserves_full_cleanup_analysis() {
 #[test]
 fn unit_return_observation_keeps_full_legacy_analysis() {
     use crate::ownership_checking::compilation_unit::owner_transport_tests::shared_return::{
-        BOUNDARIES, SOURCES,
+        BOUNDARIES, LOCAL_SOURCES, SOURCES,
     };
-    for source in SOURCES.iter().chain(BOUNDARIES) {
+    for source in SOURCES.iter().chain(BOUNDARIES).chain(LOCAL_SOURCES) {
         let fixture = Fixture::new(&[("root.ko", source)]);
         let owned = fixture.shared();
         assert!(owned.clone().validate().is_ok());
