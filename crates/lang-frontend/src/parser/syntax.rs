@@ -478,6 +478,8 @@ pub struct FunctionTypeParameter {
     pub mode_marker: Option<ParameterModeMarker>,
     /// 唯一参数类型。
     pub type_ref: TypeRefId,
+    /// 在该参数类型之后消费的语法错误区。
+    pub trailing_error: Option<Span>,
 }
 
 /// 命名实参前缀的封闭源码表示。
@@ -946,4 +948,6 @@ pub struct TypePathSegment {
     pub name_span: Span,
     /// 仅末段允许的递归类型实参。
     pub arguments: Vec<TypeRefId>,
+    /// 实参中额外消费的错误区，按源码顺序保存。
+    pub argument_errors: Vec<Span>,
 }

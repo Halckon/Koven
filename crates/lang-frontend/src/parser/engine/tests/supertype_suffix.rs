@@ -14,3 +14,23 @@ fn poisoned_supertype_suffixes_keep_linear_significant_token_visits() {
     assert!(large_visits <= large_raw * 24);
     assert!(large_visits <= small_visits * 2 + 64);
 }
+
+#[test]
+fn damaged_nested_types_share_the_member_boundary_lookahead() {
+    let metrics = |count| {
+        let types = "I<".repeat(count);
+        let trivia = "/* trivia */ ".repeat(count);
+        let text = format!(
+            "class Outer {{\nclass Inner: {types}A async\nborrow {trivia}fun next(): Unit {{}}\n}}"
+        );
+        super::parse_class_family_metrics(&text, count + 1)
+    };
+    let (small_raw, small_visits, _) = metrics(32);
+    let (large_raw, large_visits, _) = metrics(64);
+    assert!(small_visits <= small_raw * 24);
+    assert!(large_visits <= large_raw * 24);
+    assert!(
+        large_visits <= small_visits * 2 + 64,
+        "{large_visits} vs {small_visits}"
+    );
+}

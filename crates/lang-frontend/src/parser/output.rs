@@ -485,6 +485,7 @@ mod tests {
                     segments: vec![TypePathSegment {
                         name_span: s(18, 21),
                         arguments: Vec::new(),
+                        argument_errors: Vec::new(),
                     }],
                     nullable_span: None,
                 },

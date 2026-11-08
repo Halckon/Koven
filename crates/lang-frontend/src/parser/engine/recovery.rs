@@ -1,5 +1,8 @@
-use super::*;
-use std::{cell::OnceCell, num::NonZeroUsize};
+use super::{class::ClassifierHeaderOwner, *};
+use std::{
+    cell::{Cell, OnceCell},
+    num::NonZeroUsize,
+};
 
 pub(super) struct LexicalRecoveryIndex {
     pub(super) source_len: usize,
@@ -12,6 +15,8 @@ pub(super) struct LexicalRecoveryIndex {
     group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
     angle_group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
     angle_terminal_hint: usize,
+    // The same declaration starter can stop several nested TypeRefs during unwinding.
+    pub(super) supertype_boundary: Cell<Option<(usize, ClassifierHeaderOwner, bool, bool)>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -328,6 +333,7 @@ impl LexicalRecoveryIndex {
             terminal_owner_events: verified_events,
             group_closers: OnceCell::new(),
             angle_group_closers: OnceCell::new(),
+            supertype_boundary: Cell::new(None),
             angle_terminal_hint: 0,
         })
     }
@@ -341,7 +347,7 @@ impl LexicalRecoveryIndex {
             .map(NonZeroUsize::get)
     }
 
-    fn angle_group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
+    pub(super) fn angle_group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
         self.angle_group_closers
             .get_or_init(|| angle_group_closers(lexed, &self.terminal_owner_events))
             .get(opener)
@@ -634,7 +640,15 @@ impl Parser<'_> {
         &mut self,
         stops: DeclarationStops,
     ) -> Result<usize, ParserInternalError> {
-        self.recover_declaration_tokens(stops, false)
+        self.recover_type_element(stops, None)
+    }
+
+    pub(super) fn recover_type_element(
+        &mut self,
+        stops: DeclarationStops,
+        proven_type_closer: Option<usize>,
+    ) -> Result<usize, ParserInternalError> {
+        self.recover_declaration_tokens(stops, false, proven_type_closer)
             .map(|(end, _)| end)
     }
 
@@ -642,13 +656,14 @@ impl Parser<'_> {
     pub(super) fn recover_declaration_string(
         &mut self,
     ) -> Result<(usize, bool), ParserInternalError> {
-        self.recover_declaration_tokens(DeclarationStops::EMPTY, true)
+        self.recover_declaration_tokens(DeclarationStops::EMPTY, true, None)
     }
 
     fn recover_declaration_tokens(
         &mut self,
         stops: DeclarationStops,
         stop_at_string_end: bool,
+        proven_type_closer: Option<usize>,
     ) -> Result<(usize, bool), ParserInternalError> {
         let mut delimiters = Vec::new();
         let mut paired_groups = Vec::new();
@@ -675,7 +690,15 @@ impl Parser<'_> {
         let mut end = recovery_start;
         let mut string_poison = false;
         let supertype_suffix = stops.has_supertype_suffix();
+        let supertype_owner = if stops.has_class_file_boundary() {
+            ClassifierHeaderOwner::File
+        } else if stops.stops_at_class_member() {
+            ClassifierHeaderOwner::Member
+        } else {
+            ClassifierHeaderOwner::Declaration
+        };
         let mut unclosed_angle = false;
+        let mut previous_kind = None;
         let mut next_significant = Some(first);
 
         'recovery: loop {
@@ -689,6 +712,7 @@ impl Parser<'_> {
             {
                 self.declaration_recovery_raw_visits += raw_index - self.index + 1;
             }
+            let previous = previous_kind.replace(current.kind());
             self.index = raw_index;
 
             while let Some(event) = {
@@ -725,7 +749,7 @@ impl Parser<'_> {
                     break 'recovery;
                 }
             }
-            if matches!(current.kind(), LexemeKind::Eof) {
+            if matches!(current.kind(), LexemeKind::Eof) || proven_type_closer == Some(raw_index) {
                 break;
             }
 
@@ -766,12 +790,18 @@ impl Parser<'_> {
                 || (supertype_suffix
                     && outside_owner
                     && !protected_suffix_group
-                    && (self.is_file_declaration_boundary(current)
-                        || (stops.has_class_file_boundary()
-                            && self.at_class_header_file_boundary(false)?)
-                        || (stops.stops_at_class_member()
-                            && (symbol == Some(Symbol::Semicolon)
-                                || self.class_member_recovery_start()?))))
+                    && stops.has_semicolon()
+                    && symbol == Some(Symbol::Semicolon))
+                || (supertype_suffix
+                    && proven_type_closer.is_none()
+                    && outside_owner
+                    && !protected_suffix_group
+                    && self.at_supertype_recovery_boundary(
+                        raw_index,
+                        current,
+                        supertype_owner,
+                        false,
+                    )?)
                 || (outside_owner
                     && delimiters.is_empty()
                     && (((!unclosed_angle || symbol != Some(Symbol::Comma))
@@ -792,13 +822,31 @@ impl Parser<'_> {
                 && !protected_suffix_group
                 && symbol == Some(Symbol::Less)
             {
-                if let Some(closer) = self.strict_trials.closed_type_list(raw_index)? {
+                if let Some(closer) = self.strict_trials.closed_type_list(raw_index)?
+                    && proven_type_closer.is_none_or(|limit| closer < limit)
+                {
                     self.index = closer + 1;
                     end = self.lexed.lexemes()[closer].span().end();
                     continue;
                 }
-                // Without a proven angle closure, an inner comma cannot create a sibling.
-                unclosed_angle = true;
+                // Direct poison before a numeric comparison is not a type-list head.
+                let damaged_comparison = stops.recovers_type_element()
+                    && previous.is_some_and(|kind| self.is_poison_kind(kind))
+                    && self.peek(1).is_some_and(|next| {
+                        matches!(
+                            next.kind(),
+                            LexemeKind::Token(
+                                TokenKind::IntegerLiteral(_) | TokenKind::FloatLiteral(_)
+                            )
+                        )
+                    });
+                if !damaged_comparison {
+                    // An unproved nested angle must not spend this argument list's closer.
+                    if stops.has_greater() {
+                        break;
+                    }
+                    unclosed_angle = true;
+                }
             }
 
             // Only proven ordinary groups can shield a caller's hard delimiter.
@@ -816,6 +864,7 @@ impl Parser<'_> {
                 && let Some(closer) = self
                     .lexical_recoveries
                     .angle_group_closer(self.lexed, raw_index)
+                && proven_type_closer.is_none_or(|limit| closer < limit)
                 && paired_groups
                     .last()
                     .is_none_or(|&(outer, _)| closer < outer)

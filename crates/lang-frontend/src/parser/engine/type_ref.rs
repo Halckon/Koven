@@ -1,4 +1,4 @@
-use super::*;
+use super::{class::ClassifierHeaderOwner, *};
 
 impl Parser<'_> {
     pub(super) fn parse_type_ref(
@@ -29,7 +29,41 @@ impl Parser<'_> {
         {
             return self.parse_function_type(stops);
         }
-        let current = self.current()?;
+        let (raw, current) = self
+            .significant(0)
+            .ok_or(ParserInternalError::InvalidLexemeStream)?;
+        if let Some(owner) = stops.supertype_owner() {
+            if stops.proven_type_closer().is_none()
+                && self.at_supertype_recovery_boundary(raw, current, owner, true)?
+            {
+                let span = self.empty_at(current.span().start())?;
+                self.emit(
+                    codes::EXPECTED_TYPE_REFERENCE,
+                    "expected type reference",
+                    span,
+                )?;
+                return self
+                    .add_type_ref(span, TypeRef::Error)
+                    .map(|id| (id, false));
+            }
+            if matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBracket | Symbol::Less))
+            ) {
+                let end = self.recover_type_element(
+                    stops.supertype_element_recovery(owner),
+                    stops.proven_type_closer(),
+                )?;
+                self.emit(
+                    codes::EXPECTED_TYPE_REFERENCE,
+                    "expected type reference",
+                    current.span(),
+                )?;
+                return self
+                    .add_type_ref(self.span(current.span().start(), end)?, TypeRef::Error)
+                    .map(|id| (id, false));
+            }
+        }
         let string_start = matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart));
         if string_start {
             let opener = current.span().start();
@@ -120,6 +154,7 @@ impl Parser<'_> {
         let mut segments = vec![TypePathSegment {
             name_span: first,
             arguments: Vec::new(),
+            argument_errors: Vec::new(),
         }];
         let mut end = first.end();
 
@@ -155,6 +190,7 @@ impl Parser<'_> {
             segments.push(TypePathSegment {
                 name_span,
                 arguments: Vec::new(),
+                argument_errors: Vec::new(),
             });
         }
 
@@ -162,13 +198,21 @@ impl Parser<'_> {
         if self.current_is_symbol(Symbol::Less) {
             let opener = self.bump()?.span();
             let mut arguments = Vec::new();
+            let mut argument_errors = Vec::new();
             let argument_stops = stops
                 .without_block_elements()
                 .without_extension_name()
                 .with(TypeStops::COMMA)
                 .with(TypeStops::GREATER);
             loop {
-                arguments.push(self.parse_type_ref(argument_stops)?);
+                let (argument, complete) = self.parse_type_ref_with_completion(argument_stops)?;
+                arguments.push(argument);
+                if let Some(owner) = argument_stops.supertype_owner()
+                    && let Some(span) =
+                        self.recover_supertype_type_element_tail(argument_stops, owner, complete)?
+                {
+                    argument_errors.push(span);
+                }
                 if self.current_is_symbol(Symbol::Comma) {
                     self.bump()?;
                     continue;
@@ -191,6 +235,7 @@ impl Parser<'_> {
             }
             if let Some(last) = segments.last_mut() {
                 last.arguments = arguments;
+                last.argument_errors = argument_errors;
             }
         }
 
@@ -209,6 +254,34 @@ impl Parser<'_> {
             },
         )
         .map(|id| (id, complete))
+    }
+
+    fn recover_supertype_type_element_tail(
+        &mut self,
+        argument_stops: TypeStops,
+        owner: ClassifierHeaderOwner,
+        complete: bool,
+    ) -> Result<Option<Span>, ParserInternalError> {
+        let current = self.current()?;
+        if self.at_type_recovery_boundary(current, argument_stops)? {
+            return Ok(None);
+        }
+        let start = current.span().start();
+        let end = self.recover_type_element(
+            argument_stops.supertype_element_recovery(owner),
+            argument_stops.proven_type_closer(),
+        )?;
+        if start == end {
+            return Ok(None);
+        }
+        if complete && !self.is_declaration_trailing_poison(current) {
+            self.emit(
+                codes::EXPECTED_TYPE_REFERENCE,
+                "expected type reference",
+                current.span(),
+            )?;
+        }
+        self.span(start, end).map(Some)
     }
 
     fn parse_function_type(
@@ -248,6 +321,17 @@ impl Parser<'_> {
                 .add_type_ref(error_span, TypeRef::Error)
                 .map(|id| (id, false));
         }
+        let proven_parameter_close = if outer_stops.supertype_owner().is_some() {
+            self.lexical_recoveries
+                .angle_group_closer(self.lexed, self.current_raw()?)
+                .filter(|&closer| {
+                    outer_stops
+                        .proven_type_closer()
+                        .is_none_or(|limit| closer < limit)
+                })
+        } else {
+            None
+        };
         let opener = self.bump()?.span();
         let start = move_span.unwrap_or(opener).start();
         let mut parameters = Vec::new();
@@ -255,15 +339,32 @@ impl Parser<'_> {
             .without_block_elements()
             .with(TypeStops::COMMA)
             .with(TypeStops::RIGHT_PAREN);
+        let parameter_stops = if let Some(closer) = proven_parameter_close {
+            parameter_stops.for_proven_function_parameters(closer)
+        } else if parameter_stops.supertype_owner().is_some() {
+            parameter_stops.with(TypeStops::ARROW)
+        } else {
+            parameter_stops
+        };
         if !self.current_is_symbol(Symbol::RightParen) {
             loop {
+                if parameter_stops.proven_type_closer().is_none()
+                    && let Some(owner) = parameter_stops.supertype_owner()
+                {
+                    let (raw, current) = self
+                        .significant(0)
+                        .ok_or(ParserInternalError::InvalidLexemeStream)?;
+                    if self.at_supertype_recovery_boundary(raw, current, owner, true)? {
+                        break;
+                    }
+                }
                 let mode_marker =
                     self.parse_parameter_mode_marker(ParameterModeContext::FunctionType)?;
                 let parameter_start = mode_marker
                     .map(parameter_mode_span)
                     .map(Span::start)
                     .unwrap_or(self.current()?.span().start());
-                let type_ref = self.parse_type_ref(parameter_stops)?;
+                let (type_ref, complete) = self.parse_type_ref_with_completion(parameter_stops)?;
                 let type_span = self.type_span(type_ref)?;
                 let marker_end = mode_marker.map(|marker| {
                     self.previous_significant_end()
@@ -274,10 +375,18 @@ impl Parser<'_> {
                 } else {
                     marker_end.unwrap_or(0).max(type_span.end())
                 };
+                let trailing_error = match parameter_stops.supertype_owner() {
+                    Some(owner) => {
+                        self.recover_supertype_type_element_tail(parameter_stops, owner, complete)?
+                    }
+                    None => None,
+                };
+                let parameter_end = trailing_error.map_or(parameter_end, Span::end);
                 parameters.push(FunctionTypeParameter {
                     span: self.span(parameter_start, parameter_end)?,
                     mode_marker,
                     type_ref,
+                    trailing_error,
                 });
                 if self.current_is_symbol(Symbol::Comma) {
                     self.bump()?;
@@ -290,7 +399,9 @@ impl Parser<'_> {
             .last()
             .map(|parameter| parameter.span.end())
             .unwrap_or(opener.end());
-        let has_right_paren = self.current_is_symbol(Symbol::RightParen);
+        let has_right_paren = self.current_is_symbol(Symbol::RightParen)
+            && (outer_stops.proven_type_closer().is_none()
+                || Some(self.current_raw()?) != outer_stops.proven_type_closer());
         if has_right_paren {
             last_end = self.bump()?.span().end();
         } else {

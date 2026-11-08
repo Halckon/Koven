@@ -97,6 +97,8 @@ lambda 的闭合符，成员解析按 classifier 分别验证 companion 唯一�
 闭合父类型后，词法错误区由父类型项单独保存。严格角列表和已配对普通组保护内部标点，
 未配对普通组不会占用后继文件或外层成员的起点。嵌套 classifier 显式携带成员 owner，
 成员分号仍交给外层。分段字符串沿用 Lexer 的终止事件。
+父类型内部的泛型实参与函数类型参数按自身 delimiter 恢复，原 TypeRef 与消费的错误区
+分别保存。已证明的函数参数 closer 约束错误扫描和跳转，显式分号保留给声明调用方。
 
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
