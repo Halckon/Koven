@@ -2372,3 +2372,53 @@ L0017。strict trial 原本已识别严格闭合的 `<...>`，仅因没有调用
 全目标 `cargo check`、格式、文档和 Rust 尺寸门禁通过。
 第一次全量测试期间，同一 target 被定向复现重建，7 个编译契约测试未找到匹配的 rlib。
 上述全量结果来自独立 target 串行重跑，编译契约测试在内。
+
+PR #368 的 head `97cc36f0`、base `f83aff80` 的[双宿主 CI](https://github.com/Halckon/Koven/actions/runs/42476250509)
+以合并快照 `9a152d95` 运行定向检查，已核对源码树等于 head。两宿主的 Check、Clippy、
+定向组合、预览构建及独立安装均通过，精确 head/base 的 Code CI Evidence 与 CI Passed
+均成功。Editor lexical contracts 按范围跳过。两宿主各通过 16 个生成资源用例，conformance
+均为 137/154，零回归、入口差异或内部错误。6 个验收程序仍未实现，P2 基础组 58/74，
+低于 70 的目标。Linux 13 个 native ASan 干净程序及检测负控通过。在精确 head 本机
+补跑真实 LLDB 断点、Mach-O 行表和 CLI 调试产物共 6 项通过。已合入 `59396543`。
+
+在该 head 的只读探针确认，完整父类型后的 `I async Junk<A, B>, J {}` 仍会把后续
+父类型与类体交给文件错误区。泛型内部的 `I<(async)?, B>` 和 `I<async by field, B>`
+会把内层 `B` 提升为外层父类型。完整类型后的未配对 `(` 还可能吞掉下一文件声明。
+早期尾随恢复候选在独立复核中暴露内层逗号和花括号归属问题，未进入此 PR。
+
+## 89. R0/R2 外部调用与 Abort 消费者
+
+两个 `type_callable` 见证从旧 Single 迁到现有的 MemoryDocument、Rooted helper。
+标准 `error` 保留外部身份、Borrow、Nothing 和 Abort，源码同名函数不继承 Abort。
+无效调用维持 L0121/L0084 及实际主范围，且不发布成功调用事实。
+自定义外部调用仍核对三个真实外部 ID。两条顶层运行时初始化移入函数体，使输入遵守
+Unit 准入。迁移前用同一合法输入核对旧 Single 与两个 Unit 入口，再移除两个测试的五处旧入口调用。
+
+独立复核发现，`stopExternal` 在 Unit 语句中只检查无 Abort 会放过错误的返回类型。
+已在同一描述符补上 Borrow 与 Nothing 断言并复核。实际分支的 `type_callable` 与
+`multifile_type_checking` 304 项通过，零失败和忽略。
+
+按 §2 的匹配口径，当前 frontend `check_types` 为 86 文件/140 行、`check_ownership`
+为 46 文件/58 行，codegen 分别为 15/18 和 14/17，旧 lowering 入口为 4/8。
+CLI/LSP 生产目录仍无旧检查器直接语法匹配。该计数包含测试或字符串，剩余匹配
+仍需按真实消费者意图区分，R0 未退出。
+
+## 90. R3 Unit 数据流的捕获查询
+
+在 `f83aff80` 上，形成 lambda、检查逃逸与跨线程诊断，以及逐循环边和活 binding
+检查共享捕获时，按 lambda 身份反复筛完整的 Unit 捕获表。复用数据流入口原有的
+独占/借用捕获索引构建，按 source-qualified lambda 身份存原描述符下标。保持每个
+lambda 的捕获顺序，以及循环首个 L0164 按全表发布顺序选取的主 Span。
+
+双源文件各有重复的局部 AST identity。对 32、64 个 lambda（每个两个捕获），既有
+线性筛选分别访问 2048、8192 个描述符，索引查找分别访问 64、128 个，结果及原始
+下标逐项相同。该计数仅衡量捕获查询读取，不含索引构建、类型检查或整体编译时间。
+循环正反例核对具体 primary text。数据流单测 40 项、ownership iteration / closure /
+multifile suites 428 项通过，零失败和忽略。
+
+独立复核比较 99,520 个候选顺序、筛选资格与 current/prior 集合组合，首命中与原全表
+遍历一致。已覆盖无捕获短路，仍沿用既有的边与 holder 顺序。稀疏捕获下仍有差集遍历
+成本，callable provenance 的捕获存在性和跨线程 closure 描述符查找是另两处待核热点。
+
+基于 `f83aff80` 的下一批两项合并候选 `4479ce15` 通过 frontend 全量 183 组、2781 项，
+零失败和忽略；全目标 Clippy、格式、文档及 Rust 尺寸门禁通过。
