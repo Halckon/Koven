@@ -4603,3 +4603,19 @@ producer。已撤销该测试的迁移，原Single源码和全部oracle逐字保
 Mac AArch64、Rust1.96、默认debug，独占复用target且Cargo串行。117项不同普通测试通过；
 没有执行历史Abort/长枚举压力、故障注入、frontend全量、native或Linux。当前头正式CI
 仍待运行，不沿用原候选绿灯；不自动合并，D10/E2仍in-progress。
+
+### Signature 复用批同步 #371 后主线（2026-11-08）
+
+#371 合入后，main 为 `d2a8195468c172957eb789f347b6af82831ecd44`；本批在
+`b3d90ac2` 合入该基底。唯一冲突是名称类型概览第17行：保留main的lambda模式、
+泛型实例与Single封存哨兵/§98链接，再接回Rc、signature和deep graph消费者事实。
+nullable bottom更新保持main正文，概览仍200行。独立复核确认其余9个main文件
+逐字保全，原类型测试和见证未变，不将旧基底CI当作新组合验收。
+
+新组合实际重跑 `type_checking` 93项、`multifile_type_signatures` 24项与
+`type_callable` 20项，共137项普通测试通过。两个长枚举/deep-smart-cast历史压力
+整项及标准error的Abort身份整项只编译，未执行。frontend all-targets Clippy
+（locked/offline，`-W clippy::all -D warnings`）、workspace all-targets check、fmt、
+文档和diff通过；相对d2a81954尺寸门禁为2222 Rust、35项既有超长，额度不变。
+Mac/Rust1.96/LLVM21.1.8、默认debug、jobs=2，共享target串行；未运行损坏注入、
+frontend全量、native或Linux。文档后继不冒称再次运行测试，最终新头正式CI待验证。
