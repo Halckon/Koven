@@ -18,7 +18,7 @@ use super::{Builder, Lowered};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind, SsaTypeKind},
-    refine::body::{ROp, RTerm, Slot},
+    refine::body::{BlockRef, ROp, RTerm, Slot},
 };
 
 type BorrowCallOperand = (Slot, Vec<Slot>, Option<ExpressionId>);
@@ -315,7 +315,8 @@ impl Builder<'_, '_> {
         {
             return Err(error(LoweringErrorKind::UnsupportedNode, call_span));
         }
-        if self.inputs.owned.field_replacements().is_empty()
+        if self.inputs.borrow_return.is_none()
+            && self.inputs.owned.field_replacements().is_empty()
             && self.inputs.typed.ownership_primitives().is_empty()
         {
             crate::ssa::borrow_result_support::binding(
@@ -338,11 +339,15 @@ impl Builder<'_, '_> {
             .get(site.key())
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let target = self.ssa_type(self.expression_type(actual)?, span)?;
+        let argument_entry = self.current(call_span)?;
         let Some((lowered_args, mut arg_loans, created_loans, view_reads)) =
             self.lower_source_call_arguments(id, &arguments, &descriptor, call_span)?
         else {
             return Ok(None);
         };
+        if self.inputs.borrow_return.is_some() {
+            self.require_straight_line_result_arguments(argument_entry, call_span)?;
+        }
         let source_loan = *lowered_args
             .get(index)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
@@ -372,6 +377,30 @@ impl Builder<'_, '_> {
         }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Some((result, continued)))
+    }
+
+    // Ordinary forwarding cannot return its source loan across an argument branch yet.
+    // Gotos on the single execution path can be coalesced by the emitter.
+    fn require_straight_line_result_arguments(
+        &self,
+        mut block: BlockRef,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let exit = self.current(span)?;
+        for _ in 0..self.body.blocks.len() {
+            if block == exit {
+                return Ok(());
+            }
+            let (terminator, split_span) = self.body.blocks[block.0]
+                .terminator
+                .as_ref()
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+            let RTerm::Goto(next) = terminator else {
+                return Err(error(LoweringErrorKind::UnsupportedNode, *split_span));
+            };
+            block = *next;
+        }
+        Err(error(LoweringErrorKind::InvalidModel, span))
     }
 
     fn lower_map_require_result(
